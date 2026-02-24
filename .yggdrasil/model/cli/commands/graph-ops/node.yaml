@@ -14,15 +14,19 @@ relations:
     consumes: [detectDrift]
   - target: cli/core/dependency-resolver
     type: uses
-    consumes: [resolveDeps, formatDependencyTree, findChangedNodes]
+    consumes: [formatDependencyTree]
   - target: cli/core/context
     type: uses
     consumes: [buildContext]
   - target: cli/utils
     type: uses
     consumes: [normalizeMappingPaths, normalizeProjectRelativePath]
+  - target: cli/model
+    type: uses
+    consumes: [Graph, GraphNode, OwnerResult]
 
-knowledge: []
+knowledge:
+  - patterns/command-error-handling
 
 mapping:
   paths:

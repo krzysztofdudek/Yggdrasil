@@ -2,7 +2,10 @@ name: Utils
 type: library
 tags: []
 
-relations: []
+relations:
+  - target: cli/model
+    type: uses
+    consumes: [NodeMapping]
 
 knowledge: []
 

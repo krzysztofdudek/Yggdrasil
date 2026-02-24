@@ -2,18 +2,30 @@
 
 Type library — exports TypeScript interfaces and types only. No runtime functions. Used by cli/core, cli/io, cli/commands, cli/formatters.
 
-**Key types:**
+**Config:** YggConfig, ArtifactConfig, QualityConfig, KnowledgeCategory
 
-- `YggConfig`, `ArtifactConfig`, `QualityConfig`, `KnowledgeCategory`
-- `Graph`, `GraphNode`, `NodeMeta`, `Relation`, `RelationType`, `NodeMapping`
-- `AspectDef`, `FlowDef`, `KnowledgeItem`
-- `ContextPackage`, `ContextLayer`, `ContextSection`, `ContextSectionKey`
-- `ValidationResult`, `ValidationIssue`, `IssueSeverity`
-- `DriftReport`, `DriftEntry`, `DriftStatus`, `DriftState`, `DriftNodeState`
-- `JournalEntry`
-- `Stage` (for resolveDeps)
-- `OwnerResult`
+**Node:** Graph, GraphNode, NodeMeta, Relation, RelationType, NodeMapping, Artifact
 
-RelationType: 'uses' | 'calls' | 'extends' | 'implements' | 'emits' | 'listens'.
+**Graph elements:** AspectDef, FlowDef, KnowledgeItem, SchemaDef
 
-NodeMapping: { type: 'file'|'directory'|'files', path?: string, paths?: string[] }.
+**SchemaDef:** `{ schemaType: string }` — inferred from filename stem (node, aspect, flow, knowledge). Populated by loadSchemas from .yggdrasil/templates/.
+
+**Context:** ContextPackage, ContextLayer, ContextSection, ContextSectionKey
+
+**Dependency resolution:** Stage
+
+**Validation:** ValidationResult, ValidationIssue, IssueSeverity
+
+**Drift:** DriftReport, DriftEntry, DriftStatus, DriftState, DriftNodeState
+
+**Journal:** JournalEntry
+
+**Owner:** OwnerResult
+
+**RelationType:** `'uses' | 'calls' | 'extends' | 'implements' | 'emits' | 'listens'`
+
+**NodeMapping:** `{ paths: string[] }` — list of paths (files or directories); type is auto-detected at runtime.
+
+**Relation:** target, type, optional consumes, failure, event_name
+
+**Graph:** config, nodes (Map), aspects, flows, knowledge, schemas, rootPath, optional configError, nodeParseErrors

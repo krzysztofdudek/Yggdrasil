@@ -1,4 +1,4 @@
-# Core Rationale
+# Core Decisions
 
 **Reference:** docs/idea/engine.md (Context assembly, validation, drift, dependencies)
 

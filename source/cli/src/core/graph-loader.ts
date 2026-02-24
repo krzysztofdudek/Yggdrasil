@@ -6,7 +6,7 @@ import type {
   AspectDef,
   FlowDef,
   KnowledgeItem,
-  TemplateDef,
+  SchemaDef,
   YggConfig,
 } from '../model/types.js';
 import { parseConfig } from '../io/config-parser.js';
@@ -14,7 +14,7 @@ import { parseNodeYaml } from '../io/node-parser.js';
 import { parseAspect } from '../io/aspect-parser.js';
 import { parseFlow } from '../io/flow-parser.js';
 import { parseKnowledge } from '../io/knowledge-parser.js';
-import { parseTemplate } from '../io/template-parser.js';
+import { parseSchema } from '../io/template-parser.js';
 import { readArtifacts } from '../io/artifact-reader.js';
 import { findYggRoot } from '../utils/paths.js';
 
@@ -69,7 +69,7 @@ export async function loadGraph(
     path.join(yggRoot, 'knowledge'),
     config.knowledge_categories,
   );
-  const templates = await loadTemplates(path.join(yggRoot, 'templates'));
+  const schemas = await loadSchemas(path.join(yggRoot, 'templates'));
 
   return {
     config,
@@ -79,7 +79,7 @@ export async function loadGraph(
     aspects,
     flows,
     knowledge,
-    templates,
+    schemas,
     rootPath: yggRoot,
   };
 }
@@ -220,17 +220,17 @@ async function loadKnowledge(
   return items;
 }
 
-async function loadTemplates(templatesDir: string): Promise<TemplateDef[]> {
+async function loadSchemas(templatesDir: string): Promise<SchemaDef[]> {
   try {
     const entries = await readdir(templatesDir, { withFileTypes: true });
-    const templates: TemplateDef[] = [];
+    const schemas: SchemaDef[] = [];
     for (const entry of entries) {
       if (!entry.isFile()) continue;
       if (!entry.name.endsWith('.yaml') && !entry.name.endsWith('.yml')) continue;
-      const t = await parseTemplate(path.join(templatesDir, entry.name));
-      templates.push(t);
+      const s = await parseSchema(path.join(templatesDir, entry.name));
+      schemas.push(s);
     }
-    return templates;
+    return schemas;
   } catch {
     return [];
   }

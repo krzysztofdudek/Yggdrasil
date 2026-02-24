@@ -5,12 +5,14 @@ tags: [deterministic]
 relations:
   - target: cli/model
     type: uses
-    consumes: [Graph, GraphNode, ContextPackage, YggConfig, AspectDef, KnowledgeItem, FlowDef, Relation]
+    consumes: [Graph, GraphNode, ContextPackage, ContextLayer, ContextSection, YggConfig, AspectDef, KnowledgeItem, FlowDef, Relation]
   - target: cli/utils
     type: uses
     consumes: [normalizeMappingPaths, estimateTokens]
 
-knowledge: []
+knowledge:
+  - decisions/002-structural-context
+  - invariants/001-context-package-sufficient
 
 mapping:
   paths:

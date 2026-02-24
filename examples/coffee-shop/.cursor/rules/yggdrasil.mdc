@@ -84,7 +84,7 @@ When adding features or changing architecture, update the graph FIRST.
 1. **Check Blast Radius:** Before modifying a node that others depend on, run `yg impact --node <node_path> --simulate`. Report the impact to the user.
 2. **Read Config & Templates:**
     *   Check `.yggdrasil/config.yaml` for allowed `node_types` and `tags`.
-    *   **CRITICAL:** ALWAYS read the required schema files in `.yggdrasil/templates/` (e.g., `node.yaml`, `service.yaml`) to know the exact fields and structure before creating or editing any graph file.
+    *   **CRITICAL:** ALWAYS read the schema in `.yggdrasil/templates/` for the element type (node.yaml, aspect.yaml, flow.yaml, knowledge.yaml) before creating or editing it.
 3. **Validate & Fix:** Run `yg validate`. You must fix all E-codes (Errors).
 4. **Token Economy & W-codes (Warnings):**
     *   If you see `W005 budget-warning` or `W006 budget-error`, the context package is too large. You MUST consider splitting the node or reducing dependencies.
@@ -111,9 +111,7 @@ To avoid broken references (`E004`, `E005`), use correct relative paths:
 The graph lives entirely under `.yggdrasil/`. You NEVER guess structure. You MUST ALWAYS read the corresponding schema reference in `.yggdrasil/templates/` before creating or editing any graph file.
 
 *   **`.yggdrasil/config.yaml`**: The ONLY config file. Defines `node_types`, `tags`, `artifacts`, `knowledge_categories`, and quality thresholds. Read this before any graph work.
-*   **`.yggdrasil/templates/`**: The SINGLE place for all templates and schemas.
-    *   Contains node-type templates (e.g., `service.yaml`, `module.yaml`) with suggested artifacts and guidance.
-    *   Contains schema references (`node.yaml`, `aspect.yaml`, `flow.yaml`, `knowledge.yaml`) showing exact file structures.
+*   **`.yggdrasil/templates/`**: Schemas for each graph layer — `node.yaml`, `aspect.yaml`, `flow.yaml`, `knowledge.yaml`. Read the schema for the element type before creating or editing it.
 *   **`.yggdrasil/model/`**: Node tree. Each node is a directory with `node.yaml` and artifact files (filenames from `config.artifacts`; required ones depend on config).
 *   **`.yggdrasil/aspects/`**: Cross-cutting rules. Directory contains `aspect.yaml` (binds via `tag: <name>`) and `.md` content.
 *   **`.yggdrasil/flows/`**: End-to-end processes. Directory contains `flow.yaml` (lists `nodes: [paths]` and `knowledge: [paths]`) and `.md` content.

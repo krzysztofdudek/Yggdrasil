@@ -8,12 +8,13 @@ relations:
     consumes: [readDriftState, writeDriftState, getCanonicalHash, getFileHashes]
   - target: cli/model
     type: uses
-    consumes: [Graph, DriftReport, DriftEntry, DriftStatus]
+    consumes: [Graph, DriftReport, DriftEntry, DriftStatus, DriftNodeState]
   - target: cli/utils
     type: uses
     consumes: [normalizeMappingPaths, hashForMapping, perFileHashes]
 
-knowledge: []
+knowledge:
+  - invariants/002-graph-intended-truth
 
 mapping:
   paths:

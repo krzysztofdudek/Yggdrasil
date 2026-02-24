@@ -18,29 +18,33 @@ cli/formatters:
     source/cli/src/formatters/.gitkeep: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
     source/cli/src/formatters/markdown.ts: eee5241b18a95bb7a6aae4ed656d0fc43186c15b38fd888278a470e7dbff4c55
 cli/io:
-  hash: 85cf943a08229b51e2d96c9a63079c1e2ad7941b74dc03f57014b182f76ba247
+  hash: f8d1ccd7465229693aee4b2fea3ca458e8a06cb2538f9cb04e3175042889b501
   files:
     source/cli/src/io/.gitkeep: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
     source/cli/src/io/artifact-reader.ts: d3900da1c2523cd1dfd3307b4a8f7a6ffd186a9e969525e7f41386396fa0239a
     source/cli/src/io/aspect-parser.ts: be8892516e70782f259c8a8fda997fb4929ef8f89b8e0109337a11f0a2a50e58
-    source/cli/src/io/config-parser.ts: bcaab092e24956a388256bad0398f833875fd8b72f8521ce80ee1f4f65e4c0c1
+    source/cli/src/io/config-parser.ts: e1ec63b4823b21dfb740f64863a87f7fa5cff87635b9e6dfd8657330ee37724a
     source/cli/src/io/drift-state-store.ts: 34492bb2db383e194c7b29a68c97572bbbc8ff1a7f80312e178d26062b7f3785
     source/cli/src/io/flow-parser.ts: 1a3c7f5b6d324e7956e254b4df0e34501476d96964f71c0557cd9230d9a6fd75
     source/cli/src/io/journal-store.ts: 3ca9370da9d8ecb6ca2907f95bc322d8a3ad10ea69e66819936fc114f8e9d41f
     source/cli/src/io/knowledge-parser.ts: 9559faf9e188b1010aaba7705c8a0f38b0b79fe661db16635617f43b803e1c43
     source/cli/src/io/node-parser.ts: 0b192d68c6b58521a690e74b42291d3c505d0ffd88f6416d88caba07926634f4
-    source/cli/src/io/template-parser.ts: 73c19ba4fb46b37ef1d1e713a122e595f1a9d9da6fa0777063472a61da796062
+    source/cli/src/io/template-parser.ts: 368e5897845e6ada6fbe58b4289c9363b3c77970d2be234117431d66cade2d6f
 cli/model:
-  hash: 8b8edd2b2e9c14e50ffbe002ed8e41f6166f6e3c969e72cd1a9dc9ae7d2ff476
+  hash: b400a421186cb260e4082174479630516d94f0ebc966b6008f0c389c22172be5
   files:
     source/cli/src/model/.gitkeep: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
-    source/cli/src/model/types.ts: b9524aa4d8c84b2a580361196fe8d5cc4660543c67f0b7d9ce6fa6eaa0c862d6
+    source/cli/src/model/types.ts: 1ecbc18584322ce08461843531a6cb31e4fbd5edaee7d67ac5ba8e4ca6b9ed54
 cli/templates:
-  hash: 002450e283725f48aa5fe689833b78afe1a22b4fd8fd6eede1f15dec23a63179
+  hash: 815c7b7b31d943df17db1f8e3537683efdcb245047d082ec8fa91719b60e9337
   files:
-    source/cli/src/templates/default-config.ts: e39f1bef1fd9fef5c91443fe815004ce15bab3a39d32294aa875b21215f18899
+    source/cli/src/templates/default-config.ts: ac0e09f3fdfed0497736994fbdfbc658e663cd941369af64ced652ad6df5b696
     source/cli/src/templates/platform.ts: c92d31c3944cc6134759c877ad0b06fa1ca38f1294649af7ca39ab74460105e1
-    source/cli/src/templates/rules.ts: 7e2d47fa746a66946c22c378eab215b13418d3627023601359e323e6f0905502
+    source/cli/src/templates/rules.ts: fdc834dd8bd1a0ed51b53afbeca324b0977fe8c065caf3ae835355a0e6be7e80
+    source/cli/graph-templates/aspect.yaml: a595d119cbf3a9eab98c30d63327996bf80be4174ea63c34cddf751a7fb34e6a
+    source/cli/graph-templates/flow.yaml: e1446af5aed0b41d6e05c239d530d6cc7db0bdf7baa5b833b95f26f1ffee2b57
+    source/cli/graph-templates/knowledge.yaml: 992363df52b554de1a5d649e16d902821c31c89ea6ba3c896dd34e5eb21b70d6
+    source/cli/graph-templates/node.yaml: 229b438800534589c54be1701b17caeac62cd45ae5c9893f8413c2277a35b503
 cli/utils:
   hash: a7062b35a35f0f637b31eabd927e11a15862bfcbb8254c4fc65c031a2e14f0c2
   files:
@@ -50,9 +54,9 @@ cli/utils:
     source/cli/src/utils/paths.ts: 17a54a0b546a2ce9740c5164745fbe693e7c0c2f970b00af8b9ef26bd93ed779
     source/cli/src/utils/tokens.ts: 7112d6af24d084b1c9ca3db525de802bc1a57c44445813de21f075cc8be0081f
 cli/commands/init:
-  hash: ee2e86007240a514dbe5509b3252d7d87843ab154316ab938e05116b03567482
+  hash: ff5ed82fd507a32ca08d5773bcce6f722df3a349b8b8828261fe5120c355300e
   files:
-    source/cli/src/cli/init.ts: ae9d286a921582eeb3c270eb52bd09c870f20361c9812b70de03d400218faf5d
+    source/cli/src/cli/init.ts: e56f715a0c99c6303e0b49ed66260cf8e30450ac411b1151f3d21ec6ecfb7cc8
 cli/commands/validation:
   hash: 6c729e994a24a87e58c01d12a921fc63e45e25888bb46d9857122750bdb02811
   files:
@@ -70,26 +74,26 @@ cli/commands/journal:
     source/cli/src/cli/journal-read.ts: fc864082c5cdea63c79e5eb8460236d0c2543f9de7eac1b6693fc4f7cca09dc5
     source/cli/src/cli/journal-archive.ts: 7f82b08311355bdd2b34493af0a7c1e347eb3231b26c691d54b39754dbea7663
 cli/commands/graph-ops:
-  hash: 92f5782b113470cf0c1deb587947409fbde04f773d96d7a266670137d77bc2ea
+  hash: 361ff6bb75ad76598a8b46bad030d3e75e4f537ae08c72c8b3eeecc29daf7d8f
   files:
     source/cli/src/cli/tree.ts: bb8ec2d36f70ab30b9673f576ccd17ff74fa0e5d2e4094a5e456d13cddaea580
     source/cli/src/cli/owner.ts: 33baba8da8e2ea4bffd8e524107d44811408c1e4fb67c784ac28fa426b8d2f56
     source/cli/src/cli/deps.ts: 3c8fdba935c13c6490205ea3d04d9e0ed3764abeb80eb10bb8fdd29701b7d3a9
-    source/cli/src/cli/impact.ts: c0b0c29c6f168562ef7de645ca28c67e4f5eb53e1977fe49c89313d2fc63f2b0
+    source/cli/src/cli/impact.ts: 4476816c92dc29fc4ed9e2de833a230dba6a21e7582f0f363ace44d53c4b470c
     source/cli/src/cli/status.ts: fc5a949fc805edf684bdd75ae6c4364df16db73a6fa28ff6c98ad9aa90ecab45
 cli/core/loader:
-  hash: e524c5b307932da50b717d03842b5b3a2e71d58caeee56d6a372bb9b19bdf53e
+  hash: a2844002348cb4ac5a7b842c9dd0e30a970807c13a51286043feedc6aaba7dac
   files:
-    source/cli/src/core/graph-loader.ts: 89962a24d897e268ddf592fc170a62ee6010aad475f49e5fa54355bcd2f2c228
+    source/cli/src/core/graph-loader.ts: 5fc15614d240bfe651681af610c4ae45c64071725c76cf2cf27aadeb840ac6a7
     source/cli/src/core/graph-from-git.ts: d3a9faad4509eba0417651ba01095e2440e0771a34be67522c77c19e03f97809
 cli/core/context:
   hash: fbb2da88ccdeffc1ed4526bbb91340566b920c40f6da7f270509a50cc6fc942b
   files:
     source/cli/src/core/context-builder.ts: e19b821cec16e9a2bd985f0635f68c7b1126cf215c0177c1e7f538633ad362e2
 cli/core/validator:
-  hash: a678619ae8f751af1b6eff2860fe06a740b672dfa5b3d0a53501736311fb8809
+  hash: 1338aad8fc6b70977caf08ac05aa4065a1887b4719a15be1977f1e00f5242cd4
   files:
-    source/cli/src/core/validator.ts: 91215c166fc4a3678b6552491881e5f15401a57af07d61e97c3ae099c3467ee2
+    source/cli/src/core/validator.ts: 563b68db5ce68a3b123cdcf334ab5a980915ba986cc83401ab294695577eb38c
 cli/core/drift-detector:
   hash: ce4c079f3512168d4935dc8a37e52c341bb1029e42759cf9eed303949a194604
   files:

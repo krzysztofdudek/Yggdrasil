@@ -1,4 +1,4 @@
-# Entry Rationale
+# Entry Decisions
 
 **Reference:** docs/idea/tools.md (Operations, naming convention)
 

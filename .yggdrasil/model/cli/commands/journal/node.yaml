@@ -10,7 +10,8 @@ relations:
     type: uses
     consumes: [findYggRoot]
 
-knowledge: []
+knowledge:
+  - patterns/command-error-handling
 
 mapping:
   paths:

@@ -1,6 +1,6 @@
 name: Templates
 type: library
-tags: []
+tags: [deterministic]
 
 relations: []
 
@@ -9,3 +9,4 @@ knowledge: []
 mapping:
   paths:
     - source/cli/src/templates/
+    - source/cli/graph-templates/

@@ -149,9 +149,9 @@ describe('graph-loader', () => {
     }
   });
 
-  it('loads empty templates when templates dir does not exist', async () => {
+  it('loads empty schemas when templates dir does not exist', async () => {
     const graph = await loadGraph(FIXTURE_PROJECT);
-    expect(Array.isArray(graph.templates)).toBe(true);
+    expect(Array.isArray(graph.schemas)).toBe(true);
   });
 
   it('skips subdirectories without node.yaml (hasNodeYaml false)', async () => {
@@ -221,7 +221,7 @@ describe('graph-loader', () => {
       expect(graph.aspects).toEqual([]);
       expect(graph.flows).toEqual([]);
       expect(graph.knowledge).toEqual([]);
-      expect(graph.templates).toEqual([]);
+      expect(graph.schemas).toEqual([]);
       expect(graph.nodes.size).toBeGreaterThan(0);
     } finally {
       await rm(tmpDir, { recursive: true, force: true });

@@ -96,6 +96,17 @@ regardless of its nature.
 
 ---
 
+## Atomic Invariant (Overrides Everything)
+
+**CODE ↔ GRAPH ARE ONE.**
+
+- Code changed → graph artifacts MUST be updated in the same response. No exceptions.
+- Graph changed → source files MUST be verified or updated in the same response. No exceptions.
+- There is no "code-only" response. There is no "graph-only" response (unless explicitly a dry-run plan).
+- Completing a response with one side changed but the other not updated violates the core contract of Yggdrasil.
+
+---
+
 ## Five Invariants
 
 These are the non-negotiable properties of the system. Everything else — tools, workflow,
@@ -219,6 +230,18 @@ the repository — it writes both the graph and outputs. The human steers throug
 the graph, and tools give it feedback on quality and consistency of what it wrote. This model
 is analogous to a compiler — the programmer writes code, the compiler checks correctness
 and reports errors.
+
+### Failure States
+
+The agent has fundamentally broken Yggdrasil if it does any of the following:
+
+- Modified source code without updating graph artifacts in the same response.
+- Modified graph files without verifying or updating source code alignment in the same response.
+- Resolved a code↔graph inconsistency without asking the user first.
+- Created or edited a graph element without reading its schema in `.yggdrasil/templates/`.
+- Ran `yg drift-sync` before updating graph artifacts.
+- Ran `yg drift-sync` after a graph-only change without verifying source files.
+- Used blackbox coverage for greenfield or new code.
 
 ---
 

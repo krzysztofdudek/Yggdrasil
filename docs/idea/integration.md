@@ -83,7 +83,7 @@ format and conventions (described in detail in the Learning mechanisms section b
 
 1. The rules file tells it **when** to act
 2. The configuration (`config.yaml`) tells it **what** is allowed
-3. The templates (`templates/`) show **how** files look — node-type templates with `suggested_artifacts` and `guidance`
+3. The templates (`templates/`) show **how** files look — schemas for each graph layer (node, aspect, flow, knowledge)
 4. The existing graph shows **how** it looks in this project
 5. Tool validation tells it **what** is wrong
 
@@ -114,7 +114,7 @@ prior knowledge of conventions.
 | Aspect directories in `aspects/` + `aspect.yaml`                    | Agent                     |
 | Flow directories in `flows/` + `flow.yaml`                          | Agent                     |
 | Knowledge directories in `knowledge/<category>/` + `knowledge.yaml` | Agent                     |
-| Templates in `templates/`                                           | Agent or human            |
+| Schemas in `templates/` (node, aspect, flow, knowledge)             | Initialization (copied)  |
 | Platform rules file                                                 | Initialization (one time) |
 
 Tools create infrastructure (initialization). The agent creates content (everything after init).
@@ -128,9 +128,9 @@ It learns through five mechanisms:
 
 ### 1) Rules file → WHEN
 
-A small set of behavioral directives (delivered through the platform integration mechanism —
+A set of behavioral directives (delivered through the platform integration mechanism —
 a rules file in Cursor, `CLAUDE.md` in Claude Code, instructions in Copilot) teaches the agent
-**when** to use the graph:
+**when** to use the graph. The canonical content is in `source/cli/src/templates/rules.ts`.
 
 ```text
 This repository uses Yggdrasil. The graph is in .yggdrasil/
@@ -141,6 +141,8 @@ This repository uses Yggdrasil. The graph is in .yggdrasil/
 - Check potentially stale knowledge (staleness)
 - Report status: what needs attention before you start
 
+*Exception:* Read-only requests (e.g. "explain this") run only step 1.
+
 === CREATIVE WORK ===
 
 BEFORE MODIFYING A FILE:
@@ -148,9 +150,11 @@ BEFORE MODIFYING A FILE:
 - Load the node context package (context assembly)
 - Use context to understand intent, constraints, interfaces
 
-WHEN YOU SEE A FILE WITHOUT GRAPH COVERAGE:
-- Ask the user if they want to create a node
-- If yes, create node.yaml + artifacts following existing patterns
+WHEN OWNER NOT FOUND (file without graph coverage):
+- STOP. Determine: greenfield, partially mapped, or existing code?
+- Greenfield: create proper nodes from the start; blackbox forbidden.
+- Partially mapped (file inside mapped module): ask user — add to existing node or new node?
+- Existing code: present three options (Reverse engineering, Blackbox, Abort); wait for user.
 
 AFTER SEMANTIC DECISIONS:
 - Persist the decision: update the graph or write a note in the session journal
@@ -163,12 +167,15 @@ BEFORE A CHANGE THAT AFFECTS MANY NODES:
 - Consolidate pending journal notes into the graph
 - Detect drift — files may have been manually changed during the session
 - Verify graph consistency — fix any errors
-- Report impact of changes made in this session
+- Report exactly what nodes and files were changed
 ```
 
-This is a dozen lines that create a “graph instinct” in the agent.
-The directives say **when** to act, not how graph files are structured.
-They are minimal by design — a few paragraphs that fit into any agent’s configuration.
+**Execution checklists** (agent must output and execute before finishing):
+
+- **Code-first:** Read spec → Modify code → Sync graph artifacts → Baseline hash (`yg drift-sync`).
+- **Graph-first:** Read schema → Edit graph → Verify source files → Validate → Baseline hash.
+
+The directives say **when** to act, not how graph files are structured. Schema and format come from config, templates, and validation feedback.
 
 ### 2) Configuration → WHAT is allowed
 
@@ -187,9 +194,9 @@ know what is allowed.
 
 ### 3) Templates → HOW files look
 
-Templates in `.yggdrasil/templates/` define the expected shape of nodes by type. Each template
-provides `suggested_artifacts` and `guidance` — structural hints for scaffolding. The agent
-reads the template for the intended node type before creating a node.
+Schemas in `.yggdrasil/templates/` define the structure of each graph layer: `node.yaml` for
+nodes, `aspect.yaml` for aspects, `flow.yaml` for flows, `knowledge.yaml` for knowledge elements.
+The agent reads the schema for the element type it is creating or editing.
 
 ### 4) Existing graph → HOW it looks in this project
 
@@ -219,9 +226,8 @@ configuration into guidance at the moment the agent needs it.
 ### The bootstrapping problem
 
 In a new repository there is no existing graph for the agent to learn from. The agent relies on
-mechanisms (1) directives, (2) configuration, (3) templates, and (5) validation feedback. Tools provide
-scaffolding with clear hints for each artifact, informed by graph templates for the node type being
-created. The agent fills in content, tools validate, the agent fixes.
+mechanisms (1) directives, (2) configuration, (3) schemas in templates/, and (5) validation feedback.
+The agent fills in content, tools validate, the agent fixes.
 
 The first few nodes are the hardest — no examples and limited feedback. Quality improves quickly as
 the graph grows and the self-calibrating granularity loop kicks in.
@@ -290,9 +296,12 @@ acting.
 
 Each conversation is work. The agent does not wait for explicit session open/close:
 
-- **Start of every conversation:** Preflight — `yg journal-read`, `yg drift`, `yg status`.
-  If drift is detected, present states and ask: absorb or reject?
-- **User signals closing the topic** (e.g. "end", "wrap up", "to tyle"): Consolidate journal (if used), archive, drift, validate, report.
+- **Start of every conversation:** Preflight — (1) `yg journal-read` (consolidate, archive if entries exist),
+  (2) `yg drift` (present states `ok`/`drift`/`missing`/`unmaterialized`, ask absorb or reject),
+  (3) `yg status` (report health), (4) `yg validate` (if W008, update knowledge artifacts).
+  *Exception:* Read-only requests run only step 1.
+- **User signals closing the topic** (e.g. "end", "wrap up", "that's enough", "done"): Consolidate journal (if used),
+  archive, drift, validate, report exactly what nodes and files were changed.
 
 If the conversation is interrupted before wrap-up, journal notes (if any) survive on disk and are
 processed during the next conversation's preflight. The system is interruption-resilient.
@@ -300,7 +309,7 @@ processed during the next conversation's preflight. The system is interruption-r
 ### The journal as an intent trace
 
 The journal preserves the original context of decisions — a literal record of intent from the
-conversation. Git says _who_ changed _which file_. The journal says _why_ — which conversational
+conversation. Git says *who* changed *which file*. The journal says *why* — which conversational
 decision led to a change in semantic memory.
 
 Journal mechanics — file format, entry model, reconciliation algorithm — are described in the Engine

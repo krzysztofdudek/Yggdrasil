@@ -101,7 +101,7 @@ export function registerInitCommand(program: Command): void {
       process.stdout.write('  .yggdrasil/flows/\n');
       process.stdout.write('  .yggdrasil/knowledge/ (decisions, patterns, invariants)\n');
       process.stdout.write(
-        '  .yggdrasil/templates/ (module, service, library, node, aspect, flow, knowledge)\n',
+        '  .yggdrasil/templates/ (node, aspect, flow, knowledge)\n',
       );
       process.stdout.write(`  ${path.relative(projectRoot, rulesPath)} (rules)\n\n`);
       process.stdout.write('Next steps:\n');

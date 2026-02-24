@@ -1,6 +1,5 @@
 # Templates Errors
 
-- **File write error**: `installRulesForPlatform` may throw on permission denied
-- **Unknown platform**: handled in init before call; templates does not validate platform
-
-No dedicated error codes.
+- **installRulesForPlatform:** May throw on mkdir/writeFile failures (ENOENT, EACCES). Unknown platform falls through to generic.
+- **DEFAULT_CONFIG, AGENT_RULES_CONTENT:** Pure strings — no runtime errors.
+- **graph-templates copy:** init catches and reports warning; does not fail init.

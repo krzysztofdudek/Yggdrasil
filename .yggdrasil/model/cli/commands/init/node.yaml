@@ -5,12 +5,10 @@ tags: [deterministic]
 relations:
   - target: cli/templates
     type: uses
-    consumes: [DEFAULT_CONFIG, installRulesForPlatform]
-  - target: cli/utils
-    type: uses
-    consumes: [findYggRoot]
+    consumes: [DEFAULT_CONFIG, installRulesForPlatform, PLATFORMS, Platform]
 
-knowledge: []
+knowledge:
+  - patterns/command-error-handling
 
 mapping:
   paths:

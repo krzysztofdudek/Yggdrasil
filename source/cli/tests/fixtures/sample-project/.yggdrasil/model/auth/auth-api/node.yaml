@@ -3,3 +3,4 @@ type: service
 mapping:
   paths:
     - src/auth/auth.controller.ts
+    - src/auth/login.service.ts

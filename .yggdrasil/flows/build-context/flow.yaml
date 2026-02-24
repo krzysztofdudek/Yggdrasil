@@ -1,0 +1,9 @@
+name: Build context
+nodes:
+  - cli/commands/validation
+  - cli/core/loader
+  - cli/core/validator
+  - cli/core/context
+  - cli/formatters
+knowledge:
+  - invariants/001-context-package-sufficient

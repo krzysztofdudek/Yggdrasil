@@ -1,5 +1,7 @@
 # Graph Loader Errors
 
-- **Directory .yggdrasil/model/ does not exist**: Thrown when model/ is missing (ENOENT). Run `yg init` first.
-- **Config parse failure**: Propagated unless `tolerateInvalidConfig`; then FALLBACK_CONFIG used, configError set on Graph.
-- **loadGraphFromRef**: Returns null if not a git repo, ref missing, or .yggdrasil not in ref. No throw.
+- **loadGraph**:
+  - Throws when model/ is missing (ENOENT): `Error("Directory .yggdrasil/model/ does not exist. Run 'yg init' first.", { cause })`.
+  - Config parse failure: propagated unless tolerateInvalidConfig; then FALLBACK_CONFIG used, configError set on Graph.
+  - Node parse errors: collected in nodeParseErrors; scan continues (no throw).
+- **loadGraphFromRef**: Returns null (no throw) if: not git repo, ref missing (git rev-parse fails), git archive fails. Temp dir cleaned in finally.

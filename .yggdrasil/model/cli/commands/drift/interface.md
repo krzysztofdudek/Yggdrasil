@@ -1,8 +1,12 @@
 # Drift Commands Interface
 
-| Function | Command | Key options / behavior |
-| -------- | ------- | ----------------------- |
-| `registerDriftCommand` | drift | --scope all\|node-path. Exits 1 if any drift/missing/unmaterialized. |
-| `registerDriftSyncCommand` | drift-sync | --node \<path\>. Writes current hash to .drift-state. |
+Public API consumed by cli/entry. Named exports only.
 
-Errors to stderr, process.exit(1) on failure.
+| Function | Signature | Command | Options |
+| -------- | --------- | ------- | ------- |
+| registerDriftCommand | (program: Command) => void | drift | --scope (default: all). Scope: all or node-path. |
+| registerDriftSyncCommand | (program: Command) => void | drift-sync | --node (required). |
+
+**Return:** void. Both register subcommands on the Commander program.
+
+**Contract:** Errors to stderr, process.exit(1) on failure. Implements patterns/command-error-handling.

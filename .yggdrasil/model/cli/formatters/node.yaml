@@ -1,8 +1,11 @@
 name: Formatters
 type: library
-tags: []
+tags: [deterministic]
 
-relations: []
+relations:
+  - target: cli/model
+    type: uses
+    consumes: [ContextPackage]
 
 knowledge: []
 

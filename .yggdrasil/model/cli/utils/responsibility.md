@@ -1,14 +1,15 @@
 # Utils Responsibility
 
-Shared helper functions used by CLI modules.
+Shared helper functions used by CLI modules. Primitive operations — no domain logic.
 
 **In scope:**
 
-- paths: findYggRoot (searches upward from cwd; throws if .yggdrasil exists but is not a directory), normalizeMappingPaths, normalizeProjectRelativePath, getPackageRoot, toGraphPath
-- hash: file hash computation (for drift)
-- tokens: estimateTokens — token count estimation for context budget
-- git: getLastCommitTimestamp — Unix timestamp of last commit touching a path (for W008 stale-knowledge Proxy)
+- **paths.ts:** findYggRoot (searches upward for .yggdrasil), normalizeMappingPaths (NodeMapping to string[]), normalizeProjectRelativePath (POSIX, throws if outside root), getPackageRoot (via import.meta.url), toGraphPath (absolute to model-relative)
+- **hash.ts:** hashFile (SHA-256), hashString, hashPath (file or directory, respects .gitignore), perFileHashes (per-file for diagnostics), hashForMapping (drift hash, throws if no paths)
+- **tokens.ts:** estimateTokens — Math.ceil(text.length/4) heuristic
+- **git.ts:** getLastCommitTimestamp — git log -1 --format=%ct, returns null on error
 
 **Out of scope:**
 
 - Business logic (cli/core, cli/commands)
+- Parsing (cli/io)

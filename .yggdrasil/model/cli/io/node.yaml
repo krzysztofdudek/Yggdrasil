@@ -1,14 +1,27 @@
 name: IO
 type: library
-tags: []
+tags: [deterministic]
 
 relations:
   - target: cli/model
     type: uses
-    consumes: [YggConfig, NodeMeta, NodeMapping, Artifact, KnowledgeItem]
-  - target: cli/utils
-    type: uses
-    consumes: [normalizeProjectRelativePath]
+    consumes:
+      - YggConfig
+      - ArtifactConfig
+      - KnowledgeCategory
+      - QualityConfig
+      - NodeMeta
+      - NodeMapping
+      - Relation
+      - RelationType
+      - Artifact
+      - FlowDef
+      - KnowledgeItem
+      - AspectDef
+      - SchemaDef
+      - DriftState
+      - DriftNodeState
+      - JournalEntry
 
 knowledge: []
 

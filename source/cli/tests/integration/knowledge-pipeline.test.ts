@@ -38,8 +38,8 @@ describe('knowledge-pipeline integration', () => {
     expect(errors).toHaveLength(0);
   });
 
-  it('loadGraph includes templates when templates/ exists', async () => {
+  it('loadGraph includes schemas when templates/ exists', async () => {
     const graph = await loadGraph(FIXTURE);
-    expect(graph.templates).toBeDefined();
+    expect(graph.schemas).toBeDefined();
   });
 });

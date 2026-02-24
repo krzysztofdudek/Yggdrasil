@@ -1,0 +1,5 @@
+name: Init
+nodes:
+  - cli/commands/init
+  - cli/templates
+knowledge: []

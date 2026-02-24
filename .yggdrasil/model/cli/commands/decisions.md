@@ -1,4 +1,4 @@
-# Commands Rationale
+# Commands Decisions
 
 **Reference:** docs/idea/foundation.md (Division of labor), engine.md (Tool operations), tools.md (Operations)
 

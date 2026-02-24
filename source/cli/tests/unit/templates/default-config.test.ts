@@ -25,11 +25,13 @@ describe('default-config', () => {
     expect(parsed.node_types).toContain('library');
   });
 
-  it('DEFAULT_CONFIG interface and errors have structural_context', () => {
+  it('DEFAULT_CONFIG responsibility, interface, constraints, errors have structural_context', () => {
     const parsed = parseYaml(DEFAULT_CONFIG) as {
       artifacts: Record<string, { structural_context?: boolean }>;
     };
+    expect(parsed.artifacts['responsibility.md'].structural_context).toBe(true);
     expect(parsed.artifacts['interface.md'].structural_context).toBe(true);
+    expect(parsed.artifacts['constraints.md'].structural_context).toBe(true);
     expect(parsed.artifacts['errors.md'].structural_context).toBe(true);
   });
 
@@ -37,7 +39,7 @@ describe('default-config', () => {
     const parsed = parseYaml(DEFAULT_CONFIG) as {
       quality: { context_budget: { warning: number; error: number } };
     };
-    expect(parsed.quality.context_budget.warning).toBe(5000);
-    expect(parsed.quality.context_budget.error).toBe(10000);
+    expect(parsed.quality.context_budget.warning).toBe(10000);
+    expect(parsed.quality.context_budget.error).toBe(20000);
   });
 });

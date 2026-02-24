@@ -1,7 +1,13 @@
 # Init Command Interface
 
-| Function | Command | Key options / behavior |
-| -------- | ------- | ----------------------- |
-| `registerInitCommand` | init | --platform cursor\|claude-code\|copilot\|generic. Creates .yggdrasil/, copies graph-templates, writes config, installs rules. Fails if .yggdrasil/ exists. |
+Public API consumed by cli/entry. Named exports only.
 
-Errors to stderr, process.exit(1) on failure.
+| Function | Signature | Command | Options |
+| -------- | --------- | ------- | ------- |
+| registerInitCommand | (program: Command) => void | init | --platform (default: generic), --upgrade. |
+
+**Platforms (PLATFORMS):** cursor, claude-code, copilot, cline, roocode, codex, windsurf, aider, gemini, amp, generic.
+
+**Return:** void. Registers subcommand on the Commander program.
+
+**Contract:** Errors to stderr, process.exit(1) on failure. Implements patterns/command-error-handling.

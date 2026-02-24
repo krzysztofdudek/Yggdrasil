@@ -13,7 +13,10 @@ relations:
     type: uses
     consumes: [normalizeMappingPaths, getLastCommitTimestamp]
 
-knowledge: []
+knowledge:
+  - invariants/001-context-package-sufficient
+  - invariants/002-graph-intended-truth
+  - decisions/001-cli-tools-read-only
 
 mapping:
   paths:

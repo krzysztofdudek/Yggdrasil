@@ -52,7 +52,7 @@ function createGraph(overrides: Partial<Graph> = {}): Graph {
     aspects: [],
     flows: [],
     knowledge: [],
-    templates: [],
+    schemas: [],
     rootPath: path.join(FIXTURE_PROJECT, '.yggdrasil'),
     ...overrides,
   };
@@ -833,38 +833,34 @@ describe('validator', () => {
     expect(issues).toHaveLength(1);
   });
 
-  it('checkTemplates: duplicate template for same node_type returns E016', async () => {
+  it('checkSchemas: W010 when required schema is missing', async () => {
     const graph = createGraph();
-    graph.templates.push(
-      { nodeType: 'service', suggestedArtifacts: [] },
-      { nodeType: 'service', suggestedArtifacts: [] },
-    );
+    graph.schemas = [
+      { schemaType: 'node' },
+      { schemaType: 'aspect' },
+      { schemaType: 'flow' },
+      // knowledge missing
+    ];
 
     const result = await validate(graph);
-    const issues = result.issues.filter((i) => i.rule === 'duplicate-template');
+    const issues = result.issues.filter((i) => i.rule === 'missing-schema');
     expect(issues).toHaveLength(1);
-    expect(issues[0].code).toBe('E016');
-    expect(issues[0].message).toContain('Multiple templates');
+    expect(issues[0].code).toBe('W010');
+    expect(issues[0].message).toContain('knowledge.yaml');
   });
 
-  it('checkTemplates: template nodeType not in config.node_types', async () => {
+  it('checkSchemas: no W010 when all 4 schemas present', async () => {
     const graph = createGraph();
-    graph.templates.push({ nodeType: 'unknown-type', suggestedArtifacts: [] });
+    graph.schemas = [
+      { schemaType: 'node' },
+      { schemaType: 'aspect' },
+      { schemaType: 'flow' },
+      { schemaType: 'knowledge' },
+    ];
 
     const result = await validate(graph);
-    const issues = result.issues.filter((i) => i.rule === 'unknown-node-type');
-    expect(issues.some((i) => i.message.includes('Template for'))).toBe(true);
-  });
-
-  it('checkTemplates: template suggests artifact not in config', async () => {
-    const graph = createGraph();
-    graph.templates.push({ nodeType: 'service', suggestedArtifacts: ['custom.md'] });
-
-    const result = await validate(graph);
-    const issues = result.issues.filter(
-      (i) => i.rule === 'missing-artifact' && i.message.includes('custom.md'),
-    );
-    expect(issues.length).toBeGreaterThanOrEqual(0);
+    const issues = result.issues.filter((i) => i.rule === 'missing-schema');
+    expect(issues).toHaveLength(0);
   });
 
   it('missing-knowledge-category-dir returns E017 when category has no directory', async () => {

@@ -43,9 +43,9 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
     issues.push(...(await checkContextBudget(graph)));
     issues.push(...checkHighFanOut(graph));
     issues.push(...(await checkStaleKnowledge(graph)));
-    issues.push(...checkTemplates(graph));
   }
 
+  issues.push(...checkSchemas(graph));
   issues.push(...checkRelationTargets(graph));
   issues.push(...checkNoCycles(graph));
   issues.push(...checkMappingOverlap(graph));
@@ -820,45 +820,22 @@ function checkUnpairedEvents(graph: Graph): ValidationIssue[] {
   return issues;
 }
 
-// --- Template validation (node_type in config, suggested_artifacts in config, one per type) ---
+// --- Schema validation (required graph-layer schemas present in templates/) ---
 
-function checkTemplates(graph: Graph): ValidationIssue[] {
+const REQUIRED_SCHEMAS = ['node', 'aspect', 'flow', 'knowledge'] as const;
+
+function checkSchemas(graph: Graph): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
-  const allowedTypes = new Set(graph.config.node_types ?? []);
-  const allowedArtifacts = new Set(Object.keys(graph.config.artifacts ?? {}));
-  const typeToTemplate = new Map<string, string>();
+  const present = new Set(graph.schemas.map((s) => s.schemaType));
 
-  for (const template of graph.templates) {
-    if (!allowedTypes.has(template.nodeType)) {
+  for (const required of REQUIRED_SCHEMAS) {
+    if (!present.has(required)) {
       issues.push({
-        severity: 'error',
-        code: 'E002',
-        rule: 'unknown-node-type',
-        message: `Template for '${template.nodeType}' references node_type not in config.node_types (${[...allowedTypes].join(', ')})`,
+        severity: 'warning',
+        code: 'W010',
+        rule: 'missing-schema',
+        message: `Schema '${required}.yaml' missing from .yggdrasil/templates/`,
       });
-    }
-
-    for (const artifact of template.suggestedArtifacts ?? []) {
-      if (!allowedArtifacts.has(artifact)) {
-        issues.push({
-          severity: 'warning',
-          code: 'W001',
-          rule: 'missing-artifact',
-          message: `Template for '${template.nodeType}' suggests artifact '${artifact}' not defined in config.artifacts`,
-        });
-      }
-    }
-
-    const existing = typeToTemplate.get(template.nodeType);
-    if (existing) {
-      issues.push({
-        severity: 'error',
-        code: 'E016',
-        rule: 'duplicate-template',
-        message: `Multiple templates for node_type '${template.nodeType}'`,
-      });
-    } else {
-      typeToTemplate.set(template.nodeType, template.nodeType);
     }
   }
 

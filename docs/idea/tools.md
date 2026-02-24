@@ -50,16 +50,40 @@ artifacts: # map, required, non-empty — keys are full filenames (e.g. responsi
   responsibility.md:
     required: always # always | never | {when: <condition>}
     description: "What this node is responsible for, and what it is not"
+    structural_context: true # optional, default false — include in dependency context for structural relations
 
   interface.md:
     required:
       when: has_incoming_relations # structural condition
     description: "Public API — methods, parameters, return types, contracts"
-    structural_context: true # optional, default false — include in dependency context for structural relations
+    structural_context: true
+
+  logic.md:
+    required: never
+    description: "Algorithmic flow, control flow, branching logic, decision trees — the 'how' of execution"
 
   constraints.md:
     required: never
     description: "Validation rules, business rules, invariants"
+    structural_context: true
+
+  errors.md:
+    required:
+      when: has_incoming_relations
+    description: "Failure modes, edge cases, error conditions, recovery behavior"
+    structural_context: true
+
+  model.md:
+    required: never
+    description: "Data structures, schemas, entities, type definitions — the shape of data this node owns or manages"
+
+  state.md:
+    required: never
+    description: "State machines, lifecycle, transitions"
+
+  decisions.md:
+    required: never
+    description: "Local design decisions and rationale — choices specific to this node, not system-wide"
 
 knowledge_categories: # list, required (can be empty) (snake_case)
   - name: decisions # string, unique
@@ -73,8 +97,8 @@ quality: # map, optional (has default values) — all keys snake_case
   min_artifact_length: 50 # int, default 50
   max_direct_relations: 10 # int, default 10
   context_budget:
-    warning: 5000 # int, default 5000 (tokens)
-    error: 10000 # int, default 10000 (tokens)
+    warning: 10000 # int, default 10000 (tokens)
+    error: 20000 # int, default 20000 (tokens)
   knowledge_staleness_days: 90 # int, default 90 (snake_case)
 ```
 
@@ -238,42 +262,19 @@ to the context package.
 - Paths in `scope.nodes` must resolve to existing nodes.
 - The parent subdirectory must correspond to a configured knowledge category.
 
-### template YAML
+### templates/ schemas
 
-A template defines the expected shape of a graph node by type.
-Templates live in `templates/` and are consulted when creating new nodes (see the [Graph](graph)
-document, Templates section).
+The `templates/` directory contains schema files — one per graph layer. Initialization copies
+`node.yaml`, `aspect.yaml`, `flow.yaml`, and `knowledge.yaml` from the CLI package. Each file
+shows the expected YAML structure for its element type. The agent reads the schema before
+creating or editing that element (see the [Graph](graph) document, Templates section).
 
-```yaml
-# templates/service.yaml
-node_type: service # string, required — from config.node_types
-suggested_artifacts: # list of strings, optional — full filenames from config.artifacts
-  - responsibility.md
-  - interface.md
-  - constraints.md
-  - errors.md
-guidance: | # string, optional, multiline
-  A service node represents a component with a public API that other
-  components depend on. The responsibility artifact should clearly
-  state what the service does and what it does not. The interface
-  artifact should list every public method with parameters, return
-  types, and contracts.
-```
-
-| Field                 | Type            | Required | Description                                                       |
-| --------------------- | --------------- | -------- | ----------------------------------------------------------------- |
-| `node_type`           | string          | Yes      | Node type from `config.node_types`                                |
-| `suggested_artifacts` | list of strings | No       | Artifacts suggested for this type (names from `config.artifacts`) |
-| `guidance`            | string          | No       | Hints for the agent when creating this type of node               |
-
-Each node type can have at most one template. Tools consult the template during scaffolding
-and provide `guidance` to the agent as creation context. Templates do not enforce — they suggest.
-
-**Validation rules:**
-
-- `node_type` must be from the `config.node_types` list.
-- Names in `suggested_artifacts` must be from `config.artifacts`.
-- One template per `node_type`.
+| File             | Element type | Describes structure of                          |
+| ---------------- | ------------ | ------------------------------------------------ |
+| `node.yaml`      | Nodes        | `node.yaml` in model directories                 |
+| `aspect.yaml`    | Aspects      | `aspect.yaml` in aspects directories             |
+| `flow.yaml`      | Flows        | `flow.yaml` in flows directories                 |
+| `knowledge.yaml` | Knowledge    | `knowledge.yaml` in knowledge element directories|
 
 ### .drift-state
 
@@ -446,25 +447,33 @@ artifacts:
   responsibility.md:
     required: always
     description: "What this node is responsible for, and what it is not"
+    structural_context: true
   interface.md:
     required:
       when: has_incoming_relations
     description: "Public API — methods, parameters, return types, contracts"
     structural_context: true
+  logic.md:
+    required: never
+    description: "Algorithmic flow, control flow, branching logic, decision trees — the 'how' of execution"
   constraints.md:
     required: never
     description: "Validation rules, business rules, invariants"
+    structural_context: true
   errors.md:
     required:
       when: has_incoming_relations
-    description: "Error conditions, codes, recovery behavior"
+    description: "Failure modes, edge cases, error conditions, recovery behavior"
     structural_context: true
+  model.md:
+    required: never
+    description: "Data structures, schemas, entities, type definitions — the shape of data this node owns or manages"
   state.md:
     required: never
     description: "State machines, lifecycle, transitions"
   decisions.md:
     required: never
-    description: "Local design decisions and rationale"
+    description: "Local design decisions and rationale — choices specific to this node, not system-wide"
 
 knowledge_categories:
   - name: decisions
@@ -478,8 +487,8 @@ quality:
   min_artifact_length: 50
   max_direct_relations: 10
   context_budget:
-    warning: 5000
-    error: 10000
+    warning: 10000
+    error: 20000
   knowledge_staleness_days: 90
 ```
 
@@ -638,10 +647,11 @@ src/modules/orders/order.service.ts -> orders/order-service
 src/utils/helpers.ts -> no graph coverage
 ```
 
-**Uncovered file (no owner):** The tool returns "no graph coverage". For the agent: STOP. First determine whether the area is **greenfield** (empty or new code to be created) or **existing code** (legacy, third-party, shipped-but-unmapped).
+**Uncovered file (no owner):** The tool returns "no graph coverage". For the agent: STOP. First determine whether the area is **greenfield**, **partially mapped**, or **existing code**.
 
-- **If GREENFIELD:** Do NOT offer blackbox. Use Option A only — create proper nodes (reverse engineering or upfront design) before implementing. Blackbox is forbidden for new code.
-- **If EXISTING CODE:** Ask the user to choose one option:
+- **If GREENFIELD** (empty directory, new project): Do NOT offer blackbox. Create proper nodes (reverse engineering or upfront design) before implementing. Blackbox is forbidden for new code.
+- **If PARTIALLY MAPPED** (file unmapped but lives inside a mapped module): Stop and ask the user if this file should be added to the existing node or if a new node is required.
+- **If EXISTING CODE** (legacy, third-party, shipped-but-unmapped): Present three options and wait for the user to choose:
   - **Option A — Reverse engineering (full coverage):** Create or extend nodes so the file becomes owned. Then continue.
   - **Option B — Blackbox coverage:** Create a blackbox node at user-chosen granularity (often a higher-level directory/module). Ensure the file becomes owned by that blackbox mapping. Then continue.
   - **Option C — Abort/Change plan:** Do not touch the file until coverage is decided.
@@ -787,7 +797,6 @@ Two levels of severity defined in the [Engine](engine) document.
 | `E013` | `invalid-artifact-condition` | Condition `has_tag:<name>` refers to an undefined tag  |
 | `E014` | `duplicate-aspect-binding`   | Tag is bound to multiple aspects                       |
 | `E015` | `missing-node-yaml`          | Directory in `model/` has content but no `node.yaml`   |
-| `E016` | `duplicate-template`         | Multiple templates for the same `node_type`           |
 | `E017` | `missing-knowledge-category-dir` | Category in config has no corresponding `knowledge/<category>/` directory |
 
 **Warnings (completeness signals):**
@@ -1051,9 +1060,14 @@ documents the behavioral contract; the implementation provides the canonical tex
 
 **Behavioral model (no explicit "session"):**
 
-- **Start of every conversation:** Preflight — `yg journal-read`, `yg drift`, `yg status`.
-  If drift is detected, present states (\`ok\`, \`drift\`, \`missing\`, \`unmaterialized\`) and ask the user: absorb or reject?
-- **User signals closing the topic** (e.g. "end", "wrap up", "to tyle"): Consolidate journal (if used), archive, drift, validate, report.
+- **Start of every conversation:** Preflight — (1) `yg journal-read` (consolidate, archive if entries exist),
+  (2) `yg drift` (present states `ok`/`drift`/`missing`/`unmaterialized`, ask absorb or reject),
+  (3) `yg status` (report health), (4) `yg validate` (if W008, update knowledge artifacts).
+  _Exception:_ Read-only requests run only step 1.
+- **User signals closing the topic** (e.g. "we're done", "wrap up", "that's enough", "done"): Consolidate journal (if used),
+  archive, drift, validate, report exactly what nodes and files were changed.
+- **Execution checklists:** Code-first (read spec → modify code → sync artifacts → baseline hash) and graph-first
+  (read schema → edit graph → verify source → validate → baseline hash). Agent must output and execute before finishing.
 
-The agent learns **how** from five sources: (1) rules file, (2) config.yaml, (3) templates/,
+The agent learns **how** from five sources: (1) rules file, (2) config.yaml, (3) templates/ (schemas),
 (4) existing graph nodes, (5) validation feedback. See the [Integration](integration) document.

@@ -10,7 +10,7 @@ import type {
 const DEFAULT_QUALITY: QualityConfig = {
   min_artifact_length: 50,
   max_direct_relations: 10,
-  context_budget: { warning: 5000, error: 10000 },
+  context_budget: { warning: 10000, error: 20000 },
   knowledge_staleness_days: 90,
 };
 

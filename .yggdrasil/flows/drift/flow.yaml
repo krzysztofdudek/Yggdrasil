@@ -1,0 +1,7 @@
+name: Drift detection
+nodes:
+  - cli/commands/drift
+  - cli/core/loader
+  - cli/core/drift-detector
+knowledge:
+  - invariants/002-graph-intended-truth

@@ -116,13 +116,12 @@ export interface KnowledgeItem {
 }
 
 // ============================================================
-// Template
+// Schema (graph layer reference, lives in templates/)
 // ============================================================
 
-export interface TemplateDef {
-  nodeType: string;
-  suggestedArtifacts?: string[];
-  guidance?: string;
+export interface SchemaDef {
+  /** Inferred from filename: 'node' | 'aspect' | 'flow' | 'knowledge' */
+  schemaType: string;
 }
 
 // ============================================================
@@ -150,7 +149,7 @@ export interface Graph {
   aspects: AspectDef[];
   flows: FlowDef[];
   knowledge: KnowledgeItem[];
-  templates: TemplateDef[];
+  schemas: SchemaDef[];
   /** Absolute path to the .yggdrasil/ directory */
   rootPath: string;
 }

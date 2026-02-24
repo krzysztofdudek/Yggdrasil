@@ -5,12 +5,11 @@ tags: [deterministic]
 relations:
   - target: cli/model
     type: uses
-    consumes: [Graph, Stage, ResolveOptions]
-  - target: cli/utils
-    type: uses
-    consumes: [normalizeMappingPaths]
+    consumes: [Graph, Stage]
 
-knowledge: []
+knowledge:
+  - invariants/002-graph-intended-truth
+  - decisions/001-cli-tools-read-only
 
 mapping:
   paths:

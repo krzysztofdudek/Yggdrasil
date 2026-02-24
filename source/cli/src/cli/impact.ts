@@ -146,7 +146,7 @@ export function registerImpactCommand(program: Command): void {
           }
         }
 
-        const budget = graph.config.quality?.context_budget ?? { warning: 5000, error: 10000 };
+        const budget = graph.config.quality?.context_budget ?? { warning: 10000, error: 20000 };
         process.stdout.write(`Impact of changes in ${nodePath}:\n\n`);
         process.stdout.write('Directly dependent:\n');
         if (direct.length === 0) {

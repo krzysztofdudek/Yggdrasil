@@ -1,8 +1,12 @@
 # Validation Commands Interface
 
-| Function | Command | Key options / behavior |
-| -------- | ------- | ----------------------- |
-| `registerValidateCommand` | validate | --scope all\|node-path. Uses tolerateInvalidConfig. Outputs errors (red), warnings (yellow), summary. |
-| `registerBuildCommand` | build-context | --node \<path\> (required). Validates first; exits 1 on structural errors. Outputs Markdown + budget status. Exits 1 if budget error. |
+Public API consumed by cli/entry. Named exports only.
 
-Errors to stderr, process.exit(1) on failure.
+| Function | Signature | Command | Options |
+| -------- | --------- | ------- | ------- |
+| registerValidateCommand | (program: Command) => void | validate | --scope (default: all). Uses tolerateInvalidConfig. |
+| registerBuildCommand | (program: Command) => void | build-context | --node (required). |
+
+**Return:** void. Both register subcommands on the Commander program.
+
+**Contract:** Errors to stderr, process.exit(1) on failure. Implements patterns/command-error-handling.

@@ -1,4 +1,4 @@
-# CLI Rationale
+# CLI Decisions
 
 **Reference:** docs/idea/foundation.md, graph.md, engine.md, tools.md
 

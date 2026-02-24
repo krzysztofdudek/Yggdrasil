@@ -15,6 +15,7 @@ relations:
   - target: cli/formatters
     type: uses
     consumes: [formatContextMarkdown]
+
 knowledge:
   - patterns/command-error-handling
 

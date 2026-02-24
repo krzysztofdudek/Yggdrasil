@@ -1,12 +1,12 @@
 # Entry Responsibility
 
-CLI entry point — bin.ts. Initializes Commander with name `yg`, description, version 0.1.0. Registers all 13 subcommands via register*Command(program). Calls program.parse() for argv handling.
+CLI entry point — `bin.ts`. Bootstraps Commander and delegates to command handlers.
 
 **In scope:**
 
-- Creating Commander instance
-- Importing and invoking registerInitCommand, registerBuildCommand, registerValidateCommand, registerDriftCommand, registerDriftSyncCommand, registerStatusCommand, registerTreeCommand, registerOwnerCommand, registerDepsCommand, registerImpactCommand, registerJournalAddCommand, registerJournalReadCommand, registerJournalArchiveCommand
-- Parsing process.argv
+- Creating Commander instance with name `yg`, description "Yggdrasil — architectural knowledge infrastructure for AI agents", version 0.1.0
+- Registering 13 subcommands via `register*Command(program)`: init, build-context, validate, drift, drift-sync, status, tree, owner, deps, impact, journal-add, journal-read, journal-archive
+- Invoking `program.parse()` for argv handling (Commander handles exit on failure)
 
 **Out of scope:**
 

@@ -8,15 +8,10 @@ relations:
     consumes: [loadGraph]
   - target: cli/core/drift-detector
     type: uses
-    consumes: [detectDrift]
-  - target: cli/core/dependency-resolver
-    type: uses
-    consumes: [resolveDeps, formatDependencyTree, findChangedNodes]
-  - target: cli/io
-    type: uses
-    consumes: [readDriftState, writeDriftState]
+    consumes: [detectDrift, syncDriftState]
 
-knowledge: []
+knowledge:
+  - patterns/command-error-handling
 
 mapping:
   paths:

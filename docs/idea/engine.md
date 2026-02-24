@@ -77,7 +77,7 @@ Each step is deterministic.
 
 8.  RELATIONAL
       for each structural relation of N (uses, calls, extends, implements):
-        - artifacts of target with structural_context (e.g. interface, errors)
+        - artifacts of target with structural_context (e.g. responsibility, interface, constraints, errors)
         - consumes annotation from the relation field (if declared)
         - failure annotation from the relation field (if declared)
       for each event relation of N (emits, listens):
@@ -119,8 +119,9 @@ to multiple layers (step 10 attaches both flow artifacts and knowledge reference
 
 ### Relational Annotations
 
-Step 8 does **not** parse the content of Markdown artifacts. Tools copy the full interface and
-errors content of the target and then append annotations from the YAML relation fields.
+Step 8 does **not** parse the content of Markdown artifacts. Tools copy the full content of
+each structural-context artifact of the target and then append annotations from the YAML
+relation fields.
 
 **Structural relations** (`uses`, `calls`, `extends`, `implements`):
 
@@ -129,7 +130,13 @@ errors content of the target and then append annotations from the YAML relation 
 Consumes: charge, refund
 On failure: retry 3x, then mark order as payment-failed
 
+Responsibility (full content of responsibility.md / PaymentService)
+...
+
 Interface (full content of interface.md / PaymentService)
+...
+
+Constraints (full content of constraints.md / PaymentService)
 ...
 
 Errors (full content of errors.md / PaymentService)
@@ -253,9 +260,17 @@ mapping:
 Consumes: charge, refund
 On failure: retry 3x, then mark order as payment-failed
 
+### Responsibility
+
+<responsibility.md content>
+
 ### Interface
 
 <interface.md content>
+
+### Constraints
+
+<constraints.md content>
 
 ### Errors
 
@@ -265,9 +280,17 @@ On failure: retry 3x, then mark order as payment-failed
 
 Consumes: reserve, release
 
+### Responsibility
+
+<responsibility.md content>
+
 ### Interface
 
 <interface.md content>
+
+### Constraints
+
+<constraints.md content>
 
 ### Errors
 
@@ -317,9 +340,9 @@ algorithm step attaches only directly relevant context. A node with 3 dependenci
 
 Configuration defines budget thresholds:
 
-- **Warning threshold** (default 5,000 tokens) — package is growing; the node likely has too
+- **Warning threshold** (default 10,000 tokens) — package is growing; the node likely has too
   many responsibilities or dependencies.
-- **Error threshold** (default 10,000 tokens) — package is too large for reliable
+- **Error threshold** (default 20,000 tokens) — package is too large for reliable
   materialization; the node must be split.
 
 Tools estimate tokens using the heuristic of 4 characters per token. This is accurate enough
@@ -689,8 +712,8 @@ Step 4.  Decision: Event Sourcing  [node scope: lists this node]
 Step 5.  Decision: Event Sourcing  [node-declared reference — DEDUPLICATED with step 4]
 Step 6.  Domain context of orders/ module artifacts
 Step 7.  Own artifacts of OrderService: responsibility, interface, constraints, state
-Step 8.  Interface of PaymentService + annotation: consumes charge, refund
-         Errors of PaymentService
+Step 8.  Structural-context artifacts of PaymentService: responsibility, interface, constraints, errors
+         + annotation: consumes charge, refund; on failure: retry 3x, then payment-failed
 Step 9.  Aspect: Audit logging  [tag requires-audit]
 Step 10. Flow: Checkout flow  [description.md, sequence.md]
          Saga Pattern  [flow knowledge reference]

@@ -32,7 +32,7 @@ Semantic memory lives under `.yggdrasil/`.
 - `aspects/` — cross-cutting requirements bound to tags.
 - `flows/` — end-to-end flows spanning multiple nodes.
 - `knowledge/` — semantic knowledge that lives outside individual components.
-- `templates/` — structural templates for graph nodes.
+- `templates/` — schemas for each graph layer (node, aspect, flow, knowledge).
 
 The graph is semantic memory, not implementation. It describes what the repository **means**.
 Context assembly, validation, drift detection, and journal mechanics are defined in the
@@ -59,7 +59,7 @@ reserved top-level directories.
 | `aspects/`   | Cross-cutting requirements bound by tags | Reserved                  |
 | `flows/`     | End-to-end flows across nodes            | Reserved                  |
 | `knowledge/` | Decisions, patterns, invariants, etc.    | Reserved                  |
-| `templates/` | Graph templates for node types           | Reserved                  |
+| `templates/` | Schemas for graph layers (node, aspect, flow, knowledge) | Reserved                  |
 
 ---
 
@@ -132,20 +132,32 @@ artifacts:
   responsibility.md:
     required: always
     description: What this node is responsible for, and what it is not
+    structural_context: true
 
   interface.md:
     required:
       when: has_incoming_relations
     description: Public API — methods, parameters, return types, contracts
+    structural_context: true
+
+  logic.md:
+    required: never
+    description: Algorithmic flow, control flow, branching logic, decision trees — the 'how' of execution
 
   constraints.md:
     required: never
     description: Validation rules, business rules, invariants
+    structural_context: true
 
   errors.md:
     required:
       when: has_incoming_relations
-    description: Error conditions, codes, recovery behavior
+    description: Failure modes, edge cases, error conditions, recovery behavior
+    structural_context: true
+
+  model.md:
+    required: never
+    description: Data structures, schemas, entities, type definitions — the shape of data this node owns or manages
 
   state.md:
     required: never
@@ -153,7 +165,7 @@ artifacts:
 
   decisions.md:
     required: never
-    description: Local decisions and their rationale
+    description: Local design decisions and rationale — choices specific to this node, not system-wide
 ```
 
 Artifact types are content files that nodes may contain. Each artifact key is the **full filename**
@@ -234,8 +246,8 @@ quality:
   min_artifact_length: 50
   max_direct_relations: 10
   context_budget:
-    warning: 5000
-    error: 10000
+    warning: 10000
+    error: 20000
   knowledge_staleness_days: 90
 ```
 
@@ -369,16 +381,18 @@ Content artifacts are text files placed next to `node.yaml`. Which artifacts exi
 when they are required is defined by configuration. Each config key is the full filename
 (e.g. `responsibility.md`, `api.txt`). Content must be UTF-8 encodable for context assembly.
 
-| File                | Purpose                                                   | Default requirement                        |
-| ------------------- | --------------------------------------------------------- | ------------------------------------------ |
-| `responsibility.md` | What the node is responsible for, and what it is not      | Required always                            |
-| `interface.md`      | Public API — methods, parameters, return types, contracts | Required when someone depends on this node |
-| `constraints.md`    | Validation rules, business rules, invariants              | Optional                                   |
-| `errors.md`         | Error conditions, codes, recovery behavior                | Required when someone depends on this node |
-| `state.md`          | State machines, lifecycle, transitions                     | Optional                                   |
-| `decisions.md`      | Local design decisions and rationale                       | Optional                                   |
+| File                | Purpose                                                              | Default requirement                        |
+| ------------------- | -------------------------------------------------------------------- | ------------------------------------------ |
+| `responsibility.md` | What the node is responsible for, and what it is not                 | Required always                            |
+| `interface.md`      | Public API — methods, parameters, return types, contracts            | Required when someone depends on this node |
+| `logic.md`          | Algorithmic flow, control flow, branching logic                      | Optional                                   |
+| `constraints.md`    | Validation rules, business rules, invariants                         | Optional                                   |
+| `errors.md`         | Failure modes, edge cases, error conditions, recovery behavior       | Required when someone depends on this node |
+| `model.md`          | Data structures, schemas, entities, type definitions                 | Optional                                   |
+| `state.md`          | State machines, lifecycle, transitions                                | Optional                                   |
+| `decisions.md`      | Local design decisions and rationale — choices specific to this node  | Optional                                   |
 
-A simple utility node might have only `responsibility.md`. A complex service may have all six,
+A simple utility node might have only `responsibility.md`. A complex service may have all eight,
 plus project-specific artifacts (any filename in config). The self-calibrating granularity
 principle from the [Foundation](foundation) document applies: add detail where the agent
 produces bad outputs without it.
@@ -602,6 +616,13 @@ attached to context packages.
 ### Decision records
 
 Architectural decision records capture **why** choices were made.
+
+**Critical rule: never invent decisions.** Files that imply human judgment (e.g. `decisions.md`,
+`decisions.md`) or knowledge categories like `invariants` and `decisions` must reflect _actual_
+human choices. The agent may extract decisions explicitly stated in code comments or previous
+context. The agent must never invent, infer, or hallucinate a rationale, an architectural
+decision, or a business rule. If the "why" or the specific invariant is unclear, the agent
+must stop and ask the user.
 
 ```text
 knowledge/decisions/001-postgresql/
@@ -847,34 +868,22 @@ even when mapping temporarily does not.
 
 ---
 
-## Templates: Graph Scaffolding
+## Templates: Schemas for Graph Layers
 
-Templates define expected shapes of graph nodes by type. They are not workflow templates;
-they provide structural hints for building semantic memory.
+The `templates/` directory contains schema files — one per graph layer. Each file shows the
+expected structure of its element type. The agent reads the appropriate schema before creating
+or editing that element.
 
-```yaml
-# templates/service.yaml
-node_type: service
+| File            | Element type | Purpose                                                |
+| --------------- | ------------ | ------------------------------------------------------ |
+| `node.yaml`     | Nodes        | Structure of `node.yaml` in model directories           |
+| `aspect.yaml`   | Aspects      | Structure of `aspect.yaml` in aspects directories       |
+| `flow.yaml`     | Flows        | Structure of `flow.yaml` in flows directories           |
+| `knowledge.yaml`| Knowledge    | Structure of `knowledge.yaml` in knowledge elements      |
 
-suggested_artifacts:
-  - responsibility
-  - interface
-  - constraints
-  - errors
-
-guidance: |
-  A service node represents a component with a public API that other components depend on.
-  The responsibility artifact should clearly state what the service does and what it does not.
-  The interface artifact should list every public method with parameters, return types,
-  and contracts.
-```
-
-When an agent creates a new node of type `service`, tools consult the matching template and
-provide the `guidance` text as instructions for which artifacts to create and what each should
-contain. The agent writes content; the template shapes structure.
-
-Templates fill the bootstrapping gap — they give the agent structural hints even when the graph
-has no existing examples yet.
+These are generalized schemas, not type-specific examples. The agent consults the schema for the
+element type it is creating or editing. Artifact requirements and structure come from
+`config.yaml`; the schema shows the YAML shape.
 
 ---
 

@@ -17,25 +17,33 @@ artifacts:
   responsibility.md:
     required: always
     description: "What this node is responsible for, and what it is not"
+    structural_context: true
   interface.md:
     required:
       when: has_incoming_relations
     description: "Public API — methods, parameters, return types, contracts"
     structural_context: true
+  logic.md:
+    required: never
+    description: "Algorithmic flow, control flow, branching logic, decision trees — the 'how' of execution"
   constraints.md:
     required: never
     description: "Validation rules, business rules, invariants"
+    structural_context: true
   errors.md:
     required:
       when: has_incoming_relations
-    description: "Error conditions, codes, recovery behavior"
+    description: "Failure modes, edge cases, error conditions, recovery behavior"
     structural_context: true
+  model.md:
+    required: never
+    description: "Data structures, schemas, entities, type definitions — the shape of data this node owns or manages"
   state.md:
     required: never
     description: "State machines, lifecycle, transitions"
   decisions.md:
     required: never
-    description: "Local design decisions and rationale"
+    description: "Local design decisions and rationale — choices specific to this node, not system-wide"
 
 knowledge_categories:
   - name: decisions
@@ -49,7 +57,7 @@ quality:
   min_artifact_length: 50
   max_direct_relations: 10
   context_budget:
-    warning: 5000
-    error: 10000
+    warning: 10000
+    error: 20000
   knowledge_staleness_days: 90
 `;
