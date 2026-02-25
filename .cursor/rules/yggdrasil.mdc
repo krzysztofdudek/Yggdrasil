@@ -58,15 +58,15 @@ You do not need explicit "session" commands. Follow these conversational trigger
 ### A. Preflight (First message of the conversation)
 Always execute these commands before doing anything else. *(Exception: If the user's request is clearly read-only, run ONLY step 1).* **Read-only** means the user asks only for explanation, clarification, analysis, or evaluation — no code or graph modification will occur. Examples: "explain this", "evaluate X", "what does Y do?", "analyze Z". If unsure, run full preflight.
 1. `yg journal-read` -> If entries exist, consolidate them into the graph, then `yg journal-archive`.
-2. `yg drift` -> If divergence is detected, present states (`ok`, `drift`, `missing`, `unmaterialized`). Ask the user: Absorb (update graph) or Reject (re-materialize code from graph)?
+2. `yg drift` -> If **drift** (code changed, graph baseline stale): run `yg drift-sync` for each affected node. Do NOT ask the user — they do not need to know this step. If **missing** or **unmaterialized**: report and ask the user how to proceed.
 3. `yg status` -> Report graph health.
 4. `yg validate` -> If W008 stale-knowledge appears, update the knowledge artifacts to reflect current node state.
 
 ### B. Session Verification (Wrap-up)
-Triggered by phrases like: "we're done", "wrap up", "that's enough", "done".
+Triggered by phrases like: "we're done", "wrap up", "that's enough", "done", "ok".
 **Note: The graph should ALREADY be up to date. If the graph requires massive updates at this stage, YOU HAVE FAILED.**
 1. If iterative journal mode was used: consolidate notes to the graph, then `yg journal-archive`.
-2. `yg drift` -> Check if files changed manually during the conversation.
+2. `yg drift` -> If drift detected, run `yg drift-sync` for each affected node. Do NOT ask — absorb automatically.
 3. `yg validate` -> Fix any structural errors.
 4. Report exactly what nodes and files were changed.
 
@@ -179,6 +179,7 @@ When mapping a file, execute this mental routing:
 * **Routing:**
   * If it calls another module: Add an outgoing structural `relation` in `node.yaml`. (The engine will automatically fetch the target's structural-context artifacts: responsibility, interface, constraints, errors).
   * If it participates in an end-to-end process: Do not explain the whole process locally. Ensure the node is listed in `.yggdrasil/flows/<flow_name>/flow.yaml`. The engine will attach the flow knowledge automatically.
+* **Flows — writing flow content:** When creating or editing flow artifacts (e.g. `description.md` in `flows/<name>/`), write business-first: describe the process from user/business perspective. Technical details only as inserts when they clarify the flow. Not technical-first with business inserts.
 
 ### Layer 3: Domain Context (Hierarchy)
 * **What goes here:** Business rules shared by a family of nodes.

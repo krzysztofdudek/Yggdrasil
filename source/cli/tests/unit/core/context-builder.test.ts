@@ -651,6 +651,92 @@ describe('context-builder', () => {
       expect(knowledgeLayers.some((l) => l.label.includes('D2'))).toBe(true);
     });
 
+    it('flow adds knowledge from flow.knowledge when not already in package (from flow scope)', async () => {
+      const node: GraphNode = {
+        path: 'svc',
+        meta: { name: 'Svc', type: 'service' },
+        artifacts: [{ filename: 'responsibility.md', content: 'x' }],
+        children: [],
+        parent: null,
+      };
+      const graph: Graph = {
+        config: {
+          name: 'T',
+          stack: {},
+          standards: '',
+          tags: [],
+          node_types: ['service'],
+          artifacts: { 'responsibility.md': { required: 'always', description: 'x' } },
+          knowledge_categories: [],
+        },
+        nodes: new Map([['svc', node]]),
+        aspects: [],
+        flows: [
+          {
+            name: 'F1',
+            nodes: ['svc'],
+            knowledge: ['decisions/flow-only'],
+            artifacts: [],
+          },
+        ],
+        knowledge: [
+          {
+            path: 'decisions/flow-only',
+            name: 'FlowOnly',
+            category: 'decisions',
+            scope: { nodes: ['other-node'] },
+            artifacts: [{ filename: 'content.md', content: 'only via flow' }],
+          },
+        ],
+        templates: [],
+        rootPath: '/tmp',
+      };
+
+      const pkg = await buildContext(graph, 'svc');
+      const knowledgeLayers = pkg.layers.filter((l) => l.type === 'knowledge');
+      expect(knowledgeLayers.some((l) => l.label.includes('FlowOnly'))).toBe(true);
+      expect(knowledgeLayers.some((l) => l.label.includes('from flow'))).toBe(true);
+    });
+
+    it('includes knowledge with scope nodes when node is listed', async () => {
+      const node: GraphNode = {
+        path: 'svc',
+        meta: { name: 'Svc', type: 'service' },
+        artifacts: [{ filename: 'responsibility.md', content: 'x' }],
+        children: [],
+        parent: null,
+      };
+      const graph: Graph = {
+        config: {
+          name: 'T',
+          stack: {},
+          standards: '',
+          tags: [],
+          node_types: ['service'],
+          artifacts: { 'responsibility.md': { required: 'always', description: 'x' } },
+          knowledge_categories: [],
+        },
+        nodes: new Map([['svc', node]]),
+        aspects: [],
+        flows: [],
+        knowledge: [
+          {
+            path: 'decisions/node-scoped',
+            name: 'NodeScoped',
+            category: 'decisions',
+            scope: { nodes: ['svc'] },
+            artifacts: [{ filename: 'content.md', content: 'for svc only' }],
+          },
+        ],
+        templates: [],
+        rootPath: '/tmp',
+      };
+
+      const pkg = await buildContext(graph, 'svc');
+      const knowledgeLayers = pkg.layers.filter((l) => l.type === 'knowledge');
+      expect(knowledgeLayers.some((l) => l.label.includes('NodeScoped'))).toBe(true);
+    });
+
     it('includes knowledge with scope tags when node has matching tag', async () => {
       const nodeWithTag: GraphNode = {
         path: 'svc/tagged',
@@ -798,7 +884,7 @@ describe('context-builder', () => {
             path: 'decisions/003',
             name: 'D3',
             category: 'decisions',
-            scope: 'global',
+            scope: { nodes: ['other-node'] },
             artifacts: [{ filename: 'content.md', content: 'decision' }],
           },
         ],
