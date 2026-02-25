@@ -9,10 +9,10 @@ cli/core:
     source/cli/src/core/graph-loader.ts: 9232999167e64572f0f9d9dd8e5a103bf3fd99110281e8d50ed74643d141aa41
     source/cli/src/core/validator.ts: 817fd77e88aac1e3787d4e520156fa0ce4adee2ce841fe98e28f5f1cf77f0457
 cli/entry:
-  hash: bbad13830787a54de57c73c5f9eb8417cc0aac183a2c5c02e2d9020404d044db
+  hash: 7d8febcf8674cd377e09d418379492c467bbd3fee8da4f73790f062c94a76d2c
   files:
     source/cli/src/bin.ts: 8e00f49dc72ff9ef67179d7402bfc8a71e815e793085da737bc34fbf1b389dac
-    source/cli/package.json: 67103649a87e470cc83660da4d3bc76038534541f54e7142166108c977997384
+    source/cli/package.json: 41724dd67b5f1b06e2e1b9f93b16e7389620535d04592df136d06bcefc38dad8
 cli/formatters:
   hash: 2484d6443aaebbf11e89967bee68e776274ada1f00279d6691b4629bff6467bb
   files:
@@ -37,11 +37,11 @@ cli/model:
     source/cli/src/model/.gitkeep: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
     source/cli/src/model/types.ts: 1ecbc18584322ce08461843531a6cb31e4fbd5edaee7d67ac5ba8e4ca6b9ed54
 cli/templates:
-  hash: 3a07e7d0b392d7cb413b72ec47e34ee07eb8177c506cf4b4d35412a1f51e91b8
+  hash: 8a392e339634ca3dd7e73a06af904a1a82041a61f92bdba589b7e0f777e2329e
   files:
     source/cli/src/templates/default-config.ts: ac0e09f3fdfed0497736994fbdfbc658e663cd941369af64ced652ad6df5b696
     source/cli/src/templates/platform.ts: c92d31c3944cc6134759c877ad0b06fa1ca38f1294649af7ca39ab74460105e1
-    source/cli/src/templates/rules.ts: c06f064a325cf9d43f3c1a432e40bbef3c1637e44e244678a45ca2a003d54e0e
+    source/cli/src/templates/rules.ts: 098d2704a6114836befb02668933177fc774157d824ea21543465054b3b2b7a4
     source/cli/graph-templates/aspect.yaml: a595d119cbf3a9eab98c30d63327996bf80be4174ea63c34cddf751a7fb34e6a
     source/cli/graph-templates/flow.yaml: e1446af5aed0b41d6e05c239d530d6cc7db0bdf7baa5b833b95f26f1ffee2b57
     source/cli/graph-templates/knowledge.yaml: 992363df52b554de1a5d649e16d902821c31c89ea6ba3c896dd34e5eb21b70d6

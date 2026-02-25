@@ -20,6 +20,14 @@ You work on the Yggdrasil repository: an open-source product (CLI + infrastructu
 
 To add a new platform (e.g. a new IDE or agent): add it to `source/cli/src/templates/platform.ts` — implement `installFor<Platform>` to write the rules file to the agent's expected location.
 
+## Version Bump & Changelog
+
+When releasing changes:
+
+1. **Bump version** in `source/cli/package.json` (patch/minor/major per [semver](https://semver.org/)).
+2. Run `npm install` in `source/cli/` to update `package-lock.json`.
+3. **Always update `CHANGELOG.md`** — every release must have a corresponding entry. Add new section at the top (below `## [Unreleased]` if present, or directly under the header). Use format from [Keep a Changelog](https://keepachangelog.com/).
+
 ## Quality Gate
 
 Run `scripts/repo-check.sh` from repo root before finishing. It is the canonical fail-fast entrypoint.

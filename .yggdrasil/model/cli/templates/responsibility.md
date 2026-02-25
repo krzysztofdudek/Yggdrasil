@@ -6,7 +6,7 @@ Default templates and platform rules — used by `yg init`.
 
 - **default-config.ts:** `DEFAULT_CONFIG` — YAML string for default config.yaml (name, stack, standards, tags, node_types, artifacts, knowledge_categories, quality)
 - **platform.ts:** `installRulesForPlatform(projectRoot, platform)` — writes rules to platform-specific path; `PLATFORMS`, `Platform` type. Unknown platform falls through to generic.
-- **rules.ts:** `AGENT_RULES_CONTENT` — canonical agent rules (operating manual); hand-tuned, do not generate programmatically. Used by platform.ts.
+- **rules.ts:** `AGENT_RULES_CONTENT` — canonical agent rules (operating manual); hand-tuned, do not generate programmatically. Used by platform.ts. Includes workflow for answering questions: when a specific file/area is known, run `yg owner` + `yg build-context` and base the answer on that context (even when not modifying files).
 - **graph-templates/:** node.yaml, aspect.yaml, flow.yaml, knowledge.yaml — schemas for each graph layer, copied to .yggdrasil/templates/ during init
 
 **Out of scope:**

@@ -48,6 +48,7 @@ You have fundamentally broken Yggdrasil if you do any of the following:
 - ❌ You ran \`yg drift-sync\` before updating graph artifacts.
 - ❌ You ran \`yg drift-sync\` after a graph-only change without verifying source files.
 - ❌ You used Blackbox coverage for greenfield/new code.
+- ❌ You answered a question about a mapped file/area without running \`yg build-context\` when the path was known.
 
 ---
 
@@ -62,7 +63,15 @@ Always execute these commands before doing anything else. *(Exception: If the us
 3. \`yg status\` -> Report graph health.
 4. \`yg validate\` -> If W008 stale-knowledge appears, update the knowledge artifacts to reflect current node state.
 
-### B. Session Verification (Wrap-up)
+### B. Answering Questions (When a specific file or area is known)
+When the user asks a question and you know (or can infer) which file or area of the codebase it concerns:
+1. Run \`yg owner --file <path>\` for the relevant file(s).
+2. **If owner FOUND:** Run \`yg build-context --node <node_path>\` and base your answer on that context. Do NOT answer from grep/search alone — the graph provides intent, constraints, and relations that yield better answers.
+3. **If owner NOT FOUND:** The file is outside the graph (e.g. third-party code, user's theme/plugin, unmapped area). You may answer from grep/search, but state that the answer is not graph-based.
+
+This applies even when you are **not modifying files** — e.g. when providing code snippets to paste elsewhere, explaining behavior, or suggesting hooks. If the question touches mapped code, build-context first.
+
+### C. Session Verification (Wrap-up)
 Triggered by phrases like: "we're done", "wrap up", "that's enough", "done", "ok".
 **Note: The graph should ALREADY be up to date. If the graph requires massive updates at this stage, YOU HAVE FAILED.**
 1. If iterative journal mode was used: consolidate notes to the graph, then \`yg journal-archive\`.
