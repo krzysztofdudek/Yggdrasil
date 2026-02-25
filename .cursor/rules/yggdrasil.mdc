@@ -168,8 +168,8 @@ However, you must NOT dump all knowledge into a single file. Yggdrasil's context
 ### CRITICAL RULE: CAPTURE INTENT, BUT NEVER INVENT IT
 The graph is not just a structural map; it is the semantic meaning of the system. Code explains "what" and "how". The graph MUST explain "WHY".
 
-1. **ALWAYS Capture the User's "Why":** If the user explains the business reason, intent, or rationale behind a request (e.g., "We need to do X because Y"), you MUST permanently record this reasoning in the relevant graph artifacts (e.g., `responsibility.md`, `constraints.md`, `decisions.md`). Do not let the conversation context evaporate.
-2. **NEVER Invent the "Why":** Files that imply human judgment (like `decisions.md` or `knowledge/invariants`) must reflect ACTUAL human choices.
+1. **ALWAYS Capture the User's "Why":** If the user explains the business reason, intent, or rationale behind a request (e.g., "We need to do X because Y"), you MUST permanently record this reasoning in the relevant graph artifacts (from `config.artifacts` that fit the content). Do not let the conversation context evaporate.
+2. **NEVER Invent the "Why":** Artifacts that imply human judgment (e.g. local decisions, `knowledge/invariants`) must reflect ACTUAL human choices.
 3. **NO Hallucinations:** You MUST NEVER infer or hallucinate a rationale, an architectural decision, or a business rule.
 4. **Ask if Missing:** If the user requests a significant architectural or business logic change but does not provide the rationale, you MUST ask them "Why are we making this change?" before documenting the decision in the graph.
 
@@ -178,10 +178,19 @@ When mapping a file, execute this mental routing:
 ### Layer 1: Unit Identity (Local Node Artifacts)
 * **What goes here:** Things exclusively true for this specific node.
 * **Routing:** **DO NOT ASSUME FILE NAMES.** You MUST read `.yggdrasil/config.yaml` (the `artifacts` section) to see the exact allowed filenames for the current project and their requirement conditions (e.g., `required: always` vs `when: has_incoming_relations`). Write local node knowledge ONLY into these configured files next to `node.yaml`.
-* **logic.md:** Algorithmic flow, control flow, branching logic, decision trees — the "how" of execution. Create when the node has non-trivial logic that cannot be inferred from interface alone. Extract from source; do not invent.
-* **model.md:** Data structures, schemas, entities, type definitions — the shape of data this node owns. Create when the node manages non-trivial data structures. Extract from source types/interfaces; do not invent fields.
+* For each artifact in `config.artifacts`, use its `description` to decide what content belongs there. Create optional artifacts (those with `required: never`) when the node has matching content. Extract from source; do not invent.
 
-**Subagents:** When mapping a node (reverse engineering or graph-first), if the source code contains non-trivial logic (branching, control flow, algorithms, workflows), create `logic.md` for that node. Document: control flow, branching conditions, decision trees, sequencing. Follow Layer 1 routing. Do not invent — extract only what is implemented.
+**Subagents:** When mapping a node, for each optional artifact in config, ask: "Does the source contain content matching this artifact's description?" If yes, create it. Do not invent — extract only what is implemented.
+
+### Optional Artifacts — Explicit Consideration
+
+When creating or editing a graph node, or mapping source files to a node, after fulfilling required artifacts, read `config.yaml` and for each artifact with `required: never`, ask: "Does this node contain content that matches this artifact's description?" If yes, create it. Base decisions on source code analysis, not file names or structure.
+
+**Interpretation of `required: never`:** The artifact is optional for validation, not forbidden. Create it when the node has content that fits its description in config.
+
+**Interpretation of "don't be over-eager":** Do not invent content, do not document what is not in the code, do not create empty or trivial artifacts. It does NOT mean: avoid adding optional artifacts when they add value based on code analysis.
+
+**Post-node checklist:** After completing work on a node, for each optional artifact (from `config.artifacts` where `required: never`), check: does this node have content for it? If yes, create it. If uncertain, propose with brief justification rather than silently skipping.
 
 ### Layer 2: Surroundings (Relations & Flows)
 * **What goes here:** How this node interacts with others. You must not duplicate external interfaces locally.
