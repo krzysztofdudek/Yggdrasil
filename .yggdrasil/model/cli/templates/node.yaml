@@ -7,4 +7,4 @@ relations: []
 mapping:
   paths:
     - source/cli/src/templates/
-    - source/cli/graph-templates/
+    - source/cli/graph-schemas/

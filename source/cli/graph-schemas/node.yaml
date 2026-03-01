@@ -1,0 +1,19 @@
+# node.yaml — Schema for model nodes
+# Every node is a directory under .yggdrasil/model/ containing this file
+# plus artifact .md files defined in config.yaml.
+
+name: ComponentName           # required — display name
+type: service                 # required — must match a type from config.node_types
+tags: []                      # optional — list of aspect tags (directory names under aspects/)
+blackbox: false               # optional, default false — if true, coarse-grained coverage without deep artifacts
+
+relations:                    # optional — outgoing dependencies to other nodes
+  - target: other/module-path # required — path relative to model/
+    type: calls               # required — calls | uses | extends | implements | emits | listens
+    consumes: [methodA, methodB] # optional — what is consumed from target
+    failure: 'retry 3x, then circuit-break' # optional — failure handling strategy
+    # event_name: OrderPlaced # optional — display name for event relations (emits, listens)
+
+mapping:                      # optional — link to source files for ownership and drift detection
+  paths:                      # required when mapping is present — list of file or directory paths
+    - src/modules/component/  # paths are relative to repository root

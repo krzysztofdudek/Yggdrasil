@@ -654,7 +654,7 @@ function checkUnpairedEvents(graph: Graph): ValidationIssue[] {
   return issues;
 }
 
-// --- Schema validation (required graph-layer schemas present in templates/) ---
+// --- Schema validation (required graph-layer schemas present in schemas/) ---
 
 const REQUIRED_SCHEMAS = ['node', 'aspect', 'flow'] as const;
 
@@ -668,7 +668,7 @@ function checkSchemas(graph: Graph): ValidationIssue[] {
         severity: 'warning',
         code: 'W010',
         rule: 'missing-schema',
-        message: `Schema '${required}.yaml' missing from .yggdrasil/templates/`,
+        message: `Schema '${required}.yaml' missing from .yggdrasil/schemas/`,
       });
     }
   }

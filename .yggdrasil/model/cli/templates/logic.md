@@ -19,4 +19,4 @@
 
 ## Init copy
 
-- graph-templates/*.yaml → .yggdrasil/templates/ (during init, not in this node's logic)
+- graph-schemas/*.yaml → .yggdrasil/schemas/ (during init, not in this node's logic)

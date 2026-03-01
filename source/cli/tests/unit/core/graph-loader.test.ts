@@ -95,10 +95,10 @@ describe('graph-loader', () => {
     expect(result.stdout).toContain('order-service');
   });
 
-  it('skips reserved directories (aspects, templates)', async () => {
+  it('skips reserved directories (aspects, schemas)', async () => {
     const graph = await loadGraph(FIXTURE_PROJECT);
     expect(graph.nodes.has('aspects')).toBe(false);
-    expect(graph.nodes.has('templates')).toBe(false);
+    expect(graph.nodes.has('schemas')).toBe(false);
   });
 
   it('flows directory is not scanned for model nodes', async () => {
@@ -127,7 +127,7 @@ describe('graph-loader', () => {
     expect(Array.isArray(graph.aspects)).toBe(true);
   });
 
-  it('loads empty schemas when templates dir does not exist', async () => {
+  it('loads empty schemas when schemas dir does not exist', async () => {
     const graph = await loadGraph(FIXTURE_PROJECT);
     expect(Array.isArray(graph.schemas)).toBe(true);
   });
@@ -181,7 +181,7 @@ describe('graph-loader', () => {
     }
   });
 
-  it('loads empty arrays when aspects/flows/templates dirs do not exist', async () => {
+  it('loads empty arrays when aspects/flows/schemas dirs do not exist', async () => {
     const { mkdir, writeFile, rm } = await import('node:fs/promises');
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-graph-minimal-dirs');
     const yggRoot = path.join(tmpDir, '.yggdrasil');
@@ -192,7 +192,7 @@ describe('graph-loader', () => {
       'name: T\nnode_types: [service]\nartifacts:\n  responsibility:\n    required: always\n    description: x\ntags: []',
     );
     await writeFile(path.join(modelDir, 'node.yaml'), 'name: S\ntype: service\n');
-    // No aspects/, flows/, templates/ dirs
+    // No aspects/, flows/, schemas/ dirs
 
     try {
       const graph = await loadGraph(tmpDir);

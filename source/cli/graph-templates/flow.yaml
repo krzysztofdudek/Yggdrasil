@@ -1,6 +1,0 @@
-name: EndToEndProcessName
-nodes:
-  - orders/order-service
-  - payments/payment-service
-  - inventory/inventory-service
-# aspects: [requires-saga, requires-idempotency]  # optional — tags propagated to participants

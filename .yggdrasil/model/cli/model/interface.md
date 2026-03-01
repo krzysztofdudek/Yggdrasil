@@ -8,7 +8,7 @@ Type library — exports TypeScript interfaces and types only. No runtime functi
 
 **Graph elements:** AspectDef, FlowDef, SchemaDef
 
-**SchemaDef:** `{ schemaType: string }` — inferred from filename stem (node, aspect, flow). Populated by loadSchemas from .yggdrasil/templates/.
+**SchemaDef:** `{ schemaType: string }` — inferred from filename stem (node, aspect, flow). Populated by loadSchemas from .yggdrasil/schemas/.
 
 **Context:** ContextPackage, ContextLayer, ContextSection, ContextSectionKey
 

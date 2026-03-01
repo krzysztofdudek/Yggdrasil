@@ -20,14 +20,14 @@ Semantic memory lives under `.yggdrasil/`.
   model/
   aspects/
   flows/
-  templates/
+  schemas/
 ```
 
 - `config.yaml` — configuration and schema for the graph.
 - `model/` — semantic model of the system: components and their relationships.
 - `aspects/` — cross-cutting requirements bound to tags.
 - `flows/` — end-to-end flows spanning multiple nodes.
-- `templates/` — schemas for each graph layer (node, aspect, flow).
+- `schemas/` — schemas for each graph layer (node, aspect, flow).
 
 The graph is semantic memory, not implementation. It describes what the repository **means**.
 Context assembly, validation, drift detection, and journal mechanics are defined in the
@@ -41,7 +41,7 @@ Context assembly, validation, drift detection, and journal mechanics are defined
   model/             # reserved
   aspects/           # reserved
   flows/             # reserved
-  templates/         # reserved
+  schemas/           # reserved
 ```
 
 User-defined node names live only inside `model/`. There is no risk of name collisions with
@@ -52,7 +52,7 @@ reserved top-level directories.
 | `model/`     | Graph components: the semantic structure | No — user names live here |
 | `aspects/`   | Cross-cutting requirements bound by tags | Reserved                  |
 | `flows/`     | End-to-end flows across nodes            | Reserved                  |
-| `templates/` | Schemas for graph layers (node, aspect, flow) | Reserved                  |
+| `schemas/`   | Schemas for graph layers (node, aspect, flow) | Reserved                  |
 
 ---
 
@@ -265,8 +265,8 @@ relations:
     consumes: [reserve, release]
 
 mapping:
-  type: file
-  path: src/modules/orders/order.service.ts
+  paths:
+    - src/modules/orders/order.service.ts
 ```
 
 | Field       | Required | Purpose                                                      |
@@ -549,35 +549,33 @@ two things:
 - Ownership lookup — which node owns a given file.
 - Drift detection — did the file change since last synchronization.
 
-### Mapping strategies
+### Mapping format
 
-**File mapping** — node maps to a single file:
+Mapping uses a `paths` array listing one or more file or directory paths:
+
+**Single file:**
 
 ```yaml
 mapping:
-  type: file
-  path: src/modules/orders/order.service.ts
+  paths:
+    - src/modules/orders/order.service.ts
 ```
 
-Precise but brittle — renaming or moving the file breaks the mapping.
-
-**Directory mapping** — node maps to a directory; all files in that directory belong to the node:
+**Directory** — all files in the directory belong to the node:
 
 ```yaml
 mapping:
-  type: directory
-  path: src/modules/orders
+  paths:
+    - src/modules/orders
 ```
 
 More robust to internal changes — adding, renaming, or deleting files inside the directory does
 not break the mapping.
 
-**Multi-file mapping** — node maps to an explicit list of files. Useful when implementation
-spans multiple files in different directories:
+**Multiple files** — implementation spans multiple files in different directories:
 
 ```yaml
 mapping:
-  type: files
   paths:
     - src/modules/orders/order.service.ts
     - src/modules/orders/order.repository.ts
@@ -610,9 +608,9 @@ even when mapping temporarily does not.
 
 ---
 
-## Templates: Schemas for Graph Layers
+## Schemas for Graph Layers
 
-The `templates/` directory contains schema files — one per graph layer. Each file shows the
+The `schemas/` directory contains schema files — one per graph layer. Each file shows the
 expected structure of its element type. The agent reads the appropriate schema before creating
 or editing that element.
 

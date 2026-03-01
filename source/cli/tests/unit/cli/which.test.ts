@@ -29,7 +29,7 @@ function createGraph(nodes: Array<[string, GraphNode]>): Graph {
     nodes: new Map(nodes),
     aspects: [],
     flows: [],
-    templates: [],
+    schemas: [],
     rootPath: '/workspace/project/.yggdrasil',
   };
 }

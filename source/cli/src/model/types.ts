@@ -105,7 +105,7 @@ export interface FlowDef {
 }
 
 // ============================================================
-// Schema (graph layer reference, lives in templates/)
+// Schema (graph layer reference, lives in schemas/)
 // ============================================================
 
 export interface SchemaDef {

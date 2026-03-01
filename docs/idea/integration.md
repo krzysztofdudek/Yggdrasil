@@ -83,7 +83,7 @@ format and conventions (described in detail in the Learning mechanisms section b
 
 1. The rules file tells it **when** to act
 2. The configuration (`config.yaml`) tells it **what** is allowed
-3. The templates (`templates/`) show **how** files look — schemas for each graph layer (node, aspect, flow)
+3. The schemas (`schemas/`) show **how** files look — schemas for each graph layer (node, aspect, flow)
 4. The existing graph shows **how** it looks in this project
 5. Tool validation tells it **what** is wrong
 
@@ -113,7 +113,7 @@ prior knowledge of conventions.
 | Node Markdown artifacts                                             | Agent                     |
 | Aspect directories in `aspects/` + `aspect.yaml`                    | Agent                     |
 | Flow directories in `flows/` + `flow.yaml`                          | Agent                     |
-| Schemas in `templates/` (node, aspect, flow)                       | Initialization (copied)  |
+| Schemas in `schemas/` (node, aspect, flow)                         | Initialization (copied)  |
 | Platform rules file                                                 | Initialization (one time) |
 
 Tools create infrastructure (initialization). The agent creates content (everything after init).
@@ -190,9 +190,9 @@ By reading it, the agent immediately knows:
 One file, two audiences, zero duplication: tools read it to validate; the agent reads it to
 know what is allowed.
 
-### 3) Templates → HOW files look
+### 3) Schemas → HOW files look
 
-Schemas in `.yggdrasil/templates/` define the structure of each graph layer: `node.yaml` for
+Schemas in `.yggdrasil/schemas/` define the structure of each graph layer: `node.yaml` for
 nodes, `aspect.yaml` for aspects, `flow.yaml` for flows.
 The agent reads the schema for the element type it is creating or editing.
 
@@ -224,7 +224,7 @@ configuration into guidance at the moment the agent needs it.
 ### The bootstrapping problem
 
 In a new repository there is no existing graph for the agent to learn from. The agent relies on
-mechanisms (1) directives, (2) configuration, (3) schemas in templates/, and (5) validation feedback.
+mechanisms (1) directives, (2) configuration, (3) schemas in schemas/, and (5) validation feedback.
 The agent fills in content, tools validate, the agent fixes.
 
 The first few nodes are the hardest — no examples and limited feedback. Quality improves quickly as

@@ -15,7 +15,7 @@ Graph logic module — loading, context building, validation, drift detection, d
 
 **Sub-nodes:**
 
-- **cli/core/loader**: `loadGraph`, `loadGraphFromRef` — scan model/, aspects/, flows/, knowledge/, templates/; git archive for ref-based loading. Consumes cli/io, cli/model, cli/utils.
+- **cli/core/loader**: `loadGraph`, `loadGraphFromRef` — scan model/, aspects/, flows/, knowledge/, schemas/; git archive for ref-based loading. Consumes cli/io, cli/model, cli/utils.
 - **cli/core/context**: `buildContext` — 10-step layer assembly (global, knowledge, hierarchy, own, relational, aspects, flows). Consumes cli/model, cli/utils.
 - **cli/core/validator**: `validate` — structural checks (E001–E017, W001–W011); scope filtering; context budget. Consumes cli/core/context, cli/model, cli/utils.
 - **cli/core/drift-detector**: `detectDrift`, `syncDriftState` — hash comparison vs .drift-state; states ok|drift|missing|unmaterialized. Consumes cli/io, cli/model, cli/utils.

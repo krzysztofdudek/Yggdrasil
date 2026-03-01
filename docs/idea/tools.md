@@ -128,9 +128,8 @@ relations: # list, optional
     # For event relations (emits, listens): event_name (optional) — display name, e.g. OrderPlaced
 
 mapping: # map, optional
-  type: file # string, required — file | directory | files
-  path: src/modules/orders/order.service.ts # string — required when type = file | directory
-  # paths: [...]                        # list of strings — required when type = files
+  paths: # list of strings, required when mapping is present
+    - src/modules/orders/order.service.ts
 ```
 
 **Relation types:**
@@ -224,12 +223,12 @@ Primary flow content artifact — describes the business process. Required for e
 
 One flow directory = one business process with all its paths (happy path, exceptions, cancellations).
 
-### templates/ schemas
+### schemas/
 
-The `templates/` directory contains schema files — one per graph layer. Initialization copies
+The `schemas/` directory contains schema files — one per graph layer. Initialization copies
 `node.yaml`, `aspect.yaml`, and `flow.yaml` from the CLI package. Each file
 shows the expected YAML structure for its element type. The agent reads the schema before
-creating or editing that element (see the [Graph](graph) document, Templates section).
+creating or editing that element (see the [Graph](graph) document, Schemas section).
 
 | File          | Element type | Describes structure of              |
 | ------------- | ------------ | ----------------------------------- |
@@ -360,7 +359,7 @@ Upgrade mode — refreshes only the rules file (when `.yggdrasil/` already exist
    ├── model/
    ├── aspects/
    ├── flows/
-   └── templates/
+   └── schemas/
    ```
 
 3. Write `config.yaml` with default content (see Default configuration below).
@@ -778,7 +777,7 @@ Two levels of severity defined in the [Engine](engine) document.
 | `W006` | `budget-error`          | Context package exceeds error threshold (blocks materialization); severity: warning |
 | `W007` | `high-fan-out`          | Node exceeds maximum number of relations                                            |
 | `W009` | `unpaired-event`        | Event relation without complement on the other side                                 |
-| `W010` | `missing-schema`        | Required schema (node, aspect, flow) missing from `.yggdrasil/templates/`          |
+| `W010` | `missing-schema`        | Required schema (node, aspect, flow) missing from `.yggdrasil/schemas/`            |
 | `W011` | `missing-required-tag-coverage` | Node of type with `required_tags` lacks coverage (direct tag or via implies) for one or more |
 
 **Message format:**
@@ -1037,5 +1036,5 @@ documents the behavioral contract; the implementation provides the canonical tex
 - **Execution checklists:** Code-first (read spec → modify code → sync artifacts → baseline hash) and graph-first
   (read schema → edit graph → verify source → validate → baseline hash). Agent must output and execute before finishing.
 
-The agent learns **how** from five sources: (1) rules file, (2) config.yaml, (3) templates/ (schemas),
+The agent learns **how** from five sources: (1) rules file, (2) config.yaml, (3) schemas/,
 (4) existing graph nodes, (5) validation feedback. See the [Integration](integration) document.

@@ -22,7 +22,6 @@ Config file: `.yggdrasil/config.yaml`
 
 - **stack** — Key-value metadata (e.g. `language`, `runtime`)
 - **standards** — Project standards text (e.g. coding conventions)
-- **knowledge_categories** — Categories for knowledge directory (decisions, patterns, invariants)
 - **quality** — Quality thresholds
 
 ---
@@ -34,8 +33,7 @@ Config file: `.yggdrasil/config.yaml`
 - **Artifacts** — The kinds of meaning you want to capture per node. Each artifact has:
   - `required`: `always` | `never` | `{ when: "has_incoming_relations" }`
   - `description`: string
-- **Knowledge categories** — Categories under `knowledge/` with name and description
-- **Quality thresholds** — When to warn about stale or shallow memory
+- **Quality thresholds** — When to warn about shallow memory or large context
 
 ---
 
@@ -45,9 +43,8 @@ Config file: `.yggdrasil/config.yaml`
 |-------|---------|-------------|
 | `min_artifact_length` | 50 | Minimum chars for artifact content (shallow warning) |
 | `max_direct_relations` | 10 | Max relations before high fan-out warning |
-| `context_budget.warning` | 5000 | Token count warning threshold |
-| `context_budget.error` | 10000 | Token count error threshold |
-| `knowledge_staleness_days` | 90 | Days before knowledge is considered stale |
+| `context_budget.warning` | 10000 | Token count warning threshold |
+| `context_budget.error` | 20000 | Token count error threshold |
 
 ---
 
@@ -95,21 +92,12 @@ artifacts:
     required: never
     description: "Local design decisions and rationale"
 
-knowledge_categories:
-  - name: decisions
-    description: "Architectural decisions and their rationale"
-  - name: patterns
-    description: "Implementation conventions with examples"
-  - name: invariants
-    description: "System truths that must never be violated"
-
 quality:
   min_artifact_length: 50
   max_direct_relations: 10
   context_budget:
-    warning: 5000
-    error: 10000
-  knowledge_staleness_days: 90
+    warning: 10000
+    error: 20000
 ```
 
 ---

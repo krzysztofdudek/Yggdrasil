@@ -11,8 +11,8 @@
 3. **Platform validation**: platform in PLATFORMS; else exit 1
 4. **If upgradeMode**: installRulesForPlatform(projectRoot, platform); output "Rules refreshed"; return
 5. **Full init**:
-   - mkdir model, aspects, flows, knowledge/{decisions,patterns,invariants}, templates
-   - Copy graph-templates/*.yaml to templates/
+   - mkdir model, aspects, flows, knowledge/{decisions,patterns,invariants}, schemas
+   - Copy graph-schemas/*.yaml to schemas/
    - Write config.yaml (DEFAULT_CONFIG)
    - Write .gitignore (.journal.yaml, journals-archive/)
    - installRulesForPlatform(projectRoot, platform)

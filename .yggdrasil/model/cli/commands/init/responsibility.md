@@ -4,9 +4,9 @@
 
 **Full init (when .yggdrasil/ does not exist):**
 
-- Create directories: .yggdrasil/model, aspects, flows, knowledge (decisions, patterns, invariants), templates. mkdir recursive.
-- getGraphTemplatesDir(): from import.meta.url, package root = parent of cli dir, join packageRoot, 'graph-templates'.
-- Copy graph-templates: readdir, filter files, copy each to .yggdrasil/templates. On failure: write warning to stderr, continue (do not exit).
+- Create directories: .yggdrasil/model, aspects, flows, knowledge (decisions, patterns, invariants), schemas. mkdir recursive.
+- getGraphSchemasDir(): from import.meta.url, package root = parent of cli dir, join packageRoot, 'graph-schemas'.
+- Copy graph-schemas: readdir, filter files, copy each to .yggdrasil/schemas. On failure: write warning to stderr, continue (do not exit).
 - Write config.yaml (DEFAULT_CONFIG), .gitignore (GITIGNORE_CONTENT: .journal.yaml, journals-archive/).
 - installRulesForPlatform(projectRoot, platform).
 - Output created paths and next steps.

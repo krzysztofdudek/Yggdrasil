@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-03-01
+
+### Changed
+
+- **BREAKING:** Renamed `.yggdrasil/templates/` to `.yggdrasil/schemas/` — existing
+  repositories must rename the directory manually or re-run `yg init`.
+- Enriched schema files (node.yaml, aspect.yaml, flow.yaml) with self-documenting
+  YAML comments describing every field.
+- Renamed `source/cli/graph-templates/` to `source/cli/graph-schemas/`.
+- Renamed `template-parser.ts` to `schema-parser.ts`.
+
 ## [Unreleased]
 
 ### Breaking

@@ -12,7 +12,7 @@ import { parseConfig } from '../io/config-parser.js';
 import { parseNodeYaml } from '../io/node-parser.js';
 import { parseAspect } from '../io/aspect-parser.js';
 import { parseFlow } from '../io/flow-parser.js';
-import { parseSchema } from '../io/template-parser.js';
+import { parseSchema } from '../io/schema-parser.js';
 import { readArtifacts } from '../io/artifact-reader.js';
 import { findYggRoot } from '../utils/paths.js';
 
@@ -61,7 +61,7 @@ export async function loadGraph(
 
   const aspects = await loadAspects(path.join(yggRoot, 'aspects'));
   const flows = await loadFlows(path.join(yggRoot, 'flows'));
-  const schemas = await loadSchemas(path.join(yggRoot, 'templates'));
+  const schemas = await loadSchemas(path.join(yggRoot, 'schemas'));
 
   return {
     config,
@@ -183,14 +183,14 @@ async function loadFlows(flowsDir: string): Promise<FlowDef[]> {
   }
 }
 
-async function loadSchemas(templatesDir: string): Promise<SchemaDef[]> {
+async function loadSchemas(schemasDir: string): Promise<SchemaDef[]> {
   try {
-    const entries = await readdir(templatesDir, { withFileTypes: true });
+    const entries = await readdir(schemasDir, { withFileTypes: true });
     const schemas: SchemaDef[] = [];
     for (const entry of entries) {
       if (!entry.isFile()) continue;
       if (!entry.name.endsWith('.yaml') && !entry.name.endsWith('.yml')) continue;
-      const s = await parseSchema(path.join(templatesDir, entry.name));
+      const s = await parseSchema(path.join(schemasDir, entry.name));
       schemas.push(s);
     }
     return schemas;

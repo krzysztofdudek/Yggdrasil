@@ -238,7 +238,7 @@ The agent has fundamentally broken Yggdrasil if it does any of the following:
 - Modified source code without updating graph artifacts in the same response.
 - Modified graph files without verifying or updating source code alignment in the same response.
 - Resolved a code↔graph inconsistency without asking the user first.
-- Created or edited a graph element without reading its schema in `.yggdrasil/templates/`.
+- Created or edited a graph element without reading its schema in `.yggdrasil/schemas/`.
 - Ran `yg drift-sync` before updating graph artifacts.
 - Ran `yg drift-sync` after a graph-only change without verifying source files.
 - Used blackbox coverage for greenfield or new code.

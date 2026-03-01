@@ -10,22 +10,22 @@ User runs `yg init [--platform <name>]` or `yg init --upgrade`.
 
 ## Goal
 
-**Init:** Create `.yggdrasil/` with config, templates, model structure. Install platform rules file. **Upgrade:** Refresh rules file only; leave existing structure intact.
+**Init:** Create `.yggdrasil/` with config, schemas, model structure. Install platform rules file. **Upgrade:** Refresh rules file only; leave existing structure intact.
 
 ## Participants
 
-- `cli/commands/init` — orchestrates directory creation, config write, template copy, rules install
-- `cli/templates` — DEFAULT_CONFIG, installRulesForPlatform, PLATFORMS, graph-templates
+- `cli/commands/init` — orchestrates directory creation, config write, schema copy, rules install
+- `cli/templates` — DEFAULT_CONFIG, installRulesForPlatform, PLATFORMS, graph-schemas
 
 ## Paths
 
 ### Happy path (new init)
 
-`.yggdrasil/` does not exist. Init creates directories, writes config from DEFAULT_CONFIG, copies node/aspect/flow templates, installs rules for platform. Output: list of created files.
+`.yggdrasil/` does not exist. Init creates directories, writes config from DEFAULT_CONFIG, copies node/aspect/flow schemas, installs rules for platform. Output: list of created files.
 
 ### Happy path (upgrade)
 
-`.yggdrasil/` exists; user passes `--upgrade`. Init refreshes rules file only (no config overwrite, no template overwrite). Output: path of refreshed rules file.
+`.yggdrasil/` exists; user passes `--upgrade`. Init refreshes rules file only (no config overwrite, no schema overwrite). Output: path of refreshed rules file.
 
 ### Platform not found
 
@@ -34,4 +34,4 @@ User passes `--platform <name>` but platform is unknown. Init fails; no files cr
 ## Invariants across all paths
 
 - New init: idempotent only when `.yggdrasil/` is empty; overwrites config if re-run.
-- Upgrade: never overwrites config or templates; rules file only.
+- Upgrade: never overwrites config or schemas; rules file only.

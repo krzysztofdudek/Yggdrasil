@@ -2,11 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { writeFile, mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseSchema } from '../../../src/io/template-parser.js';
+import { parseSchema } from '../../../src/io/schema-parser.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-describe('template-parser (schema)', () => {
+describe('schema-parser', () => {
   it('infers schemaType from filename', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-schema-type');
     await mkdir(tmpDir, { recursive: true });

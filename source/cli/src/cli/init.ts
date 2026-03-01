@@ -5,10 +5,10 @@ import { fileURLToPath } from 'node:url';
 import { DEFAULT_CONFIG } from '../templates/default-config.js';
 import { installRulesForPlatform, PLATFORMS, type Platform } from '../templates/platform.js';
 
-function getGraphTemplatesDir(): string {
+function getGraphSchemasDir(): string {
   const currentDir = path.dirname(fileURLToPath(import.meta.url));
   const packageRoot = path.join(currentDir, '..');
-  return path.join(packageRoot, 'graph-templates');
+  return path.join(packageRoot, 'graph-schemas');
 }
 
 const GITIGNORE_CONTENT = `.journal.yaml
@@ -66,21 +66,21 @@ export function registerInitCommand(program: Command): void {
       await mkdir(path.join(yggRoot, 'model'), { recursive: true });
       await mkdir(path.join(yggRoot, 'aspects'), { recursive: true });
       await mkdir(path.join(yggRoot, 'flows'), { recursive: true });
-      const templatesDir = path.join(yggRoot, 'templates');
-      await mkdir(templatesDir, { recursive: true });
+      const schemasDir = path.join(yggRoot, 'schemas');
+      await mkdir(schemasDir, { recursive: true });
 
-      const graphTemplatesDir = getGraphTemplatesDir();
+      const graphSchemasDir = getGraphSchemasDir();
       try {
-        const entries = await readdir(graphTemplatesDir, { withFileTypes: true });
-        const templateFiles = entries.filter((e) => e.isFile()).map((e) => e.name);
-        for (const file of templateFiles) {
-          const srcPath = path.join(graphTemplatesDir, file);
+        const entries = await readdir(graphSchemasDir, { withFileTypes: true });
+        const schemaFiles = entries.filter((e) => e.isFile()).map((e) => e.name);
+        for (const file of schemaFiles) {
+          const srcPath = path.join(graphSchemasDir, file);
           const content = await readFile(srcPath, 'utf-8');
-          await writeFile(path.join(templatesDir, file), content, 'utf-8');
+          await writeFile(path.join(schemasDir, file), content, 'utf-8');
         }
       } catch (err) {
         process.stderr.write(
-          `Warning: Could not copy graph templates from ${graphTemplatesDir}: ${(err as Error).message}\n`,
+          `Warning: Could not copy graph schemas from ${graphSchemasDir}: ${(err as Error).message}\n`,
         );
       }
 
@@ -96,7 +96,7 @@ export function registerInitCommand(program: Command): void {
       process.stdout.write('  .yggdrasil/model/\n');
       process.stdout.write('  .yggdrasil/aspects/\n');
       process.stdout.write('  .yggdrasil/flows/\n');
-      process.stdout.write('  .yggdrasil/templates/ (node, aspect, flow)\n');
+      process.stdout.write('  .yggdrasil/schemas/ (node, aspect, flow)\n');
       process.stdout.write(`  ${path.relative(projectRoot, rulesPath)} (rules)\n\n`);
       process.stdout.write('Next steps:\n');
       process.stdout.write('  1. Edit .yggdrasil/config.yaml — set name, stack, standards\n');
