@@ -386,7 +386,10 @@ Do not proceed without capturing the why if the user can provide it.
 Always execute before doing anything else. Exception: purely read-only request (user asks only for explanation or analysis).
 
 1. \`yg journal-read\` → if entries exist, consolidate to graph, then \`yg journal-archive\`.
-2. \`yg drift\` → compares file hashes in \`.drift-state\` with current state. **Source drift** (mapped files changed) → absorb silently: \`yg drift-sync\` per node. **Missing or unmaterialized** → report to user and ask how to proceed.
+2. \`yg drift --drifted-only\` → reports source and graph drift.
+   **Source drift** (mapped source files changed) → update graph artifacts to match, then \`yg drift-sync\` per node.
+   **Graph drift** (graph artifacts changed) → review affected source files, update if needed, then \`yg drift-sync\` per node.
+   **Missing or unmaterialized** → report to user and ask how to proceed.
 3. \`yg status\` → report graph health.
 4. \`yg validate\` → report errors. Fix stale artifact warnings if present.
 
@@ -403,7 +406,7 @@ Never answer questions about mapped code from grep or raw file reading alone. Th
 Triggered by: "we're done", "wrap up", "that's enough", "ok done", or equivalent. The graph should already be current. Massive graph updates at this stage mean you failed to maintain sync during the session.
 
 1. If journal was used: consolidate to graph, then \`yg journal-archive\`.
-2. \`yg drift\` → absorb source drift automatically via \`yg drift-sync\`.
+2. \`yg drift --drifted-only\` → absorb source and graph drift via \`yg drift-sync\`.
 3. \`yg validate\` → fix structural errors.
 4. Report: exactly which nodes and files were changed.
 
@@ -421,7 +424,8 @@ yg deps --node <path> [--depth N] [--type structural|event|all]
 yg impact --node <path> --simulate  Simulate blast radius of a planned change.
 yg status                           Graph health: nodes, coverage, drift summary.
 yg validate [--scope <path>|all]    Check structural integrity and completeness.
-yg drift [--scope <path>|all]       Detect source drift (mapped files changed vs baseline).
+yg drift [--scope <path>|all] [--drifted-only]
+                                    Detect source and graph drift (bidirectional).
 yg drift-sync --node <path>         Record file hashes as new baseline. Run ONLY after graph and source are both current.
 \`\`\`
 
