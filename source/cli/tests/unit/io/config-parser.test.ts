@@ -24,7 +24,7 @@ describe('config-parser', () => {
     expect(config.tags).toContain('requires-auth');
     expect(config.tags).toContain('requires-audit');
     expect(config.tags).toContain('public-api');
-    expect(config.node_types).toContain('service');
+    expect(config.node_types.some((t) => t.name === 'service')).toBe(true);
     expect(config.artifacts['responsibility.md']).toBeDefined();
   });
 
@@ -238,7 +238,7 @@ artifacts:
   });
 
   it('throws when node_types is not array', async () => {
-    const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-node-types');
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-types-not-array');
     await mkdir(tmpDir, { recursive: true });
     await writeFile(
       path.join(tmpDir, 'config.yaml'),
@@ -282,6 +282,55 @@ tags: []
       "'node_types' must be a non-empty array",
     );
 
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('parses node_types with name and required_tags', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-node-types');
+    await mkdir(tmpDir, { recursive: true });
+    const configPath = path.join(tmpDir, 'config.yaml');
+    await writeFile(
+      configPath,
+      `
+name: T
+node_types:
+  - name: module
+  - name: service
+    required_tags: [requires-audit]
+tags: []
+artifacts:
+  responsibility.md:
+    required: always
+    description: x
+`,
+      'utf-8',
+    );
+    const cfg = await parseConfig(configPath);
+    expect(cfg.node_types).toHaveLength(2);
+    expect(cfg.node_types[0]).toEqual({ name: 'module' });
+    expect(cfg.node_types[1]).toEqual({ name: 'service', required_tags: ['requires-audit'] });
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('accepts legacy node_types as string array', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-legacy-types');
+    await mkdir(tmpDir, { recursive: true });
+    const configPath = path.join(tmpDir, 'config.yaml');
+    await writeFile(
+      configPath,
+      `
+name: T
+node_types: [module, service]
+tags: []
+artifacts:
+  responsibility.md:
+    required: always
+    description: x
+`,
+      'utf-8',
+    );
+    const cfg = await parseConfig(configPath);
+    expect(cfg.node_types).toEqual([{ name: 'module' }, { name: 'service' }]);
     await rm(tmpDir, { recursive: true, force: true });
   });
 

@@ -44,7 +44,7 @@ function createGraph(overrides: Partial<Graph> = {}): Graph {
       stack: {},
       standards: '',
       tags: ['valid-tag'],
-      node_types: ['service'],
+      node_types: [{ name: 'service' }],
       artifacts: { 'responsibility.md': { required: 'always', description: 'x' } },
     },
     nodes: new Map(),
@@ -128,7 +128,7 @@ describe('validator', () => {
         stack: {},
         standards: '',
         tags: ['audit'],
-        node_types: ['service'],
+        node_types: [{ name: 'service' }],
         artifacts: { 'responsibility.md': { required: 'always', description: 'x' } },
       },
       aspects: [
@@ -234,7 +234,7 @@ describe('validator', () => {
         stack: {},
         standards: '',
         tags: [],
-        node_types: ['service'],
+        node_types: [{ name: 'service' }],
         artifacts: {
           responsibility: { required: 'always', description: 'x' },
           optional: { required: 'never', description: '' },
@@ -306,7 +306,7 @@ describe('validator', () => {
         stack: {},
         standards: '',
         tags: [],
-        node_types: ['service'],
+        node_types: [{ name: 'service' }],
         artifacts: { 'responsibility.md': { required: 'always', description: 'x' } },
       },
     });
@@ -319,7 +319,10 @@ describe('validator', () => {
 
   it('non-regression: does not enforce node/relation vocabulary', async () => {
     const graph = createGraph();
-    graph.config.node_types = ['totally-custom-type', 'another-custom-type'];
+    graph.config.node_types = [
+      { name: 'totally-custom-type' },
+      { name: 'another-custom-type' },
+    ];
     graph.nodes.set(
       'strange/node',
       createNode('strange/node', {
@@ -341,7 +344,7 @@ describe('validator', () => {
 
   it('non-regression: does not require interface.yaml by node type', async () => {
     const graph = createGraph();
-    graph.config.node_types = ['service', 'api'];
+    graph.config.node_types = [{ name: 'service' }, { name: 'api' }];
     graph.nodes.set('api/no-interface', {
       ...createNode('api/no-interface', { type: 'api' }),
       artifacts: [{ filename: 'responsibility.md', content: 'x' }],
@@ -491,7 +494,7 @@ describe('validator', () => {
         stack: {},
         standards: '',
         tags: ['valid-tag'],
-        node_types: ['service'],
+        node_types: [{ name: 'service' }],
         artifacts: {
           responsibility: { required: 'always', description: 'x' },
           interface: {
@@ -515,7 +518,7 @@ describe('validator', () => {
         stack: {},
         standards: '',
         tags: ['special'],
-        node_types: ['service'],
+        node_types: [{ name: 'service' }],
         artifacts: {
           responsibility: { required: 'always', description: 'x' },
           optional: {
@@ -629,7 +632,7 @@ describe('validator', () => {
         stack: {},
         standards: '',
         tags: [],
-        node_types: ['service'],
+        node_types: [{ name: 'service' }],
         artifacts: {
           'responsibility.md': { required: 'always', description: 'x' },
           'interface.md': {
@@ -659,7 +662,7 @@ describe('validator', () => {
         stack: {},
         standards: '',
         tags: [],
-        node_types: ['service'],
+        node_types: [{ name: 'service' }],
         artifacts: {
           'responsibility.md': { required: 'always', description: 'x' },
           'interface.md': {
@@ -689,7 +692,7 @@ describe('validator', () => {
         stack: {},
         standards: '',
         tags: ['public-api'],
-        node_types: ['service'],
+        node_types: [{ name: 'service' }],
         artifacts: {
           'responsibility.md': { required: 'always', description: 'x' },
           'interface.md': {

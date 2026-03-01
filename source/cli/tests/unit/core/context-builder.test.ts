@@ -24,7 +24,7 @@ describe('context-builder', () => {
         stack: { language: 'TypeScript', runtime: 'Node 22' },
         standards: 'ESLint + Jest',
         tags: [],
-        node_types: ['service'],
+        node_types: [{ name: 'service' }],
         artifacts: { 'responsibility.md': { required: 'always', description: 'x' } },
       };
       const layer = buildGlobalLayer(config);
@@ -60,7 +60,7 @@ describe('context-builder', () => {
       stack: {},
       standards: '',
       tags: [],
-      node_types: ['service'],
+      node_types: [{ name: 'service' }],
       artifacts: {
         'responsibility.md': { required: 'always', description: 'x' },
         'interface.md': { required: 'never', description: 'x', structural_context: true },
@@ -371,7 +371,7 @@ describe('context-builder', () => {
           stack: {},
           standards: '',
           tags: [],
-          node_types: ['module', 'service'],
+          node_types: [{ name: 'module' }, { name: 'service' }],
           artifacts: { 'responsibility.md': { required: 'always', description: 'x' } },
         },
         nodes: new Map([
@@ -422,7 +422,7 @@ describe('context-builder', () => {
           stack: {},
           standards: '',
           tags: [],
-          node_types: ['service'],
+          node_types: [{ name: 'service' }],
           artifacts: { 'responsibility.md': { required: 'always', description: 'x' } },
         },
         nodes: new Map([
@@ -468,7 +468,7 @@ describe('context-builder', () => {
           stack: {},
           standards: '',
           tags: [],
-          node_types: ['service'],
+          node_types: [{ name: 'service' }],
           artifacts: { 'responsibility.md': { required: 'always', description: 'x' } },
         },
         nodes: new Map([
@@ -516,7 +516,7 @@ describe('context-builder', () => {
           stack: {},
           standards: '',
           tags: [],
-          node_types: ['service'],
+          node_types: [{ name: 'service' }],
           artifacts: { 'responsibility.md': { required: 'always', description: 'x' } },
         },
         nodes: new Map([['svc', node]]),
@@ -597,7 +597,7 @@ describe('context-builder', () => {
           stack: {},
           standards: '',
           tags: ['tag-a', 'tag-b'],
-          node_types: ['module', 'service'],
+          node_types: [{ name: 'module' }, { name: 'service' }],
           artifacts: { 'responsibility.md': { required: 'always', description: 'x' } },
         },
         nodes: new Map([
@@ -655,7 +655,7 @@ describe('context-builder', () => {
           stack: {},
           standards: '',
           tags: [],
-          node_types: ['module'],
+          node_types: [{ name: 'module' }],
           artifacts: { 'responsibility.md': { required: 'always', description: 'x' } },
         },
         nodes: new Map([['bare', node]]),

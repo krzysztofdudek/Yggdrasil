@@ -23,7 +23,7 @@ function createGraph(nodes: Array<[string, GraphNode]>): Graph {
       stack: {},
       standards: '',
       tags: [],
-      node_types: ['service'],
+      node_types: [{ name: 'service' }],
       artifacts: { responsibility: { required: 'always', description: 'x' } },
     },
     nodes: new Map(nodes),

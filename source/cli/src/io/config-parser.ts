@@ -1,6 +1,11 @@
 import { readFile } from 'node:fs/promises';
 import { parse as parseYaml } from 'yaml';
-import type { YggConfig, ArtifactConfig, QualityConfig } from '../model/types.js';
+import type {
+  YggConfig,
+  ArtifactConfig,
+  QualityConfig,
+  NodeTypeConfig,
+} from '../model/types.js';
 
 const DEFAULT_QUALITY: QualityConfig = {
   min_artifact_length: 50,
@@ -16,10 +21,33 @@ export async function parseConfig(filePath: string): Promise<YggConfig> {
     throw new Error(`config.yaml: missing or invalid 'name' field`);
   }
 
-  const nodeTypes = raw.node_types;
-  if (!Array.isArray(nodeTypes) || nodeTypes.length === 0) {
+  const nodeTypesRaw = raw.node_types;
+  if (!Array.isArray(nodeTypesRaw) || nodeTypesRaw.length === 0) {
     throw new Error(`config.yaml: 'node_types' must be a non-empty array`);
   }
+  const nodeTypes: NodeTypeConfig[] = nodeTypesRaw.map((item) => {
+    if (typeof item === 'string') {
+      return { name: item };
+    }
+    if (
+      typeof item === 'object' &&
+      item !== null &&
+      'name' in item &&
+      typeof (item as { name: unknown }).name === 'string'
+    ) {
+      const obj = item as { name: string; required_tags?: unknown };
+      const requiredTags = Array.isArray(obj.required_tags)
+        ? (obj.required_tags as unknown[]).filter((t): t is string => typeof t === 'string')
+        : undefined;
+      return {
+        name: obj.name,
+        required_tags: requiredTags && requiredTags.length > 0 ? requiredTags : undefined,
+      };
+    }
+    throw new Error(
+      `config.yaml: node_types entry must be string or { name, required_tags? }`,
+    );
+  });
 
   const artifacts = raw.artifacts;
   if (
@@ -102,7 +130,7 @@ export async function parseConfig(filePath: string): Promise<YggConfig> {
     stack: (raw.stack as Record<string, string>) ?? {},
     standards: typeof raw.standards === 'string' ? raw.standards : '',
     tags: tagsList,
-    node_types: nodeTypes as string[],
+    node_types: nodeTypes,
     artifacts: artifactsMap,
     quality,
   };

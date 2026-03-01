@@ -2,12 +2,17 @@
 // Config
 // ============================================================
 
+export interface NodeTypeConfig {
+  name: string;
+  required_tags?: string[];
+}
+
 export interface YggConfig {
   name: string;
   stack: Record<string, string>;
   standards: string;
   tags: string[];
-  node_types: string[];
+  node_types: NodeTypeConfig[];
   artifacts: Record<string, ArtifactConfig>;
   quality?: QualityConfig;
 }

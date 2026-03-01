@@ -69,7 +69,7 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
 
 function checkNodeTypes(graph: Graph): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
-  const allowedTypes = new Set(graph.config.node_types ?? []);
+  const allowedTypes = new Set((graph.config.node_types ?? []).map((t) => t.name));
   for (const [nodePath, node] of graph.nodes) {
     if (!allowedTypes.has(node.meta.type)) {
       issues.push({
