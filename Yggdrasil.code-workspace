@@ -38,6 +38,7 @@
       "tiktoken",
       "unmaterialized",
       "vitepress",
+      "Vitest",
       "yggdrasil",
       "yzhang",
     ],
