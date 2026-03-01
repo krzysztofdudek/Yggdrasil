@@ -8,7 +8,9 @@ import {
   hashString,
   hashForMapping,
   perFileHashes,
+  hashTrackedFiles,
 } from '../../../src/utils/hash.js';
+import type { TrackedFile } from '../../../src/core/context-files.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -287,6 +289,91 @@ describe('hash', () => {
       expect(result).toEqual([]);
 
       await rm(tmpDir, { recursive: true, force: true });
+    });
+  });
+
+  describe('hashTrackedFiles', () => {
+    it('hashes a single file', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-htf-single');
+      await mkdir(tmpDir, { recursive: true });
+      try {
+        const relPath = 'single.txt';
+        await writeFile(path.join(tmpDir, relPath), 'hello world', 'utf-8');
+
+        const trackedFiles: TrackedFile[] = [{ path: relPath, category: 'source' }];
+        const { canonicalHash, fileHashes } = await hashTrackedFiles(tmpDir, trackedFiles);
+
+        const expectedFileHash = hashString('hello world');
+        expect(fileHashes).toEqual({ [relPath]: expectedFileHash });
+
+        // Canonical hash is sha256 of "path:hash"
+        expect(canonicalHash).toBe(hashString(`${relPath}:${expectedFileHash}`));
+        expect(canonicalHash).toMatch(/^[a-f0-9]{64}$/);
+      } finally {
+        await rm(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it('hashes multiple files with deterministic ordering', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-htf-ordering');
+      await mkdir(tmpDir, { recursive: true });
+      try {
+        await writeFile(path.join(tmpDir, 'alpha.txt'), 'alpha content', 'utf-8');
+        await writeFile(path.join(tmpDir, 'beta.txt'), 'beta content', 'utf-8');
+
+        const trackedFilesAB: TrackedFile[] = [
+          { path: 'alpha.txt', category: 'source' },
+          { path: 'beta.txt', category: 'graph' },
+        ];
+        const trackedFilesBA: TrackedFile[] = [
+          { path: 'beta.txt', category: 'graph' },
+          { path: 'alpha.txt', category: 'source' },
+        ];
+
+        const resultAB = await hashTrackedFiles(tmpDir, trackedFilesAB);
+        const resultBA = await hashTrackedFiles(tmpDir, trackedFilesBA);
+
+        expect(resultAB.canonicalHash).toBe(resultBA.canonicalHash);
+        expect(Object.keys(resultAB.fileHashes).sort()).toEqual(['alpha.txt', 'beta.txt']);
+      } finally {
+        await rm(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it('skips missing files gracefully', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-htf-missing');
+      await mkdir(tmpDir, { recursive: true });
+      try {
+        await writeFile(path.join(tmpDir, 'present.txt'), 'exists', 'utf-8');
+
+        const trackedFiles: TrackedFile[] = [
+          { path: 'present.txt', category: 'source' },
+          { path: 'does-not-exist.txt', category: 'graph' },
+        ];
+
+        // Should not throw even though one file is missing
+        const result = await hashTrackedFiles(tmpDir, trackedFiles);
+
+        expect(Object.keys(result.fileHashes)).not.toContain('does-not-exist.txt');
+        expect(result.fileHashes).toHaveProperty('present.txt');
+      } finally {
+        await rm(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it('handles empty TrackedFile list', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-htf-empty');
+      await mkdir(tmpDir, { recursive: true });
+      try {
+        const { canonicalHash, fileHashes } = await hashTrackedFiles(tmpDir, []);
+
+        expect(fileHashes).toEqual({});
+        // Canonical hash of empty input: hashString('') — deterministic
+        expect(canonicalHash).toBe(hashString(''));
+        expect(canonicalHash).toMatch(/^[a-f0-9]{64}$/);
+      } finally {
+        await rm(tmpDir, { recursive: true, force: true });
+      }
     });
   });
 });
