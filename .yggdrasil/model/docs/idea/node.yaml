@@ -1,0 +1,15 @@
+name: Docs — Idea
+type: library
+tags: []
+blackbox: false
+
+relations: []
+
+mapping:
+  paths:
+    - docs/idea/engine.md
+    - docs/idea/foundation.md
+    - docs/idea/graph.md
+    - docs/idea/integration.md
+    - docs/idea/materialization.md
+    - docs/idea/tools.md

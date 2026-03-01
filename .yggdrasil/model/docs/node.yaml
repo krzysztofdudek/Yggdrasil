@@ -1,0 +1,16 @@
+name: Docs
+type: module
+tags: []
+blackbox: false
+
+relations: []
+
+mapping:
+  paths:
+    - docs/cli-reference.md
+    - docs/configuration.md
+    - docs/getting-started.md
+    - docs/index.md
+    - docs/platforms.md
+    - docs/package.json
+    - docs/package-lock.json
