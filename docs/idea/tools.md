@@ -211,6 +211,21 @@ packages of the listed nodes and their descendants (flows propagate down the hie
 - `nodes` must be non-empty.
 - Each element in `nodes[]` must resolve to an existing node.
 
+### description.md
+
+Primary flow content artifact — describes the business process. Required for every flow.
+
+**Required sections (H2):**
+
+- `## Business context` — why this process exists
+- `## Trigger` — what initiates the process
+- `## Goal` — what success looks like
+- `## Participants` — nodes involved (align with `flow.yaml` nodes)
+- `## Paths` — must contain at least `### Happy path`; each additional business path (exception, cancellation, timeout) gets `### [name]`
+- `## Invariants across all paths` — business rules and technical conditions holding across all paths
+
+One flow directory = one business process with all its paths (happy path, exceptions, cancellations).
+
 ### templates/ schemas
 
 The `templates/` directory contains schema files — one per graph layer. Initialization copies
