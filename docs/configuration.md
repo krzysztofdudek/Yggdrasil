@@ -15,7 +15,7 @@ Config file: `.yggdrasil/config.yaml`
 
 - **name** — Project identity (non-empty string)
 - **tags** — Array of cross-cutting tags (may be empty)
-- **node_types** — Non-empty array of node types (e.g. `module`, `service`, `library`)
+- **node_types** — Non-empty array of node types. Each element is a string (e.g. `module`, `service`) or an object `{ name, required_tags? }`. `required_tags` lists tags that nodes of this type must have coverage for (directly or via aspect `implies`).
 - **artifacts** — Non-empty object defining artifact types and their requirements
 
 ### Optional fields
@@ -29,7 +29,7 @@ Config file: `.yggdrasil/config.yaml`
 
 ## What you can customize
 
-- **Node types** — The vocabulary of parts your repo uses (e.g. `module`, `service`, `library`)
+- **Node types** — The vocabulary of parts your repo uses (e.g. `module`, `service`, `library`). Optionally, each type can declare `required_tags` — tags that nodes of that type must have coverage for (directly or via aspect composition).
 - **Tags** — Cross-cutting concerns (e.g. `requires-auth`, `public-api`)
 - **Artifacts** — The kinds of meaning you want to capture per node. Each artifact has:
   - `required`: `always` | `never` | `{ when: "has_incoming_relations" }`

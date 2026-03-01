@@ -2,7 +2,7 @@
 
 End-to-end flow for `yg validate`: check graph structural integrity and completeness signals.
 
-**Sequence:** commands/validation (orchestrates) → loader (load graph, tolerateInvalidConfig) → validator (E001–E017, W001–W009).
+**Sequence:** commands/validation (orchestrates) → loader (load graph, tolerateInvalidConfig) → validator (E001–E017, W001–W011).
 
 **Participants:**
 

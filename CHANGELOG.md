@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Aspect composition (`implies`):** Aspects can declare `implies: [tag, ...]` to pull in other aspects automatically. Enables bundle aspects (e.g. HIPAA) that include sub-aspects. Tools resolve implications recursively with cycle detection.
+- **`node_types` with `required_tags`:** Config supports `{ name, required_tags? }` per node type. Nodes of that type must have coverage (direct tag or via implies) for required tags; W011 warns when missing.
+- **Validation codes:** E016 (implied-aspect-missing), E017 (aspect-implies-cycle), W011 (missing-required-tag-coverage).
+
+### Changed
+
+- **Documentation:** `docs/configuration.md` — node_types format; `docs/idea/tools.md` — config schema, aspect.yaml implies, full validation table including W010 (missing-schema); `validator/logic.md` — aligned with current checks (removed knowledge-related, added implies/required_tags).
+
 ## [0.3.4] - 2026-02-27
 
 ### Changed

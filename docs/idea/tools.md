@@ -41,10 +41,13 @@ tags: # list of strings, required (can be empty)
   - repository
   - requires-audit
 
-node_types: # list of strings, required, non-empty (snake_case)
+node_types: # list of strings or {name, required_tags?}, required, non-empty
   - module
   - service
   - library
+  # Or with required_tags per type:
+  # - name: service
+  #   required_tags: [requires-audit]
 
 artifacts: # map, required, non-empty — keys are full filenames (e.g. responsibility.md, api.txt)
   responsibility.md:
@@ -106,7 +109,7 @@ quality: # map, optional (has default values) — all keys snake_case
 **Validation rules for config.yaml:**
 
 - `name` must be non-empty.
-- `node_types` must contain at least one element.
+- `node_types` must contain at least one element. Legacy format: list of strings. New format: list of `{ name, required_tags? }`. Node `type` must match a `name` (or the string itself in legacy format).
 - `artifacts` must contain at least one element.
 - Artifact filenames cannot be `node.yaml` (reserved in every node directory).
 - `has_tag:<name>` conditions must refer to tags from the `tags` list.
@@ -173,16 +176,20 @@ Aspect metadata — a cross-cutting requirement bound by a tag.
 ```yaml
 name: Audit logging # string, required
 tag: requires-audit # string, required — from config.tags
+implies: [requires-logging] # list of strings, optional — tags of other aspects to include automatically
 ```
 
 All files in the aspect directory except `aspect.yaml` are content attached to the context
-packages of nodes carrying the specified tag.
+packages of nodes carrying the specified tag. When `implies` is present, the aspect's content
+plus all implied aspects' content is attached. Tools resolve implications recursively and detect cycles.
 
 **Validation rules:**
 
 - `name` must be non-empty.
 - `tag` must be from the `config.tags` list.
 - Each tag can be bound to at most one aspect.
+- Every tag in `implies` must have a corresponding aspect in `aspects/`.
+- The aspect implies graph must be acyclic (no A implies B implies A).
 
 ### flow.yaml
 
@@ -715,6 +722,8 @@ Two levels of severity defined in the [Engine](engine) document.
 | `E013` | `invalid-artifact-condition` | Condition `has_tag:<name>` refers to an undefined tag  |
 | `E014` | `duplicate-aspect-binding`   | Tag is bound to multiple aspects                       |
 | `E015` | `missing-node-yaml`          | Directory in `model/` has content but no `node.yaml`   |
+| `E016` | `implied-aspect-missing`     | Tag in aspect's `implies` has no corresponding aspect in `aspects/`                  |
+| `E017` | `aspect-implies-cycle`       | Cycle in aspect implies graph (A implies B implies A)                                |
 
 **Warnings (completeness signals):**
 
@@ -726,6 +735,8 @@ Two levels of severity defined in the [Engine](engine) document.
 | `W006` | `budget-error`          | Context package exceeds error threshold (blocks materialization); severity: warning |
 | `W007` | `high-fan-out`          | Node exceeds maximum number of relations                                            |
 | `W009` | `unpaired-event`        | Event relation without complement on the other side                                 |
+| `W010` | `missing-schema`        | Required schema (node, aspect, flow) missing from `.yggdrasil/templates/`          |
+| `W011` | `missing-required-tag-coverage` | Node of type with `required_tags` lacks coverage (direct tag or via implies) for one or more |
 
 **Message format:**
 
