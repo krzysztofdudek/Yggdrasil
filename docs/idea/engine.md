@@ -300,21 +300,46 @@ before merge, ensuring structural integrity of the semantic memory base is maint
 
 ---
 
-## Drift Detection
+## Bidirectional Drift Detection
 
-Drift is divergence between the graph and outputs — source files changed outside the
-semantic memory cycle. Tools detect it by comparing file hashes.
+Drift is divergence between graph and outputs. Drift detection is **bidirectional** — it
+tracks both source files (code mapped via `node.yaml` mappings) and graph artifacts
+(`.yggdrasil/` files that participate in a node's context package). A change on either side
+is drift; a change on both sides is full drift.
 
 ### Mechanism
 
-For each node with a mapping, tools compute a SHA-256 hash of mapped files and compare it
-against the stored state. State is stored in `.yggdrasil/.drift-state` (YAML).
+For each node with a mapping, tools collect all **tracked files** — both source files from
+the mapping and graph artifact files that contribute to the node's context package. Tools
+compute a SHA-256 hash of the tracked file set and compare it against the stored state.
+State is stored in `.yggdrasil/.drift-state` (YAML).
 
-`.drift-state` contains the hash of each mapped file at the time of last synchronization.
+`.drift-state` contains the hash of each tracked file at the time of last synchronization.
 The file is committed to the repository — drift state is shared across the team, not local
 per-developer.
 
-Hash computation depends on mapping strategy:
+#### Tracked file collection (`collectTrackedFiles`)
+
+The set of tracked files for a node mirrors the traversal of context assembly
+(`build-context`) but returns file paths instead of rendered content. Six layers are
+collected:
+
+1. **Own** — `node.yaml` and config-filtered artifacts of the node itself.
+2. **Hierarchical** — `node.yaml` and artifacts of all ancestor nodes from root to parent.
+3. **Aspects** — `aspect.yaml` and content files for all resolved aspects (own + ancestor +
+   flow-propagated, with recursive `implies` expansion).
+4. **Relational dependencies** — structural-context artifacts of structural relation targets
+   (`uses`, `calls`, `extends`, `implements`).
+5. **Relational flows** — `flow.yaml` and content artifacts of all flows listing this node or
+   an ancestor as a participant.
+6. **Source** — files from the node's `mapping.paths`.
+
+Layers 1--5 produce graph-category files (paths under `.yggdrasil/`). Layer 6 produces
+source-category files. Each file is tracked exactly once (deduplicated by path).
+
+#### Hash computation
+
+Hash computation depends on mapping strategy (for source files):
 
 | Strategy    | Hash algorithm                                                                                  |
 | ----------- | ----------------------------------------------------------------------------------------------- |
@@ -326,32 +351,46 @@ Hash computation depends on mapping strategy:
 `directory` and `files` strategies produce one canonical hash — adding, removing, or changing
 any file changes the group hash.
 
-The mechanism is deliberately simple: **hash changed → something changed**. Tools do not
-interpret what changed — that is creative work for the agent. Tools report the fact;
-the agent assesses the significance.
+The overall drift state for a node combines both source and graph file hashes into a single
+canonical hash. Per-file hashes are also stored for diagnostics — enabling tools to report
+exactly which files changed and whether they are source or graph files.
+
+The mechanism is deliberately simple: **hash changed → something changed**. Tools classify
+the change by checking which files differ and whether they are source or graph files. The
+agent assesses the significance and decides on resolution.
 
 ### Drift States
 
-Every mapped node has one of four states:
+Every mapped node has one of six states:
 
-| State            | Meaning                                                        |
-| ---------------- | -------------------------------------------------------------- |
-| `ok`             | Hash matches — file has not changed since last synchronization |
-| `drift`          | Hash does not match — file was modified                        |
-| `missing`        | Mapped file does not exist on disk                             |
-| `unmaterialized` | Node has a mapping but the file has never been created         |
+| State            | Meaning                                                                              |
+| ---------------- | ------------------------------------------------------------------------------------ |
+| `ok`             | All tracked file hashes match — nothing changed since last synchronization           |
+| `source-drift`   | Source file(s) changed but graph artifacts unchanged                                 |
+| `graph-drift`    | Graph artifact(s) changed but source files unchanged                                 |
+| `full-drift`     | Both source and graph files changed                                                  |
+| `missing`        | Mapped source files do not exist on disk                                             |
+| `unmaterialized` | Node has a mapping but files have never been created (no entry in `.drift-state`)    |
 
 ### Drift Resolution
 
-When drift is detected, there are two resolution paths:
+Resolution depends on the type of drift detected:
 
-- **Absorption**: the agent updates the graph to reflect the changes in the file. Tools update
-  the stored hash. Outputs become the truth.
-- **Rejection**: the agent re-materializes the file from the graph. Hash is updated after
-  materialization. The graph remains the truth.
+- **Source drift** — source files changed outside the semantic memory cycle. The agent
+  reviews the changes, updates graph artifacts to reflect the new source state, then runs
+  `drift-sync` to record the new baseline.
+- **Graph drift** — graph artifacts changed (e.g., updated responsibility, added constraints)
+  but source code was not updated to match. The agent reviews the graph changes, updates
+  affected source files to align with the new specification, then runs `drift-sync`.
+- **Full drift** — both sides changed independently. The agent must reconcile both: review
+  source changes, review graph changes, resolve any conflicts, update both sides as needed,
+  then run `drift-sync`.
+- **Missing** — mapped source files were deleted. The agent determines whether to
+  re-materialize from the graph or remove the mapping.
+- **Unmaterialized** — files have never been created. The agent materializes from the graph.
 
-The human decides which direction to take. The agent executes the decision. Tools record the
-new state.
+In all cases, the human decides the resolution direction. The agent executes the decision.
+Tools record the new state via `drift-sync`.
 
 ---
 
