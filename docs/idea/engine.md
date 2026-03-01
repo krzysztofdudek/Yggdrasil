@@ -72,7 +72,9 @@ Each step is deterministic.
         - event name and type
         - consumes annotation from the relation field (if declared)
 
-5.  ASPECTS       for each tag in T: content of the matching aspect
+5.  ASPECTS       for each tag in T: content of the matching aspect, plus any aspects implied by
+                  that aspect (recursive). Implies are resolved with cycle detection; a cycle
+                  (A implies B implies A) is an error.
 
 6.  FLOWS         for each flow listing N or any of N's ancestors as a participant:
                   - flow content artifacts
@@ -335,6 +337,8 @@ a graph with errors cannot produce reliable context packages.
 - Every relation target must resolve to an existing node.
 - Every flow participant must resolve to an existing node.
 - Every tag must be defined in `config.yaml`.
+- Every tag in an aspect's `implies` must have a corresponding aspect in `aspects/`.
+- The aspect implies graph must be acyclic (no A implies B implies A).
 
 **Mapping uniqueness**: no two nodes may map to the same file or have overlapping directory
 mappings.
@@ -364,6 +368,10 @@ of excessive coupling.
 **Unmatched event relations**: a node declares an `emits` relation to a target but the target
 has no matching `listens`, or vice versa — event-based communication is declared unilaterally.
 Tools compare declarations on both sides and signal the missing complement.
+
+**Missing required tag coverage**: a node of type X has `required_tags` in config but the node
+lacks coverage (direct tag or via implies) for one or more required tags. Tools report this as
+a warning (W011).
 
 ### Role of Validation
 

@@ -204,6 +204,7 @@ When creating or editing a graph node, or mapping source files to a node, after 
 ### Layer 4: Cross-Cutting Rules (Aspects)
 * **What goes here:** Horizontal requirements like logging, auth, rate-limiting, or specific frameworks.
 * **Routing:** Do NOT write generic rules like "This node must log all errors" in local artifacts. Instead, read \`config.yaml\` for available \`tags\`. Add the relevant tag (e.g., \`requires-audit\`) to \`node.yaml\`. The engine will automatically attach the aspect content.
+* **Implies:** An aspect may declare \`implies\` — other aspects included automatically. A node with tag \`requires-hipaa\` gets HIPAA content plus implied aspects (e.g. \`requires-audit\`, \`requires-encryption\`). Do not add implied tags manually to nodes.
 
 **THE COMPLETENESS CHECK:**
 Before finishing a mapping, ask yourself: *"If I delete the source file and give another agent ONLY the output of \`yg build-context\`, can they recreate it perfectly based on the configured artifacts, AND will they understand EXACTLY WHY this code exists and why it was designed this way?"*

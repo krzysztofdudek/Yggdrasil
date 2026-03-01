@@ -104,18 +104,23 @@ tags. This prevents vocabulary drift and guarantees that tag-based mechanisms (a
 
 ```yaml
 node_types:
-  - module
-  - service
-  - repository
-  - controller
-  - gateway
-  - library
-  - external
+  - name: module
+  - name: service
+    required_tags: [requires-audit]
+  - name: repository
+  - name: controller
+  - name: gateway
+  - name: library
+  - name: external
 ```
 
-Node types classify the architectural _role_ of each node. Templates (see below) can be bound to
-node types, providing structural hints for scaffolding. Tools validate that every node declares
-a type from this list.
+Node types classify the architectural _role_ of each node. Each entry has `name` (the type
+identifier) and optional `required_tags` — tags that nodes of this type must have coverage for
+(directly or via aspect `implies`). Legacy format `node_types: [module, service, ...]` — a list
+of strings — is supported and maps to `{ name: module }`, etc.
+
+Templates (see below) can be bound to node types, providing structural hints for scaffolding.
+Tools validate that every node declares a type from this list.
 
 ### Artifact types
 
@@ -423,6 +428,22 @@ aspects/
 name: Audit logging
 tag: requires-audit
 ```
+
+An aspect may declare `implies` — a list of tags of other aspects to include automatically.
+This enables composition: a bundle aspect (e.g. HIPAA) can include several sub-aspects.
+
+```yaml
+# aspects/hipaa/aspect.yaml
+name: HIPAA Compliance
+tag: requires-hipaa
+implies:
+  - requires-audit
+  - requires-encryption
+  - requires-access-control
+```
+
+A node with tag `requires-hipaa` receives the HIPAA aspect content plus all implied aspects.
+Tools resolve implications recursively and detect cycles (A implies B implies A = error).
 
 ```markdown
 <!-- aspects/audit-logging/content.md -->

@@ -1,2 +1,3 @@
 name: CrossCuttingRequirementName
 tag: requires-tag-from-config
+# implies: [other-tag, another-tag]  # optional: aspects to include automatically
