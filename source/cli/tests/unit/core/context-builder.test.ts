@@ -770,11 +770,13 @@ describe('context-builder', () => {
       const pkg = await buildContext(graph, 'orders/order-service');
 
       const sectionKeys = pkg.sections.map((s) => s.key);
-      expect(sectionKeys).toContain('Global');
-      expect(sectionKeys).toContain('Hierarchy');
-      expect(sectionKeys).toContain('OwnArtifacts');
-      expect(sectionKeys).toContain('Dependencies');
-      expect(sectionKeys).toContain('Aspects');
+      expect(sectionKeys).toEqual([
+        'Global',
+        'Hierarchy',
+        'OwnArtifacts',
+        'Aspects',
+        'Relational',
+      ]);
     });
 
     it('node and relation artifacts include source filename headings', async () => {

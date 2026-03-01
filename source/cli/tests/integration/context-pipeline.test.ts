@@ -18,7 +18,7 @@ describe('context-pipeline', () => {
     expect(output).toContain('Path: orders/order-service');
     expect(output).toContain('## Global');
     expect(output).toContain('## OwnArtifacts');
-    expect(output).toContain('## Dependencies');
+    expect(output).toContain('## Relational');
     expect(output).toContain('Audit Logging');
     expect(output).toContain('Checkout Flow');
     expect(output).toContain('Materialization Target');

@@ -318,9 +318,14 @@ function buildSections(layers: ContextLayer[], mapping: string[] | null): Contex
     { key: 'Global', layers: layers.filter((l) => l.type === 'global') },
     { key: 'Hierarchy', layers: layers.filter((l) => l.type === 'hierarchy') },
     { key: 'OwnArtifacts', layers: ownLayers },
-    { key: 'Dependencies', layers: layers.filter((l) => l.type === 'relational') },
     { key: 'Aspects', layers: layers.filter((l) => l.type === 'aspects') },
-    { key: 'Flows', layers: layers.filter((l) => l.type === 'flows') },
+    {
+      key: 'Relational',
+      layers: [
+        ...layers.filter((l) => l.type === 'relational'),
+        ...layers.filter((l) => l.type === 'flows'),
+      ],
+    },
   ];
 }
 

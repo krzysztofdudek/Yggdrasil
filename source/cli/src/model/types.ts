@@ -150,9 +150,8 @@ export type ContextSectionKey =
   | 'Global'
   | 'Hierarchy'
   | 'OwnArtifacts'
-  | 'Dependencies'
   | 'Aspects'
-  | 'Flows';
+  | 'Relational';
 
 export interface ContextPackage {
   nodePath: string;

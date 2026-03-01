@@ -74,24 +74,6 @@ src/orders/order.service.ts
 
 ---
 
-## Dependencies
-
-### Dependency: AuthApi (uses) — auth/auth-api
-
-### responsibility.md
-Auth API service.
-
-### Dependency: UserRepo (uses) — users/user-repo
-
-### description.md
-User repository.
-
-
-### responsibility.md
-User repository.
-
----
-
 ## Aspects
 
 ### Audit Logging (tag: requires-audit)
@@ -107,7 +89,21 @@ Audit log entries are append-only, never modified or deleted.
 
 ---
 
-## Flows
+## Relational
+
+### Dependency: AuthApi (uses) — auth/auth-api
+
+### responsibility.md
+Auth API service.
+
+### Dependency: UserRepo (uses) — users/user-repo
+
+### description.md
+User repository.
+
+
+### responsibility.md
+User repository.
 
 ### Flow: Checkout Flow
 
