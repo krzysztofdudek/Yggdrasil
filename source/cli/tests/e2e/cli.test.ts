@@ -269,10 +269,45 @@ describe.skipIf(!distExists)('CLI E2E', () => {
     expect(stderr).toContain('Node not found');
   });
 
-  it('yg impact without --node returns exit 1', () => {
+  it('yg impact without any mode returns exit 1', () => {
     const { status, stderr } = run(['impact']);
     expect(status).toBe(1);
-    expect(stderr).toContain('required option');
+    expect(stderr).toContain('required');
+  });
+
+  it('yg impact --node and --aspect together returns exit 1', () => {
+    const { status, stderr } = run(['impact', '--node', 'auth/auth-api', '--aspect', 'requires-audit']);
+    expect(status).toBe(1);
+    expect(stderr).toContain('mutually exclusive');
+  });
+
+  it('yg impact --aspect requires-audit shows affected nodes', () => {
+    const { stdout, status } = run(['impact', '--aspect', 'requires-audit']);
+    expect(status).toBe(0);
+    expect(stdout).toContain('Impact of changes in aspect requires-audit');
+    expect(stdout).toContain('orders');
+    expect(stdout).toContain('Total scope:');
+  });
+
+  it('yg impact --aspect nonexistent returns exit 1', () => {
+    const { status, stderr } = run(['impact', '--aspect', 'nonexistent']);
+    expect(status).toBe(1);
+    expect(stderr).toContain('Aspect not found');
+  });
+
+  it('yg impact --flow checkout-flow shows participants', () => {
+    const { stdout, status } = run(['impact', '--flow', 'checkout-flow']);
+    expect(status).toBe(0);
+    expect(stdout).toContain('Impact of changes in flow');
+    expect(stdout).toContain('orders/order-service');
+    expect(stdout).toContain('auth/auth-api');
+    expect(stdout).toContain('Total scope:');
+  });
+
+  it('yg impact --flow nonexistent returns exit 1', () => {
+    const { status, stderr } = run(['impact', '--flow', 'nonexistent']);
+    expect(status).toBe(1);
+    expect(stderr).toContain('Flow not found');
   });
 
   // --- validate edge cases ---
