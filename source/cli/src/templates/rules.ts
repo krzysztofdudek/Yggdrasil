@@ -47,19 +47,19 @@ WHEN UNSURE: ask the user. Never guess. Never assume.
 
 You have broken Yggdrasil if you do any of the following:
 
-- Modified source code without running \`yg owner --file <path>\` first.
-- Modified source code without updating graph artifacts in the same response.
-- Modified graph files without verifying source code alignment in the same response.
-- Resolved a code-graph inconsistency without asking the user first.
-- Created or edited a graph element without reading its schema in \`schemas/\` first.
-- Ran \`yg drift-sync\` before updating graph artifacts.
-- Wrote a flow description that describes code sequences instead of a business process.
-- Used an aspect identifier that has no corresponding \`aspects/\` directory.
-- Placed a cross-cutting requirement in a local node artifact instead of an aspect.
-- Invented a rationale, business rule, or architectural decision.
-- Used blackbox coverage for greenfield (new) code.
-- Answered a question about a mapped file without running \`yg build-context\` first.
-- Deferred \`yg drift-sync\` to the end of a multi-step task instead of running it incrementally after each logical group of changes.
+- ❌ Modified source code without running \`yg owner --file <path>\` first.
+- ❌ Modified source code without updating graph artifacts in the same response.
+- ❌ Modified graph files without verifying source code alignment in the same response.
+- ❌ Resolved a code-graph inconsistency without asking the user first.
+- ❌ Created or edited a graph element without reading its schema in \`schemas/\` first.
+- ❌ Ran \`yg drift-sync\` before updating graph artifacts.
+- ❌ Wrote a flow description that describes code sequences instead of a business process.
+- ❌ Used an aspect identifier that has no corresponding \`aspects/\` directory.
+- ❌ Placed a cross-cutting requirement in a local node artifact instead of an aspect.
+- ❌ Invented a rationale, business rule, or architectural decision.
+- ❌ Used blackbox coverage for greenfield (new) code.
+- ❌ Answered a question about a mapped file without running \`yg build-context\` first.
+- ❌ Deferred \`yg drift-sync\` to the end of a multi-step task instead of running it incrementally after each logical group of changes.
 
 ## Escape Hatch
 
@@ -184,7 +184,7 @@ Threshold: >10 drifted nodes → ask user which area to prioritize. Do not resol
 
 - **\`yg\` not found** → inform user: "yg CLI is not installed or not in PATH." Stop.
 - **Unfixable validate errors** → if not resolved after 3 attempts, stop and report to user. Do not loop.
-- **Build-context failure** → if \`yg build-context\` exits with error, warn user and do not proceed without context.
+- **Budget exceeded** → if \`yg build-context\` exits with error (context package exceeds budget), warn user: "This node should be split." Do not proceed with implementation.
 - **Corrupted \`.yggdrasil/\` files** → report to user. Do not attempt repair.
 - **Incremental sync** → run \`yg drift-sync\` every 3-5 source files during multi-file tasks. Do not defer to end.`;
 
