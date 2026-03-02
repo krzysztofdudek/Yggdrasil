@@ -1,11 +1,11 @@
 # Context Builder Responsibility
 
-Assembles context packages for nodes — the 6-step layer assembly used by `yg build-context`.
+Assembles context packages for nodes — the 5-step layer assembly used by `yg build-context`.
 
 **In scope:**
 
 - **buildContext(graph, nodePath)**: Primary API. Returns ContextPackage with layers, sections, mapping, tokenCount.
-- **6-step build, 5-section render**: Build phase: (1) global config, (2) hierarchy ancestors, (3) own (node.yaml from disk + configured artifacts from node), (4) relational (structural_context per decisions/002 or fallback), (5) flows (node + ancestors), (6) aspects (union of aspects from hierarchy + own + flow layers; no source on aspect layer). Render order differs: Global → Hierarchy → OwnArtifacts → Aspects → Relational (deps+flows merged).
+- **5-step assembly, 5-section output**: Steps: (1) global config, (2) hierarchy ancestors, (3) own (node.yaml + configured artifacts), (4) aspects (union from hierarchy + own + flow; expanded via implies; no source attribute), (5) relational (structural deps with structural_context or fallback + events + flows; merged into one section). Implementation builds layers in a different internal order (relational and flows before aspects to collect flow-propagated aspect ids) then reorders to match spec output: Global → Hierarchy → OwnArtifacts → Aspects → Relational.
 - **Aspects in blocks**: hierarchy, own, and flow layers carry `attrs.aspects` (comma-separated aspect ids, expanded via implies). No `collectHierarchyTags` or `collectFlowAspectTags`; no `source` on aspect layers.
 - **expandAspects(aspectIds, aspects)**: Helper; expands aspect ids with implied aspects recursively (cycle detection). Used by buildHierarchyLayer, buildOwnLayer, buildFlowLayer.
 - **Token estimation**: ~4 chars/token heuristic via estimateTokens (no tokenizer dependency).

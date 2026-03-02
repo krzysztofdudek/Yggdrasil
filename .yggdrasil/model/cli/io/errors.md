@@ -12,7 +12,7 @@ Parsers and stores throw `Error` on invalid input. No dedicated error codes — 
 
 **knowledge-parser:** Missing name, invalid scope (must be global, or { tags } or { nodes } with non-empty arrays). Propagates readFile and readArtifacts errors.
 
-**template-parser:** Invalid YAML (parseSchema). Propagates ENOENT, EACCES from readFile.
+**schema-parser:** Invalid YAML (parseSchema). Propagates ENOENT, EACCES from readFile.
 
 **artifact-reader:** Propagates ENOENT, EACCES from readdir/readFile.
 

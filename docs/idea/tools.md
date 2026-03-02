@@ -99,7 +99,7 @@ quality: # map, optional (has default values) — all keys snake_case
 | `never`                        | Artifact is always optional                                     |
 | `when: has_incoming_relations` | Required when there is a relation from another node to this one |
 | `when: has_outgoing_relations` | Required when this node has relations to others                 |
-| `when: has_tag:<name>`         | Required when the node carries the specified tag (snake_case)   |
+| `when: has_aspect:<name>`      | Required when the node carries the specified aspect             |
 
 **Validation rules for config.yaml:**
 
@@ -107,7 +107,7 @@ quality: # map, optional (has default values) — all keys snake_case
 - `node_types` must contain at least one element. Format: list of `{ name, required_aspects? }`. Legacy format (list of plain strings) is also accepted. Node `type` must match a `name` (or the string itself in legacy format).
 - `artifacts` must contain at least one element.
 - Artifact filenames cannot be `node.yaml` (reserved in every node directory).
-- `has_tag:<name>` conditions must refer to aspect directory names (exist under `aspects/<name>/`).
+- `has_aspect:<name>` conditions must refer to aspect directory names (exist under `aspects/<name>/`). Legacy `has_tag:<name>` is accepted for backward compatibility.
 - `quality.context_budget.error` must be ≥ `quality.context_budget.warning`.
 
 ### node.yaml
@@ -274,7 +274,7 @@ always an object:
 
 The `files` map always contains every tracked file for the node. Source files come from the
 node's mapping. Graph files come from the `collectTrackedFiles` algorithm, which mirrors
-the six layers of context assembly (own, hierarchical, aspects, relational dependencies,
+the six layers of tracked file collection (own, hierarchical, aspects, relational dependencies,
 relational flows, source). See the [Engine](engine) document for details.
 
 Each path in `mapping.paths` is checked at runtime — if it is a file, it is hashed directly
@@ -872,7 +872,7 @@ Two levels of severity defined in the [Engine](engine) document.
 | `E009` | `overlapping-mapping`        | Two nodes map to the same file/directory               |
 | `E010` | `structural-cycle`           | Cycle in structural relations (cycles involving blackbox are tolerated) |
 | `E012` | `invalid-config`             | `config.yaml` fails to parse or is invalid             |
-| `E013` | `invalid-artifact-condition` | Condition `has_tag:<name>` refers to an undefined tag  |
+| `E013` | `invalid-artifact-condition` | Condition `has_aspect:<name>` refers to an undefined aspect  |
 | `E014` | `duplicate-aspect-binding`   | Aspect identifier is bound to multiple aspect directories |
 | `E015` | `missing-node-yaml`          | Directory in `model/` has content but no `node.yaml`   |
 | `E016` | `implied-aspect-missing`     | Identifier in aspect's `implies` has no corresponding aspect in `aspects/`           |

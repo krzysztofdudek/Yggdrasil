@@ -50,6 +50,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Crosscheck round 1 (31 items):** Comprehensive docs-vs-code-vs-rules audit.
 - **Crosscheck round 2 (17 items):** Follow-up audit fixing remaining discrepancies across
   spec, user docs, rules template, and code.
+- `package.json` `files` array pointed to renamed `graph-templates/` instead of
+  `graph-schemas/` — schemas were missing from published npm package, breaking
+  `yg init` for new users.
+- Graph artifacts for `cli/io` still referenced `template-parser.ts` (renamed to
+  `schema-parser.ts`) and `cli/core/context` described "6-step" assembly (spec is 5-step).
+- Spec `tools.md` described tracked file collection as "six layers of context assembly"
+  — clarified as "tracked file collection" (distinct from 5-step context assembly).
 
 ### Changed
 
@@ -69,6 +76,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rules template: flow description.md sections described as agent responsibility, not validated.
 - Rules template: structural_context fallback documented in step 5.
 - Spec: platform table in `tools.md` now shows delivery method (embed vs reference) per platform.
+- **Artifact condition rename:** `has_tag:<name>` → `has_aspect:<name>` in config.yaml
+  artifact conditions. Code accepts both for backward compatibility. Spec, user docs,
+  and error messages updated to prefer `has_aspect:`.
 
 ### Removed
 

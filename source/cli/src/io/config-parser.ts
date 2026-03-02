@@ -80,10 +80,11 @@ export async function parseConfig(filePath: string): Promise<YggConfig> {
       const validWhen =
         when === 'has_incoming_relations' ||
         when === 'has_outgoing_relations' ||
-        (typeof when === 'string' && when.startsWith('has_tag:'));
+        (typeof when === 'string' &&
+          (when.startsWith('has_aspect:') || when.startsWith('has_tag:')));
       if (!validWhen) {
         throw new Error(
-          `config.yaml: artifact '${key}' has invalid 'required.when': must be has_incoming_relations, has_outgoing_relations, or has_tag:<name>`,
+          `config.yaml: artifact '${key}' has invalid 'required.when': must be has_incoming_relations, has_outgoing_relations, or has_aspect:<name>`,
         );
       }
     }

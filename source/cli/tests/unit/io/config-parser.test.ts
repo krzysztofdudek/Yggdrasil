@@ -363,6 +363,32 @@ artifacts:
     await rm(tmpDir, { recursive: true, force: true });
   });
 
+  it('accepts has_aspect: as valid when condition', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-has-aspect');
+    await mkdir(tmpDir, { recursive: true });
+    await writeFile(
+      path.join(tmpDir, 'config.yaml'),
+      `
+name: "HasAspect"
+node_types: [service]
+artifacts:
+  responsibility:
+    required: always
+    description: "x"
+  compliance:
+    required:
+      when: has_aspect:regulated
+    description: "y"
+`,
+      'utf-8',
+    );
+
+    const config = await parseConfig(path.join(tmpDir, 'config.yaml'));
+    expect(config.artifacts.compliance.required).toEqual({ when: 'has_aspect:regulated' });
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
   it('defaults stack to empty object', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-bare');
     await mkdir(tmpDir, { recursive: true });

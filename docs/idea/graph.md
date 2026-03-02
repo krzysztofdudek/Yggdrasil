@@ -156,7 +156,7 @@ of a file placed next to `node.yaml`. Configuration defines:
   - `always` — every non-blackbox node must have it.
   - `never` — always optional.
   - `when ...` — conditional on graph structure, such as `has_incoming_relations`,
-    `has_outgoing_relations`, `has_tag:<name>`.
+    `has_outgoing_relations`, `has_aspect:<name>` (legacy `has_tag:<name>` also accepted).
 - **Description** — what the artifact captures. This text is available to agents via tool
   feedback when creating or validating nodes.
 
@@ -167,12 +167,12 @@ domain-specific artifacts:
 artifacts:
   compliance.md:
     required:
-      when: has_tag:regulated
+      when: has_aspect:regulated
     description: Regulatory requirements and constraints
 
   performance.txt:
     required:
-      when: has_tag:high-throughput
+      when: has_aspect:high-throughput
     description: Performance budgets, SLAs, optimization constraints
 ```
 

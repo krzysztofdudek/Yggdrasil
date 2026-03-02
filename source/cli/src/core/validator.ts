@@ -442,9 +442,10 @@ function artifactRequiredReason(
     const count = node.meta.relations?.length ?? 0;
     return count > 0 ? `${count} outgoing relation(s)` : null;
   }
-  if (when.startsWith('has_tag:')) {
-    const tag = when.slice(8);
-    return (node.meta.aspects ?? []).includes(tag) ? `node has aspect '${tag}'` : null;
+  if (when.startsWith('has_aspect:') || when.startsWith('has_tag:')) {
+    const prefix = when.startsWith('has_aspect:') ? 'has_aspect:' : 'has_tag:';
+    const aspectId = when.slice(prefix.length);
+    return (node.meta.aspects ?? []).includes(aspectId) ? `node has aspect '${aspectId}'` : null;
   }
   return null;
 }
@@ -536,7 +537,7 @@ function checkFlowAspectIds(graph: Graph): ValidationIssue[] {
   return issues;
 }
 
-// --- E013: Invalid artifact condition (has_tag:X where X has no aspect) ---
+// --- E013: Invalid artifact condition (has_aspect:X where X has no aspect) ---
 
 function checkInvalidArtifactConditions(graph: Graph): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -546,14 +547,15 @@ function checkInvalidArtifactConditions(graph: Graph): ValidationIssue[] {
     const required = config.required;
     if (typeof required === 'object' && required && 'when' in required) {
       const when = (required as { when: string }).when;
-      if (when.startsWith('has_tag:')) {
-        const tag = when.slice(8);
-        if (!validAspectIds.has(tag)) {
+      if (when.startsWith('has_aspect:') || when.startsWith('has_tag:')) {
+        const prefix = when.startsWith('has_aspect:') ? 'has_aspect:' : 'has_tag:';
+        const aspectId = when.slice(prefix.length);
+        if (!validAspectIds.has(aspectId)) {
           issues.push({
             severity: 'error',
             code: 'E013',
             rule: 'invalid-artifact-condition',
-            message: `Artifact '${artifactName}' condition has_tag:${tag} has no corresponding aspect in aspects/`,
+            message: `Artifact '${artifactName}' condition has_aspect:${aspectId} has no corresponding aspect in aspects/`,
           });
         }
       }

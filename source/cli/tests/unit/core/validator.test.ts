@@ -729,6 +729,83 @@ describe('validator', () => {
     expect(issues.some((i) => i.message.includes('interface.md'))).toBe(true);
   });
 
+  it('invalid-artifact-condition returns error when has_aspect references aspect with no directory', async () => {
+    const graph = createGraph({
+      config: {
+        name: 'Test',
+        stack: {},
+        standards: '',
+        node_types: [{ name: 'service' }],
+        artifacts: {
+          responsibility: { required: 'always', description: 'x' },
+          interface: {
+            required: { when: 'has_aspect:undefined-aspect' },
+            description: '',
+          },
+        },
+      },
+    });
+    graph.nodes.set('a', createNode('a'));
+
+    const result = await validate(graph);
+    const issues = result.issues.filter((i) => i.rule === 'invalid-artifact-condition');
+    expect(issues).toHaveLength(1);
+    expect(issues[0].message).toContain('has_aspect:undefined-aspect');
+  });
+
+  it('artifactRequiredReason has_aspect returns null when node lacks aspect', async () => {
+    const graph = createGraph({
+      aspects: [{ name: 'Special', id: 'special', artifacts: [] }],
+      config: {
+        name: 'Test',
+        stack: {},
+        standards: '',
+        node_types: [{ name: 'service' }],
+        artifacts: {
+          responsibility: { required: 'always', description: 'x' },
+          optional: {
+            required: { when: 'has_aspect:special' },
+            description: 'x',
+          },
+        },
+      },
+    });
+    graph.nodes.set('svc', createNode('svc'));
+
+    const result = await validate(graph);
+    const optionalIssues = result.issues.filter((i) => i.message.includes('optional'));
+    expect(optionalIssues).toHaveLength(0);
+  });
+
+  it('missing-artifact when required has_aspect and node has aspect', async () => {
+    const graph = createGraph({
+      aspects: [{ name: 'PublicAPI', id: 'public-api', artifacts: [] }],
+      config: {
+        name: 'Test',
+        stack: {},
+        standards: '',
+        node_types: [{ name: 'service' }],
+        artifacts: {
+          'responsibility.md': { required: 'always', description: 'x' },
+          'interface.md': {
+            required: { when: 'has_aspect:public-api' },
+            description: '',
+          },
+        },
+      },
+    });
+    graph.nodes.set('svc', {
+      ...createNode('svc', { aspects: ['public-api'] }),
+      artifacts: [{ filename: 'responsibility.md', content: 'x' }],
+    });
+
+    const result = await validate(graph);
+    const issues = result.issues.filter(
+      (i) => i.rule === 'missing-artifact' && i.nodePath === 'svc',
+    );
+    expect(issues.some((i) => i.message.includes('interface.md'))).toBe(true);
+  });
+
   it('validate with scope filters issues to that node only', async () => {
     const graph = createGraph();
     graph.nodes.set('a', createNode('a', { relations: [{ target: 'missing', type: 'uses' }] }));

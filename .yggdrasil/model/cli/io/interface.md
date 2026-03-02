@@ -28,7 +28,7 @@ Library used by cli/core (loader, drift-detector) and cli/commands (journal). Al
   - Throws on missing name, invalid scope (must be `global` or `{ tags: string[] }` or `{ nodes: string[] }` with non-empty arrays). Reads artifacts from knowledgeDir excluding knowledge.yaml.
 - Exports type: `KnowledgeScope = 'global' | { tags: string[] } | { nodes: string[] }`
 
-## template-parser.ts
+## schema-parser.ts
 
 - `parseSchema(filePath: string): Promise<SchemaDef>`
   - Validates file is parseable YAML. Infers `schemaType` from filename stem (e.g. `node.yaml` → `'node'`). Used by `loadSchemas` in cli/core/loader.

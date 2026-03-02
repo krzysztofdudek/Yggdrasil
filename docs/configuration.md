@@ -30,7 +30,7 @@ Config file: `.yggdrasil/config.yaml`
 - **Node types** — The vocabulary of parts your repo uses (e.g. `module`, `service`, `library`). Optionally, each type can declare `required_aspects` — aspects that nodes of that type must have coverage for (directly or via aspect composition).
 - **Artifacts** — The kinds of meaning you want to capture per node. Each artifact has:
   - `required`: `always` | `never` | `{ when: "<condition>" }`
-    - Supported `when` conditions: `has_incoming_relations`, `has_outgoing_relations`, `has_tag:<name>` (soon `has_aspect:<name>`)
+    - Supported `when` conditions: `has_incoming_relations`, `has_outgoing_relations`, `has_aspect:<name>` (legacy `has_tag:<name>` also accepted)
   - `description`: string
   - `structural_context`: boolean — When `true`, this artifact is included in the context package of dependent nodes (via structural relations like uses, calls, extends, implements). Default artifacts with this flag: `responsibility.md`, `interface.md`, `constraints.md`, `errors.md`.
 - **Quality thresholds** — When to warn about shallow memory or large context
