@@ -15,6 +15,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `drift` status for finer-grained reporting.
 - `--drifted-only` flag for `yg drift` to reduce output by hiding ok entries.
 - `path` field on `FlowDef` for flow directory resolution.
+- **Hierarchical aspect directories:** Aspects can be organized in nested directories under `aspects/` (e.g. `aspects/observability/logging/`). Nesting is organizational only — no automatic parent-child relationship; `implies` is always explicit.
+- **`description` field in `aspect.yaml`:** Optional short description for discovery via `yg aspects`.
+- **Hierarchy aspect propagation:** Aspects from ancestors (root→parent) propagate to child nodes. Child receives aspect content for all aspects in its hierarchy.
+- **Flow aspects:** Optional `aspects: string[]` in `flow.yaml`. Aspect ids propagate to all participants. Validation: flow.aspects must correspond to aspect directories.
+- **Context format (XML-like tags):** `yg build-context` outputs plain text with XML-like tags (`<context-package>`, `<global>`, `<aspect>`, `<flow>`, etc.) instead of Markdown. Content between tags is raw text.
+- **Flow description.md format:** Required sections (Business context, Trigger, Goal, Participants, Paths, Invariants). `## Paths` must contain at least `### Happy path`; each other business path gets its own subsection. One flow = one business process with all variants. Spec in graph.md, rules.ts, tools.md.
+- **Aspect composition (`implies`):** Aspects can declare `implies: [id, ...]` to pull in other aspects automatically. Enables bundle aspects (e.g. HIPAA) that include sub-aspects. Tools resolve implications recursively with cycle detection.
+- **`node_types` with `required_aspects`:** Config supports `{ name, required_aspects? }` per node type. Nodes of that type must have coverage (direct aspect or via implies); W011 warns when missing.
+- **Validation codes:** E016 (implied-aspect-missing), E017 (aspect-implies-cycle), W011 (missing-required-aspect-coverage).
+- Enriched schema files (node.yaml, aspect.yaml, flow.yaml) with self-documenting
+  YAML comments describing every field.
 
 ### Changed
 
@@ -23,6 +34,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `yg drift` output split into two sections: "Source drift" and "Graph drift".
 - `yg drift-sync --node` now captures hashes for all tracked files (source + graph),
   not just mapping files.
+- Aspects now appear before relational context in context packages.
+- Assembly algorithm described as 5-step (was 6-step) in docs and rules.
+- Renamed `source/cli/graph-templates/` to `source/cli/graph-schemas/`.
+- Renamed `template-parser.ts` to `schema-parser.ts`.
+- Validation rule renames: `unknown-tag` → `unknown-aspect`, `broken-aspect-tag` → `broken-aspect-ref`, `missing-required-tag-coverage` → `missing-required-aspect-coverage`.
+- **Documentation:** Updated all spec docs (`docs/idea/`), user docs (`docs/configuration.md`), graph metadata (`.yggdrasil/`), and agent rules to reflect aspects rename and hierarchy.
 
 ### Removed
 
@@ -44,29 +61,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Global → Hierarchy → OwnArtifacts → Dependencies → Aspects → Flows
   to Global → Hierarchy → OwnArtifacts → Aspects → Relational.
 - Merged `Dependencies` and `Flows` sections into single `Relational` section.
-
-### Added
-
-- **Hierarchical aspect directories:** Aspects can be organized in nested directories under `aspects/` (e.g. `aspects/observability/logging/`). Nesting is organizational only — no automatic parent-child relationship; `implies` is always explicit.
-- **`description` field in `aspect.yaml`:** Optional short description for discovery via `yg aspects`.
-- **Hierarchy aspect propagation:** Aspects from ancestors (root→parent) propagate to child nodes. Child receives aspect content for all aspects in its hierarchy.
-- **Flow aspects:** Optional `aspects: string[]` in `flow.yaml`. Aspect ids propagate to all participants. Validation: flow.aspects must correspond to aspect directories.
-- **Context format (XML-like tags):** `yg build-context` outputs plain text with XML-like tags (`<context-package>`, `<global>`, `<aspect>`, `<flow>`, etc.) instead of Markdown. Content between tags is raw text.
-- **Flow description.md format:** Required sections (Business context, Trigger, Goal, Participants, Paths, Invariants). `## Paths` must contain at least `### Happy path`; each other business path gets its own subsection. One flow = one business process with all variants. Spec in graph.md, rules.ts, tools.md.
-- **Aspect composition (`implies`):** Aspects can declare `implies: [id, ...]` to pull in other aspects automatically. Enables bundle aspects (e.g. HIPAA) that include sub-aspects. Tools resolve implications recursively with cycle detection.
-- **`node_types` with `required_aspects`:** Config supports `{ name, required_aspects? }` per node type. Nodes of that type must have coverage (direct aspect or via implies); W011 warns when missing.
-- **Validation codes:** E016 (implied-aspect-missing), E017 (aspect-implies-cycle), W011 (missing-required-aspect-coverage).
-- Enriched schema files (node.yaml, aspect.yaml, flow.yaml) with self-documenting
-  YAML comments describing every field.
-
-### Changed
-
-- Aspects now appear before relational context in context packages.
-- Assembly algorithm described as 5-step (was 6-step) in docs and rules.
-- Renamed `source/cli/graph-templates/` to `source/cli/graph-schemas/`.
-- Renamed `template-parser.ts` to `schema-parser.ts`.
-- Validation rule renames: `unknown-tag` → `unknown-aspect`, `broken-aspect-tag` → `broken-aspect-ref`, `missing-required-tag-coverage` → `missing-required-aspect-coverage`.
-- **Documentation:** Updated all spec docs (`docs/idea/`), user docs (`docs/configuration.md`), graph metadata (`.yggdrasil/`), and agent rules to reflect aspects rename and hierarchy.
 
 ## [0.3.4] - 2026-02-27
 
