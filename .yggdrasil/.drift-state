@@ -9,14 +9,14 @@ cli/core:
     source/cli/src/core/graph-loader.ts: 9232999167e64572f0f9d9dd8e5a103bf3fd99110281e8d50ed74643d141aa41
     source/cli/src/core/validator.ts: 817fd77e88aac1e3787d4e520156fa0ce4adee2ce841fe98e28f5f1cf77f0457
 cli/entry:
-  hash: 72fa619f98882fe36b279d6ec5cebd229d54287ea96590dbfb5224f13d028937
+  hash: 770cdc866ff799e7a3944ad5f9c61441590f927fefdbc0948822dbed7a4aadbf
   files:
     .yggdrasil/model/cli/entry/node.yaml: 12c87a2eee693278a15cfbbaf605862ae17208c03550d658633ce1275ae633a8
     .yggdrasil/model/cli/entry/decisions.md: 6cc59dab02d9196fd607faa64fec73da98f8b03f02a4604860e31490a9d84b92
     .yggdrasil/model/cli/entry/responsibility.md: a2a6e88d87abe95109e5f59ac5708402ab51e36bc4b08878b41c28251a087978
     .yggdrasil/model/cli/node.yaml: 8fbee36d999af38b4a94546f5631b5251c299b5e5a285a88d1f5c77f4ee33c96
-    .yggdrasil/model/cli/decisions.md: d37de2f879fd4b21e564d1d674dd504fb63159ea85565ba9cfdcb8e4c63ba199
-    .yggdrasil/model/cli/responsibility.md: df0892f0f65f33dc468500d5d5aa02549e380482f0db92f5d9e5fe68c40c3f84
+    .yggdrasil/model/cli/decisions.md: ff683e5ebfb2b4108fff987b6fecda300cfdf2960079c69cf6de870c09e269d1
+    .yggdrasil/model/cli/responsibility.md: d558b191f0577ae4a61651f92c539aef1c8590085b02737b8b442f61aa515cc1
     .yggdrasil/aspects/cli-command-contract/aspect.yaml: 81ba5d9318ec49940495487c056356f9bd462d67ca4bb06d3fd954cf26945d01
     .yggdrasil/aspects/cli-command-contract/content.md: 0d1fdbb02cf2c66c02ba3960fefdc80e3c3284944cdd73783074f4a24d65fb27
     .yggdrasil/aspects/deterministic/aspect.yaml: 6329a56d7eab89b99ad2a1ccb87ad2a767883f1c115b1027513c28c498e05364
@@ -32,6 +32,7 @@ cli/entry:
     .yggdrasil/model/cli/commands/validation/errors.md: 864db43d9d9ba88008888cda461e07d7793c2767e94df4c1f9eb0350578faeb2
     .yggdrasil/model/cli/commands/drift/responsibility.md: 929560a97deffc28a60ddc2f4aacdebaf1e3ea177e8edb1a0d9f02de9f21257a
     .yggdrasil/model/cli/commands/drift/interface.md: 244f6941e8589c43e6eb6e00ff397b3bda57e25e31ba71c4baff163fdd8b50c6
+    .yggdrasil/model/cli/commands/drift/constraints.md: cb8827bd4c79e4ec2e93746941649816d64dfd18ab61f0efcb8f7b9294c39cd0
     .yggdrasil/model/cli/commands/drift/errors.md: ea3b940590999cf900ae876ade02bc29c10df8cbe315e12c6c17ee4b5e790bf8
     .yggdrasil/model/cli/commands/journal/responsibility.md: b24cd23b18032fcf38708b10634120d3c4e7530af4392b9dd9add009276e8cf7
     .yggdrasil/model/cli/commands/journal/interface.md: 2393b2980f6f483e1065726b9b96364b26de5c03856a8c71c4703a794a58939f
@@ -47,6 +48,7 @@ cli/entry:
     .yggdrasil/model/cli/commands/deps/errors.md: fea1d04e79bf5fe26083d4c84f2eea0a1e9d1e8b48565569f63339456ba8539a
     .yggdrasil/model/cli/commands/impact/responsibility.md: f61efefe40fd4538e1f4df7d0738595c08108fa3f1514527a8c167cc224498c2
     .yggdrasil/model/cli/commands/impact/interface.md: 8bed65ae9305e2e8746fc401be7e5e2d9ba1d4b3d1223c53358aa6f2b74c3504
+    .yggdrasil/model/cli/commands/impact/constraints.md: 29dcdafb03425679934fd479c49c466ecaf77d8a297b78b07690edbce5d277fb
     .yggdrasil/model/cli/commands/impact/errors.md: b34041b4f3404383723979adcfa69d9d34a756b3d0326cad9c114e15547f49b5
     .yggdrasil/model/cli/commands/status/responsibility.md: e3a37aa9013cee1f734923fbed3cf5cd1abb76dee9ada6b30616a264aac8b7fb
     .yggdrasil/model/cli/commands/status/interface.md: 7c7a435200e3eb706f6e6e3e7b8075446dcacef1311b68286877c2165d25720e
@@ -137,7 +139,7 @@ cli/model:
     source/cli/src/model/.gitkeep: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
     source/cli/src/model/types.ts: 2d77082b214d56333a9eb7000e14bd9e88c68464ecd28c10b99c7645fe3d2452
 cli/templates:
-  hash: e1afafa6e882e784c7c7231ffc85c919bd97f3a31066db7bd9b01df6e64d6a62
+  hash: 524714a13a17e0305addc6d957b8459ff4fc294a316b136822ee6f5fa12ef2f8
   files:
     .yggdrasil/model/cli/templates/node.yaml: a196b7cb80715efb9b8b433fe3833176f1bc5e887660d8d5e1a68ed5009ad4fd
     .yggdrasil/model/cli/templates/decisions.md: 4e33f3de4cbe1919194cbb36270b5fc013ba1bcfee5fe6b32d7e905c3fb8af88
@@ -145,9 +147,9 @@ cli/templates:
     .yggdrasil/model/cli/templates/interface.md: 099f608b56babec10f96637721f6af3d9c138207c3aa3870c4bc47cf3d324503
     .yggdrasil/model/cli/templates/logic.md: 0055d60ff428569aec22cfbb4f41fced83b5c926ca9b410bded783c0dad3e37d
     .yggdrasil/model/cli/templates/responsibility.md: 0112731c84f660f64f1105f05da99d298eb466b40186b97a24277190e86a4672
-    .yggdrasil/model/cli/node.yaml: 58606a7f5e16ee0f6c5537778f42c7546973a7a58d7ea7880cd2f67e4c48711d
-    .yggdrasil/model/cli/decisions.md: d37de2f879fd4b21e564d1d674dd504fb63159ea85565ba9cfdcb8e4c63ba199
-    .yggdrasil/model/cli/responsibility.md: df0892f0f65f33dc468500d5d5aa02549e380482f0db92f5d9e5fe68c40c3f84
+    .yggdrasil/model/cli/node.yaml: 8fbee36d999af38b4a94546f5631b5251c299b5e5a285a88d1f5c77f4ee33c96
+    .yggdrasil/model/cli/decisions.md: ff683e5ebfb2b4108fff987b6fecda300cfdf2960079c69cf6de870c09e269d1
+    .yggdrasil/model/cli/responsibility.md: d558b191f0577ae4a61651f92c539aef1c8590085b02737b8b442f61aa515cc1
     .yggdrasil/aspects/deterministic/aspect.yaml: 6329a56d7eab89b99ad2a1ccb87ad2a767883f1c115b1027513c28c498e05364
     .yggdrasil/aspects/deterministic/content.md: 67d4f694068d8f249aeea838717d8667f6204b798fb00e9951880018c8e5449d
     .yggdrasil/flows/init/flow.yaml: 6fccd893a4fb886b75e244e35b1bf2f2dc98600c500d2615370e7f668bd7578a
@@ -159,7 +161,7 @@ cli/templates:
     source/cli/graph-schemas/flow.yaml: 5bf15115678617fef1175e25ac28e54482513e275254bd4a8680cc8268d2d463
     source/cli/graph-schemas/node.yaml: 5e6fdf9da862ac7ad0ea364fa85c90ccf0c80ac8ed51a99162654c71ada92c6e
 cli/utils:
-  hash: db343e6da2e74a1e765d1c7df6e7494c8b87d7f5e7fb51d396aee410fcf8dd96
+  hash: 17314e3d9450b5de628acc0bad1b9a9f98c36fb66cba9baed1e79fe11ecee701
   files:
     .yggdrasil/model/cli/utils/node.yaml: 902dd33cd1945523f83b7e5a4282635ca934bc73540ffaab56d31a6b86bf524b
     .yggdrasil/model/cli/utils/decisions.md: 86c0f57cf42bb733041e9d6cbed139c9f1b6e228e9e16302ae9a73d19455b41e
@@ -168,8 +170,8 @@ cli/utils:
     .yggdrasil/model/cli/utils/logic.md: 13d15bfa17643006e0ad911675f3c51e094f3fde6ad0edf7a8941b7135dbf872
     .yggdrasil/model/cli/utils/responsibility.md: 4918c48366c7b3f35bb7b97fa74252c47f14ba72417c5cc5f3e1100b503c7ddd
     .yggdrasil/model/cli/node.yaml: 8fbee36d999af38b4a94546f5631b5251c299b5e5a285a88d1f5c77f4ee33c96
-    .yggdrasil/model/cli/decisions.md: d37de2f879fd4b21e564d1d674dd504fb63159ea85565ba9cfdcb8e4c63ba199
-    .yggdrasil/model/cli/responsibility.md: df0892f0f65f33dc468500d5d5aa02549e380482f0db92f5d9e5fe68c40c3f84
+    .yggdrasil/model/cli/decisions.md: ff683e5ebfb2b4108fff987b6fecda300cfdf2960079c69cf6de870c09e269d1
+    .yggdrasil/model/cli/responsibility.md: d558b191f0577ae4a61651f92c539aef1c8590085b02737b8b442f61aa515cc1
     .yggdrasil/aspects/posix-paths/aspect.yaml: 3f025d4986e5dceea0b8fec8695cf9224305ef75229632e7a21a78600b0da29b
     .yggdrasil/aspects/posix-paths/content.md: 38daf50dec99307443fd8951019cf534c74571a7778d43e55a4354d9d2faeefc
     .yggdrasil/aspects/deterministic/aspect.yaml: 6329a56d7eab89b99ad2a1ccb87ad2a767883f1c115b1027513c28c498e05364
@@ -183,21 +185,23 @@ cli/utils:
     source/cli/src/utils/paths.ts: 17a54a0b546a2ce9740c5164745fbe693e7c0c2f970b00af8b9ef26bd93ed779
     source/cli/src/utils/tokens.ts: 7112d6af24d084b1c9ca3db525de802bc1a57c44445813de21f075cc8be0081f
 cli/commands/init:
-  hash: 7f287b480dc2c62ad2b7f12d04e45853c94e8af4ff9427f27f5a95b7d3ea07da
+  hash: 25a1a0663f65ef9e56fabb60aa9526c7ae0fba1a568c1b9fd6481fc772396a59
   files:
     .yggdrasil/model/cli/commands/init/node.yaml: 5f5efc6f39ac5f7619d2a25de1539ae76448646dbdebae3b475ab3c41bf2c95c
     .yggdrasil/model/cli/commands/init/errors.md: acdf59c4dc532c21e3e624f250109747ce21b19695ef31963bac7eab27d987c2
     .yggdrasil/model/cli/commands/init/interface.md: 9236e835040eeda7231cc90e5ad841e75b2459c776b86d10f5643c89fc7ce7ee
     .yggdrasil/model/cli/commands/init/logic.md: bcf3bf0fdb7de6f733f892f1f7d5129d8c5c33fa6633f098f01e5019e2f6ea27
     .yggdrasil/model/cli/commands/init/responsibility.md: c0f68d91b9cbb1027e33441c904803af8aa8a1f999451e39fc8b77c7b7928d06
-    .yggdrasil/model/cli/node.yaml: 58606a7f5e16ee0f6c5537778f42c7546973a7a58d7ea7880cd2f67e4c48711d
-    .yggdrasil/model/cli/decisions.md: d37de2f879fd4b21e564d1d674dd504fb63159ea85565ba9cfdcb8e4c63ba199
-    .yggdrasil/model/cli/responsibility.md: df0892f0f65f33dc468500d5d5aa02549e380482f0db92f5d9e5fe68c40c3f84
-    .yggdrasil/model/cli/commands/node.yaml: 090b384e3ef283162f9362ced0a01e70cd2202eee69245fad1db3cdb9aaeaf64
-    .yggdrasil/model/cli/commands/decisions.md: d7acacd8c766f78a17ee97cfda33c172ca7f3663b68a1e5f83f3f26ca1eaac3f
-    .yggdrasil/model/cli/commands/responsibility.md: e7b6249c1305cc143a3dc4e4cd6c1b93591bb8d35a633256ec238e40f8c78d21
+    .yggdrasil/model/cli/node.yaml: 8fbee36d999af38b4a94546f5631b5251c299b5e5a285a88d1f5c77f4ee33c96
+    .yggdrasil/model/cli/decisions.md: ff683e5ebfb2b4108fff987b6fecda300cfdf2960079c69cf6de870c09e269d1
+    .yggdrasil/model/cli/responsibility.md: d558b191f0577ae4a61651f92c539aef1c8590085b02737b8b442f61aa515cc1
+    .yggdrasil/model/cli/commands/node.yaml: 13dee65042634a5145aa7312c2eb3a93d10f090b287dcc4b3a32cc64342965ef
+    .yggdrasil/model/cli/commands/decisions.md: 67a9910cfa4702eb4c4f228dfff8bcf82fb2eae72b76626ecedd8c3a52cc38c4
+    .yggdrasil/model/cli/commands/responsibility.md: 8adafc6c339eb09c964983c5fb32d7d584fe3e1564ddd5072062204eddda5a7e
     .yggdrasil/aspects/deterministic/aspect.yaml: 6329a56d7eab89b99ad2a1ccb87ad2a767883f1c115b1027513c28c498e05364
     .yggdrasil/aspects/deterministic/content.md: 67d4f694068d8f249aeea838717d8667f6204b798fb00e9951880018c8e5449d
+    .yggdrasil/aspects/cli-command-contract/aspect.yaml: 81ba5d9318ec49940495487c056356f9bd462d67ca4bb06d3fd954cf26945d01
+    .yggdrasil/aspects/cli-command-contract/content.md: 0d1fdbb02cf2c66c02ba3960fefdc80e3c3284944cdd73783074f4a24d65fb27
     .yggdrasil/model/cli/templates/responsibility.md: 0112731c84f660f64f1105f05da99d298eb466b40186b97a24277190e86a4672
     .yggdrasil/model/cli/templates/interface.md: 099f608b56babec10f96637721f6af3d9c138207c3aa3870c4bc47cf3d324503
     .yggdrasil/model/cli/templates/errors.md: 1acff606bc69525eb710dcfc29abe4209d8c4eb7b40292eb9041d16e2389f6fd
@@ -205,19 +209,19 @@ cli/commands/init:
     .yggdrasil/flows/init/description.md: 7ab06dca456fe57c748e343faba4dff4db88ef73792ab2eaf28298ff595adba0
     source/cli/src/cli/init.ts: 01023189a79e5c82676aa82a707f8ecf3869515dcafc2324cbfce218c06dfefc
 cli/commands/validation:
-  hash: 99d1e1c295f7c8c4954189bf29137a125f3e960fcdc0de07a0ce27a959a0d8e7
+  hash: 287345fed67222b952c508ebfe4b62f489c5fa5d7866aa9b140567f1922c8585
   files:
     .yggdrasil/model/cli/commands/validation/node.yaml: 3a65632417a38414c6d6eaa613035adc0218fdc82892bc6b694b5d76365d7844
     .yggdrasil/model/cli/commands/validation/errors.md: 864db43d9d9ba88008888cda461e07d7793c2767e94df4c1f9eb0350578faeb2
     .yggdrasil/model/cli/commands/validation/interface.md: e0d77cba4649390c3a3a04f30a066e88719dfc3f548ffcc52ae738d8ab4e60f1
     .yggdrasil/model/cli/commands/validation/logic.md: c4578e41516215436e801edf802d1bd1da462889d887877641617d87535f9d9d
     .yggdrasil/model/cli/commands/validation/responsibility.md: fbd329b8f815c16cf9e688926c541102f6570f6528c6a69272596c84172fe552
-    .yggdrasil/model/cli/node.yaml: 58606a7f5e16ee0f6c5537778f42c7546973a7a58d7ea7880cd2f67e4c48711d
-    .yggdrasil/model/cli/decisions.md: d37de2f879fd4b21e564d1d674dd504fb63159ea85565ba9cfdcb8e4c63ba199
-    .yggdrasil/model/cli/responsibility.md: df0892f0f65f33dc468500d5d5aa02549e380482f0db92f5d9e5fe68c40c3f84
-    .yggdrasil/model/cli/commands/node.yaml: 090b384e3ef283162f9362ced0a01e70cd2202eee69245fad1db3cdb9aaeaf64
-    .yggdrasil/model/cli/commands/decisions.md: d7acacd8c766f78a17ee97cfda33c172ca7f3663b68a1e5f83f3f26ca1eaac3f
-    .yggdrasil/model/cli/commands/responsibility.md: e7b6249c1305cc143a3dc4e4cd6c1b93591bb8d35a633256ec238e40f8c78d21
+    .yggdrasil/model/cli/node.yaml: 8fbee36d999af38b4a94546f5631b5251c299b5e5a285a88d1f5c77f4ee33c96
+    .yggdrasil/model/cli/decisions.md: ff683e5ebfb2b4108fff987b6fecda300cfdf2960079c69cf6de870c09e269d1
+    .yggdrasil/model/cli/responsibility.md: d558b191f0577ae4a61651f92c539aef1c8590085b02737b8b442f61aa515cc1
+    .yggdrasil/model/cli/commands/node.yaml: 13dee65042634a5145aa7312c2eb3a93d10f090b287dcc4b3a32cc64342965ef
+    .yggdrasil/model/cli/commands/decisions.md: 67a9910cfa4702eb4c4f228dfff8bcf82fb2eae72b76626ecedd8c3a52cc38c4
+    .yggdrasil/model/cli/commands/responsibility.md: 8adafc6c339eb09c964983c5fb32d7d584fe3e1564ddd5072062204eddda5a7e
     .yggdrasil/aspects/deterministic/aspect.yaml: 6329a56d7eab89b99ad2a1ccb87ad2a767883f1c115b1027513c28c498e05364
     .yggdrasil/aspects/deterministic/content.md: 67d4f694068d8f249aeea838717d8667f6204b798fb00e9951880018c8e5449d
     .yggdrasil/aspects/cli-command-contract/aspect.yaml: 81ba5d9318ec49940495487c056356f9bd462d67ca4bb06d3fd954cf26945d01
@@ -228,8 +232,6 @@ cli/commands/validation:
     .yggdrasil/model/cli/core/validator/responsibility.md: 2172a07e6ecfbb89c55c16574fbf503cc674af2bf7f5b28507b9424a18f5b038
     .yggdrasil/model/cli/core/validator/interface.md: 1b7439098275ac08719d8fb53f526058ca47796dfd0bb43b9d499e6ddb0fb262
     .yggdrasil/model/cli/core/validator/errors.md: 427c3ced9fe391d9465ad885fc622fb38981752ab8bfe54368019a0b5e97ea57
-    .yggdrasil/flows/build-context/flow.yaml: 34d2c8cb7b9d08f40e2afebc0c1130af674cc55b71294041f6bcbcbc6a5dedc8
-    .yggdrasil/flows/build-context/description.md: 52230f3ea3edae1df688afbbd550e4ae7717a49070c601df2578d47495a072c4
     .yggdrasil/flows/validate/flow.yaml: a50a42b81665319ae478d268f44f5f6b1a3e159efaef4f5d0d4390356e1544be
     .yggdrasil/flows/validate/description.md: c4485c3e3430963988c8ce4ff6a70b13e3b1aa6485cc1ac0a881f081f131c523
     source/cli/src/cli/validate.ts: 8e1be4a1290ee0c1a6c7caa0be1dfcfcfc2d0440d1ea332ff426bc20f49143f8
@@ -494,26 +496,28 @@ cli/core/drift-detector:
     .yggdrasil/flows/preflight/description.md: 0382ec1cd66904be29b9385f07e4aa18af843210cd55594b9997cdef4f17eb26
     source/cli/src/core/drift-detector.ts: 2550367d209db1ad2c3d3b1bcc4447c0401fc9f3696f21b80b7cdb1c551c6dc7
 cli/core/dependency-resolver:
-  hash: 3e8be3f6f11c4afdd3a4d6bba34701429973a7202dd1d02278576267b4ab1f3b
+  hash: 10f2428305cbcaed70789913875e0b61935babc3d312d74134e819d406a1b11f
   files:
     .yggdrasil/model/cli/core/dependency-resolver/node.yaml: 683786f656083a93bd27bb4156efda7bb4ed0f6833f68536ee4fc38d99ed16ef
     .yggdrasil/model/cli/core/dependency-resolver/errors.md: cb8efdbf54e76551c8fcc8ce5b6fda4c6f2ad114de4f5e14c62becab4cca8c50
     .yggdrasil/model/cli/core/dependency-resolver/interface.md: 519719f59992fc7b915f50192de73b56eecb45249a85b69cb7f2ccfeb88a6d36
     .yggdrasil/model/cli/core/dependency-resolver/logic.md: 63a532c086f8ee570a0624d26c21fa42fed48fc97f2aaef9b2c98d618d9005a6
     .yggdrasil/model/cli/core/dependency-resolver/responsibility.md: 69a24743016874da2c72a4efd6b79bfb27a3b57b7e2cb546c93cf5796b5491a6
-    .yggdrasil/model/cli/node.yaml: 58606a7f5e16ee0f6c5537778f42c7546973a7a58d7ea7880cd2f67e4c48711d
-    .yggdrasil/model/cli/decisions.md: d37de2f879fd4b21e564d1d674dd504fb63159ea85565ba9cfdcb8e4c63ba199
-    .yggdrasil/model/cli/responsibility.md: df0892f0f65f33dc468500d5d5aa02549e380482f0db92f5d9e5fe68c40c3f84
+    .yggdrasil/model/cli/node.yaml: 8fbee36d999af38b4a94546f5631b5251c299b5e5a285a88d1f5c77f4ee33c96
+    .yggdrasil/model/cli/decisions.md: ff683e5ebfb2b4108fff987b6fecda300cfdf2960079c69cf6de870c09e269d1
+    .yggdrasil/model/cli/responsibility.md: d558b191f0577ae4a61651f92c539aef1c8590085b02737b8b442f61aa515cc1
     .yggdrasil/model/cli/core/node.yaml: e7cbe674f18759b48ed4319a1814a8da6760f6fee450bc988cc4469b487b0e96
-    .yggdrasil/model/cli/core/constraints.md: b9859b8cc2191ae1328cdfb474d09233f123c7a52723a0b7e9f17c5fb40447d0
-    .yggdrasil/model/cli/core/decisions.md: 4aad0e48c8e7c21205929a4637f4c77aff3fe3c8fd5551262ac1586c3a6482da
-    .yggdrasil/model/cli/core/errors.md: cf25de2e0c39d3e3900b287d691b233cb6939e1cc50fed4839c3f70a43c47219
-    .yggdrasil/model/cli/core/responsibility.md: 3fd26c56a938e0eab70c33f979cc4b80da5badd16ee23a32cd825a0c6c85ddbb
+    .yggdrasil/model/cli/core/constraints.md: 155c586d1806c78569b80f9681ee83ee67345449050438bddc57f973bd22de6e
+    .yggdrasil/model/cli/core/decisions.md: 0faec8a8a8f28815137ba8f47170a5f5df25ae8d7ddc53abd56650adbba54bc8
+    .yggdrasil/model/cli/core/errors.md: e9ecb9b787ae288d7f2f3860e355a3e1db8c2a241431103923d72ca14d32b211
+    .yggdrasil/model/cli/core/responsibility.md: 5bcc874d05c5b74ae47c55e0f19630dd3cfd21cc2207228419b8fa416397b308
     .yggdrasil/aspects/deterministic/aspect.yaml: 6329a56d7eab89b99ad2a1ccb87ad2a767883f1c115b1027513c28c498e05364
     .yggdrasil/aspects/deterministic/content.md: 67d4f694068d8f249aeea838717d8667f6204b798fb00e9951880018c8e5449d
     .yggdrasil/model/cli/model/responsibility.md: 3857f83dc398dc613de5844de40e61f2cde94ee0a2fe0b65a314500ef1ea4896
     .yggdrasil/model/cli/model/interface.md: bbdf059b5770f74dc51d7455df1c52500a28ab914e416b213c5c4f76a7457e0a
     .yggdrasil/model/cli/model/errors.md: c66f5814cc82092e078f7a816e982ef6dba6de5c3b82cc45c188d01b3e916631
+    .yggdrasil/flows/graph-analysis/flow.yaml: b76dee1120416f885ec54fbc540d653a67fcc1018066c4e3fe5840909540eb45
+    .yggdrasil/flows/graph-analysis/description.md: 2c5f6e377cea91a9b447f395971203f02c2a91a816e847269adb6f84c8786603
     source/cli/src/core/dependency-resolver.ts: 604a78da0634acc6134d90f77929b827027f1c122f347b196ab0ab6080785d1a
 docs:
   hash: d4d2ed6c30a321c6d46543c650a41ff75fdf3353a7e41e49f51eb0dcd96b24df
@@ -573,19 +577,19 @@ cli/commands/owner:
     .yggdrasil/flows/graph-navigation/description.md: d343bb1a375026e63e0815716a75149306814f7eaf65300bbe1a7e11483a8d7f
     source/cli/src/cli/owner.ts: 33baba8da8e2ea4bffd8e524107d44811408c1e4fb67c784ac28fa426b8d2f56
 cli/commands/tree:
-  hash: c879be96e0d867df319e192be8daa1c6266b68654e3f1af051d0ab7a4bd0c7fc
+  hash: 0730cc8bcdce1962216e5999a910505f65f262ce2d7ce43c05d9b702950c2424
   files:
     .yggdrasil/model/cli/commands/tree/node.yaml: fe3069342954a21c0bb8559fb2ef18c77f3370d4c1f76346b9638cabc1d53846
     .yggdrasil/model/cli/commands/tree/errors.md: 46bd0dabd1ef04794c4d3b5d132ebe6eff08569db047d9093f38196e78e7cc03
     .yggdrasil/model/cli/commands/tree/interface.md: 3e484c0ae75d4eb6adad58f009da2f12e18f7e33b149691476c62d6852ddd9d2
-    .yggdrasil/model/cli/commands/tree/logic.md: ce336bfda9b37010a387161464e52ace9f144bd2ca4ff4cb3947fb7b4c0023e3
+    .yggdrasil/model/cli/commands/tree/logic.md: 1f0bb513c566dd7447c9e79ba874489b18469d27d6d1dca71c3ffadc384b7cb2
     .yggdrasil/model/cli/commands/tree/responsibility.md: 2f05012d6dbe4273c84878c885f0676539680b967d34b74cdb0743745116b941
-    .yggdrasil/model/cli/node.yaml: 58606a7f5e16ee0f6c5537778f42c7546973a7a58d7ea7880cd2f67e4c48711d
-    .yggdrasil/model/cli/decisions.md: d37de2f879fd4b21e564d1d674dd504fb63159ea85565ba9cfdcb8e4c63ba199
-    .yggdrasil/model/cli/responsibility.md: df0892f0f65f33dc468500d5d5aa02549e380482f0db92f5d9e5fe68c40c3f84
-    .yggdrasil/model/cli/commands/node.yaml: 090b384e3ef283162f9362ced0a01e70cd2202eee69245fad1db3cdb9aaeaf64
-    .yggdrasil/model/cli/commands/decisions.md: d7acacd8c766f78a17ee97cfda33c172ca7f3663b68a1e5f83f3f26ca1eaac3f
-    .yggdrasil/model/cli/commands/responsibility.md: e7b6249c1305cc143a3dc4e4cd6c1b93591bb8d35a633256ec238e40f8c78d21
+    .yggdrasil/model/cli/node.yaml: 8fbee36d999af38b4a94546f5631b5251c299b5e5a285a88d1f5c77f4ee33c96
+    .yggdrasil/model/cli/decisions.md: ff683e5ebfb2b4108fff987b6fecda300cfdf2960079c69cf6de870c09e269d1
+    .yggdrasil/model/cli/responsibility.md: d558b191f0577ae4a61651f92c539aef1c8590085b02737b8b442f61aa515cc1
+    .yggdrasil/model/cli/commands/node.yaml: 13dee65042634a5145aa7312c2eb3a93d10f090b287dcc4b3a32cc64342965ef
+    .yggdrasil/model/cli/commands/decisions.md: 67a9910cfa4702eb4c4f228dfff8bcf82fb2eae72b76626ecedd8c3a52cc38c4
+    .yggdrasil/model/cli/commands/responsibility.md: 8adafc6c339eb09c964983c5fb32d7d584fe3e1564ddd5072062204eddda5a7e
     .yggdrasil/aspects/deterministic/aspect.yaml: 6329a56d7eab89b99ad2a1ccb87ad2a767883f1c115b1027513c28c498e05364
     .yggdrasil/aspects/deterministic/content.md: 67d4f694068d8f249aeea838717d8667f6204b798fb00e9951880018c8e5449d
     .yggdrasil/aspects/cli-command-contract/aspect.yaml: 81ba5d9318ec49940495487c056356f9bd462d67ca4bb06d3fd954cf26945d01
@@ -596,20 +600,22 @@ cli/commands/tree:
     .yggdrasil/model/cli/model/responsibility.md: 3857f83dc398dc613de5844de40e61f2cde94ee0a2fe0b65a314500ef1ea4896
     .yggdrasil/model/cli/model/interface.md: bbdf059b5770f74dc51d7455df1c52500a28ab914e416b213c5c4f76a7457e0a
     .yggdrasil/model/cli/model/errors.md: c66f5814cc82092e078f7a816e982ef6dba6de5c3b82cc45c188d01b3e916631
+    .yggdrasil/flows/graph-navigation/flow.yaml: bc6404a74c0c48bb16cb677d155b1d4a5f5a02a846e4f5a2978315420fc23143
+    .yggdrasil/flows/graph-navigation/description.md: d343bb1a375026e63e0815716a75149306814f7eaf65300bbe1a7e11483a8d7f
     source/cli/src/cli/tree.ts: 16737878e0c4c9acc86739d5087a043d253666a0dc8cecc6a492d682f725e9ab
 cli/commands/deps:
-  hash: 48094f4dd631c73b7c29b3287ecfba41f16c5accfbd835cc5c1bdce57dca353c
+  hash: d59d12d3d43e8b979846c4b5e23293597f72d4eea7f2cdeb76aef49d5a2e6576
   files:
     .yggdrasil/model/cli/commands/deps/node.yaml: 3101e8f22e690af7c26a0acda472e69e6893d0e415582771cf6ccb8bb0316880
     .yggdrasil/model/cli/commands/deps/errors.md: fea1d04e79bf5fe26083d4c84f2eea0a1e9d1e8b48565569f63339456ba8539a
     .yggdrasil/model/cli/commands/deps/interface.md: 16cce86d2721a951c6b211f879624d4390f6799c810cf793f8c6e6fc352ba1c8
     .yggdrasil/model/cli/commands/deps/responsibility.md: 66f076ac47622adea98d99bc3c31814f884d86403caa174118a0518ac94baebc
-    .yggdrasil/model/cli/node.yaml: 58606a7f5e16ee0f6c5537778f42c7546973a7a58d7ea7880cd2f67e4c48711d
-    .yggdrasil/model/cli/decisions.md: d37de2f879fd4b21e564d1d674dd504fb63159ea85565ba9cfdcb8e4c63ba199
-    .yggdrasil/model/cli/responsibility.md: df0892f0f65f33dc468500d5d5aa02549e380482f0db92f5d9e5fe68c40c3f84
-    .yggdrasil/model/cli/commands/node.yaml: 090b384e3ef283162f9362ced0a01e70cd2202eee69245fad1db3cdb9aaeaf64
-    .yggdrasil/model/cli/commands/decisions.md: d7acacd8c766f78a17ee97cfda33c172ca7f3663b68a1e5f83f3f26ca1eaac3f
-    .yggdrasil/model/cli/commands/responsibility.md: e7b6249c1305cc143a3dc4e4cd6c1b93591bb8d35a633256ec238e40f8c78d21
+    .yggdrasil/model/cli/node.yaml: 8fbee36d999af38b4a94546f5631b5251c299b5e5a285a88d1f5c77f4ee33c96
+    .yggdrasil/model/cli/decisions.md: ff683e5ebfb2b4108fff987b6fecda300cfdf2960079c69cf6de870c09e269d1
+    .yggdrasil/model/cli/responsibility.md: d558b191f0577ae4a61651f92c539aef1c8590085b02737b8b442f61aa515cc1
+    .yggdrasil/model/cli/commands/node.yaml: 13dee65042634a5145aa7312c2eb3a93d10f090b287dcc4b3a32cc64342965ef
+    .yggdrasil/model/cli/commands/decisions.md: 67a9910cfa4702eb4c4f228dfff8bcf82fb2eae72b76626ecedd8c3a52cc38c4
+    .yggdrasil/model/cli/commands/responsibility.md: 8adafc6c339eb09c964983c5fb32d7d584fe3e1564ddd5072062204eddda5a7e
     .yggdrasil/aspects/deterministic/aspect.yaml: 6329a56d7eab89b99ad2a1ccb87ad2a767883f1c115b1027513c28c498e05364
     .yggdrasil/aspects/deterministic/content.md: 67d4f694068d8f249aeea838717d8667f6204b798fb00e9951880018c8e5449d
     .yggdrasil/aspects/cli-command-contract/aspect.yaml: 81ba5d9318ec49940495487c056356f9bd462d67ca4bb06d3fd954cf26945d01
@@ -620,6 +626,8 @@ cli/commands/deps:
     .yggdrasil/model/cli/core/dependency-resolver/responsibility.md: 69a24743016874da2c72a4efd6b79bfb27a3b57b7e2cb546c93cf5796b5491a6
     .yggdrasil/model/cli/core/dependency-resolver/interface.md: 519719f59992fc7b915f50192de73b56eecb45249a85b69cb7f2ccfeb88a6d36
     .yggdrasil/model/cli/core/dependency-resolver/errors.md: cb8efdbf54e76551c8fcc8ce5b6fda4c6f2ad114de4f5e14c62becab4cca8c50
+    .yggdrasil/flows/graph-navigation/flow.yaml: bc6404a74c0c48bb16cb677d155b1d4a5f5a02a846e4f5a2978315420fc23143
+    .yggdrasil/flows/graph-navigation/description.md: d343bb1a375026e63e0815716a75149306814f7eaf65300bbe1a7e11483a8d7f
     source/cli/src/cli/deps.ts: 3c8fdba935c13c6490205ea3d04d9e0ed3764abeb80eb10bb8fdd29701b7d3a9
 cli/commands/impact:
   hash: f6c55f0c825f2f5a3cbc854a1e30d43136000fe11528802f5d81ec6a2da9b940
@@ -658,19 +666,19 @@ cli/commands/impact:
     .yggdrasil/flows/graph-analysis/description.md: 2c5f6e377cea91a9b447f395971203f02c2a91a816e847269adb6f84c8786603
     source/cli/src/cli/impact.ts: a0c685c3d1f63380387a945bef4ca8e8edefa268b38d0fb60ea690c7c8d510ab
 cli/commands/status:
-  hash: e05a5b129cf7c9d8f0d985d7cb075a2d115285fbca4128a9095a68b4d2b3d628
+  hash: baaba12e4688c09968e004f716e3dd1d1eb72879ac44464915983f9a8c9b867f
   files:
     .yggdrasil/model/cli/commands/status/node.yaml: 222db20a9804bf03f1fa83e8545ce6f0d9a4e4f8590a000ba524ae6a09788b13
     .yggdrasil/model/cli/commands/status/errors.md: b0215b0df8cb27770ba4807399333c595323bbf61ea37cabdb9e1f9067ce3f58
     .yggdrasil/model/cli/commands/status/interface.md: 7c7a435200e3eb706f6e6e3e7b8075446dcacef1311b68286877c2165d25720e
     .yggdrasil/model/cli/commands/status/logic.md: 84e750ebcb7cac641b0e1722d16f666cd1e44db0cf6db52ba7e0d7c9d5b9fdc0
     .yggdrasil/model/cli/commands/status/responsibility.md: e3a37aa9013cee1f734923fbed3cf5cd1abb76dee9ada6b30616a264aac8b7fb
-    .yggdrasil/model/cli/node.yaml: 58606a7f5e16ee0f6c5537778f42c7546973a7a58d7ea7880cd2f67e4c48711d
-    .yggdrasil/model/cli/decisions.md: d37de2f879fd4b21e564d1d674dd504fb63159ea85565ba9cfdcb8e4c63ba199
-    .yggdrasil/model/cli/responsibility.md: df0892f0f65f33dc468500d5d5aa02549e380482f0db92f5d9e5fe68c40c3f84
-    .yggdrasil/model/cli/commands/node.yaml: 090b384e3ef283162f9362ced0a01e70cd2202eee69245fad1db3cdb9aaeaf64
-    .yggdrasil/model/cli/commands/decisions.md: d7acacd8c766f78a17ee97cfda33c172ca7f3663b68a1e5f83f3f26ca1eaac3f
-    .yggdrasil/model/cli/commands/responsibility.md: 223574c0197061a38fd1ccc06fff0ad326d96038408529226ffad54d0317a4e3
+    .yggdrasil/model/cli/node.yaml: 8fbee36d999af38b4a94546f5631b5251c299b5e5a285a88d1f5c77f4ee33c96
+    .yggdrasil/model/cli/decisions.md: ff683e5ebfb2b4108fff987b6fecda300cfdf2960079c69cf6de870c09e269d1
+    .yggdrasil/model/cli/responsibility.md: d558b191f0577ae4a61651f92c539aef1c8590085b02737b8b442f61aa515cc1
+    .yggdrasil/model/cli/commands/node.yaml: 13dee65042634a5145aa7312c2eb3a93d10f090b287dcc4b3a32cc64342965ef
+    .yggdrasil/model/cli/commands/decisions.md: 67a9910cfa4702eb4c4f228dfff8bcf82fb2eae72b76626ecedd8c3a52cc38c4
+    .yggdrasil/model/cli/commands/responsibility.md: 8adafc6c339eb09c964983c5fb32d7d584fe3e1564ddd5072062204eddda5a7e
     .yggdrasil/aspects/deterministic/aspect.yaml: 6329a56d7eab89b99ad2a1ccb87ad2a767883f1c115b1027513c28c498e05364
     .yggdrasil/aspects/deterministic/content.md: 67d4f694068d8f249aeea838717d8667f6204b798fb00e9951880018c8e5449d
     .yggdrasil/aspects/cli-command-contract/aspect.yaml: 81ba5d9318ec49940495487c056356f9bd462d67ca4bb06d3fd954cf26945d01
@@ -683,13 +691,17 @@ cli/commands/status:
     .yggdrasil/model/cli/core/validator/errors.md: 427c3ced9fe391d9465ad885fc622fb38981752ab8bfe54368019a0b5e97ea57
     .yggdrasil/model/cli/core/drift-detector/responsibility.md: 926478f7aeddd1c18eb38494c910510c3f0d2feecac6e06774792d7f650f6065
     .yggdrasil/model/cli/core/drift-detector/interface.md: 6ab4d777c4d159cffe79f4de2bdab87af9dbf787b82cff9bef43b330333709d2
+    .yggdrasil/model/cli/core/drift-detector/constraints.md: 28d576ebdc6d6013e8a6fb89d5d98bbd77ebba7aa1c4beee07d1f96768857168
     .yggdrasil/model/cli/core/drift-detector/errors.md: 0c4e0bfe9c922e0bbac30760a39db1babc0b486ab4020e22747613e92b30a8ef
-    .yggdrasil/model/cli/core/context/responsibility.md: 2f99687ecc49ac1d5a513bfa2bae47662c6e1fbc901d506303dbacc6486350bf
+    .yggdrasil/model/cli/core/context/responsibility.md: d35c8758519e57fec1b8176becdc0ba1869ca94cf97554d86645006b996ef97e
     .yggdrasil/model/cli/core/context/interface.md: 397ca8ff5100ea66eefd25bf97cce6dc97bc83f79ddad448c28b9329635c08b9
+    .yggdrasil/model/cli/core/context/constraints.md: 2badb1b9eb63ef4e779f0ef82c55cb7534e3fbd2b0ad0aaa4356b7ee5cdb2f24
     .yggdrasil/model/cli/core/context/errors.md: ac1c53e7ae29e3d038502250166f0ff048bf723c5a6df78b9b2ae4848bda57a3
     .yggdrasil/model/cli/utils/responsibility.md: 4918c48366c7b3f35bb7b97fa74252c47f14ba72417c5cc5f3e1100b503c7ddd
     .yggdrasil/model/cli/utils/interface.md: 2a01e53e1d7cbd9fc512cf3f0bc4116e9b3117bb17289c5a569786bad4c38cf2
     .yggdrasil/model/cli/utils/errors.md: 0da11fdc6ce498eda2ba854fbd0547114428da5e51162f5c7f06eb0af9528fda
+    .yggdrasil/flows/graph-analysis/flow.yaml: b76dee1120416f885ec54fbc540d653a67fcc1018066c4e3fe5840909540eb45
+    .yggdrasil/flows/graph-analysis/description.md: 2c5f6e377cea91a9b447f395971203f02c2a91a816e847269adb6f84c8786603
     source/cli/src/cli/status.ts: 24e0b1e6a278a9f6ea3f8180e40e7fdb6dcb563cfde7a05520d637e6cb82cfee
 cli/commands/aspects:
   hash: 74d2f4444d4ca4f01c18c4ff9023d2900f32fdb12f8393028d50f91d8e70d9b5
@@ -719,19 +731,19 @@ cli/commands/aspects:
     .yggdrasil/flows/graph-analysis/description.md: 2c5f6e377cea91a9b447f395971203f02c2a91a816e847269adb6f84c8786603
     source/cli/src/cli/aspects.ts: 0de1fe6d3af182ab2850ec51d32997a8bf9dbd630ca5d364c0505c68a675bfde
 cli/commands/build-context:
-  hash: 4336eb34574a07cbcdfca1ebc8a013e88869f78772a633460b085ba7d9777650
+  hash: 166eba1ad01c9093314e3cc5f39e7ed3d4dc2a6b6e180aa2fbe887f1a6997011
   files:
     .yggdrasil/model/cli/commands/build-context/node.yaml: 8406e8a188d9677c7df2323a5c84d6a7523869139b22c6fa2dc6aab5e29c3ec8
     .yggdrasil/model/cli/commands/build-context/errors.md: 52955ae2416fb2ecef82dc5a586ec3bbcf509e57b82a3512918cc9ed8e358346
     .yggdrasil/model/cli/commands/build-context/interface.md: 3d78e6ec32e8d175daf8e0f3f24f0c1d2273b0567a5598be5cb01d80847bc464
     .yggdrasil/model/cli/commands/build-context/logic.md: 47da77a5a0dd3ed84dbf634bcc40c9dca6055bcbf86f834fd25f0d586d56fae6
     .yggdrasil/model/cli/commands/build-context/responsibility.md: c2d9e21494bc1039a188a735abcd40e438b3efd9532a03bbb568b846e2d2b8cd
-    .yggdrasil/model/cli/node.yaml: 58606a7f5e16ee0f6c5537778f42c7546973a7a58d7ea7880cd2f67e4c48711d
-    .yggdrasil/model/cli/decisions.md: d37de2f879fd4b21e564d1d674dd504fb63159ea85565ba9cfdcb8e4c63ba199
-    .yggdrasil/model/cli/responsibility.md: df0892f0f65f33dc468500d5d5aa02549e380482f0db92f5d9e5fe68c40c3f84
-    .yggdrasil/model/cli/commands/node.yaml: 090b384e3ef283162f9362ced0a01e70cd2202eee69245fad1db3cdb9aaeaf64
-    .yggdrasil/model/cli/commands/decisions.md: d7acacd8c766f78a17ee97cfda33c172ca7f3663b68a1e5f83f3f26ca1eaac3f
-    .yggdrasil/model/cli/commands/responsibility.md: e7b6249c1305cc143a3dc4e4cd6c1b93591bb8d35a633256ec238e40f8c78d21
+    .yggdrasil/model/cli/node.yaml: 8fbee36d999af38b4a94546f5631b5251c299b5e5a285a88d1f5c77f4ee33c96
+    .yggdrasil/model/cli/decisions.md: ff683e5ebfb2b4108fff987b6fecda300cfdf2960079c69cf6de870c09e269d1
+    .yggdrasil/model/cli/responsibility.md: d558b191f0577ae4a61651f92c539aef1c8590085b02737b8b442f61aa515cc1
+    .yggdrasil/model/cli/commands/node.yaml: 13dee65042634a5145aa7312c2eb3a93d10f090b287dcc4b3a32cc64342965ef
+    .yggdrasil/model/cli/commands/decisions.md: 67a9910cfa4702eb4c4f228dfff8bcf82fb2eae72b76626ecedd8c3a52cc38c4
+    .yggdrasil/model/cli/commands/responsibility.md: 8adafc6c339eb09c964983c5fb32d7d584fe3e1564ddd5072062204eddda5a7e
     .yggdrasil/aspects/deterministic/aspect.yaml: 6329a56d7eab89b99ad2a1ccb87ad2a767883f1c115b1027513c28c498e05364
     .yggdrasil/aspects/deterministic/content.md: 67d4f694068d8f249aeea838717d8667f6204b798fb00e9951880018c8e5449d
     .yggdrasil/aspects/cli-command-contract/aspect.yaml: 81ba5d9318ec49940495487c056356f9bd462d67ca4bb06d3fd954cf26945d01
@@ -739,30 +751,36 @@ cli/commands/build-context:
     .yggdrasil/model/cli/core/loader/responsibility.md: b9de0b25331f7309b654b192f7ae0b2dd750dd54249aa553b5384c228df09606
     .yggdrasil/model/cli/core/loader/interface.md: 197ffc6540ea490f273b45a82e525db599073029b343cdc2090cb19c897c9246
     .yggdrasil/model/cli/core/loader/errors.md: 428e06d3ca7b4df7db09bb0ab5bd12f44ab6b447fa5b0be1fecebc6d119fa282
-    .yggdrasil/model/cli/core/context/responsibility.md: 2f99687ecc49ac1d5a513bfa2bae47662c6e1fbc901d506303dbacc6486350bf
+    .yggdrasil/model/cli/core/context/responsibility.md: d35c8758519e57fec1b8176becdc0ba1869ca94cf97554d86645006b996ef97e
     .yggdrasil/model/cli/core/context/interface.md: 397ca8ff5100ea66eefd25bf97cce6dc97bc83f79ddad448c28b9329635c08b9
+    .yggdrasil/model/cli/core/context/constraints.md: 2badb1b9eb63ef4e779f0ef82c55cb7534e3fbd2b0ad0aaa4356b7ee5cdb2f24
     .yggdrasil/model/cli/core/context/errors.md: ac1c53e7ae29e3d038502250166f0ff048bf723c5a6df78b9b2ae4848bda57a3
     .yggdrasil/model/cli/core/validator/responsibility.md: 2172a07e6ecfbb89c55c16574fbf503cc674af2bf7f5b28507b9424a18f5b038
     .yggdrasil/model/cli/core/validator/interface.md: 1b7439098275ac08719d8fb53f526058ca47796dfd0bb43b9d499e6ddb0fb262
     .yggdrasil/model/cli/core/validator/errors.md: 427c3ced9fe391d9465ad885fc622fb38981752ab8bfe54368019a0b5e97ea57
     .yggdrasil/model/cli/formatters/responsibility.md: e12219298577bc5b89c27417a56493a8b88fb9c27f302af13d01a77604a288f7
     .yggdrasil/model/cli/formatters/interface.md: 275f58114de42ec3d2dff20dbb1b1d1c6bac140c1f7419adad0602743105fe01
+    .yggdrasil/model/cli/formatters/constraints.md: 93f90031873e30a809bc3d671e1e793fbb18a146d78c243cef6dde712287d962
     .yggdrasil/model/cli/formatters/errors.md: 34447b13a2ec4e4a5a36d1f474da578cb4be2f5d08d23df661acabb678af6f1c
+    .yggdrasil/flows/build-context/flow.yaml: ff5cd08671ba3c432dbc3aeea962bef5862445756275f404cd5b13ad091abb87
+    .yggdrasil/flows/build-context/description.md: a45c7933eb7a4b0055eeaf112ccb0211d88656288ed0a0c306fd3ce4d126a2ae
+    .yggdrasil/flows/graph-analysis/flow.yaml: b76dee1120416f885ec54fbc540d653a67fcc1018066c4e3fe5840909540eb45
+    .yggdrasil/flows/graph-analysis/description.md: 2c5f6e377cea91a9b447f395971203f02c2a91a816e847269adb6f84c8786603
     source/cli/src/cli/build-context.ts: f64cff0a6990e11debd28b4b87a211a71b947e083a462f5b173da721a925caee
 cli/commands/preflight:
-  hash: 133da63ea68729abd9cd74fce723518b203cd6aba13d2507c388a305d70147ff
+  hash: b5fe6a62bac27fe205282ae122b6154902ea960d160df44a1a7392f70687e6d3
   files:
     .yggdrasil/model/cli/commands/preflight/node.yaml: 59870fe405b8f5e52ce32404fe27367f3519b931170eeaee62d687e6bd6d5651
     .yggdrasil/model/cli/commands/preflight/errors.md: bbeb65498db96e2ad11a337d5a5e4aff89490577f2d0be29d62d65caeba9e072
     .yggdrasil/model/cli/commands/preflight/interface.md: 649ad55762d935a92355ccd93316777b52fc3b711ed88ecb821ff877b5239d51
     .yggdrasil/model/cli/commands/preflight/logic.md: ae99655b20fbafbd43ab4e5feb5ffb521e58793f6ca7573648606d85993d8d14
     .yggdrasil/model/cli/commands/preflight/responsibility.md: cc753176d5a378a6b657b05e0e703cf167ffcecc65e374484e2f693ac514c9f9
-    .yggdrasil/model/cli/node.yaml: 58606a7f5e16ee0f6c5537778f42c7546973a7a58d7ea7880cd2f67e4c48711d
-    .yggdrasil/model/cli/decisions.md: d37de2f879fd4b21e564d1d674dd504fb63159ea85565ba9cfdcb8e4c63ba199
-    .yggdrasil/model/cli/responsibility.md: df0892f0f65f33dc468500d5d5aa02549e380482f0db92f5d9e5fe68c40c3f84
-    .yggdrasil/model/cli/commands/node.yaml: 090b384e3ef283162f9362ced0a01e70cd2202eee69245fad1db3cdb9aaeaf64
-    .yggdrasil/model/cli/commands/decisions.md: d7acacd8c766f78a17ee97cfda33c172ca7f3663b68a1e5f83f3f26ca1eaac3f
-    .yggdrasil/model/cli/commands/responsibility.md: e7b6249c1305cc143a3dc4e4cd6c1b93591bb8d35a633256ec238e40f8c78d21
+    .yggdrasil/model/cli/node.yaml: 8fbee36d999af38b4a94546f5631b5251c299b5e5a285a88d1f5c77f4ee33c96
+    .yggdrasil/model/cli/decisions.md: ff683e5ebfb2b4108fff987b6fecda300cfdf2960079c69cf6de870c09e269d1
+    .yggdrasil/model/cli/responsibility.md: d558b191f0577ae4a61651f92c539aef1c8590085b02737b8b442f61aa515cc1
+    .yggdrasil/model/cli/commands/node.yaml: 13dee65042634a5145aa7312c2eb3a93d10f090b287dcc4b3a32cc64342965ef
+    .yggdrasil/model/cli/commands/decisions.md: 67a9910cfa4702eb4c4f228dfff8bcf82fb2eae72b76626ecedd8c3a52cc38c4
+    .yggdrasil/model/cli/commands/responsibility.md: 8adafc6c339eb09c964983c5fb32d7d584fe3e1564ddd5072062204eddda5a7e
     .yggdrasil/aspects/deterministic/aspect.yaml: 6329a56d7eab89b99ad2a1ccb87ad2a767883f1c115b1027513c28c498e05364
     .yggdrasil/aspects/deterministic/content.md: 67d4f694068d8f249aeea838717d8667f6204b798fb00e9951880018c8e5449d
     .yggdrasil/aspects/cli-command-contract/aspect.yaml: 81ba5d9318ec49940495487c056356f9bd462d67ca4bb06d3fd954cf26945d01
@@ -775,6 +793,7 @@ cli/commands/preflight:
     .yggdrasil/model/cli/core/validator/errors.md: 427c3ced9fe391d9465ad885fc622fb38981752ab8bfe54368019a0b5e97ea57
     .yggdrasil/model/cli/core/drift-detector/responsibility.md: 926478f7aeddd1c18eb38494c910510c3f0d2feecac6e06774792d7f650f6065
     .yggdrasil/model/cli/core/drift-detector/interface.md: 6ab4d777c4d159cffe79f4de2bdab87af9dbf787b82cff9bef43b330333709d2
+    .yggdrasil/model/cli/core/drift-detector/constraints.md: 28d576ebdc6d6013e8a6fb89d5d98bbd77ebba7aa1c4beee07d1f96768857168
     .yggdrasil/model/cli/core/drift-detector/errors.md: 0c4e0bfe9c922e0bbac30760a39db1babc0b486ab4020e22747613e92b30a8ef
     .yggdrasil/model/cli/io/responsibility.md: 1a332bd357a964ecbcebc8d94334e4ce09bd58af11d8edc50ffe6d4ca48f719d
     .yggdrasil/model/cli/io/interface.md: d00d3f205f82181d06436d83f481e333c437a13c3af7ee90b15460a40760749b
@@ -786,4 +805,6 @@ cli/commands/preflight:
     .yggdrasil/model/cli/model/responsibility.md: 3857f83dc398dc613de5844de40e61f2cde94ee0a2fe0b65a314500ef1ea4896
     .yggdrasil/model/cli/model/interface.md: bbdf059b5770f74dc51d7455df1c52500a28ab914e416b213c5c4f76a7457e0a
     .yggdrasil/model/cli/model/errors.md: c66f5814cc82092e078f7a816e982ef6dba6de5c3b82cc45c188d01b3e916631
+    .yggdrasil/flows/preflight/flow.yaml: 23c73110cff4f9686c738d3acc5a84d70c5b02db7b86a132dec7b68b0f14c334
+    .yggdrasil/flows/preflight/description.md: 0382ec1cd66904be29b9385f07e4aa18af843210cd55594b9997cdef4f17eb26
     source/cli/src/cli/preflight.ts: cd466eae3b1106de2251c7b9c6c358a3e3d2f1d040743d4f954fbb429bb795c6
