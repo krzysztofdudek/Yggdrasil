@@ -12,6 +12,6 @@ Three mutually exclusive modes (one required):
 
 **--simulate (any mode):** For each affected node: load baseline graph from HEAD via `loadGraphFromRef`, run `detectDrift`, compare `buildContext` current vs baseline, report budget status (ok/warning/error), changed dependency interface (node mode), drift status.
 
-**Consumes:** loadGraph, loadGraphFromRef (cli/core/loader); buildContext, collectAncestors, collectEffectiveAspectIds (cli/core/context); validate (cli/core/validator); detectDrift (cli/core/drift-detector); formatDependencyTree (cli/core/dependency-resolver); Graph (cli/model).
+**Consumes:** loadGraph, loadGraphFromRef (cli/core/loader); buildContext, collectAncestors, collectEffectiveAspectIds (cli/core/context); detectDrift (cli/core/drift-detector); Graph (cli/model).
 
 **Out of scope:** Modifying graph, resolving drift, validation output formatting.

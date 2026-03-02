@@ -18,9 +18,6 @@ relations:
   - target: cli/utils
     type: uses
     consumes: [normalizeMappingPaths]
-  - target: cli/model
-    type: uses
-    consumes: [Graph]
 
 mapping:
   paths:

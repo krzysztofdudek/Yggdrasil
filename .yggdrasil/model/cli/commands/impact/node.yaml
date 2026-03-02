@@ -9,15 +9,9 @@ relations:
   - target: cli/core/context
     type: uses
     consumes: [buildContext, collectAncestors, collectEffectiveAspectIds]
-  - target: cli/core/validator
-    type: uses
-    consumes: [validate]
   - target: cli/core/drift-detector
     type: uses
     consumes: [detectDrift]
-  - target: cli/core/dependency-resolver
-    type: uses
-    consumes: [formatDependencyTree]
   - target: cli/model
     type: uses
     consumes: [Graph]

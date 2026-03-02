@@ -13,17 +13,24 @@ CLI commands module — groups 14 command handlers registered in Commander. Each
 
 **Reference:** config.yaml standards.
 
-**Flows:** cli/commands/validation → build-context, validate; cli/commands/drift → drift; cli/commands/init → init.
+**Flows:** cli/commands/build-context → build-context; cli/commands/validation → validate; cli/commands/drift → drift; cli/commands/init → init.
 
 **Child nodes and their commands:**
 
 | Node | Commands |
 | ---- | -------- |
 | cli/commands/init | init |
-| cli/commands/validation | validate, build-context |
+| cli/commands/validation | validate |
 | cli/commands/drift | drift, drift-sync |
-| cli/commands/graph-ops | preflight, status, tree, owner, deps, impact |
 | cli/commands/journal | journal-add, journal-read, journal-archive |
+| cli/commands/aspects | aspects |
+| cli/commands/build-context | build-context |
+| cli/commands/deps | deps |
+| cli/commands/impact | impact |
+| cli/commands/owner | owner |
+| cli/commands/preflight | preflight |
+| cli/commands/status | status |
+| cli/commands/tree | tree |
 
 **Out of scope:**
 
