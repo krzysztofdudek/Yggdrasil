@@ -1,0 +1,2 @@
+name: POSIX Paths
+description: "All internal paths use forward-slash separators for cross-platform consistency"
