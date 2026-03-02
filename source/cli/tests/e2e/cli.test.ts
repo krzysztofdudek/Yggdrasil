@@ -289,6 +289,30 @@ describe.skipIf(!distExists)('CLI E2E', () => {
     expect(stdout).toContain('Total scope:');
   });
 
+  it('yg impact --aspect requires-audit shows implies chain', () => {
+    const { stdout, status } = run(['impact', '--aspect', 'requires-audit']);
+    expect(status).toBe(0);
+    expect(stdout).toContain('Implies: requires-logging');
+  });
+
+  it('yg impact --aspect requires-audit shows source attribution (own)', () => {
+    const { stdout, status } = run(['impact', '--aspect', 'requires-audit']);
+    expect(status).toBe(0);
+    expect(stdout).toContain('orders (own)');
+    expect(stdout).toContain('orders/order-service (own)');
+  });
+
+  it('yg impact --aspect requires-logging shows flow propagation source', () => {
+    const { stdout, status } = run(['impact', '--aspect', 'requires-logging']);
+    expect(status).toBe(0);
+    // auth/auth-api gets requires-logging from checkout-flow
+    expect(stdout).toContain('auth/auth-api (flow: Checkout Flow)');
+    // orders gets requires-logging via implies from requires-audit
+    expect(stdout).toContain('orders (implied)');
+    expect(stdout).toContain('Flows propagating this aspect: Checkout Flow');
+    expect(stdout).toContain('Implied by: requires-audit');
+  });
+
   it('yg impact --aspect nonexistent returns exit 1', () => {
     const { status, stderr } = run(['impact', '--aspect', 'nonexistent']);
     expect(status).toBe(1);
@@ -304,10 +328,25 @@ describe.skipIf(!distExists)('CLI E2E', () => {
     expect(stdout).toContain('Total scope:');
   });
 
+  it('yg impact --flow checkout-flow shows flow aspects', () => {
+    const { stdout, status } = run(['impact', '--flow', 'checkout-flow']);
+    expect(status).toBe(0);
+    expect(stdout).toContain('Flow aspects: requires-logging');
+  });
+
   it('yg impact --flow nonexistent returns exit 1', () => {
     const { status, stderr } = run(['impact', '--flow', 'nonexistent']);
     expect(status).toBe(1);
     expect(stderr).toContain('Flow not found');
+  });
+
+  it('yg impact --node shows co-aspect nodes', () => {
+    const { stdout, status } = run(['impact', '--node', 'orders/order-service']);
+    expect(status).toBe(0);
+    // orders/order-service has requires-audit and requires-logging
+    // orders module also has these (via own + implies)
+    expect(stdout).toContain('Nodes sharing aspects');
+    expect(stdout).toContain('orders');
   });
 
   // --- validate edge cases ---

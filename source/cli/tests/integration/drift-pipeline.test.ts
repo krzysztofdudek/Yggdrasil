@@ -71,7 +71,7 @@ describe('drift-pipeline', () => {
       // Restore original drift-state for other tests
       const origState = await readDriftState(graph.rootPath);
       origState['auth/auth-api'] = {
-        hash: '35c79c16580170c30a16bc5085df043edecd680e5a3da1bf76a3c50e7f3a0834',
+        hash: '32264f21ff53921976fad6669ff876d5bf67152f62f9a89db803db0de0bcc514',
         files: {
           '.yggdrasil/model/auth/auth-api/node.yaml':
             '40c1087d83ac1b5132e10d3a40beb65af24c6cd13ff6067b7674654e032b4eac',
@@ -81,8 +81,12 @@ describe('drift-pipeline', () => {
             'c609370d51a049baf4013828f66bc1ecf8ec815da99240ea01237ac912974269',
           '.yggdrasil/model/auth/responsibility.md':
             'd3ca07574d55e24a6f0a7e0771019c6f85f40c127cda11da93034675aa8b9fdb',
+          '.yggdrasil/aspects/requires-logging/aspect.yaml':
+            '08dd592c74f6889713e09c899e003badf00430c7d25a74768449eb0d7fb7beb0',
+          '.yggdrasil/aspects/requires-logging/content.md':
+            '13fff2681612d392624588850569f287bb450307e2ee9750987b281279dd64f3',
           '.yggdrasil/flows/checkout-flow/flow.yaml':
-            'ce0257c1c478db8d198a048cb5d0233ef6f1bb4d60f4179a2713c8b9884e06ca',
+            '1804e9470685eec45545c5ff94e1da359f244ac0c69ddb3721aaeb98bd3d064b',
           '.yggdrasil/flows/checkout-flow/description.md':
             '84056fed046bd51b834af307ee1208c4617eca1df652773c84e4c18f96bcf0fa',
           '.yggdrasil/flows/checkout-flow/sequence.md':

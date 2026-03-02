@@ -59,9 +59,12 @@ describe('graph-loader', () => {
   it('loads aspects correctly', async () => {
     const graph = await loadGraph(FIXTURE_PROJECT);
 
-    expect(graph.aspects).toHaveLength(1);
-    expect(graph.aspects[0].name).toBe('Audit Logging');
-    expect(graph.aspects[0].id).toBe('requires-audit');
+    expect(graph.aspects).toHaveLength(2);
+    const audit = graph.aspects.find((a) => a.id === 'requires-audit');
+    const logging = graph.aspects.find((a) => a.id === 'requires-logging');
+    expect(audit?.name).toBe('Audit Logging');
+    expect(audit?.implies).toEqual(['requires-logging']);
+    expect(logging?.name).toBe('Structured Logging');
   });
 
   it('top-level nodes have parent = null', async () => {

@@ -1,1 +1,3 @@
 name: Audit Logging
+implies:
+  - requires-logging

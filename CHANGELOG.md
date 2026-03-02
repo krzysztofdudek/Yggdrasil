@@ -35,6 +35,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   nodes section, effective aspects (own + hierarchy + flow + implies) instead of own-only.
 - `collectEffectiveAspectIds` exported from context-builder for reuse.
 
+### Tests
+
+- **Enriched test fixture:** Added `requires-logging` aspect with description, `implies` chain
+  on `requires-audit` → `requires-logging`, and `aspects: [requires-logging]` on checkout-flow.
+- **Impact tests:** Source attribution (own, implied, flow, hierarchy), implies chain resolution,
+  co-aspect node detection via implies and flow propagation, flow aspect display.
+- **Integration tests:** Flow aspect propagation to participants via `collectEffectiveAspectIds`,
+  aspect layers in context packages from flow propagation, implies chain resolution in fixture,
+  non-participant isolation, flow layer `aspects` attribute.
+- **E2E tests:** `impact --aspect` shows implies chain and source attribution, `impact --flow`
+  shows flow aspects, `impact --node` shows co-aspect nodes.
+
 ### Fixed
 
 - `yg impact --simulate` now reports correct baseline token counts (previously baseline
