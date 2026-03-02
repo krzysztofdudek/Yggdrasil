@@ -330,6 +330,7 @@ yg build-context --node orders/order-service
 yg tree
 yg aspects
 yg status
+yg preflight
 yg owner --file src/modules/orders/order.service.ts
 yg deps --node orders/order-service
 yg impact --node payments/payment-service --simulate
@@ -602,6 +603,46 @@ Validation: 0 errors, 3 warnings
 
 - No `.yggdrasil/` — repository is not initialized.
 - Invalid `config.yaml` — configuration cannot be parsed.
+
+---
+
+### Preflight
+
+Unified diagnostic combining journal state, drift detection, graph status, and validation.
+
+**Parameters:** none.
+
+**Behavior:**
+
+1. Run `journal-read` — list pending journal entries (non-empty journal contributes to exit code 1).
+2. Run `drift --drifted-only` — report nodes with source or graph drift (any drift contributes to exit code 1).
+3. Run `status` — report graph health (node, aspect, flow, and mapping counts).
+4. Run `validate` — report structural errors and completeness warnings (any errors contribute to exit code 1).
+
+**Result:**
+
+```text
+Journal: 1 pending entry
+
+Drift:
+  orders/order-service source-drift
+
+Graph: my-project
+Nodes: 12 (3 modules, 7 services, 2 libraries) + 2 blackbox
+Relations: 15 structural, 4 event
+Aspects: 3    Flows: 2
+Drift: 1 source-drift, 0 graph-drift, 0 full-drift, 0 missing, 0 unmaterialized, 11 ok
+Validation: 0 errors, 3 warnings
+```
+
+**Exit codes:**
+
+- `0` — fully clean: no journal entries, no drift, no validation errors.
+- `1` — one or more of: pending journal entries, drifted nodes, validation errors.
+
+**Errors:**
+
+- No `.yggdrasil/` — repository is not initialized.
 
 ---
 

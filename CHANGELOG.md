@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`yg preflight` command:** Unified diagnostic combining journal, drift, status, and validation into a single report with exit code support.
 - **Bidirectional drift detection:** `yg drift` now tracks changes to graph artifacts
   (aspects, flows, parent nodes, dependency context) alongside source files.
 - New drift statuses: `source-drift`, `graph-drift`, `full-drift` replace the old
@@ -42,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Agent rules restructured:** Split into three cognitive sections (Core Protocol, Operations, Knowledge Base) optimized for LLM attention patterns. Added Quick Start Protocol, Bootstrap Mode, Drift Resolution, Error Recovery, and Escape Hatch.
 - `.drift-state` format extended — entries now include hashes for both source and
   graph files that contribute to a node's context package.
 - `yg drift` output split into two sections: "Source drift" and "Graph drift".

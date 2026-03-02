@@ -63,6 +63,25 @@ Shows direct and transitive node dependencies.
 
 ---
 
+### `yg preflight`
+
+Unified diagnostic report combining journal, drift, status, and validation.
+
+```bash
+yg preflight
+```
+
+Outputs:
+
+- **Journal** — pending entries from previous sessions
+- **Drift** — nodes with source or graph drift
+- **Status** — node, aspect, flow, and mapping counts
+- **Validation** — structural errors and completeness warnings
+
+Exit code 0 if fully clean, 1 if journal entries, drift, or validation errors found.
+
+---
+
 ## Validation
 
 ```bash
