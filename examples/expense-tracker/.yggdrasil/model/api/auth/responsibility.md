@@ -1,5 +1,5 @@
 # Auth — Responsibility
 
-Rejestracja, logowanie, weryfikacja JWT. Hashowanie haseł (bcrypt), wystawianie tokenów (JWT, 7 dni). Middleware requireAuth dla chronionych route.
+Registration, login, JWT verification. Password hashing (bcrypt), token issuance (JWT, 7 days). Middleware requireAuth for protected routes.
 
-Not responsible for: zarządzanie użytkownikami (profile), subskrypcjami (upgrade).
+Not responsible for: user profile management, subscription upgrade.

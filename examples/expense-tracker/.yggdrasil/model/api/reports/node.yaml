@@ -1,0 +1,10 @@
+name: Reports
+type: service
+aspects: []
+
+relations: []
+
+mapping:
+  paths:
+    - apps/api/src/services/reports.ts
+    - apps/api/src/routes/reports.ts

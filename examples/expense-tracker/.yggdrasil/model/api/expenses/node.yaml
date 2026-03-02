@@ -1,0 +1,10 @@
+name: Expenses
+type: service
+aspects: []
+
+relations: []
+
+mapping:
+  paths:
+    - apps/api/src/services/expenses.ts
+    - apps/api/src/routes/expenses.ts

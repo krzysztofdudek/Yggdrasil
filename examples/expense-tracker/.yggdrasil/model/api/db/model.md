@@ -10,4 +10,4 @@
 
 ## Amounts
 
-All amounts stored in grosze (integer). Display in zł: amount / 100.
+All amounts stored in smallest currency unit (integer). Display: amount / 100.

@@ -1,0 +1,10 @@
+name: Users
+type: service
+aspects: []
+
+relations: []
+
+mapping:
+  paths:
+    - apps/api/src/services/users.ts
+    - apps/api/src/routes/users.ts

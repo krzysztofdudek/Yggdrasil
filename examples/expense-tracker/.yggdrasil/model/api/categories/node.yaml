@@ -1,0 +1,10 @@
+name: Categories
+type: service
+aspects: []
+
+relations: []
+
+mapping:
+  paths:
+    - apps/api/src/services/categories.ts
+    - apps/api/src/routes/categories.ts

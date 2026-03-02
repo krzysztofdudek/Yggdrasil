@@ -1,0 +1,10 @@
+name: Subscriptions
+type: service
+aspects: []
+
+relations: []
+
+mapping:
+  paths:
+    - apps/api/src/services/subscriptions.ts
+    - apps/api/src/routes/subscriptions.ts

@@ -1,0 +1,10 @@
+name: Budgets
+type: service
+aspects: []
+
+relations: []
+
+mapping:
+  paths:
+    - apps/api/src/services/budgets.ts
+    - apps/api/src/routes/budgets.ts
