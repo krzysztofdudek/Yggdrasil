@@ -1,0 +1,13 @@
+{
+  "name": "expense-tracker",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:api": "npm run dev -w @expense-tracker/api",
+    "dev:web": "npm run dev -w @expense-tracker/web"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
