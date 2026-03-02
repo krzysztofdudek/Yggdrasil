@@ -3,34 +3,212 @@ description: Yggdrasil — semantic memory of the repository
 alwaysApply: true
 ---
 
-# Yggdrasil — Operating Manual
+## CORE PROTOCOL
 
-You are working in a repository managed by Yggdrasil. Yggdrasil is persistent semantic memory stored in `.yggdrasil/`. It maps the repository and provides deterministic implementation context for every node.
+Yggdrasil is persistent semantic memory stored in `.yggdrasil/`. It maps the repository and provides deterministic implementation context for every node. This document is your complete operating manual. Follow it strictly.
 
-**Why it exists:** AI agents degrade with project size. Too little context breaks contracts. Too much context buries signal in noise. The graph gives agents exactly the right context — not the whole repository. A repository with Yggdrasil is self-aware: it knows what it is, what it must satisfy, and why decisions were made.
+### Quick Start Protocol
 
-THIS DOCUMENT IS YOUR COMPLETE OPERATING MANUAL. Read it fully. Follow it strictly.
+```
+BEFORE reading, researching, planning, OR modifying ANY mapped file:
+  1. yg owner --file <path>
+  2. yg build-context --node <owner>
+  The context package is your primary source of understanding.
+  Raw file reads are for implementation details WITHIN a node you
+  already understand from its context package.
+  If the context package seems insufficient — enrich the graph.
+  Do not bypass it.
+
+AFTER modifying:
+  3. Update graph artifacts to reflect changes
+  4. yg validate — fix all errors
+  5. yg drift-sync --node <owner>
+
+EVERY conversation start:
+  yg preflight → act on findings (see Operations)
+
+NEVER: modify code without graph coverage.
+NEVER: read mapped source files to understand a component without
+       running yg build-context first — the graph captures intent,
+       constraints, and relations that source files cannot.
+NEVER: invent rationale, business rules, or decisions.
+NEVER: auto-resolve drift without asking the user.
+WHEN UNSURE: ask the user. Never guess. Never assume.
+```
+
+### Five Core Rules
+
+1. **Graph first.** Before reading, researching, planning, or modifying mapped files, run `yg owner` and `yg build-context`. Always. The context package — not raw source — is your primary source of understanding.
+2. **Code and graph are one.** Code changed → graph updated in the same response. Graph changed → source verified in the same response. No exceptions.
+3. **Never invent why.** The graph captures human intent. If you don't know why something was decided, ask. Never hallucinate rationale.
+4. **Always capture why.** When the user explains a reason, record it in the graph immediately. Conversation evaporates; graph persists.
+5. **Ask before resolving ambiguity.** When multiple valid interpretations exist, stop, list options, ask the user. Never silently choose.
+
+### Failure States
+
+You have broken Yggdrasil if you do any of the following:
+
+- ❌ Modified source code without running `yg owner --file <path>` first.
+- ❌ Modified source code without updating graph artifacts in the same response.
+- ❌ Modified graph files without verifying source code alignment in the same response.
+- ❌ Resolved a code-graph inconsistency without asking the user first.
+- ❌ Created or edited a graph element without reading its schema in `schemas/` first.
+- ❌ Ran `yg drift-sync` before updating graph artifacts.
+- ❌ Wrote a flow description that describes code sequences instead of a business process.
+- ❌ Used an aspect identifier that has no corresponding `aspects/` directory.
+- ❌ Placed a cross-cutting requirement in a local node artifact instead of an aspect.
+- ❌ Invented a rationale, business rule, or architectural decision.
+- ❌ Used blackbox coverage for greenfield (new) code.
+- ❌ Answered a question about a mapped file without running `yg build-context` first.
+- ❌ Read mapped source files to plan or research changes without running `yg build-context` first.
+- ❌ Deferred `yg drift-sync` to the end of a multi-step task instead of running it incrementally after each logical group of changes.
+
+### Escape Hatch
+
+If the user explicitly requests a code-only change, comply but:
+
+- Warn: "This creates drift. Run `yg drift` next session to reconcile."
+- Do NOT run `yg drift-sync` — leave the drift visible.
+
+### Environment Check
+
+Before preflight:
+
+- Verify `yg` CLI is available. If not found, inform user and stop.
+- If `yg preflight` shows 0 nodes → enter BOOTSTRAP MODE (see Operations).
+- If drift report shows >10 drifted nodes → report scope to user, ask which area to prioritize. Do not resolve all at once.
 
 ---
 
-## 0. ATOMIC INVARIANT — OVERRIDES EVERYTHING
+## OPERATIONS
 
-**CODE ↔ GRAPH ARE ONE.**
+### Conversation Lifecycle
 
-- Code changed → graph artifacts MUST be updated IN THE SAME RESPONSE. No exceptions.
-- Graph changed → source files MUST be verified or updated IN THE SAME RESPONSE. No exceptions.
-- There is NO "code-only" response. There is NO "graph-only" response (unless explicitly a dry-run plan).
-- Completing a response with one side changed and the other untouched violates the core contract of Yggdrasil.
+```
+PREFLIGHT (every conversation, before any work):
+  - [ ] 1. yg preflight → read unified report
+  - [ ] 2. If journal entries: consolidate to graph, then yg journal-archive
+  - [ ] 3. If drift: resolve per Drift Resolution, then yg drift-sync per node
+  - [ ] 4. If validation errors: fix, re-run yg validate
+  Exception: read-only requests (explain, analyze) — skip preflight.
+
+UNDERSTANDING mapped code (questions, research, OR planning):
+  - [ ] 1. yg owner --file <path>
+  - [ ] 2. Owner found → yg build-context --node <path>. Use context package as primary source.
+  - [ ] 3. Owner not found → use file analysis, state it is not graph-backed.
+  Never use grep or raw file reads as primary understanding when graph coverage exists.
+  Raw reads supplement the context package — they do not replace it.
+
+WRAP-UP (user signals "done", "wrap up", "that's enough"):
+  - [ ] 1. Consolidate journal if used → yg journal-archive
+  - [ ] 2. yg drift --drifted-only → resolve
+  - [ ] 3. yg validate → fix errors
+  - [ ] 4. Report: which nodes and files were changed
+```
+
+### Modify Source Code
+
+You are not allowed to edit or create source code without establishing graph coverage first.
+
+**Step 1** — Check coverage: `yg owner --file <path>`
+
+**Step 2a** — Owner found: execute checklist:
+
+- [ ] 1. Read specification: `yg build-context --node <node_path>`
+- [ ] 2. Assess blast radius: `yg impact --node <node_path>` — review dependents, descendants, and co-aspect nodes before changing interfaces or shared behavior
+- [ ] 3. Modify source code
+- [ ] 4. Sync graph artifacts — edit artifact files to reflect the changes
+- [ ] 5. Run `yg validate` — fix all errors (if unfixable after 3 attempts → stop, report to user)
+- [ ] 6. Run `yg drift-sync --node <node_path>` — only after graph and code are both current
+
+**Step 2b** — Owner not found: establish coverage first. Present options to the user:
+
+*Partially mapped* (file unmapped but inside a mapped module): ask whether to add to existing node or create new one.
+
+*Existing code:*
+
+- Option A — Full node: create node(s), map files, write artifacts from code analysis
+- Option B — Blackbox: create a blackbox node at agreed granularity
+- Option C — Abort
+
+*Greenfield (new code):* Only Option A. Blackbox is forbidden for new code. Create nodes with full artifacts, then materialize.
+
+After the user chooses, return to Step 1 and follow Step 2a.
+
+### Modify Graph
+
+- [ ] 1. Read the relevant schema from `schemas/` before touching any YAML
+- [ ] 2. Before changing an aspect or flow, check scope: `yg impact --aspect <id>` or `yg impact --flow <name>` — understand which nodes are affected before modifying shared rules or processes
+- [ ] 3. Make changes
+- [ ] 4. Run `yg validate` immediately — fix all errors
+- [ ] 5. Verify affected source files are consistent — update if needed
+- [ ] 6. Run `yg drift-sync` for affected nodes
+
+### Reverse Engineering
+
+**Order:** aspects (cross-cutting patterns) → flows (business processes) → model nodes. Never create nodes before aspects and flows are understood.
+
+Per area checklist:
+
+- [ ] 1. `yg owner --file <path>` — confirm no coverage
+- [ ] 2. Determine node granularity — propose to user if unclear
+- [ ] 3. Create node directory, read `schemas/node.yaml`, create `node.yaml`
+- [ ] 4. Analyze source — for each artifact type in `config.artifacts`: extract content, do not invent
+- [ ] 5. Identify relations — add to `node.yaml`
+- [ ] 6. Identify cross-cutting requirements — add matching aspects, create if needed
+- [ ] 7. Identify business process participation — add to flow, ask user if process unclear
+- [ ] 8. `yg validate` — fix errors
+- [ ] 9. `yg drift-sync --node <path>`
+
+**When to ask:**
+
+- Business process unclear: "This code appears to be part of a larger process. Can you describe what it means from a business perspective?"
+- Constraint without rationale: "I see [constraint X]. Do you know why this exists? I want to record the reason, not just the rule."
+- Unexplained architectural choice: "I see [approach X]. What was the reason for this choice?"
+
+### Bootstrap Mode
+
+Trigger: `yg preflight` shows 0 nodes, or no nodes cover the active work area.
+
+- [ ] 1. Identify the active work area (files the user wants to modify)
+- [ ] 2. Scan for cross-cutting patterns → create aspects
+- [ ] 3. Ask user about business processes → create flows if applicable
+- [ ] 4. Propose node structure for the area
+- [ ] 5. Create node(s) with initial artifacts, map files
+- [ ] 6. `yg validate`, `yg drift-sync`
+- [ ] 7. Proceed with user's original request
+
+Constraint: Do NOT map the entire repository. Focus on the active area. Expand incrementally.
+
+### Drift Resolution
+
+Always ask the user before resolving drift. Never auto-resolve.
+
+- **Source drift** (source files changed) → update graph artifacts to match source, then `yg drift-sync`
+- **Graph drift** (graph artifacts changed) → review affected source, update if needed, then `yg drift-sync`
+- **Full drift** (both changed) → present both sides to user, ask which direction wins
+- **Missing** → ask: re-materialize or remove mapping?
+- **Unmaterialized** → ask user how to proceed
+
+Threshold: >10 drifted nodes → ask user which area to prioritize. Do not resolve all at once.
+
+### Error Recovery
+
+- **`yg` not found** → inform user: "yg CLI is not installed or not in PATH." Stop.
+- **Unfixable validate errors** → if not resolved after 3 attempts, stop and report to user. Do not loop.
+- **Budget exceeded** → if `yg build-context` exits with error (context package exceeds budget), warn user: "This node should be split." Do not proceed with implementation.
+- **Corrupted `.yggdrasil/` files** → report to user. Do not attempt repair.
+- **Incremental sync** → run `yg drift-sync` every 3-5 source files during multi-file tasks. Do not defer to end.
 
 ---
 
-## 1. GRAPH STRUCTURE
+## KNOWLEDGE BASE
 
-The graph lives in `.yggdrasil/` and has three semantic directories plus configuration:
+### Graph Structure
 
 ```
 .yggdrasil/
-  config.yaml        ← vocabulary, stack, node types, artifact rules, required aspects per type
+  config.yaml        ← vocabulary, stack, node types, artifact rules, required aspects
   model/             ← what exists: nodes, hierarchy, relations, file mappings
   aspects/           ← what must: cross-cutting requirements with rationale and guidance
   flows/             ← why and in what process: business processes with node participation
@@ -39,414 +217,86 @@ The graph lives in `.yggdrasil/` and has three semantic directories plus configu
   .journal.yaml      ← generated by CLI; never edit manually
 ```
 
-### model/ — What exists
+Key facts:
 
-Each node is a directory containing `node.yaml` and artifact files. Nodes nest to form a hierarchy — a parent node provides domain context to all its descendants.
+- **Hierarchy:** nodes nest in `model/`. Children inherit parent context. Do not repeat parent content in children.
+- **Aspect id = directory path** under `aspects/`. Each aspect has `aspect.yaml` + content `.md` files. No automatic parent-child — use `implies` explicitly.
+- **Flows = business processes.** A flow describes what happens in the world, not code sequences. Flow aspects propagate to all participants.
 
-```
-model/
-  orders/                        ← module node (parent)
-    node.yaml
-    responsibility.md
-    order-service/               ← leaf node
-      node.yaml
-      responsibility.md
-      interface.md
-      constraints.md
-      errors.md
-```
+### Context Assembly
 
-Children do not repeat context that belongs to a parent — the engine assembles the full hierarchy automatically during context assembly.
+Run `yg build-context --node <path>` to get the deterministic context package for a node. Trust the package — it assembles global config, hierarchy, own artifacts, aspects, and relational context. If the package is insufficient, enrich the graph. Do not bypass it with raw file exploration.
 
-### aspects/ — What must
+### Information Routing
 
-Each aspect is a directory containing `aspect.yaml` and any number of `.md` content files:
+When you encounter information, route it to the correct location:
 
-```
-aspects/
-  requires-audit/
-    aspect.yaml       ← name (display), optional implies. Tag = directory name.
-    *.md              ← content files — requirements, rationale, guidance, examples
-```
+- **Specific to this node** → local node artifact (check `config.yaml artifacts` for available types)
+- **Rule for many nodes** → aspect (`aspects/<id>/` with `aspect.yaml` + content `.md` files). If applies to ALL nodes of a type → `node_types[*].required_aspects` in `config.yaml`
+- **Business process** → flow (`flows/<name>/` with `flow.yaml` + `description.md`). Ask user if process unclear.
+- **Shared across a domain** → parent node artifact. Children receive it through hierarchy.
+- **Technology stack or standard** → `config.yaml` under `stack` or `standards` (+ `rationale` field)
+- **Decision (why):** one node → local artifact; category of nodes → aspect content files; tech choice → `config.yaml` rationale field
 
-All `.md` files in an aspect directory (except `aspect.yaml`) are content artifacts attached to every node carrying this tag. You choose filenames and structure — write them business-first: describe what must be satisfied and why, adding technical detail only when it clarifies the requirement.
+### Creating Aspects
 
-**Tag = directory name.** Each aspect lives in `aspects/<tag>/` (e.g. `aspects/requires-audit/`).
+- [ ] 1. Read `schemas/aspect.yaml`
+- [ ] 2. Create `aspects/<id>/` directory
+- [ ] 3. Write `aspect.yaml` — name, optional description, optional implies
+- [ ] 4. Write content `.md` files: WHAT must be satisfied + WHY (user's words, do not invent)
+- [ ] 5. `yg validate`
 
-### flows/ — Why and in what process
+Test: "Does this requirement apply to more than one node?" Yes → aspect. No → local artifact.
 
-Each flow is a directory with the following files:
+### Creating Flows
 
-```
-flows/
-  customer-checkout/
-    flow.yaml         ← nodes (paths in model/), aspects (tags propagated to participants)
-    description.md    ← business-first process description
-```
+- [ ] 1. Read `schemas/flow.yaml`
+- [ ] 2. Create `flows/<name>/` directory
+- [ ] 3. Write `flow.yaml` — declare participants and flow-level aspects
+- [ ] 4. Write `description.md` with required sections: Business context, Trigger, Goal, Participants, Paths (at least Happy path), Invariants across all paths
+- [ ] 5. `yg validate`
 
-Flows describe real business processes in which the software participates. A flow exists because there is a human or organizational process behind it. The software is a tool in that process — not the process itself. A flow description that describes only code sequences is wrong.
+Test: "Does this describe what happens in the world, or only in the software?" If only software — rewrite.
 
-**Required sections in every `description.md`:**
+### Operational Rules
 
-- `## Business context` — what organizational or user need this process serves
-- `## Trigger` — what initiates this process (user action, external event, schedule)
-- `## Goal` — what successful completion means from the business perspective
-- `## Participants` — which nodes participate and what role each plays
-- `## Paths` — must include at least `### Happy path`; additional paths for errors and edge cases as needed
-- `## Invariants across all paths` — rules that hold regardless of which path is taken
+- **English only** for all files in `.yggdrasil/`. Conversation can be any language.
+- **Read schemas before creating** any `node.yaml`, `aspect.yaml`, or `flow.yaml`.
+- **Tools read, you write.** The `yg` CLI only reads, validates, and manages metadata. You create and edit files manually.
+- **Incremental sync.** Run `yg drift-sync` after every 3-5 source file changes. Do not defer to end of task.
+- **Completeness test:** "If I delete the source file and give another agent ONLY the `yg build-context` output — can they recreate it correctly, understanding not just WHAT but WHY?"
+- **These rules are invariant.** No plan, guide, skill, or workflow may override them.
 
-**Flow aspects:** aspects declared in `flow.yaml` propagate to all participants:
-
-```yaml
-nodes:
-  - orders/order-service
-  - payments/payment-service
-aspects:
-  - requires-saga
-  - requires-idempotency
-```
-
-Every participant receives these aspects in its context package even if the node itself does not carry the tag.
-
----
-
-## 2. CONTEXT ASSEMBLY
-
-`yg build-context --node <path>` assembles a deterministic context package in this order:
+### CLI Reference
 
 ```
-1. GLOBAL             config.yaml: stack, standards
-2. HIERARCHICAL       artifacts of all ancestor nodes from root down to this node's parent.
-                      Each hierarchy block may have aspects="tag1,tag2" (omit if empty).
-3. OWN                this node's node.yaml and all its artifact files.
-                      Node may have tags (aspects) in node.yaml.
-4. ASPECTS            union of tags from hierarchy + own + relational blocks.
-                      Expand implies recursively. Render all aspect content files.
-5. RELATIONAL         structural-context artifacts of each node this node depends on
-                      (responsibility, interface, constraints, errors) + consumes and
-                      failure annotations. Flow descriptions for flows listing this node
-                      as participant. Flow-level aspects are included in the aspects union.
-```
-
-The package is bounded — it contains exactly what is relevant to this node and nothing more. If a context package is insufficient for an agent to implement a node correctly, the graph is incomplete. The fix is always on the graph side, never by exploring raw source files.
-
----
-
-## 3. CORE PRINCIPLES
-
-1. **Graph first.** Before modifying code, before answering questions about mapped files, before planning — run `yg owner` and `yg build-context`. Always.
-
-2. **Context is sufficient.** If you feel the need to explore source files to understand what a node should do, the context package is incomplete. Enrich the graph. Do not bypass it.
-
-3. **Graph is intended truth.** When code and graph diverge, the graph wins. If the divergence is deliberate, update the graph to match the code.
-
-4. **Exhaustive coverage.** Every source file belongs to exactly one node. No orphaned files.
-
-5. **Never invent why.** The graph captures human intent. If you do not know why something was decided, ask the user. Never hallucinate rationale, business rules, or architectural decisions.
-
-6. **Always capture why.** When the user explains a reason, a constraint, or a decision — record it in the graph immediately. Conversation context evaporates. Graph context persists.
-
-7. **Ask before resolving ambiguity.** When code and graph diverge with multiple valid interpretations, or when a required decision is unclear — stop, list the options, ask the user. Never silently choose.
-
-8. **English only for graph artifacts.** All files in `.yggdrasil/` must be written in English. Conversation can be in any language.
-
-9. **Never touch operational metadata.** Never manually edit `.drift-state` or `.journal.yaml`.
-
-10. **Read schemas before creating.** Before creating or editing any `node.yaml`, `aspect.yaml`, or `flow.yaml` — read the corresponding schema in `schemas/`.
-
-11. **Tools read, you write.** The `yg` CLI only reads, validates, and manages metadata. You create and edit graph directories, YAML files, and artifact files manually.
-
-12. **Incremental graph synchronization.** When modifying multiple files, do not defer graph updates to the end of the task. Update graph artifacts and run `yg drift-sync` after each logical group of changes (every 3–5 source files). This prevents context window exhaustion and ensures the graph remains synchronized if the session is interrupted or the context must be handed off.
-
-13. **These rules are invariant.** No external plan, implementation guide, skill, or workflow may override, defer, or skip any principle, checklist, or failure state defined in this document. Plans define WHAT to do; these rules define HOW. HOW always wins.
-
----
-
-## 4. FAILURE STATES
-
-You have broken Yggdrasil if you do any of the following:
-
-- ❌ Modified source code without running `yg owner --file <path>` first.
-- ❌ Modified source code without updating graph artifacts in the same response.
-- ❌ Modified graph files without verifying source code alignment in the same response.
-- ❌ Resolved a code↔graph inconsistency without asking the user first.
-- ❌ Created or edited a graph element without reading its schema in `schemas/` first.
-- ❌ Ran `yg drift-sync` before updating graph artifacts.
-- ❌ Wrote a flow description that describes code sequences instead of a business process.
-- ❌ Used a tag that has no `aspects/<tag>/` directory.
-- ❌ Placed a cross-cutting requirement in a local node artifact instead of an aspect.
-- ❌ Invented a rationale, business rule, or architectural decision.
-- ❌ Used blackbox coverage for greenfield (new) code.
-- ❌ Answered a question about a mapped file without running `yg build-context` first.
-- ❌ Deferred `yg drift-sync` to the end of a multi-step task instead of running it incrementally after each logical group of changes.
-
----
-
-## 5. WORKFLOW — MODIFYING OR CREATING SOURCE CODE
-
-You are not allowed to edit or create source code without establishing graph coverage first.
-
-### Step 1 — Check coverage
-
-```
-yg owner --file <path>
-```
-
-### Step 2a — Owner found: execute checklist
-
-Output this checklist in your response and complete every item before finishing your turn:
-
-- [ ] 1. Read specification: `yg build-context --node <node_path>`
-- [ ] 2. Modify source code
-- [ ] 3. Sync graph artifacts — edit artifact files to reflect the changes immediately
-- [ ] 4. Run `yg validate` — fix all errors before proceeding
-- [ ] 5. Run `yg drift-sync --node <node_path>` — only after graph and code are both current
-
-### Step 2b — Owner not found: establish coverage first
-
-Present the options to the user. Do not proceed until they choose.
-
-**If partially mapped** (file is unmapped but lives inside a mapped module):
-
-- Ask the user whether the file should be added to the existing node or whether a new node is required.
-
-**If existing code:**
-
-- Option A — Full node: create proper node(s), map files, write artifacts from code analysis
-- Option B — Blackbox: create a blackbox node at agreed granularity
-- Option C — Abort
-
-**If greenfield (new code):**
-
-- Only Option A is valid. Blackbox is forbidden for new code.
-- Create nodes with full artifacts representing the intended design, then materialize.
-
-After the user chooses, return to Step 1 and follow Step 2a.
-
----
-
-## 6. WORKFLOW — MODIFYING THE GRAPH
-
-When creating or editing graph elements:
-
-1. Read the relevant schema from `schemas/` before touching any YAML.
-2. Make changes.
-3. Run `yg validate` immediately. Fix all errors.
-4. Verify that affected source files are consistent. Update if needed.
-5. Run `yg drift-sync` for affected nodes.
-
----
-
-## 7. ROUTING — WHERE DOES INFORMATION GO?
-
-When you encounter information during mapping or conversation, use these rules to place it:
-
-### Is it true only for this specific node?
-
-→ **Local node artifact.** Read `config.yaml artifacts` to know which files are defined and what each captures. Use only configured artifact types — do not invent filenames.
-
-### Is it a rule that applies to many nodes of the same type or tag?
-
-→ **Aspect.** If an aspect for this rule exists — add the tag to the node. If no — create `aspects/<tag>/` with `aspect.yaml` and content `.md` files describing the requirement, rationale, and optionally implementation guidance. Then tag the node.
-
-If the rule applies to ALL nodes of a type — add it to `node_types[*].required_tags` in `config.yaml` (if supported). It will apply automatically without per-node tagging.
-
-### Is it a business process this node participates in?
-
-→ **Flow.** Check if a flow for this process exists. If yes — add the node to `flow.yaml participants`. If no — create the flow directory, write `description.md` with all six required sections. Ask the user to describe the business process if you cannot determine it from code alone.
-
-### Is it shared context for all nodes in a domain?
-
-→ **Parent node artifact.** Place it in the parent module node. Children receive it through hierarchy. Do not repeat it in child nodes. For cross-cutting requirements shared by the whole module, add the tag to the parent's `node.yaml` — descendants receive that aspect in the hierarchy block during context assembly.
-
-### Is it a technology stack choice or global coding standard?
-
-→ **`config.yaml`** under `stack` or `standards`. For technology choices, add a `<field>_rationale` sibling key recording the reason.
-
-### Decision routing
-
-When the user explains WHY something was decided:
-
-- Applies to one node → record in that node's `decisions.md`.
-- Applies to a category of nodes → record in the relevant aspect's `rationale.md`. The rationale field is the decision record for that aspect.
-- Technology choice → record in `config.yaml` with a `rationale` field next to the technology declaration.
-
----
-
-## 8. ASPECTS — CREATION AND USE
-
-### Creating a new aspect
-
-1. Read `schemas/aspect.yaml`.
-2. Create `aspects/<tag>/` directory (tag = directory name).
-3. Write `aspect.yaml` — name (display), optional implies. No `tag` field — directory name is the tag.
-4. Write content `.md` files alongside `aspect.yaml`. Choose filenames that reflect the content. Every aspect should explain WHAT must be satisfied (specific, verifiable) and WHY this requirement exists (use the user's own words — do not paraphrase or invent). Optionally include HOW to satisfy it with code examples if needed. Write business-first — add technical detail only when it clarifies the requirement.
-5. Run `yg validate`.
-
-### Aspect vs local artifact — the test
-
-"Does this requirement apply to more than one node?"
-
-- Yes → aspect.
-- No → local artifact.
-
-"Does this requirement apply to every node of a given type?"
-
-- Yes → add to `node_types[*].required_tags` in `config.yaml` (if supported).
-- No → optional aspect via tag on node.
-
----
-
-## 9. FLOWS — CREATION AND USE
-
-### Creating a new flow
-
-1. Read `schemas/flow.yaml`.
-2. Create `flows/<name>/` directory.
-3. Write `flow.yaml` — declare participants and any flow-level aspects.
-4. Write `description.md` with all six required sections:
-
-```markdown
-## Business context
-[The organizational or user need this process serves. Why it exists in the business.]
-
-## Trigger
-[What initiates this process — a user action, an external event, a scheduled job. Described at the level of the actor, not the system.]
-
-## Goal
-[What successful completion looks like from the business perspective. Not a technical outcome — a business outcome.]
-
-## Participants
-[Each node and its role in the process. One to two sentences per node.]
-
-## Paths
-### Happy path
-[The main success scenario described from the business perspective.]
-
-### [Error/edge case name]
-[What happens when things go wrong — business consequences and recovery.]
-
-## Invariants across all paths
-[Rules that hold regardless of which path is taken.]
-```
-
-1. Run `yg validate`.
-
-### Flow description — the test
-
-Read your `description.md` and ask: "Does this describe what happens in the world, or only what happens in the software?" If the answer is "only in the software" — rewrite. The flow describes the process. The software is one implementation of that process.
-
----
-
-## 10. REVERSE ENGINEERING — MAPPING EXISTING CODE
-
-**Order:** When reverse-engineering an area, create graph elements in this order: (1) aspects — identify cross-cutting patterns first, (2) flows — reconstruct business processes from code, documentation, and user input, (3) model nodes — map individual components. Never create model nodes before cross-cutting rules and processes are understood — they depend on them.
-
-When mapping existing source files to graph nodes:
-
-1. `yg owner --file <path>` — confirm no coverage exists.
-2. Determine node granularity. Propose to user if unclear.
-3. Create node directory. Read `schemas/node.yaml`. Create `node.yaml`.
-4. Analyze source. For each artifact type in `config.artifacts`: Does this node have content matching this artifact's description? Yes → create the artifact, extract content from source. Do not invent. No → skip.
-5. Identify relations — what does this code call, use, extend, implement? Add relations to `node.yaml`.
-6. Identify cross-cutting requirements — logging, auth, retry, saga, etc. Add matching tags. Create aspects if they do not exist.
-7. Identify business process participation. Add the node to the relevant flow's participants. If no flow exists — ask the user to describe the business process before creating one. Do not derive a flow description from code alone.
-8. Run `yg validate`. Fix errors.
-9. Run `yg drift-sync --node <path>`.
-
-### When to ask the user
-
-Ask when:
-
-- A node appears to participate in a business process but you cannot determine the process from code. Say: "This code appears to be part of a larger process. Can you describe what this process means from a business perspective — what triggers it and what the goal is?"
-- A constraint or rule is implied by code but has no visible rationale. Say: "I see [constraint X] in the code. Do you know why this constraint exists? I want to record the reason, not just the rule."
-- An architectural choice is apparent but unexplained. Say: "I see [approach X] used here. What was the reason for this choice? I want to record it so future agents understand the intent."
-
-Do not proceed without capturing the why if the user can provide it.
-
----
-
-## 11. CONVERSATION LIFECYCLE
-
-### A. Preflight (first message of the conversation)
-
-Always execute before doing anything else. Exception: purely read-only request (user asks only for explanation or analysis).
-
-1. `yg journal-read` → if entries exist, consolidate to graph, then `yg journal-archive`.
-2. `yg drift` → compares file hashes in `.drift-state` with current state. **Source drift** (mapped files changed) → absorb silently: `yg drift-sync` per node. **Missing or unmaterialized** → report to user and ask how to proceed.
-3. `yg status` → report graph health.
-4. `yg validate` → report errors. Fix stale artifact warnings if present.
-
-### B. Answering questions about mapped code
-
-1. `yg owner --file <path>`
-2. Owner found → `yg build-context --node <path>`. Base your answer on the context package.
-3. Owner not found → answer from file analysis, but state explicitly that the answer is not graph-backed and graph coverage is missing.
-
-Never answer questions about mapped code from grep or raw file reading alone. The graph provides intent, constraints, and relations that source files cannot.
-
-### C. Wrap-up (user signals end of session)
-
-Triggered by: "we're done", "wrap up", "that's enough", "ok done", or equivalent. The graph should already be current. Massive graph updates at this stage mean you failed to maintain sync during the session.
-
-1. If journal was used: consolidate to graph, then `yg journal-archive`.
-2. `yg drift` → absorb source drift automatically via `yg drift-sync`.
-3. `yg validate` → fix structural errors.
-4. Report: exactly which nodes and files were changed.
-
----
-
-## 12. CLI TOOLS REFERENCE
-
-```
+yg preflight                        Unified diagnostic: journal + drift + status + validate.
 yg owner --file <path>              Find the node that owns this file.
 yg build-context --node <path>      Assemble context package for this node.
 yg tree [--root <path>] [--depth N] Print graph structure.
-yg tags                             List valid aspect tags (aspect directory names).
+yg aspects                          List aspects with metadata (YAML output).
 yg deps --node <path> [--depth N] [--type structural|event|all]
                                     Show dependencies.
 yg impact --node <path> --simulate  Simulate blast radius of a planned change.
+yg impact --aspect <id>             Show all nodes where aspect is effective.
+yg impact --flow <name>             Show flow participants and descendants.
 yg status                           Graph health: nodes, coverage, drift summary.
 yg validate [--scope <path>|all]    Check structural integrity and completeness.
-yg drift [--scope <path>|all]       Detect source drift (mapped files changed vs baseline).
-yg drift-sync --node <path>         Record file hashes as new baseline. Run ONLY after graph and source are both current.
-```
-
-Journal — iterative mode only:
-
-```
-yg journal-read
+yg drift [--scope <path>|all] [--drifted-only]
+                                    Detect source and graph drift (bidirectional).
+yg drift-sync --node <path>         Record file hashes as new baseline.
+yg journal-read                     Read pending journal entries.
 yg journal-add --note "<content>" [--target <node_path>]
-yg journal-archive
+                                    Add a journal entry.
+yg journal-archive                  Archive consolidated journal entries.
 ```
 
----
-
-## 13. COMPLETENESS CHECK
-
-Before finishing any mapping or modification, ask:
-
-> "If I delete the source file and give another agent ONLY the output of `yg build-context` for this node — can they recreate the file correctly? Do they understand not just WHAT the code does, but WHY it exists and WHY it was designed this way?"
-
-- **No** → you missed a local constraint, a relation, or failed to capture rationale.
-- **Yes, but local files are bloated** → you failed to route information to aspects, flows, or parent nodes. Fix the routing.
-- **Yes, but rationale is invented** → remove it and ask the user for the real reason.
-- **Yes** → done.
-
----
-
-## 14. QUICK ROUTING REFERENCE
+### Quick Routing Table
 
 | What you have | Where it goes |
 |---|---|
-| This node's responsibility | `responsibility.md` (local) |
-| This node's public API | `interface.md` (local) |
-| Validation rules specific to this node | `constraints.md` (local) |
-| Error conditions this node produces | `errors.md` (local) |
-| Data shapes this node owns | `model.md` (local) |
-| State machine for this node | `state.md` (local) |
-| Local design decision + why | `decisions.md` (local) |
-| Rule that applies to many nodes | Aspect (content `.md` files in `aspects/<tag>/`) |
+| Information specific to this node | Local node artifact (read `config.yaml artifacts` for types) |
+| Rule that applies to many nodes | Aspect (content `.md` files in `aspects/<id>/`) |
 | Architectural invariant for a node type | Required aspect in `config.yaml node_types` |
 | Business process participation | Flow (`flow.yaml participants`) |
 | Process-level requirement | Flow `aspects` + aspect directory |
