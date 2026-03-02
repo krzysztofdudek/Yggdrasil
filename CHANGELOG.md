@@ -28,8 +28,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enriched schema files (node.yaml, aspect.yaml, flow.yaml) with self-documenting
   YAML comments describing every field.
 
+- **`yg impact --aspect <id>` mode:** Shows all nodes whose effective aspects include
+  the specified aspect (own + hierarchy + flow + implies), with source attribution.
+- **`yg impact --flow <name>` mode:** Shows all flow participants and their descendants.
+- **`yg impact --node` enhancements:** Descendants section for parent nodes, co-aspect
+  nodes section, effective aspects (own + hierarchy + flow + implies) instead of own-only.
+- `collectEffectiveAspectIds` exported from context-builder for reuse.
+
 ### Fixed
 
+- `yg impact --simulate` now reports correct baseline token counts (previously baseline
+  context was missing node.yaml content due to temp directory cleanup).
+- `yg impact` transitive dependency chains no longer include the target node in output.
 - `hashPath` no longer skips mapped single files when they match `.gitignore` patterns — gitignore filtering applies only to directory scans.
 - Reserved artifact name check uses `'node.yaml'` (the actual reserved filename) instead of `'node'`.
 - Validator fallback budget thresholds aligned to spec defaults (10000/20000 instead of 5000/10000).
