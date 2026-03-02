@@ -1,0 +1,5 @@
+name: Manage Categories
+aspects: [subscription-limits]
+nodes:
+  - api/categories
+  - web/categories

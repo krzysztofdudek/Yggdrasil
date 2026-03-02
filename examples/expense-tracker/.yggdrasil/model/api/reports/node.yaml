@@ -1,6 +1,6 @@
 name: Reports
 type: service
-aspects: []
+aspects: [requires-auth, error-format]
 
 relations: []
 

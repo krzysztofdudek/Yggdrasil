@@ -1,0 +1,4 @@
+name: Delete Expense
+nodes:
+  - api/expenses
+  - web/expenses

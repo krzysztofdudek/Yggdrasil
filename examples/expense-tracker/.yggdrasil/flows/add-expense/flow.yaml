@@ -1,0 +1,8 @@
+name: Add Expense
+aspects: [subscription-limits]
+nodes:
+  - api/auth
+  - api/categories
+  - api/expenses
+  - web/auth
+  - web/expenses

@@ -1,6 +1,6 @@
 name: Subscriptions
 type: service
-aspects: []
+aspects: [requires-auth, subscription-limits, error-format]
 
 relations: []
 

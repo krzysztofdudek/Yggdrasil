@@ -1,0 +1,5 @@
+name: Set Budget
+nodes:
+  - api/budgets
+  - api/categories
+  - web/budgets

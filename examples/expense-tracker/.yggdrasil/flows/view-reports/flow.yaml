@@ -1,0 +1,4 @@
+name: View Reports
+nodes:
+  - api/reports
+  - web/reports

@@ -1,6 +1,6 @@
 name: Dashboard
 type: module
-aspects: []
+aspects: [requires-auth]
 
 relations: []
 

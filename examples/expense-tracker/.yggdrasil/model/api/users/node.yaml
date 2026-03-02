@@ -1,6 +1,6 @@
 name: Users
 type: service
-aspects: []
+aspects: [validation, error-format]
 
 relations: []
 

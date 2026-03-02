@@ -1,6 +1,6 @@
 name: Settings
 type: module
-aspects: []
+aspects: [requires-auth]
 
 relations: []
 

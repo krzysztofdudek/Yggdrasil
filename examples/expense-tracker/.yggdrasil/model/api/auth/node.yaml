@@ -1,6 +1,6 @@
 name: Auth
 type: service
-aspects: []
+aspects: [validation, error-format]
 
 relations: []
 

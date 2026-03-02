@@ -1,0 +1,5 @@
+name: Edit Expense
+nodes:
+  - api/expenses
+  - api/categories
+  - web/expenses

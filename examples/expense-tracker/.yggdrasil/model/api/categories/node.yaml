@@ -1,6 +1,6 @@
 name: Categories
 type: service
-aspects: []
+aspects: [requires-auth, validation, subscription-limits, error-format]
 
 relations: []
 

@@ -1,6 +1,6 @@
 name: Layout
 type: module
-aspects: []
+aspects: [requires-auth]
 
 relations: []
 

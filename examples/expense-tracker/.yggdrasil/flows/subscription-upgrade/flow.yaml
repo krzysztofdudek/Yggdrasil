@@ -1,0 +1,4 @@
+name: Subscription Upgrade
+nodes:
+  - api/subscriptions
+  - web/settings

@@ -1,6 +1,6 @@
 name: Budgets
 type: service
-aspects: []
+aspects: [requires-auth, validation, error-format]
 
 relations: []
 

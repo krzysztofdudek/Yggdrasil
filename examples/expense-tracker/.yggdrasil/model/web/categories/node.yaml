@@ -1,6 +1,6 @@
 name: Categories
 type: module
-aspects: []
+aspects: [requires-auth]
 
 relations: []
 
