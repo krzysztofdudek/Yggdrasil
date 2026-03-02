@@ -1,2 +1,2 @@
-// Placeholder — Task 6 will add types and validation
-export {};
+export * from "./types.js";
+export * from "./validation.js";
