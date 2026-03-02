@@ -1,6 +1,6 @@
 name: InitCommand
 type: library
-aspects: [deterministic]
+aspects: [deterministic, cli-command-contract]
 
 relations:
   - target: cli/templates
