@@ -36,12 +36,14 @@
 
 **impact:**
 
-- loadGraph(process.cwd()). --node (required), --simulate (optional). Trim --node, strip trailing slash.
-- If node not found: exit 1 "Node not found: ${nodePath}".
-- collectReverseDependents: structural relations only. direct, transitive, chains.
-- Output: direct dependents (with consumes if present), transitive chains, flows (node in flow.nodes), aspects, knowledge (scope covers node).
-- If --simulate and transitive.length > 0: loadGraphFromRef(projectRoot, 'HEAD'), detectDrift. For each dependent: buildContext, budget status, baseline tokens (HEAD), drift status. Output per-node: changed dependency line (if direct structural dep on target), budget line, drift line.
+Three mutually exclusive modes (one required): --node, --aspect, --flow. Optional --simulate for all modes.
 
-**Consumes:** loadGraph, loadGraphFromRef (cli/core/loader); validate (cli/core/validator); detectDrift (cli/core/drift-detector); formatDependencyTree (cli/core/dependency-resolver); buildContext (cli/core/context); normalizeMappingPaths, normalizeProjectRelativePath, findYggRoot (cli/utils); readJournal (cli/io); Graph, GraphNode, OwnerResult (cli/model).
+- **--node mode:** loadGraph(process.cwd()). Trim --node, strip trailing slash. If node not found: exit 1. collectReverseDependents: structural relations only → direct, allDependents. buildTransitiveChains: BFS from target, chains exclude target node. collectDescendants: hierarchy children. collectEffectiveAspectIds: own + hierarchy + flow + implies. Co-aspect nodes: other nodes sharing any effective aspect. Output: direct dependents (with relation type and consumes), transitive chains, descendants, flows, aspects, co-aspect nodes, total scope.
+- **--aspect mode:** Find aspect by id. For every node, compute collectEffectiveAspectIds; collect those containing the aspect id. Determine source attribution (own, hierarchy from ancestor, flow, or implied). Report propagating flows, implied-by/implies relationships. Output: affected nodes with source, flow propagation, implies graph, total scope.
+- **--flow mode:** Find flow by name or path. Collect declared participants and their descendants (via collectDescendants). Output: participants (marking descendants), flow aspects, total scope.
+- **--simulate (any mode):** runSimulation: loadGraphFromRef(projectRoot, 'HEAD'), detectDrift. For each affected node: buildContext current + baseline, budget comparison (ok/warning/error), changed dependency interface line (node mode only), drift status line.
+- Validation: exactly one mode required, mutually exclusive. Exit 1 with error message if 0 or >1 modes.
+
+**Consumes:** loadGraph, loadGraphFromRef (cli/core/loader); validate (cli/core/validator); detectDrift (cli/core/drift-detector); formatDependencyTree (cli/core/dependency-resolver); buildContext, collectAncestors, collectEffectiveAspectIds (cli/core/context); normalizeMappingPaths, normalizeProjectRelativePath, findYggRoot (cli/utils); readJournal (cli/io); Graph, GraphNode, OwnerResult (cli/model).
 
 **Out of scope:** Init, validation commands, drift commands, journal write/archive.

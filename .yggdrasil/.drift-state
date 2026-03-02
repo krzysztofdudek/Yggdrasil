@@ -244,13 +244,13 @@ cli/commands/journal:
     source/cli/src/cli/journal-read.ts: fc864082c5cdea63c79e5eb8460236d0c2543f9de7eac1b6693fc4f7cca09dc5
     source/cli/src/cli/journal-archive.ts: 7f82b08311355bdd2b34493af0a7c1e347eb3231b26c691d54b39754dbea7663
 cli/commands/graph-ops:
-  hash: 9a999104ca6c4f210729bc0ac362bb0d694e56109a6ce1d46444d3db8e429833
+  hash: 5b4b05b9a249f7adde293c88a0768e0b71e33621fdde195c7fb5a93099855407
   files:
     .yggdrasil/model/cli/commands/graph-ops/node.yaml: a019d315f5d84a2ed370ff3dabc0247663f3d64b81f4b3a911ece6609fee9845
     .yggdrasil/model/cli/commands/graph-ops/errors.md: 4b3194555e3bd531dd40e870f45299bce08db2e418d4b51fbe7ac7340a667aa7
-    .yggdrasil/model/cli/commands/graph-ops/interface.md: ca6d73dcc7d8143b84b0ec531d8301581c12ef08b57d447b5ae26266ffc4b95c
+    .yggdrasil/model/cli/commands/graph-ops/interface.md: 37ffdfee06767de7937ed13cdc6f871aa07ddf4a8cd77be76d25f8c047347418
     .yggdrasil/model/cli/commands/graph-ops/logic.md: ff7b81cfd70bec24dc15e345f7c9a440abad10ea7a7f22a2ca1486b5508bae04
-    .yggdrasil/model/cli/commands/graph-ops/responsibility.md: 5262bf702ca646698090b19cc8e42b3ceda05bdb2467d53775be9279f7b92ef1
+    .yggdrasil/model/cli/commands/graph-ops/responsibility.md: 84cfd0e70ae31dc8551165fce50a382541de9fd4f8b42f22a6530f084c621274
     .yggdrasil/model/cli/node.yaml: 58606a7f5e16ee0f6c5537778f42c7546973a7a58d7ea7880cd2f67e4c48711d
     .yggdrasil/model/cli/decisions.md: d37de2f879fd4b21e564d1d674dd504fb63159ea85565ba9cfdcb8e4c63ba199
     .yggdrasil/model/cli/responsibility.md: 44679b088e45d7811ffdd0bb994a94bdc3ee7f63b1a4c456af4a3e5fae65a987

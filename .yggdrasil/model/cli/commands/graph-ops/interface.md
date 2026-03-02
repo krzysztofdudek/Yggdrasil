@@ -8,7 +8,13 @@ Public API consumed by cli/entry. Named exports only.
 | registerTreeCommand | (program: Command) => void | tree | --root, --depth (parsed as int). |
 | registerOwnerCommand | (program: Command) => void | owner | --file (required). |
 | registerDepsCommand | (program: Command) => void | deps | --node (required), --depth, --type (structural, event, all; default all). |
-| registerImpactCommand | (program: Command) => void | impact | --node (required), --simulate. |
+| registerImpactCommand | (program: Command) => void | impact | --node, --aspect, --flow (mutually exclusive, one required), --simulate. |
+
+**Also exported from impact.ts:**
+
+- collectReverseDependents(graph, targetNode) — builds reverse dependency map from structural relations.
+- buildTransitiveChains(targetNode, direct, allDependents, reverse) — computes BFS chains excluding target.
+- collectDescendants(graph, nodePath) — collects all hierarchy children recursively.
 
 **Also exported:** findOwner(graph: Graph, projectRoot: string, rawPath: string): OwnerResult — resolves file to owning node; used by owner command.
 
