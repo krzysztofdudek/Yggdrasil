@@ -5,10 +5,14 @@ Yggdrasil is persistent semantic memory stored in `.yggdrasil/`. It maps the rep
 ### Quick Start Protocol
 
 ```
-BEFORE modifying ANY file:
+BEFORE reading, researching, planning, OR modifying ANY mapped file:
   1. yg owner --file <path>
   2. yg build-context --node <owner>
-  If the context package seems insufficient — enrich the graph. Do not bypass it.
+  The context package is your primary source of understanding.
+  Raw file reads are for implementation details WITHIN a node you
+  already understand from its context package.
+  If the context package seems insufficient — enrich the graph.
+  Do not bypass it.
 
 AFTER modifying:
   3. Update graph artifacts to reflect changes
@@ -19,6 +23,9 @@ EVERY conversation start:
   yg preflight → act on findings (see Operations)
 
 NEVER: modify code without graph coverage.
+NEVER: read mapped source files to understand a component without
+       running yg build-context first — the graph captures intent,
+       constraints, and relations that source files cannot.
 NEVER: invent rationale, business rules, or decisions.
 NEVER: auto-resolve drift without asking the user.
 WHEN UNSURE: ask the user. Never guess. Never assume.
@@ -26,7 +33,7 @@ WHEN UNSURE: ask the user. Never guess. Never assume.
 
 ### Five Core Rules
 
-1. **Graph first.** Before modifying code or answering questions about mapped files, run `yg owner` and `yg build-context`. Always.
+1. **Graph first.** Before reading, researching, planning, or modifying mapped files, run `yg owner` and `yg build-context`. Always. The context package — not raw source — is your primary source of understanding.
 2. **Code and graph are one.** Code changed → graph updated in the same response. Graph changed → source verified in the same response. No exceptions.
 3. **Never invent why.** The graph captures human intent. If you don't know why something was decided, ask. Never hallucinate rationale.
 4. **Always capture why.** When the user explains a reason, record it in the graph immediately. Conversation evaporates; graph persists.
@@ -48,6 +55,7 @@ You have broken Yggdrasil if you do any of the following:
 - ❌ Invented a rationale, business rule, or architectural decision.
 - ❌ Used blackbox coverage for greenfield (new) code.
 - ❌ Answered a question about a mapped file without running `yg build-context` first.
+- ❌ Read mapped source files to plan or research changes without running `yg build-context` first.
 - ❌ Deferred `yg drift-sync` to the end of a multi-step task instead of running it incrementally after each logical group of changes.
 
 ### Escape Hatch
@@ -79,11 +87,12 @@ PREFLIGHT (every conversation, before any work):
   - [ ] 4. If validation errors: fix, re-run yg validate
   Exception: read-only requests (explain, analyze) — skip preflight.
 
-ANSWERING QUESTIONS about mapped code:
+UNDERSTANDING mapped code (questions, research, OR planning):
   - [ ] 1. yg owner --file <path>
-  - [ ] 2. Owner found → yg build-context --node <path>. Answer from context package.
-  - [ ] 3. Owner not found → answer from file analysis, state answer is not graph-backed.
-  Never answer from grep or raw files alone when graph coverage exists.
+  - [ ] 2. Owner found → yg build-context --node <path>. Use context package as primary source.
+  - [ ] 3. Owner not found → use file analysis, state it is not graph-backed.
+  Never use grep or raw file reads as primary understanding when graph coverage exists.
+  Raw reads supplement the context package — they do not replace it.
 
 WRAP-UP (user signals "done", "wrap up", "that's enough"):
   - [ ] 1. Consolidate journal if used → yg journal-archive

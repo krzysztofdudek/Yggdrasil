@@ -95,7 +95,7 @@ cli/model:
     source/cli/src/model/.gitkeep: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
     source/cli/src/model/types.ts: 2d77082b214d56333a9eb7000e14bd9e88c68464ecd28c10b99c7645fe3d2452
 cli/templates:
-  hash: b2ec4fb7419e6cc817a1aea3d485546161bf3a49a11875a9d32406c8554801e7
+  hash: 74af5bee53bdefcaa02d162916615eec62675e93a9c77d9b555f5c0c18b2fea1
   files:
     .yggdrasil/model/cli/templates/node.yaml: a196b7cb80715efb9b8b433fe3833176f1bc5e887660d8d5e1a68ed5009ad4fd
     .yggdrasil/model/cli/templates/decisions.md: 4e33f3de4cbe1919194cbb36270b5fc013ba1bcfee5fe6b32d7e905c3fb8af88
@@ -112,7 +112,7 @@ cli/templates:
     .yggdrasil/flows/init/description.md: 7ab06dca456fe57c748e343faba4dff4db88ef73792ab2eaf28298ff595adba0
     source/cli/src/templates/default-config.ts: 3b91fc645ba78e5b1a4a2704ed3d25b0312870c629adf3473d124a029e720980
     source/cli/src/templates/platform.ts: c92d31c3944cc6134759c877ad0b06fa1ca38f1294649af7ca39ab74460105e1
-    source/cli/src/templates/rules.ts: 02d61bc7ca97ec13d86a3102e1adae3656d75fc95854f8e8fa272b6c17055fa6
+    source/cli/src/templates/rules.ts: 08e750b974d4e4b9a72094233cf0f64b22cac1c861303f57d7e55fb677302f72
     source/cli/graph-schemas/aspect.yaml: 543dd82f91efa0f353e905f8f3ecd93770abe0ef19a3194c40f33c2940ec0718
     source/cli/graph-schemas/flow.yaml: 5bf15115678617fef1175e25ac28e54482513e275254bd4a8680cc8268d2d463
     source/cli/graph-schemas/node.yaml: 5e6fdf9da862ac7ad0ea364fa85c90ccf0c80ac8ed51a99162654c71ada92c6e
