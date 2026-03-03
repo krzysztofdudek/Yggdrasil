@@ -12,6 +12,7 @@ function getGraphSchemasDir(): string {
 }
 
 const GITIGNORE_CONTENT = `.journal.yaml
+.drift-state
 journals-archive/
 `;
 
@@ -96,7 +97,7 @@ export function registerInitCommand(program: Command): void {
       process.stdout.write('  .yggdrasil/model/\n');
       process.stdout.write('  .yggdrasil/aspects/\n');
       process.stdout.write('  .yggdrasil/flows/\n');
-      process.stdout.write('  .yggdrasil/schemas/ (node, aspect, flow)\n');
+      process.stdout.write('  .yggdrasil/schemas/ (config, node, aspect, flow)\n');
       process.stdout.write(`  ${path.relative(projectRoot, rulesPath)} (rules)\n\n`);
       process.stdout.write('Next steps:\n');
       process.stdout.write('  1. Edit .yggdrasil/config.yaml — set name, stack, standards\n');

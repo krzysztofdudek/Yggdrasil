@@ -16,7 +16,7 @@ export function registerDepsCommand(program: Command): void {
           options.type === 'structural' || options.type === 'event' || options.type === 'all'
             ? options.type
             : 'all';
-        const nodePath = options.node.trim().replace(/\/$/, '');
+        const nodePath = options.node.trim().replace(/^\.\//, '').replace(/\/+$/, '');
         const text = formatDependencyTree(graph, nodePath, {
           depth: options.depth,
           relationType: typeFilter,

@@ -68,15 +68,17 @@ Shows direct and transitive node dependencies.
 Unified diagnostic report combining journal, drift, status, and validation.
 
 ```bash
-yg preflight
+yg preflight [--quick]
 ```
 
 Outputs:
 
 - **Journal** — pending entries from previous sessions
-- **Drift** — nodes with source or graph drift
+- **Drift** — nodes with source or graph drift (skipped with `--quick`)
 - **Status** — node, aspect, flow, and mapping counts
 - **Validation** — structural errors and completeness warnings
+
+- `--quick` — Skip drift detection for faster results (useful for large repos)
 
 Exit code 0 if fully clean, 1 if journal entries, drift, or validation errors found.
 
@@ -91,7 +93,7 @@ yg validate [--scope <scope>]
 Checks the memory for structural errors and quality warnings.
 Exit code 1 on errors — useful as a CI merge gate.
 
-- `--scope <scope>` — `all` or node-path (default: `all`)
+- `--scope <scope>` — `all` or node-path; includes descendant nodes (default: `all`)
 
 ---
 
@@ -107,23 +109,40 @@ Output: YAML format with fields: `id`, `name`, `description`, `implies`.
 
 ---
 
+## Flows
+
+```bash
+yg flows
+```
+
+Lists all defined flows with metadata.
+
+Output: YAML format with fields: `name`, `nodes` (participants), `aspects`.
+
+---
+
 ## Drift detection
 
 ```bash
-yg drift [--scope <scope>] [--drifted-only]
+yg drift [--scope <scope>] [--drifted-only] [--limit <n>]
 ```
 
 Detects source and graph drift — files that changed outside the semantic memory (source drift)
 and graph artifacts that changed without a corresponding `drift-sync` (graph drift).
 
-- `--scope <scope>` — `all` or node-path (default: `all`)
+- `--scope <scope>` — `all` or node-path; includes descendant nodes (default: `all`)
 - `--drifted-only` — Show only nodes with drift (hide ok entries)
+- `--limit <n>` — Maximum entries to show per section (truncated sections show remaining count)
 
 ```bash
-yg drift-sync --node <path>
+yg drift-sync --node <path> [--recursive]
+yg drift-sync --all
 ```
 
 Records current file hash after resolving drift.
+
+- `--recursive` — Also sync all descendant nodes
+- `--all` — Sync all nodes with mappings
 
 ---
 

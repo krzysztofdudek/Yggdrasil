@@ -199,6 +199,34 @@ describe('validator', () => {
     }
   });
 
+  it('directory-without-node warns for bare directory with only subdirectories', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-validator-bare-dir');
+    const yggRoot = path.join(tmpDir, '.yggdrasil');
+    const modelDir = path.join(yggRoot, 'model');
+    const bareDir = path.join(modelDir, 'bare-parent');
+    const childDir = path.join(bareDir, 'child');
+
+    await mkdir(childDir, { recursive: true });
+    await writeFile(
+      path.join(yggRoot, 'config.yaml'),
+      'name: V\nnode_types: [service]\nartifacts:\n  responsibility.md:\n    required: always\n    description: x',
+    );
+    await writeFile(path.join(childDir, 'node.yaml'), 'name: Child\ntype: service\n');
+    await writeFile(path.join(childDir, 'responsibility.md'), 'Child responsibility content here — enough to pass.');
+
+    try {
+      const graph = await loadGraph(tmpDir);
+      const result = await validate(graph);
+      const issues = result.issues.filter((i) => i.rule === 'directory-without-node');
+      expect(issues).toHaveLength(1);
+      expect(issues[0].nodePath).toBe('bare-parent');
+      expect(issues[0].code).toBe('W013');
+      expect(issues[0].severity).toBe('warning');
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
   it('missing-artifact warns when non-blackbox node lacks required artifact', async () => {
     const graph = createGraph();
     graph.nodes.set('a/no-responsibility', {
@@ -267,7 +295,7 @@ describe('validator', () => {
     expect(issues[0].severity).toBe('error');
   });
 
-  it('overlapping-mapping errors for containment overlap', async () => {
+  it('overlapping-mapping errors for containment overlap between siblings', async () => {
     const graph = createGraph();
     graph.nodes.set(
       'svc/a',
@@ -276,6 +304,39 @@ describe('validator', () => {
     graph.nodes.set(
       'svc/b',
       createNode('svc/b', { mapping: { paths: ['src/shared/file.ts'] } }),
+    );
+
+    const result = await validate(graph);
+    const issues = result.issues.filter((i) => i.rule === 'overlapping-mapping');
+    expect(issues).toHaveLength(1);
+    expect(issues[0].severity).toBe('error');
+  });
+
+  it('overlapping-mapping allows containment overlap between parent and child nodes', async () => {
+    const graph = createGraph();
+    graph.nodes.set(
+      'platform',
+      createNode('platform', { mapping: { paths: ['src/platform'] } }),
+    );
+    graph.nodes.set(
+      'platform/auth',
+      createNode('platform/auth', { mapping: { paths: ['src/platform/auth'] } }),
+    );
+
+    const result = await validate(graph);
+    const issues = result.issues.filter((i) => i.rule === 'overlapping-mapping');
+    expect(issues).toHaveLength(0);
+  });
+
+  it('overlapping-mapping errors for exact duplicate between parent and child nodes', async () => {
+    const graph = createGraph();
+    graph.nodes.set(
+      'platform',
+      createNode('platform', { mapping: { paths: ['src/platform'] } }),
+    );
+    graph.nodes.set(
+      'platform/auth',
+      createNode('platform/auth', { mapping: { paths: ['src/platform'] } }),
     );
 
     const result = await validate(graph);
@@ -955,6 +1016,31 @@ describe('validator', () => {
     const result = await validate(graph);
     const issues = result.issues.filter((i) => i.rule === 'missing-schema');
     expect(issues).toHaveLength(0);
+  });
+
+  it('scoped validate returns parse error instead of "not found" for broken node', async () => {
+    const graph = createGraph({
+      nodeParseErrors: [
+        { nodePath: 'broken/node', message: 'node.yaml at broken/node/node.yaml: file is empty' },
+      ],
+    });
+    // The broken node is NOT in graph.nodes (it failed to parse)
+    const result = await validate(graph, 'broken/node');
+    expect(result.issues).toHaveLength(1);
+    expect(result.issues[0].code).toBe('E001');
+    expect(result.issues[0].rule).toBe('invalid-node-yaml');
+    expect(result.issues[0].message).toContain('empty');
+  });
+
+  it('scoped validate returns parse error for child of broken node', async () => {
+    const graph = createGraph({
+      nodeParseErrors: [
+        { nodePath: 'broken', message: 'node.yaml at broken/node.yaml: file is empty' },
+      ],
+    });
+    const result = await validate(graph, 'broken/child');
+    expect(result.issues).toHaveLength(1);
+    expect(result.issues[0].code).toBe('E001');
   });
 
   describe('CLI exit codes', () => {

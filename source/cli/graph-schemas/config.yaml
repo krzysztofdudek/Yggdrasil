@@ -1,0 +1,39 @@
+# config.yaml — Schema for the Yggdrasil project configuration
+# Located at .yggdrasil/config.yaml — one per project.
+# Edit this after running yg init to describe your project.
+
+name: "My Project"               # required — project display name
+
+stack:                            # required — technology stack (freeform keys)
+  language: "TypeScript"          #   primary language
+  runtime: "Node.js"             #   runtime environment
+  # framework: "Express"         #   optional — any additional stack entries
+  # database: "PostgreSQL"
+  # testing: "Vitest"
+
+standards: ""                     # optional — global coding conventions (free text)
+
+node_types:                       # required — allowed node type names
+  - name: module                  #   each type needs at least a 'name'
+    # required_aspects: []        #   optional — aspects every node of this type must have
+  - name: service
+  - name: library
+
+artifacts:                        # required — artifact type definitions
+  responsibility.md:              #   key = filename in node directories
+    required: always              #   always | never | { when: <condition> }
+    description: "What this node is responsible for, and what it is not"
+    structural_context: true      #   true = included in dependency context packages
+  interface.md:
+    required:
+      when: has_incoming_relations  # conditions: has_incoming_relations, has_outgoing_relations, has_aspect:<id>
+    description: "Public API — methods, parameters, return types, contracts"
+    structural_context: true
+  # Additional artifact types: logic.md, constraints.md, errors.md, model.md, state.md, decisions.md
+
+quality:                          # optional — quality thresholds
+  min_artifact_length: 50         #   minimum characters for an artifact (warning if below)
+  max_direct_relations: 10        #   maximum outgoing relations per node (warning if above)
+  context_budget:                 #   token budget for context packages
+    warning: 10000                #   tokens — warning threshold
+    error: 20000                  #   tokens — error threshold (suggests splitting)

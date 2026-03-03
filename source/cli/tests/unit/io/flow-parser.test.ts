@@ -31,6 +31,19 @@ nodes:
     await rm(tmpDir, { recursive: true, force: true });
   });
 
+  it('throws on empty YAML file', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-flow-empty');
+    await mkdir(tmpDir, { recursive: true });
+    const flowYaml = path.join(tmpDir, 'flow.yaml');
+    await writeFile(flowYaml, '', 'utf-8');
+
+    await expect(parseFlow(tmpDir, flowYaml)).rejects.toThrow(
+      'empty or not a valid YAML mapping',
+    );
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
   it('throws when name is missing', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-flow-missing-name');
     await mkdir(tmpDir, { recursive: true });

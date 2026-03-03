@@ -8,6 +8,10 @@ export async function parseFlow(flowDir: string, flowYamlPath: string): Promise<
   const content = await readFile(flowYamlPath, 'utf-8');
   const raw = parseYaml(content) as Record<string, unknown>;
 
+  if (!raw || typeof raw !== 'object') {
+    throw new Error(`flow.yaml at ${flowYamlPath}: file is empty or not a valid YAML mapping`);
+  }
+
   if (!raw.name || typeof raw.name !== 'string' || raw.name.trim() === '') {
     throw new Error(`flow.yaml at ${flowYamlPath}: missing or empty 'name'`);
   }

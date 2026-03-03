@@ -621,4 +621,69 @@ mapping:
       }
     });
   });
+
+  describe('child-wins exclusion model', () => {
+    it('parent drift excludes files owned by child node mapping', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-drift-child-wins');
+      const yggRoot = path.join(tmpDir, '.yggdrasil');
+      const parentNodeDir = path.join(yggRoot, 'model', 'platform');
+      const childNodeDir = path.join(yggRoot, 'model', 'platform', 'auth');
+
+      await mkdir(childNodeDir, { recursive: true });
+      await writeFile(
+        path.join(yggRoot, 'config.yaml'),
+        'name: Test\nnode_types: [module]\nartifacts:\n  responsibility.md:\n    required: always\n    description: x\n',
+      );
+      await writeFile(path.join(yggRoot, '.drift-state'), '{}');
+      await writeFile(
+        path.join(parentNodeDir, 'node.yaml'),
+        'name: Platform\ntype: module\nmapping:\n  paths:\n    - src/platform\n',
+      );
+      await writeFile(path.join(parentNodeDir, 'responsibility.md'), 'Platform handles shared concerns.');
+      await writeFile(
+        path.join(childNodeDir, 'node.yaml'),
+        'name: Auth\ntype: module\nmapping:\n  paths:\n    - src/platform/auth\n',
+      );
+      await writeFile(path.join(childNodeDir, 'responsibility.md'), 'Auth handles authentication.');
+
+      // Create source files
+      await mkdir(path.join(tmpDir, 'src/platform/auth'), { recursive: true });
+      await writeFile(path.join(tmpDir, 'src/platform/base.ts'), '// platform base');
+      await writeFile(path.join(tmpDir, 'src/platform/auth/login.ts'), '// auth login');
+
+      try {
+        const graph = await loadGraph(tmpDir);
+
+        // Sync both nodes
+        await syncDriftState(graph, 'platform');
+        await syncDriftState(graph, 'platform/auth');
+
+        // Read stored state to verify exclusion
+        const state = await readDriftState(graph.rootPath);
+        const parentFiles = Object.keys(state['platform']?.files ?? {});
+        const childFiles = Object.keys(state['platform/auth']?.files ?? {});
+
+        // Parent should NOT include auth/login.ts (child owns it)
+        const parentSourceFiles = parentFiles.filter((f) => f.startsWith('src/'));
+        expect(parentSourceFiles).toContain('src/platform/base.ts');
+        expect(parentSourceFiles).not.toContain('src/platform/auth/login.ts');
+
+        // Child SHOULD include auth/login.ts
+        const childSourceFiles = childFiles.filter((f) => f.startsWith('src/'));
+        expect(childSourceFiles).toContain('src/platform/auth/login.ts');
+
+        // Now modify the child-owned file — parent should NOT drift
+        await writeFile(path.join(tmpDir, 'src/platform/auth/login.ts'), '// auth login CHANGED');
+
+        const report = await detectDrift(graph);
+        const parentEntry = report.entries.find((e) => e.nodePath === 'platform');
+        const childEntry = report.entries.find((e) => e.nodePath === 'platform/auth');
+
+        expect(parentEntry?.status).toBe('ok');
+        expect(childEntry?.status).toBe('source-drift');
+      } finally {
+        await rm(tmpDir, { recursive: true, force: true });
+      }
+    });
+  });
 });

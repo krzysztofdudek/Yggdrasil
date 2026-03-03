@@ -47,6 +47,7 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
   issues.push(...checkRelationTargets(graph));
   issues.push(...checkNoCycles(graph));
   issues.push(...checkMappingOverlap(graph));
+  issues.push(...(await checkMappingPathsExist(graph)));
   issues.push(...checkBrokenFlowRefs(graph));
   issues.push(...checkFlowAspectIds(graph));
   issues.push(...(await checkDirectoriesHaveNodeYaml(graph)));
@@ -57,13 +58,30 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
   let nodesScanned = graph.nodes.size;
   if (scope !== 'all' && scope.trim()) {
     if (!graph.nodes.has(scope)) {
+      // Check if the node exists but has a parse error
+      const parseError = (graph.nodeParseErrors ?? []).find(
+        (e) => e.nodePath === scope || scope.startsWith(e.nodePath + '/'),
+      );
+      if (parseError) {
+        return {
+          issues: [{
+            severity: 'error',
+            code: 'E001',
+            rule: 'invalid-node-yaml',
+            message: parseError.message,
+            nodePath: parseError.nodePath,
+          }],
+          nodesScanned: 0,
+        };
+      }
       return {
         issues: [{ severity: 'error', rule: 'invalid-scope', message: `Node not found: ${scope}` }],
         nodesScanned: 0,
       };
     }
-    filtered = issues.filter((i) => !i.nodePath || i.nodePath === scope);
-    nodesScanned = 1;
+    const scopePrefix = scope + '/';
+    filtered = issues.filter((i) => !i.nodePath || i.nodePath === scope || i.nodePath.startsWith(scopePrefix));
+    nodesScanned = [...graph.nodes.keys()].filter((p) => p === scope || p.startsWith(scopePrefix)).length;
   }
 
   return { issues: filtered, nodesScanned };
@@ -370,6 +388,10 @@ function arePathsOverlapping(pathA: string, pathB: string): boolean {
   return pathA.startsWith(pathB + '/') || pathB.startsWith(pathA + '/');
 }
 
+function isAncestorNode(possibleAncestor: string, possibleDescendant: string): boolean {
+  return possibleDescendant.startsWith(possibleAncestor + '/');
+}
+
 function checkMappingOverlap(graph: Graph): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const ownership: Array<{ nodePath: string; mappingPath: string }> = [];
@@ -390,6 +412,15 @@ function checkMappingOverlap(graph: Graph): ValidationIssue[] {
       if (current.nodePath === candidate.nodePath) continue;
       if (!arePathsOverlapping(current.mappingPath, candidate.mappingPath)) continue;
 
+      // Allow containment overlaps between ancestor-descendant nodes ("child wins" model).
+      // Exact duplicates (same path) are always errors regardless of hierarchy.
+      const isContainment = current.mappingPath !== candidate.mappingPath;
+      const isHierarchical =
+        isAncestorNode(current.nodePath, candidate.nodePath) ||
+        isAncestorNode(candidate.nodePath, current.nodePath);
+
+      if (isContainment && isHierarchical) continue;
+
       issues.push({
         severity: 'error',
         code: 'E009',
@@ -403,6 +434,33 @@ function checkMappingOverlap(graph: Graph): ValidationIssue[] {
     }
   }
 
+  return issues;
+}
+
+// --- Rule: Mapping paths should exist on disk (W012) ---
+
+async function checkMappingPathsExist(graph: Graph): Promise<ValidationIssue[]> {
+  const issues: ValidationIssue[] = [];
+  const projectRoot = path.dirname(graph.rootPath);
+  const { access } = await import('node:fs/promises');
+
+  for (const [nodePath, node] of graph.nodes) {
+    const mappingPaths = normalizeMappingPaths(node.meta.mapping);
+    for (const mp of mappingPaths) {
+      const absPath = path.join(projectRoot, mp);
+      try {
+        await access(absPath);
+      } catch {
+        issues.push({
+          severity: 'warning',
+          code: 'W012',
+          rule: 'mapping-path-missing',
+          message: `Mapping path '${mp}' does not exist on disk`,
+          nodePath,
+        });
+      }
+    }
+  }
   return issues;
 }
 
@@ -691,17 +749,28 @@ async function checkDirectoriesHaveNodeYaml(graph: Graph): Promise<ValidationIss
 
     if (RESERVED_DIRS.has(dirName)) return;
 
-    const hasContent = entries.some((e) => e.isFile()) || entries.some((e) => e.isDirectory());
+    const hasFiles = entries.some((e) => e.isFile());
+    const hasSubdirs = entries.some((e) => e.isDirectory() && !RESERVED_DIRS.has(e.name) && !e.name.startsWith('.'));
     const graphPath = segments.join('/');
 
-    if (hasContent && !hasNodeYaml && graphPath !== '') {
-      issues.push({
-        severity: 'error',
-        code: 'E015',
-        rule: 'missing-node-yaml',
-        message: `Directory '${graphPath}' has content but no node.yaml`,
-        nodePath: graphPath,
-      });
+    if (!hasNodeYaml && graphPath !== '') {
+      if (hasFiles) {
+        issues.push({
+          severity: 'error',
+          code: 'E015',
+          rule: 'missing-node-yaml',
+          message: `Directory '${graphPath}' has files but no node.yaml`,
+          nodePath: graphPath,
+        });
+      } else if (hasSubdirs) {
+        issues.push({
+          severity: 'warning',
+          code: 'W013',
+          rule: 'directory-without-node',
+          message: `Directory '${graphPath}' has subdirectories but no node.yaml — consider creating a node`,
+          nodePath: graphPath,
+        });
+      }
     }
 
     for (const entry of entries) {

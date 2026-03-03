@@ -234,6 +234,7 @@ export interface DriftEntry {
 export interface DriftNodeState {
   hash: string;
   files: Record<string, string>;  // path → sha256 hex — now required, not optional
+  mtimes?: Record<string, number>; // path → mtime in ms — for mtime-based drift optimization
 }
 
 /** Map: node-path → DriftNodeState. Legacy string format no longer supported. */

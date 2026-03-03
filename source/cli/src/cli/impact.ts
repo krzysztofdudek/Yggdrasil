@@ -329,7 +329,7 @@ export function registerImpactCommand(program: Command): void {
             return;
           }
 
-          const nodePath = options.node!.trim().replace(/\/$/, '');
+          const nodePath = options.node!.trim().replace(/^\.\//, '').replace(/\/+$/, '');
 
           if (!graph.nodes.has(nodePath)) {
             process.stderr.write(`Node not found: ${nodePath}\n`);

@@ -7,10 +7,88 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-03-03
+
 ### Added
 
+- **`yg drift --limit <n>` flag:** Limits the number of entries shown per section, with
+  truncation notice showing remaining count. Exit code still reflects all entries.
+  Enables agents to page through large drift reports iteratively.
+- **W013 `directory-without-node` warning:** `validate` now warns when a directory under
+  `model/` has only subdirectories but no `node.yaml`, indicating a bare intermediate
+  directory that may need a node definition. E015 is refined to fire only for directories
+  with actual files (not just subdirectories).
 - **Expense Tracker example:** Mini SaaS in `examples/expense-tracker/` with full Yggdrasil graph (API + Web nodes), auth, expenses, categories, budgets, reports, subscription mock. App UI and messages in English.
 - **Examples blackbox node:** `examples/` mapped as blackbox in main graph — intentional coarse coverage.
+- **`config.yaml` schema:** Added `graph-schemas/config.yaml` with documented fields for
+  project name, stack, standards, node types, artifacts, and quality thresholds.
+- **W012 validation rule:** `validate` now warns when mapping paths in `node.yaml` do not
+  exist on disk, catching typos and stale mappings early instead of only at drift time.
+- **Preflight bootstrap hint:** When `yg preflight` detects 0 nodes, it now displays an
+  explicit message suggesting BOOTSTRAP MODE instead of silently reporting "clean."
+- **`yg flows` command:** New command that lists flows with metadata (name, participants,
+  nodes, aspects) in YAML output, parallel to the existing `yg aspects` command.
+- **`yg drift-sync --recursive` flag:** Syncs the target node and all descendant nodes
+  in one command. Parent nodes without mapping are skipped gracefully.
+- **`yg owner` file existence hint:** When a file path doesn't exist on disk, the output
+  now shows `(file not found)` to distinguish from files that exist but lack graph coverage.
+- **`yg preflight --quick` flag:** Skips drift detection for faster results, useful for
+  large repos where drift detection is slow.
+- **`yg drift-sync --all` flag:** Syncs all nodes with mappings in one command, replacing
+  manual per-node sync loops.
+- **`.drift-state` in `.gitignore`:** `yg init` now includes `.drift-state` in the
+  generated `.yggdrasil/.gitignore` since drift state is machine-local.
+
+### Changed
+
+- **E009 overlap model — "child wins":** Parent-child mapping containment overlaps are now
+  allowed (e.g., parent maps `drivers/`, child maps `drivers/net/`). Only exact duplicates
+  and overlaps between unrelated (non-hierarchical) nodes remain errors. Drift detection
+  excludes child-owned files from parent hashing, preventing false parent drift.
+- **Agent rules: "why NOT" prompting.** Rule 4 now explicitly instructs agents to capture
+  rejected alternatives alongside design decisions: "Chose X over Y because Z." Added
+  corresponding failure state and "when to ask" prompt for decisions without alternatives.
+- **Agent rules: greenfield graph-first workflow.** Expanded the greenfield code guidance
+  from a one-liner to a 6-step workflow: aspects → flows → nodes → build-context → implement.
+  The graph serves as behavioral specification; code implements framework-specific HOW.
+- **Agent rules: aspect identification guidance.** Added 3-instance heuristic ("same pattern
+  in 3+ places = candidate aspect") and natural taxonomy: domain-specific, architectural,
+  concurrency.
+- **Agent rules: enhanced completeness test.** Now tests specifically for: rejected
+  alternatives, correct algorithm (not simplified), ability to argue for current design.
+- **`decisions.md` artifact description.** Updated across spec, config, and rules from
+  generic "rationale" to "rejected alternatives — Chose X over Y because Z."
+
+### Fixed
+
+- **`build-context` scoped validation:** `build-context` no longer blocks on validation
+  errors in unrelated nodes. Only errors affecting the target node, its ancestors, and its
+  relation targets cause a build failure. Errors elsewhere are reported as informational.
+- **CWD-relative path resolution in `yg owner`:** `yg owner --file <path>` now resolves
+  paths relative to the current working directory before matching against graph mappings,
+  so running from subdirectories works correctly.
+- **`./` prefix normalization:** All `--node` and `--scope` arguments now strip leading
+  `./` and trailing `/`, so `yg build-context --node ./foo/bar/` works as expected.
+  Affected commands: `build-context`, `deps`, `drift-sync`, `impact`, `validate`, `drift`.
+- **Drift-state garbage collection:** `yg drift-sync` now removes orphaned entries for
+  nodes that no longer exist in the graph, preventing progressive performance degradation
+  when nodes are created and later deleted.
+- **`--scope` includes descendants:** `yg validate --scope foo` and `yg drift --scope foo`
+  now include all descendant nodes (e.g., `foo/bar`, `foo/bar/baz`), not just the exact
+  node. This makes scoped operations work naturally with hierarchical graphs.
+- **Duplicate parent context in `build-context`:** When a child node has an explicit
+  relation (e.g., `extends`) targeting its own parent, the parent's artifacts no longer
+  appear twice (once in hierarchy, once in relational). The relational layer is skipped
+  for ancestors since their context is already included via hierarchy.
+- **Empty YAML file TypeError:** All parsers (node, aspect, flow, config) now guard
+  against empty or non-mapping YAML content, producing a clear error message instead
+  of a raw `TypeError: Cannot read properties of null`.
+- **Preflight validation shows node paths:** Validation issues in `yg preflight` now
+  include the affected node path (e.g., `[E004] cli/commands -> ...`), matching the
+  format used by `yg validate`. Previously, node paths were silently omitted.
+- **Scoped validate with parse errors:** `yg validate --scope <path>` now returns the
+  parse error (E001) when the target node has a YAML syntax error, instead of the
+  misleading "Node not found" message. Also handles scoping to children of broken nodes.
 
 ## [1.0.0] - 2026-03-02
 

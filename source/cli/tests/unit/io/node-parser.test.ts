@@ -19,6 +19,17 @@ describe('node-parser', () => {
     expect(meta.mapping).toEqual({ paths: ['src/orders/order.service.ts'] });
   });
 
+  it('throws on empty YAML file', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-empty');
+    await mkdir(tmpDir, { recursive: true });
+    const badPath = path.join(tmpDir, 'node.yaml');
+    await writeFile(badPath, '', 'utf-8');
+
+    await expect(parseNodeYaml(badPath)).rejects.toThrow('empty or not a valid YAML mapping');
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
   it('throws when name is missing', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-node');
     await mkdir(tmpDir, { recursive: true });

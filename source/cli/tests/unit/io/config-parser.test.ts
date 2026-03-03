@@ -25,6 +25,19 @@ describe('config-parser', () => {
     expect(config.artifacts['responsibility.md']).toBeDefined();
   });
 
+  it('throws on empty YAML file', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-empty');
+    await mkdir(tmpDir, { recursive: true });
+    const badConfigPath = path.join(tmpDir, 'config.yaml');
+    await writeFile(badConfigPath, '', 'utf-8');
+
+    await expect(parseConfig(badConfigPath)).rejects.toThrow(
+      'empty or not a valid YAML mapping',
+    );
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
   it('throws when name is missing', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-config');
     await mkdir(tmpDir, { recursive: true });

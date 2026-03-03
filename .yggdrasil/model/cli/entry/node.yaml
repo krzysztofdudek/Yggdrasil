@@ -36,6 +36,9 @@ relations:
   - target: cli/commands/aspects
     type: uses
     consumes: [registerAspectsCommand]
+  - target: cli/commands/flows
+    type: uses
+    consumes: [registerFlowsCommand]
   - target: cli/commands/preflight
     type: uses
     consumes: [registerPreflightCommand]

@@ -1131,6 +1131,6 @@ describe('build-context CLI exit codes', () => {
     );
 
     expect(result.status).not.toBe(0);
-    expect(result.stderr).toContain('structurally valid graph');
+    expect(result.stderr).toContain('build-context blocked by');
   });
 });

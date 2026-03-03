@@ -81,7 +81,7 @@ artifacts: # map, required, non-empty — keys are full filenames (e.g. responsi
 
   decisions.md:
     required: never
-    description: "Local design decisions and rationale — choices specific to this node, not system-wide"
+    description: "Local design decisions with rejected alternatives — 'Chose X over Y because Z'. Highest-value artifact for preserving intent."
 
 quality: # map, optional (has default values) — all keys snake_case
   min_artifact_length: 50 # int, default 50
@@ -442,7 +442,7 @@ artifacts:
     description: "State machines, lifecycle, transitions"
   decisions.md:
     required: never
-    description: "Local design decisions and rationale — choices specific to this node, not system-wide"
+    description: "Local design decisions with rejected alternatives — 'Chose X over Y because Z'. Highest-value artifact for preserving intent."
 
 quality:
   min_artifact_length: 50
@@ -574,6 +574,38 @@ Lists aspects with metadata in YAML format. Use to discover valid aspect identif
 
 ---
 
+### Flows
+
+Lists flows with metadata in YAML format. Use to discover defined business processes,
+their participants, and associated aspects.
+
+**Parameters:** none.
+
+**Behavior:**
+
+1. Resolve `.yggdrasil/` root (repository root or nearest parent).
+2. Load the graph — find all flow directories under `.yggdrasil/flows/`.
+3. Sort by flow name.
+4. Output YAML with `name`, `nodes` (participants), `aspects` (if present).
+
+**Result:**
+
+```yaml
+- name: Checkout Flow
+  nodes:
+    - orders/order-service
+    - auth/auth-api
+  aspects:
+    - requires-audit
+```
+
+**Errors:**
+
+- No `.yggdrasil/` directory — exit 1.
+- If no `flows/` directory exists, outputs an empty list.
+
+---
+
 ### Status
 
 Summary of the graph state: numbers, metrics, problems.
@@ -618,12 +650,16 @@ Quality:
 
 Unified diagnostic combining journal state, drift detection, graph status, and validation.
 
-**Parameters:** none.
+**Parameters:**
+
+| Parameter | Type | Required | Description                                           |
+| --------- | ---- | -------- | ----------------------------------------------------- |
+| `quick`   | bool | No       | Skip drift detection for faster results. Default: `false`. |
 
 **Behavior:**
 
 1. Run `journal-read` — list pending journal entries (non-empty journal contributes to exit code 1).
-2. Run `drift --drifted-only` — report nodes with source or graph drift (any drift contributes to exit code 1).
+2. Unless `--quick`: run `drift --drifted-only` — report nodes with source or graph drift (any drift contributes to exit code 1). When `--quick`, output "Drift: skipped (--quick)".
 3. Run `status` — report graph health (node, aspect, flow, and mapping counts).
 4. Run `validate` — report structural errors and completeness warnings (any errors contribute to exit code 1).
 
@@ -692,6 +728,9 @@ src/utils/helpers.ts -> no graph coverage
   - **Option A — Reverse engineering (full coverage):** Create or extend nodes so the file becomes owned. Then continue.
   - **Option B — Blackbox coverage:** Create a blackbox node at user-chosen granularity (often a higher-level directory/module). Ensure the file becomes owned by that blackbox mapping. Then continue.
   - **Option C — Abort/Change plan:** Do not touch the file until coverage is decided.
+
+If the file path does not exist on disk, the output includes a `(file not found)` hint to
+distinguish from files that exist but lack graph coverage.
 
 **Errors:**
 
@@ -861,7 +900,7 @@ Validate structural integrity and completeness signals of the entire graph or a 
 
 | Parameter | Type   | Required | Description                         |
 | --------- | ------ | -------- | ----------------------------------- |
-| `scope`   | string | No       | `all` or node path. Default: `all`. |
+| `scope`   | string | No       | `all` or node path. When a node path is given, includes all descendant nodes. Default: `all`. |
 
 **Behavior:**
 
@@ -877,12 +916,12 @@ Two levels of severity defined in the [Engine](engine) document.
 | `E004` | `broken-relation`            | Relation target does not resolve to an existing node   |
 | `E006` | `broken-flow-ref`            | Flow participant does not resolve                      |
 | `E007` | `broken-aspect-ref`          | Aspect reference does not resolve                      |
-| `E009` | `overlapping-mapping`        | Two nodes map to the same file/directory               |
+| `E009` | `overlapping-mapping`        | Overlapping mappings between unrelated nodes           |
 | `E010` | `structural-cycle`           | Cycle in structural relations (cycles involving blackbox are tolerated) |
 | `E012` | `invalid-config`             | `config.yaml` fails to parse or is invalid             |
 | `E013` | `invalid-artifact-condition` | Condition `has_aspect:<name>` refers to an undefined aspect  |
 | `E014` | `duplicate-aspect-binding`   | Aspect identifier is bound to multiple aspect directories |
-| `E015` | `missing-node-yaml`          | Directory in `model/` has content but no `node.yaml`   |
+| `E015` | `missing-node-yaml`          | Directory in `model/` has files but no `node.yaml`     |
 | `E016` | `implied-aspect-missing`     | Identifier in aspect's `implies` has no corresponding aspect in `aspects/`           |
 | `E017` | `aspect-implies-cycle`       | Cycle in aspect implies graph (A implies B implies A)                                |
 
@@ -898,6 +937,8 @@ Two levels of severity defined in the [Engine](engine) document.
 | `W009` | `unpaired-event`        | Event relation without complement on the other side                                 |
 | `W010` | `missing-schema`        | Required schema (node, aspect, flow) missing from `.yggdrasil/schemas/`            |
 | `W011` | `missing-required-aspect-coverage` | Node of type with `required_aspects` lacks coverage (direct aspect or via implies) for one or more |
+| `W012` | `mapping-path-missing`             | Mapping path in `node.yaml` does not exist on disk — catches typos and stale mappings             |
+| `W013` | `directory-without-node`           | Directory in `model/` has only subdirectories but no `node.yaml` — bare intermediate directory    |
 
 **Message format:**
 
@@ -942,8 +983,9 @@ and the graph side (`.yggdrasil/` artifacts that contribute to the node's contex
 
 | Parameter      | Type   | Required | Description                                                       |
 | -------------- | ------ | -------- | ----------------------------------------------------------------- |
-| `scope`        | string | No       | `all` or node path. Default: `all`.                               |
+| `scope`        | string | No       | `all` or node path. When a node path is given, includes all descendant nodes. Default: `all`. |
 | `drifted-only` | bool   | No       | Hide `ok` entries; show only nodes with drift. Default: `false`.  |
+| `limit`        | number | No       | Max entries per section. Truncated sections show remaining count. |
 
 **Behavior:**
 
@@ -1015,9 +1057,11 @@ Called after the agent resolves drift (absorption or rejection + re-materializat
 
 **Parameters:**
 
-| Parameter | Type   | Required | Description                    |
-| --------- | ------ | -------- | ------------------------------ |
-| `node`    | string | Yes      | Node path relative to `model/` |
+| Parameter   | Type   | Required | Description                                                       |
+| ----------- | ------ | -------- | ----------------------------------------------------------------- |
+| `node`      | string | No*      | Node path relative to `model/`. Required unless `--all` is used.  |
+| `recursive` | bool   | No       | Also sync all descendant nodes. Default: `false`.                 |
+| `all`       | bool   | No*      | Sync all nodes with mappings. Required unless `--node` is used.   |
 
 **Behavior:**
 

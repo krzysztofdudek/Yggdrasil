@@ -1,7 +1,9 @@
+import path from 'node:path';
+import { access } from 'node:fs/promises';
 import { Command } from 'commander';
 import { loadGraph } from '../core/graph-loader.js';
 import type { Graph, OwnerResult } from '../model/types.js';
-import { normalizeMappingPaths, normalizeProjectRelativePath } from '../utils/paths.js';
+import { normalizeMappingPaths, normalizeProjectRelativePath, projectRootFromGraph } from '../utils/paths.js';
 
 function normalizeForMatch(inputPath: string): string {
   return inputPath.replace(/\\/g, '/').replace(/\/+$/, '');
@@ -40,12 +42,26 @@ export function registerOwnerCommand(program: Command): void {
     .requiredOption('--file <path>', 'File path (relative to repository root)')
     .action(async (options: { file: string }) => {
       try {
-        const projectRoot = process.cwd();
-        const graph = await loadGraph(projectRoot);
-        const result = findOwner(graph, projectRoot, options.file);
+        const cwd = process.cwd();
+        const graph = await loadGraph(cwd);
+        // Resolve the file path relative to CWD (so subdirectory-relative paths work),
+        // then make it relative to the actual repo root (where .yggdrasil/ lives).
+        const repoRoot = projectRootFromGraph(graph.rootPath);
+        const rawPath = options.file.trim();
+        const absolute = path.resolve(cwd, rawPath);
+        const repoRelative = path.relative(repoRoot, absolute).split(path.sep).join('/');
+        const result = findOwner(graph, repoRoot, repoRelative);
 
         if (!result.nodePath) {
-          process.stdout.write(`${result.file} -> no graph coverage\n`);
+          // Distinguish "file doesn't exist" from "file exists but not mapped"
+          const absPath = path.resolve(repoRoot, result.file);
+          let exists = true;
+          try { await access(absPath); } catch { exists = false; }
+          if (exists) {
+            process.stdout.write(`${result.file} -> no graph coverage\n`);
+          } else {
+            process.stdout.write(`${result.file} -> no graph coverage (file not found)\n`);
+          }
         } else {
           process.stdout.write(`${result.file} -> ${result.nodePath}\n`);
         }

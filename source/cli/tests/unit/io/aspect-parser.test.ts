@@ -23,6 +23,19 @@ describe('aspect-parser', () => {
     expect(aspect.artifacts).toBeDefined();
   });
 
+  it('throws on empty YAML file', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-aspect-empty');
+    await mkdir(tmpDir, { recursive: true });
+    const badPath = path.join(tmpDir, 'aspect.yaml');
+    await writeFile(badPath, '', 'utf-8');
+
+    await expect(parseAspect(tmpDir, badPath, 'empty-aspect')).rejects.toThrow(
+      'empty or not a valid YAML mapping',
+    );
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
   it('throws when name is missing', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-aspect');
     await mkdir(tmpDir, { recursive: true });

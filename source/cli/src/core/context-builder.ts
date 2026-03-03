@@ -38,11 +38,14 @@ export async function buildContext(graph: Graph, nodePath: string): Promise<Cont
   layers.push(await buildOwnLayer(node, graph.config, graph.rootPath, graph));
 
   // 4. Relational (structural + event, with consumes/failure)
+  //    Skip relations targeting ancestors — their context is already in hierarchy layers.
+  const ancestorPaths = new Set(ancestors.map((a) => a.path));
   for (const relation of node.meta.relations ?? []) {
     const target = graph.nodes.get(relation.target);
     if (!target) {
       throw new Error(`Broken relation: ${nodePath} -> ${relation.target} (target not found)`);
     }
+    if (ancestorPaths.has(relation.target)) continue;
     if (STRUCTURAL_RELATION_TYPES.has(relation.type)) {
       layers.push(buildStructuralRelationLayer(target, relation, graph.config));
     } else if (EVENT_RELATION_TYPES.has(relation.type)) {

@@ -10,10 +10,12 @@ export function registerDriftCommand(program: Command): void {
     .description('Detect divergences between graph and mapped files')
     .option('--scope <scope>', 'Scope: "all" or node path', 'all')
     .option('--drifted-only', 'Show only nodes with drift (hide ok entries)')
-    .action(async (opts: { scope: string; driftedOnly?: boolean }) => {
+    .option('--limit <n>', 'Maximum number of entries to show per section', parseInt)
+    .action(async (opts: { scope: string; driftedOnly?: boolean; limit?: number }) => {
       try {
         const graph = await loadGraph(process.cwd());
-        const scope = (opts.scope ?? 'all').trim() || 'all';
+        const rawScope = (opts.scope ?? 'all').trim() || 'all';
+        const scope = rawScope === 'all' ? 'all' : rawScope.replace(/^\.\//, '').replace(/\/+$/, '');
 
         if (scope !== 'all') {
           const node = graph.nodes.get(scope);
@@ -21,7 +23,10 @@ export function registerDriftCommand(program: Command): void {
             process.stderr.write(`Error: Node not found: ${scope}\n`);
             process.exit(1);
           }
-          if (!node.meta.mapping) {
+          // Check if scope or any descendant has a mapping
+          const hasAnyMapping = node.meta.mapping ||
+            [...graph.nodes.entries()].some(([p, n]) => p.startsWith(scope + '/') && n.meta.mapping);
+          if (!hasAnyMapping) {
             process.stderr.write(`Error: Node has no mapping: ${scope}\n`);
             process.exit(1);
           }
@@ -29,7 +34,7 @@ export function registerDriftCommand(program: Command): void {
 
         const scopeNode = scope === 'all' ? undefined : scope;
         const report = await detectDrift(graph, scopeNode);
-        printReport(report, opts.driftedOnly ?? false);
+        printReport(report, opts.driftedOnly ?? false, opts.limit);
 
         const hasIssues =
           report.sourceDriftCount > 0 ||
@@ -45,15 +50,24 @@ export function registerDriftCommand(program: Command): void {
     });
 }
 
-function printReport(report: DriftReport, driftedOnly: boolean): void {
+function printReport(report: DriftReport, driftedOnly: boolean, limit?: number): void {
   const sourceEntries = classifyForSection(report.entries, 'source', driftedOnly);
   const graphEntries = classifyForSection(report.entries, 'graph', driftedOnly);
 
+  const sourceShown = limit !== undefined ? sourceEntries.slice(0, limit) : sourceEntries;
+  const graphShown = limit !== undefined ? graphEntries.slice(0, limit) : graphEntries;
+
   process.stdout.write('Source drift:\n');
-  printSectionEntries(sourceEntries, 'source');
+  printSectionEntries(sourceShown, 'source');
+  if (limit !== undefined && sourceEntries.length > limit) {
+    process.stdout.write(chalk.dim(`  ... ${sourceEntries.length - limit} more (${sourceEntries.length} total)\n`));
+  }
 
   process.stdout.write('\nGraph drift:\n');
-  printSectionEntries(graphEntries, 'graph');
+  printSectionEntries(graphShown, 'graph');
+  if (limit !== undefined && graphEntries.length > limit) {
+    process.stdout.write(chalk.dim(`  ... ${graphEntries.length - limit} more (${graphEntries.length} total)\n`));
+  }
 
   // Summary line
   const parts: string[] = [

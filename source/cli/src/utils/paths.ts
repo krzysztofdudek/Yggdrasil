@@ -80,3 +80,17 @@ export function normalizeProjectRelativePath(projectRoot: string, rawPath: strin
 
   return relative.split(path.sep).join('/');
 }
+
+/**
+ * Normalize a --node path argument: strip leading ./ and trailing /.
+ */
+export function normalizeNodePath(rawPath: string): string {
+  return rawPath.trim().replace(/^\.\//, '').replace(/\/+$/, '');
+}
+
+/**
+ * Derive the actual project root (repo root) from the graph's .yggdrasil/ path.
+ */
+export function projectRootFromGraph(yggRootPath: string): string {
+  return path.dirname(yggRootPath);
+}

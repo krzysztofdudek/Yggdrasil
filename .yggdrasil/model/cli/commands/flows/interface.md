@@ -1,7 +1,7 @@
-# Preflight Command Interface
+# Flows Command Interface
 
 | Function | Signature | Command | Options |
 | -------- | --------- | ------- | ------- |
-| registerPreflightCommand | (program: Command) => void | preflight | --quick (optional). |
+| registerFlowsCommand | (program: Command) => void | flows | None |
 
 **Return:** void. Contract: errors to stderr, process.exit(1) on failure.

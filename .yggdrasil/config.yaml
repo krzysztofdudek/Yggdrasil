@@ -43,7 +43,7 @@ artifacts:
     description: "State machines, lifecycle, transitions"
   decisions.md:
     required: never
-    description: "Local design decisions and rationale — choices specific to this node, not system-wide"
+    description: "Local design decisions with rejected alternatives — 'Chose X over Y because Z'. Highest-value artifact for preserving intent."
 
 quality:
   min_artifact_length: 50

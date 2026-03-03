@@ -249,16 +249,32 @@ describe.skipIf(!distExists)('CLI E2E', () => {
     }
   });
 
-  it('yg drift-sync without --node returns exit 1', () => {
+  it('yg drift-sync without --node or --all returns exit 1', () => {
     const { status, stderr } = run(['drift-sync']);
     expect(status).toBe(1);
-    expect(stderr).toContain('required option');
+    expect(stderr).toContain("either '--node <path>' or '--all' is required");
   });
 
   it('yg drift-sync nonexistent node returns exit 1', () => {
     const { status, stderr } = run(['drift-sync', '--node', 'does/not/exist']);
     expect(status).toBe(1);
     expect(stderr).toContain('Node not found');
+  });
+
+  it('yg drift-sync --recursive syncs descendant nodes', () => {
+    const tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-drift-recursive-'));
+    try {
+      cpSync(FIXTURE, tmpDir, { recursive: true });
+      const { status, stdout } = run(
+        ['drift-sync', '--node', 'orders', '--recursive'],
+        tmpDir,
+      );
+      expect(status).toBe(0);
+      expect(stdout).toContain('Synchronized: orders/order-service');
+      expect(stdout).not.toContain('Synchronized: orders\n');
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 
   // --- impact edge cases ---
@@ -671,5 +687,30 @@ describe.skipIf(!distExists)('CLI E2E', () => {
       const { status } = run(['preflight']);
       expect(status === 0 || status === 1).toBe(true);
     });
+
+    it('--quick skips drift detection', () => {
+      const { stdout } = run(['preflight', '--quick']);
+      expect(stdout).toContain('Drift:      skipped (--quick)');
+      expect(stdout).toContain('Journal:');
+      expect(stdout).toContain('Status:');
+      expect(stdout).toContain('Validation:');
+    });
+  });
+
+  // --- drift-sync --all ---
+
+  it('yg drift-sync --all syncs all mapped nodes', () => {
+    const tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-drift-all-'));
+    try {
+      cpSync(FIXTURE, tmpDir, { recursive: true });
+      const { status, stdout } = run(['drift-sync', '--all'], tmpDir);
+      expect(status).toBe(0);
+      expect(stdout).toContain('Synchronized:');
+      // Should sync multiple nodes
+      const syncLines = stdout.split('\n').filter((l: string) => l.includes('Synchronized:'));
+      expect(syncLines.length).toBeGreaterThan(1);
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 });

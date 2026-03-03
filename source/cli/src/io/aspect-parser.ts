@@ -15,6 +15,10 @@ export async function parseAspect(
   const content = await readFile(aspectYamlPath, 'utf-8');
   const raw = parseYaml(content) as Record<string, unknown>;
 
+  if (!raw || typeof raw !== 'object') {
+    throw new Error(`Aspect file ${aspectYamlPath}: file is empty or not a valid YAML mapping`);
+  }
+
   if (!raw.name || typeof raw.name !== 'string' || raw.name.trim() === '') {
     throw new Error(`Aspect file ${aspectYamlPath}: missing or empty 'name'`);
   }

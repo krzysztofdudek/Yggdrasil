@@ -79,7 +79,7 @@ describe('build-context pipeline integration', () => {
       );
 
       expect(result.status).toBe(1);
-      expect(result.stderr).toContain('structurally valid graph');
+      expect(result.stderr).toContain('build-context blocked by');
     });
   });
 });

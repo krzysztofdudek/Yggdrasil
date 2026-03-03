@@ -12,4 +12,8 @@
 3. **Prefix match (longest wins):** If the file path starts with a mapping path followed by `/`, record it as a candidate. Among all prefix matches, the one with the longest mapping path wins (most specific owner).
 4. If no match found, return `{ nodePath: null }` indicating no graph coverage.
 
+## File existence check
+
+Before reporting "no graph coverage," the command checks if the file actually exists on disk (`fs.access`). If it does not exist, the output includes a `(file not found)` hint to distinguish from files that exist but lack graph coverage.
+
 The algorithm guarantees that deeper (more specific) mappings take precedence over broader ones, and exact matches always win over prefix matches.

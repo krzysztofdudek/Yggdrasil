@@ -11,7 +11,8 @@ export function registerValidateCommand(program: Command): void {
     .action(async (options: { scope: string }) => {
       try {
         const graph = await loadGraph(process.cwd(), { tolerateInvalidConfig: true });
-        const scope = (options.scope ?? 'all').trim() || 'all';
+        const rawScope = (options.scope ?? 'all').trim() || 'all';
+        const scope = rawScope === 'all' ? 'all' : rawScope.replace(/^\.\//, '').replace(/\/+$/, '');
         const result = await validate(graph, scope);
         process.stdout.write(`${result.nodesScanned} nodes scanned\n\n`);
         const errors = result.issues.filter((i) => i.severity === 'error');

@@ -1,0 +1,15 @@
+name: FlowsCommand
+type: library
+aspects: [deterministic, cli-command-contract]
+
+relations:
+  - target: cli/core/loader
+    type: uses
+    consumes: [loadGraph]
+  - target: cli/utils
+    type: uses
+    consumes: [findYggRoot]
+
+mapping:
+  paths:
+    - source/cli/src/cli/flows.ts

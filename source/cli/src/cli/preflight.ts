@@ -10,7 +10,8 @@ export function registerPreflightCommand(program: Command): void {
   program
     .command('preflight')
     .description('Unified diagnostic report: journal, drift, status, validation')
-    .action(async () => {
+    .option('--quick', 'Skip drift detection for faster results')
+    .action(async (options: { quick?: boolean }) => {
       try {
         const cwd = process.cwd();
         const graph = await loadGraph(cwd);
@@ -20,8 +21,9 @@ export function registerPreflightCommand(program: Command): void {
         const journalEntries = await readJournal(yggRoot);
 
         // --- Drift ---
-        const drift = await detectDrift(graph);
-        const driftedEntries = drift.entries.filter((e) => e.status !== 'ok');
+        const driftedEntries = options.quick
+          ? []
+          : (await detectDrift(graph)).entries.filter((e) => e.status !== 'ok');
 
         // --- Status counts ---
         const nodeCount = graph.nodes.size;
@@ -55,7 +57,9 @@ export function registerPreflightCommand(program: Command): void {
         lines.push('');
 
         // Drift section
-        if (driftedEntries.length === 0) {
+        if (options.quick) {
+          lines.push('Drift:      skipped (--quick)');
+        } else if (driftedEntries.length === 0) {
           lines.push('Drift:      clean');
         } else {
           lines.push(`Drift:      ${driftedEntries.length} nodes need attention`);
@@ -69,6 +73,12 @@ export function registerPreflightCommand(program: Command): void {
         lines.push(
           `Status:     ${nodeCount} nodes, ${aspectCount} aspects, ${flowCount} flows, ${mappedPathCount} mapped paths`,
         );
+        if (nodeCount === 0) {
+          lines.push('');
+          lines.push('            ⚡ No nodes found. Enter BOOTSTRAP MODE:');
+          lines.push('            Create nodes under .yggdrasil/model/ for your active work area.');
+          lines.push('            See: yg help build-context');
+        }
         lines.push('');
 
         // Validation section
@@ -81,7 +91,8 @@ export function registerPreflightCommand(program: Command): void {
           lines.push(`Validation: ${parts.join(', ')}`);
           for (const issue of [...errors, ...warnings]) {
             const code = issue.code ? `[${issue.code}] ` : '';
-            lines.push(`            - ${code}${issue.message}`);
+            const loc = issue.nodePath ? `${issue.nodePath} -> ` : '';
+            lines.push(`            - ${code}${loc}${issue.message}`);
           }
         }
         lines.push('');
@@ -91,7 +102,7 @@ export function registerPreflightCommand(program: Command): void {
         // Exit code: 1 if journal entries, drift, or validation errors exist.
         // Warnings alone do not cause exit 1.
         const hasIssues =
-          journalEntries.length > 0 || driftedEntries.length > 0 || errors.length > 0;
+          journalEntries.length > 0 || (!options.quick && driftedEntries.length > 0) || errors.length > 0;
         process.exit(hasIssues ? 1 : 0);
       } catch (error) {
         process.stderr.write(`Error: ${(error as Error).message}\n`);
