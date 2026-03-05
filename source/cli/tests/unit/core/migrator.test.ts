@@ -100,5 +100,13 @@ describe('migrator', () => {
       const results = await runMigrations('2.0.0', migrations, '');
       expect(results).toHaveLength(0);
     });
+
+    it('returns empty when currentVersion is not valid semver', async () => {
+      const migrations: Migration[] = [
+        { to: '2.0.0', description: 'a', run: async () => ({ actions: [], warnings: [] }) },
+      ];
+      const results = await runMigrations('not-a-version', migrations, '');
+      expect(results).toHaveLength(0);
+    });
   });
 });

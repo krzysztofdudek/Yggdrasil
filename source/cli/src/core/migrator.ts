@@ -60,9 +60,8 @@ export async function runMigrations(
   const applicable = migrations
     .filter((m) => {
       const mVer = valid(m.to);
-      const cVerInner = valid(currentVersion);
-      if (!mVer || !cVerInner) return false;
-      return gt(mVer, cVerInner);
+      if (!mVer) return false;
+      return gt(mVer, cVer);
     })
     .sort((a, b) => compare(valid(a.to)!, valid(b.to)!));
 
