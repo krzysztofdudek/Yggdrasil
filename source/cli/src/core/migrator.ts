@@ -1,7 +1,7 @@
 import { readFile, access } from 'node:fs/promises';
 import path from 'node:path';
 import { parse as parseYaml } from 'yaml';
-import { gt, valid, major } from 'semver';
+import { gt, valid, compare } from 'semver';
 
 export interface Migration {
   to: string;
@@ -46,33 +46,29 @@ export async function detectVersion(yggRoot: string): Promise<string | null> {
 
 /**
  * Run all applicable migrations sequentially.
- * A migration is applicable when its target version is strictly greater than currentVersion
- * and within the next major version boundary (i.e., major(m.to) <= major(currentVersion) + 1).
+ * A migration is applicable when its target version is strictly greater than currentVersion.
  * Migrations are sorted by target version ascending before running.
  */
 export async function runMigrations(
   currentVersion: string,
   migrations: Migration[],
+  yggRoot: string,
 ): Promise<MigrationResult[]> {
   const cVer = valid(currentVersion);
   if (!cVer) return [];
-  const currentMajor = major(cVer);
 
   const applicable = migrations
     .filter((m) => {
       const mVer = valid(m.to);
-      if (!mVer) return false;
-      return gt(mVer, cVer) && major(mVer) <= currentMajor + 1;
+      const cVerInner = valid(currentVersion);
+      if (!mVer || !cVerInner) return false;
+      return gt(mVer, cVerInner);
     })
-    .sort((a, b) => {
-      const aVer = valid(a.to)!;
-      const bVer = valid(b.to)!;
-      return gt(aVer, bVer) ? 1 : -1;
-    });
+    .sort((a, b) => compare(valid(a.to)!, valid(b.to)!));
 
   const results: MigrationResult[] = [];
   for (const migration of applicable) {
-    const result = await migration.run('');
+    const result = await migration.run(yggRoot);
     results.push(result);
   }
   return results;

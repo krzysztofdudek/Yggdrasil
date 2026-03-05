@@ -64,10 +64,11 @@ describe('migrator', () => {
           run: async () => { order.push('3.0.0'); return { actions: ['did 3.0'], warnings: [] }; },
         },
       ];
-      const results = await runMigrations('1.4.3', migrations);
-      expect(order).toEqual(['2.0.0']);
-      expect(results).toHaveLength(1);
+      const results = await runMigrations('1.4.3', migrations, '');
+      expect(order).toEqual(['2.0.0', '3.0.0']);
+      expect(results).toHaveLength(2);
       expect(results[0].actions).toEqual(['did 2.0']);
+      expect(results[1].actions).toEqual(['did 3.0']);
     });
 
     it('runs multiple migrations sequentially', async () => {
@@ -76,7 +77,7 @@ describe('migrator', () => {
         { to: '2.0.0', description: 'a', run: async () => { order.push('2.0.0'); return { actions: [], warnings: [] }; } },
         { to: '2.1.0', description: 'b', run: async () => { order.push('2.1.0'); return { actions: [], warnings: [] }; } },
       ];
-      const results = await runMigrations('1.4.3', migrations);
+      const results = await runMigrations('1.4.3', migrations, '');
       expect(order).toEqual(['2.0.0', '2.1.0']);
       expect(results).toHaveLength(2);
     });
@@ -87,7 +88,7 @@ describe('migrator', () => {
         { to: '2.0.0', description: 'a', run: async () => { order.push('2.0.0'); return { actions: [], warnings: [] }; } },
         { to: '2.1.0', description: 'b', run: async () => { order.push('2.1.0'); return { actions: [], warnings: [] }; } },
       ];
-      const results = await runMigrations('2.0.0', migrations);
+      const results = await runMigrations('2.0.0', migrations, '');
       expect(order).toEqual(['2.1.0']);
       expect(results).toHaveLength(1);
     });
@@ -96,7 +97,7 @@ describe('migrator', () => {
       const migrations: Migration[] = [
         { to: '2.0.0', description: 'a', run: async () => ({ actions: [], warnings: [] }) },
       ];
-      const results = await runMigrations('2.0.0', migrations);
+      const results = await runMigrations('2.0.0', migrations, '');
       expect(results).toHaveLength(0);
     });
   });
