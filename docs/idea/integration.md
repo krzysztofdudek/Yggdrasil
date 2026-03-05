@@ -407,7 +407,7 @@ Value appears from the first node — not from a complete graph.
 The first session with Yggdrasil looks different from the hundredth. But even the first provides a
 measurable difference:
 
-- The agent has `config.yaml` with stack and standards (global context in every package)
+- The agent has `config.yaml` with project configuration and initial node artifacts with technology context
 - The first nodes provide semantic context for the most painful areas
 - Validation gives the agent feedback on graph quality, starting the self-calibration loop
 
