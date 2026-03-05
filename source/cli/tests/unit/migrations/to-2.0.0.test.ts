@@ -245,5 +245,8 @@ describe('migration to 2.0.0', () => {
     // "Node.js" should appear exactly once
     const count = (internals.match(/Node\.js/g) ?? []).length;
     expect(count).toBe(1);
+    // Migration marker must be present exactly once
+    const markerCount = (internals.match(/<!-- migrated-stack-standards-v2 -->/g) ?? []).length;
+    expect(markerCount).toBe(1);
   });
 });

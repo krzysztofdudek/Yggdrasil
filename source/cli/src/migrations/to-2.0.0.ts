@@ -109,8 +109,9 @@ export async function migrateTo2(yggRoot: string): Promise<MigrationResult> {
   // Step 5: Rename and transform model files
   const modelDir = path.join(yggRoot, 'model');
   if (await fileExists(modelDir)) {
+    // Rename must happen before transform — transformNodeFiles only processes yg-node.yaml
     await renameFilesRecursively(modelDir, 'node.yaml', 'yg-node.yaml', actions);
-    await transformNodeFiles(modelDir, actions);
+    await transformNodeFiles(modelDir, actions, warnings);
   }
 
   // Step 6: Rename aspect files
@@ -190,19 +191,19 @@ async function migrateStackStandards(
     actions.push('Created root node in model/ for stack/standards migration');
   }
 
-  // Write internals.md — idempotent: skip if section already present
+  // Write internals.md — idempotent: skip if marker already present
   const internalsPath = path.join(modelDir, 'internals.md');
   const existingInternals = (await fileExists(internalsPath)) ? await readFile(internalsPath, 'utf-8') : '';
 
-  // Check if already migrated (idempotency guard): use first section header as marker
-  const sectionMarker = lines[0]; // e.g. "## Technology Stack" or "## Standards"
-  if (existingInternals.includes(sectionMarker)) {
-    return; // Already migrated, skip to avoid duplication
+  // Unique HTML comment marker — invisible in rendered Markdown, never false-triggers
+  const MIGRATION_MARKER = '<!-- migrated-stack-standards-v2 -->';
+  if (existingInternals.includes(MIGRATION_MARKER)) {
+    return;
   }
-
+  const markerLine = MIGRATION_MARKER + '\n';
   const newContent = existingInternals
-    ? existingInternals.trimEnd() + '\n\n' + lines.join('\n')
-    : lines.join('\n');
+    ? existingInternals.trimEnd() + '\n\n' + markerLine + lines.join('\n')
+    : markerLine + lines.join('\n');
   await writeFile(internalsPath, newContent, 'utf-8');
   actions.push('Migrated stack/standards to model/internals.md');
 }
@@ -235,7 +236,7 @@ async function renameFilesRecursively(
   }
 }
 
-async function transformNodeFiles(dir: string, actions: string[]): Promise<void> {
+async function transformNodeFiles(dir: string, actions: string[], warnings: string[]): Promise<void> {
   let entries;
   try {
     entries = await readdir(dir, { withFileTypes: true });
@@ -246,17 +247,20 @@ async function transformNodeFiles(dir: string, actions: string[]): Promise<void>
   for (const entry of entries) {
     const fullPath = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      await transformNodeFiles(fullPath, actions);
+      await transformNodeFiles(fullPath, actions, warnings);
     } else if (entry.name === 'yg-node.yaml') {
-      await transformSingleNode(fullPath, actions);
+      await transformSingleNode(fullPath, actions, warnings);
     }
   }
 }
 
-async function transformSingleNode(filePath: string, actions: string[]): Promise<void> {
+async function transformSingleNode(filePath: string, actions: string[], warnings: string[]): Promise<void> {
   const content = await readFile(filePath, 'utf-8');
   const raw = parseYaml(content) as Record<string, unknown>;
-  if (!raw || typeof raw !== 'object') return;
+  if (!raw || typeof raw !== 'object') {
+    warnings.push(`Skipped ${filePath}: not a valid YAML object`);
+    return;
+  }
 
   let changed = false;
 
