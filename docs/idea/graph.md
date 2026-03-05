@@ -64,23 +64,9 @@ enforce.
 
 ```yaml
 name: my-project
-
-stack:
-  language: typescript
-  runtime: node
-  framework: nestjs
-  database: postgresql
-  testing: jest
-
-standards: |
-  Strict TypeScript. All public functions have JSDoc.
-  Errors in RFC 7807 format. Dates in ISO 8601 UTC.
 ```
 
-- `stack` declares the technology context.
-- `standards` describes global conventions.
-
-Both are attached to every context package as **global context**.
+Technology stack and coding standards are described in node artifacts at the appropriate hierarchy level — not in config.yaml.
 
 ### Node types
 

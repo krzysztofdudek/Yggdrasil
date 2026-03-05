@@ -20,7 +20,7 @@ layer carries a different level of abstraction — from most general to most spe
 
 ```
 WORLD IDENTITY           (changes least often)
-  You are an e-commerce system. TypeScript, NestJS, PostgreSQL.
+  You are an e-commerce system.
 
 LONG-TERM MEMORY         (changes rarely)
   Never connect to another service's database.
@@ -41,7 +41,7 @@ SURROUNDINGS             (changes on neighbor evolution)
 
 Layers operate simultaneously — the agent needs all of them at once, but with different
 intensity. When implementing a method, it focuses on **Surroundings** (dependency interface)
-and **Unit Identity** (own contract), while **World Identity** (stack, standards) and
+and **Unit Identity** (own contract), while **World Identity** (project name) and
 **Long-term Memory** (patterns, decisions) inform _how_ to implement, not _what_.
 
 Layer size is inversely proportional to its generality. World identity is a few sentences.
@@ -54,7 +54,7 @@ For node `N` at path `P` with aspects `A`, context assembly executes the followi
 Each step is deterministic.
 
 ```
-1.  GLOBAL        config.yaml: stack, standards
+1.  GLOBAL        config.yaml: project name
 
 2.  HIERARCHICAL  for each ancestor from model/ root down to N's parent:
                   include all configured artifacts of that ancestor (every artifact type from config
@@ -166,8 +166,6 @@ metadata; content between tags is raw text (no CDATA, no escaping).
 
 <global>
 **Project:** my-project
-**Stack:** language: typescript, runtime: node, framework: nestjs
-**Standards:** Strict TypeScript, JSDoc on public functions
 </global>
 
 <hierarchy path="orders/">
@@ -610,7 +608,7 @@ flows/checkout/flow.yaml             lists orders/order-service as participant
 Context package for `orders/order-service` contains:
 
 ```
-Step 1.  config.yaml: standards and stack
+Step 1.  config.yaml: project name
 Step 2.  Domain context of orders/ module artifacts
 Step 3.  Own artifacts of OrderService: responsibility, interface, internals
 Step 4.  Aspect: Audit logging  [aspect requires-audit]

@@ -19,8 +19,6 @@ Config file: `.yggdrasil/config.yaml`
 
 ### Optional fields
 
-- **stack** — Key-value metadata (e.g. `language`, `runtime`)
-- **standards** — Project standards text (e.g. coding conventions)
 - **quality** — Quality thresholds
 
 ---
@@ -52,13 +50,6 @@ Config file: `.yggdrasil/config.yaml`
 
 ```yaml
 name: my-repo
-
-stack:
-  language: TypeScript
-  runtime: Node.js 22+
-
-standards: |
-  Strict TypeScript. ESM modules. Vitest for tests.
 
 node_types:
   module:

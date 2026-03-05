@@ -24,18 +24,6 @@ tools expect and enforce.
 ```yaml
 name: my-project # string, required
 
-stack: # map, optional
-  language: typescript # string, optional
-  runtime: node # string, optional
-  framework: nestjs # string, optional
-  database: postgresql # string, optional
-  testing: jest # string, optional
-  # extensible — any string -> string keys
-
-standards: | # string, optional, multiline
-  Strict TypeScript. All public functions have JSDoc.
-  Errors in RFC 7807 format. Dates in ISO 8601 UTC.
-
 node_types: # object, required, non-empty — keys are type names
   module:
     description: "Business logic unit with clear domain responsibility"
@@ -398,12 +386,6 @@ Upgrade mode — refreshes only the rules file (when `.yggdrasil/` already exist
 ```yaml
 name: ""
 
-stack:
-  language: ""
-  runtime: ""
-
-standards: ""
-
 node_types:
   module:
     description: "Business logic unit with clear domain responsibility"
@@ -436,8 +418,8 @@ quality:
     error: 20000
 ```
 
-The agent fills in `name`, `stack`, and `standards` after initialization.
-The tool does not guess these values.
+The agent fills in `name` after initialization.
+The tool does not guess this value.
 
 **Note:** Until `name` is set (non-empty), most commands that load the graph will fail
 with a config parse error. The user should edit `config.yaml` before running
@@ -459,7 +441,7 @@ Assemble a context package for the specified node. The main operation of the sys
 
 The 5-step algorithm defined in the [Engine](engine) document. Summary:
 
-1. **Global** — `config.yaml` (stack, standards).
+1. **Global** — `config.yaml` (project name).
 2. **Hierarchical** — ancestor artifacts (from `model/` root down to the node's parent).
 3. **Own** — the node's `node.yaml` (raw) and content artifacts.
 4. **Aspects** — union of aspect identifiers from hierarchy blocks, own block, and flow blocks (each block
