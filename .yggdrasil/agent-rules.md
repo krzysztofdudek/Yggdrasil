@@ -186,11 +186,11 @@ Per area checklist:
 
 - [ ] 1. `yg owner --file <path>` — confirm no coverage
 - [ ] 2. Determine node granularity — propose to user if unclear
-- [ ] 3. Create node directory, read `schemas/node.yaml`, create `node.yaml`
-- [ ] 4. Analyze source — for each artifact type in `config.artifacts`: extract content, do not invent
-- [ ] 5. Identify relations — add to `node.yaml`
+- [ ] 3. Create node directory, read `schemas/yg-node.yaml`, create `yg-node.yaml`
+- [ ] 4. Analyze source — for each artifact type in `yg-config.yaml artifacts`: extract content, do not invent
+- [ ] 5. Identify relations — add to `yg-node.yaml`
 - [ ] 6. Identify cross-cutting requirements — add matching aspects, create if needed
-- [ ] 6b. For each aspect on the node: identify 2-5 code anchors (function names, constants) that evidence the pattern → add as `anchors` in the aspect entry in `node.yaml`
+- [ ] 6b. For each aspect on the node: identify 2-5 code anchors (function names, constants) that evidence the pattern → add as `anchors` in the aspect entry in `yg-node.yaml`
 - [ ] 7. Identify business process participation — add to flow, ask user if process unclear
 - [ ] 8. `yg validate` — fix errors
 - [ ] 9. `yg drift-sync --node <path>`
@@ -240,7 +240,7 @@ When reviewing graph quality (triggered by user or quality improvement):
 - [ ] 1. `yg build-context --node <path>`
 - [ ] 2. Read mapped source files
 - [ ] 3. For each claim in graph: verify against source code
-- [ ] 4. For each aspect: verify the pattern holds in THIS node. If it deviates, add `exceptions` to the aspect entry in `node.yaml`
+- [ ] 4. For each aspect: verify the pattern holds in THIS node. If it deviates, add `exceptions` to the aspect entry in `yg-node.yaml`
 - [ ] 5. Report inconsistencies
 
 **Step 2 — Completeness** (catches MISSING information):
@@ -266,7 +266,7 @@ When reviewing graph quality (triggered by user or quality improvement):
 
 ```
 .yggdrasil/
-  config.yaml        ← vocabulary, node types, artifact rules, required aspects
+  yg-config.yaml     ← vocabulary, node types, artifact rules, required aspects
   model/             ← what exists: nodes, hierarchy, relations, file mappings
   aspects/           ← what must: cross-cutting requirements with rationale and guidance
   flows/             ← why and in what process: business processes with node participation
@@ -278,10 +278,10 @@ When reviewing graph quality (triggered by user or quality improvement):
 Key facts:
 
 - **Hierarchy:** nodes nest in `model/`. Children inherit parent context. Do not repeat parent content in children.
-- **Aspect id = directory path** under `aspects/`. Each aspect has `aspect.yaml` + content `.md` files. No automatic parent-child — use `implies` explicitly.
+- **Aspect id = directory path** under `aspects/`. Each aspect has `yg-aspect.yaml` + content `.md` files. No automatic parent-child — use `implies` explicitly.
 - **Flows = business processes.** A flow describes what happens in the world, not code sequences. Flow aspects propagate to all participants.
 
-**Node type guidance:** Each type in `config.yaml node_types` has a `description` that tells you when to use it. Check the project's config for the full list and descriptions. Common types: `module` (business logic), `service` (providing functionality), `library` (shared utilities), `infrastructure` (guards, middleware, interceptors — invisible in call graphs but affect blast radius).
+**Node type guidance:** Each type in `yg-config.yaml node_types` has a `description` that tells you when to use it. Check the project's config for the full list and descriptions. Common types: `module` (business logic), `service` (providing functionality), `library` (shared utilities), `infrastructure` (guards, middleware, interceptors — invisible in call graphs but affect blast radius).
 
 ### Artifact Structure
 
@@ -293,7 +293,7 @@ Three artifacts capture node knowledge at three levels:
 
 **Enrichment priority (when adding incrementally):** `interface.md` first (highest cross-module ROI — contracts enable other nodes to reason about interactions), then `responsibility.md` (identity and boundaries), then `internals.md` (depth for complex nodes). A node with only `interface.md` provides more cross-module value than one with only `internals.md`.
 
-Projects can define additional artifact types in `config.yaml` under `artifacts`. Each custom artifact has a `description` (tells you what to write), a `required` condition (`always`, `never`, `when: has_incoming_relations`, `when: has_aspect:<id>`), and an `included_in_relations` flag (if true, included in dependency context packages for structural relations). The three standard artifacts are always present in config. Check `config.yaml` to see all defined artifacts for the project.
+Projects can define additional artifact types in `yg-config.yaml` under `artifacts`. Each custom artifact has a `description` (tells you what to write), a `required` condition (`always`, `never`, `when: has_incoming_relations`, `when: has_aspect:<id>`), and an `included_in_relations` flag (if true, included in dependency context packages for structural relations). The three standard artifacts are always present in config. Check `yg-config.yaml` to see all defined artifacts for the project.
 
 ### Context Assembly
 
@@ -303,18 +303,18 @@ Run `yg build-context --node <path>` to get the deterministic context package fo
 
 When you encounter information, route it to the correct location:
 
-- **Specific to this node** → local node artifact (check `config.yaml artifacts` for available types)
-- **Rule for many nodes** → aspect (`aspects/<id>/` with `aspect.yaml` + content `.md` files). If applies to ALL nodes of a type → `node_types.<type>.required_aspects` in `config.yaml`
-- **Business process** → flow (`flows/<name>/` with `flow.yaml` + `description.md`). Ask user if process unclear.
+- **Specific to this node** → local node artifact (check `yg-config.yaml artifacts` for available types)
+- **Rule for many nodes** → aspect (`aspects/<id>/` with `yg-aspect.yaml` + content `.md` files). If applies to ALL nodes of a type → `node_types.<type>.required_aspects` in `yg-config.yaml`
+- **Business process** → flow (`flows/<name>/` with `yg-flow.yaml` + `description.md`). Ask user if process unclear.
 - **Shared across a domain** → parent node artifact. Children receive it through hierarchy.
 - **Technology stack or standard** → node artifact at the appropriate hierarchy level (e.g., root node's `responsibility.md` for single-stack repos, or deployment unit node for monorepos)
 - **Decision (why + why NOT):** one node → Decisions section of `internals.md` with format "Chose X over Y because Z"; category of nodes → aspect content files; tech choice → node artifact at the level where the technology applies. Always include rejected alternatives — they are the highest-value graph content. If the rationale is unknown: record the decision with "rationale: unknown" and note what CAN be observed from the code. Never invent a plausible-sounding rationale.
 
 ### Creating Aspects
 
-- [ ] 1. Read `schemas/aspect.yaml`
+- [ ] 1. Read `schemas/yg-aspect.yaml`
 - [ ] 2. Create `aspects/<id>/` directory
-- [ ] 3. Write `aspect.yaml` — name, optional description, optional implies
+- [ ] 3. Write `yg-aspect.yaml` — name, optional description, optional implies
 - [ ] 4. Write content `.md` files: WHAT must be satisfied + WHY (user's words, do not invent)
 - [ ] 5. `yg validate`
 
@@ -326,23 +326,23 @@ Test: "Does this requirement apply to more than one node?" Yes → aspect. No �
 - **Architectural:** Structural patterns with rationale (e.g., dual-rollback on provider failure, idempotency via key generation, fire-and-forget dispatch)
 - **Concurrency:** Shared concurrency strategies (e.g., pessimistic locking, retry-on-deadlock, optimistic versioning)
 
-When a node follows an aspect's pattern with exceptions, record them in the `exceptions` field of the aspect entry in `node.yaml`. Example: aspect says "fire-and-forget" but this node awaits the publish call — add `exceptions: ["awaits publish call instead of fire-and-forget because..."]`. Exceptions appear in the context package next to the aspect content, preventing abstractions from masking implementation details.
+When a node follows an aspect's pattern with exceptions, record them in the `exceptions` field of the aspect entry in `yg-node.yaml`. Example: aspect says "fire-and-forget" but this node awaits the publish call — add `exceptions: ["awaits publish call instead of fire-and-forget because..."]`. Exceptions appear in the context package next to the aspect content, preventing abstractions from masking implementation details.
 
 **Aspect lifecycle warning.** Aspects decay CATASTROPHICALLY — a pattern either exists or it doesn't. When a pattern changes, ALL aspect claims become wrong at once. This differs from other artifacts: `interface.md` and `responsibility.md` are most stable (~9-year half-life); `internals.md` has moderate stability (~2.5-year half-life); aspects are least stable (~2.4-year half-life, binary decay). After any significant feature addition, review ALL aspects touching the affected area. Don't wait for drift — aspects can be 100% wrong without any mapped file changing.
 
-**Aspect stability tiers.** If an aspect has a `stability` field in `aspect.yaml`, use it to calibrate review urgency:
+**Aspect stability tiers.** If an aspect has a `stability` field in `yg-aspect.yaml`, use it to calibrate review urgency:
 
 - `schema` — enforced by data model; review only when data model changes (most stable)
 - `protocol` — contractual pattern; review when contracts or interfaces change
 - `implementation` — specific mechanism; review after ANY significant code change (least stable)
 
-When code anchors (`anchors` in an aspect entry in `node.yaml`) are present, they list code patterns (function names, constants, SQL fragments) evidencing the aspect's implementation in this node. `yg validate` checks that each anchor exists in the node's mapped source files — a missing anchor (W014) signals the aspect may be stale for this node.
+When code anchors (`anchors` in an aspect entry in `yg-node.yaml`) are present, they list code patterns (function names, constants, SQL fragments) evidencing the aspect's implementation in this node. `yg validate` checks that each anchor exists in the node's mapped source files — a missing anchor (W014) signals the aspect may be stale for this node.
 
 ### Creating Flows
 
-- [ ] 1. Read `schemas/flow.yaml`
+- [ ] 1. Read `schemas/yg-flow.yaml`
 - [ ] 2. Create `flows/<name>/` directory
-- [ ] 3. Write `flow.yaml` — declare participants and flow-level aspects
+- [ ] 3. Write `yg-flow.yaml` — declare participants and flow-level aspects
 - [ ] 4. Write `description.md` with required sections: Business context, Trigger, Goal, Participants, Paths (at least Happy path), Invariants across all paths
 - [ ] 5. `yg validate`
 
@@ -353,7 +353,7 @@ Test: "Does this describe what happens in the world, or only in the software?" I
 ### Operational Rules
 
 - **English only** for all files in `.yggdrasil/`. Conversation can be any language.
-- **Read schemas before creating** any `node.yaml`, `aspect.yaml`, or `flow.yaml`.
+- **Read schemas before creating** any `yg-node.yaml`, `yg-aspect.yaml`, or `yg-flow.yaml`.
 - **Tools read, you write.** The `yg` CLI only reads, validates, and manages metadata. You create and edit files manually.
 - **Incremental sync.** Run `yg drift-sync` after every 3-5 source file changes. Do not defer to end of task.
 - **Completeness test:** Two checks, both required:
@@ -393,10 +393,10 @@ yg journal-archive                  Archive consolidated journal entries.
 
 | What you have | Where it goes |
 |---|---|
-| Information specific to this node | Local node artifact (check `config.yaml artifacts` for types) |
+| Information specific to this node | Local node artifact (check `yg-config.yaml artifacts` for types) |
 | Rule that applies to many nodes | Aspect (content `.md` files in `aspects/<id>/`) |
-| Architectural invariant for a node type | Required aspect in `config.yaml node_types` |
-| Business process participation | Flow (`flow.yaml participants`) |
+| Architectural invariant for a node type | Required aspect in `yg-config.yaml node_types` |
+| Business process participation | Flow (`yg-flow.yaml participants`) |
 | Process-level requirement | Flow `aspects` + aspect directory |
 | Context shared across a domain | Parent node artifact |
 | Technology stack | Node artifact at appropriate hierarchy level |
