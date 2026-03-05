@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.2] - 2026-03-05
+
+### Fixed
+
+- **Release pipeline race condition:** Removed duplicate `push: tags` trigger from release
+  workflow. Both `workflow_run` and `push: tags` fired simultaneously, causing two concurrent
+  `npm publish --provenance` calls that likely corrupted the package on the registry.
+
 ## [1.4.1] - 2026-03-05
 
 ### Added
