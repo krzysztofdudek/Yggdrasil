@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Renamed `structural_context` → `included_in_relations`** in artifact configuration. Clearer name
+  for the flag controlling whether an artifact is included in dependency context packages.
+
+### Added
+
+- **Custom artifact guidance in agent rules:** Rules now document that `config.yaml` can define
+  additional artifact types with `description`, `required` conditions (`always`, `never`,
+  `when: has_incoming_relations`, `when: has_aspect:<id>`), and `included_in_relations`.
+- **`aspect_exceptions` in node.yaml schema:** Documents per-node deviations from aspect patterns.
+- **`anchors` in node.yaml schema:** Documents code anchor assertions for aspect staleness detection.
+- **`stability` in aspect.yaml schema:** Documents the stability tier field.
+
+### Removed
+
+- **Legacy `tags`/`required_tags` fallbacks:** Removed backward-compatibility parsing of `tags`
+  (use `aspects`) and `required_tags` (use `required_aspects`).
+
+### Fixed
+
+- **`stack` rationale reference:** Fixed misleading reference to `rationale` field on stack
+  entries in agent rules (parser only supports flat string values).
+
+## [1.4.3] - 2026-03-05
+
+### Fixed
+
+- **Manual publish:** Previous versions (1.4.0–1.4.2) were accepted by npm CI but silently
+  removed from registry post-publish. Publishing manually without `--provenance` to diagnose.
+
 ## [1.4.2] - 2026-03-05
 
 ### Fixed

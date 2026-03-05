@@ -377,6 +377,31 @@ artifacts:
     await rm(tmpDir, { recursive: true, force: true });
   });
 
+  it('throws when node_types entry is neither string nor valid object', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-bad-type-entry');
+    await mkdir(tmpDir, { recursive: true });
+    const configPath = path.join(tmpDir, 'config.yaml');
+    await writeFile(
+      configPath,
+      `
+name: "BadEntry"
+node_types:
+  - 42
+artifacts:
+  responsibility.md:
+    required: always
+    description: x
+`,
+      'utf-8',
+    );
+
+    await expect(parseConfig(configPath)).rejects.toThrow(
+      'node_types entry must be string or { name, required_aspects? }',
+    );
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
   it('defaults stack to empty object', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-bare');
     await mkdir(tmpDir, { recursive: true });
