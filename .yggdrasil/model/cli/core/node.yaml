@@ -1,5 +1,6 @@
 name: Core
 type: module
-aspects: [deterministic]
+aspects:
+  - aspect: deterministic
 
 relations: []

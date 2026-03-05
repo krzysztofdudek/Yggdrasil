@@ -1,6 +1,7 @@
 name: ContextBuilder
 type: library
-aspects: [deterministic]
+aspects:
+  - aspect: deterministic
 
 relations:
   - target: cli/model

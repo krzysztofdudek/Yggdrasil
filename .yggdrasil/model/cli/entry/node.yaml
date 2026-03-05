@@ -1,6 +1,7 @@
 name: Entry
 type: service
-aspects: [cli-command-contract]
+aspects:
+  - aspect: cli-command-contract
 
 relations:
   - target: cli/commands/init

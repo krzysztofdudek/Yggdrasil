@@ -1,5 +1,6 @@
 name: CLI
 type: module
-aspects: [deterministic]
+aspects:
+  - aspect: deterministic
 
 relations: []

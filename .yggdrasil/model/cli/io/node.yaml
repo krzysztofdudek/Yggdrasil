@@ -1,6 +1,10 @@
 name: IO
 type: library
-aspects: [deterministic, posix-paths, yaml-parser-contract, silent-missing-files]
+aspects:
+  - aspect: deterministic
+  - aspect: posix-paths
+  - aspect: yaml-parser-contract
+  - aspect: silent-missing-files
 
 relations:
   - target: cli/model
@@ -10,6 +14,7 @@ relations:
       - ArtifactConfig
       - QualityConfig
       - NodeMeta
+      - NodeAspectEntry
       - NodeMapping
       - Relation
       - RelationType

@@ -1,6 +1,7 @@
 name: Templates
 type: library
-aspects: [deterministic]
+aspects:
+  - aspect: deterministic
 
 relations: []
 

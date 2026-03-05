@@ -10,9 +10,8 @@ Library used by cli/core (loader, drift-detector) and cli/commands (journal). Al
 ## node-parser.ts
 
 - `parseNodeYaml(filePath: string): Promise<NodeMeta>`
-  - Throws on missing name/type, invalid relations (non-array, invalid type, missing target), invalid mapping (paths must be relative, non-empty), invalid aspect_exceptions (non-array, missing aspect/note, aspect not in node's aspects list), invalid anchors (must be object mapping aspect ids to non-empty arrays of strings). Relation types: uses, calls, extends, implements, emits, listens.
-  - Internally calls `parseAspectExceptions(raw, aspects, filePath)` which validates each entry has non-empty `aspect` and `note` strings, and that `aspect` references an id present in the node's `aspects` array. Returns `AspectException[]` or undefined.
-  - Internally calls `parseAnchors(raw, filePath)` which validates anchors as `Record<string, string[]>` — must be an object (not array), each value must be a non-empty array of strings. Empty objects become undefined. Returns `Record<string, string[]>` or undefined.
+  - Throws on missing name/type, invalid relations (non-array, invalid type, missing target), invalid mapping (paths must be relative, non-empty), invalid aspects (non-array, entries must be objects with non-empty `aspect` string, optional `exceptions` and `anchors` arrays of strings, duplicate aspect ids rejected). Relation types: uses, calls, extends, implements, emits, listens.
+  - Internally calls `parseAspects(raw, filePath)` which validates the unified aspect format: each entry must be an object with a non-empty `aspect` string; optional `exceptions` (string[]) and `anchors` (string[]) are validated as arrays of strings; duplicate aspect ids produce an error. Returns `NodeAspectEntry[]` or undefined.
 
 ## aspect-parser.ts
 
@@ -53,7 +52,7 @@ Parsers and stores throw `Error` on invalid input. No dedicated error codes — 
 
 **config-parser:** Missing name, invalid node_types (not a non-empty object, entries missing description), invalid artifacts (reserved name `node`, invalid required.when), invalid quality (context_budget.error < warning). Propagates ENOENT, EACCES from readFile.
 
-**node-parser:** Missing name/type, invalid relations (non-array, invalid type, missing target), invalid mapping (paths must be relative, non-empty, no leading slash), invalid aspect_exceptions (non-array, entries without aspect/note, aspect id not in node's aspects list), invalid anchors (not an object, values not non-empty arrays of strings). Propagates ENOENT, EACCES from readFile.
+**node-parser:** Missing name/type, invalid relations (non-array, invalid type, missing target), invalid mapping (paths must be relative, non-empty, no leading slash), invalid aspects (non-array, entries not objects, missing/empty aspect string, invalid exceptions/anchors not arrays of strings, duplicate aspect ids). Propagates ENOENT, EACCES from readFile.
 
 **aspect-parser:** Missing name or empty id. Invalid `stability` (not one of: schema, protocol, implementation). Propagates readFile and readArtifacts errors.
 

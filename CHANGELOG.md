@@ -15,14 +15,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for the flag controlling whether an artifact is included in dependency context packages.
 - **Changed `node_types` from array to object** in config. Keys are type names, values have
   required `description` (agent guidance) and optional `required_aspects`. Symmetric with `artifacts`.
+- **BREAKING:** `aspects` field in `node.yaml` changed from string array to object array — each
+  entry is `{ aspect: id, exceptions?: string[], anchors?: string[] }`
+- `aspect_exceptions` and `anchors` fields merged into unified `aspects` entries
 
 ### Added
 
 - **Custom artifact guidance in agent rules:** Rules now document that `config.yaml` can define
   additional artifact types with `description`, `required` conditions (`always`, `never`,
   `when: has_incoming_relations`, `when: has_aspect:<id>`), and `included_in_relations`.
-- **`aspect_exceptions` in node.yaml schema:** Documents per-node deviations from aspect patterns.
-- **`anchors` in node.yaml schema:** Documents code anchor assertions for aspect staleness detection.
+- **Unified `aspects` format in node.yaml schema:** Each aspect entry supports embedded `exceptions`
+  (per-node deviations from aspect patterns) and `anchors` (code anchor assertions for staleness detection).
 - **`stability` in aspect.yaml schema:** Documents the stability tier field.
 - **Node type descriptions:** `config.yaml` node types now have a required `description` field
   providing agent guidance. Replaces hardcoded descriptions in rules.
@@ -35,6 +38,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (use `aspects`) and `required_tags` (use `required_aspects`).
 - **Legacy `node_types` string array format:** Removed support for `node_types: [module, service]`.
   Use object format with descriptions.
+- `aspect_exceptions` field from `node.yaml` (merged into `aspects[].exceptions`)
+- `anchors` field from `node.yaml` (merged into `aspects[].anchors`)
+- Validation rule E018 (`invalid-aspect-exception`) — structurally impossible with unified format
+- Validation rule E019 (`invalid-anchor-ref`) — structurally impossible with unified format
+- `AspectException` type from public API
 
 ### Fixed
 

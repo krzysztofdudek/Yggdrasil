@@ -1,6 +1,8 @@
 name: Validator
 type: library
-aspects: [deterministic, posix-paths]
+aspects:
+  - aspect: deterministic
+  - aspect: posix-paths
 
 relations:
   - target: cli/core/context
@@ -8,7 +10,7 @@ relations:
     consumes: [buildContext]
   - target: cli/model
     type: uses
-    consumes: [Graph, ValidationResult, ValidationIssue, ArtifactConfig]
+    consumes: [Graph, ValidationResult, ValidationIssue, ArtifactConfig, NodeAspectEntry]
   - target: cli/utils
     type: uses
     consumes: [normalizeMappingPaths, getLastCommitTimestamp]

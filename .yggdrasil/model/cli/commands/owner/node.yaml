@@ -1,6 +1,9 @@
 name: OwnerCommand
 type: library
-aspects: [deterministic, cli-command-contract, posix-paths]
+aspects:
+  - aspect: deterministic
+  - aspect: cli-command-contract
+  - aspect: posix-paths
 
 relations:
   - target: cli/core/loader
