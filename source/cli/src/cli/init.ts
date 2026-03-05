@@ -100,7 +100,7 @@ export function registerInitCommand(program: Command): void {
       process.stdout.write('  .yggdrasil/schemas/ (config, node, aspect, flow)\n');
       process.stdout.write(`  ${path.relative(projectRoot, rulesPath)} (rules)\n\n`);
       process.stdout.write('Next steps:\n');
-      process.stdout.write('  1. Edit .yggdrasil/config.yaml — set name, stack, standards\n');
+      process.stdout.write('  1. Edit .yggdrasil/config.yaml — set name and configure node types\n');
       process.stdout.write('  2. Create nodes under .yggdrasil/model/\n');
       process.stdout.write('  3. Run: yg validate\n');
     });

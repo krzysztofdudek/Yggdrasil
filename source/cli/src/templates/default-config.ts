@@ -1,11 +1,5 @@
 export const DEFAULT_CONFIG = `name: ""
 
-stack:
-  language: ""
-  runtime: ""
-
-standards: ""
-
 node_types:
   module:
     description: "Business logic unit with clear domain responsibility"
