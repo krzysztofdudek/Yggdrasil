@@ -40,7 +40,7 @@ Model is a TypeScript type library — it contains no executable code and does n
 
 - **YggConfig** — Top-level config: name, stack, standards, node_types, artifacts, optional quality thresholds.
 - **NodeTypeConfig** — Node type definition with name and optional required_aspects.
-- **ArtifactConfig** — Per-artifact config: required condition (always/never/when), description, optional structural_context flag.
+- **ArtifactConfig** — Per-artifact config: required condition (always/never/when), description, optional included_in_relations flag.
 - **QualityConfig** — Thresholds: min_artifact_length, max_direct_relations, context_budget (warning + error).
 
 ## Graph types
