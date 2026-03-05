@@ -22,7 +22,7 @@ Same graph state always produces same context package, validation result, and dr
 
 For node N at path P with aspects A, buildContext executes in this order:
 
-1. GLOBAL — config.yaml (stack, standards)
+1. GLOBAL — config.yaml (project name)
 2. HIERARCHY — artifacts of each ancestor (root down to parent of N)
 3. OWN — N's node.yaml (raw from disk) and N's content artifacts (all .md matching config)
 4. ASPECTS — for each aspect in A (union from hierarchy + own + flow blocks, expanded via implies), content of matching aspect

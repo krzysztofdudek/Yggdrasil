@@ -22,7 +22,7 @@ Commands never implement domain logic directly. Graph loading, context assembly,
 - Each command's `action` callback wraps logic in try/catch; propagates errors from core/io, reports once, exits.
 - **No default exports** for command handlers — use named exports (e.g. `registerBuildCommand`).
 
-**Reference:** config.yaml standards, aspect cli-command-contract.
+**Reference:** aspect cli-command-contract.
 
 ## Child nodes and their commands
 

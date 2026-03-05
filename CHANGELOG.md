@@ -34,6 +34,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- **BREAKING:** Removed `stack` and `standards` from `config.yaml` — technology and conventions now
+  live in node artifacts at the appropriate hierarchy level
+- Global context layer now contains only the project name
 - **Legacy `tags`/`required_tags` fallbacks:** Removed backward-compatibility parsing of `tags`
   (use `aspects`) and `required_tags` (use `required_aspects`).
 - **Legacy `node_types` string array format:** Removed support for `node_types: [module, service]`.

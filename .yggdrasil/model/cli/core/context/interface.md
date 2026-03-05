@@ -9,7 +9,7 @@
 
 **Layer builders (exported for tests):**
 
-- `buildGlobalLayer(config: YggConfig): ContextLayer` — project name, stack, standards.
+- `buildGlobalLayer(config: YggConfig): ContextLayer` — project name.
 - `buildHierarchyLayer(ancestor: GraphNode, config: YggConfig, graph: Graph): ContextLayer` — filtered by config.artifacts; adds attrs.aspects from ancestor aspects + expandAspects.
 - `buildOwnLayer(node: GraphNode, config: YggConfig, graphRootPath: string, graph: Graph): Promise<ContextLayer>` — reads node.yaml from disk; uses node.artifacts; adds attrs.aspects from node aspects + expandAspects.
 - `buildStructuralRelationLayer(target: GraphNode, relation: Relation, config: YggConfig): ContextLayer` — prefers included_in_relations artifacts; includes consumes, failure.

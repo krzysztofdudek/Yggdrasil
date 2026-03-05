@@ -38,7 +38,7 @@ Model is a TypeScript type library — it contains no executable code and does n
 
 ## Config types
 
-- **YggConfig** — Top-level config: name, stack, standards, node_types (Record keyed by type name), artifacts, optional quality thresholds.
+- **YggConfig** — Top-level config: name, node_types (Record keyed by type name), artifacts, optional quality thresholds.
 - **NodeTypeConfig** — Node type definition with description (required) and optional required_aspects. Key in the Record is the type name.
 - **ArtifactConfig** — Per-artifact config: required condition (always/never/when), description, optional included_in_relations flag.
 - **QualityConfig** — Thresholds: min_artifact_length, max_direct_relations, context_budget (warning + error).

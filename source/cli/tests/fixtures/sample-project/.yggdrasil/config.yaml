@@ -1,16 +1,5 @@
 name: 'Sample E-Commerce System'
 
-stack:
-  language: TypeScript
-  runtime: Node 22
-  framework: NestJS
-  database: PostgreSQL
-
-standards: |
-  ESLint + Prettier configuration.
-  Clean Architecture pattern.
-  Jest as test framework. Test coverage target: 80%.
-
 node_types:
   module:
     description: x

@@ -1,13 +1,5 @@
 name: "Yggdrasil"
 
-stack:
-  language: "TypeScript"
-  runtime: "Node.js 22+"
-
-standards: |
-  Strict TypeScript. ESM modules (import/export). Vitest for tests.
-  Commands: errors to stderr, process.exit(1) on failure. No default exports for command handlers.
-
 node_types:
   module:
     description: "Business logic unit with clear domain responsibility"

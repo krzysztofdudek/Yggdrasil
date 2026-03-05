@@ -1,7 +1,4 @@
 name: Broken Relation Test
-stack:
-  language: TypeScript
-standards: ''
 node_types:
   module:
     description: x
