@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`version` field in `yg-config.yaml`:** Tracks the CLI version that created/last migrated this config. Used by the migration system to determine which migrations to run.
+
 ## [2.0.0] - 2026-03-05
 
 ### Changed

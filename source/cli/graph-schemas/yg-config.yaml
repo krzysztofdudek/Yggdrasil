@@ -2,6 +2,10 @@
 # Located at .yggdrasil/yg-config.yaml — one per project.
 # Edit this after running yg init to describe your project.
 
+version: "2.0.0"                  # managed by CLI — do not edit manually. Tracks the CLI version
+                                  # that created or last migrated this config. Used by the migration
+                                  # system to determine which migrations to run on upgrade.
+
 name: "My Project"               # required — project display name
 
 stack:                            # required — technology stack (freeform keys)

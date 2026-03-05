@@ -17,6 +17,11 @@ describe('default-config', () => {
     expect(parsed.quality).toBeDefined();
   });
 
+  it('DEFAULT_CONFIG contains version field equal to 2.0.0', () => {
+    const parsed = parseYaml(DEFAULT_CONFIG) as Record<string, unknown>;
+    expect(parsed.version).toBe('2.0.0');
+  });
+
   it('DEFAULT_CONFIG node_types includes module, service, library', () => {
     const parsed = parseYaml(DEFAULT_CONFIG) as {
       node_types: Record<string, { description: string }>;
