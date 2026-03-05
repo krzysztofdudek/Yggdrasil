@@ -21,6 +21,8 @@ export async function parseConfig(filePath: string): Promise<YggConfig> {
     throw new Error(`yg-config.yaml: file is empty or not a valid YAML mapping`);
   }
 
+  const version = typeof raw.version === 'string' ? raw.version.trim() : undefined;
+
   if (!raw.name || typeof raw.name !== 'string' || raw.name.trim() === '') {
     throw new Error(`yg-config.yaml: missing or invalid 'name' field`);
   }
@@ -121,6 +123,7 @@ export async function parseConfig(filePath: string): Promise<YggConfig> {
   }
 
   return {
+    version,
     name: (raw.name as string).trim(),
     node_types: nodeTypes,
     artifacts: artifactsMap,

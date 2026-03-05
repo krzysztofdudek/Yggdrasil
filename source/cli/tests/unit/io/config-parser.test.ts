@@ -394,4 +394,31 @@ artifacts:
     await rm(tmpDir, { recursive: true, force: true });
   });
 
+  it('parses version field when present', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-version');
+    await mkdir(tmpDir, { recursive: true });
+    await writeFile(
+      path.join(tmpDir, 'yg-config.yaml'),
+      `version: "2.0.0"
+name: "Versioned"
+node_types:
+  module:
+    description: x
+artifacts:
+  responsibility.md:
+    required: always
+    description: "x"
+`,
+      'utf-8',
+    );
+    const config = await parseConfig(path.join(tmpDir, 'yg-config.yaml'));
+    expect(config.version).toBe('2.0.0');
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('defaults version to undefined when not present', async () => {
+    const config = await parseConfig(path.join(FIXTURE_DIR, 'yg-config.yaml'));
+    expect(config.version).toBeUndefined();
+  });
+
 });

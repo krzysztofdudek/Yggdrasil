@@ -1,4 +1,6 @@
-export const DEFAULT_CONFIG = `name: ""
+export const DEFAULT_CONFIG = `version: "2.0.0"
+
+name: ""
 
 node_types:
   module:
