@@ -281,7 +281,7 @@ describe('context-builder', () => {
       };
       const node: GraphNode = {
         path: 'test/node',
-        meta: { name: 'TestNode', type: 'service', aspects: ['requires-hipaa'] },
+        meta: { name: 'TestNode', type: 'service', aspects: [{ aspect: 'requires-hipaa' }] },
         artifacts: [{ filename: 'responsibility.md', content: 'x' }],
         children: [],
         parent: null,
@@ -321,7 +321,7 @@ describe('context-builder', () => {
       };
       const node: GraphNode = {
         path: 'test/node',
-        meta: { name: 'TestNode', type: 'service', aspects: ['tag-a'] },
+        meta: { name: 'TestNode', type: 'service', aspects: [{ aspect: 'tag-a' }] },
         artifacts: [{ filename: 'responsibility.md', content: 'x' }],
         children: [],
         parent: null,
@@ -348,7 +348,7 @@ describe('context-builder', () => {
     it('node with own aspects includes aspects in context', async () => {
       const graph = await loadGraph(FIXTURE_PROJECT);
       const orderService = graph.nodes.get('orders/order-service')!;
-      expect(orderService.meta.aspects).toContain('requires-audit');
+      expect(orderService.meta.aspects).toContainEqual({ aspect: 'requires-audit' });
 
       const pkg = await buildContext(graph, 'orders/order-service');
       const aspectLayer = pkg.layers.find((l) => l.type === 'aspects');
@@ -456,7 +456,7 @@ describe('context-builder', () => {
     it('hierarchy aspects: child without own aspects inherits from ancestor (aspects on hierarchy layer)', async () => {
       const parent: GraphNode = {
         path: 'orders',
-        meta: { name: 'Orders', type: 'module', aspects: ['requires-audit'] },
+        meta: { name: 'Orders', type: 'module', aspects: [{ aspect: 'requires-audit' }] },
         artifacts: [],
         children: [],
         parent: null,
@@ -506,14 +506,14 @@ describe('context-builder', () => {
     it('hierarchy aspects: node own aspects declared on own layer (aspects on own-artifacts)', async () => {
       const parent: GraphNode = {
         path: 'orders',
-        meta: { name: 'Orders', type: 'module', aspects: ['requires-audit'] },
+        meta: { name: 'Orders', type: 'module', aspects: [{ aspect: 'requires-audit' }] },
         artifacts: [],
         children: [],
         parent: null,
       };
       const child: GraphNode = {
         path: 'orders/order-service',
-        meta: { name: 'OrderService', type: 'service', aspects: ['requires-audit'] },
+        meta: { name: 'OrderService', type: 'service', aspects: [{ aspect: 'requires-audit' }] },
         artifacts: [{ filename: 'responsibility.md', content: 'x' }],
         children: [],
         parent,
@@ -824,14 +824,14 @@ describe('context-builder', () => {
       // Manually build a graph with 2 aspects on 2 different ids
       const parent: GraphNode = {
         path: 'mod',
-        meta: { name: 'Mod', type: 'module', aspects: ['tag-a'] },
+        meta: { name: 'Mod', type: 'module', aspects: [{ aspect: 'tag-a' }] },
         artifacts: [],
         children: [],
         parent: null,
       };
       const child: GraphNode = {
         path: 'mod/svc',
-        meta: { name: 'Svc', type: 'service', aspects: ['tag-a', 'tag-b'] },
+        meta: { name: 'Svc', type: 'service', aspects: [{ aspect: 'tag-a' }, { aspect: 'tag-b' }] },
         artifacts: [{ filename: 'desc.md', content: 'service desc' }],
         children: [],
         parent,
@@ -1076,7 +1076,7 @@ describe('context-builder', () => {
     it('formatContextText includes aspects on hierarchy for ancestor aspects', async () => {
       const parent: GraphNode = {
         path: 'orders',
-        meta: { name: 'Orders', type: 'module', aspects: ['requires-audit'] },
+        meta: { name: 'Orders', type: 'module', aspects: [{ aspect: 'requires-audit' }] },
         artifacts: [],
         children: [],
         parent: null,

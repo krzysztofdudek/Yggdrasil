@@ -108,7 +108,7 @@ describe('validator', () => {
 
   it('unknown-aspect (E003) returns error when node aspect has no aspect def', async () => {
     const graph = createGraph();
-    graph.nodes.set('a', createNode('a', { aspects: ['no-aspect-for-this'] }));
+    graph.nodes.set('a', createNode('a', { aspects: [{ aspect: 'no-aspect-for-this' }] }));
 
     const result = await validate(graph);
     const issues = result.issues.filter((i) => i.rule === 'unknown-aspect');
@@ -135,37 +135,6 @@ describe('validator', () => {
     expect(issues[0].message).toContain('Aspect Two');
   });
 
-  it('invalid-aspect-exception (E018) when aspect_exceptions references aspect not in aspects list', async () => {
-    const graph = createGraph();
-    graph.nodes.set(
-      'a',
-      createNode('a', {
-        aspects: ['valid-tag'],
-        aspect_exceptions: [{ aspect: 'nonexistent-aspect', note: 'test' }],
-      }),
-    );
-
-    const result = await validate(graph);
-    const issues = result.issues.filter((i) => i.rule === 'invalid-aspect-exception');
-    expect(issues).toHaveLength(1);
-    expect(issues[0].code).toBe('E018');
-    expect(issues[0].message).toContain('nonexistent-aspect');
-  });
-
-  it('valid aspect_exceptions do not produce E018', async () => {
-    const graph = createGraph();
-    graph.nodes.set(
-      'a',
-      createNode('a', {
-        aspects: ['valid-tag'],
-        aspect_exceptions: [{ aspect: 'valid-tag', note: 'deviates from pattern' }],
-      }),
-    );
-
-    const result = await validate(graph);
-    const issues = result.issues.filter((i) => i.rule === 'invalid-aspect-exception');
-    expect(issues).toHaveLength(0);
-  });
 
   it('infrastructure is accepted as valid node type', async () => {
     const graph = createGraph({
@@ -828,7 +797,7 @@ describe('validator', () => {
       },
     });
     graph.nodes.set('svc', {
-      ...createNode('svc', { aspects: ['public-api'] }),
+      ...createNode('svc', { aspects: [{ aspect: 'public-api' }] }),
       artifacts: [{ filename: 'responsibility.md', content: 'x' }],
     });
 
@@ -905,7 +874,7 @@ describe('validator', () => {
       },
     });
     graph.nodes.set('svc', {
-      ...createNode('svc', { aspects: ['public-api'] }),
+      ...createNode('svc', { aspects: [{ aspect: 'public-api' }] }),
       artifacts: [{ filename: 'responsibility.md', content: 'x' }],
     });
 
@@ -1003,7 +972,7 @@ describe('validator', () => {
         artifacts: { 'responsibility.md': { required: 'always', description: 'x' } },
       },
     });
-    graph.nodes.set('svc', createNode('svc', { aspects: [] }));
+    graph.nodes.set('svc', createNode('svc'));
 
     const result = await validate(graph);
     const issues = result.issues.filter((i) => i.rule === 'missing-required-aspect-coverage');
@@ -1026,7 +995,7 @@ describe('validator', () => {
         { name: 'HIPAA', id: 'requires-hipaa', implies: ['requires-audit'], artifacts: [] },
       ],
     });
-    graph.nodes.set('svc', createNode('svc', { aspects: ['requires-hipaa'] }));
+    graph.nodes.set('svc', createNode('svc', { aspects: [{ aspect: 'requires-hipaa' }] }));
 
     const result = await validate(graph);
     const issues = result.issues.filter((i) => i.rule === 'missing-required-aspect-coverage');

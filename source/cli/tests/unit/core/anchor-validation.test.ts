@@ -62,8 +62,7 @@ describe('anchor validation', () => {
 
     const nodes = new Map<string, GraphNode>();
     nodes.set('my-service', makeNode('my-service', {
-      aspects: ['my-aspect'],
-      anchors: { 'my-aspect': ['missingFunction'] },
+      aspects: [{ aspect: 'my-aspect', anchors: ['missingFunction'] }],
       mapping: { paths: ['src/service.ts'] },
     }));
 
@@ -95,8 +94,7 @@ describe('anchor validation', () => {
 
     const nodes = new Map<string, GraphNode>();
     nodes.set('my-service', makeNode('my-service', {
-      aspects: ['locking'],
-      anchors: { 'locking': ['lockTeamCollection', 'FOR UPDATE'] },
+      aspects: [{ aspect: 'locking', anchors: ['lockTeamCollection', 'FOR UPDATE'] }],
       mapping: { paths: ['src/service.ts'] },
     }));
 
@@ -125,8 +123,7 @@ describe('anchor validation', () => {
 
     const nodes = new Map<string, GraphNode>();
     nodes.set('my-service', makeNode('my-service', {
-      aspects: ['retry'],
-      anchors: { 'retry': ['MAX_RETRIES'] },
+      aspects: [{ aspect: 'retry', anchors: ['MAX_RETRIES'] }],
       mapping: { paths: ['src/'] },
     }));
 
@@ -140,32 +137,6 @@ describe('anchor validation', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('E019: error when anchors key references aspect not in node aspects', async () => {
-    const tmpDir = path.join(__dirname, '../../fixtures/tmp-anchor-e019');
-    await mkdir(tmpDir, { recursive: true });
-
-    const rootPath = path.join(tmpDir, '.yggdrasil');
-    await mkdir(rootPath, { recursive: true });
-
-    const nodes = new Map<string, GraphNode>();
-    nodes.set('my-service', makeNode('my-service', {
-      aspects: ['real-aspect'],
-      anchors: { 'nonexistent-aspect': ['somePattern'] },
-    }));
-
-    const graph = makeGraph(nodes, rootPath);
-    graph.aspects = [{ id: 'real-aspect', name: 'Real', artifacts: [] }];
-
-    const result = await validate(graph);
-    const e019 = result.issues.filter((i) => i.code === 'E019');
-    expect(e019).toHaveLength(1);
-    expect(e019[0].rule).toBe('invalid-anchor-ref');
-    expect(e019[0].message).toContain('nonexistent-aspect');
-    expect(e019[0].nodePath).toBe('my-service');
-
-    await rm(tmpDir, { recursive: true, force: true });
-  });
-
   it('skips nodes without anchors', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-anchor-skip');
     await mkdir(tmpDir, { recursive: true });
@@ -175,7 +146,7 @@ describe('anchor validation', () => {
 
     const nodes = new Map<string, GraphNode>();
     nodes.set('no-anchors', makeNode('no-anchors', {
-      aspects: ['some-aspect'],
+      aspects: [{ aspect: 'some-aspect' }],
     }));
 
     const graph = makeGraph(nodes, rootPath);
@@ -183,7 +154,7 @@ describe('anchor validation', () => {
 
     const result = await validate(graph);
     const anchorIssues = result.issues.filter(
-      (i) => i.code === 'W014' || i.code === 'E019',
+      (i) => i.code === 'W014',
     );
     expect(anchorIssues).toHaveLength(0);
 
@@ -199,8 +170,7 @@ describe('anchor validation', () => {
 
     const nodes = new Map<string, GraphNode>();
     nodes.set('no-mapping', makeNode('no-mapping', {
-      aspects: ['my-aspect'],
-      anchors: { 'my-aspect': ['somePattern'] },
+      aspects: [{ aspect: 'my-aspect', anchors: ['somePattern'] }],
     }));
 
     const graph = makeGraph(nodes, rootPath);

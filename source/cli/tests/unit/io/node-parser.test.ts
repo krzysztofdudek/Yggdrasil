@@ -232,14 +232,14 @@ blackbox: true
 name: AspectedNode
 type: service
 aspects:
-  - requires-auth
-  - public-api
+  - aspect: requires-auth
+  - aspect: public-api
 `,
       'utf-8',
     );
 
     const meta = await parseNodeYaml(nodePath);
-    expect(meta.aspects).toEqual(['requires-auth', 'public-api']);
+    expect(meta.aspects).toEqual([{ aspect: 'requires-auth' }, { aspect: 'public-api' }]);
 
     await rm(tmpDir, { recursive: true, force: true });
   });
@@ -455,7 +455,7 @@ relations:
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('parses aspect_exceptions correctly', async () => {
+  it('parses aspects with exceptions correctly', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-aspect-exc');
     await mkdir(tmpDir, { recursive: true });
     const nodePath = path.join(tmpDir, 'node.yaml');
@@ -465,49 +465,26 @@ relations:
 name: PubSubNode
 type: service
 aspects:
-  - pubsub-events
-  - pessimistic-locking
-aspect_exceptions:
   - aspect: pubsub-events
-    note: "updateUserSessions uses await"
+    exceptions:
+      - "updateUserSessions uses await instead of fire-and-forget"
+  - aspect: pessimistic-locking
 `,
       'utf-8',
     );
 
     const meta = await parseNodeYaml(nodePath);
-    expect(meta.aspect_exceptions).toEqual([
-      { aspect: 'pubsub-events', note: 'updateUserSessions uses await' },
-    ]);
+    expect(meta.aspects).toHaveLength(2);
+    expect(meta.aspects![0].aspect).toBe('pubsub-events');
+    expect(meta.aspects![0].exceptions).toEqual(['updateUserSessions uses await instead of fire-and-forget']);
+    expect(meta.aspects![1].aspect).toBe('pessimistic-locking');
+    expect(meta.aspects![1].exceptions).toBeUndefined();
 
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('throws when aspect_exception references aspect not in aspects list', async () => {
-    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-bad-exc');
-    await mkdir(tmpDir, { recursive: true });
-    const nodePath = path.join(tmpDir, 'node.yaml');
-    await writeFile(
-      nodePath,
-      `
-name: BadExcNode
-type: service
-aspects:
-  - pubsub-events
-aspect_exceptions:
-  - aspect: nonexistent-aspect
-    note: "should fail"
-`,
-      'utf-8',
-    );
 
-    await expect(parseNodeYaml(nodePath)).rejects.toThrow(
-      'not in this node\'s aspects list',
-    );
-
-    await rm(tmpDir, { recursive: true, force: true });
-  });
-
-  it('returns undefined aspect_exceptions when not present', async () => {
+  it('aspects without exceptions have undefined exceptions field', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-no-exc');
     await mkdir(tmpDir, { recursive: true });
     const nodePath = path.join(tmpDir, 'node.yaml');
@@ -517,13 +494,15 @@ aspect_exceptions:
 name: NoExcNode
 type: service
 aspects:
-  - pubsub-events
+  - aspect: pubsub-events
 `,
       'utf-8',
     );
 
     const meta = await parseNodeYaml(nodePath);
-    expect(meta.aspect_exceptions).toBeUndefined();
+    expect(meta.aspects).toHaveLength(1);
+    expect(meta.aspects![0].aspect).toBe('pubsub-events');
+    expect(meta.aspects![0].exceptions).toBeUndefined();
 
     await rm(tmpDir, { recursive: true, force: true });
   });
@@ -564,7 +543,7 @@ relations:
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('parses anchors map correctly', async () => {
+  it('parses anchors embedded in aspects entries', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-anchors');
     await mkdir(tmpDir, { recursive: true });
     const nodePath = path.join(tmpDir, 'node.yaml');
@@ -573,82 +552,99 @@ relations:
       `name: AnchoredNode
 type: service
 aspects:
-  - pessimistic-locking
-  - retry-on-deadlock
-anchors:
-  pessimistic-locking:
-    - lockTeamCollection
-    - FOR UPDATE
-  retry-on-deadlock:
-    - MAX_RETRIES
-    - TRANSACTION_DEADLOCK
+  - aspect: pessimistic-locking
+    anchors:
+      - lockTeamCollection
+      - FOR UPDATE
+  - aspect: retry-on-deadlock
+    anchors:
+      - MAX_RETRIES
+      - TRANSACTION_DEADLOCK
 `,
       'utf-8',
     );
 
     const meta = await parseNodeYaml(nodePath);
-    expect(meta.anchors).toEqual({
-      'pessimistic-locking': ['lockTeamCollection', 'FOR UPDATE'],
-      'retry-on-deadlock': ['MAX_RETRIES', 'TRANSACTION_DEADLOCK'],
-    });
+    expect(meta.aspects).toHaveLength(2);
+    expect(meta.aspects![0].anchors).toEqual(['lockTeamCollection', 'FOR UPDATE']);
+    expect(meta.aspects![1].anchors).toEqual(['MAX_RETRIES', 'TRANSACTION_DEADLOCK']);
 
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('returns undefined anchors when not present', async () => {
+  it('aspects without anchors have undefined anchors field', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-no-anchors');
     await mkdir(tmpDir, { recursive: true });
     const nodePath = path.join(tmpDir, 'node.yaml');
-    await writeFile(nodePath, `name: NoAnchors\ntype: service\n`, 'utf-8');
+    await writeFile(nodePath, `name: NoAnchors\ntype: service\naspects:\n  - aspect: my-aspect\n`, 'utf-8');
 
     const meta = await parseNodeYaml(nodePath);
-    expect(meta.anchors).toBeUndefined();
+    expect(meta.aspects).toHaveLength(1);
+    expect(meta.aspects![0].anchors).toBeUndefined();
 
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('throws when anchors is not an object', async () => {
-    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-bad-anchors');
+  it('throws when aspects entry is not an object', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-bad-aspect-entry');
     await mkdir(tmpDir, { recursive: true });
     const nodePath = path.join(tmpDir, 'node.yaml');
-    await writeFile(nodePath, `name: Bad\ntype: service\nanchors: "string"\n`, 'utf-8');
+    await writeFile(nodePath, `name: Bad\ntype: service\naspects:\n  - "just-a-string"\n`, 'utf-8');
 
     await expect(parseNodeYaml(nodePath)).rejects.toThrow(
-      "'anchors' must be an object mapping aspect ids to arrays of strings",
-    );
-
-    await rm(tmpDir, { recursive: true, force: true });
-  });
-
-  it('throws when anchors value is not an array', async () => {
-    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-bad-anchor-val');
-    await mkdir(tmpDir, { recursive: true });
-    const nodePath = path.join(tmpDir, 'node.yaml');
-    await writeFile(
-      nodePath,
-      `name: Bad\ntype: service\naspects:\n  - my-aspect\nanchors:\n  my-aspect: "not-array"\n`,
-      'utf-8',
-    );
-
-    await expect(parseNodeYaml(nodePath)).rejects.toThrow(
-      "'anchors.my-aspect' must be a non-empty array of strings",
+      "aspects[0] must be an object with 'aspect' key",
     );
 
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('throws when anchors value is empty array', async () => {
-    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-empty-anchor');
+  it('throws when aspects entry has no aspect key', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-no-aspect-key');
     await mkdir(tmpDir, { recursive: true });
     const nodePath = path.join(tmpDir, 'node.yaml');
-    await writeFile(
-      nodePath,
-      `name: Bad\ntype: service\naspects:\n  - my-aspect\nanchors:\n  my-aspect: []\n`,
-      'utf-8',
-    );
+    await writeFile(nodePath, `name: Bad\ntype: service\naspects:\n  - exceptions:\n      - "some note"\n`, 'utf-8');
 
     await expect(parseNodeYaml(nodePath)).rejects.toThrow(
-      "'anchors.my-aspect' must be a non-empty array of strings",
+      'aspects[0].aspect must be a non-empty string',
+    );
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('throws when aspects entry has non-array exceptions', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-bad-exc-type');
+    await mkdir(tmpDir, { recursive: true });
+    const nodePath = path.join(tmpDir, 'node.yaml');
+    await writeFile(nodePath, `name: Bad\ntype: service\naspects:\n  - aspect: my-aspect\n    exceptions: "not-array"\n`, 'utf-8');
+
+    await expect(parseNodeYaml(nodePath)).rejects.toThrow(
+      'aspects[0].exceptions must be an array of strings',
+    );
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('throws when aspects entry has non-array anchors', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-bad-anchor-type');
+    await mkdir(tmpDir, { recursive: true });
+    const nodePath = path.join(tmpDir, 'node.yaml');
+    await writeFile(nodePath, `name: Bad\ntype: service\naspects:\n  - aspect: my-aspect\n    anchors: "not-array"\n`, 'utf-8');
+
+    await expect(parseNodeYaml(nodePath)).rejects.toThrow(
+      'aspects[0].anchors must be an array of strings',
+    );
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('throws when duplicate aspect id in aspects list', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-dup-aspect');
+    await mkdir(tmpDir, { recursive: true });
+    const nodePath = path.join(tmpDir, 'node.yaml');
+    await writeFile(nodePath, `name: Bad\ntype: service\naspects:\n  - aspect: my-aspect\n  - aspect: my-aspect\n`, 'utf-8');
+
+    await expect(parseNodeYaml(nodePath)).rejects.toThrow(
+      "duplicate aspect 'my-aspect' in aspects list",
     );
 
     await rm(tmpDir, { recursive: true, force: true });
