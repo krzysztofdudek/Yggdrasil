@@ -373,7 +373,7 @@ describe('collectTrackedFiles', () => {
     // requires-audit appears in both parent and child aspects,
     // but aspect files should only appear once
     const auditPaths = paths.filter((p) => p.includes('requires-audit'));
-    expect(auditPaths).toHaveLength(2); // aspect.yaml + content.md
+    expect(auditPaths).toHaveLength(2); // yg-aspect.yaml + content.md
     expect(new Set(paths).size).toBe(paths.length);
   });
 });
