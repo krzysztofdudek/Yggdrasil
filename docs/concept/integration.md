@@ -496,7 +496,7 @@ scanning for patterns, building understanding from raw files. This is expensive 
 session.
 
 With a graph, the agent reads a focused context package — pre-structured knowledge assembled
-deterministically. The package is typically 2,000–5,000 tokens regardless of project size.
+deterministically. The package is typically 5,000–10,000 tokens regardless of project size.
 The agent does not need to explore.
 
 ### Reduced correction loops

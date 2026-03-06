@@ -2,7 +2,7 @@
 
 # Entry Decisions
 
-**Reference:** docs/idea/tools.md (Operations, naming convention)
+**Reference:** docs/concept/tools.md (Operations, naming convention)
 
 The CLI is invoked as a single command (`yg`) with subcommands. Commander is the standard Node.js convention for structured argument parsing. One entry point, one program instance — all operations flow through the same process.
 

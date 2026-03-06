@@ -926,7 +926,7 @@ W001 orders/order-service -> missing artifact 'interface'.
      Node has 3 incoming relations: auth/login-service, checkout/controller,
      subscriptions/billing-service. Define the public API in interface.md.
 
-W005 orders/order-service -> context package: ~5800 tokens (threshold: 5000).
+W005 orders/order-service -> context package: ~11800 tokens (threshold: 10000).
      Consider splitting the node or reducing dependencies.
 ```
 

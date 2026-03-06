@@ -1,4 +1,12 @@
 import { defineConfig } from "vitepress";
+import { getBlogPosts } from "./blog-posts.js";
+
+function getBlogSidebarItems() {
+  return getBlogPosts().map((p) => ({
+    text: `${p.date} — ${p.title}`,
+    link: p.link,
+  }));
+}
 
 export default defineConfig({
   base: "/Yggdrasil/",
@@ -7,9 +15,10 @@ export default defineConfig({
   themeConfig: {
     logo: "/logo.svg",
     nav: [
+      { text: "Home", link: "/" },
       { text: "Getting Started", link: "/getting-started" },
-      { text: "CLI Reference", link: "/cli-reference" },
-      { text: "Idea", link: "/idea/foundation" },
+      { text: "Concept", link: "/concept/foundation" },
+      { text: "Blog", link: "/blog/" },
       { text: "GitHub", link: "https://github.com/krzysztofdudek/Yggdrasil" },
     ],
     sidebar: [
@@ -19,15 +28,23 @@ export default defineConfig({
       { text: "CLI Reference", link: "/cli-reference" },
       { text: "Configuration", link: "/configuration" },
       {
-        text: "Idea",
+        text: "Concept",
         collapsed: true,
         items: [
-          { text: "Foundation", link: "/idea/foundation" },
-          { text: "Graph", link: "/idea/graph" },
-          { text: "Engine", link: "/idea/engine" },
-          { text: "Materialization", link: "/idea/materialization" },
-          { text: "Integration", link: "/idea/integration" },
-          { text: "Tools", link: "/idea/tools" },
+          { text: "Foundation", link: "/concept/foundation" },
+          { text: "Graph", link: "/concept/graph" },
+          { text: "Engine", link: "/concept/engine" },
+          { text: "Materialization", link: "/concept/materialization" },
+          { text: "Integration", link: "/concept/integration" },
+          { text: "Tools", link: "/concept/tools" },
+        ],
+      },
+      {
+        text: "Blog",
+        collapsed: true,
+        items: [
+          { text: "Recent posts", link: "/blog/" },
+          ...getBlogSidebarItems(),
         ],
       },
     ],

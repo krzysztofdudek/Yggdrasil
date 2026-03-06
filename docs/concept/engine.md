@@ -216,7 +216,7 @@ that is their choice — tools treat artifacts as text and attach content withou
 
 ### Package Size and Budget
 
-A typical context package is 2,000–5,000 tokens. Size is structurally bounded because each
+A typical context package is 5,000–10,000 tokens. Size is structurally bounded because each
 algorithm step attaches only directly relevant context. A node with 3 dependencies attaches
 3 interfaces, not 300.
 

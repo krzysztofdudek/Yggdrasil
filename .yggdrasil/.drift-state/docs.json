@@ -1,25 +1,25 @@
 {
-  "hash": "beb3a371fd3d87ebf4741b5eed93fb0c1d8564d586dd61c9e5b780eeef8cf888",
+  "hash": "98b973033c3c3052ed966cfb01652ccf8cf8b79d4492280435cd3a00c2f6da8d",
   "files": {
     ".yggdrasil/model/docs/yg-node.yaml": "1182af1dc3aeceb24262745dc13a456dc75d280a313d4bb5b364b5d3e8e6f1e3",
-    ".yggdrasil/model/docs/responsibility.md": "40ebb143b914bbd5454e7ec1cf481f9c43e61193ca30f10e9c468fecd8da1a3b",
+    ".yggdrasil/model/docs/responsibility.md": "070a2a6c6b29116ab18d2b824068d227cc4682f30fd5ef79b3cbe307dbe632fe",
     "docs/cli-reference.md": "3615c96c8243f0a3a30c071278b4079e99cec260e7a2885dd1db9210a5f74504",
     "docs/configuration.md": "930d07f178709dced83eb0e1d27479ae5fa2d804eecaaa349fc8ef765620c627",
-    "docs/getting-started.md": "46d80ce1256041fef674c2137dd3c3525c65ed2073c325c7cd5226a2e951cb75",
-    "docs/index.md": "b80d645c5bee975943604a39ce0e4f0fb800816e5bebc25345d7bce86b42915e",
     "docs/platforms.md": "20e2b9c50f75e37c47d6a796c25e68e77eb53ebf81e56f768300f09d62ee2338",
-    "docs/package.json": "e3c48dc4ed7f4a2fc56f5d8dec2cbf2a07ffcad6f566d41a206a88a68225d756",
-    "docs/package-lock.json": "5de0744623b0f0d3ae0f73845845ae1d5c89623da74cf542447129cb159f167e"
+    "docs/package.json": "f6024ae6663e3f69359b7ea193faa820d9c823a8fb79ce4af633ead1f86ba500",
+    "docs/package-lock.json": "5de0744623b0f0d3ae0f73845845ae1d5c89623da74cf542447129cb159f167e",
+    "docs/getting-started.md": "bd967ee1fb52aaca13ba218b44610b767c6bf276ab98e1d4dd637ab8955ccf3a",
+    "docs/index.md": "884f34f2faa3795e2c43aac0e67be948fffefaaccfc4c7439b36eca19a5c3868"
   },
   "mtimes": {
     ".yggdrasil/model/docs/yg-node.yaml": 1772776392200.4812,
-    ".yggdrasil/model/docs/responsibility.md": 1772743197432.5715,
+    ".yggdrasil/model/docs/responsibility.md": 1772828320283.2747,
     "docs/cli-reference.md": 1772778643288.445,
     "docs/configuration.md": 1772776392202.4404,
-    "docs/getting-started.md": 1772485235624.3115,
-    "docs/index.md": 1771789224884.2893,
+    "docs/getting-started.md": 1772829457957.486,
+    "docs/index.md": 1772832363626.6838,
     "docs/platforms.md": 1772485235626.6682,
-    "docs/package.json": 1771788668904.2397,
+    "docs/package.json": 1772828082497.5417,
     "docs/package-lock.json": 1772432507086.5698
   }
 }

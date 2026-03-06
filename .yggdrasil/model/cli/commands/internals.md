@@ -2,7 +2,7 @@
 
 # Commands Decisions
 
-**Reference:** docs/idea/foundation.md (Division of labor), engine.md (Tool operations), tools.md (Operations)
+**Reference:** docs/concept/foundation.md (Division of labor), engine.md (Tool operations), tools.md (Operations)
 
 ## Why commands are thin wrappers
 

@@ -1,6 +1,6 @@
 # CLI Module Responsibility
 
-The CLI module covers the `@chrisdudek/yg` package — a deterministic command-line tool that implements Yggdrasil's persistent semantic memory for repositories. Reference: docs/idea/foundation.md, engine.md, tools.md.
+The CLI module covers the `@chrisdudek/yg` package — a deterministic command-line tool that implements Yggdrasil's persistent semantic memory for repositories. Reference: docs/concept/foundation.md, engine.md, tools.md.
 
 ## Architecture
 
@@ -21,7 +21,7 @@ The CLI is organized in a layered architecture with clear separation of concerns
 
 - Registering and executing 12 commands: init, build-context, validate, drift, drift-sync, status, tree, owner, deps, impact, aspects, preflight
 - Loading the graph from `.yggdrasil/` (config, model, aspects, flows, schemas)
-- Building context packages per the 5-step algorithm (docs/idea/engine.md)
+- Building context packages per the 5-step algorithm (docs/concept/engine.md)
 - Validating structural integrity and completeness signals
 - Detecting drift between graph mappings and file hashes (SHA-256)
 - Resolving dependency order for materialization (topological sort of structural relations)

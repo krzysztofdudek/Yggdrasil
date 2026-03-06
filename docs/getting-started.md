@@ -18,19 +18,19 @@ yg init --platform <platform>
 Supported platforms: `cursor`, `claude-code`, `copilot`, `cline`,
 `roocode`, `codex`, `windsurf`, `aider`, `gemini`, `amp`, `generic`
 
-## 3) Done
+## 3) Start coding
 
 Your repository is now self-aware.
 
-Open your AI tool and work exactly as you always did — brownfield or
-greenfield, it does not matter. Your agent will start building the
-semantic memory of your repo in the background.
+Open your AI tool and work like you always do. New project or existing one. It does not matter.
+
+As you work, your agent starts building the semantic memory of the repo in the background.
 
 You do not manage it. You do not think about it.
 
 ---
 
-*Want to go deeper?*
+_Want to go deeper?_
 
 - [Supported platforms](/platforms)
 - [CLI reference](/cli-reference)

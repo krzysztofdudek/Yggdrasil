@@ -23,9 +23,13 @@ You've tried rules files, long prompts, context dumps. They help for a while. Th
 
 The issue isn't intelligence. It's memory.
 
+AI agents do not need more repository. They need the right context for the specific part they are working on.
+
+That is the missing layer. Not bigger context windows. Not longer rules files. Persistent semantic memory.
+
 ## 🌳 What Yggdrasil does
 
-Yggdrasil gives your project a persistent memory that your agent reads and updates as it works.
+Yggdrasil gives your project a persistent memory that your agent reads and updates as it works. Instead of loading one giant blob of repo knowledge, it assembles a small context package for the exact unit the agent is touching.
 
 When the agent touches a file, it gets only the context relevant to _that specific part_ — not your entire repo, not all your rules, just what it actually needs. The agent builds and maintains this memory itself. You don't write documentation.
 
@@ -67,7 +71,7 @@ cd your-project
 yg init --platform <platform>
 ```
 
-That's it. Your agent now has persistent memory.
+That's it. Your agent now has persistent memory. From that point on, your agent can build context per area instead of guessing from partial code or global rules.
 
 ---
 
@@ -85,6 +89,8 @@ I ran 26 experiments on real open-source codebases (Hoppscotch, Medusa, Django).
 - **You don't need to set it up perfectly.** Start messy. After 2 iterations the memory is good. You don't need to map your whole project either — covering a few key areas gets you most of the benefit.
 - **When you change something, the agent knows what else is affected.** Not "this file changed so maybe check everything" — it knows which specific parts of your system are connected, down to individual functions.
 
+The biggest payoff is not single-file understanding. It is cross-module reasoning: why something exists, what depends on it, and what else breaks when you change it.
+
 ⚠️ **What I'm honest about:** these experiments were run by an AI agent, not peer-reviewed. The exact scores are directional. The biggest limitation is coverage — the memory only helps with parts of your system that are actually mapped. I'm working on that.
 
 Full experiment data: `experiments/`.
@@ -97,6 +103,8 @@ Full experiment data: `experiments/`.
 2. Your agent works normally. As it goes, it builds a memory of your system — what each part does, how things connect, what rules apply, and _why_ things are the way they are.
 3. Before touching a file, the agent asks Yggdrasil for context. It gets a short summary of everything relevant to that specific area.
 4. The agent writes code and updates the memory in the same step. It stays in sync automatically.
+
+The point is not to make the agent read more. The point is to make the repo legible.
 
 Plain Markdown and YAML. No database. No lock-in. Delete `.yggdrasil/` and everything works exactly as before.
 

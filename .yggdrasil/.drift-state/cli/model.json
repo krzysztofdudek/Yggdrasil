@@ -1,17 +1,17 @@
 {
-  "hash": "3532c87800f63090efa3f1210471f64d765907e2176d6a552816ca30be739346",
+  "hash": "f4007c4743b973db081e3a9aff556976d69ba65995c4913fc4d50f9b8fd87573",
   "files": {
     ".yggdrasil/model/cli/model/yg-node.yaml": "98cd88e2e8ad4184e86a618bfc8e3ac020838a738ec1d87da39ee243e82215f1",
     ".yggdrasil/model/cli/model/interface.md": "5165795248633223e129f9341462f208112563f6fac932ab119195cbd686b31d",
     ".yggdrasil/model/cli/model/internals.md": "7cdcba4453f5903468c71521f26fec33328d600a547a6200157e6e5db7920da9",
     ".yggdrasil/model/cli/model/responsibility.md": "b668c6db2090a36a54277f62fb228c266d87c6d119f89e6ed67e140392863a66",
     ".yggdrasil/model/cli/yg-node.yaml": "9a7f1a3b29f91683713e7a7d185b14830b8c9dd43ed49dda97fd546de5d39445",
-    ".yggdrasil/model/cli/internals.md": "2a0131c56fba482bcd4b91130f296c9633eb1e5fa65e19e414ac556f99e57aae",
-    ".yggdrasil/model/cli/responsibility.md": "0538b5e9d5e8d432a650aef1fe5b38144eaec0772bb4d3f5ad91a3e639cc80d1",
+    ".yggdrasil/model/cli/responsibility.md": "d88b933a6551942c862f23799206d64dcf8f619ed51308c3f0173b774d22509d",
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "6329a56d7eab89b99ad2a1ccb87ad2a767883f1c115b1027513c28c498e05364",
     ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
     "source/cli/src/model/.gitkeep": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
-    "source/cli/src/model/types.ts": "13265d309d9224b04759064ae0f8eb4c4a80ab93298befd43e4c847b953386f9"
+    "source/cli/src/model/types.ts": "13265d309d9224b04759064ae0f8eb4c4a80ab93298befd43e4c847b953386f9",
+    ".yggdrasil/model/cli/internals.md": "fcd16e38b431eead0b12e14b05dd25184ad4ef23884fbde7402172b0985857f6"
   },
   "mtimes": {
     ".yggdrasil/model/cli/model/yg-node.yaml": 1772776392198.5452,
@@ -19,8 +19,8 @@
     ".yggdrasil/model/cli/model/internals.md": 1772743197449.5266,
     ".yggdrasil/model/cli/model/responsibility.md": 1772778759688.719,
     ".yggdrasil/model/cli/yg-node.yaml": 1772776392200.1245,
-    ".yggdrasil/model/cli/internals.md": 1772743197448.5044,
-    ".yggdrasil/model/cli/responsibility.md": 1772778768764.6953,
+    ".yggdrasil/model/cli/internals.md": 1772829219205.6714,
+    ".yggdrasil/model/cli/responsibility.md": 1772828320680.1243,
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1772776392187.3232,
     ".yggdrasil/aspects/deterministic/content.md": 1772778780694.5889,
     "source/cli/src/model/.gitkeep": 1771702275795.2727,

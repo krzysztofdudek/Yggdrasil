@@ -1,0 +1,15 @@
+name: Docs — Concept
+type: library
+aspects: []
+blackbox: false
+
+relations: []
+
+mapping:
+  paths:
+    - docs/concept/engine.md
+    - docs/concept/foundation.md
+    - docs/concept/graph.md
+    - docs/concept/integration.md
+    - docs/concept/materialization.md
+    - docs/concept/tools.md

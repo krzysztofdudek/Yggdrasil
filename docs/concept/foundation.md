@@ -9,12 +9,12 @@ The cause is what the model knows at the moment work begins.
 An agent operating directly on files faces an impossible trade-off:
 
 - **Too little context**: sees one file, doesn't understand the system, breaks neighboring contracts.
-- **Too much context**: receives 200,000 tokens of repository dump, loses signal in noise,
+- **Too much context**: receives 50,000 tokens of repository dump, loses signal in noise,
   makes incorrect assumptions.
 
 Neither extreme produces reliable results. Larger context windows won't fix this —
-200,000 tokens of noise is not understanding. An agent needs 2,000 right tokens,
-not 200,000 random ones.
+50,000 tokens of noise is not understanding. An agent needs 5,000 right tokens,
+not 50,000 random ones.
 
 Current tools — code indexing, RAG, symbol search — answer questions like
 "where is function X defined?" or "show me file Y." They don't answer semantic questions:
@@ -155,7 +155,7 @@ intensity. When implementing a method, it focuses on the surroundings layer (dep
 interface) and unit identity (own contract), while world identity (stack, standards) and
 long-term memory (patterns, decisions) inform _how_ to implement, not _what_.
 
-The result is typically 2,000–5,000 tokens (5,000 is the warning threshold — packages above
+The result is typically 5,000–10,000 tokens (10,000 is the warning threshold — packages above
 that signal growing complexity). The size is bounded regardless of project size —
 a node in a graph with 10 nodes and a node in a graph with 10,000 nodes produce packages
 of similar size. The assembly algorithm is defined in the [Engine](engine) document.
@@ -313,7 +313,7 @@ copilot-instructions.md. These are flat files with instructions and context. The
 enough because:
 
 - **They don't scale.** 1,000 lines in a single file is noise — the agent loses signal just
-  as it does with 200,000 tokens of raw files.
+  as it does with 50,000 tokens of raw files.
 - **They are not queryable per-unit.** There is no way to say "give me context for
   OrderService." Either the whole file or nothing.
 - **They have no validation.** No one checks whether the content is consistent, complete,

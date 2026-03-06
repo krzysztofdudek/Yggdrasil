@@ -1,6 +1,6 @@
 # Core Responsibility
 
-Pure domain logic layer — graph operations independent of CLI presentation. Implements the deterministic algorithms specified in docs/idea/engine.md and docs/idea/tools.md.
+Pure domain logic layer — graph operations independent of CLI presentation. Implements the deterministic algorithms specified in docs/concept/engine.md and docs/concept/tools.md.
 
 ## Boundary
 
@@ -23,7 +23,7 @@ Core has no dependency on Commander, process.exit, stdout, or stderr. It receive
 - **Context reproducibility:** assembled context must suffice to reconstruct source behavior without reading raw code.
 - **Read-only graph writes:** core does not create or edit model nodes, artifacts, aspects, or flows.
 
-**Reference:** docs/idea/foundation.md (Division of labor), aspects/deterministic.
+**Reference:** docs/concept/foundation.md (Division of labor), aspects/deterministic.
 
 ## Out of scope
 

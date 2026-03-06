@@ -44,7 +44,7 @@ uses, calls, extends, implements must not form cycles. emits, listens may cycle 
 
 # Core Decisions
 
-**Reference:** docs/idea/engine.md (Context assembly, validation, drift, dependencies)
+**Reference:** docs/concept/engine.md (Context assembly, validation, drift, dependencies)
 
 ## Why core is separated from commands
 
@@ -56,7 +56,7 @@ Each component (loader, context-builder, validator, drift-detector, dependency-r
 
 ## 5-step context assembly
 
-The algorithm is fixed (docs/idea/engine.md). Order: global, hierarchy, own, aspects, relational (structural deps + events + flows). Each step is mechanical: read declarations, copy content, annotate with YAML metadata. Tools never interpret Markdown content — they copy and annotate. The agent interprets.
+The algorithm is fixed (docs/concept/engine.md). Order: global, hierarchy, own, aspects, relational (structural deps + events + flows). Each step is mechanical: read declarations, copy content, annotate with YAML metadata. Tools never interpret Markdown content — they copy and annotate. The agent interprets.
 
 ## Why determinism matters
 

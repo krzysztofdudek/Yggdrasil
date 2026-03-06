@@ -2,7 +2,7 @@
 
 # CLI Decisions
 
-**Reference:** docs/idea/foundation.md, graph.md, engine.md, tools.md
+**Reference:** docs/concept/foundation.md, graph.md, engine.md, tools.md
 
 ## Why Yggdrasil exists
 
@@ -26,4 +26,4 @@ Tools read and validate the graph; they do not write it. The agent writes the gr
 
 ## Key insight
 
-Agents need 2000 *right* tokens, not 200,000 random ones. The graph enables bounded context packages assembled mechanically from explicit declarations. Deterministic discoverability: every piece of knowledge reaches the agent through a declared, tool-verifiable path.
+Agents need 5000 *right* tokens, not 50,000 random ones. The graph enables bounded context packages assembled mechanically from explicit declarations. Deterministic discoverability: every piece of knowledge reaches the agent through a declared, tool-verifiable path.

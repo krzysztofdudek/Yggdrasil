@@ -12,7 +12,7 @@ This node represents the public-facing documentation of Yggdrasil, targeting ado
 
 ## Not responsible for
 
-- Specifying the internal logical model, algorithms, or design decisions — that belongs to `docs/idea/`
+- Specifying the internal logical model, algorithms, or design decisions — that belongs to `docs/concept/`
 - Describing the semantic graph structure used in this repository — that belongs to `.yggdrasil/`
 - Implementation details of the CLI — those live in `source/cli/`
 
