@@ -2,23 +2,17 @@ import { Command } from 'commander';
 import { loadGraph } from '../core/graph-loader.js';
 import { detectDrift } from '../core/drift-detector.js';
 import { validate } from '../core/validator.js';
-import { readJournal } from '../io/journal-store.js';
-import { findYggRoot } from '../utils/paths.js';
 import { normalizeMappingPaths } from '../utils/paths.js';
 
 export function registerPreflightCommand(program: Command): void {
   program
     .command('preflight')
-    .description('Unified diagnostic report: journal, drift, status, validation')
+    .description('Unified diagnostic report: drift, status, validation')
     .option('--quick', 'Skip drift detection for faster results')
     .action(async (options: { quick?: boolean }) => {
       try {
         const cwd = process.cwd();
         const graph = await loadGraph(cwd);
-        const yggRoot = await findYggRoot(cwd);
-
-        // --- Journal ---
-        const journalEntries = await readJournal(yggRoot);
 
         // --- Drift ---
         const driftedEntries = options.quick
@@ -42,18 +36,6 @@ export function registerPreflightCommand(program: Command): void {
         // --- Build output ---
         const lines: string[] = [];
         lines.push('=== Preflight Report ===');
-        lines.push('');
-
-        // Journal section
-        if (journalEntries.length === 0) {
-          lines.push('Journal:    clean');
-        } else {
-          lines.push(`Journal:    ${journalEntries.length} pending entries`);
-          for (const entry of journalEntries) {
-            const target = entry.target ? ` [${entry.target}]` : '';
-            lines.push(`            - ${entry.note}${target}`);
-          }
-        }
         lines.push('');
 
         // Drift section
@@ -99,10 +81,9 @@ export function registerPreflightCommand(program: Command): void {
 
         process.stdout.write(lines.join('\n'));
 
-        // Exit code: 1 if journal entries, drift, or validation errors exist.
+        // Exit code: 1 if drift or validation errors exist.
         // Warnings alone do not cause exit 1.
-        const hasIssues =
-          journalEntries.length > 0 || (!options.quick && driftedEntries.length > 0) || errors.length > 0;
+        const hasIssues = (!options.quick && driftedEntries.length > 0) || errors.length > 0;
         process.exit(hasIssues ? 1 : 0);
       } catch (error) {
         process.stderr.write(`Error: ${(error as Error).message}\n`);

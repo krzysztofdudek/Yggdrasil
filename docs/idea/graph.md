@@ -30,7 +30,7 @@ Semantic memory lives under `.yggdrasil/`.
 - `schemas/` — schemas for each graph layer (node, aspect, flow).
 
 The graph is semantic memory, not implementation. It describes what the repository **means**.
-Context assembly, validation, drift detection, and journal mechanics are defined in the
+Context assembly, validation, and drift detection are defined in the
 [Engine](engine) document.
 
 ### Reserved vs user-owned names

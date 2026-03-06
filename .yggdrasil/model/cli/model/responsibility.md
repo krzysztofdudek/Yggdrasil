@@ -12,7 +12,6 @@ TypeScript type definitions for the graph and operations on it. Single source of
 - **Dependency resolution:** Stage
 - **Validation:** ValidationResult, ValidationIssue, IssueSeverity
 - **Drift:** DriftReport, DriftEntry, DriftStatus, DriftState, DriftNodeState
-- **Journal:** JournalEntry
 - **Owner:** OwnerResult
 
 **Out of scope:**

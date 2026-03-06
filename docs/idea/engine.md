@@ -394,131 +394,13 @@ Tools record the new state via `drift-sync`.
 
 ---
 
-## Session Journal
-
-### The Problem
-
-Conversation with the agent is **volatile memory** — it is compressed (context summarization
-after window fill), interruptible (the user ends the session at any point), and ephemeral
-(it doesn't survive between sessions in full form).
-
-Any semantic knowledge living only in conversation is at risk of loss.
-
-A full graph update — creating a Markdown artifact, expanding `yg-node.yaml`, adding an aspect
-or flow — requires focus and interrupts the creative flow. The agent faces a trade-off: save
-to graph immediately (risk of interrupting flow) or defer until later (risk of loss on context
-compression or session interruption).
-
-### Mechanism
-
-The session journal is a buffer between volatile conversation and persistent semantic memory.
-It works as a session log — the agent records notes about what it's doing (decisions made,
-logic changes, new components) at the moment they happen, quickly and without interrupting the
-creative flow. Notes are later consolidated into full graph entries during session close
-(reconciliation).
-
-The journal is managed mechanically by tools. The agent provides content — what to note.
-The tool handles file format, timestamps, and file operations. **The agent does not edit the
-journal file directly**, just as it does not edit `.yggdrasil/.drift-state`.
-
-The journal is stored in `.yggdrasil/.journal.yaml`. It is **local** and **gitignored** —
-each developer has their own journal on their machine. This is not a shared team artifact;
-it is a personal session buffer. The shared artifact is the committed graph.
-
-The journal is not an alternative to the graph — it is a write buffer. Intent captured in the
-journal survives context compression and session interruption because it is a file on disk.
-But until consolidated into the graph, it does not participate in context assembly, validation,
-or drift detection.
-
-### Presence Signal
-
-The journal's state model is deliberately simple:
-
-- File exists with entries → pending intent.
-- File absent or empty → clean state.
-
-Tools do not track status of individual entries — all entries in the active journal are
-pending. Presence of the journal at session open is an unambiguous signal: the previous session
-did not close cleanly, or left unprocessed notes. The agent consolidates them into the graph
-before starting new work.
-
-### Archiving
-
-After consolidating entries into the graph, the tool archives the journal — moves
-`.yggdrasil/.journal.yaml` to `.yggdrasil/journals-archive/.journal.<datetime>.yaml`.
-The active journal disappears. The next session starts with a clean state.
-
-The archive preserves the **intent trail** — the original decision context from conversation.
-Git tells who changed which file. The archived journal tells _why_ a conversation decision
-led to a graph change. The archive is gitignored — it is a local reference, not a shared
-team artifact.
-
-### Session Lifecycle
-
-The lifecycle below applies when journal mode is **explicitly enabled** by the user (e.g. "tryb
-iteracyjny", "użyj journala"). By default the agent updates the graph directly; the journal is
-optional.
-
-```
-Session N:
-  Agent notes → .yggdrasil/.journal.yaml grows
-
-Session N close:
-  Agent consolidates → tool archives → .yggdrasil/.journal.yaml → .yggdrasil/journals-archive/.journal.<datetime>.yaml
-
-Session N+1 open:
-  No .yggdrasil/.journal.yaml → clean start
-```
-
-If session N was interrupted without closing:
-
-```
-Session N: interrupted → .yggdrasil/.journal.yaml left on disk
-
-Session N+1 open:
-  .yggdrasil/.journal.yaml exists → signal → agent consolidates → tool archives → clean start
-```
-
-The open phase always compensates for a missing close phase.
-
-**Lifecycle symmetry:**
-
-| Phase | Journal                      | Drift                         | Validation              |
-| ----- | ---------------------------- | ----------------------------- | ----------------------- |
-| Open  | Notes from previous sessions | Changes between sessions      | Consistency before work |
-| Close | Notes from current session   | Manual changes during session | Consistency after work  |
-
-Both phases execute the same checks. Both guarantee that each session starts and ends with a
-consistent graph state — regardless of what happened in the gap between sessions or during
-creative work.
-
-### Journal and Subagents
-
-The journal is a tool for the **orchestrating agent**, not for subagents. A subagent working
-on its assigned node writes directly to the graph — artifacts, relations — that is its job.
-
-If a subagent discovers something outside its scope (an observation about another node, a
-potential inconsistency, a missing relation), it returns that in its output to the
-orchestrating agent. The orchestrating agent decides: note in journal, write to graph, or
-discard.
-
-**One writer, zero coordination, no file contention.**
-
-### Position in the Truth Hierarchy
-
-The journal sits between Intent and Graph — captured intent not yet formalized in the graph.
-Archiving after consolidation guarantees that intent either reaches the graph or is in the
-archive for later inspection. The active journal never accumulates indefinitely.
-
----
-
 ## Tool Operations
 
 Tools are the deterministic engine through which agents and humans query and validate the graph.
 
 Read and validation operations are stateless — they read files from disk, process, and produce
-output. Journal and drift operations modify operational metadata (`.journal.yaml`,
-`.drift-state`) but not semantic knowledge in the graph.
+output. Drift operations modify operational metadata (`.drift-state`) but not semantic
+knowledge in the graph.
 
 ### Read Operations
 
@@ -549,17 +431,6 @@ Validation operations do not modify semantic knowledge. Drift detection updates 
 metadata (`.drift-state`) in absorption mode — after an explicit human decision. This is
 tracking state, not semantic knowledge.
 
-### Journal Operations
-
-| Operation       | Description                                                                |
-| --------------- | -------------------------------------------------------------------------- |
-| Journal add     | Add an entry to the session journal (optional target node, intent content) |
-| Journal read    | List entries from the current journal                                      |
-| Journal archive | Move the current journal to the archive                                    |
-
-Journal operations manage session operational metadata. The agent provides entry content;
-tools handle file format, timestamps, and file operations.
-
 ### Initialization
 
 | Operation  | Description                                                                            |
@@ -578,8 +449,9 @@ write artifacts, or manage aspects and flows. That is creative work belonging to
 Tools maintain only operational metadata:
 
 - Drift state (`.drift-state`) — for tracking synchronization.
-- The agent creates directories, writes `yg-node.yaml`, writes Markdown artifacts. Tools validate
-  the result and give feedback.
+
+The agent creates directories, writes `yg-node.yaml`, writes Markdown artifacts. Tools validate
+the result and give feedback.
 
 This model is analogous to the programmer–compiler relationship: the programmer writes code,
 the compiler checks correctness. The only exception is initialization, which creates the

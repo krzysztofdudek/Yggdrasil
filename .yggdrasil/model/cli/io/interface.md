@@ -1,6 +1,6 @@
 # IO Interface
 
-Library used by cli/core (loader, drift-detector) and cli/commands (journal). All paths are absolute; callers resolve from project root or yggRoot.
+Library used by cli/core (loader, drift-detector). All paths are absolute; callers resolve from project root or yggRoot.
 
 ## config-parser.ts
 
@@ -40,12 +40,6 @@ Library used by cli/core (loader, drift-detector) and cli/commands (journal). Al
 - `getCanonicalHash(entry: string | DriftNodeState): string` — returns string hash or entry.hash
 - `getFileHashes(entry: string | DriftNodeState): Record<string, string> | undefined` — returns entry.files or undefined
 
-## journal-store.ts
-
-- `readJournal(yggRoot: string): Promise<JournalEntry[]>` — returns `[]` on missing file or parse error
-- `appendJournalEntry(yggRoot: string, note: string, target?: string): Promise<JournalEntry>` — appends with ISO timestamp
-- `archiveJournal(yggRoot: string): Promise<{ archiveName: string; entryCount: number } | null>` — moves .journal.yaml to journals-archive/.journal.YYYYMMDD-HHMMSS.yaml; returns null if empty or missing
-
 ## Failure Modes
 
 Parsers and stores throw `Error` on invalid input. No dedicated error codes — standard Error with descriptive message.
@@ -62,4 +56,4 @@ Parsers and stores throw `Error` on invalid input. No dedicated error codes — 
 
 **artifact-reader:** Propagates ENOENT, EACCES from readdir/readFile.
 
-**drift-state-store, journal-store:** ENOENT on read is handled gracefully (return {} or []). Write failures propagate (ENOENT, EACCES). archiveJournal returns null on missing/empty journal.
+**drift-state-store:** ENOENT on read is handled gracefully (return {}). Write failures propagate (ENOENT, EACCES).

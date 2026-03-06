@@ -41,7 +41,7 @@ yg build-context --node orders/order-service
 
 **Diagnostics:**
 
-- `yg preflight [--quick]` — Unified diagnostic report: journal, drift, status, validation
+- `yg preflight [--quick]` — Unified diagnostic report: drift, status, validation
 
 **Reading and analysis:**
 
@@ -60,12 +60,6 @@ yg build-context --node orders/order-service
 - `yg drift [--scope all|node-path] [--drifted-only] [--limit <n>]` — Detect graph-to-file divergence
 - `yg drift-sync --node <path> [--recursive]` — Record current file hash after resolving drift
 - `yg drift-sync --all` — Sync all nodes with mappings in one command
-
-**Session journal:**
-
-- `yg journal-add --note "..." [--target <node-path>]` — Buffer a decision note
-- `yg journal-read` — List pending journal entries
-- `yg journal-archive` — Archive journal after consolidation
 
 **Setup:**
 

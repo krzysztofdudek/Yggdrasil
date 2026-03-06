@@ -14,9 +14,6 @@ relations:
   - target: cli/core/drift-detector
     type: uses
     consumes: [detectDrift]
-  - target: cli/io
-    type: uses
-    consumes: [readJournal]
   - target: cli/utils
     type: uses
     consumes: [findYggRoot, normalizeMappingPaths]

@@ -41,9 +41,7 @@ async function refreshSchemas(yggRoot: string): Promise<void> {
   }
 }
 
-const GITIGNORE_CONTENT = `.journal.yaml
-.drift-state
-journals-archive/
+const GITIGNORE_CONTENT = `.drift-state
 `;
 
 export function registerInitCommand(program: Command): void {

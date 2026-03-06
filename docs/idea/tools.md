@@ -268,40 +268,13 @@ Each path in `mapping.paths` is checked at runtime — if it is a file, it is ha
 pairs. The overall canonical `hash` combines all tracked file hashes (source + graph) into a
 single value.
 
-### .journal.yaml
-
-Session buffer between ephemeral conversation and the persistent graph. Managed by tools —
-the agent provides the content, the tool handles formatting. Stored at `.yggdrasil/.journal.yaml`.
-
-Gitignored (local per-developer).
-
-```yaml
-entries:
-  - at: "2024-01-15T10:30:00Z"
-    target: orders/order-service
-    note: "We decided on event sourcing for order states"
-  - at: "2024-01-15T11:45:00Z"
-    note: "Payment gateway requires idempotency keys on every request"
-```
-
-| Field    | Type                  | Required | Description                                      |
-| -------- | --------------------- | -------- | ------------------------------------------------ |
-| `at`     | string (ISO 8601 UTC) | Yes      | Entry timestamp                                  |
-| `target` | string                | No       | Path to the affected node (relative to `model/`) |
-| `note`   | string                | Yes      | The intent/note content                          |
-
-The tool generates `at`. The agent provides `target` and `note`.
-
-The existence of a file with entries means pending intents. No file or an empty file means
-a clean state (see the [Engine](engine) document).
-
 ---
 
 ## Operations
 
 Each operation is described by its purpose, parameters, step-by-step behavior, result, and
 error conditions. Operations do not modify semantic content in the graph — they only create, read,
-or modify operational metadata (`.yggdrasil/.drift-state`, `.yggdrasil/.journal.yaml`). The only exception is
+or modify operational metadata (`.yggdrasil/.drift-state`). The only exception is
 initialization, which creates the starting structure.
 
 ### Naming convention
@@ -322,9 +295,6 @@ yg impact --node payments/payment-service --simulate
 yg validate
 yg drift
 yg drift-sync --node orders/order-service
-yg journal-add --note "..." --target orders/order-service
-yg journal-read
-yg journal-archive
 ```
 
 Command names correspond to the section headers below. Parameters passed via flags
@@ -362,12 +332,7 @@ Upgrade mode — refreshes only the rules file (when `.yggdrasil/` already exist
    ```
 
 3. Write `yg-config.yaml` with default content (see Default configuration below).
-4. Write `.yggdrasil/.gitignore`:
-
-   ```text
-   .journal.yaml
-   journals-archive/
-   ```
+4. Write `.yggdrasil/.gitignore` (with entries for local operational files).
 
 5. Run migrations (upgrade mode only):
 
@@ -632,7 +597,7 @@ Quality:
 
 ### Preflight
 
-Unified diagnostic combining journal state, drift detection, graph status, and validation.
+Unified diagnostic combining drift detection, graph status, and validation.
 
 **Parameters:**
 
@@ -642,16 +607,13 @@ Unified diagnostic combining journal state, drift detection, graph status, and v
 
 **Behavior:**
 
-1. Run `journal-read` — list pending journal entries (non-empty journal contributes to exit code 1).
-2. Unless `--quick`: run `drift --drifted-only` — report nodes with source or graph drift (any drift contributes to exit code 1). When `--quick`, output "Drift: skipped (--quick)".
-3. Run `status` — report graph health (node, aspect, flow, and mapping counts).
-4. Run `validate` — report structural errors and completeness warnings (any errors contribute to exit code 1).
+1. Unless `--quick`: run `drift --drifted-only` — report nodes with source or graph drift (any drift contributes to exit code 1). When `--quick`, output "Drift: skipped (--quick)".
+2. Run `status` — report graph health (node, aspect, flow, and mapping counts).
+3. Run `validate` — report structural errors and completeness warnings (any errors contribute to exit code 1).
 
 **Result:**
 
 ```text
-Journal: 1 pending entry
-
 Drift:
   orders/order-service source-drift
 
@@ -665,8 +627,8 @@ Validation: 0 errors, 3 warnings
 
 **Exit codes:**
 
-- `0` — fully clean: no journal entries, no drift, no validation errors.
-- `1` — one or more of: pending journal entries, drifted nodes, validation errors.
+- `0` — fully clean: no drift, no validation errors.
+- `1` — one or more of: drifted nodes, validation errors.
 
 **Errors:**
 
@@ -1092,105 +1054,6 @@ Synchronized: orders/order-service
 
 ---
 
-### Journal: add
-
-Add an entry to the session journal.
-
-**Parameters:**
-
-| Parameter | Type   | Required | Description               |
-| --------- | ------ | -------- | ------------------------- |
-| `note`    | string | Yes      | The content of the note   |
-| `target`  | string | No       | Path to the affected node |
-
-**Behavior:**
-
-1. If `.yggdrasil/.journal.yaml` does not exist — create it with an empty `entries` list. (Path is inside `.yggdrasil/`.)
-2. Add an entry with an automatic timestamp (UTC), `target` (if provided), and `note`.
-
-**Result:**
-
-```text
-Note added to journal (3 entries total)
-```
-
-**Errors:**
-
-- None — operation always succeeds.
-
----
-
-### Journal: read
-
-List entries from the current journal.
-
-**Parameters:** none.
-
-**Behavior:**
-
-1. If `.yggdrasil/.journal.yaml` does not exist or is empty — return an empty list. (Path is inside `.yggdrasil/`.)
-2. Read and return the entries.
-
-**Result:**
-
-```text
-Session journal (3 entries):
-
-[2024-01-15 10:30:00] orders/order-service
-  We decided on event sourcing for order states
-
-[2024-01-15 11:45:00]
-  Payment gateway requires idempotency keys on every request
-
-[2024-01-15 14:20:00] auth/token-service
-  Refresh tokens — rotation on every use, 7 day TTL
-```
-
-Or:
-
-```text
-Session journal: empty (clean state)
-```
-
-**Errors:**
-
-- None — operation always succeeds.
-
----
-
-### Journal: archive
-
-Move the current journal to the archive.
-
-**Parameters:** none.
-
-**Behavior:**
-
-1. If `.yggdrasil/.journal.yaml` does not exist or has no entries — nothing to archive.
-2. Create directory `.yggdrasil/journals-archive/` if it does not exist.
-3. Move `.yggdrasil/.journal.yaml` to
-   `.yggdrasil/journals-archive/.journal.<datetime>.yaml`
-   where `<datetime>` is a timestamp in `YYYYMMDD-HHmmss` format.
-4. The active journal disappears — the next session starts clean.
-
-**Result:**
-
-```text
-Archived journal (3 entries) -> journals-archive/.journal.20240115-143000.yaml
-```
-
-Or:
-
-```text
-No active journal - nothing to archive.
-```
-
-**Errors:**
-
-- None — operation always succeeds.
-
----
-
 ## Platform rules file
 
 Initialization generates a rules file delivered via the agent platform's integration
@@ -1221,12 +1084,12 @@ documents the behavioral contract; the implementation provides the canonical tex
 
 **Behavioral model (no explicit "session"):**
 
-- **Start of every conversation:** Preflight — (1) `yg journal-read` (consolidate, archive if entries exist),
-  (2) `yg drift --drifted-only` (reports source and graph drift — `source-drift`/`graph-drift`/`full-drift`/`missing`/`unmaterialized`),
-  (3) `yg status` (report health), (4) `yg validate` (fix any errors, address warnings).
-  _Exception:_ Read-only requests run only step 1.
-- **User signals closing the topic** (e.g. "we're done", "wrap up", "that's enough", "done"): Consolidate journal (if used),
-  archive, drift, validate, report exactly what nodes and files were changed.
+- **Start of every conversation:** Preflight — (1) `yg drift --drifted-only` (reports source
+  and graph drift — `source-drift`/`graph-drift`/`full-drift`/`missing`/`unmaterialized`),
+  (2) `yg status` (report health), (3) `yg validate` (fix any errors, address warnings).
+  _Exception:_ Read-only requests skip preflight.
+- **User signals closing the topic** (e.g. "we're done", "wrap up", "that's enough", "done"):
+  drift, validate, report exactly what nodes and files were changed.
 - **Execution checklists:** Code-first (read spec → modify code → sync artifacts → baseline hash) and graph-first
   (read schema → edit graph → verify source → validate → baseline hash). Agent must output and execute before finishing.
 

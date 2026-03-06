@@ -77,7 +77,7 @@ A user who never uses an explicit trigger still benefits from ambient integratio
 
 The agent creates and edits graph files — both YAML metadata (`yg-node.yaml`, `yg-flow.yaml`,
 `yg-aspect.yaml`) and Markdown artifacts (`responsibility.md`, `interface.md`, `internals.md`,
-`content.md`, etc.). Tools have no write operations to the graph — they are readers and validators of semantic content. Tools do write operational metadata (`.drift-state`, `.journal.yaml`) for drift tracking and session buffering; see the [Engine](engine) document.
+`content.md`, etc.). Tools have no write operations to the graph — they are readers and validators of semantic content. Tools do write operational metadata (`.drift-state`) for drift tracking; see the [Engine](engine) document.
 
 ### Condition: the agent knows how
 
@@ -138,12 +138,11 @@ a rules file in Cursor, `CLAUDE.md` in Claude Code, instructions in Copilot) tea
 This repository uses Yggdrasil. The graph is in .yggdrasil/
 
 === SESSION OPEN (reconciliation) ===
-- Consolidate pending notes from the previous sessions journal
 - Detect drift — files may have changed outside the previous session
 - Check drift and validation status
 - Report status: what needs attention before you start
 
-*Exception:* Read-only requests (e.g. "explain this") run only step 1.
+*Exception:* Read-only requests (e.g. "explain this") skip preflight.
 
 === CREATIVE WORK ===
 
@@ -159,14 +158,13 @@ WHEN OWNER NOT FOUND (file without graph coverage):
 - Existing code: present three options (Reverse engineering, Blackbox, Abort); wait for user.
 
 AFTER SEMANTIC DECISIONS:
-- Persist the decision: update the graph or write a note in the session journal
+- Persist the decision: update the graph
 
 BEFORE A CHANGE THAT AFFECTS MANY NODES:
 - Check impact of the planned change (impact analysis simulation)
 - Inform the user about the consequence scope
 
 === SESSION CLOSE (consolidation) ===
-- Consolidate pending journal notes into the graph
 - Detect drift — files may have been manually changed during the session
 - Verify graph consistency — fix any errors
 - Report exactly what nodes and files were changed
@@ -272,20 +270,10 @@ a file on disk, in the repository, under version control.
 
 The graph reflects system **intent**: what it is, why it is that way, and what rules apply.
 
-### Default flow: graph + code, no journal
+### Default flow: graph + code
 
-By default, the agent updates the graph immediately (no journal) so graph and code stay synchronized.
+By default, the agent updates the graph immediately so graph and code stay synchronized.
 After any graph edit: run `yg validate` and fix issues until clean.
-
-### Optional journal mode (ONLY if the user explicitly requests it)
-
-If the user says to use a journal / iterative mode:
-
-- Use `yg journal-add --note "..." [--target <node>]` to buffer intent while requirements are ping-ponging.
-- Still keep the graph minimally consistent (e.g., create missing nodes/mappings to maintain ownership).
-- When the user signals wrapping up: consolidate notes into the graph and archive.
-
-The journal is not the default path — it is enabled only on explicit user request.
 
 ### Agent decision: new node or attach
 
@@ -297,24 +285,12 @@ acting.
 
 Each conversation is work. The agent does not wait for explicit session open/close:
 
-- **Start of every conversation:** Preflight — (1) `yg journal-read` (consolidate, archive if entries exist),
-  (2) `yg drift` (present states `ok`/`drift`/`missing`/`unmaterialized`, ask absorb or reject),
-  (3) `yg status` (report health), (4) `yg validate` (fix any errors, address warnings).
-  *Exception:* Read-only requests run only step 1.
-- **User signals closing the topic** (e.g. "end", "wrap up", "that's enough", "done"): Consolidate journal (if used),
-  archive, drift, validate, report exactly what nodes and files were changed.
-
-If the conversation is interrupted before wrap-up, journal notes (if any) survive on disk and are
-processed during the next conversation's preflight. The system is interruption-resilient.
-
-### The journal as an intent trace
-
-The journal preserves the original context of decisions — a literal record of intent from the
-conversation. Git says *who* changed *which file*. The journal says *why* — which conversational
-decision led to a change in semantic memory.
-
-Journal mechanics — file format, entry model, reconciliation algorithm — are described in the Engine
-document.
+- **Start of every conversation:** Preflight — (1) `yg drift` (present states
+  `ok`/`drift`/`missing`/`unmaterialized`, ask absorb or reject),
+  (2) `yg status` (report health), (3) `yg validate` (fix any errors, address warnings).
+  *Exception:* Read-only requests skip preflight.
+- **User signals closing the topic** (e.g. "end", "wrap up", "that's enough", "done"):
+  drift, validate, report exactly what nodes and files were changed.
 
 ---
 
@@ -366,15 +342,6 @@ actually uses.
   boundaries.
 - **Shared knowledge.** All subagents read from the same semantic memory. There is no risk one
   subagent has a different understanding of the system than another.
-
-### The journal belongs to the parent agent
-
-Subagents do not write to the session journal. A subagent working on its node writes directly to the
-graph — that is its job. If the subagent discovers something outside its scope (an observation about
-another node, potential inconsistency, missing relation), it reports it back to the parent agent.
-The parent agent decides: write to the graph, note it in the journal, or discard it.
-
-This model ensures a single journal writer, zero coordination, and no contention on the file.
 
 ### Behavioral directives apply to all agents
 

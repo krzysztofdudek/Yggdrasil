@@ -16,7 +16,6 @@ try {
 
 - **Graph loader:** `aspects/`, `flows/`, `schemas/` directories may not exist. Return empty arrays.
 - **Drift state store:** `.drift-state` file may not exist. Return empty object `{}`.
-- **Journal store:** `.journal.yaml` file may not exist. Return empty array `[]`.
 
 ## Rationale
 

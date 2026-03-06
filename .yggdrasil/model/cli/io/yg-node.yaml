@@ -24,7 +24,6 @@ relations:
       - SchemaDef
       - DriftState
       - DriftNodeState
-      - JournalEntry
 
 mapping:
   paths:

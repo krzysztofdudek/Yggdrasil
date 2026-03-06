@@ -626,87 +626,6 @@ describe.skipIf(!distExists)('CLI E2E', () => {
     }
   });
 
-  // --- journal ---
-
-  it('yg journal-add --note adds entry', () => {
-    const tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-journal-'));
-
-    try {
-      cpSync(FIXTURE, tmpDir, { recursive: true });
-      const { status, stdout } = run(['journal-add', '--note', 'E2E test note'], tmpDir);
-      expect(status).toBe(0);
-      expect(stdout).toContain('Note added to journal');
-      expect(stdout).toContain('1 entries');
-    } finally {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
-  });
-
-  it('yg journal-add --note --target adds entry with target', () => {
-    const tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-journal-target-'));
-
-    try {
-      cpSync(FIXTURE, tmpDir, { recursive: true });
-      run(['journal-add', '--note', 'Fix auth', '--target', 'auth/auth-api'], tmpDir);
-      const { status, stdout } = run(['journal-read'], tmpDir);
-      expect(status).toBe(0);
-      expect(stdout).toContain('auth/auth-api');
-      expect(stdout).toContain('Fix auth');
-    } finally {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
-  });
-
-  it('yg journal-read shows entries or empty', () => {
-    const tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-journal-read-'));
-
-    try {
-      cpSync(FIXTURE, tmpDir, { recursive: true });
-      const { status, stdout } = run(['journal-read'], tmpDir);
-      expect(status).toBe(0);
-      expect(stdout).toMatch(/empty \(clean state\)|Session journal \(\d+ entries\)/);
-    } finally {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
-  });
-
-  it('yg journal-archive archives entries', () => {
-    const tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-journal-archive-'));
-
-    try {
-      cpSync(FIXTURE, tmpDir, { recursive: true });
-      run(['journal-add', '--note', 'Archive me'], tmpDir);
-      const { status, stdout } = run(['journal-archive'], tmpDir);
-      expect(status).toBe(0);
-      expect(stdout).toContain('Archived journal');
-      expect(stdout).toContain('journals-archive/');
-
-      const { stdout: readOut } = run(['journal-read'], tmpDir);
-      expect(readOut).toContain('empty (clean state)');
-    } finally {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
-  });
-
-  it('yg journal-archive when empty prints nothing to archive', () => {
-    const tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-journal-archive-empty-'));
-
-    try {
-      cpSync(FIXTURE, tmpDir, { recursive: true });
-      const { status, stdout } = run(['journal-archive'], tmpDir);
-      expect(status).toBe(0);
-      expect(stdout).toContain('No active journal');
-    } finally {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
-  });
-
-  it('yg journal-add without --note returns exit 1', () => {
-    const { status, stderr } = run(['journal-add']);
-    expect(status).toBe(1);
-    expect(stderr).toContain('required option');
-  });
-
   // --- status output details ---
 
   it('yg status includes drift summary', () => {
@@ -729,7 +648,6 @@ describe.skipIf(!distExists)('CLI E2E', () => {
     it('outputs all four report sections', () => {
       const { stdout, status } = run(['preflight']);
       expect(stdout).toContain('=== Preflight Report ===');
-      expect(stdout).toContain('Journal:');
       expect(stdout).toContain('Drift:');
       expect(stdout).toContain('Status:');
       expect(stdout).toContain('Validation:');
@@ -744,7 +662,6 @@ describe.skipIf(!distExists)('CLI E2E', () => {
     it('--quick skips drift detection', () => {
       const { stdout } = run(['preflight', '--quick']);
       expect(stdout).toContain('Drift:      skipped (--quick)');
-      expect(stdout).toContain('Journal:');
       expect(stdout).toContain('Status:');
       expect(stdout).toContain('Validation:');
     });

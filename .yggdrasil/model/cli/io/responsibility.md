@@ -10,8 +10,6 @@ I/O layer — parsing graph YAML files and persisting operational state. Separat
 - **schema-parser:** `parseSchema(filePath)` — validates YAML parseable, infers `schemaType` from filename stem. Used by loadSchemas; no artifacts.
 - **artifact-reader:** Read artifact files from directory. Exclude/include filters. Sorted by filename for determinism.
 - **drift-state-store:** Read/write .drift-state. Supports legacy string hash or DriftNodeState with hash and optional files.
-- **journal-store:** Read/write .journal.yaml, append entries, archive to journals-archive/ with timestamped filename.
-
 **Out of scope:**
 
 - Validation logic (cli/core/validator)

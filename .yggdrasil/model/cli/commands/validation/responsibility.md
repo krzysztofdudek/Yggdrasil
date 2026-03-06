@@ -11,4 +11,4 @@
 
 **Consumes:** loadGraph (cli/core/loader); validate (cli/core/validator).
 
-**Out of scope:** Drift, journal, graph navigation, context assembly.
+**Out of scope:** Drift, graph navigation, context assembly.

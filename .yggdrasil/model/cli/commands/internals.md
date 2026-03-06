@@ -26,4 +26,4 @@ Commands are scriptable. CI pipelines, agent workflows, and humans need a clear 
 
 ## Why commands don't write the graph
 
-Per the division of labor, tools read and validate. Commands call loadGraph, validate, detectDrift — they never create nodes or artifacts. The only writes are operational metadata (drift-sync, journal) via io, and init's one-time bootstrap.
+Per the division of labor, tools read and validate. Commands call loadGraph, validate, detectDrift — they never create nodes or artifacts. The only writes are operational metadata (drift-sync) via io, and init's one-time bootstrap.

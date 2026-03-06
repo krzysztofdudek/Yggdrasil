@@ -78,8 +78,7 @@ Human ──(conversation)──► Agent ──(reads/writes)──► Reposito
 1. **Understanding intent** — conversation with the human, optionally assisted by external
    process tools.
 2. **Building semantic memory** — creating or updating graph nodes with semantic descriptions,
-   constraints, interfaces, relationships. Intent can be buffered in a session journal before
-   reaching the graph (optional, see [Engine](engine)); by default the agent updates the graph directly.
+   constraints, interfaces, relationships. By default the agent updates the graph directly.
 3. **Assembling context** — tools build context packages from the graph (see [Graph](graph), [Engine](engine), [Tools](tools)).
 4. **Materialization** — agent or subagents produce outputs from context packages (see [Materialization](materialization)).
 5. **Drift detection** — tools compare graph expectations with actual state (see [Engine](engine)).

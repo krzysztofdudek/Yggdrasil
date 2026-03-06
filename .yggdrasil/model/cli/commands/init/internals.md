@@ -16,7 +16,7 @@
    - mkdir model, aspects, flows, schemas
    - Copy graph-schemas/*.yaml to schemas/
    - Write yg-config.yaml (DEFAULT_CONFIG)
-   - Write .gitignore (.journal.yaml, journals-archive/)
+   - Write .gitignore
    - installRulesForPlatform(projectRoot, platform)
 
 ## installRulesForPlatform

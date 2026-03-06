@@ -16,9 +16,6 @@ relations:
   - target: cli/commands/drift
     type: uses
     consumes: [registerDriftCommand, registerDriftSyncCommand]
-  - target: cli/commands/journal
-    type: uses
-    consumes: [registerJournalAddCommand, registerJournalReadCommand, registerJournalArchiveCommand]
   - target: cli/commands/owner
     type: uses
     consumes: [registerOwnerCommand]

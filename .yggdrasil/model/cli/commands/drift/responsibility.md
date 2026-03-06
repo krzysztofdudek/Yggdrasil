@@ -32,4 +32,4 @@
 
 **Consumes:** loadGraph (cli/core/loader), detectDrift, syncDriftState (cli/core/drift-detector).
 
-**Out of scope:** Validation, journal, graph navigation. Drift state I/O is internal to drift-detector.
+**Out of scope:** Validation, graph navigation. Drift state I/O is internal to drift-detector.

@@ -65,7 +65,7 @@ Shows direct and transitive node dependencies.
 
 ### `yg preflight`
 
-Unified diagnostic report combining journal, drift, status, and validation.
+Unified diagnostic report combining drift, status, and validation.
 
 ```bash
 yg preflight [--quick]
@@ -73,14 +73,13 @@ yg preflight [--quick]
 
 Outputs:
 
-- **Journal** — pending entries from previous sessions
 - **Drift** — nodes with source or graph drift (skipped with `--quick`)
 - **Status** — node, aspect, flow, and mapping counts
 - **Validation** — structural errors and completeness warnings
 
 - `--quick` — Skip drift detection for faster results (useful for large repos)
 
-Exit code 0 if fully clean, 1 if journal entries, drift, or validation errors found.
+Exit code 0 if fully clean, 1 if drift or validation errors found.
 
 ---
 
@@ -162,25 +161,3 @@ Shows the blast radius of changes to a node, aspect, or flow.
 - `--simulate` — Simulate context package impact (compare HEAD vs current)
 
 Exactly one of `--node`, `--aspect`, or `--flow` is required.
-
----
-
-## Journal
-
-```bash
-yg journal-add --note <text> [--target <node-path>]
-```
-
-Adds a note to the session journal.
-
-```bash
-yg journal-read
-```
-
-Lists pending journal entries.
-
-```bash
-yg journal-archive
-```
-
-Archives journal after consolidating notes to graph.

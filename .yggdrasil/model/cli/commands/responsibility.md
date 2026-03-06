@@ -31,7 +31,6 @@ Commands never implement domain logic directly. Graph loading, context assembly,
 | cli/commands/init | init |
 | cli/commands/validation | validate |
 | cli/commands/drift | drift, drift-sync |
-| cli/commands/journal | journal-add, journal-read, journal-archive |
 | cli/commands/aspects | aspects |
 | cli/commands/build-context | build-context |
 | cli/commands/deps | deps |
@@ -44,4 +43,4 @@ Commands never implement domain logic directly. Graph loading, context assembly,
 ## Out of scope
 
 - Graph loading, context building, validation logic (cli/core)
-- YAML parsing, drift state, journal file format (cli/io)
+- YAML parsing, drift state (cli/io)

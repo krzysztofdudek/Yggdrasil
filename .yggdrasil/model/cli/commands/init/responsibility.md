@@ -7,7 +7,7 @@
 - Create directories: .yggdrasil/model, aspects, flows, schemas. mkdir recursive.
 - getGraphSchemasDir(): from import.meta.url, package root = parent of cli dir, join packageRoot, 'graph-schemas'.
 - Copy graph-schemas: readdir, filter files, copy each to .yggdrasil/schemas. On failure: write warning to stderr, continue (do not exit).
-- Write yg-config.yaml (DEFAULT_CONFIG), .gitignore (GITIGNORE_CONTENT: .journal.yaml, journals-archive/).
+- Write yg-config.yaml (DEFAULT_CONFIG), .gitignore.
 - installRulesForPlatform(projectRoot, platform).
 - Output created paths and next steps.
 

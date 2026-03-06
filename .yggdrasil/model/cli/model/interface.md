@@ -18,8 +18,6 @@ Type library — exports TypeScript interfaces and types only. No runtime functi
 
 **Drift:** DriftReport, DriftEntry, DriftStatus, DriftState, DriftNodeState
 
-**Journal:** JournalEntry
-
 **Owner:** OwnerResult
 
 **RelationType:** `'uses' | 'calls' | 'extends' | 'implements' | 'emits' | 'listens'`
@@ -80,6 +78,5 @@ Model is a TypeScript type library — it contains no executable code and does n
 
 ## Other types
 
-- **JournalEntry** — Journal record: ISO timestamp (at), optional target node path, note text.
 - **OwnerResult** — Owner lookup result: file path, nodePath (or null), optional mappingPath.
 - **Stage** — Dependency resolution stage: stage number, parallel flag, node paths.

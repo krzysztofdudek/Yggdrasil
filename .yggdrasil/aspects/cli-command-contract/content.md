@@ -17,13 +17,12 @@ Every CLI command handler follows these conventions:
 ## Exit codes
 
 - `process.exit(1)` on failure (thrown error).
-- `process.exit(1)` on actionable state (drift found, validation errors, pending journal).
+- `process.exit(1)` on actionable state (drift found, validation errors).
 - Implicit exit 0 when no issues. Warnings alone do not trigger exit 1.
 
 ## Graph loading
 
 - Commands requiring graph state start with `await loadGraph(process.cwd())`.
-- Journal-only commands use `await findYggRoot(process.cwd())` instead.
 
 ## Node path normalization
 
