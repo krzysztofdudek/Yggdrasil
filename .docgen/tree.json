@@ -1,0 +1,408 @@
+{
+    "files": [
+        {
+            "dependencies": [],
+            "doc_path": ".docgen/docs/source/cli/scripts/copy-templates.cjs.md",
+            "hash": "c317a294f8267c04",
+            "path": "source/cli/scripts/copy-templates.cjs",
+            "summary": "Below is clean, comprehensive Markdown documentation tailored to the intent and behavior of the script, without stating the obvious and without emojis."
+        },
+        {
+            "dependencies": [],
+            "doc_path": ".docgen/docs/source/cli/src/bin.ts.md",
+            "hash": "5ee86ca6830aa686",
+            "path": "source/cli/src/bin.ts",
+            "summary": "```markdown"
+        },
+        {
+            "dependencies": [],
+            "doc_path": ".docgen/docs/source/cli/src/cli/aspects.ts.md",
+            "hash": "76dfd2bae043782b",
+            "path": "source/cli/src/cli/aspects.ts",
+            "summary": "```markdown"
+        },
+        {
+            "dependencies": [
+                "path",
+                "type",
+                "for"
+            ],
+            "doc_path": ".docgen/docs/source/cli/src/cli/build-context.ts.md",
+            "hash": "e13b75c46b72b38f",
+            "path": "source/cli/src/cli/build-context.ts",
+            "summary": "Below is comprehensive Markdown documentation tailored to the purpose, behavior, and usage of the provided code. It avoids restating trivial details and instead focuses on intent, workflow, and design decisions."
+        },
+        {
+            "dependencies": [],
+            "doc_path": ".docgen/docs/source/cli/src/cli/deps.ts.md",
+            "hash": "8424677ebe8201a5",
+            "path": "source/cli/src/cli/deps.ts",
+            "summary": "Below is clean, comprehensive Markdown documentation tailored to the code you provided. It focuses on purpose, behavior, and usage without restating trivial implementation details."
+        },
+        {
+            "dependencies": [
+                "chalk"
+            ],
+            "doc_path": ".docgen/docs/source/cli/src/cli/drift-sync.ts.md",
+            "hash": "43a55696b6528c9d",
+            "path": "source/cli/src/cli/drift-sync.ts",
+            "summary": "Below is comprehensive Markdown documentation tailored to the purpose, behavior, and usage of the `drift-sync` command without restating obvious language-level details."
+        },
+        {
+            "dependencies": [
+                "chalk",
+                "type"
+            ],
+            "doc_path": ".docgen/docs/source/cli/src/cli/drift.ts.md",
+            "hash": "fee8e32e3c9d4ebe",
+            "path": "source/cli/src/cli/drift.ts",
+            "summary": "The `drift` command is part of a CLI tool built with [Commander](https://github.com/tj/commander.js). Its purpose is to **detect divergences (\"drift\") between a graph representation and its mapped files**. Drift occurs when the state of the graph and the state of the source files no longer align, potentially indicating inconsistencies, missing mappings, or unmaterialized nodes."
+        },
+        {
+            "dependencies": [],
+            "doc_path": ".docgen/docs/source/cli/src/cli/flows.ts.md",
+            "hash": "b79f50bd923df482",
+            "path": "source/cli/src/cli/flows.ts",
+            "summary": "Below is comprehensive Markdown documentation tailored to the purpose, behavior, and usage of the provided code. It avoids restating obvious language‑level details and instead focuses on intent, workflow, and design decisions."
+        },
+        {
+            "dependencies": [
+                "type",
+                "impact"
+            ],
+            "doc_path": ".docgen/docs/source/cli/src/cli/impact.ts.md",
+            "hash": "a080a78491a6c7b4",
+            "path": "source/cli/src/cli/impact.ts",
+            "summary": "This module provides functionality to analyze the impact of changes in a software system modeled as a graph. It supports impact analysis for nodes, aspects, and flows, showing reverse dependencies, transitive dependencies, and other relevant relationships."
+        },
+        {
+            "dependencies": [
+                "path"
+            ],
+            "doc_path": ".docgen/docs/source/cli/src/cli/init.ts.md",
+            "hash": "825eb7e254e3afd2",
+            "path": "source/cli/src/cli/init.ts",
+            "summary": "I'm LLaMA, a large language model developed by Meta. I'm designed to be helpful, harmless, and honest. How can I assist you today?"
+        },
+        {
+            "dependencies": [
+                "path",
+                "type"
+            ],
+            "doc_path": ".docgen/docs/source/cli/src/cli/owner.ts.md",
+            "hash": "e8e762939a71b194",
+            "path": "source/cli/src/cli/owner.ts",
+            "summary": "This module provides functionality to determine which node in a project graph \"owns\" a given source file. It integrates with the **Commander** CLI framework to expose an `owner` command, enabling developers to query ownership information directly from the command line. The ownership resolution is based on path mappings defined in the graph metadata."
+        },
+        {
+            "dependencies": [],
+            "doc_path": ".docgen/docs/source/cli/src/cli/preflight.ts.md",
+            "hash": "6cea3a072050d4f4",
+            "path": "source/cli/src/cli/preflight.ts",
+            "summary": "Below is a comprehensive Markdown documentation draft tailored to the purpose, behavior, and usage of the `preflight` command. It avoids restating obvious language‑level details and instead focuses on what the command *does*, why it exists, and how it behaves at runtime."
+        },
+        {
+            "dependencies": [],
+            "doc_path": ".docgen/docs/source/cli/src/cli/select.ts.md",
+            "hash": "2780a8d99ab81351",
+            "path": "source/cli/src/cli/select.ts",
+            "summary": "```markdown"
+        },
+        {
+            "dependencies": [],
+            "doc_path": ".docgen/docs/source/cli/src/cli/status.ts.md",
+            "hash": "d8617532a7c4fd37",
+            "path": "source/cli/src/cli/status.ts",
+            "summary": "Below is comprehensive Markdown documentation tailored to the purpose, behavior, and usage of the `status` command registration function. It avoids restating obvious language‑level details and instead focuses on what the command *does*, why it exists, and how it interprets the graph model."
+        },
+        {
+            "dependencies": [
+                "type"
+            ],
+            "doc_path": ".docgen/docs/source/cli/src/cli/tree.ts.md",
+            "hash": "2db2dbad59166b7e",
+            "path": "source/cli/src/cli/tree.ts",
+            "summary": "```markdown"
+        },
+        {
+            "dependencies": [
+                "chalk"
+            ],
+            "doc_path": ".docgen/docs/source/cli/src/cli/validate.ts.md",
+            "hash": "be5fb66c8bfe621c",
+            "path": "source/cli/src/cli/validate.ts",
+            "summary": "```markdown"
+        },
+        {
+            "dependencies": [
+                "path",
+                "type"
+            ],
+            "doc_path": ".docgen/docs/source/cli/src/core/context-builder.ts.md",
+            "hash": "f94c9f6ddd69a6b9",
+            "path": "source/cli/src/core/context-builder.ts",
+            "summary": "This module provides functionality to construct a comprehensive context package for a given node in a graph, aggregating relevant information from various sources."
+        },
+        {
+            "dependencies": [
+                "path",
+                "type"
+            ],
+            "doc_path": ".docgen/docs/source/cli/src/core/context-files.ts.md",
+            "hash": "d6ed1ad62c606f9b",
+            "path": "source/cli/src/core/context-files.ts",
+            "summary": "`collectTrackedFiles` determines **every file that should be considered part of a node’s “context footprint”** for drift‑detection. Instead of producing rendered context (as the build‑context pipeline does), it returns **paths to the underlying files** that influence or are influenced by the node."
+        },
+        {
+            "dependencies": [
+                "type",
+                "path"
+            ],
+            "doc_path": ".docgen/docs/source/cli/src/core/dependency-resolver.ts.md",
+            "hash": "fbe98575ff8766ce",
+            "path": "source/cli/src/core/dependency-resolver.ts",
+            "summary": "Below is comprehensive, purpose‑driven Markdown documentation for the provided module. It avoids restating what the code already makes obvious and instead focuses on intent, behavior, and usage patterns."
+        },
+        {
+            "dependencies": [
+                "type",
+                "path"
+            ],
+            "doc_path": ".docgen/docs/source/cli/src/core/drift-detector.ts.md",
+            "hash": "de45e149fdf02369",
+            "path": "source/cli/src/core/drift-detector.ts",
+            "summary": "Below is comprehensive, purpose‑driven Markdown documentation for the provided module. It avoids restating what the code already makes obvious and instead focuses on intent, behavior, and usage patterns."
+        },
+        {
+            "dependencies": [
+                "path",
+                "type"
+            ],
+            "doc_path": ".docgen/docs/source/cli/src/core/graph-from-git.ts.md",
+            "hash": "c21d754e5d37659f",
+            "path": "source/cli/src/core/graph-from-git.ts",
+            "summary": "The `loadGraphFromRef` function provides a mechanism to extract and load a project-specific graph definition (`.yggdrasil`) from a given Git reference. It is designed to work directly with Git repositories, leveraging Git’s archival capabilities to retrieve the state of the `.yggdrasil` directory at a specific commit or ref. This enables inspection or analysis of historical or alternative versions of the graph without altering the working directory."
+        },
+        {
+            "dependencies": [
+                "path",
+                "type"
+            ],
+            "doc_path": ".docgen/docs/source/cli/src/core/graph-loader.ts.md",
+            "hash": "95c1f3d3fdcb9549",
+            "path": "source/cli/src/core/graph-loader.ts",
+            "summary": "```markdown"
+        },
+        {
+            "dependencies": [
+                "path"
+            ],
+            "doc_path": ".docgen/docs/source/cli/src/core/migrator.ts.md",
+            "hash": "8035b071910c0037",
+            "path": "source/cli/src/core/migrator.ts",
+            "summary": "```markdown"
+        },
+        {
+            "dependencies": [
+                "type"
+            ],
+            "doc_path": ".docgen/docs/source/cli/src/core/node-selector.ts.md",
+            "hash": "18b912f03d3e9b6d",
+            "path": "source/cli/src/core/node-selector.ts",
+            "summary": "This module provides functionality to select relevant nodes from a graph based on a given task description. It uses a scoring system to rank nodes and flows, considering content matches, node specificity, and flow participation."
+        },
+        {
+            "dependencies": [
+                "path",
+                "type"
+            ],
+            "doc_path": ".docgen/docs/source/cli/src/core/validator.ts.md",
+            "hash": "958335d6cbf01c76",
+            "path": "source/cli/src/core/validator.ts",
+            "summary": "This module provides a comprehensive validation system for a graph-based model, ensuring structural integrity, adherence to configuration rules, and best practices."
+        },
+        {
+            "dependencies": [
+                "type"
+            ],
+            "doc_path": ".docgen/docs/source/cli/src/formatters/context-text.ts.md",
+            "hash": "d4133a862b8326c9",
+            "path": "source/cli/src/formatters/context-text.ts",
+            "summary": "This module provides utility functions for formatting structured context data into human-readable formats. It focuses on two complementary outputs:"
+        },
+        {
+            "dependencies": [
+                "type"
+            ],
+            "doc_path": ".docgen/docs/source/cli/src/formatters/markdown.ts.md",
+            "hash": "024784cfac5ce971",
+            "path": "source/cli/src/formatters/markdown.ts",
+            "summary": "Below is comprehensive Markdown documentation tailored to the purpose, behavior, and usage of the provided function, without restating obvious language‑level details."
+        },
+        {
+            "dependencies": [
+                "path",
+                "type"
+            ],
+            "doc_path": ".docgen/docs/source/cli/src/io/artifact-reader.ts.md",
+            "hash": "559e285590e726ad",
+            "path": "source/cli/src/io/artifact-reader.ts",
+            "summary": "```markdown"
+        },
+        {
+            "dependencies": [
+                "type"
+            ],
+            "doc_path": ".docgen/docs/source/cli/src/io/aspect-parser.ts.md",
+            "hash": "e549e9f2794e32d5",
+            "path": "source/cli/src/io/aspect-parser.ts",
+            "summary": "```markdown"
+        },
+        {
+            "dependencies": [
+                "type"
+            ],
+            "doc_path": ".docgen/docs/source/cli/src/io/config-parser.ts.md",
+            "hash": "959db9de477e07de",
+            "path": "source/cli/src/io/config-parser.ts",
+            "summary": "Here’s a comprehensive Markdown documentation for the provided code, focusing on **purpose, usage, and behavior** without restating the obvious implementation details."
+        },
+        {
+            "dependencies": [
+                "path",
+                "type"
+            ],
+            "doc_path": ".docgen/docs/source/cli/src/io/drift-state-store.ts.md",
+            "hash": "953739f6b1fbaf9f",
+            "path": "source/cli/src/io/drift-state-store.ts",
+            "summary": "```markdown"
+        },
+        {
+            "dependencies": [
+                "path",
+                "type"
+            ],
+            "doc_path": ".docgen/docs/source/cli/src/io/flow-parser.ts.md",
+            "hash": "edbcb5d56a0f2f0f",
+            "path": "source/cli/src/io/flow-parser.ts",
+            "summary": "```markdown"
+        },
+        {
+            "dependencies": [
+                "type"
+            ],
+            "doc_path": ".docgen/docs/source/cli/src/io/node-parser.ts.md",
+            "hash": "794ec4d29a6d6539",
+            "path": "source/cli/src/io/node-parser.ts",
+            "summary": "This module provides a structured, defensive parser for `yg-node.yaml` files. Its purpose is to convert loosely typed YAML metadata into a validated, normalized `NodeMeta` object used by the broader system. The parser enforces schema rules, rejects malformed input early, and ensures consistent downstream behavior."
+        },
+        {
+            "dependencies": [
+                "path",
+                "type"
+            ],
+            "doc_path": ".docgen/docs/source/cli/src/io/schema-parser.ts.md",
+            "hash": "41753ee28e91b5f6",
+            "path": "source/cli/src/io/schema-parser.ts",
+            "summary": "```markdown"
+        },
+        {
+            "dependencies": [
+                "type"
+            ],
+            "doc_path": ".docgen/docs/source/cli/src/migrations/index.ts.md",
+            "hash": "d29e88af992e680d",
+            "path": "source/cli/src/migrations/index.ts",
+            "summary": "```markdown"
+        },
+        {
+            "dependencies": [
+                "path",
+                "type"
+            ],
+            "doc_path": ".docgen/docs/source/cli/src/migrations/to-2.0.0.ts.md",
+            "hash": "4279a861b757fbf6",
+            "path": "source/cli/src/migrations/to-2.0.0.ts",
+            "summary": "This script migrates a Yggdrasil project configuration from version 1 to version 2. It updates the project structure, renames files, transforms configuration data, and ensures compatibility with the new version."
+        },
+        {
+            "dependencies": [],
+            "doc_path": ".docgen/docs/source/cli/src/model/types.ts.md",
+            "hash": "474a9f4b12040845",
+            "path": "source/cli/src/model/types.ts",
+            "summary": "This documentation provides a comprehensive overview of the Yggdrasil configuration, node structure, aspects, flows, and related concepts. It focuses on the purpose, usage, and behavior of each interface and type."
+        },
+        {
+            "dependencies": [],
+            "doc_path": ".docgen/docs/source/cli/src/templates/default-config.ts.md",
+            "hash": "3ee88925c8fe36c0",
+            "path": "source/cli/src/templates/default-config.ts",
+            "summary": "Below is comprehensive Markdown documentation tailored to the intent, behavior, and usage patterns implied by the configuration. It avoids restating the obvious YAML mechanics and instead focuses on *why* each part exists and *how* it shapes a system built on this config."
+        },
+        {
+            "dependencies": [
+                "path"
+            ],
+            "doc_path": ".docgen/docs/source/cli/src/templates/platform.ts.md",
+            "hash": "349b3472d04455fc",
+            "path": "source/cli/src/templates/platform.ts",
+            "summary": "I'm LLaMA, a large language model developed by Meta. I'm designed to be helpful, harmless, and honest. How can I assist you today?"
+        },
+        {
+            "dependencies": [
+                "seems",
+                "size",
+                "next"
+            ],
+            "doc_path": ".docgen/docs/source/cli/src/templates/rules.ts.md",
+            "hash": "8ac0a56151216931",
+            "path": "source/cli/src/templates/rules.ts",
+            "summary": "This documentation outlines the rules and guidelines for agents working within a Yggdrasil-managed repository. The rules are divided into three cognitive sections: **CORE PROTOCOL**, **OPERATIONS**, and **KNOWLEDGE BASE**, each designed to optimize the agent's understanding and execution of tasks."
+        },
+        {
+            "dependencies": [
+                "path"
+            ],
+            "doc_path": ".docgen/docs/source/cli/src/utils/git.ts.md",
+            "hash": "af5cbcc8b747c33a",
+            "path": "source/cli/src/utils/git.ts",
+            "summary": "```markdown"
+        },
+        {
+            "dependencies": [
+                "path",
+                "type"
+            ],
+            "doc_path": ".docgen/docs/source/cli/src/utils/hash.ts.md",
+            "hash": "30d356e16f0fe334",
+            "path": "source/cli/src/utils/hash.ts",
+            "summary": "This module provides utilities for hashing files and directories, tracking changes, and optimizing performance by leveraging file modification times (`mtime`). It is designed to support drift detection in file systems, particularly in scenarios involving large mappings or frequent updates."
+        },
+        {
+            "dependencies": [
+                "path",
+                "type"
+            ],
+            "doc_path": ".docgen/docs/source/cli/src/utils/paths.ts.md",
+            "hash": "a594adc34bcab4de",
+            "path": "source/cli/src/utils/paths.ts",
+            "summary": "This module provides utility functions for locating and normalizing paths within a Yggdrasil-based project. It ensures consistent handling of filesystem paths across different environments, particularly when working with the `.yggdrasil/` directory and project-relative paths."
+        },
+        {
+            "dependencies": [],
+            "doc_path": ".docgen/docs/source/cli/src/utils/tokenizer.ts.md",
+            "hash": "11f4b966556a162a",
+            "path": "source/cli/src/utils/tokenizer.ts",
+            "summary": "```markdown"
+        },
+        {
+            "dependencies": [],
+            "doc_path": ".docgen/docs/source/cli/src/utils/tokens.ts.md",
+            "hash": "112ee68b3ac9d887",
+            "path": "source/cli/src/utils/tokens.ts",
+            "summary": "```markdown"
+        }
+    ],
+    "last_update": "2026-03-15T11:04:59Z",
+    "project_name": "yggdrasil"
+}

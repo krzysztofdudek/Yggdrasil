@@ -1,0 +1,13 @@
+Track:
+    source/cli/src/
+    source/cli/scripts/
+    source/cli/graph-schemas
+    
+
+Ignore:
+    *.gitkeep
+    *.gitignore
+
+
+Style:
+    No emojis
