@@ -92,6 +92,7 @@ You are not allowed to edit or create source code without establishing graph cov
 - [ ] 4. Sync graph artifacts — edit artifact files to reflect the changes (after each file, not batched — context is freshest immediately after the change). If the node's purpose changed, update `description` in `yg-node.yaml`.
 - [ ] 4b. If you split, merged, or renamed a node: run `yg flows` and update any flow `nodes` lists that referenced the old node path to point to the correct child/new nodes.
 - [ ] 5. Run `yg validate` — fix all errors (if unfixable after 3 attempts → stop, report to user)
+- [ ] 5b. **Aspect check** — did you just apply a pattern (audit log, webhook, job dispatch, auth check) that also exists in other files? If the node has no aspect for it and you saw the same pattern in 3+ files, create the aspect now. This takes 2 minutes and saves every future agent from rediscovering the pattern. Do NOT rationalize skipping: "only N nodes are mapped" is not a valid reason — aspects capture conventions for future code, not just current nodes. "I'll create it later" means never. Create it NOW or it won't exist.
 - [ ] 6. Run `yg drift-sync --node <node_path>` — only after graph and code are both current
 
 **Step 2b** — Owner not found: establish coverage first. Present options to the user:
@@ -435,12 +436,13 @@ Do not assume you will remember this later. Do not assume the user will repeat i
 
 ### Aspect Discovery During Implementation
 
-Aspects emerge from patterns across features. During greenfield implementation of multiple features:
+Aspects emerge from patterns — in greenfield AND brownfield. This applies to ANY implementation work, not just greenfield:
 
-- **After implementing 3+ features in the same area, pause and review:** Are there repeated patterns (autosave, version history, confirmation modals, empty states)? Are there shared UX rules from a persona doc? Are there quality requirements from specs? Extract them to aspects NOW.
-- **Do NOT wait until all features are done.** Aspect extraction after 3 features captures the pattern while context is fresh. After 30 features, the rationale is forgotten and the aspect becomes a mechanical extraction without WHY.
-- **Watch for "invisible" aspects:** UX patterns (autosave everywhere), quality constraints (WCAG level, Lighthouse targets), and business rules (Polish locale, price-in-grosz) are cross-cutting but don't feel "architectural." They are still aspects.
+- **After working on 3+ files in the same area, pause and check:** Are you applying the same pattern repeatedly (audit logging, webhook dispatch, authorization checks, error handling, job dispatch)? If YES, stop and create an aspect NOW — before the pattern is only in code and invisible to future agents.
+- **Do NOT wait until all work is done.** Aspect extraction while context is fresh captures the WHY. After 30 files, the rationale is forgotten and the aspect becomes a mechanical extraction.
+- **Watch for "invisible" aspects:** Patterns that don't feel "architectural" but ARE cross-cutting: audit logging on every mutation, webhook dispatch after state changes, email settings checks before sending, job dispatch for async operations, authorization guards on every endpoint.
 - **Trigger:** If you notice yourself implementing the same pattern for the third time, stop coding and create the aspect first. Then continue with the aspect applied to the current and previous nodes.
+- **Brownfield trigger:** When you read existing code and see the same utility called in 3+ files (`createDocumentAuditLogData`, `triggerWebhook`, `jobs.triggerJob`, `extractDerivedDocumentEmailSettings`), that IS an aspect waiting to be created — even if your current task doesn't require creating one. Create it now; the cost is 5 minutes and the value is permanent.
 
 ### CLI Reference
 
@@ -545,6 +547,7 @@ What matters is the ACTION you are performing, not what instructed it. If the ac
 | "I'm saving context/tool calls by skipping graph" | Graph cost is constant per node. Skipping it creates unbounded future cost — the user re-explaining what you could have recorded. |
 | "I assumed this file isn't mapped" | You cannot know without running `yg build-context --file`. Assume nothing. |
 | "I'm creating a new file, it doesn't exist yet" | New files need graph context MORE than existing files. Run `yg build-context --node` for the target node to load its aspect rules. New files without context are the #1 source of convention violations. |
+| "Only N nodes are mapped, aspects won't have validation value yet" | Aspects capture conventions for FUTURE code. Even 1 mapped node with an aspect ensures the next 10 nodes in this area follow the pattern. Create aspects when you see the pattern, not when coverage is "complete enough." |
 | "The spec is just input, I don't need to capture it" | Specs contain business context that code cannot express. Capture it or lose it. |
 | "This business knowledge will be obvious from the code" | Pricing strategy, personas, UX rationale, and quality targets are NEVER obvious from code. |
 | "I'll extract aspects after I finish all the features" | After 30 features the rationale is gone. Extract after 3. |

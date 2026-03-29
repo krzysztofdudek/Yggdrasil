@@ -15,7 +15,8 @@
 5. **Full init**:
    - mkdir model, aspects, flows, schemas
    - Copy graph-schemas/*.yaml to schemas/
-   - Write yg-config.yaml (DEFAULT_CONFIG)
+   - Resolve project name: try package.json `name` (strip @scope/ prefix) → fall back to directory name
+   - Write yg-config.yaml (DEFAULT_CONFIG with resolved name)
    - Write .gitignore
    - installRulesForPlatform(projectRoot, platform)
 

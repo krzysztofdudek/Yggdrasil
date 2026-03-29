@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 import { gt, valid } from 'semver';
-import { DEFAULT_CONFIG } from '../templates/default-config.js';
+import { DEFAULT_CONFIG, resolveProjectName } from '../templates/default-config.js';
 import { installRulesForPlatform, PLATFORMS, type Platform } from '../templates/platform.js';
 import { detectVersion, runMigrations, updateConfigVersion } from '../core/migrator.js';
 import { MIGRATIONS } from '../migrations/index.js';
@@ -151,7 +151,9 @@ export function registerInitCommand(program: Command): void {
         );
       }
 
-      await writeFile(path.join(yggRoot, 'yg-config.yaml'), DEFAULT_CONFIG, 'utf-8');
+      const projectName = await resolveProjectName(projectRoot);
+      const config = DEFAULT_CONFIG.replace('name: ""', `name: "${projectName}"`);
+      await writeFile(path.join(yggRoot, 'yg-config.yaml'), config, 'utf-8');
       await writeFile(path.join(yggRoot, '.gitignore'), GITIGNORE_CONTENT, 'utf-8');
 
       const rulesPath = await installRulesForPlatform(projectRoot, platform);

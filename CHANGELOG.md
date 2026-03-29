@@ -9,29 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Auto-detect project name on `yg init`.** Reads `package.json` name (strips
+  `@scope/` prefix, uses scope for generic names like `root`/`app`) or falls
+  back to directory name. Eliminates the empty-name config error on first run.
 - **Candidate node listing for unmapped files.** `yg build-context --file` now
   lists candidate nodes when a file has no graph coverage but sibling files in
   the same directory are mapped. Helps agents find the right context when
   creating new files.
+- **Aspect check step (5b) in Modify Source Code workflow.** Post-implementation
+  trigger for organic aspect discovery during normal work. Includes
+  anti-rationalization: "only N nodes mapped" is not a valid reason to skip.
 - **Convention extraction step (6b) in reverse-engineering protocol.** When the
-  same utility/guard/helper appears in 3+ files, the protocol now instructs
-  agents to record it as a MUST-use convention, not just a description.
+  same utility/guard/helper appears in 3+ files, record it as a MUST-use
+  convention, not just a description.
 - **New file creation trigger in agent rules.** Added "BEFORE creating a NEW
-  source file" to the critical protocol, requiring agents to load graph context
-  for the target node before writing new code.
-- **Operational aspect category.** Added to the aspect identification heuristic
-  alongside domain-specific, architectural, and concurrency categories. Covers
-  audit logging, webhook emission, async job dispatch, and transactional
-  integrity boundaries.
-- **Invariant extraction step (4b) in reverse-engineering protocol.** Instructs
-  agents to scan for guards, throws, and conditionals and record them as
-  behavioral invariants.
+  source file" to the critical protocol.
+- **Operational aspect category** in aspect identification heuristic.
+- **Invariant extraction step (4b)** in reverse-engineering protocol.
 
 ### Changed
 
-- **Schema example in `yg-node.yaml`.** Added a commented example with real
-  values (`aspect: audit-logging`) to prevent agents from using `id:` instead
-  of the required `aspect:` key.
+- **Aspect Discovery During Implementation** now applies to brownfield, not just
+  greenfield. Added brownfield trigger for utility functions in 3+ files.
+- **Schema example in `yg-node.yaml`.** Added commented example with real values
+  to prevent `id:` vs `aspect:` confusion.
 
 ## [3.0.0] - 2026-03-29
 
