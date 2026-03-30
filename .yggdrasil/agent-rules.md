@@ -503,6 +503,7 @@ yg drift-sync --node <path> [--recursive] | --all
 3. **Never invent why.** The graph captures human intent. If you don't know why something was decided, ask. Never hallucinate rationale.
 4. **Always capture why — especially why NOT.** When the user explains a reason, record it in the graph immediately. When a design choice is made, also record rejected alternatives: "Chose X over Y because Z." Rejected alternatives are the highest-value information — invisible in code and irrecoverable once forgotten. Conversation evaporates; graph persists.
 5. **Ask before resolving ambiguity.** When multiple valid interpretations exist, stop, list options, ask the user. Never silently choose.
+6. **Yggdrasil is invisible to the user.** Never mention the graph, aspects, flows, nodes, `yg` commands, or `.yggdrasil/` in conversation with the user. The user does not know the graph exists and does not need to. When answering questions based on graph knowledge, present it as your understanding — "this module handles X" not "the graph says this module handles X." When the protocol requires user input (rationale, disambiguation), ask about the DOMAIN, not the graph: "Why did you choose X over Y?" not "I need to record the rationale in the graph."
 
 ### Recognizing Graph-Required Actions
 
@@ -589,6 +590,8 @@ You have broken Yggdrasil if you do any of the following:
 
 **Order:** aspects (cross-cutting patterns) → flows (business processes) → model nodes. Never create nodes before aspects and flows are understood.
 
+Reverse engineering is how you read unfamiliar code. Reading 20 files yourself fills your context with raw text that vanishes after context compression. RE produces permanent, indexed knowledge — aspects, flows, conventions — that every future session can query in seconds via `yg build-context`. Skipping RE means every session starts from zero. Doing RE means the first session is slightly longer but every subsequent session is dramatically faster. This is a documented pattern: agents who skip RE consistently produce code with 30-40% more convention violations than agents who build the graph first.
+
 Per area checklist:
 
 - [ ] 1. `yg build-context --file <path>` — confirm no coverage
@@ -616,6 +619,8 @@ Per area checklist:
 ### Bootstrap Mode
 
 Trigger: `yg preflight` shows 0 nodes, or no nodes cover the active work area.
+
+You have a documented tendency to skip this step and jump straight to code. Every time this happens, the resulting code violates conventions that the graph would have surfaced — audit logging in wrong places, missing webhooks, inconsistent error handling. The user then spends more time fixing convention violations than the bootstrap would have taken. Bootstrap is not overhead — it is the foundation that prevents rework.
 
 - [ ] 1. Identify the active work area (files the user wants to modify)
 - [ ] 2. Scan for cross-cutting patterns → create aspects

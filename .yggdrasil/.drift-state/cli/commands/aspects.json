@@ -15,6 +15,7 @@
     ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
     ".yggdrasil/aspects/cli-command-contract/yg-aspect.yaml": "81ba5d9318ec49940495487c056356f9bd462d67ca4bb06d3fd954cf26945d01",
     ".yggdrasil/aspects/cli-command-contract/content.md": "b1509ccd44cc91f1cff43926b69f16845407f518ecf4d448d24a0b4a4e2894c3",
+    ".yggdrasil/model/cli/core/loader/responsibility.md": "ad751ae7c2345373a1eb3dcf64775f2dd6950d1f0a9ae7f347320336fdf18332",
     ".yggdrasil/model/cli/core/loader/interface.md": "ab57ce6dd1b01bc397309bd2660e5a632856247da595380b836afce8883ab841",
     ".yggdrasil/model/cli/core/responsibility.md": "2aa9f1d64abf86aed604a1823392c3d40b963eb8416b38ef877bcccddd7ff086",
     ".yggdrasil/model/cli/core/interface.md": "807008eb6f673273034d7d3325a36f37ea1c7a4e46df362e2a4fa9ccd9451de9",
@@ -22,8 +23,7 @@
     ".yggdrasil/model/cli/utils/interface.md": "19ebc12ccbc4a90f9f016dead73a3592c6a397a010ed9cf39993b9f01bc8d96e",
     ".yggdrasil/flows/graph-analysis/yg-flow.yaml": "54691941694d1009a854d5e8b422131342ee6715ce71eb8b685a3aee8559b9d7",
     ".yggdrasil/flows/graph-analysis/description.md": "2c5f6e377cea91a9b447f395971203f02c2a91a816e847269adb6f84c8786603",
-    "source/cli/src/cli/aspects.ts": "9753fd0fe9fcd11246e1fe454765fcc9568cdbdc72bd8430ee5b721e3dd47aec",
-    ".yggdrasil/model/cli/core/loader/responsibility.md": "ad751ae7c2345373a1eb3dcf64775f2dd6950d1f0a9ae7f347320336fdf18332"
+    "source/cli/src/cli/aspects.ts": "9753fd0fe9fcd11246e1fe454765fcc9568cdbdc72bd8430ee5b721e3dd47aec"
   },
   "mtimes": {
     ".yggdrasil/model/cli/commands/aspects/yg-node.yaml": 1774035679162.4097,

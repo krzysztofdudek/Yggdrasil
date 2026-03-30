@@ -17,17 +17,17 @@
     ".yggdrasil/aspects/cli-command-contract/content.md": "b1509ccd44cc91f1cff43926b69f16845407f518ecf4d448d24a0b4a4e2894c3",
     ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": "3f025d4986e5dceea0b8fec8695cf9224305ef75229632e7a21a78600b0da29b",
     ".yggdrasil/aspects/posix-paths/content.md": "38daf50dec99307443fd8951019cf534c74571a7778d43e55a4354d9d2faeefc",
+    ".yggdrasil/model/cli/core/loader/responsibility.md": "ad751ae7c2345373a1eb3dcf64775f2dd6950d1f0a9ae7f347320336fdf18332",
     ".yggdrasil/model/cli/core/loader/interface.md": "ab57ce6dd1b01bc397309bd2660e5a632856247da595380b836afce8883ab841",
     ".yggdrasil/model/cli/core/responsibility.md": "2aa9f1d64abf86aed604a1823392c3d40b963eb8416b38ef877bcccddd7ff086",
     ".yggdrasil/model/cli/core/interface.md": "807008eb6f673273034d7d3325a36f37ea1c7a4e46df362e2a4fa9ccd9451de9",
     ".yggdrasil/model/cli/utils/responsibility.md": "4918c48366c7b3f35bb7b97fa74252c47f14ba72417c5cc5f3e1100b503c7ddd",
     ".yggdrasil/model/cli/utils/interface.md": "19ebc12ccbc4a90f9f016dead73a3592c6a397a010ed9cf39993b9f01bc8d96e",
     ".yggdrasil/model/cli/model/responsibility.md": "b668c6db2090a36a54277f62fb228c266d87c6d119f89e6ed67e140392863a66",
+    ".yggdrasil/model/cli/model/interface.md": "4fe1f6a5084eaa496b28b09aa0a011331bac8e6df630c83a8bed7d1d93ee79c0",
     ".yggdrasil/flows/graph-navigation/yg-flow.yaml": "b2e3edbef4faa5f01a890af1be273242dfec713f8b379896d05147c5aa79dc9c",
     ".yggdrasil/flows/graph-navigation/description.md": "d343bb1a375026e63e0815716a75149306814f7eaf65300bbe1a7e11483a8d7f",
-    "source/cli/src/cli/owner.ts": "0f61533b8880929eeccfa9a6969d57bed35142a234ae5fb9a8d9a3647771e552",
-    ".yggdrasil/model/cli/core/loader/responsibility.md": "ad751ae7c2345373a1eb3dcf64775f2dd6950d1f0a9ae7f347320336fdf18332",
-    ".yggdrasil/model/cli/model/interface.md": "4fe1f6a5084eaa496b28b09aa0a011331bac8e6df630c83a8bed7d1d93ee79c0"
+    "source/cli/src/cli/owner.ts": "0f61533b8880929eeccfa9a6969d57bed35142a234ae5fb9a8d9a3647771e552"
   },
   "mtimes": {
     ".yggdrasil/model/cli/commands/owner/yg-node.yaml": 1774035679164.4688,
