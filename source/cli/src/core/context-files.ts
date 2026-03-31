@@ -125,6 +125,11 @@ export function collectTrackedFiles(node: GraphNode, graph: Graph): TrackedFile[
       }
     }
 
+    // Track target yg-node.yaml only when integration_anchors exist (scoped cascade)
+    if (target.meta.integration_anchors && target.meta.integration_anchors.length > 0) {
+      addFile(graphPath('model', target.path, 'yg-node.yaml'), 'graph', 'relational');
+    }
+
     // Track dependency ancestors — always runs, independent of structuralArts check above
     const depAncestors = collectAncestors(target);
     for (const ancestor of depAncestors) {

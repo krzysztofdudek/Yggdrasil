@@ -409,6 +409,152 @@ describe('collectTrackedFiles', () => {
     expect(files.length).toBeGreaterThan(0);
   });
 
+  it('tracks target yg-node.yaml when dependency has integration_anchors', () => {
+    const target: GraphNode = {
+      path: 'dep/svc',
+      meta: {
+        name: 'DepSvc',
+        type: 'service',
+        integration_anchors: ['correlation-id'],
+      },
+      artifacts: [
+        { filename: 'responsibility.md', content: 'resp' },
+        { filename: 'interface.md', content: 'api' },
+      ],
+      children: [],
+      parent: null,
+    };
+    const node: GraphNode = {
+      path: 'my/svc',
+      meta: {
+        name: 'MySvc',
+        type: 'service',
+        relations: [{ target: 'dep/svc', type: 'calls' }],
+      },
+      artifacts: [{ filename: 'responsibility.md', content: 'x' }],
+      children: [],
+      parent: null,
+    };
+    const graph: Graph = {
+      config: {
+        name: 'T',
+        node_types: { service: { description: 'x' } },
+      },
+      nodes: new Map([
+        ['my/svc', node],
+        ['dep/svc', target],
+      ]),
+      aspects: [],
+      flows: [],
+      schemas: [],
+      rootPath: '/project/.yggdrasil',
+    };
+
+    const files = collectTrackedFiles(node, graph);
+    const paths = files.map((f) => f.path);
+
+    // Target with integration_anchors should have its yg-node.yaml tracked
+    expect(paths).toContain('.yggdrasil/model/dep/svc/yg-node.yaml');
+    // Its layer should be relational
+    const tracked = files.find(f => f.path === '.yggdrasil/model/dep/svc/yg-node.yaml');
+    expect(tracked?.layer).toBe('relational');
+  });
+
+  it('does NOT track target yg-node.yaml when dependency has no integration_anchors', () => {
+    const target: GraphNode = {
+      path: 'dep/svc',
+      meta: {
+        name: 'DepSvc',
+        type: 'service',
+        // No integration_anchors
+      },
+      artifacts: [
+        { filename: 'responsibility.md', content: 'resp' },
+        { filename: 'interface.md', content: 'api' },
+      ],
+      children: [],
+      parent: null,
+    };
+    const node: GraphNode = {
+      path: 'my/svc',
+      meta: {
+        name: 'MySvc',
+        type: 'service',
+        relations: [{ target: 'dep/svc', type: 'calls' }],
+      },
+      artifacts: [{ filename: 'responsibility.md', content: 'x' }],
+      children: [],
+      parent: null,
+    };
+    const graph: Graph = {
+      config: {
+        name: 'T',
+        node_types: { service: { description: 'x' } },
+      },
+      nodes: new Map([
+        ['my/svc', node],
+        ['dep/svc', target],
+      ]),
+      aspects: [],
+      flows: [],
+      schemas: [],
+      rootPath: '/project/.yggdrasil',
+    };
+
+    const files = collectTrackedFiles(node, graph);
+    const paths = files.map((f) => f.path);
+
+    // Target without integration_anchors should NOT have yg-node.yaml tracked
+    expect(paths).not.toContain('.yggdrasil/model/dep/svc/yg-node.yaml');
+  });
+
+  it('does NOT track target yg-node.yaml when integration_anchors is empty array', () => {
+    const target: GraphNode = {
+      path: 'dep/svc',
+      meta: {
+        name: 'DepSvc',
+        type: 'service',
+        integration_anchors: [], // empty
+      },
+      artifacts: [
+        { filename: 'responsibility.md', content: 'resp' },
+      ],
+      children: [],
+      parent: null,
+    };
+    const node: GraphNode = {
+      path: 'my/svc',
+      meta: {
+        name: 'MySvc',
+        type: 'service',
+        relations: [{ target: 'dep/svc', type: 'calls' }],
+      },
+      artifacts: [{ filename: 'responsibility.md', content: 'x' }],
+      children: [],
+      parent: null,
+    };
+    const graph: Graph = {
+      config: {
+        name: 'T',
+        node_types: { service: { description: 'x' } },
+      },
+      nodes: new Map([
+        ['my/svc', node],
+        ['dep/svc', target],
+      ]),
+      aspects: [],
+      flows: [],
+      schemas: [],
+      rootPath: '/project/.yggdrasil',
+    };
+
+    const files = collectTrackedFiles(node, graph);
+    const paths = files.map((f) => f.path);
+
+    // Empty integration_anchors should not trigger tracking
+    expect(paths).not.toContain('.yggdrasil/model/dep/svc/yg-node.yaml');
+  });
+
   it('deduplicates aspect files inherited from both own and ancestor', () => {
     const parent: GraphNode = {
       path: 'orders',
