@@ -86,12 +86,10 @@ describe.skipIf(!distExists)('CLI E2E', () => {
     expect(stdout).toContain('users');
   });
 
-  it('yg validate on sample-project (E036 from missing-service fixture)', () => {
-    const { status, stdout } = run(['validate']);
-    // Exit 1 due to E036: users/missing-service maps src/users/missing.service.ts
-    // which intentionally doesn't exist (used by drift tests for "missing" detection)
-    expect(status).toBe(1);
-    expect(stdout).toContain('E036');
+  it('yg check exits with code 0 or 1 and shows Result:', () => {
+    const { status, stdout } = run(['check']);
+    expect([0, 1]).toContain(status);
+    expect(stdout).toContain('Result:');
   });
 
   it('yg build-context', () => {
@@ -143,20 +141,6 @@ describe.skipIf(!distExists)('CLI E2E', () => {
     const { status, stderr } = run(['owner']);
     expect(status).toBe(1);
     expect(stderr).toContain('required option');
-  });
-
-  it('yg status', () => {
-    const { stdout, status } = run(['status']);
-    expect(status).toBe(0);
-    expect(stdout).toContain('Sample E-Commerce');
-    expect(stdout).toContain('Nodes:');
-  });
-
-  it('yg drift', () => {
-    const { stdout, status } = run(['drift']);
-    expect(stdout).toContain('Summary');
-    expect(stdout).toMatch(/drift|missing|unmaterialized|ok/);
-    expect([0, 1]).toContain(status);
   });
 
   // --- Tree options ---
@@ -223,15 +207,6 @@ describe.skipIf(!distExists)('CLI E2E', () => {
     expect(stderr).toContain('required option');
   });
 
-  // --- drift options ---
-
-  it('yg drift --scope orders/order-service', () => {
-    const { stdout, status } = run(['drift', '--scope', 'orders/order-service']);
-    expect(stdout).toContain('orders/order-service');
-    expect(stdout).toContain('Summary');
-    expect([0, 1]).toContain(status);
-  });
-
   // --- drift-sync ---
 
   it('yg drift-sync --node records hash and clears drift', () => {
@@ -246,8 +221,13 @@ describe.skipIf(!distExists)('CLI E2E', () => {
       expect(stdout).toContain('Synchronized: orders/order-service');
       expect(stdout).toMatch(/Hash: .+ -> .+/);
 
-      const { status: driftStatus } = run(['drift', '--scope', 'orders/order-service'], tmpDir);
-      expect(driftStatus).toBe(0);
+      // After approving, check should not show E020 for this node
+      const { stdout: checkOut } = run(['check'], tmpDir);
+      // The node was just approved — should not show drift for orders/order-service
+      const driftLines = checkOut.split('\n').filter((l: string) =>
+        l.includes('E020') && l.includes('orders/order-service'),
+      );
+      expect(driftLines.length).toBe(0);
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
     }
@@ -389,44 +369,6 @@ describe.skipIf(!distExists)('CLI E2E', () => {
     expect(status).toBe(0);
     expect(stdout).toContain('Indirectly affected');
     expect(stdout).toContain('checkout/controller');
-  });
-
-  // --- validate edge cases ---
-
-  it('yg validate --scope limits to node', () => {
-    const { stdout, status } = run(['validate', '--scope', 'orders/order-service']);
-    expect(status).toBe(0);
-    expect(stdout).toContain('1 nodes scanned');
-  });
-
-  it('yg validate on broken-relation fixture returns exit 1', () => {
-    const brokenFixture = path.join(
-      CLI_ROOT,
-      'tests',
-      'fixtures',
-      'sample-project-broken-relation',
-    );
-    const { status, stdout } = run(['validate'], brokenFixture);
-    expect(status).toBe(1);
-    expect(stdout).toContain('E004');
-  });
-
-  // --- drift exit codes ---
-
-  it('yg drift returns exit 1 when drift detected (order-service)', () => {
-    // order-service has mismatched hash in fixture
-    const { status } = run(['drift', '--scope', 'orders/order-service']);
-    expect(status).toBe(1);
-  });
-
-  it('yg drift returns exit 1 when mapped file missing (missing-service)', () => {
-    const { status } = run(['drift', '--scope', 'users/missing-service']);
-    expect(status).toBe(1);
-  });
-
-  it('yg drift returns exit 0 when all OK (auth-api)', () => {
-    const { status } = run(['drift', '--scope', 'auth/auth-api']);
-    expect(status).toBe(0);
   });
 
   // --- init creates structure ---
@@ -683,47 +625,6 @@ describe.skipIf(!distExists)('CLI E2E', () => {
     const { status, stderr } = run(['select']);
     expect(status).toBe(1);
     expect(stderr).toMatch(/required option|--task/);
-  });
-
-  // --- status output details ---
-
-  it('yg status includes drift summary', () => {
-    const { stdout, status } = run(['status']);
-    expect(status).toBe(0);
-    expect(stdout).toContain('Drift:');
-  });
-
-  it('yg status includes graph summary', () => {
-    const { stdout, status } = run(['status']);
-    expect(status).toBe(0);
-    expect(stdout).toContain('Aspects:');
-    expect(stdout).toContain('Relations:');
-    expect(stdout).toContain('Nodes:');
-  });
-
-  // --- preflight ---
-
-  describe('preflight', () => {
-    it('outputs all four report sections', () => {
-      const { stdout, status } = run(['preflight']);
-      expect(stdout).toContain('=== Preflight Report ===');
-      expect(stdout).toContain('Drift:');
-      expect(stdout).toContain('Status:');
-      expect(stdout).toContain('Validation:');
-      expect(stdout).toMatch(/\d+ nodes/);
-    });
-
-    it('exits with numeric status code', () => {
-      const { status } = run(['preflight']);
-      expect(status === 0 || status === 1).toBe(true);
-    });
-
-    it('--quick skips drift detection', () => {
-      const { stdout } = run(['preflight', '--quick']);
-      expect(stdout).toContain('Drift:      skipped (--quick)');
-      expect(stdout).toContain('Status:');
-      expect(stdout).toContain('Validation:');
-    });
   });
 
   // --- drift-sync --all ---

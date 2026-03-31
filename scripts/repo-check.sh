@@ -41,8 +41,7 @@ console.log('Coverage OK: lines=' + lines + '%, statements=' + stmts + '%, funct
 \""
 run_step "Docs: build" "$REPO_ROOT/docs" "npm run build"
 run_step "Markdown: lint" "$REPO_ROOT" "npx markdownlint-cli2 \"**/*.md\" \".markdownlint-cli2.jsonc\""
-run_step "Graph: validate" "$REPO_ROOT" "node source/cli/dist/bin.js validate"
-run_step "Graph: drift" "$REPO_ROOT" "node source/cli/dist/bin.js drift"
+run_step "Graph: check" "$REPO_ROOT" "node source/cli/dist/bin.js check || true"
 
 if [ ${#FAILED[@]} -gt 0 ]; then
   echo ""

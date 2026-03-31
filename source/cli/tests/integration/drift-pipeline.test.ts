@@ -240,10 +240,10 @@ describe('drift-pipeline', () => {
     }
   });
 
-  it('drift --format <invalid> returns validation error', async () => {
+  it('check <invalid-flag> returns error for unknown option', async () => {
     if (!distExists) return;
 
-    const result = spawnSync('node', [BIN_PATH, 'drift', '--format', 'yaml'], {
+    const result = spawnSync('node', [BIN_PATH, 'check', '--format', 'yaml'], {
       cwd: FIXTURE_PROJECT,
       encoding: 'utf-8',
     });
