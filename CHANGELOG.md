@@ -7,7 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking Changes
+
+- **`yg check` replaces `validate`, `drift`, `status`, `preflight`.** Single unified
+  gate command with exit 0 (clean) / exit 1 (errors). All four old commands removed.
+- **Error codes renumbered to v4 scheme.** E001-E013 structural, E020-E022
+  drift/coverage, E030-E036+E038 completeness, W001-W005 warnings.
+- **Promoted warnings to errors.** missing-artifact (E030), shallow-artifact (E031),
+  budget-exceeded (E032), unpaired-event (E033), missing-schema (E034),
+  missing-required-aspect (E035), mapping-path-missing (E036), missing-description (E038).
+
 ### Added
+
+- **E020 direct-drift** — detects source/graph/full drift, missing files,
+  unmaterialized mappings with cause-specific messages and fix guidance.
+- **E021 cascade-drift** — detects upstream changes (aspect/dependency/flow/parent)
+  with cause identification and layer-specific review instructions.
+- **E022 unmapped-file** — enforces full coverage: every git-tracked file must belong
+  to a node. Aggregated output with cold-start guidance for low-coverage repos.
+- **W005 orphaned-drift-state** — warns about drift state for deleted nodes.
+- **Health score** (0-100) in check output header.
+- **Cascade tree summary** — groups E021 errors by upstream cause.
+- **Suggested next command** — actionable guidance after check result.
 
 - **Auto-detect project name on `yg init`.** Reads `package.json` name (strips
   `@scope/` prefix, uses scope for generic names like `root`/`app`) or falls
