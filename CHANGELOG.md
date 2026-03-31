@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking Changes
 
+- **Aspect `anchors` field required.** Every aspect must define at least one anchor
+  (proof-point ID) in yg-aspect.yaml. E039 fires if missing.
+- **Typed anchor realizations.** Node aspect entries use `{ anchor-id: { regex: "pattern" } }`
+  format instead of bare strings. E041 fires for unknown types.
+- **`stability` field removed** from aspects. No longer parsed or validated.
 - **`yg approve` replaces `drift-sync`.** `drift-sync` is now a backward-compatible
   alias that delegates to approve logic. `--all` and `--recursive` flags are removed
   from `drift-sync` — approve one node at a time with `--node <path>`.
@@ -22,6 +27,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **E037 anchor-not-found** — regex pattern from realization not found in source files.
+- **E039 aspect-missing-anchors** — aspect has no anchors field.
+- **E040 anchor-not-realized** — node missing realization for aspect or integration anchor.
+- **E041 unknown-anchor-type** — realization uses unsupported type (only `regex` in v4).
+- **Integration anchors** — nodes can define `integration_anchors` that consumers must
+  realize on their relation entries. Automatic propagation via relations. Layer 4
+  tracking only cascades when target has integration_anchors defined.
+- **Anchor-pass annotation** on E021 cascade drift — shows whether cascaded node's
+  anchors still match source (`anchors-pass` / `anchors-fail`).
+- **Integration anchors cascade message** — E021 from dependency yg-node.yaml changes
+  on targets with integration_anchors uses specific message guiding to E040 resolution.
 - **`yg approve --node <path>`** — three-axis gate command. Accepts when both
   source and own artifacts changed bilaterally, or when `--acknowledge <reason>`
   is provided. Refuses unilateral changes with cause-specific error messages and

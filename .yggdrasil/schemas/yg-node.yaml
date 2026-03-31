@@ -7,20 +7,31 @@ type: service                 # required — must match a type from config.node_
 description: "Short description of what this node does"  # optional
 blackbox: false               # optional, default false — if true, coarse-grained coverage without deep artifacts
 
+# integration_anchors:        # optional — anchor IDs that consumers of this node must realize
+#   - correlation-id           # on their relation entries. Propagates via structural relations.
+#   - trace-id                 # E040 fires when a consumer has a structural relation to this
+                               # node but missing realization for one of these anchor IDs.
+
 aspects:                      # optional — list of aspect configurations
   - aspect: aspect-id         # required — the key MUST be "aspect", value is the aspect directory name under aspects/
     exceptions:               # optional — how this node deviates from the aspect's pattern
       - "Description of deviation and why"
-    anchors:                  # optional — code patterns for aspect staleness detection
-      - functionName          # yg validate checks each pattern exists in mapped source files (W014)
-      - CONSTANT_NAME
+    anchors:                  # optional — typed anchor realizations mapping anchor ID to realization object
+      anchor-id:              # key = anchor ID defined in the aspect's yg-aspect.yaml anchors list
+        regex: "pattern"      # regex type — pattern to search for in mapped source files (E037)
+                              # E040 fires when aspect anchor ID is not realized here
+                              # E041 fires for unknown realization types (only regex supported in v4)
 # Example with real values:
 #   aspects:
 #     - aspect: audit-logging
-#       anchors: [createAuditLog, AUDIT_LOG_TYPE]
+#       anchors:
+#         audit-entry:
+#           regex: "createAuditLog"
 #     - aspect: provider-pattern
 #       exceptions: ["Uses eager init instead of lazy — surfaces config errors at startup"]
-#       anchors: [getTransport, createTransport]
+#       anchors:
+#         transport-init:
+#           regex: "getTransport|createTransport"
 
 relations:                    # optional — outgoing dependencies to other nodes
   - target: other/module-path # required — path relative to model/
@@ -28,6 +39,9 @@ relations:                    # optional — outgoing dependencies to other node
     consumes: [methodA, methodB] # optional — what is consumed from target
     failure: 'retry 3x, then circuit-break' # optional — failure handling strategy
     # event_name: OrderPlaced # optional — display name for event relations (emits, listens)
+    # anchors:                # optional — integration anchor realizations for this dependency
+    #   correlation-id:       # key = anchor ID from target's integration_anchors
+    #     regex: "correlationId"  # typed realization (same format as aspect anchors)
 
 mapping:                      # optional — link to source files for ownership and drift detection
   paths:                      # required when mapping is present — list of file or directory paths
