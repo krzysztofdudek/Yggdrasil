@@ -1,10 +1,3 @@
 {
-  "permissions": {
-    "allow": [
-      "Bash(xargs -I {} cat {})",
-      "Bash(xargs cat)",
-      "Bash(find /Users/me/repos/github.com/krzysztofdudek/Yggdrasil/.yggdrasil/model -name \"node.yaml\" -exec head -10 {} ;)",
-      "Bash(yg journal-read)"
-    ]
-  }
+  "permissions": {}
 }
