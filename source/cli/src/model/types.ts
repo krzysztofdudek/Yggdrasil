@@ -53,10 +53,17 @@ export interface QualityConfig {
 
 export type RelationType = 'uses' | 'calls' | 'extends' | 'implements' | 'emits' | 'listens';
 
+/** Typed anchor realization — v4 supports only regex, v5 adds ast/claim */
+export interface AnchorRealization {
+  regex?: string;
+  [key: string]: unknown; // Forward compatibility for v5 types (ast, claim)
+}
+
 export interface NodeAspectEntry {
   aspect: string;
   exceptions?: string[];
-  anchors?: string[];
+  /** Anchor realizations — maps anchor ID to typed realization object */
+  anchors?: Record<string, AnchorRealization>;
 }
 
 export interface NodeMeta {
@@ -67,6 +74,8 @@ export interface NodeMeta {
   blackbox?: boolean;
   relations?: Relation[];
   mapping?: NodeMapping;
+  /** Anchor IDs that consumers of this node must realize on their relation entries */
+  integration_anchors?: string[];
 }
 
 export interface Relation {
@@ -76,6 +85,8 @@ export interface Relation {
   failure?: string;
   /** For event relations (emits, listens): display name of the event, e.g. OrderPlaced */
   event_name?: string;
+  /** Integration anchor realizations for this dependency */
+  anchors?: Record<string, AnchorRealization>;
 }
 
 export interface NodeMapping {
@@ -109,19 +120,15 @@ export interface Artifact {
 // Aspect
 // ============================================================
 
-export type AspectStability = 'schema' | 'protocol' | 'implementation';
-
 export interface AspectDef {
   name: string;
   id: string;
   description?: string;
   /** Ids of aspects to include automatically (composition) */
   implies?: string[];
-  /** How stable this aspect's claims are expected to be.
-   *  schema = enforced by data model, changes require migration (most stable).
-   *  protocol = contractual pattern, breaking causes visible failures.
-   *  implementation = specific mechanism, subject to optimization (least stable). */
-  stability?: AspectStability;
+  /** Abstract proof-point IDs that nodes carrying this aspect must realize.
+   *  Always present (parser defaults to []). E039 fires when empty. */
+  anchors: string[];
   artifacts: Artifact[];
 }
 
@@ -220,7 +227,6 @@ export interface FlowRef {
 export interface GlossaryAspectEntry {
   name: string;
   description?: string;
-  stability?: AspectStability;
   implies?: string[];
   files: string[];
 }

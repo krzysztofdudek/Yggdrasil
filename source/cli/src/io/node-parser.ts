@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { parse as parseYaml } from 'yaml';
-import type { NodeAspectEntry, NodeMeta, NodeMapping, Relation, RelationType } from '../model/types.js';
+import type { AnchorRealization, NodeAspectEntry, NodeMeta, NodeMapping, Relation, RelationType } from '../model/types.js';
 
 const RELATION_TYPES: RelationType[] = [
   'uses',
@@ -35,6 +35,16 @@ export async function parseNodeYaml(filePath: string): Promise<NodeMeta> {
   const mapping = parseMapping(raw.mapping, filePath);
   const aspects = parseAspects(raw.aspects, filePath);
 
+  // Parse integration_anchors (optional string[])
+  let integrationAnchors: string[] | undefined;
+  if (raw.integration_anchors !== undefined) {
+    if (!Array.isArray(raw.integration_anchors)) {
+      throw new Error(`yg-node.yaml at ${filePath}: 'integration_anchors' must be an array of strings`);
+    }
+    integrationAnchors = (raw.integration_anchors as unknown[])
+      .filter((a): a is string => typeof a === 'string' && a.trim() !== '');
+  }
+
   return {
     name: (raw.name as string).trim(),
     type: (raw.type as string).trim(),
@@ -43,6 +53,7 @@ export async function parseNodeYaml(filePath: string): Promise<NodeMeta> {
     blackbox: (raw.blackbox as boolean) ?? false,
     relations: relations.length > 0 ? relations : undefined,
     mapping,
+    integration_anchors: integrationAnchors,
   };
 }
 
@@ -92,16 +103,25 @@ function parseAspects(raw: unknown, filePath: string): NodeAspectEntry[] | undef
       }
     }
 
-    // Parse anchors (optional string[])
+    // Parse anchors — now a map of anchor ID to typed realization object
     if (obj.anchors !== undefined && obj.anchors !== null) {
-      if (!Array.isArray(obj.anchors)) {
+      if (typeof obj.anchors !== 'object' || Array.isArray(obj.anchors)) {
+        // Migration: bare string arrays are no longer valid
         throw new Error(
-          `yg-node.yaml at ${filePath}: aspects[${i}].anchors must be an array of strings`,
+          `yg-node.yaml at ${filePath}: aspects[${i}].anchors must be an object mapping anchor IDs to typed realizations (e.g., { anchor-id: { regex: "pattern" } })`,
         );
       }
-      const anchors = obj.anchors.filter((a): a is string => typeof a === 'string' && a.trim() !== '');
-      if (anchors.length > 0) {
-        entry.anchors = anchors;
+      const anchorsMap: Record<string, AnchorRealization> = {};
+      for (const [anchorId, realization] of Object.entries(obj.anchors as Record<string, unknown>)) {
+        if (typeof realization !== 'object' || realization === null || Array.isArray(realization)) {
+          throw new Error(
+            `yg-node.yaml at ${filePath}: aspects[${i}].anchors.${anchorId} must be an object with a type property (e.g., { regex: "pattern" })`,
+          );
+        }
+        anchorsMap[anchorId] = realization as AnchorRealization;
+      }
+      if (Object.keys(anchorsMap).length > 0) {
+        entry.anchors = anchorsMap;
       }
     }
 
@@ -149,6 +169,23 @@ function parseRelations(raw: unknown, filePath: string): Relation[] {
     if (typeof obj.event_name === 'string' && obj.event_name.trim()) {
       rel.event_name = obj.event_name.trim();
     }
+
+    // Parse anchors on relation (optional Record<string, AnchorRealization>)
+    if (typeof obj.anchors === 'object' && obj.anchors !== null && !Array.isArray(obj.anchors)) {
+      const anchorsMap: Record<string, AnchorRealization> = {};
+      for (const [anchorId, realization] of Object.entries(obj.anchors as Record<string, unknown>)) {
+        if (typeof realization !== 'object' || realization === null || Array.isArray(realization)) {
+          throw new Error(
+            `yg-node.yaml at ${filePath}: relations[${index}].anchors.${anchorId} must be an object with a type property`,
+          );
+        }
+        anchorsMap[anchorId] = realization as AnchorRealization;
+      }
+      if (Object.keys(anchorsMap).length > 0) {
+        rel.anchors = anchorsMap;
+      }
+    }
+
     result.push(rel);
   }
   return result;

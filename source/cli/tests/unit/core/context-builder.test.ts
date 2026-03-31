@@ -89,14 +89,14 @@ describe('context-builder', () => {
       expect(layer.content).toContain('updateUserSessions uses await');
     });
 
-    it('includes stability tier when set', () => {
+    it('does not include stability tier (removed in v4)', () => {
       const layer = buildAspectLayer({
         name: 'PubSub Events',
         id: 'pubsub-events',
-        stability: 'protocol',
+        anchors: ['fire-and-forget'],
         artifacts: [{ filename: 'rules.md', content: 'Fire and forget pattern' }],
       });
-      expect(layer.content).toContain('**Stability tier:** protocol');
+      expect(layer.content).not.toContain('Stability tier');
     });
 
     it('does not include exception section when no exception provided', () => {
@@ -443,7 +443,7 @@ describe('context-builder', () => {
     it('node with own aspects includes aspects in context', async () => {
       const graph = await loadGraph(FIXTURE_PROJECT);
       const orderService = graph.nodes.get('orders/order-service')!;
-      expect(orderService.meta.aspects).toContainEqual({ aspect: 'requires-audit' });
+      expect(orderService.meta.aspects).toContainEqual(expect.objectContaining({ aspect: 'requires-audit' }));
 
       const pkg = await buildContext(graph, 'orders/order-service');
       const aspectLayer = pkg.layers.find((l) => l.type === 'aspects');
@@ -1597,7 +1597,7 @@ describe('toContextMapOutput', () => {
     expect(output.node.description).toBeUndefined();
   });
 
-  it('glossary.aspects includes stability when aspect has it', async () => {
+  it('glossary.aspects does not include stability (removed in v4)', async () => {
     const node: GraphNode = {
       path: 'svc',
       meta: { name: 'Svc', type: 'service', aspects: [{ aspect: 'stable-aspect' }] },
@@ -1615,7 +1615,7 @@ describe('toContextMapOutput', () => {
         {
           name: 'Stable Aspect',
           id: 'stable-aspect',
-          stability: 'schema',
+          anchors: [],
           artifacts: [{ filename: 'content.md', content: 'rules' }],
         },
       ],
@@ -1628,7 +1628,7 @@ describe('toContextMapOutput', () => {
     const output = toContextMapOutput(pkg, graph);
 
     expect(output.glossary.aspects['stable-aspect']).toBeDefined();
-    expect(output.glossary.aspects['stable-aspect'].stability).toBe('schema');
+    expect((output.glossary.aspects['stable-aspect'] as unknown as Record<string, unknown>).stability).toBeUndefined();
   });
 
   it('glossary.flows includes participants list', async () => {

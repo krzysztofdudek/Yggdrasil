@@ -200,6 +200,7 @@ type: module
     expect(meta.relations).toBeUndefined();
     expect(meta.mapping).toBeUndefined();
     expect(meta.blackbox).toBe(false);
+    expect(meta.integration_anchors).toBeUndefined();
 
     await rm(tmpDir, { recursive: true, force: true });
   });
@@ -547,7 +548,7 @@ relations:
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('parses anchors embedded in aspects entries', async () => {
+  it('parses typed anchor realizations on aspect entries', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-anchors');
     await mkdir(tmpDir, { recursive: true });
     const nodePath = path.join(tmpDir, 'yg-node.yaml');
@@ -558,20 +559,74 @@ type: service
 aspects:
   - aspect: pessimistic-locking
     anchors:
-      - lockTeamCollection
-      - FOR UPDATE
+      lock-acquisition:
+        regex: "lockTeamCollection"
+      for-update:
+        regex: "FOR UPDATE"
   - aspect: retry-on-deadlock
     anchors:
-      - MAX_RETRIES
-      - TRANSACTION_DEADLOCK
+      max-retries:
+        regex: "MAX_RETRIES"
 `,
       'utf-8',
     );
 
     const meta = await parseNodeYaml(nodePath);
     expect(meta.aspects).toHaveLength(2);
-    expect(meta.aspects![0].anchors).toEqual(['lockTeamCollection', 'FOR UPDATE']);
-    expect(meta.aspects![1].anchors).toEqual(['MAX_RETRIES', 'TRANSACTION_DEADLOCK']);
+    expect(meta.aspects![0].anchors).toEqual({
+      'lock-acquisition': { regex: 'lockTeamCollection' },
+      'for-update': { regex: 'FOR UPDATE' },
+    });
+    expect(meta.aspects![1].anchors).toEqual({
+      'max-retries': { regex: 'MAX_RETRIES' },
+    });
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('throws when aspect anchors is a bare string array (migration error)', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-bare-anchors');
+    await mkdir(tmpDir, { recursive: true });
+    const nodePath = path.join(tmpDir, 'yg-node.yaml');
+    await writeFile(
+      nodePath,
+      `name: Bad
+type: service
+aspects:
+  - aspect: my-aspect
+    anchors:
+      - lockTeamCollection
+      - FOR UPDATE
+`,
+      'utf-8',
+    );
+
+    await expect(parseNodeYaml(nodePath)).rejects.toThrow(
+      'anchors must be an object mapping anchor IDs to typed realizations',
+    );
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('throws when anchor realization is not an object', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-bad-anchor-val');
+    await mkdir(tmpDir, { recursive: true });
+    const nodePath = path.join(tmpDir, 'yg-node.yaml');
+    await writeFile(
+      nodePath,
+      `name: Bad
+type: service
+aspects:
+  - aspect: my-aspect
+    anchors:
+      my-anchor: "just-a-string"
+`,
+      'utf-8',
+    );
+
+    await expect(parseNodeYaml(nodePath)).rejects.toThrow(
+      'must be an object with a type property',
+    );
 
     await rm(tmpDir, { recursive: true, force: true });
   });
@@ -628,19 +683,6 @@ aspects:
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('throws when aspects entry has non-array anchors', async () => {
-    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-bad-anchor-type');
-    await mkdir(tmpDir, { recursive: true });
-    const nodePath = path.join(tmpDir, 'yg-node.yaml');
-    await writeFile(nodePath, `name: Bad\ntype: service\naspects:\n  - aspect: my-aspect\n    anchors: "not-array"\n`, 'utf-8');
-
-    await expect(parseNodeYaml(nodePath)).rejects.toThrow(
-      'aspects[0].anchors must be an array of strings',
-    );
-
-    await rm(tmpDir, { recursive: true, force: true });
-  });
-
   it('throws when duplicate aspect id in aspects list', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-dup-aspect');
     await mkdir(tmpDir, { recursive: true });
@@ -689,6 +731,124 @@ type: service
 
     const meta = await parseNodeYaml(nodePath);
     expect(meta.description).toBeUndefined();
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('parses relation with anchors (integration anchor realizations)', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-rel-anchors');
+    await mkdir(tmpDir, { recursive: true });
+    const nodePath = path.join(tmpDir, 'yg-node.yaml');
+    await writeFile(
+      nodePath,
+      `name: Consumer
+type: service
+relations:
+  - target: target-svc
+    type: calls
+    anchors:
+      correlation-id:
+        regex: "X-Correlation-ID"
+`,
+      'utf-8',
+    );
+
+    const meta = await parseNodeYaml(nodePath);
+    expect(meta.relations).toHaveLength(1);
+    expect(meta.relations![0].anchors).toEqual({
+      'correlation-id': { regex: 'X-Correlation-ID' },
+    });
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('relation without anchors has no anchors field', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-rel-no-anchors');
+    await mkdir(tmpDir, { recursive: true });
+    const nodePath = path.join(tmpDir, 'yg-node.yaml');
+    await writeFile(
+      nodePath,
+      `name: Consumer
+type: service
+relations:
+  - target: target-svc
+    type: calls
+`,
+      'utf-8',
+    );
+
+    const meta = await parseNodeYaml(nodePath);
+    expect(meta.relations![0].anchors).toBeUndefined();
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('parses integration_anchors on node root', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-integ-anchors');
+    await mkdir(tmpDir, { recursive: true });
+    const nodePath = path.join(tmpDir, 'yg-node.yaml');
+    await writeFile(
+      nodePath,
+      `name: Provider
+type: service
+integration_anchors:
+  - correlation-id
+  - auth-token
+`,
+      'utf-8',
+    );
+
+    const meta = await parseNodeYaml(nodePath);
+    expect(meta.integration_anchors).toEqual(['correlation-id', 'auth-token']);
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('integration_anchors is undefined when not present', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-no-integ');
+    await mkdir(tmpDir, { recursive: true });
+    const nodePath = path.join(tmpDir, 'yg-node.yaml');
+    await writeFile(nodePath, `name: Basic\ntype: service\n`, 'utf-8');
+
+    const meta = await parseNodeYaml(nodePath);
+    expect(meta.integration_anchors).toBeUndefined();
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('throws when integration_anchors is not an array', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-bad-integ');
+    await mkdir(tmpDir, { recursive: true });
+    const nodePath = path.join(tmpDir, 'yg-node.yaml');
+    await writeFile(nodePath, `name: Bad\ntype: service\nintegration_anchors: "not-array"\n`, 'utf-8');
+
+    await expect(parseNodeYaml(nodePath)).rejects.toThrow(
+      "'integration_anchors' must be an array of strings",
+    );
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('throws when relation anchor realization is not an object', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-bad-rel-anchor');
+    await mkdir(tmpDir, { recursive: true });
+    const nodePath = path.join(tmpDir, 'yg-node.yaml');
+    await writeFile(
+      nodePath,
+      `name: Bad
+type: service
+relations:
+  - target: target-svc
+    type: calls
+    anchors:
+      my-anchor: "string-value"
+`,
+      'utf-8',
+    );
+
+    await expect(parseNodeYaml(nodePath)).rejects.toThrow(
+      'must be an object with a type property',
+    );
 
     await rm(tmpDir, { recursive: true, force: true });
   });

@@ -36,6 +36,9 @@ description: x
 type: service
 aspects:
   - aspect: requires-audit
+    anchors:
+      audit-entry:
+        regex: "OrderService"
 relations:
   - target: auth/auth-api
     type: uses
@@ -144,7 +147,7 @@ Sequence: create order -> validate -> payment -> ship.
 
 ---
 
-Context size: 581 tokens
+Context size: 596 tokens
 Layers: global, hierarchy, own, relational, relational, relational, flows, aspects, aspects
 "
 `;

@@ -311,9 +311,6 @@ export function buildEventRelationLayer(target: GraphNode, relation: Relation): 
 
 export function buildAspectLayer(aspect: AspectDef, exceptionNote?: string): ContextLayer {
   let content = aspect.artifacts.map((a) => `### ${a.filename}\n${a.content}`).join('\n\n');
-  if (aspect.stability) {
-    content += `\n**Stability tier:** ${aspect.stability}`;
-  }
   if (exceptionNote) {
     content += `\n\n⚠ **Exception for this node:** ${exceptionNote}`;
   }
@@ -484,7 +481,7 @@ export function toContextMapOutput(
   // Node aspects with anchors/exceptions
   const nodeAspects: NodeAspectRef[] = (node.meta.aspects ?? []).map((entry) => {
     const ref: NodeAspectRef = { id: entry.aspect };
-    if (entry.anchors?.length) ref.anchors = entry.anchors;
+    if (entry.anchors && Object.keys(entry.anchors).length > 0) ref.anchors = Object.keys(entry.anchors);
     if (entry.exceptions?.length) ref.exceptions = entry.exceptions;
     return ref;
   });
@@ -618,7 +615,6 @@ function buildGlossary(
       files,
     };
     if (aspect.description) entry.description = aspect.description;
-    if (aspect.stability) entry.stability = aspect.stability;
     if (aspect.implies?.length) entry.implies = aspect.implies;
     aspects[aspect.id] = entry;
   }

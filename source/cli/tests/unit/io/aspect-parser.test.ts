@@ -119,31 +119,66 @@ implies:
     const aspect = await parseAspect(tmpDir, aspectPath, 'minimal-aspect');
     expect(aspect.name).toBe('Minimal Aspect');
     expect(aspect.id).toBe('minimal-aspect');
+    expect(aspect.anchors).toEqual([]);
     expect(aspect.artifacts).toEqual([]);
 
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('parses stability when present', async () => {
+  it('stability field is silently ignored (v4 removal)', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-aspect-stability');
     await mkdir(tmpDir, { recursive: true });
     const aspectPath = path.join(tmpDir, 'yg-aspect.yaml');
     await writeFile(aspectPath, `name: Stable Aspect\nstability: protocol\n`, 'utf-8');
 
     const aspect = await parseAspect(tmpDir, aspectPath, 'stable');
-    expect(aspect.stability).toBe('protocol');
+    // stability no longer exists on AspectDef — should not throw
+    expect(aspect.name).toBe('Stable Aspect');
+    expect((aspect as Record<string, unknown>).stability).toBeUndefined();
 
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('throws when stability is invalid', async () => {
-    const tmpDir = path.join(__dirname, '../../fixtures/tmp-aspect-bad-stability');
+  it('parses anchors when present', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-aspect-anchors');
     await mkdir(tmpDir, { recursive: true });
     const aspectPath = path.join(tmpDir, 'yg-aspect.yaml');
-    await writeFile(aspectPath, `name: Test\nstability: bogus\n`, 'utf-8');
+    await writeFile(
+      aspectPath,
+      `name: Logging
+anchors:
+  - audit-entry
+  - log-format
+`,
+      'utf-8',
+    );
 
-    await expect(parseAspect(tmpDir, aspectPath, 'bad-stability')).rejects.toThrow(
-      "'stability' must be one of: schema, protocol, implementation",
+    const aspect = await parseAspect(tmpDir, aspectPath, 'logging');
+    expect(aspect.anchors).toEqual(['audit-entry', 'log-format']);
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('defaults anchors to empty array when missing', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-aspect-no-anchors');
+    await mkdir(tmpDir, { recursive: true });
+    const aspectPath = path.join(tmpDir, 'yg-aspect.yaml');
+    await writeFile(aspectPath, `name: No Anchors\n`, 'utf-8');
+
+    const aspect = await parseAspect(tmpDir, aspectPath, 'no-anchors');
+    expect(aspect.anchors).toEqual([]);
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('throws when anchors is not an array', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-aspect-bad-anchors');
+    await mkdir(tmpDir, { recursive: true });
+    const aspectPath = path.join(tmpDir, 'yg-aspect.yaml');
+    await writeFile(aspectPath, `name: Test\nanchors: "not-an-array"\n`, 'utf-8');
+
+    await expect(parseAspect(tmpDir, aspectPath, 'bad-anchors')).rejects.toThrow(
+      "'anchors' must be an array of strings",
     );
 
     await rm(tmpDir, { recursive: true, force: true });
@@ -159,7 +194,9 @@ implies:
 description: A fully specified aspect
 implies:
   - other-aspect
-stability: schema
+anchors:
+  - proof-point-1
+  - proof-point-2
 `,
       'utf-8',
     );
@@ -168,7 +205,7 @@ stability: schema
     expect(aspect.name).toBe('Full Aspect');
     expect(aspect.description).toBe('A fully specified aspect');
     expect(aspect.implies).toEqual(['other-aspect']);
-    expect(aspect.stability).toBe('schema');
+    expect(aspect.anchors).toEqual(['proof-point-1', 'proof-point-2']);
 
     await rm(tmpDir, { recursive: true, force: true });
   });
