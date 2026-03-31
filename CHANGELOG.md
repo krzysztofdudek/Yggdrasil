@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking Changes
 
+- **`yg approve` replaces `drift-sync`.** `drift-sync` is now a backward-compatible
+  alias that delegates to approve logic. `--all` and `--recursive` flags are removed
+  from `drift-sync` — approve one node at a time with `--node <path>`.
 - **`yg check` replaces `validate`, `drift`, `status`, `preflight`.** Single unified
   gate command with exit 0 (clean) / exit 1 (errors). All four old commands removed.
 - **Error codes renumbered to v4 scheme.** E001-E013 structural, E020-E022
@@ -19,6 +22,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`yg approve --node <path>`** — three-axis gate command. Accepts when both
+  source and own artifacts changed bilaterally, or when `--acknowledge <reason>`
+  is provided. Refuses unilateral changes with cause-specific error messages and
+  fix guidance. Exit 0 on success, exit 1 on refuse.
+- **Three-axis drift detection in approve.** Classifies changes as: own artifacts
+  (`.md` files under the node directory), source files (mapped source paths), and
+  other-tracked (aspects, flows, hierarchy — cascade). Enables precise diagnosis.
+- **Blackbox enforcement in approve.** Source changes on blackbox nodes are always
+  refused, even with `--acknowledge`. Forces decomposition.
+- **Anti-laundering check in approve.** First approve of a blackbox node is
+  refused if any mapped file already appears in another node's drift state.
+- **`--acknowledge <reason>` flag** — conscious exception flag. Allows approving
+  unilateral changes (source-only, artifact-only, cascade-only) when the developer
+  confirms no further action is needed. Reason is recorded in drift state.
+- **GC on every approve invocation.** Orphaned drift state entries (nodes removed
+  from graph) are garbage-collected automatically on each `yg approve` call.
 - **E020 direct-drift** — detects source/graph/full drift, missing files,
   unmaterialized mappings with cause-specific messages and fix guidance.
 - **E021 cascade-drift** — detects upstream changes (aspect/dependency/flow/parent)

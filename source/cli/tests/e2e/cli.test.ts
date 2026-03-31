@@ -207,19 +207,19 @@ describe.skipIf(!distExists)('CLI E2E', () => {
     expect(stderr).toContain('required option');
   });
 
-  // --- drift-sync ---
+  // --- approve ---
 
-  it('yg drift-sync --node records hash and clears drift', () => {
-    const tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-drift-sync-'));
+  it('yg approve --node records hash and clears drift', () => {
+    const tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-approve-'));
     try {
       cpSync(FIXTURE, tmpDir, { recursive: true });
-      const { status: syncStatus, stdout } = run(
-        ['drift-sync', '--node', 'orders/order-service'],
+      const { status: approveStatus, stdout } = run(
+        ['approve', '--node', 'orders/order-service'],
         tmpDir,
       );
-      expect(syncStatus).toBe(0);
-      expect(stdout).toContain('Synchronized: orders/order-service');
-      expect(stdout).toMatch(/Hash: .+ -> .+/);
+      expect(approveStatus).toBe(0);
+      expect(stdout).toMatch(/Approved: orders\/order-service/);
+      expect(stdout).toMatch(/Hash:/);
 
       // After approving, check should not show E020 for this node
       const { stdout: checkOut } = run(['check'], tmpDir);
@@ -233,32 +233,52 @@ describe.skipIf(!distExists)('CLI E2E', () => {
     }
   });
 
-  it('yg drift-sync without --node or --all returns exit 1', () => {
-    const { status, stderr } = run(['drift-sync']);
+  it('yg approve without --node returns exit 1', () => {
+    const { status, stderr } = run(['approve']);
     expect(status).toBe(1);
-    expect(stderr).toContain("either '--node <path>' or '--all' is required");
+    expect(stderr).toMatch(/required option|--node/);
   });
 
-  it('yg drift-sync nonexistent node returns exit 1', () => {
-    const { status, stderr } = run(['drift-sync', '--node', 'does/not/exist']);
+  it('yg approve nonexistent node returns exit 1', () => {
+    const { status, stderr } = run(['approve', '--node', 'does/not/exist']);
     expect(status).toBe(1);
-    expect(stderr).toContain('Node not found');
+    expect(stderr).toContain("does not exist");
   });
 
-  it('yg drift-sync --recursive syncs descendant nodes', () => {
-    const tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-drift-recursive-'));
+  // --- drift-sync (backward-compatible alias) ---
+
+  it('yg drift-sync --node records hash via alias', () => {
+    const tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-drift-sync-'));
     try {
       cpSync(FIXTURE, tmpDir, { recursive: true });
-      const { status, stdout } = run(
-        ['drift-sync', '--node', 'orders', '--recursive'],
+      const { status: syncStatus, stdout } = run(
+        ['drift-sync', '--node', 'orders/order-service'],
         tmpDir,
       );
-      expect(status).toBe(0);
-      expect(stdout).toContain('Synchronized: orders/order-service');
-      expect(stdout).not.toContain('Synchronized: orders\n');
+      expect(syncStatus).toBe(0);
+      expect(stdout).toMatch(/Approved: orders\/order-service/);
+      expect(stdout).toMatch(/Hash:/);
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
     }
+  });
+
+  it('yg drift-sync without --node returns exit 1', () => {
+    const { status, stderr } = run(['drift-sync']);
+    expect(status).toBe(1);
+    expect(stderr).toContain('--node <path> is required');
+  });
+
+  it('yg drift-sync --all returns exit 1 with removal message', () => {
+    const { status, stderr } = run(['drift-sync', '--all']);
+    expect(status).toBe(1);
+    expect(stderr).toContain('--all has been removed');
+  });
+
+  it('yg drift-sync --recursive --node x returns exit 1 with removal message', () => {
+    const { status, stderr } = run(['drift-sync', '--recursive', '--node', 'orders/order-service']);
+    expect(status).toBe(1);
+    expect(stderr).toContain('--recursive has been removed');
   });
 
   // --- impact edge cases ---
@@ -627,20 +647,4 @@ describe.skipIf(!distExists)('CLI E2E', () => {
     expect(stderr).toMatch(/required option|--task/);
   });
 
-  // --- drift-sync --all ---
-
-  it('yg drift-sync --all syncs all mapped nodes', () => {
-    const tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-drift-all-'));
-    try {
-      cpSync(FIXTURE, tmpDir, { recursive: true });
-      const { status, stdout } = run(['drift-sync', '--all'], tmpDir);
-      expect(status).toBe(0);
-      expect(stdout).toContain('Synchronized:');
-      // Should sync multiple nodes
-      const syncLines = stdout.split('\n').filter((l: string) => l.includes('Synchronized:'));
-      expect(syncLines.length).toBeGreaterThan(1);
-    } finally {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
-  });
 });

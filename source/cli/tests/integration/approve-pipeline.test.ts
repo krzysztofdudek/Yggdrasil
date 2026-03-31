@@ -1,0 +1,318 @@
+import { describe, it, expect, afterEach } from 'vitest';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { cp, mkdtemp, rm, writeFile, readFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { loadGraph } from '../../src/core/graph-loader.js';
+import { approveNode } from '../../src/core/approve.js';
+import { writeNodeDriftState } from '../../src/io/drift-state-store.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const FIXTURE_PROJECT = path.join(__dirname, '../fixtures/sample-project');
+
+// ── Helpers ──────────────────────────────────────────────────
+
+async function setupProject(): Promise<string> {
+  const root = await mkdtemp(path.join(tmpdir(), 'yg-approve-pipeline-'));
+  await cp(FIXTURE_PROJECT, root, { recursive: true });
+  return root;
+}
+
+/** Remove drift state for a specific node so the next approve is treated as "initial" */
+async function clearNodeDriftState(root: string, nodePath: string): Promise<void> {
+  const stateFile = path.join(root, '.yggdrasil', '.drift-state', `${nodePath}.json`);
+  await rm(stateFile, { force: true });
+}
+
+async function touchFile(absPath: string, content?: string): Promise<void> {
+  const existing = await readFile(absPath, 'utf-8').catch(() => '');
+  await writeFile(absPath, content ?? existing + '\n// touched');
+}
+
+// ── Tests ────────────────────────────────────────────────────
+
+describe('approve-pipeline', () => {
+  const cleanupPaths: string[] = [];
+
+  afterEach(async () => {
+    for (const p of cleanupPaths.splice(0)) {
+      await rm(p, { recursive: true, force: true });
+    }
+  });
+
+  it('full lifecycle: initial → modify → refuse → fix → approve → no-change', async () => {
+    const root = await setupProject();
+    cleanupPaths.push(root);
+
+    const nodePath = 'orders/order-service';
+
+    // Clear existing fixture drift state so this starts as a fresh node
+    await clearNodeDriftState(root, nodePath);
+
+    const graph = await loadGraph(root);
+
+    // Step 1: First approve — no baseline yet → initial
+    const init = await approveNode(graph, nodePath);
+    expect(init.action).toBe('initial');
+    expect(init.previousHash).toBeUndefined();
+    expect(init.currentHash).toBeTruthy();
+    expect(init.currentHash.length).toBeGreaterThan(8);
+
+    // Step 2: No changes → no-change
+    const graph2 = await loadGraph(root);
+    const noChange = await approveNode(graph2, nodePath);
+    expect(noChange.action).toBe('no-change');
+    expect(noChange.previousHash).toBe(init.currentHash);
+    expect(noChange.currentHash).toBe(init.currentHash);
+
+    // Step 3: Modify source only → refused (source changed, artifacts unchanged)
+    const srcFile = path.join(root, 'src', 'orders', 'order.service.ts');
+    await touchFile(srcFile);
+    const graph3 = await loadGraph(root);
+    const refused = await approveNode(graph3, nodePath);
+    expect(refused.action).toBe('refused');
+    expect(refused.axes?.source).toBe('changed');
+    expect(refused.axes?.ownArtifacts).toBe('unchanged');
+    expect(refused.refuseReason).toMatch(/Source changed but artifacts unchanged/);
+    expect(refused.changedSource).toBeDefined();
+    expect(refused.changedSource!.length).toBeGreaterThan(0);
+
+    // Hash should not have advanced — refused means no write
+    const graph4 = await loadGraph(root);
+    const afterRefuse = await approveNode(graph4, nodePath);
+    expect(afterRefuse.action).toBe('refused'); // still drifted
+
+    // Step 4: Fix — also update artifact to reflect changes
+    const artifactFile = path.join(
+      root,
+      '.yggdrasil',
+      'model',
+      'orders',
+      'order-service',
+      'responsibility.md',
+    );
+    await touchFile(artifactFile);
+    const graph5 = await loadGraph(root);
+    const approved = await approveNode(graph5, nodePath);
+    expect(approved.action).toBe('approved');
+    expect(approved.axes?.source).toBe('changed');
+    expect(approved.axes?.ownArtifacts).toBe('changed');
+    expect(approved.previousHash).toBe(init.currentHash);
+    expect(approved.currentHash).not.toBe(init.currentHash);
+
+    // Step 5: No more changes → no-change
+    const graph6 = await loadGraph(root);
+    const stable = await approveNode(graph6, nodePath);
+    expect(stable.action).toBe('no-change');
+    expect(stable.currentHash).toBe(approved.currentHash);
+  });
+
+  it('acknowledge bypasses bilateral check (source changed only)', async () => {
+    const root = await setupProject();
+    cleanupPaths.push(root);
+
+    const graph = await loadGraph(root);
+    const nodePath = 'orders/order-service';
+
+    // Establish baseline
+    await approveNode(graph, nodePath);
+
+    // Modify source only
+    const srcFile = path.join(root, 'src', 'orders', 'order.service.ts');
+    await touchFile(srcFile);
+
+    // Without --acknowledge → refused
+    const graph2 = await loadGraph(root);
+    const refused = await approveNode(graph2, nodePath);
+    expect(refused.action).toBe('refused');
+
+    // With --acknowledge → acknowledged
+    const graph3 = await loadGraph(root);
+    const acked = await approveNode(graph3, nodePath, {
+      acknowledge: 'formatting only, no semantic change',
+    });
+    expect(acked.action).toBe('acknowledged');
+    expect(acked.currentHash).not.toBe(acked.previousHash);
+
+    // After acknowledge, next run → no-change
+    const graph4 = await loadGraph(root);
+    const noChange = await approveNode(graph4, nodePath);
+    expect(noChange.action).toBe('no-change');
+  });
+
+  it('acknowledge bypasses bilateral check (artifact changed only)', async () => {
+    const root = await setupProject();
+    cleanupPaths.push(root);
+
+    const graph = await loadGraph(root);
+    const nodePath = 'orders/order-service';
+
+    // Establish baseline
+    await approveNode(graph, nodePath);
+
+    // Modify artifact only
+    const artifactFile = path.join(
+      root,
+      '.yggdrasil',
+      'model',
+      'orders',
+      'order-service',
+      'responsibility.md',
+    );
+    await touchFile(artifactFile);
+
+    // Without --acknowledge → refused
+    const graph2 = await loadGraph(root);
+    const refused = await approveNode(graph2, nodePath);
+    expect(refused.action).toBe('refused');
+    expect(refused.axes?.ownArtifacts).toBe('changed');
+    expect(refused.axes?.source).toBe('unchanged');
+
+    // With --acknowledge → acknowledged
+    const graph3 = await loadGraph(root);
+    const acked = await approveNode(graph3, nodePath, { acknowledge: 'typo fix in docs' });
+    expect(acked.action).toBe('acknowledged');
+  });
+
+  it('compound drift: source + artifact + aspect → one approve clears all', async () => {
+    const root = await setupProject();
+    cleanupPaths.push(root);
+
+    const nodePath = 'orders/order-service';
+    // Clear existing fixture drift state so this starts as a fresh node
+    await clearNodeDriftState(root, nodePath);
+
+    const graph = await loadGraph(root);
+
+    // Establish baseline
+    const init = await approveNode(graph, nodePath);
+    expect(init.action).toBe('initial');
+
+    // Modify source + artifact simultaneously
+    const srcFile = path.join(root, 'src', 'orders', 'order.service.ts');
+    const artifactFile = path.join(
+      root,
+      '.yggdrasil',
+      'model',
+      'orders',
+      'order-service',
+      'responsibility.md',
+    );
+    await touchFile(srcFile);
+    await touchFile(artifactFile);
+
+    // Both changed → bilateral → approved in one approve call
+    const graph2 = await loadGraph(root);
+    const approved = await approveNode(graph2, nodePath);
+    expect(approved.action).toBe('approved');
+    expect(approved.axes?.source).toBe('changed');
+    expect(approved.axes?.ownArtifacts).toBe('changed');
+
+    // Confirmed: all drift cleared after one approve
+    const graph3 = await loadGraph(root);
+    const noChange = await approveNode(graph3, nodePath);
+    expect(noChange.action).toBe('no-change');
+  });
+
+  it('compound drift: source + aspect cascade → acknowledge clears all', async () => {
+    const root = await setupProject();
+    cleanupPaths.push(root);
+
+    // Use auth/auth-api which tracks aspect files (checkout-flow, requires-logging)
+    const nodePath = 'auth/auth-api';
+
+    // Clear existing drift state so this starts fresh (fixture may have state)
+    await clearNodeDriftState(root, nodePath);
+
+    const graph = await loadGraph(root);
+
+    // Establish baseline
+    const init = await approveNode(graph, nodePath);
+    expect(init.action).toBe('initial');
+
+    // Modify source only (no bilateral artifact update) + modify an aspect file
+    const srcFile = path.join(root, 'src', 'auth', 'auth.controller.ts');
+    const aspectFile = path.join(
+      root,
+      '.yggdrasil',
+      'aspects',
+      'requires-logging',
+      'content.md',
+    );
+    await touchFile(srcFile);
+    await touchFile(aspectFile);
+
+    // Source changed + context changed (otherTracked) → refused without acknowledge
+    // (source changed, artifacts unchanged — that takes priority)
+    const graph2 = await loadGraph(root);
+    const refused = await approveNode(graph2, nodePath);
+    expect(refused.action).toBe('refused');
+    expect(refused.axes?.source).toBe('changed');
+
+    // Acknowledge clears everything
+    const graph3 = await loadGraph(root);
+    const acked = await approveNode(graph3, nodePath, {
+      acknowledge: 'cosmetic change + aspect clarification reviewed',
+    });
+    expect(acked.action).toBe('acknowledged');
+
+    // All drift cleared
+    const graph4 = await loadGraph(root);
+    const noChange = await approveNode(graph4, nodePath);
+    expect(noChange.action).toBe('no-change');
+  });
+
+  it('initial approve on node with no mapping throws', async () => {
+    const root = await setupProject();
+    cleanupPaths.push(root);
+
+    const graph = await loadGraph(root);
+    // 'orders' parent module has no mapping.paths
+    await expect(approveNode(graph, 'orders')).rejects.toThrow(
+      /no mapping/,
+    );
+  });
+
+  it('approve on nonexistent node throws', async () => {
+    const root = await setupProject();
+    cleanupPaths.push(root);
+
+    const graph = await loadGraph(root);
+    await expect(approveNode(graph, 'does/not/exist')).rejects.toThrow(
+      /does not exist/,
+    );
+  });
+
+  it('GC removes orphaned drift state entries during approve', async () => {
+    const root = await setupProject();
+    cleanupPaths.push(root);
+
+    const yggRoot = path.join(root, '.yggdrasil');
+
+    // Write a drift state entry for a nonexistent node (ghost)
+    // Uses writeNodeDriftState which writes to .drift-state/<nodePath>.json
+    await writeNodeDriftState(yggRoot, 'ghost/nonexistent-node', {
+      hash: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      files: {},
+    });
+
+    const graph = await loadGraph(root);
+    const result = await approveNode(graph, 'orders/order-service');
+
+    // GC should have removed the ghost entry and returned its node path
+    expect(result.gcPaths).toBeDefined();
+    expect(result.gcPaths!.some((p) => p.includes('ghost') || p.includes('nonexistent'))).toBe(
+      true,
+    );
+  });
+
+  it('acknowledge requires non-empty reason string', async () => {
+    const root = await setupProject();
+    cleanupPaths.push(root);
+
+    const graph = await loadGraph(root);
+    await expect(
+      approveNode(graph, 'orders/order-service', { acknowledge: '   ' }),
+    ).rejects.toThrow(/non-empty reason/);
+  });
+});

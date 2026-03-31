@@ -2,7 +2,7 @@
 import { Command } from 'commander';
 import { registerInitCommand } from './cli/init.js';
 import { registerBuildCommand } from './cli/build-context.js';
-import { registerDriftSyncCommand } from './cli/drift-sync.js';
+import { registerApproveCommand } from './cli/approve.js';
 import { registerTreeCommand } from './cli/tree.js';
 import { registerOwnerCommand } from './cli/owner.js';
 import { registerDepsCommand } from './cli/deps.js';
@@ -28,7 +28,7 @@ program
 
 registerInitCommand(program);
 registerBuildCommand(program);
-registerDriftSyncCommand(program);
+registerApproveCommand(program);
 registerTreeCommand(program);
 registerOwnerCommand(program);
 registerDepsCommand(program);
