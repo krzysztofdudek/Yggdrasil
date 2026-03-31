@@ -347,6 +347,50 @@ export interface DriftNodeState {
   hash: string;
   files: Record<string, string>;  // path → sha256 hex — now required, not optional
   mtimes?: Record<string, number>; // path → mtime in ms — for mtime-based drift optimization
+  /** Reason provided with --acknowledge, stored for audit trail */
+  acknowledgeReason?: string;
+}
+
+/** Upstream change with type annotation for CLI messages */
+export interface AnnotatedChange {
+  filePath: string;
+  /** Human-readable annotation, e.g. "aspect content", "dependency interface", "flow description", "parent artifact" */
+  annotation: string;
+}
+
+/** Result of approveNode() — what happened and why */
+export interface ApproveResult {
+  /** What approve decided */
+  action: 'approved' | 'acknowledged' | 'no-change' | 'initial' | 'refused';
+  /** Previous hash (undefined for first approve) */
+  previousHash?: string;
+  /** Current hash after recording */
+  currentHash: string;
+  /** For refused: reason string */
+  refuseReason?: string;
+  /** For refused: the three axis states */
+  axes?: {
+    ownArtifacts: 'changed' | 'unchanged';
+    source: 'changed' | 'unchanged';
+    otherTracked: 'changed' | 'unchanged';
+  };
+  /** Changed file details for error messages */
+  changedOwnArtifacts?: string[];
+  changedSource?: string[];
+  changedOther?: AnnotatedChange[];
+  /** Unchanged file details for error messages (per CLI messages spec) */
+  unchangedArtifactNames?: string[];
+  unchangedSourceFiles?: string[];
+  /** Was blackbox blocker triggered? */
+  blackboxBlocked?: boolean;
+  /** Was anti-laundering triggered? */
+  antiLaunderingBlocked?: boolean;
+  /** Was --acknowledge used when refused? (distinct blackbox message) */
+  acknowledgeAttempted?: boolean;
+  /** Is the node a blackbox? (for cascade acknowledge success message) */
+  isBlackbox?: boolean;
+  /** GC'd orphaned drift state paths */
+  gcPaths?: string[];
 }
 
 /** Map: node-path → DriftNodeState. Legacy string format no longer supported. */
