@@ -3,6 +3,9 @@ description: x
 type: service
 aspects:
   - aspect: requires-audit
+    anchors:
+      audit-entry:
+        regex: "OrderService"
 relations:
   - target: auth/auth-api
     type: uses

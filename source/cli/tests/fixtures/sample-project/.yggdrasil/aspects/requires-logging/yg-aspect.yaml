@@ -1,2 +1,4 @@
 name: Structured Logging
 description: Consistent structured logging across services
+anchors:
+  - log-call

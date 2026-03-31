@@ -3,3 +3,6 @@ description: x
 type: module
 aspects:
   - aspect: requires-audit
+    anchors:
+      audit-entry:
+        regex: "audit"

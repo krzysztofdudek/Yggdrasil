@@ -48,7 +48,7 @@ function createGraph(overrides: Partial<Graph> = {}): Graph {
       node_types: { service: { description: 'x' } },
     },
     nodes: new Map(),
-    aspects: [{ name: 'Valid', id: 'valid-tag', artifacts: [] }],
+    aspects: [{ name: 'Valid', id: 'valid-tag', anchors: ['proof-point'], artifacts: [] }],
     flows: [],
     schemas: [],
     rootPath: path.join(FIXTURE_PROJECT, '.yggdrasil'),
@@ -119,8 +119,8 @@ describe('validator', () => {
   it('duplicate-aspect-binding returns E010 when id bound to multiple aspects', async () => {
     const graph = createGraph({
       aspects: [
-        { name: 'Aspect One', id: 'audit', artifacts: [] },
-        { name: 'Aspect Two', id: 'audit', artifacts: [] },
+        { name: 'Aspect One', id: 'audit', anchors: ['proof'], artifacts: [] },
+        { name: 'Aspect Two', id: 'audit', anchors: ['proof'], artifacts: [] },
       ],
     });
     graph.nodes.set('a', createNode('a'));
@@ -759,8 +759,8 @@ describe('validator', () => {
   it('aspect-id-uniqueness returns error when id bound to multiple aspects', async () => {
     const graph = createGraph({
       aspects: [
-        { name: 'Aspect1', id: 'dup-tag', artifacts: [] },
-        { name: 'Aspect2', id: 'dup-tag', artifacts: [] },
+        { name: 'Aspect1', id: 'dup-tag', anchors: ['proof'], artifacts: [] },
+        { name: 'Aspect2', id: 'dup-tag', anchors: ['proof'], artifacts: [] },
       ],
     });
     graph.nodes.set('a', createNode('a'));
@@ -775,7 +775,7 @@ describe('validator', () => {
   it('implied-aspect-missing returns error when implied id has no aspect', async () => {
     const graph = createGraph({
       aspects: [
-        { name: 'HIPAA', id: 'requires-hipaa', implies: ['requires-audit'], artifacts: [] },
+        { name: 'HIPAA', id: 'requires-hipaa', anchors: ['proof'], implies: ['requires-audit'], artifacts: [] },
       ],
     });
     graph.nodes.set('a', createNode('a'));
@@ -791,8 +791,8 @@ describe('validator', () => {
   it('aspect-implies-cycle returns error when implies form cycle', async () => {
     const graph = createGraph({
       aspects: [
-        { name: 'A', id: 'tag-a', implies: ['tag-b'], artifacts: [] },
-        { name: 'B', id: 'tag-b', implies: ['tag-a'], artifacts: [] },
+        { name: 'A', id: 'tag-a', anchors: ['proof'], implies: ['tag-b'], artifacts: [] },
+        { name: 'B', id: 'tag-b', anchors: ['proof'], implies: ['tag-a'], artifacts: [] },
       ],
     });
     graph.nodes.set('a', createNode('a'));
@@ -808,7 +808,7 @@ describe('validator', () => {
 
   it('missing-required-aspect returns error when node type requires aspect', async () => {
     const graph = createGraph({
-      aspects: [{ name: 'Audit', id: 'requires-audit', artifacts: [] }],
+      aspects: [{ name: 'Audit', id: 'requires-audit', anchors: ['proof'], artifacts: [] }],
       config: {
         name: 'Test',
         node_types: { service: { description: 'x', required_aspects: ['requires-audit'] } },
@@ -830,8 +830,8 @@ describe('validator', () => {
         node_types: { service: { description: 'x', required_aspects: ['requires-audit'] } },
       },
       aspects: [
-        { name: 'Audit', id: 'requires-audit', artifacts: [] },
-        { name: 'HIPAA', id: 'requires-hipaa', implies: ['requires-audit'], artifacts: [] },
+        { name: 'Audit', id: 'requires-audit', anchors: ['proof'], artifacts: [] },
+        { name: 'HIPAA', id: 'requires-hipaa', anchors: ['proof'], implies: ['requires-audit'], artifacts: [] },
       ],
     });
     graph.nodes.set('svc', createNode('svc', { aspects: [{ aspect: 'requires-hipaa' }] }));
@@ -962,7 +962,7 @@ describe('validator', () => {
 
     it('E038 emitted for an aspect without description', async () => {
       const graph = createGraph({
-        aspects: [{ name: 'NoDesc', id: 'no-desc-aspect', artifacts: [] }],
+        aspects: [{ name: 'NoDesc', id: 'no-desc-aspect', anchors: ['proof'], artifacts: [] }],
       });
       graph.nodes.set('a', createNode('a'));
 
@@ -991,6 +991,244 @@ describe('validator', () => {
       expect(issues).toHaveLength(1);
       expect(issues[0].code).toBe('E038');
       expect(issues[0].severity).toBe('error');
+    });
+  });
+
+  describe('E039 aspect-missing-anchors', () => {
+    it('E039: aspect with empty anchors array', async () => {
+      const graph = createGraph({
+        aspects: [{ name: 'EmptyAnchors', id: 'empty-anchors', anchors: [], artifacts: [] }],
+      });
+      const result = await validate(graph);
+      const e039 = result.issues.find(i => i.code === 'E039');
+      expect(e039).toBeDefined();
+      expect(e039!.rule).toBe('aspect-missing-anchors');
+      expect(e039!.message).toContain('at least one anchor');
+      expect(e039!.nodePath).toBe('aspects/empty-anchors');
+    });
+
+    it('no E039 for aspect with anchors', async () => {
+      const graph = createGraph({
+        aspects: [{ name: 'HasAnchors', id: 'has-anchors', anchors: ['proof-point'], artifacts: [] }],
+      });
+      const result = await validate(graph);
+      const e039 = result.issues.filter(i => i.code === 'E039');
+      expect(e039).toHaveLength(0);
+    });
+  });
+
+  describe('E040 anchor-not-realized', () => {
+    it('E040: node missing realization for aspect anchor', async () => {
+      const graph = createGraph({
+        aspects: [{ name: 'Logging', id: 'logging', anchors: ['audit-entry'], artifacts: [] }],
+      });
+      graph.nodes.set('a', createNode('a', {
+        aspects: [{ aspect: 'logging' }], // no anchors realization
+        mapping: { paths: ['src/a/'] },
+      }));
+      const result = await validate(graph);
+      const e040 = result.issues.find(i => i.code === 'E040' && i.nodePath === 'a');
+      expect(e040).toBeDefined();
+      expect(e040!.message).toContain('audit-entry');
+    });
+
+    it('no E040 when all anchors realized', async () => {
+      const graph = createGraph({
+        aspects: [{ name: 'Logging', id: 'logging', anchors: ['audit-entry'], artifacts: [] }],
+      });
+      graph.nodes.set('a', createNode('a', {
+        aspects: [{ aspect: 'logging', anchors: { 'audit-entry': { regex: 'createAuditLog' } } }],
+        mapping: { paths: ['src/a/'] },
+      }));
+      const result = await validate(graph);
+      const e040 = result.issues.filter(i => i.code === 'E040');
+      expect(e040).toHaveLength(0);
+    });
+
+    it('no E040 for blackbox nodes (exempt from anchor realization)', async () => {
+      const graph = createGraph({
+        aspects: [{ name: 'Logging', id: 'logging', anchors: ['audit-entry'], artifacts: [] }],
+      });
+      graph.nodes.set('a', createNode('a', {
+        aspects: [{ aspect: 'logging' }], // no realization
+        blackbox: true,
+        mapping: { paths: ['src/a/'] },
+      }));
+      const result = await validate(graph);
+      const e040 = result.issues.filter(i => i.code === 'E040' && i.nodePath === 'a');
+      expect(e040).toHaveLength(0);
+    });
+
+    it('no E040 for event relations (emits/listens) even if target has integration_anchors', async () => {
+      const graph = createGraph();
+      graph.nodes.set('target', createNode('target', {
+        integration_anchors: ['correlation-id'],
+        mapping: { paths: ['src/target/'] },
+      }));
+      graph.nodes.set('listener', createNode('listener', {
+        relations: [{ target: 'target', type: 'listens' }], // event relation, not structural
+        mapping: { paths: ['src/listener/'] },
+      }));
+      const result = await validate(graph);
+      const e040 = result.issues.filter(i => i.code === 'E040' && i.nodePath === 'listener');
+      expect(e040).toHaveLength(0);
+    });
+
+    it('E040: integration anchor not realized on relation', async () => {
+      const graph = createGraph();
+      graph.nodes.set('target', createNode('target', {
+        integration_anchors: ['correlation-id'],
+        mapping: { paths: ['src/target/'] },
+      }));
+      graph.nodes.set('consumer', createNode('consumer', {
+        relations: [{ target: 'target', type: 'calls' }], // no anchors on relation
+        mapping: { paths: ['src/consumer/'] },
+      }));
+      const result = await validate(graph);
+      const e040 = result.issues.find(i => i.code === 'E040' && i.nodePath === 'consumer');
+      expect(e040).toBeDefined();
+      expect(e040!.message).toContain('correlation-id');
+    });
+  });
+
+  describe('E041 unknown-anchor-type', () => {
+    it('E041: unknown anchor realization type', async () => {
+      const graph = createGraph({
+        aspects: [{ name: 'Logging', id: 'logging', anchors: ['audit-entry'], artifacts: [] }],
+      });
+      graph.nodes.set('a', createNode('a', {
+        aspects: [{ aspect: 'logging', anchors: { 'audit-entry': { ast: { signature: 'fn()' } } as unknown as { regex?: string } } }],
+        mapping: { paths: ['src/a/'] },
+      }));
+      const result = await validate(graph);
+      const e041 = result.issues.find(i => i.code === 'E041');
+      expect(e041).toBeDefined();
+      expect(e041!.message).toContain("'ast'");
+      expect(e041!.message).toContain('regex');
+    });
+
+    it('E041: unknown type on relation anchor', async () => {
+      const graph = createGraph();
+      graph.nodes.set('target', createNode('target', {
+        integration_anchors: ['corr-id'],
+        mapping: { paths: ['src/target/'] },
+      }));
+      graph.nodes.set('consumer', createNode('consumer', {
+        relations: [{ target: 'target', type: 'calls', anchors: { 'corr-id': { ast: { sig: 'fn()' } } as unknown as { regex?: string } } }],
+        mapping: { paths: ['src/consumer/'] },
+      }));
+      const result = await validate(graph);
+      const e041 = result.issues.find(i => i.code === 'E041' && i.nodePath === 'consumer');
+      expect(e041).toBeDefined();
+      expect(e041!.message).toContain("'ast'");
+    });
+  });
+
+  describe('E037 anchor-not-found', () => {
+    async function createTmpProjectForAnchors(name: string, opts: {
+      nodeYaml: string;
+      sourceFiles?: Record<string, string>;
+      aspects?: Array<{ id: string; yaml: string }>;
+      extraNodes?: Array<{ path: string; yaml: string }>;
+    }): Promise<{ tmpDir: string }> {
+      const tmpDir = path.join(__dirname, `../../fixtures/tmp-validator-${name}`);
+      const yggRoot = path.join(tmpDir, '.yggdrasil');
+      const modelDir = path.join(yggRoot, 'model', 'svc');
+
+      await mkdir(modelDir, { recursive: true });
+      await writeFile(
+        path.join(yggRoot, 'yg-config.yaml'),
+        'name: V\nnode_types:\n  service:\n    description: x',
+      );
+      await writeFile(path.join(modelDir, 'yg-node.yaml'), opts.nodeYaml);
+      await writeFile(path.join(modelDir, 'responsibility.md'), 'x'.repeat(60));
+
+      // Create source files
+      for (const [filePath, content] of Object.entries(opts.sourceFiles ?? {})) {
+        const absPath = path.join(tmpDir, filePath);
+        await mkdir(path.dirname(absPath), { recursive: true });
+        await writeFile(absPath, content);
+      }
+
+      // Create aspects
+      for (const aspect of opts.aspects ?? []) {
+        const aspectDir = path.join(yggRoot, 'aspects', aspect.id);
+        await mkdir(aspectDir, { recursive: true });
+        await writeFile(path.join(aspectDir, 'yg-aspect.yaml'), aspect.yaml);
+      }
+
+      // Create extra nodes
+      for (const extra of opts.extraNodes ?? []) {
+        const nodeDir = path.join(yggRoot, 'model', extra.path);
+        await mkdir(nodeDir, { recursive: true });
+        await writeFile(path.join(nodeDir, 'yg-node.yaml'), extra.yaml);
+        await writeFile(path.join(nodeDir, 'responsibility.md'), 'x'.repeat(60));
+      }
+
+      // Create required schemas
+      const schemasDir = path.join(yggRoot, 'schemas');
+      await mkdir(schemasDir, { recursive: true });
+      await writeFile(path.join(schemasDir, 'yg-node.yaml'), '# node schema');
+      await writeFile(path.join(schemasDir, 'yg-aspect.yaml'), '# aspect schema');
+      await writeFile(path.join(schemasDir, 'yg-flow.yaml'), '# flow schema');
+
+      return { tmpDir };
+    }
+
+    it('E037: regex pattern not found in source files', async () => {
+      const { tmpDir } = await createTmpProjectForAnchors('e037', {
+        nodeYaml: `name: Svc\ntype: service\ndescription: test\naspects:\n  - aspect: logging\n    anchors:\n      audit-entry:\n        regex: "NONEXISTENT_PATTERN"\nmapping:\n  paths:\n    - src/\n`,
+        sourceFiles: { 'src/index.ts': 'export function hello() { return 42; }\n' },
+        aspects: [{ id: 'logging', yaml: 'name: Logging\ndescription: test\nanchors:\n  - audit-entry\n' }],
+      });
+      const graph = await loadGraph(tmpDir);
+      const result = await validate(graph);
+      const e037 = result.issues.find(i => i.code === 'E037');
+      expect(e037).toBeDefined();
+      expect(e037!.message).toContain('NONEXISTENT_PATTERN');
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('no E037 when regex matches source', async () => {
+      const { tmpDir } = await createTmpProjectForAnchors('e037-match', {
+        nodeYaml: `name: Svc\ntype: service\ndescription: test\naspects:\n  - aspect: logging\n    anchors:\n      audit-entry:\n        regex: "hello"\nmapping:\n  paths:\n    - src/\n`,
+        sourceFiles: { 'src/index.ts': 'export function hello() { return 42; }\n' },
+        aspects: [{ id: 'logging', yaml: 'name: Logging\ndescription: test\nanchors:\n  - audit-entry\n' }],
+      });
+      const graph = await loadGraph(tmpDir);
+      const result = await validate(graph);
+      const e037 = result.issues.filter(i => i.code === 'E037');
+      expect(e037).toHaveLength(0);
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('E037: integration anchor regex not found in source', async () => {
+      const { tmpDir } = await createTmpProjectForAnchors('e037-integration', {
+        nodeYaml: `name: Consumer\ntype: service\ndescription: test\nrelations:\n  - target: target-svc\n    type: calls\n    anchors:\n      correlation-id:\n        regex: "NONEXISTENT_CORRELATION"\nmapping:\n  paths:\n    - src/\n`,
+        sourceFiles: { 'src/index.ts': 'export function call() { return 42; }\n' },
+        extraNodes: [{
+          path: 'target-svc',
+          yaml: 'name: TargetSvc\ntype: service\ndescription: test\nintegration_anchors:\n  - correlation-id\n',
+        }],
+      });
+      const graph = await loadGraph(tmpDir);
+      const result = await validate(graph);
+      const e037 = result.issues.find(i => i.code === 'E037' && i.rule === 'integration-anchor-not-found');
+      expect(e037).toBeDefined();
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('E037: blackbox exempt from anchor-not-found', async () => {
+      const { tmpDir } = await createTmpProjectForAnchors('e037-blackbox', {
+        nodeYaml: `name: Legacy\ntype: service\ndescription: test\nblackbox: true\naspects:\n  - aspect: logging\n    anchors:\n      audit-entry:\n        regex: "NONEXISTENT"\nmapping:\n  paths:\n    - src/\n`,
+        sourceFiles: { 'src/index.ts': 'nothing here\n' },
+        aspects: [{ id: 'logging', yaml: 'name: Logging\ndescription: test\nanchors:\n  - audit-entry\n' }],
+      });
+      const graph = await loadGraph(tmpDir);
+      const result = await validate(graph);
+      const e037 = result.issues.filter(i => i.code === 'E037');
+      expect(e037).toHaveLength(0);
+      await rm(tmpDir, { recursive: true, force: true });
     });
   });
 

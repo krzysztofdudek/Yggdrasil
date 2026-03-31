@@ -43,7 +43,9 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
     issues.push(...checkImpliedAspectsExist(graph));
     issues.push(...checkImpliesNoCycles(graph));
     issues.push(...checkRequiredAspectsCoverage(graph));
-    // checkAnchorPresence removed — replaced by typed anchors in Plan 3
+    issues.push(...checkAspectAnchors(graph));
+    issues.push(...checkAnchorRealizations(graph));
+    issues.push(...(await checkAnchorPatterns(graph)));
     issues.push(...checkRequiredArtifacts(graph));
     // invalid-artifact-condition removed (v3 E013) — standard artifacts don't use has_aspect: conditions
     issues.push(...(await checkContextBudget(graph)));
@@ -793,7 +795,7 @@ async function checkDirectoriesHaveNodeYaml(graph: Graph): Promise<ValidationIss
   return issues;
 }
 
-// --- Anchor validation (dead code — replaced by typed anchors in Plan 3) ---
+// --- Anchor validation (E039, E040, E041, E037) ---
 
 async function expandMappingToFiles(projectRoot: string, mappingPaths: string[]): Promise<string[]> {
   const files: string[] = [];
@@ -826,52 +828,199 @@ async function expandMappingToFiles(projectRoot: string, mappingPaths: string[])
   return files;
 }
 
-/* v8 ignore start -- dead code kept for Plan 3 reference */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function checkAnchorPresence(graph: Graph): Promise<ValidationIssue[]> {
+// E039: Every aspect must have anchors
+function checkAspectAnchors(graph: Graph): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
-  const projectRoot = path.dirname(graph.rootPath);
+  for (const aspect of graph.aspects) {
+    if (!aspect.anchors || aspect.anchors.length === 0) {
+      issues.push({
+        severity: 'error',
+        code: 'E039',
+        rule: 'aspect-missing-anchors',
+        message: `Every aspect must define at least one anchor in yg-aspect.yaml.\nAdd an anchors list with abstract proof point IDs:\n  anchors:\n    - <proof-point-id>`,
+        nodePath: `aspects/${aspect.id}`,
+      });
+    }
+  }
+  return issues;
+}
+
+/** Structural relation types — used by anchor validation */
+const STRUCTURAL_TYPES = new Set(['uses', 'calls', 'extends', 'implements']);
+
+// E040 + E041: Nodes must realize all anchor IDs with valid typed objects
+function checkAnchorRealizations(graph: Graph): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const aspectMap = new Map(graph.aspects.map(a => [a.id, a]));
 
   for (const [nodePath, node] of graph.nodes) {
-    const aspectsWithAnchors = (node.meta.aspects ?? []).filter(a => a.anchors && a.anchors.length > 0);
-    if (aspectsWithAnchors.length === 0) continue;
+    if (node.meta.blackbox) continue;
 
-    // W014: check anchor strings exist in source files
-    const mappingPaths = normalizeMappingPaths(node.meta.mapping);
-    if (mappingPaths.length === 0) continue;
+    // Check aspect anchor realizations
+    for (const entry of node.meta.aspects ?? []) {
+      const aspect = aspectMap.get(entry.aspect);
+      if (!aspect?.anchors || aspect.anchors.length === 0) continue;
 
-    const sourceFiles = await expandMappingToFiles(projectRoot, mappingPaths);
-    if (sourceFiles.length === 0) continue;
-
-    const fileContents: string[] = [];
-    for (const filePath of sourceFiles) {
-      try {
-        const content = await readFile(filePath, 'utf-8');
-        fileContents.push(content);
-      } catch {
-        // Skip unreadable files
+      for (const anchorId of aspect.anchors) {
+        const realization = entry.anchors?.[anchorId];
+        if (!realization) {
+          issues.push({
+            severity: 'error',
+            code: 'E040',
+            rule: 'anchor-not-realized',
+            message: `Aspect '${entry.aspect}' requires anchor '${anchorId}' but node has no realization for it.\nAdd an anchors map to the aspect entry in yg-node.yaml:\n  aspects:\n    - aspect: ${entry.aspect}\n      anchors:\n        ${anchorId}:\n          regex: "<pattern>"`,
+            nodePath,
+          });
+          continue;
+        }
+        // E041: check realization type — must be exactly one known type property
+        const typeKeys = Object.keys(realization).filter(k => k !== '__proto__');
+        if (typeKeys.length !== 1 || typeKeys[0] !== 'regex') {
+          const unknownTypes = typeKeys.filter(k => k !== 'regex');
+          const unknownType = unknownTypes[0] ?? (typeKeys.length === 0 ? 'empty' : typeKeys.join('+'));
+          issues.push({
+            severity: 'error',
+            code: 'E041',
+            rule: 'unknown-anchor-type',
+            message: `Anchor '${anchorId}' uses type '${unknownType}' which is not supported.\nSupported types: regex.\nUpgrade CLI or change to a supported type.`,
+            nodePath,
+          });
+        }
       }
     }
 
-    for (const entry of aspectsWithAnchors) {
-      for (const anchor of entry.anchors!) {
-        const found = fileContents.some((content) => content.includes(anchor));
-        if (!found) {
+    // Check integration anchor realizations on relations
+    for (const rel of node.meta.relations ?? []) {
+      if (!STRUCTURAL_TYPES.has(rel.type)) continue;
+      const target = graph.nodes.get(rel.target);
+      if (!target?.meta.integration_anchors) continue;
+
+      for (const anchorId of target.meta.integration_anchors) {
+        const realization = rel.anchors?.[anchorId];
+        if (!realization) {
           issues.push({
-            severity: 'warning',
-            code: 'W014',
-            rule: 'anchor-not-found',
-            message: `Anchor '${anchor}' for aspect '${entry.aspect}' not found in mapped source files`,
+            severity: 'error',
+            code: 'E040',
+            rule: 'integration-anchor-not-realized',
+            message: `Dependency '${rel.target}' requires anchor '${anchorId}' but relation has no realization for it.\nAdd an anchors map to the relation entry in yg-node.yaml:\n  relations:\n    - target: ${rel.target}\n      anchors:\n        ${anchorId}:\n          regex: "<pattern>"`,
+            nodePath,
+          });
+          continue;
+        }
+        const typeKeys = Object.keys(realization).filter(k => k !== '__proto__');
+        if (typeKeys.length !== 1 || typeKeys[0] !== 'regex') {
+          const unknownTypes = typeKeys.filter(k => k !== 'regex');
+          const unknownType = unknownTypes[0] ?? (typeKeys.length === 0 ? 'empty' : typeKeys.join('+'));
+          issues.push({
+            severity: 'error',
+            code: 'E041',
+            rule: 'unknown-anchor-type',
+            message: `Anchor '${anchorId}' uses type '${unknownType}' which is not supported.\nSupported types: regex.\nUpgrade CLI or change to a supported type.`,
             nodePath,
           });
         }
       }
     }
   }
-
   return issues;
 }
-/* v8 ignore stop */
+
+// E037: Realized regex patterns must be found in source files
+async function checkAnchorPatterns(graph: Graph): Promise<ValidationIssue[]> {
+  const issues: ValidationIssue[] = [];
+  const projectRoot = path.dirname(graph.rootPath);
+  const aspectMap = new Map(graph.aspects.map(a => [a.id, a]));
+
+  for (const [nodePath, node] of graph.nodes) {
+    if (node.meta.blackbox) continue;
+    const mappingPaths = normalizeMappingPaths(node.meta.mapping);
+    if (mappingPaths.length === 0) continue;
+
+    const sourceFiles = await expandMappingToFiles(projectRoot, mappingPaths);
+    if (sourceFiles.length === 0) continue;
+
+    // Read all source file contents once
+    const fileContents: Array<{ path: string; content: string }> = [];
+    for (const filePath of sourceFiles) {
+      try {
+        const content = await readFile(filePath, 'utf-8');
+        fileContents.push({ path: filePath, content });
+      } catch { /* skip unreadable */ }
+    }
+
+    // Check aspect anchor patterns
+    for (const entry of node.meta.aspects ?? []) {
+      const aspect = aspectMap.get(entry.aspect);
+      if (!aspect?.anchors || !entry.anchors) continue;
+
+      for (const anchorId of aspect.anchors) {
+        const realization = entry.anchors[anchorId];
+        if (!realization?.regex) continue;
+
+        try {
+          const regex = new RegExp(realization.regex);
+          const found = fileContents.some(f => regex.test(f.content));
+          if (!found) {
+            const mappedFiles = sourceFiles.map(f => path.relative(projectRoot, f));
+            issues.push({
+              severity: 'error',
+              code: 'E037',
+              rule: 'anchor-not-found',
+              message: `Aspect '${entry.aspect}' expects anchor '${anchorId}' with pattern\n'${realization.regex}' in source.\nPattern not found in mapped files:\n${mappedFiles.map(f => '  ' + f).join('\n')}\nImplement the aspect pattern, or update the anchor realization\nin yg-node.yaml if the pattern has changed.`,
+              nodePath,
+            });
+          }
+        } catch {
+          // Invalid regex — reported as E037 with pattern info
+          issues.push({
+            severity: 'error',
+            code: 'E037',
+            rule: 'anchor-not-found',
+            message: `Aspect '${entry.aspect}' anchor '${anchorId}' has invalid regex pattern '${realization.regex}'.`,
+            nodePath,
+          });
+        }
+      }
+    }
+
+    // Check integration anchor patterns on relations
+    for (const rel of node.meta.relations ?? []) {
+      if (!STRUCTURAL_TYPES.has(rel.type)) continue;
+      if (!rel.anchors) continue;
+      const target = graph.nodes.get(rel.target);
+      if (!target?.meta.integration_anchors) continue;
+
+      for (const anchorId of target.meta.integration_anchors) {
+        const realization = rel.anchors[anchorId];
+        if (!realization?.regex) continue;
+
+        try {
+          const regex = new RegExp(realization.regex);
+          const found = fileContents.some(f => regex.test(f.content));
+          if (!found) {
+            const mappedFiles = sourceFiles.map(f => path.relative(projectRoot, f));
+            issues.push({
+              severity: 'error',
+              code: 'E037',
+              rule: 'integration-anchor-not-found',
+              message: `Dependency '${rel.target}' expects anchor '${anchorId}' with pattern\n'${realization.regex}' in source.\nPattern not found in mapped files:\n${mappedFiles.map(f => '  ' + f).join('\n')}\nImplement the integration requirement, or update the anchor realization\nin the relation entry in yg-node.yaml.`,
+              nodePath,
+            });
+          }
+        } catch {
+          issues.push({
+            severity: 'error',
+            code: 'E037',
+            rule: 'integration-anchor-not-found',
+            message: `Dependency '${rel.target}' anchor '${anchorId}' has invalid regex pattern '${realization.regex}'.`,
+            nodePath,
+          });
+        }
+      }
+    }
+  }
+  return issues;
+}
 
 // --- Context budget (W001 warning, E032 exceeded, W002 own-budget) ---
 
