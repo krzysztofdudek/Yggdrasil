@@ -84,6 +84,51 @@ describe('collectTrackedFiles', () => {
     expect(graphFiles.length).toBeGreaterThan(0);
   });
 
+  it('assigns correct layer to each tracked file', async () => {
+    const graph = await loadGraph(FIXTURE_PROJECT);
+    const node = graph.nodes.get('orders/order-service')!;
+    const files = collectTrackedFiles(node, graph);
+
+    // Own layer: the node's own yg-node.yaml and artifacts
+    const ownNodeYaml = files.find((f) => f.path === '.yggdrasil/model/orders/order-service/yg-node.yaml');
+    expect(ownNodeYaml).toBeDefined();
+    expect(ownNodeYaml?.layer).toBe('own');
+
+    const ownResp = files.find((f) => f.path === '.yggdrasil/model/orders/order-service/responsibility.md');
+    expect(ownResp).toBeDefined();
+    expect(ownResp?.layer).toBe('own');
+
+    // Hierarchy layer: parent node files
+    const hierarchyNodeYaml = files.find((f) => f.path === '.yggdrasil/model/orders/yg-node.yaml');
+    expect(hierarchyNodeYaml).toBeDefined();
+    expect(hierarchyNodeYaml?.layer).toBe('hierarchy');
+
+    // Aspects layer: aspect files
+    const aspectYaml = files.find((f) => f.path === '.yggdrasil/aspects/requires-audit/yg-aspect.yaml');
+    expect(aspectYaml).toBeDefined();
+    expect(aspectYaml?.layer).toBe('aspects');
+
+    const aspectContent = files.find((f) => f.path === '.yggdrasil/aspects/requires-audit/content.md');
+    expect(aspectContent).toBeDefined();
+    expect(aspectContent?.layer).toBe('aspects');
+
+    // Flows layer: flow files
+    const flowYaml = files.find((f) => f.path === '.yggdrasil/flows/checkout-flow/yg-flow.yaml');
+    expect(flowYaml).toBeDefined();
+    expect(flowYaml?.layer).toBe('flows');
+
+    // Source layer: mapped source files
+    const sourceFile = files.find((f) => f.path === 'src/orders/order.service.ts');
+    expect(sourceFile).toBeDefined();
+    expect(sourceFile?.layer).toBe('source');
+    expect(sourceFile?.category).toBe('source');
+
+    // Relational layer: dependency artifacts
+    const relationalFile = files.find((f) => f.path === '.yggdrasil/model/auth/auth-api/responsibility.md');
+    expect(relationalFile).toBeDefined();
+    expect(relationalFile?.layer).toBe('relational');
+  });
+
   it('no duplicate paths', async () => {
     const graph = await loadGraph(FIXTURE_PROJECT);
     const node = graph.nodes.get('orders/order-service')!;

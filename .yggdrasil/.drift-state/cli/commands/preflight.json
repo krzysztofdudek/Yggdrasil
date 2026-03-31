@@ -1,5 +1,5 @@
 {
-  "hash": "fceee4d12d19af94710c9eee6cea30f770d31e453a49f99eab8b6a7905e264aa",
+  "hash": "fde295acc60641314d9cbf13a4d735024e2650f731bfb3af0bcc40e56c4b4042",
   "files": {
     ".yggdrasil/model/cli/commands/preflight/yg-node.yaml": "0109bd1e6a440df1b95bbb9de609b55c065882a82c2edee06a22ca42e278eb52",
     ".yggdrasil/model/cli/commands/preflight/interface.md": "309f84caa4c531728e13a040e5dcdb5d777f8ea99641ae4064c50815c4f9e8dc",
@@ -26,10 +26,10 @@
     ".yggdrasil/model/cli/utils/responsibility.md": "4918c48366c7b3f35bb7b97fa74252c47f14ba72417c5cc5f3e1100b503c7ddd",
     ".yggdrasil/model/cli/utils/interface.md": "19ebc12ccbc4a90f9f016dead73a3592c6a397a010ed9cf39993b9f01bc8d96e",
     ".yggdrasil/model/cli/model/responsibility.md": "b668c6db2090a36a54277f62fb228c266d87c6d119f89e6ed67e140392863a66",
-    ".yggdrasil/model/cli/model/interface.md": "4fe1f6a5084eaa496b28b09aa0a011331bac8e6df630c83a8bed7d1d93ee79c0",
     ".yggdrasil/flows/preflight/yg-flow.yaml": "ae00a14baaa472ccd007225b0bd0525098560c72f96f23db8f09d8744182b37c",
     ".yggdrasil/flows/preflight/description.md": "c8680e694af2907fb56c068661cc458ea0053a21a8afe6249a33096e89da108e",
-    "source/cli/src/cli/preflight.ts": "cb7ab7ed725c812c1d2a18919e79c116bc6669e9f2c3b292585bceb36665022a"
+    "source/cli/src/cli/preflight.ts": "cb7ab7ed725c812c1d2a18919e79c116bc6669e9f2c3b292585bceb36665022a",
+    ".yggdrasil/model/cli/model/interface.md": "f1962fecf89e5bc683804d6840940eacbb024595b39a7cf98e4aa251454e65a6"
   },
   "mtimes": {
     ".yggdrasil/model/cli/commands/preflight/yg-node.yaml": 1774035679164.7087,
@@ -57,7 +57,7 @@
     ".yggdrasil/model/cli/utils/responsibility.md": 1772743197446.85,
     ".yggdrasil/model/cli/utils/interface.md": 1772743197447.6619,
     ".yggdrasil/model/cli/model/responsibility.md": 1772778759688.719,
-    ".yggdrasil/model/cli/model/interface.md": 1774783352193.897,
+    ".yggdrasil/model/cli/model/interface.md": 1774967341857.2505,
     ".yggdrasil/flows/preflight/yg-flow.yaml": 1774035679161.8953,
     ".yggdrasil/flows/preflight/description.md": 1772778827687.0562,
     "source/cli/src/cli/preflight.ts": 1772779049654.1677

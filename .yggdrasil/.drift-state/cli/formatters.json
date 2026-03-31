@@ -1,5 +1,5 @@
 {
-  "hash": "4bb891e8968ad087f75821c8c1e384fbb20893e97df331e317c034f43091a401",
+  "hash": "e74c7db50e919e042e766d96f643d0c5a287b955f80e5172fed6e8913bd46e10",
   "files": {
     ".yggdrasil/model/cli/formatters/yg-node.yaml": "c0a94ccf40867b36ad827f96b6ea9fa2b5ffe6904a6fff16b611dc0b57bde389",
     ".yggdrasil/model/cli/formatters/interface.md": "aba93e53f429be7dd20fc6050a32e8ad2be60fd51dc7ef7f695dda99147dff4b",
@@ -11,14 +11,14 @@
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "20f321091b4f489efbf167feea9d42d73f7cffb21ea2e86958e565b550da164b",
     ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
     ".yggdrasil/model/cli/model/responsibility.md": "b668c6db2090a36a54277f62fb228c266d87c6d119f89e6ed67e140392863a66",
-    ".yggdrasil/model/cli/model/interface.md": "4fe1f6a5084eaa496b28b09aa0a011331bac8e6df630c83a8bed7d1d93ee79c0",
     ".yggdrasil/flows/build-context/yg-flow.yaml": "ad7b1fd9f74aacd66fe207b87d611c0b39f13903cc2737f6b0a971c110e07359",
     ".yggdrasil/flows/build-context/description.md": "60e4619e480293f028a1c2b756ce30c8800adc613dc9c64e6bd6ef7f3d5fcf87",
     ".yggdrasil/flows/graph-analysis/yg-flow.yaml": "54691941694d1009a854d5e8b422131342ee6715ce71eb8b685a3aee8559b9d7",
     ".yggdrasil/flows/graph-analysis/description.md": "2c5f6e377cea91a9b447f395971203f02c2a91a816e847269adb6f84c8786603",
     "source/cli/src/formatters/.gitkeep": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
     "source/cli/src/formatters/context-text.ts": "07dee124e1ef10799c903b828fae2b9c4afec9fc9d4f7a18a956f37056bf8306",
-    "source/cli/src/formatters/markdown.ts": "eee5241b18a95bb7a6aae4ed656d0fc43186c15b38fd888278a470e7dbff4c55"
+    "source/cli/src/formatters/markdown.ts": "eee5241b18a95bb7a6aae4ed656d0fc43186c15b38fd888278a470e7dbff4c55",
+    ".yggdrasil/model/cli/model/interface.md": "f1962fecf89e5bc683804d6840940eacbb024595b39a7cf98e4aa251454e65a6"
   },
   "mtimes": {
     ".yggdrasil/model/cli/formatters/yg-node.yaml": 1774035679168.7378,
@@ -31,7 +31,7 @@
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1774035679159.7637,
     ".yggdrasil/aspects/deterministic/content.md": 1772778780694.5889,
     ".yggdrasil/model/cli/model/responsibility.md": 1772778759688.719,
-    ".yggdrasil/model/cli/model/interface.md": 1774783352193.897,
+    ".yggdrasil/model/cli/model/interface.md": 1774967341857.2505,
     ".yggdrasil/flows/build-context/yg-flow.yaml": 1774035679160.1672,
     ".yggdrasil/flows/build-context/description.md": 1773381039567.111,
     ".yggdrasil/flows/graph-analysis/yg-flow.yaml": 1774035679160.974,

@@ -1,5 +1,5 @@
 {
-  "hash": "e98c779799bfe6f30032aa5fbb471585f3fedc52529f908d9ac399142ce42e2d",
+  "hash": "14913004d3ecd0aa1d90a9a176d0f1fdeb9b26c54de7648487ddbfa5d27ce325",
   "files": {
     ".yggdrasil/model/cli/commands/owner/yg-node.yaml": "4388655f26d779bdef6562ad3ced3fed91516d14423fb4732f1da63f3e72cfb7",
     ".yggdrasil/model/cli/commands/owner/interface.md": "090750cf9142e124bd0388b28af76d48924257311817c6ca11a126790e0c7894",
@@ -24,10 +24,10 @@
     ".yggdrasil/model/cli/utils/responsibility.md": "4918c48366c7b3f35bb7b97fa74252c47f14ba72417c5cc5f3e1100b503c7ddd",
     ".yggdrasil/model/cli/utils/interface.md": "19ebc12ccbc4a90f9f016dead73a3592c6a397a010ed9cf39993b9f01bc8d96e",
     ".yggdrasil/model/cli/model/responsibility.md": "b668c6db2090a36a54277f62fb228c266d87c6d119f89e6ed67e140392863a66",
-    ".yggdrasil/model/cli/model/interface.md": "4fe1f6a5084eaa496b28b09aa0a011331bac8e6df630c83a8bed7d1d93ee79c0",
     ".yggdrasil/flows/graph-navigation/yg-flow.yaml": "b2e3edbef4faa5f01a890af1be273242dfec713f8b379896d05147c5aa79dc9c",
     ".yggdrasil/flows/graph-navigation/description.md": "d343bb1a375026e63e0815716a75149306814f7eaf65300bbe1a7e11483a8d7f",
-    "source/cli/src/cli/owner.ts": "0f61533b8880929eeccfa9a6969d57bed35142a234ae5fb9a8d9a3647771e552"
+    "source/cli/src/cli/owner.ts": "0f61533b8880929eeccfa9a6969d57bed35142a234ae5fb9a8d9a3647771e552",
+    ".yggdrasil/model/cli/model/interface.md": "f1962fecf89e5bc683804d6840940eacbb024595b39a7cf98e4aa251454e65a6"
   },
   "mtimes": {
     ".yggdrasil/model/cli/commands/owner/yg-node.yaml": 1774035679164.4688,
@@ -53,7 +53,7 @@
     ".yggdrasil/model/cli/utils/responsibility.md": 1772743197446.85,
     ".yggdrasil/model/cli/utils/interface.md": 1772743197447.6619,
     ".yggdrasil/model/cli/model/responsibility.md": 1772778759688.719,
-    ".yggdrasil/model/cli/model/interface.md": 1774783352193.897,
+    ".yggdrasil/model/cli/model/interface.md": 1774967341857.2505,
     ".yggdrasil/flows/graph-navigation/yg-flow.yaml": 1774035679161.2656,
     ".yggdrasil/flows/graph-navigation/description.md": 1772743197470.2842,
     "source/cli/src/cli/owner.ts": 1773084689493.5942

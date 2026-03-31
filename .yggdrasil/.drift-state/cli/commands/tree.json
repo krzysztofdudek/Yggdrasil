@@ -1,5 +1,5 @@
 {
-  "hash": "78c091c9900905129d73b7bf383356e7c6dc1e6a6fdc622adbef6e395fab69f4",
+  "hash": "0cbef3c5562bb0e80d1efc80f00d4be14b1b553c549e1022355df68888b99474",
   "files": {
     ".yggdrasil/model/cli/commands/tree/yg-node.yaml": "39cbd0c731d2420c5a8393db107067211c30e98cd774347e7568e99023fc292f",
     ".yggdrasil/model/cli/commands/tree/interface.md": "7205a01e45012c8863f18707b2a73ae2c272f2ec03e597ceb496fc2d238adae2",
@@ -20,10 +20,10 @@
     ".yggdrasil/model/cli/core/responsibility.md": "2aa9f1d64abf86aed604a1823392c3d40b963eb8416b38ef877bcccddd7ff086",
     ".yggdrasil/model/cli/core/interface.md": "807008eb6f673273034d7d3325a36f37ea1c7a4e46df362e2a4fa9ccd9451de9",
     ".yggdrasil/model/cli/model/responsibility.md": "b668c6db2090a36a54277f62fb228c266d87c6d119f89e6ed67e140392863a66",
-    ".yggdrasil/model/cli/model/interface.md": "4fe1f6a5084eaa496b28b09aa0a011331bac8e6df630c83a8bed7d1d93ee79c0",
     ".yggdrasil/flows/graph-navigation/yg-flow.yaml": "b2e3edbef4faa5f01a890af1be273242dfec713f8b379896d05147c5aa79dc9c",
     ".yggdrasil/flows/graph-navigation/description.md": "d343bb1a375026e63e0815716a75149306814f7eaf65300bbe1a7e11483a8d7f",
-    "source/cli/src/cli/tree.ts": "dd9568529c1d3ff1720e97e434f2e0afe31943b468c76f69edb71ad9e4f80ac6"
+    "source/cli/src/cli/tree.ts": "dd9568529c1d3ff1720e97e434f2e0afe31943b468c76f69edb71ad9e4f80ac6",
+    ".yggdrasil/model/cli/model/interface.md": "f1962fecf89e5bc683804d6840940eacbb024595b39a7cf98e4aa251454e65a6"
   },
   "mtimes": {
     ".yggdrasil/model/cli/commands/tree/yg-node.yaml": 1774035679165.3518,
@@ -45,7 +45,7 @@
     ".yggdrasil/model/cli/core/responsibility.md": 1772828321933.1968,
     ".yggdrasil/model/cli/core/interface.md": 1772743197442.582,
     ".yggdrasil/model/cli/model/responsibility.md": 1772778759688.719,
-    ".yggdrasil/model/cli/model/interface.md": 1774783352193.897,
+    ".yggdrasil/model/cli/model/interface.md": 1774967341857.2505,
     ".yggdrasil/flows/graph-navigation/yg-flow.yaml": 1774035679161.2656,
     ".yggdrasil/flows/graph-navigation/description.md": 1772743197470.2842,
     "source/cli/src/cli/tree.ts": 1773311498487.3071

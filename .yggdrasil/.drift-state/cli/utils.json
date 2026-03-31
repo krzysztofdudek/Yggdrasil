@@ -1,5 +1,5 @@
 {
-  "hash": "a1c920e5a135a6fe62a628d8d15fb33884aa8a2ff6c49ab904a8255ccf5a997f",
+  "hash": "bf0f775c2f0be3c9cfceb9fd34d953bd21bbe6fe5caf12b01abb7e79d7636631",
   "files": {
     ".yggdrasil/model/cli/utils/yg-node.yaml": "c813dae8443bc8bfeb4566e900f65cbda1de52bd32e7e97ee1a1377621b4ad4c",
     ".yggdrasil/model/cli/utils/interface.md": "19ebc12ccbc4a90f9f016dead73a3592c6a397a010ed9cf39993b9f01bc8d96e",
@@ -13,13 +13,13 @@
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "20f321091b4f489efbf167feea9d42d73f7cffb21ea2e86958e565b550da164b",
     ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
     ".yggdrasil/model/cli/model/responsibility.md": "b668c6db2090a36a54277f62fb228c266d87c6d119f89e6ed67e140392863a66",
-    ".yggdrasil/model/cli/model/interface.md": "4fe1f6a5084eaa496b28b09aa0a011331bac8e6df630c83a8bed7d1d93ee79c0",
     "source/cli/src/utils/.gitkeep": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
     "source/cli/src/utils/git.ts": "2fa3646e9ba1463caa1d5b97b9d11acd041121ec404eb87141821b353ed043d0",
     "source/cli/src/utils/hash.ts": "22aea73c6381e98bf2cb746f2549434c3420ac5e6a800c653471459d880259a7",
     "source/cli/src/utils/paths.ts": "ab0f28796d17ba22661fc603be44fb54bc6e717b7ec80a1f6b37e292874a4ddd",
     "source/cli/src/utils/tokenizer.ts": "14ec84c324acaa93c40205e2eeedbf7205068d06dd7eeb1eaa5d8d59dd14fca9",
-    "source/cli/src/utils/tokens.ts": "7112d6af24d084b1c9ca3db525de802bc1a57c44445813de21f075cc8be0081f"
+    "source/cli/src/utils/tokens.ts": "7112d6af24d084b1c9ca3db525de802bc1a57c44445813de21f075cc8be0081f",
+    ".yggdrasil/model/cli/model/interface.md": "f1962fecf89e5bc683804d6840940eacbb024595b39a7cf98e4aa251454e65a6"
   },
   "mtimes": {
     ".yggdrasil/model/cli/utils/yg-node.yaml": 1774035679170.657,
@@ -34,7 +34,7 @@
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1774035679159.7637,
     ".yggdrasil/aspects/deterministic/content.md": 1772778780694.5889,
     ".yggdrasil/model/cli/model/responsibility.md": 1772778759688.719,
-    ".yggdrasil/model/cli/model/interface.md": 1774783352193.897,
+    ".yggdrasil/model/cli/model/interface.md": 1774967341857.2505,
     "source/cli/src/utils/.gitkeep": 1771702275795.9026,
     "source/cli/src/utils/git.ts": 1771702373020.7942,
     "source/cli/src/utils/hash.ts": 1772541770341.0513,

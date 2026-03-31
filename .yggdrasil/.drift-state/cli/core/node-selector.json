@@ -1,5 +1,5 @@
 {
-  "hash": "6421524ee393a8ee7970b86e97fecd7e5e443092acfc8762facaeaf9c1f15faa",
+  "hash": "4dd75d078f6a12d4c0064b35df542431190f4fde7219093ca166a4f9d1690e16",
   "files": {
     ".yggdrasil/model/cli/core/node-selector/yg-node.yaml": "88eb020d2d89c1f10219b801ef0847d7f4ce9385441962f65d2d846efec5320d",
     ".yggdrasil/model/cli/core/node-selector/interface.md": "e5044f1e23dc70b2fe6158a76b4725102792bedf00aa0362a7aecb307310d072",
@@ -14,10 +14,10 @@
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "20f321091b4f489efbf167feea9d42d73f7cffb21ea2e86958e565b550da164b",
     ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
     ".yggdrasil/model/cli/model/responsibility.md": "b668c6db2090a36a54277f62fb228c266d87c6d119f89e6ed67e140392863a66",
-    ".yggdrasil/model/cli/model/interface.md": "4fe1f6a5084eaa496b28b09aa0a011331bac8e6df630c83a8bed7d1d93ee79c0",
     ".yggdrasil/model/cli/utils/responsibility.md": "4918c48366c7b3f35bb7b97fa74252c47f14ba72417c5cc5f3e1100b503c7ddd",
     ".yggdrasil/model/cli/utils/interface.md": "19ebc12ccbc4a90f9f016dead73a3592c6a397a010ed9cf39993b9f01bc8d96e",
-    "source/cli/src/core/node-selector.ts": "7d5cb696a3a66eea12b08394a7bf5c57b3faec1cd23bd9b3f59d3c361cb9aae2"
+    "source/cli/src/core/node-selector.ts": "7d5cb696a3a66eea12b08394a7bf5c57b3faec1cd23bd9b3f59d3c361cb9aae2",
+    ".yggdrasil/model/cli/model/interface.md": "f1962fecf89e5bc683804d6840940eacbb024595b39a7cf98e4aa251454e65a6"
   },
   "mtimes": {
     ".yggdrasil/model/cli/core/node-selector/yg-node.yaml": 1774035679167.9211,
@@ -33,7 +33,7 @@
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1774035679159.7637,
     ".yggdrasil/aspects/deterministic/content.md": 1772778780694.5889,
     ".yggdrasil/model/cli/model/responsibility.md": 1772778759688.719,
-    ".yggdrasil/model/cli/model/interface.md": 1774783352193.897,
+    ".yggdrasil/model/cli/model/interface.md": 1774967341857.2505,
     ".yggdrasil/model/cli/utils/responsibility.md": 1772743197446.85,
     ".yggdrasil/model/cli/utils/interface.md": 1772743197447.6619,
     "source/cli/src/core/node-selector.ts": 1773070516920.0278

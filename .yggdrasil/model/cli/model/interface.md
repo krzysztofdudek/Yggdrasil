@@ -20,7 +20,7 @@ Type library — exports TypeScript interfaces and types only. No runtime functi
 
 **Validation:** ValidationResult, ValidationIssue, IssueSeverity
 
-**Drift:** DriftReport, DriftEntry, DriftStatus, DriftState, DriftNodeState
+**Drift:** DriftReport, DriftEntry, DriftStatus, DriftState, DriftNodeState, TrackedFileLayer
 
 **Owner:** OwnerResult
 
@@ -85,6 +85,7 @@ Model is a TypeScript type library — it contains no executable code and does n
 - **DriftNodeState** — Stored state per node: canonical hash + per-file hashes (path to SHA-256).
 - **DriftState** — Record mapping node paths to DriftNodeState.
 - **DriftFileChange** — Per-file change detail: filePath, category (source or graph).
+- **TrackedFileLayer** — Type union: `'own' | 'hierarchy' | 'aspects' | 'relational' | 'flows' | 'source'`. Indicates which context package layer brought a file into tracking — used by drift classification (E020/E021) to distinguish direct drift (own/source) from cascade drift (hierarchy/aspects/relational/flows).
 
 ## Cross-cutting definitions
 

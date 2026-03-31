@@ -1,12 +1,13 @@
 import path from 'node:path';
 import { STANDARD_ARTIFACTS } from '../model/types.js';
-import type { Graph, GraphNode, DriftCategory, FlowDef } from '../model/types.js';
+import type { Graph, GraphNode, DriftCategory, FlowDef, TrackedFileLayer } from '../model/types.js';
 import { normalizeMappingPaths } from '../utils/paths.js';
 import { collectAncestors, resolveAspects } from './context-builder.js';
 
 export interface TrackedFile {
   path: string;           // relative to project root
   category: DriftCategory;  // 'source' or 'graph'
+  layer: TrackedFileLayer;  // which context layer brought this file into tracking
 }
 
 const STRUCTURAL_RELATION_TYPES = new Set(['uses', 'calls', 'extends', 'implements']);
@@ -32,34 +33,34 @@ export function collectTrackedFiles(node: GraphNode, graph: Graph): TrackedFile[
 
   const configArtifactKeys = new Set(Object.keys(STANDARD_ARTIFACTS));
 
-  function addFile(filePath: string, category: DriftCategory): void {
+  function addFile(filePath: string, category: DriftCategory, layer: TrackedFileLayer): void {
     if (seen.has(filePath)) return;
     seen.add(filePath);
-    result.push({ path: filePath, category });
+    result.push({ path: filePath, category, layer });
   }
 
   function graphPath(...segments: string[]): string {
     return [yggPrefixNormalized, ...segments].join('/');
   }
 
-  function addNodeFiles(n: GraphNode): void {
+  function addNodeFilesWithLayer(n: GraphNode, layer: TrackedFileLayer): void {
     // yg-node.yaml
-    addFile(graphPath('model', n.path, 'yg-node.yaml'), 'graph');
+    addFile(graphPath('model', n.path, 'yg-node.yaml'), 'graph', layer);
     // artifacts filtered by config
     for (const art of n.artifacts) {
       if (configArtifactKeys.has(art.filename)) {
-        addFile(graphPath('model', n.path, art.filename), 'graph');
+        addFile(graphPath('model', n.path, art.filename), 'graph', layer);
       }
     }
   }
 
   // 1. OWN — yg-node.yaml + config-filtered artifacts
-  addNodeFiles(node);
+  addNodeFilesWithLayer(node, 'own');
 
   // 2. HIERARCHICAL — ancestors from root to parent
   const ancestors = collectAncestors(node);
   for (const ancestor of ancestors) {
-    addNodeFiles(ancestor);
+    addNodeFilesWithLayer(ancestor, 'hierarchy');
   }
 
   // 3. ASPECTS — resolve all aspects from own + ancestors + flows (with recursive implies)
@@ -88,9 +89,9 @@ export function collectTrackedFiles(node: GraphNode, graph: Graph): TrackedFile[
   // Resolve with recursive implies
   const resolvedAspects = resolveAspects(allAspectIds, graph.aspects);
   for (const aspect of resolvedAspects) {
-    addFile(graphPath('aspects', aspect.id, 'yg-aspect.yaml'), 'graph');
+    addFile(graphPath('aspects', aspect.id, 'yg-aspect.yaml'), 'graph', 'aspects');
     for (const art of aspect.artifacts) {
-      addFile(graphPath('aspects', aspect.id, art.filename), 'graph');
+      addFile(graphPath('aspects', aspect.id, art.filename), 'graph', 'aspects');
     }
   }
 
@@ -113,13 +114,13 @@ export function collectTrackedFiles(node: GraphNode, graph: Graph): TrackedFile[
     if (structuralArts.length > 0) {
       // Use only included_in_relations artifacts that exist on target
       for (const filename of structuralArts) {
-        addFile(graphPath('model', target.path, filename), 'graph');
+        addFile(graphPath('model', target.path, filename), 'graph', 'relational');
       }
     } else {
       // Fallback: all config-allowed artifacts
       for (const art of target.artifacts) {
         if (configArtifactKeys.has(art.filename)) {
-          addFile(graphPath('model', target.path, art.filename), 'graph');
+          addFile(graphPath('model', target.path, art.filename), 'graph', 'relational');
         }
       }
     }
@@ -131,7 +132,7 @@ export function collectTrackedFiles(node: GraphNode, graph: Graph): TrackedFile[
       const filterFilenames = structuralFilenames.length > 0 ? structuralFilenames : [...configArtifactKeys];
       for (const filename of filterFilenames) {
         if (ancestor.artifacts.some((a) => a.filename === filename)) {
-          addFile(graphPath('model', ancestor.path, filename), 'graph');
+          addFile(graphPath('model', ancestor.path, filename), 'graph', 'relational');
         }
       }
     }
@@ -151,7 +152,7 @@ export function collectTrackedFiles(node: GraphNode, graph: Graph): TrackedFile[
     // Include target's artifacts
     for (const filename of filterFilenames) {
       if (target.artifacts.some((a) => a.filename === filename)) {
-        addFile(graphPath('model', target.path, filename), 'graph');
+        addFile(graphPath('model', target.path, filename), 'graph', 'relational');
       }
     }
 
@@ -160,7 +161,7 @@ export function collectTrackedFiles(node: GraphNode, graph: Graph): TrackedFile[
     for (const ancestor of eventAncestors) {
       for (const filename of filterFilenames) {
         if (ancestor.artifacts.some((a) => a.filename === filename)) {
-          addFile(graphPath('model', ancestor.path, filename), 'graph');
+          addFile(graphPath('model', ancestor.path, filename), 'graph', 'relational');
         }
       }
     }
@@ -168,16 +169,16 @@ export function collectTrackedFiles(node: GraphNode, graph: Graph): TrackedFile[
 
   // 5. RELATIONAL-FLOWS — yg-flow.yaml + flow artifacts for participating flows
   for (const flow of participatingFlows) {
-    addFile(graphPath('flows', flow.path, 'yg-flow.yaml'), 'graph');
+    addFile(graphPath('flows', flow.path, 'yg-flow.yaml'), 'graph', 'flows');
     for (const art of flow.artifacts) {
-      addFile(graphPath('flows', flow.path, art.filename), 'graph');
+      addFile(graphPath('flows', flow.path, art.filename), 'graph', 'flows');
     }
   }
 
   // 6. SOURCE — files from mapping.paths
   const mappingPaths = normalizeMappingPaths(node.meta.mapping);
   for (const p of mappingPaths) {
-    addFile(p, 'source');
+    addFile(p, 'source', 'source');
   }
 
   return result;

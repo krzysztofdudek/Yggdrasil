@@ -324,6 +324,9 @@ export interface ValidationResult {
 /** Category of a drifted file — source (mapping) or graph (.yggdrasil/) */
 export type DriftCategory = 'source' | 'graph';
 
+/** Which layer of the context package brought this file into tracking */
+export type TrackedFileLayer = 'own' | 'hierarchy' | 'aspects' | 'relational' | 'flows' | 'source';
+
 /** Per-file drift detail */
 export interface DriftFileChange {
   filePath: string;
