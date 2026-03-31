@@ -104,7 +104,10 @@ function formatOutput(result: CheckResult): void {
         return (a.nodePath ?? '').localeCompare(b.nodePath ?? '');
       });
       for (const issue of sortedCascade) {
-        lines.push(`  ${issue.code} ${issue.nodePath ?? ''} — cascade drift`);
+        const anchorLabel = issue.anchorsPassing === true ? ' (anchors-pass)'
+          : issue.anchorsPassing === false ? ' (anchors-fail)'
+          : '';
+        lines.push(`  ${issue.code} ${issue.nodePath ?? ''} — cascade drift${anchorLabel}`);
         for (const line of issue.message.split('\n')) {
           lines.push(`       ${line}`);
         }

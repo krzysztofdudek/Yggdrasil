@@ -10,8 +10,8 @@ import { readDriftState, readNodeDriftState } from '../io/drift-state-store.js';
 import { hashTrackedFiles } from '../utils/hash.js';
 import { collectTrackedFiles } from './context-files.js';
 import { normalizeMappingPaths } from '../utils/paths.js';
-import { validate } from './validator.js';
-import { access } from 'node:fs/promises';
+import { validate, expandMappingToFiles } from './validator.js';
+import { access, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 // ── Types ──────────────────────────────────────────────────
@@ -29,6 +29,8 @@ export interface CheckIssue extends Omit<ValidationIssue, 'code'> {
   uncoveredFiles?: string[];
   /** For E022: total count of uncovered files */
   uncoveredCount?: number;
+  /** For E021: whether all anchor patterns still match source on this node */
+  anchorsPassing?: boolean;
 }
 
 export interface CascadeCause {
@@ -243,15 +245,33 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
 
     for (const [, groupCauses] of causeGroups) {
       const primaryCause = groupCauses[0];
-      const reviewTarget = primaryCause.layer === 'aspects' ? 'updated context'
-        : primaryCause.layer === 'relational' ? 'updated dependency interface'
-        : primaryCause.layer === 'flows' ? 'updated flow'
-        : primaryCause.layer === 'hierarchy' ? 'updated parent context'
-        : 'updated context';
 
-      // List all changed files for this logical cause
+      // Check if this is an integration_anchors cascade (dependency yg-node.yaml change
+      // on a target that has integration_anchors)
+      const isIntegrationAnchorsCascade = primaryCause.layer === 'relational'
+        && groupCauses.some(c => c.file.endsWith('yg-node.yaml'))
+        && (() => {
+          // Extract target path from cause description
+          const match = primaryCause.description.match(/dependency '([^']+)'/);
+          if (!match) return false;
+          const target = graph.nodes.get(match[1]);
+          return (target?.meta.integration_anchors?.length ?? 0) > 0;
+        })();
+
+      let message: string;
       const causeLines = groupCauses.map(c => '     Cause: ' + c.description).join('\n');
-      const message = `Context package changed due to upstream modification.\n${causeLines}\n     Review source compliance with ${reviewTarget}, then:\n       - If source needs changes: update source + artifacts, approve.\n       - If source is already compliant: approve --acknowledge.`;
+
+      if (isIntegrationAnchorsCascade) {
+        message = `Context package changed due to upstream modification.\n${causeLines}\n     New integration anchors may be required. Run yg check for E040 errors.\n     Review and approve --acknowledge, or realize new anchors first.`;
+      } else {
+        const reviewTarget = primaryCause.layer === 'aspects' ? 'updated context'
+          : primaryCause.layer === 'relational' ? 'updated dependency interface'
+          : primaryCause.layer === 'flows' ? 'updated flow'
+          : primaryCause.layer === 'hierarchy' ? 'updated parent context'
+          : 'updated context';
+
+        message = `Context package changed due to upstream modification.\n${causeLines}\n     Review source compliance with ${reviewTarget}, then:\n       - If source needs changes: update source + artifacts, approve.\n       - If source is already compliant: approve --acknowledge.`;
+      }
 
       issues.push({
         severity: 'error',
@@ -262,6 +282,17 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
         cascadeCauses: groupCauses,
       });
     }
+  }
+
+  // Annotate E021 issues with anchor-pass status
+  for (const issue of issues) {
+    if (issue.code !== 'E021' || !issue.nodePath) continue;
+    const node = graph.nodes.get(issue.nodePath);
+    if (!node || node.meta.blackbox) {
+      issue.anchorsPassing = undefined;
+      continue;
+    }
+    issue.anchorsPassing = await checkNodeAnchorsPass(graph, issue.nodePath);
   }
 
   return issues;
@@ -567,6 +598,66 @@ async function allPathsMissing(projectRoot: string, mappingPaths: string[]): Pro
   return true;
 }
 /* v8 ignore stop */
+
+/** Structural relation types — used by anchor-pass check */
+const STRUCTURAL_TYPES = new Set(['uses', 'calls', 'extends', 'implements']);
+
+/**
+ * Check whether all realized anchor regex patterns still match source for a node.
+ * Returns true if all pass, false if any fail, undefined if no realized anchors exist.
+ */
+async function checkNodeAnchorsPass(graph: Graph, nodePath: string): Promise<boolean | undefined> {
+  const node = graph.nodes.get(nodePath);
+  if (!node) return undefined;
+  const mappingPaths = normalizeMappingPaths(node.meta.mapping);
+  if (mappingPaths.length === 0) return undefined;
+
+  const projectRoot = path.dirname(graph.rootPath);
+  const sourceFiles = await expandMappingToFiles(projectRoot, mappingPaths);
+  const fileContents: string[] = [];
+  for (const fp of sourceFiles) {
+    try { fileContents.push(await readFile(fp, 'utf-8')); } catch { /* skip */ }
+  }
+
+  const aspectMap = new Map(graph.aspects.map(a => [a.id, a]));
+
+  let hasAnyRealizedAnchors = false;
+
+  // Check aspect anchors
+  for (const entry of node.meta.aspects ?? []) {
+    const aspect = aspectMap.get(entry.aspect);
+    if (!aspect || aspect.anchors.length === 0) continue;
+    if (!entry.anchors) continue;
+    hasAnyRealizedAnchors = true;
+    for (const anchorId of aspect.anchors) {
+      const realization = entry.anchors[anchorId];
+      if (!realization?.regex) continue;
+      try {
+        const regex = new RegExp(realization.regex);
+        if (!fileContents.some(c => regex.test(c))) return false;
+      } catch { return false; }
+    }
+  }
+
+  // Check integration anchors
+  for (const rel of node.meta.relations ?? []) {
+    if (!STRUCTURAL_TYPES.has(rel.type)) continue;
+    if (!rel.anchors) continue;
+    const target = graph.nodes.get(rel.target);
+    if (!target?.meta.integration_anchors) continue;
+    hasAnyRealizedAnchors = true;
+    for (const anchorId of target.meta.integration_anchors) {
+      const realization = rel.anchors[anchorId];
+      if (!realization?.regex) continue;
+      try {
+        const regex = new RegExp(realization.regex);
+        if (!fileContents.some(c => regex.test(c))) return false;
+      } catch { return false; }
+    }
+  }
+
+  return hasAnyRealizedAnchors ? true : undefined;
+}
 
 /**
  * Suggest the next command to run based on highest-priority error.

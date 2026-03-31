@@ -797,7 +797,7 @@ async function checkDirectoriesHaveNodeYaml(graph: Graph): Promise<ValidationIss
 
 // --- Anchor validation (E039, E040, E041, E037) ---
 
-async function expandMappingToFiles(projectRoot: string, mappingPaths: string[]): Promise<string[]> {
+export async function expandMappingToFiles(projectRoot: string, mappingPaths: string[]): Promise<string[]> {
   const files: string[] = [];
 
   async function collectFiles(absPath: string): Promise<void> {

@@ -394,6 +394,235 @@ describe('classifyDrift', () => {
     expect(e021[0].cascadeCauses!.some(c => c.description.includes('dependency'))).toBe(true);
     await rm(tmpDir, { recursive: true, force: true });
   });
+
+  it('returns E021 cascade when dependency with integration_anchors changes yg-node.yaml', async () => {
+    const { tmpDir, yggRoot } = await createTmpProject('cascade-int-anchors', {
+      nodePath: 'svc/my-service',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nrelations:\n  - target: svc/dep\n    type: calls\nmapping:\n  paths:\n    - src/svc/\n',
+      mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
+      parentNodes: [
+        {
+          path: 'svc',
+          yaml: 'name: Svc\ntype: service\ndescription: parent\n',
+        },
+        {
+          path: 'svc/dep',
+          yaml: 'name: Dep\ntype: service\ndescription: dependency\nintegration_anchors:\n  - correlation-id\n',
+          artifacts: { 'responsibility.md': 'Dep responsibility.\n' },
+        },
+      ],
+    });
+    await recordBaseline(tmpDir);
+    // Modify dependency yg-node.yaml (change integration_anchors)
+    await writeFile(
+      path.join(yggRoot, 'model/svc/dep/yg-node.yaml'),
+      'name: Dep\ntype: service\ndescription: dependency\nintegration_anchors:\n  - correlation-id\n  - trace-id\n',
+    );
+    const graph = await loadGraph(tmpDir);
+    const result = await classifyDrift(graph);
+    const e021 = result.filter(i => i.code === 'E021' && i.nodePath === 'svc/my-service');
+    expect(e021.length).toBeGreaterThanOrEqual(1);
+    expect(e021[0].cascadeCauses!.some(c => c.layer === 'relational')).toBe(true);
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('NO E021 when dependency WITHOUT integration_anchors changes yg-node.yaml', async () => {
+    const { tmpDir, yggRoot } = await createTmpProject('no-cascade-no-int-anchors', {
+      nodePath: 'svc/my-service',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nrelations:\n  - target: svc/dep\n    type: calls\nmapping:\n  paths:\n    - src/svc/\n',
+      mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
+      parentNodes: [
+        {
+          path: 'svc',
+          yaml: 'name: Svc\ntype: service\ndescription: parent\n',
+        },
+        {
+          path: 'svc/dep',
+          yaml: 'name: Dep\ntype: service\ndescription: dependency\n',
+          artifacts: { 'responsibility.md': 'Dep responsibility.\n' },
+        },
+      ],
+    });
+    await recordBaseline(tmpDir);
+    // Modify dependency yg-node.yaml (change description only — no integration_anchors)
+    await writeFile(
+      path.join(yggRoot, 'model/svc/dep/yg-node.yaml'),
+      'name: Dep\ntype: service\ndescription: updated dependency description\n',
+    );
+    const graph = await loadGraph(tmpDir);
+    const result = await classifyDrift(graph);
+    // Should NOT have E021 from yg-node.yaml change (no integration_anchors)
+    const e021 = result.filter(i => i.code === 'E021' && i.nodePath === 'svc/my-service');
+    // Dep yg-node.yaml is NOT tracked in layer 4 when no integration_anchors,
+    // so this change should not cause cascade drift
+    expect(e021).toHaveLength(0);
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('E021 annotated with anchorsPassing=true when anchors match source', async () => {
+    const { tmpDir, yggRoot } = await createTmpProject('anchors-pass', {
+      nodePath: 'svc/my-service',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - aspect: logging\n    anchors:\n      audit-entry:\n        regex: "createAuditLog"\nmapping:\n  paths:\n    - src/svc/\n',
+      mappingFiles: { 'src/svc/index.ts': 'export function createAuditLog() { return 42; }\n' },
+      aspects: [{
+        id: 'logging',
+        yaml: 'name: Logging\ndescription: test aspect\nanchors:\n  - audit-entry\n',
+        files: { 'rules.md': 'Log all mutations.\n' },
+      }],
+    });
+    await recordBaseline(tmpDir);
+    // Modify aspect content to trigger cascade
+    await writeFile(path.join(yggRoot, 'aspects/logging/rules.md'), 'Updated rules.\n');
+    const graph = await loadGraph(tmpDir);
+    const result = await classifyDrift(graph);
+    const e021 = result.filter(i => i.code === 'E021' && i.nodePath === 'svc/my-service');
+    expect(e021.length).toBeGreaterThanOrEqual(1);
+    expect(e021[0].anchorsPassing).toBe(true);
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('E021 annotated with anchorsPassing=false when anchors do not match source', async () => {
+    const { tmpDir, yggRoot } = await createTmpProject('anchors-fail', {
+      nodePath: 'svc/my-service',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - aspect: logging\n    anchors:\n      audit-entry:\n        regex: "NONEXISTENT_PATTERN"\nmapping:\n  paths:\n    - src/svc/\n',
+      mappingFiles: { 'src/svc/index.ts': 'export function hello() { return 42; }\n' },
+      aspects: [{
+        id: 'logging',
+        yaml: 'name: Logging\ndescription: test aspect\nanchors:\n  - audit-entry\n',
+        files: { 'rules.md': 'Log all mutations.\n' },
+      }],
+    });
+    await recordBaseline(tmpDir);
+    // Modify aspect content to trigger cascade
+    await writeFile(path.join(yggRoot, 'aspects/logging/rules.md'), 'Updated rules.\n');
+    const graph = await loadGraph(tmpDir);
+    const result = await classifyDrift(graph);
+    const e021 = result.filter(i => i.code === 'E021' && i.nodePath === 'svc/my-service');
+    expect(e021.length).toBeGreaterThanOrEqual(1);
+    expect(e021[0].anchorsPassing).toBe(false);
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('E021 anchorsPassing=undefined when node has no realized anchors', async () => {
+    const { tmpDir, yggRoot } = await createTmpProject('anchors-none', {
+      nodePath: 'svc/my-service',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - aspect: logging\nmapping:\n  paths:\n    - src/svc/\n',
+      mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
+      aspects: [{
+        id: 'logging',
+        yaml: 'name: Logging\ndescription: test aspect\nanchors:\n  - audit-entry\n',
+        files: { 'rules.md': 'Log all mutations.\n' },
+      }],
+    });
+    await recordBaseline(tmpDir);
+    // Modify aspect to trigger cascade
+    await writeFile(path.join(yggRoot, 'aspects/logging/rules.md'), 'Updated rules.\n');
+    const graph = await loadGraph(tmpDir);
+    const result = await classifyDrift(graph);
+    const e021 = result.filter(i => i.code === 'E021' && i.nodePath === 'svc/my-service');
+    expect(e021.length).toBeGreaterThanOrEqual(1);
+    // Node has aspect but no anchors realization (no anchors: { ... } in node yaml)
+    expect(e021[0].anchorsPassing).toBeUndefined();
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('E021 anchorsPassing checks integration anchors on relations', async () => {
+    const { tmpDir, yggRoot } = await createTmpProject('anchors-integration-pass', {
+      nodePath: 'svc/my-service',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nrelations:\n  - target: svc/dep\n    type: calls\n    anchors:\n      correlation-id:\n        regex: "correlationId"\nmapping:\n  paths:\n    - src/svc/\n',
+      mappingFiles: { 'src/svc/index.ts': 'const correlationId = "abc-123";\n' },
+      parentNodes: [
+        {
+          path: 'svc',
+          yaml: 'name: Svc\ntype: service\ndescription: parent\n',
+          artifacts: { 'responsibility.md': 'Parent responsibility.\n' },
+        },
+        {
+          path: 'svc/dep',
+          yaml: 'name: Dep\ntype: service\ndescription: dependency\nintegration_anchors:\n  - correlation-id\n',
+          artifacts: { 'responsibility.md': 'Dep responsibility.\n' },
+        },
+      ],
+    });
+    await recordBaseline(tmpDir);
+    // Modify parent artifact to trigger cascade E021
+    await writeFile(
+      path.join(yggRoot, 'model/svc/responsibility.md'),
+      'Updated parent responsibility triggering cascade.\n',
+    );
+    const graph = await loadGraph(tmpDir);
+    const result = await classifyDrift(graph);
+    const e021 = result.filter(i => i.code === 'E021' && i.nodePath === 'svc/my-service');
+    expect(e021.length).toBeGreaterThanOrEqual(1);
+    // The integration anchor regex "correlationId" matches source
+    expect(e021[0].anchorsPassing).toBe(true);
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('E021 anchorsPassing=false when integration anchor does not match', async () => {
+    const { tmpDir, yggRoot } = await createTmpProject('anchors-integration-fail', {
+      nodePath: 'svc/my-service',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nrelations:\n  - target: svc/dep\n    type: calls\n    anchors:\n      correlation-id:\n        regex: "NONEXISTENT_CORR"\nmapping:\n  paths:\n    - src/svc/\n',
+      mappingFiles: { 'src/svc/index.ts': 'const something = 42;\n' },
+      parentNodes: [
+        {
+          path: 'svc',
+          yaml: 'name: Svc\ntype: service\ndescription: parent\n',
+          artifacts: { 'responsibility.md': 'Parent responsibility.\n' },
+        },
+        {
+          path: 'svc/dep',
+          yaml: 'name: Dep\ntype: service\ndescription: dependency\nintegration_anchors:\n  - correlation-id\n',
+          artifacts: { 'responsibility.md': 'Dep responsibility.\n' },
+        },
+      ],
+    });
+    await recordBaseline(tmpDir);
+    // Modify parent artifact to trigger cascade E021
+    await writeFile(
+      path.join(yggRoot, 'model/svc/responsibility.md'),
+      'Updated parent responsibility triggering cascade.\n',
+    );
+    const graph = await loadGraph(tmpDir);
+    const result = await classifyDrift(graph);
+    const e021 = result.filter(i => i.code === 'E021' && i.nodePath === 'svc/my-service');
+    expect(e021.length).toBeGreaterThanOrEqual(1);
+    // The integration anchor regex "NONEXISTENT_CORR" does not match source
+    expect(e021[0].anchorsPassing).toBe(false);
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('E021 uses integration_anchors message when cascade is from yg-node.yaml with integration_anchors', async () => {
+    const { tmpDir, yggRoot } = await createTmpProject('int-anchors-msg', {
+      nodePath: 'svc/my-service',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nrelations:\n  - target: svc/dep\n    type: calls\nmapping:\n  paths:\n    - src/svc/\n',
+      mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
+      parentNodes: [
+        {
+          path: 'svc',
+          yaml: 'name: Svc\ntype: service\ndescription: parent\n',
+        },
+        {
+          path: 'svc/dep',
+          yaml: 'name: Dep\ntype: service\ndescription: dependency\nintegration_anchors:\n  - correlation-id\n',
+          artifacts: { 'responsibility.md': 'Dep responsibility.\n' },
+        },
+      ],
+    });
+    await recordBaseline(tmpDir);
+    // Modify dep yg-node.yaml
+    await writeFile(
+      path.join(yggRoot, 'model/svc/dep/yg-node.yaml'),
+      'name: Dep\ntype: service\ndescription: dependency\nintegration_anchors:\n  - correlation-id\n  - trace-id\n',
+    );
+    const graph = await loadGraph(tmpDir);
+    const result = await classifyDrift(graph);
+    const e021 = result.filter(i => i.code === 'E021' && i.nodePath === 'svc/my-service');
+    expect(e021.length).toBeGreaterThanOrEqual(1);
+    expect(e021[0].message).toContain('integration anchors');
+    expect(e021[0].message).toContain('E040');
+    await rm(tmpDir, { recursive: true, force: true });
+  });
 });
 
   it('handles drift state without mtimes (legacy baseline)', async () => {
