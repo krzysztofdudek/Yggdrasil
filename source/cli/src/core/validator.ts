@@ -19,7 +19,7 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
   if (graph.configError) {
     issues.push({
       severity: 'error',
-      code: 'E012',
+      code: 'E009',
       rule: 'invalid-config',
       message: graph.configError,
     });
@@ -43,9 +43,9 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
     issues.push(...checkImpliedAspectsExist(graph));
     issues.push(...checkImpliesNoCycles(graph));
     issues.push(...checkRequiredAspectsCoverage(graph));
-    issues.push(...(await checkAnchorPresence(graph)));
+    // checkAnchorPresence removed — replaced by typed anchors in Plan 3
     issues.push(...checkRequiredArtifacts(graph));
-    // E013 (invalid-artifact-condition) removed — standard artifacts don't use has_aspect: conditions
+    // invalid-artifact-condition removed (v3 E013) — standard artifacts don't use has_aspect: conditions
     issues.push(...(await checkContextBudget(graph)));
     issues.push(...checkHighFanOut(graph));
     issues.push(...checkMissingDescriptions(graph));
@@ -216,7 +216,7 @@ function checkAspectIdUniqueness(graph: Graph): ValidationIssue[] {
     if (names.length <= 1) continue;
     issues.push({
       severity: 'error',
-      code: 'E014',
+      code: 'E010',
       rule: 'duplicate-aspect-binding',
       message: `Aspect '${id}' is bound to multiple aspects (${names.join(', ')})`,
     });
@@ -237,7 +237,7 @@ function checkImpliedAspectsExist(graph: Graph): ValidationIssue[] {
       if (!idToAspect.has(impliedId)) {
         issues.push({
           severity: 'error',
-          code: 'E016',
+          code: 'E012',
           rule: 'implied-aspect-missing',
           message: `Aspect '${aspect.name}' implies '${impliedId}' but no aspect with that id exists in aspects/`,
         });
@@ -271,7 +271,7 @@ function checkImpliesNoCycles(graph: Graph): ValidationIssue[] {
         const cycle = pathArr.slice(pathArr.indexOf(implied)).concat(implied);
         issues.push({
           severity: 'error',
-          code: 'E017',
+          code: 'E013',
           rule: 'aspect-implies-cycle',
           message: `Aspect implies cycle: ${cycle.join(' → ')}`,
         });
@@ -322,9 +322,9 @@ function checkRequiredAspectsCoverage(graph: Graph): ValidationIssue[] {
     for (const required of requiredAspects) {
       if (!effectiveAspectIds.has(required)) {
         issues.push({
-          severity: 'warning',
-          code: 'W011',
-          rule: 'missing-required-aspect-coverage',
+          severity: 'error',
+          code: 'E035',
+          rule: 'missing-required-aspect',
           message: `Node '${nodePath}' (type: ${node.meta.type}) missing required aspect coverage for '${required}'`,
           nodePath,
         });
@@ -362,7 +362,7 @@ function checkNoCycles(graph: Graph): ValidationIssue[] {
         if (!hasBlackboxInCycle) {
           issues.push({
             severity: 'error',
-            code: 'E010',
+            code: 'E008',
             rule: 'structural-cycle',
             message: `Circular dependency: ${cyclePath.join(' -> ')}`,
           });
@@ -432,7 +432,7 @@ function checkMappingOverlap(graph: Graph): ValidationIssue[] {
 
       issues.push({
         severity: 'error',
-        code: 'E009',
+        code: 'E007',
         rule: 'overlapping-mapping',
         message:
           `Mapping paths '${current.mappingPath}' (${current.nodePath}) and ` +
@@ -446,7 +446,7 @@ function checkMappingOverlap(graph: Graph): ValidationIssue[] {
   return issues;
 }
 
-// --- Rule: Mapping paths should exist on disk (W012) ---
+// --- Rule: Mapping paths should exist on disk (E036) ---
 
 async function checkMappingPathsExist(graph: Graph): Promise<ValidationIssue[]> {
   const issues: ValidationIssue[] = [];
@@ -461,8 +461,8 @@ async function checkMappingPathsExist(graph: Graph): Promise<ValidationIssue[]> 
         await access(absPath);
       } catch {
         issues.push({
-          severity: 'warning',
-          code: 'W012',
+          severity: 'error',
+          code: 'E036',
           rule: 'mapping-path-missing',
           message: `Mapping path '${mp}' does not exist on disk`,
           nodePath,
@@ -473,7 +473,7 @@ async function checkMappingPathsExist(graph: Graph): Promise<ValidationIssue[]> 
   return issues;
 }
 
-// --- Rule 6: Required artifacts per STANDARD_ARTIFACTS (W001) ---
+// --- Rule 6: Required artifacts per STANDARD_ARTIFACTS (E030) ---
 
 function getIncomingRelationSources(graph: Graph, nodePath: string): string[] {
   const sources: string[] = [];
@@ -542,8 +542,8 @@ function checkRequiredArtifacts(graph: Graph): ValidationIssue[] {
           ? `Missing required artifact '${filename}' (${reason}).${incomingStr} ${action}`
           : `Missing required artifact '${filename}' (${reason}).${incomingStr}`;
         issues.push({
-          severity: 'warning',
-          code: 'W001',
+          severity: 'error',
+          code: 'E030',
           rule: 'missing-artifact',
           message: msg.trim(),
           nodePath,
@@ -555,7 +555,7 @@ function checkRequiredArtifacts(graph: Graph): ValidationIssue[] {
   return issues;
 }
 
-// --- E006: Broken flow refs (flow.nodes) ---
+// --- E005: Broken flow refs (flow.nodes) ---
 
 function checkBrokenFlowRefs(graph: Graph): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -565,7 +565,7 @@ function checkBrokenFlowRefs(graph: Graph): ValidationIssue[] {
       if (!nodePaths.has(n)) {
         issues.push({
           severity: 'error',
-          code: 'E006',
+          code: 'E005',
           rule: 'broken-flow-ref',
           message: `Flow '${flow.name}' references non-existent node '${n}'`,
         });
@@ -575,7 +575,7 @@ function checkBrokenFlowRefs(graph: Graph): ValidationIssue[] {
   return issues;
 }
 
-// --- E007: Flow aspect ids must have corresponding aspect ---
+// --- E006: Flow aspect ids must have corresponding aspect ---
 
 function checkFlowAspectIds(graph: Graph): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -586,7 +586,7 @@ function checkFlowAspectIds(graph: Graph): ValidationIssue[] {
       if (!validAspectIds.has(aspectId)) {
         issues.push({
           severity: 'error',
-          code: 'E007',
+          code: 'E006',
           rule: 'broken-aspect-ref',
           message: `Flow '${flow.name}' references aspect '${aspectId}' but no aspect with that id exists in aspects/`,
         });
@@ -596,9 +596,9 @@ function checkFlowAspectIds(graph: Graph): ValidationIssue[] {
   return issues;
 }
 
-// E013 removed — standard artifacts don't use has_aspect: conditions
+// invalid-artifact-condition removed (v3 E013) — standard artifacts don't use has_aspect: conditions
 
-// --- W002: Shallow artifacts (below min_artifact_length) ---
+// --- E031: Shallow artifacts (below min_artifact_length) ---
 
 async function checkShallowArtifacts(graph: Graph): Promise<ValidationIssue[]> {
   const issues: ValidationIssue[] = [];
@@ -607,8 +607,8 @@ async function checkShallowArtifacts(graph: Graph): Promise<ValidationIssue[]> {
     for (const art of node.artifacts) {
       if (art.content.trim().length < minLen) {
         issues.push({
-          severity: 'warning',
-          code: 'W002',
+          severity: 'error',
+          code: 'E031',
           rule: 'shallow-artifact',
           message: `Artifact '${art.filename}' is below minimum length (${art.content.trim().length} < ${minLen})`,
           nodePath,
@@ -619,7 +619,7 @@ async function checkShallowArtifacts(graph: Graph): Promise<ValidationIssue[]> {
   return issues;
 }
 
-// --- W017: Wide node (maps too many source files) ---
+// --- W003: Wide node (maps too many source files) ---
 
 async function checkWideNodes(graph: Graph): Promise<ValidationIssue[]> {
   const issues: ValidationIssue[] = [];
@@ -640,7 +640,7 @@ async function checkWideNodes(graph: Graph): Promise<ValidationIssue[]> {
 
     issues.push({
       severity: 'warning',
-      code: 'W017',
+      code: 'W003',
       rule: 'wide-node',
       message: `Node maps ${sourceFiles.length} source files (max: ${maxFiles}) with ${filledArtifacts} artifact(s). Consider splitting into child nodes with focused responsibilities.`,
       nodePath,
@@ -649,7 +649,7 @@ async function checkWideNodes(graph: Graph): Promise<ValidationIssue[]> {
   return issues;
 }
 
-// --- W007: High fan-out (exceeds max_direct_relations) ---
+// --- W004: High fan-out (exceeds max_direct_relations) ---
 
 function checkHighFanOut(graph: Graph): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -659,7 +659,7 @@ function checkHighFanOut(graph: Graph): ValidationIssue[] {
     if (count > maxRel) {
       issues.push({
         severity: 'warning',
-        code: 'W007',
+        code: 'W004',
         rule: 'high-fan-out',
         message: `Node has ${count} direct relations (max: ${maxRel})`,
         nodePath,
@@ -669,7 +669,7 @@ function checkHighFanOut(graph: Graph): ValidationIssue[] {
   return issues;
 }
 
-// --- W009: Unpaired event relations (emits without listens or vice versa) ---
+// --- E033: Unpaired event relations (emits without listens or vice versa) ---
 
 function checkUnpairedEvents(graph: Graph): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -694,8 +694,8 @@ function checkUnpairedEvents(graph: Graph): ValidationIssue[] {
       const listenerSet = listensFrom.get(target);
       if (!listenerSet?.has(emitter)) {
         issues.push({
-          severity: 'warning',
-          code: 'W009',
+          severity: 'error',
+          code: 'E033',
           rule: 'unpaired-event',
           message: `Node '${emitter}' emits to '${target}' but '${target}' has no listens from '${emitter}'`,
           nodePath: emitter,
@@ -708,8 +708,8 @@ function checkUnpairedEvents(graph: Graph): ValidationIssue[] {
       const emitterSet = emitsTo.get(source);
       if (!emitterSet?.has(listener)) {
         issues.push({
-          severity: 'warning',
-          code: 'W009',
+          severity: 'error',
+          code: 'E033',
           rule: 'unpaired-event',
           message: `Node '${listener}' listens from '${source}' but '${source}' has no emits to '${listener}'`,
           nodePath: listener,
@@ -731,8 +731,8 @@ function checkSchemas(graph: Graph): ValidationIssue[] {
   for (const required of REQUIRED_SCHEMAS) {
     if (!present.has(required)) {
       issues.push({
-        severity: 'warning',
-        code: 'W010',
+        severity: 'error',
+        code: 'E034',
         rule: 'missing-schema',
         message: `Schema 'yg-${required}.yaml' missing from .yggdrasil/schemas/`,
       });
@@ -756,27 +756,19 @@ async function checkDirectoriesHaveNodeYaml(graph: Graph): Promise<ValidationIss
     if (RESERVED_DIRS.has(dirName)) return;
 
     const hasFiles = entries.some((e) => e.isFile());
-    const hasSubdirs = entries.some((e) => e.isDirectory() && !RESERVED_DIRS.has(e.name) && !e.name.startsWith('.'));
     const graphPath = segments.join('/');
 
     if (!hasNodeYaml && graphPath !== '') {
       if (hasFiles) {
         issues.push({
           severity: 'error',
-          code: 'E015',
+          code: 'E011',
           rule: 'missing-node-yaml',
           message: `Directory '${graphPath}' has files but no yg-node.yaml`,
           nodePath: graphPath,
         });
-      } else if (hasSubdirs) {
-        issues.push({
-          severity: 'warning',
-          code: 'W013',
-          rule: 'directory-without-node',
-          message: `Directory '${graphPath}' has subdirectories but no yg-node.yaml — consider creating a node`,
-          nodePath: graphPath,
-        });
       }
+      // W013 (directory-without-node) removed — subsumed by E022
     }
 
     for (const entry of entries) {
@@ -801,7 +793,7 @@ async function checkDirectoriesHaveNodeYaml(graph: Graph): Promise<ValidationIss
   return issues;
 }
 
-// --- Anchor validation (E019, W014) ---
+// --- Anchor validation (dead code — replaced by typed anchors in Plan 3) ---
 
 async function expandMappingToFiles(projectRoot: string, mappingPaths: string[]): Promise<string[]> {
   const files: string[] = [];
@@ -834,6 +826,8 @@ async function expandMappingToFiles(projectRoot: string, mappingPaths: string[])
   return files;
 }
 
+/* v8 ignore start -- dead code kept for Plan 3 reference */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function checkAnchorPresence(graph: Graph): Promise<ValidationIssue[]> {
   const issues: ValidationIssue[] = [];
   const projectRoot = path.dirname(graph.rootPath);
@@ -877,8 +871,9 @@ async function checkAnchorPresence(graph: Graph): Promise<ValidationIssue[]> {
 
   return issues;
 }
+/* v8 ignore stop */
 
-// --- Context budget (W005 warning, W006 error, W015 own-budget) ---
+// --- Context budget (W001 warning, E032 exceeded, W002 own-budget) ---
 
 async function checkContextBudget(graph: Graph): Promise<ValidationIssue[]> {
   const issues: ValidationIssue[] = [];
@@ -902,16 +897,16 @@ async function checkContextBudget(graph: Graph): Promise<ValidationIssue[]> {
 
       if (breakdown.total >= errorThreshold) {
         issues.push({
-          severity: 'warning',
-          code: 'W006',
-          rule: 'budget-error',
+          severity: 'error',
+          code: 'E032',
+          rule: 'budget-exceeded',
           message: `Context is ${breakdown.total.toLocaleString()} tokens (error threshold: ${errorThreshold.toLocaleString()}).\n     ${breakdownLine}`,
           nodePath,
         });
       } else if (breakdown.total >= warningThreshold) {
         issues.push({
           severity: 'warning',
-          code: 'W005',
+          code: 'W001',
           rule: 'budget-warning',
           message: `Context is ${breakdown.total.toLocaleString()} tokens (warning threshold: ${warningThreshold.toLocaleString()}).\n     ${breakdownLine}`,
           nodePath,
@@ -921,7 +916,7 @@ async function checkContextBudget(graph: Graph): Promise<ValidationIssue[]> {
       if (ownWarningThreshold !== undefined && breakdown.own >= ownWarningThreshold) {
         issues.push({
           severity: 'warning',
-          code: 'W015',
+          code: 'W002',
           rule: 'own-budget-warning',
           message: `Own artifacts: ${breakdown.own.toLocaleString()} tokens (threshold: ${ownWarningThreshold.toLocaleString()}). Consider splitting this node's responsibilities into child nodes.`,
           nodePath,
@@ -939,7 +934,7 @@ function pct(value: number, total: number): string {
   return `${Math.round((value / total) * 100)}%`;
 }
 
-// --- W016: Missing description on nodes, aspects, and flows ---
+// --- E038: Missing description on nodes, aspects, and flows ---
 
 function checkMissingDescriptions(graph: Graph): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -948,8 +943,8 @@ function checkMissingDescriptions(graph: Graph): ValidationIssue[] {
   for (const [nodePath, node] of graph.nodes) {
     if (!node.meta.description?.trim()) {
       issues.push({
-        severity: 'warning',
-        code: 'W016',
+        severity: 'error',
+        code: 'E038',
         rule: 'missing-description',
         message: `Node has no description`,
         nodePath,
@@ -961,8 +956,8 @@ function checkMissingDescriptions(graph: Graph): ValidationIssue[] {
   for (const aspect of graph.aspects) {
     if (!aspect.description?.trim()) {
       issues.push({
-        severity: 'warning',
-        code: 'W016',
+        severity: 'error',
+        code: 'E038',
         rule: 'missing-description',
         message: `Aspect '${aspect.id}' has no description`,
       });
@@ -973,8 +968,8 @@ function checkMissingDescriptions(graph: Graph): ValidationIssue[] {
   for (const flow of graph.flows) {
     if (!flow.description?.trim()) {
       issues.push({
-        severity: 'warning',
-        code: 'W016',
+        severity: 'error',
+        code: 'E038',
         rule: 'missing-description',
         message: `Flow '${flow.name}' has no description`,
       });

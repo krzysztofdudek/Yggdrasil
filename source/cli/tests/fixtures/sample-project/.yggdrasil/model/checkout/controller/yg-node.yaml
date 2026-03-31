@@ -1,4 +1,5 @@
 name: CheckoutController
+description: x
 type: service
 relations:
   - target: orders/order-service

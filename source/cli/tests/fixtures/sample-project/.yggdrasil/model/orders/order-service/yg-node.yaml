@@ -1,4 +1,5 @@
 name: OrderService
+description: x
 type: service
 aspects:
   - aspect: requires-audit

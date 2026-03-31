@@ -29,6 +29,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Error codes renumbered to v4 scheme.** Structural errors: E001-E013 (compact,
+  no gaps). Promoted warnings to errors: E030-E038 (missing-artifact, shallow-artifact,
+  budget-exceeded, unpaired-event, missing-schema, missing-required-aspect,
+  mapping-path-missing, missing-description). Remaining warnings: W001-W004
+  (budget-warning, own-budget-warning, wide-node, high-fan-out). Removed: W013
+  (directory-without-node, subsumed by E022) and W014 (anchor-not-found, replaced
+  by typed anchors).
 - **Aspect Discovery During Implementation** now applies to brownfield, not just
   greenfield. Added brownfield trigger for utility functions in 3+ files.
 - **Schema example in `yg-node.yaml`.** Added commented example with real values

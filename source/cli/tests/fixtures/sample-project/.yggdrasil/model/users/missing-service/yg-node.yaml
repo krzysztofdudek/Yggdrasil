@@ -1,4 +1,5 @@
 name: MissingService
+description: x
 type: service
 mapping:
   paths:

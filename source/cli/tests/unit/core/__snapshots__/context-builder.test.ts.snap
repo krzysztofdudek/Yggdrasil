@@ -21,7 +21,7 @@ exports[`context-builder > formatContextMarkdown > produces correct markdown str
 ### Module Context (orders/)
 
 ### responsibility.md
-Order management module.
+Order management module — groups order processing services and domain logic.
 
 
 ---
@@ -32,6 +32,7 @@ Order management module.
 
 ### yg-node.yaml
 name: OrderService
+description: x
 type: service
 aspects:
   - aspect: requires-audit
@@ -69,7 +70,7 @@ Returns current lifecycle status of an order.
 
 
 ### responsibility.md
-Order service handles order lifecycle.
+Order service handles order lifecycle — creation, validation, and fulfillment.
 
 
 ### Materialization Target
@@ -111,12 +112,20 @@ Consumes: authenticate
 On failure: reject-request
 
 ### responsibility.md
-Auth API service.
+Auth API service — handles authentication requests, login, and token issuance.
+
+
+### interface.md
+Auth API interface — authenticates requests and returns tokens for valid credentials.
 
 ### Dependency: UserRepo (uses) — users/user-repo
 
 ### responsibility.md
-User repository.
+User repository — provides persistence layer for user entities and data.
+
+
+### interface.md
+User repository interface — provides user lookup and persistence for the users domain.
 
 ### Event: order.created [emits]
 
@@ -135,7 +144,7 @@ Sequence: create order -> validate -> payment -> ship.
 
 ---
 
-Context size: 472 tokens
+Context size: 581 tokens
 Layers: global, hierarchy, own, relational, relational, relational, flows, aspects, aspects
 "
 `;

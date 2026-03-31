@@ -1,0 +1,14 @@
+{
+  "hash": "4c677dbadf88f3e167ea1fe0c726b04b5ac0bf907f16e8b39e6dad1ff3b488af",
+  "files": {
+    ".yggdrasil/model/users/user-repo/yg-node.yaml": "a3dc547721a656940a40a4210d0e99de8252dec21b8c82427d3806cf4e5c0e68",
+    ".yggdrasil/model/users/user-repo/interface.md": "681b934276c9ed9d59f27857da07efa12bc791f7557d409b280482a3809ebaa2",
+    ".yggdrasil/model/users/user-repo/responsibility.md": "3e12f5a1ba408df5e0e1bfbc45d0e361f52ff49cd997e846fe2afa0508d43203",
+    ".yggdrasil/model/users/yg-node.yaml": "0177bbe0b8c7c10df64777016665d8bd56267bceece42110284fb6b376397be5",
+    ".yggdrasil/model/users/responsibility.md": "d1796b0c20fa59b0cb79cb49c0f9deeb0117ce8dd5b633ab35716d40e64d0d89",
+    ".yggdrasil/model/orders/order-service/responsibility.md": "28042a4d0e246cf623b6df11c071f076a7893de0bde0c3973e7acebca1a63606",
+    ".yggdrasil/model/orders/order-service/interface.md": "9613d544051ef806a9eaea491c6920495d59a5da144b1be92e0fbf7a1241c8ea",
+    ".yggdrasil/model/orders/responsibility.md": "4b721e6125b45841470b77033e00dffc7cede8304bf2031159a08e6d6c1b68a7",
+    "src/users/user.repository.ts": "da22ab3ea28c2090fc0bf04824609ae017f37cc15811efe0466b0f033b0db162"
+  }
+}

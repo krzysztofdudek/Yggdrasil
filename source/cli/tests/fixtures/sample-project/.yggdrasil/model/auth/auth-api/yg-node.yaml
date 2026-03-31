@@ -1,4 +1,5 @@
 name: AuthApi
+description: x
 type: service
 mapping:
   paths:

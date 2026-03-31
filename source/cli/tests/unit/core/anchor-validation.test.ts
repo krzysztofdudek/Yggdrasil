@@ -48,7 +48,7 @@ function makeNode(
   };
 }
 
-describe('anchor validation', () => {
+describe.skip('anchor-validation (v3 — replaced by typed anchors in Plan 3)', () => {
   it('W014: warns when anchor not found in source files', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-anchor-w014');
     const srcDir = path.join(tmpDir, 'src');

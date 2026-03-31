@@ -1,5 +1,10 @@
 name: UserRepo
+description: x
 type: repository
+relations:
+  - target: orders/order-service
+    type: listens
+    event_name: order.created
 mapping:
   paths:
     - src/users/user.repository.ts

@@ -1,3 +1,4 @@
 name: Audit Logging
+description: x
 implies:
   - requires-logging

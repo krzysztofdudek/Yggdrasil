@@ -9,13 +9,18 @@ const FIXTURE_PROJECT = path.join(__dirname, '../fixtures/sample-project');
 const BROKEN_RELATION_FIXTURE = path.join(__dirname, '../fixtures/sample-project-broken-relation');
 
 describe('validation-pipeline', () => {
-  it('load fixture graph → validate → 0 issues', async () => {
+  it('load fixture graph → validate → only expected errors', async () => {
     const graph = await loadGraph(FIXTURE_PROJECT);
     const result = await validate(graph);
 
     expect(result.nodesScanned).toBeGreaterThan(0);
     const errors = result.issues.filter((i) => i.severity === 'error');
-    expect(errors).toHaveLength(0);
+    // E036: users/missing-service maps src/users/missing.service.ts which doesn't exist on disk
+    // (intentional fixture — used by drift tests to verify "missing" detection)
+    const unexpectedErrors = errors.filter(
+      (i) => !(i.code === 'E036' && i.nodePath === 'users/missing-service'),
+    );
+    expect(unexpectedErrors).toHaveLength(0);
   });
 
   it('load broken-relation fixture → validate → correct issues found', async () => {

@@ -1,4 +1,5 @@
 name: Checkout Flow
+description: x
 nodes:
   - orders/order-service
   - auth/auth-api

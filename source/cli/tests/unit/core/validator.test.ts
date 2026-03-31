@@ -78,15 +78,17 @@ describe('validator', () => {
     expect(configIssue!.message).toBe('Config parse failed');
   });
 
-  it('returns 0 errors and 0 warnings for sample-project', async () => {
+  it('returns only expected errors for sample-project', async () => {
     const graph = await loadGraph(FIXTURE_PROJECT);
     const result = await validate(graph);
 
     const errors = result.issues.filter((i) => i.severity === 'error');
-    const warnings = result.issues.filter((i) => i.severity === 'warning');
-
-    expect(errors).toHaveLength(0);
-    expect(warnings.length).toBeGreaterThanOrEqual(0);
+    // E036: users/missing-service maps src/users/missing.service.ts which doesn't exist on disk
+    // (intentional fixture — used by drift tests to verify "missing" detection)
+    const unexpectedErrors = errors.filter(
+      (i) => !(i.code === 'E036' && i.nodePath === 'users/missing-service'),
+    );
+    expect(unexpectedErrors).toHaveLength(0);
     expect(result.nodesScanned).toBe(9);
   }, 10000);
 
@@ -114,7 +116,7 @@ describe('validator', () => {
     expect(issues[0].message).toContain('no corresponding directory');
   });
 
-  it('duplicate-aspect-binding returns E014 when id bound to multiple aspects', async () => {
+  it('duplicate-aspect-binding returns E010 when id bound to multiple aspects', async () => {
     const graph = createGraph({
       aspects: [
         { name: 'Aspect One', id: 'audit', artifacts: [] },
@@ -126,7 +128,7 @@ describe('validator', () => {
     const result = await validate(graph);
     const issues = result.issues.filter((i) => i.rule === 'duplicate-aspect-binding');
     expect(issues).toHaveLength(1);
-    expect(issues[0].code).toBe('E014');
+    expect(issues[0].code).toBe('E010');
     expect(issues[0].message).toContain('audit');
     expect(issues[0].message).toContain('Aspect One');
     expect(issues[0].message).toContain('Aspect Two');
@@ -180,7 +182,7 @@ describe('validator', () => {
     expect(issues).toHaveLength(1);
     expect(issues[0].message).toContain('no yg-node.yaml');
     expect(issues[0].nodePath).toBe('orders/orphan-service');
-    expect(issues[0].code).toBe('E015');
+    expect(issues[0].code).toBe('E011');
   });
 
   it('directories-have-node-yaml catches orphan directory with content in model', async () => {
@@ -205,41 +207,15 @@ describe('validator', () => {
       const issues = result.issues.filter((i) => i.rule === 'missing-node-yaml');
       expect(issues).toHaveLength(1);
       expect(issues[0].nodePath).toBe('orphan-with-content');
-      expect(issues[0].code).toBe('E015');
+      expect(issues[0].code).toBe('E011');
     } finally {
       await rm(tmpDir, { recursive: true, force: true });
     }
   });
 
-  it('directory-without-node warns for bare directory with only subdirectories', async () => {
-    const tmpDir = path.join(__dirname, '../../fixtures/tmp-validator-bare-dir');
-    const yggRoot = path.join(tmpDir, '.yggdrasil');
-    const modelDir = path.join(yggRoot, 'model');
-    const bareDir = path.join(modelDir, 'bare-parent');
-    const childDir = path.join(bareDir, 'child');
+  // W013 (directory-without-node) removed — subsumed by E022
 
-    await mkdir(childDir, { recursive: true });
-    await writeFile(
-      path.join(yggRoot, 'yg-config.yaml'),
-      'name: V\nnode_types:\n  service:\n    description: x',
-    );
-    await writeFile(path.join(childDir, 'yg-node.yaml'), 'name: Child\ntype: service\n');
-    await writeFile(path.join(childDir, 'responsibility.md'), 'Child responsibility content here — enough to pass.');
-
-    try {
-      const graph = await loadGraph(tmpDir);
-      const result = await validate(graph);
-      const issues = result.issues.filter((i) => i.rule === 'directory-without-node');
-      expect(issues).toHaveLength(1);
-      expect(issues[0].nodePath).toBe('bare-parent');
-      expect(issues[0].code).toBe('W013');
-      expect(issues[0].severity).toBe('warning');
-    } finally {
-      await rm(tmpDir, { recursive: true, force: true });
-    }
-  });
-
-  it('missing-artifact warns when non-blackbox node lacks required artifact', async () => {
+  it('missing-artifact errors when non-blackbox node lacks required artifact', async () => {
     const graph = createGraph();
     graph.nodes.set('a/no-responsibility', {
       ...createNode('a/no-responsibility', { blackbox: false }),
@@ -249,7 +225,7 @@ describe('validator', () => {
     const result = await validate(graph);
     const issues = result.issues.filter((i) => i.rule === 'missing-artifact');
     expect(issues).toHaveLength(1);
-    expect(issues[0].severity).toBe('warning');
+    expect(issues[0].severity).toBe('error');
     expect(issues[0].message).toContain('responsibility');
   });
 
@@ -454,7 +430,7 @@ describe('validator', () => {
     const issues = result.issues.filter((i) => i.rule === 'budget-warning');
     expect(issues).toHaveLength(1);
     expect(issues[0].severity).toBe('warning');
-    expect(issues[0].code).toBe('W005');
+    expect(issues[0].code).toBe('W001');
     // Verify breakdown components in message
     expect(issues[0].message).toContain('own:');
     expect(issues[0].message).toContain('hierarchy:');
@@ -463,7 +439,7 @@ describe('validator', () => {
     expect(issues[0].message).toContain('dependencies:');
   });
 
-  it('budget-error returns warning when over error threshold with breakdown', async () => {
+  it('budget-exceeded returns error when over error threshold with breakdown', async () => {
     const { buildContext } = await import('../../../src/core/context-builder.js');
     vi.mocked(buildContext).mockResolvedValue({
       nodePath: 'a',
@@ -483,10 +459,10 @@ describe('validator', () => {
     graph.nodes.set('a', createNode('a'));
 
     const result = await validate(graph);
-    const issues = result.issues.filter((i) => i.rule === 'budget-error');
+    const issues = result.issues.filter((i) => i.rule === 'budget-exceeded');
     expect(issues).toHaveLength(1);
-    expect(issues[0].code).toBe('W006');
-    expect(issues[0].severity).toBe('warning');
+    expect(issues[0].code).toBe('E032');
+    expect(issues[0].severity).toBe('error');
     // Verify breakdown components in message
     expect(issues[0].message).toContain('own:');
     expect(issues[0].message).toContain('hierarchy:');
@@ -497,7 +473,7 @@ describe('validator', () => {
     expect(issues[0].message).not.toContain('blocks materialization');
   });
 
-  it('W015 own-budget-warning fires when own artifacts exceed own_warning threshold', async () => {
+  it('W002 own-budget-warning fires when own artifacts exceed own_warning threshold', async () => {
     const { buildContext } = await import('../../../src/core/context-builder.js');
     // own layer needs >= 5000 tokens => 20000 chars
     vi.mocked(buildContext).mockResolvedValue({
@@ -521,12 +497,12 @@ describe('validator', () => {
     const result = await validate(graph);
     const issues = result.issues.filter((i) => i.rule === 'own-budget-warning');
     expect(issues).toHaveLength(1);
-    expect(issues[0].code).toBe('W015');
+    expect(issues[0].code).toBe('W002');
     expect(issues[0].severity).toBe('warning');
     expect(issues[0].nodePath).toBe('a');
   });
 
-  it('W015 not emitted when own_warning absent from config', async () => {
+  it('W002 not emitted when own_warning absent from config', async () => {
     const { buildContext } = await import('../../../src/core/context-builder.js');
     vi.mocked(buildContext).mockResolvedValue({
       nodePath: 'a',
@@ -560,7 +536,7 @@ describe('validator', () => {
 
     const result = await validate(graph);
     expect(result.issues.filter((i) => i.rule === 'budget-warning')).toHaveLength(0);
-    expect(result.issues.filter((i) => i.rule === 'budget-error')).toHaveLength(0);
+    expect(result.issues.filter((i) => i.rule === 'budget-exceeded')).toHaveLength(0);
   });
 
   it('context-budget skips blackbox nodes', async () => {
@@ -648,7 +624,7 @@ describe('validator', () => {
     expect(issues[0].message).toContain("no aspect with that id exists");
   });
 
-  it('shallow-artifact warns when artifact below min_artifact_length', async () => {
+  it('shallow-artifact errors when artifact below min_artifact_length', async () => {
     const graph = createGraph();
     graph.config.quality = {
       min_artifact_length: 100,
@@ -738,7 +714,7 @@ describe('validator', () => {
     expect(issues).toHaveLength(0);
   });
 
-  it('missing-artifact warns for interface.md when node has incoming relations', async () => {
+  it('missing-artifact errors for interface.md when node has incoming relations', async () => {
     const graph = createGraph();
     graph.nodes.set('dep', createNode('dep', { relations: [{ target: 'svc', type: 'uses' }] }));
     graph.nodes.set('svc', {
@@ -792,7 +768,7 @@ describe('validator', () => {
     const result = await validate(graph);
     const issues = result.issues.filter((i) => i.rule === 'duplicate-aspect-binding');
     expect(issues).toHaveLength(1);
-    expect(issues[0].code).toBe('E014');
+    expect(issues[0].code).toBe('E010');
     expect(issues[0].message).toContain('multiple aspects');
   });
 
@@ -807,7 +783,7 @@ describe('validator', () => {
     const result = await validate(graph);
     const issues = result.issues.filter((i) => i.rule === 'implied-aspect-missing');
     expect(issues).toHaveLength(1);
-    expect(issues[0].code).toBe('E016');
+    expect(issues[0].code).toBe('E012');
     expect(issues[0].message).toContain('HIPAA');
     expect(issues[0].message).toContain('requires-audit');
   });
@@ -824,13 +800,13 @@ describe('validator', () => {
     const result = await validate(graph);
     const issues = result.issues.filter((i) => i.rule === 'aspect-implies-cycle');
     expect(issues).toHaveLength(1);
-    expect(issues[0].code).toBe('E017');
+    expect(issues[0].code).toBe('E013');
     expect(issues[0].message).toContain('cycle');
     expect(issues[0].message).toContain('tag-a');
     expect(issues[0].message).toContain('tag-b');
   });
 
-  it('missing-required-aspect-coverage returns warning when node type requires aspect', async () => {
+  it('missing-required-aspect returns error when node type requires aspect', async () => {
     const graph = createGraph({
       aspects: [{ name: 'Audit', id: 'requires-audit', artifacts: [] }],
       config: {
@@ -841,9 +817,9 @@ describe('validator', () => {
     graph.nodes.set('svc', createNode('svc'));
 
     const result = await validate(graph);
-    const issues = result.issues.filter((i) => i.rule === 'missing-required-aspect-coverage');
+    const issues = result.issues.filter((i) => i.rule === 'missing-required-aspect');
     expect(issues).toHaveLength(1);
-    expect(issues[0].code).toBe('W011');
+    expect(issues[0].code).toBe('E035');
     expect(issues[0].message).toContain('requires-audit');
   });
 
@@ -861,7 +837,7 @@ describe('validator', () => {
     graph.nodes.set('svc', createNode('svc', { aspects: [{ aspect: 'requires-hipaa' }] }));
 
     const result = await validate(graph);
-    const issues = result.issues.filter((i) => i.rule === 'missing-required-aspect-coverage');
+    const issues = result.issues.filter((i) => i.rule === 'missing-required-aspect');
     expect(issues).toHaveLength(0);
   });
 
@@ -874,7 +850,7 @@ describe('validator', () => {
     expect(issues).toHaveLength(1);
   });
 
-  it('checkSchemas: W010 when required schema is missing', async () => {
+  it('checkSchemas: E034 when required schema is missing', async () => {
     const graph = createGraph();
     graph.schemas = [{ schemaType: 'node' }, { schemaType: 'aspect' }];
     // flow missing
@@ -882,11 +858,11 @@ describe('validator', () => {
     const result = await validate(graph);
     const issues = result.issues.filter((i) => i.rule === 'missing-schema');
     expect(issues).toHaveLength(1);
-    expect(issues[0].code).toBe('W010');
+    expect(issues[0].code).toBe('E034');
     expect(issues[0].message).toContain('flow');
   });
 
-  it('checkSchemas: no W010 when all 3 schemas present', async () => {
+  it('checkSchemas: no E034 when all 3 schemas present', async () => {
     const graph = createGraph();
     graph.schemas = [
       { schemaType: 'node' },
@@ -924,20 +900,58 @@ describe('validator', () => {
     expect(result.issues[0].code).toBe('E001');
   });
 
-  describe('W016 missing-description', () => {
-    it('W016 emitted for a node without description', async () => {
+  it('wide-node warns when directory mapping resolves to many files', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-validator-wide-node');
+    const srcDir = path.join(tmpDir, 'src', 'wide');
+    const yggRoot = path.join(tmpDir, '.yggdrasil');
+    const modelDir = path.join(yggRoot, 'model', 'wide');
+
+    await mkdir(srcDir, { recursive: true });
+    await mkdir(modelDir, { recursive: true });
+    // Create 12 source files (exceeds default max of 10)
+    for (let i = 0; i < 12; i++) {
+      await writeFile(path.join(srcDir, `file${i}.ts`), `export const x${i} = ${i};`);
+    }
+    await writeFile(
+      path.join(yggRoot, 'yg-config.yaml'),
+      'name: V\nnode_types:\n  service:\n    description: x',
+    );
+    await writeFile(
+      path.join(modelDir, 'yg-node.yaml'),
+      'name: Wide\ntype: service\ndescription: x\nmapping:\n  paths:\n    - src/wide',
+    );
+    await writeFile(
+      path.join(modelDir, 'responsibility.md'),
+      'Wide node responsibility — maps many source files for testing purposes.',
+    );
+
+    try {
+      const graph = await loadGraph(tmpDir);
+      const result = await validate(graph);
+      const issues = result.issues.filter((i) => i.rule === 'wide-node');
+      expect(issues).toHaveLength(1);
+      expect(issues[0].code).toBe('W003');
+      expect(issues[0].severity).toBe('warning');
+      expect(issues[0].message).toContain('12 source files');
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  describe('E038 missing-description', () => {
+    it('E038 emitted for a node without description', async () => {
       const graph = createGraph();
       graph.nodes.set('svc/no-desc', createNode('svc/no-desc'));
 
       const result = await validate(graph);
       const issues = result.issues.filter((i) => i.rule === 'missing-description' && i.nodePath === 'svc/no-desc');
       expect(issues).toHaveLength(1);
-      expect(issues[0].code).toBe('W016');
-      expect(issues[0].severity).toBe('warning');
+      expect(issues[0].code).toBe('E038');
+      expect(issues[0].severity).toBe('error');
       expect(issues[0].message).toContain('no description');
     });
 
-    it('no W016 when node has description set', async () => {
+    it('no E038 when node has description set', async () => {
       const graph = createGraph();
       graph.nodes.set('svc/with-desc', createNode('svc/with-desc', { description: 'A useful service.' }));
 
@@ -946,7 +960,7 @@ describe('validator', () => {
       expect(issues).toHaveLength(0);
     });
 
-    it('W016 emitted for an aspect without description', async () => {
+    it('E038 emitted for an aspect without description', async () => {
       const graph = createGraph({
         aspects: [{ name: 'NoDesc', id: 'no-desc-aspect', artifacts: [] }],
       });
@@ -957,11 +971,11 @@ describe('validator', () => {
         (i) => i.rule === 'missing-description' && i.message.includes("'no-desc-aspect'"),
       );
       expect(issues).toHaveLength(1);
-      expect(issues[0].code).toBe('W016');
-      expect(issues[0].severity).toBe('warning');
+      expect(issues[0].code).toBe('E038');
+      expect(issues[0].severity).toBe('error');
     });
 
-    it('W016 emitted for a flow without description', async () => {
+    it('E038 emitted for a flow without description', async () => {
       const graph = createGraph();
       graph.nodes.set('a', createNode('a'));
       graph.flows.push({
@@ -975,8 +989,8 @@ describe('validator', () => {
         (i) => i.rule === 'missing-description' && i.message.includes("'checkout-flow'"),
       );
       expect(issues).toHaveLength(1);
-      expect(issues[0].code).toBe('W016');
-      expect(issues[0].severity).toBe('warning');
+      expect(issues[0].code).toBe('E038');
+      expect(issues[0].severity).toBe('error');
     });
   });
 

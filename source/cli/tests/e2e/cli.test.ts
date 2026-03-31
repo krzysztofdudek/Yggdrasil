@@ -86,9 +86,12 @@ describe.skipIf(!distExists)('CLI E2E', () => {
     expect(stdout).toContain('users');
   });
 
-  it('yg validate on valid graph', () => {
-    const { status } = run(['validate']);
-    expect(status).toBe(0);
+  it('yg validate on sample-project (E036 from missing-service fixture)', () => {
+    const { status, stdout } = run(['validate']);
+    // Exit 1 due to E036: users/missing-service maps src/users/missing.service.ts
+    // which intentionally doesn't exist (used by drift tests for "missing" detection)
+    expect(status).toBe(1);
+    expect(stdout).toContain('E036');
   });
 
   it('yg build-context', () => {

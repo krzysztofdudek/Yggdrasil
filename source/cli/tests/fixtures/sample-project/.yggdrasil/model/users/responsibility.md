@@ -1,1 +1,1 @@
-User domain module.
+User domain module — groups user-related services, repositories, and logic.
