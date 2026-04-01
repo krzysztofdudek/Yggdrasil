@@ -539,31 +539,6 @@ describe('context-builder', () => {
       expect(aspectLayers).toHaveLength(0);
     });
 
-    it('selfOnly: returns only global + own layers, no hierarchy/relational/aspects/flows', async () => {
-      const graph = await loadGraph(FIXTURE_PROJECT);
-      const pkg = await buildContext(graph, 'orders/order-service', { selfOnly: true });
-
-      const layerTypes = pkg.layers.map((l) => l.type);
-      expect(layerTypes).toContain('global');
-      expect(layerTypes).toContain('own');
-      expect(layerTypes).not.toContain('hierarchy');
-      expect(layerTypes).not.toContain('relational');
-      expect(layerTypes).not.toContain('aspects');
-      expect(layerTypes).not.toContain('flows');
-    });
-
-    it('selfOnly: toContextMapOutput returns empty glossary and no hierarchy/deps', async () => {
-      const graph = await loadGraph(FIXTURE_PROJECT);
-      const pkg = await buildContext(graph, 'orders/order-service', { selfOnly: true });
-      const mapOutput = toContextMapOutput(pkg, graph, { selfOnly: true });
-
-      expect(Object.keys(mapOutput.glossary.aspects)).toHaveLength(0);
-      expect(Object.keys(mapOutput.glossary.flows)).toHaveLength(0);
-      expect(mapOutput.hierarchy).toHaveLength(0);
-      expect(mapOutput.dependencies).toHaveLength(0);
-      expect(mapOutput.node.path).toBe('orders/order-service');
-    });
-
     it('node in flow gets flow artifacts through Flows layer', async () => {
       const graph = await loadGraph(FIXTURE_PROJECT);
       const pkg = await buildContext(graph, 'orders/order-service');

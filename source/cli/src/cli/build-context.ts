@@ -62,14 +62,7 @@ function collectRelevantNodePaths(graph: Graph, nodePath: string): Set<string> {
 }
 
 export function registerBuildCommand(program: Command): void {
-  program
-    .command('build-context')
-    .description('Assemble a context package for one node')
-    .option('--node <node-path>', 'Node path relative to .yggdrasil/model/')
-    .option('--file <file-path>', 'Source file path — resolves owner node automatically')
-    .option('--full', 'Include artifact file contents in output')
-    .option('--self', 'Only include the node\u2019s own artifacts (no hierarchy, dependencies, aspects, flows)')
-    .action(async (options: { node?: string; file?: string; full?: boolean; self?: boolean }) => {
+  const contextAction = async (options: { node?: string; file?: string; full?: boolean }) => {
       try {
         if (!options.node && !options.file) {
           process.stderr.write("Error: either '--node <path>' or '--file <path>' is required\n");
@@ -130,8 +123,8 @@ export function registerBuildCommand(program: Command): void {
           process.exit(1);
         }
 
-        const pkg = await buildContext(graph, nodePath, { selfOnly: options.self });
-        const mapOutput = toContextMapOutput(pkg, graph, { selfOnly: options.self });
+        const pkg = await buildContext(graph, nodePath);
+        const mapOutput = toContextMapOutput(pkg, graph);
 
         let output = formatContextYaml(mapOutput);
 
@@ -180,7 +173,25 @@ export function registerBuildCommand(program: Command): void {
         process.stderr.write(`Error: ${(error as Error).message}\n`);
         process.exit(1);
       }
-    });
+  };
+
+  // Primary command: `yg context`
+  program
+    .command('context')
+    .description('Assemble a context package for one node')
+    .option('--node <node-path>', 'Node path relative to .yggdrasil/model/')
+    .option('--file <file-path>', 'Source file path — resolves owner node automatically')
+    .option('--full', 'Include artifact file contents in output')
+    .action(contextAction);
+
+  // Backward-compatible alias: `yg build-context`
+  program
+    .command('build-context')
+    .description('(alias for context) Assemble a context package for one node')
+    .option('--node <node-path>', 'Node path relative to .yggdrasil/model/')
+    .option('--file <file-path>', 'Source file path — resolves owner node automatically')
+    .option('--full', 'Include artifact file contents in output')
+    .action(contextAction);
 }
 
 /**

@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`yg approve` replaces `drift-sync`.** `drift-sync` is now a backward-compatible
   alias that delegates to approve logic. `--all` and `--recursive` flags are removed
   from `drift-sync` — approve one node at a time with `--node <path>`.
+- **`yg context` replaces `build-context`.** `build-context` kept as backward-compatible
+  alias. `--self` option removed — always returns full context package.
+- **`yg deps` command removed.** Use `yg impact --node <path>` for dependency analysis.
+- **`yg impact` simplified.** `--simulate` and `--method` options removed.
 - **`yg check` replaces `validate`, `drift`, `status`, `preflight`.** Single unified
   gate command with exit 0 (clean) / exit 1 (errors). All four old commands removed.
 - **Error codes renumbered to v4 scheme.** E001-E013 structural, E020-E022

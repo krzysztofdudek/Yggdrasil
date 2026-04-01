@@ -112,11 +112,25 @@ describe.skipIf(!distExists)('CLI E2E', () => {
     expect(stderr).toContain("either '--node <path>' or '--file <path>' is required");
   });
 
-  it('yg deps', () => {
-    const { stdout, status } = run(['deps', '--node', 'orders/order-service']);
+  it('yg context --node works (renamed from build-context)', () => {
+    const { stdout, status } = run(['context', '--node', 'orders/order-service']);
     expect(status).toBe(0);
-    expect(stdout).toContain('orders/order-service');
-    expect(stdout).toMatch(/├──|└──|calls|uses/);
+    expect(stdout).toContain('meta:');
+    expect(stdout).toContain('name: OrderService');
+    expect(stdout).toContain('project:');
+    expect(stdout).toContain('glossary:');
+  });
+
+  it('yg build-context still works as alias', () => {
+    const { stdout, status } = run(['build-context', '--node', 'orders/order-service']);
+    expect(status).toBe(0);
+    expect(stdout).toContain('meta:');
+    expect(stdout).toContain('name: OrderService');
+  });
+
+  it('yg deps returns non-zero (command removed)', () => {
+    const { status } = run(['deps', '--node', 'orders/order-service']);
+    expect(status).not.toBe(0);
   });
 
   it('yg impact', () => {
@@ -176,35 +190,6 @@ describe.skipIf(!distExists)('CLI E2E', () => {
     const { stderr, status } = run(['tree', '--root', 'nonexistent']);
     expect(status).toBe(1);
     expect(stderr).toContain('not found');
-  });
-
-  // --- deps options ---
-
-  it('yg deps nonexistent node returns exit 1', () => {
-    const { status, stderr } = run(['deps', '--node', 'does/not/exist']);
-    expect(status).toBe(1);
-    expect(stderr).toContain('Node not found');
-  });
-
-  it('yg deps --node orders/order-service', () => {
-    const { stdout, status } = run(['deps', '--node', 'orders/order-service']);
-    expect(status).toBe(0);
-    expect(stdout).toContain('orders/order-service');
-    expect(stdout).toMatch(/├──|└──|uses|calls/);
-  });
-
-  it('yg deps --depth 1 limits tree depth', () => {
-    const { stdout, status } = run(['deps', '--node', 'orders/order-service', '--depth', '1']);
-    expect(status).toBe(0);
-    expect(stdout).toContain('orders/order-service');
-    expect(stdout).toContain('auth/auth-api');
-    expect(stdout).toContain('users/user-repo');
-  });
-
-  it('yg deps without --node returns exit 1', () => {
-    const { status, stderr } = run(['deps']);
-    expect(status).toBe(1);
-    expect(stderr).toContain('required option');
   });
 
   // --- approve ---
@@ -389,6 +374,32 @@ describe.skipIf(!distExists)('CLI E2E', () => {
     expect(status).toBe(0);
     expect(stdout).toContain('Indirectly affected');
     expect(stdout).toContain('checkout/controller');
+  });
+
+  it('yg impact --file resolves owner and shows impact', () => {
+    const { stdout, status, stderr } = run(['impact', '--file', 'src/orders/order.service.ts']);
+    expect(status).toBe(0);
+    expect(stderr).toContain('orders/order-service');
+    expect(stdout).toContain('Impact of changes in orders/order-service');
+  });
+
+  it('yg impact --simulate is rejected (option removed)', () => {
+    const { status, stderr } = run(['impact', '--node', 'auth/auth-api', '--simulate']);
+    // Commander treats unknown options as errors
+    expect(status).not.toBe(0);
+    expect(stderr).toContain('simulate');
+  });
+
+  it('yg impact --method is rejected (option removed)', () => {
+    const { status, stderr } = run(['impact', '--node', 'auth/auth-api', '--method', 'verify']);
+    expect(status).not.toBe(0);
+    expect(stderr).toContain('method');
+  });
+
+  it('yg aspects output has no stability field', () => {
+    const { stdout, status } = run(['aspects']);
+    expect(status).toBe(0);
+    expect(stdout).not.toContain('stability');
   });
 
   // --- init creates structure ---

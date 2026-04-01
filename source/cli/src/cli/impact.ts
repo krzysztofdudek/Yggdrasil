@@ -1,13 +1,9 @@
 import { Command } from 'commander';
 import { loadGraph } from '../core/graph-loader.js';
-import { loadGraphFromRef } from '../core/graph-from-git.js';
 import {
-  buildContext,
   collectAncestors,
   collectEffectiveAspectIds,
-  computeBudgetBreakdown,
 } from '../core/context-builder.js';
-import { detectDrift } from '../core/drift-detector.js';
 import { findOwner } from './owner.js';
 import { projectRootFromGraph } from '../utils/paths.js';
 import type { Graph } from '../model/types.js';
@@ -169,73 +165,9 @@ export function collectIndirectDependents(
   return { indirectPaths, chains };
 }
 
-async function runSimulation(
-  graph: Graph,
-  nodePaths: Iterable<string>,
-  targetNodePath: string | null,
-): Promise<void> {
-  const budget = graph.config.quality?.context_budget ?? { warning: 10000, error: 20000 };
-  process.stdout.write('\nChanges in context packages:\n\n');
-  const baselineGraph = await loadGraphFromRef(process.cwd(), 'HEAD');
-  const driftReport = await detectDrift(graph);
-  const driftByNode = new Map(driftReport.entries.map((e) => [e.nodePath, e]));
-
-  for (const dep of nodePaths) {
-    try {
-      const pkg = await buildContext(graph, dep);
-      const breakdown = computeBudgetBreakdown(pkg, graph);
-      const status =
-        breakdown.total >= budget.error
-          ? 'severe'
-          : breakdown.total >= budget.warning
-            ? 'warning'
-            : 'ok';
-
-      let baselineTokens: number | null = null;
-      if (baselineGraph?.nodes.has(dep)) {
-        try {
-          const baselinePkg = await buildContext(baselineGraph, dep);
-          baselineTokens = baselinePkg.tokenCount;
-        } catch {
-          /* ignore */
-        }
-      }
-
-      const hasDepOnTarget =
-        targetNodePath &&
-        graph.nodes
-          .get(dep)
-          ?.meta.relations?.some(
-            (r) => r.target === targetNodePath && STRUCTURAL_TYPES.has(r.type),
-          );
-      const changedLine = hasDepOnTarget
-        ? `  + Changed dependency interface: ${targetNodePath}\n`
-        : '';
-
-      const budgetLine =
-        baselineTokens !== null
-          ? `  Budget: ${baselineTokens} -> ${breakdown.total} tokens (${status})\n`
-          : `  Budget: ${breakdown.total} tokens (${status})\n`;
-
-      const driftEntry = driftByNode.get(dep);
-      const driftLine =
-        driftEntry && driftEntry.status !== 'ok'
-          ? `  Mapped files (on-disk): ${driftEntry.status}${driftEntry.details ? ` (${driftEntry.details})` : ''}\n`
-          : driftEntry
-            ? `  Mapped files (on-disk): ok\n`
-            : '';
-
-      process.stdout.write(`${dep}:\n${changedLine}${budgetLine}${driftLine}\n`);
-    } catch {
-      process.stdout.write(`${dep}:\n  failed to build context\n\n`);
-    }
-  }
-}
-
 async function handleAspectImpact(
   graph: Graph,
   aspectId: string,
-  simulate?: boolean,
 ): Promise<void> {
   const aspect = graph.aspects.find((a) => a.id === aspectId);
   if (!aspect) {
@@ -314,20 +246,11 @@ async function handleAspectImpact(
   process.stdout.write(`Implies: ${implies.length > 0 ? implies.join(', ') : '(none)'}\n`);
   process.stdout.write(`\nTotal scope: ${affected.length + indirectPaths.length} nodes, ${propagatingFlows.length} flows\n`);
 
-  const combinedPaths = [...affected.map((a) => a.path), ...indirectPaths];
-  if (simulate && combinedPaths.length > 0) {
-    await runSimulation(
-      graph,
-      combinedPaths,
-      null,
-    );
-  }
 }
 
 async function handleFlowImpact(
   graph: Graph,
   flowName: string,
-  simulate?: boolean,
 ): Promise<void> {
   const flow = graph.flows.find((f) => f.name === flowName || f.path === flowName);
   if (!flow) {
@@ -372,10 +295,6 @@ async function handleFlowImpact(
   );
   process.stdout.write(`\nTotal scope: ${sorted.length + indirectPaths.length} nodes\n`);
 
-  const combinedPaths = [...sorted, ...indirectPaths];
-  if (simulate && combinedPaths.length > 0) {
-    await runSimulation(graph, combinedPaths, null);
-  }
 }
 
 export function registerImpactCommand(program: Command): void {
@@ -386,10 +305,8 @@ export function registerImpactCommand(program: Command): void {
     .option('--file <file-path>', 'Source file path — resolves owner node automatically')
     .option('--aspect <id>', 'Aspect id (directory path under aspects/)')
     .option('--flow <name>', 'Flow name (directory name under flows/)')
-    .option('--method <name>', 'Filter impact to dependents consuming a specific method (requires --node or --file)')
-    .option('--simulate', 'Simulate context package impact (compare HEAD vs current)')
     .action(
-      async (options: { node?: string; file?: string; aspect?: string; flow?: string; method?: string; simulate?: boolean }) => {
+      async (options: { node?: string; file?: string; aspect?: string; flow?: string }) => {
         try {
           if (options.node && options.file) {
             process.stderr.write("Error: '--node' and '--file' are mutually exclusive\n");
@@ -425,11 +342,11 @@ export function registerImpactCommand(program: Command): void {
           }
 
           if (options.aspect) {
-            await handleAspectImpact(graph, options.aspect.trim(), options.simulate);
+            await handleAspectImpact(graph, options.aspect.trim());
             return;
           }
           if (options.flow) {
-            await handleFlowImpact(graph, options.flow.trim(), options.simulate);
+            await handleFlowImpact(graph, options.flow.trim());
             return;
           }
 
@@ -440,31 +357,12 @@ export function registerImpactCommand(program: Command): void {
             process.exit(1);
           }
 
-          if (options.method && !options.node) {
-            process.stderr.write('Error: --method requires --node\n');
-            process.exit(1);
-          }
-
           const { direct, allDependents, reverse, relationFrom } = collectReverseDependents(
             graph,
             nodePath,
           );
 
-          // When --method is specified, filter to only dependents consuming that method
-          const methodFilter = options.method?.trim();
-          let filteredDirect = direct;
-          let filteredAllDependents = allDependents;
-          if (methodFilter) {
-            filteredDirect = direct.filter((dep) => {
-              const rel = relationFrom.get(`${dep}->${nodePath}`);
-              return rel?.consumes?.includes(methodFilter) || !rel?.consumes?.length;
-            });
-            // Rebuild transitive from filtered direct
-            const filteredSet = new Set(filteredDirect);
-            filteredAllDependents = allDependents.filter((dep) => filteredSet.has(dep));
-          }
-
-          const chains = buildTransitiveChains(nodePath, filteredDirect, filteredAllDependents, reverse);
+          const chains = buildTransitiveChains(nodePath, direct, allDependents, reverse);
 
           // Collect event-based dependents (emits/listens)
           const eventDependents: Array<{ path: string; type: string; eventName: string }> = [];
@@ -515,13 +413,12 @@ export function registerImpactCommand(program: Command): void {
             }
           }
 
-          const methodLabel = methodFilter ? ` (method: ${methodFilter})` : '';
-          process.stdout.write(`Impact of changes in ${nodePath}${methodLabel}:\n\n`);
+          process.stdout.write(`Impact of changes in ${nodePath}:\n\n`);
           process.stdout.write('Directly dependent:\n');
-          if (filteredDirect.length === 0) {
+          if (direct.length === 0) {
             process.stdout.write('  (none)\n');
           } else {
-            for (const dep of filteredDirect) {
+            for (const dep of direct) {
               const rel = relationFrom.get(`${dep}->${nodePath}`);
               const annot = rel?.consumes?.length
                 ? ` (${rel.type}, consumes: ${rel.consumes.join(', ')})`
@@ -532,7 +429,7 @@ export function registerImpactCommand(program: Command): void {
             }
           }
 
-          if (eventDependents.length > 0 && !methodFilter) {
+          if (eventDependents.length > 0) {
             process.stdout.write('\nEvent-connected:\n');
             for (const { path: p, type, eventName } of eventDependents.sort((a, b) => a.path.localeCompare(b.path))) {
               process.stdout.write(`  ${p} (${type}: ${eventName})\n`);
@@ -556,7 +453,7 @@ export function registerImpactCommand(program: Command): void {
           }
 
           // Collect indirect dependents of descendants
-          const alreadyShown = new Set([nodePath, ...filteredAllDependents, ...descendants, ...eventDependents.map((e) => e.path)]);
+          const alreadyShown = new Set([nodePath, ...allDependents, ...descendants, ...eventDependents.map((e) => e.path)]);
           let descIndirectPaths: string[] = [];
           if (descendants.length > 0) {
             const { indirectPaths: rawIndirect, chains: rawChains } = collectIndirectDependents(graph, descendants);
@@ -604,14 +501,10 @@ export function registerImpactCommand(program: Command): void {
             }
           }
 
-          const allAffected = new Set([...filteredAllDependents, ...descendants, ...eventDependents.map((e) => e.path), ...descIndirectPaths]);
+          const allAffected = new Set([...allDependents, ...descendants, ...eventDependents.map((e) => e.path), ...descIndirectPaths]);
           process.stdout.write(
             `\nTotal scope: ${allAffected.size} nodes, ${flows.length} flows, ${aspectsInScope.length} aspects\n`,
           );
-
-          if (options.simulate && allAffected.size > 0) {
-            await runSimulation(graph, allAffected, nodePath);
-          }
         } catch (error) {
           process.stderr.write(`Error: ${(error as Error).message}\n`);
           process.exit(1);
