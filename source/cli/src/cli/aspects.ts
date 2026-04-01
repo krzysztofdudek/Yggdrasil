@@ -17,6 +17,7 @@ export function registerAspectsCommand(program: Command): void {
             const entry: Record<string, unknown> = { id: aspect.id, name: aspect.name };
             if (aspect.description) entry.description = aspect.description;
             if (aspect.implies && aspect.implies.length > 0) entry.implies = aspect.implies;
+            if (aspect.anchors && aspect.anchors.length > 0) entry.anchors = aspect.anchors;
             return entry;
           });
         process.stdout.write(yamlStringify(output));
