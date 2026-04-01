@@ -288,7 +288,7 @@ The graph reflects system **intent**: what it is, why it is that way, and what r
 ### Default flow: graph + code
 
 By default, the agent updates the graph immediately so graph and code stay synchronized.
-After any graph edit: run `yg validate` and fix issues until clean.
+After any graph edit: run `yg check` and fix issues until clean.
 
 ### Agent decision: new node or attach
 
