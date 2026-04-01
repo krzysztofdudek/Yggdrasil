@@ -2,11 +2,11 @@
 
 ## Business context
 
-Every agent session begins with a health check. The preflight command provides a single unified diagnostic that covers all dimensions: drift state, graph status, and validation. This replaces running multiple separate commands and gives agents a single pass/fail signal.
+Every agent session begins with a health check. The check command provides a single unified diagnostic that covers all dimensions: drift state, graph status, and validation. This gives agents a single pass/fail signal.
 
 ## Trigger
 
-Agent starts a session and runs `yg preflight` (mandated by agent-rules as the first action).
+Agent starts a session and runs `yg check` (mandated by agent-rules as the first action).
 
 ## Goal
 
@@ -14,7 +14,7 @@ Single unified diagnostic report: drift status + graph metrics + validation resu
 
 ## Participants
 
-- `cli/commands/preflight` — orchestrates all checks and formats unified report
+- `cli/commands/check` — orchestrates all checks and formats unified report
 - `cli/core/loader` — loads graph from `.yggdrasil/`
 - `cli/core/validator` — runs structural and completeness checks
 - `cli/core/drift-detector` — detects source/graph drift
@@ -35,6 +35,6 @@ Validation has warnings but no errors; no drift. Output: warnings listed. Exit 0
 
 ## Invariants across all paths
 
-- Read-only: preflight never modifies graph or drift state.
+- Read-only: the check command never modifies graph or drift state.
 - Comprehensive: always runs all checks regardless of individual results.
 - Actionable: exit code tells agent whether to proceed (0) or address issues first (1).

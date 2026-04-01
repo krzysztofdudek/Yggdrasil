@@ -113,10 +113,10 @@ are hashed directly, directories are scanned recursively (respecting `.gitignore
 **Anchor realization format:**
 
 Anchors are always typed objects — a map from anchor ID to a realization object with exactly
-one type property. Version 4 supports `regex` only. Unknown types produce E041.
+one type property. Currently supports `regex` only. Unknown types produce E041.
 
 ```yaml
-# v4: regex
+# regex
 audit-entry:
   regex: "createAuditLog|auditLog\\.create"
 ```
@@ -420,7 +420,7 @@ directory name. The agent can override by editing `yg-config.yaml`.
 ### Context
 
 Assemble a context package for the specified node. The main operation of the system.
-`build-context` is a backward-compatible alias.
+Alias: `build-context`.
 
 **Parameters:**
 
@@ -799,7 +799,7 @@ Total scope: 5 nodes
 ### Check
 
 Unified gate — validates structural integrity, drift detection, coverage, and completeness
-for the entire graph. Replaces `validate`, `drift`, `status`, and `preflight`.
+for the entire graph.
 
 **Parameters:** none. Check is always global scope.
 
@@ -843,6 +843,15 @@ for the entire graph. Replaces `validate`, `drift`, `status`, and `preflight`.
 | ------ | ----------------- | -------------------------------------------------------------------------- |
 | `E022` | `unmapped-file`   | Git-tracked file not covered by any node (proper or blackbox)              |
 
+E022 aggregates into a single error with a count, guidance text, and a sample of
+uncovered files — not one error per file.
+
+When graph coverage is below 50%, E022 includes additional guidance about blackboxing
+strategy. This guidance disappears as coverage grows.
+
+In monorepos with multiple `.yggdrasil/` directories, E022 scopes to files under the
+nearest parent directory of `.yggdrasil/`, not the entire git repository.
+
 **Completeness (E030-E041):**
 
 | Code   | Name                        | Description                                                                     |
@@ -859,6 +868,15 @@ for the entire graph. Replaces `validate`, `drift`, `status`, and `preflight`.
 | `E039` | `aspect-missing-anchors`    | Aspect has no `anchors` field — every aspect must define proof points           |
 | `E040` | `anchor-not-realized`       | Node missing anchor realization for aspect or integration anchor IDs            |
 | `E041` | `unknown-anchor-type`       | Anchor realization uses unrecognized type (upgrade CLI or use `regex`)           |
+
+**Anchor validation chain:** Validation follows a chain: (1) aspect has `anchors`
+field? (E039 if not), (2) node realizes all anchor IDs? (E040 if not), (3) realized
+patterns found in source? (E037 if not). For integration anchors: same chain but
+step 1 is optional.
+
+**Blackbox exemption:** Blackbox nodes are exempt from E030 (missing artifact),
+E035 (missing required aspect), E037 (anchor not found), and E040 (anchor not
+realized).
 
 **Warnings (informational, do not block):**
 
@@ -896,6 +914,31 @@ percentage, health score), then errors grouped by category (drift, cascade, stru
 coverage, completeness), then warnings grouped by category (budget, structure).
 Summary at the end: PASS or FAIL with category counts.
 
+**Health score:** The header includes a health score (0-100): stateless arithmetic,
+starting at 100 and deducting per error weighted by severity.
+
+**Grouping order:** Errors are grouped in this order: Drift (E020), Cascade (E021),
+Structural (E001-E013), Coverage (E022), Completeness (E030-E041). Warnings are
+grouped: Budget (W001-W002), Structure (W003-W004), then orphaned state (W005).
+
+**Stable ordering:** Errors within each category are sorted deterministically: first
+by cascade cause (grouping related cascades), then alphabetically by node path.
+
+**Cascade tree summary:** When multiple E021 errors share the same upstream cause,
+they are grouped into a cascade summary showing the number of upstream changes and
+affected nodes.
+
+**Anchor-pass annotation:** Each E021 error is annotated with anchor compliance
+status: `(anchors-pass)` if the node's anchor patterns still match source,
+`(anchors-fail)` if not. This helps agents prioritize which cascaded nodes need
+code changes.
+
+**Category counts:** The Result line includes per-category counts:
+`FAIL (1 drift, 2 cascade, 1 completeness — 4 errors, 2 warnings)`
+
+**Suggested next command:** After the Result line, a suggested next command maps the
+highest-priority error to an actionable command.
+
 **Exit code:** 0 if no errors (PASS), 1 if any errors found (FAIL).
 
 **Operation errors:**
@@ -908,7 +951,7 @@ Summary at the end: PASS or FAIL with category counts.
 ### Approve
 
 Record the current file state as the new baseline after the agent has reviewed and
-resolved drift. Replaces `drift-sync`. `drift-sync` is a backward-compatible alias.
+resolved drift. Alias: `drift-sync`.
 
 **Parameters:**
 
@@ -955,6 +998,17 @@ proper node for files with prior tracking history.
 
 **First approve:** If node has no stored baseline (no drift state file), approve accepts
 and records the initial baseline.
+
+**Compound drift:** A node can have E020 (direct) and E021 (cascade) simultaneously.
+A single approve recalculates the full hash across all tracked file layers and clears
+both.
+
+**Approve always records:** Approve always records the new baseline hash when it
+accepts, including on no-op. This ensures structural metadata changes (`yg-node.yaml`)
+are captured even when no axis registers them as a change.
+
+**Artifact scope:** `yg-node.yaml` is not counted as an artifact for the three-axis
+check — only `.md` content files count as own artifacts.
 
 **Result:**
 

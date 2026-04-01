@@ -6,7 +6,7 @@ CLI validation of graph structural integrity and completeness. Agents and CI use
 
 ## Trigger
 
-User runs `yg validate [--scope <path>]`.
+User runs `yg check`.
 
 ## Goal
 
@@ -14,9 +14,9 @@ Report structural errors (E001–E017) and completeness warnings (W001–W011) t
 
 ## Participants
 
-- `cli/commands/validation` — orchestrates loadGraph, validate; outputs errors/warnings
+- `cli/commands/check` — orchestrates loadGraph, validate, detectDrift; outputs errors/warnings
 - `cli/core/loader` — loads graph from `.yggdrasil/` (tolerates invalid config for partial validation)
-- `cli/core/validator` — structural checks, scope filtering, context budget
+- `cli/core/validator` — structural checks, context budget
 
 ## Paths
 
@@ -28,11 +28,7 @@ Graph loads; validator runs all checks. Output: list of issues (errors first, th
 
 `yg-config.yaml` fails to parse. Loader sets `configError`; validator reports E012. Validation continues for other checks where possible. Exit 1.
 
-### Scope node not found
-
-User passes `--scope <path>` but node does not exist. Validator returns operation error. Exit 1.
-
 ## Invariants across all paths
 
 - Read-only: validation never modifies the graph.
-- Same check order: config-dependent first, then structure checks, scope filter last.
+- Same check order: config-dependent first, then structure checks.

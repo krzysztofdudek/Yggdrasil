@@ -1,6 +1,6 @@
 name: Validator
 type: library
-description: "Structural validation and completeness checks enforcing graph integrity (v4: E001-E013/E030-E038, W001-W004)"
+description: "Structural validation and completeness checks enforcing graph integrity (E001-E013/E030-E041, W001-W005)"
 aspects:
   - aspect: deterministic
   - aspect: posix-paths

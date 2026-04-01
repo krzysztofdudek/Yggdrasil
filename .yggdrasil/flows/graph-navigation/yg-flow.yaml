@@ -3,5 +3,4 @@ description: "Navigational queries to locate nodes, browse hierarchy, and trace 
 nodes:
   - cli/commands/owner
   - cli/commands/tree
-  - cli/commands/deps
   - cli/core/loader

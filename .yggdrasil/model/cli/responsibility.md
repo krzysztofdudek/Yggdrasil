@@ -19,7 +19,7 @@ The CLI is organized in a layered architecture with clear separation of concerns
 
 ## In scope
 
-- Registering and executing 12 commands: init, build-context, validate, drift, drift-sync, status, tree, owner, deps, impact, aspects, preflight
+- Registering and executing 10 commands: init, build-context, check, approve, impact, tree, owner, aspects, flows, select
 - Loading the graph from `.yggdrasil/` (config, model, aspects, flows, schemas)
 - Building context packages per the 5-step algorithm (docs/concept/engine.md)
 - Validating structural integrity and completeness signals
@@ -35,4 +35,4 @@ The CLI is organized in a layered architecture with clear separation of concerns
 
 ## Invariant
 
-Tools never write yg-node.yaml or artifacts. Exception: init creates bootstrap structure; drift-sync writes .drift-state.
+Tools never write yg-node.yaml or artifacts. Exception: init creates bootstrap structure; approve writes .drift-state.

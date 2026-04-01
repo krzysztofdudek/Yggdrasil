@@ -13,7 +13,7 @@
 5. **Flows** — flows where node or ancestor in flow.nodes; for each flow: flow artifacts
 6. **Aspects** — union of aspect ids from hierarchy + own + flow layers (expanded via implies); for each resolved aspect, look up the matching entry in `node.meta.aspects` and join its `exceptions` array (if any) to pass as exception note to `buildAspectLayer`
 
-Implementation note: steps 4–5 execute before step 6 internally so that flow-propagated aspect ids can be collected. buildSections reorders the output to match the spec: Global → Hierarchy → OwnArtifacts → Aspects → Relational (which merges structural deps, events, and flows).
+Implementation note: steps 4–5 execute before step 6 internally so that flow-propagated aspect ids can be collected. buildSections reorders the output: Global → Hierarchy → OwnArtifacts → Aspects → Relational (which merges structural deps, events, and flows).
 
 ## Output
 
@@ -42,7 +42,7 @@ This means a node's context package includes not just the dependency's own artif
 
 When building aspect layers, the builder looks up each resolved aspect in `node.meta.aspects` by matching `entry.aspect === aspect.id`. If found and the entry has `exceptions`, they are joined with '; ' and passed to `buildAspectLayer` as the exception note, which appends it as a warning block. This prevents aspect generalizations from masking node-specific deviations.
 
-`buildAspectLayer` also includes aspect metadata in the output when present: stability tier (from `aspect.stability`) as a "Stability tier" line. This appears after the artifact content and before the exception note. Code anchors live in `yg-node.yaml` embedded in aspect entries (`anchors` field) and are validated by `cli/core/validator` (W014) rather than included in context output.
+Code anchors live in `yg-node.yaml` embedded in aspect entries (`anchors` field) and are validated by `cli/core/validator` (W014) rather than included in context output.
 
 ## Budget Breakdown Computation
 
@@ -74,6 +74,6 @@ Each layer's content is measured via `estimateTokens`. Additionally, dependency 
 
 **included_in_relations flag gates relational inclusion:** Without this flag, every dependency would include all its artifacts in the consuming node's context, causing excessive token usage. The flag in STANDARD_ARTIFACTS declares which artifacts (responsibility.md, interface.md) carry integration-relevant information. Only those are included for structural relations. If no structural artifacts exist on the target, all standard artifacts are included as fallback.
 
-**toContextMapOutput bridges layers to structured data:** Converts a ContextPackage (layer-based, text-oriented) into a ContextMapOutput (structured data with an artifact registry). The registry maps all referenced files (nodes, aspects, flows) with `model/`, `aspects/`, and `flows/` path prefixes. Dependency nodes get only `included_in_relations` artifacts (no yg-node.yaml), while the target node and its ancestors get all STANDARD_ARTIFACTS that exist. The function also computes budget status from config thresholds. This design separates context assembly (buildContext) from output formatting (toContextMapOutput + formatters).
+**toContextMapOutput bridges layers to structured data:** Converts a ContextPackage (layer-based, text-oriented) into a ContextMapOutput (structured data with an artifact registry). The registry maps all referenced files (nodes, aspects, flows) with `model/`, `aspects/`, and `flows/` path prefixes. Dependency nodes get only `included_in_relations` artifacts (no yg-node.yaml), while the target node and its ancestors get all STANDARD_ARTIFACTS that exist. The function computes budget status from config thresholds. This design separates context assembly (buildContext) from output formatting (toContextMapOutput + formatters).
 
 **computeBudgetBreakdown uses raw layers, not artifact registry:** Chose to compute breakdown directly from ContextPackage layers + collectDependencyAncestors over reusing the artifact registry from toContextMapOutput. This avoids a circular dependency — the validator needs breakdown data but should not call toContextMapOutput (which is an output formatter). Operating on raw layers is also more performant since it skips the full structured conversion. Trade-off: dependency ancestor costs are computed independently from toContextMapOutput's ancestor logic, but both use the same collectDependencyAncestors function so results are consistent.

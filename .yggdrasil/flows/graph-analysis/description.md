@@ -2,23 +2,22 @@
 
 ## Business context
 
-Agent needs to understand the broader impact of changes, inspect graph health, review cross-cutting requirements, or assemble implementation context. These are analytical queries that answer "what would be affected?", "how healthy is the graph?", and "what does an agent need to know?"
+Agent needs to understand the broader impact of changes, inspect cross-cutting requirements, or assemble implementation context. These are analytical queries that answer "what would be affected?", "what are the cross-cutting rules?", and "what does an agent need to know?"
 
 ## Trigger
 
-User runs `yg impact`, `yg status`, `yg aspects`, or `yg build-context`.
+User runs `yg impact`, `yg aspects`, or `yg build-context`.
 
 ## Goal
 
-Deliver deterministic analytical views: blast radius, health metrics, aspect inventory, assembled context packages.
+Deliver deterministic analytical views: blast radius, aspect inventory, assembled context packages.
 
 ## Participants
 
-- `cli/commands/impact` — blast radius analysis across three modes (node, aspect, flow) with optional simulation
-- `cli/commands/status` — graph health overview with quality metrics
+- `cli/commands/impact` — blast radius analysis across three modes (node, aspect, flow)
 - `cli/commands/aspects` — list aspects with metadata in YAML format
 - `cli/commands/build-context` — assemble and output context package for a node
-- `cli/core/loader` — loads graph (+ baseline from git ref for simulation)
+- `cli/core/loader` — loads graph
 - `cli/core/context` — 5-layer context assembly, ancestor collection, effective aspect computation
 - `cli/core/dependency-resolver` — forward dependency tree for impact analysis
 - `cli/formatters` — context package text formatting
@@ -27,11 +26,7 @@ Deliver deterministic analytical views: blast radius, health metrics, aspect inv
 
 ### Happy path (impact)
 
-Graph loads; reverse dependencies, transitive chains, descendants, co-aspect nodes computed. Output: structured impact report. Optional simulation compares current vs baseline.
-
-### Happy path (status)
-
-Graph loads; drift detected; validation run. Output: health overview with quality metrics.
+Graph loads; reverse dependencies, transitive chains, descendants, co-aspect nodes computed. Output: structured impact report.
 
 ### Happy path (build-context)
 

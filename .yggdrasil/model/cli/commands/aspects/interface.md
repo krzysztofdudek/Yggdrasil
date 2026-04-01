@@ -6,7 +6,7 @@
 
 **Return:** void. Contract: errors to stderr, process.exit(1) on failure.
 
-**Output format:** YAML array of aspect entries, sorted by id. Each entry contains: `id`, `name`, optional `description`, optional `implies` (when non-empty), optional `stability` (when present).
+**Output format:** YAML array of aspect entries, sorted by id. Each entry contains: `id`, `name`, optional `description`, optional `implies` (when non-empty).
 
 ## Failure Modes
 

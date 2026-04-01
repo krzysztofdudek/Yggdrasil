@@ -44,7 +44,7 @@ export async function parseAspect(
     anchors = (raw.anchors as unknown[]).filter((a): a is string => typeof a === 'string' && a.trim() !== '');
   }
 
-  // stability field removed in v4 — silently ignored if present
+  // stability field not used — silently ignored if present in old configs
 
   return {
     name: (raw.name as string).trim(),

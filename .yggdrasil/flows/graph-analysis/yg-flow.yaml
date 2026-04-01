@@ -3,7 +3,6 @@ description: "Analytical queries for blast radius, graph health, aspect inventor
 aspects: [deterministic]
 nodes:
   - cli/commands/impact
-  - cli/commands/status
   - cli/commands/aspects
   - cli/commands/build-context
   - cli/core/loader

@@ -2,15 +2,13 @@
 
 | Function | Signature | Command | Options |
 | -------- | --------- | ------- | ------- |
-| registerBuildCommand | (program: Command) => void | build-context | --node or --file (one required), --full (optional), --self (optional) |
+| registerBuildCommand | (program: Command) => void | build-context | --node or --file (one required), --full (optional) |
 
 **Return:** void. Contract: errors to stderr, process.exit(1) on failure.
 
 **--file flag:** Resolves the owning node via `findOwner`, prints `<file> -> <node>` to stderr, then proceeds as if `--node <owner>` was given. If file has no graph coverage, prints `<file> -> no graph coverage` to stderr and exits 1.
 
 **--full flag:** When set, appends full artifact file contents after the YAML context map. Files are collected from all registry sections (nodes, aspects, flows), deduplicated, and rendered via `formatFullContent`.
-
-**--self flag:** When set, returns only the node's own artifacts — no hierarchy, dependencies, aspects, or flows. Glossary is empty. Designed for file-level graph updates where cross-cutting context was already loaded at task-level. Passes `{ selfOnly: true }` to both `buildContext` and `toContextMapOutput`.
 
 ## Failure Modes
 

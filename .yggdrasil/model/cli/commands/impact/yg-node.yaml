@@ -1,6 +1,6 @@
 name: ImpactCommand
 type: library
-description: "Blast radius analysis across node, aspect, and flow modes with optional simulation via yg impact"
+description: "Blast radius analysis across node, aspect, and flow modes via yg impact"
 aspects:
   - aspect: deterministic
   - aspect: cli-command-contract

@@ -35,8 +35,6 @@
 
 **Enrichment priority guidance:** Rules now include explicit guidance on artifact enrichment order: interface.md first (highest cross-module ROI), then responsibility.md, then internals.md. This is based on experiment findings about cross-module value.
 
-**Aspect stability tiers:** Rules include guidance on the `stability` field in yg-aspect.yaml (schema/protocol/implementation) with calibrated review urgency for each tier, and guidance on using code anchors (declared per-node in `yg-node.yaml` `anchors` field, validated by `yg validate` W014/E019) for staleness detection during drift resolution.
-
 **Action recognition rule:** Rules include an explicit "Recognizing Graph-Required Actions" section that tells agents: what matters is the ACTION (understanding mapped code), not the SOURCE of the instruction (skill, plan, user, workflow). This prevents external workflows from overriding the graph protocol — agents must run `yg owner` + `yg build-context` before any action that involves understanding mapped code, regardless of what instructed it. The Failure States section reinforces this with source-agnostic language.
 
 **Platform-specific installation:** Each agent platform has its own conventions for rules location. The platform.ts module centralizes this mapping so `yg init --platform <name>` works consistently across IDEs.

@@ -47,7 +47,7 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
     issues.push(...checkAnchorRealizations(graph));
     issues.push(...(await checkAnchorPatterns(graph)));
     issues.push(...checkRequiredArtifacts(graph));
-    // invalid-artifact-condition removed (v3 E013) — standard artifacts don't use has_aspect: conditions
+    // invalid-artifact-condition removed — standard artifacts don't use has_aspect: conditions
     issues.push(...(await checkContextBudget(graph)));
     issues.push(...checkHighFanOut(graph));
     issues.push(...checkMissingDescriptions(graph));
@@ -598,7 +598,7 @@ function checkFlowAspectIds(graph: Graph): ValidationIssue[] {
   return issues;
 }
 
-// invalid-artifact-condition removed (v3 E013) — standard artifacts don't use has_aspect: conditions
+// invalid-artifact-condition removed — standard artifacts don't use has_aspect: conditions
 
 // --- E031: Shallow artifacts (below min_artifact_length) ---
 
@@ -770,7 +770,7 @@ async function checkDirectoriesHaveNodeYaml(graph: Graph): Promise<ValidationIss
           nodePath: graphPath,
         });
       }
-      // W013 (directory-without-node) removed — subsumed by E022
+      // W013 (directory-without-node) covered by E022
     }
 
     for (const entry of entries) {

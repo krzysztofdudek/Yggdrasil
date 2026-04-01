@@ -29,15 +29,13 @@ Commands never implement domain logic directly. Graph loading, context assembly,
 | Node | Commands |
 | ---- | -------- |
 | cli/commands/init | init |
-| cli/commands/validation | validate |
-| cli/commands/drift | drift, drift-sync |
+| cli/commands/check | check |
 | cli/commands/aspects | aspects |
+| cli/commands/flows | flows |
 | cli/commands/build-context | build-context |
-| cli/commands/deps | deps |
 | cli/commands/impact | impact |
 | cli/commands/owner | owner |
-| cli/commands/preflight | preflight |
-| cli/commands/status | status |
+| cli/commands/select | select |
 | cli/commands/tree | tree |
 
 ## Out of scope

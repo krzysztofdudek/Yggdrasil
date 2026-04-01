@@ -17,7 +17,7 @@ import path from 'node:path';
 // ── Types ──────────────────────────────────────────────────
 
 export interface CheckIssue extends Omit<ValidationIssue, 'code'> {
-  /** All v4 issues have a code -- override optional from ValidationIssue */
+  /** All issues have a code -- override optional from ValidationIssue */
   code: string;
   /** For E020: drift subtype */
   driftSubtype?: DriftStatus;
@@ -432,7 +432,7 @@ export async function runCheck(graph: Graph, gitTrackedFiles: string[] | null): 
   // 1. Validation (structural + completeness)
   const validation = await validate(graph);
   // Filter out issues without a code -- they are internal (e.g., invalid-scope).
-  // All v4 issues have a code. Convert to CheckIssue.
+  // All issues have a code. Convert to CheckIssue.
   const validationIssues: CheckIssue[] = validation.issues
     .filter(vi => vi.code)
     .map(vi => ({ ...vi, code: vi.code! }));

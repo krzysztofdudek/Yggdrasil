@@ -2,9 +2,8 @@
 
 **Primary API:**
 
-- `buildContext(graph: Graph, nodePath: string, options?: BuildContextOptions): Promise<ContextPackage>`
-  - Parameters: `graph` (Graph), `nodePath` (string), `options` (optional: `{ selfOnly?: boolean }`).
-  - When `selfOnly: true`: builds only global + own layers (skips hierarchy, relational, flows, aspects). Designed for file-level updates where cross-cutting context was already loaded at task-level.
+- `buildContext(graph: Graph, nodePath: string): Promise<ContextPackage>`
+  - Parameters: `graph` (Graph), `nodePath` (string).
   - Returns: `ContextPackage` with `nodePath`, `nodeName`, `layers` (ContextLayer[]), `sections` (ContextSection[]), `mapping` (string[] | null), `tokenCount` (number).
   - Throws if node not found or relation target broken.
 
@@ -15,7 +14,7 @@
 - `buildOwnLayer(node: GraphNode, config: YggConfig, graphRootPath: string, graph: Graph): Promise<ContextLayer>` — reads yg-node.yaml from disk; uses node.artifacts filtered by STANDARD_ARTIFACTS; adds attrs.aspects from node aspects + expandAspects.
 - `buildStructuralRelationLayer(target: GraphNode, relation: Relation): ContextLayer` — prefers included_in_relations artifacts from STANDARD_ARTIFACTS; includes consumes, failure. No longer takes config parameter.
 - `buildEventRelationLayer(target: GraphNode, relation: Relation): ContextLayer`
-- `buildAspectLayer(aspect: AspectDef, exceptionNote?: string): ContextLayer` — renders aspect content; if aspect has `stability`, appends "Stability tier: ..." line; if `exceptionNote` is provided, appends a warning block: "Exception for this node: {note}". The exception note comes from the aspect entry's `exceptions` field in `node.meta.aspects`, joined with '; '.
+- `buildAspectLayer(aspect: AspectDef, exceptionNote?: string): ContextLayer` — renders aspect content; if `exceptionNote` is provided, appends a warning block: "Exception for this node: {note}". The exception note comes from the aspect entry's `exceptions` field in `node.meta.aspects`, joined with '; '.
 - `collectAncestors(node: GraphNode): GraphNode[]` — returns ancestors from parent chain.
 - `collectDependencyAncestors(target: GraphNode, config: YggConfig, graph: Graph): DependencyAncestorInfo[]` — returns ancestor chain for a dependency target node. Each entry includes path, name, type, aspects (own aspects expanded via `implies` only — not effective aspects), and artifactFilenames (filtered by `included_in_relations` from STANDARD_ARTIFACTS, falling back to all standard artifacts). Used by `toContextMapOutput` to build the `hierarchy` list inside each `DependencyRef`.
 - `buildNodeFiles(node, config, prefix): string[]` — internal helper; returns artifact file paths for a node (all STANDARD_ARTIFACTS files that exist), prefixed with the given path. Used for `node.files` and `hierarchy[].files` in ContextMapOutput.
@@ -27,7 +26,7 @@
 
 **Structured output converter:**
 
-- `toContextMapOutput(pkg: ContextPackage, graph: Graph, options?: { selfOnly?: boolean }): ContextMapOutput` — converts a layers-based ContextPackage into the v3 structured ContextMapOutput format. When `selfOnly: true`, skips hierarchy, dependencies, flows, and returns empty glossary. Builds a `glossary` (aspects + flows referenced in the package, each with name/description/files via `buildGlossary`), inlines `files` directly into `node`, `hierarchy`, and `dependencies` entries via `buildNodeFiles` and `buildDepNodeFiles` helpers. Budget status uses `'severe'` (not `'error'`) for over-budget. Includes `breakdown: BudgetBreakdown` in meta via `computeBudgetBreakdown`.
+- `toContextMapOutput(pkg: ContextPackage, graph: Graph): ContextMapOutput` — converts a layers-based ContextPackage into the structured ContextMapOutput format. Builds a `glossary` (aspects + flows referenced in the package, each with name/description/files via `buildGlossary`), inlines `files` directly into `node`, `hierarchy`, and `dependencies` entries via `buildNodeFiles` and `buildDepNodeFiles` helpers. Budget status uses `'severe'` (not `'error'`) for over-budget. Includes `breakdown: BudgetBreakdown` in meta via `computeBudgetBreakdown`.
 
 **Types:**
 
@@ -36,7 +35,7 @@
 
 **Constants (internal):** `STRUCTURAL_RELATION_TYPES`, `EVENT_RELATION_TYPES`, `YG_YAML_FILES`.
 
-**Imported constant:** `STANDARD_ARTIFACTS` from cli/model — the hardcoded artifact definitions used for filtering throughout. Replaces the previous config.artifacts approach.
+**Imported constant:** `STANDARD_ARTIFACTS` from cli/model — the hardcoded artifact definitions used for filtering throughout. Used for filtering throughout context assembly.
 
 ## Failure Modes
 

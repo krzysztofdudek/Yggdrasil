@@ -6,7 +6,7 @@ Type library — exports TypeScript interfaces and types only. No runtime functi
 
 **Node:** Graph, GraphNode, NodeMeta, NodeAspectEntry, Relation, RelationType, NodeMapping, Artifact
 
-**Graph elements:** AspectDef, AspectStability, FlowDef (includes `path` — directory name under flows/), SchemaDef
+**Graph elements:** AspectDef, FlowDef (includes `path` — directory name under flows/), SchemaDef
 
 **SchemaDef:** `{ schemaType: string }` — inferred from filename stem (node, aspect, flow). Populated by loadSchemas from .yggdrasil/schemas/.
 
@@ -14,7 +14,7 @@ Type library — exports TypeScript interfaces and types only. No runtime functi
 
 **Budget:** BudgetBreakdown
 
-**Context Map (v3):** ContextMapOutput, Glossary, GlossaryAspectEntry, GlossaryFlowEntry, NodeAspectRef, FlowRef, AncestorRef, DependencyRef
+**Context Map:** ContextMapOutput, Glossary, GlossaryAspectEntry, GlossaryFlowEntry, NodeAspectRef, FlowRef, AncestorRef, DependencyRef
 
 **Dependency resolution:** Stage
 
@@ -41,7 +41,7 @@ Model is a TypeScript type library — it contains no executable code and does n
 ## Config types
 
 - **YggConfig** — Top-level config: name, optional version, node_types (Record keyed by type name), optional quality thresholds. No longer has an `artifacts` field — artifacts are defined by the STANDARD_ARTIFACTS constant.
-- **STANDARD_ARTIFACTS** — `Record<string, ArtifactConfig>` constant defining the three hardcoded artifacts: `responsibility.md` (required: always, included_in_relations: true), `interface.md` (required: when has_incoming_relations, included_in_relations: true), `internals.md` (required: never, included_in_relations: false). Replaces the previous configurable artifacts approach.
+- **STANDARD_ARTIFACTS** — `Record<string, ArtifactConfig>` constant defining the three hardcoded artifacts: `responsibility.md` (required: always, included_in_relations: true), `interface.md` (required: when has_incoming_relations, included_in_relations: true), `internals.md` (required: never, included_in_relations: false). Defines the three standard artifacts.
 - **NodeTypeConfig** — Node type definition with description (required) and optional required_aspects. Key in the Record is the type name.
 - **ArtifactConfig** — Per-artifact config: required condition (always/never/when), description, optional included_in_relations flag.
 - **QualityConfig** — Thresholds: min_artifact_length, max_direct_relations, optional max_mapping_source_files (default 10, for W017 wide-node check), context_budget (warning + error).
@@ -61,12 +61,12 @@ Model is a TypeScript type library — it contains no executable code and does n
 - **ContextLayer** — Single layer: type (global/hierarchy/own/relational/aspects/flows), label, content, optional attrs.
 - **ContextSection** — Grouped layers by key: Global, Hierarchy, OwnArtifacts, Aspects, Relational.
 
-## Context Map types (v3 structured output)
+## Context Map types
 
 - **BudgetBreakdown** — Per-category token counts: `{ own: number; hierarchy: number; aspects: number; flows: number; dependencies: number; total: number }`. Used in ContextMapOutput.meta and by validator budget checks.
-- **ContextMapOutput** — Top-level structured output for v3 format: `project` at top, `glossary` (aspects + flows with names/descriptions/files), `node` with inline `files`, `hierarchy` with inline `files`, `dependencies` with inline `files`, and `meta` at bottom with tokenCount, budgetStatus (`'ok' | 'warning' | 'severe'`), and `breakdown` (BudgetBreakdown). No separate ArtifactRegistry — files are inlined in each section.
-- **Glossary** — Index of all aspects and flows referenced in the context package: `aspects` and `flows` keyed by id/path, each with name, description, stability/participants, and `files`. Replaces ArtifactRegistry.
-- **GlossaryAspectEntry** — Aspect glossary entry: name, optional description, optional stability, optional implies, files.
+- **ContextMapOutput** — Top-level structured output: `project` at top, `glossary` (aspects + flows with names/descriptions/files), `node` with inline `files`, `hierarchy` with inline `files`, `dependencies` with inline `files`, and `meta` at bottom with tokenCount, budgetStatus (`'ok' | 'warning' | 'severe'`), and `breakdown` (BudgetBreakdown). No separate ArtifactRegistry — files are inlined in each section.
+- **Glossary** — Index of all aspects and flows referenced in the context package: `aspects` and `flows` keyed by id/path, each with name, description, and `files`. Aspects and flows are keyed by id/path.
+- **GlossaryAspectEntry** — Aspect glossary entry: name, optional description, optional implies, files.
 - **GlossaryFlowEntry** — Flow glossary entry: name, optional description, participants (node paths), optional aspects, files.
 - **NodeAspectRef** — Aspect reference on a node: id, optional anchors, optional exceptions.
 - **FlowRef** — Flow reference: path, optional aspects list.
@@ -89,8 +89,7 @@ Model is a TypeScript type library — it contains no executable code and does n
 
 ## Cross-cutting definitions
 
-- **AspectStability** — Type union: `'schema' | 'protocol' | 'implementation'`. Indicates how stable an aspect's claims are expected to be. Schema = enforced by data model (most stable). Protocol = contractual pattern. Implementation = specific mechanism (least stable).
-- **AspectDef** — Loaded aspect: name, id, optional description, optional implies, optional stability (AspectStability), artifacts.
+- **AspectDef** — Loaded aspect: name, id, optional description, optional implies, artifacts.
 - **FlowDef** — Loaded flow: path, name, optional description, nodes (participant paths), optional aspects, artifacts.
 - **SchemaDef** — Schema reference: schemaType (node/aspect/flow).
 

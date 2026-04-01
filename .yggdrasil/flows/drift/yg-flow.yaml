@@ -1,6 +1,6 @@
 name: Drift detection
 description: "Detect and sync divergence between graph metadata and mapped source files"
 nodes:
-  - cli/commands/drift
+  - cli/commands/check
   - cli/core/loader
   - cli/core/drift-detector

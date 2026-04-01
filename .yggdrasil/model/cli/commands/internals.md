@@ -6,11 +6,11 @@
 
 ## Why commands are thin wrappers
 
-Commands are the user-facing layer of the deterministic engine. Each command maps to one tool operation. The agent (or human) invokes `yg build-context`, `yg validate`, `yg drift` — commands orchestrate the call into core, format output, and exit. Domain logic stays in `cli/core` so that it can be tested independently of Commander, process.exit, and stdout/stderr. Commands are responsible only for CLI concerns: argument parsing, output formatting, and error presentation.
+Commands are the user-facing layer of the deterministic engine. Each command maps to one tool operation. The agent (or human) invokes `yg build-context`, `yg check`, `yg approve` — commands orchestrate the call into core, format output, and exit. Domain logic stays in `cli/core` so that it can be tested independently of Commander, process.exit, and stdout/stderr. Commands are responsible only for CLI concerns: argument parsing, output formatting, and error presentation.
 
 ## Why one file per command
 
-Each command lives in its own source file (e.g., `build-context.ts`, `validate.ts`, `drift.ts`). This provides isolation — changes to one command do not affect others. It enables independent testing of each command's argument parsing and error handling. It also gives clear ownership: each command file maps to exactly one graph node.
+Each command lives in its own source file (e.g., `build-context.ts`, `check.ts`, `impact.ts`). This provides isolation — changes to one command do not affect others. It enables independent testing of each command's argument parsing and error handling. It also gives clear ownership: each command file maps to exactly one graph node.
 
 ## Why per-command node granularity
 

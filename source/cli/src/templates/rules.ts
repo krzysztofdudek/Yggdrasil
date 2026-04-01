@@ -305,7 +305,7 @@ When you encounter information, route it to the correct location:
 
 Test: "Does this requirement apply to more than one node?" Yes → aspect. No → local artifact.
 
-**Anchor requirement:** Every aspect MUST define at least one anchor ID — abstract proof points that nodes carrying the aspect must realize. For example, an \`audit-logging\` aspect might define anchors: \`audit-entry\`, \`audit-actor\`, \`audit-timestamp\`. Nodes realize anchors as typed objects in their \`yg-node.yaml\` (v4 supports \`regex\` type).
+**Anchor requirement:** Every aspect MUST define at least one anchor ID — abstract proof points that nodes carrying the aspect must realize. For example, an \`audit-logging\` aspect might define anchors: \`audit-entry\`, \`audit-actor\`, \`audit-timestamp\`. Nodes realize anchors as typed objects in their \`yg-node.yaml\` (supports \`regex\` type).
 
 When a node follows an aspect's pattern with exceptions, record them in the \`exceptions\` field of the aspect entry in \`yg-node.yaml\`.
 
@@ -348,7 +348,7 @@ Test: "Does this describe what happens in the world, or only in the software?" I
 |---------|---------|
 | \`yg init [--platform] [--upgrade]\` | Initialize or upgrade |
 
-**Backward-compatible aliases:** \`build-context\` → \`context\`, \`drift-sync\` → \`approve\`
+**Aliases:** \`build-context\` for \`context\`, \`drift-sync\` for \`approve\`
 
 ### Error Codes
 
@@ -382,7 +382,7 @@ Test: "Does this describe what happens in the world, or only in the software?" I
 | E038 | missing-description | Node, aspect, or flow has no description |
 | E039 | aspect-missing-anchors | Aspect has no anchors field |
 | E040 | anchor-not-realized | Node missing anchor realization for required IDs |
-| E041 | unknown-anchor-type | Unrecognized anchor type (v4 supports regex only) |
+| E041 | unknown-anchor-type | Unrecognized anchor type (supported: regex) |
 
 **Warnings (W001-W005):** budget-warning, own-budget-warning, wide-node, high-fan-out, orphaned-drift-state.
 

@@ -53,7 +53,7 @@ export interface QualityConfig {
 
 export type RelationType = 'uses' | 'calls' | 'extends' | 'implements' | 'emits' | 'listens';
 
-/** Typed anchor realization — v4 supports only regex, v5 adds ast/claim */
+/** Typed anchor realization — currently supports regex. Future: ast, claim. */
 export interface AnchorRealization {
   regex?: string;
   [key: string]: unknown; // Forward compatibility for v5 types (ast, claim)

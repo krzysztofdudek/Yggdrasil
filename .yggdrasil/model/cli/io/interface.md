@@ -16,7 +16,7 @@ Library used by cli/core (loader, drift-detector). All paths are absolute; calle
 ## aspect-parser.ts
 
 - `parseAspect(aspectDir: string, aspectYamlPath: string, id: string): Promise<AspectDef>`
-  - Throws on missing name or empty id. Parses optional `stability` (must be one of: schema, protocol, implementation). Reads artifacts from aspectDir excluding yg-aspect.yaml.
+  - Throws on missing name or empty id. Reads artifacts from aspectDir excluding yg-aspect.yaml.
 
 ## flow-parser.ts
 
@@ -49,7 +49,7 @@ Parsers and stores throw `Error` on invalid input. No dedicated error codes — 
 
 **node-parser:** Missing name/type, invalid relations (non-array, invalid type, missing target), invalid mapping (paths must be relative, non-empty, no leading slash), invalid aspects (non-array, entries not objects, missing/empty aspect string, invalid exceptions/anchors not arrays of strings, duplicate aspect ids). Propagates ENOENT, EACCES from readFile.
 
-**aspect-parser:** Missing name or empty id. Invalid `stability` (not one of: schema, protocol, implementation). Propagates readFile and readArtifacts errors.
+**aspect-parser:** Missing name or empty id. Propagates readFile and readArtifacts errors.
 
 **flow-parser:** Missing name, invalid or empty nodes/participants array. Propagates readFile and readArtifacts errors.
 

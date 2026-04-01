@@ -17,7 +17,7 @@ Platform paths: Cursor (.cursor/rules/yggdrasil.mdc), Claude Code (CLAUDE.md + i
 
 ## rules.ts
 
-- `AGENT_RULES_CONTENT: string` — canonical agent rules (operating manual). Hand-tuned; do not generate programmatically. Used internally by platform.ts. Includes enrichment priority guidance (interface.md first, then responsibility.md, then internals.md), aspect stability tiers (schema/protocol/implementation) with review urgency calibration, code anchors guidance, and `--method` flag in CLI reference.
+- `AGENT_RULES_CONTENT: string` — canonical agent rules (operating manual). Hand-tuned; do not generate programmatically. Used internally by platform.ts. Includes enrichment priority guidance (interface.md first, then responsibility.md, then internals.md) and code anchors guidance.
 
 ## graph-schemas/
 
