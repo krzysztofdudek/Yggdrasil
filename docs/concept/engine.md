@@ -288,7 +288,7 @@ Configuration defines budget thresholds:
   The error threshold no longer blocks — `budgetStatus` is `'severe'` instead of `'error'`,
   and the context package is always output.
 - **Own-artifact warning** (`own_warning`, optional) — fires when the node's own artifacts
-  alone exceed this threshold (W015). This is the most actionable budget signal because own
+  alone exceed this threshold (W002). This is the most actionable budget signal because own
   artifacts are the only part the node author controls directly.
 
 Tools estimate tokens using the heuristic of 4 characters per token. This is accurate enough
