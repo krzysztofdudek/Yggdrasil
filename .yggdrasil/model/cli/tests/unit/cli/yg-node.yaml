@@ -1,0 +1,11 @@
+name: CLI Command Unit Tests
+type: library
+description: "Unit tests for thin CLI command wrappers: build-command, impact, owner, which"
+blackbox: false
+
+aspects: []
+relations: []
+
+mapping:
+  paths:
+    - source/cli/tests/unit/cli/

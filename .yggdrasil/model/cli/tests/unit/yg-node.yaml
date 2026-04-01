@@ -1,0 +1,11 @@
+name: Unit Tests
+type: library
+description: "Parent node for CLI unit tests — children cover core, CLI command wrappers, and support modules"
+blackbox: false
+
+aspects: []
+relations: []
+
+mapping:
+  paths:
+    - source/cli/tests/unit/.gitkeep

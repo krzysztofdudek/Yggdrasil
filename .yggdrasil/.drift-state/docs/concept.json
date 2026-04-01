@@ -1,21 +1,21 @@
 {
-  "hash": "47386bdd2e559a0e1a126c8b70225d87799b4558eafd06153dc2c6e5999ed70c",
+  "hash": "087737e4c4338d0d0fcc2037bfffc8b8c6d04badc1fed334b55ed22fc82505ef",
   "files": {
     ".yggdrasil/model/docs/concept/yg-node.yaml": "0d5413e7e504a3bc4ed599cda747953b8f706c756b09f5aeb827115fabdf6624",
     ".yggdrasil/model/docs/concept/responsibility.md": "1b5a6590a3620359d6010c5bd05e665732cb35dff7b765a0d205244577bca2dd",
     ".yggdrasil/model/docs/responsibility.md": "070a2a6c6b29116ab18d2b824068d227cc4682f30fd5ef79b3cbe307dbe632fe",
-    ".yggdrasil/model/docs/yg-node.yaml": "859543912f261ae5d0208e9af34e7c0aab7488ff71c37d531e8459733be51a7d",
     "docs/concept/engine.md": "d44762cf184735323d128425397c3a2d289839eee9526f66503aedbade6d2170",
     "docs/concept/foundation.md": "4ab53b044d48d718a8a54afffbcf2e99ee9ef59055a1ed8e6874017aa18353e6",
     "docs/concept/graph.md": "41fd627220eabe00273f82e79bf73901ba765e218e17b1cc5c2ba3a9462759d6",
     "docs/concept/integration.md": "e71c9764079b915ca54b03472fbc58575e7314be309f7da6139e67ed2d272f86",
     "docs/concept/materialization.md": "0fef8e79a0b3e038aa7954cb8f290c7fa09badebaf6a1e57773d10c0a5df21af",
-    "docs/concept/tools.md": "8db4a03efcd6c0f3722325d9ade3b259e5b1b8a11e68211100c5e0d80f6d2cca"
+    "docs/concept/tools.md": "8db4a03efcd6c0f3722325d9ade3b259e5b1b8a11e68211100c5e0d80f6d2cca",
+    ".yggdrasil/model/docs/yg-node.yaml": "36ca70c4bea26714bb7450d306d1a898e70573151394eb8e0fb3a5cf588c84d4"
   },
   "mtimes": {
     ".yggdrasil/model/docs/concept/yg-node.yaml": 1774035679171.08,
     ".yggdrasil/model/docs/concept/responsibility.md": 1772828318480.2405,
-    ".yggdrasil/model/docs/yg-node.yaml": 1775048969862.0422,
+    ".yggdrasil/model/docs/yg-node.yaml": 1775053021477.2893,
     ".yggdrasil/model/docs/responsibility.md": 1772828320283.2747,
     "docs/concept/engine.md": 1775031073177.7454,
     "docs/concept/foundation.md": 1775025063809.139,
@@ -24,5 +24,5 @@
     "docs/concept/materialization.md": 1775025218263.0195,
     "docs/concept/tools.md": 1775046913265.2395
   },
-  "acknowledgeReason": "updated concept docs, artifacts describe stable purpose"
+  "acknowledgeReason": "Parent docs node description updated to reflect parent-only role; docs/concept artifacts remain accurate and unchanged"
 }

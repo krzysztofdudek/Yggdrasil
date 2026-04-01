@@ -1,0 +1,14 @@
+name: Quality Config
+type: library
+description: "Code quality tooling configuration: ESLint, Vitest, Prettier rules and ignore files"
+blackbox: false
+
+aspects: []
+relations: []
+
+mapping:
+  paths:
+    - source/cli/eslint.config.js
+    - source/cli/vitest.config.ts
+    - source/cli/.prettierrc
+    - source/cli/.prettierignore

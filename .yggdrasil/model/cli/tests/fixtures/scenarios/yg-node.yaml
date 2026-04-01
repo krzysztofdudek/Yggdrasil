@@ -1,0 +1,17 @@
+name: Scenario Fixtures
+type: library
+description: "Error-state and scenario-specific test fixtures: broken relations, orphan dirs, drift scenarios, and config edge cases"
+blackbox: false
+
+aspects: []
+relations: []
+
+mapping:
+  paths:
+    - source/cli/tests/fixtures/sample-project-broken-relation/
+    - source/cli/tests/fixtures/sample-project-orphan-dir/
+    - source/cli/tests/fixtures/drift-multi-file/
+    - source/cli/tests/fixtures/tmp-config-dup-cat/
+    - source/cli/tests/fixtures/tmp-config-kc-skip/
+    - source/cli/tests/fixtures/tmp-config-no-kc/
+    - source/cli/tests/fixtures/tmp-flow-knowledge/

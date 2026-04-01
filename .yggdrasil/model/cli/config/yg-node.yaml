@@ -1,22 +1,7 @@
 name: CLI Config
 type: module
-description: "Build tooling, linting, formatting, and package configuration for the CLI package"
+description: "Parent node for CLI package configuration: build tooling, quality tooling, and package documentation — children own all source mappings"
 blackbox: false
 
 aspects: []
 relations: []
-
-mapping:
-  paths:
-    - source/cli/.npmignore
-    - source/cli/.npmrc
-    - source/cli/.prettierignore
-    - source/cli/.prettierrc
-    - source/cli/CLAUDE.md
-    - source/cli/README.md
-    - source/cli/eslint.config.js
-    - source/cli/scripts/
-    - source/cli/tsconfig.json
-    - source/cli/tsup.config.ts
-    - source/cli/vitest.config.ts
-    - source/cli/package-lock.json

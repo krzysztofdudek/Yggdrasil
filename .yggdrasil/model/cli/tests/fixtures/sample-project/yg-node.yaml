@@ -1,0 +1,11 @@
+name: Sample Project Fixture
+type: library
+description: "Canonical healthy Yggdrasil project used as the primary test input across unit, integration, and e2e test suites"
+blackbox: false
+
+aspects: []
+relations: []
+
+mapping:
+  paths:
+    - source/cli/tests/fixtures/sample-project/

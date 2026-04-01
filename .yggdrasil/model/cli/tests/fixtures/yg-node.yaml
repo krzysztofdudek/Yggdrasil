@@ -1,0 +1,11 @@
+name: Test Fixtures
+type: library
+description: "Parent node for test fixtures — children cover the canonical sample project and scenario-specific error-state fixtures"
+blackbox: false
+
+aspects: []
+relations: []
+
+mapping:
+  paths:
+    - source/cli/tests/fixtures/.gitkeep

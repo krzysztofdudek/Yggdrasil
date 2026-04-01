@@ -1,0 +1,33 @@
+{
+  "hash": "7a9d94bab03b0e650515495c384cae34a9bd2679023d80d0ea5e967cc6ae5d8e",
+  "files": {
+    ".yggdrasil/model/cli/config/quality/yg-node.yaml": "55a1885ff9aeedc4dd8792fbd727f50254d4e9e951d152449360b4d1e3d31f1a",
+    ".yggdrasil/model/cli/config/quality/responsibility.md": "4450cb34732c2ae82c5d9cf520be1b5fa9af3b6fecc7e1eafdcd321e1d6878a9",
+    ".yggdrasil/model/cli/yg-node.yaml": "640850d59baf2b0d317b20d5d3312def4dbfb30c8d5489daff345b19cca52e40",
+    ".yggdrasil/model/cli/internals.md": "fcd16e38b431eead0b12e14b05dd25184ad4ef23884fbde7402172b0985857f6",
+    ".yggdrasil/model/cli/responsibility.md": "696e0f5f377eba69a843a18379e8f20e0322dc037182690629652a75aa2227fb",
+    ".yggdrasil/model/cli/config/yg-node.yaml": "9cacb4bd841cdf0f78581c909468e1d5b8cfe1678a75e39821398c144f092302",
+    ".yggdrasil/model/cli/config/responsibility.md": "d10421b990737cf9049a220fd37ff4e051cada58c7793323826b97ed26083c91",
+    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "7deb781ab921aaf4f32cafbaec4e0b3ea8d803b1a039d2ee578ef49ecf3c0308",
+    ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
+    "source/cli/eslint.config.js": "53f67dbd2f524cfecc0df0e84af9b56ace682ecb55156e925faa1aee1e89b01f",
+    "source/cli/vitest.config.ts": "fc201469596f8083f129516af0c0a077568871609b099e8da0cd1f285cddd26a",
+    "source/cli/.prettierrc": "c043a3fc85f17fe1d1e4198de8387969cb1d2bc6dd921f3c16444579fc797aa4",
+    "source/cli/.prettierignore": "a7b3f5b54a4bf806eccd51313e8edcc81dc7e2f556361fc25163789d62a05627"
+  },
+  "mtimes": {
+    ".yggdrasil/model/cli/config/quality/yg-node.yaml": 1775053257308.3115,
+    ".yggdrasil/model/cli/config/quality/responsibility.md": 1775053617313.8115,
+    ".yggdrasil/model/cli/yg-node.yaml": 1775050142507.4995,
+    ".yggdrasil/model/cli/internals.md": 1772829219205.6714,
+    ".yggdrasil/model/cli/responsibility.md": 1775045623775.336,
+    ".yggdrasil/model/cli/config/yg-node.yaml": 1775053863108.229,
+    ".yggdrasil/model/cli/config/responsibility.md": 1775051863302.48,
+    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775049910995.6624,
+    ".yggdrasil/aspects/deterministic/content.md": 1772778780694.5889,
+    "source/cli/eslint.config.js": 1771702275789.2537,
+    "source/cli/vitest.config.ts": 1771702372933.6426,
+    "source/cli/.prettierrc": 1771702275789.0093,
+    "source/cli/.prettierignore": 1771702275788.8928
+  }
+}

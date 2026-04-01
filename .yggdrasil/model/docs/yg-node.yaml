@@ -1,11 +1,7 @@
 name: Docs
 type: module
-description: "Public-facing documentation for Yggdrasil adopters: getting started, CLI reference, configuration"
+description: "Parent node for all Yggdrasil documentation: concept specs, adopter guides, and site infrastructure — children own all source mappings"
 aspects: []
 blackbox: false
 
 relations: []
-
-mapping:
-  paths:
-    - docs/

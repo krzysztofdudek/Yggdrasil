@@ -1,0 +1,28 @@
+{
+  "hash": "bf11d834a70de0594b120c2a297b48232fb4bca2ee352cff2e4fb626d3bfa03e",
+  "files": {
+    ".yggdrasil/model/cli/tests/fixtures/responsibility.md": "0cfa044c1c62248e9b222711d7862211f648b38d5e43b3ccd00e87bc5158b7a5",
+    ".yggdrasil/model/cli/yg-node.yaml": "640850d59baf2b0d317b20d5d3312def4dbfb30c8d5489daff345b19cca52e40",
+    ".yggdrasil/model/cli/internals.md": "fcd16e38b431eead0b12e14b05dd25184ad4ef23884fbde7402172b0985857f6",
+    ".yggdrasil/model/cli/responsibility.md": "696e0f5f377eba69a843a18379e8f20e0322dc037182690629652a75aa2227fb",
+    ".yggdrasil/model/cli/tests/yg-node.yaml": "ac0fc246c01a04e62d43ef8abadb2f01551616ca7509c3b268995ef646279bc9",
+    ".yggdrasil/model/cli/tests/responsibility.md": "ef48f39a8d5d6b7f1c61e94f2b95ccf38c02365b3496e3ff5fcf21827ffd8138",
+    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "7deb781ab921aaf4f32cafbaec4e0b3ea8d803b1a039d2ee578ef49ecf3c0308",
+    ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
+    "source/cli/tests/fixtures/.gitkeep": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+    ".yggdrasil/model/cli/tests/fixtures/yg-node.yaml": "484dd48ae7eaeae571d4544342f2d8f2977b9f603b02a9fc088685d7885cd95b"
+  },
+  "mtimes": {
+    ".yggdrasil/model/cli/tests/fixtures/yg-node.yaml": 1775055662146.7224,
+    ".yggdrasil/model/cli/tests/fixtures/responsibility.md": 1775052707092.0676,
+    ".yggdrasil/model/cli/yg-node.yaml": 1775050142507.4995,
+    ".yggdrasil/model/cli/internals.md": 1772829219205.6714,
+    ".yggdrasil/model/cli/responsibility.md": 1775045623775.336,
+    ".yggdrasil/model/cli/tests/yg-node.yaml": 1775052719083.744,
+    ".yggdrasil/model/cli/tests/responsibility.md": 1775051893259.6592,
+    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775049910995.6624,
+    ".yggdrasil/aspects/deterministic/content.md": 1772778780694.5889,
+    "source/cli/tests/fixtures/.gitkeep": 1771702275796.7822
+  },
+  "acknowledgeReason": "Initial mapping of .gitkeep file; all fixture content covered by child nodes sample-project and scenarios"
+}
