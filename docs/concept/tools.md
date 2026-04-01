@@ -77,7 +77,7 @@ quality: # map, optional (has default values) — all keys snake_case
 - `artifacts` must contain at least one element.
 - Artifact filenames cannot be `yg-node.yaml` (reserved in every node directory).
 - `has_aspect:<name>` conditions must refer to aspect directory names (exist under `aspects/<name>/`).
-- `quality.context_budget.error` must be ≥ `quality.context_budget.warning`.
+- `quality.context_budget.error` must be >= `quality.context_budget.warning`.
 
 ### yg-node.yaml
 
@@ -91,15 +91,28 @@ aspects: # list of objects, optional — unified aspect entries
   - aspect: requires-audit # string, required — aspect identifier (directory path under aspects/)
     exceptions: # list of strings, optional — per-node deviations from this aspect's pattern
       - "Batch import skips per-record audit — emits single summary event instead"
-    anchors: [auditLog, createAuditEntry] # list of strings, optional — code patterns for staleness detection
+    anchors: # map, optional — anchor ID → typed realization object
+      audit-entry:
+        regex: "createAuditLog|auditLog\\.create"
+      audit-actor:
+        regex: "userId|currentUser|actor"
   - aspect: requires-auth # minimal entry — just the aspect identifier
 blackbox: false # bool, optional, default false
+
+integration_anchors: # list of strings, optional — anchor IDs that consumers must realize
+  - correlation-id
+  - retry-policy
 
 relations: # list, optional
   - target: payments/payment-service # string, required — path relative to model/
     type: calls # string, required — relation type (see table)
     consumes: [charge, refund] # list of strings, optional
     failure: "retry 3x, then payment-failed" # string, optional
+    anchors: # map, optional — integration anchor ID → typed realization object
+      correlation-id:
+        regex: "correlationId|correlation_id"
+      retry-policy:
+        regex: "retry|retryPolicy|withRetry"
     # For event relations (emits, listens): event_name (optional) — display name, e.g. OrderPlaced
 
 mapping: # map, optional
@@ -122,6 +135,25 @@ mapping: # map, optional
 directories are auto-detected at runtime. Each path in the list is hashed individually — files
 are hashed directly, directories are scanned recursively (respecting `.gitignore`).
 
+**Anchor realization format:**
+
+Anchors are always typed objects — a map from anchor ID to a realization object with exactly
+one type property. Version 4 supports `regex` only. Unknown types produce E041.
+
+```yaml
+# v4: regex
+audit-entry:
+  regex: "createAuditLog|auditLog\\.create"
+```
+
+**Integration anchors:**
+
+The `integration_anchors` field defines anchor IDs that consumers (nodes with structural
+relations to this node) must realize. When present, any node with a `uses`, `calls`,
+`extends`, or `implements` relation to this node must include a matching `anchors` map on
+the relation entry. Integration anchors propagate automatically through relations — no
+manual aspect assignment needed.
+
 **Validation rules for yg-node.yaml:**
 
 - `name` must be non-empty.
@@ -132,8 +164,11 @@ are hashed directly, directories are scanned recursively (respecting `.gitignore
 - Paths in `mapping.paths` must be relative to the repository root.
 - `mapping.paths` must be non-empty when `mapping` is present.
 - Mappings cannot overlap with mappings of other nodes.
-- `anchors` within an aspect entry, if present, must be a non-empty array of strings.
-- Anchor strings are validated against mapped source files: if an anchor is not found, a warning (W014) is emitted.
+- Aspect `anchors`, if present, must be a map from anchor ID to typed realization object.
+  Each realization must realize an anchor ID defined in the aspect's `anchors` field.
+- Relation `anchors`, if present, must realize integration anchor IDs from the target node.
+- Anchor patterns (regex) are validated against mapped source files: if a pattern is not
+  found, an error (E037) is emitted.
 
 ### yg-aspect.yaml
 
@@ -145,7 +180,10 @@ path under `aspects/` (e.g. `aspects/requires-audit/` has identifier `requires-a
 name: Audit logging # string, required
 description: "Short description for discovery" # string, optional
 implies: [requires-logging] # list of strings, optional — ids of other aspects
-stability: protocol # string, optional — schema | protocol | implementation
+anchors: # list of strings, required — abstract anchor IDs that nodes must realize
+  - audit-entry
+  - audit-actor
+  - audit-timestamp
 ```
 
 Nested directories under `aspects/` are organizational groupings. There is no automatic
@@ -155,20 +193,19 @@ All files in the aspect directory except `yg-aspect.yaml` are content attached t
 packages of nodes carrying the specified aspect. When `implies` is present, the aspect's content
 plus all implied aspects' content is attached. Tools resolve implications recursively and detect cycles.
 
-**Stability tiers:**
+**Anchors:**
 
-| `stability` value | Meaning                                                         |
-| ----------------- | --------------------------------------------------------------- |
-| `schema`          | Enforced by data model; changes require migration (most stable) |
-| `protocol`        | Contractual pattern; breaking causes visible failures           |
-| `implementation`  | Specific mechanism; subject to optimization (least stable)      |
+Every aspect must define at least one anchor ID in the `anchors` field (E039 if missing).
+Anchor IDs are abstract names — they describe WHAT must be proven (e.g. "audit-entry",
+"audit-actor"), not HOW. Nodes carrying the aspect realize these anchors in their
+`yg-node.yaml` with typed pattern objects (see yg-node.yaml schema above).
 
 **Validation rules:**
 
 - `name` must be non-empty.
 - Every identifier in `implies` must have a corresponding aspect directory under `aspects/`.
 - The aspect implies graph must be acyclic (no A implies B implies A).
-- `stability`, if present, must be one of: `schema`, `protocol`, `implementation`.
+- `anchors` must be a non-empty list of strings.
 
 ### yg-flow.yaml
 
@@ -209,7 +246,7 @@ Primary flow content artifact — describes the business process. Required for e
 - `## Paths` — must contain at least `### Happy path`; each additional business path (exception, cancellation, timeout) gets `### [name]`
 - `## Invariants across all paths` — business rules and technical conditions holding across all paths
 
-Note: section validation is not yet enforced by `yg validate`.
+Note: section validation is not yet enforced by `yg check`.
 
 One flow directory = one business process with all its paths (happy path, exceptions, cancellations).
 
@@ -281,7 +318,7 @@ single value.
 of the `.drift-state/` directory, it is migrated automatically on first read — each node
 entry is written to its own JSON file under `.drift-state/`.
 
-**Garbage collection:** When `drift-sync --all` runs, orphaned drift state files (files
+**Garbage collection:** When `yg approve` runs, orphaned drift state files (files
 under `.drift-state/` that no longer correspond to a mapped node) are removed.
 
 ---
@@ -300,24 +337,19 @@ Operations are invoked as tool commands with the `yg` prefix:
 ```text
 yg init --platform cursor
 yg init --platform cursor --upgrade   # refreshes rules when .yggdrasil/ exists
-yg build-context --node orders/order-service
-yg build-context --file src/modules/orders/order.service.ts  # resolves owner + context
-yg build-context --file src/modules/orders/order.service.ts --self  # own artifacts only
+yg context --node orders/order-service
+yg context --file src/modules/orders/order.service.ts  # resolves owner + context
 yg tree
 yg aspects
-yg status
-yg preflight
+yg check
 yg owner --file src/modules/orders/order.service.ts          # quick ownership check
-yg deps --node orders/order-service
-yg impact --node payments/payment-service --simulate
+yg impact --node payments/payment-service
 yg impact --file src/modules/payments/payment.service.ts     # resolves owner + impact
-yg validate
-yg drift
-yg drift-sync --node orders/order-service
+yg approve --node orders/order-service
 ```
 
 Command names correspond to the section headers below. Parameters passed via flags
-(`--node`, `--file`, `--simulate`, etc.) or positionally are an implementation decision,
+(`--node`, `--file`, etc.) or positionally are an implementation decision,
 not a specification. The examples above illustrate intent, not syntax.
 
 ---
@@ -362,8 +394,8 @@ Upgrade mode — refreshes only the rules file (when `.yggdrasil/` already exist
    c. If project version is newer than CLI version — print a warning and exit without
       modifying any files.
 
-   d. For each applicable migration (project version < migration version ≤ CLI version),
-      run in order. Each action prints with a `✓` prefix on success or a `⚠` prefix on
+   d. For each applicable migration (project version < migration version <= CLI version),
+      run in order. Each action prints with a checkmark prefix on success or a warning prefix on
       warning/skip.
 
    e. After all migrations complete, write the updated `version` to `yg-config.yaml`.
@@ -424,13 +456,14 @@ The tool does not guess this value.
 
 **Note:** Until `name` is set (non-empty), most commands that load the graph will fail
 with a config parse error. The user should edit `yg-config.yaml` before running
-`yg validate`, `yg status`, `yg drift`, or other operations.
+`yg check`, `yg context`, or other operations.
 
 ---
 
-### Build context
+### Context
 
 Assemble a context package for the specified node. The main operation of the system.
+`build-context` is a backward-compatible alias.
 
 **Parameters:**
 
@@ -466,7 +499,7 @@ YAML with structural map (default) or artifact content (`--full`), as defined in
 
 - `project` — project name (top).
 - `glossary` — definitions of all aspects and flows referenced in this context, each with
-  name, description, stability, and `files` listing their artifact paths.
+  name, description, and `files` listing their artifact paths.
 - `node` — target node metadata with inline `files` listing its own artifact paths.
 - `hierarchy` — ancestor modules from root to parent, each with inline `files`.
 - `dependencies` — structural dependencies with inline `files` and their own `hierarchy` chains.
@@ -533,20 +566,23 @@ Lists aspects with metadata in YAML format. Use to discover valid aspect identif
 1. Resolve `.yggdrasil/` root (repository root or nearest parent).
 2. Load the graph — find all aspect directories under `.yggdrasil/aspects/` (including nested).
 3. Sort by aspect identifier.
-4. Output YAML with `id`, `name`, `description` (if present), `implies` (if present), `stability` (if present).
+4. Output YAML with `id`, `name`, `description` (if present), `implies` (if present), `anchors`.
 
 **Result:**
 
 ```yaml
 - id: deterministic
   name: Determinism
-  stability: schema
+  anchors:
+    - deterministic-output
 - id: observability/logging
   name: Audit Logging
   description: Every state-changing operation must produce an audit log entry
   implies:
     - observability/tracing
-  stability: protocol
+  anchors:
+    - audit-entry
+    - audit-actor
 ```
 
 **Errors:**
@@ -586,87 +622,6 @@ their participants, and associated aspects.
 
 - No `.yggdrasil/` directory — exit 1.
 - If no `flows/` directory exists, outputs an empty list.
-
----
-
-### Status
-
-Summary of the graph state: numbers, metrics, problems.
-
-**Parameters:** none.
-
-**Behavior:**
-
-1. Count nodes (broken down by types and blackbox/non-blackbox).
-2. Count relations (broken down by structural/event).
-3. Count aspects and flows.
-4. Read drift state for mapped nodes.
-5. Run validation (only counting errors and warnings, without full messages).
-6. Compute quality metrics: artifact fill rate, relation distribution, mapping coverage,
-   aspect coverage.
-
-**Result:**
-
-```text
-Graph: my-project
-Nodes: 12 (3 modules, 7 services, 2 libraries) + 2 blackbox
-Relations: 15 structural, 4 event
-Aspects: 3    Flows: 2
-Drift: 1 source-drift, 1 graph-drift, 0 full-drift, 1 missing, 2 unmaterialized, 7 ok
-Validation: 0 errors, 3 warnings
-
-Quality:
-  Artifacts: 42/96 slots filled (44%) — 8 types × 12 nodes
-  Relations: avg 1.6/node, max 5 (orders/order-service)
-  Mapping: 10/12 nodes mapped to source
-  Aspects: 8/12 nodes have aspect coverage
-```
-
-**Errors:**
-
-- No `.yggdrasil/` — repository is not initialized.
-- Invalid `yg-config.yaml` — configuration cannot be parsed.
-
----
-
-### Preflight
-
-Unified diagnostic combining drift detection, graph status, and validation.
-
-**Parameters:**
-
-| Parameter | Type | Required | Description                                           |
-| --------- | ---- | -------- | ----------------------------------------------------- |
-| `quick`   | bool | No       | Skip drift detection for faster results. Default: `false`. |
-
-**Behavior:**
-
-1. Unless `--quick`: run `drift --drifted-only` — report nodes with source or graph drift (any drift contributes to exit code 1). When `--quick`, output "Drift: skipped (--quick)".
-2. Run `status` — report graph health (node, aspect, flow, and mapping counts).
-3. Run `validate` — report structural errors and completeness warnings (any errors contribute to exit code 1).
-
-**Result:**
-
-```text
-Drift:
-  orders/order-service source-drift
-
-Graph: my-project
-Nodes: 12 (3 modules, 7 services, 2 libraries) + 2 blackbox
-Relations: 15 structural, 4 event
-Aspects: 3    Flows: 2
-Drift: 1 source-drift, 0 graph-drift, 0 full-drift, 0 missing, 0 unmaterialized, 11 ok
-Validation: 0 errors, 3 warnings
-```
-
-**Exit codes:**
-
-- `0` — fully clean: no drift, no validation errors.
-- `1` — one or more of: drifted nodes, validation errors.
-
-**Errors:**
-
-- No `.yggdrasil/` — repository is not initialized.
 
 ---
 
@@ -742,7 +697,7 @@ how to obtain it:
 
 ```text
 src/modules/orders/subdir/helper.ts -> orders/order-service
-  File has no direct mapping; context comes from ancestor directory src/modules/orders. Use: yg build-context --node orders/order-service
+  File has no direct mapping; context comes from ancestor directory src/modules/orders. Use: yg context --node orders/order-service
 ```
 
 ```text
@@ -767,68 +722,32 @@ distinguish from files that exist but lack graph coverage.
 
 ---
 
-### Dependency analysis
-
-Shows node dependencies — direct and transitive.
-
-**Parameters:**
-
-| Parameter | Type   | Required | Description                                                          |
-| --------- | ------ | -------- | -------------------------------------------------------------------- |
-| `node`    | string | Yes      | Node path relative to `model/`                                       |
-| `depth`   | int    | No       | Transitive depth. Default: unlimited.                                |
-| `type`    | string | No       | Relation class filter: `structural`, `event`, `all`. Default: `all`. |
-
-**Behavior:**
-
-1. Read node relations.
-2. Recursively follow outgoing relations up to the specified depth.
-3. Build a dependency tree.
-
-**Result:**
-
-```text
-orders/order-service
-├── calls payments/payment-service
-│   └── calls stripe/stripe-gateway ■ blackbox
-├── calls inventory/inventory-service
-└── emits notifications/notification-service
-```
-
-**Errors:**
-
-- Node does not exist.
-
----
-
 ### Impact analysis
 
 Shows the blast radius of changes to a node, aspect, or flow. Supports three
-mutually exclusive modes and an optional simulation pass.
+mutually exclusive modes.
 
 **Parameters:**
 
 | Parameter  | Type   | Required              | Description                                                       |
 | ---------- | ------ | --------------------- | ----------------------------------------------------------------- |
-| `node`     | string | One of three required | Node path relative to `model/`                                    |
-| `aspect`   | string | One of three required | Aspect id (directory path under `aspects/`)                       |
-| `flow`     | string | One of three required | Flow name (directory name under `flows/`)                         |
-| `method`   | string | No                    | Filter dependents to those consuming this method (node mode only) |
-| `simulate` | bool   | No                    | Whether to simulate impact on context packages. Default: `false`. |
+| `node`     | string | One of four required  | Node path relative to `model/`                                    |
+| `file`     | string | One of four required  | File path — resolves owner, then proceeds as `--node`             |
+| `aspect`   | string | One of four required  | Aspect id (directory path under `aspects/`)                       |
+| `flow`     | string | One of four required  | Flow name (directory name under `flows/`)                         |
 
-Exactly one of `node`, `aspect`, or `flow` must be provided.
+Exactly one of `node`, `file`, `aspect`, or `flow` must be provided.
 
-#### Node mode (`--node`)
+#### Node mode (`--node` or `--file`)
 
 1. Find all nodes whose structural relations point to the target (reverse graph edge).
-2. If `--method` is specified, filter direct dependents to those whose `consumes` list includes the method (or have no `consumes` specified, meaning they consume everything).
-3. Recursively follow reverse edges (transitive reverse dependencies).
-4. Collect descendants of the target node (hierarchy impact).
-5. Collect indirect structural dependents of descendants — nodes that depend on descendants via structural or event relations (uses/calls/extends/implements/emits/listens) but are not already shown.
-6. Find flows listing the target node.
-7. Compute effective aspects (own + hierarchy + flow + implies).
-8. Find co-aspect nodes sharing any aspect with the target.
-9. Find event-related nodes: nodes with `emits`/`listens` relations targeting the node, and listeners of events the target node emits.
+2. Recursively follow reverse edges (transitive reverse dependencies).
+3. Collect descendants of the target node (hierarchy impact).
+4. Collect indirect structural dependents of descendants — nodes that depend on descendants via structural or event relations (uses/calls/extends/implements/emits/listens) but are not already shown.
+5. Find flows listing the target node.
+6. Compute effective aspects (own + hierarchy + flow + implies).
+7. Find co-aspect nodes sharing any aspect with the target.
+8. Find event-related nodes: nodes with `emits`/`listens` relations targeting the node, and listeners of events the target node emits.
 
 ```text
 Impact of changes in payments/payment-service:
@@ -897,6 +816,8 @@ Participants:
   auth/auth-api
   orders/order-service
   payments/payment-service
+
+Descendants (hierarchy impact):
   payments/payment-service/stripe-adapter (descendant)
 
 Indirectly affected (structural dependents):
@@ -907,30 +828,6 @@ Flow aspects: requires-saga
 Total scope: 5 nodes
 ```
 
-#### Simulation mode (`--simulate`)
-
-Available with any mode. For each affected node:
-
-1. Assemble a context package in the current graph state.
-2. Assemble a baseline context package from the HEAD commit.
-3. Report token budget shift (baseline → current) with ok/warning/error status.
-4. In node mode, flag nodes with a changed dependency interface to the target.
-5. Report drift status of mapped source files.
-
-```text
-Changes in context packages:
-
-orders/order-service:
-  + Changed dependency interface: payments/payment-service
-  Budget: 3200 -> 3450 tokens (ok)
-  Mapped files (on-disk): ok
-
-subscriptions/billing-service:
-  + Changed dependency interface: payments/payment-service
-  Budget: 2800 -> 3050 tokens (ok)
-  Mapped files (on-disk): drift (Changed files: src/billing/charge.ts)
-```
-
 **Errors:**
 
 - Node / aspect / flow does not exist.
@@ -939,55 +836,79 @@ subscriptions/billing-service:
 
 ---
 
-### Validate
+### Check
 
-Validate structural integrity and completeness signals of the entire graph or a specified node.
+Unified gate — validates structural integrity, drift detection, coverage, and completeness
+for the entire graph. Replaces `validate`, `drift`, `status`, and `preflight`.
 
-**Parameters:**
-
-| Parameter | Type   | Required | Description                         |
-| --------- | ------ | -------- | ----------------------------------- |
-| `scope`   | string | No       | `all` or node path. When a node path is given, includes all descendant nodes. Default: `all`. |
+**Parameters:** none. Check is always global scope.
 
 **Behavior:**
 
-Two levels of severity defined in the [Engine](engine) document.
+1. Load the graph and run all validation passes.
+2. Detect drift for all mapped nodes (compare tracked file hashes against baselines).
+3. Scan all git-tracked files for coverage (E022).
+4. Report all errors and warnings in a single output.
 
-**Errors (structural integrity):**
+**Errors (block commit):**
 
-| Code   | Message                      | Description                                            |
-| ------ | ---------------------------- | ------------------------------------------------------ |
-| `E001` | `invalid-node-yaml`          | `yg-node.yaml` fails to parse or lacks required fields |
-| `E002` | `unknown-node-type`          | Node type is not in `config.node_types`                |
-| `E003` | `unknown-aspect`             | Aspect identifier does not correspond to an aspect directory |
-| `E004` | `broken-relation`            | Relation target does not resolve to an existing node   |
-| `E006` | `broken-flow-ref`            | Flow participant does not resolve                      |
-| `E007` | `broken-aspect-ref`          | Aspect reference does not resolve                      |
-| `E009` | `overlapping-mapping`        | Overlapping mappings between unrelated nodes           |
-| `E010` | `structural-cycle`           | Cycle in structural relations (cycles involving blackbox are tolerated) |
-| `E012` | `invalid-config`             | `yg-config.yaml` fails to parse or is invalid          |
-| `E014` | `duplicate-aspect-binding`   | Aspect identifier is bound to multiple aspect directories |
-| `E015` | `missing-node-yaml`          | Directory in `model/` has files but no `yg-node.yaml`  |
-| `E016` | `implied-aspect-missing`     | Identifier in aspect's `implies` has no corresponding aspect in `aspects/`           |
-| `E017` | `aspect-implies-cycle`       | Cycle in aspect implies graph (A implies B implies A)                                |
+**Structural integrity (E001-E013):**
 
-**Warnings (completeness signals):**
+| Code   | Name                       | Description                                                         |
+| ------ | -------------------------- | ------------------------------------------------------------------- |
+| `E001` | `invalid-node-yaml`        | `yg-node.yaml` fails to parse or lacks required fields              |
+| `E002` | `unknown-node-type`        | Node type is not in `config.node_types`                             |
+| `E003` | `unknown-aspect`           | Aspect identifier does not correspond to an aspect directory        |
+| `E004` | `broken-relation`          | Relation target does not resolve to an existing node                |
+| `E005` | `broken-flow-ref`          | Flow participant does not resolve                                   |
+| `E006` | `broken-aspect-ref`        | Flow aspect does not resolve                                        |
+| `E007` | `overlapping-mapping`      | Overlapping mappings between unrelated nodes                        |
+| `E008` | `structural-cycle`         | Cycle in structural relations (blackbox cycles tolerated)           |
+| `E009` | `invalid-config`           | `yg-config.yaml` fails to parse or is invalid                      |
+| `E010` | `duplicate-aspect-binding` | Aspect identifier is bound to multiple aspect directories           |
+| `E011` | `missing-node-yaml`        | Directory in `model/` has files but no `yg-node.yaml`              |
+| `E012` | `implied-aspect-missing`   | Identifier in aspect's `implies` has no corresponding aspect        |
+| `E013` | `aspect-implies-cycle`     | Cycle in aspect implies graph (A implies B implies A)               |
 
-| Code   | Message                 | Description                                                                         |
-| ------ | ----------------------- | ----------------------------------------------------------------------------------- |
-| `W001` | `missing-artifact`      | Missing required artifact                                                           |
-| `W002` | `shallow-artifact`      | Artifact below minimum length                                                       |
-| `W005` | `budget-warning`        | Context package exceeds warning threshold                                           |
-| `W006` | `budget-error`          | Context package exceeds error threshold; severity: warning                          |
-| `W007` | `high-fan-out`          | Node exceeds maximum number of relations                                            |
-| `W009` | `unpaired-event`        | Event relation without complement on the other side                                 |
-| `W010` | `missing-schema`        | Required schema (node, aspect, flow) missing from `.yggdrasil/schemas/`            |
-| `W011` | `missing-required-aspect-coverage` | Node of type with `required_aspects` lacks coverage (direct aspect or via implies) for one or more |
-| `W012` | `mapping-path-missing`             | Mapping path in `yg-node.yaml` does not exist on disk — catches typos and stale mappings             |
-| `W013` | `directory-without-node`           | Directory in `model/` has only subdirectories but no `yg-node.yaml` — bare intermediate directory    |
-| `W014` | `anchor-not-found`                 | Anchor string for aspect not found in node's mapped source files                                  |
-| `W015` | `own-budget-warning`               | Own artifacts exceed threshold                                                                    |
-| `W016` | `missing-description`              | Node, aspect, or flow has no `description` field in its YAML                                      |
+**Drift (E020-E021):**
+
+| Code   | Name              | Description                                                                |
+| ------ | ----------------- | -------------------------------------------------------------------------- |
+| `E020` | `direct-drift`    | Node's own source or graph files changed since last approve                |
+| `E021` | `cascade-drift`   | Node affected by upstream change (dependency/aspect/flow)                  |
+
+**Coverage (E022):**
+
+| Code   | Name              | Description                                                                |
+| ------ | ----------------- | -------------------------------------------------------------------------- |
+| `E022` | `unmapped-file`   | Git-tracked file not covered by any node (proper or blackbox)              |
+
+**Completeness (E030-E041):**
+
+| Code   | Name                        | Description                                                                     |
+| ------ | --------------------------- | ------------------------------------------------------------------------------- |
+| `E030` | `missing-artifact`          | Required artifact missing (blackbox nodes exempt — only `description` required) |
+| `E031` | `shallow-artifact`          | Artifact below minimum length (content too shallow to be useful)                |
+| `E032` | `budget-exceeded`           | Context package exceeds error threshold — node must be split                    |
+| `E033` | `unpaired-event`            | Event relation without complement (broken event contract)                       |
+| `E034` | `missing-schema`            | Schema file missing from `schemas/`                                             |
+| `E035` | `missing-required-aspect`   | Node type lacks required aspect coverage                                        |
+| `E036` | `mapping-path-missing`      | Mapped path does not exist on disk (stale/broken mapping)                       |
+| `E037` | `anchor-not-found`          | Anchor pattern not found in node's mapped source files                          |
+| `E038` | `missing-description`       | Node, aspect, or flow has no `description` in YAML                              |
+| `E039` | `aspect-missing-anchors`    | Aspect has no `anchors` field — every aspect must define proof points           |
+| `E040` | `anchor-not-realized`       | Node missing anchor realization for aspect or integration anchor IDs            |
+| `E041` | `unknown-anchor-type`       | Anchor realization uses unrecognized type (upgrade CLI or use `regex`)           |
+
+**Warnings (informational, do not block):**
+
+| Code   | Name                   | Description                                                                  |
+| ------ | ---------------------- | ---------------------------------------------------------------------------- |
+| `W001` | `budget-warning`       | Context package exceeds warning threshold (getting big)                      |
+| `W002` | `own-budget-warning`   | Own artifacts exceed threshold (node might need splitting)                   |
+| `W003` | `wide-node`            | Too many source files mapped (node might need splitting)                     |
+| `W004` | `high-fan-out`         | Too many direct relations (design signal, not blocking)                      |
+| `W005` | `orphaned-drift-state` | Drift state file exists for a node that no longer exists in the graph        |
 
 **Message format:**
 
@@ -996,11 +917,11 @@ E004 orders/order-service -> relation to 'payment/svc' does not resolve.
      Existing nodes in payments/: payment-service
      Did you mean 'payments/payment-service'?
 
-W001 orders/order-service -> missing artifact 'interface'.
+E030 orders/order-service -> missing artifact 'interface'.
      Node has 3 incoming relations: auth/login-service, checkout/controller,
      subscriptions/billing-service. Define the public API in interface.md.
 
-W005 orders/order-service -> context: ~15,200 tokens (warning: 10,000)
+W001 orders/order-service -> context: ~15,200 tokens (warning: 10,000)
      own: 3,100 (20%) | hierarchy: 4,800 (32%) | aspects: 4,200 (28%) |
      flows: 1,600 (10%) | dependencies: 1,500 (10%)
 ```
@@ -1010,127 +931,69 @@ why, and what to do (see the [Integration](integration) document).
 
 **Result:**
 
-A list of messages grouped: errors first, then warnings.
-Summary at the end: X errors, Y warnings.
+Output is organized with a header (project name, node/aspect/flow counts, coverage
+percentage, health score), then errors grouped by category (drift, cascade, structural,
+coverage, completeness), then warnings grouped by category (budget, structure).
+Summary at the end: PASS or FAIL with category counts.
 
-**Exit code:** 0 if no errors, 1 if any errors found.
+**Exit code:** 0 if no errors (PASS), 1 if any errors found (FAIL).
 
 **Operation errors:**
 
-- The specified node in `scope` does not exist.
-- `yg-config.yaml` fails to parse (reported as E012, not as an operation error — validation
+- `yg-config.yaml` fails to parse (reported as E009, not as an operation error — check
   continues as much as it can).
 
 ---
 
-### Drift
+### Approve
 
-Detect divergences between the graph and tracked files (source + graph artifacts).
-Drift detection is bidirectional — it tracks changes on both the source side (mapped files)
-and the graph side (`.yggdrasil/` artifacts that contribute to the node's context package).
-
-**Parameters:**
-
-| Parameter      | Type   | Required | Description                                                       |
-| -------------- | ------ | -------- | ----------------------------------------------------------------- |
-| `scope`        | string | No       | `all` or node path. When a node path is given, includes all descendant nodes. Default: `all`. |
-| `drifted-only` | bool   | No       | Hide `ok` entries; show only nodes with drift. Default: `false`.  |
-| `limit`        | number | No       | Max entries per section. Truncated sections show remaining count. |
-
-**Behavior:**
-
-1. For each mapped node (in scope):
-   a. Check if mapped source files exist on disk.
-   b. Collect all tracked files for the node (source files from mapping + graph artifact
-      files from context assembly traversal) via `collectTrackedFiles`.
-   c. Compute hashes for all tracked files and compare with the baseline in
-      `.yggdrasil/.drift-state/`.
-   d. Classify each changed file as `source` or `graph` based on whether its path is under
-      `.yggdrasil/`.
-   e. Assign state: `ok`, `source-drift`, `graph-drift`, `full-drift`, `missing`,
-      `unmaterialized`.
-
-**States:**
-
-| State            | Condition                                                                                   |
-| ---------------- | ------------------------------------------------------------------------------------------- |
-| `ok`             | All tracked file hashes match — nothing changed since synchronization                       |
-| `source-drift`   | Source file(s) changed but graph artifacts unchanged                                        |
-| `graph-drift`    | Graph artifact(s) changed but source files unchanged                                        |
-| `full-drift`     | Both source and graph files changed                                                         |
-| `missing`        | Mapped source files do not exist on disk, but a hash exists in `.drift-state/`              |
-| `unmaterialized` | Node has a mapping, but files have never been created (no entry in `.drift-state/`)          |
-
-If a node has no drift-state entry but its files exist on disk, it reports `source-drift`
-with a note to run `drift-sync`.
-
-**Result:**
-
-Output is organized in two sections — Source drift and Graph drift. Nodes appear in the
-section(s) relevant to their drift type. `full-drift` nodes appear in both sections.
-
-```text
-Source drift:
-  [drift]      orders/order-service
-               src/modules/orders/order.service.ts  (changed)
-  [missing]    auth/token-service
-  [unmat.]     notifications/email-service
-  [ok]         payments/payment-service
-
-Graph drift:
-  [drift]      orders/order-service
-               .yggdrasil/model/orders/order-service/responsibility.md  (changed)
-  [ok]         payments/payment-service
-
-Summary: 1 source-drift, 0 graph-drift, 1 full-drift, 1 missing, 1 unmaterialized, 1 ok
-```
-
-With `--drifted-only`, `ok` entries are hidden and the summary shows the count of hidden
-entries.
-
-Changed files are listed per-section — the Source drift section shows only changed source
-files, the Graph drift section shows only changed graph files.
-
-**Exit code:** 0 if all nodes are `ok`, 1 if any drift/missing/unmaterialized entries exist.
-
-**Errors:**
-
-- Specified node does not exist.
-- Node has no mapping (does not participate in drift detection).
-
----
-
-### Drift sync
-
-Update the remembered hash for a node after resolving a divergence.
-Called after the agent resolves drift (absorption or rejection + re-materialization).
+Record the current file state as the new baseline after the agent has reviewed and
+resolved drift. Replaces `drift-sync`. `drift-sync` is a backward-compatible alias.
 
 **Parameters:**
 
-| Parameter   | Type   | Required | Description                                                       |
-| ----------- | ------ | -------- | ----------------------------------------------------------------- |
-| `node`      | string | No*      | Node path relative to `model/`. Required unless `--all` is used.  |
-| `recursive` | bool   | No       | Also sync all descendant nodes. Default: `false`.                 |
-| `all`       | bool   | No*      | Sync all nodes with mappings. Required unless `--node` is used.   |
+| Parameter     | Type   | Required | Description                                                       |
+| ------------- | ------ | -------- | ----------------------------------------------------------------- |
+| `node`        | string | Yes      | Node path relative to `model/`.                                   |
+| `acknowledge` | string | No       | Reason for approving when one side did not change. Audit trail.   |
+
+Per-node only — no `--all`, no `--recursive`. One node at a time.
 
 **Behavior:**
 
 1. Collect all tracked files for the node via `collectTrackedFiles` — this includes both
    source files (from `mapping.paths`) and graph artifact files (from the context assembly
    traversal: own node, ancestors, aspects, relational dependencies, flows).
-2. Compute hashes for all tracked files.
-3. Write the canonical hash and per-file hashes to `.yggdrasil/.drift-state/<node-path>.json`.
+2. Perform three-axis change detection:
+   - **Own artifacts** (`.md` files in the node directory) — changed since last approve?
+   - **Source files** (`mapping.paths`) — changed since last approve?
+   - **Other tracked files** (aspects, deps, flows, ancestors) — changed since last approve?
+3. Apply enforcement rules (see table below).
+4. If accepted: compute hashes for all tracked files and write to
+   `.yggdrasil/.drift-state/<node-path>.json`.
+5. Garbage collection: remove orphaned drift state files for nodes that no longer exist.
 
-The operation captures the complete set of tracked files (source + graph), not just mapping
-files. This enables subsequent drift detection to identify changes on either side.
+**Three-axis enforcement:**
 
-The operation does not check _how_ the drift was resolved (that is the agent's and human's
-decision). It records the current file state as the new baseline.
+| Own artifacts | Source | Other tracked | Result                                          |
+| ------------- | ------ | ------------- | ----------------------------------------------- |
+| changed       | changed | any          | ACCEPTS                                         |
+| changed       | unchanged | any        | REFUSES (or `--acknowledge`)                    |
+| unchanged     | changed | any          | REFUSES (or `--acknowledge`)                    |
+| unchanged     | unchanged | changed    | REFUSES — requires `--acknowledge`              |
+| unchanged     | unchanged | unchanged  | ACCEPTS (no-op, records baseline)               |
+
+**Blackbox blocker:** Approve always refuses when source files changed on blackbox nodes.
+No `--acknowledge` for source changes on blackbox. The only path is to decompose the
+blackbox into a proper node for the modified files.
+
+**First approve:** If node has no stored baseline (no drift state file), approve accepts
+and records the initial baseline.
 
 **Result:**
 
 ```text
-Synchronized: orders/order-service
+Approved: orders/order-service
   Hash: a1b2c3d4 -> e5f6g7h8
 ```
 
@@ -1138,7 +1001,8 @@ Synchronized: orders/order-service
 
 - Node does not exist.
 - Node has no mapping.
-- Mapped files do not exist (cannot calculate hash).
+- Enforcement rules refuse the approve (see table above).
+- Blackbox source change — must decompose.
 
 ---
 
@@ -1170,16 +1034,16 @@ The canonical agent rules are delivered by the platform integration file generat
 `source/cli/src/templates/rules.ts`. The full prompt is not duplicated here — the spec
 documents the behavioral contract; the implementation provides the canonical text.
 
-**Behavioral model (no explicit "session"):**
+**Behavioral model:**
 
-- **Start of every conversation:** Preflight — (1) `yg drift --drifted-only` (reports source
-  and graph drift — `source-drift`/`graph-drift`/`full-drift`/`missing`/`unmaterialized`),
-  (2) `yg status` (report health), (3) `yg validate` (fix any errors, address warnings).
-  _Exception:_ Read-only requests skip preflight.
-- **User signals closing the topic** (e.g. "we're done", "wrap up", "that's enough", "done"):
-  drift, validate, report exactly what nodes and files were changed.
-- **Execution checklists:** Code-first (read spec → modify code → sync artifacts → baseline hash) and graph-first
-  (read schema → edit graph → verify source → validate → baseline hash). Agent must output and execute before finishing.
+- **Start of every conversation:** Run `yg check` — see full picture (drift, errors, coverage).
+  Fix any issues before starting work.
+  *Exception:* Read-only requests skip check.
+- **User signals closing the topic** (e.g. "end", "wrap up", "that's enough", "done"):
+  check, report exactly what nodes and files were changed.
+- **Execution checklists:** Code-first (read spec, modify code, sync artifacts, `yg approve`)
+  and graph-first (read schema, edit graph, verify source, `yg check`, `yg approve`).
+  Agent must output and execute before finishing.
 
 The agent learns **how** from five sources: (1) rules file, (2) yg-config.yaml, (3) schemas/,
-(4) existing graph nodes, (5) validation feedback. See the [Integration](integration) document.
+(4) existing graph nodes, (5) check feedback. See the [Integration](integration) document.
