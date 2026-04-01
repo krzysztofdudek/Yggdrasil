@@ -1,6 +1,6 @@
 {
   "name": "@chrisdudek/yg",
-  "version": "3.0.0",
+  "version": "4.0.0",
   "description": "Make your repository self-aware. Persistent semantic memory and deterministic context assembly for AI agents.",
   "type": "module",
   "bin": {

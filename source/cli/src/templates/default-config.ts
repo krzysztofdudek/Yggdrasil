@@ -22,7 +22,7 @@ export async function resolveProjectName(projectRoot: string): Promise<string> {
   return path.basename(projectRoot);
 }
 
-export const DEFAULT_CONFIG = `version: "3.0.0"
+export const DEFAULT_CONFIG = `version: "4.0.0"
 
 name: ""
 
