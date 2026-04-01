@@ -33,34 +33,29 @@ Done. Your repository is now self-aware.
 ```bash
 yg init --platform cursor
 yg tree --depth 1
-yg validate
-yg build-context --node orders/order-service
+yg check
+yg context --node orders/order-service
 ```
 
 ## Core Commands
 
 **Diagnostics:**
 
-- `yg preflight [--quick]` — Unified diagnostic report: drift, status, validation
+- `yg check` — Unified gate: structural integrity, drift detection, coverage, and health score (exit 0 clean / exit 1 errors)
 
 **Reading and analysis:**
 
-- `yg build-context --node <path> [--full]` — Assemble context package (YAML structural map + artifact paths; `--full` appends file contents)
-- `yg status` — Graph health summary
+- `yg context --node <path> [--full]` — Assemble context package (YAML structural map + artifact paths; `--full` appends file contents)
 - `yg tree [--root <path>] [--depth N]` — Graph structure as tree
 - `yg owner --file <path>` — Find which graph node owns a source file
-- `yg deps --node <path>` — Forward dependency tree and materialization order
-- `yg impact --node <path> [--simulate]` — Reverse dependencies and context impact
+- `yg impact --node <path>` — Reverse dependencies and context impact
 - `yg select --task <description> [--limit <n>]` — Find graph nodes relevant to a task
 - `yg aspects` — List aspects with metadata (YAML output)
 - `yg flows` — List flows with metadata (YAML output)
 
-**Validation and drift:**
+**Approving changes:**
 
-- `yg validate [--scope all|node-path]` — Structural integrity and completeness
-- `yg drift [--scope all|node-path] [--drifted-only] [--limit <n>]` — Detect graph-to-file divergence
-- `yg drift-sync --node <path> [--recursive]` — Record current file hash after resolving drift
-- `yg drift-sync --all` — Sync all nodes with mappings in one command
+- `yg approve --node <path>` — Three-axis gate: accept when source and artifacts changed together, or supply `--acknowledge <reason>` for conscious exceptions
 
 **Setup:**
 
