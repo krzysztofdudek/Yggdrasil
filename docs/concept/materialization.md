@@ -59,7 +59,7 @@ Situations leading to materialization:
 In all cases the mechanism is the same: Context Package → Agent → Output under mapping path.
 
 After completing a materialization or after resolving drift, the agent runs
-`yg drift-sync --node <path>` to record the new baseline in `.yggdrasil/.drift-state/`.
+`yg approve --node <path>` to record the new baseline in `.yggdrasil/.drift-state/`.
 
 ---
 

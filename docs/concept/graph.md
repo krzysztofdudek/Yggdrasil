@@ -181,14 +181,27 @@ aspects:
   - aspect: requires-audit
     exceptions:
       - "Batch import skips per-record audit — emits single summary event instead"
-    anchors: [auditLog, createAuditEntry]
+    anchors:  # map: anchor ID → typed realization object
+      audit-entry:
+        regex: "createAuditLog|auditLog\\.create"
+      audit-actor:
+        regex: "userId|currentUser|actor"
   - aspect: requires-auth
+
+integration_anchors:  # optional — anchor IDs that consumers must realize
+  - correlation-id
+  - retry-policy
 
 relations:
   - target: payments/payment-service
     type: calls
     consumes: [charge, refund]
     failure: retry 3x, then mark order as payment-failed
+    anchors:  # realizes integration anchors from the target
+      correlation-id:
+        regex: "correlationId|correlation_id"
+      retry-policy:
+        regex: "retry|retryPolicy|withRetry"
 
   - target: inventory/inventory-service
     type: calls
@@ -199,15 +212,16 @@ mapping:
     - src/modules/orders/order.service.ts
 ```
 
-| Field                | Required | Purpose                                                      |
-| -------------------- | -------- | ------------------------------------------------------------ |
-| `name`               | Yes      | Display name                                                 |
-| `type`               | Yes      | Node type from `config.node_types`                           |
-| `description`        | No       | Short summary shown in context maps for quick orientation    |
-| `aspects`            | No       | Aspect entries with embedded exceptions and anchors          |
-| `relations`          | No       | Outgoing dependencies to other nodes                         |
-| `mapping`            | No       | Link to source files (see Mapping section)                   |
-| `blackbox`           | No       | If `true`, node describes something existing, not controlled |
+| Field                  | Required | Purpose                                                      |
+| ---------------------- | -------- | ------------------------------------------------------------ |
+| `name`                 | Yes      | Display name                                                 |
+| `type`                 | Yes      | Node type from `config.node_types`                           |
+| `description`          | No       | Short summary shown in context maps for quick orientation    |
+| `aspects`              | No       | Aspect entries with exceptions and typed anchor realizations |
+| `integration_anchors`  | No       | Anchor IDs that consumers (relation sources) must realize    |
+| `relations`            | No       | Outgoing dependencies to other nodes, with anchor realizations |
+| `mapping`              | No       | Link to source files (see Mapping section)                   |
+| `blackbox`             | No       | If `true`, node describes something existing, not controlled |
 
 Each block (hierarchy, own, flow) declares its own aspects. No inheritance — a node receives
 aspects only from blocks that explicitly list aspect identifiers. See the [Engine](engine) document for the
@@ -345,10 +359,16 @@ aspects/
 name: Audit logging
 description: "Short description for discovery via yg aspects"  # optional
 # implies: [requires-logging]   # optional: other aspect identifiers to include automatically
+anchors:                         # required — abstract proof points nodes must realize
+  - audit-entry
+  - audit-actor
+  - audit-timestamp
 ```
 
 `name` is required. `description` is optional — a short summary for discovery via `yg aspects`.
-`implies` is optional. The aspect identifier is implicit — it is the relative directory path.
+`implies` is optional. `anchors` is required — a list of abstract anchor IDs that describe
+what must be proven (E039 if missing). The aspect identifier is implicit — it is the relative
+directory path.
 
 Nested directories under `aspects/` are organizational — they allow grouping related aspects
 (e.g. `observability/logging`, `observability/tracing`). However, nesting does **not** create
@@ -571,19 +591,20 @@ element type it is creating or editing. Artifact requirements and structure come
 
 ---
 
-## Partial Graphs and Coverage Contract
+## Coverage Contract
 
-The repository is **intended** to be fully covered by the graph. Every file (except `.yggdrasil/`)
-belongs to exactly one node — directly or via a higher-level blackbox node. If an area is not yet
-explored, coverage is achieved through a blackbox at a level agreed with the user — **but only for
-existing code**. For greenfield (new code to be created), use proper nodes from the start; blackbox
+The repository **must** be fully covered by the graph. Every git-tracked file (except
+`.yggdrasil/`) belongs to exactly one node — directly or via a higher-level blackbox node.
+`yg check` enforces this through E022 (`unmapped-file`) — any uncovered file is an error.
+
+**Blackbox-first adoption:** On day one, the agent establishes full coverage by blackboxing the
+entire repository at coarse granularity (a few large directory mappings). This clears E022
+immediately. As work touches specific areas, blackbox nodes are decomposed into proper nodes
+with real artifacts. The blackbox blocker enforces decomposition: when source files change
+inside a blackbox, `yg approve` refuses until the agent creates proper nodes for those files.
+
+For greenfield (new code to be created), use proper nodes from the start; blackbox
 is forbidden.
-
-Tools operate only on declared nodes. Undeclared parts are invisible to the graph — but that is a
-**temporary** state. When the agent enters an uncovered area, it must not edit code without an
-explicit decision. **If greenfield:** create proper nodes (reverse engineering or upfront design);
-do not offer blackbox. **If existing code:** user chooses reverse-engineer (full node), blackbox
-(at chosen granularity), or abort.
 
 Consequence for data structures:
 

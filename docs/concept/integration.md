@@ -41,7 +41,7 @@ This is achieved through behavioral directives that the agent follows as part of
   same vocabulary developers use in task descriptions — making simple keyword matching against
   artifact content an effective selection mechanism. When a semantic search tool is available,
   the agent can also search by intent. Either way, the agent identifies relevant nodes and
-  loads their context packages with `yg build-context`.
+  loads their context packages with `yg context`.
 - **After semantic decisions** (new components, changed interfaces, new dependencies),
   the agent updates the graph to reflect the new state.
 - **When it notices files without graph coverage**, the agent stops. If greenfield (new code to be
@@ -143,18 +143,17 @@ a rules file in Cursor, `CLAUDE.md` in Claude Code, instructions in Copilot) tea
 ```text
 This repository uses Yggdrasil. The graph is in .yggdrasil/
 
-=== SESSION OPEN (reconciliation) ===
-- Detect drift — files may have changed outside the previous session
-- Check drift and validation status
-- Report status: what needs attention before you start
+=== SESSION OPEN ===
+- Run yg check — see full picture (drift, errors, coverage)
+- Fix any issues before starting work
 
-*Exception:* Read-only requests (e.g. "explain this") skip preflight.
+*Exception:* Read-only requests (e.g. "explain this") skip check.
 
 === CREATIVE WORK ===
 
 BEFORE MODIFYING A FILE:
 - Find the file owner node (ownership resolution)
-- Load the node context package (context assembly)
+- Load the node context package (yg context)
 - Use context to understand intent, constraints, interfaces
 
 WHEN OWNER NOT FOUND (file without graph coverage):
@@ -167,19 +166,18 @@ AFTER SEMANTIC DECISIONS:
 - Persist the decision: update the graph
 
 BEFORE A CHANGE THAT AFFECTS MANY NODES:
-- Check impact of the planned change (impact analysis simulation)
+- Check impact of the planned change (yg impact)
 - Inform the user about the consequence scope
 
 === SESSION CLOSE (consolidation) ===
-- Detect drift — files may have been manually changed during the session
-- Verify graph consistency — fix any errors
+- Run yg check — verify graph consistency
 - Report exactly what nodes and files were changed
 ```
 
 **Execution checklists** (agent must output and execute before finishing):
 
-- **Code-first:** Read spec → Modify code → Sync graph artifacts → Baseline hash (`yg drift-sync`).
-- **Graph-first:** Read schema → Edit graph → Verify source files → Validate → Baseline hash.
+- **Code-first:** Read spec → Modify code → Sync graph artifacts → `yg approve --node`.
+- **Graph-first:** Read schema → Edit graph → Verify source files → `yg check` → `yg approve --node`.
 
 The directives say **when** to act, not how graph files are structured. Schema and format come from config, templates, and validation feedback.
 
@@ -302,12 +300,11 @@ acting.
 
 Each conversation is work. The agent does not wait for explicit session open/close:
 
-- **Start of every conversation:** Preflight — (1) `yg drift` (present states
-  `ok`/`drift`/`missing`/`unmaterialized`, ask absorb or reject),
-  (2) `yg status` (report health), (3) `yg validate` (fix any errors, address warnings).
-  *Exception:* Read-only requests skip preflight.
+- **Start of every conversation:** Run `yg check` — see full picture (drift, errors, coverage).
+  Fix any issues before starting work.
+  *Exception:* Read-only requests skip check.
 - **User signals closing the topic** (e.g. "end", "wrap up", "that's enough", "done"):
-  drift, validate, report exactly what nodes and files were changed.
+  run `yg check`, report exactly what nodes and files were changed.
 
 ---
 
@@ -407,10 +404,11 @@ Initialization creates `.yggdrasil/yg-config.yaml` with sensible defaults and co
 with the agent platform. From that moment the agent has a “graph instinct” — it knows the repository
 uses Yggdrasil and follows behavioral directives.
 
-The graph is empty, but the agent starts building it during normal work. The user asks for a change
-in the orders module — the agent notices missing coverage, proposes creating a node, the user agrees,
-the agent creates `model/orders/order-service/yg-node.yaml` + `responsibility.md`. Next time work touches
-that module, the agent loads the context package and writes better code.
+On first `yg check`, the agent sees E022 — all git-tracked source files have no graph coverage.
+The E022 message includes guidance: create proper nodes for the area you will work on, blackbox
+the rest. The agent starts by blackboxing everything at a coarse granularity (a few large directory
+mappings), then creates proper nodes for the area of immediate work. This achieves full coverage
+quickly — E022 clears — and proper nodes are created incrementally as work touches new areas.
 
 Value appears from the first node — not from a complete graph.
 
@@ -444,9 +442,10 @@ With each session the graph grows, context packages become richer, and the agent
 
 ### Incremental adoption
 
-Incremental adoption (see [Foundation](foundation)) happens through the agent’s natural behavior: proposing nodes
-when it sees missing coverage. Coverage grows organically where the agent actually works. Modules
-that are not modified do not get nodes — coverage follows activity.
+Incremental adoption starts with blackbox-first coverage: blackbox the entire repository at coarse
+granularity, then decompose blackbox nodes into proper nodes as work touches those areas.
+E022 ensures full coverage from day one — no uncovered files allowed. Proper node coverage grows
+incrementally where the agent actually works; blackbox areas are decomposed on first touch.
 
 ---
 
@@ -618,11 +617,12 @@ A CRUD endpoint does not need a state machine specification.
 The agent has access to semantic memory but returns to default behavior: reads the repository
 directly, ignores context packages, does not update the graph after changes.
 
-Defense: behavioral directives make graph usage the default. Drift detection catches changes made
-without updating semantic memory. But ultimately this is a soft dependency — the system enables good
-behavior, it cannot fully enforce it.
+Defense: mechanical enforcement through `yg check`. Drift detection (E020/E021) catches changes
+made without updating semantic memory. Coverage enforcement (E022) catches new files without
+graph coverage. The agent cannot commit without a clean `yg check` — the system enforces
+graph usage through its unified gate, not through soft behavioral directives alone.
 
-Mitigation in CI: validation and drift detection as a quality gate catch inconsistencies regardless
+Mitigation in CI: `yg check` as a quality gate catches inconsistencies regardless
 of whether the agent followed directives.
 
 ### Multi-agent edit conflicts

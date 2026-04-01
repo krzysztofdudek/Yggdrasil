@@ -4,7 +4,7 @@ The [Foundation](foundation) document defines the problem and invariants.
 The [Graph](graph) document defines graph structure.
 The [Integration](integration) document defines how agents use these mechanics.
 This document defines the deterministic mechanics — algorithms and tools that operate on the
-graph: context assembly, validation, drift detection, and tool operations.
+graph: context assembly, check (unified gate), and tool operations.
 
 Everything described in this document is **deterministic**. The same graph state always produces
 the same output. No heuristics. No guessing. No searching.
@@ -182,13 +182,11 @@ glossary:
     requires-audit:
       name: Audit Logging
       description: "Every state-changing operation must produce an audit log entry"
-      stability: protocol
       files:
         - aspects/requires-audit/content.md
     requires-saga:
       name: Saga Pattern
       description: "Multi-step operations must be coordinated via saga with compensating actions"
-      stability: implementation
       files:
         - aspects/requires-saga/content.md
   flows:
@@ -307,10 +305,10 @@ responsibilities in one place.
 
 ---
 
-## Validation
+## Validation (part of check)
 
-Tools validate the entire graph for structural integrity and quality signals.
-Validation has two severity levels with distinct consequences.
+The `yg check` command validates the entire graph for structural integrity, drift, coverage,
+and completeness. Validation has two severity levels with distinct consequences.
 
 ### Structural Integrity (Errors)
 
@@ -348,10 +346,9 @@ Warnings flag quality issues that don't break the graph but reduce context packa
 **Shallow content**: artifacts that exist but are shorter than the configured minimum length.
 
 **Context budget**: a complex context package exceeding the configured warning threshold.
-W005 and W006 include a diagnostic breakdown (own/hierarchy/aspects/flows/dependencies) with
-percentages. Exceeding the error threshold (W006) sets `budgetStatus` to `'severe'` and emits
-a warning on stderr. The context package is still output — the agent should warn the user
-about the risk and recommend splitting the node. W015 fires when own artifacts alone exceed the
+W001 includes a diagnostic breakdown (own/hierarchy/aspects/flows/dependencies) with
+percentages. Exceeding the error threshold produces E032 (`budget-exceeded`) — the node
+must be split. W002 fires when own artifacts alone exceed the
 `own_warning` threshold — the most actionable budget signal.
 
 **High fan-out**: a node whose direct relation count exceeds the configured maximum — a signal
@@ -379,12 +376,13 @@ before merge, ensuring structural integrity of the semantic memory base is maint
 
 ---
 
-## Bidirectional Drift Detection
+## Bidirectional Drift Detection (part of check)
 
-Drift is divergence between graph and outputs. Drift detection is **bidirectional** — it
-tracks both source files (code mapped via `yg-node.yaml` mappings) and graph artifacts
-(`.yggdrasil/` files that participate in a node's context package). A change on either side
-is drift; a change on both sides is full drift.
+Drift is divergence between graph and outputs. Drift detection runs as part of `yg check`
+and is **bidirectional** — it tracks both source files (code mapped via `yg-node.yaml`
+mappings) and graph artifacts (`.yggdrasil/` files that participate in a node's context
+package). A change on either side is drift (E020); a change triggered by upstream changes
+is cascade drift (E021).
 
 ### Mechanism
 
@@ -401,7 +399,7 @@ the team, not local per-developer.
 #### Tracked file collection (`collectTrackedFiles`)
 
 The set of tracked files for a node mirrors the traversal of context assembly
-(`build-context`) but returns file paths instead of rendered content. Six layers are
+(`context`) but returns file paths instead of rendered content. Six layers are
 collected:
 
 1. **Own** — `yg-node.yaml` and config-filtered artifacts of the node itself.
@@ -409,7 +407,9 @@ collected:
 3. **Aspects** — `yg-aspect.yaml` and content files for all resolved aspects (own + ancestor +
    flow-propagated, with recursive `implies` expansion).
 4. **Relational dependencies** — structural-context artifacts of structural relation targets
-   (`uses`, `calls`, `extends`, `implements`).
+   (`uses`, `calls`, `extends`, `implements`). Also tracks a hash of the `integration_anchors`
+   field from each target's `yg-node.yaml` (scoped — only changes to `integration_anchors`
+   cascade, not other target metadata).
 5. **Relational flows** — `yg-flow.yaml` and content artifacts of all flows listing this node or
    an ancestor as a participant.
 6. **Source** — files from the node's `mapping.paths`.
@@ -452,19 +452,19 @@ Resolution depends on the type of drift detected:
 
 - **Source drift** — source files changed outside the semantic memory cycle. The agent
   reviews the changes, updates graph artifacts to reflect the new source state, then runs
-  `drift-sync` to record the new baseline.
+  `approve` to record the new baseline.
 - **Graph drift** — graph artifacts changed (e.g., updated responsibility, added constraints)
   but source code was not updated to match. The agent reviews the graph changes, updates
-  affected source files to align with the new specification, then runs `drift-sync`.
+  affected source files to align with the new specification, then runs `approve`.
 - **Full drift** — both sides changed independently. The agent must reconcile both: review
   source changes, review graph changes, resolve any conflicts, update both sides as needed,
-  then run `drift-sync`.
+  then run `approve`.
 - **Missing** — mapped source files were deleted. The agent determines whether to
   re-materialize from the graph or remove the mapping.
 - **Unmaterialized** — files have never been created. The agent materializes from the graph.
 
 In all cases, the human decides the resolution direction. The agent executes the decision.
-Tools record the new state via `drift-sync`.
+Tools record the new state via `approve`.
 
 ---
 
@@ -476,40 +476,36 @@ Read and validation operations are stateless — they read files from disk, proc
 output. Drift operations modify operational metadata (`.drift-state/`) but not semantic
 knowledge in the graph.
 
-### Read Operations
+### Core Workflow (4)
 
-| Operation            | Description                                                                                                |
-| -------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Context assembly     | Build context package for the specified node                                                               |
-| Tree view            | Display graph structure as a tree with node metadata                                                       |
-| Status               | Graph summary: nodes, relations, drift state                                                               |
-| Ownership resolution | For a given file path, find the owning node via mapping                                                    |
-| Dependency analysis  | Show node dependencies — direct and transitive                                                             |
-| Impact analysis      | Show nodes that depend on the specified node; simulate impact of planned changes on their context packages |
+| Operation        | Command                                | Description                                              |
+| ---------------- | -------------------------------------- | -------------------------------------------------------- |
+| Context assembly | `yg context --file/--node [--full]`    | Assemble context package for a node                      |
+| Impact analysis  | `yg impact --file/--node/--aspect/--flow` | Blast radius analysis                                 |
+| Check            | `yg check`                             | Unified gate — structural integrity, drift, coverage, completeness |
+| Approve          | `yg approve --node [--acknowledge]`    | Record baseline after review                             |
 
-Read operations modify nothing. They can be called as frequently as needed.
+Read operations (`context`, `impact`) modify nothing. `check` is read-only.
+`approve` updates synchronization metadata (`.drift-state/`) after an explicit review
+decision — tracking state, not semantic knowledge.
 
-**Impact analysis** in simulation mode runs the context assembly algorithm on a hypothetical
-graph state: current state with proposed changes applied. Output is a list of affected context
-packages with diffs relative to current state — added or removed content, changed
-dependency artifacts, budget shifts. The assembly algorithm is the same; only the input changes.
+### Navigation (5)
 
-### Validation Operations
+| Operation            | Command                      | Description                            |
+| -------------------- | ---------------------------- | -------------------------------------- |
+| Node selection       | `yg select --task`           | Find relevant nodes for a task         |
+| Tree view            | `yg tree [--root] [--depth]` | Graph structure visualization          |
+| Aspects              | `yg aspects`                 | List aspects with metadata             |
+| Flows                | `yg flows`                   | List flows with metadata               |
+| Ownership resolution | `yg owner --file`            | Quick ownership lookup                 |
 
-| Operation       | Description                                                             |
-| --------------- | ----------------------------------------------------------------------- |
-| Validate        | Check structural integrity (errors) and completeness signals (warnings) |
-| Drift detection | Detect divergence between graph expectations and mapped files           |
+Navigation operations are read-only.
 
-Validation operations do not modify semantic knowledge. Drift detection updates synchronization
-metadata (`.drift-state/`) in absorption mode — after an explicit human decision. This is
-tracking state, not semantic knowledge.
+### Setup (1)
 
-### Initialization
-
-| Operation  | Description                                                                            |
-| ---------- | -------------------------------------------------------------------------------------- |
-| Initialize | Create `.yggdrasil/` structure with default config and platform agent integration file |
+| Operation  | Command                           | Description                                                       |
+| ---------- | --------------------------------- | ----------------------------------------------------------------- |
+| Initialize | `yg init [--platform] [--upgrade]` | Create `.yggdrasil/` structure or refresh rules file              |
 
 Initialization is the only operation that creates files in the graph structure — and it does
 so only once. It creates the `.yggdrasil/` directory with a default `yg-config.yaml` and

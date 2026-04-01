@@ -218,7 +218,7 @@ and fixes the graph.
 
 | Actor | Responsibility                                                                                                                       | Deterministic? |
 | ----- | ------------------------------------------------------------------------------------------------------------------------------------ | -------------- |
-| Tools | Mechanical operations: graph parsing, context package assembly, dependency resolution, consistency validation, drift detection       | Yes            |
+| Tools | Mechanical operations: graph parsing, context assembly, impact analysis, unified check (structural + drift + coverage + completeness), approve (baseline recording) | Yes |
 | Agent | Creative work: conversation with human, building semantic memory, writing and editing graph files, generating outputs, writing tests | No             |
 | Human | Direction and judgment: expressing intent, answering questions, approving proposals, correcting errors, making trade-off decisions   | No             |
 
@@ -238,8 +238,8 @@ The agent has fundamentally broken Yggdrasil if it does any of the following:
 - Modified graph files without verifying or updating source code alignment in the same response.
 - Resolved a code↔graph inconsistency without asking the user first.
 - Created or edited a graph element without reading its schema in `.yggdrasil/schemas/`.
-- Ran `yg drift-sync` before updating graph artifacts.
-- Ran `yg drift-sync` after a graph-only change without verifying source files.
+- Ran `yg approve` before updating graph artifacts.
+- Ran `yg approve` after a graph-only change without verifying source files.
 - Used blackbox coverage for greenfield or new code.
 
 ---
@@ -270,20 +270,23 @@ and what must never change.
 
 ---
 
-## Pragmatic Drift Compromise
+## Drift as Error
 
-The two-worlds model is rigorous but not naïve. Outputs will diverge from the graph through
+The two-worlds model is rigorous. Outputs will diverge from the graph through
 direct edits, hotfixes, experiments, or work in sessions not using the graph. The system
-doesn't forbid this. It detects it.
+detects this and treats it as an error.
 
-**Drift** is divergence between the graph and outputs. The system detects drift and the agent
-presents resolution options:
+**Drift** is divergence between the graph and outputs. `yg check` reports drift as errors:
+E020 (direct drift — node's own files changed) and E021 (cascade drift — upstream change
+propagated). Drift blocks commits — it must be resolved before work continues.
+
+Resolution options remain the same:
 
 - **Absorption**: update the graph to match the changes — outputs become the truth.
 - **Rejection**: re-materialize from the graph — the graph remains the truth.
 
-The human decides. The agent executes. Drift is not a sin — unresolved drift is. The system
-guarantees that drift is always visible and always resolved.
+The human decides. The agent executes. After resolution, `yg approve --node` records
+the new baseline.
 
 The drift detection mechanism is described in the [Engine](engine) document.
 
@@ -294,11 +297,12 @@ The drift detection mechanism is described in the [Engine](engine) document.
 Different projects need different levels of discipline. Yggdrasil supports a spectrum:
 
 - **Invisible infrastructure.** The agent uses the graph internally. The human may not even
-  know it exists. Output quality improves silently.
+  know it exists. Output quality improves silently. `yg check` runs locally — drift and
+  coverage errors are resolved before commits.
 - **Visible knowledge base.** The human browses the graph, asks the agent semantic questions,
   reviews graph changes alongside output changes.
-- **Enforced governance.** Graph validation runs in CI. Drift detection blocks merges.
-  Architects review graph changes in pull requests.
+- **Enforced governance.** `yg check` runs in CI. Any error (structural, drift, coverage,
+  completeness) blocks merges. Architects review graph changes in pull requests.
 
 The same tools support all three levels. The difference is configuration and process, not tools.
 A solo developer on a side project and a 200-person team working on a mission-critical system
@@ -330,18 +334,24 @@ and how to use the graph. The platform provides the mechanism, Yggdrasil provide
 
 ---
 
-## Incremental Adoption
+## Incremental Adoption: Blackbox-First
 
-The graph can grow incrementally — coverage follows where the agent actually works. A project
-with 500 files can start with 3 nodes for the one module that's causing problems.
+Full coverage is required from the start — E022 enforces that every git-tracked file belongs
+to a node. But full coverage does not mean full detail.
 
-**Condition:** When entering an area without graph coverage, the agent must not edit code until
-coverage is decided. If greenfield (new code to be created): create proper nodes from the start;
-blackbox is forbidden. If existing code: the user chooses reverse-engineer (full node), blackbox
-(at chosen granularity), or abort. Incremental adoption means "the graph grows where we work" —
-not "we work in code without a graph."
+**Blackbox-first adoption:** On day one, the agent blackboxes the entire repository at coarse
+granularity (a few large directory mappings). This clears E022 immediately. Then, as work
+touches specific areas, blackbox nodes are decomposed into proper nodes with real artifacts.
+The blackbox blocker enforces this: when source files change inside a blackbox, `yg approve`
+refuses until the agent decomposes the affected files into a proper node.
 
-Value grows with coverage, but minimal coverage delivers minimal value immediately.
+**Condition:** When entering a blackboxed area, the agent must decompose it before editing
+code. If greenfield (new code to be created): create proper nodes from the start;
+blackbox is forbidden. The system mechanically enforces this through E020 on blackbox nodes
+plus the approve blackbox blocker.
+
+Value grows with proper node coverage, but blackbox coverage provides structural benefits
+immediately (ownership, drift detection, coverage tracking).
 This is not an all-or-nothing decision — it is an incremental process, like adding tests
 to an existing project.
 
