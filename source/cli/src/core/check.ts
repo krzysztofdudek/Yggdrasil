@@ -247,16 +247,17 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
       const primaryCause = groupCauses[0];
 
       // Check if this is an integration_anchors cascade (dependency yg-node.yaml change
-      // on a target that has integration_anchors)
+      // on a target that has integration_anchors, OR synthetic integration-anchors: entry)
       const isIntegrationAnchorsCascade = primaryCause.layer === 'relational'
-        && groupCauses.some(c => c.file.endsWith('yg-node.yaml'))
-        && (() => {
-          // Extract target path from cause description
-          const match = primaryCause.description.match(/dependency '([^']+)'/);
-          if (!match) return false;
-          const target = graph.nodes.get(match[1]);
-          return (target?.meta.integration_anchors?.length ?? 0) > 0;
-        })();
+        && (groupCauses.some(c => c.file.startsWith('integration-anchors:'))
+          || (groupCauses.some(c => c.file.endsWith('yg-node.yaml'))
+            && (() => {
+              // Extract target path from cause description
+              const match = primaryCause.description.match(/dependency '([^']+)'/);
+              if (!match) return false;
+              const target = graph.nodes.get(match[1]);
+              return (target?.meta.integration_anchors?.length ?? 0) > 0;
+            })()));
 
       let message: string;
       const causeLines = groupCauses.map(c => '     Cause: ' + c.description).join('\n');
@@ -532,6 +533,12 @@ function describeCascadeCause(filePath: string, layer: TrackedFileLayer, graph: 
   }
 
   if (layer === 'relational') {
+    // Handle synthetic integration-anchors: entries (no disk path)
+    const syntheticMatch = filePath.match(/^integration-anchors:(.+)$/);
+    if (syntheticMatch) {
+      const depPath = syntheticMatch[1];
+      return `dependency '${depPath}' integration anchors changed\n       (${filePath})`;
+    }
     const match = normalized.match(new RegExp(`${escPrefix}/model/(.+)/([^/]+)$`));
     const depPath = match ? match[1] : 'unknown';
     const filename = match ? match[2] : '';

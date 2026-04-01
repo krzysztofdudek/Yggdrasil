@@ -245,6 +245,7 @@ async function handleAspectImpact(
   process.stdout.write(`Implied by: ${impliedBy.length > 0 ? impliedBy.join(', ') : '(none)'}\n`);
   process.stdout.write(`Implies: ${implies.length > 0 ? implies.join(', ') : '(none)'}\n`);
   process.stdout.write(`\nTotal scope: ${affected.length + indirectPaths.length} nodes, ${propagatingFlows.length} flows\n`);
+  process.stdout.write(`  All ${affected.length} directly affected nodes would show E021 if this aspect changes.\n`);
 
 }
 
@@ -293,7 +294,9 @@ async function handleFlowImpact(
   process.stdout.write(
     `\nFlow aspects: ${flowAspects.length > 0 ? flowAspects.join(', ') : '(none)'}\n`,
   );
+  const declaredParticipants = flow.nodes.filter((n) => graph.nodes.has(n));
   process.stdout.write(`\nTotal scope: ${sorted.length + indirectPaths.length} nodes\n`);
+  process.stdout.write(`  All ${declaredParticipants.length} participants would show E021 if this flow changes.\n`);
 
 }
 
@@ -504,6 +507,9 @@ export function registerImpactCommand(program: Command): void {
           const allAffected = new Set([...allDependents, ...descendants, ...eventDependents.map((e) => e.path), ...descIndirectPaths]);
           process.stdout.write(
             `\nTotal scope: ${allAffected.size} nodes, ${flows.length} flows, ${aspectsInScope.length} aspects\n`,
+          );
+          process.stdout.write(
+            `  All ${allAffected.size} nodes would show E021 (cascade drift) if this node changes.\n`,
           );
         } catch (error) {
           process.stderr.write(`Error: ${(error as Error).message}\n`);

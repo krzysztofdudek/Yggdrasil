@@ -453,11 +453,13 @@ describe('collectTrackedFiles', () => {
     const files = collectTrackedFiles(node, graph);
     const paths = files.map((f) => f.path);
 
-    // Target with integration_anchors should have its yg-node.yaml tracked
-    expect(paths).toContain('.yggdrasil/model/dep/svc/yg-node.yaml');
+    // Target with integration_anchors should have a synthetic hash entry (not full yg-node.yaml)
+    expect(paths).toContain('integration-anchors:dep/svc');
+    expect(paths).not.toContain('.yggdrasil/model/dep/svc/yg-node.yaml');
     // Its layer should be relational
-    const tracked = files.find(f => f.path === '.yggdrasil/model/dep/svc/yg-node.yaml');
+    const tracked = files.find(f => f.path === 'integration-anchors:dep/svc');
     expect(tracked?.layer).toBe('relational');
+    expect(tracked?.syntheticHash).toBeDefined();
   });
 
   it('does NOT track target yg-node.yaml when dependency has no integration_anchors', () => {

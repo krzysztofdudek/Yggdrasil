@@ -24,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`yg check` replaces `validate`, `drift`, `status`, `preflight`.** Single unified
   gate command with exit 0 (clean) / exit 1 (errors). All four old commands removed.
 - **Error codes renumbered to v4 scheme.** E001-E013 structural, E020-E022
-  drift/coverage, E030-E036+E038 completeness, W001-W005 warnings.
+  drift/coverage, E030-E041 completeness, W001-W005 warnings.
 - **Promoted warnings to errors.** missing-artifact (E030), shallow-artifact (E031),
   budget-exceeded (E032), unpaired-event (E033), missing-schema (E034),
   missing-required-aspect (E035), mapping-path-missing (E036), missing-description (E038).
@@ -90,9 +90,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Error codes renumbered to v4 scheme.** Structural errors: E001-E013 (compact,
-  no gaps). Promoted warnings to errors: E030-E038 (missing-artifact, shallow-artifact,
-  budget-exceeded, unpaired-event, missing-schema, missing-required-aspect,
-  mapping-path-missing, missing-description). Remaining warnings: W001-W004
+  no gaps). Completeness errors: E030-E041 (includes promoted warnings E030-E038
+  and new anchor errors E039-E041). Remaining warnings: W001-W004
   (budget-warning, own-budget-warning, wide-node, high-fan-out). Removed: W013
   (directory-without-node, subsumed by E022) and W014 (anchor-not-found, replaced
   by typed anchors).

@@ -140,7 +140,7 @@ function formatRefused(nodePath: string, result: ApproveResult): void {
       `  Update artifacts to reflect source changes, then approve.\n`,
     );
     process.stderr.write(
-      `  If change has no graph impact: approve --acknowledge.\n`,
+      `  If change has no graph impact (formatting, comments): approve --acknowledge.\n`,
     );
     return;
   }
@@ -166,7 +166,7 @@ function formatRefused(nodePath: string, result: ApproveResult): void {
       `  Implement the artifact changes in source, then approve.\n`,
     );
     process.stderr.write(
-      `  If change has no source impact: approve --acknowledge.\n`,
+      `  If change has no source impact (typo, clarification): approve --acknowledge.\n`,
     );
     return;
   }

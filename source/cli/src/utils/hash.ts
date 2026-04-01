@@ -175,6 +175,11 @@ export async function hashTrackedFiles(
   const allFiles: FileEntry[] = [];
 
   for (const tf of trackedFiles) {
+    // Synthetic entries have a pre-computed hash — use it directly without disk I/O
+    if (tf.syntheticHash) {
+      fileHashes[tf.path] = tf.syntheticHash;
+      continue;
+    }
     const absPath = path.join(projectRoot, tf.path);
     try {
       const st = await stat(absPath);

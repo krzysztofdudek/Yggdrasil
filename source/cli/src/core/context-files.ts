@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { STANDARD_ARTIFACTS } from '../model/types.js';
 import type { Graph, GraphNode, DriftCategory, FlowDef, TrackedFileLayer } from '../model/types.js';
 import { normalizeMappingPaths } from '../utils/paths.js';
@@ -8,6 +9,7 @@ export interface TrackedFile {
   path: string;           // relative to project root
   category: DriftCategory;  // 'source' or 'graph'
   layer: TrackedFileLayer;  // which context layer brought this file into tracking
+  syntheticHash?: string; // when present, use this hash instead of reading from disk
 }
 
 const STRUCTURAL_RELATION_TYPES = new Set(['uses', 'calls', 'extends', 'implements']);
@@ -37,6 +39,18 @@ export function collectTrackedFiles(node: GraphNode, graph: Graph): TrackedFile[
     if (seen.has(filePath)) return;
     seen.add(filePath);
     result.push({ path: filePath, category, layer });
+  }
+
+  function addSyntheticHash(
+    key: string,
+    content: string,
+    category: DriftCategory,
+    layer: TrackedFileLayer,
+  ): void {
+    if (seen.has(key)) return;
+    seen.add(key);
+    const hash = createHash('sha256').update(content).digest('hex');
+    result.push({ path: key, category, layer, syntheticHash: hash });
   }
 
   function graphPath(...segments: string[]): string {
@@ -125,9 +139,17 @@ export function collectTrackedFiles(node: GraphNode, graph: Graph): TrackedFile[
       }
     }
 
-    // Track target yg-node.yaml only when integration_anchors exist (scoped cascade)
+    // Track integration_anchors hash only (not full yg-node.yaml) — scoped cascade
+    // This ensures only integration_anchors changes cascade to dependents,
+    // not unrelated target metadata changes (description, relations, mapping)
     if (target.meta.integration_anchors && target.meta.integration_anchors.length > 0) {
-      addFile(graphPath('model', target.path, 'yg-node.yaml'), 'graph', 'relational');
+      const anchorsJson = JSON.stringify(target.meta.integration_anchors.sort());
+      addSyntheticHash(
+        `integration-anchors:${target.path}`,
+        anchorsJson,
+        'graph',
+        'relational',
+      );
     }
 
     // Track dependency ancestors — always runs, independent of structuralArts check above

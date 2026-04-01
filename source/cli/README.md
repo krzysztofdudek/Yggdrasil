@@ -45,10 +45,10 @@ yg context --node orders/order-service
 
 **Reading and analysis:**
 
-- `yg context --node <path> [--full]` — Assemble context package (YAML structural map + artifact paths; `--full` appends file contents)
+- `yg context --file <path> | --node <path> [--full]` — Assemble context package (YAML structural map + artifact paths; `--full` appends file contents)
 - `yg tree [--root <path>] [--depth N]` — Graph structure as tree
 - `yg owner --file <path>` — Find which graph node owns a source file
-- `yg impact --node <path>` — Reverse dependencies and context impact
+- `yg impact --file <path> | --node <path> | --aspect <id> | --flow <name>` — Reverse dependencies and context impact
 - `yg select --task <description> [--limit <n>]` — Find graph nodes relevant to a task
 - `yg aspects` — List aspects with metadata (YAML output)
 - `yg flows` — List flows with metadata (YAML output)

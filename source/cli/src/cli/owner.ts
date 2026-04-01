@@ -66,7 +66,7 @@ export function registerOwnerCommand(program: Command): void {
           process.stdout.write(`${result.file} -> ${result.nodePath}\n`);
           if (result.direct === false && result.mappingPath) {
             process.stdout.write(
-              `  File has no direct mapping; context comes from ancestor directory ${result.mappingPath}. Use: yg build-context --node ${result.nodePath}\n`,
+              `  File has no direct mapping; context comes from ancestor directory ${result.mappingPath}. Use: yg context --node ${result.nodePath}\n`,
             );
           }
         }

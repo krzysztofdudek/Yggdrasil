@@ -35,22 +35,6 @@ node_types: # object, required, non-empty — keys are type names
     description: "Guards, middleware, interceptors — invisible in call graphs but affect blast radius"
     # required_aspects: [requires-audit]  # optional — aspects every node of this type must have
 
-artifacts: # map, required, non-empty — keys are full filenames (e.g. responsibility.md, api.txt)
-  responsibility.md:
-    required: always # always | never | {when: <condition>}
-    description: "What this node is responsible for, and what it is not"
-    included_in_relations: true # optional, default false — include in dependency context for structural relations
-
-  interface.md:
-    required:
-      when: has_incoming_relations # structural condition
-    description: "Public API — methods, parameters, return types, contracts, failure modes, exposed data structures"
-    included_in_relations: true
-
-  internals.md:
-    required: never
-    description: "How the node works and why — algorithms, business rules, state machines, design decisions with rejected alternatives"
-
 quality: # map, optional (has default values) — all keys snake_case
   min_artifact_length: 50 # int, default 50
   max_direct_relations: 10 # int, default 10
@@ -60,23 +44,14 @@ quality: # map, optional (has default values) — all keys snake_case
     own_warning: 5000 # int, optional (tokens) — warn when own artifacts alone exceed this
 ```
 
-**Artifact requirement conditions:**
-
-| `required` value               | Meaning                                                         |
-| ------------------------------ | --------------------------------------------------------------- |
-| `always`                       | Every non-blackbox node must have this artifact                 |
-| `never`                        | Artifact is always optional                                     |
-| `when: has_incoming_relations` | Required when there is a relation from another node to this one |
-| `when: has_outgoing_relations` | Required when this node has relations to others                 |
-| `when: has_aspect:<name>`      | Required when the node carries the specified aspect             |
+Artifacts (`responsibility.md`, `interface.md`, `internals.md`) are built into the
+CLI and are not configurable. See the [Graph](graph) document for artifact descriptions
+and required conditions.
 
 **Validation rules for yg-config.yaml:**
 
 - `name` must be non-empty.
 - `node_types` must be a non-empty object. Each entry must have a `description` string. Optional `required_aspects` list. Node `type` must match a key in `node_types`.
-- `artifacts` must contain at least one element.
-- Artifact filenames cannot be `yg-node.yaml` (reserved in every node directory).
-- `has_aspect:<name>` conditions must refer to aspect directory names (exist under `aspects/<name>/`).
 - `quality.context_budget.error` must be >= `quality.context_budget.warning`.
 
 ### yg-node.yaml
@@ -428,20 +403,6 @@ node_types:
   infrastructure:
     description: "Guards, middleware, interceptors — invisible in call graphs but affect blast radius"
 
-artifacts:
-  responsibility.md:
-    required: always
-    description: "What this node is responsible for, and what it is not"
-    included_in_relations: true
-  interface.md:
-    required:
-      when: has_incoming_relations
-    description: "Public API — methods, parameters, return types, contracts, failure modes, exposed data structures"
-    included_in_relations: true
-  internals.md:
-    required: never
-    description: "How the node works and why — algorithms, business rules, state machines, design decisions with rejected alternatives"
-
 quality:
   min_artifact_length: 50
   max_direct_relations: 10
@@ -451,12 +412,8 @@ quality:
     # own_warning: 5000  # optional — warn when own artifacts alone exceed this
 ```
 
-The agent fills in `name` after initialization.
-The tool does not guess this value.
-
-**Note:** Until `name` is set (non-empty), most commands that load the graph will fail
-with a config parse error. The user should edit `yg-config.yaml` before running
-`yg check`, `yg context`, or other operations.
+The tool auto-detects the project name from `package.json` (if present) or the
+directory name. The agent can override by editing `yg-config.yaml`.
 
 ---
 
@@ -467,10 +424,13 @@ Assemble a context package for the specified node. The main operation of the sys
 
 **Parameters:**
 
-| Parameter | Type   | Required | Description                                                        |
-| --------- | ------ | -------- | ------------------------------------------------------------------ |
-| `node`    | string | Yes      | Node path relative to `model/`                                     |
-| `--full`  | flag   | No       | Embed artifact content inline instead of listing paths only        |
+| Parameter | Type   | Required            | Description                                                        |
+| --------- | ------ | ------------------- | ------------------------------------------------------------------ |
+| `file`    | string | One of two required | File path — resolves owner node, then assembles context            |
+| `node`    | string | One of two required | Node path relative to `model/`                                     |
+| `--full`  | flag   | No                  | Embed artifact content inline instead of listing paths only        |
+
+Exactly one of `file` or `node` must be provided.
 
 **Behavior:**
 
@@ -986,6 +946,12 @@ Per-node only — no `--all`, no `--recursive`. One node at a time.
 **Blackbox blocker:** Approve always refuses when source files changed on blackbox nodes.
 No `--acknowledge` for source changes on blackbox. The only path is to decompose the
 blackbox into a proper node for the modified files.
+
+**Anti-laundering:** A new blackbox node cannot inherit files that were previously
+tracked by any other node. Approve refuses first-approve on a blackbox node if any
+of its mapped files appear in the drift-state of any other node — regardless of
+whether that other node currently has pending E020. Decomposition must produce a
+proper node for files with prior tracking history.
 
 **First approve:** If node has no stored baseline (no drift state file), approve accepts
 and records the initial baseline.

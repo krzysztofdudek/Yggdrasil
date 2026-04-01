@@ -87,7 +87,7 @@ export function registerBuildCommand(program: Command): void {
               for (const c of candidates) {
                 msg += `  - ${c.nodePath} (${c.fileCount} file${c.fileCount === 1 ? '' : 's'} in same dir)\n`;
               }
-              msg += `\nUse: yg build-context --node <node-path>\n`;
+              msg += `\nUse: yg context --node <node-path>\n`;
               process.stderr.write(msg);
             } else {
               process.stderr.write(`${result.file} -> no graph coverage\n`);
@@ -96,6 +96,19 @@ export function registerBuildCommand(program: Command): void {
           }
           process.stderr.write(`${result.file} -> ${result.nodePath}\n`);
           nodePath = result.nodePath;
+
+          // Check if the owning node is a blackbox — show decomposition guidance
+          const ownerNode = graph.nodes.get(nodePath);
+          if (ownerNode && ownerNode.meta.blackbox) {
+            const mappingPaths = normalizeMappingPaths(ownerNode.meta.mapping);
+            const mappingDisplay = mappingPaths.join(', ');
+            process.stderr.write(
+              `No detailed graph coverage for ${result.file}.\n` +
+              `  File is inside blackbox node '${nodePath}' (mapping: ${mappingDisplay}).\n` +
+              `  To get full context: decompose the blackbox into a proper node.\n`,
+            );
+            process.exit(1);
+          }
         } else {
           nodePath = options.node!.trim().replace(/^\.\//, '').replace(/\/$/, '');
         }

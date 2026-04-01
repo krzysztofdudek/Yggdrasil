@@ -95,7 +95,7 @@ describe('build-context command (unit-like CLI contract)', () => {
       expect(result.stderr).toContain('no graph coverage');
       expect(result.stderr).toContain('Candidate nodes');
       expect(result.stderr).toContain('orders/order-service');
-      expect(result.stderr).toContain('yg build-context --node');
+      expect(result.stderr).toContain('yg context --node');
     });
   });
 
