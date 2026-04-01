@@ -623,6 +623,63 @@ describe('classifyDrift', () => {
     expect(e021[0].message).toContain('E040');
     await rm(tmpDir, { recursive: true, force: true });
   });
+
+  it('E021 anchorsPassing=false when aspect anchor regex is invalid', async () => {
+    const { tmpDir, yggRoot } = await createTmpProject('anchors-bad-regex', {
+      nodePath: 'svc/my-service',
+      // Use an invalid regex pattern — the catch { return false } branch fires
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - aspect: logging\n    anchors:\n      audit-entry:\n        regex: "[invalid(regex"\nmapping:\n  paths:\n    - src/svc/\n',
+      mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
+      aspects: [{
+        id: 'logging',
+        yaml: 'name: Logging\ndescription: test aspect\nanchors:\n  - audit-entry\n',
+        files: { 'rules.md': 'Log all mutations.\n' },
+      }],
+    });
+    await recordBaseline(tmpDir);
+    // Modify aspect to trigger E021 cascade
+    await writeFile(path.join(yggRoot, 'aspects/logging/rules.md'), 'Updated rules.\n');
+    const graph = await loadGraph(tmpDir);
+    const result = await classifyDrift(graph);
+    const e021 = result.filter(i => i.code === 'E021' && i.nodePath === 'svc/my-service');
+    expect(e021.length).toBeGreaterThanOrEqual(1);
+    // Invalid regex → catch block returns false
+    expect(e021[0].anchorsPassing).toBe(false);
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('E021 anchorsPassing=false when integration anchor regex is invalid', async () => {
+    const { tmpDir, yggRoot } = await createTmpProject('anchors-int-bad-regex', {
+      nodePath: 'svc/my-service',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nrelations:\n  - target: svc/dep\n    type: calls\n    anchors:\n      correlation-id:\n        regex: "[bad(regex"\nmapping:\n  paths:\n    - src/svc/\n',
+      mappingFiles: { 'src/svc/index.ts': 'const something = 42;\n' },
+      parentNodes: [
+        {
+          path: 'svc',
+          yaml: 'name: Svc\ntype: service\ndescription: parent\n',
+          artifacts: { 'responsibility.md': 'Parent responsibility.\n' },
+        },
+        {
+          path: 'svc/dep',
+          yaml: 'name: Dep\ntype: service\ndescription: dependency\nintegration_anchors:\n  - correlation-id\n',
+          artifacts: { 'responsibility.md': 'Dep responsibility.\n' },
+        },
+      ],
+    });
+    await recordBaseline(tmpDir);
+    // Modify parent artifact to trigger E021
+    await writeFile(
+      path.join(yggRoot, 'model/svc/responsibility.md'),
+      'Updated parent responsibility.\n',
+    );
+    const graph = await loadGraph(tmpDir);
+    const result = await classifyDrift(graph);
+    const e021 = result.filter(i => i.code === 'E021' && i.nodePath === 'svc/my-service');
+    expect(e021.length).toBeGreaterThanOrEqual(1);
+    // Invalid integration anchor regex → catch block returns false
+    expect(e021[0].anchorsPassing).toBe(false);
+    await rm(tmpDir, { recursive: true, force: true });
+  });
 });
 
   it('handles drift state without mtimes (legacy baseline)', async () => {

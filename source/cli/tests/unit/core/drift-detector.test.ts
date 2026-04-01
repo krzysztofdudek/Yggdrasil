@@ -412,6 +412,37 @@ mapping:
         await rm(tmpDir, { recursive: true, force: true });
       }
     });
+
+    // Tests the deleted-files loop in syncDriftState (lines 235-242):
+    // When a graph file is deleted between syncs, the hasGraphChange path fires.
+    it('sourceOnlyChange is false when a graph artifact file is deleted', async () => {
+      const { tmpDir } = await createTmpProject('drift-graph-deleted-sync', {
+        nodePath: 'svc/del-svc',
+        nodeYaml: 'name: DelSvc\ntype: service\nmapping:\n  paths:\n    - src/del.ts',
+        mappingFiles: {
+          'src/del.ts': 'v1',
+        },
+      });
+
+      try {
+        const graph = await loadGraph(tmpDir);
+
+        // Initial sync — records node YAML and source file in baseline
+        await syncDriftState(graph, 'svc/del-svc');
+
+        // Modify source file AND delete a graph artifact that was recorded in baseline.
+        // The graph artifact (yg-node.yaml) is tracked; deleting it and modifying source
+        // means the deleted-files loop detects hasGraphChange = true → sourceOnlyChange = false.
+        await writeFile(path.join(tmpDir, 'src/del.ts'), 'v2');
+        await rm(path.join(tmpDir, '.yggdrasil/model/svc/del-svc/yg-node.yaml'));
+
+        const result = await syncDriftState(graph, 'svc/del-svc');
+        // hasGraphChange = true (deleted graph file) → sourceOnlyChange must be false
+        expect(result.sourceOnlyChange).toBe(false);
+      } finally {
+        await rm(tmpDir, { recursive: true, force: true });
+      }
+    });
   });
 
   it('skips nodes without mapping during drift detection', async () => {

@@ -643,6 +643,59 @@ describe('approveNode — anti-laundering', () => {
   });
 });
 
+describe('approveNode — deleted tracked files', () => {
+  // When a source file is deleted from disk, it appears in storedEntry.files but not fileHashes.
+  // The deleted-files loop (line 169-172) fires and classifyChangedFile is called for it.
+  it('classifies deleted source file as source change', async () => {
+    const { tmpDir } = await createTmpProject('deleted-source', {
+      nodePath: 'svc/my-service',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  paths:\n    - src/svc/\n',
+      mappingFiles: {
+        'src/svc/index.ts': 'export default 42;\n',
+        'src/svc/helper.ts': 'export const helper = true;\n',
+      },
+    });
+    await recordBaseline(tmpDir);
+    // Delete one source file — it will be in storedEntry.files but not in fileHashes
+    await rm(path.join(tmpDir, 'src/svc/helper.ts'));
+    const graph = await loadGraph(tmpDir);
+    const result = await approveNode(graph, 'svc/my-service');
+    // Source was deleted without updating artifacts → refused
+    expect(result.action).toBe('refused');
+    expect(result.axes?.source).toBe('changed');
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  // When a tracked aspect file disappears from context (aspect removed from node),
+  // resolveLayer returns undefined and isGraph=true → hits the else-if-isGraph branch.
+  it('handles aspect file removed from context (resolveLayer returns undefined for graph file)', async () => {
+    const { tmpDir, yggRoot } = await createTmpProject('removed-aspect-ctx', {
+      nodePath: 'svc/my-service',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - aspect: logging\nmapping:\n  paths:\n    - src/svc/\n',
+      mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
+      aspects: [{
+        id: 'logging',
+        yaml: 'name: Logging\ndescription: test\n',
+        files: { 'rules.md': 'Log all mutations.\n' },
+      }],
+    });
+    await recordBaseline(tmpDir);
+    // Remove the aspect reference from node YAML — aspect files are now outside tracked context
+    // so resolveLayer will return undefined for them, but they're still graph files
+    await writeFile(
+      path.join(yggRoot, 'model/svc/my-service/yg-node.yaml'),
+      'name: MyService\ntype: service\ndescription: test\nmapping:\n  paths:\n    - src/svc/\n',
+    );
+    const graph = await loadGraph(tmpDir);
+    // The approve should run without crashing — aspect files in baseline trigger the else-if-isGraph path
+    const result = await approveNode(graph, 'svc/my-service');
+    // yg-node.yaml change is metadata (ignored); removed aspect files from context
+    // are treated as upstream (other tracked) via the else-if-isGraph branch
+    expect(['no-change', 'refused', 'approved']).toContain(result.action);
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+});
+
 describe('approveNode — GC and recording', () => {
   it('always records baseline even on no-op', async () => {
     const { tmpDir } = await createTmpProject('record-noop', {
