@@ -15,7 +15,7 @@ title: Yggdrasil
 
 ***
 
-Your agent asks "add payment retry to OrderService." It runs `yg build-context --node orders/order-service` and gets:
+Your agent asks "add payment retry to OrderService." It runs `yg context --node orders/order-service` and gets:
 
 ```
 DOMAIN       Orders — lifecycle states, event-sourced transitions

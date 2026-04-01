@@ -9,45 +9,26 @@ This page is for people who want to inspect or debug the repo's semantic memory.
 
 ---
 
-## Setup
+## Core workflow (4)
 
-```bash
-yg init [--platform <name>] [--upgrade]
-```
+| Command | Purpose |
+|---------|---------|
+| `yg context --file <path>` / `--node <path>` `[--full]` | Assemble context package |
+| `yg impact --file <path>` / `--node <path>` / `--aspect <id>` / `--flow <name>` | Blast radius analysis |
+| `yg check` | Unified gate — everything wrong, always global |
+| `yg approve --node <path> [--acknowledge "reason"]` | Record baseline after review |
 
-Creates `.yggdrasil/` and installs the platform instruction file.
-
-- `--platform <name>` — Agent platform (default: `generic`). Values: `cursor`, `claude-code`, `copilot`, `cline`, `roocode`, `codex`, `windsurf`, `aider`, `gemini`, `amp`, `generic`
-- `--upgrade` — Refresh rules only when `.yggdrasil/` already exists
-
----
-
-## Inspection
-
-```bash
-yg status
-```
-
-Summary: nodes, warnings, drift status.
-
-```bash
-yg tree [--root <path>] [--depth <n>]
-```
-
-Prints the full structure of the semantic memory.
-
-- `--root <path>` — Show only subtree rooted at this path
-- `--depth <n>` — Maximum depth
-
-```bash
-yg build-context --node <node-path> [--full] [--self]
-yg build-context --file <file-path> [--full] [--self]
-```
+### `yg context`
 
 Shows the exact context package your agent reads before working on a node. Output is a
 two-section YAML format: a structural map (topology, relationships, aspects, flows) followed
 by an artifact registry (file paths). Default mode returns paths only — agents read files
-individually using their file-reading tool.
+individually using their file-reading tool. Alias: `build-context`.
+
+```bash
+yg context --node <node-path> [--full]
+yg context --file <file-path> [--full]
+```
 
 - `--file <path>` — Resolves the owning node automatically, then assembles context. Prints
   owner mapping to stderr. If the file has no graph coverage but other files in the same
@@ -55,26 +36,64 @@ individually using their file-reading tool.
   Exits 1 if no coverage. Mutually exclusive with `--node`.
 - `--full` — Appends artifact file contents below a `---` separator in XML-style tags, for
   environments without file reading capabilities
-- `--self` — Returns only the node's own artifacts (no hierarchy, dependencies, aspects, or
-  flows). Use for file-level updates when cross-cutting context was already loaded at task-level.
+
+### `yg impact`
+
+Shows the blast radius of changes to a node, aspect, or flow.
+`--file` resolves the owning node automatically, then proceeds as `--node`.
 
 ```bash
-yg owner --file <path>
+yg impact --node <path>
+yg impact --file <path>
+yg impact --aspect <id>
+yg impact --flow <name>
 ```
 
-Finds which memory node owns a given file. Path is relative to repository root.
-Quick ownership check — use `build-context --file` when you need the full context package.
+- `--node` — Show reverse dependencies, descendants, structural dependents of descendants, flows, aspects, and co-aspect nodes
+- `--file` — Resolve owner, then proceed as `--node`
+- `--aspect` — Show all nodes where this aspect is effective (own, hierarchy, flow, or implied), plus structural dependents of affected nodes
+- `--flow` — Show all participants and their descendants, plus structural dependents of participants
+
+Exactly one of `--node`, `--file`, `--aspect`, or `--flow` is required.
+
+### `yg check`
+
+Unified gate combining structural integrity, drift detection, coverage, and completeness.
 
 ```bash
-yg deps --node <path> [--depth <n>] [--type <structural|event|all>]
+yg check
 ```
 
-Shows direct and transitive node dependencies.
+Outputs: header (project, counts, coverage, health score), errors grouped by category
+(drift, cascade, structural, coverage, completeness), warnings (budget, structure),
+result (PASS/FAIL with category counts), and suggested next command.
 
-- `--depth <n>` — Maximum depth for tree
-- `--type <type>` — Relation filter: `structural`, `event`, `all` (default: `all`)
+Exit code 0 if fully clean, 1 if any errors found.
+
+### `yg approve`
+
+Records the current file state as the new baseline after review. Per-node only.
+Alias: `drift-sync`.
+
+```bash
+yg approve --node <path>
+yg approve --node <path> --acknowledge "reason text"
+```
+
+- `--acknowledge "reason"` — Required when only one side changed (e.g., source changed but
+  artifacts did not, or cascade drift where source is already compliant). Provides audit trail.
 
 ---
+
+## Navigation (5)
+
+| Command | Purpose |
+|---------|---------|
+| `yg select --task <description> [--limit <n>]` | Find relevant nodes |
+| `yg tree [--root <path>] [--depth <n>]` | Graph structure |
+| `yg aspects` | List aspects |
+| `yg flows` | List flows |
+| `yg owner --file <path>` | Quick ownership lookup |
 
 ### `yg select`
 
@@ -98,105 +117,59 @@ Output: YAML list sorted by relevance score.
   name: OrderService
 ```
 
----
+### `yg tree`
 
-### `yg preflight`
-
-Unified diagnostic report combining drift, status, and validation.
+Prints the full structure of the semantic memory.
 
 ```bash
-yg preflight [--quick]
+yg tree [--root <path>] [--depth <n>]
 ```
 
-Outputs:
+- `--root <path>` — Show only subtree rooted at this path
+- `--depth <n>` — Maximum depth
 
-- **Drift** — nodes with source or graph drift (skipped with `--quick`)
-- **Status** — node, aspect, flow, and mapping counts
-- **Validation** — structural errors and completeness warnings
+### `yg aspects`
 
-- `--quick` — Skip drift detection for faster results (useful for large repos)
-
-Exit code 0 if fully clean, 1 if drift or validation errors found.
-
----
-
-## Validation
-
-```bash
-yg validate [--scope <scope>]
-```
-
-Checks the memory for structural errors and quality warnings.
-Exit code 1 on errors — useful as a CI merge gate.
-
-- `--scope <scope>` — `all` or node-path; includes descendant nodes (default: `all`)
-
----
-
-## Aspects
+Lists all defined aspects with metadata.
 
 ```bash
 yg aspects
 ```
 
-Lists all defined aspects with metadata.
+Output: YAML format with fields: `id`, `name`, `description`, `implies`, `anchors`.
 
-Output: YAML format with fields: `id`, `name`, `description`, `implies`.
+### `yg flows`
 
----
-
-## Flows
+Lists all defined flows with metadata.
 
 ```bash
 yg flows
 ```
 
-Lists all defined flows with metadata.
-
 Output: YAML format with fields: `name`, `nodes` (participants), `aspects`.
 
----
+### `yg owner`
 
-## Drift detection
-
-```bash
-yg drift [--scope <scope>] [--drifted-only] [--limit <n>]
-```
-
-Detects source and graph drift — files that changed outside the semantic memory (source drift)
-and graph artifacts that changed without a corresponding `drift-sync` (graph drift).
-
-- `--scope <scope>` — `all` or node-path; includes descendant nodes (default: `all`)
-- `--drifted-only` — Show only nodes with drift (hide ok entries)
-- `--limit <n>` — Maximum entries to show per section (truncated sections show remaining count)
+Finds which memory node owns a given file. Path is relative to repository root.
+Quick ownership check — use `yg context --file` when you need the full context package.
 
 ```bash
-yg drift-sync --node <path> [--recursive]
-yg drift-sync --all
+yg owner --file <path>
 ```
-
-Records current file hash after resolving drift.
-
-- `--recursive` — Also sync all descendant nodes
-- `--all` — Sync all nodes with mappings
 
 ---
 
-## Impact analysis
+## Setup (1)
+
+| Command | Purpose |
+|---------|---------|
+| `yg init [--platform <name>] [--upgrade]` | Initialize or upgrade |
 
 ```bash
-yg impact --node <path> [--simulate]
-yg impact --file <path> [--simulate]
-yg impact --aspect <id> [--simulate]
-yg impact --flow <name> [--simulate]
+yg init [--platform <name>] [--upgrade]
 ```
 
-Shows the blast radius of changes to a node, aspect, or flow.
-`--file` resolves the owning node automatically, then proceeds as `--node`.
+Creates `.yggdrasil/` and installs the platform instruction file.
 
-- `--node` — Show reverse dependencies, descendants, structural dependents of descendants, flows, aspects, and co-aspect nodes
-- `--aspect` — Show all nodes where this aspect is effective (own, hierarchy, flow, or implied), plus structural dependents of affected nodes
-- `--flow` — Show all participants and their descendants, plus structural dependents of participants
-- `--simulate` — Simulate context package impact (compare HEAD vs current)
-
-Exactly one of `--node`, `--aspect`, or `--flow` is required.
+- `--platform <name>` — Agent platform (default: `generic`). Values: `cursor`, `claude-code`, `copilot`, `cline`, `roocode`, `codex`, `windsurf`, `aider`, `gemini`, `amp`, `generic`
+- `--upgrade` — Refresh rules only when `.yggdrasil/` already exists
