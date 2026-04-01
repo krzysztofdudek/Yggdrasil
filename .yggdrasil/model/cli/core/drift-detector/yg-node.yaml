@@ -3,7 +3,13 @@ type: library
 description: "Compares current file hashes with drift-state baseline to detect source and graph drift"
 aspects:
   - aspect: deterministic
+    anchors:
+      pure-function:
+        regex: "export (function|const|async function)"
   - aspect: posix-paths
+    anchors:
+      forward-slash-normalization:
+        regex: "replace.*\\\\/|split.*path\\.sep"
 
 relations:
   - target: cli/io

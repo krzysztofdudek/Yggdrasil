@@ -1,0 +1,31 @@
+name: Root
+type: module
+description: "Root-level project files: configuration, documentation, CI/CD, devcontainer, and editor tooling"
+blackbox: true
+
+aspects: []
+relations: []
+
+mapping:
+  paths:
+    - .claude/
+    - .cursor/
+    - .devcontainer/
+    - .editorconfig
+    - .gitattributes
+    - .github/
+    - .gitignore
+    - .markdownlint-cli2.jsonc
+    - .nvmrc
+    - AGENTS.md
+    - CHANGELOG.md
+    - CLAUDE.md
+    - CODE_OF_CONDUCT.md
+    - CONTRIBUTING.md
+    - LICENSE
+    - README.md
+    - SECURITY.md
+    - SUPPORT.md
+    - Yggdrasil.code-workspace
+    - trailer.html
+    - source/.gitkeep

@@ -3,5 +3,8 @@ type: module
 description: "Deterministic CLI tool implementing Yggdrasil's persistent semantic memory for repositories"
 aspects:
   - aspect: deterministic
+    anchors:
+      pure-function:
+        regex: "export (function|const|async function)"
 
 relations: []

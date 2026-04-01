@@ -1,0 +1,11 @@
+name: CLI Tests
+type: module
+description: "Unit, integration, and e2e tests for the CLI, including test fixtures and sample projects"
+blackbox: false
+
+aspects: []
+relations: []
+
+mapping:
+  paths:
+    - source/cli/tests/

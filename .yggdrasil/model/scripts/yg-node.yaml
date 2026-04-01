@@ -1,0 +1,11 @@
+name: Scripts
+type: module
+description: "Repository automation scripts: repo health checks and CI tooling"
+blackbox: true
+
+aspects: []
+relations: []
+
+mapping:
+  paths:
+    - scripts/

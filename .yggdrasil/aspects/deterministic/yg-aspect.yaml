@@ -1,2 +1,4 @@
 name: Determinism
 description: "Same inputs must produce identical outputs — no randomness, no implicit system state, no network calls"
+anchors:
+  - pure-function

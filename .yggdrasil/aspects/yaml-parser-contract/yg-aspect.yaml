@@ -1,2 +1,4 @@
 name: YAML Parser Contract
 description: "Consistent pipeline for parsing graph YAML files into typed domain objects"
+anchors:
+  - yaml-parse-call

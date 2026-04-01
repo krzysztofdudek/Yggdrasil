@@ -3,7 +3,13 @@ type: library
 description: "Structural validation and completeness checks enforcing graph integrity (E001-E013/E030-E041, W001-W005)"
 aspects:
   - aspect: deterministic
+    anchors:
+      pure-function:
+        regex: "export (function|const|async function)"
   - aspect: posix-paths
+    anchors:
+      forward-slash-normalization:
+        regex: "replace.*\\\\/|join\\('/'\\)"
 
 relations:
   - target: cli/core/context

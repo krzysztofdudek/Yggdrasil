@@ -1,2 +1,4 @@
 name: Silent Missing Files
 description: "Optional graph files and state files return empty defaults instead of throwing on absence"
+anchors:
+  - null-on-missing

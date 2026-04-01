@@ -3,8 +3,21 @@ type: library
 description: "Resolves a file path to its owning graph node via yg owner"
 aspects:
   - aspect: deterministic
+    anchors:
+      pure-function:
+        regex: "export (function|const|async function)"
   - aspect: cli-command-contract
+    anchors:
+      stdout-write:
+        regex: "process\\.stdout\\.write"
+      error-handler:
+        regex: "process\\.stderr\\.write"
+      exit-code:
+        regex: "process\\.exit"
   - aspect: posix-paths
+    anchors:
+      forward-slash-normalization:
+        regex: "replace.*\\\\/|\\.split.*path\\.sep"
 
 relations:
   - target: cli/core/loader

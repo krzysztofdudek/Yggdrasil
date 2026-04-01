@@ -3,6 +3,9 @@ type: library
 description: "Assembles context packages via 5-step layer assembly: global, hierarchy, own, aspects, relational"
 aspects:
   - aspect: deterministic
+    anchors:
+      pure-function:
+        regex: "export (function|const|async function)"
 
 relations:
   - target: cli/model

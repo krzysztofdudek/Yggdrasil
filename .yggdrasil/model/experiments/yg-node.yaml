@@ -1,0 +1,11 @@
+name: Experiments
+type: module
+description: "Research experiments validating Yggdrasil concepts: meaning capture, drift recovery, domain knowledge, iteration"
+blackbox: true
+
+aspects: []
+relations: []
+
+mapping:
+  paths:
+    - experiments/

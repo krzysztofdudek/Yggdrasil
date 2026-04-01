@@ -3,6 +3,16 @@ type: module
 description: "Thin orchestration wrappers over core services, one per yg subcommand"
 aspects:
   - aspect: deterministic
+    anchors:
+      pure-function:
+        regex: "export (function|const|async function)"
   - aspect: cli-command-contract
+    anchors:
+      stdout-write:
+        regex: "process\\.stdout\\.write"
+      error-handler:
+        regex: "process\\.stderr\\.write"
+      exit-code:
+        regex: "process\\.exit"
 
 relations: []

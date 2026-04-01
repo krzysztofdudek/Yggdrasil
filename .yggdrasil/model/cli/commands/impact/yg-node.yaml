@@ -3,7 +3,17 @@ type: library
 description: "Blast radius analysis across node, aspect, and flow modes via yg impact"
 aspects:
   - aspect: deterministic
+    anchors:
+      pure-function:
+        regex: "export (function|const|async function)"
   - aspect: cli-command-contract
+    anchors:
+      stdout-write:
+        regex: "process\\.stdout\\.write"
+      error-handler:
+        regex: "process\\.stderr\\.write"
+      exit-code:
+        regex: "process\\.exit"
 
 relations:
   - target: cli/core/loader
