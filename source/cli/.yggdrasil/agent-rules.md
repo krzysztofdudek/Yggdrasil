@@ -338,8 +338,6 @@ Test: "Does this describe what happens in the world, or only in the software?" I
 |---------|---------|
 | `yg init [--platform] [--upgrade]` | Initialize or upgrade |
 
-**Aliases:** `build-context` for `context`, `drift-sync` for `approve`
-
 ### Error Codes
 
 **Structural integrity (E001-E013):** YAML parse failures, unknown node types, broken relations/flow/aspect references, overlapping mappings, structural cycles, invalid config, missing yg-node.yaml, implied aspect issues.
