@@ -53,7 +53,7 @@ VS Code task equivalent:
 
 - `Repo: Check All` (defined in `Yggdrasil.code-workspace`)
 
-This flow is fail-fast and covers CLI typecheck/lint/build/test, docs build, markdown lint, `yg validate`, and `yg drift`.
+This flow is fail-fast and covers CLI typecheck/lint/build/test, docs build, markdown lint, and `yg check`.
 
 ## Pull Request Guidelines
 
