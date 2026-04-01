@@ -7,7 +7,5 @@
 name: CrossCuttingRequirementName  # required — display name
 description: "Short description for discovery via yg aspects"  # optional
 # implies: [other-aspect, another-aspect] # optional — other aspect identifiers included automatically (recursive, must be acyclic)
-anchors:                            # required — abstract proof-point IDs that nodes carrying this aspect must realize
-  - proof-point-id                  # Each node with this aspect must realize each anchor ID with a typed pattern
-                                    # (e.g., { regex: "pattern" }) in its yg-node.yaml aspect entry.
-                                    # E039 fires if this field is missing or empty.
+anchors:                      # required — abstract anchor IDs that nodes must realize (E039 if missing)
+  - proof-point-id            # nodes carrying this aspect must realize each ID with a typed pattern

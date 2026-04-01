@@ -11,22 +11,31 @@ aspects:                      # optional — list of aspect configurations
   - aspect: aspect-id         # required — the key MUST be "aspect", value is the aspect directory name under aspects/
     exceptions:               # optional — how this node deviates from the aspect's pattern
       - "Description of deviation and why"
-    anchors:                  # optional — code patterns for aspect staleness detection
-      - functionName          # yg validate checks each pattern exists in mapped source files (W014)
-      - CONSTANT_NAME
+    anchors:                  # optional — map of anchor ID → typed realization object
+      anchor-id:              # key = anchor ID defined in the aspect's anchors field
+        regex: "pattern"      # regex pattern to find in mapped source files (E037 if not found)
 # Example with real values:
 #   aspects:
 #     - aspect: audit-logging
-#       anchors: [createAuditLog, AUDIT_LOG_TYPE]
+#       anchors:
+#         audit-entry: { regex: "createAuditLog|auditLog\\.create" }
+#         audit-actor: { regex: "userId|currentUser" }
 #     - aspect: provider-pattern
 #       exceptions: ["Uses eager init instead of lazy — surfaces config errors at startup"]
-#       anchors: [getTransport, createTransport]
+#       anchors:
+#         transport-init: { regex: "getTransport|createTransport" }
+
+integration_anchors:          # optional — anchor IDs that consumers must realize
+  - correlation-id
 
 relations:                    # optional — outgoing dependencies to other nodes
   - target: other/module-path # required — path relative to model/
     type: calls               # required — calls | uses | extends | implements | emits | listens
     consumes: [methodA, methodB] # optional — what is consumed from target
     failure: 'retry 3x, then circuit-break' # optional — failure handling strategy
+    anchors:                  # optional — integration anchor ID → typed realization object
+      correlation-id:
+        regex: "correlationId|correlation_id"
     # event_name: OrderPlaced # optional — display name for event relations (emits, listens)
 
 mapping:                      # optional — link to source files for ownership and drift detection

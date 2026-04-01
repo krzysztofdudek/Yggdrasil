@@ -360,7 +360,7 @@ Tools compare declarations on both sides and signal the missing complement.
 
 **Missing required aspect coverage**: a node of type X has `required_aspects` in config but the node
 lacks coverage (direct aspect or via implies) for one or more required aspects. Tools report this as
-a warning (W011).
+an error (E035).
 
 ### Role of Validation
 
