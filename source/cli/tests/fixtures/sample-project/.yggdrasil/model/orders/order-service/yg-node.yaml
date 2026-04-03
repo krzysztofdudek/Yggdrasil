@@ -2,10 +2,7 @@ name: OrderService
 description: x
 type: service
 aspects:
-  - aspect: requires-audit
-    anchors:
-      audit-entry:
-        regex: "OrderService"
+  - "requires-audit"
 relations:
   - target: auth/auth-api
     type: uses
@@ -20,3 +17,14 @@ relations:
 mapping:
   - paths:
       - src/orders/order.service.ts
+    aspects:
+      - aspect: requires-audit
+        anchors:
+          proof-point:
+            regex: 'AuditLog\.|audit\('
+            rationale: 'All order operations are logged to audit trail'
+      - aspect: requires-logging
+        anchors:
+          proof-point:
+            regex: 'logger\.'
+            rationale: 'Service logs all operations'

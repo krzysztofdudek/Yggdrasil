@@ -1,14 +1,14 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { STANDARD_ARTIFACTS } from '../model/types.js';
-import type { Graph, ValidationResult, ValidationIssue, ArtifactConfig, NodeAspectEntry } from '../model/types.js';
-import { buildContext, computeBudgetBreakdown, resolveAspects } from './context-builder.js';
+import type { Graph, ValidationResult, ValidationIssue, ArtifactConfig, GraphNode } from '../model/types.js';
+import { buildContext, computeBudgetBreakdown } from './context-builder.js';
 import { normalizeMappingPaths } from '../utils/paths.js';
-
-/** Extract flat aspect id list from unified aspect entries */
-function getAspectIds(aspects: NodeAspectEntry[] | undefined): string[] {
-  return (aspects ?? []).map(a => a.aspect);
-}
+import {
+  computeEffectiveAspects,
+  computeEffectiveIntegrationAspects,
+  getIntegrationAspectSource,
+} from './effective-aspects.js';
 
 /** Reserved directories that are NOT nodes (within model/) */
 const RESERVED_DIRS = new Set<string>();
@@ -42,7 +42,7 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
     issues.push(...checkAspectIdUniqueness(graph));
     issues.push(...checkImpliedAspectsExist(graph));
     issues.push(...checkImpliesNoCycles(graph));
-    issues.push(...checkRequiredAspectsCoverage(graph));
+    // E035 removed — replaced by E051 (architecture enforcement)
     issues.push(...checkAspectAnchors(graph));
     issues.push(...checkAnchorRealizations(graph));
     issues.push(...(await checkAnchorPatterns(graph)));
@@ -65,6 +65,7 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
   issues.push(...(await checkWideNodes(graph)));
   issues.push(...checkUnpairedEvents(graph));
   issues.push(...checkArchitectureConstraints(graph));
+  issues.push(...(await checkIntegrationAspects(graph)));
 
   let filtered = issues;
   let nodesScanned = graph.nodes.size;
@@ -189,7 +190,7 @@ function checkAspectsDefined(graph: Graph): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const validAspectIds = new Set(graph.aspects.map((a) => a.id));
   for (const [nodePath, node] of graph.nodes) {
-    for (const aspectId of getAspectIds(node.meta.aspects)) {
+    for (const aspectId of node.meta.aspects ?? []) {
       if (!validAspectIds.has(aspectId)) {
         issues.push({
           severity: 'error',
@@ -305,41 +306,7 @@ function checkImpliesNoCycles(graph: Graph): ValidationIssue[] {
   return issues;
 }
 
-// --- Rule: Required aspects coverage per node type ---
-
-function checkRequiredAspectsCoverage(graph: Graph): ValidationIssue[] {
-  const issues: ValidationIssue[] = [];
-  const typeConfig = new Map(
-    Object.entries(graph.config.node_types ?? {}).map(([name, cfg]) => [name, cfg.required_aspects ?? []]),
-  );
-  for (const [nodePath, node] of graph.nodes) {
-    if (node.meta.blackbox) continue;
-    const requiredAspects = typeConfig.get(node.meta.type);
-    if (!requiredAspects || requiredAspects.length === 0) continue;
-
-    const nodeAspectIds = getAspectIds(node.meta.aspects);
-    let effectiveAspects;
-    try {
-      effectiveAspects = resolveAspects(nodeAspectIds, graph.aspects);
-    } catch {
-      continue;
-    }
-    const effectiveAspectIds = new Set(effectiveAspects.map((a) => a.id));
-
-    for (const required of requiredAspects) {
-      if (!effectiveAspectIds.has(required)) {
-        issues.push({
-          severity: 'error',
-          code: 'E035',
-          rule: 'missing-required-aspect',
-          message: `Node '${nodePath}' (type: ${node.meta.type}) missing required aspect coverage for '${required}'`,
-          nodePath,
-        });
-      }
-    }
-  }
-  return issues;
-}
+// E035 (checkRequiredAspectsCoverage) removed — replaced by E051 in checkArchitectureConstraints
 
 // --- Rule 4: No circular dependencies (cycles involving blackbox are tolerated) ---
 
@@ -496,7 +463,7 @@ function artifactRequiredReason(
   graph: Graph,
   nodePath: string,
   node: {
-    meta: { relations?: Array<{ target: string }>; aspects?: NodeAspectEntry[]; blackbox?: boolean };
+    meta: { relations?: Array<{ target: string }>; aspects?: string[]; blackbox?: boolean };
     artifacts: Array<{ filename: string }>;
   },
   required: ArtifactConfig['required'],
@@ -850,9 +817,6 @@ function checkAspectAnchors(graph: Graph): ValidationIssue[] {
   return issues;
 }
 
-/** Structural relation types — used by anchor validation */
-const STRUCTURAL_TYPES = new Set(['uses', 'calls', 'extends', 'implements']);
-
 // E040: Mapping group anchors must have required fields (regex + rationale)
 function checkAnchorRealizations(graph: Graph): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -892,38 +856,9 @@ function checkAnchorRealizations(graph: Graph): ValidationIssue[] {
       }
     }
 
-    // Check integration anchor realizations on relations (legacy support)
-    for (const rel of node.meta.relations ?? []) {
-      if (!STRUCTURAL_TYPES.has(rel.type)) continue;
-      const target = graph.nodes.get(rel.target);
-      if (!target?.meta.integration_aspects) continue;
-
-      for (const anchorId of target.meta.integration_aspects) {
-        const realization = rel.anchors?.[anchorId];
-        if (!realization) {
-          issues.push({
-            severity: 'error',
-            code: 'E040',
-            rule: 'integration-anchor-not-realized',
-            message: `Dependency '${rel.target}' requires anchor '${anchorId}' but relation has no realization for it.\nAdd an anchors map to the relation entry in yg-node.yaml:\n  relations:\n    - target: ${rel.target}\n      anchors:\n        ${anchorId}:\n          regex: "<pattern>"`,
-            nodePath,
-          });
-          continue;
-        }
-        const typeKeys = Object.keys(realization).filter(k => k !== '__proto__');
-        if (typeKeys.length !== 1 || typeKeys[0] !== 'regex') {
-          const unknownTypes = typeKeys.filter(k => k !== 'regex');
-          const unknownType = unknownTypes[0] ?? (typeKeys.length === 0 ? 'empty' : typeKeys.join('+'));
-          issues.push({
-            severity: 'error',
-            code: 'E041',
-            rule: 'unknown-anchor-type',
-            message: `Anchor '${anchorId}' uses type '${unknownType}' which is not supported.\nSupported types: regex.\nUpgrade CLI or change to a supported type.`,
-            nodePath,
-          });
-        }
-      }
-    }
+    // Note: integration anchor checking has been removed from relation level.
+    // Integration aspects are now just string IDs. Anchor realizations (if needed)
+    // are in mapping groups, not in the relation object.
   }
   return issues;
 }
@@ -986,55 +921,8 @@ async function checkAnchorPatterns(graph: Graph): Promise<ValidationIssue[]> {
       }
     }
 
-    // Check integration anchor patterns on relations (legacy support)
-    for (const rel of node.meta.relations ?? []) {
-      if (!STRUCTURAL_TYPES.has(rel.type)) continue;
-      if (!rel.anchors) continue;
-      const target = graph.nodes.get(rel.target);
-      if (!target?.meta.integration_aspects) continue;
-
-      const mappingPaths = normalizeMappingPaths(node.meta.mapping);
-      if (mappingPaths.length === 0) continue;
-
-      const sourceFiles = await expandMappingToFiles(projectRoot, mappingPaths);
-      if (sourceFiles.length === 0) continue;
-
-      const fileContents: Array<{ path: string; content: string }> = [];
-      for (const filePath of sourceFiles) {
-        try {
-          const content = await readFile(filePath, 'utf-8');
-          fileContents.push({ path: filePath, content });
-        } catch { /* skip unreadable */ }
-      }
-
-      for (const anchorId of target.meta.integration_aspects) {
-        const realization = rel.anchors[anchorId];
-        if (!realization?.regex) continue;
-
-        try {
-          const regex = new RegExp(realization.regex);
-          const found = fileContents.some(f => regex.test(f.content));
-          if (!found) {
-            const mappedFiles = sourceFiles.map(f => path.relative(projectRoot, f));
-            issues.push({
-              severity: 'error',
-              code: 'E037',
-              rule: 'integration-anchor-not-found',
-              message: `Dependency '${rel.target}' expects anchor '${anchorId}' with pattern\n'${realization.regex}' in source.\nPattern not found in mapped files:\n${mappedFiles.map(f => '  ' + f).join('\n')}\nImplement the integration requirement, or update the anchor realization\nin the relation entry in yg-node.yaml.`,
-              nodePath,
-            });
-          }
-        } catch {
-          issues.push({
-            severity: 'error',
-            code: 'E037',
-            rule: 'integration-anchor-not-found',
-            message: `Dependency '${rel.target}' anchor '${anchorId}' has invalid regex pattern '${realization.regex}'.`,
-            nodePath,
-          });
-        }
-      }
-    }
+    // Note: integration anchor pattern checking on relations has been removed.
+    // Integration anchors are now checked via mapping groups (in checkAnchorPatterns above).
   }
   return issues;
 }
@@ -1150,92 +1038,189 @@ function checkMissingDescriptions(graph: Graph): ValidationIssue[] {
 function checkArchitectureConstraints(graph: Graph): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
-  // E050, E051, E052, E053, E054 require architecture to be defined and loaded
-  // Only validate if architecture has node_types entries (indicating yg-architecture.yaml exists)
-  // or if config.node_types has entries (indicating yg-config.yaml with old format)
+  // E050-E054 require architecture to be defined and loaded
+  // Only validate if architecture has node_types entries
   if (!graph.architecture || Object.keys(graph.architecture.node_types).length === 0) {
     return issues;
   }
 
-  const archNodeTypes = graph.architecture.node_types;
+  // E050, E053, E054: Per-mapping-group aspect checks (require full context: effective + integration)
+  issues.push(...checkMappingGroupAspects(graph));
+
+  // E051: invalid-relation-target (sync, no I/O)
+  issues.push(...checkArchitectureRelations(graph));
+
+  // E052: invalid-parent-type (sync, no I/O)
+  issues.push(...checkArchitectureParents(graph));
+
+  return issues;
+}
+
+/**
+ * E050 — missing-required-aspect
+ * E054 — unexpected-aspect
+ * Per-mapping-group sync checks for aspect declarations.
+ * Computes effective aspects (from architecture, parent, flow, own, implies chain)
+ * and checks that every mapping group declares all required aspects.
+ */
+function checkMappingGroupAspects(graph: Graph): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
 
   for (const [nodePath, node] of graph.nodes) {
-    // E050: Invalid node type
-    if (!archNodeTypes[node.meta.type]) {
-      issues.push({
-        severity: 'error',
-        code: 'E050',
-        rule: 'invalid-node-type',
-        message: `Node type '${node.meta.type}' not defined in yg-architecture.yaml`,
-        nodePath,
-      });
-      // Can't validate further without valid type
+    // Skip blackbox and nodes without mapping groups
+    if (node.meta.blackbox || !node.meta.mapping || node.meta.mapping.length === 0) {
       continue;
     }
 
-    const archType = archNodeTypes[node.meta.type];
+    // Compute effective aspects from all sources
+    const effective = computeEffectiveAspects({
+      nodeType: node.meta.type,
+      architecture: graph.architecture,
+      parentTypes: node.parent ? [node.parent.meta.type] : [],
+      ownAspects: node.meta.aspects ?? [],
+      ownIntegrationAspects: node.meta.integration_aspects ?? [],
+      flowAspects: getFlowAspects(node, graph),
+      allAspects: graph.aspects,
+      allFlows: graph.flows,
+    });
 
-    // E051: Missing required aspect
-    if (archType.aspects && archType.aspects.length > 0) {
-      const nodeAspectIds = getAspectIds(node.meta.aspects);
-      const effectiveAspects = resolveAspects(nodeAspectIds, graph.aspects);
-      const effectiveAspectIds = new Set(effectiveAspects.map((a) => a.id));
+    // Compute allowed set: effective aspects + integration aspects from all relation targets
+    const allowedAspects = new Set(effective.regular);
+    if (node.meta.relations && node.meta.relations.length > 0) {
+      for (const rel of node.meta.relations) {
+        const target = graph.nodes.get(rel.target);
+        if (target) {
+          // Get target's integration aspects
+          const targetIntegration = computeEffectiveAspects({
+            nodeType: target.meta.type,
+            architecture: graph.architecture,
+            parentTypes: target.parent ? [target.parent.meta.type] : [],
+            ownAspects: [],
+            ownIntegrationAspects: target.meta.integration_aspects ?? [],
+            flowAspects: [],
+            allAspects: graph.aspects,
+            allFlows: graph.flows,
+          });
+          for (const ia of targetIntegration.integration) {
+            allowedAspects.add(ia);
+          }
+        }
+        // If target not found, E004 fires separately — don't restrict allowed set
+      }
+    }
 
-      for (const requiredAspectId of archType.aspects) {
-        if (!effectiveAspectIds.has(requiredAspectId)) {
+    // Check each mapping group
+    for (const group of node.meta.mapping) {
+      const declaredAspects = new Set((group.aspects ?? []).map((a) => a.aspect));
+
+      // E050: missing-required-aspect — for each aspect in effective set not declared
+      for (const required of effective.regular) {
+        if (!declaredAspects.has(required)) {
+          const source = getAspectSource(required, node, graph);
           issues.push({
             severity: 'error',
-            code: 'E051',
+            code: 'E050',
             rule: 'missing-required-aspect',
-            message: `Node must have aspect '${requiredAspectId}' (required by type: ${node.meta.type})`,
             nodePath,
+            message:
+              `Files: ${group.paths.join(', ')}\n` +
+              `  Missing aspect: ${required}\n` +
+              `  Required by: ${source}\n\n` +
+              `  This mapping group does not prove '${required}'.\n` +
+              `  To fix:\n` +
+              `    1. Read .yggdrasil/aspects/${required}/description.md\n` +
+              `    2. Find the pattern that proves these files implement '${required}'\n` +
+              `    3. Add an anchor with regex + rationale to this mapping group\n` +
+              `       in yg-node.yaml`,
           });
         }
       }
-    }
 
-    // E052: Unsupported parent type
-    if (archType.parents && node.parent) {
-      const parentType = node.parent.meta.type;
-      if (!archType.parents.includes(parentType)) {
-        issues.push({
-          severity: 'error',
-          code: 'E052',
-          rule: 'unsupported-parent-type',
-          message: `Parent type '${parentType}' not allowed for type '${node.meta.type}'`,
-          nodePath,
-        });
-      }
-    }
-
-    // E053 & E054: Relation type validation
-    if (archType.relations && node.meta.relations && node.meta.relations.length > 0) {
-      for (const relation of node.meta.relations) {
-        // E053: Check if relation type is allowed for this node type
-        if (!archType.relations[relation.type]) {
+      // E054: unexpected-aspect — for each declared aspect not in allowed set
+      for (const declared of declaredAspects) {
+        if (!allowedAspects.has(declared)) {
+          const effectiveList = [...effective.regular].sort().join(', ');
+          const integrationList = [...allowedAspects]
+            .filter((a) => !effective.regular.has(a))
+            .sort()
+            .join(', ');
           issues.push({
             severity: 'error',
-            code: 'E053',
-            rule: 'unsupported-relation-type',
-            message: `Node type '${node.meta.type}' does not support '${relation.type}' relations`,
+            code: 'E054',
+            rule: 'unexpected-aspect',
             nodePath,
+            message:
+              `Mapping group containing: ${group.paths.join(', ')}\n` +
+              `  Aspect '${declared}' is declared but not in allowed aspects.\n\n` +
+              `  Effective aspects:\n` +
+              `    [${effectiveList || 'none'}]\n` +
+              (integrationList
+                ? `  Integration aspects (from relations):\n` +
+                  `    [${integrationList}]\n`
+                : '') +
+              `\n  Either:\n` +
+              `    1. Add '${declared}' to this node's aspects list in yg-node.yaml\n` +
+              `    2. Remove '${declared}' from this mapping group`,
           });
-          continue; // Skip E054 check if relation type is not supported
         }
+      }
+    }
+  }
 
-        // E054: Check if target type supports being in this relation
-        const targetNode = graph.nodes.get(relation.target);
-        if (targetNode) {
-          const targetType = targetNode.meta.type;
-          const allowedTargetTypes = archType.relations?.[relation.type];
+  return issues;
+}
 
-          if (allowedTargetTypes && !allowedTargetTypes.includes(targetType)) {
+/**
+ * E053 — integration-aspect-missing
+ * When a node A has a relation to node B, and B declares integration_aspects,
+ * then A's mapping groups must declare those integration aspects.
+ */
+async function checkIntegrationAspects(graph: Graph): Promise<ValidationIssue[]> {
+  const issues: ValidationIssue[] = [];
+
+  // E053 requires architecture to be defined and loaded
+  if (!graph.architecture || Object.keys(graph.architecture.node_types).length === 0) {
+    return issues;
+  }
+
+  for (const [nodePath, node] of graph.nodes) {
+    // Skip blackbox and nodes without mapping groups or relations
+    if (node.meta.blackbox || !node.meta.mapping || node.meta.mapping.length === 0) {
+      continue;
+    }
+    if (!node.meta.relations || node.meta.relations.length === 0) {
+      continue;
+    }
+
+    for (const rel of node.meta.relations) {
+      const target = graph.nodes.get(rel.target);
+      if (!target) continue; // E004 catches missing targets
+
+      // Get target's integration aspects (from architecture, own, or inherited)
+      const requiredIntegration = computeEffectiveIntegrationAspects(target, graph);
+      if (requiredIntegration.size === 0) continue;
+
+      for (const group of node.meta.mapping) {
+        const declaredAspects = new Set((group.aspects ?? []).map((a) => a.aspect));
+
+        for (const required of requiredIntegration) {
+          if (!declaredAspects.has(required)) {
+            const intSource = getIntegrationAspectSource(required, target, graph);
             issues.push({
               severity: 'error',
-              code: 'E054',
-              rule: 'relation-target-type-unsupported',
-              message: `Relation '${relation.type}' targets '${targetType}' type, but '${targetType}' does not support being a target of '${relation.type}' relations`,
+              code: 'E053',
+              rule: 'integration-aspect-missing',
               nodePath,
+              message:
+                `Files: ${group.paths.join(', ')}\n` +
+                `  Missing aspect: ${required}\n` +
+                `  Required by: relation to '${rel.target}' — integration_aspects\n` +
+                `    from ${intSource}\n\n` +
+                `  When consuming '${rel.target}', your files must prove '${required}'.\n` +
+                `  To fix:\n` +
+                `    1. Read .yggdrasil/aspects/${required}/description.md\n` +
+                `    2. Add an anchor for '${required}' to this mapping group\n` +
+                `       in yg-node.yaml`,
             });
           }
         }
@@ -1244,4 +1229,140 @@ function checkArchitectureConstraints(graph: Graph): ValidationIssue[] {
   }
 
   return issues;
+}
+
+/**
+ * E051 — invalid-relation-target
+ * Relation target type must be in architecture's allowed list for the relation type.
+ */
+function checkArchitectureRelations(graph: Graph): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+
+  for (const [nodePath, node] of graph.nodes) {
+    const typeConfig = graph.architecture.node_types[node.meta.type];
+    if (!typeConfig?.relations || !node.meta.relations || node.meta.relations.length === 0) {
+      continue;
+    }
+
+    for (const rel of node.meta.relations) {
+      const allowedTypes = typeConfig.relations[rel.type];
+      if (!allowedTypes) continue; // Unconstrained relation type
+
+      const target = graph.nodes.get(rel.target);
+      if (!target) continue; // E004 catches missing target
+
+      if (!allowedTypes.includes(target.meta.type)) {
+        issues.push({
+          severity: 'error',
+          code: 'E051',
+          rule: 'invalid-relation-target',
+          nodePath,
+          message:
+            `Relation: ${rel.type} -> ${rel.target} (type: ${target.meta.type})\n` +
+            `  Architecture does not allow type '${node.meta.type}' to '${rel.type}' type '${target.meta.type}'.\n` +
+            `  Allowed targets for '${rel.type}': [${allowedTypes.join(', ')}]\n\n` +
+            `  Either:\n` +
+            `    1. Change the relation type\n` +
+            `    2. Change the target node's type\n` +
+            `    3. Update yg-architecture.yaml to allow this relation`,
+        });
+      }
+    }
+  }
+
+  return issues;
+}
+
+/**
+ * E052 — invalid-parent-type
+ * Parent type must be in architecture's allowed list for this node type.
+ */
+function checkArchitectureParents(graph: Graph): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+
+  for (const [nodePath, node] of graph.nodes) {
+    const typeConfig = graph.architecture.node_types[node.meta.type];
+    if (!typeConfig?.parents || !node.parent) {
+      continue;
+    }
+
+    if (!typeConfig.parents.includes(node.parent.meta.type)) {
+      issues.push({
+        severity: 'error',
+        code: 'E052',
+        rule: 'invalid-parent-type',
+        nodePath,
+        message:
+          `Parent: ${node.parent.path} (type: ${node.parent.meta.type})\n` +
+          `  Architecture does not allow type '${node.meta.type}' under parent type '${node.parent.meta.type}'.\n` +
+          `  Allowed parents: [${typeConfig.parents.join(', ')}]\n\n` +
+          `  Either:\n` +
+          `    1. Move this node under an allowed parent type\n` +
+          `    2. Change this node's type\n` +
+          `    3. Update yg-architecture.yaml to allow this parent`,
+      });
+    }
+  }
+
+  return issues;
+}
+
+/**
+ * Helper: Get all aspect IDs that this node participates in via flows.
+ */
+function getFlowAspects(node: GraphNode, graph: Graph): string[] {
+  const aspects: string[] = [];
+  for (const flow of graph.flows) {
+    if (flow.nodes && flow.nodes.includes(node.path)) {
+      for (const aspect of flow.aspects ?? []) {
+        if (!aspects.includes(aspect)) {
+          aspects.push(aspect);
+        }
+      }
+    }
+  }
+  return aspects;
+}
+
+/**
+ * Helper: Determine the source of a required aspect (architecture, flow, parent, or own).
+ */
+function getAspectSource(aspectId: string, node: GraphNode, graph: Graph): string {
+  const typeConfig = graph.architecture.node_types[node.meta.type];
+
+  // Check if from architecture type requirement
+  if (typeConfig?.aspects?.includes(aspectId)) {
+    return `architecture (type '${node.meta.type}' requires [${typeConfig.aspects.join(', ')}])`;
+  }
+
+  // Check if from flow participation
+  for (const flow of graph.flows) {
+    if (flow.nodes?.includes(node.path) && flow.aspects?.includes(aspectId)) {
+      return `flow '${flow.path}' (participants must prove [${flow.aspects.join(', ')}])`;
+    }
+  }
+
+  // Check if from parent inheritance
+  if (node.parent) {
+    const parentEffective = computeEffectiveAspects({
+      nodeType: node.parent.meta.type,
+      architecture: graph.architecture,
+      parentTypes: node.parent.parent ? [node.parent.parent.meta.type] : [],
+      ownAspects: node.parent.meta.aspects ?? [],
+      ownIntegrationAspects: [],
+      flowAspects: getFlowAspects(node.parent, graph),
+      allAspects: graph.aspects,
+      allFlows: graph.flows,
+    });
+    if (parentEffective.regular.has(aspectId)) {
+      return `parent inheritance (${node.parent.path} effective aspects)`;
+    }
+  }
+
+  // Check if from own declaration
+  if (node.meta.aspects?.includes(aspectId)) {
+    return `own declaration in yg-node.yaml`;
+  }
+
+  return `(source unknown — aspect not found in any effective set)`;
 }

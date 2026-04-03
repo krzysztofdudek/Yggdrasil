@@ -358,9 +358,13 @@ of excessive coupling.
 has no matching `listens`, or vice versa — event-based communication is declared unilaterally.
 Tools compare declarations on both sides and signal the missing complement.
 
-**Missing required aspect coverage**: a node of type X has `required_aspects` in config but the node
-lacks coverage (direct aspect or via implies) for one or more required aspects. Tools report this as
-an error (E035).
+**Architecture constraint violations**: enforced per mapping group and per node from
+`yg-architecture.yaml`. E050 fires when a mapping group does not declare a required
+effective aspect. E051 fires when a relation target's type is not in the architecture
+allowed list. E052 fires when a parent type is not in the allowed `parents` list. E053
+fires when a consumer's mapping group is missing an integration aspect required by a
+relation target. E054 fires when a mapping group declares an aspect outside the
+effective + integration set.
 
 ### Role of Validation
 
@@ -427,13 +431,17 @@ For each node with mapping:
    - Recursively expand all `implies` references
    - Result: a set of aspect IDs that this node must prove
 
-2. **For each mapping group**
+2. **For each mapping group (per-file enforcement)**
    - Must declare ALL effective aspects → E050 if missing
    - Must NOT declare aspects outside the allowed set → E054 if extra
    - For each declared aspect, all anchor IDs from `yg-aspect.yaml` must be realized → E040 if missing
    - For each anchor regex, pattern must match in EVERY file in the group → E037 if not found
 
-3. **For each structural relation to target B**
+3. **Structural architecture constraints**
+   - Relation target types must be in architecture allowed list → E051 if not
+   - Parent types must be in architecture allowed `parents` list → E052 if not
+
+4. **For each structural relation to target B**
    - Compute `effective_integration_aspects(B)`
    - Consumer's mapping groups must declare all integration aspects → E053 if missing
 

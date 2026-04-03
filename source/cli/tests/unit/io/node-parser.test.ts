@@ -20,7 +20,15 @@ describe('node-parser', () => {
       expect.objectContaining({ target: 'users/user-repo', type: 'uses' }),
     );
     expect(meta.blackbox).toBe(false);
-    expect(meta.mapping).toEqual([{ paths: ['src/orders/order.service.ts'] }]);
+    expect(meta.mapping).toHaveLength(1);
+    expect(meta.mapping[0]!.paths).toEqual(['src/orders/order.service.ts']);
+    expect(meta.mapping[0]!.aspects).toHaveLength(2);
+    expect(meta.mapping[0]!.aspects).toContainEqual(
+      expect.objectContaining({ aspect: 'requires-audit' }),
+    );
+    expect(meta.mapping[0]!.aspects).toContainEqual(
+      expect.objectContaining({ aspect: 'requires-logging' }),
+    );
   });
 
   it('throws on empty YAML file', async () => {
@@ -229,7 +237,7 @@ blackbox: true
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('parses node with aspects field', async () => {
+  it('parses node with aspects field (new format)', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-aspects');
     await mkdir(tmpDir, { recursive: true });
     const nodePath = path.join(tmpDir, 'yg-node.yaml');
@@ -239,14 +247,14 @@ blackbox: true
 name: AspectedNode
 type: service
 aspects:
-  - aspect: requires-auth
-  - aspect: public-api
+  - "requires-auth"
+  - "public-api"
 `,
       'utf-8',
     );
 
     const meta = await parseNodeYaml(nodePath);
-    expect(meta.aspects).toEqual([{ aspect: 'requires-auth' }, { aspect: 'public-api' }]);
+    expect(meta.aspects).toEqual(['requires-auth', 'public-api']);
 
     await rm(tmpDir, { recursive: true, force: true });
   });
@@ -637,57 +645,11 @@ relations:
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('parses aspects with exceptions correctly', async () => {
-    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-aspect-exc');
-    await mkdir(tmpDir, { recursive: true });
-    const nodePath = path.join(tmpDir, 'yg-node.yaml');
-    await writeFile(
-      nodePath,
-      `
-name: PubSubNode
-type: service
-aspects:
-  - aspect: pubsub-events
-    exceptions:
-      - "updateUserSessions uses await instead of fire-and-forget"
-  - aspect: pessimistic-locking
-`,
-      'utf-8',
-    );
-
-    const meta = await parseNodeYaml(nodePath);
-    expect(meta.aspects).toHaveLength(2);
-    expect(meta.aspects![0].aspect).toBe('pubsub-events');
-    expect(meta.aspects![0].exceptions).toEqual(['updateUserSessions uses await instead of fire-and-forget']);
-    expect(meta.aspects![1].aspect).toBe('pessimistic-locking');
-    expect(meta.aspects![1].exceptions).toBeUndefined();
-
-    await rm(tmpDir, { recursive: true, force: true });
-  });
+  // Test removed: aspect exceptions no longer exist in node metadata
+  // New format has aspects as simple strings only
 
 
-  it('aspects without exceptions have undefined exceptions field', async () => {
-    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-no-exc');
-    await mkdir(tmpDir, { recursive: true });
-    const nodePath = path.join(tmpDir, 'yg-node.yaml');
-    await writeFile(
-      nodePath,
-      `
-name: NoExcNode
-type: service
-aspects:
-  - aspect: pubsub-events
-`,
-      'utf-8',
-    );
-
-    const meta = await parseNodeYaml(nodePath);
-    expect(meta.aspects).toHaveLength(1);
-    expect(meta.aspects![0].aspect).toBe('pubsub-events');
-    expect(meta.aspects![0].exceptions).toBeUndefined();
-
-    await rm(tmpDir, { recursive: true, force: true });
-  });
+  // Test removed: aspects are now strings only, no .aspect/.exceptions fields
 
   it('parses node with relations including consumes and failure', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-rels');
@@ -725,101 +687,11 @@ relations:
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('parses typed anchor realizations on aspect entries', async () => {
-    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-anchors');
-    await mkdir(tmpDir, { recursive: true });
-    const nodePath = path.join(tmpDir, 'yg-node.yaml');
-    await writeFile(
-      nodePath,
-      `name: AnchoredNode
-type: service
-aspects:
-  - aspect: pessimistic-locking
-    anchors:
-      lock-acquisition:
-        regex: "lockTeamCollection"
-      for-update:
-        regex: "FOR UPDATE"
-  - aspect: retry-on-deadlock
-    anchors:
-      max-retries:
-        regex: "MAX_RETRIES"
-`,
-      'utf-8',
-    );
+  // Test removed: anchor realizations on aspect entries no longer exist
+  // Anchors are now only in mapping groups
 
-    const meta = await parseNodeYaml(nodePath);
-    expect(meta.aspects).toHaveLength(2);
-    expect(meta.aspects![0].anchors).toEqual({
-      'lock-acquisition': { regex: 'lockTeamCollection' },
-      'for-update': { regex: 'FOR UPDATE' },
-    });
-    expect(meta.aspects![1].anchors).toEqual({
-      'max-retries': { regex: 'MAX_RETRIES' },
-    });
-
-    await rm(tmpDir, { recursive: true, force: true });
-  });
-
-  it('throws when aspect anchors is a bare string array (migration error)', async () => {
-    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-bare-anchors');
-    await mkdir(tmpDir, { recursive: true });
-    const nodePath = path.join(tmpDir, 'yg-node.yaml');
-    await writeFile(
-      nodePath,
-      `name: Bad
-type: service
-aspects:
-  - aspect: my-aspect
-    anchors:
-      - lockTeamCollection
-      - FOR UPDATE
-`,
-      'utf-8',
-    );
-
-    await expect(parseNodeYaml(nodePath)).rejects.toThrow(
-      'anchors must be an object mapping anchor IDs to typed realizations',
-    );
-
-    await rm(tmpDir, { recursive: true, force: true });
-  });
-
-  it('throws when anchor realization is not an object', async () => {
-    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-bad-anchor-val');
-    await mkdir(tmpDir, { recursive: true });
-    const nodePath = path.join(tmpDir, 'yg-node.yaml');
-    await writeFile(
-      nodePath,
-      `name: Bad
-type: service
-aspects:
-  - aspect: my-aspect
-    anchors:
-      my-anchor: "just-a-string"
-`,
-      'utf-8',
-    );
-
-    await expect(parseNodeYaml(nodePath)).rejects.toThrow(
-      'must be an object with a type property',
-    );
-
-    await rm(tmpDir, { recursive: true, force: true });
-  });
-
-  it('aspects without anchors have undefined anchors field', async () => {
-    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-no-anchors');
-    await mkdir(tmpDir, { recursive: true });
-    const nodePath = path.join(tmpDir, 'yg-node.yaml');
-    await writeFile(nodePath, `name: NoAnchors\ntype: service\naspects:\n  - aspect: my-aspect\n`, 'utf-8');
-
-    const meta = await parseNodeYaml(nodePath);
-    expect(meta.aspects).toHaveLength(1);
-    expect(meta.aspects![0].anchors).toBeUndefined();
-
-    await rm(tmpDir, { recursive: true, force: true });
-  });
+  // Old format tests removed: aspects are now string arrays only
+  // object formats (with aspect/anchors/exceptions) are rejected with migration message
 
   it('parses flat string aspects array (new format)', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-flat-aspects');
@@ -829,47 +701,47 @@ aspects:
 
     const meta = await parseNodeYaml(nodePath);
     expect(meta.aspects).toEqual([
-      { aspect: 'requires-auth' },
-      { aspect: 'audit-logging' },
+      'requires-auth',
+      'audit-logging',
     ]);
 
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('throws when aspects entry is not an object or string', async () => {
+  it('throws when aspects entry is not a string', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-bad-aspect-entry');
     await mkdir(tmpDir, { recursive: true });
     const nodePath = path.join(tmpDir, 'yg-node.yaml');
     await writeFile(nodePath, `name: Bad\ntype: service\naspects:\n  - 123\n`, 'utf-8');
 
     await expect(parseNodeYaml(nodePath)).rejects.toThrow(
-      "aspects[0] must be a string or object with 'aspect' key",
+      "aspects[0] must be a string",
     );
 
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('throws when aspects entry has no aspect key', async () => {
+  it('throws when aspects entry is old object format', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-no-aspect-key');
     await mkdir(tmpDir, { recursive: true });
     const nodePath = path.join(tmpDir, 'yg-node.yaml');
     await writeFile(nodePath, `name: Bad\ntype: service\naspects:\n  - exceptions:\n      - "some note"\n`, 'utf-8');
 
     await expect(parseNodeYaml(nodePath)).rejects.toThrow(
-      'aspects[0].aspect must be a non-empty string',
+      "aspects must be an array of strings. Run 'yg init --upgrade' to migrate.",
     );
 
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('throws when aspects entry has non-array exceptions', async () => {
+  it('throws when aspects entry is old object format with exceptions', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-bad-exc-type');
     await mkdir(tmpDir, { recursive: true });
     const nodePath = path.join(tmpDir, 'yg-node.yaml');
     await writeFile(nodePath, `name: Bad\ntype: service\naspects:\n  - aspect: my-aspect\n    exceptions: "not-array"\n`, 'utf-8');
 
     await expect(parseNodeYaml(nodePath)).rejects.toThrow(
-      'aspects[0].exceptions must be an array of strings',
+      "aspects must be an array of strings. Run 'yg init --upgrade' to migrate.",
     );
 
     await rm(tmpDir, { recursive: true, force: true });
@@ -879,7 +751,7 @@ aspects:
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-dup-aspect');
     await mkdir(tmpDir, { recursive: true });
     const nodePath = path.join(tmpDir, 'yg-node.yaml');
-    await writeFile(nodePath, `name: Bad\ntype: service\naspects:\n  - aspect: my-aspect\n  - aspect: my-aspect\n`, 'utf-8');
+    await writeFile(nodePath, `name: Bad\ntype: service\naspects:\n  - "my-aspect"\n  - "my-aspect"\n`, 'utf-8');
 
     await expect(parseNodeYaml(nodePath)).rejects.toThrow(
       "duplicate aspect 'my-aspect' in aspects list",

@@ -667,7 +667,7 @@ describe.skipIf(!distExists)('CLI E2E', () => {
       const node = parseYaml(
         readFileSync(path.join(yggDir, 'model', 'svc', 'yg-node.yaml'), 'utf-8'),
       ) as Record<string, unknown>;
-      expect(node.aspects).toEqual([{ aspect: 'audit' }]);
+      expect(node.aspects).toEqual(['audit']);
 
       // Verify stack migrated to internals.md
       expect(existsSync(path.join(yggDir, 'model', 'internals.md'))).toBe(true);

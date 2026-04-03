@@ -9,5 +9,5 @@ relations: []
 
 mapping:
   - paths:
-    - source/cli/src/core/migrator.ts
-    - source/cli/src/migrations/
+      - source/cli/src/core/migrator.ts
+      - source/cli/src/migrations/

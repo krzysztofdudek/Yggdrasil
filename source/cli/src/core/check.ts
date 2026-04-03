@@ -606,12 +606,13 @@ async function allPathsMissing(projectRoot: string, mappingPaths: string[]): Pro
 }
 /* v8 ignore stop */
 
-/** Structural relation types — used by anchor-pass check */
-const STRUCTURAL_TYPES = new Set(['uses', 'calls', 'extends', 'implements']);
 
 /**
  * Check whether all realized anchor regex patterns still match source for a node.
  * Returns true if all pass, false if any fail, undefined if no realized anchors exist.
+ *
+ * Note: With the v4 redesign, aspects and relations no longer carry anchor realizations.
+ * Anchor realizations are now in mapping groups only. This function checks mapping group anchors.
  */
 async function checkNodeAnchorsPass(graph: Graph, nodePath: string): Promise<boolean | undefined> {
   const node = graph.nodes.get(nodePath);
@@ -626,40 +627,19 @@ async function checkNodeAnchorsPass(graph: Graph, nodePath: string): Promise<boo
     try { fileContents.push(await readFile(fp, 'utf-8')); } catch { /* skip */ }
   }
 
-  const aspectMap = new Map(graph.aspects.map(a => [a.id, a]));
-
   let hasAnyRealizedAnchors = false;
 
-  // Check aspect anchors
-  for (const entry of node.meta.aspects ?? []) {
-    const aspect = aspectMap.get(entry.aspect);
-    if (!aspect || aspect.anchors.length === 0) continue;
-    if (!entry.anchors) continue;
-    hasAnyRealizedAnchors = true;
-    for (const anchorId of aspect.anchors) {
-      const realization = entry.anchors[anchorId];
-      if (!realization?.regex) continue;
-      try {
-        const regex = new RegExp(realization.regex);
-        if (!fileContents.some(c => regex.test(c))) return false;
-      } catch { return false; }
-    }
-  }
-
-  // Check integration anchors
-  for (const rel of node.meta.relations ?? []) {
-    if (!STRUCTURAL_TYPES.has(rel.type)) continue;
-    if (!rel.anchors) continue;
-    const target = graph.nodes.get(rel.target);
-    if (!target?.meta.integration_aspects) continue;
-    hasAnyRealizedAnchors = true;
-    for (const anchorId of target.meta.integration_aspects) {
-      const realization = rel.anchors[anchorId];
-      if (!realization?.regex) continue;
-      try {
-        const regex = new RegExp(realization.regex);
-        if (!fileContents.some(c => regex.test(c))) return false;
-      } catch { return false; }
+  // Check mapping group anchors
+  for (const group of node.meta.mapping ?? []) {
+    for (const aspectGroup of group.aspects ?? []) {
+      for (const anchor of Object.values(aspectGroup.anchors ?? {})) {
+        if (!anchor.regex) continue;
+        hasAnyRealizedAnchors = true;
+        try {
+          const regex = new RegExp(anchor.regex);
+          if (!fileContents.some(c => regex.test(c))) return false;
+        } catch { return false; }
+      }
     }
   }
 

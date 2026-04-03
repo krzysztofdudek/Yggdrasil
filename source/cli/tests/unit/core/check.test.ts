@@ -173,7 +173,7 @@ describe('classifyDrift', () => {
   it('returns E021 cascade-drift when aspect file changes', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('cascade-aspect', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - aspect: logging\nmapping:\n  - paths:\n      - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - logging\nmapping:\n  - paths:\n      - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
       aspects: [{
         id: 'logging',
@@ -197,7 +197,7 @@ describe('classifyDrift', () => {
   it('returns both E020 and E021 when direct and cascade changes happen', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('compound', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - aspect: logging\nmapping:\n  - paths:\n      - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - logging\nmapping:\n  - paths:\n      - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
       aspects: [{
         id: 'logging',
@@ -318,7 +318,7 @@ describe('classifyDrift', () => {
   it('detects drift when tracked file is removed from context (aspect removed)', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('deleted-aspect', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - aspect: logging\nmapping:\n  - paths:\n      - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - logging\nmapping:\n  - paths:\n      - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
       aspects: [{
         id: 'logging',
@@ -399,7 +399,7 @@ describe('classifyDrift', () => {
   it('E021 annotated with anchorsPassing=true when anchors match source', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('anchors-pass', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - aspect: logging\n    anchors:\n      audit-entry:\n        regex: "createAuditLog"\nmapping:\n  - paths:\n      - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - logging\nmapping:\n  - paths:\n      - src/svc/\n    aspects:\n      - aspect: logging\n        anchors:\n          audit-entry:\n            regex: "createAuditLog"\n            rationale: "Log creation calls"\n',
       mappingFiles: { 'src/svc/index.ts': 'export function createAuditLog() { return 42; }\n' },
       aspects: [{
         id: 'logging',
@@ -421,7 +421,7 @@ describe('classifyDrift', () => {
   it('E021 annotated with anchorsPassing=false when anchors do not match source', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('anchors-fail', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - aspect: logging\n    anchors:\n      audit-entry:\n        regex: "NONEXISTENT_PATTERN"\nmapping:\n  - paths:\n      - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - logging\nmapping:\n  - paths:\n      - src/svc/\n    aspects:\n      - aspect: logging\n        anchors:\n          audit-entry:\n            regex: "NONEXISTENT_PATTERN"\n            rationale: "Check for pattern"\n',
       mappingFiles: { 'src/svc/index.ts': 'export function hello() { return 42; }\n' },
       aspects: [{
         id: 'logging',
@@ -443,7 +443,7 @@ describe('classifyDrift', () => {
   it('E021 anchorsPassing=undefined when node has no realized anchors', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('anchors-none', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - aspect: logging\nmapping:\n  - paths:\n      - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - logging\nmapping:\n  - paths:\n      - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
       aspects: [{
         id: 'logging',
@@ -703,7 +703,7 @@ describe('suggestedNext priority', () => {
   it('suggests cascade when E021 is present without E020', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('suggest-cascade', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - aspect: logging\nmapping:\n  - paths:\n      - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - logging\nmapping:\n  - paths:\n      - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
       aspects: [{
         id: 'logging',

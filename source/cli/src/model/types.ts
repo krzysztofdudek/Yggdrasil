@@ -109,7 +109,7 @@ export interface NodeMeta {
   name: string;
   type: string;
   description?: string;
-  aspects?: LegacyNodeAspectEntry[];
+  aspects?: string[];
   integration_aspects?: string[];
   blackbox?: boolean;
   relations?: Relation[];
@@ -123,8 +123,6 @@ export interface Relation {
   failure?: string;
   /** For event relations (emits, listens): display name of the event, e.g. OrderPlaced */
   event_name?: string;
-  /** Anchor realizations for integration anchors required by target — maps anchor ID to typed realization */
-  anchors?: Record<string, AnchorRealization>;
 }
 
 export interface GraphNode {
@@ -265,8 +263,6 @@ export interface NodeAspectRef {
 
 export interface FlowRef {
   id: string;
-  path?: string;
-  aspects?: string[];
 }
 
 export interface GlossaryAspectEntry {

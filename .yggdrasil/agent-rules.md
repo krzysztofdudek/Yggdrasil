@@ -364,7 +364,6 @@ Test: "Does this describe what happens in the world, or only in the software?" I
 | E032 | budget-exceeded | Context package too large — node must be split |
 | E033 | unpaired-event | Event relation without complement |
 | E034 | missing-schema | Schema file missing from schemas/ |
-| E035 | missing-required-aspect | Node type lacks required aspect (blackbox exempt) |
 | E036 | mapping-path-missing | Mapped path doesn't exist on disk |
 | E037 | anchor-not-found | Anchor pattern not found in source files |
 | E038 | missing-description | Node, aspect, or flow has no description |

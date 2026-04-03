@@ -2,6 +2,8 @@ import type {
   ArchitectureDef,
   AspectDef,
   FlowDef,
+  Graph,
+  GraphNode,
 } from '../model/types.js';
 
 /**
@@ -145,4 +147,162 @@ function expandImplies(aspectIds: Set<string>, allAspects: AspectDef[]): Set<str
   }
 
   return result;
+}
+
+/**
+ * Compute the set of integration aspects that a node declares (not regular aspects).
+ * Assembled from architecture constraints, parent inheritance, and own declaration.
+ *
+ * @param node The target node
+ * @param graph The full graph with architecture and aspects
+ * @param cache Optional cache for recursive calls
+ * @returns Set of integration aspect IDs
+ */
+export function computeEffectiveIntegrationAspects(
+  node: GraphNode,
+  graph: Graph,
+  cache?: Map<string, Set<string>>,
+): Set<string> {
+  if (cache?.has(node.path)) return cache.get(node.path)!;
+  const raw = new Set<string>();
+
+  // 1. Architecture type integration_aspects
+  const typeConfig = graph.architecture?.node_types[node.meta.type];
+  if (typeConfig?.integration_aspects) {
+    for (const a of typeConfig.integration_aspects) {
+      raw.add(a);
+    }
+  }
+
+  // 2. Own extras
+  if (node.meta.integration_aspects) {
+    for (const a of node.meta.integration_aspects) {
+      raw.add(a);
+    }
+  }
+
+  // 3. Parent integration_aspects (recursive — full effective set)
+  if (node.parent) {
+    const parentIntegration = computeEffectiveIntegrationAspects(node.parent, graph, cache);
+    for (const a of parentIntegration) {
+      raw.add(a);
+    }
+  }
+
+  // 4. Expand implies
+  const result = expandImpliesToGraphAspects(raw, graph);
+  cache?.set(node.path, result);
+  return result;
+}
+
+/**
+ * Expand aspect implies recursively using graph aspects.
+ * @param aspectIds Initial set of aspect IDs
+ * @param graph The full graph
+ * @returns Set with all aspect IDs including implied ones
+ */
+function expandImpliesToGraphAspects(aspectIds: Set<string>, graph: Graph): Set<string> {
+  const result = new Set<string>(aspectIds);
+  const visited = new Set<string>();
+  const stack = [...aspectIds];
+
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    if (visited.has(current)) continue;
+    visited.add(current);
+    result.add(current);
+
+    const aspectDef = graph.aspects.find((a) => a.id === current);
+    if (aspectDef?.implies) {
+      for (const implied of aspectDef.implies) {
+        if (!visited.has(implied)) {
+          stack.push(implied);
+        }
+      }
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Determine the source of a required aspect (architecture, flow, parent, or own).
+ * Used for error messages in E050 validation.
+ */
+export function getAspectSource(aspectId: string, node: GraphNode, graph: Graph): string {
+  const typeConfig = graph.architecture?.node_types[node.meta.type];
+
+  // Check if from architecture type requirement
+  if (typeConfig?.aspects?.includes(aspectId)) {
+    return `architecture (type '${node.meta.type}' requires [${typeConfig.aspects.join(', ')}])`;
+  }
+
+  // Check if from own declaration
+  if (node.meta.aspects?.includes(aspectId)) {
+    return 'own declaration in yg-node.yaml';
+  }
+
+  // Check if from flow participation
+  for (const flow of graph.flows) {
+    if (flow.aspects?.includes(aspectId) && flow.nodes?.includes(node.path)) {
+      return `flow '${flow.path}' (participants must prove [${flow.aspects.join(', ')}])`;
+    }
+  }
+
+  // Check if from parent inheritance (walk up tree)
+  let ancestor = node.parent;
+  while (ancestor) {
+    if (ancestor.meta.aspects?.includes(aspectId)) {
+      return `parent inheritance (${ancestor.path} declares)`;
+    }
+    const at = graph.architecture.node_types[ancestor.meta.type];
+    if (at?.aspects?.includes(aspectId)) {
+      return `parent inheritance (${ancestor.path} architecture type: ${ancestor.meta.type})`;
+    }
+    for (const flow of graph.flows) {
+      if (flow.aspects?.includes(aspectId) && flow.nodes?.includes(ancestor.path)) {
+        return `flow '${flow.path}' (via parent '${ancestor.path}')`;
+      }
+    }
+    ancestor = ancestor.parent;
+  }
+
+  return '(source unknown — aspect not found in any effective set)';
+}
+
+/**
+ * Determine the source of a required integration aspect.
+ * Used for error messages in E053 validation.
+ */
+export function getIntegrationAspectSource(
+  aspectId: string,
+  node: GraphNode,
+  graph: Graph,
+): string {
+  const typeConfig = graph.architecture?.node_types[node.meta.type];
+
+  // Check if from architecture type requirement
+  if (typeConfig?.integration_aspects?.includes(aspectId)) {
+    return `architecture (type: ${node.meta.type})`;
+  }
+
+  // Check if from own declaration
+  if (node.meta.integration_aspects?.includes(aspectId)) {
+    return 'own declaration';
+  }
+
+  // Check if from parent inheritance (walk up tree)
+  let ancestor = node.parent;
+  while (ancestor) {
+    if (ancestor.meta.integration_aspects?.includes(aspectId)) {
+      return `parent '${ancestor.path}'`;
+    }
+    const at = graph.architecture.node_types[ancestor.meta.type];
+    if (at?.integration_aspects?.includes(aspectId)) {
+      return `parent '${ancestor.path}' (architecture type: ${ancestor.meta.type})`;
+    }
+    ancestor = ancestor.parent;
+  }
+
+  return 'implied by another aspect';
 }

@@ -560,14 +560,14 @@ describe('collectTrackedFiles', () => {
   it('deduplicates aspect files inherited from both own and ancestor', () => {
     const parent: GraphNode = {
       path: 'orders',
-      meta: { name: 'Orders', type: 'module', aspects: [{ aspect: 'requires-audit' }] },
+      meta: { name: 'Orders', type: 'module', aspects: ['requires-audit'] },
       artifacts: [],
       children: [],
       parent: null,
     };
     const child: GraphNode = {
       path: 'orders/order-service',
-      meta: { name: 'OrderService', type: 'service', aspects: [{ aspect: 'requires-audit' }] },
+      meta: { name: 'OrderService', type: 'service', aspects: ['requires-audit'] },
       artifacts: [{ filename: 'responsibility.md', content: 'x' }],
       children: [],
       parent,

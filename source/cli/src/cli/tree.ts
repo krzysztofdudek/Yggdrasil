@@ -56,7 +56,7 @@ function printNode(
   const connector = isLast ? '└── ' : '├── ';
   const name = node.path.split('/').pop() ?? node.path;
   const type = `[${node.meta.type}]`;
-  const tags = node.meta.aspects?.length ? ` aspects:${node.meta.aspects.map(a => a.aspect).join(',')}` : '';
+  const tags = node.meta.aspects?.length ? ` aspects:${node.meta.aspects.join(',')}` : '';
   const blackbox = node.meta.blackbox ? ' ■ blackbox' : '';
   const relationCount = node.meta.relations?.length ?? 0;
 

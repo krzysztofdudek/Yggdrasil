@@ -8,11 +8,12 @@ relations: []
 
 mapping:
   - paths:
-    - source/cli/tests/unit/core/approve.test.ts
-    - source/cli/tests/unit/core/check.test.ts
-    - source/cli/tests/unit/core/dependency-resolver.test.ts
-    - source/cli/tests/unit/core/drift-detector.test.ts
-    - source/cli/tests/unit/core/impact.test.ts
-    - source/cli/tests/unit/core/migrator.test.ts
-    - source/cli/tests/unit/core/node-selector.test.ts
-    - source/cli/tests/unit/core/validator.test.ts
+      - source/cli/tests/unit/core/approve.test.ts
+      - source/cli/tests/unit/core/check.test.ts
+      - source/cli/tests/unit/core/dependency-resolver.test.ts
+      - source/cli/tests/unit/core/drift-detector.test.ts
+      - source/cli/tests/unit/core/effective-aspects.test.ts
+      - source/cli/tests/unit/core/impact.test.ts
+      - source/cli/tests/unit/core/migrator.test.ts
+      - source/cli/tests/unit/core/node-selector.test.ts
+      - source/cli/tests/unit/core/validator.test.ts

@@ -76,18 +76,7 @@ describe('context-builder', () => {
       expect(layer.content).toContain('### rules.md');
     });
 
-    it('includes exception note when provided', () => {
-      const layer = buildAspectLayer(
-        {
-          name: 'PubSub Events',
-          id: 'pubsub-events',
-          artifacts: [{ filename: 'rules.md', content: 'Fire and forget pattern' }],
-        },
-        'updateUserSessions uses await — PubSub failure propagates to caller',
-      );
-      expect(layer.content).toContain('⚠ **Exception for this node:**');
-      expect(layer.content).toContain('updateUserSessions uses await');
-    });
+    // Exception note test removed — aspects are now flat strings, no exceptions field
 
     it('does not include stability tier (removed in v4)', () => {
       const layer = buildAspectLayer({
@@ -382,7 +371,7 @@ describe('context-builder', () => {
       };
       const node: GraphNode = {
         path: 'test/node',
-        meta: { name: 'TestNode', type: 'service', aspects: [{ aspect: 'requires-hipaa' }] },
+        meta: { name: 'TestNode', type: 'service', aspects: ['requires-hipaa'] },
         artifacts: [{ filename: 'responsibility.md', content: 'x' }],
         children: [],
         parent: null,
@@ -419,7 +408,7 @@ describe('context-builder', () => {
       };
       const node: GraphNode = {
         path: 'test/node',
-        meta: { name: 'TestNode', type: 'service', aspects: [{ aspect: 'tag-a' }] },
+        meta: { name: 'TestNode', type: 'service', aspects: ['tag-a'] },
         artifacts: [{ filename: 'responsibility.md', content: 'x' }],
         children: [],
         parent: null,
@@ -443,7 +432,7 @@ describe('context-builder', () => {
     it('node with own aspects includes aspects in context', async () => {
       const graph = await loadGraph(FIXTURE_PROJECT);
       const orderService = graph.nodes.get('orders/order-service')!;
-      expect(orderService.meta.aspects).toContainEqual(expect.objectContaining({ aspect: 'requires-audit' }));
+      expect(orderService.meta.aspects).toContain('requires-audit');
 
       const pkg = await buildContext(graph, 'orders/order-service');
       const aspectLayer = pkg.layers.find((l) => l.type === 'aspects');
@@ -551,7 +540,7 @@ describe('context-builder', () => {
     it('hierarchy aspects: child without own aspects inherits from ancestor (aspects on hierarchy layer)', async () => {
       const parent: GraphNode = {
         path: 'orders',
-        meta: { name: 'Orders', type: 'module', aspects: [{ aspect: 'requires-audit' }] },
+        meta: { name: 'Orders', type: 'module', aspects: ['requires-audit'] },
         artifacts: [],
         children: [],
         parent: null,
@@ -598,14 +587,14 @@ describe('context-builder', () => {
     it('hierarchy aspects: node own aspects declared on own layer (aspects on own-artifacts)', async () => {
       const parent: GraphNode = {
         path: 'orders',
-        meta: { name: 'Orders', type: 'module', aspects: [{ aspect: 'requires-audit' }] },
+        meta: { name: 'Orders', type: 'module', aspects: ['requires-audit'] },
         artifacts: [],
         children: [],
         parent: null,
       };
       const child: GraphNode = {
         path: 'orders/order-service',
-        meta: { name: 'OrderService', type: 'service', aspects: [{ aspect: 'requires-audit' }] },
+        meta: { name: 'OrderService', type: 'service', aspects: ['requires-audit'] },
         artifacts: [{ filename: 'responsibility.md', content: 'x' }],
         children: [],
         parent,
@@ -897,14 +886,14 @@ describe('context-builder', () => {
       // Manually build a graph with 2 aspects on 2 different ids
       const parent: GraphNode = {
         path: 'mod',
-        meta: { name: 'Mod', type: 'module', aspects: [{ aspect: 'tag-a' }] },
+        meta: { name: 'Mod', type: 'module', aspects: ['tag-a'] },
         artifacts: [],
         children: [],
         parent: null,
       };
       const child: GraphNode = {
         path: 'mod/svc',
-        meta: { name: 'Svc', type: 'service', aspects: [{ aspect: 'tag-a' }, { aspect: 'tag-b' }] },
+        meta: { name: 'Svc', type: 'service', aspects: ['tag-a', 'tag-b'] },
         artifacts: [{ filename: 'desc.md', content: 'service desc' }],
         children: [],
         parent,
@@ -1466,7 +1455,7 @@ describe('toContextMapOutput', () => {
   it('surfaces description on aspects and flows in glossary', async () => {
     const node: GraphNode = {
       path: 'svc',
-      meta: { name: 'Svc', type: 'service', aspects: [{ aspect: 'my-aspect' }] },
+      meta: { name: 'Svc', type: 'service', aspects: ['my-aspect'] },
       artifacts: [{ filename: 'responsibility.md', content: 'x' }],
       children: [],
       parent: null,
@@ -1505,7 +1494,7 @@ describe('toContextMapOutput', () => {
     expect(output.glossary.flows['my-flow'].description).toBe('Flow description text');
   });
 
-  it('flow refs contain only path and aspects, not name or description', async () => {
+  it('flow refs contain only id, not name or description', async () => {
     const node: GraphNode = {
       path: 'svc',
       meta: { name: 'Svc', type: 'service' },
@@ -1536,9 +1525,9 @@ describe('toContextMapOutput', () => {
     const pkg = await buildContext(graph, 'svc');
     const output = toContextMapOutput(pkg, graph);
 
-    const flowRef = output.node.flows.find((f) => f.path === 'my-flow');
+    const flowRef = output.node.flows.find((f) => f.id === 'my-flow');
     expect(flowRef).toBeDefined();
-    expect(flowRef!.path).toBe('my-flow');
+    expect(flowRef!.id).toBe('my-flow');
     expect((flowRef as Record<string, unknown>).name).toBeUndefined();
     expect((flowRef as Record<string, unknown>).description).toBeUndefined();
     // name and description are in glossary.flows instead
@@ -1575,7 +1564,7 @@ describe('toContextMapOutput', () => {
   it('glossary.aspects does not include stability (removed in v4)', async () => {
     const node: GraphNode = {
       path: 'svc',
-      meta: { name: 'Svc', type: 'service', aspects: [{ aspect: 'stable-aspect' }] },
+      meta: { name: 'Svc', type: 'service', aspects: ['stable-aspect'] },
       artifacts: [{ filename: 'responsibility.md', content: 'x' }],
       children: [],
       parent: null,

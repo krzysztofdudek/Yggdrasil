@@ -81,12 +81,12 @@ export function collectTrackedFiles(node: GraphNode, graph: Graph): TrackedFile[
   // First, collect all aspect ids from own node and ancestors
   const allAspectIds = new Set<string>();
 
-  for (const entry of node.meta.aspects ?? []) {
-    allAspectIds.add(entry.aspect);
+  for (const aspectId of node.meta.aspects ?? []) {
+    allAspectIds.add(aspectId);
   }
   for (const ancestor of ancestors) {
-    for (const entry of ancestor.meta.aspects ?? []) {
-      allAspectIds.add(entry.aspect);
+    for (const aspectId of ancestor.meta.aspects ?? []) {
+      allAspectIds.add(aspectId);
     }
   }
 

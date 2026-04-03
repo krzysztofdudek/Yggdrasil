@@ -3,6 +3,7 @@
   "files": {
     ".yggdrasil/model/cli/tests/unit/support/yg-node.yaml": "30373176849a86a134a67ebf21050d7c3ff56ce502d1ab36192e612503e135cb",
     ".yggdrasil/model/cli/tests/unit/support/responsibility.md": "8c2a60f01bab04f7bf67cc5fb6f6ec8dbae3f01cae01ae2b9fe3e8b0318ecf80",
+    ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df",
     ".yggdrasil/model/cli/internals.md": "fcd16e38b431eead0b12e14b05dd25184ad4ef23884fbde7402172b0985857f6",
     ".yggdrasil/model/cli/responsibility.md": "696e0f5f377eba69a843a18379e8f20e0322dc037182690629652a75aa2227fb",
     ".yggdrasil/model/cli/tests/yg-node.yaml": "ac0fc246c01a04e62d43ef8abadb2f01551616ca7509c3b268995ef646279bc9",
@@ -14,13 +15,12 @@
     "source/cli/tests/unit/formatters/context-text.test.ts": "df1aabf73502a28cfb1ae1f11948fb7e4a7c6688b160e35f943c299406cbb815",
     "source/cli/tests/unit/migrations/to-2.0.0.test.ts": "83c646d248d99577bd44f18deb364ea9037587abfc80fc95f1f565892cdc100a",
     "source/cli/tests/unit/migrations/to-3.0.0.test.ts": "d12196f53b5173b0d87a7693b881ddd1c15f6b2c055453fbbf4cc71d15d4900e",
-    "source/cli/tests/unit/migrations/to-4.0.0.test.ts": "91d85a024e30ff42be13081469ad046372cb61ea7e531b61953fdce542f22478",
-    ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df"
+    "source/cli/tests/unit/migrations/to-4.0.0.test.ts": "91d85a024e30ff42be13081469ad046372cb61ea7e531b61953fdce542f22478"
   },
   "mtimes": {
     ".yggdrasil/model/cli/tests/unit/support/yg-node.yaml": 1775216154032.4534,
     ".yggdrasil/model/cli/tests/unit/support/responsibility.md": 1775056684131.7905,
-    ".yggdrasil/model/cli/yg-node.yaml": 1775219059046.2136,
+    ".yggdrasil/model/cli/yg-node.yaml": 1775219122158.6094,
     ".yggdrasil/model/cli/internals.md": 1772829219205.6714,
     ".yggdrasil/model/cli/responsibility.md": 1775045623775.336,
     ".yggdrasil/model/cli/tests/yg-node.yaml": 1775057326517.7761,
@@ -33,6 +33,5 @@
     "source/cli/tests/unit/migrations/to-2.0.0.test.ts": 1772776392222.4644,
     "source/cli/tests/unit/migrations/to-3.0.0.test.ts": 1774782434000.1372,
     "source/cli/tests/unit/migrations/to-4.0.0.test.ts": 1775041106308.7998
-  },
-  "acknowledgeReason": "Dogfood: cascade from parent cli node format change"
+  }
 }

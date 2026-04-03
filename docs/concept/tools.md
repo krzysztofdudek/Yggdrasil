@@ -883,7 +883,6 @@ nearest parent directory of `.yggdrasil/`, not the entire git repository.
 | `E032` | `budget-exceeded`           | Context package exceeds error threshold — node must be split                    |
 | `E033` | `unpaired-event`            | Event relation without complement (broken event contract)                       |
 | `E034` | `missing-schema`            | Schema file missing from `schemas/`                                             |
-| `E035` | `missing-required-aspect`   | Node type lacks required aspect coverage                                        |
 | `E036` | `mapping-path-missing`      | Mapped path does not exist on disk (stale/broken mapping)                       |
 | `E037` | `anchor-not-found`          | Anchor pattern not found in node's mapped source files                          |
 | `E038` | `missing-description`       | Node, aspect, or flow has no `description` in YAML                              |
@@ -893,29 +892,30 @@ nearest parent directory of `.yggdrasil/`, not the entire git repository.
 
 **Architecture Enforcement (E050-E054):**
 
-| Code   | Name                                   | Description                                                        |
-| ------ | -------------------------------------- | ------------------------------------------------------------------ |
-| `E050` | `mapping-group-missing-aspects`        | Mapping group missing required effective aspects                   |
-| `E051` | `architecture-parent-violation`        | Node's parent type not in allowed list (architecture)              |
-| `E052` | `architecture-relation-violation`      | Relation target type not allowed (architecture)                    |
-| `E053` | `mapping-group-missing-integration-aspects` | Consumer missing integration aspects from target              |
-| `E054` | `mapping-group-extra-aspects`          | Mapping group declares aspects outside effective set               |
+| Code   | Name                        | Description                                                               |
+| ------ | --------------------------- | ------------------------------------------------------------------------- |
+| `E050` | `missing-required-aspect`   | Mapping group missing required aspect from effective set                  |
+| `E051` | `invalid-relation-target`   | Relation target type not in architecture allowed list                     |
+| `E052` | `invalid-parent-type`       | Parent type not in architecture allowed `parents` list                    |
+| `E053` | `integration-aspect-missing`| Consumer mapping group missing integration aspect from target             |
+| `E054` | `unexpected-aspect`         | Mapping group declares aspect outside effective + integration set         |
 
 **Anchor validation chain:** Validation follows a chain: (1) aspect has `anchors`
 field? (E039 if not), (2) node realizes all anchor IDs? (E040 if not), (3) realized
 patterns found in source? (E037 if not). For integration anchors: same chain but
 step 1 is optional.
 
-**Architecture validation:** Effective aspects flow to mapping groups from four sources
-(architecture type requirements, parent inheritance, flow participation, own aspects).
-Every mapping group must declare all effective aspects (E050) and no extra ones (E054).
-When a node calls a target with `integration_aspects`, the consumer's mapping group must
-prove them (E053). Parent type constraints (E051) and relation type constraints (E052)
-are validated separately.
+**Architecture validation:** Effective aspects flow to mapping groups from architecture
+type constraints, parent inheritance, flow participation, and own declarations. E050
+fires when a mapping group does not declare a required effective aspect. E054 fires
+when a group declares an aspect outside the allowed set. E053 fires when a consumer's
+mapping group is missing integration aspects required by a relation target. E051 and
+E052 validate structural constraints: relation target types (E051) and parent types
+(E052) against the architecture definition.
 
 **Blackbox exemption:** Blackbox nodes are exempt from E030 (missing artifact),
-E035 (missing required aspect), E037 (anchor not found), and E040 (anchor not
-realized).
+E037 (anchor not found), E040 (anchor not realized), and E050-E054 (architecture
+enforcement).
 
 **Warnings (informational, do not block):**
 

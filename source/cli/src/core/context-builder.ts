@@ -85,9 +85,7 @@ export async function buildContext(graph: Graph, nodePath: string): Promise<Cont
   }
   const aspectsToInclude = resolveAspects(allAspectIds, graph.aspects);
   for (const aspect of aspectsToInclude) {
-    const entry = node.meta.aspects?.find(a => a.aspect === aspect.id);
-    const exceptionNote = entry?.exceptions?.join('; ');
-    layers.push(buildAspectLayer(aspect, exceptionNote));
+    layers.push(buildAspectLayer(aspect));
   }
 
   const fullText = layers.map((l) => l.content).join('\n\n');
@@ -183,7 +181,7 @@ export function buildHierarchyLayer(
 ): ContextLayer {
   const filtered = filterByStandardArtifacts(ancestor.artifacts);
   const content = filtered.map((a) => `### ${a.filename}\n${a.content}`).join('\n\n');
-  const nodeAspects = (ancestor.meta.aspects ?? []).map(a => a.aspect);
+  const nodeAspects = ancestor.meta.aspects ?? [];
   const expanded = expandAspects(nodeAspects, graph.aspects);
   const attrs: Record<string, string> | undefined =
     expanded.length > 0 ? { aspects: expanded.join(',') } : undefined;
@@ -221,7 +219,7 @@ export async function buildOwnLayer(
   }
 
   const content = parts.join('\n\n');
-  const nodeAspects = (node.meta.aspects ?? []).map(a => a.aspect);
+  const nodeAspects = node.meta.aspects ?? [];
   const expanded = expandAspects(nodeAspects, graph.aspects);
   const attrs: Record<string, string> | undefined =
     expanded.length > 0 ? { aspects: expanded.join(',') } : undefined;
@@ -302,11 +300,8 @@ export function buildEventRelationLayer(target: GraphNode, relation: Relation): 
   };
 }
 
-export function buildAspectLayer(aspect: AspectDef, exceptionNote?: string): ContextLayer {
-  let content = aspect.artifacts.map((a) => `### ${a.filename}\n${a.content}`).join('\n\n');
-  if (exceptionNote) {
-    content += `\n\n⚠ **Exception for this node:** ${exceptionNote}`;
-  }
+export function buildAspectLayer(aspect: AspectDef): ContextLayer {
+  const content = aspect.artifacts.map((a) => `### ${a.filename}\n${a.content}`).join('\n\n');
   return {
     type: 'aspects',
     label: `${aspect.name} (aspect: ${aspect.id})`,
@@ -385,7 +380,7 @@ export function collectDependencyAncestors(
   const configArtifactKeys = [...Object.keys(STANDARD_ARTIFACTS)];
 
   return ancestors.map((ancestor) => {
-    const nodeAspects = (ancestor.meta.aspects ?? []).map(a => a.aspect);
+    const nodeAspects = ancestor.meta.aspects ?? [];
     const expanded = expandAspects(nodeAspects, graph.aspects);
 
     // Use included_in_relations artifacts if any exist, else fall back to all config artifacts
@@ -489,7 +484,7 @@ function determineAspectSource(
   // Check if from own declaration
   const ownAspectIds = isIntegration
     ? node.meta.integration_aspects ?? []
-    : (node.meta.aspects ?? []).map((a) => a.aspect);
+    : node.meta.aspects ?? [];
   if (ownAspectIds.includes(aspectId)) {
     sources.push('own declaration');
   }
@@ -543,26 +538,21 @@ export function toContextMapOutput(
   const node = graph.nodes.get(pkg.nodePath)!;
   const config = graph.config;
 
-  // Node aspects with anchors/exceptions
-  const nodeAspects: NodeAspectRef[] = (node.meta.aspects ?? []).map((entry) => {
-    const ref: NodeAspectRef = { id: entry.aspect };
-    if (entry.anchors && Object.keys(entry.anchors).length > 0) ref.anchors = entry.anchors;
-    if (entry.exceptions?.length) ref.exceptions = entry.exceptions;
-    return ref;
+  // Node aspects
+  const nodeAspects: NodeAspectRef[] = (node.meta.aspects ?? []).map((aspectId) => {
+    return { id: aspectId };
   });
 
   // Node flows
   const participatingFlows = collectParticipatingFlows(graph, node);
   const flowRefs: FlowRef[] = participatingFlows.map((f) => {
-    const ref: FlowRef = { id: f.path, path: f.path };
-    if (f.aspects?.length) ref.aspects = f.aspects;
-    return ref;
+    return { id: f.path };
   });
 
   // Hierarchy ancestors
   const ancestors = collectAncestors(node);
   const hierarchyRefs: AncestorRef[] = ancestors.map((a) => {
-    const nodeAspectIds = (a.meta.aspects ?? []).map((e) => e.aspect);
+    const nodeAspectIds = a.meta.aspects ?? [];
     const expanded = expandAspects(nodeAspectIds, graph.aspects);
     return { path: a.path, name: a.meta.name, type: a.meta.type, description: a.meta.description, aspects: expanded, files: buildNodeFiles(a, config, `model/${a.path}`) };
   });
@@ -577,7 +567,7 @@ export function toContextMapOutput(
 
     const depAncestors = collectAncestors(target);
     const depHierarchy: AncestorRef[] = depAncestors.map((a) => {
-      const ids = (a.meta.aspects ?? []).map((e) => e.aspect);
+      const ids = a.meta.aspects ?? [];
       const expanded = expandAspects(ids, graph.aspects);
       const ancestorNode = graph.nodes.get(a.path);
       return { path: a.path, name: a.meta.name, type: a.meta.type, description: a.meta.description, aspects: expanded, files: ancestorNode ? buildDepNodeFiles(ancestorNode, config, `model/${a.path}`) : [] };
@@ -619,7 +609,7 @@ export function toContextMapOutput(
 
   if (graph.architecture) {
     const parentTypes = ancestors.map((a) => a.meta.type);
-    const ownAspectIds = (node.meta.aspects ?? []).map((a) => a.aspect);
+    const ownAspectIds = node.meta.aspects ?? [];
     const ownIntegrationAspectIds = node.meta.integration_aspects ?? [];
     const flowAspects = participatingFlows.flatMap((f) => f.aspects ?? []);
 
@@ -747,12 +737,12 @@ export function collectEffectiveAspectIds(graph: Graph, nodePath: string): Set<s
   const node = graph.nodes.get(nodePath);
   if (!node) return new Set();
 
-  const raw = new Set<string>((node.meta.aspects ?? []).map(a => a.aspect));
+  const raw = new Set<string>(node.meta.aspects ?? []);
 
   // Hierarchy aspects
   let ancestor = node.parent;
   while (ancestor) {
-    for (const entry of ancestor.meta.aspects ?? []) raw.add(entry.aspect);
+    for (const aspectId of ancestor.meta.aspects ?? []) raw.add(aspectId);
     ancestor = ancestor.parent;
   }
 

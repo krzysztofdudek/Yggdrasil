@@ -13,7 +13,7 @@ function countHits(tokens: string[], text: string): number {
 }
 
 function collectAspectContent(graphNode: GraphNode, aspects: AspectDef[]): string {
-  const aspectIds = (graphNode.meta.aspects ?? []).map((a) => a.aspect);
+  const aspectIds = graphNode.meta.aspects ?? [];
   if (aspectIds.length === 0) return '';
   const aspectMap = new Map(aspects.map((a) => [a.id, a]));
   const parts: string[] = [];

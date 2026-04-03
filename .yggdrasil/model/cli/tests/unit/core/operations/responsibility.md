@@ -8,6 +8,7 @@ Unit tests for core CLI operation modules: approval, validation, drift detection
 - `check.test.ts` — full check gate logic and health scoring
 - `dependency-resolver.test.ts` — relation and dependency graph traversal
 - `drift-detector.test.ts` — file hash comparison and drift detection
+- `effective-aspects.test.ts` — effective aspect resolution and computation
 - `impact.test.ts` — blast radius computation for nodes and aspects
 - `migrator.test.ts` — graph migration transformation logic
 - `node-selector.test.ts` — task-based node selection

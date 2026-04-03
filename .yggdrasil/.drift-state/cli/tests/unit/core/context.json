@@ -3,6 +3,7 @@
   "files": {
     ".yggdrasil/model/cli/tests/unit/core/context/yg-node.yaml": "2c15f65ce48311d30373caa7ae3d5c9c0bc6540a9ae676ed715f4568d736e476",
     ".yggdrasil/model/cli/tests/unit/core/context/responsibility.md": "98258b03d5c918f493627a37cd39a2a457af9f68d3c4d9c2065870b0ab171799",
+    ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df",
     ".yggdrasil/model/cli/internals.md": "fcd16e38b431eead0b12e14b05dd25184ad4ef23884fbde7402172b0985857f6",
     ".yggdrasil/model/cli/responsibility.md": "696e0f5f377eba69a843a18379e8f20e0322dc037182690629652a75aa2227fb",
     ".yggdrasil/model/cli/tests/yg-node.yaml": "ac0fc246c01a04e62d43ef8abadb2f01551616ca7509c3b268995ef646279bc9",
@@ -16,13 +17,12 @@
     "source/cli/tests/unit/core/context-builder.test.ts": "161a8c54c47a6c0d5d82e19714e9ea0695006725bc1605b8ee067ba727275a48",
     "source/cli/tests/unit/core/context-files.test.ts": "ce0ad0542d6dcddb56270671db1e4c78d05ef69f325145c09b60788ad1d1dc89",
     "source/cli/tests/unit/core/graph-loader.test.ts": "48140ecca74d882f2850b5e1a30c223873799e1a8272158d65f871bfe09c8a24",
-    "source/cli/tests/unit/core/__snapshots__/context-builder.test.ts.snap": "afe2150c3a9f474cd6246436f1b395108d079b2f43fb3178d2b39a2d7db045a2",
-    ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df"
+    "source/cli/tests/unit/core/__snapshots__/context-builder.test.ts.snap": "afe2150c3a9f474cd6246436f1b395108d079b2f43fb3178d2b39a2d7db045a2"
   },
   "mtimes": {
     ".yggdrasil/model/cli/tests/unit/core/context/yg-node.yaml": 1775216154020.0886,
     ".yggdrasil/model/cli/tests/unit/core/context/responsibility.md": 1775057037323.449,
-    ".yggdrasil/model/cli/yg-node.yaml": 1775219059046.2136,
+    ".yggdrasil/model/cli/yg-node.yaml": 1775219122158.6094,
     ".yggdrasil/model/cli/internals.md": 1772829219205.6714,
     ".yggdrasil/model/cli/responsibility.md": 1775045623775.336,
     ".yggdrasil/model/cli/tests/yg-node.yaml": 1775057326517.7761,
@@ -37,6 +37,5 @@
     "source/cli/tests/unit/core/context-files.test.ts": 1775210089626.3025,
     "source/cli/tests/unit/core/graph-loader.test.ts": 1773390442109.678,
     "source/cli/tests/unit/core/__snapshots__/context-builder.test.ts.snap": 1775210629972.738
-  },
-  "acknowledgeReason": "Dogfood: cascade from parent cli node format change"
+  }
 }

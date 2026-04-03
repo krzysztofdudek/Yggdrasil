@@ -5,3 +5,9 @@ mapping:
   - paths:
       - src/auth/auth.controller.ts
       - src/auth/login.service.ts
+    aspects:
+      - aspect: requires-logging
+        anchors:
+          proof-point:
+            regex: 'logger\.'
+            rationale: 'Uses logger service for request logging'

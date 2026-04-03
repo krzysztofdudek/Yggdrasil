@@ -107,7 +107,7 @@ describe('validator', () => {
 
   it('unknown-aspect (E003) returns error when node aspect has no aspect def', async () => {
     const graph = createGraph();
-    graph.nodes.set('a', createNode('a', { aspects: [{ aspect: 'no-aspect-for-this' }] }));
+    graph.nodes.set('a', createNode('a', { aspects: ['no-aspect-for-this'] }));
 
     const result = await validate(graph);
     const issues = result.issues.filter((i) => i.rule === 'unknown-aspect');
@@ -806,40 +806,7 @@ describe('validator', () => {
     expect(issues[0].message).toContain('tag-b');
   });
 
-  it('missing-required-aspect returns error when node type requires aspect', async () => {
-    const graph = createGraph({
-      aspects: [{ name: 'Audit', id: 'requires-audit', anchors: ['proof'], artifacts: [] }],
-      config: {
-        name: 'Test',
-        node_types: { service: { description: 'x', required_aspects: ['requires-audit'] } },
-      },
-    });
-    graph.nodes.set('svc', createNode('svc'));
-
-    const result = await validate(graph);
-    const issues = result.issues.filter((i) => i.rule === 'missing-required-aspect');
-    expect(issues).toHaveLength(1);
-    expect(issues[0].code).toBe('E035');
-    expect(issues[0].message).toContain('requires-audit');
-  });
-
-  it('no missing-required-aspect-coverage when node has implied coverage', async () => {
-    const graph = createGraph({
-      config: {
-        name: 'Test',
-        node_types: { service: { description: 'x', required_aspects: ['requires-audit'] } },
-      },
-      aspects: [
-        { name: 'Audit', id: 'requires-audit', anchors: ['proof'], artifacts: [] },
-        { name: 'HIPAA', id: 'requires-hipaa', anchors: ['proof'], implies: ['requires-audit'], artifacts: [] },
-      ],
-    });
-    graph.nodes.set('svc', createNode('svc', { aspects: [{ aspect: 'requires-hipaa' }] }));
-
-    const result = await validate(graph);
-    const issues = result.issues.filter((i) => i.rule === 'missing-required-aspect');
-    expect(issues).toHaveLength(0);
-  });
+  // E035 tests removed — replaced by E051 in architecture enforcement
 
   it('unknown-node-type returns error for node type not in config', async () => {
     const graph = createGraph();
@@ -1124,39 +1091,8 @@ describe('validator', () => {
       expect(e040).toHaveLength(0);
     });
 
-    it('E040: integration anchor not realized on relation', async () => {
-      const graph = createGraph();
-      graph.nodes.set('target', createNode('target', {
-        integration_aspects: ['correlation-id'],
-        mapping: [{ paths: ['src/target/'] }],
-      }));
-      graph.nodes.set('consumer', createNode('consumer', {
-        relations: [{ target: 'target', type: 'calls' }], // no anchors on relation
-        mapping: [{ paths: ['src/consumer/'] }],
-      }));
-      const result = await validate(graph);
-      const e040 = result.issues.find(i => i.code === 'E040' && i.nodePath === 'consumer');
-      expect(e040).toBeDefined();
-      expect(e040!.message).toContain('correlation-id');
-    });
-  });
-
-  describe('E041 unknown-anchor-type', () => {
-    it('E041: unknown type on relation anchor', async () => {
-      const graph = createGraph();
-      graph.nodes.set('target', createNode('target', {
-        integration_aspects: ['corr-id'],
-        mapping: [{ paths: ['src/target/'] }],
-      }));
-      graph.nodes.set('consumer', createNode('consumer', {
-        relations: [{ target: 'target', type: 'calls', anchors: { 'corr-id': { ast: { sig: 'fn()' } } as unknown as { regex?: string } } }],
-        mapping: [{ paths: ['src/consumer/'] }],
-      }));
-      const result = await validate(graph);
-      const e041 = result.issues.find(i => i.code === 'E041' && i.nodePath === 'consumer');
-      expect(e041).toBeDefined();
-      expect(e041!.message).toContain("'ast'");
-    });
+    // E040 and E041 tests removed: relation.anchors field no longer exists
+    // Integration anchors are now defined in mapping groups, not on relations
   });
 
   describe('E037 anchor-not-found', () => {
@@ -1252,24 +1188,7 @@ describe('validator', () => {
   });
 
   describe('Architecture Constraints (E050-E054)', () => {
-    it('E050: invalid-node-type when node type not in architecture', async () => {
-      const graph = createGraph({
-        architecture: {
-          node_types: {
-            service: { description: 'A service' },
-          },
-        },
-      });
-      graph.nodes.set('a', createNode('a', { type: 'unknown-type' }));
-
-      const result = await validate(graph);
-      const e050 = result.issues.find(i => i.code === 'E050' && i.nodePath === 'a');
-      expect(e050).toBeDefined();
-      expect(e050!.message).toContain("'unknown-type'");
-      expect(e050!.message).toContain('yg-architecture.yaml');
-    });
-
-    it('E051: missing-required-aspect when node lacks architecture-required aspect', async () => {
+    it('E050: missing-required-aspect when mapping group lacks required aspect', async () => {
       const graph = createGraph({
         architecture: {
           node_types: {
@@ -1279,38 +1198,95 @@ describe('validator', () => {
             },
           },
         },
+        aspects: [{ name: 'Audit', id: 'audit-logging', anchors: ['proof'], artifacts: [] }],
       });
-      graph.nodes.set('a', createNode('a', { type: 'service' }));
+      graph.nodes.set('a', createNode('a', {
+        type: 'service',
+        mapping: [{ paths: ['src/service.ts'] }], // No aspects declared in group
+      }));
 
       const result = await validate(graph);
-      const e051 = result.issues.find(i => i.code === 'E051' && i.nodePath === 'a');
-      expect(e051).toBeDefined();
-      expect(e051!.message).toContain('audit-logging');
-      expect(e051!.message).toContain('required by type: service');
+      const e050 = result.issues.find(i => i.code === 'E050' && i.nodePath === 'a');
+      expect(e050).toBeDefined();
+      expect(e050!.message).toContain('audit-logging');
+      expect(e050!.message).toContain('architecture');
     });
 
-    it('E051: not fired when required aspect is present', async () => {
+    it('E050: not fired when mapping group declares required aspect', async () => {
       const graph = createGraph({
         architecture: {
           node_types: {
             service: {
               description: 'A service',
-              aspects: ['valid-tag'],
+              aspects: ['audit-logging'],
             },
+          },
+        },
+        aspects: [{ name: 'Audit', id: 'audit-logging', anchors: ['proof'], artifacts: [] }],
+      });
+      graph.nodes.set('a', createNode('a', {
+        type: 'service',
+        mapping: [{
+          paths: ['src/service.ts'],
+          aspects: [{ aspect: 'audit-logging', anchors: { proof: { regex: 'audit', rationale: 'test' } } }],
+        }],
+      }));
+
+      const result = await validate(graph);
+      const e050 = result.issues.find(i => i.code === 'E050' && i.nodePath === 'a');
+      expect(e050).toBeUndefined();
+    });
+
+    it('E051: invalid-relation-target when relation target type not allowed', async () => {
+      const graph = createGraph({
+        architecture: {
+          node_types: {
+            service: {
+              description: 'A service',
+              relations: { calls: ['service', 'module'] }, // can call service or module only
+            },
+            library: { description: 'A library' },
+            module: { description: 'A module' },
           },
         },
       });
       graph.nodes.set('a', createNode('a', {
         type: 'service',
-        aspects: [{ aspect: 'valid-tag' }],
+        relations: [{ target: 'b', type: 'calls' }],
       }));
+      graph.nodes.set('b', createNode('b', { type: 'library' })); // library not in allowed list
+
+      const result = await validate(graph);
+      const e051 = result.issues.find(i => i.code === 'E051' && i.nodePath === 'a');
+      expect(e051).toBeDefined();
+      expect(e051!.message).toContain('calls');
+      expect(e051!.message).toContain('library');
+    });
+
+    it('E051: not fired when relation target type is allowed', async () => {
+      const graph = createGraph({
+        architecture: {
+          node_types: {
+            service: {
+              description: 'A service',
+              relations: { calls: ['service', 'module'] },
+            },
+            module: { description: 'A module' },
+          },
+        },
+      });
+      graph.nodes.set('a', createNode('a', {
+        type: 'service',
+        relations: [{ target: 'b', type: 'calls' }],
+      }));
+      graph.nodes.set('b', createNode('b', { type: 'module' }));
 
       const result = await validate(graph);
       const e051 = result.issues.find(i => i.code === 'E051' && i.nodePath === 'a');
       expect(e051).toBeUndefined();
     });
 
-    it('E052: unsupported-parent-type when parent type not in allowed list', async () => {
+    it('E052: invalid-parent-type when parent type not in allowed list', async () => {
       const parentNode = createNode('parent', { type: 'library' });
       const childNode = createNode('parent/child', { type: 'service' });
       childNode.parent = parentNode;
@@ -1337,73 +1313,81 @@ describe('validator', () => {
       expect(e052!.message).toContain('service');
     });
 
-    it('E053: unsupported-relation-type when node type does not support relation', async () => {
+    it('E052: not fired when parent type is in allowed list', async () => {
+      const parentNode = createNode('parent', { type: 'module' });
+      const childNode = createNode('parent/child', { type: 'service' });
+      childNode.parent = parentNode;
+
       const graph = createGraph({
         architecture: {
           node_types: {
             service: {
               description: 'A service',
-              relations: { calls: ['service'] }, // only 'calls' is supported
+              parents: ['module'],
             },
-          },
-        },
-      });
-      graph.nodes.set('a', createNode('a', {
-        type: 'service',
-        relations: [{ target: 'b', type: 'extends' }], // 'extends' not supported
-      }));
-      graph.nodes.set('b', createNode('b', { type: 'service' }));
-
-      const result = await validate(graph);
-      const e053 = result.issues.find(i => i.code === 'E053' && i.nodePath === 'a');
-      expect(e053).toBeDefined();
-      expect(e053!.message).toContain('extends');
-      expect(e053!.message).toContain('service');
-    });
-
-    it('E054: relation-target-type-unsupported when target type not in allowed list', async () => {
-      const graph = createGraph({
-        architecture: {
-          node_types: {
-            service: {
-              description: 'A service',
-              relations: { calls: ['service', 'module'] }, // can call service or module
-            },
-            library: { description: 'A library' },
             module: { description: 'A module' },
           },
         },
       });
+      graph.nodes.set('parent', parentNode);
+      graph.nodes.set('parent/child', childNode);
+
+      const result = await validate(graph);
+      const e052 = result.issues.find(i => i.code === 'E052' && i.nodePath === 'parent/child');
+      expect(e052).toBeUndefined();
+    });
+
+    it('E054: unexpected-aspect when mapping group declares aspect outside allowed set', async () => {
+      const graph = createGraph({
+        architecture: {
+          node_types: {
+            service: {
+              description: 'A service',
+              aspects: ['audit-logging'],
+            },
+          },
+        },
+        aspects: [
+          { name: 'Audit', id: 'audit-logging', anchors: ['proof'], artifacts: [] },
+          { name: 'Random', id: 'random-aspect', anchors: ['proof'], artifacts: [] },
+        ],
+      });
       graph.nodes.set('a', createNode('a', {
         type: 'service',
-        relations: [{ target: 'b', type: 'calls' }],
+        mapping: [{
+          paths: ['src/service.ts'],
+          aspects: [
+            { aspect: 'audit-logging', anchors: { proof: { regex: 'audit', rationale: 'test' } } },
+            { aspect: 'random-aspect', anchors: { proof: { regex: 'random', rationale: 'test' } } }, // Not in effective set
+          ],
+        }],
       }));
-      graph.nodes.set('b', createNode('b', { type: 'library' })); // library not in allowed list
 
       const result = await validate(graph);
       const e054 = result.issues.find(i => i.code === 'E054' && i.nodePath === 'a');
       expect(e054).toBeDefined();
-      expect(e054!.message).toContain('calls');
-      expect(e054!.message).toContain('library');
+      expect(e054!.message).toContain('random-aspect');
     });
 
-    it('E054: not fired when target type is in allowed list', async () => {
+    it('E054: not fired when all declared aspects are in allowed set', async () => {
       const graph = createGraph({
         architecture: {
           node_types: {
             service: {
               description: 'A service',
-              relations: { calls: ['service', 'module'] },
+              aspects: ['audit-logging'],
             },
-            module: { description: 'A module' },
           },
         },
+        aspects: [{ name: 'Audit', id: 'audit-logging', anchors: ['proof'], artifacts: [] }],
       });
       graph.nodes.set('a', createNode('a', {
         type: 'service',
-        relations: [{ target: 'b', type: 'calls' }],
+        mapping: [{
+          paths: ['src/service.ts'],
+          aspects: [{ aspect: 'audit-logging', anchors: { proof: { regex: 'audit', rationale: 'test' } } }],
+        }],
       }));
-      graph.nodes.set('b', createNode('b', { type: 'module' })); // module is allowed
 
       const result = await validate(graph);
       const e054 = result.issues.find(i => i.code === 'E054' && i.nodePath === 'a');

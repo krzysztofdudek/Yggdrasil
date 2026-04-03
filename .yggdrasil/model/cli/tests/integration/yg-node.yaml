@@ -8,4 +8,5 @@ relations: []
 
 mapping:
   - paths:
-    - source/cli/tests/integration/
+      - source/cli/tests/integration/
+      - source/cli/tests/fixtures/

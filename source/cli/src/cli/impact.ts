@@ -180,14 +180,14 @@ async function handleAspectImpact(
     const effective = collectEffectiveAspectIds(graph, nodePath);
     if (effective.has(aspectId)) {
       const node = graph.nodes.get(nodePath)!;
-      const ownAspectIds = new Set((node.meta.aspects ?? []).map(a => a.aspect));
+      const ownAspectIds = new Set(node.meta.aspects ?? []);
       if (ownAspectIds.has(aspectId)) {
         affected.push({ path: nodePath, source: 'own' });
       } else {
         let fromHierarchy = false;
         let anc = node.parent;
         while (anc) {
-          if ((anc.meta.aspects ?? []).some(a => a.aspect === aspectId)) {
+          if ((anc.meta.aspects ?? []).includes(aspectId)) {
             fromHierarchy = true;
             break;
           }
