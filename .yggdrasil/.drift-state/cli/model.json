@@ -1,7 +1,8 @@
 {
-  "hash": "24524683f507b090f93841c86c819ec17b28901db9fe2524dcc2f2936abe75b9",
+  "hash": "61ee91e5c956a687a36afd9e1ee064e223525c7ef2f1772bfdbfcb962f3446bc",
   "files": {
     ".yggdrasil/model/cli/model/yg-node.yaml": "af1a2662a088e10648fd30596c0aeae1fb8f3eb7847c3af0edca4015c4f0d075",
+    ".yggdrasil/model/cli/model/interface.md": "89f16b581a1e224f2ba63821a9932e77abdb0c0902d4b61bf4a1feda0653f868",
     ".yggdrasil/model/cli/model/internals.md": "7cdcba4453f5903468c71521f26fec33328d600a547a6200157e6e5db7920da9",
     ".yggdrasil/model/cli/model/responsibility.md": "b668c6db2090a36a54277f62fb228c266d87c6d119f89e6ed67e140392863a66",
     ".yggdrasil/model/cli/yg-node.yaml": "640850d59baf2b0d317b20d5d3312def4dbfb30c8d5489daff345b19cca52e40",
@@ -10,8 +11,7 @@
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "7deb781ab921aaf4f32cafbaec4e0b3ea8d803b1a039d2ee578ef49ecf3c0308",
     ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
     "source/cli/src/model/.gitkeep": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
-    ".yggdrasil/model/cli/model/interface.md": "89f16b581a1e224f2ba63821a9932e77abdb0c0902d4b61bf4a1feda0653f868",
-    "source/cli/src/model/types.ts": "1f53135e118ae5f3ef76056d72a5f669236df1a6e8e6f3cd71ffcddf2dfb47e7"
+    "source/cli/src/model/types.ts": "fe91b0fff2cf55ac89d2d28637b017ae076a6d64628fefbc94df6e99effa7e26"
   },
   "mtimes": {
     ".yggdrasil/model/cli/model/yg-node.yaml": 1774035679170.0884,
@@ -24,7 +24,7 @@
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775049910995.6624,
     ".yggdrasil/aspects/deterministic/content.md": 1772778780694.5889,
     "source/cli/src/model/.gitkeep": 1771702275795.2727,
-    "source/cli/src/model/types.ts": 1775209484002.7878
+    "source/cli/src/model/types.ts": 1775210041972.7253
   },
-  "acknowledgeReason": "cascade from parent node anchor realization updates, source compliant"
+  "acknowledgeReason": "Added anchors field to Relation type"
 }

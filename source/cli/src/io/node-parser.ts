@@ -273,6 +273,13 @@ function parseMappingGroupAspect(raw: unknown, filePath: string, groupIdx: numbe
 function parseMapping(rawMapping: unknown, filePath: string): MappingGroup | undefined {
   if (!rawMapping) return undefined;
 
+  // Reject old format: mapping as an object with paths
+  if (typeof rawMapping === 'object' && !Array.isArray(rawMapping)) {
+    throw new Error(
+      `yg-node.yaml at ${filePath}: mapping must be an array of groups, got object. Run 'yg init --upgrade' to migrate.`,
+    );
+  }
+
   // New format: mapping is an array of MappingGroup objects
   if (Array.isArray(rawMapping)) {
     if (rawMapping.length === 0) {
@@ -331,27 +338,6 @@ function parseMapping(rawMapping: unknown, filePath: string): MappingGroup | und
     // Return the first group if only one, otherwise return as array-like structure
     // (Note: NodeMapping is now MappingGroup which supports array internally)
     return groups[0];
-  }
-
-  // Old format compatibility: mapping is an object with { paths: [...] }
-  if (typeof rawMapping === 'object') {
-    const obj = rawMapping as Record<string, unknown>;
-
-    if (Array.isArray(obj.paths) && obj.paths.length > 0) {
-      const paths = (obj.paths as unknown[])
-        .filter((p): p is string => typeof p === 'string')
-        .map((p) => validateRelativePath(p, filePath, 'mapping.paths[]'));
-      if (paths.length === 0) {
-        throw new Error(`yg-node.yaml at ${filePath}: mapping.paths must be a non-empty array`);
-      }
-      return { paths };
-    }
-
-    if (obj.paths !== undefined || obj.type !== undefined || obj.path !== undefined) {
-      throw new Error(
-        `yg-node.yaml at ${filePath}: mapping must have paths (array of file/directory paths)`,
-      );
-    }
   }
 
   return undefined;

@@ -1,0 +1,6 @@
+{
+  "hash": "fake",
+  "files": {
+    "src/svc/index.ts": "fake-hash"
+  }
+}

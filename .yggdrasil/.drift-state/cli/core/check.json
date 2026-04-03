@@ -1,5 +1,5 @@
 {
-  "hash": "0332c371c7ba50face9a7cce68e5e743842c5ced819f369c9bb225c019c7d39a",
+  "hash": "864036c4eec48f72e4d37dddd5450f957e1a3551c86d7a27b5137472102f87ec",
   "files": {
     ".yggdrasil/model/cli/core/check/yg-node.yaml": "ff768e70cfaffb94cd35831651fb58c3a2f51f6f19e6eb55c1c73f6d8f194dac",
     ".yggdrasil/model/cli/core/check/interface.md": "078187610cc286e87f3540f2f0019d3e8cdf815d2df4cdd87358997c88364187",
@@ -20,8 +20,8 @@
     ".yggdrasil/model/cli/core/context/responsibility.md": "62350b3416df89ffd1c00486f7564a69c0775276030dcf64f02bc1cbdacd74a4",
     ".yggdrasil/model/cli/core/context/interface.md": "7ac868796fae13822600bd354605c330489afe660939b16aff49e66cab9352b5",
     ".yggdrasil/model/cli/model/responsibility.md": "b668c6db2090a36a54277f62fb228c266d87c6d119f89e6ed67e140392863a66",
-    "source/cli/src/core/check.ts": "875c692371964c47a3d8f7473c1ff626f8636a8507f66e95ee2c1a18e7b5bd55",
-    ".yggdrasil/model/cli/model/interface.md": "89f16b581a1e224f2ba63821a9932e77abdb0c0902d4b61bf4a1feda0653f868"
+    ".yggdrasil/model/cli/model/interface.md": "89f16b581a1e224f2ba63821a9932e77abdb0c0902d4b61bf4a1feda0653f868",
+    "source/cli/src/core/check.ts": "a104003f0487075911a667e79d439e73f92b2578f0f00db4258c1ce1a1ed4829"
   },
   "mtimes": {
     ".yggdrasil/model/cli/core/check/yg-node.yaml": 1775050717859.6448,
@@ -44,7 +44,7 @@
     ".yggdrasil/model/cli/core/context/interface.md": 1775208203124.5962,
     ".yggdrasil/model/cli/model/responsibility.md": 1772778759688.719,
     ".yggdrasil/model/cli/model/interface.md": 1775209695269.1165,
-    "source/cli/src/core/check.ts": 1775207208280.7786
+    "source/cli/src/core/check.ts": 1775210045200.7085
   },
-  "acknowledgeReason": "Updated dependency interface (cli/io or cli/model) - no source changes required"
+  "acknowledgeReason": "Renamed integration_anchors to integration_aspects throughout codebase for consistency"
 }

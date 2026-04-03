@@ -6,5 +6,5 @@ relations:
     type: listens
     event_name: order.created
 mapping:
-  paths:
-    - src/users/user.repository.ts
+  - paths:
+      - src/users/user.repository.ts

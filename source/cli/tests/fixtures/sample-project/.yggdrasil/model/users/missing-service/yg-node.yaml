@@ -2,5 +2,5 @@ name: MissingService
 description: x
 type: service
 mapping:
-  paths:
-    - src/users/missing.service.ts
+  - paths:
+      - src/users/missing.service.ts

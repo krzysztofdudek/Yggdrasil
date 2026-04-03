@@ -18,5 +18,5 @@ relations:
     type: emits
     event_name: order.created
 mapping:
-  paths:
-    - src/orders/order.service.ts
+  - paths:
+      - src/orders/order.service.ts

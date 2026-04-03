@@ -1,0 +1,4 @@
+name: Checkout Flow
+description: test flow
+nodes:
+  - svc/my-service

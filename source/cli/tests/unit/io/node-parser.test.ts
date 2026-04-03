@@ -78,8 +78,8 @@ name: TestNode
 name: TestNode
 type: service
 mapping:
-  paths:
-    - src/modules/test/service.ts
+  - paths:
+      - src/modules/test/service.ts
 `,
       'utf-8',
     );
@@ -100,12 +100,12 @@ mapping:
 name: TestNode
 type: service
 mapping:
-  type: directory
+  - type: directory
 `,
       'utf-8',
     );
 
-    await expect(parseNodeYaml(nodePath)).rejects.toThrow('mapping must have paths');
+    await expect(parseNodeYaml(nodePath)).rejects.toThrow('mapping');
 
     await rm(tmpDir, { recursive: true, force: true });
   });
@@ -120,12 +120,12 @@ mapping:
 name: TestNode
 type: service
 mapping:
-  paths: "not-array"
+  - paths: "not-array"
 `,
       'utf-8',
     );
 
-    await expect(parseNodeYaml(nodePath)).rejects.toThrow('mapping must have paths');
+    await expect(parseNodeYaml(nodePath)).rejects.toThrow('mapping');
 
     await rm(tmpDir, { recursive: true, force: true });
   });
@@ -140,14 +140,14 @@ mapping:
 name: TestNode
 type: service
 mapping:
-  paths:
-    - 1
-    - 2
+  - paths:
+      - 1
+      - 2
 `,
       'utf-8',
     );
 
-    await expect(parseNodeYaml(nodePath)).rejects.toThrow('non-empty array');
+    await expect(parseNodeYaml(nodePath)).rejects.toThrow('non-empty');
 
     await rm(tmpDir, { recursive: true, force: true });
   });
@@ -162,9 +162,9 @@ mapping:
 name: TestNode
 type: component
 mapping:
-  paths:
-    - app/page.tsx
-    - app/loading.tsx
+  - paths:
+      - app/page.tsx
+      - app/loading.tsx
 `,
       'utf-8',
     );
@@ -249,7 +249,7 @@ aspects:
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('returns undefined mapping when mapping is empty object', async () => {
+  it('throws when mapping is empty object', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-no-path');
     await mkdir(tmpDir, { recursive: true });
     const nodePath = path.join(tmpDir, 'yg-node.yaml');
@@ -263,8 +263,7 @@ mapping: {}
       'utf-8',
     );
 
-    const meta = await parseNodeYaml(nodePath);
-    expect(meta.mapping).toBeUndefined();
+    await expect(parseNodeYaml(nodePath)).rejects.toThrow('must be an array');
 
     await rm(tmpDir, { recursive: true, force: true });
   });
@@ -279,8 +278,8 @@ mapping: {}
 name: EmptyPath
 type: service
 mapping:
-  paths:
-    - ""
+  - paths:
+      - ""
 `,
       'utf-8',
     );
@@ -300,8 +299,8 @@ mapping:
 name: AbsPath
 type: service
 mapping:
-  paths:
-    - /absolute/path.ts
+  - paths:
+      - /absolute/path.ts
 `,
       'utf-8',
     );
@@ -321,12 +320,12 @@ mapping:
 name: EmptyPaths
 type: service
 mapping:
-  paths: []
+  - paths: []
 `,
       'utf-8',
     );
 
-    await expect(parseNodeYaml(nodePath)).rejects.toThrow('mapping must have paths');
+    await expect(parseNodeYaml(nodePath)).rejects.toThrow('mapping');
 
     await rm(tmpDir, { recursive: true, force: true });
   });
@@ -401,12 +400,12 @@ relations:
 name: NoPath
 type: service
 mapping:
-  type: directory
+  - type: directory
 `,
       'utf-8',
     );
 
-    await expect(parseNodeYaml(nodePath)).rejects.toThrow('mapping must have paths');
+    await expect(parseNodeYaml(nodePath)).rejects.toThrow('mapping');
 
     await rm(tmpDir, { recursive: true, force: true });
   });
@@ -562,7 +561,7 @@ mapping:
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('supports backward compatibility: old mapping format with object.paths', async () => {
+  it('throws on old mapping format (object instead of array)', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-mapping-legacy');
     await mkdir(tmpDir, { recursive: true });
     const nodePath = path.join(tmpDir, 'yg-node.yaml');
@@ -578,8 +577,7 @@ mapping:
       'utf-8',
     );
 
-    const meta = await parseNodeYaml(nodePath);
-    expect(meta.mapping).toEqual({ paths: ['src/legacy/module.ts'] });
+    await expect(parseNodeYaml(nodePath)).rejects.toThrow('must be an array');
 
     await rm(tmpDir, { recursive: true, force: true });
   });

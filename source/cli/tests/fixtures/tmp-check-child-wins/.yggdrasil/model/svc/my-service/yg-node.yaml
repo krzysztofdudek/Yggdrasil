@@ -1,0 +1,6 @@
+name: MyService
+type: service
+description: parent
+mapping:
+  paths:
+    - src/svc/

@@ -1,5 +1,5 @@
 {
-  "hash": "73f4b02088c5a1a8ab80e307e76c14ad1a63964b8a2786e1a8b703f6c1c7f8fc",
+  "hash": "57a606ab657ec9d5d79214a6f94e0d85b8a2de73a3ae86461276a6cc05e0577e",
   "files": {
     ".yggdrasil/model/cli/tests/unit/support/io/yg-node.yaml": "2d74fb0a3d202dbe059bffec5fe0deeda34ccb5a1b61ad48bf0a70f02afc423b",
     ".yggdrasil/model/cli/tests/unit/support/io/responsibility.md": "dc870922cf5f53c3a21fbc12887d3a7ccdc83a70d2ffbcf0f89d007e1b2957d5",
@@ -21,7 +21,7 @@
     "source/cli/tests/unit/io/drift-state-store.test.ts": "f2365e5df14198054eac8f916b215c7859c692876f55f986ac8743f8bab70b64",
     "source/cli/tests/unit/io/flow-parser.test.ts": "c8b30935c68c3ac0abac65278daa5ff763a11a1c62bcafdbfe3ef8421c40a0ae",
     "source/cli/tests/unit/io/schema-parser.test.ts": "f57c58c79fd33c2d225d84f0d2c8bb81d68bcac3cbafc6e2fd4d6ea840266f95",
-    "source/cli/tests/unit/io/node-parser.test.ts": "24f8fc6602b21a700933e7a63f935d5744fab426f2c63c7925fe1b2a5f0b20ea"
+    "source/cli/tests/unit/io/node-parser.test.ts": "87b05b2889dcf03036c15ae902e2150804c6493abcbe0b8ddde90473c29c20b3"
   },
   "mtimes": {
     ".yggdrasil/model/cli/tests/unit/support/io/yg-node.yaml": 1775055837328.6584,
@@ -43,8 +43,8 @@
     "source/cli/tests/unit/io/config-parser.test.ts": 1775207208294.7393,
     "source/cli/tests/unit/io/drift-state-store.test.ts": 1772781906206.4846,
     "source/cli/tests/unit/io/flow-parser.test.ts": 1774864350266.7651,
-    "source/cli/tests/unit/io/node-parser.test.ts": 1775209514317.041,
+    "source/cli/tests/unit/io/node-parser.test.ts": 1775210023580.6013,
     "source/cli/tests/unit/io/schema-parser.test.ts": 1773392454498.4453
   },
-  "acknowledgeReason": "Added tests for mapping group array format and MappingGroupAspect parsing"
+  "acknowledgeReason": "Fixed test field name from integration_anchors to integration_aspects"
 }

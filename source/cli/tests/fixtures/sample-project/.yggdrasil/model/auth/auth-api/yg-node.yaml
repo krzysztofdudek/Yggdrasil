@@ -2,6 +2,6 @@ name: AuthApi
 description: x
 type: service
 mapping:
-  paths:
-    - src/auth/auth.controller.ts
-    - src/auth/login.service.ts
+  - paths:
+      - src/auth/auth.controller.ts
+      - src/auth/login.service.ts
