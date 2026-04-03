@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 import { gt, valid } from 'semver';
-import { DEFAULT_CONFIG, resolveProjectName } from '../templates/default-config.js';
+import { DEFAULT_CONFIG, DEFAULT_ARCHITECTURE, resolveProjectName } from '../templates/default-config.js';
 import { installRulesForPlatform, PLATFORMS, type Platform } from '../templates/platform.js';
 import { detectVersion, runMigrations, updateConfigVersion } from '../core/migrator.js';
 import { MIGRATIONS } from '../migrations/index.js';
@@ -123,6 +123,15 @@ export function registerInitCommand(program: Command): void {
         // Refresh schemas (copy latest schema files)
         await refreshSchemas(yggRoot);
 
+        // Create or refresh architecture file (if missing)
+        const architecturePath = path.join(yggRoot, 'yg-architecture.yaml');
+        try {
+          await stat(architecturePath);
+        } catch {
+          // File doesn't exist, create it
+          await writeFile(architecturePath, DEFAULT_ARCHITECTURE, 'utf-8');
+        }
+
         // Refresh rules
         const rulesPath = await installRulesForPlatform(projectRoot, platform);
         process.stdout.write('✓ Rules refreshed.\n');
@@ -154,6 +163,7 @@ export function registerInitCommand(program: Command): void {
       const projectName = await resolveProjectName(projectRoot);
       const config = DEFAULT_CONFIG.replace('name: ""', `name: "${projectName}"`);
       await writeFile(path.join(yggRoot, 'yg-config.yaml'), config, 'utf-8');
+      await writeFile(path.join(yggRoot, 'yg-architecture.yaml'), DEFAULT_ARCHITECTURE, 'utf-8');
       await writeFile(path.join(yggRoot, '.gitignore'), GITIGNORE_CONTENT, 'utf-8');
 
       const rulesPath = await installRulesForPlatform(projectRoot, platform);
@@ -161,6 +171,7 @@ export function registerInitCommand(program: Command): void {
       process.stdout.write('✓ Yggdrasil initialized.\n\n');
       process.stdout.write('Created:\n');
       process.stdout.write('  .yggdrasil/yg-config.yaml\n');
+      process.stdout.write('  .yggdrasil/yg-architecture.yaml\n');
       process.stdout.write('  .yggdrasil/.gitignore\n');
       process.stdout.write('  .yggdrasil/model/\n');
       process.stdout.write('  .yggdrasil/aspects/\n');

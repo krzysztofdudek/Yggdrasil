@@ -412,9 +412,11 @@ describe.skipIf(!distExists)('CLI E2E', () => {
       expect(status).toBe(0);
       expect(stdout).toContain('Yggdrasil initialized');
       expect(existsSync(path.join(tmpDir, '.yggdrasil', 'yg-config.yaml'))).toBe(true);
+      expect(existsSync(path.join(tmpDir, '.yggdrasil', 'yg-architecture.yaml'))).toBe(true);
       expect(existsSync(path.join(tmpDir, '.yggdrasil', 'aspects'))).toBe(true);
       expect(existsSync(path.join(tmpDir, '.yggdrasil', 'flows'))).toBe(true);
       expect(existsSync(path.join(tmpDir, '.yggdrasil', 'model'))).toBe(true);
+      expect(stdout).toContain('yg-architecture.yaml');
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
     }
@@ -547,6 +549,56 @@ describe.skipIf(!distExists)('CLI E2E', () => {
       expect(status).toBe(0);
       expect(stdout).toContain('Yggdrasil initialized');
       expect(existsSync(path.join(tmpDir, '.yggdrasil', 'agent-rules.md'))).toBe(true);
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('yg init creates yg-architecture.yaml with node types', () => {
+    const tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-init-arch-'));
+
+    try {
+      const { status } = run(['init'], tmpDir);
+      expect(status).toBe(0);
+      const architecturePath = path.join(tmpDir, '.yggdrasil', 'yg-architecture.yaml');
+      expect(existsSync(architecturePath)).toBe(true);
+
+      const architectureContent = readFileSync(architecturePath, 'utf-8');
+      const architecture = parseYaml(architectureContent) as Record<string, unknown>;
+
+      expect(architecture.node_types).toBeDefined();
+      expect(architecture.node_types).toHaveProperty('module');
+      expect(architecture.node_types).toHaveProperty('service');
+      expect(architecture.node_types).toHaveProperty('library');
+      expect(architecture.node_types).toHaveProperty('infrastructure');
+      expect(architecture.node_types).toHaveProperty('data');
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('yg init --upgrade creates missing yg-architecture.yaml', () => {
+    const tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-init-arch-upgrade-'));
+
+    try {
+      // Initial init creates architecture file
+      const { status: initStatus } = run(['init', '--platform', 'generic'], tmpDir);
+      expect(initStatus).toBe(0);
+
+      // Remove the architecture file to simulate old project
+      const architecturePath = path.join(tmpDir, '.yggdrasil', 'yg-architecture.yaml');
+      rmSync(architecturePath);
+      expect(existsSync(architecturePath)).toBe(false);
+
+      // Run upgrade, should create the missing architecture file
+      const { status: upgradeStatus } = run(['init', '--upgrade', '--platform', 'generic'], tmpDir);
+      expect(upgradeStatus).toBe(0);
+
+      // Verify architecture file was created
+      expect(existsSync(architecturePath)).toBe(true);
+      const architectureContent = readFileSync(architecturePath, 'utf-8');
+      const architecture = parseYaml(architectureContent) as Record<string, unknown>;
+      expect(architecture.node_types).toBeDefined();
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
     }

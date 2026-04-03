@@ -7,7 +7,7 @@
 - Create directories: .yggdrasil/model, aspects, flows, schemas. mkdir recursive.
 - getGraphSchemasDir(): from import.meta.url, package root = parent of cli dir, join packageRoot, 'graph-schemas'.
 - Copy graph-schemas: readdir, filter files, copy each to .yggdrasil/schemas. On failure: write warning to stderr, continue (do not exit).
-- Write yg-config.yaml (DEFAULT_CONFIG), .gitignore.
+- Write yg-config.yaml (DEFAULT_CONFIG), yg-architecture.yaml (DEFAULT_ARCHITECTURE), .gitignore.
 - installRulesForPlatform(projectRoot, platform).
 - Output created paths and next steps.
 
@@ -15,12 +15,12 @@
 
 - stat(.yggdrasil). If not directory: exit 1 "Error: .yggdrasil exists but is not a directory."
 - If exists and no --upgrade: exit 1 "Error: .yggdrasil/ already exists. Use --upgrade to refresh rules only."
-- If --upgrade: installRulesForPlatform only. Output "✓ Rules refreshed." and rules path. Return.
+- If --upgrade: run migrations (if project is older than CLI), refresh schemas, create yg-architecture.yaml if missing, then installRulesForPlatform. Output "✓ Rules refreshed." and rules path. Return.
 
 **Platform validation:** (options.platform ?? 'generic') as Platform. If not in PLATFORMS: exit 1 "Error: Unknown platform '${platform}'. Use: ${PLATFORMS.join(', ')}".
 
 **Uses:** path.join(projectRoot, '.yggdrasil') directly; does not use findYggRoot.
 
-**Consumes:** DEFAULT_CONFIG, installRulesForPlatform, PLATFORMS, Platform (cli/templates).
+**Consumes:** DEFAULT_CONFIG, DEFAULT_ARCHITECTURE, installRulesForPlatform, PLATFORMS, Platform (cli/templates).
 
 **Out of scope:** Graph loading, validation, drift.
