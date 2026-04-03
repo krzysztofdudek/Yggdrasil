@@ -1,9 +1,8 @@
 {
-  "hash": "12e4f59762ef0da79450ec97cbcf2d4368a219bb46e4e71b42e2e407fde09712",
+  "hash": "14cd0fa00e85171433e3c87b3923b3eff2f82cd69a06be2ab81aec2310781138",
   "files": {
     ".yggdrasil/model/cli/tests/unit/support/utils/yg-node.yaml": "035e62f40c8ae027260199c1c268e93e0d13b9a3dd35e86d7cec19de45e4a7cd",
     ".yggdrasil/model/cli/tests/unit/support/utils/responsibility.md": "4813907174f9897f2ba2edabcefccdfba0007f0cce6fd8c5cb04b83efa2ebe6a",
-    ".yggdrasil/model/cli/yg-node.yaml": "640850d59baf2b0d317b20d5d3312def4dbfb30c8d5489daff345b19cca52e40",
     ".yggdrasil/model/cli/internals.md": "fcd16e38b431eead0b12e14b05dd25184ad4ef23884fbde7402172b0985857f6",
     ".yggdrasil/model/cli/responsibility.md": "696e0f5f377eba69a843a18379e8f20e0322dc037182690629652a75aa2227fb",
     ".yggdrasil/model/cli/tests/yg-node.yaml": "ac0fc246c01a04e62d43ef8abadb2f01551616ca7509c3b268995ef646279bc9",
@@ -16,14 +15,15 @@
     ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
     "source/cli/tests/unit/utils/git.test.ts": "b0248bd2a287de1c049e53b951a6552528e18c5996a2f1ae402dd0ea8075449f",
     "source/cli/tests/unit/utils/hash.test.ts": "a3913b62c7e5bb496dedce6cf801ae5563e0add7245238be587cdfcac578e0a7",
+    "source/cli/tests/unit/utils/paths.test.ts": "c23506c5205924ee6f09fa03146cdb464f578df4284202c5422e2b0f5fde2745",
     "source/cli/tests/unit/utils/tokenizer.test.ts": "d26f04a1fc0f569f1e313738c67cdcdf1f0b4b6a996f9eda3872f1d18f929d65",
     "source/cli/tests/unit/utils/tokens.test.ts": "7bb077c5f4655f37fe11a5909fc9917bf5f41374d3c45931594ca426818d51dc",
-    "source/cli/tests/unit/utils/paths.test.ts": "c23506c5205924ee6f09fa03146cdb464f578df4284202c5422e2b0f5fde2745"
+    ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df"
   },
   "mtimes": {
     ".yggdrasil/model/cli/tests/unit/support/utils/yg-node.yaml": 1775216154030.3833,
     ".yggdrasil/model/cli/tests/unit/support/utils/responsibility.md": 1775056437335.7104,
-    ".yggdrasil/model/cli/yg-node.yaml": 1775050142507.4995,
+    ".yggdrasil/model/cli/yg-node.yaml": 1775219059046.2136,
     ".yggdrasil/model/cli/internals.md": 1772829219205.6714,
     ".yggdrasil/model/cli/responsibility.md": 1775045623775.336,
     ".yggdrasil/model/cli/tests/yg-node.yaml": 1775057326517.7761,
@@ -40,5 +40,5 @@
     "source/cli/tests/unit/utils/tokenizer.test.ts": 1773070117024.6606,
     "source/cli/tests/unit/utils/tokens.test.ts": 1771702275811.6807
   },
-  "acknowledgeReason": "Test fixture updates for new MappingGroup[] array format"
+  "acknowledgeReason": "Dogfood: cascade from parent cli node format change"
 }

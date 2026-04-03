@@ -4,11 +4,7 @@ description: "Schema version migrations for Yggdrasil graph files — migrates f
 blackbox: false
 
 aspects:
-  - aspect: deterministic
-    anchors:
-      pure-function:
-        regex: "export (async function|function|const)"
-
+  - deterministic
 relations: []
 
 mapping:

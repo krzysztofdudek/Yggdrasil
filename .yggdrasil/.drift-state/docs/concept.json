@@ -1,28 +1,28 @@
 {
-  "hash": "568178815812617004ccd6f0912ea1a43bafd22d713c73b81e011cc7c3dd9a63",
+  "hash": "177bb36c9a0cb074df527d6dc769528506fe5eabc7e88fb734437ea6c2bd5a1a",
   "files": {
-    ".yggdrasil/model/docs/concept/responsibility.md": "1b5a6590a3620359d6010c5bd05e665732cb35dff7b765a0d205244577bca2dd",
-    ".yggdrasil/model/docs/responsibility.md": "070a2a6c6b29116ab18d2b824068d227cc4682f30fd5ef79b3cbe307dbe632fe",
-    "docs/concept/engine.md": "d44762cf184735323d128425397c3a2d289839eee9526f66503aedbade6d2170",
-    "docs/concept/foundation.md": "4ab53b044d48d718a8a54afffbcf2e99ee9ef59055a1ed8e6874017aa18353e6",
-    "docs/concept/graph.md": "41fd627220eabe00273f82e79bf73901ba765e218e17b1cc5c2ba3a9462759d6",
-    "docs/concept/integration.md": "e71c9764079b915ca54b03472fbc58575e7314be309f7da6139e67ed2d272f86",
-    "docs/concept/materialization.md": "0fef8e79a0b3e038aa7954cb8f290c7fa09badebaf6a1e57773d10c0a5df21af",
-    "docs/concept/tools.md": "8db4a03efcd6c0f3722325d9ade3b259e5b1b8a11e68211100c5e0d80f6d2cca",
     ".yggdrasil/model/docs/concept/yg-node.yaml": "75136b58eec2f04e6c0a6813707e37d7292a8c928dc4ef080e12d9c334f7a3fb",
-    ".yggdrasil/model/docs/yg-node.yaml": "36ca70c4bea26714bb7450d306d1a898e70573151394eb8e0fb3a5cf588c84d4"
+    ".yggdrasil/model/docs/concept/responsibility.md": "1b5a6590a3620359d6010c5bd05e665732cb35dff7b765a0d205244577bca2dd",
+    ".yggdrasil/model/docs/yg-node.yaml": "36ca70c4bea26714bb7450d306d1a898e70573151394eb8e0fb3a5cf588c84d4",
+    ".yggdrasil/model/docs/responsibility.md": "070a2a6c6b29116ab18d2b824068d227cc4682f30fd5ef79b3cbe307dbe632fe",
+    "docs/concept/foundation.md": "4ab53b044d48d718a8a54afffbcf2e99ee9ef59055a1ed8e6874017aa18353e6",
+    "docs/concept/materialization.md": "0fef8e79a0b3e038aa7954cb8f290c7fa09badebaf6a1e57773d10c0a5df21af",
+    "docs/concept/engine.md": "5984cf58d51ff13ac55355d03435687eea7d288a9a4b09f3a4ddb6d72c418770",
+    "docs/concept/graph.md": "1ae93281681e41cde065d69615cfc09a1bf2983202c1d5504361b95c7e03a8a2",
+    "docs/concept/integration.md": "fb8bad498cee6dea0cbaa49be0fdf816b6d2629c03e0d3ca2a9f4e6a08d229b5",
+    "docs/concept/tools.md": "c74538850d7d34f1eff1f9a9d7fb6a5deef4b1402dbb2a2c749c02584302000f"
   },
   "mtimes": {
     ".yggdrasil/model/docs/concept/yg-node.yaml": 1775216153974.5889,
     ".yggdrasil/model/docs/concept/responsibility.md": 1772828318480.2405,
     ".yggdrasil/model/docs/yg-node.yaml": 1775057326518.1704,
     ".yggdrasil/model/docs/responsibility.md": 1772828320283.2747,
-    "docs/concept/engine.md": 1775031073177.7454,
+    "docs/concept/engine.md": 1775218434067.4668,
     "docs/concept/foundation.md": 1775025063809.139,
-    "docs/concept/graph.md": 1775025212811.015,
-    "docs/concept/integration.md": 1775025417275.1882,
+    "docs/concept/graph.md": 1775218406718.175,
+    "docs/concept/integration.md": 1775218545080.0046,
     "docs/concept/materialization.md": 1775025218263.0195,
-    "docs/concept/tools.md": 1775046913265.2395
+    "docs/concept/tools.md": 1775218499318.267
   },
-  "acknowledgeReason": "Migrated mapping format from object to array of groups"
+  "acknowledgeReason": "Documentation spec update: architecture file, mapping groups, effective aspects resolution"
 }

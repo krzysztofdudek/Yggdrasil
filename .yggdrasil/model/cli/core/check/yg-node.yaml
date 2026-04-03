@@ -2,11 +2,7 @@ name: Check
 type: library
 description: "Unified check orchestrator — combines drift classification (E020/E021), coverage scan (E022), orphaned drift state (W005), validation issues, health score computation, and suggested next command"
 aspects:
-  - aspect: deterministic
-    anchors:
-      pure-function:
-        regex: "export (function|const|async function)"
-
+  - deterministic
 relations:
   - target: cli/core/validator
     type: uses

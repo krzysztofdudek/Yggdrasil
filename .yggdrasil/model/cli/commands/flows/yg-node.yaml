@@ -2,19 +2,8 @@ name: FlowsCommand
 type: library
 description: "Lists all flows with metadata in YAML format via yg flows"
 aspects:
-  - aspect: deterministic
-    anchors:
-      pure-function:
-        regex: "export (function|const|async function)"
-  - aspect: cli-command-contract
-    anchors:
-      stdout-write:
-        regex: "process\\.stdout\\.write"
-      error-handler:
-        regex: "process\\.stderr\\.write"
-      exit-code:
-        regex: "process\\.exit"
-
+  - deterministic
+  - cli-command-contract
 relations:
   - target: cli/core/loader
     type: uses

@@ -1,41 +1,41 @@
 {
-  "hash": "7d23e1a699e624b4896aa351a093a28f14b18f7eec045758031ba0237b44d102",
+  "hash": "538f010afbbc765c2b474652d214d4f8400076f234f64dee72cc80cd553f32d6",
   "files": {
+    ".yggdrasil/model/cli/tests/fixtures/scenarios/yg-node.yaml": "2fa607518cf0e0bb199de2716fd561ecb2b73078f2eeee6a1badd39ec7b86448",
     ".yggdrasil/model/cli/tests/fixtures/scenarios/responsibility.md": "3483cfdaadd0a860cc812ba062e733131c03d83fbba446832727584d2cd9ec9d",
-    ".yggdrasil/model/cli/yg-node.yaml": "640850d59baf2b0d317b20d5d3312def4dbfb30c8d5489daff345b19cca52e40",
     ".yggdrasil/model/cli/internals.md": "fcd16e38b431eead0b12e14b05dd25184ad4ef23884fbde7402172b0985857f6",
     ".yggdrasil/model/cli/responsibility.md": "696e0f5f377eba69a843a18379e8f20e0322dc037182690629652a75aa2227fb",
+    ".yggdrasil/model/cli/tests/yg-node.yaml": "ac0fc246c01a04e62d43ef8abadb2f01551616ca7509c3b268995ef646279bc9",
     ".yggdrasil/model/cli/tests/responsibility.md": "ef48f39a8d5d6b7f1c61e94f2b95ccf38c02365b3496e3ff5fcf21827ffd8138",
+    ".yggdrasil/model/cli/tests/fixtures/yg-node.yaml": "a952f03516da4a5c879e253415a45e7f714507ba01bea742210c5590f41acd79",
     ".yggdrasil/model/cli/tests/fixtures/responsibility.md": "0cfa044c1c62248e9b222711d7862211f648b38d5e43b3ccd00e87bc5158b7a5",
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "7deb781ab921aaf4f32cafbaec4e0b3ea8d803b1a039d2ee578ef49ecf3c0308",
     ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
     "source/cli/tests/fixtures/sample-project-broken-relation/.yggdrasil/model/orders/broken-service/description.md": "b4cc29871e6a209997e21600abf70ee67a65286e377bb4313be62f1268bb2bbe",
     "source/cli/tests/fixtures/sample-project-broken-relation/.yggdrasil/model/orders/broken-service/yg-node.yaml": "c26cb4c9320c111099f2c53242fff1e5469fbff067f73fea5b043cea477dd452",
     "source/cli/tests/fixtures/sample-project-broken-relation/.yggdrasil/model/orders/yg-node.yaml": "c362efbe45133a6f405ab9e42a3deb22f4d3e68dab146bc38e3e429aea5d83de",
+    "source/cli/tests/fixtures/sample-project-broken-relation/.yggdrasil/yg-config.yaml": "f840e2c8e59514a6f7ba7d12254fc464aaed247ccd335d363998bf586ddea0ed",
     "source/cli/tests/fixtures/sample-project-orphan-dir/.yggdrasil/model/orders/orphan-service/description.md": "a00bfc731017159e8a721b97d9601351dd29cec535e456ec86b0ec4a81c8051f",
     "source/cli/tests/fixtures/sample-project-orphan-dir/.yggdrasil/model/orders/yg-node.yaml": "c362efbe45133a6f405ab9e42a3deb22f4d3e68dab146bc38e3e429aea5d83de",
+    "source/cli/tests/fixtures/sample-project-orphan-dir/.yggdrasil/yg-config.yaml": "897ea9c5f2e521fde69ee707622b21307c1c9e2373339af0a6e5d62f427d579f",
     "source/cli/tests/fixtures/drift-multi-file/.yggdrasil/model/multi/multi-service/yg-node.yaml": "c447592f54ca7caf1d76c0a66258810c883ed6e6232e2d385b881ade6d37f81c",
     "source/cli/tests/fixtures/drift-multi-file/.yggdrasil/model/multi/yg-node.yaml": "2499dcd5c880b299b6b0335660f9fd1053b117876b8aa3c9adf8644c2252cd1d",
     "source/cli/tests/fixtures/drift-multi-file/.yggdrasil/multi/multi-service/yg-node.yaml": "c447592f54ca7caf1d76c0a66258810c883ed6e6232e2d385b881ade6d37f81c",
     "source/cli/tests/fixtures/drift-multi-file/.yggdrasil/multi/yg-node.yaml": "2499dcd5c880b299b6b0335660f9fd1053b117876b8aa3c9adf8644c2252cd1d",
     "source/cli/tests/fixtures/drift-multi-file/.yggdrasil/.drift-state": "984aa25c256d66298a16f396b5bc573b6bc7dce1f10fa1255f8d9bbfe0fca520",
+    "source/cli/tests/fixtures/drift-multi-file/.yggdrasil/yg-config.yaml": "b62605e75ada5ef05b5153edcef5422e2dffeb449dee67050b9ab47808c2613e",
     "source/cli/tests/fixtures/drift-multi-file/src/multi/file-a.ts": "479cbaf9c2d379dd36829acde3eb9d698f7a09f676cdc5dc89270c2366c41688",
     "source/cli/tests/fixtures/drift-multi-file/src/multi/file-b.ts": "bbb9ecf7a77cc0d8215b276528ba18c484fcc494224421d4280b5cf4e9446bda",
-    ".yggdrasil/model/cli/tests/fixtures/scenarios/yg-node.yaml": "2fa607518cf0e0bb199de2716fd561ecb2b73078f2eeee6a1badd39ec7b86448",
-    ".yggdrasil/model/cli/tests/yg-node.yaml": "ac0fc246c01a04e62d43ef8abadb2f01551616ca7509c3b268995ef646279bc9",
-    ".yggdrasil/model/cli/tests/fixtures/yg-node.yaml": "a952f03516da4a5c879e253415a45e7f714507ba01bea742210c5590f41acd79",
-    "source/cli/tests/fixtures/sample-project-broken-relation/.yggdrasil/yg-config.yaml": "f840e2c8e59514a6f7ba7d12254fc464aaed247ccd335d363998bf586ddea0ed",
-    "source/cli/tests/fixtures/sample-project-orphan-dir/.yggdrasil/yg-config.yaml": "897ea9c5f2e521fde69ee707622b21307c1c9e2373339af0a6e5d62f427d579f",
-    "source/cli/tests/fixtures/drift-multi-file/.yggdrasil/yg-config.yaml": "b62605e75ada5ef05b5153edcef5422e2dffeb449dee67050b9ab47808c2613e",
     "source/cli/tests/fixtures/tmp-config-dup-cat/yg-config.yaml": "ffa58a8f7d75792c2ff0cc5eede1ea73204c9f1d80d0e82ab7c8aee1e5b5b137",
     "source/cli/tests/fixtures/tmp-config-kc-skip/yg-config.yaml": "e76ff253e8b050a097dacebff2c4ebfbeb0b07d83060e756e1cf982851587b86",
     "source/cli/tests/fixtures/tmp-config-no-kc/yg-config.yaml": "6d7a95013a42902646bab099f9a481884b64bbfb10197d10cc7315f6a5a36fe9",
-    "source/cli/tests/fixtures/tmp-flow-knowledge/yg-flow.yaml": "04eb61c34cc0bdd197f6a0a33a61c838886430aef7461a95253d2ce821bce169"
+    "source/cli/tests/fixtures/tmp-flow-knowledge/yg-flow.yaml": "04eb61c34cc0bdd197f6a0a33a61c838886430aef7461a95253d2ce821bce169",
+    ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df"
   },
   "mtimes": {
     ".yggdrasil/model/cli/tests/fixtures/scenarios/yg-node.yaml": 1775216154042.1682,
     ".yggdrasil/model/cli/tests/fixtures/scenarios/responsibility.md": 1775055417345.9226,
-    ".yggdrasil/model/cli/yg-node.yaml": 1775050142507.4995,
+    ".yggdrasil/model/cli/yg-node.yaml": 1775219059046.2136,
     ".yggdrasil/model/cli/internals.md": 1772829219205.6714,
     ".yggdrasil/model/cli/responsibility.md": 1775045623775.336,
     ".yggdrasil/model/cli/tests/yg-node.yaml": 1775057326517.7761,
@@ -64,5 +64,5 @@
     "source/cli/tests/fixtures/tmp-config-no-kc/yg-config.yaml": 1775207208287.7505,
     "source/cli/tests/fixtures/tmp-flow-knowledge/yg-flow.yaml": 1775207208287.9084
   },
-  "acknowledgeReason": "Migrated mapping format from object to array of groups"
+  "acknowledgeReason": "Dogfood: cascade from parent cli node format change"
 }

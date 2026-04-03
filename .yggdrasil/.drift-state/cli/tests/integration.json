@@ -1,10 +1,11 @@
 {
-  "hash": "201999a23adcc2ed2f7eb0b85afb5f7249b786c7a224265e1e0fbc6e9e50e8bc",
+  "hash": "e29420493174a5345969184fd80ab95450644350932ea481f03ba6576e7ea60e",
   "files": {
+    ".yggdrasil/model/cli/tests/integration/yg-node.yaml": "2e87d9aebacab996c020c49eab6627309ffa8bc3d16764d205213c49d82aa478",
     ".yggdrasil/model/cli/tests/integration/responsibility.md": "ee2db1f02a14dbe7cbcd489a9a14bad29a4aaab7735072b5cf56401709fa5c61",
-    ".yggdrasil/model/cli/yg-node.yaml": "640850d59baf2b0d317b20d5d3312def4dbfb30c8d5489daff345b19cca52e40",
     ".yggdrasil/model/cli/internals.md": "fcd16e38b431eead0b12e14b05dd25184ad4ef23884fbde7402172b0985857f6",
     ".yggdrasil/model/cli/responsibility.md": "696e0f5f377eba69a843a18379e8f20e0322dc037182690629652a75aa2227fb",
+    ".yggdrasil/model/cli/tests/yg-node.yaml": "ac0fc246c01a04e62d43ef8abadb2f01551616ca7509c3b268995ef646279bc9",
     ".yggdrasil/model/cli/tests/responsibility.md": "ef48f39a8d5d6b7f1c61e94f2b95ccf38c02365b3496e3ff5fcf21827ffd8138",
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "7deb781ab921aaf4f32cafbaec4e0b3ea8d803b1a039d2ee578ef49ecf3c0308",
     ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
@@ -13,16 +14,15 @@
     "source/cli/tests/integration/build-pipeline.test.ts": "8e5e25c6ee059151b5c38393f79e90ab8a283a18b03fb170f0359f765327f69c",
     "source/cli/tests/integration/check-pipeline.test.ts": "9a993a9544da3667c17bc9fe906536c6a4472fe2957a95e034b722fed3b4f17d",
     "source/cli/tests/integration/context-pipeline.test.ts": "11dfc91a5b2e77e60870dd1043c13c756460895ae51fa2f42c433c313458bf76",
-    ".yggdrasil/model/cli/tests/integration/yg-node.yaml": "2e87d9aebacab996c020c49eab6627309ffa8bc3d16764d205213c49d82aa478",
-    ".yggdrasil/model/cli/tests/yg-node.yaml": "ac0fc246c01a04e62d43ef8abadb2f01551616ca7509c3b268995ef646279bc9",
     "source/cli/tests/integration/drift-pipeline.test.ts": "7e7b6d5eecdb2c7a73bcd1abf1ff364167587eac6c3159d288ea66acb746c4e7",
     "source/cli/tests/integration/flow-support.test.ts": "8df2eb808d498be787bf0c2a23e812645c149ca36168eed06de97412946f29fa",
-    "source/cli/tests/integration/validation-pipeline.test.ts": "a2205bdf4bbd0f4fdb4a2c0e573a69df74bd7c8f92757286bd24fb789814a4d9"
+    "source/cli/tests/integration/validation-pipeline.test.ts": "a2205bdf4bbd0f4fdb4a2c0e573a69df74bd7c8f92757286bd24fb789814a4d9",
+    ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df"
   },
   "mtimes": {
     ".yggdrasil/model/cli/tests/integration/yg-node.yaml": 1775216154036.1304,
     ".yggdrasil/model/cli/tests/integration/responsibility.md": 1775052699692.1611,
-    ".yggdrasil/model/cli/yg-node.yaml": 1775050142507.4995,
+    ".yggdrasil/model/cli/yg-node.yaml": 1775219059046.2136,
     ".yggdrasil/model/cli/internals.md": 1772829219205.6714,
     ".yggdrasil/model/cli/responsibility.md": 1775045623775.336,
     ".yggdrasil/model/cli/tests/yg-node.yaml": 1775057326517.7761,
@@ -38,5 +38,5 @@
     "source/cli/tests/integration/flow-support.test.ts": 1775207208288.915,
     "source/cli/tests/integration/validation-pipeline.test.ts": 1775207208291.3682
   },
-  "acknowledgeReason": "Migrated mapping format from object to array of groups"
+  "acknowledgeReason": "Dogfood: cascade from parent cli node format change"
 }

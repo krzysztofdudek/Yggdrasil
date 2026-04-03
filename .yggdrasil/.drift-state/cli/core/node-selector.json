@@ -1,32 +1,32 @@
 {
-  "hash": "1a8f6cfa382c5f5177c56715a727590d6a25f4e78dc5118bbabb2735c3391b8e",
+  "hash": "cd493e372e51ef332c68469127bfbaf89a54d4e6200eed20143ae58a81e4012a",
   "files": {
-    ".yggdrasil/model/cli/core/node-selector/yg-node.yaml": "f443e488974bbda16197e966d63d9fb0dad08c55dd2c44899e81e1c6f83d2f4a",
     ".yggdrasil/model/cli/core/node-selector/interface.md": "e5044f1e23dc70b2fe6158a76b4725102792bedf00aa0362a7aecb307310d072",
     ".yggdrasil/model/cli/core/node-selector/responsibility.md": "fb3eac9a23578503e1eb2496312c9ce8d616489f1d3b546f491deecb0afd7fc8",
-    ".yggdrasil/model/cli/yg-node.yaml": "640850d59baf2b0d317b20d5d3312def4dbfb30c8d5489daff345b19cca52e40",
     ".yggdrasil/model/cli/internals.md": "fcd16e38b431eead0b12e14b05dd25184ad4ef23884fbde7402172b0985857f6",
     ".yggdrasil/model/cli/responsibility.md": "696e0f5f377eba69a843a18379e8f20e0322dc037182690629652a75aa2227fb",
-    ".yggdrasil/model/cli/core/yg-node.yaml": "91b17fa7406dbe81018642e2068fee75bb17ac95ad054a8b3058da003c437c9d",
     ".yggdrasil/model/cli/core/interface.md": "807008eb6f673273034d7d3325a36f37ea1c7a4e46df362e2a4fa9ccd9451de9",
     ".yggdrasil/model/cli/core/internals.md": "d304e7f67d65671f15ff98f2c37e793f82d93cb9591a97f243873ef49b579250",
     ".yggdrasil/model/cli/core/responsibility.md": "2aa9f1d64abf86aed604a1823392c3d40b963eb8416b38ef877bcccddd7ff086",
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "7deb781ab921aaf4f32cafbaec4e0b3ea8d803b1a039d2ee578ef49ecf3c0308",
     ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
     ".yggdrasil/model/cli/model/responsibility.md": "b668c6db2090a36a54277f62fb228c266d87c6d119f89e6ed67e140392863a66",
-    ".yggdrasil/model/cli/utils/responsibility.md": "4918c48366c7b3f35bb7b97fa74252c47f14ba72417c5cc5f3e1100b503c7ddd",
-    "source/cli/src/core/node-selector.ts": "7d5cb696a3a66eea12b08394a7bf5c57b3faec1cd23bd9b3f59d3c361cb9aae2",
     ".yggdrasil/model/cli/model/interface.md": "c7429809fbed460c357e63d35c91aef083be436dfb81d695e36cd9be01d769dd",
-    ".yggdrasil/model/cli/utils/interface.md": "051aef97613feeaf82746a2d576f2a96346c3bb916144d88b8bc13b115b2d2ba"
+    ".yggdrasil/model/cli/utils/responsibility.md": "4918c48366c7b3f35bb7b97fa74252c47f14ba72417c5cc5f3e1100b503c7ddd",
+    ".yggdrasil/model/cli/utils/interface.md": "051aef97613feeaf82746a2d576f2a96346c3bb916144d88b8bc13b115b2d2ba",
+    "source/cli/src/core/node-selector.ts": "7d5cb696a3a66eea12b08394a7bf5c57b3faec1cd23bd9b3f59d3c361cb9aae2",
+    ".yggdrasil/model/cli/core/node-selector/yg-node.yaml": "ca89edd9a950ed4d9b73b410321abc9f91ac99ca84978f11b18aa2bc81d8dd7f",
+    ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df",
+    ".yggdrasil/model/cli/core/yg-node.yaml": "64ce014963e90d408471920640775da9b8775ef7ae2c7380cbadabf5eac93258"
   },
   "mtimes": {
-    ".yggdrasil/model/cli/core/node-selector/yg-node.yaml": 1775216153988.8677,
+    ".yggdrasil/model/cli/core/node-selector/yg-node.yaml": 1775219059047.6665,
     ".yggdrasil/model/cli/core/node-selector/interface.md": 1773081283663.692,
     ".yggdrasil/model/cli/core/node-selector/responsibility.md": 1773081259867.6182,
-    ".yggdrasil/model/cli/yg-node.yaml": 1775050142507.4995,
+    ".yggdrasil/model/cli/yg-node.yaml": 1775219059046.2136,
     ".yggdrasil/model/cli/internals.md": 1772829219205.6714,
     ".yggdrasil/model/cli/responsibility.md": 1775045623775.336,
-    ".yggdrasil/model/cli/core/yg-node.yaml": 1775050157450.9827,
+    ".yggdrasil/model/cli/core/yg-node.yaml": 1775219059046.9734,
     ".yggdrasil/model/cli/core/interface.md": 1772743197442.582,
     ".yggdrasil/model/cli/core/internals.md": 1774784571148.0142,
     ".yggdrasil/model/cli/core/responsibility.md": 1772828321933.1968,
@@ -38,5 +38,5 @@
     ".yggdrasil/model/cli/utils/interface.md": 1775217330039.2043,
     "source/cli/src/core/node-selector.ts": 1775207208282.0703
   },
-  "acknowledgeReason": "Cascade drift from upstream interface changes; source code is compatible"
+  "acknowledgeReason": "Dogfood: migrate to new aspect format (schema change)"
 }

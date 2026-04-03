@@ -2,9 +2,5 @@ name: Core
 type: module
 description: "Pure domain logic layer implementing graph operations independent of CLI presentation"
 aspects:
-  - aspect: deterministic
-    anchors:
-      pure-function:
-        regex: "export (function|const|async function)"
-
+  - deterministic
 relations: []

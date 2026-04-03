@@ -4,11 +4,7 @@ description: "Core approve logic — records drift baseline, implements three-ax
 blackbox: false
 
 aspects:
-  - aspect: deterministic
-    anchors:
-      pure-function:
-        regex: "export (async function|function|interface)"
-
+  - deterministic
 relations:
   - target: cli/io
     type: uses

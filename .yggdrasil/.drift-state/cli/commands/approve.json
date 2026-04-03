@@ -1,11 +1,9 @@
 {
-  "hash": "66a0824163a05359332be2eb1a4b10133de259b1b0fe768684c4174753e828fe",
+  "hash": "fe705023f8ecdacb0188708de0be871fc2e39575e74f52cd4cb4f2abe42d6732",
   "files": {
     ".yggdrasil/model/cli/commands/approve/responsibility.md": "c7a23366d130fb7037485a376b46affabe000aa8cd1c7f767005630eb8f718c6",
-    ".yggdrasil/model/cli/yg-node.yaml": "640850d59baf2b0d317b20d5d3312def4dbfb30c8d5489daff345b19cca52e40",
     ".yggdrasil/model/cli/internals.md": "fcd16e38b431eead0b12e14b05dd25184ad4ef23884fbde7402172b0985857f6",
     ".yggdrasil/model/cli/responsibility.md": "696e0f5f377eba69a843a18379e8f20e0322dc037182690629652a75aa2227fb",
-    ".yggdrasil/model/cli/commands/yg-node.yaml": "ed3404968374f0feabcda5e6249cf9600bd6698c85d6461129d3adc530778ddb",
     ".yggdrasil/model/cli/commands/internals.md": "5a3b679d5c2b9600c7fa3dc01b2f28661b7bfb11850a922ff885a7a583d455c7",
     ".yggdrasil/model/cli/commands/responsibility.md": "dd8146f9c54251a68f81f4036fdf931d526f3159707709b92a59493fe383a080",
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "7deb781ab921aaf4f32cafbaec4e0b3ea8d803b1a039d2ee578ef49ecf3c0308",
@@ -20,15 +18,17 @@
     ".yggdrasil/model/cli/core/approve/interface.md": "4b567f5ac3fdebe46842807c1a45509363d9cd66ab322e929b8034bb454e5755",
     "source/cli/src/cli/approve.ts": "ecdf5fbdc6771b579fb813366d9ae4afd6db69e0ef9feeb6d65f10a180385ffe",
     "source/cli/src/cli/.gitkeep": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
-    ".yggdrasil/model/cli/commands/approve/yg-node.yaml": "e0472a5d94dbe699d3f1189fab21846133d6d1cc537effadd56223f83c9ed22c"
+    ".yggdrasil/model/cli/commands/approve/yg-node.yaml": "d4730a3875096a8e3c748151ae794b6b27855244b5c740c52f2d97959f10b194",
+    ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df",
+    ".yggdrasil/model/cli/commands/yg-node.yaml": "304ba077a87aae0ecd30b30323391e3f54ccfbc2843bb4020acf43d1a26a26da"
   },
   "mtimes": {
-    ".yggdrasil/model/cli/commands/approve/yg-node.yaml": 1775216142352.5063,
+    ".yggdrasil/model/cli/commands/approve/yg-node.yaml": 1775219059054.3677,
     ".yggdrasil/model/cli/commands/approve/responsibility.md": 1775051917190.984,
-    ".yggdrasil/model/cli/yg-node.yaml": 1775050142507.4995,
+    ".yggdrasil/model/cli/yg-node.yaml": 1775219059046.2136,
     ".yggdrasil/model/cli/internals.md": 1772829219205.6714,
     ".yggdrasil/model/cli/responsibility.md": 1775045623775.336,
-    ".yggdrasil/model/cli/commands/yg-node.yaml": 1775050151385.0618,
+    ".yggdrasil/model/cli/commands/yg-node.yaml": 1775219059052.7415,
     ".yggdrasil/model/cli/commands/internals.md": 1775046923261.1494,
     ".yggdrasil/model/cli/commands/responsibility.md": 1775045632026.2983,
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775049910995.6624,
@@ -44,5 +44,5 @@
     "source/cli/src/cli/approve.ts": 1775040105366.6953,
     "source/cli/src/cli/.gitkeep": 1771702275791.1433
   },
-  "acknowledgeReason": "Migrated mapping format from object to array of groups"
+  "acknowledgeReason": "Dogfood: migrate to new aspect format (schema change)"
 }

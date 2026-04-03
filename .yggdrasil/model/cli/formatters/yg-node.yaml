@@ -2,11 +2,7 @@ name: Formatters
 type: library
 description: "Output formatting for context packages, converting structured data to YAML and text"
 aspects:
-  - aspect: deterministic
-    anchors:
-      pure-function:
-        regex: "export (function|const|async function)"
-
+  - deterministic
 relations:
   - target: cli/model
     type: uses

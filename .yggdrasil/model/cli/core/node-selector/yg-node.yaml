@@ -2,11 +2,7 @@ name: NodeSelector
 type: library
 description: "Task-based node selection using keyword matching against graph artifacts"
 aspects:
-  - aspect: deterministic
-    anchors:
-      pure-function:
-        regex: "export (function|const|async function)"
-
+  - deterministic
 relations:
   - target: cli/model
     type: uses

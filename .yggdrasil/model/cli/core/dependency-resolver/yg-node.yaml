@@ -2,11 +2,7 @@ name: DependencyResolver
 type: library
 description: "Topological sort, change detection, and dependency tree formatting for graph nodes"
 aspects:
-  - aspect: deterministic
-    anchors:
-      pure-function:
-        regex: "export (function|const|async function)"
-
+  - deterministic
 relations:
   - target: cli/model
     type: uses

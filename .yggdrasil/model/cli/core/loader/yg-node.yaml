@@ -2,15 +2,8 @@ name: GraphLoader
 type: library
 description: "Loads the graph from .yggdrasil/ — model nodes, aspects, flows, schemas — into memory"
 aspects:
-  - aspect: deterministic
-    anchors:
-      pure-function:
-        regex: "export (function|const|async function)"
-  - aspect: silent-missing-files
-    anchors:
-      null-on-missing:
-        regex: "ENOENT|catch.*err"
-
+  - deterministic
+  - silent-missing-files
 relations:
   - target: cli/io
     type: uses

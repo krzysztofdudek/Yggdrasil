@@ -2,19 +2,8 @@ name: CheckCommand
 type: library
 description: "Unified graph gate CLI command — combines drift, validation, coverage, and completeness into a single yg check entry point with grouped output and exit code"
 aspects:
-  - aspect: deterministic
-    anchors:
-      pure-function:
-        regex: "export (function|const|async function)"
-  - aspect: cli-command-contract
-    anchors:
-      stdout-write:
-        regex: "process\\.stdout\\.write"
-      error-handler:
-        regex: "process\\.stderr\\.write"
-      exit-code:
-        regex: "process\\.exit"
-
+  - deterministic
+  - cli-command-contract
 relations:
   - target: cli/core/loader
     type: uses
