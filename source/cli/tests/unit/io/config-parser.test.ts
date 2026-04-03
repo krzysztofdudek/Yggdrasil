@@ -136,4 +136,167 @@ artifacts:
 
     await rm(tmpDir, { recursive: true, force: true });
   });
+
+  it('throws when name is empty string', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-empty-name');
+    await mkdir(tmpDir, { recursive: true });
+    await writeFile(
+      path.join(tmpDir, 'yg-config.yaml'),
+      `
+name: "   "
+`,
+      'utf-8',
+    );
+
+    await expect(parseConfig(path.join(tmpDir, 'yg-config.yaml'))).rejects.toThrow(
+      "missing or invalid 'name' field",
+    );
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('throws when name field is not a string', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-name-type');
+    await mkdir(tmpDir, { recursive: true });
+    await writeFile(
+      path.join(tmpDir, 'yg-config.yaml'),
+      `
+name: 123
+`,
+      'utf-8',
+    );
+
+    await expect(parseConfig(path.join(tmpDir, 'yg-config.yaml'))).rejects.toThrow(
+      "missing or invalid 'name' field",
+    );
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('parses quality defaults when quality is not provided', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-no-quality');
+    await mkdir(tmpDir, { recursive: true });
+    await writeFile(
+      path.join(tmpDir, 'yg-config.yaml'),
+      `
+name: "NoQuality"
+`,
+      'utf-8',
+    );
+
+    const config = await parseConfig(path.join(tmpDir, 'yg-config.yaml'));
+    expect(config.quality?.min_artifact_length).toBe(50);
+    expect(config.quality?.max_direct_relations).toBe(10);
+    expect(config.quality?.context_budget.warning).toBe(10000);
+    expect(config.quality?.context_budget.error).toBe(20000);
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('parses partial quality configuration with defaults', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-partial-quality');
+    await mkdir(tmpDir, { recursive: true });
+    await writeFile(
+      path.join(tmpDir, 'yg-config.yaml'),
+      `
+name: "PartialQuality"
+quality:
+  min_artifact_length: 100
+`,
+      'utf-8',
+    );
+
+    const config = await parseConfig(path.join(tmpDir, 'yg-config.yaml'));
+    expect(config.quality?.min_artifact_length).toBe(100);
+    expect(config.quality?.max_direct_relations).toBe(10);
+    expect(config.quality?.context_budget.warning).toBe(10000);
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('parses partial context_budget with defaults', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-partial-budget');
+    await mkdir(tmpDir, { recursive: true });
+    await writeFile(
+      path.join(tmpDir, 'yg-config.yaml'),
+      `
+name: "PartialBudget"
+quality:
+  context_budget:
+    warning: 5000
+`,
+      'utf-8',
+    );
+
+    const config = await parseConfig(path.join(tmpDir, 'yg-config.yaml'));
+    expect(config.quality?.context_budget.warning).toBe(5000);
+    expect(config.quality?.context_budget.error).toBe(20000);
+    expect(config.quality?.context_budget.own_warning).toBeUndefined();
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('parses own_warning field in context_budget', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-own-warning');
+    await mkdir(tmpDir, { recursive: true });
+    await writeFile(
+      path.join(tmpDir, 'yg-config.yaml'),
+      `
+name: "OwnWarning"
+quality:
+  context_budget:
+    warning: 10000
+    error: 20000
+    own_warning: 5000
+`,
+      'utf-8',
+    );
+
+    const config = await parseConfig(path.join(tmpDir, 'yg-config.yaml'));
+    expect(config.quality?.context_budget.own_warning).toBe(5000);
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('throws when own_warning is zero', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-own-warning-zero');
+    await mkdir(tmpDir, { recursive: true });
+    await writeFile(
+      path.join(tmpDir, 'yg-config.yaml'),
+      `
+name: "OwnWarningZero"
+quality:
+  context_budget:
+    own_warning: 0
+`,
+      'utf-8',
+    );
+
+    await expect(parseConfig(path.join(tmpDir, 'yg-config.yaml'))).rejects.toThrow(
+      'own_warning must be a positive number',
+    );
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('throws when own_warning is negative', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-own-warning-negative');
+    await mkdir(tmpDir, { recursive: true });
+    await writeFile(
+      path.join(tmpDir, 'yg-config.yaml'),
+      `
+name: "OwnWarningNegative"
+quality:
+  context_budget:
+    own_warning: -100
+`,
+      'utf-8',
+    );
+
+    await expect(parseConfig(path.join(tmpDir, 'yg-config.yaml'))).rejects.toThrow(
+      'own_warning must be a positive number',
+    );
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
 });

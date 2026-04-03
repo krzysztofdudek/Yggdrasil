@@ -1,7 +1,7 @@
 {
-  "hash": "4f73a03a5746994646a68e294d7b33aac8bd8b2f65b4a8ddf8673a5447a8c6e6",
+  "hash": "d92ec46e481e304fa1ad2ac346b4ef34dd186edd408c01eed1599a19e2f93bf2",
   "files": {
-    ".yggdrasil/model/cli/core/migrations/yg-node.yaml": "1b27124380f88611f8dc7bb8c2b70fed246c203d31481bec45b5b5a46ae9416d",
+    ".yggdrasil/model/cli/core/migrations/yg-node.yaml": "14655b7d50f6d9b591f270d7c8ec1511112520aed622d5cb33c4ecd100f1c677",
     ".yggdrasil/model/cli/core/migrations/responsibility.md": "6ad0b626c57b1b8795532fe694fc49dc6937642911dfafa2d880634229c8bcee",
     ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df",
     ".yggdrasil/model/cli/internals.md": "fcd16e38b431eead0b12e14b05dd25184ad4ef23884fbde7402172b0985857f6",
@@ -16,10 +16,10 @@
     "source/cli/src/migrations/index.ts": "cc376a43a09e0a7915c6881136a1f4eb79c8949eeea4811721ee2a344329bc47",
     "source/cli/src/migrations/to-2.0.0.ts": "32e8f56d9388b75929bd46fb2213dd3db3cfc50c2cc6d2ed45530ddc1d4850e1",
     "source/cli/src/migrations/to-3.0.0.ts": "6ae83a2b655d320b4810d65267ee95b469cf3a45aa167569f20bef32493a3211",
-    "source/cli/src/migrations/to-4.0.0.ts": "3e4f68ab7562537e573a42baa9b7c17220f79ca0b6b357858005377e2306541e"
+    "source/cli/src/migrations/to-4.0.0.ts": "60c75f8dd16be556f63824957e81006b4bfa668575e84633bca287d2d44ebeeb"
   },
   "mtimes": {
-    ".yggdrasil/model/cli/core/migrations/yg-node.yaml": 1775219626193.4329,
+    ".yggdrasil/model/cli/core/migrations/yg-node.yaml": 1775241852613.4126,
     ".yggdrasil/model/cli/core/migrations/responsibility.md": 1775051517137.968,
     ".yggdrasil/model/cli/yg-node.yaml": 1775219122158.6094,
     ".yggdrasil/model/cli/internals.md": 1772829219205.6714,
@@ -34,6 +34,7 @@
     "source/cli/src/migrations/index.ts": 1775040105369.6165,
     "source/cli/src/migrations/to-2.0.0.ts": 1772776392209.9172,
     "source/cli/src/migrations/to-3.0.0.ts": 1774782387822.2202,
-    "source/cli/src/migrations/to-4.0.0.ts": 1775207208283.8713
-  }
+    "source/cli/src/migrations/to-4.0.0.ts": 1775241949036.4705
+  },
+  "acknowledgeReason": "aspect proofs and coverage fixes"
 }

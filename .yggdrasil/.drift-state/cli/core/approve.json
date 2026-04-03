@@ -1,5 +1,5 @@
 {
-  "hash": "2aa22627330181de8c81b0d0445f4a3c9e5d047224576c45e2c04510e52cdd57",
+  "hash": "1de5d2404e73fdcbdc755354b019c22eab0de77711aeca413266a1a1f47e98cf",
   "files": {
     ".yggdrasil/model/cli/core/approve/interface.md": "4b567f5ac3fdebe46842807c1a45509363d9cd66ab322e929b8034bb454e5755",
     ".yggdrasil/model/cli/core/approve/responsibility.md": "0ad062db7d7975ba52ce5b3d0a7bdc29f179f107ff13d7bfbcc7b8c5633cb35e",
@@ -16,18 +16,18 @@
     ".yggdrasil/model/cli/utils/interface.md": "051aef97613feeaf82746a2d576f2a96346c3bb916144d88b8bc13b115b2d2ba",
     "source/cli/src/core/approve.ts": "ab9d71aa8f4d6b4de604d5637afcf90c69baf7982e0f3792fcc5d8b679e6d581",
     "source/cli/src/core/.gitkeep": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
-    ".yggdrasil/model/cli/core/approve/yg-node.yaml": "e669771ab5a9ec10dccad4d2751db0fbc7b5fa59da50206bdab84219b67c633b",
+    ".yggdrasil/model/cli/core/approve/yg-node.yaml": "bbed0095236d64588b4b26cb3f7123c6c581c5b07be91fce4596b0ebbd8ac4e9",
     ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df",
     ".yggdrasil/model/cli/core/yg-node.yaml": "64ce014963e90d408471920640775da9b8775ef7ae2c7380cbadabf5eac93258"
   },
   "mtimes": {
-    ".yggdrasil/model/cli/core/approve/yg-node.yaml": 1775219059048.787,
+    ".yggdrasil/model/cli/core/approve/yg-node.yaml": 1775241678790.7153,
     ".yggdrasil/model/cli/core/approve/interface.md": 1775052057297.4233,
     ".yggdrasil/model/cli/core/approve/responsibility.md": 1775051757308.3962,
-    ".yggdrasil/model/cli/yg-node.yaml": 1775219059046.2136,
+    ".yggdrasil/model/cli/yg-node.yaml": 1775219122158.6094,
     ".yggdrasil/model/cli/internals.md": 1772829219205.6714,
     ".yggdrasil/model/cli/responsibility.md": 1775045623775.336,
-    ".yggdrasil/model/cli/core/yg-node.yaml": 1775219059046.9734,
+    ".yggdrasil/model/cli/core/yg-node.yaml": 1775219122157.0913,
     ".yggdrasil/model/cli/core/interface.md": 1772743197442.582,
     ".yggdrasil/model/cli/core/internals.md": 1774784571148.0142,
     ".yggdrasil/model/cli/core/responsibility.md": 1772828321933.1968,

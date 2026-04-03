@@ -239,6 +239,22 @@ describe('hash', () => {
       await rm(tmpDir, { recursive: true, force: true });
     });
 
+    it('hashForMapping handles mixed files and directories', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-hash-mixed');
+      const subDir = path.join(tmpDir, 'subdir');
+      await mkdir(subDir, { recursive: true });
+      await writeFile(path.join(tmpDir, 'file.ts'), 'file content', 'utf-8');
+      await writeFile(path.join(subDir, 'nested.ts'), 'nested content', 'utf-8');
+
+      // Map both a file and a directory
+      const hash = await hashForMapping(tmpDir, {
+        paths: ['file.ts', 'subdir'],
+      });
+      expect(hash).toMatch(/^[a-f0-9]{64}$/);
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
     it('returns hash for files mapping', async () => {
       const tmpDir = path.join(__dirname, '../../fixtures/tmp-hash-mapping-files');
       const srcDir = path.join(tmpDir, 'src');
@@ -288,6 +304,27 @@ describe('hash', () => {
 
       const result = await perFileHashes(tmpDir, { paths: [] });
       expect(result).toEqual([]);
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('returns per-file hashes when mapping a directory', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-perfile-dir');
+      const srcDir = path.join(tmpDir, 'src');
+      await mkdir(srcDir, { recursive: true });
+      await writeFile(path.join(srcDir, 'a.ts'), 'A', 'utf-8');
+      await writeFile(path.join(srcDir, 'b.ts'), 'B', 'utf-8');
+
+      // Pass just the directory name, not individual files
+      const result = await perFileHashes(tmpDir, {
+        paths: ['src'],
+      });
+      expect(result.length).toBeGreaterThan(0);
+      // Files within the directory should be returned
+      const paths = result.map((r) => r.path);
+      expect(paths.some((p) => p.includes('a.ts'))).toBe(true);
+      expect(paths.some((p) => p.includes('b.ts'))).toBe(true);
+      expect(result[0].hash).toMatch(/^[a-f0-9]{64}$/);
 
       await rm(tmpDir, { recursive: true, force: true });
     });
@@ -463,6 +500,142 @@ describe('hash', () => {
         const hashModified = await hashPath(tmpDir, { projectRoot: tmpDir });
 
         expect(hashModified).not.toBe(hashBefore);
+      } finally {
+        await rm(tmpDir, { recursive: true, force: true });
+      }
+    });
+  });
+
+  describe('hashTrackedFiles — synthetic hashes and exclusions', () => {
+    it('uses synthetic hash when provided in TrackedFile', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-htf-synthetic');
+      await mkdir(tmpDir, { recursive: true });
+      try {
+        await writeFile(path.join(tmpDir, 'file.txt'), 'content', 'utf-8');
+
+        const syntheticHash = 'abc123def456abc123def456abc123def456abc123def456abc123def456';
+        const trackedFiles: TrackedFile[] = [
+          { path: 'synthetic-entry', category: 'graph', syntheticHash },
+        ];
+        const { fileHashes } = await hashTrackedFiles(tmpDir, trackedFiles);
+
+        expect(fileHashes['synthetic-entry']).toBe(syntheticHash);
+      } finally {
+        await rm(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it('excludes files matching excludePrefixes', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-htf-exclude');
+      await mkdir(tmpDir, { recursive: true });
+      try {
+        await writeFile(path.join(tmpDir, 'keep.ts'), 'keep', 'utf-8');
+        await writeFile(path.join(tmpDir, 'exclude-me.ts'), 'excluded', 'utf-8');
+
+        const trackedFiles: TrackedFile[] = [
+          { path: 'keep.ts', category: 'source' },
+          { path: 'exclude-me.ts', category: 'source' },
+        ];
+        const { fileHashes } = await hashTrackedFiles(tmpDir, trackedFiles, undefined, [
+          'exclude-me.ts',
+        ]);
+
+        expect(Object.keys(fileHashes)).toContain('keep.ts');
+        expect(Object.keys(fileHashes)).not.toContain('exclude-me.ts');
+      } finally {
+        await rm(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it('excludes files in directories matching excludePrefixes', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-htf-exclude-dir');
+      await mkdir(path.join(tmpDir, 'src'), { recursive: true });
+      await mkdir(path.join(tmpDir, 'build'), { recursive: true });
+      try {
+        await writeFile(path.join(tmpDir, 'src', 'app.ts'), 'app', 'utf-8');
+        await writeFile(path.join(tmpDir, 'build', 'bundle.js'), 'bundle', 'utf-8');
+
+        const trackedFiles: TrackedFile[] = [
+          { path: 'src', category: 'source' },
+          { path: 'build', category: 'source' },
+        ];
+        const { fileHashes } = await hashTrackedFiles(tmpDir, trackedFiles, undefined, [
+          'build',
+        ]);
+
+        expect(Object.keys(fileHashes)).toContain('src/app.ts');
+        expect(Object.keys(fileHashes).some((p) => p.startsWith('build/'))).toBe(false);
+      } finally {
+        await rm(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it('respects stored file data with matching mtimes (cache hit)', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-htf-cache-hit');
+      await mkdir(tmpDir, { recursive: true });
+      try {
+        const filePath = path.join(tmpDir, 'cache.txt');
+        await writeFile(filePath, 'cached content', 'utf-8');
+
+        // First pass: compute hashes and mtimes
+        const trackedFiles: TrackedFile[] = [{ path: 'cache.txt', category: 'source' }];
+        const result1 = await hashTrackedFiles(tmpDir, trackedFiles);
+
+        // Second pass: with stored file data (should reuse hash)
+        const result2 = await hashTrackedFiles(tmpDir, trackedFiles, {
+          hashes: result1.fileHashes,
+          mtimes: result1.fileMtimes,
+        });
+
+        expect(result2.fileHashes).toEqual(result1.fileHashes);
+        expect(result2.canonicalHash).toBe(result1.canonicalHash);
+      } finally {
+        await rm(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it('recomputes hash when mtime changes despite stored data', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-htf-cache-miss');
+      await mkdir(tmpDir, { recursive: true });
+      try {
+        const filePath = path.join(tmpDir, 'changed.txt');
+        await writeFile(filePath, 'original content', 'utf-8');
+
+        const trackedFiles: TrackedFile[] = [{ path: 'changed.txt', category: 'source' }];
+        const result1 = await hashTrackedFiles(tmpDir, trackedFiles);
+
+        // Modify file and wait a bit to ensure mtime changes
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        await writeFile(filePath, 'new content', 'utf-8');
+
+        // Pass old stored data — should detect mtime mismatch and recompute
+        const result2 = await hashTrackedFiles(tmpDir, trackedFiles, {
+          hashes: result1.fileHashes,
+          mtimes: result1.fileMtimes,
+        });
+
+        expect(result2.fileHashes['changed.txt']).not.toBe(result1.fileHashes['changed.txt']);
+      } finally {
+        await rm(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it('handles large batch of tracked files (>256)', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-htf-large-batch');
+      await mkdir(tmpDir, { recursive: true });
+      try {
+        const trackedFiles: TrackedFile[] = [];
+        // Create 300 tracked files to test batching
+        for (let i = 0; i < 300; i++) {
+          const fileName = `file-${String(i).padStart(4, '0')}.txt`;
+          await writeFile(path.join(tmpDir, fileName), `content ${i}`, 'utf-8');
+          trackedFiles.push({ path: fileName, category: 'source' });
+        }
+
+        const { fileHashes, canonicalHash } = await hashTrackedFiles(tmpDir, trackedFiles);
+
+        expect(Object.keys(fileHashes)).toHaveLength(300);
+        expect(canonicalHash).toMatch(/^[a-f0-9]{64}$/);
       } finally {
         await rm(tmpDir, { recursive: true, force: true });
       }

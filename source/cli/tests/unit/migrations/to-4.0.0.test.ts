@@ -290,5 +290,190 @@ describe('to-4.0.0 migration', () => {
       expect(Array.isArray(doc.mapping)).toBe(true);
       expect((doc.mapping as unknown[]).length).toBe(2);
     });
+
+    it('skips config migration if config file cannot be read', async () => {
+      // This path is tested by creating a directory instead of file
+      await mkdir(path.join(TMP_DIR, 'yg-config.yaml'), { recursive: true });
+      const result = await migrateToV4(TMP_DIR);
+      expect(result.actions.every((a) => !a.includes('config'))).toBe(true);
+    });
+
+    it('warns on invalid YAML in config file', async () => {
+      await writeFile(path.join(TMP_DIR, 'yg-config.yaml'), 'just a string\n');
+      const result = await migrateToV4(TMP_DIR);
+      expect(result.warnings.some((w) => w.includes('not a valid YAML object'))).toBe(true);
+    });
+
+    it('skips architecture file creation if it already exists', async () => {
+      const configPath = path.join(TMP_DIR, 'yg-config.yaml');
+      const archPath = path.join(TMP_DIR, 'yg-architecture.yaml');
+      await writeFile(configPath, 'version: "3.0.0"\nnode_types:\n  module:\n    description: "Test"\n');
+      await writeFile(archPath, 'version: "4.0.0"\nnode_types:\n  module:\n    description: "Existing"\n');
+      const result = await migrateToV4(TMP_DIR);
+      const arch = parseYaml(await readFile(archPath, 'utf-8')) as Record<string, unknown>;
+      expect((arch.node_types as Record<string, unknown>).module).toHaveProperty('description', 'Existing');
+      expect(result.actions.some((a) => a.includes('Created yg-architecture'))).toBe(false);
+    });
+
+    it('handles mapping without paths property', async () => {
+      const nodeDir = path.join(TMP_DIR, 'model', 'svc');
+      await mkdir(nodeDir, { recursive: true });
+      await writeFile(
+        path.join(nodeDir, 'yg-node.yaml'),
+        'name: Svc\ntype: service\nmapping:\n  something: else\n',
+      );
+      const result = await migrateToV4(TMP_DIR);
+      const doc = parseYaml(await readFile(path.join(nodeDir, 'yg-node.yaml'), 'utf-8')) as Record<string, unknown>;
+      expect(typeof doc.mapping).toBe('object');
+      expect(!Array.isArray(doc.mapping)).toBe(true);
+    });
+
+    it('removes empty aspects array', async () => {
+      const nodeDir = path.join(TMP_DIR, 'model', 'svc');
+      await mkdir(nodeDir, { recursive: true });
+      await writeFile(
+        path.join(nodeDir, 'yg-node.yaml'),
+        'name: Svc\ntype: service\naspects:\n  - aspect: null\n',
+      );
+      const result = await migrateToV4(TMP_DIR);
+      const doc = parseYaml(await readFile(path.join(nodeDir, 'yg-node.yaml'), 'utf-8')) as Record<string, unknown>;
+      expect(doc.aspects).toBeUndefined();
+    });
+
+    it('handles anchors as object in mapping aspects', async () => {
+      const nodeDir = path.join(TMP_DIR, 'model', 'svc');
+      await mkdir(nodeDir, { recursive: true });
+      await writeFile(
+        path.join(nodeDir, 'yg-node.yaml'),
+        'name: Svc\ntype: service\nmapping:\n  - paths:\n      - src/service.ts\n    aspects:\n      - aspect: requires-audit\n        anchors:\n          audit-entry:\n            regex: "log"\n            rationale: "test"\n',
+      );
+      const result = await migrateToV4(TMP_DIR);
+      const doc = parseYaml(await readFile(path.join(nodeDir, 'yg-node.yaml'), 'utf-8')) as Record<string, unknown>;
+      const mapping = doc.mapping as unknown[];
+      const mappingAspects = (mapping[0] as Record<string, unknown>).aspects as Array<Record<string, unknown>>;
+      const anchors = mappingAspects[0].anchors as Record<string, unknown>;
+      expect(anchors['audit-entry']).toHaveProperty('regex', 'log');
+    });
+
+    it('skips node file if cannot be read', async () => {
+      const nodeDir = path.join(TMP_DIR, 'model', 'svc');
+      await mkdir(nodeDir, { recursive: true });
+      // Create yg-node.yaml as a directory to cause read error
+      await mkdir(path.join(nodeDir, 'yg-node.yaml'), { recursive: true });
+      const result = await migrateToV4(TMP_DIR);
+      expect(result.actions).toEqual([]);
+    });
+
+    it('handles null aspect entry gracefully', async () => {
+      const nodeDir = path.join(TMP_DIR, 'model', 'svc');
+      await mkdir(nodeDir, { recursive: true });
+      await writeFile(
+        path.join(nodeDir, 'yg-node.yaml'),
+        'name: Svc\ntype: service\naspects:\n  - null\n  - requires-audit\n',
+      );
+      const result = await migrateToV4(TMP_DIR);
+      const doc = parseYaml(await readFile(path.join(nodeDir, 'yg-node.yaml'), 'utf-8')) as Record<string, unknown>;
+      expect((doc.aspects as string[]).includes('requires-audit')).toBe(true);
+    });
+
+    it('handles mixed anchor types in object format', async () => {
+      const nodeDir = path.join(TMP_DIR, 'model', 'svc');
+      await mkdir(nodeDir, { recursive: true });
+      await writeFile(
+        path.join(nodeDir, 'yg-node.yaml'),
+        'name: Svc\ntype: service\nmapping:\n  - paths:\n      - src/service.ts\n    aspects:\n      - aspect: requires-audit\n        anchors:\n          entry:\n            regex: "log"\n          call: "callFunction"\n          unknown: 123\n',
+      );
+      const result = await migrateToV4(TMP_DIR);
+      const doc = parseYaml(await readFile(path.join(nodeDir, 'yg-node.yaml'), 'utf-8')) as Record<string, unknown>;
+      const mapping = doc.mapping as unknown[];
+      const mappingAspects = (mapping[0] as Record<string, unknown>).aspects as Array<Record<string, unknown>>;
+      const anchors = mappingAspects[0].anchors as Record<string, unknown>;
+      expect(anchors).toHaveProperty('entry');
+      expect(anchors).toHaveProperty('call');
+      expect(anchors).toHaveProperty('unknown');
+    });
+
+    it('handles mapping groups without aspects', async () => {
+      const nodeDir = path.join(TMP_DIR, 'model', 'svc');
+      await mkdir(nodeDir, { recursive: true });
+      await writeFile(
+        path.join(nodeDir, 'yg-node.yaml'),
+        'name: Svc\ntype: service\nmapping:\n  - paths:\n      - src/service.ts\n',
+      );
+      const result = await migrateToV4(TMP_DIR);
+      const doc = parseYaml(await readFile(path.join(nodeDir, 'yg-node.yaml'), 'utf-8')) as Record<string, unknown>;
+      expect(Array.isArray(doc.mapping)).toBe(true);
+    });
+
+    it('handles relation without anchors field', async () => {
+      const nodeDir = path.join(TMP_DIR, 'model', 'svc');
+      await mkdir(nodeDir, { recursive: true });
+      await writeFile(
+        path.join(nodeDir, 'yg-node.yaml'),
+        'name: Svc\ntype: service\nrelations:\n  - target: other/svc\n    type: calls\n',
+      );
+      const result = await migrateToV4(TMP_DIR);
+      const doc = parseYaml(await readFile(path.join(nodeDir, 'yg-node.yaml'), 'utf-8')) as Record<string, unknown>;
+      const relations = doc.relations as Array<Record<string, unknown>>;
+      expect(relations[0]).toEqual({ target: 'other/svc', type: 'calls' });
+    });
+
+    it('handles empty aspect anchors object', async () => {
+      const nodeDir = path.join(TMP_DIR, 'model', 'svc');
+      await mkdir(nodeDir, { recursive: true });
+      await writeFile(
+        path.join(nodeDir, 'yg-node.yaml'),
+        'name: Svc\ntype: service\nmapping:\n  - paths:\n      - src/service.ts\n    aspects:\n      - aspect: requires-audit\n        anchors: {}\n',
+      );
+      const result = await migrateToV4(TMP_DIR);
+      const doc = parseYaml(await readFile(path.join(nodeDir, 'yg-node.yaml'), 'utf-8')) as Record<string, unknown>;
+      const mapping = doc.mapping as unknown[];
+      const mappingAspects = (mapping[0] as Record<string, unknown>).aspects as Array<Record<string, unknown>>;
+      expect(mappingAspects[0].anchors).toEqual({});
+    });
+
+    it('handles node with invalid YAML that cannot be read', async () => {
+      const nodeDir = path.join(TMP_DIR, 'model', 'svc');
+      await mkdir(nodeDir, { recursive: true });
+      // Create yg-node.yaml as a directory to cause read error
+      await mkdir(path.join(nodeDir, 'yg-node.yaml'), { recursive: true });
+      const result = await migrateToV4(TMP_DIR);
+      // Should not throw, just skip and continue
+      expect(result.warnings).toEqual([]);
+    });
+
+    it('skips config migration when config file cannot be read', async () => {
+      // Create yg-config.yaml as a directory to cause read error
+      await mkdir(path.join(TMP_DIR, 'yg-config.yaml'), { recursive: true });
+      const result = await migrateToV4(TMP_DIR);
+      // Should not throw, just skip config migration
+      expect(result.actions.every((a) => !a.includes('config'))).toBe(true);
+    });
+
+    it('handles mapping with only aspect field (no paths)', async () => {
+      const nodeDir = path.join(TMP_DIR, 'model', 'svc');
+      await mkdir(nodeDir, { recursive: true });
+      await writeFile(
+        path.join(nodeDir, 'yg-node.yaml'),
+        'name: Svc\ntype: service\nmapping:\n  aspects: [requires-audit]\n',
+      );
+      const result = await migrateToV4(TMP_DIR);
+      const doc = parseYaml(await readFile(path.join(nodeDir, 'yg-node.yaml'), 'utf-8')) as Record<string, unknown>;
+      // mapping should remain as object since it has no paths property
+      expect(typeof doc.mapping).toBe('object');
+      expect(!Array.isArray(doc.mapping)).toBe(true);
+    });
+
+    it('handles aspect with string value (edge case)', async () => {
+      const nodeDir = path.join(TMP_DIR, 'model', 'svc');
+      await mkdir(nodeDir, { recursive: true });
+      await writeFile(
+        path.join(nodeDir, 'yg-node.yaml'),
+        'name: Svc\ntype: service\naspects:\n  - "audit"\nmapping:\n  - paths:\n      - src/service.ts\n',
+      );
+      const result = await migrateToV4(TMP_DIR);
+      const doc = parseYaml(await readFile(path.join(nodeDir, 'yg-node.yaml'), 'utf-8')) as Record<string, unknown>;
+      expect((doc.aspects as string[]).includes('audit')).toBe(true);
+    });
   });
 });

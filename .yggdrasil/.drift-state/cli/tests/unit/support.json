@@ -1,5 +1,5 @@
 {
-  "hash": "fe9682d7de7980655937de3f880877215c5d8417f289f92c339407b88dd7aa45",
+  "hash": "6172a2ca020d10cfa0be48db5cc5319f33e718e904c1b1b1b4026a16dea274a9",
   "files": {
     ".yggdrasil/model/cli/tests/unit/support/yg-node.yaml": "30373176849a86a134a67ebf21050d7c3ff56ce502d1ab36192e612503e135cb",
     ".yggdrasil/model/cli/tests/unit/support/responsibility.md": "8c2a60f01bab04f7bf67cc5fb6f6ec8dbae3f01cae01ae2b9fe3e8b0318ecf80",
@@ -13,9 +13,9 @@
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "7deb781ab921aaf4f32cafbaec4e0b3ea8d803b1a039d2ee578ef49ecf3c0308",
     ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
     "source/cli/tests/unit/formatters/context-text.test.ts": "df1aabf73502a28cfb1ae1f11948fb7e4a7c6688b160e35f943c299406cbb815",
-    "source/cli/tests/unit/migrations/to-2.0.0.test.ts": "83c646d248d99577bd44f18deb364ea9037587abfc80fc95f1f565892cdc100a",
     "source/cli/tests/unit/migrations/to-3.0.0.test.ts": "d12196f53b5173b0d87a7693b881ddd1c15f6b2c055453fbbf4cc71d15d4900e",
-    "source/cli/tests/unit/migrations/to-4.0.0.test.ts": "91d85a024e30ff42be13081469ad046372cb61ea7e531b61953fdce542f22478"
+    "source/cli/tests/unit/migrations/to-2.0.0.test.ts": "d43866facdb584d1e9097ce264ecb0a545b6c9c9d0a8cf775cac4fd055c18f3f",
+    "source/cli/tests/unit/migrations/to-4.0.0.test.ts": "80e255d1a6e05cd2abea523a21de996cad3f1e409d18ecff43b0d276e804e1a9"
   },
   "mtimes": {
     ".yggdrasil/model/cli/tests/unit/support/yg-node.yaml": 1775216154032.4534,
@@ -30,8 +30,9 @@
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775049910995.6624,
     ".yggdrasil/aspects/deterministic/content.md": 1772778780694.5889,
     "source/cli/tests/unit/formatters/context-text.test.ts": 1774035679181.531,
-    "source/cli/tests/unit/migrations/to-2.0.0.test.ts": 1772776392222.4644,
+    "source/cli/tests/unit/migrations/to-2.0.0.test.ts": 1775239713664.3308,
     "source/cli/tests/unit/migrations/to-3.0.0.test.ts": 1774782434000.1372,
-    "source/cli/tests/unit/migrations/to-4.0.0.test.ts": 1775041106308.7998
-  }
+    "source/cli/tests/unit/migrations/to-4.0.0.test.ts": 1775239269539.3481
+  },
+  "acknowledgeReason": "aspect proofs and coverage fixes"
 }

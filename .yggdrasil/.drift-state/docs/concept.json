@@ -1,28 +1,28 @@
 {
-  "hash": "177bb36c9a0cb074df527d6dc769528506fe5eabc7e88fb734437ea6c2bd5a1a",
+  "hash": "3dbf0e27406de7c1aa94bff2a77b1f927067c47724896ab90df432264f36a844",
   "files": {
     ".yggdrasil/model/docs/concept/yg-node.yaml": "75136b58eec2f04e6c0a6813707e37d7292a8c928dc4ef080e12d9c334f7a3fb",
     ".yggdrasil/model/docs/concept/responsibility.md": "1b5a6590a3620359d6010c5bd05e665732cb35dff7b765a0d205244577bca2dd",
     ".yggdrasil/model/docs/yg-node.yaml": "36ca70c4bea26714bb7450d306d1a898e70573151394eb8e0fb3a5cf588c84d4",
     ".yggdrasil/model/docs/responsibility.md": "070a2a6c6b29116ab18d2b824068d227cc4682f30fd5ef79b3cbe307dbe632fe",
     "docs/concept/foundation.md": "4ab53b044d48d718a8a54afffbcf2e99ee9ef59055a1ed8e6874017aa18353e6",
-    "docs/concept/materialization.md": "0fef8e79a0b3e038aa7954cb8f290c7fa09badebaf6a1e57773d10c0a5df21af",
-    "docs/concept/engine.md": "5984cf58d51ff13ac55355d03435687eea7d288a9a4b09f3a4ddb6d72c418770",
     "docs/concept/graph.md": "1ae93281681e41cde065d69615cfc09a1bf2983202c1d5504361b95c7e03a8a2",
     "docs/concept/integration.md": "fb8bad498cee6dea0cbaa49be0fdf816b6d2629c03e0d3ca2a9f4e6a08d229b5",
-    "docs/concept/tools.md": "c74538850d7d34f1eff1f9a9d7fb6a5deef4b1402dbb2a2c749c02584302000f"
+    "docs/concept/materialization.md": "0fef8e79a0b3e038aa7954cb8f290c7fa09badebaf6a1e57773d10c0a5df21af",
+    "docs/concept/engine.md": "e991f21ee8f5f1cbf200e94b7667a725bc67fa7fc148e03d55a5d797ea4f178b",
+    "docs/concept/tools.md": "5f7c443725d896ae3139c5cf1207f28d51402535c35aeb208ce0fcbac7679bc7"
   },
   "mtimes": {
     ".yggdrasil/model/docs/concept/yg-node.yaml": 1775216153974.5889,
     ".yggdrasil/model/docs/concept/responsibility.md": 1772828318480.2405,
     ".yggdrasil/model/docs/yg-node.yaml": 1775057326518.1704,
     ".yggdrasil/model/docs/responsibility.md": 1772828320283.2747,
-    "docs/concept/engine.md": 1775218434067.4668,
+    "docs/concept/engine.md": 1775227898352.0132,
     "docs/concept/foundation.md": 1775025063809.139,
     "docs/concept/graph.md": 1775218406718.175,
     "docs/concept/integration.md": 1775218545080.0046,
     "docs/concept/materialization.md": 1775025218263.0195,
-    "docs/concept/tools.md": 1775218499318.267
+    "docs/concept/tools.md": 1775223596879.4482
   },
-  "acknowledgeReason": "Documentation spec update: architecture file, mapping groups, effective aspects resolution"
+  "acknowledgeReason": "aspect proofs and coverage fixes"
 }

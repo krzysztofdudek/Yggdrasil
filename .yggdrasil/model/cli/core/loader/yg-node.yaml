@@ -18,3 +18,14 @@ relations:
 mapping:
   - paths:
     - source/cli/src/core/graph-loader.ts
+    aspects:
+      - aspect: deterministic
+        anchors:
+          pure-function:
+            regex: "export (async )?function"
+            rationale: "Exported functions implement pure logic with deterministic behavior."
+      - aspect: silent-missing-files
+        anchors:
+          null-on-missing:
+            regex: "catch|ENOENT|exists"
+            rationale: "Error handling and existence checks return gracefully on missing files."

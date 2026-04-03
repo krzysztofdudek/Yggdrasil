@@ -17,3 +17,9 @@ mapping:
   - paths:
     - source/cli/src/core/approve.ts
     - source/cli/src/core/.gitkeep
+    aspects:
+      - aspect: deterministic
+        anchors:
+          pure-function:
+            regex: "export (async )?function"
+            rationale: "Exported functions implement pure logic with deterministic behavior."

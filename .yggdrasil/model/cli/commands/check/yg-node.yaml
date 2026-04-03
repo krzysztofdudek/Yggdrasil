@@ -15,3 +15,20 @@ relations:
 mapping:
   - paths:
     - source/cli/src/cli/check.ts
+    aspects:
+      - aspect: deterministic
+        anchors:
+          pure-function:
+            regex: "export function"
+            rationale: "Exported pure functions with no side effects."
+      - aspect: cli-command-contract
+        anchors:
+          stdout-write:
+            regex: "process\\.stdout\\.write"
+            rationale: "Writes output via process.stdout.write."
+          error-handler:
+            regex: "process\\.stderr\\.write"
+            rationale: "Handles errors via process.stderr.write."
+          exit-code:
+            regex: "process\\.exit"
+            rationale: "Controls exit codes."

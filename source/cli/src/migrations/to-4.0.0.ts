@@ -46,7 +46,6 @@ async function migrateConfig(configPath: string, yggRoot: string, actions: strin
   }
 
   let configChanged = false;
-  let architectureCreated = false;
 
   // If node_types exists in config, extract to architecture file
   if (config.node_types && typeof config.node_types === 'object') {
@@ -60,7 +59,6 @@ async function migrateConfig(configPath: string, yggRoot: string, actions: strin
       };
       await writeFile(architecturePath, stringifyYaml(architecture, { lineWidth: 120 }), 'utf-8');
       actions.push('Created yg-architecture.yaml from config node_types');
-      architectureCreated = true;
     }
 
     // Remove node_types from config

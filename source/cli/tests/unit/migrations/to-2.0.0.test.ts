@@ -60,6 +60,28 @@ describe('migration to 2.0.0', () => {
     expect(nt.custom_thing.description).toBe('TODO: add description');
   });
 
+  it('warns on unknown node types when config has object format', async () => {
+    // This exercises line 77 when node_types is an object (not array)
+    const yamlContent = `name: T
+node_types:
+  module:
+    description: "Module"
+  custom_thing:
+    description: "TODO: add description"
+artifacts:
+  responsibility.md:
+    required: always
+    description: x
+`;
+    await writeFile(path.join(yggRoot, 'config.yaml'), yamlContent);
+    const result = await migrateTo2(yggRoot);
+    expect(result.warnings.some(w => w.includes('custom_thing'))).toBe(true);
+    const content = await readFile(path.join(yggRoot, 'yg-config.yaml'), 'utf-8');
+    const config = parseYaml(content) as Record<string, unknown>;
+    const nt = config.node_types as Record<string, { description: string }>;
+    expect(nt.custom_thing).toBeDefined();
+  });
+
   it('replaces artifacts with 2.0.0 standard', async () => {
     await writeFile(path.join(yggRoot, 'config.yaml'), 'name: T\nnode_types: [module]\nartifacts:\n  responsibility.md:\n    required: always\n    description: old\n  constraints.md:\n    required: never\n    description: old\n');
     await migrateTo2(yggRoot);
@@ -79,6 +101,16 @@ describe('migration to 2.0.0', () => {
     const config = parseYaml(content) as Record<string, unknown>;
     expect(config.stack).toBeUndefined();
     expect(config.standards).toBeUndefined();
+  });
+
+  it('preserves quality field from config', async () => {
+    await writeFile(path.join(yggRoot, 'config.yaml'), 'name: T\nnode_types: [module]\nartifacts:\n  responsibility.md:\n    required: always\n    description: x\nquality:\n  min_artifact_length: 100\nstack:\n  runtime: Node.js\n');
+    await migrateTo2(yggRoot);
+    const content = await readFile(path.join(yggRoot, 'yg-config.yaml'), 'utf-8');
+    const config = parseYaml(content) as Record<string, unknown>;
+    expect(config.quality).toBeDefined();
+    const quality = config.quality as Record<string, unknown>;
+    expect(quality.min_artifact_length).toBe(100);
   });
 
   it('migrates stack/standards to root node internals.md', async () => {
@@ -266,5 +298,42 @@ describe('migration to 2.0.0', () => {
     await writeFile(path.join(yggRoot, 'yg-config.yaml'), 'version: "2.0.0"\nname: T\nnode_types:\n  module:\n    description: x\nartifacts:\n  responsibility.md:\n    required: always\n    description: x\n');
     const result = await migrateTo2(yggRoot);
     expect(result.warnings.some(w => w.includes('not a valid YAML object'))).toBe(true);
+  });
+
+  it('preserves required_aspects from node_types in object format', async () => {
+    await writeFile(path.join(yggRoot, 'config.yaml'), 'name: T\nnode_types:\n  service:\n    description: A service\n    required_aspects:\n      - requires-auth\n      - requires-logging\nartifacts:\n  responsibility.md:\n    required: always\n    description: x\n');
+    await migrateTo2(yggRoot);
+    const content = await readFile(path.join(yggRoot, 'yg-config.yaml'), 'utf-8');
+    const config = parseYaml(content) as Record<string, unknown>;
+    const nt = config.node_types as Record<string, { description: string; required_aspects?: string[] }>;
+    expect(nt.service.required_aspects).toEqual(['requires-auth', 'requires-logging']);
+  });
+
+  it('handles node_types with mixed known and custom types', async () => {
+    await writeFile(path.join(yggRoot, 'config.yaml'), 'name: T\nnode_types: [module, service, custom-type]\nartifacts:\n  responsibility.md:\n    required: always\n    description: x\n');
+    const result = await migrateTo2(yggRoot);
+    expect(result.warnings.some(w => w.includes('custom-type'))).toBe(true);
+    const content = await readFile(path.join(yggRoot, 'yg-config.yaml'), 'utf-8');
+    const config = parseYaml(content) as Record<string, unknown>;
+    const nt = config.node_types as Record<string, { description: string }>;
+    expect(nt.module).toBeDefined();
+    expect(nt.service).toBeDefined();
+    expect(nt['custom-type']).toBeDefined();
+  });
+
+  it('reads yg-config.yaml when config.yaml does not exist (idempotent case)', async () => {
+    await writeFile(path.join(yggRoot, 'yg-config.yaml'), 'version: "2.0.0"\nname: T\nnode_types:\n  module:\n    description: x\nartifacts:\n  responsibility.md:\n    required: always\n    description: x\n');
+    const result = await migrateTo2(yggRoot);
+    // Should succeed without error (it reads the existing yg-config.yaml)
+    expect(result.actions.length).toBeGreaterThanOrEqual(1);
+    expect(result.actions.some(a => a.includes('infrastructure'))).toBe(true);
+  });
+
+  it('migrates stack/standards only when present', async () => {
+    await mkdir(path.join(yggRoot, 'model'), { recursive: true });
+    await writeFile(path.join(yggRoot, 'config.yaml'), 'name: T\nnode_types: [module]\nartifacts:\n  responsibility.md:\n    required: always\n    description: x\n');
+    const result = await migrateTo2(yggRoot);
+    // internals.md should NOT be created when stack/standards are absent
+    expect(await exists(path.join(yggRoot, 'model', 'internals.md'))).toBe(false);
   });
 });

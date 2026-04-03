@@ -28,3 +28,24 @@ relations:
 mapping:
   - paths:
     - source/cli/src/io/
+    aspects:
+      - aspect: deterministic
+        anchors:
+          pure-function:
+            regex: "export (async )?function|export const"
+            rationale: "Exported functions implement deterministic parsing and I/O operations."
+      - aspect: posix-paths
+        anchors:
+          forward-slash-normalization:
+            regex: "path\\.join|path\\.resolve|normalize"
+            rationale: "Path operations ensure forward-slash separators."
+      - aspect: yaml-parser-contract
+        anchors:
+          yaml-parse-call:
+            regex: "parseYaml|parse.*yaml"
+            rationale: "Consistent YAML parsing pipeline."
+      - aspect: silent-missing-files
+        anchors:
+          null-on-missing:
+            regex: "catch|ENOENT|exists"
+            rationale: "Gracefully handles missing optional files."

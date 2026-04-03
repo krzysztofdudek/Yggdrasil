@@ -1,5 +1,5 @@
 {
-  "hash": "38599353c2f28d9ee27c67560cff64f58952538f3d0c49b3ef656066065ece20",
+  "hash": "54d344fb038bedfbccfeba0cb3a0068bd7a08a05d6b8569527ffe29b224d2344",
   "files": {
     ".yggdrasil/model/cli/tests/e2e/yg-node.yaml": "8d2ef6ae629dd2f106182d147bfc14d85ec56fcdbfb7b35d0709132c89e29b81",
     ".yggdrasil/model/cli/tests/e2e/responsibility.md": "56b783c5912173097eda22809e7de7cfd8212c6f1a243dcfdc1475205fe8df6a",
@@ -11,7 +11,7 @@
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "7deb781ab921aaf4f32cafbaec4e0b3ea8d803b1a039d2ee578ef49ecf3c0308",
     ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
     "source/cli/tests/e2e/.gitkeep": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
-    "source/cli/tests/e2e/cli.test.ts": "c3d4772d8b8b5b62964026a0b506ebeade757a371c772b9fdc1c126a86ebfba2"
+    "source/cli/tests/e2e/cli.test.ts": "c6901d4d8686d3afbfa3341bb99ad0e400ee6d7887964c1d76861d56c37a9ceb"
   },
   "mtimes": {
     ".yggdrasil/model/cli/tests/e2e/yg-node.yaml": 1775216154044.0063,
@@ -24,6 +24,7 @@
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775049910995.6624,
     ".yggdrasil/aspects/deterministic/content.md": 1772778780694.5889,
     "source/cli/tests/e2e/.gitkeep": 1771702275796.506,
-    "source/cli/tests/e2e/cli.test.ts": 1775217969485.1812
-  }
+    "source/cli/tests/e2e/cli.test.ts": 1775228109087.5022
+  },
+  "acknowledgeReason": "aspect proofs and coverage fixes"
 }

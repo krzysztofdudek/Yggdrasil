@@ -1,5 +1,5 @@
 {
-  "hash": "0e3536fa62760b8b06d725be79170082f1abac3f58210cf9e40a3ebf5353485d",
+  "hash": "4b613a07c501612d7b810ce06072b340b6d8d2f1c32a91fc973fe64a9bac0064",
   "files": {
     ".yggdrasil/model/cli/core/drift-detector/interface.md": "7136927e5d6a1c23bc098356cb7b1f1cc88fcd760040c6fd04f83c0efd6622e9",
     ".yggdrasil/model/cli/core/drift-detector/internals.md": "028b77ef92197ed48c799c039e917fbf79de60cdac0527bc402e47cb82ce6709",
@@ -24,19 +24,19 @@
     ".yggdrasil/flows/preflight/yg-flow.yaml": "c26dbdb9b515a781ed3318fbe5b23ff2257b8eda72b5540b0bcacbef0b976cf8",
     ".yggdrasil/flows/preflight/description.md": "20d14b71af13a79417c5faeb5b02194f99445a1a05c9cf0aa1398dc3601edabb",
     "source/cli/src/core/drift-detector.ts": "b55791936cd9b84faac3b912ea61845ebd88d5b44ebbe3833dd65995848a4641",
-    ".yggdrasil/model/cli/core/drift-detector/yg-node.yaml": "fe26f81a632c292902801e0dd08dea7a787210f32f93e5f5879661f18775f084",
+    ".yggdrasil/model/cli/core/drift-detector/yg-node.yaml": "8072499edabf1785147c65d2f4443bba18c780029535aeb5bfe5cf98fd932c19",
     ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df",
     ".yggdrasil/model/cli/core/yg-node.yaml": "64ce014963e90d408471920640775da9b8775ef7ae2c7380cbadabf5eac93258"
   },
   "mtimes": {
-    ".yggdrasil/model/cli/core/drift-detector/yg-node.yaml": 1775219059048.3606,
+    ".yggdrasil/model/cli/core/drift-detector/yg-node.yaml": 1775241845833.8525,
     ".yggdrasil/model/cli/core/drift-detector/interface.md": 1774070026335.9746,
     ".yggdrasil/model/cli/core/drift-detector/internals.md": 1774475141952.8953,
     ".yggdrasil/model/cli/core/drift-detector/responsibility.md": 1772743197437.916,
-    ".yggdrasil/model/cli/yg-node.yaml": 1775219059046.2136,
+    ".yggdrasil/model/cli/yg-node.yaml": 1775219122158.6094,
     ".yggdrasil/model/cli/internals.md": 1772829219205.6714,
     ".yggdrasil/model/cli/responsibility.md": 1775045623775.336,
-    ".yggdrasil/model/cli/core/yg-node.yaml": 1775219059046.9734,
+    ".yggdrasil/model/cli/core/yg-node.yaml": 1775219122157.0913,
     ".yggdrasil/model/cli/core/interface.md": 1772743197442.582,
     ".yggdrasil/model/cli/core/internals.md": 1774784571148.0142,
     ".yggdrasil/model/cli/core/responsibility.md": 1772828321933.1968,

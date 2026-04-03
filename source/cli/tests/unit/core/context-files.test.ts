@@ -642,4 +642,54 @@ describe('collectTrackedFiles', () => {
     // Restore original relations
     node.meta.relations = originalRelations;
   });
+
+  it('falls back to config-allowed artifacts when no included_in_relations match', () => {
+    const target: GraphNode = {
+      path: 'dep/svc',
+      meta: { name: 'DepSvc', type: 'service' },
+      artifacts: [
+        // Only internals.md which has included_in_relations=false
+        // So structuralArts will be empty, triggering the fallback
+        { filename: 'internals.md', content: 'impl' },
+        { filename: 'custom.md', content: 'custom' },
+      ],
+      children: [],
+      parent: null,
+    };
+    const node: GraphNode = {
+      path: 'my/svc',
+      meta: {
+        name: 'MySvc',
+        type: 'service',
+        relations: [{ target: 'dep/svc', type: 'uses' }],
+      },
+      artifacts: [{ filename: 'responsibility.md', content: 'x' }],
+      children: [],
+      parent: null,
+    };
+    const config: YggConfig = {
+      name: 'T',
+      node_types: { service: { description: 'x' } },
+    };
+    const graph: Graph = {
+      config,
+      nodes: new Map([
+        ['my/svc', node],
+        ['dep/svc', target],
+      ]),
+      aspects: [],
+      flows: [],
+      schemas: [],
+      rootPath: '/project/.yggdrasil',
+    };
+
+    const files = collectTrackedFiles(node, graph);
+    const paths = files.map((f) => f.path);
+
+    // When target has no included_in_relations artifacts, fallback to all config-allowed
+    // internals.md is in STANDARD_ARTIFACTS (config-allowed)
+    expect(paths).toContain('.yggdrasil/model/dep/svc/internals.md');
+    // custom.md is not in STANDARD_ARTIFACTS, so should not appear
+    expect(paths).not.toContain('.yggdrasil/model/dep/svc/custom.md');
+  });
 });

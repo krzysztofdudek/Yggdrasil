@@ -1,5 +1,5 @@
 {
-  "hash": "14cd0fa00e85171433e3c87b3923b3eff2f82cd69a06be2ab81aec2310781138",
+  "hash": "65360227893198750d700729915998d4d76f7b6021d283d84fdb497fcc98b82a",
   "files": {
     ".yggdrasil/model/cli/tests/unit/support/utils/yg-node.yaml": "035e62f40c8ae027260199c1c268e93e0d13b9a3dd35e86d7cec19de45e4a7cd",
     ".yggdrasil/model/cli/tests/unit/support/utils/responsibility.md": "4813907174f9897f2ba2edabcefccdfba0007f0cce6fd8c5cb04b83efa2ebe6a",
@@ -15,10 +15,10 @@
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "7deb781ab921aaf4f32cafbaec4e0b3ea8d803b1a039d2ee578ef49ecf3c0308",
     ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
     "source/cli/tests/unit/utils/git.test.ts": "b0248bd2a287de1c049e53b951a6552528e18c5996a2f1ae402dd0ea8075449f",
-    "source/cli/tests/unit/utils/hash.test.ts": "a3913b62c7e5bb496dedce6cf801ae5563e0add7245238be587cdfcac578e0a7",
-    "source/cli/tests/unit/utils/paths.test.ts": "c23506c5205924ee6f09fa03146cdb464f578df4284202c5422e2b0f5fde2745",
     "source/cli/tests/unit/utils/tokenizer.test.ts": "d26f04a1fc0f569f1e313738c67cdcdf1f0b4b6a996f9eda3872f1d18f929d65",
-    "source/cli/tests/unit/utils/tokens.test.ts": "7bb077c5f4655f37fe11a5909fc9917bf5f41374d3c45931594ca426818d51dc"
+    "source/cli/tests/unit/utils/tokens.test.ts": "7bb077c5f4655f37fe11a5909fc9917bf5f41374d3c45931594ca426818d51dc",
+    "source/cli/tests/unit/utils/hash.test.ts": "cf2c553ff6d9cfdd4efc54cf88d451e02d23345bcd555786cacfcc592e6b5bc4",
+    "source/cli/tests/unit/utils/paths.test.ts": "c23506c5205924ee6f09fa03146cdb464f578df4284202c5422e2b0f5fde2745"
   },
   "mtimes": {
     ".yggdrasil/model/cli/tests/unit/support/utils/yg-node.yaml": 1775216154030.3833,
@@ -35,9 +35,10 @@
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775049910995.6624,
     ".yggdrasil/aspects/deterministic/content.md": 1772778780694.5889,
     "source/cli/tests/unit/utils/git.test.ts": 1772776392222.936,
-    "source/cli/tests/unit/utils/hash.test.ts": 1772485235687.4688,
-    "source/cli/tests/unit/utils/paths.test.ts": 1775217399205.2124,
+    "source/cli/tests/unit/utils/hash.test.ts": 1775239814628.2378,
+    "source/cli/tests/unit/utils/paths.test.ts": 1775239040907.8672,
     "source/cli/tests/unit/utils/tokenizer.test.ts": 1773070117024.6606,
     "source/cli/tests/unit/utils/tokens.test.ts": 1771702275811.6807
-  }
+  },
+  "acknowledgeReason": "aspect proofs and coverage fixes"
 }

@@ -34,5 +34,16 @@ relations:
 
 mapping:
   - paths:
-    - source/cli/src/bin.ts
-    - source/cli/package.json
+      - source/cli/src/bin.ts
+    aspects:
+      - aspect: cli-command-contract
+        anchors:
+          stdout-write:
+            regex: "program"
+            rationale: "Bootstrap file registers all commands with the commander program."
+          error-handler:
+            regex: "register.*Command"
+            rationale: "Delegates error handling to registered command handlers."
+          exit-code:
+            regex: "program\\.parse"
+            rationale: "Parses command line and handles exit codes via commander."

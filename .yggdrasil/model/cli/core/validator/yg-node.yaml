@@ -19,3 +19,14 @@ mapping:
   - paths:
     - source/cli/src/core/validator.ts
     - source/cli/src/core/effective-aspects.ts
+    aspects:
+      - aspect: deterministic
+        anchors:
+          pure-function:
+            regex: "export (async )?function"
+            rationale: "Exported functions implement pure logic with deterministic behavior."
+      - aspect: posix-paths
+        anchors:
+          forward-slash-normalization:
+            regex: "path\\.join|path\\.resolve|normalize"
+            rationale: "Path operations ensure forward-slash separators."

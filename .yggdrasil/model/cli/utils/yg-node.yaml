@@ -11,3 +11,9 @@ relations:
 mapping:
   - paths:
     - source/cli/src/utils/
+    aspects:
+      - aspect: posix-paths
+        anchors:
+          forward-slash-normalization:
+            regex: "path\\.join|path\\.resolve|normalize"
+            rationale: "Path operations ensure forward-slash separators for cross-platform consistency."

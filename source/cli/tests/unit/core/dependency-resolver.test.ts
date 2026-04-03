@@ -239,6 +239,34 @@ describe('dependency-resolver', () => {
     });
   });
 
+  describe('resolveDeps - non-structural relations', () => {
+    it('skips non-structural relations (emits, listens) during dependency resolution', async () => {
+      const graph = createGraph([
+        createNode(
+          'A',
+          [
+            { target: 'B', type: 'uses' }, // structural
+            { target: 'C', type: 'emits' }, // non-structural
+          ],
+          { path: 'a.ts' },
+        ),
+        createNode('B', [], { path: 'b.ts' }),
+        createNode('C', [], { path: 'c.ts' }),
+      ]);
+
+      const stages = await resolveDeps(graph, { mode: 'all' });
+
+      // C and B should be in stage 1 (no dependencies)
+      // A should be in stage 2 (depends on B via uses, but not on C via emits)
+      // So: 2 stages total
+      expect(stages).toHaveLength(2);
+      expect(stages[0].nodes).toHaveLength(2);
+      expect(stages[0].nodes).toContain('B');
+      expect(stages[0].nodes).toContain('C');
+      expect(stages[1].nodes).toEqual(['A']);
+    });
+  });
+
   describe('collectTransitiveDeps - diamond', () => {
     it('handles diamond-shaped dependencies without duplicates', () => {
       const graph = createGraph([

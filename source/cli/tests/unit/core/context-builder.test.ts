@@ -1662,4 +1662,96 @@ describe('toContextMapOutput', () => {
     expect(Array.isArray(output.node.files)).toBe(true);
     expect(output.node.files.length).toBeGreaterThan(0);
   });
+
+  it('builds integration_aspects when effective.integration is non-empty', async () => {
+    const node: GraphNode = {
+      path: 'svc',
+      meta: { name: 'Svc', type: 'service', integration_aspects: ['correlation-id'] },
+      artifacts: [{ filename: 'responsibility.md', content: 'x' }],
+      children: [],
+      parent: null,
+    };
+    const graph: Graph = {
+      config: {
+        name: 'T',
+        node_types: { service: { description: 'x' } },
+      },
+      architecture: {
+        node_types: { service: { description: 'x', integration_aspects: ['correlation-id'] } },
+      },
+      nodes: new Map([['svc', node]]),
+      aspects: [
+        {
+          name: 'Correlation ID',
+          id: 'correlation-id',
+          anchors: [],
+          artifacts: [{ filename: 'content.md', content: 'correlation rules' }],
+        },
+      ],
+      flows: [],
+      schemas: [],
+      rootPath: '/tmp',
+    };
+
+    const pkg = await buildContext(graph, 'svc');
+    const output = toContextMapOutput(pkg, graph);
+
+    expect(output.node).toBeDefined();
+    expect(output.node.integration_aspects).toBeDefined();
+    expect(output.node.integration_aspects!.length).toBeGreaterThan(0);
+    expect(output.node.integration_aspects![0].id).toBe('correlation-id');
+  });
+
+  it('determines aspect source via implies chain when implier is in sources', async () => {
+    // This test specifically exercises lines 520-525 in determineAspectSource
+    // We need an aspect with implies, and the implier aspect must be found in sources
+    const parentAspect: AspectDef = {
+      name: 'Parent Aspect',
+      id: 'parent-aspect',
+      implies: ['child-aspect'],
+      anchors: [],
+      artifacts: [{ filename: 'content.md', content: 'parent rules' }],
+    };
+    const childAspect: AspectDef = {
+      name: 'Child Aspect',
+      id: 'child-aspect',
+      anchors: [],
+      artifacts: [{ filename: 'content.md', content: 'child rules' }],
+    };
+    const nodeType = {
+      description: 'x',
+      aspects: ['parent-aspect'],
+      integration_aspects: [],
+    };
+    const node: GraphNode = {
+      path: 'svc',
+      meta: {
+        name: 'Svc',
+        type: 'service',
+        aspects: ['parent-aspect', 'child-aspect'],  // both aspects on the node
+      },
+      artifacts: [{ filename: 'responsibility.md', content: 'x' }],
+      children: [],
+      parent: null,
+    };
+    const graph: Graph = {
+      config: {
+        name: 'T',
+        node_types: { service: nodeType },
+      },
+      nodes: new Map([['svc', node]]),
+      aspects: [parentAspect, childAspect],
+      flows: [],
+      schemas: [],
+      rootPath: '/tmp',
+    };
+
+    const pkg = await buildContext(graph, 'svc');
+    const output = toContextMapOutput(pkg, graph);
+
+    // Verify the package was built successfully
+    expect(output.node).toBeDefined();
+    expect(output.glossary.aspects['parent-aspect']).toBeDefined();
+    expect(output.glossary.aspects['child-aspect']).toBeDefined();
+  });
 });

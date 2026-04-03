@@ -11,3 +11,9 @@ relations:
 mapping:
   - paths:
     - source/cli/src/formatters/
+    aspects:
+      - aspect: deterministic
+        anchors:
+          pure-function:
+            regex: "export (async )?function|export const"
+            rationale: "Exported functions implement pure formatting logic."

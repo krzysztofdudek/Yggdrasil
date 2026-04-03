@@ -1,10 +1,8 @@
 {
-  "hash": "aede95b3cfead7dc59ddb86ed18f3791f6a5311465af8c36daacf9e803e0f39b",
+  "hash": "60b15821d55a9f3bcd45fe4c50710c00b567f06f683a3b34c544e30ba7e91a66",
   "files": {
-    ".yggdrasil/model/cli/core/validator/yg-node.yaml": "6d64f92aaf5887ef09b93bf0bc9f3256e755300ef50e21c3dfc7ef654b1ab95e",
     ".yggdrasil/model/cli/core/validator/interface.md": "fe2b3e9163b55c4a11c05d92f650665365c68707cc49298ff646e4abb9359d2d",
     ".yggdrasil/model/cli/core/validator/internals.md": "b2bfad576d4304616b008371fb467bdbc0e0c56336dbf7116b82c0ddb3a53d70",
-    ".yggdrasil/model/cli/core/validator/responsibility.md": "a35ce5b777d5c787932db16cdf3920068961e244a95887c83e4ac68fb5c474d5",
     ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df",
     ".yggdrasil/model/cli/internals.md": "fcd16e38b431eead0b12e14b05dd25184ad4ef23884fbde7402172b0985857f6",
     ".yggdrasil/model/cli/responsibility.md": "696e0f5f377eba69a843a18379e8f20e0322dc037182690629652a75aa2227fb",
@@ -28,14 +26,16 @@
     ".yggdrasil/flows/preflight/description.md": "20d14b71af13a79417c5faeb5b02194f99445a1a05c9cf0aa1398dc3601edabb",
     ".yggdrasil/flows/validate/yg-flow.yaml": "ac7d3e18c4d443b113e4883426d03a35af4f3d8a6f92e97803eb6b8ef8d3efb5",
     ".yggdrasil/flows/validate/description.md": "e361415e9567de84d0c121dc709aa7b4b13b1bc99725344bd50b67486267dcdb",
-    "source/cli/src/core/validator.ts": "e8ee3efdc69381c339bd8124c1cc090a21c2eb408979d84f844c2935581c13e6",
-    "source/cli/src/core/effective-aspects.ts": "b22d128db71e29aa1842e1d8f6708be03dc4903f1523cfc7f6555108b231d24d"
+    ".yggdrasil/model/cli/core/validator/yg-node.yaml": "31385038ff3d6dc1c53af5ece78897c548108fbbdf8cfc08f797696eb514de8c",
+    ".yggdrasil/model/cli/core/validator/responsibility.md": "264b0f4a0790381df7d14b86f1770a44ee7f4e6033eb49d8d8ef07e6af103906",
+    "source/cli/src/core/validator.ts": "7954abb1b73685a8ea87d3316935cea87ae6f56869b2b8c3e1d3a0bb66b29665",
+    "source/cli/src/core/effective-aspects.ts": "f5c9c697e3130fcc3ff1c3b87721ae32d95f588da5dd27b1ca0f22809b43750e"
   },
   "mtimes": {
-    ".yggdrasil/model/cli/core/validator/yg-node.yaml": 1775219122156.8672,
+    ".yggdrasil/model/cli/core/validator/yg-node.yaml": 1775241859353.576,
     ".yggdrasil/model/cli/core/validator/interface.md": 1774783352192.546,
     ".yggdrasil/model/cli/core/validator/internals.md": 1774783352192.8264,
-    ".yggdrasil/model/cli/core/validator/responsibility.md": 1775045061477.4285,
+    ".yggdrasil/model/cli/core/validator/responsibility.md": 1775221127115.7512,
     ".yggdrasil/model/cli/yg-node.yaml": 1775219122158.6094,
     ".yggdrasil/model/cli/internals.md": 1772829219205.6714,
     ".yggdrasil/model/cli/responsibility.md": 1775045623775.336,
@@ -59,8 +59,8 @@
     ".yggdrasil/flows/preflight/description.md": 1775046967142.8008,
     ".yggdrasil/flows/validate/yg-flow.yaml": 1775046092444.8713,
     ".yggdrasil/flows/validate/description.md": 1775046942154.0942,
-    "source/cli/src/core/validator.ts": 1775217292008.1946,
-    "source/cli/src/core/effective-aspects.ts": 1775213526880.59
+    "source/cli/src/core/validator.ts": 1775227559410.6726,
+    "source/cli/src/core/effective-aspects.ts": 1775227577531.0688
   },
   "acknowledgeReason": "Dogfood: migrate to new aspect format (schema change)"
 }

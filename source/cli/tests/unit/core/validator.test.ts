@@ -1394,6 +1394,93 @@ describe('validator', () => {
       expect(e054).toBeUndefined();
     });
 
+    it('E050: message includes flow source when aspect comes from flow', async () => {
+      const graph = createGraph({
+        architecture: {
+          node_types: { service: { description: 'svc' } },
+        },
+        aspects: [{ name: 'Tx', id: 'transactional', anchors: ['proof'], artifacts: [] }],
+        flows: [{ path: 'checkout', name: 'Checkout', nodes: ['a'], aspects: ['transactional'], artifacts: [] }],
+      });
+      graph.nodes.set('a', createNode('a', {
+        type: 'service',
+        mapping: [{ paths: ['src/a.ts'] }],
+      }));
+      const result = await validate(graph);
+      const e050 = result.issues.find(i => i.code === 'E050' && i.nodePath === 'a');
+      expect(e050).toBeDefined();
+      expect(e050!.message).toContain('flow');
+      expect(e050!.message).toContain('checkout');
+    });
+
+    it('E050: message includes parent source when aspect comes from parent inheritance', async () => {
+      const graph = createGraph({
+        architecture: {
+          node_types: { module: { description: 'mod', aspects: ['deterministic'] }, service: { description: 'svc' } },
+        },
+        aspects: [{ name: 'Det', id: 'deterministic', anchors: ['proof'], artifacts: [] }],
+      });
+      const parent = createNode('mod', { type: 'module' });
+      const child = createNode('a', {
+        type: 'service',
+        mapping: [{ paths: ['src/a.ts'] }],
+      });
+      child.parent = parent;
+      graph.nodes.set('mod', parent);
+      graph.nodes.set('a', child);
+      const result = await validate(graph);
+      const e050 = result.issues.find(i => i.code === 'E050' && i.nodePath === 'a');
+      expect(e050).toBeDefined();
+      expect(e050!.message).toContain('parent inheritance');
+    });
+
+    it('E053: integration-aspect-missing when consumer lacks target integration aspect', async () => {
+      const graph = createGraph({
+        architecture: {
+          node_types: {
+            service: { description: 'svc', integration_aspects: ['correlation'] },
+            library: { description: 'lib' },
+          },
+        },
+        aspects: [{ name: 'Corr', id: 'correlation', anchors: ['proof'], artifacts: [] }],
+      });
+      const target = createNode('target-svc', { type: 'service' });
+      const consumer = createNode('consumer', {
+        type: 'library',
+        relations: [{ target: 'target-svc', type: 'calls' }],
+        mapping: [{ paths: ['src/consumer.ts'] }],
+      });
+      graph.nodes.set('target-svc', target);
+      graph.nodes.set('consumer', consumer);
+      const result = await validate(graph);
+      const e053 = result.issues.find(i => i.code === 'E053' && i.nodePath === 'consumer');
+      expect(e053).toBeDefined();
+      expect(e053!.message).toContain('correlation');
+    });
+
+    it('E053: not fired when consumer declares required integration aspect', async () => {
+      const graph = createGraph({
+        architecture: {
+          node_types: {
+            service: { description: 'svc', integration_aspects: ['correlation'] },
+            library: { description: 'lib' },
+          },
+        },
+        aspects: [{ name: 'Corr', id: 'correlation', anchors: ['proof'], artifacts: [] }],
+      });
+      const target = createNode('target-svc', { type: 'service' });
+      const consumer = createNode('consumer', {
+        type: 'library',
+        relations: [{ target: 'target-svc', type: 'calls' }],
+        mapping: [{ paths: ['src/consumer.ts'], aspects: [{ aspect: 'correlation', anchors: { proof: { regex: 'x', rationale: 'y' } } }] }],
+      });
+      graph.nodes.set('target-svc', target);
+      graph.nodes.set('consumer', consumer);
+      const result = await validate(graph);
+      const e053 = result.issues.filter(i => i.code === 'E053' && i.nodePath === 'consumer');
+      expect(e053).toHaveLength(0);
+    });
+
     it('skips architecture checks when architecture is empty', async () => {
       const graph = createGraph({
         architecture: { node_types: {} }, // empty architecture
