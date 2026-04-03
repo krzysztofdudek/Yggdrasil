@@ -64,6 +64,7 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
   issues.push(...(await checkShallowArtifacts(graph)));
   issues.push(...(await checkWideNodes(graph)));
   issues.push(...checkUnpairedEvents(graph));
+  issues.push(...checkArchitectureConstraints(graph));
 
   let filtered = issues;
   let nodesScanned = graph.nodes.size;
@@ -1126,6 +1127,107 @@ function checkMissingDescriptions(graph: Graph): ValidationIssue[] {
         rule: 'missing-description',
         message: `Flow '${flow.name}' has no description`,
       });
+    }
+  }
+
+  return issues;
+}
+
+// --- Architecture Constraints (E050-E054) ---
+
+function checkArchitectureConstraints(graph: Graph): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+
+  // E050, E051, E052, E053, E054 require architecture to be defined and loaded
+  // Only validate if architecture has node_types entries (indicating yg-architecture.yaml exists)
+  // or if config.node_types has entries (indicating yg-config.yaml with old format)
+  if (!graph.architecture || Object.keys(graph.architecture.node_types).length === 0) {
+    return issues;
+  }
+
+  const archNodeTypes = graph.architecture.node_types;
+
+  for (const [nodePath, node] of graph.nodes) {
+    // E050: Invalid node type
+    if (!archNodeTypes[node.meta.type]) {
+      issues.push({
+        severity: 'error',
+        code: 'E050',
+        rule: 'invalid-node-type',
+        message: `Node type '${node.meta.type}' not defined in yg-architecture.yaml`,
+        nodePath,
+      });
+      // Can't validate further without valid type
+      continue;
+    }
+
+    const archType = archNodeTypes[node.meta.type];
+
+    // E051: Missing required aspect
+    if (archType.aspects && archType.aspects.length > 0) {
+      const nodeAspectIds = getAspectIds(node.meta.aspects);
+      const effectiveAspects = resolveAspects(nodeAspectIds, graph.aspects);
+      const effectiveAspectIds = new Set(effectiveAspects.map((a) => a.id));
+
+      for (const requiredAspectId of archType.aspects) {
+        if (!effectiveAspectIds.has(requiredAspectId)) {
+          issues.push({
+            severity: 'error',
+            code: 'E051',
+            rule: 'missing-required-aspect',
+            message: `Node must have aspect '${requiredAspectId}' (required by type: ${node.meta.type})`,
+            nodePath,
+          });
+        }
+      }
+    }
+
+    // E052: Unsupported parent type
+    if (archType.parents && node.parent) {
+      const parentType = node.parent.meta.type;
+      if (!archType.parents.includes(parentType)) {
+        issues.push({
+          severity: 'error',
+          code: 'E052',
+          rule: 'unsupported-parent-type',
+          message: `Parent type '${parentType}' not allowed for type '${node.meta.type}'`,
+          nodePath,
+        });
+      }
+    }
+
+    // E053 & E054: Relation type validation
+    if (archType.relations && node.meta.relations && node.meta.relations.length > 0) {
+      for (const relation of node.meta.relations) {
+        // E053: Check if relation type is allowed for this node type
+        if (!archType.relations[relation.type]) {
+          issues.push({
+            severity: 'error',
+            code: 'E053',
+            rule: 'unsupported-relation-type',
+            message: `Node type '${node.meta.type}' does not support '${relation.type}' relations`,
+            nodePath,
+          });
+          continue; // Skip E054 check if relation type is not supported
+        }
+
+        // E054: Check if target type supports being in this relation
+        const targetNode = graph.nodes.get(relation.target);
+        if (targetNode) {
+          const targetType = targetNode.meta.type;
+          const allowedTargetTypes = archType.relations?.[relation.type];
+
+          if (allowedTargetTypes && !allowedTargetTypes.includes(targetType)) {
+            issues.push({
+              severity: 'error',
+              code: 'E054',
+              rule: 'relation-target-type-unsupported',
+              message: `Relation '${relation.type}' targets '${targetType}' type, but '${targetType}' does not support being a target of '${relation.type}' relations`,
+              nodePath,
+            });
+          }
+        }
+      }
     }
   }
 

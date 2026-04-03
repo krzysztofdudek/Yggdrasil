@@ -1217,6 +1217,181 @@ describe('validator', () => {
     });
   });
 
+  describe('Architecture Constraints (E050-E054)', () => {
+    it('E050: invalid-node-type when node type not in architecture', async () => {
+      const graph = createGraph({
+        architecture: {
+          node_types: {
+            service: { description: 'A service' },
+          },
+        },
+      });
+      graph.nodes.set('a', createNode('a', { type: 'unknown-type' }));
+
+      const result = await validate(graph);
+      const e050 = result.issues.find(i => i.code === 'E050' && i.nodePath === 'a');
+      expect(e050).toBeDefined();
+      expect(e050!.message).toContain("'unknown-type'");
+      expect(e050!.message).toContain('yg-architecture.yaml');
+    });
+
+    it('E051: missing-required-aspect when node lacks architecture-required aspect', async () => {
+      const graph = createGraph({
+        architecture: {
+          node_types: {
+            service: {
+              description: 'A service',
+              aspects: ['audit-logging'],
+            },
+          },
+        },
+      });
+      graph.nodes.set('a', createNode('a', { type: 'service' }));
+
+      const result = await validate(graph);
+      const e051 = result.issues.find(i => i.code === 'E051' && i.nodePath === 'a');
+      expect(e051).toBeDefined();
+      expect(e051!.message).toContain('audit-logging');
+      expect(e051!.message).toContain('required by type: service');
+    });
+
+    it('E051: not fired when required aspect is present', async () => {
+      const graph = createGraph({
+        architecture: {
+          node_types: {
+            service: {
+              description: 'A service',
+              aspects: ['valid-tag'],
+            },
+          },
+        },
+      });
+      graph.nodes.set('a', createNode('a', {
+        type: 'service',
+        aspects: [{ aspect: 'valid-tag' }],
+      }));
+
+      const result = await validate(graph);
+      const e051 = result.issues.find(i => i.code === 'E051' && i.nodePath === 'a');
+      expect(e051).toBeUndefined();
+    });
+
+    it('E052: unsupported-parent-type when parent type not in allowed list', async () => {
+      const parentNode = createNode('parent', { type: 'library' });
+      const childNode = createNode('parent/child', { type: 'service' });
+      childNode.parent = parentNode;
+
+      const graph = createGraph({
+        architecture: {
+          node_types: {
+            service: {
+              description: 'A service',
+              parents: ['module'], // only 'module' is allowed as parent
+            },
+            library: { description: 'A library' },
+            module: { description: 'A module' },
+          },
+        },
+      });
+      graph.nodes.set('parent', parentNode);
+      graph.nodes.set('parent/child', childNode);
+
+      const result = await validate(graph);
+      const e052 = result.issues.find(i => i.code === 'E052' && i.nodePath === 'parent/child');
+      expect(e052).toBeDefined();
+      expect(e052!.message).toContain('library');
+      expect(e052!.message).toContain('service');
+    });
+
+    it('E053: unsupported-relation-type when node type does not support relation', async () => {
+      const graph = createGraph({
+        architecture: {
+          node_types: {
+            service: {
+              description: 'A service',
+              relations: { calls: ['service'] }, // only 'calls' is supported
+            },
+          },
+        },
+      });
+      graph.nodes.set('a', createNode('a', {
+        type: 'service',
+        relations: [{ target: 'b', type: 'extends' }], // 'extends' not supported
+      }));
+      graph.nodes.set('b', createNode('b', { type: 'service' }));
+
+      const result = await validate(graph);
+      const e053 = result.issues.find(i => i.code === 'E053' && i.nodePath === 'a');
+      expect(e053).toBeDefined();
+      expect(e053!.message).toContain('extends');
+      expect(e053!.message).toContain('service');
+    });
+
+    it('E054: relation-target-type-unsupported when target type not in allowed list', async () => {
+      const graph = createGraph({
+        architecture: {
+          node_types: {
+            service: {
+              description: 'A service',
+              relations: { calls: ['service', 'module'] }, // can call service or module
+            },
+            library: { description: 'A library' },
+            module: { description: 'A module' },
+          },
+        },
+      });
+      graph.nodes.set('a', createNode('a', {
+        type: 'service',
+        relations: [{ target: 'b', type: 'calls' }],
+      }));
+      graph.nodes.set('b', createNode('b', { type: 'library' })); // library not in allowed list
+
+      const result = await validate(graph);
+      const e054 = result.issues.find(i => i.code === 'E054' && i.nodePath === 'a');
+      expect(e054).toBeDefined();
+      expect(e054!.message).toContain('calls');
+      expect(e054!.message).toContain('library');
+    });
+
+    it('E054: not fired when target type is in allowed list', async () => {
+      const graph = createGraph({
+        architecture: {
+          node_types: {
+            service: {
+              description: 'A service',
+              relations: { calls: ['service', 'module'] },
+            },
+            module: { description: 'A module' },
+          },
+        },
+      });
+      graph.nodes.set('a', createNode('a', {
+        type: 'service',
+        relations: [{ target: 'b', type: 'calls' }],
+      }));
+      graph.nodes.set('b', createNode('b', { type: 'module' })); // module is allowed
+
+      const result = await validate(graph);
+      const e054 = result.issues.find(i => i.code === 'E054' && i.nodePath === 'a');
+      expect(e054).toBeUndefined();
+    });
+
+    it('skips architecture checks when architecture is empty', async () => {
+      const graph = createGraph({
+        architecture: { node_types: {} }, // empty architecture
+      });
+      graph.nodes.set('a', createNode('a', {
+        type: 'unknown-type',
+        relations: [{ target: 'b', type: 'unknown-rel' as any }],
+      }));
+
+      const result = await validate(graph);
+      const archErrors = result.issues.filter(i => ['E050', 'E051', 'E052', 'E053', 'E054'].includes(i.code));
+      // Should skip architecture checks when architecture has no node_types (fallback case)
+      expect(archErrors.length).toBe(0);
+    });
+  });
+
   describe('CLI exit codes', () => {
     it('exit code 0 when no errors', () => {
       const fixturePath = path.resolve(CLI_ROOT, 'tests', 'fixtures', 'sample-project');
