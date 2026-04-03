@@ -4,7 +4,9 @@ Type library — exports TypeScript interfaces and types only. No runtime functi
 
 **Config:** YggConfig, ArtifactConfig, QualityConfig, STANDARD_ARTIFACTS (constant)
 
-**Node:** Graph, GraphNode, NodeMeta, NodeAspectEntry, Relation, RelationType, NodeMapping, Artifact
+**Node:** Graph, GraphNode, NodeMeta, LegacyNodeAspectEntry, Relation, RelationType, MappingGroup, MappingGroupAspect, MappingGroupAnchor, Artifact
+
+**Architecture:** ArchitectureDef, ArchitectureNodeType
 
 **Graph elements:** AspectDef, FlowDef (includes `path` — directory name under flows/), SchemaDef
 
@@ -14,7 +16,7 @@ Type library — exports TypeScript interfaces and types only. No runtime functi
 
 **Budget:** BudgetBreakdown
 
-**Context Map:** ContextMapOutput, Glossary, GlossaryAspectEntry, GlossaryFlowEntry, NodeAspectRef, FlowRef, AncestorRef, DependencyRef
+**Context Map:** ContextMapOutput, Glossary, GlossaryAspectEntry, GlossaryFlowEntry, RequiredAspectRef, FlowRef, AncestorRef, DependencyRef
 
 **Dependency resolution:** Stage
 
@@ -48,12 +50,17 @@ Model is a TypeScript type library — it contains no executable code and does n
 
 ## Graph types
 
-- **Graph** — Root container: config, nodes (Map by path), aspects, flows, schemas, rootPath. Optional configError and nodeParseErrors.
+- **Graph** — Root container: config, architecture (ArchitectureDef), nodes (Map by path), aspects, flows, schemas, rootPath. Optional architectureError, configError, nodeParseErrors.
 - **GraphNode** — A node in the model tree: path, meta (NodeMeta), nodeYamlRaw, artifacts, children, parent.
-- **NodeAspectEntry** — Unified aspect entry for a node: `{ aspect: string; exceptions?: string[]; anchors?: string[] }`. Each entry links a node to an aspect with optional per-node exceptions and code anchors.
-- **NodeMeta** — Parsed yg-node.yaml: name, type, optional description, optional aspects (NodeAspectEntry[]), blackbox, relations, mapping.
+- **LegacyNodeAspectEntry** — Legacy aspect entry for migration purposes: `{ aspect: string; exceptions?: string[]; anchors?: Record<string, AnchorRealization> }`. Not used in new nodes.
+- **NodeMeta** — Parsed yg-node.yaml: name, type, optional description, optional aspects (string[] — own extras), optional integration_aspects (string[] — own extras for consumers), blackbox, relations (Relation[]), mapping (MappingGroup[]).
+- **MappingGroup** — Group of source files sharing an aspect proof profile: paths (file/directory list), optional aspects (MappingGroupAspect[] proving effective aspects).
+- **MappingGroupAspect** — Aspect proof for a mapping group: aspect (ID), anchors (regex + rationale per anchor ID).
+- **MappingGroupAnchor** — Anchor proof: regex (pattern), rationale (why this regex proves compliance).
 - **Relation** — Typed edge: target path, RelationType, optional consumes, failure, event_name.
 - **RelationType** — Union: uses | calls | extends | implements | emits | listens.
+- **ArchitectureDef** — Architecture constraints: node_types (Record of type name to ArchitectureNodeType).
+- **ArchitectureNodeType** — Type constraints: description (required), optional aspects (required on files), optional integration_aspects (required on consumers), optional parents (allowed parent types), optional relations (allowed relation targets per relation type).
 
 ## Context assembly types
 
@@ -64,12 +71,12 @@ Model is a TypeScript type library — it contains no executable code and does n
 ## Context Map types
 
 - **BudgetBreakdown** — Per-category token counts: `{ own: number; hierarchy: number; aspects: number; flows: number; dependencies: number; total: number }`. Used in ContextMapOutput.meta and by validator budget checks.
-- **ContextMapOutput** — Top-level structured output: `project` at top, `glossary` (aspects + flows with names/descriptions/files), `node` with inline `files`, `hierarchy` with inline `files`, `dependencies` with inline `files`, and `meta` at bottom with tokenCount, budgetStatus (`'ok' | 'warning' | 'severe'`), and `breakdown` (BudgetBreakdown). No separate ArtifactRegistry — files are inlined in each section.
+- **ContextMapOutput** — Top-level structured output: `project` at top, `glossary` (aspects + flows with names/descriptions/files), `node` with inline `files` + required_aspects (RequiredAspectRef[] with sources) + integration_aspects (optional), `hierarchy` with inline `files`, `dependencies` with inline `files`, and `meta` at bottom with tokenCount, budgetStatus (`'ok' | 'warning' | 'severe'`), and `breakdown` (BudgetBreakdown). No separate ArtifactRegistry — files are inlined in each section.
 - **Glossary** — Index of all aspects and flows referenced in the context package: `aspects` and `flows` keyed by id/path, each with name, description, and `files`. Aspects and flows are keyed by id/path.
 - **GlossaryAspectEntry** — Aspect glossary entry: name, optional description, optional implies, files.
 - **GlossaryFlowEntry** — Flow glossary entry: name, optional description, participants (node paths), optional aspects, files.
-- **NodeAspectRef** — Aspect reference on a node: id, optional anchors, optional exceptions.
-- **FlowRef** — Flow reference: path, optional aspects list.
+- **RequiredAspectRef** — Required aspect on a node: id (aspect ID), source (e.g. "architecture (type: library)", "own declaration"). Replaces NodeAspectRef in v4+ context output.
+- **FlowRef** — Flow reference: id (flow path), optional aspects list.
 - **AncestorRef** — Ancestor node reference: path, name, type, optional description, aspects list, optional `files` (artifact paths).
 - **DependencyRef** — Dependency reference: path, name, type, optional description, relation kind, optional consumes/failure/event-name, aspects list, hierarchy chain, optional `files` (artifact paths for included_in_relations artifacts).
 

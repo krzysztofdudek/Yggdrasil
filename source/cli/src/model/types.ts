@@ -14,6 +14,22 @@ export interface YggConfig {
   quality?: QualityConfig;
 }
 
+// ============================================================
+// Architecture
+// ============================================================
+
+export interface ArchitectureNodeType {
+  description: string;
+  aspects?: string[];
+  integration_aspects?: string[];
+  parents?: string[];
+  relations?: Partial<Record<RelationType, string[]>>;
+}
+
+export interface ArchitectureDef {
+  node_types: Record<string, ArchitectureNodeType>;
+}
+
 export interface ArtifactConfig {
   required: 'always' | 'never' | { when: string };
   description: string;
@@ -59,7 +75,26 @@ export interface AnchorRealization {
   [key: string]: unknown; // Forward compatibility for v5 types (ast, claim)
 }
 
-export interface NodeAspectEntry {
+// ============================================================
+// Mapping Groups
+// ============================================================
+
+export interface MappingGroupAnchor {
+  regex: string;
+  rationale: string;
+}
+
+export interface MappingGroupAspect {
+  aspect: string;
+  anchors: Record<string, MappingGroupAnchor>;
+}
+
+export interface MappingGroup {
+  paths: string[];
+  aspects?: MappingGroupAspect[];
+}
+
+export interface LegacyNodeAspectEntry {
   aspect: string;
   exceptions?: string[];
   /** Anchor realizations — maps anchor ID to typed realization object */
@@ -70,12 +105,11 @@ export interface NodeMeta {
   name: string;
   type: string;
   description?: string;
-  aspects?: NodeAspectEntry[];
+  aspects?: string[];
+  integration_aspects?: string[];
   blackbox?: boolean;
   relations?: Relation[];
-  mapping?: NodeMapping;
-  /** Anchor IDs that consumers of this node must realize on their relation entries */
-  integration_anchors?: string[];
+  mapping?: MappingGroup[];
 }
 
 export interface Relation {
@@ -85,13 +119,6 @@ export interface Relation {
   failure?: string;
   /** For event relations (emits, listens): display name of the event, e.g. OrderPlaced */
   event_name?: string;
-  /** Integration anchor realizations for this dependency */
-  anchors?: Record<string, AnchorRealization>;
-}
-
-export interface NodeMapping {
-  /** List of paths (files or directories). Type is auto-detected at runtime. */
-  paths: string[];
 }
 
 export interface GraphNode {
@@ -162,6 +189,9 @@ export interface SchemaDef {
 
 export interface Graph {
   config: YggConfig;
+  architecture: ArchitectureDef;
+  /** Present when yg-architecture.yaml could not be parsed */
+  architectureError?: string;
   /** Present when yg-config.yaml could not be parsed and loader used fallback config */
   configError?: string;
   /** Parse errors for yg-node.yaml files (path -> message); reported as E001 */
@@ -213,14 +243,13 @@ export interface ContextSection {
 // Context Map (v2 structured output)
 // ============================================================
 
-export interface NodeAspectRef {
+export interface RequiredAspectRef {
   id: string;
-  anchors?: string[];
-  exceptions?: string[];
+  source: string;
 }
 
 export interface FlowRef {
-  path: string;
+  id: string;
   aspects?: string[];
 }
 
@@ -285,7 +314,8 @@ export interface ContextMapOutput {
     type: string;
     description?: string;
     mappings: string[];
-    aspects: NodeAspectRef[];
+    required_aspects: RequiredAspectRef[];
+    integration_aspects?: RequiredAspectRef[];
     flows: FlowRef[];
     files: string[];
   };
