@@ -2,8 +2,8 @@
 
 - `loadGraph(projectRoot: string, options?: { tolerateInvalidConfig?: boolean }): Promise<Graph>`
   - Parameters: `projectRoot` (string), `options.tolerateInvalidConfig` (boolean, optional).
-  - Returns: Graph with config, configError?, nodeParseErrors?, nodes, aspects, flows, schemas, rootPath.
-  - Finds .yggdrasil/ via findYggRoot. Parses config; on failure uses FALLBACK_CONFIG if tolerateInvalidConfig (configError set on Graph). Scans model/, loads aspects/, flows/, schemas/. Node parse errors collected; scan continues.
+  - Returns: Graph with config, architecture (ArchitectureDef, defaults to empty { node_types: {} }), configError?, nodeParseErrors?, nodes, aspects, flows, schemas, rootPath.
+  - Finds .yggdrasil/ via findYggRoot. Parses config; on failure uses FALLBACK_CONFIG if tolerateInvalidConfig (configError set on Graph). Scans model/, loads aspects/, flows/, schemas/. Node parse errors collected; scan continues. Sets default empty architecture if not provided.
   - Throws when model/ does not exist (ENOENT): `Error("Directory .yggdrasil/model/ does not exist. Run 'yg init' first.", { cause })`.
 
 - `loadGraphFromRef(projectRoot: string, ref?: string): Promise<Graph | null>`

@@ -101,15 +101,20 @@ export interface LegacyNodeAspectEntry {
   anchors?: Record<string, AnchorRealization>;
 }
 
+// Compatibility aliases for breaking changes
+export type NodeAspectEntry = LegacyNodeAspectEntry;
+export type NodeMapping = MappingGroup;
+
 export interface NodeMeta {
   name: string;
   type: string;
   description?: string;
-  aspects?: string[];
+  aspects?: LegacyNodeAspectEntry[];
+  integration_anchors?: string[];
   integration_aspects?: string[];
   blackbox?: boolean;
   relations?: Relation[];
-  mapping?: MappingGroup[];
+  mapping?: MappingGroup;
 }
 
 export interface Relation {
@@ -119,6 +124,8 @@ export interface Relation {
   failure?: string;
   /** For event relations (emits, listens): display name of the event, e.g. OrderPlaced */
   event_name?: string;
+  /** Anchor realizations for integration_anchors on the target node */
+  anchors?: Record<string, AnchorRealization>;
 }
 
 export interface GraphNode {
@@ -248,8 +255,18 @@ export interface RequiredAspectRef {
   source: string;
 }
 
+/** Reference to a node aspect in context output */
+export interface NodeAspectRef {
+  id: string;
+  /** The aspect ID this entry references */
+  anchors?: Record<string, AnchorRealization>;
+  /** Exceptions to this aspect for this node */
+  exceptions?: string[];
+}
+
 export interface FlowRef {
   id: string;
+  path?: string;
   aspects?: string[];
 }
 
@@ -314,6 +331,7 @@ export interface ContextMapOutput {
     type: string;
     description?: string;
     mappings: string[];
+    aspects: NodeAspectRef[];
     required_aspects: RequiredAspectRef[];
     integration_aspects?: RequiredAspectRef[];
     flows: FlowRef[];

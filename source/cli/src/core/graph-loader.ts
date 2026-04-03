@@ -65,6 +65,7 @@ export async function loadGraph(
 
   return {
     config,
+    architecture: { node_types: {} }, // Default empty architecture
     configError,
     nodeParseErrors: nodeParseErrors.length > 0 ? nodeParseErrors : undefined,
     nodes,

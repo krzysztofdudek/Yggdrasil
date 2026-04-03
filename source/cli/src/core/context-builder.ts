@@ -18,6 +18,7 @@ import type {
   GlossaryAspectEntry,
   GlossaryFlowEntry,
   NodeAspectRef,
+  RequiredAspectRef,
   FlowRef,
   AncestorRef,
   DependencyRef,
@@ -471,7 +472,7 @@ export function toContextMapOutput(
   // Node aspects with anchors/exceptions
   const nodeAspects: NodeAspectRef[] = (node.meta.aspects ?? []).map((entry) => {
     const ref: NodeAspectRef = { id: entry.aspect };
-    if (entry.anchors && Object.keys(entry.anchors).length > 0) ref.anchors = Object.keys(entry.anchors);
+    if (entry.anchors && Object.keys(entry.anchors).length > 0) ref.anchors = entry.anchors;
     if (entry.exceptions?.length) ref.exceptions = entry.exceptions;
     return ref;
   });
@@ -479,7 +480,7 @@ export function toContextMapOutput(
   // Node flows
   const participatingFlows = collectParticipatingFlows(graph, node);
   const flowRefs: FlowRef[] = participatingFlows.map((f) => {
-    const ref: FlowRef = { path: f.path };
+    const ref: FlowRef = { id: f.path, path: f.path };
     if (f.aspects?.length) ref.aspects = f.aspects;
     return ref;
   });
@@ -538,6 +539,24 @@ export function toContextMapOutput(
       : breakdown.total >= warningThreshold ? 'warning'
         : 'ok';
 
+  // Build required_aspects from node type config
+  const nodeType = config.node_types[node.meta.type];
+  const requiredAspectIds = nodeType?.required_aspects ?? [];
+  const requiredAspects: RequiredAspectRef[] = requiredAspectIds.map((id) => ({
+    id,
+    source: `node_types.${node.meta.type}.required_aspects`,
+  }));
+
+  // Build integration_aspects from node meta
+  const integrationAspectIds = node.meta.integration_aspects ?? [];
+  const integrationAspects: RequiredAspectRef[] | undefined =
+    integrationAspectIds.length > 0
+      ? integrationAspectIds.map((id) => ({
+          id,
+          source: 'node.integration_aspects',
+        }))
+      : undefined;
+
   return {
     meta: { tokenCount: breakdown.total, budgetStatus, breakdown },
     project: config.name,
@@ -548,6 +567,8 @@ export function toContextMapOutput(
       description: node.meta.description,
       mappings: normalizeMappingPaths(node.meta.mapping),
       aspects: nodeAspects,
+      required_aspects: requiredAspects,
+      integration_aspects: integrationAspects,
       flows: flowRefs,
       files: buildNodeFiles(node, config, `model/${pkg.nodePath}`),
     },
