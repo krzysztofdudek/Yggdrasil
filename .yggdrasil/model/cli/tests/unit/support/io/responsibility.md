@@ -10,7 +10,7 @@ Unit tests for file system I/O parsers in `src/io/`. Verifies YAML parsing, sche
 - `config-parser.test.ts` — `yg-config.yaml` parsing
 - `drift-state-store.test.ts` — drift state JSON reading and writing
 - `flow-parser.test.ts` — flow YAML parsing and validation
-- `node-parser.test.ts` — node YAML parsing and validation
+- `node-parser.test.ts` — node YAML parsing and validation (supports old and new aspects format, integration_aspects, typed anchor realizations)
 - `schema-parser.test.ts` — schema file parsing
 
 ## Out of scope

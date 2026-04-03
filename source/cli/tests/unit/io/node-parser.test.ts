@@ -644,14 +644,29 @@ aspects:
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('throws when aspects entry is not an object', async () => {
+  it('parses flat string aspects array (new format)', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-flat-aspects');
+    await mkdir(tmpDir, { recursive: true });
+    const nodePath = path.join(tmpDir, 'yg-node.yaml');
+    await writeFile(nodePath, `name: FlatAspects\ntype: service\naspects:\n  - "requires-auth"\n  - "audit-logging"\n`, 'utf-8');
+
+    const meta = await parseNodeYaml(nodePath);
+    expect(meta.aspects).toEqual([
+      { aspect: 'requires-auth' },
+      { aspect: 'audit-logging' },
+    ]);
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('throws when aspects entry is not an object or string', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-bad-aspect-entry');
     await mkdir(tmpDir, { recursive: true });
     const nodePath = path.join(tmpDir, 'yg-node.yaml');
-    await writeFile(nodePath, `name: Bad\ntype: service\naspects:\n  - "just-a-string"\n`, 'utf-8');
+    await writeFile(nodePath, `name: Bad\ntype: service\naspects:\n  - 123\n`, 'utf-8');
 
     await expect(parseNodeYaml(nodePath)).rejects.toThrow(
-      "aspects[0] must be an object with 'aspect' key",
+      "aspects[0] must be a string or object with 'aspect' key",
     );
 
     await rm(tmpDir, { recursive: true, force: true });
@@ -848,6 +863,52 @@ relations:
 
     await expect(parseNodeYaml(nodePath)).rejects.toThrow(
       'must be an object with a type property',
+    );
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('parses integration_aspects on node root', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-integ-aspects');
+    await mkdir(tmpDir, { recursive: true });
+    const nodePath = path.join(tmpDir, 'yg-node.yaml');
+    await writeFile(
+      nodePath,
+      `name: IntegrationAspects
+type: service
+integration_aspects:
+  - requires-correlation-id
+  - requires-auth-token
+`,
+      'utf-8',
+    );
+
+    const meta = await parseNodeYaml(nodePath);
+    expect(meta.integration_aspects).toEqual(['requires-correlation-id', 'requires-auth-token']);
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('integration_aspects is undefined when not present', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-no-integ-asp');
+    await mkdir(tmpDir, { recursive: true });
+    const nodePath = path.join(tmpDir, 'yg-node.yaml');
+    await writeFile(nodePath, `name: Basic\ntype: service\n`, 'utf-8');
+
+    const meta = await parseNodeYaml(nodePath);
+    expect(meta.integration_aspects).toBeUndefined();
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('throws when integration_aspects is not an array', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-bad-integ-asp');
+    await mkdir(tmpDir, { recursive: true });
+    const nodePath = path.join(tmpDir, 'yg-node.yaml');
+    await writeFile(nodePath, `name: Bad\ntype: service\nintegration_aspects: "not-array"\n`, 'utf-8');
+
+    await expect(parseNodeYaml(nodePath)).rejects.toThrow(
+      "'integration_aspects' must be an array of strings",
     );
 
     await rm(tmpDir, { recursive: true, force: true });

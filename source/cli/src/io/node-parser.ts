@@ -45,6 +45,16 @@ export async function parseNodeYaml(filePath: string): Promise<NodeMeta> {
       .filter((a): a is string => typeof a === 'string' && a.trim() !== '');
   }
 
+  // Parse integration_aspects (optional string[] in new format)
+  let integrationAspects: string[] | undefined;
+  if (raw.integration_aspects !== undefined) {
+    if (!Array.isArray(raw.integration_aspects)) {
+      throw new Error(`yg-node.yaml at ${filePath}: 'integration_aspects' must be an array of strings`);
+    }
+    integrationAspects = (raw.integration_aspects as unknown[])
+      .filter((a): a is string => typeof a === 'string' && a.trim() !== '');
+  }
+
   return {
     name: (raw.name as string).trim(),
     type: (raw.type as string).trim(),
@@ -54,6 +64,7 @@ export async function parseNodeYaml(filePath: string): Promise<NodeMeta> {
     relations: relations.length > 0 ? relations : undefined,
     mapping,
     integration_anchors: integrationAnchors,
+    integration_aspects: integrationAspects,
   };
 }
 
@@ -69,63 +80,88 @@ function parseAspects(raw: unknown, filePath: string): NodeAspectEntry[] | undef
 
   for (let i = 0; i < raw.length; i++) {
     const item = raw[i];
-    if (typeof item !== 'object' || item === null) {
-      throw new Error(`yg-node.yaml at ${filePath}: aspects[${i}] must be an object with 'aspect' key`);
-    }
-    const obj = item as Record<string, unknown>;
 
-    if (typeof obj.aspect !== 'string' || obj.aspect.trim() === '') {
-      throw new Error(
-        `yg-node.yaml at ${filePath}: aspects[${i}].aspect must be a non-empty string`,
-      );
+    // Support both old format (object with aspect key) and new format (flat string)
+    let aspectId: string;
+
+    if (typeof item === 'string') {
+      // New format: flat string array
+      aspectId = item.trim();
+      if (aspectId === '') {
+        throw new Error(
+          `yg-node.yaml at ${filePath}: aspects[${i}] must be a non-empty string`,
+        );
+      }
+    } else if (typeof item === 'object' && item !== null) {
+      // Old format (backward compatibility): object with aspect key
+      const obj = item as Record<string, unknown>;
+      if (typeof obj.aspect !== 'string' || obj.aspect.trim() === '') {
+        throw new Error(
+          `yg-node.yaml at ${filePath}: aspects[${i}].aspect must be a non-empty string`,
+        );
+      }
+      aspectId = obj.aspect.trim();
+
+      // Parse exceptions (optional string[]) — only in old format
+      let exceptions: string[] | undefined;
+      if (obj.exceptions !== undefined && obj.exceptions !== null) {
+        if (!Array.isArray(obj.exceptions)) {
+          throw new Error(
+            `yg-node.yaml at ${filePath}: aspects[${i}].exceptions must be an array of strings`,
+          );
+        }
+        exceptions = obj.exceptions.filter((e): e is string => typeof e === 'string' && e.trim() !== '');
+      }
+
+      // Parse anchors — now a map of anchor ID to typed realization object
+      let anchorsMap: Record<string, AnchorRealization> | undefined;
+      if (obj.anchors !== undefined && obj.anchors !== null) {
+        if (typeof obj.anchors !== 'object' || Array.isArray(obj.anchors)) {
+          // Migration: bare string arrays are no longer valid
+          throw new Error(
+            `yg-node.yaml at ${filePath}: aspects[${i}].anchors must be an object mapping anchor IDs to typed realizations (e.g., { anchor-id: { regex: "pattern" } })`,
+          );
+        }
+        anchorsMap = {};
+        for (const [anchorId, realization] of Object.entries(obj.anchors as Record<string, unknown>)) {
+          if (typeof realization !== 'object' || realization === null || Array.isArray(realization)) {
+            throw new Error(
+              `yg-node.yaml at ${filePath}: aspects[${i}].anchors.${anchorId} must be an object with a type property (e.g., { regex: "pattern" })`,
+            );
+          }
+          anchorsMap[anchorId] = realization as AnchorRealization;
+        }
+      }
+
+      // Build the entry from old format
+      const entry: NodeAspectEntry = { aspect: aspectId };
+      if (exceptions && exceptions.length > 0) {
+        entry.exceptions = exceptions;
+      }
+      if (anchorsMap && Object.keys(anchorsMap).length > 0) {
+        entry.anchors = anchorsMap;
+      }
+
+      if (seenAspects.has(aspectId)) {
+        throw new Error(
+          `yg-node.yaml at ${filePath}: duplicate aspect '${aspectId}' in aspects list`,
+        );
+      }
+      seenAspects.add(aspectId);
+      result.push(entry);
+      continue;
+    } else {
+      throw new Error(`yg-node.yaml at ${filePath}: aspects[${i}] must be a string or object with 'aspect' key`);
     }
 
-    const aspectId = obj.aspect.trim();
+    // New format (flat string): just the aspect ID, no anchors/exceptions
     if (seenAspects.has(aspectId)) {
       throw new Error(
         `yg-node.yaml at ${filePath}: duplicate aspect '${aspectId}' in aspects list`,
       );
     }
     seenAspects.add(aspectId);
-
-    const entry: NodeAspectEntry = { aspect: aspectId };
-
-    // Parse exceptions (optional string[])
-    if (obj.exceptions !== undefined && obj.exceptions !== null) {
-      if (!Array.isArray(obj.exceptions)) {
-        throw new Error(
-          `yg-node.yaml at ${filePath}: aspects[${i}].exceptions must be an array of strings`,
-        );
-      }
-      const exceptions = obj.exceptions.filter((e): e is string => typeof e === 'string' && e.trim() !== '');
-      if (exceptions.length > 0) {
-        entry.exceptions = exceptions;
-      }
-    }
-
-    // Parse anchors — now a map of anchor ID to typed realization object
-    if (obj.anchors !== undefined && obj.anchors !== null) {
-      if (typeof obj.anchors !== 'object' || Array.isArray(obj.anchors)) {
-        // Migration: bare string arrays are no longer valid
-        throw new Error(
-          `yg-node.yaml at ${filePath}: aspects[${i}].anchors must be an object mapping anchor IDs to typed realizations (e.g., { anchor-id: { regex: "pattern" } })`,
-        );
-      }
-      const anchorsMap: Record<string, AnchorRealization> = {};
-      for (const [anchorId, realization] of Object.entries(obj.anchors as Record<string, unknown>)) {
-        if (typeof realization !== 'object' || realization === null || Array.isArray(realization)) {
-          throw new Error(
-            `yg-node.yaml at ${filePath}: aspects[${i}].anchors.${anchorId} must be an object with a type property (e.g., { regex: "pattern" })`,
-          );
-        }
-        anchorsMap[anchorId] = realization as AnchorRealization;
-      }
-      if (Object.keys(anchorsMap).length > 0) {
-        entry.anchors = anchorsMap;
-      }
-    }
-
-    result.push(entry);
+    result.push({ aspect: aspectId });
   }
 
   return result.length > 0 ? result : undefined;

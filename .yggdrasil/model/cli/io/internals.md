@@ -38,3 +38,7 @@ Each JSON file contains a `DriftNodeState`: canonical hash, per-file hashes, and
 **Graceful degradation for operational files:** readDriftState returns empty structure on missing file — this is optional operational metadata. Parsers for config and graph structure throw on invalid input, since those are required for correct operation.
 
 **Artifacts removed from config:** The config parser no longer parses or validates an `artifacts` section. The three standard artifacts (responsibility.md, interface.md, internals.md) are now hardcoded as STANDARD_ARTIFACTS in cli/model/types.ts. This eliminated the need for config-level artifact injection, E020 validation, and the `artifacts` field on YggConfig.
+
+**Aspects format migration:** parseAspects in node-parser.ts supports both old (object with `aspect` key) and new (flat string) formats. Old format objects can include `exceptions` and `anchors` fields; new flat string format contains only the aspect ID. This allows gradual migration from old to new format. Anchors are typed objects (e.g., `{ regex: "pattern" }`), not bare string arrays — bare arrays trigger a migration error.
+
+**Integration aspects:** The new `integration_aspects` field on NodeMeta defines aspect IDs that consumers of this node must propagate in their dependency tracking. This complements `integration_anchors` (which defines specific anchor IDs required at the interface level).
