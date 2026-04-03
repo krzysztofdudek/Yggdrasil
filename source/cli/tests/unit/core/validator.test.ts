@@ -1018,41 +1018,91 @@ describe('validator', () => {
   });
 
   describe('E040 anchor-not-realized', () => {
-    it('E040: node missing realization for aspect anchor', async () => {
+    it('E040: mapping group anchor missing regex field', async () => {
       const graph = createGraph({
         aspects: [{ name: 'Logging', id: 'logging', anchors: ['audit-entry'], artifacts: [] }],
       });
       graph.nodes.set('a', createNode('a', {
-        aspects: [{ aspect: 'logging' }], // no anchors realization
-        mapping: { paths: ['src/a/'] },
+        mapping: {
+          paths: ['src/a/'],
+          aspects: [
+            {
+              aspect: 'logging',
+              anchors: {
+                'audit-entry': { regex: '', rationale: 'For audit tracking' }, // empty regex
+              },
+            },
+          ],
+        },
       }));
       const result = await validate(graph);
       const e040 = result.issues.find(i => i.code === 'E040' && i.nodePath === 'a');
       expect(e040).toBeDefined();
-      expect(e040!.message).toContain('audit-entry');
+      expect(e040!.message).toContain('regex');
     });
 
-    it('no E040 when all anchors realized', async () => {
+    it('E040: mapping group anchor missing rationale field', async () => {
       const graph = createGraph({
         aspects: [{ name: 'Logging', id: 'logging', anchors: ['audit-entry'], artifacts: [] }],
       });
       graph.nodes.set('a', createNode('a', {
-        aspects: [{ aspect: 'logging', anchors: { 'audit-entry': { regex: 'createAuditLog' } } }],
-        mapping: { paths: ['src/a/'] },
+        mapping: {
+          paths: ['src/a/'],
+          aspects: [
+            {
+              aspect: 'logging',
+              anchors: {
+                'audit-entry': { regex: 'createAuditLog', rationale: '' }, // empty rationale
+              },
+            },
+          ],
+        },
+      }));
+      const result = await validate(graph);
+      const e040 = result.issues.find(i => i.code === 'E040' && i.nodePath === 'a');
+      expect(e040).toBeDefined();
+      expect(e040!.message).toContain('rationale');
+    });
+
+    it('no E040 when mapping group anchors have all required fields', async () => {
+      const graph = createGraph({
+        aspects: [{ name: 'Logging', id: 'logging', anchors: ['audit-entry'], artifacts: [] }],
+      });
+      graph.nodes.set('a', createNode('a', {
+        mapping: {
+          paths: ['src/a/'],
+          aspects: [
+            {
+              aspect: 'logging',
+              anchors: {
+                'audit-entry': { regex: 'createAuditLog', rationale: 'Needed for compliance' },
+              },
+            },
+          ],
+        },
       }));
       const result = await validate(graph);
       const e040 = result.issues.filter(i => i.code === 'E040');
       expect(e040).toHaveLength(0);
     });
 
-    it('no E040 for blackbox nodes (exempt from anchor realization)', async () => {
+    it('no E040 for blackbox nodes (exempt from anchor validation)', async () => {
       const graph = createGraph({
         aspects: [{ name: 'Logging', id: 'logging', anchors: ['audit-entry'], artifacts: [] }],
       });
       graph.nodes.set('a', createNode('a', {
-        aspects: [{ aspect: 'logging' }], // no realization
         blackbox: true,
-        mapping: { paths: ['src/a/'] },
+        mapping: {
+          paths: ['src/a/'],
+          aspects: [
+            {
+              aspect: 'logging',
+              anchors: {
+                'audit-entry': { regex: '', rationale: '' }, // missing fields, but blackbox exempts
+              },
+            },
+          ],
+        },
       }));
       const result = await validate(graph);
       const e040 = result.issues.filter(i => i.code === 'E040' && i.nodePath === 'a');
@@ -1092,21 +1142,6 @@ describe('validator', () => {
   });
 
   describe('E041 unknown-anchor-type', () => {
-    it('E041: unknown anchor realization type', async () => {
-      const graph = createGraph({
-        aspects: [{ name: 'Logging', id: 'logging', anchors: ['audit-entry'], artifacts: [] }],
-      });
-      graph.nodes.set('a', createNode('a', {
-        aspects: [{ aspect: 'logging', anchors: { 'audit-entry': { ast: { signature: 'fn()' } } as unknown as { regex?: string } } }],
-        mapping: { paths: ['src/a/'] },
-      }));
-      const result = await validate(graph);
-      const e041 = result.issues.find(i => i.code === 'E041');
-      expect(e041).toBeDefined();
-      expect(e041!.message).toContain("'ast'");
-      expect(e041!.message).toContain('regex');
-    });
-
     it('E041: unknown type on relation anchor', async () => {
       const graph = createGraph();
       graph.nodes.set('target', createNode('target', {
@@ -1175,9 +1210,9 @@ describe('validator', () => {
       return { tmpDir };
     }
 
-    it('E037: regex pattern not found in source files', async () => {
+    it('E037: mapping group regex pattern not found in source files', async () => {
       const { tmpDir } = await createTmpProjectForAnchors('e037', {
-        nodeYaml: `name: Svc\ntype: service\ndescription: test\naspects:\n  - aspect: logging\n    anchors:\n      audit-entry:\n        regex: "NONEXISTENT_PATTERN"\nmapping:\n  - paths:\n      - src/\n`,
+        nodeYaml: `name: Svc\ntype: service\ndescription: test\nmapping:\n  - paths:\n      - src/\n    aspects:\n      - aspect: logging\n        anchors:\n          audit-entry:\n            regex: "NONEXISTENT_PATTERN"\n            rationale: "Test rationale"\n`,
         sourceFiles: { 'src/index.ts': 'export function hello() { return 42; }\n' },
         aspects: [{ id: 'logging', yaml: 'name: Logging\ndescription: test\nanchors:\n  - audit-entry\n' }],
       });
@@ -1189,9 +1224,9 @@ describe('validator', () => {
       await rm(tmpDir, { recursive: true, force: true });
     });
 
-    it('no E037 when regex matches source', async () => {
+    it('no E037 when mapping group regex matches source', async () => {
       const { tmpDir } = await createTmpProjectForAnchors('e037-match', {
-        nodeYaml: `name: Svc\ntype: service\ndescription: test\naspects:\n  - aspect: logging\n    anchors:\n      audit-entry:\n        regex: "hello"\nmapping:\n  - paths:\n      - src/\n`,
+        nodeYaml: `name: Svc\ntype: service\ndescription: test\nmapping:\n  - paths:\n      - src/\n    aspects:\n      - aspect: logging\n        anchors:\n          audit-entry:\n            regex: "hello"\n            rationale: "Test rationale"\n`,
         sourceFiles: { 'src/index.ts': 'export function hello() { return 42; }\n' },
         aspects: [{ id: 'logging', yaml: 'name: Logging\ndescription: test\nanchors:\n  - audit-entry\n' }],
       });
@@ -1202,10 +1237,9 @@ describe('validator', () => {
       await rm(tmpDir, { recursive: true, force: true });
     });
 
-
     it('E037: blackbox exempt from anchor-not-found', async () => {
       const { tmpDir } = await createTmpProjectForAnchors('e037-blackbox', {
-        nodeYaml: `name: Legacy\ntype: service\ndescription: test\nblackbox: true\naspects:\n  - aspect: logging\n    anchors:\n      audit-entry:\n        regex: "NONEXISTENT"\nmapping:\n  - paths:\n      - src/\n`,
+        nodeYaml: `name: Legacy\ntype: service\ndescription: test\nblackbox: true\nmapping:\n  - paths:\n      - src/\n    aspects:\n      - aspect: logging\n        anchors:\n          audit-entry:\n            regex: "NONEXISTENT"\n            rationale: "Test rationale"\n`,
         sourceFiles: { 'src/index.ts': 'nothing here\n' },
         aspects: [{ id: 'logging', yaml: 'name: Logging\ndescription: test\nanchors:\n  - audit-entry\n' }],
       });
