@@ -3,41 +3,52 @@
 # plus artifact .md files defined in yg-config.yaml.
 
 name: ComponentName           # required — display name
-type: service                 # required — must match a type from config.node_types
+type: service                 # required — must match a type from yg-architecture.yaml
 description: "Short description of what this node does"  # optional
 blackbox: false               # optional, default false — if true, coarse-grained coverage without deep artifacts
 
-aspects:                      # optional — list of aspect configurations
-  - aspect: aspect-id         # required — the key MUST be "aspect", value is the aspect directory name under aspects/
-    exceptions:               # optional — how this node deviates from the aspect's pattern
-      - "Description of deviation and why"
-    anchors:                  # optional — map of anchor ID → typed realization object
-      anchor-id:              # key = anchor ID defined in the aspect's anchors field
-        regex: "pattern"      # regex pattern to find in mapped source files (E037 if not found)
-# Example with real values:
-#   aspects:
-#     - aspect: audit-logging
-#       anchors:
-#         audit-entry: { regex: "createAuditLog|auditLog\\.create" }
-#         audit-actor: { regex: "userId|currentUser" }
-#     - aspect: provider-pattern
-#       exceptions: ["Uses eager init instead of lazy — surfaces config errors at startup"]
-#       anchors:
-#         transport-init: { regex: "getTransport|createTransport" }
+aspects:                      # optional — list of own aspect extras beyond inherited from architecture/flows/parent
+  - aspect-id                 # aspect IDs as strings, no nested structure
 
-integration_anchors:          # optional — anchor IDs that consumers must realize
-  - correlation-id
+integration_aspects:          # optional — list of own integration aspect extras for consumers
+  - aspect-id
 
 relations:                    # optional — outgoing dependencies to other nodes
   - target: other/module-path # required — path relative to model/
     type: calls               # required — calls | uses | extends | implements | emits | listens
     consumes: [methodA, methodB] # optional — what is consumed from target
     failure: 'retry 3x, then circuit-break' # optional — failure handling strategy
-    anchors:                  # optional — integration anchor ID → typed realization object
-      correlation-id:
-        regex: "correlationId|correlation_id"
-    # event_name: OrderPlaced # optional — display name for event relations (emits, listens)
 
 mapping:                      # optional — link to source files for ownership and drift detection
-  paths:                      # required when mapping is present — list of file or directory paths
-    - src/modules/component/  # paths are relative to repository root
+  - paths:                    # required — list of file or directory paths
+      - src/modules/component/  # paths are relative to repository root
+    aspects:                  # required when effective aspects > 0 — proof for every effective aspect
+      - aspect: aspect-id     # required — aspect being proven
+        anchors:              # required — proof points for this aspect
+          anchor-id:          # key = anchor ID from yg-aspect.yaml
+            regex: "pattern"  # required — regex pattern to find in EACH file in this group
+            rationale: "why this regex proves compliance (max 2 sentences)"  # required
+
+# Example:
+#   name: Expenses
+#   type: service
+#   aspects: [subscription-limits]
+#
+#   mapping:
+#     - paths:
+#         - apps/api/src/routes/expenses.ts
+#       aspects:
+#         - aspect: requires-auth
+#           anchors:
+#             auth-guard:
+#               regex: "requireAuth\\("
+#               rationale: "Middleware at router level before handlers."
+#
+#     - paths:
+#         - apps/api/src/services/expenses.ts
+#       aspects:
+#         - aspect: requires-auth
+#           anchors:
+#             auth-context:
+#               regex: "ctx\\.userId"
+#               rationale: "Receives authenticated user from route context."

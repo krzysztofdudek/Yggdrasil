@@ -1,0 +1,73 @@
+# yg-architecture.yaml — Schema for architecture constraints
+# File: .yggdrasil/yg-architecture.yaml
+# Defines node types with architectural constraints and inheritance rules.
+# All properties except description are optional — absence means no enforcement.
+
+description: Architecture definition file specifying node type constraints
+
+type: object
+required: ["node_types"]
+
+properties:
+  node_types:
+    type: object
+    description: "Node type definitions with constraints"
+    additionalProperties:
+      type: object
+      required: ["description"]
+      properties:
+        description:
+          type: string
+          description: "What this node type is for — required on all types"
+
+        aspects:
+          type: array
+          description: "Aspect IDs required on every file of this node type"
+          items:
+            type: string
+
+        integration_aspects:
+          type: array
+          description: "Aspect IDs required on consumers of nodes of this type"
+          items:
+            type: string
+
+        parents:
+          type: array
+          description: "Whitelist of allowed parent node types"
+          items:
+            type: string
+
+        relations:
+          type: object
+          description: "Whitelist of allowed relation targets per relation type"
+          additionalProperties:
+            type: array
+            description: "List of allowed target node types for this relation type"
+            items:
+              type: string
+          properties:
+            calls:
+              type: array
+              items:
+                type: string
+            uses:
+              type: array
+              items:
+                type: string
+            extends:
+              type: array
+              items:
+                type: string
+            implements:
+              type: array
+              items:
+                type: string
+            emits:
+              type: array
+              items:
+                type: string
+            listens:
+              type: array
+              items:
+                type: string

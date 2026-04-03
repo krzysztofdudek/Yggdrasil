@@ -1,21 +1,13 @@
 # yg-config.yaml — Schema for the Yggdrasil project configuration
 # Located at .yggdrasil/yg-config.yaml — one per project.
+# Node type definitions have moved to .yggdrasil/yg-architecture.yaml
 # Edit this after running yg init to describe your project.
 
-version: "3.0.0"                  # managed by CLI — do not edit manually. Tracks the CLI version
+version: "4.0.0"                  # managed by CLI — do not edit manually. Tracks the CLI version
                                   # that created or last migrated this config. Used by the migration
                                   # system to determine which migrations to run on upgrade.
 
-name: "My Project"               # required — project display name
-
-node_types:                       # required — non-empty object of node type definitions
-  module:                         #   key = type name used in yg-node.yaml
-    description: "Business logic unit with clear domain responsibility"
-    # required_aspects: []        #   optional — aspects every node of this type must have
-  service:
-    description: "Component providing functionality to other nodes"
-  library:
-    description: "Shared utility code with no domain knowledge"
+name: "My Project"                # optional — project display name
 
 # artifacts are hardcoded in the CLI (responsibility.md, interface.md, internals.md)
 # and cannot be configured. See STANDARD_ARTIFACTS in source code.
