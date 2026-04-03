@@ -115,17 +115,20 @@ prior knowledge of conventions.
 
 ### What tools create vs what agents create
 
-| Element                                                             | Created by                |
-| ------------------------------------------------------------------- | ------------------------- |
-| `.yggdrasil/` structure, `yg-config.yaml`                           | Initialization (one time) |
-| Node directories in `model/` + `yg-node.yaml`                       | Agent                     |
-| Node Markdown artifacts                                             | Agent                     |
-| Aspect directories in `aspects/` + `yg-aspect.yaml`                 | Agent                     |
-| Flow directories in `flows/` + `yg-flow.yaml`                       | Agent                     |
-| Schemas in `schemas/` (node, aspect, flow)                         | Initialization (copied)  |
-| Platform rules file                                                 | Initialization (one time) |
+| Element                                                        | Created by                 |
+| -------------------------------------------------------------- | -------------------------- |
+| `.yggdrasil/`, `yg-config.yaml`, `yg-architecture.yaml`        | Initialization (one time)  |
+| Node directories in `model/` + `yg-node.yaml`                  | Agent                      |
+| Node Markdown artifacts                                        | Agent                      |
+| Aspect directories in `aspects/` + `yg-aspect.yaml`            | Agent                      |
+| Flow directories in `flows/` + `yg-flow.yaml`                  | Agent                      |
+| Mapping groups with aspect proofs in `yg-node.yaml`            | Agent                      |
+| Schemas in `schemas/` (node, aspect, flow)                     | Initialization (copied)    |
+| Platform rules file                                            | Initialization (one time)  |
 
-Tools create infrastructure (initialization). The agent creates content (everything after init).
+Tools create infrastructure (initialization). The agent creates content (everything after init),
+including architectural constraints (by editing `yg-architecture.yaml` with node type
+requirements and relation constraints).
 
 ---
 
@@ -181,19 +184,33 @@ BEFORE A CHANGE THAT AFFECTS MANY NODES:
 
 The directives say **when** to act, not how graph files are structured. Schema and format come from config, templates, and validation feedback.
 
-### 2) Configuration → WHAT is allowed
+### 2) Configuration and Architecture → WHAT is allowed
 
-`yg-config.yaml` is both tool configuration and a self-documenting schema for the agent.
-By reading it, the agent immediately knows:
+Two files define what is allowed:
 
-- Which node types exist (service, repository, controller, …)
-- Which aspects exist (requires-audit, high-throughput, …)
-- Which artifacts exist, when they are required, and what they should contain
-  (each has a `description`)
-- Which quality thresholds apply
+**`yg-config.yaml`** contains project-level configuration:
 
-One file, two audiences, zero duplication: tools read it to validate; the agent reads it to
-know what is allowed.
+- Which artifacts exist and when they are required
+- Which quality thresholds apply (minimum artifact length, context budget, max relations)
+
+**`yg-architecture.yaml`** defines architectural constraints:
+
+- Which node types exist and their descriptions (service, repository, controller, …)
+- What aspects are required on each node type
+- What aspects consumers must prove when depending on a node type
+- Which parent types are allowed for each node type
+- Which target types can be called/used via each relation type
+
+By reading these files, the agent immediately knows:
+
+- What node types are allowed (and what constraints apply to each)
+- What parent hierarchy is valid
+- What aspects each node must prove and why
+- How different node types can relate to each other
+- Quality thresholds and artifact requirements
+
+Two files, two audiences, zero duplication: tools read them to validate; the agent reads
+them to understand what is allowed and what constraints apply to their choices.
 
 ### 3) Schemas → HOW files look
 

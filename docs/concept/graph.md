@@ -491,6 +491,78 @@ Example variant names: `### Payment failed`, `### User cancellation`, `### Timeo
 
 ---
 
+## Architecture File
+
+The architecture file (`.yggdrasil/yg-architecture.yaml`) defines node type constraints and
+requirements. It is **separate from** `yg-config.yaml`.
+
+### Purpose
+
+The architecture file enforces architectural guardrails at the graph level:
+
+- **Node type constraints** — what kinds of nodes can relate to each other, which parent types
+  are allowed, what aspects every node of a type must prove.
+- **Integration contracts** — what aspects consumers must prove when depending on a node type.
+- **Propagating requirements** — aspects required at the type level automatically flow to
+  every file in nodes of that type.
+
+### Architecture file format
+
+```yaml
+node_types:
+  service:
+    description: "Request-handling module with external contracts"
+    aspects: [requires-auth, error-format]          # required on every file
+    integration_aspects: [correlation-tracking]      # required on consumers
+    parents: [module, domain]                        # allowed parent types
+    relations:                                       # allowed target types
+      calls: [service, library]
+      uses: [library]
+
+  library:
+    description: "Shared utility with no domain knowledge"
+    aspects: [deterministic]
+    parents: [module]
+    relations:
+      uses: [library]
+
+  module:
+    description: "Business logic unit with clear domain responsibility"
+```
+
+| Field                   | Purpose                                                               |
+| ----------------------- | --------------------------------------------------------------------- |
+| `description`           | Required. What this type of node is for (agent guidance)              |
+| `aspects`               | Optional. Aspect IDs that every file of this type must prove          |
+| `integration_aspects`   | Optional. Aspect IDs that consumers of this type must prove           |
+| `parents`               | Optional. Whitelist of allowed parent node types                      |
+| `relations`             | Optional. Allowed target types by relation type (calls, uses, etc.)   |
+
+**Semantics:**
+
+- When a node has `type: service` and the architecture declares `aspects: [requires-auth]`,
+  every file in that node's `mapping` must prove the `requires-auth` aspect via mapping groups.
+- When a node depends on a `service` node via a relation, the consumer must prove any
+  `integration_aspects` declared for the `service` type.
+- Absence of any field means no constraint — e.g. no `parents` field means any node type can
+  be a parent.
+
+### Relation constraints
+
+```yaml
+node_types:
+  api:
+    relations:
+      calls: [service, library]      # api can call service or library
+      uses: [library]                 # api can use library
+```
+
+If a node has `type: api` and `relations.calls` is not in the architecture, that node can call
+any target type. If `relations.calls` IS defined (as a whitelist), the target type must be
+in the list.
+
+---
+
 ## Path Conventions
 
 Every reference in the graph uses short, relative paths. Tools know the base directory for each
@@ -509,43 +581,125 @@ No ambiguity. No absolute paths. No guessing which directory a reference points 
 ## Mapping: Graph to Source
 
 Nodes in the graph can be mapped to source files via declarations in `yg-node.yaml`. Mapping enables
-two things:
+three things:
 
 - Ownership lookup — which node owns a given file.
 - Drift detection — did the file change since last synchronization.
+- Aspect proof — which files implement which aspects, and how.
 
-### Mapping format
+### Mapping Groups
 
-Mapping uses a `paths` array listing one or more file or directory paths:
+Mapping is organized into **groups**. Each group is a set of files that share the same
+aspect proof profile. Different groups in the same node can prove the same aspect using
+different implementations.
+
+```yaml
+mapping:
+  - paths:
+      - src/routes/expenses.ts
+    aspects:
+      - aspect: requires-auth
+        anchors:
+          auth-guard:
+            regex: "requireAuth\\("
+            rationale: "Middleware at router level before handlers."
+      - aspect: error-format
+        anchors:
+          error-shape:
+            regex: "formatError"
+            rationale: "Shared error formatter in catch blocks."
+
+  - paths:
+      - src/services/expenses.ts
+    aspects:
+      - aspect: requires-auth
+        anchors:
+          auth-context:
+            regex: "ctx\\.userId"
+            rationale: "Receives authenticated user from route context."
+      - aspect: error-format
+        anchors:
+          error-throw:
+            regex: "AppError|throw.*Error"
+            rationale: "Throws typed errors caught by route handler."
+```
+
+**Key properties:**
+
+- Each group declares one or more file paths and the aspects that group proves.
+- **Different groups, same aspect, different proof:** The first group proves `requires-auth`
+  via the `requireAuth()` middleware call. The second group proves it by accessing `ctx.userId`.
+  Both proofs are valid — they show different implementations of the same requirement.
+- **Every file in a group must match every anchor:** If a group declares `requires-auth` with
+  an anchor regex `"requireAuth\\("`, every file in that group must contain the pattern.
+- **All effective aspects must be proven:** The union of aspects from all mapping groups must
+  cover all effective aspects (from architecture, parent, flow, and own declarations). Missing
+  aspects trigger error E050.
+
+### Mapping group fields
+
+```yaml
+mapping:
+  - paths:                       # required — list of files/directories in this group
+      - src/routes/expenses.ts
+      - src/routes/invoices.ts
+    aspects:                     # required when effective aspects > 0
+      - aspect: requires-auth    # required — aspect identifier
+        anchors:                 # required — anchor ID → proof object
+          auth-guard:
+            regex: "requireAuth\\("   # required — regex pattern
+            rationale: "..."           # required — max 2 sentences
+```
+
+**Semantics:**
+
+- `paths` — files or directories (globs reserved for future). Every file in a directory is
+  resolved at check time. All resolved files must match all anchor regexes.
+- `aspects` — list of aspects this group proves. Required unless effective aspects = 0.
+- `aspect` — aspect identifier from the graph.
+- `anchors` — map from anchor ID to typed proof object. Every anchor ID defined in the aspect's
+  `yg-aspect.yaml` must be realized. Anchor IDs are matched exactly; typos are errors (E040).
+- `regex` — pattern to search for in source files. Must match in every file in the group.
+- `rationale` — why this pattern proves the aspect (max 2 sentences). Helps maintainers
+  understand the proof and guides agents when updating implementations.
+
+### Paths in mapping groups
 
 **Single file:**
 
 ```yaml
 mapping:
-  paths:
-    - src/modules/orders/order.service.ts
+  - paths:
+      - src/modules/orders/order.service.ts
 ```
 
-**Directory** — all files in the directory belong to the node:
+**Directory** — all files recursively:
 
 ```yaml
 mapping:
-  paths:
-    - src/modules/orders
+  - paths:
+      - src/modules/orders
 ```
 
-More robust to internal changes — adding, renaming, or deleting files inside the directory does
-not break the mapping.
+More robust to internal changes — adding or deleting files inside the directory automatically
+includes/excludes them from the mapping without updating the declaration.
 
-**Multiple files** — implementation spans multiple files in different directories:
+**Multiple paths in one group:**
 
 ```yaml
 mapping:
-  paths:
-    - src/modules/orders/order.service.ts
-    - src/modules/orders/order.repository.ts
-    - src/shared/orders/order.types.ts
+  - paths:
+      - src/routes/orders.ts
+      - src/routes/payments.ts
+    aspects:
+      - aspect: requires-auth
+        anchors:
+          guard:
+            regex: "requireAuth\\("
+            rationale: "Both route files are protected by middleware."
 ```
+
+All files in the group share the same aspect proof profile.
 
 **No mapping** — node exists purely for semantic memory and is not mapped to any file. Module
 nodes, abstract concepts, and planning nodes may be unmapped. The `mapping` field is simply

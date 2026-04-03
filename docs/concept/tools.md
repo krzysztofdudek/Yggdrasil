@@ -59,40 +59,48 @@ and required conditions.
 Node identity and all its outgoing connections.
 
 ```yaml
-name: OrderService # string, required
-type: service # string, required — from config.node_types
-description: "Manages order lifecycle from placement to fulfilment" # string, optional — short summary for context maps
-aspects: # list of objects, optional — unified aspect entries
-  - aspect: requires-audit # string, required — aspect identifier (directory path under aspects/)
-    exceptions: # list of strings, optional — per-node deviations from this aspect's pattern
-      - "Batch import skips per-record audit — emits single summary event instead"
-    anchors: # map, optional — anchor ID → typed realization object
-      audit-entry:
-        regex: "createAuditLog|auditLog\\.create"
-      audit-actor:
-        regex: "userId|currentUser|actor"
-  - aspect: requires-auth # minimal entry — just the aspect identifier
-blackbox: false # bool, optional, default false
+name: OrderService                          # string, required
+type: service                               # string, required — from architecture.node_types
+description: "Manages order lifecycle"      # string, optional — short summary for context maps
 
-integration_anchors: # list of strings, optional — anchor IDs that consumers must realize
-  - correlation-id
-  - retry-policy
+aspects: [requires-audit, error-format]     # optional — own extras beyond inherited
 
-relations: # list, optional
-  - target: payments/payment-service # string, required — path relative to model/
-    type: calls # string, required — relation type (see table)
-    consumes: [charge, refund] # list of strings, optional
+integration_aspects: [correlation-tracking] # optional — required on consumers
+
+relations:                                  # optional
+  - target: payments/payment-service        # string, required — path relative to model/
+    type: calls                             # string, required — relation type (see table)
+    consumes: [charge, refund]              # list of strings, optional
     failure: "retry 3x, then payment-failed" # string, optional
-    anchors: # map, optional — integration anchor ID → typed realization object
-      correlation-id:
-        regex: "correlationId|correlation_id"
-      retry-policy:
-        regex: "retry|retryPolicy|withRetry"
-    # For event relations (emits, listens): event_name (optional) — display name, e.g. OrderPlaced
 
-mapping: # map, optional
-  paths: # list of strings, required when mapping is present
-    - src/modules/orders/order.service.ts
+mapping:                                    # optional — groups with aspect proofs
+  - paths:
+      - src/routes/orders.ts
+    aspects:
+      - aspect: requires-audit
+        anchors:
+          audit-log:
+            regex: "createAuditLog"
+            rationale: "Audit events logged on order creation, state changes."
+      - aspect: error-format
+        anchors:
+          error-handler:
+            regex: "formatError"
+            rationale: "Uses shared error formatter in route handler."
+
+  - paths:
+      - src/services/orders.ts
+    aspects:
+      - aspect: requires-audit
+        anchors:
+          audit-context:
+            regex: "auditCtx"
+            rationale: "Receives audit context from route caller."
+      - aspect: error-format
+        anchors:
+          error-throw:
+            regex: "AppError"
+            rationale: "Throws typed errors caught by route handler."
 ```
 
 **Relation types:**
@@ -106,44 +114,49 @@ mapping: # map, optional
 | `emits`      | event      | no         | Produces an event                         |
 | `listens`    | event      | no         | Reacts to an event                        |
 
-`mapping.paths` is a list of file and/or directory paths relative to project root. Files and
-directories are auto-detected at runtime. Each path in the list is hashed individually — files
-are hashed directly, directories are scanned recursively (respecting `.gitignore`).
+**Mapping groups:**
 
-**Anchor realization format:**
+Each mapping entry is a group — a set of file paths sharing the same aspect proof profile.
+Different groups can prove the same aspect using different implementations. Every file in
+a group must match every anchor regex in that group.
 
-Anchors are always typed objects — a map from anchor ID to a realization object with exactly
-one type property. Currently supports `regex` only. Unknown types produce E041.
+- `paths` — list of files and/or directories (relative to project root). Directories are
+  expanded recursively at check time, respecting `.gitignore`.
+- `aspects` — list of aspects this group proves. Required unless the node has zero effective aspects.
+- `aspect` — aspect identifier from `aspects/`.
+- `anchors` — map from anchor ID to proof object. Every anchor ID defined in the aspect's
+  `yg-aspect.yaml` must be realized in the group.
+- `regex` — pattern to match in source files. Must match in every file in the group.
+- `rationale` — why this pattern proves the aspect (max 2 sentences).
 
-```yaml
-# regex
-audit-entry:
-  regex: "createAuditLog|auditLog\\.create"
-```
+**Aspect inheritance:**
 
-**Integration anchors:**
+Aspects on a node come from multiple sources:
 
-The `integration_anchors` field defines anchor IDs that consumers (nodes with structural
-relations to this node) must realize. When present, any node with a `uses`, `calls`,
-`extends`, or `implements` relation to this node must include a matching `anchors` map on
-the relation entry. Integration anchors propagate automatically through relations — no
-manual aspect assignment needed.
+- Architecture (`node_types.<type>.aspects`) — required on every file of this type
+- Parent node — children inherit parent's effective aspects
+- Flow aspects — flow participants inherit flow-level aspects
+- Own declarations — extra aspects declared on the node
+- Aspect implies — recursive expansion
+
+All effective aspects must be proven in mapping groups. Missing aspects trigger error E050.
 
 **Validation rules for yg-node.yaml:**
 
 - `name` must be non-empty.
-- `type` must be a key in `config.node_types`.
-- Each aspect entry's `aspect` identifier must correspond to a directory under `aspects/`.
+- `type` must be a key in `architecture.node_types`.
+- Each aspect identifier must correspond to a directory under `aspects/`.
 - Each `relations[].target` must resolve to an existing node.
 - Each `relations[].type` must be from the table above.
-- Paths in `mapping.paths` must be relative to the repository root.
-- `mapping.paths` must be non-empty when `mapping` is present.
+- Paths in `mapping[].paths` must be relative to the repository root. Can be files or directories.
+- At least one path must be present in each mapping group.
 - Mappings cannot overlap with mappings of other nodes.
-- Aspect `anchors`, if present, must be a map from anchor ID to typed realization object.
-  Each realization must realize an anchor ID defined in the aspect's `anchors` field.
-- Relation `anchors`, if present, must realize integration anchor IDs from the target node.
-- Anchor patterns (regex) are validated against mapped source files: if a pattern is not
-  found, an error (E037) is emitted.
+- Each mapping group's `aspects` list must declare all effective aspects (E050 if missing).
+- Each mapping group must NOT declare aspects outside the effective set (E054 if extra).
+- For each aspect in a mapping group, all anchor IDs from `yg-aspect.yaml` must be realized (E040).
+- Each anchor regex must match in EVERY file in the mapping group (E037).
+- If a node relates to a target with `integration_aspects`, the consumer's mapping group must
+  declare those aspects (E053).
 
 ### yg-aspect.yaml
 
@@ -350,6 +363,7 @@ Upgrade mode — refreshes only the rules file (when `.yggdrasil/` already exist
    ```text
    .yggdrasil/
    ├── yg-config.yaml
+   ├── yg-architecture.yaml
    ├── .gitignore
    ├── model/
    ├── aspects/
@@ -358,13 +372,13 @@ Upgrade mode — refreshes only the rules file (when `.yggdrasil/` already exist
    ```
 
 3. Write `yg-config.yaml` with default content (see Default configuration below).
-4. Write `.yggdrasil/.gitignore` (with entries for local operational files).
-
-5. Run migrations (upgrade mode only):
+4. Write `yg-architecture.yaml` with default node types (see Architecture file below).
+5. Write `.yggdrasil/.gitignore` (with entries for local operational files).
+6. Run migrations (upgrade mode only):
 
    a. Read `version` from `yg-config.yaml`. If absent, treat as `1.0.0`.
 
-   b. If project version equals CLI version — skip migrations, proceed to step 6.
+   b. If project version equals CLI version — skip migrations, proceed to step 7.
 
    c. If project version is newer than CLI version — print a warning and exit without
       modifying any files.
@@ -375,7 +389,7 @@ Upgrade mode — refreshes only the rules file (when `.yggdrasil/` already exist
 
    e. After all migrations complete, write the updated `version` to `yg-config.yaml`.
 
-6. Generate the platform rules file in the location appropriate for the `platform` parameter
+7. Generate the platform rules file in the location appropriate for the `platform` parameter
    (see Platform rules file section).
 
 **Result:**
@@ -390,18 +404,10 @@ Upgrade mode — refreshes only the rules file (when `.yggdrasil/` already exist
 
 **Default configuration:**
 
+`yg-config.yaml`:
+
 ```yaml
 name: ""
-
-node_types:
-  module:
-    description: "Business logic unit with clear domain responsibility"
-  service:
-    description: "Component providing functionality to other nodes"
-  library:
-    description: "Shared utility code with no domain knowledge"
-  infrastructure:
-    description: "Guards, middleware, interceptors — invisible in call graphs but affect blast radius"
 
 quality:
   min_artifact_length: 50
@@ -412,8 +418,24 @@ quality:
     # own_warning: 5000  # optional — warn when own artifacts alone exceed this
 ```
 
+`yg-architecture.yaml`:
+
+```yaml
+node_types:
+  module:
+    description: "Business logic unit with clear domain responsibility"
+  service:
+    description: "Component providing functionality to other nodes"
+  library:
+    description: "Shared utility code with no domain knowledge"
+  infrastructure:
+    description: "Guards, middleware, interceptors — invisible in call graphs but affect blast radius"
+```
+
 The tool auto-detects the project name from `package.json` (if present) or the
-directory name. The agent can override by editing `yg-config.yaml`.
+directory name. The agent can override by editing `yg-config.yaml`. Node types
+are defined in `yg-architecture.yaml` and can be customized with architectural
+constraints (`aspects`, `integration_aspects`, `parents`, `relations`).
 
 ---
 
@@ -869,10 +891,27 @@ nearest parent directory of `.yggdrasil/`, not the entire git repository.
 | `E040` | `anchor-not-realized`       | Node missing anchor realization for aspect or integration anchor IDs            |
 | `E041` | `unknown-anchor-type`       | Anchor realization uses unrecognized type (upgrade CLI or use `regex`)           |
 
+**Architecture Enforcement (E050-E054):**
+
+| Code   | Name                                   | Description                                                        |
+| ------ | -------------------------------------- | ------------------------------------------------------------------ |
+| `E050` | `mapping-group-missing-aspects`        | Mapping group missing required effective aspects                   |
+| `E051` | `architecture-parent-violation`        | Node's parent type not in allowed list (architecture)              |
+| `E052` | `architecture-relation-violation`      | Relation target type not allowed (architecture)                    |
+| `E053` | `mapping-group-missing-integration-aspects` | Consumer missing integration aspects from target              |
+| `E054` | `mapping-group-extra-aspects`          | Mapping group declares aspects outside effective set               |
+
 **Anchor validation chain:** Validation follows a chain: (1) aspect has `anchors`
 field? (E039 if not), (2) node realizes all anchor IDs? (E040 if not), (3) realized
 patterns found in source? (E037 if not). For integration anchors: same chain but
 step 1 is optional.
+
+**Architecture validation:** Effective aspects flow to mapping groups from four sources
+(architecture type requirements, parent inheritance, flow participation, own aspects).
+Every mapping group must declare all effective aspects (E050) and no extra ones (E054).
+When a node calls a target with `integration_aspects`, the consumer's mapping group must
+prove them (E053). Parent type constraints (E051) and relation type constraints (E052)
+are validated separately.
 
 **Blackbox exemption:** Blackbox nodes are exempt from E030 (missing artifact),
 E035 (missing required aspect), E037 (anchor not found), and E040 (anchor not

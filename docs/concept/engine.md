@@ -376,6 +376,91 @@ before merge, ensuring structural integrity of the semantic memory base is maint
 
 ---
 
+## Effective Aspect Resolution
+
+Aspects propagate to nodes and files from multiple sources. The engine computes the
+**effective set** of aspects that a node must prove, then validates that every mapping
+group declares all of them.
+
+### Aspect sources
+
+Aspects arrive at a node through five channels:
+
+| Source | How it propagates | Example |
+| --- | --- | --- |
+| Architecture type | Required on every file of nodes of this type | `service` type requires `requires-auth` |
+| Architecture integration | Required on consumers of a target type | If `service` has `integration_aspects: [correlation-tracking]`, callers must prove it |
+| Flow aspects | Required on all flow participants | All `checkout` flow participants get `requires-saga` |
+| Aspect implies | Recursive expansion of aspect references | `requires-hipaa` implies `requires-audit`, `requires-encryption` |
+| Parent inheritance | Children inherit parent's effective aspects | Child service inherits parent module's aspects |
+| Node own aspects | Custom aspects declared directly on the node | Extra aspects beyond inherited requirements |
+
+### Effective set computation
+
+```text
+effective_aspects(node) =
+  node.aspects                              # own extras
+  ∪ architecture[node.type].aspects         # type requirement
+  ∪ flow.aspects for each participating flow  # flow propagation
+  ∪ parent.effective_aspects                # parent inheritance (recursive)
+  ∪ recursive_implies(all above)            # aspect implies expansion
+```
+
+When node A has a structural relation (calls, uses, extends, implements) to node B:
+
+- A must prove `effective_integration_aspects(B)` on its mapping groups
+
+```text
+effective_integration_aspects(node) =
+  node.integration_aspects                  # own extras
+  ∪ architecture[node.type].integration_aspects  # type requirement
+  ∪ parent.effective_integration_aspects    # parent inheritance (recursive)
+  ∪ recursive_implies(all above)            # aspect implies expansion
+```
+
+### Validation during check
+
+For each node with mapping:
+
+1. **Compute effective aspects**
+   - Collect aspects from architecture type, parent inheritance, flow participation, and own declarations
+   - Recursively expand all `implies` references
+   - Result: a set of aspect IDs that this node must prove
+
+2. **For each mapping group**
+   - Must declare ALL effective aspects → E050 if missing
+   - Must NOT declare aspects outside the allowed set → E054 if extra
+   - For each declared aspect, all anchor IDs from `yg-aspect.yaml` must be realized → E040 if missing
+   - For each anchor regex, pattern must match in EVERY file in the group → E037 if not found
+
+3. **For each structural relation to target B**
+   - Compute `effective_integration_aspects(B)`
+   - Consumer's mapping groups must declare all integration aspects → E053 if missing
+
+### Context output
+
+Context packages include the resolved aspect list under `node:`:
+
+```yaml
+node:
+  path: cli/core/validator
+  name: Validator
+  type: library
+  required_aspects:
+    - id: deterministic
+      source: architecture (type: library)
+    - id: posix-paths
+      source: own declaration
+  integration_aspects:
+    - id: error-handling
+      source: architecture (type: library)
+```
+
+The agent sees what must be proven and why — making the requirement explicit without
+exposing per-file implementation details.
+
+---
+
 ## Bidirectional Drift Detection (part of check)
 
 Drift is divergence between graph and outputs. Drift detection runs as part of `yg check`
