@@ -1,0 +1,8 @@
+name: Consumer
+type: service
+relations:
+  - target: target-svc
+    type: calls
+    anchors:
+      correlation-id:
+        regex: "X-Correlation-ID"

@@ -1,0 +1,5 @@
+
+node_types:
+  service:
+    description: "test"
+    relations: {}

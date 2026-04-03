@@ -1,0 +1,12 @@
+name: Consumer
+type: service
+description: test
+relations:
+  - target: target-svc
+    type: calls
+    anchors:
+      correlation-id:
+        regex: "NONEXISTENT_CORRELATION"
+mapping:
+  paths:
+    - src/

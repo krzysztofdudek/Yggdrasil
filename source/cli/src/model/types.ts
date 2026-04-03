@@ -110,7 +110,6 @@ export interface NodeMeta {
   type: string;
   description?: string;
   aspects?: LegacyNodeAspectEntry[];
-  integration_anchors?: string[];
   integration_aspects?: string[];
   blackbox?: boolean;
   relations?: Relation[];
@@ -124,8 +123,6 @@ export interface Relation {
   failure?: string;
   /** For event relations (emits, listens): display name of the event, e.g. OrderPlaced */
   event_name?: string;
-  /** Anchor realizations for integration_anchors on the target node */
-  anchors?: Record<string, AnchorRealization>;
 }
 
 export interface GraphNode {

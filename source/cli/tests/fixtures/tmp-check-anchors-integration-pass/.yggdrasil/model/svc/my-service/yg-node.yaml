@@ -1,0 +1,12 @@
+name: MyService
+type: service
+description: test
+relations:
+  - target: svc/dep
+    type: calls
+    anchors:
+      correlation-id:
+        regex: "correlationId"
+mapping:
+  paths:
+    - src/svc/

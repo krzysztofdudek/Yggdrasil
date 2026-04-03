@@ -1,0 +1,5 @@
+name: TargetSvc
+type: service
+description: test
+integration_anchors:
+  - correlation-id

@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { parse as parseYaml } from 'yaml';
-import type { AnchorRealization, NodeAspectEntry, NodeMeta, NodeMapping, Relation, RelationType } from '../model/types.js';
+import type { NodeAspectEntry, NodeMeta, MappingGroup, MappingGroupAspect, MappingGroupAnchor, Relation, RelationType } from '../model/types.js';
 
 const RELATION_TYPES: RelationType[] = [
   'uses',
@@ -35,17 +35,7 @@ export async function parseNodeYaml(filePath: string): Promise<NodeMeta> {
   const mapping = parseMapping(raw.mapping, filePath);
   const aspects = parseAspects(raw.aspects, filePath);
 
-  // Parse integration_anchors (optional string[])
-  let integrationAnchors: string[] | undefined;
-  if (raw.integration_anchors !== undefined) {
-    if (!Array.isArray(raw.integration_anchors)) {
-      throw new Error(`yg-node.yaml at ${filePath}: 'integration_anchors' must be an array of strings`);
-    }
-    integrationAnchors = (raw.integration_anchors as unknown[])
-      .filter((a): a is string => typeof a === 'string' && a.trim() !== '');
-  }
-
-  // Parse integration_aspects (optional string[] in new format)
+  // Parse integration_aspects (optional string[])
   let integrationAspects: string[] | undefined;
   if (raw.integration_aspects !== undefined) {
     if (!Array.isArray(raw.integration_aspects)) {
@@ -63,7 +53,6 @@ export async function parseNodeYaml(filePath: string): Promise<NodeMeta> {
     blackbox: (raw.blackbox as boolean) ?? false,
     relations: relations.length > 0 ? relations : undefined,
     mapping,
-    integration_anchors: integrationAnchors,
     integration_aspects: integrationAspects,
   };
 }
@@ -206,22 +195,6 @@ function parseRelations(raw: unknown, filePath: string): Relation[] {
       rel.event_name = obj.event_name.trim();
     }
 
-    // Parse anchors on relation (optional Record<string, AnchorRealization>)
-    if (typeof obj.anchors === 'object' && obj.anchors !== null && !Array.isArray(obj.anchors)) {
-      const anchorsMap: Record<string, AnchorRealization> = {};
-      for (const [anchorId, realization] of Object.entries(obj.anchors as Record<string, unknown>)) {
-        if (typeof realization !== 'object' || realization === null || Array.isArray(realization)) {
-          throw new Error(
-            `yg-node.yaml at ${filePath}: relations[${index}].anchors.${anchorId} must be an object with a type property`,
-          );
-        }
-        anchorsMap[anchorId] = realization as AnchorRealization;
-      }
-      if (Object.keys(anchorsMap).length > 0) {
-        rel.anchors = anchorsMap;
-      }
-    }
-
     result.push(rel);
   }
   return result;
@@ -238,26 +211,147 @@ function validateRelativePath(pathValue: string, filePath: string, fieldName: st
   return normalized;
 }
 
-function parseMapping(rawMapping: unknown, filePath: string): NodeMapping | undefined {
-  if (!rawMapping || typeof rawMapping !== 'object') return undefined;
-
-  const obj = rawMapping as Record<string, unknown>;
-
-  // Unified format: mapping.paths — list of files and/or directories (type auto-detected at runtime)
-  if (Array.isArray(obj.paths) && obj.paths.length > 0) {
-    const paths = (obj.paths as unknown[])
-      .filter((p): p is string => typeof p === 'string')
-      .map((p) => validateRelativePath(p, filePath, 'mapping.paths[]'));
-    if (paths.length === 0) {
-      throw new Error(`yg-node.yaml at ${filePath}: mapping.paths must be a non-empty array`);
-    }
-    return { paths };
+function parseMappingGroupAnchor(raw: unknown, filePath: string, groupIdx: number, anchorId: string): MappingGroupAnchor {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    throw new Error(
+      `yg-node.yaml at ${filePath}: mapping[${groupIdx}].aspects[].anchors.${anchorId} must be an object with regex and rationale properties`,
+    );
   }
 
-  if (obj.paths !== undefined || obj.type !== undefined || obj.path !== undefined) {
+  const obj = raw as Record<string, unknown>;
+
+  if (typeof obj.regex !== 'string' || obj.regex.trim() === '') {
     throw new Error(
-      `yg-node.yaml at ${filePath}: mapping must have paths (array of file/directory paths)`,
+      `yg-node.yaml at ${filePath}: mapping[${groupIdx}].aspects[].anchors.${anchorId}.regex must be a non-empty string`,
     );
+  }
+
+  if (typeof obj.rationale !== 'string' || obj.rationale.trim() === '') {
+    throw new Error(
+      `yg-node.yaml at ${filePath}: mapping[${groupIdx}].aspects[].anchors.${anchorId}.rationale must be a non-empty string`,
+    );
+  }
+
+  return {
+    regex: obj.regex.trim(),
+    rationale: obj.rationale.trim(),
+  };
+}
+
+function parseMappingGroupAspect(raw: unknown, filePath: string, groupIdx: number, aspectIdx: number): MappingGroupAspect {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    throw new Error(
+      `yg-node.yaml at ${filePath}: mapping[${groupIdx}].aspects[${aspectIdx}] must be an object with aspect and anchors properties`,
+    );
+  }
+
+  const obj = raw as Record<string, unknown>;
+
+  if (typeof obj.aspect !== 'string' || obj.aspect.trim() === '') {
+    throw new Error(
+      `yg-node.yaml at ${filePath}: mapping[${groupIdx}].aspects[${aspectIdx}].aspect must be a non-empty string`,
+    );
+  }
+
+  if (typeof obj.anchors !== 'object' || obj.anchors === null || Array.isArray(obj.anchors)) {
+    throw new Error(
+      `yg-node.yaml at ${filePath}: mapping[${groupIdx}].aspects[${aspectIdx}].anchors must be an object mapping anchor IDs to objects with regex and rationale`,
+    );
+  }
+
+  const anchorsMap: Record<string, MappingGroupAnchor> = {};
+  for (const [anchorId, anchorValue] of Object.entries(obj.anchors as Record<string, unknown>)) {
+    anchorsMap[anchorId] = parseMappingGroupAnchor(anchorValue, filePath, groupIdx, anchorId);
+  }
+
+  return {
+    aspect: obj.aspect.trim(),
+    anchors: anchorsMap,
+  };
+}
+
+function parseMapping(rawMapping: unknown, filePath: string): MappingGroup | undefined {
+  if (!rawMapping) return undefined;
+
+  // New format: mapping is an array of MappingGroup objects
+  if (Array.isArray(rawMapping)) {
+    if (rawMapping.length === 0) {
+      throw new Error(`yg-node.yaml at ${filePath}: mapping array must not be empty`);
+    }
+
+    const groups: MappingGroup[] = [];
+    for (let i = 0; i < rawMapping.length; i++) {
+      const groupRaw = rawMapping[i];
+
+      if (typeof groupRaw !== 'object' || groupRaw === null || Array.isArray(groupRaw)) {
+        throw new Error(`yg-node.yaml at ${filePath}: mapping[${i}] must be an object`);
+      }
+
+      const groupObj = groupRaw as Record<string, unknown>;
+
+      // Parse paths (required)
+      if (!Array.isArray(groupObj.paths) || groupObj.paths.length === 0) {
+        throw new Error(
+          `yg-node.yaml at ${filePath}: mapping[${i}].paths must be a non-empty array of strings`,
+        );
+      }
+
+      const paths = (groupObj.paths as unknown[])
+        .filter((p): p is string => typeof p === 'string')
+        .map((p) => validateRelativePath(p, filePath, `mapping[${i}].paths[]`));
+
+      if (paths.length === 0) {
+        throw new Error(
+          `yg-node.yaml at ${filePath}: mapping[${i}].paths must contain at least one non-empty string`,
+        );
+      }
+
+      const group: MappingGroup = { paths };
+
+      // Parse aspects (optional)
+      if (groupObj.aspects !== undefined && groupObj.aspects !== null) {
+        if (!Array.isArray(groupObj.aspects)) {
+          throw new Error(
+            `yg-node.yaml at ${filePath}: mapping[${i}].aspects must be an array`,
+          );
+        }
+
+        if (groupObj.aspects.length > 0) {
+          const aspects: MappingGroupAspect[] = [];
+          for (let j = 0; j < groupObj.aspects.length; j++) {
+            aspects.push(parseMappingGroupAspect(groupObj.aspects[j], filePath, i, j));
+          }
+          group.aspects = aspects;
+        }
+      }
+
+      groups.push(group);
+    }
+
+    // Return the first group if only one, otherwise return as array-like structure
+    // (Note: NodeMapping is now MappingGroup which supports array internally)
+    return groups[0];
+  }
+
+  // Old format compatibility: mapping is an object with { paths: [...] }
+  if (typeof rawMapping === 'object') {
+    const obj = rawMapping as Record<string, unknown>;
+
+    if (Array.isArray(obj.paths) && obj.paths.length > 0) {
+      const paths = (obj.paths as unknown[])
+        .filter((p): p is string => typeof p === 'string')
+        .map((p) => validateRelativePath(p, filePath, 'mapping.paths[]'));
+      if (paths.length === 0) {
+        throw new Error(`yg-node.yaml at ${filePath}: mapping.paths must be a non-empty array`);
+      }
+      return { paths };
+    }
+
+    if (obj.paths !== undefined || obj.type !== undefined || obj.path !== undefined) {
+      throw new Error(
+        `yg-node.yaml at ${filePath}: mapping must have paths (array of file/directory paths)`,
+      );
+    }
   }
 
   return undefined;

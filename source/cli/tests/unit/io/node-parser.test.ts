@@ -411,6 +411,179 @@ mapping:
     await rm(tmpDir, { recursive: true, force: true });
   });
 
+  it('parses mapping as array of groups', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-mapping-array');
+    await mkdir(tmpDir, { recursive: true });
+    const nodePath = path.join(tmpDir, 'yg-node.yaml');
+    await writeFile(
+      nodePath,
+      `
+name: MappingArrayNode
+type: service
+mapping:
+  - paths:
+      - src/orders/
+`,
+      'utf-8',
+    );
+
+    const meta = await parseNodeYaml(nodePath);
+    expect(meta.mapping).toEqual({ paths: ['src/orders/'] });
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('allows mapping group without aspects', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-mapping-no-aspects');
+    await mkdir(tmpDir, { recursive: true });
+    const nodePath = path.join(tmpDir, 'yg-node.yaml');
+    await writeFile(
+      nodePath,
+      `
+name: NoAspectsNode
+type: service
+mapping:
+  - paths:
+      - src/modules/test.ts
+      - src/modules/helper.ts
+`,
+      'utf-8',
+    );
+
+    const meta = await parseNodeYaml(nodePath);
+    expect(meta.mapping).toEqual({
+      paths: ['src/modules/test.ts', 'src/modules/helper.ts'],
+    });
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('parses MappingGroupAspect with anchors', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-mapping-aspects');
+    await mkdir(tmpDir, { recursive: true });
+    const nodePath = path.join(tmpDir, 'yg-node.yaml');
+    await writeFile(
+      nodePath,
+      `
+name: WithAspectsNode
+type: service
+mapping:
+  - paths:
+      - src/auth/
+    aspects:
+      - aspect: auth-validation
+        anchors:
+          guard:
+            regex: "validateToken|checkAuth"
+            rationale: "Guard function that validates tokens"
+          handler:
+            regex: "handleRequest|processAuth"
+            rationale: "Request handler that enforces auth"
+`,
+      'utf-8',
+    );
+
+    const meta = await parseNodeYaml(nodePath);
+    expect(meta.mapping).toEqual({
+      paths: ['src/auth/'],
+      aspects: [
+        {
+          aspect: 'auth-validation',
+          anchors: {
+            guard: {
+              regex: 'validateToken|checkAuth',
+              rationale: 'Guard function that validates tokens',
+            },
+            handler: {
+              regex: 'handleRequest|processAuth',
+              rationale: 'Request handler that enforces auth',
+            },
+          },
+        },
+      ],
+    });
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('rejects anchor without regex', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-anchor-no-regex');
+    await mkdir(tmpDir, { recursive: true });
+    const nodePath = path.join(tmpDir, 'yg-node.yaml');
+    await writeFile(
+      nodePath,
+      `
+name: BadAnchor
+type: service
+mapping:
+  - paths:
+      - src/test/
+    aspects:
+      - aspect: test-aspect
+        anchors:
+          my-anchor:
+            rationale: "Only rationale, no regex"
+`,
+      'utf-8',
+    );
+
+    await expect(parseNodeYaml(nodePath)).rejects.toThrow(
+      'must be a non-empty string',
+    );
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('rejects anchor without rationale', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-anchor-no-rationale');
+    await mkdir(tmpDir, { recursive: true });
+    const nodePath = path.join(tmpDir, 'yg-node.yaml');
+    await writeFile(
+      nodePath,
+      `
+name: BadAnchor
+type: service
+mapping:
+  - paths:
+      - src/test/
+    aspects:
+      - aspect: test-aspect
+        anchors:
+          my-anchor:
+            regex: "pattern"
+`,
+      'utf-8',
+    );
+
+    await expect(parseNodeYaml(nodePath)).rejects.toThrow(
+      'must be a non-empty string',
+    );
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('supports backward compatibility: old mapping format with object.paths', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-mapping-legacy');
+    await mkdir(tmpDir, { recursive: true });
+    const nodePath = path.join(tmpDir, 'yg-node.yaml');
+    await writeFile(
+      nodePath,
+      `
+name: LegacyMapping
+type: service
+mapping:
+  paths:
+    - src/legacy/module.ts
+`,
+      'utf-8',
+    );
+
+    const meta = await parseNodeYaml(nodePath);
+    expect(meta.mapping).toEqual({ paths: ['src/legacy/module.ts'] });
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
   it('throws when relation type is invalid', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-invalid-rel-type');
     await mkdir(tmpDir, { recursive: true });
@@ -750,123 +923,6 @@ type: service
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('parses relation with anchors (integration anchor realizations)', async () => {
-    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-rel-anchors');
-    await mkdir(tmpDir, { recursive: true });
-    const nodePath = path.join(tmpDir, 'yg-node.yaml');
-    await writeFile(
-      nodePath,
-      `name: Consumer
-type: service
-relations:
-  - target: target-svc
-    type: calls
-    anchors:
-      correlation-id:
-        regex: "X-Correlation-ID"
-`,
-      'utf-8',
-    );
-
-    const meta = await parseNodeYaml(nodePath);
-    expect(meta.relations).toHaveLength(1);
-    expect(meta.relations![0].anchors).toEqual({
-      'correlation-id': { regex: 'X-Correlation-ID' },
-    });
-
-    await rm(tmpDir, { recursive: true, force: true });
-  });
-
-  it('relation without anchors has no anchors field', async () => {
-    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-rel-no-anchors');
-    await mkdir(tmpDir, { recursive: true });
-    const nodePath = path.join(tmpDir, 'yg-node.yaml');
-    await writeFile(
-      nodePath,
-      `name: Consumer
-type: service
-relations:
-  - target: target-svc
-    type: calls
-`,
-      'utf-8',
-    );
-
-    const meta = await parseNodeYaml(nodePath);
-    expect(meta.relations![0].anchors).toBeUndefined();
-
-    await rm(tmpDir, { recursive: true, force: true });
-  });
-
-  it('parses integration_anchors on node root', async () => {
-    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-integ-anchors');
-    await mkdir(tmpDir, { recursive: true });
-    const nodePath = path.join(tmpDir, 'yg-node.yaml');
-    await writeFile(
-      nodePath,
-      `name: Provider
-type: service
-integration_anchors:
-  - correlation-id
-  - auth-token
-`,
-      'utf-8',
-    );
-
-    const meta = await parseNodeYaml(nodePath);
-    expect(meta.integration_anchors).toEqual(['correlation-id', 'auth-token']);
-
-    await rm(tmpDir, { recursive: true, force: true });
-  });
-
-  it('integration_anchors is undefined when not present', async () => {
-    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-no-integ');
-    await mkdir(tmpDir, { recursive: true });
-    const nodePath = path.join(tmpDir, 'yg-node.yaml');
-    await writeFile(nodePath, `name: Basic\ntype: service\n`, 'utf-8');
-
-    const meta = await parseNodeYaml(nodePath);
-    expect(meta.integration_anchors).toBeUndefined();
-
-    await rm(tmpDir, { recursive: true, force: true });
-  });
-
-  it('throws when integration_anchors is not an array', async () => {
-    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-bad-integ');
-    await mkdir(tmpDir, { recursive: true });
-    const nodePath = path.join(tmpDir, 'yg-node.yaml');
-    await writeFile(nodePath, `name: Bad\ntype: service\nintegration_anchors: "not-array"\n`, 'utf-8');
-
-    await expect(parseNodeYaml(nodePath)).rejects.toThrow(
-      "'integration_anchors' must be an array of strings",
-    );
-
-    await rm(tmpDir, { recursive: true, force: true });
-  });
-
-  it('throws when relation anchor realization is not an object', async () => {
-    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-bad-rel-anchor');
-    await mkdir(tmpDir, { recursive: true });
-    const nodePath = path.join(tmpDir, 'yg-node.yaml');
-    await writeFile(
-      nodePath,
-      `name: Bad
-type: service
-relations:
-  - target: target-svc
-    type: calls
-    anchors:
-      my-anchor: "string-value"
-`,
-      'utf-8',
-    );
-
-    await expect(parseNodeYaml(nodePath)).rejects.toThrow(
-      'must be an object with a type property',
-    );
-
-    await rm(tmpDir, { recursive: true, force: true });
-  });
 
   it('parses integration_aspects on node root', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-integ-aspects');

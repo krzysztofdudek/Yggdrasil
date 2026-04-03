@@ -15,8 +15,12 @@ Library used by cli/core (loader, drift-detector). All paths are absolute; calle
 ## node-parser.ts
 
 - `parseNodeYaml(filePath: string): Promise<NodeMeta>`
-  - Throws on missing name/type, invalid relations (non-array, invalid type, missing target), invalid mapping (paths must be relative, non-empty), invalid aspects (non-array, entries must be objects with non-empty `aspect` string, optional `exceptions` and `anchors` arrays of strings, duplicate aspect ids rejected). Relation types: uses, calls, extends, implements, emits, listens.
-  - Internally calls `parseAspects(raw, filePath)` which validates the unified aspect format: each entry must be an object with a non-empty `aspect` string; optional `exceptions` (string[]) and `anchors` (string[]) are validated as arrays of strings; duplicate aspect ids produce an error. Returns `NodeAspectEntry[]` or undefined.
+  - Parses yg-node.yaml with required fields: name (non-empty string), type (non-empty string, must match config.node_types). Optional: description, blackbox (boolean), mapping, relations, aspects, integration_aspects.
+  - **Mapping format (v4):** Array of MappingGroup objects. Each group has `paths: string[]` (required, must be relative to repo root, no leading slash, non-empty) and optional `aspects: MappingGroupAspect[]`. Each aspect has `aspect: string` (required) and `anchors: Record<string, MappingGroupAnchor>` mapping anchor IDs to `{regex: string, rationale: string}` (both required, non-empty strings). Backward compatible with old format `mapping: {paths: [...]}` (converted internally to array).
+  - **Relations:** Array of relation objects with `target: string` (required, relative path), `type: RelationType` (required: uses|calls|extends|implements|emits|listens), optional `consumes: string[]`, `failure: string`, `event_name: string`. No longer supports `anchors` field on relations.
+  - **Aspects:** Array of aspect entries (old format only for backward compatibility). Each entry is object with `aspect: string` (required, id of aspect), optional `exceptions: string[]` (deviations from aspect pattern), optional `anchors: Record<string, AnchorRealization>` (map of anchor ID to `{regex: string, ...}` objects). New format supports flat strings in the array (`aspects: [aspect-id-1, aspect-id-2]`) for simple cases.
+  - **integration_aspects:** Optional array of aspect IDs (strings) that consumers must realize. Removed field: `integration_anchors` (replaced by integration_aspects).
+  - Throws on invalid name, type, relations, mapping (non-array or object, invalid structure), aspects (non-array, duplicate ids, invalid entries), integration_aspects (non-array), blackbox (non-boolean).
 
 ## aspect-parser.ts
 

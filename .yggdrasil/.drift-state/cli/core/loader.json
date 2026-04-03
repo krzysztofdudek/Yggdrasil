@@ -1,7 +1,8 @@
 {
-  "hash": "119dd57d8e4617b759bb25aeff6ac7100043ae243a5c6574ed54284054f8da11",
+  "hash": "514e0a2efdbd8a2b0898bb18077806d14d3ebe70bdaf91d93d8699bd60f82852",
   "files": {
     ".yggdrasil/model/cli/core/loader/yg-node.yaml": "4701c89a792b0303b003199988c9249a3433cfbeb3789989198e537c6d6f4539",
+    ".yggdrasil/model/cli/core/loader/interface.md": "0bb87fa5a5b9ce62786196668076207af49ca1744a8d10f967409b18f82fc2ba",
     ".yggdrasil/model/cli/core/loader/internals.md": "d7f97803bc4480383e617abba66c52ae081154a78f2ed6508cc02596c66af5c0",
     ".yggdrasil/model/cli/core/loader/responsibility.md": "ad751ae7c2345373a1eb3dcf64775f2dd6950d1f0a9ae7f347320336fdf18332",
     ".yggdrasil/model/cli/yg-node.yaml": "640850d59baf2b0d317b20d5d3312def4dbfb30c8d5489daff345b19cca52e40",
@@ -15,8 +16,7 @@
     ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
     ".yggdrasil/aspects/silent-missing-files/yg-aspect.yaml": "eb78c2613953140dbdb867b6756c083e239e16826b0b98fe7eebfa45de36674a",
     ".yggdrasil/aspects/silent-missing-files/content.md": "184f0c0c511bc8d819bd5657cd122f1f20f149ac62f1d3687e4b68ab2e1b613e",
-    ".yggdrasil/model/cli/io/responsibility.md": "55f3e198fae125b05e6073856eb1612db6fe4a6abec0a0209202ea217eb74a9b",
-    ".yggdrasil/model/cli/io/interface.md": "b535ffe42e77abc518eaf599eb40caa63f285b625ea577f2a4d916e8032e0fa9",
+    ".yggdrasil/model/cli/io/responsibility.md": "70ac125fdcbb406e3b465f331031bd6ad049be2e66f0887722bab11518421cbd",
     ".yggdrasil/model/cli/model/responsibility.md": "b668c6db2090a36a54277f62fb228c266d87c6d119f89e6ed67e140392863a66",
     ".yggdrasil/model/cli/utils/responsibility.md": "4918c48366c7b3f35bb7b97fa74252c47f14ba72417c5cc5f3e1100b503c7ddd",
     ".yggdrasil/model/cli/utils/interface.md": "19ebc12ccbc4a90f9f016dead73a3592c6a397a010ed9cf39993b9f01bc8d96e",
@@ -32,9 +32,9 @@
     ".yggdrasil/flows/preflight/description.md": "20d14b71af13a79417c5faeb5b02194f99445a1a05c9cf0aa1398dc3601edabb",
     ".yggdrasil/flows/validate/yg-flow.yaml": "ac7d3e18c4d443b113e4883426d03a35af4f3d8a6f92e97803eb6b8ef8d3efb5",
     ".yggdrasil/flows/validate/description.md": "e361415e9567de84d0c121dc709aa7b4b13b1bc99725344bd50b67486267dcdb",
-    ".yggdrasil/model/cli/core/loader/interface.md": "0bb87fa5a5b9ce62786196668076207af49ca1744a8d10f967409b18f82fc2ba",
-    ".yggdrasil/model/cli/model/interface.md": "2b3be76e249480be8e82243a841f797bd4ed02d7f70477dacafccafddee30307",
-    "source/cli/src/core/graph-loader.ts": "3bc9437d82f7ec7ba0854cdfd1294eeacf25cd1104ebd4fe2dc53bc095564304"
+    "source/cli/src/core/graph-loader.ts": "3bc9437d82f7ec7ba0854cdfd1294eeacf25cd1104ebd4fe2dc53bc095564304",
+    ".yggdrasil/model/cli/io/interface.md": "3124e779e8e276debc846418c3e218b4362a9223d007a26cebd62a4062f3d38c",
+    ".yggdrasil/model/cli/model/interface.md": "89f16b581a1e224f2ba63821a9932e77abdb0c0902d4b61bf4a1feda0653f868"
   },
   "mtimes": {
     ".yggdrasil/model/cli/core/loader/yg-node.yaml": 1775050765188.3643,
@@ -52,10 +52,10 @@
     ".yggdrasil/aspects/deterministic/content.md": 1772778780694.5889,
     ".yggdrasil/aspects/silent-missing-files/yg-aspect.yaml": 1775049923562.6028,
     ".yggdrasil/aspects/silent-missing-files/content.md": 1772778782476.146,
-    ".yggdrasil/model/cli/io/responsibility.md": 1772778749789.3184,
-    ".yggdrasil/model/cli/io/interface.md": 1775045073692.5251,
+    ".yggdrasil/model/cli/io/responsibility.md": 1775208515836.334,
+    ".yggdrasil/model/cli/io/interface.md": 1775209684359.209,
     ".yggdrasil/model/cli/model/responsibility.md": 1772778759688.719,
-    ".yggdrasil/model/cli/model/interface.md": 1775208106065.0806,
+    ".yggdrasil/model/cli/model/interface.md": 1775209695269.1165,
     ".yggdrasil/model/cli/utils/responsibility.md": 1772743197446.85,
     ".yggdrasil/model/cli/utils/interface.md": 1772743197447.6619,
     ".yggdrasil/flows/build-context/yg-flow.yaml": 1774035679160.1672,
@@ -72,5 +72,5 @@
     ".yggdrasil/flows/validate/description.md": 1775046942154.0942,
     "source/cli/src/core/graph-loader.ts": 1775207855817.0813
   },
-  "acknowledgeReason": "added anchor realizations to yg-node.yaml"
+  "acknowledgeReason": "Updated dependency interface (cli/io or cli/model) - no source changes required"
 }

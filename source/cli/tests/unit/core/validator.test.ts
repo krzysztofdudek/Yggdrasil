@@ -1202,21 +1202,6 @@ describe('validator', () => {
       await rm(tmpDir, { recursive: true, force: true });
     });
 
-    it('E037: integration anchor regex not found in source', async () => {
-      const { tmpDir } = await createTmpProjectForAnchors('e037-integration', {
-        nodeYaml: `name: Consumer\ntype: service\ndescription: test\nrelations:\n  - target: target-svc\n    type: calls\n    anchors:\n      correlation-id:\n        regex: "NONEXISTENT_CORRELATION"\nmapping:\n  paths:\n    - src/\n`,
-        sourceFiles: { 'src/index.ts': 'export function call() { return 42; }\n' },
-        extraNodes: [{
-          path: 'target-svc',
-          yaml: 'name: TargetSvc\ntype: service\ndescription: test\nintegration_anchors:\n  - correlation-id\n',
-        }],
-      });
-      const graph = await loadGraph(tmpDir);
-      const result = await validate(graph);
-      const e037 = result.issues.find(i => i.code === 'E037' && i.rule === 'integration-anchor-not-found');
-      expect(e037).toBeDefined();
-      await rm(tmpDir, { recursive: true, force: true });
-    });
 
     it('E037: blackbox exempt from anchor-not-found', async () => {
       const { tmpDir } = await createTmpProjectForAnchors('e037-blackbox', {

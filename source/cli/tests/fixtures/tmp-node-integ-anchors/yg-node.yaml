@@ -1,0 +1,5 @@
+name: Provider
+type: service
+integration_anchors:
+  - correlation-id
+  - auth-token

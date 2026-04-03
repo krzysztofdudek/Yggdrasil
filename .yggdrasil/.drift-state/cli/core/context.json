@@ -1,7 +1,8 @@
 {
-  "hash": "b07d0438bc533f07f6155e49dd307233c33d9260f866180037a46821e52eeefd",
+  "hash": "fae9a257ccf982329385a13fef0b12ff70a588b6d907205539af9d8fef57af64",
   "files": {
     ".yggdrasil/model/cli/core/context/yg-node.yaml": "40d86eb88a2ce88dd4f566dc180447c7b4d101c2111d9513fbcf5cd8a61ecc67",
+    ".yggdrasil/model/cli/core/context/interface.md": "7ac868796fae13822600bd354605c330489afe660939b16aff49e66cab9352b5",
     ".yggdrasil/model/cli/core/context/internals.md": "41b716bb292f295dcd9ac7b7d0787627be04f6697152b84923039b9da3dd4c03",
     ".yggdrasil/model/cli/core/context/responsibility.md": "62350b3416df89ffd1c00486f7564a69c0775276030dcf64f02bc1cbdacd74a4",
     ".yggdrasil/model/cli/yg-node.yaml": "640850d59baf2b0d317b20d5d3312def4dbfb30c8d5489daff345b19cca52e40",
@@ -20,10 +21,9 @@
     ".yggdrasil/flows/build-context/description.md": "60e4619e480293f028a1c2b756ce30c8800adc613dc9c64e6bd6ef7f3d5fcf87",
     ".yggdrasil/flows/graph-analysis/yg-flow.yaml": "6643c01963cfd3731ba76f0a34a34e7ce2ed09e2ae2da793734c59adc4f87624",
     ".yggdrasil/flows/graph-analysis/description.md": "aca097a8ecbf74d140e5deb9ad6113c752d49e193077b0e1d201b7f99da574f4",
-    ".yggdrasil/model/cli/core/context/interface.md": "7ac868796fae13822600bd354605c330489afe660939b16aff49e66cab9352b5",
-    ".yggdrasil/model/cli/model/interface.md": "2b3be76e249480be8e82243a841f797bd4ed02d7f70477dacafccafddee30307",
     "source/cli/src/core/context-builder.ts": "d864f83893ab42a1c8036eb5bc68e1af0bd8a6d1bdab1c04a3903eea112b9512",
-    "source/cli/src/core/context-files.ts": "7e1f941383a023f4b68ce52a32942b4e9fffa1b25219514fc1d674c4b9d5754f"
+    "source/cli/src/core/context-files.ts": "7e1f941383a023f4b68ce52a32942b4e9fffa1b25219514fc1d674c4b9d5754f",
+    ".yggdrasil/model/cli/model/interface.md": "89f16b581a1e224f2ba63821a9932e77abdb0c0902d4b61bf4a1feda0653f868"
   },
   "mtimes": {
     ".yggdrasil/model/cli/core/context/yg-node.yaml": 1775050726855.7856,
@@ -40,7 +40,7 @@
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775049910995.6624,
     ".yggdrasil/aspects/deterministic/content.md": 1772778780694.5889,
     ".yggdrasil/model/cli/model/responsibility.md": 1772778759688.719,
-    ".yggdrasil/model/cli/model/interface.md": 1775208106065.0806,
+    ".yggdrasil/model/cli/model/interface.md": 1775209695269.1165,
     ".yggdrasil/model/cli/utils/responsibility.md": 1772743197446.85,
     ".yggdrasil/model/cli/utils/interface.md": 1772743197447.6619,
     ".yggdrasil/flows/build-context/yg-flow.yaml": 1774035679160.1672,
@@ -50,5 +50,5 @@
     "source/cli/src/core/context-builder.ts": 1775207943648.098,
     "source/cli/src/core/context-files.ts": 1775207208281.4775
   },
-  "acknowledgeReason": "added anchor realizations to yg-node.yaml"
+  "acknowledgeReason": "Updated dependency interface (cli/io or cli/model) - no source changes required"
 }
