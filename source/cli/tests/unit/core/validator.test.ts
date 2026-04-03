@@ -918,7 +918,7 @@ describe('validator', () => {
     );
     await writeFile(
       path.join(modelDir, 'yg-node.yaml'),
-      'name: Wide\ntype: service\ndescription: x\nmapping:\n  paths:\n    - src/wide',
+      'name: Wide\ntype: service\ndescription: x\nmapping:\n  - paths:\n      - src/wide',
     );
     await writeFile(
       path.join(modelDir, 'responsibility.md'),
@@ -1177,7 +1177,7 @@ describe('validator', () => {
 
     it('E037: regex pattern not found in source files', async () => {
       const { tmpDir } = await createTmpProjectForAnchors('e037', {
-        nodeYaml: `name: Svc\ntype: service\ndescription: test\naspects:\n  - aspect: logging\n    anchors:\n      audit-entry:\n        regex: "NONEXISTENT_PATTERN"\nmapping:\n  paths:\n    - src/\n`,
+        nodeYaml: `name: Svc\ntype: service\ndescription: test\naspects:\n  - aspect: logging\n    anchors:\n      audit-entry:\n        regex: "NONEXISTENT_PATTERN"\nmapping:\n  - paths:\n      - src/\n`,
         sourceFiles: { 'src/index.ts': 'export function hello() { return 42; }\n' },
         aspects: [{ id: 'logging', yaml: 'name: Logging\ndescription: test\nanchors:\n  - audit-entry\n' }],
       });
@@ -1191,7 +1191,7 @@ describe('validator', () => {
 
     it('no E037 when regex matches source', async () => {
       const { tmpDir } = await createTmpProjectForAnchors('e037-match', {
-        nodeYaml: `name: Svc\ntype: service\ndescription: test\naspects:\n  - aspect: logging\n    anchors:\n      audit-entry:\n        regex: "hello"\nmapping:\n  paths:\n    - src/\n`,
+        nodeYaml: `name: Svc\ntype: service\ndescription: test\naspects:\n  - aspect: logging\n    anchors:\n      audit-entry:\n        regex: "hello"\nmapping:\n  - paths:\n      - src/\n`,
         sourceFiles: { 'src/index.ts': 'export function hello() { return 42; }\n' },
         aspects: [{ id: 'logging', yaml: 'name: Logging\ndescription: test\nanchors:\n  - audit-entry\n' }],
       });
@@ -1205,7 +1205,7 @@ describe('validator', () => {
 
     it('E037: blackbox exempt from anchor-not-found', async () => {
       const { tmpDir } = await createTmpProjectForAnchors('e037-blackbox', {
-        nodeYaml: `name: Legacy\ntype: service\ndescription: test\nblackbox: true\naspects:\n  - aspect: logging\n    anchors:\n      audit-entry:\n        regex: "NONEXISTENT"\nmapping:\n  paths:\n    - src/\n`,
+        nodeYaml: `name: Legacy\ntype: service\ndescription: test\nblackbox: true\naspects:\n  - aspect: logging\n    anchors:\n      audit-entry:\n        regex: "NONEXISTENT"\nmapping:\n  - paths:\n      - src/\n`,
         sourceFiles: { 'src/index.ts': 'nothing here\n' },
         aspects: [{ id: 'logging', yaml: 'name: Logging\ndescription: test\nanchors:\n  - audit-entry\n' }],
       });

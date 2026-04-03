@@ -540,7 +540,7 @@ export function toContextMapOutput(
         : 'ok';
 
   // Build required_aspects from node type config
-  const nodeType = config.node_types[node.meta.type];
+  const nodeType = config.node_types?.[node.meta.type];
   const requiredAspectIds = nodeType?.required_aspects ?? [];
   const requiredAspects: RequiredAspectRef[] = requiredAspectIds.map((id) => ({
     id,

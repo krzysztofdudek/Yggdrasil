@@ -3,7 +3,6 @@ import { parse as parseYaml } from 'yaml';
 import type {
   YggConfig,
   QualityConfig,
-  NodeTypeConfig,
 } from '../model/types.js';
 
 const DEFAULT_QUALITY: QualityConfig = {
@@ -24,33 +23,6 @@ export async function parseConfig(filePath: string): Promise<YggConfig> {
 
   if (!raw.name || typeof raw.name !== 'string' || raw.name.trim() === '') {
     throw new Error(`yg-config.yaml: missing or invalid 'name' field`);
-  }
-
-  const nodeTypesRaw = raw.node_types;
-  if (
-    !nodeTypesRaw ||
-    typeof nodeTypesRaw !== 'object' ||
-    Array.isArray(nodeTypesRaw) ||
-    Object.keys(nodeTypesRaw).length === 0
-  ) {
-    throw new Error(`yg-config.yaml: 'node_types' must be a non-empty object`);
-  }
-
-  const nodeTypes: Record<string, NodeTypeConfig> = {};
-  for (const [typeName, val] of Object.entries(nodeTypesRaw)) {
-    const entry = val as Record<string, unknown>;
-    if (!entry || typeof entry !== 'object' || typeof entry.description !== 'string' || entry.description.trim() === '') {
-      throw new Error(
-        `yg-config.yaml: node_types.${typeName} must have a non-empty 'description' string`,
-      );
-    }
-    const requiredAspects = Array.isArray(entry.required_aspects)
-      ? (entry.required_aspects as unknown[]).filter((t): t is string => typeof t === 'string')
-      : undefined;
-    nodeTypes[typeName] = {
-      description: entry.description as string,
-      required_aspects: requiredAspects && requiredAspects.length > 0 ? requiredAspects : undefined,
-    };
   }
 
   const qualityRaw = raw.quality as Record<string, unknown> | undefined;
@@ -85,7 +57,6 @@ export async function parseConfig(filePath: string): Promise<YggConfig> {
   return {
     version,
     name: (raw.name as string).trim(),
-    node_types: nodeTypes,
     quality,
   };
 }

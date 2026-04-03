@@ -1,9 +1,4 @@
 name: Broken Relation Test
-node_types:
-  module:
-    description: x
-  service:
-    description: x
 artifacts:
   responsibility:
     required: always

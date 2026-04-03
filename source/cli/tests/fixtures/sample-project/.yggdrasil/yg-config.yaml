@@ -1,13 +1,5 @@
 name: 'Sample E-Commerce System'
 
-node_types:
-  module:
-    description: x
-  service:
-    description: x
-  repository:
-    description: x
-
 artifacts:
   responsibility.md:
     required: always

@@ -1,1 +1,0 @@
-Log ALL operations.

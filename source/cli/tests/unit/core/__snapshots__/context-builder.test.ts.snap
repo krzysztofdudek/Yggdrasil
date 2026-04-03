@@ -51,8 +51,8 @@ relations:
     type: emits
     event_name: order.created
 mapping:
-  paths:
-    - src/orders/order.service.ts
+  - paths:
+      - src/orders/order.service.ts
 
 ### interface.md
 # Order Service Interface
@@ -147,7 +147,7 @@ Sequence: create order -> validate -> payment -> ship.
 
 ---
 
-Context size: 596 tokens
+Context size: 597 tokens
 Layers: global, hierarchy, own, relational, relational, relational, flows, aspects, aspects
 "
 `;

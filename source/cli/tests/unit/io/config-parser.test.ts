@@ -13,7 +13,6 @@ describe('config-parser', () => {
 
     expect(config.name).toBe('Sample E-Commerce System');
     expect(config.quality?.context_budget.warning).toBe(8000);
-    expect(config.node_types['service']).toBeDefined();
   });
 
   it('throws on empty YAML file', async () => {
@@ -36,9 +35,7 @@ describe('config-parser', () => {
     await writeFile(
       badConfigPath,
       `
-node_types:
-  service:
-    description: x
+version: "1.0.0"
 `,
       'utf-8',
     );
@@ -58,9 +55,6 @@ node_types:
       minimalConfigPath,
       `
 name: "Minimal Config"
-node_types:
-  module:
-    description: x
 `,
       'utf-8',
     );
@@ -84,9 +78,6 @@ node_types:
       path.join(tmpDir, 'yg-config.yaml'),
       `
 name: "Budget"
-node_types:
-  service:
-    description: x
 quality:
   context_budget:
     warning: 10000
@@ -102,87 +93,6 @@ quality:
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('throws when node_types is not an object', async () => {
-    const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-types-not-object');
-    await mkdir(tmpDir, { recursive: true });
-    await writeFile(
-      path.join(tmpDir, 'yg-config.yaml'),
-      `
-name: "Bad"
-node_types: "not-object"
-`,
-      'utf-8',
-    );
-
-    await expect(parseConfig(path.join(tmpDir, 'yg-config.yaml'))).rejects.toThrow(
-      "'node_types' must be a non-empty object",
-    );
-
-    await rm(tmpDir, { recursive: true, force: true });
-  });
-
-  it('throws when node_types is empty', async () => {
-    const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-empty-types');
-    await mkdir(tmpDir, { recursive: true });
-    await writeFile(
-      path.join(tmpDir, 'yg-config.yaml'),
-      `
-name: "Bad"
-node_types: {}
-`,
-      'utf-8',
-    );
-
-    await expect(parseConfig(path.join(tmpDir, 'yg-config.yaml'))).rejects.toThrow(
-      "'node_types' must be a non-empty object",
-    );
-
-    await rm(tmpDir, { recursive: true, force: true });
-  });
-
-  it('parses node_types with description and required_aspects', async () => {
-    const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-node-types');
-    await mkdir(tmpDir, { recursive: true });
-    const configPath = path.join(tmpDir, 'yg-config.yaml');
-    await writeFile(
-      configPath,
-      `
-name: T
-node_types:
-  module:
-    description: business logic unit
-  service:
-    description: component providing functionality
-    required_aspects: [requires-audit]
-`,
-      'utf-8',
-    );
-    const cfg = await parseConfig(configPath);
-    expect(cfg.node_types['module']).toEqual({ description: 'business logic unit' });
-    expect(cfg.node_types['service']).toEqual({ description: 'component providing functionality', required_aspects: ['requires-audit'] });
-    await rm(tmpDir, { recursive: true, force: true });
-  });
-
-  it('throws when node_types entry has missing description', async () => {
-    const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-bad-type-entry');
-    await mkdir(tmpDir, { recursive: true });
-    const configPath = path.join(tmpDir, 'yg-config.yaml');
-    await writeFile(
-      configPath,
-      `
-name: "BadEntry"
-node_types:
-  service: {}
-`,
-      'utf-8',
-    );
-
-    await expect(parseConfig(configPath)).rejects.toThrow(
-      "node_types.service must have a non-empty 'description' string",
-    );
-
-    await rm(tmpDir, { recursive: true, force: true });
-  });
 
   it('parses version field when present', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-version');
@@ -191,9 +101,6 @@ node_types:
       path.join(tmpDir, 'yg-config.yaml'),
       `version: "2.0.0"
 name: "Versioned"
-node_types:
-  module:
-    description: x
 `,
       'utf-8',
     );
@@ -214,9 +121,6 @@ node_types:
       path.join(tmpDir, 'yg-config.yaml'),
       `
 name: "WithArtifacts"
-node_types:
-  service:
-    description: x
 artifacts:
   responsibility.md:
     required: always

@@ -10,7 +10,7 @@ export interface NodeTypeConfig {
 export interface YggConfig {
   version?: string;
   name: string;
-  node_types: Record<string, NodeTypeConfig>;
+  node_types?: Record<string, NodeTypeConfig>;
   quality?: QualityConfig;
 }
 

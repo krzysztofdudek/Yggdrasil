@@ -1,9 +1,0 @@
-name: LegacyAuth
-type: service
-description: legacy auth
-blackbox: true
-aspects:
-  - aspect: logging
-mapping:
-  paths:
-    - src/auth/

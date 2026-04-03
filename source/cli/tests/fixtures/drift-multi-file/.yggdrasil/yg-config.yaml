@@ -1,7 +1,4 @@
 name: Test
-node_types:
-  service:
-    description: x
 artifacts:
   responsibility:
     required: always

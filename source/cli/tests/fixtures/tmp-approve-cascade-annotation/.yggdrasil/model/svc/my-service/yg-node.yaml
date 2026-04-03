@@ -1,8 +1,0 @@
-name: MyService
-type: service
-description: test
-aspects:
-  - aspect: logging
-mapping:
-  paths:
-    - src/svc/

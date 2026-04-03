@@ -123,7 +123,7 @@ describe('approveNode — proper nodes', () => {
   it('accepts when all three axes changed (own + source + cascade)', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('all-three', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - aspect: logging\nmapping:\n  paths:\n    - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - aspect: logging\nmapping:\n  - paths:\n      - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
       aspects: [{
         id: 'logging',
@@ -149,7 +149,7 @@ describe('approveNode — proper nodes', () => {
   it('accepts when both own artifacts and source changed', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('both-changed', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  paths:\n    - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - paths:\n      - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
     });
     await recordBaseline(tmpDir);
@@ -169,7 +169,7 @@ describe('approveNode — proper nodes', () => {
   it('refuses when own artifacts changed but source unchanged', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('graph-only', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  paths:\n    - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - paths:\n      - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
     });
     await recordBaseline(tmpDir);
@@ -188,7 +188,7 @@ describe('approveNode — proper nodes', () => {
   it('accepts graph-only change with --acknowledge', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('graph-ack', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  paths:\n    - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - paths:\n      - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
     });
     await recordBaseline(tmpDir);
@@ -206,7 +206,7 @@ describe('approveNode — proper nodes', () => {
   it('refuses when source changed but own artifacts unchanged', async () => {
     const { tmpDir } = await createTmpProject('source-only', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  paths:\n    - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - paths:\n      - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
     });
     await recordBaseline(tmpDir);
@@ -223,7 +223,7 @@ describe('approveNode — proper nodes', () => {
   it('accepts source-only change with --acknowledge', async () => {
     const { tmpDir } = await createTmpProject('source-ack', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  paths:\n    - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - paths:\n      - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
     });
     await recordBaseline(tmpDir);
@@ -238,7 +238,7 @@ describe('approveNode — proper nodes', () => {
   it('refuses when only other tracked files changed (cascade)', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('cascade-only', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - aspect: logging\nmapping:\n  paths:\n    - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - aspect: logging\nmapping:\n  - paths:\n      - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
       aspects: [{
         id: 'logging',
@@ -260,7 +260,7 @@ describe('approveNode — proper nodes', () => {
   it('accepts cascade with --acknowledge', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('cascade-ack', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - aspect: logging\nmapping:\n  paths:\n    - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - aspect: logging\nmapping:\n  - paths:\n      - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
       aspects: [{
         id: 'logging',
@@ -280,7 +280,7 @@ describe('approveNode — proper nodes', () => {
   it('returns no-change when nothing changed', async () => {
     const { tmpDir } = await createTmpProject('no-change', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  paths:\n    - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - paths:\n      - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
     });
     await recordBaseline(tmpDir);
@@ -294,14 +294,14 @@ describe('approveNode — proper nodes', () => {
   it('treats yg-node.yaml change as no-op (structural metadata)', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('yaml-only', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  paths:\n    - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - paths:\n      - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
     });
     await recordBaseline(tmpDir);
     // Change only yg-node.yaml (add description)
     await writeFile(
       path.join(yggRoot, 'model/svc/my-service/yg-node.yaml'),
-      'name: MyService\ntype: service\ndescription: updated description\nmapping:\n  paths:\n    - src/svc/\n',
+      'name: MyService\ntype: service\ndescription: updated description\nmapping:\n  - paths:\n      - src/svc/\n',
     );
     const graph = await loadGraph(tmpDir);
     const result = await approveNode(graph, 'svc/my-service');
@@ -314,7 +314,7 @@ describe('approveNode — proper nodes', () => {
   it('accepts first approve with no baseline', async () => {
     const { tmpDir } = await createTmpProject('first-approve', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  paths:\n    - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - paths:\n      - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
     });
     // NO baseline recorded
@@ -330,7 +330,7 @@ describe('approveNode — proper nodes', () => {
   it('rejects empty acknowledge reason', async () => {
     const { tmpDir } = await createTmpProject('empty-ack', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  paths:\n    - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - paths:\n      - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
     });
     await recordBaseline(tmpDir);
@@ -345,7 +345,7 @@ describe('approveNode — proper nodes', () => {
   it('throws for nonexistent node', async () => {
     const { tmpDir } = await createTmpProject('not-found', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  paths:\n    - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - paths:\n      - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': '' },
     });
     const graph = await loadGraph(tmpDir);
@@ -372,7 +372,7 @@ describe('approveNode — blackbox nodes', () => {
   it('refuses source changes on blackbox node', async () => {
     const { tmpDir } = await createTmpProject('bb-source', {
       nodePath: 'legacy/auth',
-      nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\nmapping:\n  paths:\n    - src/auth/\n',
+      nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\nmapping:\n  - paths:\n      - src/auth/\n',
       mappingFiles: { 'src/auth/login.ts': 'export function login() {}\n' },
     });
     await recordBaseline(tmpDir);
@@ -388,7 +388,7 @@ describe('approveNode — blackbox nodes', () => {
   it('refuses acknowledge on blackbox source change', async () => {
     const { tmpDir } = await createTmpProject('bb-source-ack', {
       nodePath: 'legacy/auth',
-      nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\nmapping:\n  paths:\n    - src/auth/\n',
+      nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\nmapping:\n  - paths:\n      - src/auth/\n',
       mappingFiles: { 'src/auth/login.ts': 'export function login() {}\n' },
     });
     await recordBaseline(tmpDir);
@@ -404,14 +404,14 @@ describe('approveNode — blackbox nodes', () => {
   it('treats yg-node.yaml-only change on blackbox as no-op', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('bb-graph', {
       nodePath: 'legacy/auth',
-      nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\nmapping:\n  paths:\n    - src/auth/\n',
+      nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\nmapping:\n  - paths:\n      - src/auth/\n',
       mappingFiles: { 'src/auth/login.ts': 'export function login() {}\n' },
     });
     await recordBaseline(tmpDir);
     // Only change yg-node.yaml (graph metadata)
     await writeFile(
       path.join(yggRoot, 'model/legacy/auth/yg-node.yaml'),
-      'name: LegacyAuth\ntype: service\ndescription: updated legacy auth description\nblackbox: true\nmapping:\n  paths:\n    - src/auth/\n',
+      'name: LegacyAuth\ntype: service\ndescription: updated legacy auth description\nblackbox: true\nmapping:\n  - paths:\n      - src/auth/\n',
     );
     const graph = await loadGraph(tmpDir);
     const result = await approveNode(graph, 'legacy/auth');
@@ -424,7 +424,7 @@ describe('approveNode — blackbox nodes', () => {
   it('refuses cascade on blackbox without --acknowledge', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('bb-cascade', {
       nodePath: 'legacy/auth',
-      nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\naspects:\n  - aspect: logging\nmapping:\n  paths:\n    - src/auth/\n',
+      nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\naspects:\n  - aspect: logging\nmapping:\n  - paths:\n      - src/auth/\n',
       mappingFiles: { 'src/auth/login.ts': 'export function login() {}\n' },
       aspects: [{
         id: 'logging',
@@ -444,7 +444,7 @@ describe('approveNode — blackbox nodes', () => {
   it('accepts cascade on blackbox with --acknowledge', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('bb-cascade-ack', {
       nodePath: 'legacy/auth',
-      nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\naspects:\n  - aspect: logging\nmapping:\n  paths:\n    - src/auth/\n',
+      nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\naspects:\n  - aspect: logging\nmapping:\n  - paths:\n      - src/auth/\n',
       mappingFiles: { 'src/auth/login.ts': 'export function login() {}\n' },
       aspects: [{
         id: 'logging',
@@ -464,7 +464,7 @@ describe('approveNode — blackbox nodes', () => {
   it('refuses graph+cascade on blackbox without --acknowledge', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('bb-graph-cascade', {
       nodePath: 'legacy/auth',
-      nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\naspects:\n  - aspect: logging\nmapping:\n  paths:\n    - src/auth/\n',
+      nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\naspects:\n  - aspect: logging\nmapping:\n  - paths:\n      - src/auth/\n',
       mappingFiles: { 'src/auth/login.ts': 'export function login() {}\n' },
       artifacts: {
         'responsibility.md': 'Legacy auth module handles authentication flows for the system.',
@@ -496,7 +496,7 @@ describe('approveNode — blackbox nodes', () => {
   it('refuses when both source and graph changed on blackbox', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('bb-both', {
       nodePath: 'legacy/auth',
-      nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\nmapping:\n  paths:\n    - src/auth/\n',
+      nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\nmapping:\n  - paths:\n      - src/auth/\n',
       mappingFiles: { 'src/auth/login.ts': 'export function login() {}\n' },
       artifacts: {
         'responsibility.md': 'Legacy auth module handles authentication flows for the system.',
@@ -520,7 +520,7 @@ describe('approveNode — blackbox nodes', () => {
   it('returns no-change for blackbox with no changes', async () => {
     const { tmpDir } = await createTmpProject('bb-no-change', {
       nodePath: 'legacy/auth',
-      nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\nmapping:\n  paths:\n    - src/auth/\n',
+      nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\nmapping:\n  - paths:\n      - src/auth/\n',
       mappingFiles: { 'src/auth/login.ts': 'export function login() {}\n' },
     });
     await recordBaseline(tmpDir);
@@ -534,7 +534,7 @@ describe('approveNode — blackbox nodes', () => {
   it('refuses source+cascade on blackbox', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('bb-source-cascade', {
       nodePath: 'legacy/auth',
-      nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\naspects:\n  - aspect: logging\nmapping:\n  paths:\n    - src/auth/\n',
+      nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\naspects:\n  - aspect: logging\nmapping:\n  - paths:\n      - src/auth/\n',
       mappingFiles: { 'src/auth/login.ts': 'export function login() {}\n' },
       aspects: [{
         id: 'logging',
@@ -556,7 +556,7 @@ describe('approveNode — blackbox nodes', () => {
   it('refuses .md artifact change on blackbox without --acknowledge', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('bb-md-only', {
       nodePath: 'legacy/auth',
-      nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\nmapping:\n  paths:\n    - src/auth/\n',
+      nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\nmapping:\n  - paths:\n      - src/auth/\n',
       mappingFiles: { 'src/auth/login.ts': 'export function login() {}\n' },
       artifacts: {
         'responsibility.md': 'Legacy auth module handles authentication flows in detail.',
@@ -582,7 +582,7 @@ describe('approveNode — anti-laundering', () => {
   it('refuses first-approve on blackbox if files in other node drift-state', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('anti-launder', {
       nodePath: 'legacy/auth',
-      nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\nmapping:\n  paths:\n    - src/auth/\n',
+      nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\nmapping:\n  - paths:\n      - src/auth/\n',
       mappingFiles: { 'src/auth/login.ts': 'export function login() {}\n' },
       parentNodes: [{
         path: 'legacy',
@@ -605,7 +605,7 @@ describe('approveNode — anti-laundering', () => {
   it('refuses pre-emptive blackbox creation even when other node has no pending drift', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('anti-launder-preemptive', {
       nodePath: 'legacy/auth',
-      nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\nmapping:\n  paths:\n    - src/auth/\n',
+      nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\nmapping:\n  - paths:\n      - src/auth/\n',
       mappingFiles: { 'src/auth/login.ts': 'export function login() {}\n' },
       parentNodes: [{
         path: 'legacy',
@@ -627,7 +627,7 @@ describe('approveNode — anti-laundering', () => {
   it('allows first-approve on proper node even with shared files', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('proper-first', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  paths:\n    - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - paths:\n      - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
     });
     // Another node's drift state has overlapping files
@@ -649,7 +649,7 @@ describe('approveNode — deleted tracked files', () => {
   it('classifies deleted source file as source change', async () => {
     const { tmpDir } = await createTmpProject('deleted-source', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  paths:\n    - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - paths:\n      - src/svc/\n',
       mappingFiles: {
         'src/svc/index.ts': 'export default 42;\n',
         'src/svc/helper.ts': 'export const helper = true;\n',
@@ -671,7 +671,7 @@ describe('approveNode — deleted tracked files', () => {
   it('handles aspect file removed from context (resolveLayer returns undefined for graph file)', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('removed-aspect-ctx', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - aspect: logging\nmapping:\n  paths:\n    - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - aspect: logging\nmapping:\n  - paths:\n      - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
       aspects: [{
         id: 'logging',
@@ -684,7 +684,7 @@ describe('approveNode — deleted tracked files', () => {
     // so resolveLayer will return undefined for them, but they're still graph files
     await writeFile(
       path.join(yggRoot, 'model/svc/my-service/yg-node.yaml'),
-      'name: MyService\ntype: service\ndescription: test\nmapping:\n  paths:\n    - src/svc/\n',
+      'name: MyService\ntype: service\ndescription: test\nmapping:\n  - paths:\n      - src/svc/\n',
     );
     const graph = await loadGraph(tmpDir);
     // The approve should run without crashing — aspect files in baseline trigger the else-if-isGraph path
@@ -700,7 +700,7 @@ describe('approveNode — GC and recording', () => {
   it('always records baseline even on no-op', async () => {
     const { tmpDir } = await createTmpProject('record-noop', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  paths:\n    - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - paths:\n      - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
     });
     await recordBaseline(tmpDir);
@@ -714,7 +714,7 @@ describe('approveNode — GC and recording', () => {
   it('stores acknowledge reason in drift state', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('store-reason', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  paths:\n    - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - paths:\n      - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
     });
     await recordBaseline(tmpDir);
@@ -731,7 +731,7 @@ describe('approveNode — GC and recording', () => {
   it('garbage collects orphaned drift state on approve', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('gc', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  paths:\n    - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - paths:\n      - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
     });
     await recordBaseline(tmpDir);
@@ -749,7 +749,7 @@ describe('approveNode — GC and recording', () => {
   it('GC does NOT remove valid nodes drift state', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('gc-valid', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  paths:\n    - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - paths:\n      - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
     });
     await recordBaseline(tmpDir);
@@ -766,7 +766,7 @@ describe('approveNode — GC and recording', () => {
   it('cascade from hierarchy change annotates as parent artifact', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('cascade-hierarchy', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  paths:\n    - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - paths:\n      - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
       parentNodes: [{
         path: 'svc',
@@ -790,7 +790,7 @@ describe('approveNode — GC and recording', () => {
   it('cascade from dependency change annotates as dependency interface', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('cascade-dep', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nrelations:\n  - target: svc/dep-service\n    type: uses\nmapping:\n  paths:\n    - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nrelations:\n  - target: svc/dep-service\n    type: uses\nmapping:\n  - paths:\n      - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
       parentNodes: [{
         path: 'svc',
@@ -817,7 +817,7 @@ describe('approveNode — GC and recording', () => {
   it('cascade changedOther includes correct annotation', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('cascade-annotation', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - aspect: logging\nmapping:\n  paths:\n    - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - aspect: logging\nmapping:\n  - paths:\n      - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
       aspects: [{
         id: 'logging',
@@ -839,7 +839,7 @@ describe('approveNode — GC and recording', () => {
   it('acknowledge reason preserved across subsequent regular approve', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('reason-persist', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  paths:\n    - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - paths:\n      - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
     });
     await recordBaseline(tmpDir);

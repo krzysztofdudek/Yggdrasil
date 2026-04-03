@@ -101,8 +101,12 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
 // --- Rule 0: Node types from config ---
 
 function checkNodeTypes(graph: Graph): ValidationIssue[] {
+  // node_types have moved to yg-architecture.yaml; this check is skipped when config.node_types is undefined
+  if (!graph.config.node_types) {
+    return [];
+  }
   const issues: ValidationIssue[] = [];
-  const allowedTypes = new Set(Object.keys(graph.config.node_types ?? {}));
+  const allowedTypes = new Set(Object.keys(graph.config.node_types));
   for (const [nodePath, node] of graph.nodes) {
     if (!allowedTypes.has(node.meta.type)) {
       issues.push({
