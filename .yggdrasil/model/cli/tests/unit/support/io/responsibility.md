@@ -5,6 +5,7 @@ Unit tests for file system I/O parsers in `src/io/`. Verifies YAML parsing, sche
 ## Scope
 
 - `artifact-reader.test.ts` — artifact file reading and parsing
+- `architecture-parser.test.ts` — architecture YAML parsing and validation
 - `aspect-parser.test.ts` — aspect YAML parsing and validation
 - `config-parser.test.ts` — `yg-config.yaml` parsing
 - `drift-state-store.test.ts` — drift state JSON reading and writing

@@ -7,6 +7,11 @@ Library used by cli/core (loader, drift-detector). All paths are absolute; calle
 - `parseConfig(filePath: string): Promise<YggConfig>`
   - Reads and parses yg-config.yaml. Throws on missing name, invalid node_types (must be non-empty object keyed by type name, each entry must have non-empty description string), invalid quality (context_budget.error < warning). Returns parsed config with quality defaults. No longer parses or validates an `artifacts` section — artifacts are hardcoded as STANDARD_ARTIFACTS in cli/model.
 
+## architecture-parser.ts
+
+- `parseArchitecture(filePath: string): Promise<ArchitectureDef>`
+  - Reads and parses yg-architecture.yaml. Throws on missing node_types (must be non-empty object), missing or invalid description (non-empty string) on any node type entry, invalid relation types (not one of: uses, calls, extends, implements, emits, listens), relation values that are not arrays of strings. Optional fields on each node type: aspects, integration_aspects, parents (string arrays), relations (object with relation type keys). Returns ArchitectureDef with all parsed node types.
+
 ## node-parser.ts
 
 - `parseNodeYaml(filePath: string): Promise<NodeMeta>`
@@ -46,6 +51,8 @@ Library used by cli/core (loader, drift-detector). All paths are absolute; calle
 Parsers and stores throw `Error` on invalid input. No dedicated error codes — standard Error with descriptive message.
 
 **config-parser:** Missing name, invalid node_types (not a non-empty object, entries missing description), invalid quality (context_budget.error < warning). Propagates ENOENT, EACCES from readFile.
+
+**architecture-parser:** Empty file, missing node_types (not a non-empty object), entries missing description, invalid relation types (not one of the valid types), relation values not arrays of strings. Propagates ENOENT, EACCES from readFile.
 
 **node-parser:** Missing name/type, invalid relations (non-array, invalid type, missing target), invalid mapping (paths must be relative, non-empty, no leading slash), invalid aspects (non-array, entries not objects, missing/empty aspect string, invalid exceptions/anchors not arrays of strings, duplicate aspect ids). Propagates ENOENT, EACCES from readFile.
 
