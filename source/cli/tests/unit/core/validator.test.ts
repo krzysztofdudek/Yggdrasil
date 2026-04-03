@@ -260,11 +260,11 @@ describe('validator', () => {
     const graph = createGraph();
     graph.nodes.set(
       'svc/a',
-      createNode('svc/a', { mapping: { paths: ['src/shared/file.ts'] } }),
+      createNode('svc/a', { mapping: [{ paths: ['src/shared/file.ts'] }] }),
     );
     graph.nodes.set(
       'svc/b',
-      createNode('svc/b', { mapping: { paths: ['src/shared/file.ts'] } }),
+      createNode('svc/b', { mapping: [{ paths: ['src/shared/file.ts'] }] }),
     );
 
     const result = await validate(graph);
@@ -277,11 +277,11 @@ describe('validator', () => {
     const graph = createGraph();
     graph.nodes.set(
       'svc/a',
-      createNode('svc/a', { mapping: { paths: ['src/shared'] } }),
+      createNode('svc/a', { mapping: [{ paths: ['src/shared'] }] }),
     );
     graph.nodes.set(
       'svc/b',
-      createNode('svc/b', { mapping: { paths: ['src/shared/file.ts'] } }),
+      createNode('svc/b', { mapping: [{ paths: ['src/shared/file.ts'] }] }),
     );
 
     const result = await validate(graph);
@@ -294,11 +294,11 @@ describe('validator', () => {
     const graph = createGraph();
     graph.nodes.set(
       'platform',
-      createNode('platform', { mapping: { paths: ['src/platform'] } }),
+      createNode('platform', { mapping: [{ paths: ['src/platform'] }] }),
     );
     graph.nodes.set(
       'platform/auth',
-      createNode('platform/auth', { mapping: { paths: ['src/platform/auth'] } }),
+      createNode('platform/auth', { mapping: [{ paths: ['src/platform/auth'] }] }),
     );
 
     const result = await validate(graph);
@@ -310,11 +310,11 @@ describe('validator', () => {
     const graph = createGraph();
     graph.nodes.set(
       'platform',
-      createNode('platform', { mapping: { paths: ['src/platform'] } }),
+      createNode('platform', { mapping: [{ paths: ['src/platform'] }] }),
     );
     graph.nodes.set(
       'platform/auth',
-      createNode('platform/auth', { mapping: { paths: ['src/platform'] } }),
+      createNode('platform/auth', { mapping: [{ paths: ['src/platform'] }] }),
     );
 
     const result = await validate(graph);
@@ -380,7 +380,7 @@ describe('validator', () => {
     graph.nodes.set(
       'svc/nonexistent-mapping',
       createNode('svc/nonexistent-mapping', {
-        mapping: { type: 'file', path: 'src/does/not/exist.ts' },
+        mapping: [{ paths: ['src'] }],
       }),
     );
 
@@ -1023,7 +1023,7 @@ describe('validator', () => {
         aspects: [{ name: 'Logging', id: 'logging', anchors: ['audit-entry'], artifacts: [] }],
       });
       graph.nodes.set('a', createNode('a', {
-        mapping: {
+        mapping: [{
           paths: ['src/a/'],
           aspects: [
             {
@@ -1033,7 +1033,7 @@ describe('validator', () => {
               },
             },
           ],
-        },
+        }],
       }));
       const result = await validate(graph);
       const e040 = result.issues.find(i => i.code === 'E040' && i.nodePath === 'a');
@@ -1046,7 +1046,7 @@ describe('validator', () => {
         aspects: [{ name: 'Logging', id: 'logging', anchors: ['audit-entry'], artifacts: [] }],
       });
       graph.nodes.set('a', createNode('a', {
-        mapping: {
+        mapping: [{
           paths: ['src/a/'],
           aspects: [
             {
@@ -1056,7 +1056,7 @@ describe('validator', () => {
               },
             },
           ],
-        },
+        }],
       }));
       const result = await validate(graph);
       const e040 = result.issues.find(i => i.code === 'E040' && i.nodePath === 'a');
@@ -1069,7 +1069,7 @@ describe('validator', () => {
         aspects: [{ name: 'Logging', id: 'logging', anchors: ['audit-entry'], artifacts: [] }],
       });
       graph.nodes.set('a', createNode('a', {
-        mapping: {
+        mapping: [{
           paths: ['src/a/'],
           aspects: [
             {
@@ -1079,7 +1079,7 @@ describe('validator', () => {
               },
             },
           ],
-        },
+        }],
       }));
       const result = await validate(graph);
       const e040 = result.issues.filter(i => i.code === 'E040');
@@ -1113,11 +1113,11 @@ describe('validator', () => {
       const graph = createGraph();
       graph.nodes.set('target', createNode('target', {
         integration_anchors: ['correlation-id'],
-        mapping: { paths: ['src/target/'] },
+        mapping: [{ paths: ['src/target/'] }],
       }));
       graph.nodes.set('listener', createNode('listener', {
         relations: [{ target: 'target', type: 'listens' }], // event relation, not structural
-        mapping: { paths: ['src/listener/'] },
+        mapping: [{ paths: ['src/listener/'] }],
       }));
       const result = await validate(graph);
       const e040 = result.issues.filter(i => i.code === 'E040' && i.nodePath === 'listener');
@@ -1128,11 +1128,11 @@ describe('validator', () => {
       const graph = createGraph();
       graph.nodes.set('target', createNode('target', {
         integration_aspects: ['correlation-id'],
-        mapping: { paths: ['src/target/'] },
+        mapping: [{ paths: ['src/target/'] }],
       }));
       graph.nodes.set('consumer', createNode('consumer', {
         relations: [{ target: 'target', type: 'calls' }], // no anchors on relation
-        mapping: { paths: ['src/consumer/'] },
+        mapping: [{ paths: ['src/consumer/'] }],
       }));
       const result = await validate(graph);
       const e040 = result.issues.find(i => i.code === 'E040' && i.nodePath === 'consumer');
@@ -1146,11 +1146,11 @@ describe('validator', () => {
       const graph = createGraph();
       graph.nodes.set('target', createNode('target', {
         integration_aspects: ['corr-id'],
-        mapping: { paths: ['src/target/'] },
+        mapping: [{ paths: ['src/target/'] }],
       }));
       graph.nodes.set('consumer', createNode('consumer', {
         relations: [{ target: 'target', type: 'calls', anchors: { 'corr-id': { ast: { sig: 'fn()' } } as unknown as { regex?: string } } }],
-        mapping: { paths: ['src/consumer/'] },
+        mapping: [{ paths: ['src/consumer/'] }],
       }));
       const result = await validate(graph);
       const e041 = result.issues.find(i => i.code === 'E041' && i.nodePath === 'consumer');

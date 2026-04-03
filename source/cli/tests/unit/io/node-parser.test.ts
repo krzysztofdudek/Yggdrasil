@@ -20,7 +20,7 @@ describe('node-parser', () => {
       expect.objectContaining({ target: 'users/user-repo', type: 'uses' }),
     );
     expect(meta.blackbox).toBe(false);
-    expect(meta.mapping).toEqual({ paths: ['src/orders/order.service.ts'] });
+    expect(meta.mapping).toEqual([{ paths: ['src/orders/order.service.ts'] }]);
   });
 
   it('throws on empty YAML file', async () => {
@@ -85,7 +85,7 @@ mapping:
     );
 
     const meta = await parseNodeYaml(nodePath);
-    expect(meta.mapping).toEqual({ paths: ['src/modules/test/service.ts'] });
+    expect(meta.mapping).toEqual([{ paths: ['src/modules/test/service.ts'] }]);
 
     await rm(tmpDir, { recursive: true, force: true });
   });
@@ -170,9 +170,11 @@ mapping:
     );
 
     const meta = await parseNodeYaml(nodePath);
-    expect(meta.mapping).toEqual({
-      paths: ['app/page.tsx', 'app/loading.tsx'],
-    });
+    expect(meta.mapping).toEqual([
+      {
+        paths: ['app/page.tsx', 'app/loading.tsx'],
+      },
+    ]);
 
     await rm(tmpDir, { recursive: true, force: true });
   });
@@ -427,7 +429,7 @@ mapping:
     );
 
     const meta = await parseNodeYaml(nodePath);
-    expect(meta.mapping).toEqual({ paths: ['src/orders/'] });
+    expect(meta.mapping).toEqual([{ paths: ['src/orders/'] }]);
 
     await rm(tmpDir, { recursive: true, force: true });
   });
@@ -450,9 +452,11 @@ mapping:
     );
 
     const meta = await parseNodeYaml(nodePath);
-    expect(meta.mapping).toEqual({
-      paths: ['src/modules/test.ts', 'src/modules/helper.ts'],
-    });
+    expect(meta.mapping).toEqual([
+      {
+        paths: ['src/modules/test.ts', 'src/modules/helper.ts'],
+      },
+    ]);
 
     await rm(tmpDir, { recursive: true, force: true });
   });
@@ -483,24 +487,26 @@ mapping:
     );
 
     const meta = await parseNodeYaml(nodePath);
-    expect(meta.mapping).toEqual({
-      paths: ['src/auth/'],
-      aspects: [
-        {
-          aspect: 'auth-validation',
-          anchors: {
-            guard: {
-              regex: 'validateToken|checkAuth',
-              rationale: 'Guard function that validates tokens',
-            },
-            handler: {
-              regex: 'handleRequest|processAuth',
-              rationale: 'Request handler that enforces auth',
+    expect(meta.mapping).toEqual([
+      {
+        paths: ['src/auth/'],
+        aspects: [
+          {
+            aspect: 'auth-validation',
+            anchors: {
+              guard: {
+                regex: 'validateToken|checkAuth',
+                rationale: 'Guard function that validates tokens',
+              },
+              handler: {
+                regex: 'handleRequest|processAuth',
+                rationale: 'Request handler that enforces auth',
+              },
             },
           },
-        },
-      ],
-    });
+        ],
+      },
+    ]);
 
     await rm(tmpDir, { recursive: true, force: true });
   });

@@ -31,5 +31,5 @@ relations:
     consumes: [Graph, OwnerResult]
 
 mapping:
-  paths:
+  - paths:
     - source/cli/src/cli/owner.ts

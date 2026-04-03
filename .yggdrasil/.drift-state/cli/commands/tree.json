@@ -1,7 +1,7 @@
 {
-  "hash": "e2ed186fdb9f066c7e8fcc24cb7163b9c013e8290b55c1d5dc4719748af3a4d2",
+  "hash": "0016df3ebbb5213954f2902689e85ca718c89f4bf3a96215811d2a56fedd8777",
   "files": {
-    ".yggdrasil/model/cli/commands/tree/yg-node.yaml": "ab3545545a3c38cb063b3f605bb29ffb13ef7ffebc00f42cb0e9c0caca6aa5bf",
+    ".yggdrasil/model/cli/commands/tree/yg-node.yaml": "100bd042a383c208886d3698f64f6d368905f0bb9a1a4c4dfc77aa9ee65cdf7f",
     ".yggdrasil/model/cli/commands/tree/interface.md": "7205a01e45012c8863f18707b2a73ae2c272f2ec03e597ceb496fc2d238adae2",
     ".yggdrasil/model/cli/commands/tree/internals.md": "00fc4cd83a6752fea70bc007dd12dd9ac15ceb363899cf038339304d88757875",
     ".yggdrasil/model/cli/commands/tree/responsibility.md": "2f05012d6dbe4273c84878c885f0676539680b967d34b74cdb0743745116b941",
@@ -23,10 +23,10 @@
     ".yggdrasil/flows/graph-navigation/yg-flow.yaml": "7a7f7ee56a6dc45cb3dce0ab9073b976d307f3b7c31bc6c23ca4317473ba2c5d",
     ".yggdrasil/flows/graph-navigation/description.md": "ff4ccee2e245a38e8a06e84b7ccb60a54f5650e63ec2039cbac1600cee970d34",
     "source/cli/src/cli/tree.ts": "dd9568529c1d3ff1720e97e434f2e0afe31943b468c76f69edb71ad9e4f80ac6",
-    ".yggdrasil/model/cli/model/interface.md": "89f16b581a1e224f2ba63821a9932e77abdb0c0902d4b61bf4a1feda0653f868"
+    ".yggdrasil/model/cli/model/interface.md": "c7429809fbed460c357e63d35c91aef083be436dfb81d695e36cd9be01d769dd"
   },
   "mtimes": {
-    ".yggdrasil/model/cli/commands/tree/yg-node.yaml": 1775050704536.9075,
+    ".yggdrasil/model/cli/commands/tree/yg-node.yaml": 1775216154054.3918,
     ".yggdrasil/model/cli/commands/tree/interface.md": 1772743197453.1782,
     ".yggdrasil/model/cli/commands/tree/internals.md": 1772743197452.9473,
     ".yggdrasil/model/cli/commands/tree/responsibility.md": 1772743197452.4712,
@@ -45,10 +45,10 @@
     ".yggdrasil/model/cli/core/responsibility.md": 1772828321933.1968,
     ".yggdrasil/model/cli/core/interface.md": 1772743197442.582,
     ".yggdrasil/model/cli/model/responsibility.md": 1772778759688.719,
-    ".yggdrasil/model/cli/model/interface.md": 1775209695269.1165,
+    ".yggdrasil/model/cli/model/interface.md": 1775217324266.1084,
     ".yggdrasil/flows/graph-navigation/yg-flow.yaml": 1775046083604.8381,
     ".yggdrasil/flows/graph-navigation/description.md": 1775046998794.586,
     "source/cli/src/cli/tree.ts": 1775207208280.4392
   },
-  "acknowledgeReason": "Updated dependency interface (cli/io or cli/model) - no source changes required"
+  "acknowledgeReason": "Cascade drift from upstream interface changes; source code is compatible"
 }

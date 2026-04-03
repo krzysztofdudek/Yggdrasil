@@ -270,7 +270,7 @@ function parseMappingGroupAspect(raw: unknown, filePath: string, groupIdx: numbe
   };
 }
 
-function parseMapping(rawMapping: unknown, filePath: string): MappingGroup | undefined {
+function parseMapping(rawMapping: unknown, filePath: string): MappingGroup[] | undefined {
   if (!rawMapping) return undefined;
 
   // Reject old format: mapping as an object with paths
@@ -335,9 +335,8 @@ function parseMapping(rawMapping: unknown, filePath: string): MappingGroup | und
       groups.push(group);
     }
 
-    // Return the first group if only one, otherwise return as array-like structure
-    // (Note: NodeMapping is now MappingGroup which supports array internally)
-    return groups[0];
+    // Return all groups
+    return groups;
   }
 
   return undefined;

@@ -18,6 +18,6 @@ relations:
     consumes: [hashTrackedFiles]
 
 mapping:
-  paths:
+  - paths:
     - source/cli/src/core/approve.ts
     - source/cli/src/core/.gitkeep

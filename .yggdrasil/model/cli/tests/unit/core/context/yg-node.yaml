@@ -7,7 +7,7 @@ aspects: []
 relations: []
 
 mapping:
-  paths:
+  - paths:
     - source/cli/tests/unit/core/context-builder.test.ts
     - source/cli/tests/unit/core/context-files.test.ts
     - source/cli/tests/unit/core/graph-loader.test.ts

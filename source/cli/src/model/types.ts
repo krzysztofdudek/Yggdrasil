@@ -103,7 +103,7 @@ export interface LegacyNodeAspectEntry {
 
 // Compatibility aliases for breaking changes
 export type NodeAspectEntry = LegacyNodeAspectEntry;
-export type NodeMapping = MappingGroup;
+export type NodeMapping = MappingGroup[];
 
 export interface NodeMeta {
   name: string;
@@ -113,7 +113,7 @@ export interface NodeMeta {
   integration_aspects?: string[];
   blackbox?: boolean;
   relations?: Relation[];
-  mapping?: MappingGroup;
+  mapping?: MappingGroup[];
 }
 
 export interface Relation {

@@ -5,7 +5,7 @@ Public API consumed by cli/core and cli/commands.
 ## paths.ts
 
 - `findYggRoot(projectRoot: string): Promise<string>` — searches upward for .yggdrasil/; throws if not found ("Run yg init first") or exists but not a directory
-- `normalizeMappingPaths(mapping: NodeMapping | undefined): string[]` — returns trimmed paths from mapping.paths; empty array if no paths
+- `normalizeMappingPaths(mapping: NodeMapping | undefined): string[]` — returns trimmed paths from all mapping groups (MappingGroup[]); collects paths from all groups into flat array; empty array if no groups or empty paths
 - `normalizeProjectRelativePath(projectRoot: string, rawPath: string): string` — normalizes to project-relative POSIX; throws if empty or outside project root
 - `getPackageRoot(): string` — directory containing CLI package (dist/ when bundled), via fileURLToPath(import.meta.url)
 - `toGraphPath(absolutePath: string, yggRoot: string): string` — path.relative then replace sep with /

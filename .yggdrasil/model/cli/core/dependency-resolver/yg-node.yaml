@@ -13,5 +13,5 @@ relations:
     consumes: [Graph, Stage]
 
 mapping:
-  paths:
+  - paths:
     - source/cli/src/core/dependency-resolver.ts

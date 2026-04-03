@@ -8,7 +8,7 @@ function createNode(nodePath: string, mapping: { paths: string[] }): GraphNode {
     meta: {
       name: nodePath,
       type: 'service',
-      mapping,
+      mapping: [mapping],
     },
     artifacts: [{ filename: 'responsibility.md', content: 'x' }],
     children: [],

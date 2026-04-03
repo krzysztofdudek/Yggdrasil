@@ -26,6 +26,6 @@ relations:
     consumes: [approveNode]
 
 mapping:
-  paths:
-    - source/cli/src/cli/approve.ts
-    - source/cli/src/cli/.gitkeep
+  - paths:
+      - source/cli/src/cli/approve.ts
+      - source/cli/src/cli/.gitkeep

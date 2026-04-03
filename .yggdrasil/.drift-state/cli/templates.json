@@ -1,27 +1,27 @@
 {
-  "hash": "66e9647322e58fd66c4bf2cdadb5d57b51fdf00ed0eb700b0fbf8020cd499939",
+  "hash": "3cedfad4e22744d2b7225d417770b195ba3c059e3dffb8b5e068576846b4b548",
   "files": {
     ".yggdrasil/model/cli/templates/interface.md": "f51dce6625b82b059dcf7cd6085b82233f8c48bffbf6c68d8e9e3e32f098bc16",
     ".yggdrasil/model/cli/templates/internals.md": "7a5b9c7204fcf9896c172258b61c8ace494760327599359e0a1392d667a6e44d",
     ".yggdrasil/model/cli/templates/responsibility.md": "fd44da9cbdbcb0053e6a634247f7404d90077990564a001a6b329349b93e63fa",
+    ".yggdrasil/model/cli/yg-node.yaml": "640850d59baf2b0d317b20d5d3312def4dbfb30c8d5489daff345b19cca52e40",
     ".yggdrasil/model/cli/internals.md": "fcd16e38b431eead0b12e14b05dd25184ad4ef23884fbde7402172b0985857f6",
     ".yggdrasil/model/cli/responsibility.md": "696e0f5f377eba69a843a18379e8f20e0322dc037182690629652a75aa2227fb",
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "7deb781ab921aaf4f32cafbaec4e0b3ea8d803b1a039d2ee578ef49ecf3c0308",
     ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
     ".yggdrasil/flows/init/yg-flow.yaml": "eb35f927c712f8bae38cb5c5fcd0193432aea2fb7adc5e75f777764300ce3177",
     ".yggdrasil/flows/init/description.md": "7ab06dca456fe57c748e343faba4dff4db88ef73792ab2eaf28298ff595adba0",
-    "source/cli/src/templates/default-config.ts": "075ae51bdb7da1dbefef943657aa550aedbb72da9cc065ee43fb46a35bb8e9c6",
     "source/cli/src/templates/platform.ts": "c92d31c3944cc6134759c877ad0b06fa1ca38f1294649af7ca39ab74460105e1",
     "source/cli/src/templates/rules.ts": "baf5559f567573caafbf39483232a591f54a3a65cd34a407584a5a7775811358",
     "source/cli/graph-schemas/yg-aspect.yaml": "136f01951a7d2247693fc9a7198f9c901fbf83d628c433e28978980084105ffd",
-    "source/cli/graph-schemas/yg-config.yaml": "4eaf72abdb940fa1b36fbdd5d019811c8c5af92737b968166542cac4751369e0",
     "source/cli/graph-schemas/yg-flow.yaml": "0aebb3697ff75158bb5d2adf3c386b1acb7d628b59015b51b1e22b90980ed4ca",
-    "source/cli/graph-schemas/yg-node.yaml": "29354030d37ae62e059a7699371070161c528a75aaf495c98d95aec2e25fee9a",
-    ".yggdrasil/model/cli/templates/yg-node.yaml": "d6a17ad7560f15517edbcdd5b7964bcc6d3df78d5fe588d4ff018260a41e62f8",
-    ".yggdrasil/model/cli/yg-node.yaml": "640850d59baf2b0d317b20d5d3312def4dbfb30c8d5489daff345b19cca52e40"
+    ".yggdrasil/model/cli/templates/yg-node.yaml": "b77594a403762d199b2914ebf257bb4f5a211edcb3ac6ccf21617a02a8162ae4",
+    "source/cli/src/templates/default-config.ts": "075ae51bdb7da1dbefef943657aa550aedbb72da9cc065ee43fb46a35bb8e9c6",
+    "source/cli/graph-schemas/yg-config.yaml": "4eaf72abdb940fa1b36fbdd5d019811c8c5af92737b968166542cac4751369e0",
+    "source/cli/graph-schemas/yg-node.yaml": "29354030d37ae62e059a7699371070161c528a75aaf495c98d95aec2e25fee9a"
   },
   "mtimes": {
-    ".yggdrasil/model/cli/templates/yg-node.yaml": 1775050853706.4133,
+    ".yggdrasil/model/cli/templates/yg-node.yaml": 1775216154052.4575,
     ".yggdrasil/model/cli/templates/interface.md": 1775045054679.9705,
     ".yggdrasil/model/cli/templates/internals.md": 1775045046749.9734,
     ".yggdrasil/model/cli/templates/responsibility.md": 1775046929902.447,
@@ -32,13 +32,13 @@
     ".yggdrasil/aspects/deterministic/content.md": 1772778780694.5889,
     ".yggdrasil/flows/init/yg-flow.yaml": 1774035679161.664,
     ".yggdrasil/flows/init/description.md": 1772743197468.9497,
-    "source/cli/src/templates/default-config.ts": 1775048357035.0322,
+    "source/cli/src/templates/default-config.ts": 1775207208284.7004,
     "source/cli/src/templates/platform.ts": 1771702373192.354,
     "source/cli/src/templates/rules.ts": 1775048689300.2344,
     "source/cli/graph-schemas/yg-aspect.yaml": 1775031187454.1335,
-    "source/cli/graph-schemas/yg-config.yaml": 1774784304859.9036,
+    "source/cli/graph-schemas/yg-config.yaml": 1775207208278.6465,
     "source/cli/graph-schemas/yg-flow.yaml": 1774864350264.0596,
-    "source/cli/graph-schemas/yg-node.yaml": 1775031180611.1313
+    "source/cli/graph-schemas/yg-node.yaml": 1775207208279.0618
   },
-  "acknowledgeReason": "added anchor realizations to yg-node.yaml"
+  "acknowledgeReason": "Migrated mapping format from object to array of groups"
 }

@@ -1,7 +1,6 @@
 {
-  "hash": "0997ca42d025424a4f3ff4f027fc8a99027b40f0b80680ede2c2881facab72fc",
+  "hash": "8029c6c78a63a176e3f0ca7c8c4dca5bf90096217a5efe820a94e1080872d6c7",
   "files": {
-    ".yggdrasil/model/examples/yg-node.yaml": "214f3574361cf5fa2a0c4b2e5352298c0276c742618ead5fcdd48f5d5c792d54",
     ".yggdrasil/model/examples/responsibility.md": "8e108d83d3ff8a848ef1842adeb0db63c0d92fc0e5db2c3a4c3bc73461ad4c2e",
     "examples/expense-tracker/.yggdrasil/.drift-state/api/auth.json": "2fd3885ea0708f4741ca655dbd0d9ab7722b28691dfeeb2eb2f63a8ba43cb339",
     "examples/expense-tracker/.yggdrasil/.drift-state/api/budgets.json": "1082247529b8b9b13e1284f7d5be1606a703a9081735145270917f01c490ae58",
@@ -156,10 +155,11 @@
     "examples/expense-tracker/CLAUDE.md": "f072fea07eea830f18401e5860f0f667839cd3724faa7c4a69002c392e6c1c38",
     "examples/expense-tracker/README.md": "c0edf19a1243806fd04aee8dd59aeb2b09bc3674880d3e611db7b9026f0bd9c2",
     "examples/expense-tracker/package-lock.json": "44cc68935a72a8ad161635d87135e99e3f798864c4c888530de0c32d1ed074a9",
-    "examples/expense-tracker/package.json": "d42ff4e29e776c2c1f8894946a0b2c15baff83d65be9e13fcf0bfede355fe6c5"
+    "examples/expense-tracker/package.json": "d42ff4e29e776c2c1f8894946a0b2c15baff83d65be9e13fcf0bfede355fe6c5",
+    ".yggdrasil/model/examples/yg-node.yaml": "74a21c1719e841160e5c2d41c5e60136525cb8d6bdeb50fc5a370b17cc958aa6"
   },
   "mtimes": {
-    ".yggdrasil/model/examples/yg-node.yaml": 1774035679171.4736,
+    ".yggdrasil/model/examples/yg-node.yaml": 1775216154066.4878,
     ".yggdrasil/model/examples/responsibility.md": 1772743197465.3506,
     "examples/expense-tracker/.yggdrasil/.drift-state/api/auth.json": 1774473755958.9934,
     "examples/expense-tracker/.yggdrasil/.drift-state/api/budgets.json": 1774473755959.9783,
@@ -315,5 +315,6 @@
     "examples/expense-tracker/README.md": 1772485235642.2573,
     "examples/expense-tracker/package-lock.json": 1772779649581.8284,
     "examples/expense-tracker/package.json": 1772485235654.1108
-  }
+  },
+  "acknowledgeReason": "Migrated mapping format from object to array of groups"
 }

@@ -28,7 +28,7 @@ Type library — exports TypeScript interfaces and types only. No runtime functi
 
 **RelationType:** `'uses' | 'calls' | 'extends' | 'implements' | 'emits' | 'listens'`
 
-**NodeMapping:** `{ paths: string[] }` — list of paths (files or directories); type is auto-detected at runtime.
+**NodeMapping:** `MappingGroup[]` — array of mapping groups; each group has paths (files or directories) and optional aspect proofs; type is auto-detected at runtime.
 
 **Relation:** target, type, optional consumes, failure, event_name
 
@@ -53,8 +53,8 @@ Model is a TypeScript type library — it contains no executable code and does n
 - **Graph** — Root container: config (YggConfig), architecture (ArchitectureDef — required, defaults to empty), nodes (Map by path), aspects (AspectDef[]), flows (FlowDef[]), schemas (SchemaDef[]), rootPath. Optional architectureError, configError, nodeParseErrors.
 - **GraphNode** — A node in the model tree: path, meta (NodeMeta), nodeYamlRaw, artifacts, children, parent.
 - **LegacyNodeAspectEntry** — Legacy aspect entry for migration purposes: `{ aspect: string; exceptions?: string[]; anchors?: Record<string, AnchorRealization> }`. Not used in new nodes.
-- **NodeMeta** — Parsed yg-node.yaml: name, type, optional description, optional aspects (LegacyNodeAspectEntry[] — entry per aspect with anchors/exceptions), optional integration_aspects (string[] — aspect IDs required from consumers of this node), blackbox, relations (Relation[]), optional mapping (MappingGroup).
-- **MappingGroup** — Group of source files sharing an aspect proof profile: paths (non-empty array of relative paths, files or directories), optional aspects (MappingGroupAspect[] proving effective aspects for this group). NodeMapping is an alias for MappingGroup; mapping in yg-node.yaml can be either old format `{paths: [...]}` or new format `[{paths: [...], aspects: [...]}, ...]` (first group is returned for v4 compatibility).
+- **NodeMeta** — Parsed yg-node.yaml: name, type, optional description, optional aspects (LegacyNodeAspectEntry[] — entry per aspect with anchors/exceptions), optional integration_aspects (string[] — aspect IDs required from consumers of this node), blackbox, relations (Relation[]), optional mapping (MappingGroup[] — array of mapping groups).
+- **MappingGroup** — Group of source files sharing an aspect proof profile: paths (non-empty array of relative paths, files or directories), optional aspects (MappingGroupAspect[] proving effective aspects for this group).
 - **MappingGroupAspect** — Aspect proof for a mapping group: aspect (aspect ID string), anchors (required, non-empty Record mapping anchor IDs to MappingGroupAnchor objects).
 - **MappingGroupAnchor** — Anchor proof: regex (non-empty pattern string), rationale (non-empty explanation why this regex proves compliance).
 - **Relation** — Typed edge: target (path string), type (RelationType), optional consumes (string[] of method/function names), optional failure (string describing failure strategy), optional event_name (string display name for emits/listens). No longer carries anchors field — integration anchor validation moved to mapping groups.

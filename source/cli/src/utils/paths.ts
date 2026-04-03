@@ -47,10 +47,23 @@ import type { NodeMapping } from '../model/types.js';
 /**
  * Normalize a mapping to always return an array of paths (relative to project root).
  * Each path can be a file or directory — type is detected at runtime by hash/owner.
+ * Handles MappingGroup[] array format by collecting all paths from all groups.
  */
 export function normalizeMappingPaths(mapping: NodeMapping | undefined): string[] {
-  if (!mapping?.paths?.length) return [];
-  return mapping.paths.map((p) => p.trim()).filter(Boolean);
+  if (!mapping || !Array.isArray(mapping)) return [];
+
+  const paths: string[] = [];
+  for (const group of mapping) {
+    if (group.paths && Array.isArray(group.paths)) {
+      for (const p of group.paths) {
+        const trimmed = p.trim();
+        if (trimmed) {
+          paths.push(trimmed);
+        }
+      }
+    }
+  }
+  return paths;
 }
 
 /**

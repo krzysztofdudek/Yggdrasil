@@ -1,12 +1,10 @@
 {
-  "hash": "2a64571a9c3828897a5d855153d4acbe28a7a9e8885f6487a4274ccc152ace4f",
+  "hash": "a4ca996ad6a05a13a7b2610f61c3096de021a675206cc043fbcbcca65b333637",
   "files": {
-    ".yggdrasil/model/cli/config/build/yg-node.yaml": "c02db45790bbc598c712e1f457db2a5135a1fa6570a3e1971314e0fbe1a7fa88",
     ".yggdrasil/model/cli/config/build/responsibility.md": "366b5a36d95b23a661d7ba343ebfb32f05049c142cd2a2a488d923f4bcbfb918",
     ".yggdrasil/model/cli/yg-node.yaml": "640850d59baf2b0d317b20d5d3312def4dbfb30c8d5489daff345b19cca52e40",
     ".yggdrasil/model/cli/internals.md": "fcd16e38b431eead0b12e14b05dd25184ad4ef23884fbde7402172b0985857f6",
     ".yggdrasil/model/cli/responsibility.md": "696e0f5f377eba69a843a18379e8f20e0322dc037182690629652a75aa2227fb",
-    ".yggdrasil/model/cli/config/yg-node.yaml": "9cacb4bd841cdf0f78581c909468e1d5b8cfe1678a75e39821398c144f092302",
     ".yggdrasil/model/cli/config/responsibility.md": "d10421b990737cf9049a220fd37ff4e051cada58c7793323826b97ed26083c91",
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "7deb781ab921aaf4f32cafbaec4e0b3ea8d803b1a039d2ee578ef49ecf3c0308",
     ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
@@ -14,15 +12,17 @@
     "source/cli/tsup.config.ts": "65026ec8016f4048f41e11f11936ddd05b304d7de63fd47993f1a30758dd2a91",
     "source/cli/.npmignore": "6352e6067c91078366f5c1b29cb065af4818efc1aea31ac5d132898785d1ccf6",
     "source/cli/.npmrc": "de994f0b60a1afa80c0e821ff17a093bfe17acf8e2760f490433ab9a6891883b",
-    "source/cli/package-lock.json": "50b86fba3b12a658e9d162dd6fa75d75799d6076664e33347b9bc83f3b533a74"
+    "source/cli/package-lock.json": "50b86fba3b12a658e9d162dd6fa75d75799d6076664e33347b9bc83f3b533a74",
+    ".yggdrasil/model/cli/config/build/yg-node.yaml": "8da9b1f9e6d0ff30a379777f41052dc79c2b957b077a32398248204151aea1ce",
+    ".yggdrasil/model/cli/config/yg-node.yaml": "9cacb4bd841cdf0f78581c909468e1d5b8cfe1678a75e39821398c144f092302"
   },
   "mtimes": {
-    ".yggdrasil/model/cli/config/build/yg-node.yaml": 1775053137322.6953,
+    ".yggdrasil/model/cli/config/build/yg-node.yaml": 1775216154014.4314,
     ".yggdrasil/model/cli/config/build/responsibility.md": 1775053497340.9106,
     ".yggdrasil/model/cli/yg-node.yaml": 1775050142507.4995,
     ".yggdrasil/model/cli/internals.md": 1772829219205.6714,
     ".yggdrasil/model/cli/responsibility.md": 1775045623775.336,
-    ".yggdrasil/model/cli/config/yg-node.yaml": 1775053863108.229,
+    ".yggdrasil/model/cli/config/yg-node.yaml": 1775057326517.366,
     ".yggdrasil/model/cli/config/responsibility.md": 1775051863302.48,
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775049910995.6624,
     ".yggdrasil/aspects/deterministic/content.md": 1772778780694.5889,
@@ -31,5 +31,6 @@
     "source/cli/.npmignore": 1771702275788.6226,
     "source/cli/.npmrc": 1771702275788.78,
     "source/cli/package-lock.json": 1775048370013.9634
-  }
+  },
+  "acknowledgeReason": "Migrated mapping format from object to array of groups"
 }

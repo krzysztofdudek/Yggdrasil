@@ -1,7 +1,7 @@
 {
-  "hash": "14f44cba0bbd0f6fdbc6c563d12908dfb1516ba5d966bd43d897f7d126c7fc07",
+  "hash": "751d68d79a87fd6f6dc4b024536f7b36aeda6908e382c5dbf10f0c6b29e4f68b",
   "files": {
-    ".yggdrasil/model/cli/core/approve/yg-node.yaml": "fa719c1a50657f8feb776e38027cce38845e234b5643e4067a07f488129a73aa",
+    ".yggdrasil/model/cli/core/approve/yg-node.yaml": "e759f660791baa8443b2ba5e99e55a88417855f9bf65454a39b766c6aa4f2248",
     ".yggdrasil/model/cli/core/approve/interface.md": "4b567f5ac3fdebe46842807c1a45509363d9cd66ab322e929b8034bb454e5755",
     ".yggdrasil/model/cli/core/approve/responsibility.md": "0ad062db7d7975ba52ce5b3d0a7bdc29f179f107ff13d7bfbcc7b8c5633cb35e",
     ".yggdrasil/model/cli/yg-node.yaml": "640850d59baf2b0d317b20d5d3312def4dbfb30c8d5489daff345b19cca52e40",
@@ -14,14 +14,14 @@
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "7deb781ab921aaf4f32cafbaec4e0b3ea8d803b1a039d2ee578ef49ecf3c0308",
     ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
     ".yggdrasil/model/cli/io/responsibility.md": "70ac125fdcbb406e3b465f331031bd6ad049be2e66f0887722bab11518421cbd",
+    ".yggdrasil/model/cli/io/interface.md": "3124e779e8e276debc846418c3e218b4362a9223d007a26cebd62a4062f3d38c",
     ".yggdrasil/model/cli/utils/responsibility.md": "4918c48366c7b3f35bb7b97fa74252c47f14ba72417c5cc5f3e1100b503c7ddd",
-    ".yggdrasil/model/cli/utils/interface.md": "19ebc12ccbc4a90f9f016dead73a3592c6a397a010ed9cf39993b9f01bc8d96e",
     "source/cli/src/core/approve.ts": "ab9d71aa8f4d6b4de604d5637afcf90c69baf7982e0f3792fcc5d8b679e6d581",
     "source/cli/src/core/.gitkeep": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
-    ".yggdrasil/model/cli/io/interface.md": "3124e779e8e276debc846418c3e218b4362a9223d007a26cebd62a4062f3d38c"
+    ".yggdrasil/model/cli/utils/interface.md": "051aef97613feeaf82746a2d576f2a96346c3bb916144d88b8bc13b115b2d2ba"
   },
   "mtimes": {
-    ".yggdrasil/model/cli/core/approve/yg-node.yaml": 1775051844534.2341,
+    ".yggdrasil/model/cli/core/approve/yg-node.yaml": 1775216154002.3276,
     ".yggdrasil/model/cli/core/approve/interface.md": 1775052057297.4233,
     ".yggdrasil/model/cli/core/approve/responsibility.md": 1775051757308.3962,
     ".yggdrasil/model/cli/yg-node.yaml": 1775050142507.4995,
@@ -36,9 +36,9 @@
     ".yggdrasil/model/cli/io/responsibility.md": 1775208515836.334,
     ".yggdrasil/model/cli/io/interface.md": 1775209684359.209,
     ".yggdrasil/model/cli/utils/responsibility.md": 1772743197446.85,
-    ".yggdrasil/model/cli/utils/interface.md": 1772743197447.6619,
+    ".yggdrasil/model/cli/utils/interface.md": 1775217330039.2043,
     "source/cli/src/core/approve.ts": 1774978253998.6628,
     "source/cli/src/core/.gitkeep": 1771702275792.706
   },
-  "acknowledgeReason": "Updated dependency interface (cli/io or cli/model) - no source changes required"
+  "acknowledgeReason": "Cascade drift from upstream interface changes; source code is compatible"
 }

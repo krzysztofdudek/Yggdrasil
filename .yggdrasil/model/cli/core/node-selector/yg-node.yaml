@@ -16,5 +16,5 @@ relations:
     consumes: [tokenize]
 
 mapping:
-  paths:
+  - paths:
     - source/cli/src/core/node-selector.ts

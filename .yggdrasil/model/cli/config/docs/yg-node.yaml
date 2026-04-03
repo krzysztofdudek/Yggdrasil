@@ -7,7 +7,7 @@ aspects: []
 relations: []
 
 mapping:
-  paths:
+  - paths:
     - source/cli/CLAUDE.md
     - source/cli/README.md
     - source/cli/scripts/

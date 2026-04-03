@@ -27,5 +27,5 @@ relations:
     consumes: [findYggRoot]
 
 mapping:
-  paths:
+  - paths:
     - source/cli/src/cli/select.ts

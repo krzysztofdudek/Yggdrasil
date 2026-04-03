@@ -861,28 +861,32 @@ function checkAnchorRealizations(graph: Graph): ValidationIssue[] {
     if (node.meta.blackbox) continue;
 
     // Check mapping group aspect anchors (E040)
-    const mappingGroup = node.meta.mapping;
-    if (mappingGroup?.aspects) {
-      for (const aspectEntry of mappingGroup.aspects) {
-        for (const [anchorId, anchor] of Object.entries(aspectEntry.anchors ?? {})) {
-          // E040: Check that anchor has required fields
-          if (!anchor.regex || anchor.regex.trim() === '') {
-            issues.push({
-              severity: 'error',
-              code: 'E040',
-              rule: 'anchor-not-realized',
-              message: `Mapping group anchor '${anchorId}' in aspect '${aspectEntry.aspect}' is missing or empty 'regex' field.\nAdd regex pattern to the anchor in yg-node.yaml:\n  mapping:\n    - aspects:\n      - aspect: ${aspectEntry.aspect}\n        anchors:\n          ${anchorId}:\n            regex: "<pattern>"`,
-              nodePath,
-            });
-          }
-          if (!anchor.rationale || anchor.rationale.trim() === '') {
-            issues.push({
-              severity: 'error',
-              code: 'E040',
-              rule: 'anchor-not-realized',
-              message: `Mapping group anchor '${anchorId}' in aspect '${aspectEntry.aspect}' is missing or empty 'rationale' field.\nAdd rationale to the anchor in yg-node.yaml:\n  mapping:\n    - aspects:\n      - aspect: ${aspectEntry.aspect}\n        anchors:\n          ${anchorId}:\n            rationale: "<why this anchor matters>"`,
-              nodePath,
-            });
+    const mappingGroups = node.meta.mapping;
+    if (mappingGroups) {
+      for (const mappingGroup of mappingGroups) {
+        if (mappingGroup?.aspects) {
+          for (const aspectEntry of mappingGroup.aspects) {
+            for (const [anchorId, anchor] of Object.entries(aspectEntry.anchors ?? {})) {
+              // E040: Check that anchor has required fields
+              if (!anchor.regex || anchor.regex.trim() === '') {
+                issues.push({
+                  severity: 'error',
+                  code: 'E040',
+                  rule: 'anchor-not-realized',
+                  message: `Mapping group anchor '${anchorId}' in aspect '${aspectEntry.aspect}' is missing or empty 'regex' field.\nAdd regex pattern to the anchor in yg-node.yaml:\n  mapping:\n    - aspects:\n      - aspect: ${aspectEntry.aspect}\n        anchors:\n          ${anchorId}:\n            regex: "<pattern>"`,
+                  nodePath,
+                });
+              }
+              if (!anchor.rationale || anchor.rationale.trim() === '') {
+                issues.push({
+                  severity: 'error',
+                  code: 'E040',
+                  rule: 'anchor-not-realized',
+                  message: `Mapping group anchor '${anchorId}' in aspect '${aspectEntry.aspect}' is missing or empty 'rationale' field.\nAdd rationale to the anchor in yg-node.yaml:\n  mapping:\n    - aspects:\n      - aspect: ${aspectEntry.aspect}\n        anchors:\n          ${anchorId}:\n            rationale: "<why this anchor matters>"`,
+                  nodePath,
+                });
+              }
+            }
           }
         }
       }
@@ -933,46 +937,50 @@ async function checkAnchorPatterns(graph: Graph): Promise<ValidationIssue[]> {
     if (node.meta.blackbox) continue;
 
     // Check mapping group aspect anchor patterns (E037)
-    const mappingGroup = node.meta.mapping;
-    if (mappingGroup?.aspects && mappingGroup.paths.length > 0) {
-      // Read source files for this mapping group
-      const sourceFiles = await expandMappingToFiles(projectRoot, mappingGroup.paths);
-      if (sourceFiles.length === 0) continue;
+    const mappingGroupsE037 = node.meta.mapping;
+    if (mappingGroupsE037) {
+      for (const mappingGroup of mappingGroupsE037) {
+        if (mappingGroup?.aspects && mappingGroup.paths.length > 0) {
+          // Read source files for this mapping group
+          const sourceFiles = await expandMappingToFiles(projectRoot, mappingGroup.paths);
+          if (sourceFiles.length === 0) continue;
 
-      const fileContents: Array<{ path: string; content: string }> = [];
-      for (const filePath of sourceFiles) {
-        try {
-          const content = await readFile(filePath, 'utf-8');
-          fileContents.push({ path: filePath, content });
-        } catch { /* skip unreadable */ }
-      }
+          const fileContents: Array<{ path: string; content: string }> = [];
+          for (const filePath of sourceFiles) {
+            try {
+              const content = await readFile(filePath, 'utf-8');
+              fileContents.push({ path: filePath, content });
+            } catch { /* skip unreadable */ }
+          }
 
-      for (const aspectEntry of mappingGroup.aspects) {
-        for (const [anchorId, anchor] of Object.entries(aspectEntry.anchors ?? {})) {
-          if (!anchor.regex) continue;
+          for (const aspectEntry of mappingGroup.aspects) {
+            for (const [anchorId, anchor] of Object.entries(aspectEntry.anchors ?? {})) {
+              if (!anchor.regex) continue;
 
-          try {
-            const regex = new RegExp(anchor.regex);
-            const found = fileContents.some(f => regex.test(f.content));
-            if (!found) {
-              const mappedFiles = sourceFiles.map(f => path.relative(projectRoot, f));
-              issues.push({
-                severity: 'error',
-                code: 'E037',
-                rule: 'anchor-not-found',
-                message: `Mapping group anchor '${anchorId}' in aspect '${aspectEntry.aspect}' with pattern\n'${anchor.regex}' not found in mapped files:\n${mappedFiles.map(f => '  ' + f).join('\n')}\nImplement the anchor pattern or update the regex if the pattern has changed.`,
-                nodePath,
-              });
+              try {
+                const regex = new RegExp(anchor.regex);
+                const found = fileContents.some(f => regex.test(f.content));
+                if (!found) {
+                  const mappedFiles = sourceFiles.map(f => path.relative(projectRoot, f));
+                  issues.push({
+                    severity: 'error',
+                    code: 'E037',
+                    rule: 'anchor-not-found',
+                    message: `Mapping group anchor '${anchorId}' in aspect '${aspectEntry.aspect}' with pattern\n'${anchor.regex}' not found in mapped files:\n${mappedFiles.map(f => '  ' + f).join('\n')}\nImplement the anchor pattern or update the regex if the pattern has changed.`,
+                    nodePath,
+                  });
+                }
+              } catch {
+                // Invalid regex — reported as E037 with pattern info
+                issues.push({
+                  severity: 'error',
+                  code: 'E037',
+                  rule: 'anchor-not-found',
+                  message: `Mapping group anchor '${anchorId}' in aspect '${aspectEntry.aspect}' has invalid regex pattern '${anchor.regex}'.`,
+                  nodePath,
+                });
+              }
             }
-          } catch {
-            // Invalid regex — reported as E037 with pattern info
-            issues.push({
-              severity: 'error',
-              code: 'E037',
-              rule: 'anchor-not-found',
-              message: `Mapping group anchor '${anchorId}' in aspect '${aspectEntry.aspect}' has invalid regex pattern '${anchor.regex}'.`,
-              nodePath,
-            });
           }
         }
       }

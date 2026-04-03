@@ -22,5 +22,5 @@ relations:
     consumes: [Graph, DriftCategory, DriftFileChange, DriftStatus, TrackedFileLayer, ValidationIssue]
 
 mapping:
-  paths:
+  - paths:
     - source/cli/src/core/check.ts

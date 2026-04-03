@@ -1,7 +1,6 @@
 {
-  "hash": "7ff99b96b1738e490d2cb7d1b7179f3b3106229adca456d34bd837a715ee31f6",
+  "hash": "269b3e511b6fadbbb3b43d53029eecfb80bfff52f77682124a97691620702211",
   "files": {
-    ".yggdrasil/model/cli/entry/yg-node.yaml": "bea470b54a10f1f64acf279584e4c7dc6a4fb31c95561c90714421fd24fc480e",
     ".yggdrasil/model/cli/entry/internals.md": "6ab5c10ad4fa962bddd739e77b7e151c7200b07a3322e9f5f5b13dc0fbd72e6b",
     ".yggdrasil/model/cli/entry/responsibility.md": "020ef2e7b062eb59b6738ba516ebd36fa81fe65a4504a465f696a12a5eb2e49f",
     ".yggdrasil/model/cli/yg-node.yaml": "640850d59baf2b0d317b20d5d3312def4dbfb30c8d5489daff345b19cca52e40",
@@ -28,13 +27,14 @@
     ".yggdrasil/model/cli/commands/flows/interface.md": "792ff6ad2f423a636800fc86c6d9871570de42252c3771a0375830f8699cb934",
     ".yggdrasil/model/cli/commands/select/responsibility.md": "9ee22a7df093512250bf3bcd756d42bfeb0b28a16d0c708aa15f955d0531fcf3",
     ".yggdrasil/model/cli/commands/select/interface.md": "294bd59b59d6263d043c997bf3cb091246e886dc35a1d0c206f767f484bbf6df",
+    ".yggdrasil/model/cli/commands/check/responsibility.md": "9341117a0ef06dd4811133d45a211aeccb250c1311c39bef0a9e1e4350c11320",
+    ".yggdrasil/model/cli/commands/check/interface.md": "b16bfb360fab7759987169458e29109e655a89374fd68989017eca94c4653f6b",
     "source/cli/src/bin.ts": "dd90e277e1cc2b547334553be15d035ccf5ab5ac27ae07fdd56dd8353e115294",
     "source/cli/package.json": "d489b0ddeb509ed03d88f304656d74e40043346fe092cd4e32910d7f99e541e3",
-    ".yggdrasil/model/cli/commands/check/responsibility.md": "9341117a0ef06dd4811133d45a211aeccb250c1311c39bef0a9e1e4350c11320",
-    ".yggdrasil/model/cli/commands/check/interface.md": "b16bfb360fab7759987169458e29109e655a89374fd68989017eca94c4653f6b"
+    ".yggdrasil/model/cli/entry/yg-node.yaml": "4c7578a552397a9f096d895fac7671a114b3178d49bb054f28936e41490c21fc"
   },
   "mtimes": {
-    ".yggdrasil/model/cli/entry/yg-node.yaml": 1775050809436.0815,
+    ".yggdrasil/model/cli/entry/yg-node.yaml": 1775216154016.4153,
     ".yggdrasil/model/cli/entry/internals.md": 1772828322158.164,
     ".yggdrasil/model/cli/entry/responsibility.md": 1775043506839.8142,
     ".yggdrasil/model/cli/yg-node.yaml": 1775050142507.4995,
@@ -66,5 +66,5 @@
     "source/cli/src/bin.ts": 1775023244445.4343,
     "source/cli/package.json": 1775048338513.9658
   },
-  "acknowledgeReason": "cascade from cli/commands/check artifacts update, source compliant"
+  "acknowledgeReason": "Migrated mapping format from object to array of groups"
 }

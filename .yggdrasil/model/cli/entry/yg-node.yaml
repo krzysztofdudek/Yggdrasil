@@ -43,6 +43,6 @@ relations:
     consumes: [registerCheckCommand]
 
 mapping:
-  paths:
+  - paths:
     - source/cli/src/bin.ts
     - source/cli/package.json

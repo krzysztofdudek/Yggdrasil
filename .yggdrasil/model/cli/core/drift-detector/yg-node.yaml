@@ -23,5 +23,5 @@ relations:
     consumes: [normalizeMappingPaths, hashForMapping, perFileHashes]
 
 mapping:
-  paths:
+  - paths:
     - source/cli/src/core/drift-detector.ts

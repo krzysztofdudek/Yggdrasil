@@ -7,5 +7,5 @@ aspects: []
 relations: []
 
 mapping:
-  paths:
+  - paths:
     - source/cli/tests/unit/templates/

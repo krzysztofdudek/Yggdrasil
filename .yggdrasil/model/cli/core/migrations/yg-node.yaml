@@ -12,6 +12,6 @@ aspects:
 relations: []
 
 mapping:
-  paths:
+  - paths:
     - source/cli/src/core/migrator.ts
     - source/cli/src/migrations/

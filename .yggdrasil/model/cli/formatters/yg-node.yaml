@@ -13,5 +13,5 @@ relations:
     consumes: [ContextPackage, ContextMapOutput]
 
 mapping:
-  paths:
+  - paths:
     - source/cli/src/formatters/

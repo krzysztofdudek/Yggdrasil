@@ -23,5 +23,5 @@ relations:
     consumes: [findYggRoot]
 
 mapping:
-  paths:
+  - paths:
     - source/cli/src/core/graph-loader.ts

@@ -1,11 +1,12 @@
 {
-  "hash": "4f6b249dadd528c2ca9484e12f1e0bf9ee6865047876ac92e27fd7f4e137faad",
+  "hash": "21e52b66311d87a6078f8ec1ba6eb33c751346a59c9ea60a1dc547213bcdcc83",
   "files": {
-    ".yggdrasil/model/scripts/yg-node.yaml": "1f45e5519e51716757eda22ee0c9369bd61da3d983bbc922b65790de51ff3bc0",
-    "scripts/repo-check.sh": "eadb268044051a15ccce29f25081b2bc9e4d18160c90f2ace4b36dc6295e1bbf"
+    "scripts/repo-check.sh": "eadb268044051a15ccce29f25081b2bc9e4d18160c90f2ace4b36dc6295e1bbf",
+    ".yggdrasil/model/scripts/yg-node.yaml": "ad32136603aec3fec10a99a381da8e54786bdefea3ef9a5b199c07b4a4a99bbd"
   },
   "mtimes": {
-    ".yggdrasil/model/scripts/yg-node.yaml": 1775048988252.6216,
+    ".yggdrasil/model/scripts/yg-node.yaml": 1775216154068.347,
     "scripts/repo-check.sh": 1774970906574.6033
-  }
+  },
+  "acknowledgeReason": "Migrated mapping format from object to array of groups"
 }

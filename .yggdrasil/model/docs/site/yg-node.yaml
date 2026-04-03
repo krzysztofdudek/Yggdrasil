@@ -7,7 +7,7 @@ aspects: []
 relations: []
 
 mapping:
-  paths:
+  - paths:
     - docs/package.json
     - docs/package-lock.json
     - docs/public/

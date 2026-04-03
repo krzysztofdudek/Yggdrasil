@@ -46,9 +46,7 @@ export async function loadGraph(
     configError = (error as Error).message;
   }
 
-  let architectureError: string | undefined;
-  const { architecture, error: archError } = await loadArchitecture(yggRoot, config);
-  architectureError = archError;
+  const { architecture, error: architectureError } = await loadArchitecture(yggRoot, config);
 
   const modelDir = path.join(yggRoot, 'model');
   const nodes = new Map<string, GraphNode>();

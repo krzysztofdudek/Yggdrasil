@@ -7,6 +7,6 @@ aspects: []
 relations: []
 
 mapping:
-  paths:
+  - paths:
     - source/cli/tests/unit/formatters/
     - source/cli/tests/unit/migrations/

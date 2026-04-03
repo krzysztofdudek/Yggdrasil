@@ -16,6 +16,6 @@ relations:
     consumes: [normalizeMappingPaths, estimateTokens]
 
 mapping:
-  paths:
+  - paths:
     - source/cli/src/core/context-builder.ts
     - source/cli/src/core/context-files.ts

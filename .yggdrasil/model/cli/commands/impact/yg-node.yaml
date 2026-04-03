@@ -36,5 +36,5 @@ relations:
     consumes: [Graph]
 
 mapping:
-  paths:
+  - paths:
     - source/cli/src/cli/impact.ts

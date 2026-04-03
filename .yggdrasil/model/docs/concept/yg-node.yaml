@@ -7,7 +7,7 @@ blackbox: false
 relations: []
 
 mapping:
-  paths:
+  - paths:
     - docs/concept/engine.md
     - docs/concept/foundation.md
     - docs/concept/graph.md

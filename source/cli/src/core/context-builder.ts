@@ -614,7 +614,7 @@ export function toContextMapOutput(
         : 'ok';
 
   // Compute effective aspects from architecture, hierarchy, own, and flows
-  let requiredAspects: RequiredAspectRef[] = [];
+  const requiredAspects: RequiredAspectRef[] = [];
   let integrationAspects: RequiredAspectRef[] | undefined;
 
   if (graph.architecture) {

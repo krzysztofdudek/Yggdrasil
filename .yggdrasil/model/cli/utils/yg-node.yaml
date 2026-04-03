@@ -13,5 +13,5 @@ relations:
     consumes: [NodeMapping]
 
 mapping:
-  paths:
+  - paths:
     - source/cli/src/utils/

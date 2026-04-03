@@ -6,5 +6,5 @@ aspects: []
 relations: []
 
 mapping:
-  paths:
+  - paths:
     - source/cli/src/model/

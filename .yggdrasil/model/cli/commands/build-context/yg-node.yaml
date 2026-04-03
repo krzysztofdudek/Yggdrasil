@@ -36,5 +36,5 @@ relations:
     consumes: [projectRootFromGraph]
 
 mapping:
-  paths:
+  - paths:
     - source/cli/src/cli/build-context.ts

@@ -7,7 +7,7 @@ aspects: []
 relations: []
 
 mapping:
-  paths:
+  - paths:
     - docs/getting-started.md
     - docs/cli-reference.md
     - docs/configuration.md

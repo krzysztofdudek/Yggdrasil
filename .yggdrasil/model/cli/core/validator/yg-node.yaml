@@ -23,5 +23,6 @@ relations:
     consumes: [normalizeMappingPaths, getLastCommitTimestamp]
 
 mapping:
-  paths:
+  - paths:
     - source/cli/src/core/validator.ts
+    - source/cli/src/core/effective-aspects.ts
