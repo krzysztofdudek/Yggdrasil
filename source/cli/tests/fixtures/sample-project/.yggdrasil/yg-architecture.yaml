@@ -1,0 +1,7 @@
+node_types:
+  module:
+    description: 'Logical grouping of related services'
+  service:
+    description: 'Discrete service unit'
+  repository:
+    description: 'Data access layer'

@@ -26,6 +26,7 @@ import type {
 } from '../model/types.js';
 import { normalizeMappingPaths } from '../utils/paths.js';
 import { estimateTokens } from '../utils/tokens.js';
+import { computeEffectiveAspects } from './effective-aspects.js';
 
 const STRUCTURAL_RELATION_TYPES = new Set(['uses', 'calls', 'extends', 'implements']);
 const EVENT_RELATION_TYPES = new Set(['emits', 'listens']);
@@ -462,6 +463,79 @@ export function computeBudgetBreakdown(
   return { own, hierarchy, aspects, flows, dependencies, total };
 }
 
+/**
+ * Determine the source(s) of an aspect for a node.
+ * Returns a descriptive source string indicating where the aspect comes from.
+ */
+function determineAspectSource(
+  aspectId: string,
+  node: GraphNode,
+  graph: Graph,
+  allFlows: FlowDef[],
+  isIntegration: boolean,
+): string {
+  const sources: string[] = [];
+  const architecture = graph.architecture;
+
+  // Check if from architecture (node type constraints)
+  const nodeType = architecture.node_types[node.meta.type];
+  const architectureAspects = isIntegration
+    ? nodeType?.integration_aspects ?? []
+    : nodeType?.aspects ?? [];
+  if (architectureAspects.includes(aspectId)) {
+    sources.push(`architecture (type: ${node.meta.type})`);
+  }
+
+  // Check if from own declaration
+  const ownAspectIds = isIntegration
+    ? node.meta.integration_aspects ?? []
+    : (node.meta.aspects ?? []).map((a) => a.aspect);
+  if (ownAspectIds.includes(aspectId)) {
+    sources.push('own declaration');
+  }
+
+  // Check if from parent inheritance
+  let ancestor = node.parent;
+  while (ancestor) {
+    const ancestorType = architecture.node_types[ancestor.meta.type];
+    const ancestorAspects = isIntegration
+      ? ancestorType?.integration_aspects ?? []
+      : ancestorType?.aspects ?? [];
+    if (ancestorAspects.includes(aspectId)) {
+      sources.push(`inherited from parent (type: ${ancestor.meta.type})`);
+      break;
+    }
+    ancestor = ancestor.parent;
+  }
+
+  // Check if from flow participation
+  const ancestorPaths = new Set([node.path, ...collectAncestors(node).map((a) => a.path)]);
+  for (const flow of allFlows) {
+    if (flow.nodes.some((n) => ancestorPaths.has(n)) && flow.aspects?.includes(aspectId)) {
+      sources.push(`flow '${flow.path}'`);
+    }
+  }
+
+  // Check if from aspect implies chain
+  const aspect = graph.aspects.find((a) => a.id === aspectId);
+  if (aspect?.implies) {
+    // Try to find which aspect implies this one
+    for (const otherAspect of graph.aspects) {
+      if (otherAspect.implies?.includes(aspectId)) {
+        const implierInSources = sources.some((s) =>
+          s.includes(otherAspect.id) || s.includes(`'${otherAspect.id}'`),
+        );
+        if (implierInSources) {
+          sources.push(`implied by '${otherAspect.id}'`);
+          break;
+        }
+      }
+    }
+  }
+
+  return sources.length > 0 ? sources.join('; ') : 'unknown source';
+}
+
 export function toContextMapOutput(
   pkg: ContextPackage,
   graph: Graph,
@@ -539,23 +613,48 @@ export function toContextMapOutput(
       : breakdown.total >= warningThreshold ? 'warning'
         : 'ok';
 
-  // Build required_aspects from node type config
-  const nodeType = config.node_types?.[node.meta.type];
-  const requiredAspectIds = nodeType?.required_aspects ?? [];
-  const requiredAspects: RequiredAspectRef[] = requiredAspectIds.map((id) => ({
-    id,
-    source: `node_types.${node.meta.type}.required_aspects`,
-  }));
+  // Compute effective aspects from architecture, hierarchy, own, and flows
+  let requiredAspects: RequiredAspectRef[] = [];
+  let integrationAspects: RequiredAspectRef[] | undefined;
 
-  // Build integration_aspects from node meta
-  const integrationAspectIds = node.meta.integration_aspects ?? [];
-  const integrationAspects: RequiredAspectRef[] | undefined =
-    integrationAspectIds.length > 0
-      ? integrationAspectIds.map((id) => ({
-          id,
-          source: 'node.integration_aspects',
-        }))
-      : undefined;
+  if (graph.architecture) {
+    const parentTypes = ancestors.map((a) => a.meta.type);
+    const ownAspectIds = (node.meta.aspects ?? []).map((a) => a.aspect);
+    const ownIntegrationAspectIds = node.meta.integration_aspects ?? [];
+    const flowAspects = participatingFlows.flatMap((f) => f.aspects ?? []);
+
+    const effective = computeEffectiveAspects({
+      nodeType: node.meta.type,
+      architecture: graph.architecture,
+      parentTypes,
+      ownAspects: ownAspectIds,
+      ownIntegrationAspects: ownIntegrationAspectIds,
+      flowAspects,
+      allAspects: graph.aspects,
+      allFlows: graph.flows,
+    });
+
+    // Build required_aspects with source information
+    for (const aspectId of effective.regular) {
+      const source = determineAspectSource(aspectId, node, graph, graph.flows, false);
+      requiredAspects.push({ id: aspectId, source });
+    }
+
+    // Build integration_aspects with source information
+    if (effective.integration.size > 0) {
+      integrationAspects = Array.from(effective.integration).map((aspectId) => {
+        const source = determineAspectSource(aspectId, node, graph, graph.flows, true);
+        return { id: aspectId, source };
+      });
+    }
+  } else {
+    // Fallback: use simple approach when architecture is not available
+    // This maintains backward compatibility with tests that don't load full architecture
+    const effectiveIds = collectEffectiveAspectIds(graph, node.path);
+    for (const aspectId of effectiveIds) {
+      requiredAspects.push({ id: aspectId, source: 'collected from node and flows' });
+    }
+  }
 
   return {
     meta: { tokenCount: breakdown.total, budgetStatus, breakdown },
