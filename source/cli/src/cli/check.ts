@@ -71,6 +71,7 @@ function formatOutput(result: CheckResult): void {
     const drift = errors.filter(i => i.code === 'E020');
     const cascade = errors.filter(i => i.code === 'E021');
     const structural = errors.filter(i => i.code >= 'E001' && i.code <= 'E013');
+    const architecture = errors.filter(i => i.code >= 'E050' && i.code <= 'E054');
     const coverage = errors.filter(i => i.code === 'E022');
     const completeness = errors.filter(i => i.code >= 'E030' && i.code <= 'E041');
 
@@ -143,6 +144,17 @@ function formatOutput(result: CheckResult): void {
       lines.push('');
     }
 
+    if (architecture.length > 0) {
+      lines.push('  Architecture:');
+      for (const issue of sortByNodePath(architecture)) {
+        lines.push(`  ${issue.code} ${issue.nodePath ?? ''} — ${issue.rule}`);
+        for (const line of issue.message.split('\n')) {
+          lines.push(`       ${line}`);
+        }
+      }
+      lines.push('');
+    }
+
     if (coverage.length > 0) {
       lines.push('  Coverage:');
       for (const issue of coverage) {
@@ -202,11 +214,13 @@ function formatOutput(result: CheckResult): void {
     const driftCount = errors.filter(i => i.code === 'E020').length;
     const cascadeCount = errors.filter(i => i.code === 'E021').length;
     const structuralCount = errors.filter(i => i.code >= 'E001' && i.code <= 'E013').length;
+    const archCount = errors.filter(i => i.code >= 'E050' && i.code <= 'E054').length;
     const cov = errors.filter(i => i.code === 'E022').length;
     const comp = errors.filter(i => i.code >= 'E030').length;
     if (driftCount) cats.push(`${driftCount} drift`);
     if (cascadeCount) cats.push(`${cascadeCount} cascade`);
     if (structuralCount) cats.push(`${structuralCount} structural`);
+    if (archCount) cats.push(`${archCount} architecture`);
     if (cov) cats.push(`${cov} coverage`);
     if (comp) cats.push(`${comp} completeness`);
     lines.push(`Result: FAIL (${cats.join(', ')} — ${errorCount} error${errorCount === 1 ? '' : 's'}, ${warningCount} warning${warningCount === 1 ? '' : 's'})`);

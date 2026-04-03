@@ -1,6 +1,6 @@
 ## Responsibility
 
-The `check` command is the unified graph gate for the Yggdrasil CLI. It invokes `runCheck` from `cli/core/check`, formats the output with grouped error categories (drift, cascade, structural, coverage, completeness), and exits with code 1 if any errors are present.
+The `check` command is the unified graph gate for the Yggdrasil CLI. It invokes `runCheck` from `cli/core/check`, formats the output with grouped error categories (drift, cascade, structural, architecture, coverage, completeness), and exits with code 1 if any errors are present.
 
 This node is NOT responsible for:
 

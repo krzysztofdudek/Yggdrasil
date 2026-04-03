@@ -1,6 +1,7 @@
 {
-  "hash": "269b3e511b6fadbbb3b43d53029eecfb80bfff52f77682124a97691620702211",
+  "hash": "406a0b4f6d6bfc2f4fd49b1f125679d338ac31dc903d7c00bc461f4f43ad36bf",
   "files": {
+    ".yggdrasil/model/cli/entry/yg-node.yaml": "4c7578a552397a9f096d895fac7671a114b3178d49bb054f28936e41490c21fc",
     ".yggdrasil/model/cli/entry/internals.md": "6ab5c10ad4fa962bddd739e77b7e151c7200b07a3322e9f5f5b13dc0fbd72e6b",
     ".yggdrasil/model/cli/entry/responsibility.md": "020ef2e7b062eb59b6738ba516ebd36fa81fe65a4504a465f696a12a5eb2e49f",
     ".yggdrasil/model/cli/yg-node.yaml": "640850d59baf2b0d317b20d5d3312def4dbfb30c8d5489daff345b19cca52e40",
@@ -27,11 +28,10 @@
     ".yggdrasil/model/cli/commands/flows/interface.md": "792ff6ad2f423a636800fc86c6d9871570de42252c3771a0375830f8699cb934",
     ".yggdrasil/model/cli/commands/select/responsibility.md": "9ee22a7df093512250bf3bcd756d42bfeb0b28a16d0c708aa15f955d0531fcf3",
     ".yggdrasil/model/cli/commands/select/interface.md": "294bd59b59d6263d043c997bf3cb091246e886dc35a1d0c206f767f484bbf6df",
-    ".yggdrasil/model/cli/commands/check/responsibility.md": "9341117a0ef06dd4811133d45a211aeccb250c1311c39bef0a9e1e4350c11320",
-    ".yggdrasil/model/cli/commands/check/interface.md": "b16bfb360fab7759987169458e29109e655a89374fd68989017eca94c4653f6b",
     "source/cli/src/bin.ts": "dd90e277e1cc2b547334553be15d035ccf5ab5ac27ae07fdd56dd8353e115294",
     "source/cli/package.json": "d489b0ddeb509ed03d88f304656d74e40043346fe092cd4e32910d7f99e541e3",
-    ".yggdrasil/model/cli/entry/yg-node.yaml": "4c7578a552397a9f096d895fac7671a114b3178d49bb054f28936e41490c21fc"
+    ".yggdrasil/model/cli/commands/check/responsibility.md": "42cd5c397f233e9a90aaed4fc1d5ad933d63eec5aa9453adbf70e0ead430ff41",
+    ".yggdrasil/model/cli/commands/check/interface.md": "bef1f1d4c687b71e9be9c5bd4978d2e6718cbef8280da8ffbcd5e41f5af8e42e"
   },
   "mtimes": {
     ".yggdrasil/model/cli/entry/yg-node.yaml": 1775216154016.4153,
@@ -61,10 +61,10 @@
     ".yggdrasil/model/cli/commands/flows/interface.md": 1772743197462.3708,
     ".yggdrasil/model/cli/commands/select/responsibility.md": 1773081267586.23,
     ".yggdrasil/model/cli/commands/select/interface.md": 1773081311346.194,
-    ".yggdrasil/model/cli/commands/check/responsibility.md": 1775051178829.2788,
-    ".yggdrasil/model/cli/commands/check/interface.md": 1775051171122.0945,
+    ".yggdrasil/model/cli/commands/check/responsibility.md": 1775217699787.0437,
+    ".yggdrasil/model/cli/commands/check/interface.md": 1775217703852.5583,
     "source/cli/src/bin.ts": 1775023244445.4343,
     "source/cli/package.json": 1775048338513.9658
   },
-  "acknowledgeReason": "Migrated mapping format from object to array of groups"
+  "acknowledgeReason": "Updated check command interface documentation to include architecture error section"
 }

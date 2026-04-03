@@ -33,6 +33,10 @@ Errors (<N>):
   Structural:
   ...
 
+  Architecture:
+  E050-E054 <node> — <rule>
+       <message lines>
+
   Coverage:
   ...
 
