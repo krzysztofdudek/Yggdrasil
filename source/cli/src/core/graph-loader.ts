@@ -10,12 +10,14 @@ import type {
   FlowDef,
   SchemaDef,
   YggConfig,
+  ArchitectureDef,
 } from '../model/types.js';
 import { parseConfig } from '../io/config-parser.js';
 import { parseNodeYaml } from '../io/node-parser.js';
 import { parseAspect } from '../io/aspect-parser.js';
 import { parseFlow } from '../io/flow-parser.js';
 import { parseSchema } from '../io/schema-parser.js';
+import { parseArchitecture } from '../io/architecture-parser.js';
 import { readArtifacts } from '../io/artifact-reader.js';
 import { findYggRoot } from '../utils/paths.js';
 
@@ -44,6 +46,10 @@ export async function loadGraph(
     configError = (error as Error).message;
   }
 
+  let architectureError: string | undefined;
+  const { architecture, error: archError } = await loadArchitecture(yggRoot, config);
+  architectureError = archError;
+
   const modelDir = path.join(yggRoot, 'model');
   const nodes = new Map<string, GraphNode>();
   const nodeParseErrors: Array<{ nodePath: string; message: string }> = [];
@@ -65,7 +71,8 @@ export async function loadGraph(
 
   return {
     config,
-    architecture: { node_types: {} }, // Default empty architecture
+    architecture,
+    architectureError,
     configError,
     nodeParseErrors: nodeParseErrors.length > 0 ? nodeParseErrors : undefined,
     nodes,
@@ -74,6 +81,40 @@ export async function loadGraph(
     schemas,
     rootPath: yggRoot,
   };
+}
+
+async function loadArchitecture(
+  yggRoot: string,
+  config: YggConfig,
+): Promise<{ architecture: ArchitectureDef; error?: string }> {
+  const architectureFilePath = path.join(yggRoot, 'yg-architecture.yaml');
+  const nodeTypes = config.node_types ?? {};
+  const fallbackArch: ArchitectureDef = {
+    node_types: Object.fromEntries(
+      Object.entries(nodeTypes).map(([type, nt]) => [
+        type,
+        {
+          description: nt.description,
+          aspects: nt.required_aspects,
+        },
+      ]),
+    ),
+  };
+
+  try {
+    // Try to load yg-architecture.yaml
+    const architecture = await parseArchitecture(architectureFilePath);
+    return { architecture };
+  } catch (error) {
+    // Check if this is a "file not found" error
+    const err = error as NodeJS.ErrnoException;
+    if (err.code === 'ENOENT') {
+      // File doesn't exist - this is normal, just use fallback
+      return { architecture: fallbackArch };
+    }
+    // File exists but parse failed - store error and use fallback
+    return { architecture: fallbackArch, error: (error as Error).message };
+  }
 }
 
 async function scanModelDirectory(
