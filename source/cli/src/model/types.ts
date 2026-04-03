@@ -123,6 +123,8 @@ export interface Relation {
   failure?: string;
   /** For event relations (emits, listens): display name of the event, e.g. OrderPlaced */
   event_name?: string;
+  /** Anchor realizations for integration anchors required by target — maps anchor ID to typed realization */
+  anchors?: Record<string, AnchorRealization>;
 }
 
 export interface GraphNode {

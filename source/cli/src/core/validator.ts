@@ -893,9 +893,9 @@ function checkAnchorRealizations(graph: Graph): ValidationIssue[] {
     for (const rel of node.meta.relations ?? []) {
       if (!STRUCTURAL_TYPES.has(rel.type)) continue;
       const target = graph.nodes.get(rel.target);
-      if (!target?.meta.integration_anchors) continue;
+      if (!target?.meta.integration_aspects) continue;
 
-      for (const anchorId of target.meta.integration_anchors) {
+      for (const anchorId of target.meta.integration_aspects) {
         const realization = rel.anchors?.[anchorId];
         if (!realization) {
           issues.push({
@@ -988,9 +988,9 @@ async function checkAnchorPatterns(graph: Graph): Promise<ValidationIssue[]> {
       if (!STRUCTURAL_TYPES.has(rel.type)) continue;
       if (!rel.anchors) continue;
       const target = graph.nodes.get(rel.target);
-      if (!target?.meta.integration_anchors) continue;
+      if (!target?.meta.integration_aspects) continue;
 
-      for (const anchorId of target.meta.integration_anchors) {
+      for (const anchorId of target.meta.integration_aspects) {
         const realization = rel.anchors[anchorId];
         if (!realization?.regex) continue;
 

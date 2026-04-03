@@ -415,7 +415,7 @@ describe('collectTrackedFiles', () => {
       meta: {
         name: 'DepSvc',
         type: 'service',
-        integration_anchors: ['correlation-id'],
+        integration_aspects: ['correlation-id'],
       },
       artifacts: [
         { filename: 'responsibility.md', content: 'resp' },
@@ -453,7 +453,7 @@ describe('collectTrackedFiles', () => {
     const files = collectTrackedFiles(node, graph);
     const paths = files.map((f) => f.path);
 
-    // Target with integration_anchors should have a synthetic hash entry (not full yg-node.yaml)
+    // Target with integration_aspects should have a synthetic hash entry (not full yg-node.yaml)
     expect(paths).toContain('integration-anchors:dep/svc');
     expect(paths).not.toContain('.yggdrasil/model/dep/svc/yg-node.yaml');
     // Its layer should be relational
@@ -462,13 +462,13 @@ describe('collectTrackedFiles', () => {
     expect(tracked?.syntheticHash).toBeDefined();
   });
 
-  it('does NOT track target yg-node.yaml when dependency has no integration_anchors', () => {
+  it('does NOT track target yg-node.yaml when dependency has no integration_aspects', () => {
     const target: GraphNode = {
       path: 'dep/svc',
       meta: {
         name: 'DepSvc',
         type: 'service',
-        // No integration_anchors
+        // No integration_aspects
       },
       artifacts: [
         { filename: 'responsibility.md', content: 'resp' },

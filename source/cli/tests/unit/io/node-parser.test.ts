@@ -200,7 +200,7 @@ type: module
     expect(meta.relations).toBeUndefined();
     expect(meta.mapping).toBeUndefined();
     expect(meta.blackbox).toBe(false);
-    expect(meta.integration_anchors).toBeUndefined();
+    expect(meta.integration_aspects).toBeUndefined();
 
     await rm(tmpDir, { recursive: true, force: true });
   });

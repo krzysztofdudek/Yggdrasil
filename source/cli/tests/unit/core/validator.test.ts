@@ -1077,7 +1077,7 @@ describe('validator', () => {
     it('E040: integration anchor not realized on relation', async () => {
       const graph = createGraph();
       graph.nodes.set('target', createNode('target', {
-        integration_anchors: ['correlation-id'],
+        integration_aspects: ['correlation-id'],
         mapping: { paths: ['src/target/'] },
       }));
       graph.nodes.set('consumer', createNode('consumer', {
@@ -1110,7 +1110,7 @@ describe('validator', () => {
     it('E041: unknown type on relation anchor', async () => {
       const graph = createGraph();
       graph.nodes.set('target', createNode('target', {
-        integration_anchors: ['corr-id'],
+        integration_aspects: ['corr-id'],
         mapping: { paths: ['src/target/'] },
       }));
       graph.nodes.set('consumer', createNode('consumer', {

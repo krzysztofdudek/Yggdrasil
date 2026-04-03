@@ -246,8 +246,8 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
     for (const [, groupCauses] of causeGroups) {
       const primaryCause = groupCauses[0];
 
-      // Check if this is an integration_anchors cascade (dependency yg-node.yaml change
-      // on a target that has integration_anchors, OR synthetic integration-anchors: entry)
+      // Check if this is an integration_aspects cascade (dependency yg-node.yaml change
+      // on a target that has integration_aspects, OR synthetic integration-anchors: entry)
       const isIntegrationAnchorsCascade = primaryCause.layer === 'relational'
         && (groupCauses.some(c => c.file.startsWith('integration-anchors:'))
           || (groupCauses.some(c => c.file.endsWith('yg-node.yaml'))
@@ -256,7 +256,7 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
               const match = primaryCause.description.match(/dependency '([^']+)'/);
               if (!match) return false;
               const target = graph.nodes.get(match[1]);
-              return (target?.meta.integration_anchors?.length ?? 0) > 0;
+              return (target?.meta.integration_aspects?.length ?? 0) > 0;
             })()));
 
       let message: string;
@@ -651,9 +651,9 @@ async function checkNodeAnchorsPass(graph: Graph, nodePath: string): Promise<boo
     if (!STRUCTURAL_TYPES.has(rel.type)) continue;
     if (!rel.anchors) continue;
     const target = graph.nodes.get(rel.target);
-    if (!target?.meta.integration_anchors) continue;
+    if (!target?.meta.integration_aspects) continue;
     hasAnyRealizedAnchors = true;
-    for (const anchorId of target.meta.integration_anchors) {
+    for (const anchorId of target.meta.integration_aspects) {
       const realization = rel.anchors[anchorId];
       if (!realization?.regex) continue;
       try {

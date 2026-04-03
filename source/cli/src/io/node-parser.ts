@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { parse as parseYaml } from 'yaml';
-import type { NodeAspectEntry, NodeMeta, MappingGroup, MappingGroupAspect, MappingGroupAnchor, Relation, RelationType } from '../model/types.js';
+import type { NodeAspectEntry, NodeMeta, MappingGroup, MappingGroupAspect, MappingGroupAnchor, Relation, RelationType, AnchorRealization } from '../model/types.js';
 
 const RELATION_TYPES: RelationType[] = [
   'uses',
