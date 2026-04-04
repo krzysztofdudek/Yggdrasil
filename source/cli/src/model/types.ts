@@ -12,6 +12,7 @@ export interface YggConfig {
   name: string;
   node_types?: Record<string, NodeTypeConfig>;
   quality?: QualityConfig;
+  llm?: LlmConfig;
 }
 
 // ============================================================
@@ -21,7 +22,6 @@ export interface YggConfig {
 export interface ArchitectureNodeType {
   description: string;
   aspects?: string[];
-  integration_aspects?: string[];
   parents?: string[];
   relations?: Partial<Record<RelationType, string[]>>;
 }
@@ -69,51 +69,51 @@ export interface QualityConfig {
 
 export type RelationType = 'uses' | 'calls' | 'extends' | 'implements' | 'emits' | 'listens';
 
-/** Typed anchor realization — currently supports regex. Future: ast, claim. */
-export interface AnchorRealization {
-  regex?: string;
-  [key: string]: unknown; // Forward compatibility for v5 types (ast, claim)
+/** Claim-based anchor — natural language statement verified by LLM */
+export interface ClaimAnchor {
+  id: string;
+  claim: string;
 }
 
-// ============================================================
-// Mapping Groups
-// ============================================================
-
-export interface MappingGroupAnchor {
-  regex: string;
-  rationale: string;
+/** Port on a target node — consumers must satisfy port's aspects */
+export interface PortDef {
+  description: string;
+  aspects: string[];
 }
 
-export interface MappingGroupAspect {
-  aspect: string;
-  anchors: Record<string, MappingGroupAnchor>;
+/** LLM configuration — merged from yg-config.yaml + yg-secrets.yaml */
+export interface LlmConfig {
+  provider: 'ollama' | 'openai' | 'anthropic';
+  model: string;
+  endpoint?: string;
+  api_key?: string;
+  temperature: number;
+  consensus: number;
+  max_tokens: number | 'auto';
 }
 
-export interface MappingGroup {
-  paths: string[];
-  aspects?: MappingGroupAspect[];
+/** Cached LLM verification result per claim */
+export interface ClaimVerificationResult {
+  satisfied: boolean;
+  reason: string;
 }
 
-export interface LegacyNodeAspectEntry {
-  aspect: string;
-  exceptions?: string[];
-  /** Anchor realizations — maps anchor ID to typed realization object */
-  anchors?: Record<string, AnchorRealization>;
+/** Cached LLM artifact review result */
+export interface ArtifactReviewResult {
+  current: boolean;
+  reason: string;
 }
-
-// Compatibility aliases for breaking changes
-export type NodeAspectEntry = LegacyNodeAspectEntry;
-export type NodeMapping = MappingGroup[];
 
 export interface NodeMeta {
   name: string;
   type: string;
   description?: string;
   aspects?: string[];
-  integration_aspects?: string[];
+  ports?: Record<string, PortDef>;
   blackbox?: boolean;
   relations?: Relation[];
-  mapping?: MappingGroup[];
+  /** Flat list of file/directory paths relative to repo root */
+  mapping?: string[];
 }
 
 export interface Relation {
@@ -155,11 +155,10 @@ export interface AspectDef {
   name: string;
   id: string;
   description?: string;
-  /** Ids of aspects to include automatically (composition) */
   implies?: string[];
-  /** Abstract proof-point IDs that nodes carrying this aspect must realize.
+  /** Claim-based anchors — natural language statements verified by LLM.
    *  Always present (parser defaults to []). E039 fires when empty. */
-  anchors: string[];
+  anchors: ClaimAnchor[];
   artifacts: Artifact[];
 }
 
@@ -398,6 +397,10 @@ export interface DriftNodeState {
   mtimes?: Record<string, number>; // path → mtime in ms — for mtime-based drift optimization
   /** Reason provided with --acknowledge, stored for audit trail */
   acknowledgeReason?: string;
+  /** Cached claim verification results from last LLM-powered approve */
+  claimResults?: Record<string, Record<string, ClaimVerificationResult>>;
+  /** Cached artifact review results from last LLM-powered approve */
+  artifactReview?: Record<string, ArtifactReviewResult>;
 }
 
 /** Upstream change with type annotation for CLI messages */
