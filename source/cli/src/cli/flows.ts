@@ -1,29 +1,37 @@
 import { Command } from 'commander';
-import { stringify as yamlStringify } from 'yaml';
 import { loadGraph } from '../core/graph-loader.js';
 import { findYggRoot } from '../utils/paths.js';
+import type { Graph } from '../model/types.js';
+
+export function formatFlowsOutput(graph: Graph): string {
+  if (graph.flows.length === 0) return '';
+
+  const lines: string[] = [];
+
+  for (const flow of graph.flows.sort((a, b) => a.name.localeCompare(b.name))) {
+    const displayName = flow.description
+      ? `${flow.name} — ${flow.description}`
+      : flow.name;
+    lines.push(displayName);
+    lines.push(`  Participants: ${flow.nodes.length} nodes (${flow.nodes.sort().join(', ')})`);
+    if (flow.aspects && flow.aspects.length > 0) {
+      lines.push(`  Aspects: ${flow.aspects.join(', ')}`);
+    }
+    lines.push('');
+  }
+
+  return lines.join('\n');
+}
 
 export function registerFlowsCommand(program: Command): void {
   program
     .command('flows')
-    .description('List flows with metadata (YAML output)')
+    .description('List flows with participant counts and aspects')
     .action(async () => {
       try {
         const yggRoot = await findYggRoot(process.cwd());
         const graph = await loadGraph(yggRoot);
-        const output = graph.flows
-          .sort((a, b) => a.name.localeCompare(b.name))
-          .map((flow) => {
-            const entry: Record<string, unknown> = {
-              name: flow.name,
-              participants: flow.nodes.length,
-              nodes: flow.nodes.sort(),
-            };
-            if (flow.description) entry.description = flow.description;
-            if (flow.aspects && flow.aspects.length > 0) entry.aspects = flow.aspects;
-            return entry;
-          });
-        process.stdout.write(yamlStringify(output));
+        process.stdout.write(formatFlowsOutput(graph));
       } catch (error) {
         const err = error as NodeJS.ErrnoException;
         if (err.code === 'ENOENT') {
