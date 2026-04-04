@@ -8,7 +8,6 @@ import {
   scanUncoveredFiles,
   buildCoverageIssue,
   detectOrphanedDriftState,
-  computeHealthScore,
   runCheck,
 } from '../../../src/core/check.js';
 import type { CheckIssue } from '../../../src/core/check.js';
@@ -670,34 +669,6 @@ describe('detectOrphanedDriftState', () => {
   });
 });
 
-// ── computeHealthScore ────────────────────────────────────
-
-describe('computeHealthScore', () => {
-  it('returns 100 for zero issues', () => {
-    expect(computeHealthScore([])).toBe(100);
-  });
-
-  it('deducts -5 for E020 and E021, -3 for other errors, -1 for warnings', () => {
-    const issues: CheckIssue[] = [
-      { severity: 'error', code: 'E020', rule: 'direct-drift', message: 'x' },
-      { severity: 'error', code: 'E021', rule: 'cascade-drift', message: 'x' },
-      { severity: 'error', code: 'E001', rule: 'invalid-node-yaml', message: 'x' },
-      { severity: 'warning', code: 'W001', rule: 'budget-warning', message: 'x' },
-    ];
-    // 100 - 5 - 5 - 3 - 1 = 86
-    expect(computeHealthScore(issues)).toBe(86);
-  });
-
-  it('floors at 0', () => {
-    const issues: CheckIssue[] = Array.from({ length: 50 }, (_, i) => ({
-      severity: 'error' as const,
-      code: 'E001',
-      rule: 'x',
-      message: `error ${i}`,
-    }));
-    expect(computeHealthScore(issues)).toBe(0);
-  });
-});
 
 // ── computeSuggestedNext (tested indirectly through runCheck) ──
 
@@ -783,10 +754,7 @@ describe('runCheck', () => {
     const graph = await loadGraph(tmpDir);
     // Pass all git files as covered
     const result = await runCheck(graph, ['src/svc/index.ts']);
-    expect(result.healthScore).toBeGreaterThan(0);
     expect(result.nodeCount).toBeGreaterThanOrEqual(1);
-    // suggestedNext can be null or string depending on completeness errors
-    expect(typeof result.healthScore).toBe('number');
     expect(result.projectName).toBe('Test');
     expect(result.aspectCount).toBeGreaterThanOrEqual(0);
     expect(result.flowCount).toBeGreaterThanOrEqual(0);

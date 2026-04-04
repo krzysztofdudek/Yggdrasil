@@ -42,7 +42,7 @@ export function registerCheckCommand(program: Command): void {
 
 // ── Output formatting ──────────────────────────────────────
 
-function formatOutput(result: CheckResult): void {
+export function formatOutput(result: CheckResult): void {
   const lines: string[] = [];
 
   // Header
@@ -56,7 +56,6 @@ function formatOutput(result: CheckResult): void {
     const pct = Math.round((result.coveredFiles / result.totalFiles) * 100);
     lines.push(`Coverage: ${result.coveredFiles}/${result.totalFiles} source files (${pct}%)`);
   }
-  lines.push(`Health: ${result.healthScore}/100`);
   lines.push('');
 
   // Separate by severity

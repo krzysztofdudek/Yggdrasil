@@ -14,8 +14,6 @@ describe('check-pipeline', () => {
     const result = await runCheck(graph, null);
 
     expect(result.nodeCount).toBeGreaterThan(0);
-    expect(result.healthScore).toBeGreaterThanOrEqual(0);
-    expect(result.healthScore).toBeLessThanOrEqual(100);
     expect(result.issues).toBeDefined();
     expect(result.suggestedNext === null || typeof result.suggestedNext === 'string').toBe(true);
   });

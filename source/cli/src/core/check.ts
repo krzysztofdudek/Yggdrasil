@@ -50,7 +50,6 @@ export interface CheckResult {
   flowCount: number;
   coveredFiles: number;
   totalFiles: number;
-  healthScore: number;
   issues: CheckIssue[];
   /** Suggested next command based on highest-priority error */
   suggestedNext: string | null;
@@ -399,27 +398,6 @@ export async function detectOrphanedDriftState(graph: Graph): Promise<string[]> 
     .sort();
 }
 
-// ── Health score ──────────────────────────────────────────
-
-/**
- * Compute health score (0-100). Start at 100, deduct per issue.
- * Weights: E020/E021 = -5, other errors = -3, warnings = -1.
- * E022 counts as one error regardless of file count.
- */
-export function computeHealthScore(issues: CheckIssue[]): number {
-  let score = 100;
-  for (const issue of issues) {
-    if (issue.severity === 'warning') {
-      score -= 1;
-    } else if (issue.code === 'E020' || issue.code === 'E021') {
-      score -= 5;
-    } else {
-      score -= 3;
-    }
-  }
-  return Math.max(0, score);
-}
-
 // ── Check orchestrator ────────────────────────────────────
 
 /**
@@ -479,7 +457,6 @@ export async function runCheck(graph: Graph, gitTrackedFiles: string[] | null): 
     nodeTypeCounts.set(t, (nodeTypeCounts.get(t) ?? 0) + 1);
   }
 
-  const healthScore = computeHealthScore(allIssues);
   const suggestedNext = computeSuggestedNext(allIssues);
 
   return {
@@ -490,7 +467,6 @@ export async function runCheck(graph: Graph, gitTrackedFiles: string[] | null): 
     flowCount: graph.flows.length,
     coveredFiles,
     totalFiles,
-    healthScore,
     issues: allIssues,
     suggestedNext,
   };
