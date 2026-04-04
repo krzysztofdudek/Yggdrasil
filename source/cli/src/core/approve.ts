@@ -1,9 +1,13 @@
 import type {
   Graph,
+  GraphNode,
   ApproveResult,
   AnnotatedChange,
   TrackedFileLayer,
+  ClaimVerificationResult,
+  ArtifactReviewResult,
 } from '../model/types.js';
+import type { LlmProvider } from '../llm/types.js';
 import {
   readDriftState,
   readNodeDriftState,
@@ -14,11 +18,20 @@ import { hashTrackedFiles } from '../utils/hash.js';
 import { collectTrackedFiles } from './context-files.js';
 import { normalizeMappingPaths } from '../utils/paths.js';
 import { appendAuditEntry } from '../io/audit-log.js';
+import { computeEffectiveAspects } from './effective-aspects.js';
+import { collectAncestors } from './context-builder.js';
+import { verifyClaims } from './claim-verifier.js';
+import { reviewArtifacts } from './artifact-reviewer.js';
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 export interface ApproveOptions {
   /** Conscious exception — approve without bilateral changes */
   acknowledge?: string;
+  /** LLM provider for semantic verification (E055/E056) */
+  llmProvider?: LlmProvider;
+  /** Max tokens for LLM calls — resolved from config or queried from provider */
+  maxTokens?: number;
 }
 
 /**
@@ -30,7 +43,7 @@ export async function approveNode(
   nodePath: string,
   options: ApproveOptions = {},
 ): Promise<ApproveResult> {
-  const { acknowledge } = options;
+  const { acknowledge, llmProvider } = options;
 
   // Validate acknowledge reason if provided
   if (acknowledge !== undefined && acknowledge.trim() === '') {
@@ -308,6 +321,88 @@ export async function approveNode(
     }
   }
 
+  // ── LLM verification (after three-axis, before recording baseline) ──
+  let claimResults: Record<string, Record<string, ClaimVerificationResult>> | undefined;
+  let artifactReviewResults: Record<string, ArtifactReviewResult> | undefined;
+  let llmSkipped = false;
+  let e055Violations: Array<{ aspect: string; claim: string; reason: string }> = [];
+  let e056Violations: Array<{ name: string; reason: string }> = [];
+
+  if (action !== 'refused' && !isBlackbox && llmProvider) {
+    const resolvedMaxTokens = options.maxTokens
+      ?? (await llmProvider.getContextWindowSize() ?? 8192);
+
+    const aspectsWithClaims = resolveAspectsWithClaims(node, graph);
+    const artifacts = node.artifacts
+      .filter(a => a.filename.endsWith('.md'))
+      .map(a => ({ name: a.filename, content: a.content }));
+
+    const sourceFilePaths = Object.keys(fileHashes).filter(f => {
+      const layer = resolveLayer(f);
+      return layer === 'source' || (!f.replace(/\\/g, '/').startsWith(yggPrefix) && !layer);
+    });
+    const sourceFiles = await loadSourceFiles(sourceFilePaths, projectRoot);
+
+    if (aspectsWithClaims.length > 0) {
+      claimResults = await verifyClaims({
+        provider: llmProvider,
+        aspects: aspectsWithClaims,
+        sourceFiles,
+        consensus: 1,
+        maxTokens: resolvedMaxTokens,
+      });
+      for (const [aspectId, claims] of Object.entries(claimResults)) {
+        for (const [claimId, res] of Object.entries(claims)) {
+          if (!res.satisfied) {
+            e055Violations.push({ aspect: aspectId, claim: claimId, reason: res.reason });
+          }
+        }
+      }
+    }
+
+    if (artifacts.length > 0 && sourceFiles.length > 0) {
+      artifactReviewResults = await reviewArtifacts({
+        provider: llmProvider,
+        artifacts,
+        sourceFiles,
+        maxTokens: resolvedMaxTokens,
+      });
+      for (const [name, review] of Object.entries(artifactReviewResults)) {
+        if (!review.current) {
+          e056Violations.push({ name, reason: review.reason });
+        }
+      }
+    }
+
+    if (e055Violations.length > 0 || e056Violations.length > 0) {
+      if (!acknowledge) {
+        const gcPaths = await runGC(graph);
+        return {
+          action: 'refused',
+          previousHash: storedEntry.hash,
+          currentHash: canonicalHash,
+          refuseReason: 'LLM verification found issues',
+          claimResults,
+          artifactReviewResults,
+          e055Violations,
+          e056Violations,
+          axes,
+          gcPaths,
+          blackboxBlocked: false,
+          antiLaunderingBlocked: false,
+          acknowledgeAttempted: false,
+          isBlackbox,
+        };
+      }
+      // acknowledge overrides LLM refusal — mark as acknowledged
+      action = 'acknowledged';
+    }
+  } else if (!llmProvider) {
+    llmSkipped = true;
+  } else if (isBlackbox) {
+    llmSkipped = true;
+  }
+
   // Record baseline if accepted — preserve previous acknowledgeReason for audit trail
   if (action !== 'refused') {
     const stateToWrite = {
@@ -316,6 +411,8 @@ export async function approveNode(
       mtimes: fileMtimes,
       // New acknowledge reason replaces old; regular approve preserves existing reason
       acknowledgeReason: acknowledge ?? storedEntry.acknowledgeReason,
+      ...(claimResults ? { claimResults } : {}),
+      ...(artifactReviewResults ? { artifactReview: artifactReviewResults } : {}),
     };
     await writeNodeDriftState(graph.rootPath, nodePath, stateToWrite);
 
@@ -372,6 +469,11 @@ export async function approveNode(
     acknowledgeAttempted: !!acknowledge,
     isBlackbox,
     gcPaths,
+    claimResults,
+    artifactReviewResults,
+    llmSkipped: llmSkipped || undefined,
+    e055Violations: e055Violations.length > 0 ? e055Violations : undefined,
+    e056Violations: e056Violations.length > 0 ? e056Violations : undefined,
   };
 }
 
@@ -405,4 +507,59 @@ function getChildMappingExclusions(graph: Graph, nodePath: string): string[] {
 async function runGC(graph: Graph): Promise<string[]> {
   const validPaths = new Set(graph.nodes.keys());
   return garbageCollectDriftState(graph.rootPath, validPaths);
+}
+
+/** Load source file contents from disk */
+async function loadSourceFiles(
+  filePaths: string[],
+  projectRoot: string,
+): Promise<Array<{ path: string; content: string }>> {
+  const results: Array<{ path: string; content: string }> = [];
+  for (const filePath of filePaths) {
+    try {
+      const content = await readFile(path.join(projectRoot, filePath), 'utf-8');
+      results.push({ path: filePath, content });
+    } catch {
+      // Skip unreadable files (deleted, binary, etc.)
+    }
+  }
+  return results;
+}
+
+/** Resolve aspects with claims for LLM verification */
+function resolveAspectsWithClaims(
+  node: GraphNode,
+  graph: Graph,
+): Array<{ id: string; claims: Array<{ id: string; claim: string }>; contentFile: string }> {
+  const ancestors = collectAncestors(node);
+  const parentTypes = ancestors.map(a => a.meta.type);
+  const flowAspects = graph.flows
+    .filter(f => f.nodes?.includes(node.path))
+    .flatMap(f => f.aspects ?? []);
+
+  const effective = computeEffectiveAspects({
+    nodeType: node.meta.type,
+    architecture: graph.architecture,
+    parentTypes,
+    ownAspects: node.meta.aspects ?? [],
+    flowAspects,
+    allAspects: graph.aspects,
+    allFlows: graph.flows,
+  });
+
+  const result: Array<{ id: string; claims: Array<{ id: string; claim: string }>; contentFile: string }> = [];
+  for (const aspectId of effective.regular) {
+    const aspectDef = graph.aspects.find(a => a.id === aspectId);
+    if (!aspectDef || aspectDef.anchors.length === 0) continue;
+    const contentFile = aspectDef.artifacts
+      .filter(a => a.filename.endsWith('.md'))
+      .map(a => a.content)
+      .join('\n\n') || `Aspect: ${aspectDef.name}`;
+    result.push({
+      id: aspectId,
+      claims: aspectDef.anchors.map(a => ({ id: a.id, claim: a.claim })),
+      contentFile,
+    });
+  }
+  return result;
 }

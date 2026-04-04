@@ -443,6 +443,16 @@ export interface ApproveResult {
   isBlackbox?: boolean;
   /** GC'd orphaned drift state paths */
   gcPaths?: string[];
+  /** LLM claim verification results (E055) */
+  claimResults?: Record<string, Record<string, ClaimVerificationResult>>;
+  /** LLM artifact review results (E056) */
+  artifactReviewResults?: Record<string, ArtifactReviewResult>;
+  /** Whether LLM verification was skipped (no provider) */
+  llmSkipped?: boolean;
+  /** E055 structured violations for programmatic consumption */
+  e055Violations?: Array<{ aspect: string; claim: string; reason: string }>;
+  /** E056 structured violations for programmatic consumption */
+  e056Violations?: Array<{ name: string; reason: string }>;
 }
 
 /** Map: node-path → DriftNodeState. Legacy string format no longer supported. */
