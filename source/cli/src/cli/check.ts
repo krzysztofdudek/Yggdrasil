@@ -142,7 +142,25 @@ export function formatOutput(result: CheckResult): void {
     }
 
     if (architecture.length > 0) {
-      lines.push('  Architecture:');
+      if (architecture.length > 10) {
+        // Summary header — group by unique dangling aspect
+        lines.push(`  Architecture (${architecture.length} errors):`);
+        const aspectNodes = new Map<string, Set<string>>();
+        for (const issue of architecture) {
+          const match = issue.message.match(/Aspect '([^']+)'/);
+          if (match) {
+            const nodes = aspectNodes.get(match[1]) ?? new Set<string>();
+            if (issue.nodePath) nodes.add(issue.nodePath);
+            aspectNodes.set(match[1], nodes);
+          }
+        }
+        for (const [aspect, nodes] of [...aspectNodes.entries()].sort((a, b) => b[1].size - a[1].size).slice(0, 5)) {
+          lines.push(`    '${aspect}' not defined — referenced by ${nodes.size} nodes`);
+        }
+        lines.push('');
+      } else {
+        lines.push('  Architecture:');
+      }
       for (const issue of sortByNodePath(architecture)) {
         lines.push(`  ${issue.code} ${issue.nodePath ?? ''} — ${issue.rule}`);
         for (const line of issue.message.split('\n')) {

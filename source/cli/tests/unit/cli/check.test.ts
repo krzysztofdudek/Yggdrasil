@@ -17,13 +17,13 @@ function makeCheckResult(overrides: Partial<CheckResult> = {}): CheckResult {
   };
 }
 
-function makeError(code: string, message: string): CheckIssue {
+function makeError(code: string, message: string, nodePath?: string): CheckIssue {
   return {
     severity: 'error',
     code,
     rule: code,
     message,
-    nodePath: 'some/node',
+    nodePath: nodePath ?? 'some/node',
   };
 }
 
@@ -78,5 +78,17 @@ describe('formatOutput', () => {
     }));
     expect(output).toContain('Warnings (1)');
     expect(output).toContain('budget warning message');
+  });
+
+  it('shows summary header when >10 E050 errors', () => {
+    const issues = Array.from({ length: 15 }, (_, i) => makeError('E050', `Aspect 'auth' referenced by node-${i}...`, `node-${i}`));
+    formatOutput(makeCheckResult({ issues }));
+    expect(output).toContain('Architecture (15 errors)');
+  });
+
+  it('no summary header when <=10 E050 errors', () => {
+    const issues = Array.from({ length: 5 }, (_, i) => makeError('E050', `msg`, `node-${i}`));
+    formatOutput(makeCheckResult({ issues }));
+    expect(output).not.toContain('Architecture (5 errors)');
   });
 });
