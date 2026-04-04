@@ -61,6 +61,8 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
   issues.push(...checkUnpairedEvents(graph));
   issues.push(...checkArchitectureConstraints(graph));
   issues.push(...checkPortAspectsDefined(graph));
+  issues.push(...checkPortConsumes(graph));
+  issues.push(...checkOrphanedAspects(graph));
 
   let filtered = issues;
   let nodesScanned = graph.nodes.size;
@@ -1112,3 +1114,119 @@ function checkArchitectureParents(graph: Graph): ValidationIssue[] {
 // getFlowAspects removed — was used by old mapping group aspect checking
 
 // getAspectSource removed — was used by old mapping group aspect checking (E050, E054)
+
+/**
+ * E057 — missing-consumes
+ * When a relation target has non-empty ports, the consumer must declare which port(s) it consumes.
+ *
+ * E058 — unknown-port
+ * When a consumer's consumes list references a port name that does not exist on the target.
+ */
+function checkPortConsumes(graph: Graph): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+
+  for (const [nodePath, node] of graph.nodes) {
+    for (const rel of node.meta.relations ?? []) {
+      const target = graph.nodes.get(rel.target);
+      if (!target?.meta.ports || Object.keys(target.meta.ports).length === 0) continue;
+
+      // E057: target has ports but consumer has no consumes
+      if (!rel.consumes || rel.consumes.length === 0) {
+        const portNames = Object.keys(target.meta.ports);
+        issues.push({
+          severity: 'error',
+          code: 'E057',
+          rule: 'missing-consumes',
+          nodePath,
+          message:
+            `Relation: ${rel.type} -> ${rel.target}\n` +
+            `Target has ports: [${portNames.join(', ')}]\n` +
+            `Add consumes: [<port-names>] to this relation in yg-node.yaml.`,
+        });
+        continue;
+      }
+
+      // E058: consumes references non-existent port
+      for (const portName of rel.consumes) {
+        if (!(portName in target.meta.ports)) {
+          const available = Object.keys(target.meta.ports);
+          issues.push({
+            severity: 'error',
+            code: 'E058',
+            rule: 'unknown-port',
+            nodePath,
+            message:
+              `Relation: ${rel.type} -> ${rel.target}\n` +
+              `Port '${portName}' not found in target's ports.\n` +
+              `Available ports: [${available.join(', ')}]`,
+          });
+        }
+      }
+    }
+  }
+
+  return issues;
+}
+
+/**
+ * W006 — orphaned-aspect
+ * An aspect defined in aspects/ is not referenced by any node, architecture type, or flow.
+ * Implied aspects are exempt when the aspect that implies them is itself referenced.
+ */
+function checkOrphanedAspects(graph: Graph): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const referenced = new Set<string>();
+
+  // Collect direct references from nodes (aspects field and port aspects)
+  for (const [, node] of graph.nodes) {
+    for (const a of node.meta.aspects ?? []) referenced.add(a);
+    if (node.meta.ports) {
+      for (const port of Object.values(node.meta.ports)) {
+        for (const a of port.aspects) referenced.add(a);
+      }
+    }
+  }
+
+  // Collect references from architecture node_types
+  for (const typeDef of Object.values(graph.architecture?.node_types ?? {})) {
+    for (const a of typeDef.aspects ?? []) referenced.add(a);
+  }
+
+  // Collect references from flows
+  for (const flow of graph.flows) {
+    for (const a of flow.aspects ?? []) referenced.add(a);
+  }
+
+  // Propagate: aspects implied by a referenced aspect are also considered referenced
+  // (iterate to fixpoint in case of chains)
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const aspect of graph.aspects) {
+      if (referenced.has(aspect.id) && aspect.implies) {
+        for (const implied of aspect.implies) {
+          if (!referenced.has(implied)) {
+            referenced.add(implied);
+            changed = true;
+          }
+        }
+      }
+    }
+  }
+
+  for (const aspect of graph.aspects) {
+    if (!referenced.has(aspect.id)) {
+      issues.push({
+        severity: 'warning',
+        code: 'W006',
+        rule: 'orphaned-aspect',
+        message:
+          `Aspect '${aspect.id}' is defined but not referenced by any node,\n` +
+          `architecture type, or flow.\n` +
+          `Either add it to a node/architecture/flow or remove it.`,
+      });
+    }
+  }
+
+  return issues;
+}

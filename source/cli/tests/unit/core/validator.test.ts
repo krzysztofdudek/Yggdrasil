@@ -1425,6 +1425,169 @@ describe('validator', () => {
     });
   });
 
+  describe('E057 missing-consumes', () => {
+    it('fires when relation target has ports but consumer has no consumes', async () => {
+      const graph = createGraph({
+        aspects: [{ name: 'Audit', id: 'valid-tag', anchors: [{ id: 'proof', claim: 'Proof' }], artifacts: [] }],
+      });
+      graph.nodes.set('provider', createNode('provider', {
+        ports: { charge: { description: 'Pay', aspects: ['valid-tag'] } },
+      }));
+      graph.nodes.set('consumer', createNode('consumer', {
+        relations: [{ target: 'provider', type: 'calls' }],
+      }));
+
+      const result = await validate(graph);
+      const e057 = result.issues.filter(i => i.code === 'E057');
+      expect(e057).toContainEqual(expect.objectContaining({
+        code: 'E057', rule: 'missing-consumes',
+      }));
+    });
+
+    it('does not fire when target has empty ports (ports: {})', async () => {
+      const graph = createGraph();
+      graph.nodes.set('provider', createNode('provider', { ports: {} }));
+      graph.nodes.set('consumer', createNode('consumer', {
+        relations: [{ target: 'provider', type: 'calls' }],
+      }));
+
+      const result = await validate(graph);
+      expect(result.issues.filter(i => i.code === 'E057')).toHaveLength(0);
+    });
+
+    it('does not fire when target has no ports', async () => {
+      const graph = createGraph();
+      graph.nodes.set('provider', createNode('provider'));
+      graph.nodes.set('consumer', createNode('consumer', {
+        relations: [{ target: 'provider', type: 'calls' }],
+      }));
+
+      const result = await validate(graph);
+      expect(result.issues.filter(i => i.code === 'E057')).toHaveLength(0);
+    });
+
+    it('does not fire when consumer has consumes field', async () => {
+      const graph = createGraph({
+        aspects: [{ name: 'Audit', id: 'valid-tag', anchors: [{ id: 'proof', claim: 'Proof' }], artifacts: [] }],
+      });
+      graph.nodes.set('provider', createNode('provider', {
+        ports: { charge: { description: 'Pay', aspects: ['valid-tag'] } },
+      }));
+      graph.nodes.set('consumer', createNode('consumer', {
+        relations: [{ target: 'provider', type: 'calls', consumes: ['charge'] }],
+      }));
+
+      const result = await validate(graph);
+      expect(result.issues.filter(i => i.code === 'E057')).toHaveLength(0);
+    });
+  });
+
+  describe('E058 unknown-port', () => {
+    it('fires when consumes references non-existent port', async () => {
+      const graph = createGraph({
+        aspects: [{ name: 'Audit', id: 'valid-tag', anchors: [{ id: 'proof', claim: 'Proof' }], artifacts: [] }],
+      });
+      graph.nodes.set('provider', createNode('provider', {
+        ports: { charge: { description: 'Pay', aspects: ['valid-tag'] } },
+      }));
+      graph.nodes.set('consumer', createNode('consumer', {
+        relations: [{ target: 'provider', type: 'calls', consumes: ['nonexistent'] }],
+      }));
+
+      const result = await validate(graph);
+      expect(result.issues).toContainEqual(expect.objectContaining({
+        code: 'E058', rule: 'unknown-port',
+      }));
+    });
+
+    it('does not fire when consumes references a valid port', async () => {
+      const graph = createGraph({
+        aspects: [{ name: 'Audit', id: 'valid-tag', anchors: [{ id: 'proof', claim: 'Proof' }], artifacts: [] }],
+      });
+      graph.nodes.set('provider', createNode('provider', {
+        ports: { charge: { description: 'Pay', aspects: ['valid-tag'] } },
+      }));
+      graph.nodes.set('consumer', createNode('consumer', {
+        relations: [{ target: 'provider', type: 'calls', consumes: ['charge'] }],
+      }));
+
+      const result = await validate(graph);
+      expect(result.issues.filter(i => i.code === 'E058')).toHaveLength(0);
+    });
+  });
+
+  describe('W006 orphaned-aspect', () => {
+    it('fires when aspect is not used by any node, architecture, or flow', async () => {
+      const graph = createGraph({
+        aspects: [
+          { name: 'Valid', id: 'valid-tag', anchors: [{ id: 'proof-point', claim: 'Has a proof point' }], description: 'Referenced', artifacts: [] },
+          { name: 'Orphan', id: 'orphan-aspect', anchors: [{ id: 'proof', claim: 'Proof' }], description: 'Never used', artifacts: [] },
+        ],
+      });
+      graph.nodes.set('a', createNode('a', { aspects: ['valid-tag'] }));
+
+      const result = await validate(graph);
+      const w006 = result.issues.filter(i => i.code === 'W006');
+      expect(w006).toContainEqual(expect.objectContaining({
+        code: 'W006', rule: 'orphaned-aspect',
+      }));
+      // 'valid-tag' is referenced so should not appear
+      expect(w006.every(i => !i.message.includes('valid-tag'))).toBe(true);
+    });
+
+    it('does not fire when aspect is referenced by a node', async () => {
+      const graph = createGraph({
+        aspects: [{ name: 'Used', id: 'valid-tag', anchors: [{ id: 'proof', claim: 'Proof' }], description: 'Used', artifacts: [] }],
+      });
+      graph.nodes.set('a', createNode('a', { aspects: ['valid-tag'] }));
+
+      const result = await validate(graph);
+      expect(result.issues.filter(i => i.code === 'W006')).toHaveLength(0);
+    });
+
+    it('does not fire when aspect is referenced by a port', async () => {
+      const graph = createGraph({
+        aspects: [{ name: 'Used', id: 'valid-tag', anchors: [{ id: 'proof', claim: 'Proof' }], description: 'Used', artifacts: [] }],
+      });
+      graph.nodes.set('a', createNode('a', {
+        ports: { api: { description: 'API', aspects: ['valid-tag'] } },
+      }));
+
+      const result = await validate(graph);
+      expect(result.issues.filter(i => i.code === 'W006')).toHaveLength(0);
+    });
+
+    it('does not fire when aspect is referenced by a flow', async () => {
+      const graph = createGraph({
+        aspects: [{ name: 'Used', id: 'valid-tag', anchors: [{ id: 'proof', claim: 'Proof' }], description: 'Used', artifacts: [] }],
+      });
+      graph.nodes.set('a', createNode('a'));
+      graph.flows.push({
+        path: 'checkout-flow',
+        name: 'Checkout',
+        nodes: ['a'],
+        aspects: ['valid-tag'],
+        artifacts: [{ filename: 'description.md', content: 'x'.repeat(60) }],
+      });
+
+      const result = await validate(graph);
+      expect(result.issues.filter(i => i.code === 'W006')).toHaveLength(0);
+    });
+
+    it('does not fire for implied aspects when the implying aspect is referenced', async () => {
+      const graph = createGraph({
+        aspects: [
+          { name: 'HIPAA', id: 'hipaa', anchors: [{ id: 'proof', claim: 'Proof' }], description: 'Used', implies: ['audit'], artifacts: [] },
+          { name: 'Audit', id: 'audit', anchors: [{ id: 'proof', claim: 'Proof' }], description: 'Implied', artifacts: [] },
+        ],
+      });
+      graph.nodes.set('a', createNode('a', { aspects: ['hipaa'] }));
+
+      const result = await validate(graph);
+      expect(result.issues.filter(i => i.code === 'W006')).toHaveLength(0);
+    });
+  });
+
   describe('CLI exit codes', () => {
     it('exit code 0 when no errors', () => {
       const fixturePath = path.resolve(CLI_ROOT, 'tests', 'fixtures', 'sample-project');

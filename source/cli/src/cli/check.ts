@@ -70,7 +70,7 @@ export function formatOutput(result: CheckResult): void {
     const drift = errors.filter(i => i.code === 'E020');
     const cascade = errors.filter(i => i.code === 'E021');
     const structural = errors.filter(i => i.code >= 'E001' && i.code <= 'E013');
-    const architecture = errors.filter(i => i.code >= 'E050' && i.code <= 'E054');
+    const architecture = errors.filter(i => (i.code >= 'E050' && i.code <= 'E054') || i.code === 'E057' || i.code === 'E058');
     const coverage = errors.filter(i => i.code === 'E022');
     const completeness = errors.filter(i => i.code >= 'E030' && i.code <= 'E041');
 
@@ -213,9 +213,9 @@ export function formatOutput(result: CheckResult): void {
     const driftCount = errors.filter(i => i.code === 'E020').length;
     const cascadeCount = errors.filter(i => i.code === 'E021').length;
     const structuralCount = errors.filter(i => i.code >= 'E001' && i.code <= 'E013').length;
-    const archCount = errors.filter(i => i.code >= 'E050' && i.code <= 'E054').length;
+    const archCount = errors.filter(i => (i.code >= 'E050' && i.code <= 'E054') || i.code === 'E057' || i.code === 'E058').length;
     const cov = errors.filter(i => i.code === 'E022').length;
-    const comp = errors.filter(i => i.code >= 'E030').length;
+    const comp = errors.filter(i => i.code >= 'E030' && i.code <= 'E041').length;
     if (driftCount) cats.push(`${driftCount} drift`);
     if (cascadeCount) cats.push(`${cascadeCount} cascade`);
     if (structuralCount) cats.push(`${structuralCount} structural`);
