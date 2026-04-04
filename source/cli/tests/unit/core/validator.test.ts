@@ -105,15 +105,15 @@ describe('validator', () => {
     expect(issues[0].nodePath).toBe('a');
   });
 
-  it('unknown-aspect (E003) returns error when node aspect has no aspect def', async () => {
+  it('dangling-aspect-ref (E050) returns error when node aspect has no aspect def', async () => {
     const graph = createGraph();
     graph.nodes.set('a', createNode('a', { aspects: ['no-aspect-for-this'] }));
 
     const result = await validate(graph);
-    const issues = result.issues.filter((i) => i.rule === 'unknown-aspect');
+    const issues = result.issues.filter((i) => i.rule === 'dangling-aspect-ref');
     expect(issues).toHaveLength(1);
-    expect(issues[0].code).toBe('E003');
-    expect(issues[0].message).toContain('no corresponding directory');
+    expect(issues[0].code).toBe('E050');
+    expect(issues[0].message).toContain('not defined in aspects/');
   });
 
   it('duplicate-aspect-binding returns E010 when id bound to multiple aspects', async () => {
@@ -961,7 +961,7 @@ describe('validator', () => {
     });
   });
 
-  describe('E039 aspect-missing-anchors', () => {
+  describe('E039 aspect-missing-claims', () => {
     it('E039: aspect with empty anchors array', async () => {
       const graph = createGraph({
         aspects: [{ name: 'EmptyAnchors', id: 'empty-anchors', anchors: [], artifacts: [] }],
@@ -969,8 +969,8 @@ describe('validator', () => {
       const result = await validate(graph);
       const e039 = result.issues.find(i => i.code === 'E039');
       expect(e039).toBeDefined();
-      expect(e039!.rule).toBe('aspect-missing-anchors');
-      expect(e039!.message).toContain('at least one anchor');
+      expect(e039!.rule).toBe('aspect-missing-claims');
+      expect(e039!.message).toContain('at least one claim');
       expect(e039!.nodePath).toBe('aspects/empty-anchors');
     });
 

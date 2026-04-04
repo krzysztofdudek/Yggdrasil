@@ -32,7 +32,7 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
 
   if (!graph.configError) {
     issues.push(...checkNodeTypes(graph));
-    issues.push(...checkAspectsDefined(graph));
+    issues.push(...checkDanglingAspectRefs(graph));
     issues.push(...checkAspectIds(graph));
     issues.push(...checkAspectIdUniqueness(graph));
     issues.push(...checkImpliedAspectsExist(graph));
@@ -60,7 +60,7 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
   issues.push(...(await checkWideNodes(graph)));
   issues.push(...checkUnpairedEvents(graph));
   issues.push(...checkArchitectureConstraints(graph));
-  issues.push(...(await checkIntegrationAspects(graph)));
+  issues.push(...checkPortAspectsDefined(graph));
 
   let filtered = issues;
   let nodesScanned = graph.nodes.size;
@@ -179,24 +179,75 @@ function checkRelationTargets(graph: Graph): ValidationIssue[] {
   return issues;
 }
 
-// --- Rule 2: Node aspects must reference a defined aspect ---
+// --- Rule 2: All aspect references must point to defined aspects (E050) ---
 
-function checkAspectsDefined(graph: Graph): ValidationIssue[] {
+function checkDanglingAspectRefs(graph: Graph): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
-  const validAspectIds = new Set(graph.aspects.map((a) => a.id));
+  const definedAspects = new Set(graph.aspects.map((a) => a.id));
+
+  // Check node aspects
   for (const [nodePath, node] of graph.nodes) {
     for (const aspectId of node.meta.aspects ?? []) {
-      if (!validAspectIds.has(aspectId)) {
+      if (!definedAspects.has(aspectId)) {
         issues.push({
           severity: 'error',
-          code: 'E003',
-          rule: 'unknown-aspect',
-          message: `Aspect '${aspectId}' has no corresponding directory in aspects/`,
+          code: 'E050',
+          rule: 'dangling-aspect-ref',
           nodePath,
+          message:
+            `Aspect '${aspectId}' is referenced by this node but not defined in aspects/.\n` +
+            `Create aspects/${aspectId}/ with yg-aspect.yaml and content.md.`,
+        });
+      }
+    }
+    // Check port aspects
+    if (node.meta.ports) {
+      for (const [portName, port] of Object.entries(node.meta.ports)) {
+        for (const aspectId of port.aspects) {
+          if (!definedAspects.has(aspectId)) {
+            issues.push({
+              severity: 'error',
+              code: 'E050',
+              rule: 'dangling-aspect-ref',
+              nodePath,
+              message:
+                `Aspect '${aspectId}' is referenced by port '${portName}' but not defined in aspects/.\n` +
+                `Create aspects/${aspectId}/ with yg-aspect.yaml and content.md.`,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  // Check architecture aspects
+  for (const [typeId, typeDef] of Object.entries(graph.architecture?.node_types ?? {})) {
+    for (const aspectId of typeDef.aspects ?? []) {
+      if (!definedAspects.has(aspectId)) {
+        issues.push({
+          severity: 'error',
+          code: 'E050',
+          rule: 'dangling-aspect-ref',
+          message: `Aspect '${aspectId}' is referenced by architecture type '${typeId}' but not defined in aspects/.`,
         });
       }
     }
   }
+
+  // Check flow aspects
+  for (const flow of graph.flows) {
+    for (const aspectId of flow.aspects ?? []) {
+      if (!definedAspects.has(aspectId)) {
+        issues.push({
+          severity: 'error',
+          code: 'E050',
+          rule: 'dangling-aspect-ref',
+          message: `Aspect '${aspectId}' is referenced by flow '${flow.name}' but not defined in aspects/.`,
+        });
+      }
+    }
+  }
+
   return issues;
 }
 
@@ -795,7 +846,7 @@ export async function expandMappingToFiles(projectRoot: string, mappingPaths: st
   return files;
 }
 
-// E039: Every aspect must have anchors
+// E039: Every aspect must have claims
 function checkAspectAnchors(graph: Graph): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   for (const aspect of graph.aspects) {
@@ -803,8 +854,8 @@ function checkAspectAnchors(graph: Graph): ValidationIssue[] {
       issues.push({
         severity: 'error',
         code: 'E039',
-        rule: 'aspect-missing-anchors',
-        message: `Every aspect must define at least one anchor in yg-aspect.yaml.\nAdd an anchors list with abstract proof point IDs:\n  anchors:\n    - <proof-point-id>`,
+        rule: 'aspect-missing-claims',
+        message: `Aspect has no claims. Add at least one claim with {id, claim} to the anchors field.`,
         nodePath: `aspects/${aspect.id}`,
       });
     }
@@ -929,14 +980,11 @@ function checkMissingDescriptions(graph: Graph): ValidationIssue[] {
 function checkArchitectureConstraints(graph: Graph): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
-  // E050-E054 require architecture to be defined and loaded
+  // E051-E052 require architecture to be defined and loaded
   // Only validate if architecture has node_types entries
   if (!graph.architecture || Object.keys(graph.architecture.node_types).length === 0) {
     return issues;
   }
-
-  // E050, E053, E054: Per-mapping-group aspect checks (require full context: effective + integration)
-  issues.push(...checkMappingGroupAspects(graph));
 
   // E051: invalid-relation-target (sync, no I/O)
   issues.push(...checkArchitectureRelations(graph));
@@ -948,28 +996,39 @@ function checkArchitectureConstraints(graph: Graph): ValidationIssue[] {
 }
 
 /**
- * E050, E053, E054 — architecture constraint checks for aspect declarations
- * Temporarily simplified: mapping is now flat string[], no per-mapping aspects.
- * Full aspect checking will be replaced by LLM verification in Plan 2.
- */
-function checkMappingGroupAspects(_graph: Graph): ValidationIssue[] {
-  const issues: ValidationIssue[] = [];
-  // TODO Plan 2: Reimplement using LLM claim verification
-  return issues;
-}
-
-/**
  * E053 — integration-aspect-missing
- * When a node A has a relation to node B, and B declares integration_aspects,
- * then A's mapping groups must declare those integration aspects.
+ * When a node consumes a port, that port's required aspects must be defined in aspects/.
  */
-/**
- * E053 — integration-aspect-missing (temporarily disabled)
- * Will be replaced by LLM claim verification in Plan 2.
- */
-async function checkIntegrationAspects(_graph: Graph): Promise<ValidationIssue[]> {
+function checkPortAspectsDefined(graph: Graph): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
-  // TODO Plan 2: Reimplement using LLM claim verification and port-based requirements
+  const definedAspects = new Set(graph.aspects.map((a) => a.id));
+
+  for (const [nodePath, node] of graph.nodes) {
+    for (const rel of node.meta.relations ?? []) {
+      const target = graph.nodes.get(rel.target);
+      if (!target?.meta.ports) continue;
+
+      for (const portName of rel.consumes ?? []) {
+        const port = target.meta.ports[portName];
+        if (!port) continue; // E058 catches this
+        for (const aspectId of port.aspects) {
+          if (!definedAspects.has(aspectId)) {
+            issues.push({
+              severity: 'error',
+              code: 'E053',
+              rule: 'integration-aspect-missing',
+              nodePath,
+              message:
+                `Relation: ${rel.type} -> ${rel.target}, port '${portName}'\n` +
+                `Port requires aspect '${aspectId}' but it is not defined in aspects/.\n` +
+                `Create aspects/${aspectId}/ with yg-aspect.yaml and content.md.`,
+            });
+          }
+        }
+      }
+    }
+  }
+
   return issues;
 }
 
