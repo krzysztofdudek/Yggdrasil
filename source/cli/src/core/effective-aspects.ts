@@ -7,25 +7,27 @@ import type {
 } from '../model/types.js';
 
 /**
- * Complete set of aspects (regular and integration) that a node MUST satisfy.
+ * Complete set of aspects that a node MUST satisfy.
  * Assembled from architecture constraints, parent inheritance, own extras, flow participation,
- * and aspect implies chains.
+ * consumed ports on target nodes, and aspect implies chains.
  */
 export interface EffectiveAspects {
   regular: Set<string>;      // All regular aspects node must satisfy
-  integration: Set<string>;   // All integration aspects node must satisfy
 }
 
 /**
  * Compute the full set of effective aspects for a node from ALL sources:
- * - Architecture node type constraints (aspects + integration_aspects)
+ * - Architecture node type constraints (aspects)
  * - Parent node inherited aspects (recursive)
  * - Flow participations (adds flow aspects to regular set)
  * - Node's own aspects (own extras)
  * - Aspect implies chain (if A implies B, get both)
  *
+ * Note: Integration aspects (from consumed ports) are now computed on-demand via
+ * computeEffectiveAspectsForConsumer and merged into the caller's effective set.
+ *
  * @param params Configuration for effective aspect computation
- * @returns Sets of regular and integration aspect IDs
+ * @returns Set of aspect IDs the node must satisfy
  * @throws Error if aspect implies cycle is detected
  */
 export function computeEffectiveAspects(params: {
@@ -33,22 +35,17 @@ export function computeEffectiveAspects(params: {
   architecture: ArchitectureDef;
   parentTypes: string[];
   ownAspects: string[];
-  ownIntegrationAspects: string[];
   flowAspects: string[];
   allAspects: AspectDef[];
   allFlows: FlowDef[];
 }): EffectiveAspects {
   const regular = new Set<string>();
-  const integration = new Set<string>();
 
   // 1. Add architecture constraints for this node type
   const nodeTypeDef = params.architecture.node_types[params.nodeType];
   if (nodeTypeDef) {
     for (const aspect of nodeTypeDef.aspects ?? []) {
       regular.add(aspect);
-    }
-    for (const aspect of nodeTypeDef.integration_aspects ?? []) {
-      integration.add(aspect);
     }
   }
 
@@ -59,7 +56,6 @@ export function computeEffectiveAspects(params: {
       architecture: params.architecture,
       parentTypes: getParentTypes(parentType, params.architecture),
       ownAspects: [],
-      ownIntegrationAspects: [],
       flowAspects: [],
       allAspects: params.allAspects,
       allFlows: params.allFlows,
@@ -67,31 +63,23 @@ export function computeEffectiveAspects(params: {
     for (const aspect of parentEffective.regular) {
       regular.add(aspect);
     }
-    for (const aspect of parentEffective.integration) {
-      integration.add(aspect);
-    }
   }
 
   // 3. Add own node extras
   for (const aspect of params.ownAspects) {
     regular.add(aspect);
   }
-  for (const aspect of params.ownIntegrationAspects) {
-    integration.add(aspect);
-  }
 
-  // 4. Add flow participation aspects (flows contribute to regular, not integration)
+  // 4. Add flow participation aspects
   for (const aspect of params.flowAspects) {
     regular.add(aspect);
   }
 
   // 5. Traverse implies chain for all regular aspects
   const expandedRegular = expandImplies(regular, params.allAspects);
-  const expandedIntegration = expandImplies(integration, params.allAspects);
 
   return {
     regular: expandedRegular,
-    integration: expandedIntegration,
   };
 }
 
@@ -305,4 +293,45 @@ export function getIntegrationAspectSource(
   }
 
   return 'implied by another aspect';
+}
+
+/**
+ * Compute integration aspects for a consumer node based on ports it consumes from target nodes.
+ * When node A calls node B and consumes port 'charge' (which requires aspects [correlation-tracking, idempotency]),
+ * those aspects become effective integration aspects for node A.
+ *
+ * @param node The consumer node (has relations with 'consumes' field)
+ * @param graph The full graph with all nodes, aspects
+ * @returns Set of aspect IDs that the consumer must satisfy from port consumption
+ */
+export function computeEffectiveAspectsForConsumer(
+  node: GraphNode,
+  graph: Graph,
+): Set<string> {
+  const raw = new Set<string>();
+
+  // For each relation on this node
+  if (node.meta.relations) {
+    for (const relation of node.meta.relations) {
+      // Find the target node
+      const targetNode = graph.nodes.get(relation.target);
+      if (!targetNode) continue;
+
+      // If the relation specifies consumed ports
+      if (relation.consumes && targetNode.meta.ports) {
+        for (const portName of relation.consumes) {
+          const port = targetNode.meta.ports[portName];
+          if (port && port.aspects) {
+            for (const aspect of port.aspects) {
+              raw.add(aspect);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Expand implies chain for all collected aspects
+  const result = expandImpliesToGraphAspects(raw, graph);
+  return result;
 }

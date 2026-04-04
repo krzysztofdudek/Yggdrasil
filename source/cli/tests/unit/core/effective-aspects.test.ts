@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   computeEffectiveAspects,
   computeEffectiveIntegrationAspects,
+  computeEffectiveAspectsForConsumer,
   getAspectSource,
   getIntegrationAspectSource,
 } from '../../../src/core/effective-aspects.js';
@@ -11,7 +12,6 @@ describe('computeEffectiveAspects', () => {
   // Helper to create minimal architecture
   function createArchitecture(nodeTypes: Record<string, {
     aspects?: string[];
-    integration_aspects?: string[];
     parents?: string[];
   }> = {}): ArchitectureDef {
     const built: Record<string, any> = {};
@@ -19,7 +19,6 @@ describe('computeEffectiveAspects', () => {
       built[type] = {
         description: `${type} type`,
         ...(config.aspects && { aspects: config.aspects }),
-        ...(config.integration_aspects && { integration_aspects: config.integration_aspects }),
         ...(config.parents && { parents: config.parents }),
       };
     }
@@ -48,14 +47,12 @@ describe('computeEffectiveAspects', () => {
       architecture: createArchitecture({ library: {} }),
       parentTypes: [],
       ownAspects: [],
-      ownIntegrationAspects: [],
       flowAspects: [],
       allAspects: [],
       allFlows: [],
     });
 
     expect(result.regular.size).toBe(0);
-    expect(result.integration.size).toBe(0);
   });
 
   it('should include architecture constraints for node type', () => {
@@ -68,36 +65,14 @@ describe('computeEffectiveAspects', () => {
       }),
       parentTypes: [],
       ownAspects: [],
-      ownIntegrationAspects: [],
       flowAspects: [],
       allAspects: [],
       allFlows: [],
     });
 
     expect(result.regular).toEqual(new Set(['requires-auth', 'error-handling']));
-    expect(result.integration.size).toBe(0);
   });
 
-  it('should include architecture integration_aspects separately', () => {
-    const result = computeEffectiveAspects({
-      nodeType: 'service',
-      architecture: createArchitecture({
-        service: {
-          aspects: ['requires-auth'],
-          integration_aspects: ['integration-webhook'],
-        },
-      }),
-      parentTypes: [],
-      ownAspects: [],
-      ownIntegrationAspects: [],
-      flowAspects: [],
-      allAspects: [],
-      allFlows: [],
-    });
-
-    expect(result.regular).toEqual(new Set(['requires-auth']));
-    expect(result.integration).toEqual(new Set(['integration-webhook']));
-  });
 
   it('should inherit parent type aspects recursively', () => {
     const result = computeEffectiveAspects({
@@ -112,7 +87,6 @@ describe('computeEffectiveAspects', () => {
       }),
       parentTypes: ['service'],
       ownAspects: [],
-      ownIntegrationAspects: [],
       flowAspects: [],
       allAspects: [],
       allFlows: [],
@@ -131,7 +105,6 @@ describe('computeEffectiveAspects', () => {
       }),
       parentTypes: [],
       ownAspects: ['audit-logging', 'rate-limiting'],
-      ownIntegrationAspects: [],
       flowAspects: [],
       allAspects: [],
       allFlows: [],
@@ -140,40 +113,18 @@ describe('computeEffectiveAspects', () => {
     expect(result.regular).toEqual(new Set(['requires-auth', 'audit-logging', 'rate-limiting']));
   });
 
-  it('should include node own integration_aspects', () => {
-    const result = computeEffectiveAspects({
-      nodeType: 'service',
-      architecture: createArchitecture({
-        service: {
-          aspects: ['requires-auth'],
-        },
-      }),
-      parentTypes: [],
-      ownAspects: [],
-      ownIntegrationAspects: ['vendor-webhook'],
-      flowAspects: [],
-      allAspects: [],
-      allFlows: [],
-    });
-
-    expect(result.regular).toEqual(new Set(['requires-auth']));
-    expect(result.integration).toEqual(new Set(['vendor-webhook']));
-  });
-
-  it('should add flow participation aspects to regular set', () => {
+it('should add flow participation aspects to regular set', () => {
     const result = computeEffectiveAspects({
       nodeType: 'service',
       architecture: createArchitecture({ service: {} }),
       parentTypes: [],
       ownAspects: [],
-      ownIntegrationAspects: [],
       flowAspects: ['transaction-safety', 'idempotency'],
       allAspects: [],
       allFlows: [],
     });
 
     expect(result.regular).toEqual(new Set(['transaction-safety', 'idempotency']));
-    expect(result.integration.size).toBe(0);
   });
 
   it('should expand aspect implies chain', () => {
@@ -192,7 +143,6 @@ describe('computeEffectiveAspects', () => {
       architecture: createArchitecture({ service: {} }),
       parentTypes: [],
       ownAspects: ['audit-logging'],
-      ownIntegrationAspects: [],
       flowAspects: [],
       allAspects: aspects,
       allFlows: [],
@@ -201,27 +151,6 @@ describe('computeEffectiveAspects', () => {
     expect(result.regular).toEqual(new Set(['audit-logging', 'event-logging', 'structured-logging']));
   });
 
-  it('should expand integration aspect implies chain', () => {
-    const aspects = createAspects({
-      'integration-webhook': {
-        implies: ['http-handler'],
-      },
-      'http-handler': {},
-    });
-
-    const result = computeEffectiveAspects({
-      nodeType: 'service',
-      architecture: createArchitecture({ service: {} }),
-      parentTypes: [],
-      ownAspects: [],
-      ownIntegrationAspects: ['integration-webhook'],
-      flowAspects: [],
-      allAspects: aspects,
-      allFlows: [],
-    });
-
-    expect(result.integration).toEqual(new Set(['integration-webhook', 'http-handler']));
-  });
 
   it('should detect aspect implies cycle and throw error', () => {
     const aspects: AspectDef[] = [
@@ -254,7 +183,6 @@ describe('computeEffectiveAspects', () => {
         architecture: createArchitecture({ service: {} }),
         parentTypes: [],
         ownAspects: ['a'],
-        ownIntegrationAspects: [],
         flowAspects: [],
         allAspects: aspects,
         allFlows: [],
@@ -287,7 +215,6 @@ describe('computeEffectiveAspects', () => {
       }),
       parentTypes: ['service'],
       ownAspects: ['audit-trail'],
-      ownIntegrationAspects: [],
       flowAspects: ['transaction-base'],
       allAspects: aspects,
       allFlows: [],
@@ -320,7 +247,6 @@ describe('computeEffectiveAspects', () => {
       }),
       parentTypes: [],
       ownAspects: ['auth-base'],
-      ownIntegrationAspects: [],
       flowAspects: ['auth-logging'],
       allAspects: aspects,
       allFlows: [],
@@ -338,7 +264,6 @@ describe('computeEffectiveAspects', () => {
       architecture: createArchitecture({ service: {} }),
       parentTypes: [],
       ownAspects: ['unknown-aspect'],
-      ownIntegrationAspects: [],
       flowAspects: [],
       allAspects: [], // Empty — unknown-aspect not defined
       allFlows: [],
@@ -363,7 +288,6 @@ describe('computeEffectiveAspects', () => {
       }),
       parentTypes: ['service', 'http-handler'],
       ownAspects: [],
-      ownIntegrationAspects: [],
       flowAspects: [],
       allAspects: [],
       allFlows: [],
@@ -382,7 +306,6 @@ describe('computeEffectiveAspects', () => {
       }),
       parentTypes: [],
       ownAspects: [],
-      ownIntegrationAspects: [],
       flowAspects: [],
       allAspects: [],
       allFlows: [],
@@ -390,7 +313,6 @@ describe('computeEffectiveAspects', () => {
 
     // Verify Sets exist and are Sets
     expect(result.regular instanceof Set).toBe(true);
-    expect(result.integration instanceof Set).toBe(true);
 
     // Caller shouldn't normally mutate, but verify the structure is correct
     expect(result.regular).toEqual(new Set(['auth']));
@@ -413,7 +335,6 @@ describe('computeEffectiveAspects', () => {
       }),
       parentTypes: ['extended-service'],
       ownAspects: [],
-      ownIntegrationAspects: [],
       flowAspects: [],
       allAspects: [],
       allFlows: [],
@@ -442,7 +363,6 @@ describe('computeEffectiveAspects', () => {
       architecture: createArchitecture({ service: {} }),
       parentTypes: [],
       ownAspects: ['top'],
-      ownIntegrationAspects: [],
       flowAspects: [],
       allAspects: aspects,
       allFlows: [],
@@ -474,7 +394,6 @@ describe('computeEffectiveAspects', () => {
       architecture: createArchitecture({ service: {} }),
       parentTypes: [],
       ownAspects: ['top'],
-      ownIntegrationAspects: [],
       flowAspects: [],
       allAspects: aspects,
       allFlows: [],
@@ -484,32 +403,6 @@ describe('computeEffectiveAspects', () => {
     expect(result.regular.size).toBe(4);
   });
 
-  it('should separate regular and integration aspects even when both have implies', () => {
-    const aspects = createAspects({
-      'auth-base': {
-        implies: ['auth-logging'],
-      },
-      'auth-logging': {},
-      'webhook-base': {
-        implies: ['webhook-logging'],
-      },
-      'webhook-logging': {},
-    });
-
-    const result = computeEffectiveAspects({
-      nodeType: 'service',
-      architecture: createArchitecture({ service: {} }),
-      parentTypes: [],
-      ownAspects: ['auth-base'],
-      ownIntegrationAspects: ['webhook-base'],
-      flowAspects: [],
-      allAspects: aspects,
-      allFlows: [],
-    });
-
-    expect(result.regular).toEqual(new Set(['auth-base', 'auth-logging']));
-    expect(result.integration).toEqual(new Set(['webhook-base', 'webhook-logging']));
-  });
 });
 
 // ---- Helpers for graph-aware function tests ----
@@ -698,5 +591,264 @@ describe('getIntegrationAspectSource', () => {
     const node = makeNode('svc', { meta: { name: 'svc', type: 'service' } });
     const graph = makeGraph();
     expect(getIntegrationAspectSource('unknown', node, graph)).toContain('implied');
+  });
+});
+
+// ---- Port-based integration aspects ----
+
+describe('computeEffectiveAspectsForConsumer (port-based)', () => {
+  it('computes integration aspects from consumed ports', () => {
+    // Node A calls Node B, consumes port 'charge' which requires [correlation-tracking, idempotency]
+    // Node A's effective aspects should include correlation-tracking + idempotency
+    const nodeB = makeNode('nodeB', {
+      meta: {
+        name: 'nodeB',
+        type: 'service',
+        ports: {
+          charge: { description: 'Payment', aspects: ['correlation-tracking', 'idempotency'] },
+          refund: { description: 'Refund', aspects: ['retry-policy'] },
+        },
+      },
+    });
+    const nodeA = makeNode('nodeA', {
+      meta: {
+        name: 'nodeA',
+        type: 'service',
+        relations: [{ target: 'nodeB', type: 'calls', consumes: ['charge'] }],
+      },
+    });
+
+    const graph = makeGraph({
+      nodes: new Map([
+        ['nodeA', nodeA],
+        ['nodeB', nodeB],
+      ]),
+      aspects: [
+        { name: 'correlation-tracking', id: 'correlation-tracking', anchors: [], artifacts: [] },
+        { name: 'idempotency', id: 'idempotency', anchors: [], artifacts: [] },
+        { name: 'retry-policy', id: 'retry-policy', anchors: [], artifacts: [] },
+      ],
+    });
+
+    const effective = computeEffectiveAspectsForConsumer(nodeA, graph);
+    expect(effective).toContain('correlation-tracking');
+    expect(effective).toContain('idempotency');
+    expect(effective).not.toContain('retry-policy'); // not consumed
+  });
+
+  it('returns empty set when target has no ports', () => {
+    const nodeB = makeNode('nodeB', { meta: { name: 'nodeB', type: 'service' } });
+    const nodeA = makeNode('nodeA', {
+      meta: {
+        name: 'nodeA',
+        type: 'service',
+        relations: [{ target: 'nodeB', type: 'calls' }],
+      },
+    });
+
+    const graph = makeGraph({
+      nodes: new Map([
+        ['nodeA', nodeA],
+        ['nodeB', nodeB],
+      ]),
+    });
+
+    const effective = computeEffectiveAspectsForConsumer(nodeA, graph);
+    expect(effective.size).toBe(0);
+  });
+
+  it('expands implies chain from consumed port aspects', () => {
+    const nodeB = makeNode('nodeB', {
+      meta: {
+        name: 'nodeB',
+        type: 'service',
+        ports: {
+          charge: { description: 'Payment', aspects: ['base-tracking'] },
+        },
+      },
+    });
+    const nodeA = makeNode('nodeA', {
+      meta: {
+        name: 'nodeA',
+        type: 'service',
+        relations: [{ target: 'nodeB', type: 'calls', consumes: ['charge'] }],
+      },
+    });
+
+    const graph = makeGraph({
+      nodes: new Map([
+        ['nodeA', nodeA],
+        ['nodeB', nodeB],
+      ]),
+      aspects: [
+        { name: 'base-tracking', id: 'base-tracking', implies: ['logging'], anchors: [], artifacts: [] },
+        { name: 'logging', id: 'logging', anchors: [], artifacts: [] },
+      ],
+    });
+
+    const effective = computeEffectiveAspectsForConsumer(nodeA, graph);
+    expect(effective).toContain('base-tracking');
+    expect(effective).toContain('logging');
+  });
+
+  it('combines aspects from multiple consumed ports', () => {
+    const nodeB = makeNode('nodeB', {
+      meta: {
+        name: 'nodeB',
+        type: 'service',
+        ports: {
+          charge: { description: 'Payment', aspects: ['correlation-tracking'] },
+          refund: { description: 'Refund', aspects: ['idempotency'] },
+        },
+      },
+    });
+    const nodeA = makeNode('nodeA', {
+      meta: {
+        name: 'nodeA',
+        type: 'service',
+        relations: [{ target: 'nodeB', type: 'calls', consumes: ['charge', 'refund'] }],
+      },
+    });
+
+    const graph = makeGraph({
+      nodes: new Map([
+        ['nodeA', nodeA],
+        ['nodeB', nodeB],
+      ]),
+      aspects: [
+        { name: 'correlation-tracking', id: 'correlation-tracking', anchors: [], artifacts: [] },
+        { name: 'idempotency', id: 'idempotency', anchors: [], artifacts: [] },
+      ],
+    });
+
+    const effective = computeEffectiveAspectsForConsumer(nodeA, graph);
+    expect(effective).toContain('correlation-tracking');
+    expect(effective).toContain('idempotency');
+  });
+
+  it('collects aspects from multiple called targets', () => {
+    const nodeB = makeNode('nodeB', {
+      meta: {
+        name: 'nodeB',
+        type: 'service',
+        ports: {
+          charge: { description: 'Payment', aspects: ['correlation-tracking'] },
+        },
+      },
+    });
+    const nodeC = makeNode('nodeC', {
+      meta: {
+        name: 'nodeC',
+        type: 'service',
+        ports: {
+          notify: { description: 'Notify', aspects: ['event-based'] },
+        },
+      },
+    });
+    const nodeA = makeNode('nodeA', {
+      meta: {
+        name: 'nodeA',
+        type: 'service',
+        relations: [
+          { target: 'nodeB', type: 'calls', consumes: ['charge'] },
+          { target: 'nodeC', type: 'calls', consumes: ['notify'] },
+        ],
+      },
+    });
+
+    const graph = makeGraph({
+      nodes: new Map([
+        ['nodeA', nodeA],
+        ['nodeB', nodeB],
+        ['nodeC', nodeC],
+      ]),
+      aspects: [
+        { name: 'correlation-tracking', id: 'correlation-tracking', anchors: [], artifacts: [] },
+        { name: 'event-based', id: 'event-based', anchors: [], artifacts: [] },
+      ],
+    });
+
+    const effective = computeEffectiveAspectsForConsumer(nodeA, graph);
+    expect(effective).toContain('correlation-tracking');
+    expect(effective).toContain('event-based');
+  });
+
+  it('handles relations without consumes field', () => {
+    const nodeB = makeNode('nodeB', {
+      meta: {
+        name: 'nodeB',
+        type: 'service',
+        ports: {
+          charge: { description: 'Payment', aspects: ['correlation-tracking'] },
+        },
+      },
+    });
+    const nodeA = makeNode('nodeA', {
+      meta: {
+        name: 'nodeA',
+        type: 'service',
+        relations: [{ target: 'nodeB', type: 'calls' }], // No consumes
+      },
+    });
+
+    const graph = makeGraph({
+      nodes: new Map([
+        ['nodeA', nodeA],
+        ['nodeB', nodeB],
+      ]),
+    });
+
+    const effective = computeEffectiveAspectsForConsumer(nodeA, graph);
+    expect(effective.size).toBe(0);
+  });
+
+  it('handles missing target node gracefully', () => {
+    const nodeA = makeNode('nodeA', {
+      meta: {
+        name: 'nodeA',
+        type: 'service',
+        relations: [{ target: 'nonexistent', type: 'calls', consumes: ['charge'] }],
+      },
+    });
+
+    const graph = makeGraph({
+      nodes: new Map([['nodeA', nodeA]]),
+    });
+
+    const effective = computeEffectiveAspectsForConsumer(nodeA, graph);
+    expect(effective.size).toBe(0);
+  });
+
+  it('skips consumed ports that do not exist on target', () => {
+    const nodeB = makeNode('nodeB', {
+      meta: {
+        name: 'nodeB',
+        type: 'service',
+        ports: {
+          charge: { description: 'Payment', aspects: ['correlation-tracking'] },
+        },
+      },
+    });
+    const nodeA = makeNode('nodeA', {
+      meta: {
+        name: 'nodeA',
+        type: 'service',
+        relations: [{ target: 'nodeB', type: 'calls', consumes: ['charge', 'nonexistent-port'] }],
+      },
+    });
+
+    const graph = makeGraph({
+      nodes: new Map([
+        ['nodeA', nodeA],
+        ['nodeB', nodeB],
+      ]),
+      aspects: [
+        { name: 'correlation-tracking', id: 'correlation-tracking', anchors: [], artifacts: [] },
+      ],
+    });
+
+    const effective = computeEffectiveAspectsForConsumer(nodeA, graph);
+    expect(effective).toContain('correlation-tracking');
+    expect(effective.size).toBe(1);
   });
 });
