@@ -1,54 +1,24 @@
 # yg-node.yaml — Schema for model nodes
 # Every node is a directory under .yggdrasil/model/ containing this file
-# plus artifact .md files defined in yg-config.yaml.
+# plus artifact .md files.
 
-name: ComponentName           # required — display name
-type: service                 # required — must match a type from yg-architecture.yaml
-description: "Short description of what this node does"  # optional
-blackbox: false               # optional, default false — if true, coarse-grained coverage without deep artifacts
+name: <string>                    # required — display name
+type: <string>                    # required — must match a type in yg-architecture.yaml
+description: <string>             # optional
+blackbox: false                   # optional, default false
 
-aspects:                      # optional — list of own aspect extras beyond inherited from architecture/flows/parent
-  - aspect-id                 # aspect IDs as strings, no nested structure
+aspects: [<aspect-id>]            # optional — own aspect extras beyond inherited
 
-integration_aspects:          # optional — list of own integration aspect extras for consumers
-  - aspect-id
+ports:                            # optional — typed ports for consumers
+  <port-name>:
+    description: <string>         # required
+    aspects: [<aspect-id>]        # required — may be empty list
 
-relations:                    # optional — outgoing dependencies to other nodes
-  - target: other/module-path # required — path relative to model/
-    type: calls               # required — calls | uses | extends | implements | emits | listens
-    consumes: [methodA, methodB] # optional — what is consumed from target
-    failure: 'retry 3x, then circuit-break' # optional — failure handling strategy
+relations:                        # optional — outgoing dependencies
+  - target: <node-path>           # required — path relative to model/
+    type: <relation-type>         # required — calls | uses | extends | implements | emits | listens
+    consumes: [<port-name>]       # required when target has ports
+    failure: <string>             # optional — failure handling strategy
 
-mapping:                      # optional — link to source files for ownership and drift detection
-  - paths:                    # required — list of file or directory paths
-      - src/modules/component/  # paths are relative to repository root
-    aspects:                  # required when effective aspects > 0 — proof for every effective aspect
-      - aspect: aspect-id     # required — aspect being proven
-        anchors:              # required — proof points for this aspect
-          anchor-id:          # key = anchor ID from yg-aspect.yaml
-            regex: "pattern"  # required — regex pattern to find in EACH file in this group
-            rationale: "why this regex proves compliance (max 2 sentences)"  # required
-
-# Example:
-#   name: Expenses
-#   type: service
-#   aspects: [subscription-limits]
-#
-#   mapping:
-#     - paths:
-#         - apps/api/src/routes/expenses.ts
-#       aspects:
-#         - aspect: requires-auth
-#           anchors:
-#             auth-guard:
-#               regex: "requireAuth\\("
-#               rationale: "Middleware at router level before handlers."
-#
-#     - paths:
-#         - apps/api/src/services/expenses.ts
-#       aspects:
-#         - aspect: requires-auth
-#           anchors:
-#             auth-context:
-#               regex: "ctx\\.userId"
-#               rationale: "Receives authenticated user from route context."
+mapping:                          # optional — flat list of source file/directory paths
+  - <string>                      # file or directory path relative to repo root

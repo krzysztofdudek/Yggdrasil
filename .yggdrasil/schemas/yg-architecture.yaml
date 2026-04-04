@@ -26,12 +26,6 @@ properties:
           items:
             type: string
 
-        integration_aspects:
-          type: array
-          description: "Aspect IDs required on consumers of nodes of this type"
-          items:
-            type: string
-
         parents:
           type: array
           description: "Whitelist of allowed parent node types"

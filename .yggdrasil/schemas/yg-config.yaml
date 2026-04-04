@@ -1,20 +1,19 @@
-# yg-config.yaml — Schema for the Yggdrasil project configuration
-# Located at .yggdrasil/yg-config.yaml — one per project.
-# Node type definitions have moved to .yggdrasil/yg-architecture.yaml
-# Edit this after running yg init to describe your project.
+# yg-config.yaml — Schema for project configuration
 
-version: "4.0.0"                  # managed by CLI — do not edit manually. Tracks the CLI version
-                                  # that created or last migrated this config. Used by the migration
-                                  # system to determine which migrations to run on upgrade.
-
-name: "My Project"                # optional — project display name
-
-# artifacts are hardcoded in the CLI (responsibility.md, interface.md, internals.md)
-# and cannot be configured. See STANDARD_ARTIFACTS in source code.
+version: <string>                 # required — managed by CLI
+name: <string>                    # optional — project display name
 
 quality:                          # optional — quality thresholds
-  min_artifact_length: 50         #   minimum characters for an artifact (warning if below)
-  max_direct_relations: 10        #   maximum outgoing relations per node (warning if above)
-  context_budget:                 #   token budget for context packages
-    warning: 10000                #   tokens — warning threshold
-    error: 20000                  #   tokens — error threshold (suggests splitting)
+  min_artifact_length: <number>
+  max_direct_relations: <number>
+  context_budget:
+    warning: <number>             # default 10000
+    error: <number>               # default 20000
+
+llm:                              # optional — LLM verification configuration
+  provider: <string>              # ollama | openai | anthropic
+  model: <string>                 # model ID per provider
+  endpoint: <string>              # optional custom endpoint
+  temperature: 0                  # reduces variability — keep at 0
+  consensus: <number>             # positive odd integer >= 1 (default 1)
+  max_tokens: auto | <number>     # auto = query provider, or explicit token limit
