@@ -59,6 +59,7 @@ export async function approveNode(
     if (isBlackbox) {
       const allDriftState = await readDriftState(graph.rootPath);
       const conflictingFiles: Array<{ file: string; trackedBy: string }> = [];
+      const seen = new Set<string>();
       // Expand mapping paths to check against other nodes' drift state files
       for (const mp of mappingPaths) {
         const normalized = mp.replace(/\/+$/, '');
@@ -67,7 +68,11 @@ export async function approveNode(
           if (otherPath === nodePath) continue;
           for (const filePath of Object.keys(otherState.files)) {
             if (filePath === normalized || filePath.startsWith(normalized + '/')) {
-              conflictingFiles.push({ file: filePath, trackedBy: otherPath });
+              const key = `${filePath}::${otherPath}`;
+              if (!seen.has(key)) {
+                seen.add(key);
+                conflictingFiles.push({ file: filePath, trackedBy: otherPath });
+              }
             }
           }
         }
