@@ -6,7 +6,7 @@ import type {
   TrackedFileLayer,
   ValidationIssue,
 } from '../model/types.js';
-import { readDriftState, readNodeDriftState } from '../io/drift-state-store.js';
+import { readDriftState, readNodeDriftState, writeNodeDriftState } from '../io/drift-state-store.js';
 import { hashTrackedFiles } from '../utils/hash.js';
 import { collectTrackedFiles } from './context-files.js';
 import { normalizeMappingPaths } from '../utils/paths.js';
@@ -29,8 +29,8 @@ export interface CheckIssue extends Omit<ValidationIssue, 'code'> {
   uncoveredFiles?: string[];
   /** For E022: total count of uncovered files */
   uncoveredCount?: number;
-  /** For E021: whether all anchor patterns still match source on this node */
-  anchorsPassing?: boolean;
+  /** For E021: cached verification label from drift-state (e.g. 'last verified: pass', 'never verified') */
+  verificationLabel?: string;
 }
 
 export interface CascadeCause {
@@ -232,8 +232,10 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
       });
     }
 
+    // Collapse all cascade causes for this node into a single E021
+    const nodeE021Causes: CascadeCause[] = [];
+
     // Group cascade causes by logical cause (aspect ID, dep path, flow name, parent path)
-    // Then emit one E021 per logical cause, listing all changed files for that cause
     const causeGroups = new Map<string, CascadeCause[]>();
     for (const cause of cascadeCauses) {
       const key = extractCauseKey(cause);
@@ -243,33 +245,14 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
     }
 
     for (const [, groupCauses] of causeGroups) {
-      const primaryCause = groupCauses[0];
+      nodeE021Causes.push(...groupCauses);
+    }
 
-      // Check if this is a port-aspects cascade (dependency port change on a target with ports)
-      const isPortAspectsCascade = primaryCause.layer === 'relational'
-        && (groupCauses.some(c => c.file.startsWith('port-aspects:'))
-          || (groupCauses.some(c => c.file.endsWith('yg-node.yaml'))
-            && (() => {
-              const match = primaryCause.description.match(/dependency '([^']+)'/);
-              if (!match) return false;
-              const target = graph.nodes.get(match[1]);
-              return target?.meta.ports != null && Object.keys(target.meta.ports).length > 0;
-            })()));
-
-      let message: string;
-      const causeLines = groupCauses.map(c => '     Cause: ' + c.description).join('\n');
-
-      if (isPortAspectsCascade) {
-        message = `Context package changed due to upstream port modification.\n${causeLines}\n     Port aspect requirements may have changed. Review consumed ports and approve.`;
-      } else {
-        const reviewTarget = primaryCause.layer === 'aspects' ? 'updated context'
-          : primaryCause.layer === 'relational' ? 'updated dependency interface'
-          : primaryCause.layer === 'flows' ? 'updated flow'
-          : primaryCause.layer === 'hierarchy' ? 'updated parent context'
-          : 'updated context';
-
-        message = `Context package changed due to upstream modification.\n${causeLines}\n     Review source compliance with ${reviewTarget}, then:\n       - If source needs changes: update source + artifacts, approve.\n       - If source is already compliant: approve --acknowledge.`;
-      }
+    if (nodeE021Causes.length > 0) {
+      // Build a single collapsed E021 for this node with all causes
+      const causeCount = nodeE021Causes.length;
+      const causeLines = nodeE021Causes.map((c: CascadeCause) => '     Cause: ' + c.description).join('\n');
+      const message = `Context package changed due to ${causeCount} upstream modification${causeCount === 1 ? '' : 's'}:\n${causeLines}\n     Review source compliance with updated context, then:\n       - If source needs changes: update source + artifacts, approve.\n       - If source is already compliant: approve --acknowledge.`;
 
       issues.push({
         severity: 'error',
@@ -277,20 +260,36 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
         rule: 'cascade-drift',
         message,
         nodePath,
-        cascadeCauses: groupCauses,
+        cascadeCauses: nodeE021Causes,
       });
     }
   }
 
-  // Annotate E021 issues with anchor-pass status
+  // Load all drift states once for verification label lookup and cache invalidation
+  const allDriftState = await readDriftState(graph.rootPath);
+
+  // Annotate E021 issues with cached verification label; invalidate LLM cache on any drift
   for (const issue of issues) {
-    if (issue.code !== 'E021' || !issue.nodePath) continue;
-    const node = graph.nodes.get(issue.nodePath);
-    if (!node || node.meta.blackbox) {
-      issue.anchorsPassing = undefined;
-      continue;
+    if (issue.code === 'E020' || issue.code === 'E021') {
+      if (!issue.nodePath) continue;
+      const driftState = allDriftState[issue.nodePath];
+      // Invalidate cached LLM results when drift is detected
+      if (driftState && (driftState.claimResults || driftState.artifactReview)) {
+        delete driftState.claimResults;
+        delete driftState.artifactReview;
+        await writeNodeDriftState(graph.rootPath, issue.nodePath, driftState);
+      }
     }
-    issue.anchorsPassing = await checkNodeAnchorsPass(graph, issue.nodePath);
+
+    if (issue.code !== 'E021' || !issue.nodePath) continue;
+    const driftState = allDriftState[issue.nodePath];
+    if (driftState?.claimResults) {
+      const allSatisfied = Object.values(driftState.claimResults)
+        .every(claims => Object.values(claims).every(r => r.satisfied));
+      issue.verificationLabel = allSatisfied ? 'last verified: pass' : 'last verified: fail';
+    } else {
+      issue.verificationLabel = 'never verified';
+    }
   }
 
   return issues;
@@ -580,15 +579,6 @@ async function allPathsMissing(projectRoot: string, mappingPaths: string[]): Pro
 }
 /* v8 ignore stop */
 
-
-/**
- * Check whether all realized anchor patterns still match source for a node.
- * Returns undefined — v4 uses claim-based verification via LLM (Plan 3).
- * Regex-based anchor checking is removed; this stub keeps callers compiling.
- */
-async function checkNodeAnchorsPass(_graph: Graph, _nodePath: string): Promise<boolean | undefined> {
-  return undefined;
-}
 
 /**
  * Suggest the next command to run based on highest-priority error.

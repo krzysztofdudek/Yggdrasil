@@ -104,21 +104,19 @@ export function formatOutput(result: CheckResult): void {
         return (a.nodePath ?? '').localeCompare(b.nodePath ?? '');
       });
       for (const issue of sortedCascade) {
-        const anchorLabel = issue.anchorsPassing === true ? ' (anchors-pass)'
-          : issue.anchorsPassing === false ? ' (anchors-fail)'
-          : '';
+        const anchorLabel = issue.verificationLabel ? ` (${issue.verificationLabel})` : '';
         lines.push(`  ${issue.code} ${issue.nodePath ?? ''} — cascade drift${anchorLabel}`);
         for (const line of issue.message.split('\n')) {
           lines.push(`       ${line}`);
         }
       }
       // Cascade tree summary
-      const causeMap = new Map<string, string[]>();
+      const causeMap = new Map<string, Set<string>>();
       for (const issue of cascade) {
         for (const cause of issue.cascadeCauses ?? []) {
           const key = cause.description.split('(')[0].trim();
-          const nodes = causeMap.get(key) ?? [];
-          if (issue.nodePath) nodes.push(issue.nodePath);
+          const nodes = causeMap.get(key) ?? new Set<string>();
+          if (issue.nodePath) nodes.add(issue.nodePath);
           causeMap.set(key, nodes);
         }
       }
@@ -126,7 +124,7 @@ export function formatOutput(result: CheckResult): void {
         lines.push('');
         lines.push(`  Cascade summary: ${causeMap.size} upstream change${causeMap.size === 1 ? '' : 's'} → ${cascade.length} cascaded node${cascade.length === 1 ? '' : 's'}`);
         for (const [cause, nodes] of causeMap) {
-          lines.push(`    ${cause} → ${nodes.join(', ')}`);
+          lines.push(`    ${cause} → ${[...nodes].join(', ')}`);
         }
       }
       lines.push('');
