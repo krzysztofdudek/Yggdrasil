@@ -1,5 +1,5 @@
 {
-  "hash": "bb61449bb13fc3d12285c9c9d3bac6f4bee257728868ccb6371ae4fe3cf9ce67",
+  "hash": "c5dd6719f01cc4d878d10951aa3defb06043c87f223ea1091188aae44e1795fb",
   "files": {
     ".yggdrasil/model/cli/commands/build-context/interface.md": "c445207aece9508c6280210a401845fdc5a877c772f5ef19363dbd49d677251e",
     ".yggdrasil/model/cli/commands/build-context/internals.md": "c8b44de813a4244d4b08d7928c22f198f6fb6e9a7addb6675cc596ecc21ef541",
@@ -8,9 +8,7 @@
     ".yggdrasil/model/cli/responsibility.md": "696e0f5f377eba69a843a18379e8f20e0322dc037182690629652a75aa2227fb",
     ".yggdrasil/model/cli/commands/internals.md": "5a3b679d5c2b9600c7fa3dc01b2f28661b7bfb11850a922ff885a7a583d455c7",
     ".yggdrasil/model/cli/commands/responsibility.md": "dd8146f9c54251a68f81f4036fdf931d526f3159707709b92a59493fe383a080",
-    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "7deb781ab921aaf4f32cafbaec4e0b3ea8d803b1a039d2ee578ef49ecf3c0308",
     ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
-    ".yggdrasil/aspects/cli-command-contract/yg-aspect.yaml": "f10285d3115eb52e0eb56fa73bde1cdd07720e4699e36fbbfd6cfdd9f458ec3f",
     ".yggdrasil/aspects/cli-command-contract/content.md": "b1509ccd44cc91f1cff43926b69f16845407f518ecf4d448d24a0b4a4e2894c3",
     ".yggdrasil/model/cli/core/loader/responsibility.md": "ad751ae7c2345373a1eb3dcf64775f2dd6950d1f0a9ae7f347320336fdf18332",
     ".yggdrasil/model/cli/core/loader/interface.md": "0bb87fa5a5b9ce62786196668076207af49ca1744a8d10f967409b18f82fc2ba",
@@ -29,26 +27,32 @@
     ".yggdrasil/flows/build-context/description.md": "60e4619e480293f028a1c2b756ce30c8800adc613dc9c64e6bd6ef7f3d5fcf87",
     ".yggdrasil/flows/graph-analysis/yg-flow.yaml": "6643c01963cfd3731ba76f0a34a34e7ce2ed09e2ae2da793734c59adc4f87624",
     ".yggdrasil/flows/graph-analysis/description.md": "aca097a8ecbf74d140e5deb9ad6113c752d49e193077b0e1d201b7f99da574f4",
-    "source/cli/src/cli/build-context.ts": "d8832ad6b56d9163798b5660ac97cecc4ca1097d5c732a1ccc7b6c03b99f7531",
-    ".yggdrasil/model/cli/commands/build-context/yg-node.yaml": "f8219f7c2877cbf7e74e7b4f2591f7b2f767859aad527819064241b1dc73e5ca",
+    ".yggdrasil/model/cli/commands/build-context/yg-node.yaml": "d8ece6d39208243d0c648bfdb95af0e4ce97ba2d922747e1ba303c94bec4564b",
     ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df",
     ".yggdrasil/model/cli/commands/yg-node.yaml": "304ba077a87aae0ecd30b30323391e3f54ccfbc2843bb4020acf43d1a26a26da",
-    ".yggdrasil/model/cli/core/validator/responsibility.md": "264b0f4a0790381df7d14b86f1770a44ee7f4e6033eb49d8d8ef07e6af103906"
+    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "e6c0c095222ce0d80b79af77f5966d02f541b514205a4b551354b65ef5938900",
+    ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": "0b98be4ee4221db627b892cddeb548a94e3cb1bfce936b9555bd30d7c225e34d",
+    ".yggdrasil/aspects/posix-paths/content.md": "38daf50dec99307443fd8951019cf534c74571a7778d43e55a4354d9d2faeefc",
+    ".yggdrasil/aspects/cli-command-contract/yg-aspect.yaml": "c818ab194c19f451955987badc7d3f14026349be6a1f633f1440778c1beae802",
+    ".yggdrasil/model/cli/core/validator/responsibility.md": "1aba1eb4b9b3afd5516c23463d38a47f60241ead31a0d89d6d1aab1b04fc609a",
+    "source/cli/src/cli/build-context.ts": "95933be09bcd80d543b5838a4bc6d37f458cdcb2846edcf5dcde84dae2255a0e"
   },
   "mtimes": {
-    ".yggdrasil/model/cli/commands/build-context/yg-node.yaml": 1775240718793.7378,
+    ".yggdrasil/model/cli/commands/build-context/yg-node.yaml": 1775327956332.7717,
     ".yggdrasil/model/cli/commands/build-context/interface.md": 1775045696109.0586,
     ".yggdrasil/model/cli/commands/build-context/internals.md": 1774804231610.5747,
     ".yggdrasil/model/cli/commands/build-context/responsibility.md": 1774069955146.7378,
-    ".yggdrasil/model/cli/yg-node.yaml": 1775219122158.6094,
+    ".yggdrasil/model/cli/yg-node.yaml": 1775243577620.7664,
     ".yggdrasil/model/cli/internals.md": 1772829219205.6714,
     ".yggdrasil/model/cli/responsibility.md": 1775045623775.336,
-    ".yggdrasil/model/cli/commands/yg-node.yaml": 1775219122154.5146,
+    ".yggdrasil/model/cli/commands/yg-node.yaml": 1775243577670.2058,
     ".yggdrasil/model/cli/commands/internals.md": 1775046923261.1494,
     ".yggdrasil/model/cli/commands/responsibility.md": 1775045632026.2983,
-    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775049910995.6624,
+    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775328133881.7266,
     ".yggdrasil/aspects/deterministic/content.md": 1772778780694.5889,
-    ".yggdrasil/aspects/cli-command-contract/yg-aspect.yaml": 1775049906318.38,
+    ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": 1775328137050.7122,
+    ".yggdrasil/aspects/posix-paths/content.md": 1772743197466.7686,
+    ".yggdrasil/aspects/cli-command-contract/yg-aspect.yaml": 1775328135743.9414,
     ".yggdrasil/aspects/cli-command-contract/content.md": 1772778786204.255,
     ".yggdrasil/model/cli/core/loader/responsibility.md": 1774784572379.804,
     ".yggdrasil/model/cli/core/loader/interface.md": 1775208301390.8315,
@@ -56,7 +60,7 @@
     ".yggdrasil/model/cli/core/interface.md": 1772743197442.582,
     ".yggdrasil/model/cli/core/context/responsibility.md": 1774967446806.7505,
     ".yggdrasil/model/cli/core/context/interface.md": 1775217031584.3328,
-    ".yggdrasil/model/cli/core/validator/responsibility.md": 1775221127115.7512,
+    ".yggdrasil/model/cli/core/validator/responsibility.md": 1775317463746.7031,
     ".yggdrasil/model/cli/core/validator/interface.md": 1774783352192.546,
     ".yggdrasil/model/cli/formatters/responsibility.md": 1773381039569.8894,
     ".yggdrasil/model/cli/formatters/interface.md": 1773381039569.4338,
@@ -68,7 +72,7 @@
     ".yggdrasil/flows/build-context/description.md": 1773381039567.111,
     ".yggdrasil/flows/graph-analysis/yg-flow.yaml": 1775046079335.846,
     ".yggdrasil/flows/graph-analysis/description.md": 1775046980292.1602,
-    "source/cli/src/cli/build-context.ts": 1775040105367.21
+    "source/cli/src/cli/build-context.ts": 1775325143024.5308
   },
-  "acknowledgeReason": "Added aspect anchor proofs for E050 fixes"
+  "acknowledgeReason": "v4 migration: flat mapping, claims, doc updates"
 }
