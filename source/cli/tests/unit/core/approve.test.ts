@@ -783,6 +783,32 @@ describe('approveNode — GC and recording', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
+  it('appends audit log entry on initial approve', async () => {
+    const { tmpDir, yggRoot } = await createTmpProject('audit-initial', {
+      nodePath: 'svc/my-service',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - paths:\n      - src/svc/\n',
+      mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
+    });
+    // Don't call recordBaseline — first approve triggers initial path
+    const graph = await loadGraph(tmpDir);
+    const result = await approveNode(graph, 'svc/my-service');
+    expect(result.action).toBe('initial');
+
+    const { readFile: rf } = await import('node:fs/promises');
+    const logContent = await rf(path.join(yggRoot, '.audit-log.jsonl'), 'utf-8');
+    const lines = logContent.trim().split('\n');
+    expect(lines).toHaveLength(1);
+    const entry = JSON.parse(lines[0]);
+    expect(entry.node).toBe('svc/my-service');
+    expect(entry.action).toBe('initial');
+    expect(entry.prev).toBeNull();
+    expect(entry.hash).toBeDefined();
+    expect(entry.reason).toBeNull();
+    expect(entry.files).toEqual([]);
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
   it('garbage collects orphaned drift state on approve', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('gc', {
       nodePath: 'svc/my-service',

@@ -102,6 +102,17 @@ export async function approveNode(
       mtimes: fileMtimes,
     });
 
+    // Audit log — initial baseline
+    await appendAuditEntry(graph.rootPath, {
+      ts: new Date().toISOString(),
+      node: nodePath,
+      action: 'initial',
+      prev: null,
+      hash: canonicalHash,
+      reason: null,
+      files: [],
+    });
+
     // GC orphaned drift state
     const gcPaths = await runGC(graph);
 
