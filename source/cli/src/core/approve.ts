@@ -13,6 +13,7 @@ import {
 import { hashTrackedFiles } from '../utils/hash.js';
 import { collectTrackedFiles } from './context-files.js';
 import { normalizeMappingPaths } from '../utils/paths.js';
+import { appendAuditEntry } from '../io/audit-log.js';
 import path from 'node:path';
 
 export interface ApproveOptions {
@@ -300,6 +301,22 @@ export async function approveNode(
       acknowledgeReason: acknowledge ?? storedEntry.acknowledgeReason,
     };
     await writeNodeDriftState(graph.rootPath, nodePath, stateToWrite);
+
+    // Audit log — append-only, never read by CLI
+    const changedFiles = [
+      ...changedOwnArtifacts,
+      ...changedSource,
+      ...changedOther.map((c) => c.filePath),
+    ];
+    await appendAuditEntry(graph.rootPath, {
+      ts: new Date().toISOString(),
+      node: nodePath,
+      action,
+      prev: storedEntry.hash,
+      hash: canonicalHash,
+      reason: acknowledge ?? null,
+      files: changedFiles,
+    });
   }
 
   // GC orphaned drift state — runs on every invocation per spec ("when approve runs")

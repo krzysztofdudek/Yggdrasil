@@ -728,6 +728,61 @@ describe('approveNode — GC and recording', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
+  it('appends audit log entry on approve', async () => {
+    const { tmpDir, yggRoot } = await createTmpProject('audit-approve', {
+      nodePath: 'svc/my-service',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - paths:\n      - src/svc/\n',
+      mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
+    });
+    await recordBaseline(tmpDir);
+    // Change both source and artifact → bilateral approve
+    await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'export default 99;\n');
+    await writeFile(
+      path.join(yggRoot, 'model/svc/my-service/responsibility.md'),
+      'Updated responsibility content for audit test.\n',
+    );
+    const graph = await loadGraph(tmpDir);
+    const result = await approveNode(graph, 'svc/my-service');
+    expect(result.action).toBe('approved');
+
+    const { readFile: rf } = await import('node:fs/promises');
+    const logContent = await rf(path.join(yggRoot, '.audit-log.jsonl'), 'utf-8');
+    const lines = logContent.trim().split('\n');
+    // First entry = initial (from recordBaseline), second = this approve
+    const entry = JSON.parse(lines[lines.length - 1]);
+    expect(entry.node).toBe('svc/my-service');
+    expect(entry.action).toBe('approved');
+    expect(entry.prev).toBeDefined();
+    expect(entry.hash).toBeDefined();
+    expect(entry.prev).not.toBe(entry.hash);
+    expect(entry.reason).toBeNull();
+    expect(entry.files.length).toBeGreaterThan(0);
+    expect(entry.ts).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('audit log includes acknowledge reason', async () => {
+    const { tmpDir, yggRoot } = await createTmpProject('audit-ack', {
+      nodePath: 'svc/my-service',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - paths:\n      - src/svc/\n',
+      mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
+    });
+    await recordBaseline(tmpDir);
+    await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'export default 99;\n');
+    const graph = await loadGraph(tmpDir);
+    await approveNode(graph, 'svc/my-service', { acknowledge: 'formatter ran' });
+
+    const { readFile: rf } = await import('node:fs/promises');
+    const logContent = await rf(path.join(yggRoot, '.audit-log.jsonl'), 'utf-8');
+    const lastLine = logContent.trim().split('\n').pop()!;
+    const entry = JSON.parse(lastLine);
+    expect(entry.action).toBe('acknowledged');
+    expect(entry.reason).toBe('formatter ran');
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
   it('garbage collects orphaned drift state on approve', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('gc', {
       nodePath: 'svc/my-service',
