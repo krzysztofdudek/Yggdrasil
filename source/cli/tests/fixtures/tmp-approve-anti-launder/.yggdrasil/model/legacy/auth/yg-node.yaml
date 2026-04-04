@@ -1,0 +1,7 @@
+name: LegacyAuth
+type: service
+description: legacy auth
+blackbox: true
+mapping:
+- paths:
+- src/auth/

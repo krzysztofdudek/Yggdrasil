@@ -1,14 +1,9 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { STANDARD_ARTIFACTS } from '../model/types.js';
-import type { Graph, ValidationResult, ValidationIssue, ArtifactConfig, GraphNode } from '../model/types.js';
+import type { Graph, ValidationResult, ValidationIssue, ArtifactConfig } from '../model/types.js';
 import { buildContext, computeBudgetBreakdown } from './context-builder.js';
 import { normalizeMappingPaths } from '../utils/paths.js';
-import {
-  computeEffectiveAspects,
-  computeEffectiveIntegrationAspects,
-  getIntegrationAspectSource,
-} from './effective-aspects.js';
 
 /** Reserved directories that are NOT nodes (within model/) */
 const RESERVED_DIRS = new Set<string>();
@@ -44,8 +39,8 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
     issues.push(...checkImpliesNoCycles(graph));
     // E035 removed — replaced by E051 (architecture enforcement)
     issues.push(...checkAspectAnchors(graph));
-    issues.push(...checkAnchorRealizations(graph));
-    issues.push(...(await checkAnchorPatterns(graph)));
+    // E040, E041 removed — anchor realization checks will be replaced by LLM verification in Plan 2
+    // E037 removed — anchor pattern checks will be replaced by LLM verification in Plan 2
     issues.push(...checkRequiredArtifacts(graph));
     // invalid-artifact-condition removed — standard artifacts don't use has_aspect: conditions
     issues.push(...(await checkContextBudget(graph)));
@@ -817,115 +812,11 @@ function checkAspectAnchors(graph: Graph): ValidationIssue[] {
   return issues;
 }
 
-// E040: Mapping group anchors must have required fields (regex + rationale)
-function checkAnchorRealizations(graph: Graph): ValidationIssue[] {
-  const issues: ValidationIssue[] = [];
+// E040, E041 removed — anchor realization checks will be replaced by LLM verification in Plan 2
+// function checkAnchorRealizations(graph: Graph): ValidationIssue[] { ... }
 
-  for (const [nodePath, node] of graph.nodes) {
-    if (node.meta.blackbox) continue;
-
-    // Check mapping group aspect anchors (E040)
-    const mappingGroups = node.meta.mapping;
-    if (mappingGroups) {
-      for (const mappingGroup of mappingGroups) {
-        if (mappingGroup?.aspects) {
-          for (const aspectEntry of mappingGroup.aspects) {
-            for (const [anchorId, anchor] of Object.entries(aspectEntry.anchors ?? {})) {
-              // E040: Check that anchor has required fields
-              if (!anchor.regex || anchor.regex.trim() === '') {
-                issues.push({
-                  severity: 'error',
-                  code: 'E040',
-                  rule: 'anchor-not-realized',
-                  message: `Mapping group anchor '${anchorId}' in aspect '${aspectEntry.aspect}' is missing or empty 'regex' field.\nAdd regex pattern to the anchor in yg-node.yaml:\n  mapping:\n    - aspects:\n      - aspect: ${aspectEntry.aspect}\n        anchors:\n          ${anchorId}:\n            regex: "<pattern>"`,
-                  nodePath,
-                });
-              }
-              if (!anchor.rationale || anchor.rationale.trim() === '') {
-                issues.push({
-                  severity: 'error',
-                  code: 'E040',
-                  rule: 'anchor-not-realized',
-                  message: `Mapping group anchor '${anchorId}' in aspect '${aspectEntry.aspect}' is missing or empty 'rationale' field.\nAdd rationale to the anchor in yg-node.yaml:\n  mapping:\n    - aspects:\n      - aspect: ${aspectEntry.aspect}\n        anchors:\n          ${anchorId}:\n            rationale: "<why this anchor matters>"`,
-                  nodePath,
-                });
-              }
-            }
-          }
-        }
-      }
-    }
-
-    // Note: integration anchor checking has been removed from relation level.
-    // Integration aspects are now just string IDs. Anchor realizations (if needed)
-    // are in mapping groups, not in the relation object.
-  }
-  return issues;
-}
-
-// E037: Mapping group anchor regex patterns must be found in source files
-async function checkAnchorPatterns(graph: Graph): Promise<ValidationIssue[]> {
-  const issues: ValidationIssue[] = [];
-  const projectRoot = path.dirname(graph.rootPath);
-
-  for (const [nodePath, node] of graph.nodes) {
-    if (node.meta.blackbox) continue;
-
-    // Check mapping group aspect anchor patterns (E037)
-    const mappingGroupsE037 = node.meta.mapping;
-    if (mappingGroupsE037) {
-      for (const mappingGroup of mappingGroupsE037) {
-        if (mappingGroup?.aspects && mappingGroup.paths.length > 0) {
-          // Read source files for this mapping group
-          const sourceFiles = await expandMappingToFiles(projectRoot, mappingGroup.paths);
-          if (sourceFiles.length === 0) continue;
-
-          const fileContents: Array<{ path: string; content: string }> = [];
-          for (const filePath of sourceFiles) {
-            try {
-              const content = await readFile(filePath, 'utf-8');
-              fileContents.push({ path: filePath, content });
-            } catch { /* skip unreadable */ }
-          }
-
-          for (const aspectEntry of mappingGroup.aspects) {
-            for (const [anchorId, anchor] of Object.entries(aspectEntry.anchors ?? {})) {
-              if (!anchor.regex) continue;
-
-              try {
-                const regex = new RegExp(anchor.regex);
-                const found = fileContents.some(f => regex.test(f.content));
-                if (!found) {
-                  const mappedFiles = sourceFiles.map(f => path.relative(projectRoot, f));
-                  issues.push({
-                    severity: 'error',
-                    code: 'E037',
-                    rule: 'anchor-not-found',
-                    message: `Mapping group anchor '${anchorId}' in aspect '${aspectEntry.aspect}' with pattern\n'${anchor.regex}' not found in mapped files:\n${mappedFiles.map(f => '  ' + f).join('\n')}\nImplement the anchor pattern or update the regex if the pattern has changed.`,
-                    nodePath,
-                  });
-                }
-              } catch {
-                // Invalid regex — reported as E037 with pattern info
-                issues.push({
-                  severity: 'error',
-                  code: 'E037',
-                  rule: 'anchor-not-found',
-                  message: `Mapping group anchor '${anchorId}' in aspect '${aspectEntry.aspect}' has invalid regex pattern '${anchor.regex}'.`,
-                  nodePath,
-                });
-              }
-            }
-          }
-        }
-      }
-    }
-
-    // Note: integration anchor pattern checking on relations has been removed.
-    // Integration anchors are now checked via mapping groups (in checkAnchorPatterns above).
-  }
-  return issues;
-}
+// E037 removed — anchor pattern checks will be replaced by LLM verification in Plan 2
+// async function checkAnchorPatterns(graph: Graph): Promise<ValidationIssue[]> { ... }
 
 // --- Context budget (W001 warning, E032 exceeded, W002 own-budget) ---
 
@@ -1057,116 +948,13 @@ function checkArchitectureConstraints(graph: Graph): ValidationIssue[] {
 }
 
 /**
- * E050 — missing-required-aspect
- * E054 — unexpected-aspect
- * Per-mapping-group sync checks for aspect declarations.
- * Computes effective aspects (from architecture, parent, flow, own, implies chain)
- * and checks that every mapping group declares all required aspects.
+ * E050, E053, E054 — architecture constraint checks for aspect declarations
+ * Temporarily simplified: mapping is now flat string[], no per-mapping aspects.
+ * Full aspect checking will be replaced by LLM verification in Plan 2.
  */
 function checkMappingGroupAspects(graph: Graph): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
-
-  for (const [nodePath, node] of graph.nodes) {
-    // Skip blackbox and nodes without mapping groups
-    if (node.meta.blackbox || !node.meta.mapping || node.meta.mapping.length === 0) {
-      continue;
-    }
-
-    // Compute effective aspects from all sources
-    const effective = computeEffectiveAspects({
-      nodeType: node.meta.type,
-      architecture: graph.architecture,
-      parentTypes: node.parent ? [node.parent.meta.type] : [],
-      ownAspects: node.meta.aspects ?? [],
-      ownIntegrationAspects: node.meta.integration_aspects ?? [],
-      flowAspects: getFlowAspects(node, graph),
-      allAspects: graph.aspects,
-      allFlows: graph.flows,
-    });
-
-    // Compute allowed set: effective aspects + integration aspects from all relation targets
-    const allowedAspects = new Set(effective.regular);
-    if (node.meta.relations && node.meta.relations.length > 0) {
-      for (const rel of node.meta.relations) {
-        const target = graph.nodes.get(rel.target);
-        if (target) {
-          // Get target's integration aspects
-          const targetIntegration = computeEffectiveAspects({
-            nodeType: target.meta.type,
-            architecture: graph.architecture,
-            parentTypes: target.parent ? [target.parent.meta.type] : [],
-            ownAspects: [],
-            ownIntegrationAspects: target.meta.integration_aspects ?? [],
-            flowAspects: [],
-            allAspects: graph.aspects,
-            allFlows: graph.flows,
-          });
-          for (const ia of targetIntegration.integration) {
-            allowedAspects.add(ia);
-          }
-        }
-        // If target not found, E004 fires separately — don't restrict allowed set
-      }
-    }
-
-    // Check each mapping group
-    for (const group of node.meta.mapping) {
-      const declaredAspects = new Set((group.aspects ?? []).map((a) => a.aspect));
-
-      // E050: missing-required-aspect — for each aspect in effective set not declared
-      for (const required of effective.regular) {
-        if (!declaredAspects.has(required)) {
-          const source = getAspectSource(required, node, graph);
-          issues.push({
-            severity: 'error',
-            code: 'E050',
-            rule: 'missing-required-aspect',
-            nodePath,
-            message:
-              `Files: ${group.paths.join(', ')}\n` +
-              `  Missing aspect: ${required}\n` +
-              `  Required by: ${source}\n\n` +
-              `  This mapping group does not prove '${required}'.\n` +
-              `  To fix:\n` +
-              `    1. Read .yggdrasil/aspects/${required}/description.md\n` +
-              `    2. Find the pattern that proves these files implement '${required}'\n` +
-              `    3. Add an anchor with regex + rationale to this mapping group\n` +
-              `       in yg-node.yaml`,
-          });
-        }
-      }
-
-      // E054: unexpected-aspect — for each declared aspect not in allowed set
-      for (const declared of declaredAspects) {
-        if (!allowedAspects.has(declared)) {
-          const effectiveList = [...effective.regular].sort().join(', ');
-          const integrationList = [...allowedAspects]
-            .filter((a) => !effective.regular.has(a))
-            .sort()
-            .join(', ');
-          issues.push({
-            severity: 'error',
-            code: 'E054',
-            rule: 'unexpected-aspect',
-            nodePath,
-            message:
-              `Mapping group containing: ${group.paths.join(', ')}\n` +
-              `  Aspect '${declared}' is declared but not in allowed aspects.\n\n` +
-              `  Effective aspects:\n` +
-              `    [${effectiveList || 'none'}]\n` +
-              (integrationList
-                ? `  Integration aspects (from relations):\n` +
-                  `    [${integrationList}]\n`
-                : '') +
-              `\n  Either:\n` +
-              `    1. Add '${declared}' to this node's aspects list in yg-node.yaml\n` +
-              `    2. Remove '${declared}' from this mapping group`,
-          });
-        }
-      }
-    }
-  }
-
+  // TODO Plan 2: Reimplement using LLM claim verification
   return issues;
 }
 
@@ -1175,59 +963,13 @@ function checkMappingGroupAspects(graph: Graph): ValidationIssue[] {
  * When a node A has a relation to node B, and B declares integration_aspects,
  * then A's mapping groups must declare those integration aspects.
  */
+/**
+ * E053 — integration-aspect-missing (temporarily disabled)
+ * Will be replaced by LLM claim verification in Plan 2.
+ */
 async function checkIntegrationAspects(graph: Graph): Promise<ValidationIssue[]> {
   const issues: ValidationIssue[] = [];
-
-  // E053 requires architecture to be defined and loaded
-  if (!graph.architecture || Object.keys(graph.architecture.node_types).length === 0) {
-    return issues;
-  }
-
-  for (const [nodePath, node] of graph.nodes) {
-    // Skip blackbox and nodes without mapping groups or relations
-    if (node.meta.blackbox || !node.meta.mapping || node.meta.mapping.length === 0) {
-      continue;
-    }
-    if (!node.meta.relations || node.meta.relations.length === 0) {
-      continue;
-    }
-
-    for (const rel of node.meta.relations) {
-      const target = graph.nodes.get(rel.target);
-      if (!target) continue; // E004 catches missing targets
-
-      // Get target's integration aspects (from architecture, own, or inherited)
-      const requiredIntegration = computeEffectiveIntegrationAspects(target, graph);
-      if (requiredIntegration.size === 0) continue;
-
-      for (const group of node.meta.mapping) {
-        const declaredAspects = new Set((group.aspects ?? []).map((a) => a.aspect));
-
-        for (const required of requiredIntegration) {
-          if (!declaredAspects.has(required)) {
-            const intSource = getIntegrationAspectSource(required, target, graph);
-            issues.push({
-              severity: 'error',
-              code: 'E053',
-              rule: 'integration-aspect-missing',
-              nodePath,
-              message:
-                `Files: ${group.paths.join(', ')}\n` +
-                `  Missing aspect: ${required}\n` +
-                `  Required by: relation to '${rel.target}' — integration_aspects\n` +
-                `    from ${intSource}\n\n` +
-                `  When consuming '${rel.target}', your files must prove '${required}'.\n` +
-                `  To fix:\n` +
-                `    1. Read .yggdrasil/aspects/${required}/description.md\n` +
-                `    2. Add an anchor for '${required}' to this mapping group\n` +
-                `       in yg-node.yaml`,
-            });
-          }
-        }
-      }
-    }
-  }
-
+  // TODO Plan 2: Reimplement using LLM claim verification and port-based requirements
   return issues;
 }
 
@@ -1307,62 +1049,6 @@ function checkArchitectureParents(graph: Graph): ValidationIssue[] {
   return issues;
 }
 
-/**
- * Helper: Get all aspect IDs that this node participates in via flows.
- */
-function getFlowAspects(node: GraphNode, graph: Graph): string[] {
-  const aspects: string[] = [];
-  for (const flow of graph.flows) {
-    if (flow.nodes && flow.nodes.includes(node.path)) {
-      for (const aspect of flow.aspects ?? []) {
-        if (!aspects.includes(aspect)) {
-          aspects.push(aspect);
-        }
-      }
-    }
-  }
-  return aspects;
-}
+// getFlowAspects removed — was used by old mapping group aspect checking
 
-/**
- * Helper: Determine the source of a required aspect (architecture, flow, parent, or own).
- */
-function getAspectSource(aspectId: string, node: GraphNode, graph: Graph): string {
-  const typeConfig = graph.architecture.node_types[node.meta.type];
-
-  // Check if from architecture type requirement
-  if (typeConfig?.aspects?.includes(aspectId)) {
-    return `architecture (type '${node.meta.type}' requires [${typeConfig.aspects.join(', ')}])`;
-  }
-
-  // Check if from flow participation
-  for (const flow of graph.flows) {
-    if (flow.nodes?.includes(node.path) && flow.aspects?.includes(aspectId)) {
-      return `flow '${flow.path}' (participants must prove [${flow.aspects.join(', ')}])`;
-    }
-  }
-
-  // Check if from parent inheritance
-  if (node.parent) {
-    const parentEffective = computeEffectiveAspects({
-      nodeType: node.parent.meta.type,
-      architecture: graph.architecture,
-      parentTypes: node.parent.parent ? [node.parent.parent.meta.type] : [],
-      ownAspects: node.parent.meta.aspects ?? [],
-      ownIntegrationAspects: [],
-      flowAspects: getFlowAspects(node.parent, graph),
-      allAspects: graph.aspects,
-      allFlows: graph.flows,
-    });
-    if (parentEffective.regular.has(aspectId)) {
-      return `parent inheritance (${node.parent.path} effective aspects)`;
-    }
-  }
-
-  // Check if from own declaration
-  if (node.meta.aspects?.includes(aspectId)) {
-    return `own declaration in yg-node.yaml`;
-  }
-
-  return `(source unknown — aspect not found in any effective set)`;
-}
+// getAspectSource removed — was used by old mapping group aspect checking (E050, E054)

@@ -1,0 +1,6 @@
+
+node_types:
+  service:
+    description: "Request handler"
+    aspects: [requires-auth]
+    integration_aspects: [correlation-tracking]

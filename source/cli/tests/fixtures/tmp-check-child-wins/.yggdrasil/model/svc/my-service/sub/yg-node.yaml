@@ -1,0 +1,6 @@
+name: Sub
+type: service
+description: test
+mapping:
+- paths:
+- src/svc/sub/

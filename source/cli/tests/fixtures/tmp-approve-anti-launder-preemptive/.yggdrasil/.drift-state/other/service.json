@@ -1,0 +1,6 @@
+{
+  "hash": "current-baseline",
+  "files": {
+    "src/auth/login.ts": "current-hash-matching-disk"
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "hash": "fake",
+  "files": {
+    "src/auth/login.ts": "fake-hash"
+  }
+}

@@ -1,0 +1,8 @@
+name: MyService
+type: service
+description: test
+aspects:
+  - logging
+mapping:
+- paths:
+- src/svc/

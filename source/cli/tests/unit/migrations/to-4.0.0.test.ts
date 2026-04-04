@@ -51,7 +51,7 @@ describe('to-4.0.0 migration', () => {
   });
 
   describe('mapping structure transformation', () => {
-    it('transforms mapping from object to array format', async () => {
+    it('transforms mapping from object to flat string array format', async () => {
       const nodeDir = path.join(TMP_DIR, 'model', 'svc');
       await mkdir(nodeDir, { recursive: true });
       await writeFile(
@@ -63,11 +63,11 @@ describe('to-4.0.0 migration', () => {
 
       const doc = parseYaml(await readFile(path.join(nodeDir, 'yg-node.yaml'), 'utf-8')) as Record<string, unknown>;
       expect(Array.isArray(doc.mapping)).toBe(true);
-      expect((doc.mapping as unknown[])[0]).toHaveProperty('paths');
+      expect((doc.mapping as unknown[])[0]).toBe('src/service.ts');
       expect(result.actions.some((a) => a.includes('Transformed'))).toBe(true);
     });
 
-    it('preserves mapping if already in array format', async () => {
+    it('flattens mapping if in array format with paths objects', async () => {
       const nodeDir = path.join(TMP_DIR, 'model', 'svc');
       await mkdir(nodeDir, { recursive: true });
       await writeFile(
@@ -79,6 +79,7 @@ describe('to-4.0.0 migration', () => {
 
       const doc = parseYaml(await readFile(path.join(nodeDir, 'yg-node.yaml'), 'utf-8')) as Record<string, unknown>;
       expect(Array.isArray(doc.mapping)).toBe(true);
+      expect((doc.mapping as unknown[])[0]).toBe('src/service.ts');
     });
   });
 
@@ -115,7 +116,7 @@ describe('to-4.0.0 migration', () => {
   });
 
   describe('anchor format migration', () => {
-    it('converts bare-string anchors to typed realization objects', async () => {
+    it('removes mapping aspects and anchors (flattened to string mapping)', async () => {
       const nodeDir = path.join(TMP_DIR, 'model', 'svc');
       await mkdir(nodeDir, { recursive: true });
       await writeFile(
@@ -127,16 +128,13 @@ describe('to-4.0.0 migration', () => {
 
       const doc = parseYaml(await readFile(path.join(nodeDir, 'yg-node.yaml'), 'utf-8')) as Record<string, unknown>;
       const mapping = doc.mapping as unknown[];
-      const mappingAspects = (mapping[0] as Record<string, unknown>).aspects as Array<Record<string, unknown>>;
-      const anchors = mappingAspects[0].anchors as Record<string, unknown>;
-      expect(anchors).toEqual({
-        'audit-entry': { regex: 'audit-entry', rationale: 'migrated from v3' },
-        'log-call': { regex: 'log-call', rationale: 'migrated from v3' },
-      });
+      // After v4 migration, mapping is flat strings, no aspects
+      expect(Array.isArray(mapping)).toBe(true);
+      expect(mapping[0]).toBe('src/service.ts');
       expect(result.actions.some((a) => a.includes('Transformed'))).toBe(true);
     });
 
-    it('preserves already-typed anchors', async () => {
+    it('flattens mapping aspects and removes anchors', async () => {
       const nodeDir = path.join(TMP_DIR, 'model', 'svc');
       await mkdir(nodeDir, { recursive: true });
       await writeFile(
@@ -148,12 +146,9 @@ describe('to-4.0.0 migration', () => {
 
       const doc = parseYaml(await readFile(path.join(nodeDir, 'yg-node.yaml'), 'utf-8')) as Record<string, unknown>;
       const mapping = doc.mapping as unknown[];
-      const mappingAspects = (mapping[0] as Record<string, unknown>).aspects as Array<Record<string, unknown>>;
-      const anchors = mappingAspects[0].anchors as Record<string, unknown>;
-      expect(anchors['audit-entry']).toEqual({
-        regex: 'createAuditLog',
-        rationale: 'Creates audit log',
-      });
+      // Mapping is flat strings, aspects and anchors removed from mapping
+      expect(Array.isArray(mapping)).toBe(true);
+      expect(mapping[0]).toBe('src/service.ts');
     });
   });
 
@@ -344,7 +339,7 @@ describe('to-4.0.0 migration', () => {
       expect(doc.aspects).toBeUndefined();
     });
 
-    it('handles anchors as object in mapping aspects', async () => {
+    it('flattens mapping with aspects and anchors', async () => {
       const nodeDir = path.join(TMP_DIR, 'model', 'svc');
       await mkdir(nodeDir, { recursive: true });
       await writeFile(
@@ -354,9 +349,9 @@ describe('to-4.0.0 migration', () => {
       const result = await migrateToV4(TMP_DIR);
       const doc = parseYaml(await readFile(path.join(nodeDir, 'yg-node.yaml'), 'utf-8')) as Record<string, unknown>;
       const mapping = doc.mapping as unknown[];
-      const mappingAspects = (mapping[0] as Record<string, unknown>).aspects as Array<Record<string, unknown>>;
-      const anchors = mappingAspects[0].anchors as Record<string, unknown>;
-      expect(anchors['audit-entry']).toHaveProperty('regex', 'log');
+      // Mapping is flattened to strings, aspects removed
+      expect(Array.isArray(mapping)).toBe(true);
+      expect(mapping[0]).toBe('src/service.ts');
     });
 
     it('skips node file if cannot be read', async () => {
@@ -382,7 +377,7 @@ describe('to-4.0.0 migration', () => {
       expect((doc.aspects as string[]).includes('requires-audit')).toBe(true);
     });
 
-    it('handles mixed anchor types in object format', async () => {
+    it('flattens mapping with mixed anchor types', async () => {
       const nodeDir = path.join(TMP_DIR, 'model', 'svc');
       await mkdir(nodeDir, { recursive: true });
       await writeFile(
@@ -392,14 +387,12 @@ describe('to-4.0.0 migration', () => {
       const result = await migrateToV4(TMP_DIR);
       const doc = parseYaml(await readFile(path.join(nodeDir, 'yg-node.yaml'), 'utf-8')) as Record<string, unknown>;
       const mapping = doc.mapping as unknown[];
-      const mappingAspects = (mapping[0] as Record<string, unknown>).aspects as Array<Record<string, unknown>>;
-      const anchors = mappingAspects[0].anchors as Record<string, unknown>;
-      expect(anchors).toHaveProperty('entry');
-      expect(anchors).toHaveProperty('call');
-      expect(anchors).toHaveProperty('unknown');
+      // Mapping flattened, anchors removed
+      expect(Array.isArray(mapping)).toBe(true);
+      expect(mapping[0]).toBe('src/service.ts');
     });
 
-    it('handles mapping groups without aspects', async () => {
+    it('handles mapping groups without aspects by flattening', async () => {
       const nodeDir = path.join(TMP_DIR, 'model', 'svc');
       await mkdir(nodeDir, { recursive: true });
       await writeFile(
@@ -409,6 +402,7 @@ describe('to-4.0.0 migration', () => {
       const result = await migrateToV4(TMP_DIR);
       const doc = parseYaml(await readFile(path.join(nodeDir, 'yg-node.yaml'), 'utf-8')) as Record<string, unknown>;
       expect(Array.isArray(doc.mapping)).toBe(true);
+      expect((doc.mapping as unknown[])[0]).toBe('src/service.ts');
     });
 
     it('handles relation without anchors field', async () => {
@@ -434,8 +428,9 @@ describe('to-4.0.0 migration', () => {
       const result = await migrateToV4(TMP_DIR);
       const doc = parseYaml(await readFile(path.join(nodeDir, 'yg-node.yaml'), 'utf-8')) as Record<string, unknown>;
       const mapping = doc.mapping as unknown[];
-      const mappingAspects = (mapping[0] as Record<string, unknown>).aspects as Array<Record<string, unknown>>;
-      expect(mappingAspects[0].anchors).toEqual({});
+      // After migration, mapping should be flat strings (aspects are dropped from mapping groups)
+      expect(Array.isArray(mapping)).toBe(true);
+      expect(mapping[0]).toBe('src/service.ts');
     });
 
     it('handles node with invalid YAML that cannot be read', async () => {

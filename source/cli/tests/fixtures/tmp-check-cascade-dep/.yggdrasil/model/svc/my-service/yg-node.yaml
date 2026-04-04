@@ -1,0 +1,9 @@
+name: MyService
+type: service
+description: test
+relations:
+  - target: svc/dep
+    type: uses
+mapping:
+- paths:
+- src/svc/

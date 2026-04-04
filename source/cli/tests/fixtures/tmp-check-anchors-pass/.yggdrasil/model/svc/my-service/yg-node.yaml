@@ -1,0 +1,14 @@
+name: MyService
+type: service
+description: test
+aspects:
+  - logging
+mapping:
+- paths:
+- src/svc/
+    aspects:
+- aspect: logging
+        anchors:
+          audit-entry:
+            regex: "createAuditLog"
+            rationale: "Log creation calls"

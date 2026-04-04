@@ -135,13 +135,43 @@ async function transformSingleNode(filePath: string, actions: string[], warnings
 
   let changed = false;
 
-  // Step 1: Convert mapping from object to array if needed
-  // v3: mapping: {paths: [...]} → v4: mapping: [{paths: [...]}]
-  if (doc.mapping && typeof doc.mapping === 'object' && !Array.isArray(doc.mapping)) {
-    const mappingObj = doc.mapping as Record<string, unknown>;
-    // Only wrap if it has 'paths' and is not an array
-    if (mappingObj.paths && Array.isArray(mappingObj.paths)) {
-      doc.mapping = [mappingObj];
+  // Step 1: Migrate mapping to flat string array format
+  // v3 formats:
+  //   - mapping: {paths: [...]}  → flatten to [...]
+  //   - mapping: [{paths: [...], aspects: [...]}]  → flatten to [...] (drop aspects for now)
+  // v4 format: mapping: [...]  (flat array of strings)
+  if (doc.mapping) {
+    let flatPaths: string[] = [];
+    let isMigrated = false;
+
+    if (typeof doc.mapping === 'object' && !Array.isArray(doc.mapping)) {
+      // v3 object format: {paths: [...]}
+      const mappingObj = doc.mapping as Record<string, unknown>;
+      if (Array.isArray(mappingObj.paths)) {
+        flatPaths = mappingObj.paths.filter(p => typeof p === 'string');
+        isMigrated = true;
+      }
+    } else if (Array.isArray(doc.mapping)) {
+      // v3 array format: [{paths: [...], aspects: [...]}, ...]
+      for (const group of doc.mapping) {
+        if (typeof group === 'object' && group !== null) {
+          const groupObj = group as Record<string, unknown>;
+          if (Array.isArray(groupObj.paths)) {
+            flatPaths.push(...groupObj.paths.filter(p => typeof p === 'string'));
+            isMigrated = true;
+          }
+        } else if (typeof group === 'string') {
+          // Already in v4 flat format
+          flatPaths.push(group);
+        }
+      }
+    }
+
+    if (isMigrated && flatPaths.length > 0) {
+      doc.mapping = flatPaths;
+      changed = true;
+    } else if (isMigrated && flatPaths.length === 0) {
+      delete doc.mapping;
       changed = true;
     }
   }
@@ -175,36 +205,11 @@ async function transformSingleNode(filePath: string, actions: string[], warnings
     }
   }
 
-  // Step 3: Migrate bare-string anchors to typed objects within mapping groups
-  if (Array.isArray(doc.mapping)) {
-    for (const group of doc.mapping as unknown[]) {
-      if (typeof group === 'object' && group !== null) {
-        const groupObj = group as Record<string, unknown>;
-        if (Array.isArray(groupObj.aspects)) {
-          for (const aspectEntry of groupObj.aspects as unknown[]) {
-            if (typeof aspectEntry === 'object' && aspectEntry !== null) {
-              const aspect = aspectEntry as Record<string, unknown>;
-              if (aspect.anchors) {
-                // anchors can be either an array of strings or an object
-                if (Array.isArray(aspect.anchors)) {
-                  // Convert array format to object format
-                  const anchorsObj = convertAnchorArrayToObject(aspect.anchors);
-                  aspect.anchors = migrateAnchors(anchorsObj);
-                  changed = true;
-                } else if (typeof aspect.anchors === 'object') {
-                  const anchorsObj = aspect.anchors as Record<string, unknown>;
-                  const migrated = migrateAnchors(anchorsObj);
-                  if (migrated !== anchorsObj) {
-                    aspect.anchors = migrated;
-                    changed = true;
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
+  // Step 3: Migrate anchors from node level (v3 aspects can have string anchors)
+  // v4 aspect anchors are claim-based, but aspect anchors are in aspect files now
+  // This step is minimal since mapping group aspects are removed above
+  if (Array.isArray(doc.aspects)) {
+    // Aspects at node level are just string IDs in v4 — no changes needed
   }
 
   // Step 4: Remove deprecated fields

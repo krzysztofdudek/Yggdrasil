@@ -48,7 +48,7 @@ function createGraph(overrides: Partial<Graph> = {}): Graph {
       node_types: { service: { description: 'x' } },
     },
     nodes: new Map(),
-    aspects: [{ name: 'Valid', id: 'valid-tag', anchors: ['proof-point'], artifacts: [] }],
+    aspects: [{ name: 'Valid', id: 'valid-tag', anchors: [{ id: 'proof-point', claim: 'Has a proof point' }], artifacts: [] }],
     flows: [],
     schemas: [],
     rootPath: path.join(FIXTURE_PROJECT, '.yggdrasil'),
@@ -119,8 +119,8 @@ describe('validator', () => {
   it('duplicate-aspect-binding returns E010 when id bound to multiple aspects', async () => {
     const graph = createGraph({
       aspects: [
-        { name: 'Aspect One', id: 'audit', anchors: ['proof'], artifacts: [] },
-        { name: 'Aspect Two', id: 'audit', anchors: ['proof'], artifacts: [] },
+        { name: 'Aspect One', id: 'audit', anchors: [{ id: 'proof', claim: 'Proof provided' }], artifacts: [] },
+        { name: 'Aspect Two', id: 'audit', anchors: [{ id: 'proof', claim: 'Proof provided' }], artifacts: [] },
       ],
     });
     graph.nodes.set('a', createNode('a'));
@@ -260,11 +260,11 @@ describe('validator', () => {
     const graph = createGraph();
     graph.nodes.set(
       'svc/a',
-      createNode('svc/a', { mapping: [{ paths: ['src/shared/file.ts'] }] }),
+      createNode('svc/a', { mapping: ['src/shared/file.ts'] }),
     );
     graph.nodes.set(
       'svc/b',
-      createNode('svc/b', { mapping: [{ paths: ['src/shared/file.ts'] }] }),
+      createNode('svc/b', { mapping: ['src/shared/file.ts'] }),
     );
 
     const result = await validate(graph);
@@ -277,11 +277,11 @@ describe('validator', () => {
     const graph = createGraph();
     graph.nodes.set(
       'svc/a',
-      createNode('svc/a', { mapping: [{ paths: ['src/shared'] }] }),
+      createNode('svc/a', { mapping: ['src/shared'] }),
     );
     graph.nodes.set(
       'svc/b',
-      createNode('svc/b', { mapping: [{ paths: ['src/shared/file.ts'] }] }),
+      createNode('svc/b', { mapping: ['src/shared/file.ts'] }),
     );
 
     const result = await validate(graph);
@@ -294,11 +294,11 @@ describe('validator', () => {
     const graph = createGraph();
     graph.nodes.set(
       'platform',
-      createNode('platform', { mapping: [{ paths: ['src/platform'] }] }),
+      createNode('platform', { mapping: ['src/platform'] }),
     );
     graph.nodes.set(
       'platform/auth',
-      createNode('platform/auth', { mapping: [{ paths: ['src/platform/auth'] }] }),
+      createNode('platform/auth', { mapping: ['src/platform/auth'] }),
     );
 
     const result = await validate(graph);
@@ -310,11 +310,11 @@ describe('validator', () => {
     const graph = createGraph();
     graph.nodes.set(
       'platform',
-      createNode('platform', { mapping: [{ paths: ['src/platform'] }] }),
+      createNode('platform', { mapping: ['src/platform'] }),
     );
     graph.nodes.set(
       'platform/auth',
-      createNode('platform/auth', { mapping: [{ paths: ['src/platform'] }] }),
+      createNode('platform/auth', { mapping: ['src/platform'] }),
     );
 
     const result = await validate(graph);
@@ -380,7 +380,7 @@ describe('validator', () => {
     graph.nodes.set(
       'svc/nonexistent-mapping',
       createNode('svc/nonexistent-mapping', {
-        mapping: [{ paths: ['src'] }],
+        mapping: ['src'],
       }),
     );
 
@@ -759,8 +759,8 @@ describe('validator', () => {
   it('aspect-id-uniqueness returns error when id bound to multiple aspects', async () => {
     const graph = createGraph({
       aspects: [
-        { name: 'Aspect1', id: 'dup-tag', anchors: ['proof'], artifacts: [] },
-        { name: 'Aspect2', id: 'dup-tag', anchors: ['proof'], artifacts: [] },
+        { name: 'Aspect1', id: 'dup-tag', anchors: [{ id: 'proof', claim: 'Proof provided' }], artifacts: [] },
+        { name: 'Aspect2', id: 'dup-tag', anchors: [{ id: 'proof', claim: 'Proof provided' }], artifacts: [] },
       ],
     });
     graph.nodes.set('a', createNode('a'));
@@ -775,7 +775,7 @@ describe('validator', () => {
   it('implied-aspect-missing returns error when implied id has no aspect', async () => {
     const graph = createGraph({
       aspects: [
-        { name: 'HIPAA', id: 'requires-hipaa', anchors: ['proof'], implies: ['requires-audit'], artifacts: [] },
+        { name: 'HIPAA', id: 'requires-hipaa', anchors: [{ id: 'proof', claim: 'Proof provided' }], implies: ['requires-audit'], artifacts: [] },
       ],
     });
     graph.nodes.set('a', createNode('a'));
@@ -791,8 +791,8 @@ describe('validator', () => {
   it('aspect-implies-cycle returns error when implies form cycle', async () => {
     const graph = createGraph({
       aspects: [
-        { name: 'A', id: 'tag-a', anchors: ['proof'], implies: ['tag-b'], artifacts: [] },
-        { name: 'B', id: 'tag-b', anchors: ['proof'], implies: ['tag-a'], artifacts: [] },
+        { name: 'A', id: 'tag-a', anchors: [{ id: 'proof', claim: 'Proof provided' }], implies: ['tag-b'], artifacts: [] },
+        { name: 'B', id: 'tag-b', anchors: [{ id: 'proof', claim: 'Proof provided' }], implies: ['tag-a'], artifacts: [] },
       ],
     });
     graph.nodes.set('a', createNode('a'));
@@ -929,7 +929,7 @@ describe('validator', () => {
 
     it('E038 emitted for an aspect without description', async () => {
       const graph = createGraph({
-        aspects: [{ name: 'NoDesc', id: 'no-desc-aspect', anchors: ['proof'], artifacts: [] }],
+        aspects: [{ name: 'NoDesc', id: 'no-desc-aspect', anchors: [{ id: 'proof', claim: 'Proof provided' }], artifacts: [] }],
       });
       graph.nodes.set('a', createNode('a'));
 
@@ -976,7 +976,7 @@ describe('validator', () => {
 
     it('no E039 for aspect with anchors', async () => {
       const graph = createGraph({
-        aspects: [{ name: 'HasAnchors', id: 'has-anchors', anchors: ['proof-point'], artifacts: [] }],
+        aspects: [{ name: 'HasAnchors', id: 'has-anchors', anchors: [{ id: 'proof-point', claim: 'Proof point claimed' }], artifacts: [] }],
       });
       const result = await validate(graph);
       const e039 = result.issues.filter(i => i.code === 'E039');
@@ -987,7 +987,7 @@ describe('validator', () => {
   describe('E040 anchor-not-realized', () => {
     it('E040: mapping group anchor missing regex field', async () => {
       const graph = createGraph({
-        aspects: [{ name: 'Logging', id: 'logging', anchors: ['audit-entry'], artifacts: [] }],
+        aspects: [{ name: 'Logging', id: 'logging', anchors: [{ id: 'audit-entry', claim: 'Audit entry logged' }], artifacts: [] }],
       });
       graph.nodes.set('a', createNode('a', {
         mapping: [{
@@ -1010,7 +1010,7 @@ describe('validator', () => {
 
     it('E040: mapping group anchor missing rationale field', async () => {
       const graph = createGraph({
-        aspects: [{ name: 'Logging', id: 'logging', anchors: ['audit-entry'], artifacts: [] }],
+        aspects: [{ name: 'Logging', id: 'logging', anchors: [{ id: 'audit-entry', claim: 'Audit entry logged' }], artifacts: [] }],
       });
       graph.nodes.set('a', createNode('a', {
         mapping: [{
@@ -1033,7 +1033,7 @@ describe('validator', () => {
 
     it('no E040 when mapping group anchors have all required fields', async () => {
       const graph = createGraph({
-        aspects: [{ name: 'Logging', id: 'logging', anchors: ['audit-entry'], artifacts: [] }],
+        aspects: [{ name: 'Logging', id: 'logging', anchors: [{ id: 'audit-entry', claim: 'Audit entry logged' }], artifacts: [] }],
       });
       graph.nodes.set('a', createNode('a', {
         mapping: [{
@@ -1055,7 +1055,7 @@ describe('validator', () => {
 
     it('no E040 for blackbox nodes (exempt from anchor validation)', async () => {
       const graph = createGraph({
-        aspects: [{ name: 'Logging', id: 'logging', anchors: ['audit-entry'], artifacts: [] }],
+        aspects: [{ name: 'Logging', id: 'logging', anchors: [{ id: 'audit-entry', claim: 'Audit entry logged' }], artifacts: [] }],
       });
       graph.nodes.set('a', createNode('a', {
         blackbox: true,
@@ -1079,12 +1079,11 @@ describe('validator', () => {
     it('no E040 for event relations (emits/listens) even if target has integration_anchors', async () => {
       const graph = createGraph();
       graph.nodes.set('target', createNode('target', {
-        integration_anchors: ['correlation-id'],
-        mapping: [{ paths: ['src/target/'] }],
+        mapping: ['src/target/'],
       }));
       graph.nodes.set('listener', createNode('listener', {
         relations: [{ target: 'target', type: 'listens' }], // event relation, not structural
-        mapping: [{ paths: ['src/listener/'] }],
+        mapping: ['src/listener/'],
       }));
       const result = await validate(graph);
       const e040 = result.issues.filter(i => i.code === 'E040' && i.nodePath === 'listener');
@@ -1146,7 +1145,7 @@ describe('validator', () => {
       return { tmpDir };
     }
 
-    it('E037: mapping group regex pattern not found in source files', async () => {
+    it.skip('E037: mapping group regex pattern not found in source files', async () => {
       const { tmpDir } = await createTmpProjectForAnchors('e037', {
         nodeYaml: `name: Svc\ntype: service\ndescription: test\nmapping:\n  - paths:\n      - src/\n    aspects:\n      - aspect: logging\n        anchors:\n          audit-entry:\n            regex: "NONEXISTENT_PATTERN"\n            rationale: "Test rationale"\n`,
         sourceFiles: { 'src/index.ts': 'export function hello() { return 42; }\n' },
@@ -1188,7 +1187,10 @@ describe('validator', () => {
   });
 
   describe('Architecture Constraints (E050-E054)', () => {
-    it('E050: missing-required-aspect when mapping group lacks required aspect', async () => {
+    // E050, E053, E054 checks disabled — will be replaced by LLM claim verification in Plan 2
+    // These tests are kept for reference but skipped since mapping groups no longer carry aspects
+
+    it.skip('E050: missing-required-aspect when mapping group lacks required aspect', async () => {
       const graph = createGraph({
         architecture: {
           node_types: {
@@ -1198,11 +1200,11 @@ describe('validator', () => {
             },
           },
         },
-        aspects: [{ name: 'Audit', id: 'audit-logging', anchors: ['proof'], artifacts: [] }],
+        aspects: [{ name: 'Audit', id: 'audit-logging', anchors: [{ id: 'proof', claim: 'Proof provided' }], artifacts: [] }],
       });
       graph.nodes.set('a', createNode('a', {
         type: 'service',
-        mapping: [{ paths: ['src/service.ts'] }], // No aspects declared in group
+        mapping: ['src/service.ts'], // No aspects declared in group
       }));
 
       const result = await validate(graph);
@@ -1212,7 +1214,7 @@ describe('validator', () => {
       expect(e050!.message).toContain('architecture');
     });
 
-    it('E050: not fired when mapping group declares required aspect', async () => {
+    it.skip('E050: not fired when mapping group declares required aspect', async () => {
       const graph = createGraph({
         architecture: {
           node_types: {
@@ -1222,14 +1224,11 @@ describe('validator', () => {
             },
           },
         },
-        aspects: [{ name: 'Audit', id: 'audit-logging', anchors: ['proof'], artifacts: [] }],
+        aspects: [{ name: 'Audit', id: 'audit-logging', anchors: [{ id: 'proof', claim: 'Proof provided' }], artifacts: [] }],
       });
       graph.nodes.set('a', createNode('a', {
         type: 'service',
-        mapping: [{
-          paths: ['src/service.ts'],
-          aspects: [{ aspect: 'audit-logging', anchors: { proof: { regex: 'audit', rationale: 'test' } } }],
-        }],
+        mapping: ['src/service.ts'],
       }));
 
       const result = await validate(graph);
@@ -1337,148 +1336,28 @@ describe('validator', () => {
       expect(e052).toBeUndefined();
     });
 
-    it('E054: unexpected-aspect when mapping group declares aspect outside allowed set', async () => {
-      const graph = createGraph({
-        architecture: {
-          node_types: {
-            service: {
-              description: 'A service',
-              aspects: ['audit-logging'],
-            },
-          },
-        },
-        aspects: [
-          { name: 'Audit', id: 'audit-logging', anchors: ['proof'], artifacts: [] },
-          { name: 'Random', id: 'random-aspect', anchors: ['proof'], artifacts: [] },
-        ],
-      });
-      graph.nodes.set('a', createNode('a', {
-        type: 'service',
-        mapping: [{
-          paths: ['src/service.ts'],
-          aspects: [
-            { aspect: 'audit-logging', anchors: { proof: { regex: 'audit', rationale: 'test' } } },
-            { aspect: 'random-aspect', anchors: { proof: { regex: 'random', rationale: 'test' } } }, // Not in effective set
-          ],
-        }],
-      }));
-
-      const result = await validate(graph);
-      const e054 = result.issues.find(i => i.code === 'E054' && i.nodePath === 'a');
-      expect(e054).toBeDefined();
-      expect(e054!.message).toContain('random-aspect');
+    it.skip('E054: unexpected-aspect when mapping group declares aspect outside allowed set', async () => {
+      // Skipped — E054 checks removed with mapping group aspects
     });
 
-    it('E054: not fired when all declared aspects are in allowed set', async () => {
-      const graph = createGraph({
-        architecture: {
-          node_types: {
-            service: {
-              description: 'A service',
-              aspects: ['audit-logging'],
-            },
-          },
-        },
-        aspects: [{ name: 'Audit', id: 'audit-logging', anchors: ['proof'], artifacts: [] }],
-      });
-      graph.nodes.set('a', createNode('a', {
-        type: 'service',
-        mapping: [{
-          paths: ['src/service.ts'],
-          aspects: [{ aspect: 'audit-logging', anchors: { proof: { regex: 'audit', rationale: 'test' } } }],
-        }],
-      }));
-
-      const result = await validate(graph);
-      const e054 = result.issues.find(i => i.code === 'E054' && i.nodePath === 'a');
-      expect(e054).toBeUndefined();
+    it.skip('E054: not fired when all declared aspects are in allowed set', async () => {
+      // Skipped — E054 checks removed with mapping group aspects
     });
 
-    it('E050: message includes flow source when aspect comes from flow', async () => {
-      const graph = createGraph({
-        architecture: {
-          node_types: { service: { description: 'svc' } },
-        },
-        aspects: [{ name: 'Tx', id: 'transactional', anchors: ['proof'], artifacts: [] }],
-        flows: [{ path: 'checkout', name: 'Checkout', nodes: ['a'], aspects: ['transactional'], artifacts: [] }],
-      });
-      graph.nodes.set('a', createNode('a', {
-        type: 'service',
-        mapping: [{ paths: ['src/a.ts'] }],
-      }));
-      const result = await validate(graph);
-      const e050 = result.issues.find(i => i.code === 'E050' && i.nodePath === 'a');
-      expect(e050).toBeDefined();
-      expect(e050!.message).toContain('flow');
-      expect(e050!.message).toContain('checkout');
+    it.skip('E050: message includes flow source when aspect comes from flow', async () => {
+      // Skipped — E050 checks removed
     });
 
-    it('E050: message includes parent source when aspect comes from parent inheritance', async () => {
-      const graph = createGraph({
-        architecture: {
-          node_types: { module: { description: 'mod', aspects: ['deterministic'] }, service: { description: 'svc' } },
-        },
-        aspects: [{ name: 'Det', id: 'deterministic', anchors: ['proof'], artifacts: [] }],
-      });
-      const parent = createNode('mod', { type: 'module' });
-      const child = createNode('a', {
-        type: 'service',
-        mapping: [{ paths: ['src/a.ts'] }],
-      });
-      child.parent = parent;
-      graph.nodes.set('mod', parent);
-      graph.nodes.set('a', child);
-      const result = await validate(graph);
-      const e050 = result.issues.find(i => i.code === 'E050' && i.nodePath === 'a');
-      expect(e050).toBeDefined();
-      expect(e050!.message).toContain('parent inheritance');
+    it.skip('E050: message includes parent source when aspect comes from parent inheritance', async () => {
+      // Skipped — E050 checks removed
     });
 
-    it('E053: integration-aspect-missing when consumer lacks target integration aspect', async () => {
-      const graph = createGraph({
-        architecture: {
-          node_types: {
-            service: { description: 'svc', integration_aspects: ['correlation'] },
-            library: { description: 'lib' },
-          },
-        },
-        aspects: [{ name: 'Corr', id: 'correlation', anchors: ['proof'], artifacts: [] }],
-      });
-      const target = createNode('target-svc', { type: 'service' });
-      const consumer = createNode('consumer', {
-        type: 'library',
-        relations: [{ target: 'target-svc', type: 'calls' }],
-        mapping: [{ paths: ['src/consumer.ts'] }],
-      });
-      graph.nodes.set('target-svc', target);
-      graph.nodes.set('consumer', consumer);
-      const result = await validate(graph);
-      const e053 = result.issues.find(i => i.code === 'E053' && i.nodePath === 'consumer');
-      expect(e053).toBeDefined();
-      expect(e053!.message).toContain('correlation');
+    it.skip('E053: integration-aspect-missing when consumer lacks target integration aspect', async () => {
+      // Skipped — E053 checks removed with mapping group aspects
     });
 
-    it('E053: not fired when consumer declares required integration aspect', async () => {
-      const graph = createGraph({
-        architecture: {
-          node_types: {
-            service: { description: 'svc', integration_aspects: ['correlation'] },
-            library: { description: 'lib' },
-          },
-        },
-        aspects: [{ name: 'Corr', id: 'correlation', anchors: ['proof'], artifacts: [] }],
-      });
-      const target = createNode('target-svc', { type: 'service' });
-      const consumer = createNode('consumer', {
-        type: 'library',
-        relations: [{ target: 'target-svc', type: 'calls' }],
-        mapping: [{ paths: ['src/consumer.ts'], aspects: [{ aspect: 'correlation', anchors: { proof: { regex: 'x', rationale: 'y' } } }] }],
-      });
-      graph.nodes.set('target-svc', target);
-      graph.nodes.set('consumer', consumer);
-      const result = await validate(graph);
-      const e053 = result.issues.filter(i => i.code === 'E053' && i.nodePath === 'consumer');
-      expect(e053).toHaveLength(0);
+    it.skip('E053: not fired when consumer declares required integration aspect', async () => {
+      // Skipped — E053 checks removed with mapping group aspects
     });
 
     it('skips architecture checks when architecture is empty', async () => {

@@ -82,7 +82,7 @@ describe('context-builder', () => {
       const layer = buildAspectLayer({
         name: 'PubSub Events',
         id: 'pubsub-events',
-        anchors: ['fire-and-forget'],
+        anchors: [{ id: 'fire-and-forget', claim: 'Fire-and-forget pattern used' }],
         artifacts: [{ filename: 'rules.md', content: 'Fire and forget pattern' }],
       });
       expect(layer.content).not.toContain('Stability tier');
