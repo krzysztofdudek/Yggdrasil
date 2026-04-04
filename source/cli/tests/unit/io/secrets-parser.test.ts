@@ -103,6 +103,33 @@ llm: {}
     await rm(tmpDir, { recursive: true, force: true });
   });
 
+  it('loads provider and model from secrets', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-secrets-provider');
+    const yggDir = path.join(tmpDir, '.yggdrasil');
+    await mkdir(yggDir, { recursive: true });
+
+    const secretsPath = path.join(yggDir, 'yg-secrets.yaml');
+    await writeFile(
+      secretsPath,
+      `
+llm:
+  provider: anthropic
+  model: claude-3
+  consensus: 3
+  max_tokens: 4096
+`,
+      'utf-8',
+    );
+
+    const secrets = await loadSecrets(tmpDir);
+    expect(secrets?.provider).toBe('anthropic');
+    expect(secrets?.model).toBe('claude-3');
+    expect(secrets?.consensus).toBe(3);
+    expect(secrets?.max_tokens).toBe(4096);
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
   it('loads multiple fields from secrets', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-secrets-multiple');
     const yggDir = path.join(tmpDir, '.yggdrasil');

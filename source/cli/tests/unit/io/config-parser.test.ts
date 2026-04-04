@@ -353,6 +353,67 @@ version: "4.0.0"
       await rm(tmpDir, { recursive: true, force: true });
     });
 
+    it('rejects invalid provider', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-invalid-provider');
+      await mkdir(tmpDir, { recursive: true });
+      const configPath = path.join(tmpDir, 'yg-config.yaml');
+      await writeFile(
+        configPath,
+        `
+name: test-project
+llm:
+  provider: azure
+  model: gpt-4
+`,
+        'utf-8',
+      );
+
+      await expect(parseConfig(configPath)).rejects.toThrow(/provider/);
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('rejects non-string model', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-invalid-model');
+      await mkdir(tmpDir, { recursive: true });
+      const configPath = path.join(tmpDir, 'yg-config.yaml');
+      await writeFile(
+        configPath,
+        `
+name: test-project
+llm:
+  provider: ollama
+  model: 123
+`,
+        'utf-8',
+      );
+
+      await expect(parseConfig(configPath)).rejects.toThrow(/model/);
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('rejects invalid max_tokens', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-invalid-max-tokens');
+      await mkdir(tmpDir, { recursive: true });
+      const configPath = path.join(tmpDir, 'yg-config.yaml');
+      await writeFile(
+        configPath,
+        `
+name: test-project
+llm:
+  provider: ollama
+  model: llama3.1:8b
+  max_tokens: -5
+`,
+        'utf-8',
+      );
+
+      await expect(parseConfig(configPath)).rejects.toThrow(/max_tokens/);
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
     it('rejects even consensus value', async () => {
       const tmpDir = path.join(__dirname, '../../fixtures/tmp-even-consensus');
       await mkdir(tmpDir, { recursive: true });

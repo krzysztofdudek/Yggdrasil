@@ -54,5 +54,5 @@
     ".yggdrasil/flows/graph-analysis/description.md": 1775046980292.1602,
     "source/cli/src/cli/aspects.ts": 1775325656232.65
   },
-  "acknowledgeReason": "v4 migration: flat mapping, claims, doc updates"
+  "acknowledgeReason": "v4 migration: flat mapping, claims, and doc updates"
 }

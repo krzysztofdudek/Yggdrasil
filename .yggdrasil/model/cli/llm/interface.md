@@ -5,6 +5,7 @@
 ### `createLlmProvider(config: LlmConfig): LlmProvider`
 
 Factory function that returns a concrete provider based on `config.provider`:
+
 - `'ollama'` -> `OllamaProvider`
 - `'openai'` -> `OpenAIProvider`
 - `'anthropic'` -> `AnthropicProvider`

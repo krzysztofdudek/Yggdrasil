@@ -1,12 +1,17 @@
 {
-  "hash": "95ca6bcbe8b0d781d1d2e1a3a5d42b6f1c29723f22b82a026a89ac691922ffce",
+  "hash": "2d9d2c5d1258cdb26a37c6d7b8e5a2ad71c204397bca30a3411f748e8ab7a693",
   "files": {
+    ".yggdrasil/model/cli/entry/yg-node.yaml": "2d5d5aa5c3638c217fb7a79e50957566aac1aa86c85f3cb2971ddcc1b30263dd",
     ".yggdrasil/model/cli/entry/internals.md": "6ab5c10ad4fa962bddd739e77b7e151c7200b07a3322e9f5f5b13dc0fbd72e6b",
     ".yggdrasil/model/cli/entry/responsibility.md": "020ef2e7b062eb59b6738ba516ebd36fa81fe65a4504a465f696a12a5eb2e49f",
-    ".yggdrasil/model/cli/internals.md": "fcd16e38b431eead0b12e14b05dd25184ad4ef23884fbde7402172b0985857f6",
+    ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df",
     ".yggdrasil/model/cli/responsibility.md": "696e0f5f377eba69a843a18379e8f20e0322dc037182690629652a75aa2227fb",
+    ".yggdrasil/aspects/cli-command-contract/yg-aspect.yaml": "c818ab194c19f451955987badc7d3f14026349be6a1f633f1440778c1beae802",
     ".yggdrasil/aspects/cli-command-contract/content.md": "b1509ccd44cc91f1cff43926b69f16845407f518ecf4d448d24a0b4a4e2894c3",
+    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "e6c0c095222ce0d80b79af77f5966d02f541b514205a4b551354b65ef5938900",
     ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
+    ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": "0b98be4ee4221db627b892cddeb548a94e3cb1bfce936b9555bd30d7c225e34d",
+    ".yggdrasil/aspects/posix-paths/content.md": "38daf50dec99307443fd8951019cf534c74571a7778d43e55a4354d9d2faeefc",
     ".yggdrasil/model/cli/commands/init/responsibility.md": "7aa179e925568841a25e294db48f1e9b7978f03aa03c5ce2463d527907ea54a3",
     ".yggdrasil/model/cli/commands/init/interface.md": "f5e497e2442107db1407b081a5e23066c442a21f1b34b0c525775ebdd4c72d99",
     ".yggdrasil/model/cli/commands/responsibility.md": "dd8146f9c54251a68f81f4036fdf931d526f3159707709b92a59493fe383a080",
@@ -27,19 +32,14 @@
     ".yggdrasil/model/cli/commands/check/responsibility.md": "42cd5c397f233e9a90aaed4fc1d5ad933d63eec5aa9453adbf70e0ead430ff41",
     ".yggdrasil/model/cli/commands/check/interface.md": "bef1f1d4c687b71e9be9c5bd4978d2e6718cbef8280da8ffbcd5e41f5af8e42e",
     "source/cli/src/bin.ts": "dd90e277e1cc2b547334553be15d035ccf5ab5ac27ae07fdd56dd8353e115294",
-    ".yggdrasil/model/cli/entry/yg-node.yaml": "2d5d5aa5c3638c217fb7a79e50957566aac1aa86c85f3cb2971ddcc1b30263dd",
-    ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df",
-    ".yggdrasil/aspects/cli-command-contract/yg-aspect.yaml": "c818ab194c19f451955987badc7d3f14026349be6a1f633f1440778c1beae802",
-    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "e6c0c095222ce0d80b79af77f5966d02f541b514205a4b551354b65ef5938900",
-    ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": "0b98be4ee4221db627b892cddeb548a94e3cb1bfce936b9555bd30d7c225e34d",
-    ".yggdrasil/aspects/posix-paths/content.md": "38daf50dec99307443fd8951019cf534c74571a7778d43e55a4354d9d2faeefc"
+    ".yggdrasil/model/cli/internals.md": "7440678f012e45d8b15a4efc252cc3b4220fe7aec98fb673786abd9c2a37f9f0"
   },
   "mtimes": {
     ".yggdrasil/model/cli/entry/yg-node.yaml": 1775327956354.8193,
     ".yggdrasil/model/cli/entry/internals.md": 1772828322158.164,
     ".yggdrasil/model/cli/entry/responsibility.md": 1775043506839.8142,
     ".yggdrasil/model/cli/yg-node.yaml": 1775243577620.7664,
-    ".yggdrasil/model/cli/internals.md": 1772829219205.6714,
+    ".yggdrasil/model/cli/internals.md": 1775329681280.232,
     ".yggdrasil/model/cli/responsibility.md": 1775045623775.336,
     ".yggdrasil/aspects/cli-command-contract/yg-aspect.yaml": 1775328135743.9414,
     ".yggdrasil/aspects/cli-command-contract/content.md": 1772778786204.255,
@@ -68,5 +68,5 @@
     ".yggdrasil/model/cli/commands/check/interface.md": 1775217752705.6204,
     "source/cli/src/bin.ts": 1775023244445.4343
   },
-  "acknowledgeReason": "v4 migration: flat mapping, claims, doc updates"
+  "acknowledgeReason": "cascade from parent decision docs"
 }

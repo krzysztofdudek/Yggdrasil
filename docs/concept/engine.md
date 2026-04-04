@@ -111,16 +111,16 @@ project size because each step attaches only what is directly relevant to node `
 
 ### Mapping Conceptual Layers to Algorithm Steps
 
-The output uses **section names from the algorithm** (Global, Hierarchy, OwnArtifacts,
-Aspects, Relational). The table below maps these to conceptual layers for understanding:
+The output uses **section headers** corresponding to algorithm steps. The table below maps
+these to conceptual layers for understanding:
 
 | Conceptual Layer | Algorithm Steps                         | Section in output |
-| ---------------- | --------------------------------------- | ---------------- |
-| World Identity   | Step 1 (global config)                  | Global           |
-| Domain Context   | Step 2 (hierarchical ancestors)         | Hierarchy        |
-| Unit Identity    | Step 3 (yg-node.yaml + own artifacts)   | OwnArtifacts     |
-| Cross-cutting    | Step 4 (aspects from all blocks)        | Aspects          |
-| Surroundings     | Step 5 (relations, events, flows)       | Relational       |
+| ---------------- | --------------------------------------- | ----------------- |
+| World Identity   | Step 1 (global config)                  | (header)          |
+| Domain Context   | Step 2 (hierarchical ancestors)         | Hierarchy         |
+| Unit Identity    | Step 3 (yg-node.yaml + own artifacts)   | Node              |
+| Cross-cutting    | Step 4 (aspects from all blocks)        | Glossary/Aspects  |
+| Surroundings     | Step 5 (relations, events, flows)       | Dependencies      |
 
 Layers are the conceptual model — they describe the _kinds_ of content in the package.
 Steps are the mechanics — they describe _where_ content comes from.
@@ -579,9 +579,10 @@ The agent creates directories, writes `yg-node.yaml`, writes Markdown artifacts.
 the result and give feedback.
 
 This model is analogous to the programmer–compiler relationship: the programmer writes code,
-the compiler checks correctness. The only exception is initialization, which creates the
-starting structure and config. After initialization, all content changes in the graph are
-the work of the agent or human — tools only read.
+the compiler checks correctness. Two exceptions exist: initialization (creates the starting
+structure and config) and LLM-based verification at approve time (reads source and artifacts
+to verify semantic compliance). After initialization, all content changes in the graph are
+the work of the agent or human — tools only read and verify.
 
 ---
 

@@ -522,6 +522,32 @@ describe('to-4.0.0 migration', () => {
       expect(result.actions.some((a) => a.includes('yg-secrets.example.yaml'))).toBe(true);
     });
 
+    it('appends newline before entry when .gitignore has no trailing newline', async () => {
+      const gitignorePath = path.join(TMP_DIR, '.gitignore');
+      await writeFile(gitignorePath, 'node_modules', 'utf-8'); // no trailing newline
+
+      const result = await migrateToV4(TMP_DIR);
+
+      const content = await readFile(gitignorePath, 'utf-8');
+      expect(content).toBe('node_modules\nyg-secrets.yaml\n');
+      expect(result.actions.some((a) => a.includes('.gitignore'))).toBe(true);
+    });
+
+    it('skips .gitignore update when yg-secrets.yaml already present', async () => {
+      const gitignorePath = path.join(TMP_DIR, '.gitignore');
+      await writeFile(gitignorePath, 'yg-secrets.yaml\n', 'utf-8');
+
+      const result = await migrateToV4(TMP_DIR);
+
+      expect(result.actions.every((a) => !a.includes('.gitignore'))).toBe(true);
+    });
+
+    it('warns on invalid YAML in architecture file', async () => {
+      await writeFile(path.join(TMP_DIR, 'yg-architecture.yaml'), 'just a string\n');
+      const result = await migrateToV4(TMP_DIR);
+      expect(result.warnings.some((w) => w.includes('architecture') && w.includes('not a valid YAML object'))).toBe(true);
+    });
+
     it('adds yg-secrets.yaml to .yggdrasil/.gitignore', async () => {
       const result = await migrateToV4(TMP_DIR);
 

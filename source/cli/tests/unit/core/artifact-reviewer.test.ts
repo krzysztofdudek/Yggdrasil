@@ -54,6 +54,28 @@ describe('artifact-reviewer', () => {
     expect(calls.length).toBe(2);
   });
 
+  it('returns empty chunk fallback when no source files provided', async () => {
+    const calls: Array<{ code: string; files: string[] }> = [];
+    const provider = mockProvider({
+      reviewArtifact: async (params) => {
+        calls.push({ code: params.sourceCode, files: params.sourceFiles });
+        return { current: true, reason: 'ok' };
+      },
+    });
+
+    const results = await reviewArtifacts({
+      provider,
+      artifacts: [{ name: 'responsibility.md', content: 'content' }],
+      sourceFiles: [],
+      maxTokens: 8192,
+    });
+
+    expect(results['responsibility.md'].current).toBe(true);
+    expect(calls.length).toBe(1);
+    expect(calls[0].code).toBe('');
+    expect(calls[0].files).toEqual([]);
+  });
+
   it('returns per-artifact review results', async () => {
     const provider = mockProvider({
       reviewArtifact: async (params) => {
