@@ -4,7 +4,9 @@ Type library — exports TypeScript interfaces and types only. No runtime functi
 
 **Config:** YggConfig, ArtifactConfig, QualityConfig, STANDARD_ARTIFACTS (constant)
 
-**Node:** Graph, GraphNode, NodeMeta, LegacyNodeAspectEntry, NodeAspectEntry (alias), NodeMapping (alias), Relation, RelationType, MappingGroup, MappingGroupAspect, MappingGroupAnchor, AnchorRealization, Artifact
+**Node:** Graph, GraphNode, NodeMeta, Relation, RelationType, Artifact
+
+**LLM verification (new in v4):** ClaimAnchor, ClaimVerificationResult, ArtifactReviewResult, PortDef, LlmConfig
 
 **Architecture:** ArchitectureDef, ArchitectureNodeType
 
@@ -30,9 +32,17 @@ Type library — exports TypeScript interfaces and types only. No runtime functi
 
 **RelationType:** `'uses' | 'calls' | 'extends' | 'implements' | 'emits' | 'listens'`
 
-**NodeMapping:** `MappingGroup[]` — array of mapping groups; each group has paths (files or directories) and optional aspect proofs; type is auto-detected at runtime.
-
 **Relation:** target, type, optional consumes, failure, event_name
+
+**ClaimAnchor:** id, claim (natural language statement verified by LLM)
+
+**PortDef:** description, aspects (string[] — required aspects for consumers)
+
+**LlmConfig:** provider (ollama/openai/anthropic), model, optional endpoint, optional api_key, temperature, consensus, max_tokens (number or 'auto')
+
+**ClaimVerificationResult:** satisfied (boolean), reason (string)
+
+**ArtifactReviewResult:** current (boolean), reason (string)
 
 **Graph:** config, nodes (Map), aspects, flows, schemas, rootPath, optional configError, nodeParseErrors
 
@@ -44,7 +54,7 @@ Model is a TypeScript type library — it contains no executable code and does n
 
 ## Config types
 
-- **YggConfig** — Top-level config: name, optional version, node_types (Record keyed by type name), optional quality thresholds. No longer has an `artifacts` field — artifacts are defined by the STANDARD_ARTIFACTS constant.
+- **YggConfig** — Top-level config: name, optional version, node_types (Record keyed by type name), optional quality thresholds, optional llm (LlmConfig for claim verification). No longer has an `artifacts` field — artifacts are defined by the STANDARD_ARTIFACTS constant.
 - **STANDARD_ARTIFACTS** — `Record<string, ArtifactConfig>` constant defining the three hardcoded artifacts: `responsibility.md` (required: always, included_in_relations: true), `interface.md` (required: when has_incoming_relations, included_in_relations: true), `internals.md` (required: never, included_in_relations: false). Defines the three standard artifacts.
 - **NodeTypeConfig** — Node type definition with description (required) and optional required_aspects. Key in the Record is the type name.
 - **ArtifactConfig** — Per-artifact config: required condition (always/never/when), description, optional included_in_relations flag.
@@ -54,15 +64,11 @@ Model is a TypeScript type library — it contains no executable code and does n
 
 - **Graph** — Root container: config (YggConfig), architecture (ArchitectureDef — required, defaults to empty), nodes (Map by path), aspects (AspectDef[]), flows (FlowDef[]), schemas (SchemaDef[]), rootPath. Optional architectureError, configError, nodeParseErrors.
 - **GraphNode** — A node in the model tree: path, meta (NodeMeta), nodeYamlRaw, artifacts, children, parent.
-- **LegacyNodeAspectEntry** — Legacy aspect entry for migration purposes: `{ aspect: string; exceptions?: string[]; anchors?: Record<string, AnchorRealization> }`. Not used in new nodes.
-- **NodeMeta** — Parsed yg-node.yaml: name, type, optional description, optional aspects (LegacyNodeAspectEntry[] — entry per aspect with anchors/exceptions), optional integration_aspects (string[] — aspect IDs required from consumers of this node), blackbox, relations (Relation[]), optional mapping (MappingGroup[] — array of mapping groups).
-- **MappingGroup** — Group of source files sharing an aspect proof profile: paths (non-empty array of relative paths, files or directories), optional aspects (MappingGroupAspect[] proving effective aspects for this group).
-- **MappingGroupAspect** — Aspect proof for a mapping group: aspect (aspect ID string), anchors (required, non-empty Record mapping anchor IDs to MappingGroupAnchor objects).
-- **MappingGroupAnchor** — Anchor proof: regex (non-empty pattern string), rationale (non-empty explanation why this regex proves compliance).
-- **Relation** — Typed edge: target (path string), type (RelationType), optional consumes (string[] of method/function names), optional failure (string describing failure strategy), optional event_name (string display name for emits/listens). No longer carries anchors field — integration anchor validation moved to mapping groups.
+- **NodeMeta** — Parsed yg-node.yaml: name, type, optional description, optional aspects (string[] — aspect IDs), optional ports (Record<string, PortDef> — ports this node exports with required consumer aspects), blackbox, relations (Relation[]), optional mapping (string[] — flat list of file/directory paths relative to repo root).
+- **Relation** — Typed edge: target (path string), type (RelationType), optional consumes (string[] of method/function names), optional failure (string describing failure strategy), optional event_name (string display name for emits/listens).
 - **RelationType** — Union: uses | calls | extends | implements | emits | listens.
 - **ArchitectureDef** — Architecture constraints: node_types (Record of type name to ArchitectureNodeType).
-- **ArchitectureNodeType** — Type constraints: description (required), optional aspects (required on files), optional integration_aspects (required on consumers), optional parents (allowed parent types), optional relations (allowed relation targets per relation type).
+- **ArchitectureNodeType** — Type constraints: description (required), optional aspects (required on files), optional parents (allowed parent types), optional relations (allowed relation targets per relation type).
 
 ## Context assembly types
 
@@ -73,13 +79,12 @@ Model is a TypeScript type library — it contains no executable code and does n
 ## Context Map types
 
 - **BudgetBreakdown** — Per-category token counts: `{ own: number; hierarchy: number; aspects: number; flows: number; dependencies: number; total: number }`. Used in ContextMapOutput.meta and by validator budget checks.
-- **ContextMapOutput** — Top-level structured output: `project` at top, `glossary` (aspects + flows with names/descriptions/files), `node` with inline `mappings` + `aspects` (NodeAspectRef[] from node.meta.aspects) + `required_aspects` (RequiredAspectRef[] from node type config) + `integration_aspects` (optional RequiredAspectRef[] from node.meta.integration_aspects) + `files` (standard artifacts), `hierarchy` with inline `files`, `dependencies` with inline `files`, and `meta` at bottom with tokenCount, budgetStatus (`'ok' | 'warning' | 'severe'`), and `breakdown` (BudgetBreakdown).
+- **ContextMapOutput** — Top-level structured output: `project` at top, `glossary` (aspects + flows with names/descriptions/files), `node` with inline `mappings` + `aspects` + `required_aspects` (RequiredAspectRef[] from node type config) + `files` (standard artifacts), `hierarchy` with inline `files`, `dependencies` with inline `files`, and `meta` at bottom with tokenCount, budgetStatus (`'ok' | 'warning' | 'severe'`), and `breakdown` (BudgetBreakdown).
 - **Glossary** — Index of all aspects and flows referenced in the context package: `aspects` and `flows` keyed by id/path, each with name, description, and `files`. Aspects and flows are keyed by id/path.
 - **GlossaryAspectEntry** — Aspect glossary entry: name, optional description, optional implies, files.
 - **GlossaryFlowEntry** — Flow glossary entry: name, optional description, participants (node paths), optional aspects, files.
-- **RequiredAspectRef** — Required aspect on a node: id (aspect ID), source (e.g. "architecture (type: library)", "own declaration"). Replaces NodeAspectRef in v4+ context output.
+- **RequiredAspectRef** — Required aspect on a node: id (aspect ID), source (e.g. "architecture (type: library)", "own declaration").
 - **FlowRef** — Flow reference: id (flow path), optional path (flow directory name), optional aspects list.
-**NodeAspectRef** — Node aspect reference in context output: id (aspect ID), optional anchors (Record<string, AnchorRealization>), optional exceptions (string[]).
 - **AncestorRef** — Ancestor node reference: path, name, type, optional description, aspects list, optional `files` (artifact paths).
 - **DependencyRef** — Dependency reference: path, name, type, optional description, relation kind, optional consumes/failure/event-name, aspects list, hierarchy chain, optional `files` (artifact paths for included_in_relations artifacts).
 
@@ -92,14 +97,14 @@ Model is a TypeScript type library — it contains no executable code and does n
 
 - **DriftReport** — Full drift scan result: entries, counts by status (ok, source-drift, graph-drift, full-drift, missing, unmaterialized).
 - **DriftEntry** — Per-node drift result: nodePath, status, optional changedFiles and details.
-- **DriftNodeState** — Stored state per node: canonical hash + per-file hashes (path to SHA-256).
+- **DriftNodeState** — Stored state per node: canonical hash + per-file hashes (path to SHA-256), optional acknowledgeReason, optional claimResults cache (per-aspect claim verification results), optional artifactReview cache (per-artifact review results).
 - **DriftState** — Record mapping node paths to DriftNodeState.
 - **DriftFileChange** — Per-file change detail: filePath, category (source or graph).
 - **TrackedFileLayer** — Type union: `'own' | 'hierarchy' | 'aspects' | 'relational' | 'flows' | 'source'`. Indicates which context package layer brought a file into tracking — used by drift classification (E020/E021) to distinguish direct drift (own/source) from cascade drift (hierarchy/aspects/relational/flows).
 
 ## Cross-cutting definitions
 
-- **AspectDef** — Loaded aspect: name, id, optional description, optional implies, artifacts.
+- **AspectDef** — Loaded aspect: name, id, optional description, optional implies, anchors (ClaimAnchor[] — claim-based proof points), artifacts.
 - **FlowDef** — Loaded flow: path, name, optional description, nodes (participant paths), optional aspects, artifacts.
 - **SchemaDef** — Schema reference: schemaType (node/aspect/flow).
 
