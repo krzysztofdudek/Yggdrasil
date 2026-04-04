@@ -64,7 +64,7 @@ Unified gate combining structural integrity, drift detection, coverage, and comp
 yg check
 ```
 
-Outputs: header (project, counts, coverage, health score), errors grouped by category
+Outputs: header (project, counts, coverage), errors grouped by category
 (drift, cascade, structural, coverage, completeness), warnings (budget, structure),
 result (PASS/FAIL with category counts), and suggested next command.
 

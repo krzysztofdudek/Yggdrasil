@@ -949,12 +949,9 @@ why, and what to do (see the [Integration](integration) document).
 **Result:**
 
 Output is organized with a header (project name, node/aspect/flow counts, coverage
-percentage, health score), then errors grouped by category (drift, cascade, structural,
+percentage), then errors grouped by category (drift, cascade, structural,
 coverage, completeness), then warnings grouped by category (budget, structure).
 Summary at the end: PASS or FAIL with category counts.
-
-**Health score:** The header includes a health score (0-100): stateless arithmetic,
-starting at 100 and deducting per error weighted by severity.
 
 **Grouping order:** Errors are grouped in this order: Drift (E020), Cascade (E021),
 Structural (E001-E013), Coverage (E022), Completeness (E030-E041). Warnings are
