@@ -445,6 +445,17 @@ export interface ApproveResult {
 /** Map: node-path → DriftNodeState. Legacy string format no longer supported. */
 export type DriftState = Record<string, DriftNodeState>;
 
+/** Append-only audit log entry — written by approve, never read by CLI */
+export interface AuditEntry {
+  ts: string;
+  node: string;
+  action: 'approved' | 'acknowledged' | 'no-change' | 'initial';
+  prev: string | null;
+  hash: string;
+  reason: string | null;
+  files: string[];
+}
+
 export interface DriftReport {
   entries: DriftEntry[];
   totalChecked: number;
