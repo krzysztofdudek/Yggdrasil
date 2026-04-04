@@ -116,6 +116,58 @@ describe('validator', () => {
     expect(issues[0].message).toContain('not defined in aspects/');
   });
 
+  it('dangling-aspect-ref (E050) fires when a port references an undefined aspect', async () => {
+    const graph = createGraph();
+    graph.nodes.set('a', createNode('a', {
+      ports: { 'api': { description: 'API port', aspects: ['missing-aspect'] } },
+    }));
+
+    const result = await validate(graph);
+    const issues = result.issues.filter((i) => i.code === 'E050' && i.nodePath === 'a');
+    expect(issues).toHaveLength(1);
+    expect(issues[0].rule).toBe('dangling-aspect-ref');
+    expect(issues[0].message).toContain('missing-aspect');
+    expect(issues[0].message).toContain("port 'api'");
+  });
+
+  it('dangling-aspect-ref (E050) fires when architecture node_type references an undefined aspect', async () => {
+    const graph = createGraph({
+      architecture: {
+        node_types: {
+          service: { description: 'A service', aspects: ['undefined-arch-aspect'] },
+        },
+      },
+      aspects: [],
+    });
+    graph.nodes.set('a', createNode('a'));
+
+    const result = await validate(graph);
+    const issues = result.issues.filter((i) => i.code === 'E050' && !i.nodePath);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].rule).toBe('dangling-aspect-ref');
+    expect(issues[0].message).toContain('undefined-arch-aspect');
+    expect(issues[0].message).toContain("architecture type 'service'");
+  });
+
+  it('dangling-aspect-ref (E050) fires when a flow references an undefined aspect', async () => {
+    const graph = createGraph({ aspects: [] });
+    graph.nodes.set('a', createNode('a'));
+    graph.flows.push({
+      path: 'checkout-flow',
+      name: 'Checkout',
+      nodes: ['a'],
+      aspects: ['missing-flow-aspect'],
+      artifacts: [{ filename: 'description.md', content: 'x'.repeat(60) }],
+    });
+
+    const result = await validate(graph);
+    const issues = result.issues.filter((i) => i.code === 'E050');
+    expect(issues).toHaveLength(1);
+    expect(issues[0].rule).toBe('dangling-aspect-ref');
+    expect(issues[0].message).toContain('missing-flow-aspect');
+    expect(issues[0].message).toContain("flow 'Checkout'");
+  });
+
   it('duplicate-aspect-binding returns E010 when id bound to multiple aspects', async () => {
     const graph = createGraph({
       aspects: [
@@ -1307,12 +1359,54 @@ describe('validator', () => {
       // Skipped — E050 checks removed
     });
 
-    it.skip('E053: integration-aspect-missing when consumer lacks target integration aspect', async () => {
-      // Skipped — E053 checks removed with mapping group aspects
+    it('E053: integration-aspect-missing when consumer uses a port whose required aspect is not defined', async () => {
+      const graph = createGraph({ aspects: [] }); // no aspects defined
+      // Target node with a port that requires 'audit-logging'
+      graph.nodes.set('target', createNode('target', {
+        ports: { 'api': { description: 'API port', aspects: ['audit-logging'] } },
+      }));
+      // Consumer node with a relation that consumes the port
+      graph.nodes.set('consumer', createNode('consumer', {
+        relations: [{ target: 'target', type: 'uses', consumes: ['api'] }],
+      }));
+
+      const result = await validate(graph);
+      const e053 = result.issues.filter(i => i.code === 'E053' && i.nodePath === 'consumer');
+      expect(e053).toHaveLength(1);
+      expect(e053[0].rule).toBe('integration-aspect-missing');
+      expect(e053[0].message).toContain('audit-logging');
+      expect(e053[0].message).toContain("port 'api'");
     });
 
-    it.skip('E053: not fired when consumer declares required integration aspect', async () => {
-      // Skipped — E053 checks removed with mapping group aspects
+    it('E053: not fired when consumer uses a port whose required aspect exists', async () => {
+      const graph = createGraph({
+        aspects: [{ name: 'Audit', id: 'audit-logging', anchors: [{ id: 'proof', claim: 'Proof provided' }], artifacts: [] }],
+      });
+      graph.nodes.set('target', createNode('target', {
+        ports: { 'api': { description: 'API port', aspects: ['audit-logging'] } },
+      }));
+      graph.nodes.set('consumer', createNode('consumer', {
+        relations: [{ target: 'target', type: 'uses', consumes: ['api'] }],
+      }));
+
+      const result = await validate(graph);
+      const e053 = result.issues.filter(i => i.code === 'E053' && i.nodePath === 'consumer');
+      expect(e053).toHaveLength(0);
+    });
+
+    it('E053: not fired when relation has no consumes field (no port consumption)', async () => {
+      const graph = createGraph({ aspects: [] });
+      graph.nodes.set('target', createNode('target', {
+        ports: { 'api': { description: 'API port', aspects: ['audit-logging'] } },
+      }));
+      // Relation to target but no consumes — not consuming any port
+      graph.nodes.set('consumer', createNode('consumer', {
+        relations: [{ target: 'target', type: 'uses' }],
+      }));
+
+      const result = await validate(graph);
+      const e053 = result.issues.filter(i => i.code === 'E053' && i.nodePath === 'consumer');
+      expect(e053).toHaveLength(0);
     });
 
     it('skips architecture checks when architecture is empty', async () => {

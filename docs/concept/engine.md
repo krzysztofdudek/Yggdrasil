@@ -358,13 +358,12 @@ of excessive coupling.
 has no matching `listens`, or vice versa — event-based communication is declared unilaterally.
 Tools compare declarations on both sides and signal the missing complement.
 
-**Architecture constraint violations**: enforced per mapping group and per node from
-`yg-architecture.yaml`. E050 fires when a mapping group does not declare a required
-effective aspect. E051 fires when a relation target's type is not in the architecture
-allowed list. E052 fires when a parent type is not in the allowed `parents` list. E053
-fires when a consumer's mapping group is missing an integration aspect required by a
-relation target. E054 fires when a mapping group declares an aspect outside the
-effective + integration set.
+**Architecture constraint violations**: enforced per node and relation from
+`yg-architecture.yaml`. E050 fires when an aspect identifier referenced by a node, port,
+architecture type, or flow has no corresponding directory in `aspects/`. E051 fires when
+a relation target's type is not in the architecture allowed list. E052 fires when a parent
+type is not in the allowed `parents` list. E053 fires when a node consumes a port and that
+port's required aspect is not defined in `aspects/`.
 
 ### Role of Validation
 
@@ -380,70 +379,33 @@ before merge, ensuring structural integrity of the semantic memory base is maint
 
 ---
 
-## Effective Aspect Resolution
+## Aspect and Architecture Validation
 
-Aspects propagate to nodes and files from multiple sources. The engine computes the
-**effective set** of aspects that a node must prove, then validates that every mapping
-group declares all of them.
+### Aspect reference integrity
 
-### Aspect sources
+All aspect identifiers must resolve to an existing directory under `aspects/`. E050
+(dangling-aspect-ref) fires when any identifier — in a node's `aspects` list, a port's
+`aspects` list, an architecture type's `aspects` list, or a flow's `aspects` list — has
+no corresponding aspect directory.
 
-Aspects arrive at a node through five channels:
+### Aspect implies
 
-| Source | How it propagates | Example |
-| --- | --- | --- |
-| Architecture type | Required on every file of nodes of this type | `service` type requires `requires-auth` |
-| Architecture integration | Required on consumers of a target type | If `service` has `integration_aspects: [correlation-tracking]`, callers must prove it |
-| Flow aspects | Required on all flow participants | All `checkout` flow participants get `requires-saga` |
-| Aspect implies | Recursive expansion of aspect references | `requires-hipaa` implies `requires-audit`, `requires-encryption` |
-| Parent inheritance | Children inherit parent's effective aspects | Child service inherits parent module's aspects |
-| Node own aspects | Custom aspects declared directly on the node | Extra aspects beyond inherited requirements |
+The `implies` field on an aspect causes all nodes that carry the aspect to also carry the
+implied aspect. The implies graph must be acyclic (E013) and all implied identifiers must
+resolve (E012).
 
-### Effective set computation
+### Port-based integration validation
 
-```text
-effective_aspects(node) =
-  node.aspects                              # own extras
-  ∪ architecture[node.type].aspects         # type requirement
-  ∪ flow.aspects for each participating flow  # flow propagation
-  ∪ parent.effective_aspects                # parent inheritance (recursive)
-  ∪ recursive_implies(all above)            # aspect implies expansion
-```
+When a node declares a relation with a `consumes` field, it is consuming a named port on
+the target node. Each port declares required `aspects`. E053 fires if any of those aspect
+identifiers are not defined in `aspects/`.
 
-When node A has a structural relation (calls, uses, extends, implements) to node B:
+### Structural architecture constraints
 
-- A must prove `effective_integration_aspects(B)` on its mapping groups
+Validated from `yg-architecture.yaml`:
 
-```text
-effective_integration_aspects(node) =
-  node.integration_aspects                  # own extras
-  ∪ architecture[node.type].integration_aspects  # type requirement
-  ∪ parent.effective_integration_aspects    # parent inheritance (recursive)
-  ∪ recursive_implies(all above)            # aspect implies expansion
-```
-
-### Validation during check
-
-For each node with mapping:
-
-1. **Compute effective aspects**
-   - Collect aspects from architecture type, parent inheritance, flow participation, and own declarations
-   - Recursively expand all `implies` references
-   - Result: a set of aspect IDs that this node must prove
-
-2. **For each mapping group (per-file enforcement)**
-   - Must declare ALL effective aspects → E050 if missing
-   - Must NOT declare aspects outside the allowed set → E054 if extra
-   - For each declared aspect, all anchor IDs from `yg-aspect.yaml` must be realized → E040 if missing
-   - For each anchor regex, pattern must match in EVERY file in the group → E037 if not found
-
-3. **Structural architecture constraints**
-   - Relation target types must be in architecture allowed list → E051 if not
-   - Parent types must be in architecture allowed `parents` list → E052 if not
-
-4. **For each structural relation to target B**
-   - Compute `effective_integration_aspects(B)`
-   - Consumer's mapping groups must declare all integration aspects → E053 if missing
+1. **Relation target types** — relation target type must be in the architecture allowed list → E051 if not
+2. **Parent types** — parent type must be in the architecture allowed `parents` list → E052 if not
 
 ### Context output
 

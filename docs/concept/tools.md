@@ -139,24 +139,17 @@ Aspects on a node come from multiple sources:
 - Own declarations — extra aspects declared on the node
 - Aspect implies — recursive expansion
 
-All effective aspects must be proven in mapping groups. Missing aspects trigger error E050.
-
 **Validation rules for yg-node.yaml:**
 
 - `name` must be non-empty.
 - `type` must be a key in `architecture.node_types`.
-- Each aspect identifier must correspond to a directory under `aspects/`.
+- Each aspect identifier must correspond to a directory under `aspects/` (E050 if missing).
+- Each port aspect identifier must correspond to a directory under `aspects/` (E050 if missing).
 - Each `relations[].target` must resolve to an existing node.
 - Each `relations[].type` must be from the table above.
-- Paths in `mapping[].paths` must be relative to the repository root. Can be files or directories.
-- At least one path must be present in each mapping group.
+- Paths in `mapping` must be relative to the repository root. Can be files or directories.
 - Mappings cannot overlap with mappings of other nodes.
-- Each mapping group's `aspects` list must declare all effective aspects (E050 if missing).
-- Each mapping group must NOT declare aspects outside the effective set (E054 if extra).
-- For each aspect in a mapping group, all anchor IDs from `yg-aspect.yaml` must be realized (E040).
-- Each anchor regex must match in EVERY file in the mapping group (E037).
-- If a node relates to a target with `integration_aspects`, the consumer's mapping group must
-  declare those aspects (E053).
+- When a relation has a `consumes` field, all referenced port aspects must be defined in `aspects/` (E053).
 
 ### yg-aspect.yaml
 
@@ -183,17 +176,16 @@ plus all implied aspects' content is attached. Tools resolve implications recurs
 
 **Anchors:**
 
-Every aspect must define at least one anchor ID in the `anchors` field (E039 if missing).
+Every aspect must define at least one claim in the `anchors` field (E039 if empty or missing).
 Anchor IDs are abstract names — they describe WHAT must be proven (e.g. "audit-entry",
-"audit-actor"), not HOW. Nodes carrying the aspect realize these anchors in their
-`yg-node.yaml` with typed pattern objects (see yg-node.yaml schema above).
+"audit-actor"), not HOW.
 
 **Validation rules:**
 
 - `name` must be non-empty.
 - Every identifier in `implies` must have a corresponding aspect directory under `aspects/`.
 - The aspect implies graph must be acyclic (no A implies B implies A).
-- `anchors` must be a non-empty list of strings.
+- `anchors` must be a non-empty list of claim objects (`id` + `claim`).
 
 ### yg-flow.yaml
 
@@ -840,7 +832,7 @@ for the entire graph.
 | ------ | -------------------------- | ------------------------------------------------------------------- |
 | `E001` | `invalid-node-yaml`        | `yg-node.yaml` fails to parse or lacks required fields              |
 | `E002` | `unknown-node-type`        | Node type is not in `config.node_types`                             |
-| `E003` | `unknown-aspect`           | Aspect identifier does not correspond to an aspect directory        |
+| `E050` | `dangling-aspect-ref`      | Aspect identifier referenced by node, port, architecture type, or flow has no corresponding aspect directory |
 | `E004` | `broken-relation`          | Relation target does not resolve to an existing node                |
 | `E005` | `broken-flow-ref`          | Flow participant does not resolve                                   |
 | `E006` | `broken-aspect-ref`        | Flow aspect does not resolve                                        |
@@ -874,7 +866,7 @@ strategy. This guidance disappears as coverage grows.
 In monorepos with multiple `.yggdrasil/` directories, E022 scopes to files under the
 nearest parent directory of `.yggdrasil/`, not the entire git repository.
 
-**Completeness (E030-E041):**
+**Completeness (E030-E039):**
 
 | Code   | Name                        | Description                                                                     |
 | ------ | --------------------------- | ------------------------------------------------------------------------------- |
@@ -884,38 +876,25 @@ nearest parent directory of `.yggdrasil/`, not the entire git repository.
 | `E033` | `unpaired-event`            | Event relation without complement (broken event contract)                       |
 | `E034` | `missing-schema`            | Schema file missing from `schemas/`                                             |
 | `E036` | `mapping-path-missing`      | Mapped path does not exist on disk (stale/broken mapping)                       |
-| `E037` | `anchor-not-found`          | Anchor pattern not found in node's mapped source files                          |
 | `E038` | `missing-description`       | Node, aspect, or flow has no `description` in YAML                              |
-| `E039` | `aspect-missing-anchors`    | Aspect has no `anchors` field — every aspect must define proof points           |
-| `E040` | `anchor-not-realized`       | Node missing anchor realization for aspect or integration anchor IDs            |
-| `E041` | `unknown-anchor-type`       | Anchor realization uses unrecognized type (upgrade CLI or use `regex`)           |
+| `E039` | `aspect-missing-claims`     | Aspect has no `anchors` field — every aspect must define at least one claim     |
 
-**Architecture Enforcement (E050-E054):**
+**Architecture Enforcement (E051-E053):**
 
 | Code   | Name                        | Description                                                               |
 | ------ | --------------------------- | ------------------------------------------------------------------------- |
-| `E050` | `missing-required-aspect`   | Mapping group missing required aspect from effective set                  |
 | `E051` | `invalid-relation-target`   | Relation target type not in architecture allowed list                     |
 | `E052` | `invalid-parent-type`       | Parent type not in architecture allowed `parents` list                    |
-| `E053` | `integration-aspect-missing`| Consumer mapping group missing integration aspect from target             |
-| `E054` | `unexpected-aspect`         | Mapping group declares aspect outside effective + integration set         |
+| `E053` | `integration-aspect-missing`| Consumer uses a port whose required aspect is not defined in aspects/     |
 
-**Anchor validation chain:** Validation follows a chain: (1) aspect has `anchors`
-field? (E039 if not), (2) node realizes all anchor IDs? (E040 if not), (3) realized
-patterns found in source? (E037 if not). For integration anchors: same chain but
-step 1 is optional.
+**Architecture validation:** E050 (dangling-aspect-ref) fires when any aspect identifier
+referenced by a node, port, architecture type definition, or flow has no corresponding
+directory in `aspects/`. E051 and E052 validate structural constraints from
+`yg-architecture.yaml`: relation target types (E051) and parent types (E052). E053 fires
+when a node consumes a port and that port's required aspect is not defined in `aspects/`.
 
-**Architecture validation:** Effective aspects flow to mapping groups from architecture
-type constraints, parent inheritance, flow participation, and own declarations. E050
-fires when a mapping group does not declare a required effective aspect. E054 fires
-when a group declares an aspect outside the allowed set. E053 fires when a consumer's
-mapping group is missing integration aspects required by a relation target. E051 and
-E052 validate structural constraints: relation target types (E051) and parent types
-(E052) against the architecture definition.
-
-**Blackbox exemption:** Blackbox nodes are exempt from E030 (missing artifact),
-E037 (anchor not found), E040 (anchor not realized), and E050-E054 (architecture
-enforcement).
+**Blackbox exemption:** Blackbox nodes are exempt from E030 (missing artifact) and
+E051-E053 (architecture enforcement).
 
 **Warnings (informational, do not block):**
 
@@ -954,8 +933,9 @@ coverage, completeness), then warnings grouped by category (budget, structure).
 Summary at the end: PASS or FAIL with category counts.
 
 **Grouping order:** Errors are grouped in this order: Drift (E020), Cascade (E021),
-Structural (E001-E013), Coverage (E022), Completeness (E030-E041). Warnings are
-grouped: Budget (W001-W002), Structure (W003-W004), then orphaned state (W005).
+Structural (E001-E013, E050), Coverage (E022), Completeness (E030-E039),
+Architecture (E051-E053). Warnings are grouped: Budget (W001-W002), Structure
+(W003-W004), then orphaned state (W005).
 
 **Stable ordering:** Errors within each category are sorted deterministically: first
 by cascade cause (grouping related cascades), then alphabetically by node path.

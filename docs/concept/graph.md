@@ -359,16 +359,17 @@ aspects/
 name: Audit logging
 description: "Short description for discovery via yg aspects"  # optional
 # implies: [requires-logging]   # optional: other aspect identifiers to include automatically
-anchors:                         # required — abstract proof points nodes must realize
-  - audit-entry
-  - audit-actor
-  - audit-timestamp
+anchors:                         # required — claim-based proof points nodes must realize
+  - id: audit-entry
+    claim: "Every mutation logs an audit entry"
+  - id: audit-actor
+    claim: "Audit entries include the acting user identity"
 ```
 
 `name` is required. `description` is optional — a short summary for discovery via `yg aspects`.
-`implies` is optional. `anchors` is required — a list of abstract anchor IDs that describe
-what must be proven (E039 if missing). The aspect identifier is implicit — it is the relative
-directory path.
+`implies` is optional. `anchors` is required — a list of claim objects (`id` + `claim`) that
+describe what must be proven (E039 if empty or missing). The aspect identifier is implicit —
+it is the relative directory path.
 
 Nested directories under `aspects/` are organizational — they allow grouping related aspects
 (e.g. `observability/logging`, `observability/tracing`). However, nesting does **not** create
