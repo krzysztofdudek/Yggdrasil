@@ -18,7 +18,7 @@ import { hashTrackedFiles } from '../utils/hash.js';
 import { collectTrackedFiles } from './context-files.js';
 import { normalizeMappingPaths } from '../utils/paths.js';
 import { appendAuditEntry } from '../io/audit-log.js';
-import { computeEffectiveAspects } from './effective-aspects.js';
+import { computeEffectiveAspects, computeEffectiveAspectsForConsumer } from './effective-aspects.js';
 import { collectAncestors } from './context-builder.js';
 import { verifyClaims } from './claim-verifier.js';
 import { reviewArtifacts } from './artifact-reviewer.js';
@@ -549,8 +549,12 @@ function resolveAspectsWithClaims(
     allFlows: graph.flows,
   });
 
+  // Add port-consumed aspects
+  const portAspects = computeEffectiveAspectsForConsumer(node, graph);
+  const allAspectIds = new Set([...effective.regular, ...portAspects]);
+
   const result: Array<{ id: string; claims: Array<{ id: string; claim: string }>; contentFile: string }> = [];
-  for (const aspectId of effective.regular) {
+  for (const aspectId of allAspectIds) {
     const aspectDef = graph.aspects.find(a => a.id === aspectId);
     if (!aspectDef || aspectDef.anchors.length === 0) continue;
     const contentFile = aspectDef.artifacts

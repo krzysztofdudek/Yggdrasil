@@ -2,23 +2,14 @@
 # Located at .yggdrasil/yg-config.yaml — one per project.
 # Edit this after running yg init to describe your project.
 
-version: "3.0.0"                  # managed by CLI — do not edit manually. Tracks the CLI version
+version: "4.0.0"                  # managed by CLI — do not edit manually. Tracks the CLI version
                                   # that created or last migrated this config. Used by the migration
                                   # system to determine which migrations to run on upgrade.
 
 name: "My Project"               # required — project display name
 
-node_types:                       # required — non-empty object of node type definitions
-  module:                         #   key = type name used in yg-node.yaml
-    description: "Business logic unit with clear domain responsibility"
-    # required_aspects: []        #   optional — aspects every node of this type must have
-  service:
-    description: "Component providing functionality to other nodes"
-  library:
-    description: "Shared utility code with no domain knowledge"
-
-# artifacts are hardcoded in the CLI (responsibility.md, interface.md, internals.md)
-# and cannot be configured. See STANDARD_ARTIFACTS in source code.
+# node_types are defined in yg-architecture.yaml (not here).
+# artifacts are hardcoded in the CLI (responsibility.md, interface.md, internals.md).
 
 quality:                          # optional — quality thresholds
   min_artifact_length: 50         #   minimum characters for an artifact (warning if below)
@@ -26,3 +17,11 @@ quality:                          # optional — quality thresholds
   context_budget:                 #   token budget for context packages
     warning: 10000                #   tokens — warning threshold
     error: 20000                  #   tokens — error threshold (suggests splitting)
+
+llm:                              # optional — LLM provider for claim verification and artifact review
+  provider: ollama                #   ollama | openai | anthropic
+  model: "qwen3.5:9b"            #   model ID per provider
+  endpoint: "http://localhost:11434"  #   custom endpoint (required for ollama)
+  temperature: 0                  #   reduces variability — keep at 0
+  consensus: 1                    #   positive odd integer >= 1 (3+ for majority vote)
+  max_tokens: auto                #   auto = query provider, or explicit number

@@ -232,4 +232,40 @@ describe('approveNode — LLM verification', () => {
     expect(result.claimResults).toBeDefined(); // LLM ran despite no source changes
     await rm(tmpDir, { recursive: true, force: true });
   });
+
+  it('refuses when artifact review returns current: false (E056)', async () => {
+    const { tmpDir, yggRoot } = await createTmpProject('llm-e056-refuse', {
+      nodePath: 'svc/my-service',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - deterministic\nmapping:\n  - src/svc/\n',
+      mappingFiles: { 'src/svc/index.ts': 'const x = 1;\n' },
+      aspects: [{
+        id: 'deterministic',
+        yaml: ASPECT_YAML_WITH_CLAIMS,
+        files: { 'content.md': 'Code must be deterministic.\n' },
+      }],
+    });
+    await recordBaseline(tmpDir);
+    // Change both axes so three-axis check passes
+    await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'const x = 2;\nexport function newEndpoint() {}\n');
+    await writeFile(path.join(yggRoot, 'model/svc/my-service/responsibility.md'), 'Updated responsibility.\n');
+
+    const graph = await loadGraph(tmpDir);
+    const provider = makeMockProvider({
+      // Claims pass — no E055
+      async verifyClaim() { return { satisfied: true, reason: 'ok' }; },
+      // Artifact review fails — E056
+      async reviewArtifact() {
+        return { current: false, reason: 'responsibility.md does not mention the new endpoint' };
+      },
+    });
+
+    const result = await approveNode(graph, 'svc/my-service', { llmProvider: provider });
+    expect(result.action).toBe('refused');
+    expect(result.e056Violations).toBeDefined();
+    expect(result.e056Violations!.length).toBeGreaterThan(0);
+    expect(result.e056Violations![0].reason).toContain('does not mention the new endpoint');
+    // E055 should have no violations
+    expect(result.e055Violations ?? []).toHaveLength(0);
+    await rm(tmpDir, { recursive: true, force: true });
+  });
 });

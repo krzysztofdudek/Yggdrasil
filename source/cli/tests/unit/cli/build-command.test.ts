@@ -98,6 +98,22 @@ describe('build-context command (unit-like CLI contract)', () => {
     });
   });
 
+  it('rejects --full flag', async () => {
+    await withFixtureCopy(async (cwd) => {
+      const result = spawnSync(
+        'node',
+        [BIN_PATH, 'build-context', '--node', 'orders/order-service', '--full'],
+        {
+          cwd,
+          encoding: 'utf-8',
+        },
+      );
+
+      expect(result.status).not.toBe(0);
+      expect(result.stderr).toMatch(/unknown option|--full/);
+    });
+  });
+
   it('build-context --file <unmapped-no-siblings> shows no candidates', async () => {
     await withFixtureCopy(async (cwd) => {
       const result = spawnSync(

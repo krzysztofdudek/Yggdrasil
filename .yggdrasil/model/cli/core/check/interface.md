@@ -2,10 +2,9 @@
 
 ### `runCheck(graph: Graph, gitTrackedFiles: string[] | null): Promise<CheckResult>`
 
-Runs the full graph health check. Returns `CheckResult` with all issues and health score.
+Runs the full graph health check. Returns `CheckResult` with all issues, counts, and suggested next command.
 
 - `gitTrackedFiles`: pass `null` to skip E022 (no git available)
-- Health score: 0-100. Starts at 100, deducted per error/warning by severity
 
 ### `CheckResult`
 
@@ -18,7 +17,6 @@ interface CheckResult {
   flowCount: number;
   coveredFiles: number;
   totalFiles: number;
-  healthScore: number;
   issues: CheckIssue[];
   suggestedNext: string | null;  // highest-priority next command
 }

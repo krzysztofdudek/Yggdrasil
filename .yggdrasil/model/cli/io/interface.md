@@ -10,17 +10,17 @@ Library used by cli/core (loader, drift-detector). All paths are absolute; calle
 ## architecture-parser.ts
 
 - `parseArchitecture(filePath: string): Promise<ArchitectureDef>`
-  - Reads and parses yg-architecture.yaml. Throws on missing node_types (must be non-empty object), missing or invalid description (non-empty string) on any node type entry, invalid relation types (not one of: uses, calls, extends, implements, emits, listens), relation values that are not arrays of strings. Optional fields on each node type: aspects, integration_aspects, parents (string arrays), relations (object with relation type keys). Returns ArchitectureDef with all parsed node types.
+  - Reads and parses yg-architecture.yaml. Throws on missing node_types (must be non-empty object), missing or invalid description (non-empty string) on any node type entry, invalid relation types (not one of: uses, calls, extends, implements, emits, listens), relation values that are not arrays of strings. Optional fields on each node type: aspects, ports, parents (string arrays), relations (object with relation type keys). Returns ArchitectureDef with all parsed node types.
 
 ## node-parser.ts
 
 - `parseNodeYaml(filePath: string): Promise<NodeMeta>`
-  - Parses yg-node.yaml with required fields: name (non-empty string), type (non-empty string, must match config.node_types). Optional: description, blackbox (boolean), mapping, relations, aspects, integration_aspects.
+  - Parses yg-node.yaml with required fields: name (non-empty string), type (non-empty string, must match config.node_types). Optional: description, blackbox (boolean), mapping, relations, aspects, ports.
   - **Mapping format (v4):** Array of MappingGroup objects. Each group has `paths: string[]` (required, must be relative to repo root, no leading slash, non-empty) and optional `aspects: MappingGroupAspect[]`. Each aspect has `aspect: string` (required) and `anchors: Record<string, MappingGroupAnchor>` mapping anchor IDs to `{regex: string, rationale: string}` (both required, non-empty strings). Backward compatible with old format `mapping: {paths: [...]}` (converted internally to array).
   - **Relations:** Array of relation objects with `target: string` (required, relative path), `type: RelationType` (required: uses|calls|extends|implements|emits|listens), optional `consumes: string[]`, `failure: string`, `event_name: string`. No longer supports `anchors` field on relations.
   - **Aspects:** Array of aspect entries (old format only for backward compatibility). Each entry is object with `aspect: string` (required, id of aspect), optional `exceptions: string[]` (deviations from aspect pattern), optional `anchors: Record<string, AnchorRealization>` (map of anchor ID to `{regex: string, ...}` objects). New format supports flat strings in the array (`aspects: [aspect-id-1, aspect-id-2]`) for simple cases.
-  - **integration_aspects:** Optional array of aspect IDs (strings) that consumers must realize. Removed field: `integration_anchors` (replaced by integration_aspects).
-  - Throws on invalid name, type, relations, mapping (non-array or object, invalid structure), aspects (non-array, duplicate ids, invalid entries), integration_aspects (non-array), blackbox (non-boolean).
+  - **ports:** Optional array of aspect IDs (strings) that consumers must realize.
+  - Throws on invalid name, type, relations, mapping (non-array or object, invalid structure), aspects (non-array, duplicate ids, invalid entries), ports (non-array), blackbox (non-boolean).
 
 ## aspect-parser.ts
 

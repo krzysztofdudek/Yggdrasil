@@ -74,51 +74,5 @@
     ".yggdrasil/flows/graph-analysis/description.md": 1775046980292.1602,
     "source/cli/src/cli/build-context.ts": 1775325143024.5308
   },
-  "acknowledgeReason": "v4 migration: flat mapping, claims, and doc updates",
-  "claimResults": {
-    "deterministic": {
-      "no-side-effects": {
-        "satisfied": false,
-        "reason": "LLM response could not be parsed"
-      },
-      "deterministic-output": {
-        "satisfied": false,
-        "reason": "LLM response could not be parsed"
-      }
-    },
-    "posix-paths": {
-      "forward-slash-normalization": {
-        "satisfied": false,
-        "reason": "LLM response could not be parsed"
-      }
-    },
-    "cli-command-contract": {
-      "stdout-write": {
-        "satisfied": true,
-        "reason": "All output in this file uses process.stdout.write() for success messages and process.stderr.write() for errors, with no console.log calls present."
-      },
-      "error-handler": {
-        "satisfied": false,
-        "reason": "LLM response could not be parsed"
-      },
-      "exit-code": {
-        "satisfied": false,
-        "reason": "LLM response could not be parsed"
-      }
-    }
-  },
-  "artifactReview": {
-    "interface.md": {
-      "current": false,
-      "reason": "LLM response could not be parsed"
-    },
-    "internals.md": {
-      "current": false,
-      "reason": "LLM response could not be parsed"
-    },
-    "responsibility.md": {
-      "current": false,
-      "reason": "LLM response could not be parsed"
-    }
-  }
+  "acknowledgeReason": "v4 migration: flat mapping, claims, and doc updates"
 }

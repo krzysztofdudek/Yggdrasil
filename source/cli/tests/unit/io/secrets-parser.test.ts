@@ -22,7 +22,7 @@ llm:
       'utf-8',
     );
 
-    const secrets = await loadSecrets(tmpDir);
+    const secrets = await loadSecrets(yggDir);
     expect(secrets?.api_key).toBe('sk-test-123');
 
     const baseConfig = {
@@ -77,7 +77,7 @@ other_config: value
       'utf-8',
     );
 
-    const secrets = await loadSecrets(tmpDir);
+    const secrets = await loadSecrets(yggDir);
     expect(secrets).toBeUndefined();
 
     await rm(tmpDir, { recursive: true, force: true });
@@ -97,7 +97,7 @@ llm: {}
       'utf-8',
     );
 
-    const secrets = await loadSecrets(tmpDir);
+    const secrets = await loadSecrets(yggDir);
     expect(secrets).toBeUndefined();
 
     await rm(tmpDir, { recursive: true, force: true });
@@ -121,7 +121,7 @@ llm:
       'utf-8',
     );
 
-    const secrets = await loadSecrets(tmpDir);
+    const secrets = await loadSecrets(yggDir);
     expect(secrets?.provider).toBe('anthropic');
     expect(secrets?.model).toBe('claude-3');
     expect(secrets?.consensus).toBe(3);
@@ -147,7 +147,7 @@ llm:
       'utf-8',
     );
 
-    const secrets = await loadSecrets(tmpDir);
+    const secrets = await loadSecrets(yggDir);
     expect(secrets?.api_key).toBe('sk-test-456');
     expect(secrets?.endpoint).toBe('https://api.openai.com');
     expect(secrets?.temperature).toBe(0.5);

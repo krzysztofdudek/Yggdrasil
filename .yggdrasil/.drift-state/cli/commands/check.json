@@ -60,47 +60,5 @@
     ".yggdrasil/flows/validate/description.md": 1775046942154.0942,
     "source/cli/src/cli/check.ts": 1775319154537.9993
   },
-  "acknowledgeReason": "v4 migration: flat mapping, claims, and doc updates",
-  "claimResults": {
-    "deterministic": {
-      "no-side-effects": {
-        "satisfied": false,
-        "reason": "LLM response could not be parsed"
-      },
-      "deterministic-output": {
-        "satisfied": false,
-        "reason": "LLM response could not be parsed"
-      }
-    },
-    "posix-paths": {
-      "forward-slash-normalization": {
-        "satisfied": false,
-        "reason": "LLM response could not be parsed"
-      }
-    },
-    "cli-command-contract": {
-      "stdout-write": {
-        "satisfied": false,
-        "reason": "LLM response could not be parsed"
-      },
-      "error-handler": {
-        "satisfied": false,
-        "reason": "LLM response could not be parsed"
-      },
-      "exit-code": {
-        "satisfied": false,
-        "reason": "LLM response could not be parsed"
-      }
-    }
-  },
-  "artifactReview": {
-    "interface.md": {
-      "current": false,
-      "reason": "LLM response could not be parsed"
-    },
-    "responsibility.md": {
-      "current": false,
-      "reason": "LLM response could not be parsed"
-    }
-  }
+  "acknowledgeReason": "v4 migration: flat mapping, claims, and doc updates"
 }

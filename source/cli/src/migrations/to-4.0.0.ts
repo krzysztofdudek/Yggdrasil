@@ -31,6 +31,12 @@ export async function migrateToV4(yggRoot: string): Promise<MigrationResult> {
   // Step 5: Update .gitignore to include yg-secrets.yaml
   await updateGitignore(yggRoot, actions, warnings);
 
+  // Step 6: Migrate aspect anchors from bare IDs to {id, claim} objects
+  const aspectsDir = path.join(yggRoot, 'aspects');
+  if (await fileExists(aspectsDir)) {
+    await migrateAspectAnchors(aspectsDir, actions, warnings);
+  }
+
   return { actions, warnings };
 }
 
@@ -333,6 +339,52 @@ async function updateGitignore(yggRoot: string, actions: string[], warnings: str
     actions.push('Added yg-secrets.yaml to .yggdrasil/.gitignore');
   } catch (err) {
     warnings.push(`Failed to update .gitignore: ${(err as Error).message}`);
+  }
+}
+
+async function migrateAspectAnchors(aspectsDir: string, actions: string[], warnings: string[]): Promise<void> {
+  let entries: string[];
+  try {
+    entries = await readdir(aspectsDir);
+  } catch {
+    return;
+  }
+
+  for (const entry of entries) {
+    const aspectDir = path.join(aspectsDir, entry);
+    const aspectStat = await stat(aspectDir).catch(() => null);
+    if (!aspectStat?.isDirectory()) continue;
+
+    const yamlPath = path.join(aspectDir, 'yg-aspect.yaml');
+    let content: string;
+    try {
+      content = await readFile(yamlPath, 'utf-8');
+    } catch {
+      continue;
+    }
+
+    const raw = parseYaml(content) as Record<string, unknown> | null;
+    if (!raw || !Array.isArray(raw.anchors)) continue;
+
+    // Check if anchors are bare strings (old format)
+    const needsMigration = raw.anchors.some((a: unknown) => typeof a === 'string');
+    if (!needsMigration) continue;
+
+    // Convert bare string IDs to {id, claim} objects
+    raw.anchors = raw.anchors.map((a: unknown) => {
+      if (typeof a === 'string') {
+        return { id: a, claim: `TODO — write claim for anchor '${a}'` };
+      }
+      return a;
+    });
+
+    try {
+      await writeFile(yamlPath, stringifyYaml(raw, { lineWidth: 0 }), 'utf-8');
+      actions.push(`Migrated aspect '${entry}' anchors to {id, claim} format`);
+      warnings.push(`Aspect '${entry}' has TODO claims — write real claims before next approve`);
+    } catch (err) {
+      warnings.push(`Failed to migrate aspect '${entry}': ${(err as Error).message}`);
+    }
   }
 }
 

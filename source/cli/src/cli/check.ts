@@ -47,7 +47,7 @@ export function formatOutput(result: CheckResult): string {
 
   // Header
   const typeStr = [...result.nodeTypeCounts.entries()]
-    .map(([t, c]) => `${c} ${c === 1 ? t : t + 's'}`)
+    .map(([t, c]) => `${c} ${c === 1 ? t : t.endsWith('y') ? t.slice(0, -1) + 'ies' : t + 's'}`)
     .join(', ');
   const nodeInfo = typeStr ? `${result.nodeCount} nodes (${typeStr})` : `${result.nodeCount} nodes`;
   lines.push(`${result.projectName} — ${nodeInfo}, ${result.aspectCount} aspects, ${result.flowCount} flows`);

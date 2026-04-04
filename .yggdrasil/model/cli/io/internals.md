@@ -41,4 +41,4 @@ Each JSON file contains a `DriftNodeState`: canonical hash, per-file hashes, and
 
 **Aspects format migration:** parseAspects in node-parser.ts supports both old (object with `aspect` key) and new (flat string) formats. Old format objects can include `exceptions` and `anchors` fields; new flat string format contains only the aspect ID. This allows gradual migration from old to new format. Anchors are typed objects (e.g., `{ regex: "pattern" }`), not bare string arrays — bare arrays trigger a migration error.
 
-**Integration aspects:** The new `integration_aspects` field on NodeMeta defines aspect IDs that consumers of this node must propagate in their dependency tracking. This complements `integration_anchors` (which defines specific anchor IDs required at the interface level).
+**Ports:** The `ports` field on NodeMeta defines aspect IDs that consumers of this node must propagate in their dependency tracking.

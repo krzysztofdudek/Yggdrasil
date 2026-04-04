@@ -9,7 +9,7 @@ import type { LlmConfig } from '../model/types.js';
  * Returns undefined if no secrets file exists.
  */
 export async function loadSecrets(rootPath: string): Promise<Partial<LlmConfig> | undefined> {
-  const secretsPath = join(rootPath, '.yggdrasil', 'yg-secrets.yaml');
+  const secretsPath = join(rootPath, 'yg-secrets.yaml');
   let content: string;
   try {
     content = await readFile(secretsPath, 'utf-8');

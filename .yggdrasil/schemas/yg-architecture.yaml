@@ -7,7 +7,6 @@ node_types:
   <type-id>:
     description: <string>                    # required — what this type is for
     aspects: [<aspect-id>]                   # optional — required on every file of this type
-    integration_aspects: [<aspect-id>]       # optional — required on consumers' files
     parents: [<type-id>]                     # optional — allowed parent types
     relations:                               # optional — allowed relation targets
       <relation-type>: [<type-id>]           # calls | uses | extends | implements | emits | listens
