@@ -3,11 +3,11 @@ type: module
 description: "React SPA frontend with routing, auth context, and API client"
 
 mapping:
-  paths:
-    - apps/web/src/main.tsx
-    - apps/web/src/App.tsx
-    - apps/web/src/api/client.ts
-    - apps/web/src/contexts/AuthContext.tsx
-    - apps/web/src/components/ProtectedRoute.tsx
-    - apps/web/src/index.css
-    - apps/web/src/vite-env.d.ts
+  - paths:
+      - apps/web/src/main.tsx
+      - apps/web/src/App.tsx
+      - apps/web/src/api/client.ts
+      - apps/web/src/contexts/AuthContext.tsx
+      - apps/web/src/components/ProtectedRoute.tsx
+      - apps/web/src/index.css
+      - apps/web/src/vite-env.d.ts

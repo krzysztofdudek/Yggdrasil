@@ -2,17 +2,6 @@ name: Users
 type: service
 description: "User profile and account operations: profile fetch and password change"
 
-aspects:
-  - aspect: requires-auth
-    anchors:
-      - requireAuth
-  - aspect: validation
-    anchors:
-      - changePasswordSchema
-  - aspect: error-format
-    anchors:
-      - INVALID_PASSWORD
-
 relations:
   - target: api/db
     type: uses
@@ -22,6 +11,6 @@ relations:
     consumes: [requireAuth]
 
 mapping:
-  paths:
-    - apps/api/src/routes/users.ts
-    - apps/api/src/services/users.ts
+  - paths:
+      - apps/api/src/routes/users.ts
+      - apps/api/src/services/users.ts

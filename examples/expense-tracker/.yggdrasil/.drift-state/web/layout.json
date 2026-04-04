@@ -1,22 +1,18 @@
 {
-  "hash": "4ba7ffaa3aa1dbc240023afbe317801c224eba2ce532b74a0a76358722513202",
+  "hash": "98bada381fa437cad499ce2a24f1be6ff31a96b8c780d1fd9cb3214966f4f452",
   "files": {
-    ".yggdrasil/model/web/layout/yg-node.yaml": "7347549b58e6f25f2c1c520175e7e22619366f961634fa387cd0b83f19c86cc0",
+    ".yggdrasil/model/web/layout/yg-node.yaml": "4608f3fe08364c5d7ea64710925e73461a632bea95825cc50c9ee81d3569b47f",
     ".yggdrasil/model/web/layout/responsibility.md": "e4b227fbdbb65a0a4213e20601da199978b62bb4cde9d1c87a70cea313da3a16",
-    ".yggdrasil/model/web/yg-node.yaml": "88e07527ebf4313a841d0cdb29360bc77fb53ce0518dc22091a8d5f9c9c74daa",
+    ".yggdrasil/model/web/yg-node.yaml": "56b6e2521edfca51764878fe07dcb9d3be7e453bccc77e7e156e5eeeb3cdf203",
     ".yggdrasil/model/web/responsibility.md": "a64128a347a12a19c362c95a715415c997d1f49b0e464752fc7ff1648c21baba",
-    ".yggdrasil/aspects/requires-auth/yg-aspect.yaml": "2613b8a592e8291e4025f10d863ee9243161eae8d0bb564fe236ed5c880f5eda",
-    ".yggdrasil/aspects/requires-auth/content.md": "28def92498cc4335727f81edf6dc83c0f1503026305d2c842a5f631739e805a2",
     "apps/web/src/components/Layout/Layout.tsx": "79eac152ad3fd5cca1181404551187039be76aa41d2adb619637aadb3727c19b",
     "apps/web/src/components/Layout/Header.tsx": "370bda9d7650eb7e6926b3db1a35e17db91933021f04257d4ff6c14546f3acac"
   },
   "mtimes": {
-    ".yggdrasil/model/web/layout/yg-node.yaml": 1774473117192.264,
+    ".yggdrasil/model/web/layout/yg-node.yaml": 1775243607535.9094,
     ".yggdrasil/model/web/layout/responsibility.md": 1774473118978.072,
-    ".yggdrasil/model/web/yg-node.yaml": 1774472939142.7056,
+    ".yggdrasil/model/web/yg-node.yaml": 1775243607538.671,
     ".yggdrasil/model/web/responsibility.md": 1774472943575.0054,
-    ".yggdrasil/aspects/requires-auth/yg-aspect.yaml": 1774472435696.9983,
-    ".yggdrasil/aspects/requires-auth/content.md": 1774472442618.9685,
     "apps/web/src/components/Layout/Layout.tsx": 1772485235648.5854,
     "apps/web/src/components/Layout/Header.tsx": 1772485235648.389
   }

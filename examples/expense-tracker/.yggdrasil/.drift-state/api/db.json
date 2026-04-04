@@ -1,9 +1,9 @@
 {
-  "hash": "96ed29271048cba2dd8dd7898ea6a96efc8f0d375d78692e7f35c028749c48a0",
+  "hash": "84e29c5a04f1949cbf8d94bc6e77057429b97f6afafe639fec14cabc83db1464",
   "files": {
-    ".yggdrasil/model/api/db/yg-node.yaml": "809652daef7c2e68be2cd56b02da9bc8fa01cbcbfcb3803814d0b9321f7cebd0",
+    ".yggdrasil/model/api/db/interface.md": "2da72692f8eb82c619a07a57548f8dc0392dfcc92cec90459ad5450fc8a5750d",
     ".yggdrasil/model/api/db/responsibility.md": "59b872e5a143e528a15766fca88d38ef071bc215f49a58554249cfafea2d3019",
-    ".yggdrasil/model/api/yg-node.yaml": "481c4012bb0043fc5250e5971f68bcf974b8c94d71e25a380202248ceb8a5d6c",
+    ".yggdrasil/model/api/yg-node.yaml": "01fda2c51cbe662f1848c71432e61932f70c9303ad97df49c4ffc8f02fff6d17",
     ".yggdrasil/model/api/responsibility.md": "8b8ba6841b581fb3757057f606ffe01987b417563f3c24ce58e44c0975b0ea42",
     ".yggdrasil/flows/add-expense/yg-flow.yaml": "b05d9cd4d8bf9c1d347ef3c6b225d8793ea78f6520dd5cc65f6317166815821a",
     ".yggdrasil/flows/add-expense/description.md": "b102e4848f6d5ba64e123d89fd5766b1316d439726d38c9ca35f967d727c88c5",
@@ -25,13 +25,13 @@
     ".yggdrasil/flows/view-reports/description.md": "c5de44607c0a37dffaeb35b36e39964e30118105987d79b4e60da084c46480f5",
     "apps/api/src/db/index.ts": "8299d7039f85fd94e620bf7ea46004ab4fb3bc198674063edb712a60c9e036d7",
     "apps/api/src/db/schema.ts": "a832d69485abac976f89bbd7ebc00964129cef919ba3ab5b5624b9bc2afc6b37",
-    ".yggdrasil/model/api/db/interface.md": "2da72692f8eb82c619a07a57548f8dc0392dfcc92cec90459ad5450fc8a5750d"
+    ".yggdrasil/model/api/db/yg-node.yaml": "cd9376955f00a5358df78696b1c417905289f34dea028afd2df4ff6b3c63f2b0"
   },
   "mtimes": {
-    ".yggdrasil/model/api/db/yg-node.yaml": 1774472906063.2932,
+    ".yggdrasil/model/api/db/yg-node.yaml": 1775243951005.2102,
     ".yggdrasil/model/api/db/interface.md": 1774473722264.5054,
     ".yggdrasil/model/api/db/responsibility.md": 1774472910140.1367,
-    ".yggdrasil/model/api/yg-node.yaml": 1774472843480.417,
+    ".yggdrasil/model/api/yg-node.yaml": 1775243607546.4182,
     ".yggdrasil/model/api/responsibility.md": 1774472847824.451,
     ".yggdrasil/flows/add-expense/yg-flow.yaml": 1774472808119.4907,
     ".yggdrasil/flows/add-expense/description.md": 1774472809190.3472,
@@ -53,5 +53,6 @@
     ".yggdrasil/flows/view-reports/description.md": 1774472819761.619,
     "apps/api/src/db/index.ts": 1772485235642.9038,
     "apps/api/src/db/schema.ts": 1773334977158.2144
-  }
+  },
+  "acknowledgeReason": "Changed type from service to library"
 }

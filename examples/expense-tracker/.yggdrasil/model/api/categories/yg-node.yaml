@@ -2,21 +2,6 @@ name: Categories
 type: service
 description: "Category CRUD with system defaults and subscription limit on custom categories"
 
-aspects:
-  - aspect: requires-auth
-    anchors:
-      - requireAuth
-  - aspect: validation
-    anchors:
-      - categorySchema
-  - aspect: error-format
-    anchors:
-      - CATEGORY_LIMIT
-  - aspect: subscription-limits
-    anchors:
-      - CATEGORY_LIMIT
-      - plan
-
 relations:
   - target: api/db
     type: uses
@@ -26,6 +11,6 @@ relations:
     consumes: [requireAuth]
 
 mapping:
-  paths:
-    - apps/api/src/routes/categories.ts
-    - apps/api/src/services/categories.ts
+  - paths:
+      - apps/api/src/routes/categories.ts
+      - apps/api/src/services/categories.ts

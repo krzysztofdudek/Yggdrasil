@@ -2,22 +2,6 @@ name: Expenses
 type: service
 description: "Expense CRUD with subscription limit enforcement and budget overage detection"
 
-aspects:
-  - aspect: requires-auth
-    anchors:
-      - requireAuth
-  - aspect: validation
-    anchors:
-      - expenseSchema
-  - aspect: error-format
-    anchors:
-      - EXPENSE_LIMIT
-      - NOT_FOUND
-  - aspect: subscription-limits
-    anchors:
-      - EXPENSE_LIMIT
-      - plan
-
 relations:
   - target: api/db
     type: uses
@@ -27,6 +11,6 @@ relations:
     consumes: [requireAuth]
 
 mapping:
-  paths:
-    - apps/api/src/routes/expenses.ts
-    - apps/api/src/services/expenses.ts
+  - paths:
+      - apps/api/src/routes/expenses.ts
+      - apps/api/src/services/expenses.ts

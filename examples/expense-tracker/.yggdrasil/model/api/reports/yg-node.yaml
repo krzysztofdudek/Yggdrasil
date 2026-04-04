@@ -2,12 +2,6 @@ name: Reports
 type: service
 description: "Read-only spending aggregation: monthly summary and per-category breakdown"
 
-aspects:
-  - aspect: requires-auth
-    anchors:
-      - requireAuth
-  - aspect: error-format
-
 relations:
   - target: api/db
     type: uses
@@ -17,6 +11,6 @@ relations:
     consumes: [requireAuth]
 
 mapping:
-  paths:
-    - apps/api/src/routes/reports.ts
-    - apps/api/src/services/reports.ts
+  - paths:
+      - apps/api/src/routes/reports.ts
+      - apps/api/src/services/reports.ts

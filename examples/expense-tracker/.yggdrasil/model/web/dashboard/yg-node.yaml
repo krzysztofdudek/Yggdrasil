@@ -2,9 +2,6 @@ name: Dashboard
 type: module
 description: "Main overview page: monthly summary, top categories, and recent expenses"
 
-aspects:
-  - aspect: requires-auth
-
 relations:
   - target: api/reports
     type: calls
@@ -14,5 +11,5 @@ relations:
     consumes: [GET /expenses]
 
 mapping:
-  paths:
-    - apps/web/src/pages/Dashboard.tsx
+  - paths:
+      - apps/web/src/pages/Dashboard.tsx

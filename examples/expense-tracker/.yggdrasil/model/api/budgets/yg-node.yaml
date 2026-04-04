@@ -2,15 +2,6 @@ name: Budgets
 type: service
 description: "Monthly budget limits per category with spent-amount computation"
 
-aspects:
-  - aspect: requires-auth
-    anchors:
-      - requireAuth
-  - aspect: validation
-    anchors:
-      - budgetSchema
-  - aspect: error-format
-
 relations:
   - target: api/db
     type: uses
@@ -20,6 +11,6 @@ relations:
     consumes: [requireAuth]
 
 mapping:
-  paths:
-    - apps/api/src/routes/budgets.ts
-    - apps/api/src/services/budgets.ts
+  - paths:
+      - apps/api/src/routes/budgets.ts
+      - apps/api/src/services/budgets.ts

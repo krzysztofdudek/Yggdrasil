@@ -1,3 +1,6 @@
 name: Input Validation
 description: "Zod schema validation on all user input before processing"
 stability: protocol
+anchors:
+  - schema-validation
+  - error-handling

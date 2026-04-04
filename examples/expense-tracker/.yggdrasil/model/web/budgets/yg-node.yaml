@@ -2,14 +2,11 @@ name: Budgets Page
 type: module
 description: "Monthly budget table with inline limit editing and overage highlighting"
 
-aspects:
-  - aspect: requires-auth
-
 relations:
   - target: api/budgets
     type: calls
     consumes: [GET /budgets, PUT /budgets]
 
 mapping:
-  paths:
-    - apps/web/src/pages/Budgets.tsx
+  - paths:
+      - apps/web/src/pages/Budgets.tsx

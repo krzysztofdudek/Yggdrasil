@@ -1,7 +1,7 @@
 {
-  "hash": "09ba79678688f390a30119f2c11d45c15be627738c00a2bc2b941f79e2c41254",
+  "hash": "8b8f52f8763295e076a383b577f48962ed2325fe3e4231c7b1a5554596fbb993",
   "files": {
-    ".yggdrasil/model/web/yg-node.yaml": "88e07527ebf4313a841d0cdb29360bc77fb53ce0518dc22091a8d5f9c9c74daa",
+    ".yggdrasil/model/web/yg-node.yaml": "56b6e2521edfca51764878fe07dcb9d3be7e453bccc77e7e156e5eeeb3cdf203",
     ".yggdrasil/model/web/responsibility.md": "a64128a347a12a19c362c95a715415c997d1f49b0e464752fc7ff1648c21baba",
     "apps/web/src/main.tsx": "8609fa859a9f4a2f03732d8a387fe12fb7381f73a31a91f13cb9355bf628cdb4",
     "apps/web/src/App.tsx": "50cfa87ed5b82771071c4bc47754e460df8dea4ccfdbd64e58c1477d7a07623f",
@@ -12,7 +12,7 @@
     "apps/web/src/vite-env.d.ts": "65996936fbb042915f7b74a200fcdde7e410f32a669b1ab9597cfaa4b0faddb5"
   },
   "mtimes": {
-    ".yggdrasil/model/web/yg-node.yaml": 1774472939142.7056,
+    ".yggdrasil/model/web/yg-node.yaml": 1775243607538.671,
     ".yggdrasil/model/web/responsibility.md": 1774472943575.0054,
     "apps/web/src/main.tsx": 1772485235649.553,
     "apps/web/src/App.tsx": 1772485235647.6265,

@@ -3,5 +3,5 @@ type: module
 description: "Fastify REST API backend serving all business logic and data access"
 
 mapping:
-  paths:
-    - apps/api/src/index.ts
+  - paths:
+      - apps/api/src/index.ts

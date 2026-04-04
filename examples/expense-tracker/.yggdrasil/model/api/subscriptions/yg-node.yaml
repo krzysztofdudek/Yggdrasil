@@ -2,12 +2,6 @@ name: Subscriptions
 type: service
 description: "Subscription management: plan status and free-to-pro upgrade"
 
-aspects:
-  - aspect: requires-auth
-    anchors:
-      - requireAuth
-  - aspect: error-format
-
 relations:
   - target: api/db
     type: uses
@@ -17,6 +11,6 @@ relations:
     consumes: [requireAuth]
 
 mapping:
-  paths:
-    - apps/api/src/routes/subscriptions.ts
-    - apps/api/src/services/subscriptions.ts
+  - paths:
+      - apps/api/src/routes/subscriptions.ts
+      - apps/api/src/services/subscriptions.ts

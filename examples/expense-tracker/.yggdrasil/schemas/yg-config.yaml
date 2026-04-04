@@ -2,7 +2,7 @@
 # Located at .yggdrasil/yg-config.yaml — one per project.
 # Edit this after running yg init to describe your project.
 
-version: "2.0.0"                  # managed by CLI — do not edit manually. Tracks the CLI version
+version: "3.0.0"                  # managed by CLI — do not edit manually. Tracks the CLI version
                                   # that created or last migrated this config. Used by the migration
                                   # system to determine which migrations to run on upgrade.
 
@@ -17,17 +17,8 @@ node_types:                       # required — non-empty object of node type d
   library:
     description: "Shared utility code with no domain knowledge"
 
-artifacts:                        # required — artifact type definitions
-  responsibility.md:              #   key = filename in node directories
-    required: always              #   always | never | { when: <condition> }
-    description: "What this node is responsible for, and what it is not"
-    included_in_relations: true      #   true = included in dependency context packages
-  interface.md:
-    required:
-      when: has_incoming_relations  # conditions: has_incoming_relations, has_outgoing_relations, has_aspect:<id>
-    description: "Public API — methods, parameters, return types, contracts"
-    included_in_relations: true
-  # Additional artifact types: logic.md, constraints.md, errors.md, model.md, state.md, decisions.md
+# artifacts are hardcoded in the CLI (responsibility.md, interface.md, internals.md)
+# and cannot be configured. See STANDARD_ARTIFACTS in source code.
 
 quality:                          # optional — quality thresholds
   min_artifact_length: 50         #   minimum characters for an artifact (warning if below)

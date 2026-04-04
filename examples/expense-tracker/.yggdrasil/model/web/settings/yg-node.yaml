@@ -2,9 +2,6 @@ name: Settings
 type: module
 description: "User profile, password change, and subscription management pages"
 
-aspects:
-  - aspect: requires-auth
-
 relations:
   - target: api/users
     type: calls
@@ -14,6 +11,6 @@ relations:
     consumes: [GET /subscriptions/me, POST /subscriptions/upgrade]
 
 mapping:
-  paths:
-    - apps/web/src/pages/Settings.tsx
-    - apps/web/src/pages/Subscription.tsx
+  - paths:
+      - apps/web/src/pages/Settings.tsx
+      - apps/web/src/pages/Subscription.tsx

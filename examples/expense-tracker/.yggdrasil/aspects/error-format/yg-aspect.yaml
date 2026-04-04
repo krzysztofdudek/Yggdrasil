@@ -1,3 +1,6 @@
 name: Consistent Error Format
 description: "Standardized JSON error responses with error codes and HTTP status mapping"
 stability: protocol
+anchors:
+  - error-response-format
+  - http-status-codes

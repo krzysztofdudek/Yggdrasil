@@ -8,7 +8,7 @@ relations:
     consumes: [POST /auth/register, POST /auth/login]
 
 mapping:
-  paths:
-    - apps/web/src/pages/Landing.tsx
-    - apps/web/src/pages/Login.tsx
-    - apps/web/src/pages/Register.tsx
+  - paths:
+      - apps/web/src/pages/Landing.tsx
+      - apps/web/src/pages/Login.tsx
+      - apps/web/src/pages/Register.tsx
