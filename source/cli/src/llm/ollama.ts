@@ -1,0 +1,122 @@
+import type { LlmProvider, ClaimResponse, ArtifactResponse } from './types.js';
+import type { LlmConfig } from '../model/types.js';
+
+const CLAIM_SYSTEM_PROMPT = `You are a code reviewer verifying architectural claims about source code.
+You will receive: an aspect description, a specific claim, and source code files.
+Respond with EXACTLY this JSON format, nothing else:
+{"satisfied": true|false, "reason": "one sentence explanation"}`;
+
+const ARTIFACT_SYSTEM_PROMPT = `You are reviewing whether documentation accurately describes source code.
+You will receive: a documentation artifact and the current source code.
+Respond with EXACTLY this JSON format, nothing else:
+{"current": true|false, "reason": "one sentence explanation of what is outdated, or 'up to date'"}`;
+
+export class OllamaProvider implements LlmProvider {
+  private endpoint: string;
+  private model: string;
+  private temperature: number;
+
+  constructor(config: LlmConfig) {
+    this.endpoint = config.endpoint ?? 'http://localhost:11434';
+    this.model = config.model;
+    this.temperature = config.temperature;
+  }
+
+  async isAvailable(): Promise<boolean> {
+    try {
+      const res = await fetch(`${this.endpoint}/api/tags`, { signal: AbortSignal.timeout(5000) });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  async getContextWindowSize(): Promise<number | undefined> {
+    try {
+      const res = await fetch(`${this.endpoint}/api/show`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: this.model }),
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!res.ok) return undefined;
+      const data = await res.json() as Record<string, unknown>;
+      // Ollama returns model info with context_length in parameters
+      const params = data.model_info as Record<string, unknown> | undefined;
+      const ctxLength = params?.['context_length'] as number | undefined;
+      return ctxLength ?? undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /** Resolve max tokens: config value, auto-detect, or fallback to 4096 */
+  static async resolveMaxTokens(config: LlmConfig, provider: LlmProvider): Promise<number> {
+    if (typeof config.max_tokens === 'number') return config.max_tokens;
+    // auto: query provider
+    const detected = await provider.getContextWindowSize();
+    return detected ?? 4096; // Safe default fallback
+  }
+
+  async verifyClaim(params: {
+    aspectContent: string;
+    claim: string;
+    sourceCode: string;
+    sourceFiles: string[];
+  }): Promise<ClaimResponse> {
+    const userPrompt =
+      `ASPECT:\n${params.aspectContent}\n\n` +
+      `CLAIM: ${params.claim}\n\n` +
+      `SOURCE FILES:\n${params.sourceCode}\n\n` +
+      `Does this code satisfy the claim?`;
+
+    return this.chat<ClaimResponse>(CLAIM_SYSTEM_PROMPT, userPrompt, { satisfied: false, reason: 'LLM response could not be parsed' });
+  }
+
+  async reviewArtifact(params: {
+    artifactContent: string;
+    artifactName: string;
+    sourceCode: string;
+    sourceFiles: string[];
+  }): Promise<ArtifactResponse> {
+    const userPrompt =
+      `ARTIFACT (${params.artifactName}):\n${params.artifactContent}\n\n` +
+      `SOURCE CODE:\n${params.sourceCode}\n\n` +
+      `Is this documentation still accurate and complete given the current code?`;
+
+    return this.chat<ArtifactResponse>(ARTIFACT_SYSTEM_PROMPT, userPrompt, { current: false, reason: 'LLM response could not be parsed' });
+  }
+
+  private async chat<T>(system: string, user: string, fallback: T): Promise<T> {
+    const body = {
+      model: this.model,
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: user },
+      ],
+      stream: false,
+      options: { temperature: this.temperature },
+      format: 'json',
+    };
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const res = await fetch(`${this.endpoint}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(30_000),
+        });
+        if (!res.ok) continue;
+        const data = await res.json() as { message?: { content?: string } };
+        const content = data.message?.content ?? '';
+        // Strip markdown code fences if present
+        const cleaned = content.replace(/^```(?:json)?\s*\n?/m, '').replace(/\n?```\s*$/m, '').trim();
+        return JSON.parse(cleaned) as T;
+      } catch {
+        if (attempt === 1) return fallback;
+      }
+    }
+    return fallback;
+  }
+}
