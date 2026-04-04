@@ -10,7 +10,7 @@ function shortHash(h: string): string {
   return h.slice(0, 8);
 }
 
-function formatResult(nodePath: string, result: ApproveResult): void {
+export function formatResult(nodePath: string, result: ApproveResult): void {
   const prev = result.previousHash ? shortHash(result.previousHash) : '(none)';
   const curr = result.currentHash ? shortHash(result.currentHash) : '(none)';
 
@@ -54,10 +54,46 @@ function formatResult(nodePath: string, result: ApproveResult): void {
       break;
   }
 
+  formatLlmResults(result);
+
   // Report GC'd orphaned drift state
   if (result.gcPaths && result.gcPaths.length > 0) {
     for (const p of result.gcPaths) {
       process.stdout.write(chalk.dim(`Removed orphaned drift state: ${p}\n`));
+    }
+  }
+}
+
+function formatLlmResults(result: ApproveResult): void {
+  if (result.llmSkipped) {
+    process.stdout.write(chalk.dim('  LLM not configured — aspect verification and artifact review skipped.\n'));
+    return;
+  }
+
+  if (result.claimResults) {
+    process.stdout.write('\nAspect verification:\n');
+    for (const [aspectId, claims] of Object.entries(result.claimResults)) {
+      process.stdout.write(`  ${aspectId}:\n`);
+      for (const [claimId, claimResult] of Object.entries(claims)) {
+        if (claimResult.satisfied) {
+          process.stdout.write(chalk.green(`    - "${claimId}" — SATISFIED\n`));
+        } else {
+          process.stdout.write(chalk.red(`    - "${claimId}" — NOT SATISFIED\n`));
+          process.stdout.write(`        ${claimResult.reason}\n`);
+        }
+      }
+    }
+  }
+
+  if (result.artifactReviewResults) {
+    process.stdout.write('\nArtifact review:\n');
+    for (const [name, review] of Object.entries(result.artifactReviewResults)) {
+      if (review.current) {
+        process.stdout.write(`  ${name} — ${chalk.green('current')}\n`);
+      } else {
+        process.stdout.write(`  ${name} — ${chalk.red('STALE')}\n`);
+        process.stdout.write(`    ${review.reason}\n`);
+      }
     }
   }
 }
