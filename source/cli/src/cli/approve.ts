@@ -2,7 +2,13 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import { loadGraph } from '../core/graph-loader.js';
 import { approveNode } from '../core/approve.js';
+import { createLlmProvider } from '../llm/provider.js';
+import { loadSecrets, mergeLlmConfig } from '../io/secrets-parser.js';
+import type { LlmProvider } from '../llm/types.js';
 import type { ApproveResult } from '../model/types.js';
+
+// Track cloud provider notice per process session
+let sessionNoticeShown = false;
 
 // ── Output formatting ────────────────────────────────────────
 
@@ -247,6 +253,35 @@ function formatRefused(nodePath: string, result: ApproveResult): void {
   );
 }
 
+// ── LLM provider loading ────────────────────────────────────
+
+async function loadLlmProvider(
+  graph: { rootPath: string; config: { llm?: import('../model/types.js').LlmConfig } },
+): Promise<{ provider: LlmProvider | undefined; maxTokens: number | undefined; cloudNotice: string | undefined }> {
+  const llmConfig = graph.config.llm;
+  if (!llmConfig) return { provider: undefined, maxTokens: undefined, cloudNotice: undefined };
+
+  const secrets = await loadSecrets(graph.rootPath);
+  const mergedConfig = secrets ? mergeLlmConfig(llmConfig, secrets) : llmConfig;
+  const provider = createLlmProvider(mergedConfig);
+
+  if (!(await provider.isAvailable())) {
+    return { provider: undefined, maxTokens: undefined, cloudNotice: undefined };
+  }
+
+  let cloudNotice: string | undefined;
+  if (mergedConfig.provider !== 'ollama' && !sessionNoticeShown) {
+    cloudNotice = `Source files will be sent to ${mergedConfig.provider} for verification. Use a local provider (ollama) to keep code private.`;
+    sessionNoticeShown = true;
+  }
+
+  const maxTokens = mergedConfig.max_tokens === 'auto'
+    ? (await provider.getContextWindowSize() ?? 8192)
+    : (mergedConfig.max_tokens as number);
+
+  return { provider, maxTokens, cloudNotice };
+}
+
 // ── Command registration ─────────────────────────────────────
 
 export function registerApproveCommand(program: Command): void {
@@ -260,8 +295,14 @@ export function registerApproveCommand(program: Command): void {
       try {
         const graph = await loadGraph(process.cwd());
         const nodePath = options.node.trim().replace(/^\.\//, '').replace(/\/+$/, '');
+        const { provider, maxTokens, cloudNotice } = await loadLlmProvider(graph);
+        if (cloudNotice) {
+          process.stdout.write(chalk.yellow(`Notice: ${cloudNotice}\n`));
+        }
         const result = await approveNode(graph, nodePath, {
           acknowledge: options.acknowledge,
+          llmProvider: provider,
+          maxTokens,
         });
         formatResult(nodePath, result);
         if (result.action === 'refused') {
@@ -317,8 +358,14 @@ export function registerApproveCommand(program: Command): void {
         try {
           const graph = await loadGraph(process.cwd());
           const nodePath = options.node.trim().replace(/^\.\//, '').replace(/\/+$/, '');
+          const { provider, maxTokens, cloudNotice } = await loadLlmProvider(graph);
+          if (cloudNotice) {
+            process.stdout.write(chalk.yellow(`Notice: ${cloudNotice}\n`));
+          }
           const result = await approveNode(graph, nodePath, {
             acknowledge: options.acknowledge,
+            llmProvider: provider,
+            maxTokens,
           });
           formatResult(nodePath, result);
           if (result.action === 'refused') {
