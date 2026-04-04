@@ -496,7 +496,14 @@ When creating a new node:
 | E053 | integration-aspect-missing | Consumer files missing integration aspects from target type |
 | E054 | unexpected-aspect | Mapping group declares aspect not in effective set |
 
-**Warnings (W001-W005):** budget-warning, own-budget-warning, wide-node, high-fan-out, orphaned-drift-state.
+**Port Consumption (E057-E058):**
+
+| Code | Name | Meaning |
+|------|------|---------|
+| E057 | missing-consumes | Relation target has ports but consumer has no consumes field |
+| E058 | unknown-port | consumes references a port name not found on the target node |
+
+**Warnings (W001-W006):** budget-warning, own-budget-warning, wide-node, high-fan-out, orphaned-drift-state, orphaned-aspect.
 
 CLI error messages are self-teaching: each error includes what happened, why it's wrong, and how to fix it. Follow the CLI's suggested next command.
 

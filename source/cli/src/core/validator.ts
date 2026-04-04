@@ -1127,6 +1127,9 @@ function checkPortConsumes(graph: Graph): ValidationIssue[] {
 
   for (const [nodePath, node] of graph.nodes) {
     for (const rel of node.meta.relations ?? []) {
+      // Skip event relations — they don't consume ports
+      if (rel.type === 'emits' || rel.type === 'listens') continue;
+
       const target = graph.nodes.get(rel.target);
       if (!target?.meta.ports || Object.keys(target.meta.ports).length === 0) continue;
 
@@ -1220,6 +1223,7 @@ function checkOrphanedAspects(graph: Graph): ValidationIssue[] {
         severity: 'warning',
         code: 'W006',
         rule: 'orphaned-aspect',
+        nodePath: `aspects/${aspect.id}`,
         message:
           `Aspect '${aspect.id}' is defined but not referenced by any node,\n` +
           `architecture type, or flow.\n` +

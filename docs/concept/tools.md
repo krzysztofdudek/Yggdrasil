@@ -893,6 +893,19 @@ directory in `aspects/`. E051 and E052 validate structural constraints from
 `yg-architecture.yaml`: relation target types (E051) and parent types (E052). E053 fires
 when a node consumes a port and that port's required aspect is not defined in `aspects/`.
 
+**Port consumption (E057-E058):**
+
+| Code   | Name               | Description                                                                              |
+| ------ | ------------------ | ---------------------------------------------------------------------------------------- |
+| `E057` | `missing-consumes` | Relation target has ports but the consumer relation has no `consumes` field              |
+| `E058` | `unknown-port`     | `consumes` references a port name that does not exist on the target node                 |
+
+**Port consumption validation:** E057 fires when a node has a relation to a target that
+exposes named ports but the relation declaration does not include a `consumes` field. This
+enforces explicit port selection — callers must declare which ports they use. E058 fires
+when `consumes` names a port that does not exist on the target. Both checks are skipped
+for `emits` and `listens` event relations, which do not consume ports.
+
 **Blackbox exemption:** Blackbox nodes are exempt from E030 (missing artifact) and
 E051-E053 (architecture enforcement).
 
@@ -905,6 +918,7 @@ E051-E053 (architecture enforcement).
 | `W003` | `wide-node`            | Too many source files mapped (node might need splitting)                     |
 | `W004` | `high-fan-out`         | Too many direct relations (design signal, not blocking)                      |
 | `W005` | `orphaned-drift-state` | Drift state file exists for a node that no longer exists in the graph        |
+| `W006` | `orphaned-aspect`      | Aspect is defined but not referenced by any node, architecture type, or flow |
 
 **Message format:**
 
@@ -934,8 +948,8 @@ Summary at the end: PASS or FAIL with category counts.
 
 **Grouping order:** Errors are grouped in this order: Drift (E020), Cascade (E021),
 Structural (E001-E013, E050), Coverage (E022), Completeness (E030-E039),
-Architecture (E051-E053). Warnings are grouped: Budget (W001-W002), Structure
-(W003-W004), then orphaned state (W005).
+Architecture (E051-E053), Port consumption (E057-E058). Warnings are grouped:
+Budget (W001-W002), Structure (W003-W004), orphaned state (W005), orphaned aspects (W006).
 
 **Stable ordering:** Errors within each category are sorted deterministically: first
 by cascade cause (grouping related cascades), then alphabetically by node path.

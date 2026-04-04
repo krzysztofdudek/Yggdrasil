@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Append-only audit log (`.yggdrasil/.audit-log.jsonl`) — every `yg approve` records timestamp, node, action, hashes, reason, and changed files. Gitignored; never read by CLI.
+- `feat: add E057 (missing-consumes)` — relation target has ports but consumer has no `consumes` field; skipped for `emits`/`listens` event relations.
+- `feat: add E058 (unknown-port)` — `consumes` references a port name that does not exist on the target node.
+- `feat: add W006 (orphaned-aspect)` — aspect defined but not referenced by any node, architecture type, or flow.
 
 ## [4.0.0]
 

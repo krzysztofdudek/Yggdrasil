@@ -1480,6 +1480,24 @@ describe('validator', () => {
       const result = await validate(graph);
       expect(result.issues.filter(i => i.code === 'E057')).toHaveLength(0);
     });
+
+    it('does not fire for emits/listens relations even when target has ports', async () => {
+      const graph = createGraph({
+        aspects: [{ name: 'Audit', id: 'valid-tag', anchors: [{ id: 'proof', claim: 'Proof' }], artifacts: [] }],
+      });
+      graph.nodes.set('provider', createNode('provider', {
+        ports: { charge: { description: 'Pay', aspects: ['valid-tag'] } },
+      }));
+      graph.nodes.set('emitter', createNode('emitter', {
+        relations: [{ target: 'provider', type: 'emits' }],
+      }));
+      graph.nodes.set('listener', createNode('listener', {
+        relations: [{ target: 'provider', type: 'listens' }],
+      }));
+
+      const result = await validate(graph);
+      expect(result.issues.filter(i => i.code === 'E057')).toHaveLength(0);
+    });
   });
 
   describe('E058 unknown-port', () => {
