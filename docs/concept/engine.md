@@ -70,8 +70,7 @@ Each step is deterministic.
                   each block has an `aspects` field (comma-separated aspect identifiers; omit if empty).
                   Hierarchy block: each ancestor may have `aspects="id1,id2"` in its metadata.
                   Own block: yg-node.yaml has `aspects` as a list of entries, each with an `aspect`
-                  field identifying the aspect (e.g. `- aspect: requires-audit`). Entries may
-                  also include embedded `exceptions`.
+                  field identifying the aspect (e.g. `- aspect: requires-audit`).
                   Flow block: yg-flow.yaml has `aspects: [id1, id2]` for flows where N or an
                   ancestor participates.
                   Port block: when N has a relation that consumes a port on a target, the port's
@@ -85,8 +84,6 @@ Each step is deterministic.
                   output — aspects are rendered without provenance. Aspects section = union of
                   aspect identifiers from hierarchy + own + flow + port blocks, expand implies,
                   render content.
-                  If an aspect entry declares `exceptions`, the exception notes are appended to
-                  that aspect's layer as warnings.
 
 5.  RELATIONAL
       for each structural relation of N (uses, calls, extends, implements):
@@ -173,77 +170,57 @@ The context package uses **two-level progressive disclosure** in structured text
   dependencies, aspects, and flows — with artifact file paths but not their content. The
   agent reads artifact files separately as needed. This is the primary mode — lightweight
   and fast for orientation.
-- **File details (`--full`):** embeds artifact content inline beneath each entry. Useful
-  when the agent needs everything in a single payload or cannot read files individually.
+- **Per-file details (`--file`):** when the agent runs `yg context --file <path>`, it gets
+  details scoped to that file — claims to satisfy, consumed dependencies, and the owning
+  node. The agent uses this before modifying a specific file.
 
 The output is structured text (not YAML) — readable by any agent without a parser.
 
 ```text
-# Context: orders/order-service
+orders/order-service — Manages order lifecycle from placement to fulfilment (service)
 
-## Glossary
+Source files (2):
+  src/orders/order.service.ts
+  src/orders/order.repository.ts
 
-Aspects and flows referenced in this context. Read first — IDs below refer to entries here.
+Must satisfy (2 aspects, 3 claims):
 
-### Aspect: requires-audit
-  Name: Audit Logging
-  Description: Every state-changing operation must produce an audit log entry
-  Files:
-    - aspects/requires-audit/content.md
+  requires-audit — Every state-changing operation must produce an audit log entry
+    Source: own declaration
+    Verified against: all source files
+    Claims:
+      - "Every mutation logs an audit entry"
+      - "Audit entries include the acting user identity"
 
-### Aspect: requires-saga
-  Name: Saga Pattern
-  Description: Multi-step operations must be coordinated via saga with compensating actions
-  Files:
-    - aspects/requires-saga/content.md
+  requires-saga — Multi-step operations coordinated via saga with compensating actions
+    Source: flow:Checkout flow
+    Verified against: all source files
+    Claims:
+      - "Multi-step operations use saga with compensating actions"
 
-### Flow: checkout
-  Name: Checkout Flow
-  Description: End-to-end purchase flow from cart to payment confirmation
-  Participants: orders/order-service, auth/auth-api, payments/payment-service
-  Aspects: requires-saga
-  Files:
-    - flows/checkout/description.md
+Participates in (1 flow):
+  checkout — End-to-end purchase flow from cart to payment confirmation
+    read: .yggdrasil/flows/checkout/description.md
 
-## Node
+Dependencies (2):
+  auth/auth-api (uses) — Validates tokens and resolves caller identity — consumes: validateToken
+    read: yg context --file .yggdrasil/model/auth/auth-api/interface.md
+  payments/payment-service (calls) — consumes: charge, refund
+    Required: requires-idempotency
+    read: yg context --file .yggdrasil/model/payments/payment-service/interface.md
 
-  Path: orders/order-service
-  Name: OrderService
-  Type: service
-  Description: Manages order lifecycle from placement to fulfilment
-  Mappings: src/orders/order.service.ts
-  Aspects: requires-audit
-  Flows: checkout (aspects: requires-saga)
-  Files:
-    - model/orders/order-service/responsibility.md
-    - model/orders/order-service/interface.md
+Dependents (1):
+  notifications/email-service
+  Run: yg impact --node orders/order-service
 
-## Hierarchy
+Parent: orders (module)
+  read: .yggdrasil/model/orders/responsibility.md
 
-  orders
-    Name: Orders
-    Type: module
-    Aspects: deterministic
-    Files:
-      - model/orders/responsibility.md
+Artifacts:
+  read: .yggdrasil/model/orders/order-service/responsibility.md
+  read: .yggdrasil/model/orders/order-service/interface.md
 
-## Dependencies
-
-  auth/auth-api [uses]
-    Name: Auth API
-    Type: service
-    Description: Validates tokens and resolves caller identity
-    Consumes: validateToken
-    Aspects: deterministic
-    Hierarchy: auth (module)
-    Files:
-      - model/auth/auth-api/responsibility.md
-      - model/auth/auth-api/interface.md
-
-## Meta
-
-  Tokens: 1234 (ok)
-  Breakdown: own=420 hierarchy=180 aspects=310 flows=195 dependencies=129
+Token budget: 1,234 / 10,000 (ok)
 ```
 
 The format is fixed — the same structure regardless of project. Content within the
@@ -307,7 +284,6 @@ a graph with errors cannot produce reliable context packages.
 - Every aspect identifier must correspond to a directory under `aspects/`.
 - Every identifier in an aspect's `implies` must have a corresponding aspect in `aspects/`.
 - The aspect implies graph must be acyclic (no A implies B implies A).
-- Every aspect entry's `exceptions` field, if present, must be a list of non-empty strings.
 
 **Mapping uniqueness**: no two nodes may map to the same file or have overlapping directory
 mappings.
@@ -458,14 +434,14 @@ collected:
    metadata).
 5. **Relational flows** — `yg-flow.yaml` and content artifacts of all flows listing this node or
    an ancestor as a participant.
-6. **Source** — files from the node's `mapping.paths`.
+6. **Source** — files from the node's `mapping`.
 
 Layers 1--5 produce graph-category files (paths under `.yggdrasil/`). Layer 6 produces
 source-category files. Each file is tracked exactly once (deduplicated by path).
 
 #### Hash computation
 
-Each path in `mapping.paths` is checked at runtime — if it is a file, its content is hashed
+Each path in `mapping` is checked at runtime — if it is a file, its content is hashed
 directly (SHA-256). If it is a directory, it is scanned recursively (respecting `.gitignore`),
 each file is hashed individually, and a canonical hash is computed from sorted
 (relative-path, SHA-256-of-content) pairs. Adding, removing, or changing any file in a
@@ -535,7 +511,7 @@ knowledge in the graph.
 
 | Operation        | Command                                | Description                                              |
 | ---------------- | -------------------------------------- | -------------------------------------------------------- |
-| Context assembly | `yg context --file/--node [--full]`    | Assemble context package for a node                      |
+| Context assembly | `yg context --file/--node`             | Assemble context package for a node                      |
 | Impact analysis  | `yg impact --file/--node/--aspect/--flow` | Blast radius analysis                                 |
 | Check            | `yg check`                             | Unified gate — structural integrity, drift, coverage, completeness |
 | Approve          | `yg approve --node [--acknowledge]`    | Record baseline after review                             |

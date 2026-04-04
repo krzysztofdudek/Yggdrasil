@@ -223,15 +223,15 @@ description: "Manages order lifecycle from placement to fulfilment"  # optional
 
 aspects:
   - aspect: requires-audit
-    exceptions:
-      - "Batch import skips per-record audit — emits single summary event instead"
   - aspect: requires-auth
 
 ports:                    # optional — typed contracts this node exposes for consumers
-  - name: correlation-id
-    claim: "Caller must propagate a correlation ID on every request"
-  - name: retry-policy
-    claim: "Caller must implement retry with backoff on transient failures"
+  correlation-id:
+    description: "Caller must propagate a correlation ID on every request"
+    aspects: [correlation-tracking]
+  retry-policy:
+    description: "Caller must implement retry with backoff on transient failures"
+    aspects: [retry-backoff]
 
 relations:
   - target: payments/payment-service
@@ -252,7 +252,7 @@ mapping:
 | `name`        | Yes      | Display name                                                 |
 | `type`        | Yes      | Node type from `config.node_types`                           |
 | `description` | No       | Short summary shown in context maps for quick orientation    |
-| `aspects`     | No       | Aspect entries with exceptions                               |
+| `aspects`     | No       | Aspect entries (list of aspect identifiers)                  |
 | `ports`       | No       | Typed contracts consumers must satisfy (replaces integration_anchors) |
 | `relations`   | No       | Outgoing dependencies to other nodes                         |
 | `mapping`     | No       | Flat list of source file/directory paths (see Mapping section) |
@@ -458,12 +458,6 @@ distributed automatically.
 
 Each aspect is bound to a single identifier. Aspects impose **obligations** and are tied to
 **need identifiers** like `requires-audit`, `requires-auth`.
-
-When a node follows an aspect's general pattern but has specific deviations, these are recorded
-as `exceptions` within the aspect entry in `yg-node.yaml`. Each exception is a string explaining
-the deviation. Exceptions appear in context packages alongside the aspect content,
-preventing aspect-level abstractions from masking implementation details. See the Node metadata
-section above for the YAML format.
 
 If a requirement concerns multiple roles, the solution is a separate aspect
 (e.g. `requires-rate-limiting`) applied to appropriate nodes, not expanding a single aspect

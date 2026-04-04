@@ -42,6 +42,14 @@ quality: # map, optional (has default values) — all keys snake_case
     warning: 10000 # int, default 10000 (tokens)
     error: 20000 # int, default 20000 (tokens)
     own_warning: 5000 # int, optional (tokens) — warn when own artifacts alone exceed this
+
+llm: # map, optional — LLM provider configuration for semantic verification
+  provider: ollama # string — provider name (e.g. ollama, openai)
+  model: "qwen3.5:9b" # string — model identifier
+  endpoint: "http://localhost:11434" # string — provider endpoint URL
+  temperature: 0 # number, default 0 — sampling temperature
+  consensus: 1 # int, default 1 — number of agreeing responses required
+  max_tokens: auto # int or "auto" — max response tokens
 ```
 
 Artifacts (`responsibility.md`, `interface.md`, `internals.md`) are built into the
@@ -53,6 +61,22 @@ and required conditions.
 - `name` must be non-empty.
 - `node_types` must be a non-empty object. Each entry must have a `description` string. Optional `required_aspects` list. Node `type` must match a key in `node_types`.
 - `quality.context_budget.error` must be >= `quality.context_budget.warning`.
+- `llm` fields are optional. When no LLM provider is configured, semantic verification
+  (`yg approve` claim checks) is skipped with an informational notice.
+
+### yg-secrets.yaml
+
+Optional file for LLM credentials that should not be committed. Located at
+`.yggdrasil/yg-secrets.yaml` and listed in `.yggdrasil/.gitignore`.
+
+```yaml
+llm:
+  api_key: "sk-..." # string — API key for the LLM provider
+```
+
+Fields in `yg-secrets.yaml` override corresponding fields in `yg-config.yaml`'s `llm`
+section. Any field supported under `llm` in `yg-config.yaml` can also appear here
+(provider, model, endpoint, temperature, etc.), but the primary use case is `api_key`.
 
 ### yg-node.yaml
 
@@ -65,42 +89,23 @@ description: "Manages order lifecycle"      # string, optional — short summary
 
 aspects: [requires-audit, error-format]     # optional — own extras beyond inherited
 
-integration_aspects: [correlation-tracking] # optional — required on consumers
+ports:                                      # optional — named capabilities exposed to consumers
+  charge:
+    description: "Charge payment for an order"
+    aspects: [correlation-tracking]          # aspects required on consumers of this port
+  refund:
+    description: "Refund payment for a cancelled order"
+    aspects: [correlation-tracking]
 
 relations:                                  # optional
   - target: payments/payment-service        # string, required — path relative to model/
     type: calls                             # string, required — relation type (see table)
-    consumes: [charge, refund]              # list of strings, optional
+    consumes: [charge, refund]              # list of strings, optional — port names on the target
     failure: "retry 3x, then payment-failed" # string, optional
 
-mapping:                                    # optional — groups with aspect proofs
-  - paths:
-      - src/routes/orders.ts
-    aspects:
-      - aspect: requires-audit
-        anchors:
-          audit-log:
-            regex: "createAuditLog"
-            rationale: "Audit events logged on order creation, state changes."
-      - aspect: error-format
-        anchors:
-          error-handler:
-            regex: "formatError"
-            rationale: "Uses shared error formatter in route handler."
-
-  - paths:
-      - src/services/orders.ts
-    aspects:
-      - aspect: requires-audit
-        anchors:
-          audit-context:
-            regex: "auditCtx"
-            rationale: "Receives audit context from route caller."
-      - aspect: error-format
-        anchors:
-          error-throw:
-            regex: "AppError"
-            rationale: "Throws typed errors caught by route handler."
+mapping:                                    # optional — flat list of paths
+  - src/routes/orders.ts
+  - src/services/orders.ts
 ```
 
 **Relation types:**
@@ -114,30 +119,24 @@ mapping:                                    # optional — groups with aspect pr
 | `emits`      | event      | no         | Produces an event                         |
 | `listens`    | event      | no         | Reacts to an event                        |
 
-**Mapping groups:**
+**Mapping format:**
 
-Each mapping entry is a group — a set of file paths sharing the same aspect proof profile.
-Different groups can prove the same aspect using different implementations. Every file in
-a group must match every anchor regex in that group.
-
-- `paths` — list of files and/or directories (relative to project root). Directories are
-  expanded recursively at check time, respecting `.gitignore`.
-- `aspects` — list of aspects this group proves. Required unless the node has zero effective aspects.
-- `aspect` — aspect identifier from `aspects/`.
-- `anchors` — map from anchor ID to proof object. Every anchor ID defined in the aspect's
-  `yg-aspect.yaml` must be realized in the group.
-- `regex` — pattern to match in source files. Must match in every file in the group.
-- `rationale` — why this pattern proves the aspect (max 2 sentences).
+Mapping is a flat list of file paths and/or directories (relative to project root).
+Directories are expanded recursively at check time, respecting `.gitignore`. There are
+no aspect proofs in the mapping — claim verification is performed by the LLM at
+`yg approve` time (see E055 in the Approve section).
 
 **Aspect inheritance:**
 
 Aspects on a node come from multiple sources:
 
-- Architecture (`node_types.<type>.aspects`) — required on every file of this type
-- Parent node — children inherit parent's effective aspects
-- Flow aspects — flow participants inherit flow-level aspects
+- Architecture type (`node_types.<type>.aspects`) — required on every node of this type
+- Parent type inheritance — parent type architecture aspects propagate to children
 - Own declarations — extra aspects declared on the node
+- Flow aspects — flow participants inherit flow-level aspects
 - Aspect implies — recursive expansion
+- Port aspects — when a node consumes a port on a target, that port's aspects become
+  effective on the consumer (computed via `computeEffectiveAspectsForConsumer`)
 
 **Validation rules for yg-node.yaml:**
 
@@ -161,10 +160,13 @@ path under `aspects/` (e.g. `aspects/requires-audit/` has identifier `requires-a
 name: Audit logging # string, required
 description: "Short description for discovery" # string, optional
 implies: [requires-logging] # list of strings, optional — ids of other aspects
-anchors: # list of strings, required — abstract anchor IDs that nodes must realize
-  - audit-entry
-  - audit-actor
-  - audit-timestamp
+anchors: # list of objects, required — claims that nodes must satisfy
+  - id: audit-entry
+    claim: "Every data-modifying operation creates an audit log entry"
+  - id: audit-actor
+    claim: "Audit entries include the authenticated user who performed the action"
+  - id: audit-timestamp
+    claim: "Audit entries include a server-side timestamp"
 ```
 
 Nested directories under `aspects/` are organizational groupings. There is no automatic
@@ -185,7 +187,7 @@ Anchor IDs are abstract names — they describe WHAT must be proven (e.g. "audit
 - `name` must be non-empty.
 - Every identifier in `implies` must have a corresponding aspect directory under `aspects/`.
 - The aspect implies graph must be acyclic (no A implies B implies A).
-- `anchors` must be a non-empty list of claim objects (`id` + `claim`).
+- `anchors` must be a non-empty list of objects, each with `id` (string) and `claim` (string).
 
 ### yg-flow.yaml
 
@@ -429,7 +431,7 @@ node_types:
 The tool auto-detects the project name from `package.json` (if present) or the
 directory name. The agent can override by editing `yg-config.yaml`. Node types
 are defined in `yg-architecture.yaml` and can be customized with architectural
-constraints (`aspects`, `integration_aspects`, `parents`, `relations`).
+constraints (`aspects`, `parents`, `relations`).
 
 ---
 
@@ -475,20 +477,13 @@ Token estimation: ~4 characters per token (heuristic from the [Engine](engine) d
 
 Structured text output with the context package. The two modes differ in detail level:
 
-- `--node` — structural overview: node metadata, hierarchy, dependency map with artifact
-  paths listed but not inlined. Suitable for orientation and navigation.
-- `--file` — full details: resolves the owner node, then assembles the complete context
-  package with artifact content. Suitable for implementation work on the file.
-
-Both modes include:
-
-- `glossary` — definitions of all aspects and flows referenced in this context, each with
-  name, description, and `files` listing their artifact paths.
-- `node` — target node metadata with inline `files` listing its own artifact paths.
-- `hierarchy` — ancestor modules from root to parent, each with inline `files`.
-- `dependencies` — structural dependencies with inline `files` and their own `hierarchy` chains.
-- `meta` — at the bottom: token count, budget status (`ok`, `warning`, `severe`), and a
-  `breakdown` with per-category token counts (own, hierarchy, aspects, flows, dependencies).
+- `--node` — overview with aspects (including claims, source attribution, verified-against
+  status), flows, dependencies with consumes/port aspects, dependents (consequence framing),
+  parent, artifact paths, and token budget. Suitable for orientation and navigation.
+- `--file` — per-file detail: resolves the owner node, then lists claims to satisfy
+  (from effective aspects), consumed dependencies with port claims, dependent count, and a
+  back-pointer to the node context (`yg context --node`). Suitable for implementation work
+  on the file.
 
 All artifact file paths are relative to `.yggdrasil/`.
 
@@ -540,8 +535,8 @@ Format: path, type in brackets, aspects (if any), blackbox flag (if true), numbe
 
 ### Aspects
 
-Lists aspects with metadata in YAML format. Use to discover valid aspect identifiers for
-`yg-node.yaml` and `yg-flow.yaml`.
+Lists aspects with usage statistics and metadata. Use to discover valid aspect identifiers
+for `yg-node.yaml` and `yg-flow.yaml`.
 
 **Parameters:** none.
 
@@ -553,40 +548,31 @@ Lists aspects with metadata in YAML format. Use to discover valid aspect identif
    via inheritance/flows/implies), and count of claims (anchors) defined.
 4. Detect orphaned aspects — aspects not referenced by any node, architecture type, or flow.
 5. Sort by aspect identifier.
-6. Output YAML with `id`, `name`, `description` (if present), `implies` (if present),
-   `anchors`, `claims` (count), `nodes` (usage count), and `orphan` flag (if true).
+6. Output text with aspect id, name, description (if present), usage breakdown
+   (`architecture`, `own`, `implied`, `flow`), claims count, implies (if present),
+   and orphaned label (if unused).
 
 **Result:**
 
-```yaml
-- id: deterministic
-  name: Determinism
-  claims: 1
-  nodes: 4
-  anchors:
-    - deterministic-output
-- id: observability/logging
-  name: Audit Logging
-  description: Every state-changing operation must produce an audit log entry
-  claims: 3
-  nodes: 7
-  implies:
-    - observability/tracing
-  anchors:
-    - audit-entry
-    - audit-actor
-- id: legacy-format
-  name: Legacy Format
-  claims: 1
-  nodes: 0
-  orphan: true
-  anchors:
-    - legacy-output
+```text
+deterministic — Determinism
+  Used by: 4 nodes (architecture: 2, own: 2)
+  Claims: 1
+
+observability/logging — Audit Logging
+  Every state-changing operation must produce an audit log entry
+  Used by: 7 nodes (architecture: 3, own: 2, implied: 1, flow: 1)
+  Claims: 3
+  Implies: observability/tracing
+
+legacy-format — Legacy Format
+  Used by: 0 nodes — orphaned
+  Claims: 1
 ```
 
 Orphan detection surfaces aspects that are defined but unused (same condition as W006).
-The `nodes` count and `orphan` flag help agents identify aspects that may need cleanup
-or broader adoption.
+The usage breakdown (`architecture`, `own`, `implied`, `flow`) and `orphaned` label help
+agents identify aspects that may need cleanup or broader adoption.
 
 **Errors:**
 
@@ -1024,10 +1010,10 @@ by cascade cause (grouping related cascades), then alphabetically by node path.
 they are grouped into a cascade summary showing the number of upstream changes and
 affected nodes.
 
-**Anchor-pass annotation:** Each E021 error is annotated with anchor compliance
-status: `(anchors-pass)` if the node's anchor patterns still match source,
-`(anchors-fail)` if not. This helps agents prioritize which cascaded nodes need
-code changes.
+**Verification label:** Each E021 error is annotated with the last known LLM verification
+status: `(last verified: pass)` if claims were satisfied at last approve,
+`(last verified: fail)` if not, or `(never verified)` if the node has not been through
+LLM verification. This helps agents prioritize which cascaded nodes need attention.
 
 **Category counts:** The Result line includes per-category counts:
 `FAIL (1 drift, 2 cascade, 1 completeness — 4 errors, 2 warnings)`

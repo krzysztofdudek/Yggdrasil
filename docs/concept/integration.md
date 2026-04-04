@@ -115,10 +115,11 @@ Claims are more expressive than regex (they can describe behavioral properties, 
 textual patterns) and more natural for agents to author. Good claims are per-file verifiable;
 claims that require cross-file reasoning belong in flow descriptions instead.
 
-**Ports** replace integration aspects as the way nodes declare typed contracts for their
-dependencies. Instead of requiring consuming nodes to prove an aspect, the node declares what
-it consumes from each dependency as a typed port (e.g., “uses OrderRepository for persistence”).
-This makes dependency interfaces explicit and verifiable.
+**Ports** replace integration aspects as the way provider nodes declare typed contracts for
+their consumers. Instead of requiring consuming nodes to prove an aspect at the architecture
+level, the target (provider) node declares ports — typed contracts that consumers must satisfy
+(e.g., “caller must propagate a correlation ID”). Consumers reference ports via `consumes`
+on their relation entries. This makes integration requirements explicit and verifiable.
 
 ### Feedback loop: write → validate → fix
 
@@ -150,7 +151,7 @@ good graphs without requiring prior knowledge of conventions.
 | Node Markdown artifacts                                        | Agent                      |
 | Aspect directories in `aspects/` + `yg-aspect.yaml`            | Agent                      |
 | Flow directories in `flows/` + `yg-flow.yaml`                  | Agent                      |
-| Claims (natural language) in `yg-node.yaml` aspect entries     | Agent                      |
+| Claims (natural language) in `yg-aspect.yaml` anchors          | Agent                      |
 | Ports (typed contracts) in `yg-node.yaml` dependency entries   | Agent                      |
 | Schemas in `schemas/` (node, aspect, flow)                     | Initialization (copied)    |
 | Platform rules file                                            | Initialization (one time)  |
