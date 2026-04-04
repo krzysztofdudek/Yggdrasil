@@ -1,5 +1,5 @@
 {
-  "hash": "241aecc846d78f0119e7d6538a3d822548a92c7c11ad7615d9faad44a820c766",
+  "hash": "4f91425602f9f3b2d6cac7ed28c92277fc853ef8086d5385a363e2cf13694a1c",
   "files": {
     ".yggdrasil/model/cli/core/context/interface.md": "240aaca78320255bef4ef4ba9c7e27103f4436493c6ac45ffa2101f5a0d16a94",
     ".yggdrasil/model/cli/core/context/internals.md": "b050f66e35999271ee346df668db395810dbcfa0e511fb3514533da2ef65bbb0",
@@ -12,7 +12,6 @@
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "7deb781ab921aaf4f32cafbaec4e0b3ea8d803b1a039d2ee578ef49ecf3c0308",
     ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
     ".yggdrasil/model/cli/model/responsibility.md": "b668c6db2090a36a54277f62fb228c266d87c6d119f89e6ed67e140392863a66",
-    ".yggdrasil/model/cli/model/interface.md": "c7429809fbed460c357e63d35c91aef083be436dfb81d695e36cd9be01d769dd",
     ".yggdrasil/model/cli/utils/responsibility.md": "4918c48366c7b3f35bb7b97fa74252c47f14ba72417c5cc5f3e1100b503c7ddd",
     ".yggdrasil/model/cli/utils/interface.md": "051aef97613feeaf82746a2d576f2a96346c3bb916144d88b8bc13b115b2d2ba",
     ".yggdrasil/flows/build-context/yg-flow.yaml": "ad7b1fd9f74aacd66fe207b87d611c0b39f13903cc2737f6b0a971c110e07359",
@@ -22,33 +21,34 @@
     ".yggdrasil/model/cli/core/context/yg-node.yaml": "742c48244ecfd359779e0b4e18fa12bf7202bcf246b1ae9e8dcc88615092c8bf",
     ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df",
     ".yggdrasil/model/cli/core/yg-node.yaml": "64ce014963e90d408471920640775da9b8775ef7ae2c7380cbadabf5eac93258",
+    ".yggdrasil/model/cli/model/interface.md": "c71c307c9efff90651661256399ca891a73bf572f41ffaf8d6b73218b6ad4202",
     "source/cli/src/core/context-builder.ts": "a6c3f90621cec50bda020a40b22a4b28c5d2b13d90828330b5413dd4af2c99b5",
     "source/cli/src/core/context-files.ts": "3d5658d64bbd9e34b7e02580f4fd5881695e46235746c5a9e75b46853f0ae38f"
   },
   "mtimes": {
-    ".yggdrasil/model/cli/core/context/yg-node.yaml": 1775241839035.323,
+    ".yggdrasil/model/cli/core/context/yg-node.yaml": 1775249058325.4734,
     ".yggdrasil/model/cli/core/context/interface.md": 1775217031584.3328,
     ".yggdrasil/model/cli/core/context/internals.md": 1775217040252.4795,
     ".yggdrasil/model/cli/core/context/responsibility.md": 1774967446806.7505,
-    ".yggdrasil/model/cli/yg-node.yaml": 1775219122158.6094,
+    ".yggdrasil/model/cli/yg-node.yaml": 1775243577620.7664,
     ".yggdrasil/model/cli/internals.md": 1772829219205.6714,
     ".yggdrasil/model/cli/responsibility.md": 1775045623775.336,
-    ".yggdrasil/model/cli/core/yg-node.yaml": 1775219122157.0913,
+    ".yggdrasil/model/cli/core/yg-node.yaml": 1775243577448.873,
     ".yggdrasil/model/cli/core/interface.md": 1772743197442.582,
     ".yggdrasil/model/cli/core/internals.md": 1774784571148.0142,
     ".yggdrasil/model/cli/core/responsibility.md": 1772828321933.1968,
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775049910995.6624,
     ".yggdrasil/aspects/deterministic/content.md": 1772778780694.5889,
     ".yggdrasil/model/cli/model/responsibility.md": 1772778759688.719,
-    ".yggdrasil/model/cli/model/interface.md": 1775217324266.1084,
+    ".yggdrasil/model/cli/model/interface.md": 1775277300654.1663,
     ".yggdrasil/model/cli/utils/responsibility.md": 1772743197446.85,
     ".yggdrasil/model/cli/utils/interface.md": 1775217330039.2043,
     ".yggdrasil/flows/build-context/yg-flow.yaml": 1774035679160.1672,
     ".yggdrasil/flows/build-context/description.md": 1773381039567.111,
     ".yggdrasil/flows/graph-analysis/yg-flow.yaml": 1775046079335.846,
     ".yggdrasil/flows/graph-analysis/description.md": 1775046980292.1602,
-    "source/cli/src/core/context-builder.ts": 1775222071919.9521,
-    "source/cli/src/core/context-files.ts": 1775222081718.75
+    "source/cli/src/core/context-builder.ts": 1775278021399.7493,
+    "source/cli/src/core/context-files.ts": 1775278021400.0688
   },
-  "acknowledgeReason": "Added aspect anchor proofs for E050 fixes"
+  "acknowledgeReason": "cascade from root node conversion (blackbox → proper)"
 }

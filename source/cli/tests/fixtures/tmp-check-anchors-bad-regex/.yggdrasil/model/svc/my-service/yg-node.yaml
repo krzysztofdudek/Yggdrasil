@@ -1,0 +1,11 @@
+name: MyService
+type: service
+description: test
+aspects:
+  - logging
+    anchors:
+      audit-entry:
+        regex: "[invalid(regex"
+mapping:
+  - paths:
+      - src/svc/

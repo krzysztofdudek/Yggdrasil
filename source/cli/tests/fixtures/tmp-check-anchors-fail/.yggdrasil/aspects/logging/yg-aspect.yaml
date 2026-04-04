@@ -1,0 +1,4 @@
+name: Logging
+description: test aspect
+anchors:
+  - audit-entry

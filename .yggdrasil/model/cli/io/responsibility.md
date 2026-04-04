@@ -12,6 +12,7 @@ I/O layer — parsing graph YAML files and persisting operational state. Separat
 - **artifact-reader:** Read artifact files from directory. Exclude/include filters. Sorted by filename for determinism.
 - **drift-state-store:** Read/write .drift-state. Supports legacy string hash or DriftNodeState with hash and optional files.
 - **audit-log:** Append-only JSONL audit log for approve operations. Write-only; never read by CLI.
+
 **Out of scope:**
 
 - Validation logic (cli/core/validator)

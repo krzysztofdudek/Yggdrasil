@@ -809,6 +809,30 @@ describe('approveNode — GC and recording', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
+  it('audit log entry on no-change approve', async () => {
+    const { tmpDir, yggRoot } = await createTmpProject('audit-no-change', {
+      nodePath: 'svc/my-service',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - paths:\n      - src/svc/\n',
+      mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
+    });
+    await recordBaseline(tmpDir);
+    // No changes — triggers no-change path
+    const graph = await loadGraph(tmpDir);
+    const result = await approveNode(graph, 'svc/my-service');
+    expect(result.action).toBe('no-change');
+
+    const { readFile: rf } = await import('node:fs/promises');
+    const logContent = await rf(path.join(yggRoot, '.audit-log.jsonl'), 'utf-8');
+    const lastLine = logContent.trim().split('\n').pop()!;
+    const entry = JSON.parse(lastLine);
+    expect(entry.action).toBe('no-change');
+    expect(entry.node).toBe('svc/my-service');
+    expect(entry.prev).toBe(entry.hash);
+    expect(entry.reason).toBeNull();
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
   it('garbage collects orphaned drift state on approve', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('gc', {
       nodePath: 'svc/my-service',

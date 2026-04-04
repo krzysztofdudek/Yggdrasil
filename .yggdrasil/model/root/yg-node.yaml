@@ -1,8 +1,6 @@
 name: Root
 type: module
 description: "Root-level project files: configuration, documentation, CI/CD, devcontainer, and editor tooling"
-blackbox: true
-
 aspects: []
 relations: []
 

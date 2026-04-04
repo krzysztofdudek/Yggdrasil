@@ -1,0 +1,6 @@
+name: MyService
+type: service
+description: test
+mapping:
+  paths:
+    - src/

@@ -1,28 +1,28 @@
 {
-  "hash": "6d3688bccc79363c4fc4e566cd6f46d8a4552fe9c209104e1f8e4dfaefc3b5ee",
+  "hash": "5a556a94dc129d4f56d1b9b17d38c3fcb41ea7c34ccb2149c6a8cb7206e2ffec",
   "files": {
+    ".yggdrasil/model/cli/tests/unit/core/operations/yg-node.yaml": "76cfc9b2267bba366bd1c6ddead7a3dbb434cbd714aee61f1564d08a689e3ac5",
     ".yggdrasil/model/cli/tests/unit/core/operations/responsibility.md": "7ea1bcb10116557e218c3cd256f26546ff5ba26bf28146c6152e38a30cf43c99",
+    ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df",
     ".yggdrasil/model/cli/internals.md": "fcd16e38b431eead0b12e14b05dd25184ad4ef23884fbde7402172b0985857f6",
     ".yggdrasil/model/cli/responsibility.md": "696e0f5f377eba69a843a18379e8f20e0322dc037182690629652a75aa2227fb",
+    ".yggdrasil/model/cli/tests/yg-node.yaml": "ac0fc246c01a04e62d43ef8abadb2f01551616ca7509c3b268995ef646279bc9",
     ".yggdrasil/model/cli/tests/responsibility.md": "ef48f39a8d5d6b7f1c61e94f2b95ccf38c02365b3496e3ff5fcf21827ffd8138",
+    ".yggdrasil/model/cli/tests/unit/yg-node.yaml": "432608c9ae963157f051c117d22c5d5f97754f0b616e93e37fe4abc4d73804da",
     ".yggdrasil/model/cli/tests/unit/responsibility.md": "b3f97072d3b27d4c7874906ee918b4f1d41d0ac22ddba05da7af4f64452ed103",
+    ".yggdrasil/model/cli/tests/unit/core/yg-node.yaml": "298e5421fca1bb3f0a6c3536cc8d5514e9f5b943e68f085eafa089f04d8168cf",
     ".yggdrasil/model/cli/tests/unit/core/responsibility.md": "b66b8241f6d2ce98ef68af26fe3b7bf484c85c6451bdfdf0599d71ec3288e3b6",
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "7deb781ab921aaf4f32cafbaec4e0b3ea8d803b1a039d2ee578ef49ecf3c0308",
     ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
-    "source/cli/tests/unit/core/check.test.ts": "ef56edfbbc632048ef924ba60e1abce65b7dee297e7a29c05ae93978b23265d6",
     "source/cli/tests/unit/core/dependency-resolver.test.ts": "556028f418d0a261558a183cdf903ece7d099f73412945a3da7e8597e1cc6153",
-    "source/cli/tests/unit/core/drift-detector.test.ts": "7f1a4ba02acbe52aac6422c53057dbbdbaafafe6099ed5ec455d43fa11907e85",
-    "source/cli/tests/unit/core/effective-aspects.test.ts": "f74d4064f6efb582d4965d8988ba27545be4ceff5e9827e2df1e17fb997add67",
     "source/cli/tests/unit/core/impact.test.ts": "d2d8cefe6e5b63279ae91e46213ec17908418ae07318268520c0cb5ae0ec324f",
     "source/cli/tests/unit/core/migrator.test.ts": "b54aeddb8b27bb84abbb3ca7aab06f320519d6396d0c118211ed9f5697383015",
     "source/cli/tests/unit/core/node-selector.test.ts": "97e1ba4536135300e025a58886fc3830d8bc0fbc8b7f8e249ee47f6563df2ad0",
-    "source/cli/tests/unit/core/validator.test.ts": "1deb6e27527b5e762648848495cda57b831c209f01f3553cede7aabababcb730",
-    ".yggdrasil/model/cli/tests/unit/core/operations/yg-node.yaml": "76cfc9b2267bba366bd1c6ddead7a3dbb434cbd714aee61f1564d08a689e3ac5",
-    ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df",
-    ".yggdrasil/model/cli/tests/yg-node.yaml": "ac0fc246c01a04e62d43ef8abadb2f01551616ca7509c3b268995ef646279bc9",
-    ".yggdrasil/model/cli/tests/unit/yg-node.yaml": "432608c9ae963157f051c117d22c5d5f97754f0b616e93e37fe4abc4d73804da",
-    ".yggdrasil/model/cli/tests/unit/core/yg-node.yaml": "298e5421fca1bb3f0a6c3536cc8d5514e9f5b943e68f085eafa089f04d8168cf",
-    "source/cli/tests/unit/core/approve.test.ts": "838d24f4db5b173690e836d30da12d3d1859def47a489de45ad8579ca5bf248c"
+    "source/cli/tests/unit/core/approve.test.ts": "bdc2ea22994812aef25430b48fbfd49659c163b207ba29c51816529120ec9cbf",
+    "source/cli/tests/unit/core/check.test.ts": "ef56edfbbc632048ef924ba60e1abce65b7dee297e7a29c05ae93978b23265d6",
+    "source/cli/tests/unit/core/drift-detector.test.ts": "7f1a4ba02acbe52aac6422c53057dbbdbaafafe6099ed5ec455d43fa11907e85",
+    "source/cli/tests/unit/core/effective-aspects.test.ts": "f74d4064f6efb582d4965d8988ba27545be4ceff5e9827e2df1e17fb997add67",
+    "source/cli/tests/unit/core/validator.test.ts": "1deb6e27527b5e762648848495cda57b831c209f01f3553cede7aabababcb730"
   },
   "mtimes": {
     ".yggdrasil/model/cli/tests/unit/core/operations/yg-node.yaml": 1775243577529.4568,
@@ -38,15 +38,15 @@
     ".yggdrasil/model/cli/tests/unit/core/responsibility.md": 1775054577303.7114,
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775049910995.6624,
     ".yggdrasil/aspects/deterministic/content.md": 1772778780694.5889,
-    "source/cli/tests/unit/core/approve.test.ts": 1775277143021.915,
-    "source/cli/tests/unit/core/check.test.ts": 1775222565466.0376,
+    "source/cli/tests/unit/core/approve.test.ts": 1775279400454.262,
+    "source/cli/tests/unit/core/check.test.ts": 1775278021410.5095,
     "source/cli/tests/unit/core/dependency-resolver.test.ts": 1775239627770.7039,
-    "source/cli/tests/unit/core/drift-detector.test.ts": 1775222582582.8184,
-    "source/cli/tests/unit/core/effective-aspects.test.ts": 1775239469834.248,
+    "source/cli/tests/unit/core/drift-detector.test.ts": 1775278021411.6116,
+    "source/cli/tests/unit/core/effective-aspects.test.ts": 1775278021411.8743,
     "source/cli/tests/unit/core/impact.test.ts": 1775222660782.2832,
     "source/cli/tests/unit/core/migrator.test.ts": 1773083355800.1638,
     "source/cli/tests/unit/core/node-selector.test.ts": 1775239040905.9917,
-    "source/cli/tests/unit/core/validator.test.ts": 1775239938029.0571
+    "source/cli/tests/unit/core/validator.test.ts": 1775278021412.2515
   },
-  "acknowledgeReason": "added audit log tests for approve"
+  "acknowledgeReason": "added no-change audit log test"
 }
