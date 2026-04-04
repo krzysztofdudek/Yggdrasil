@@ -58,7 +58,7 @@ export async function approveNode(
     // Anti-laundering check: blackbox first-approve blocked if files in other drift state
     if (isBlackbox) {
       const allDriftState = await readDriftState(graph.rootPath);
-      const mappedFilesSet = new Set<string>();
+      const conflictingFiles: Array<{ file: string; trackedBy: string }> = [];
       // Expand mapping paths to check against other nodes' drift state files
       for (const mp of mappingPaths) {
         const normalized = mp.replace(/\/+$/, '');
@@ -67,12 +67,12 @@ export async function approveNode(
           if (otherPath === nodePath) continue;
           for (const filePath of Object.keys(otherState.files)) {
             if (filePath === normalized || filePath.startsWith(normalized + '/')) {
-              mappedFilesSet.add(filePath);
+              conflictingFiles.push({ file: filePath, trackedBy: otherPath });
             }
           }
         }
       }
-      if (mappedFilesSet.size > 0) {
+      if (conflictingFiles.length > 0) {
         // GC runs on every invocation per spec ("when approve runs")
         const gcPaths = await runGC(graph);
         return {
@@ -81,6 +81,7 @@ export async function approveNode(
           refuseReason:
             'Anti-laundering: files in this blackbox appear in drift state of other nodes.',
           antiLaunderingBlocked: true,
+          conflictingFiles,
           gcPaths,
         };
       }

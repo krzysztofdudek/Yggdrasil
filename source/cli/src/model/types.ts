@@ -435,6 +435,8 @@ export interface ApproveResult {
   blackboxBlocked?: boolean;
   /** Was anti-laundering triggered? */
   antiLaunderingBlocked?: boolean;
+  /** Conflicting files for anti-laundering message */
+  conflictingFiles?: Array<{ file: string; trackedBy: string }>;
   /** Was --acknowledge used when refused? (distinct blackbox message) */
   acknowledgeAttempted?: boolean;
   /** Is the node a blackbox? (for cascade acknowledge success message) */

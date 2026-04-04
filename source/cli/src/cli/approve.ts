@@ -70,9 +70,16 @@ function formatRefused(nodePath: string, result: ApproveResult): void {
         'ERROR: Anti-laundering — cannot create blackbox over previously tracked files.\n',
       ),
     );
-    process.stderr.write(
-      '  Some mapped files appear in drift state of other nodes.\n',
-    );
+    if (result.conflictingFiles && result.conflictingFiles.length > 0) {
+      process.stderr.write('  Conflicting files:\n');
+      for (const cf of result.conflictingFiles) {
+        process.stderr.write(`    ${cf.file} (tracked by ${cf.trackedBy})\n`);
+      }
+    } else {
+      process.stderr.write(
+        '  Some mapped files appear in drift state of other nodes.\n',
+      );
+    }
     process.stderr.write(
       '  Decompose: create a proper node (not blackbox) for these files.\n',
     );

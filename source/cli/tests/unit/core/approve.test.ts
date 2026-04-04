@@ -624,6 +624,27 @@ describe('approveNode — anti-laundering', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
+  it('anti-laundering result includes conflicting file details', async () => {
+    const { tmpDir, yggRoot } = await createTmpProject('anti-launder-details', {
+      nodePath: 'new-blackbox',
+      nodeYaml: 'name: NewBlackbox\ntype: service\ndescription: new blackbox\nblackbox: true\nmapping:\n  - src/auth/\n',
+      mappingFiles: { 'src/auth/controller.ts': 'export function ctrl() {}\n' },
+    });
+    await writeNodeDriftState(yggRoot, 'auth/auth-api', {
+      hash: 'fake',
+      files: { 'src/auth/controller.ts': 'fake-hash' },
+    });
+    const graph = await loadGraph(tmpDir);
+    const result = await approveNode(graph, 'new-blackbox', { acknowledge: undefined });
+    expect(result.action).toBe('refused');
+    expect(result.antiLaunderingBlocked).toBe(true);
+    expect(result.conflictingFiles).toContainEqual({
+      file: 'src/auth/controller.ts',
+      trackedBy: 'auth/auth-api',
+    });
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
   it('allows first-approve on proper node even with shared files', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('proper-first', {
       nodePath: 'svc/my-service',
