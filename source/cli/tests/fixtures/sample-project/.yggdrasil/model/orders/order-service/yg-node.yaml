@@ -15,16 +15,4 @@ relations:
     type: emits
     event_name: order.created
 mapping:
-  - paths:
-      - src/orders/order.service.ts
-    aspects:
-      - aspect: requires-audit
-        anchors:
-          proof-point:
-            regex: 'AuditLog\.|audit\('
-            rationale: 'All order operations are logged to audit trail'
-      - aspect: requires-logging
-        anchors:
-          proof-point:
-            regex: 'logger\.'
-            rationale: 'Service logs all operations'
+  - src/orders/order.service.ts
