@@ -24,6 +24,8 @@ Type library — exports TypeScript interfaces and types only. No runtime functi
 
 **Drift:** DriftReport, DriftEntry, DriftStatus, DriftState, DriftNodeState, TrackedFileLayer
 
+**Audit:** AuditEntry
+
 **Owner:** OwnerResult
 
 **RelationType:** `'uses' | 'calls' | 'extends' | 'implements' | 'emits' | 'listens'`

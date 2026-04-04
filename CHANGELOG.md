@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Append-only audit log (`.yggdrasil/.audit-log.jsonl`) — every `yg approve` records timestamp, node, action, hashes, reason, and changed files. Gitignored; never read by CLI.
+
 ## [4.0.0]
 
 ### Breaking Changes

@@ -50,6 +50,11 @@ Library used by cli/core (loader, drift-detector). All paths are absolute; calle
 - `readDriftState(yggRoot: string): Promise<DriftState>` — reads full drift state. If `.drift-state` is a directory, scans for per-node `.json` files. If `.drift-state` is a legacy single file, migrates it to per-node files transparently. Returns `{}` on missing or parse error.
 - `writeDriftState(yggRoot: string, state: DriftState): Promise<void>` — writes full drift state as per-node files (delegates to `writeNodeDriftState` in a loop).
 
+## audit-log.ts
+
+- `appendAuditEntry(yggRoot: string, entry: AuditEntry): Promise<void>`
+  - Appends a single JSONL line to `.yggdrasil/.audit-log.jsonl`. Creates the file if it doesn't exist. Never reads or parses existing content — pure append. Callers provide the fully-formed entry; this function only serializes and writes.
+
 ## Failure Modes
 
 Parsers and stores throw `Error` on invalid input. No dedicated error codes — standard Error with descriptive message.

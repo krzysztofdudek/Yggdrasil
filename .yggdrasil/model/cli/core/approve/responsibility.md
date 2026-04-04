@@ -5,7 +5,7 @@ Implements the core approve logic for the `yg approve` command. Records a new dr
 ## Scope
 
 - `approveNode(graph, nodePath, options)` — primary entry point. Validates the node exists and has a mapping, then dispatches to first-approve or re-approve logic.
-- **First approve**: hashes all tracked files (source + graph artifacts + hierarchy + aspects + dependency interfaces), writes the initial drift baseline. Runs garbage collection of orphaned drift state entries.
+- **First approve**: hashes all tracked files (source + graph artifacts + hierarchy + aspects + dependency interfaces), writes the initial drift baseline, appends an `initial` audit log entry. Runs garbage collection of orphaned drift state entries.
 - **Re-approve (three-axis decision)**: classifies each changed file into one of three axes:
   - *own artifacts* — `.md` files in the node's artifact directory (changes to `yg-node.yaml` are explicitly excluded from this axis)
   - *source* — files from `mapping.paths`
@@ -18,6 +18,7 @@ Implements the core approve logic for the `yg approve` command. Records a new dr
 - **Blackbox enforcement**: if the node is `blackbox: true` and source files changed, approve is unconditionally refused — `--acknowledge` cannot override this. Decomposition into a proper node is required.
 - **Anti-laundering check**: on first approve of a blackbox node, refuses if mapped files already appear in drift state of other nodes (prevents hiding already-tracked files under a new blackbox).
 - **Garbage collection**: runs `garbageCollectDriftState` on every invocation to remove drift state entries for nodes no longer in the graph.
+- **Audit logging**: on every non-refused approve (initial, approved, acknowledged, no-change), appends a JSONL entry to `.yggdrasil/.audit-log.jsonl` via `appendAuditEntry`. Write-only side effect — never read by CLI.
 
 ## Child mapping exclusions
 
