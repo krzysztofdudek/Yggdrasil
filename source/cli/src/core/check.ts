@@ -244,13 +244,13 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
       causeGroups.set(key, group);
     }
 
-    for (const [, groupCauses] of causeGroups) {
-      nodeE021Causes.push(...groupCauses);
-    }
+    // Push all causes (causeGroups used for count accuracy via .size)
+    nodeE021Causes.push(...cascadeCauses);
 
     if (nodeE021Causes.length > 0) {
       // Build a single collapsed E021 for this node with all causes
-      const causeCount = nodeE021Causes.length;
+      // Use causeGroups.size for the count -- reflects distinct logical upstream sources, not raw file count
+      const causeCount = causeGroups.size;
       const causeLines = nodeE021Causes.map((c: CascadeCause) => '     Cause: ' + c.description).join('\n');
       const message = `Context package changed due to ${causeCount} upstream modification${causeCount === 1 ? '' : 's'}:\n${causeLines}\n     Review source compliance with updated context, then:\n       - If source needs changes: update source + artifacts, approve.\n       - If source is already compliant: approve --acknowledge.`;
 
@@ -270,25 +270,27 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
 
   // Annotate E021 issues with cached verification label; invalidate LLM cache on any drift
   for (const issue of issues) {
-    if (issue.code === 'E020' || issue.code === 'E021') {
-      if (!issue.nodePath) continue;
-      const driftState = allDriftState[issue.nodePath];
-      // Invalidate cached LLM results when drift is detected
-      if (driftState && (driftState.claimResults || driftState.artifactReview)) {
-        delete driftState.claimResults;
-        delete driftState.artifactReview;
-        await writeNodeDriftState(graph.rootPath, issue.nodePath, driftState);
+    if (!issue.nodePath) continue;
+    const driftState = allDriftState[issue.nodePath];
+
+    // Annotate E021 with verification label BEFORE invalidating cache,
+    // so the label reflects the last known state prior to this drift.
+    if (issue.code === 'E021') {
+      if (driftState?.claimResults) {
+        const allSatisfied = Object.values(driftState.claimResults)
+          .every(claims => Object.values(claims).every(r => r.satisfied));
+        issue.verificationLabel = allSatisfied ? 'last verified: pass' : 'last verified: fail';
+      } else {
+        issue.verificationLabel = 'never verified';
       }
     }
 
-    if (issue.code !== 'E021' || !issue.nodePath) continue;
-    const driftState = allDriftState[issue.nodePath];
-    if (driftState?.claimResults) {
-      const allSatisfied = Object.values(driftState.claimResults)
-        .every(claims => Object.values(claims).every(r => r.satisfied));
-      issue.verificationLabel = allSatisfied ? 'last verified: pass' : 'last verified: fail';
-    } else {
-      issue.verificationLabel = 'never verified';
+    // Invalidate cached LLM results when any drift is detected (E020 or E021)
+    if ((issue.code === 'E020' || issue.code === 'E021') &&
+        driftState && (driftState.claimResults || driftState.artifactReview)) {
+      delete driftState.claimResults;
+      delete driftState.artifactReview;
+      await writeNodeDriftState(graph.rootPath, issue.nodePath, driftState);
     }
   }
 

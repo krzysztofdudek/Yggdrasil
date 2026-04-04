@@ -436,72 +436,84 @@ describe('classifyDrift', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('E021 annotated with anchorsPassing=true when anchors match source', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('anchors-pass', {
+  it('E021 verificationLabel is "last verified: pass" when claimResults all satisfied', async () => {
+    const { tmpDir, yggRoot } = await createTmpProject('verif-pass', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - logging\nmapping:\n  - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export function createAuditLog() { return 42; }\n' },
       aspects: [{
         id: 'logging',
-        yaml: 'name: Logging\ndescription: test aspect\nanchors:\n  - id: audit-entry\n    claim: "All mutations produce audit logs"\n',
+        yaml: 'name: Logging\ndescription: test aspect\n',
         files: { 'rules.md': 'Log all mutations.\n' },
       }],
     });
     await recordBaseline(tmpDir);
+    // Seed drift state with all-satisfied claimResults (simulating prior LLM-powered approve)
+    const storeModule = await import('../../../src/io/drift-state-store.js');
+    const existing = await storeModule.readNodeDriftState(yggRoot, 'svc/my-service');
+    await storeModule.writeNodeDriftState(yggRoot, 'svc/my-service', {
+      ...existing!,
+      claimResults: { 'logging': { 'audit-entry': { satisfied: true, reason: 'found audit log' } } },
+    });
     // Modify aspect content to trigger cascade
     await writeFile(path.join(yggRoot, 'aspects/logging/rules.md'), 'Updated rules.\n');
     const graph = await loadGraph(tmpDir);
     const result = await classifyDrift(graph);
     const e021 = result.filter(i => i.code === 'E021' && i.nodePath === 'svc/my-service');
     expect(e021.length).toBeGreaterThanOrEqual(1);
-    // In v4, anchors are defined at aspect level, not in mapping, so anchorsPassing is undefined
-    expect(e021[0].anchorsPassing).toBeUndefined();
+    expect(e021[0].verificationLabel).toBe('last verified: pass');
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('E021 annotated with anchorsPassing=false when anchors do not match source', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('anchors-fail', {
+  it('E021 verificationLabel is "last verified: fail" when claimResults has unsatisfied entry', async () => {
+    const { tmpDir, yggRoot } = await createTmpProject('verif-fail', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - logging\nmapping:\n  - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export function hello() { return 42; }\n' },
       aspects: [{
         id: 'logging',
-        yaml: 'name: Logging\ndescription: test aspect\nanchors:\n  - id: audit-entry\n    claim: "All mutations produce audit logs"\n',
+        yaml: 'name: Logging\ndescription: test aspect\n',
         files: { 'rules.md': 'Log all mutations.\n' },
       }],
     });
     await recordBaseline(tmpDir);
+    // Seed drift state with a failing claimResults entry
+    const storeModule = await import('../../../src/io/drift-state-store.js');
+    const existing = await storeModule.readNodeDriftState(yggRoot, 'svc/my-service');
+    await storeModule.writeNodeDriftState(yggRoot, 'svc/my-service', {
+      ...existing!,
+      claimResults: { 'logging': { 'audit-entry': { satisfied: false, reason: 'no audit log found' } } },
+    });
     // Modify aspect content to trigger cascade
     await writeFile(path.join(yggRoot, 'aspects/logging/rules.md'), 'Updated rules.\n');
     const graph = await loadGraph(tmpDir);
     const result = await classifyDrift(graph);
     const e021 = result.filter(i => i.code === 'E021' && i.nodePath === 'svc/my-service');
     expect(e021.length).toBeGreaterThanOrEqual(1);
-    // In v4, anchors are defined at aspect level, not in mapping, so anchorsPassing is undefined
-    expect(e021[0].anchorsPassing).toBeUndefined();
+    expect(e021[0].verificationLabel).toBe('last verified: fail');
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('E021 anchorsPassing=undefined when node has no realized anchors', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('anchors-none', {
+  it('E021 verificationLabel is "never verified" when no claimResults in drift state', async () => {
+    const { tmpDir, yggRoot } = await createTmpProject('verif-none', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - logging\nmapping:\n  - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
       aspects: [{
         id: 'logging',
-        yaml: 'name: Logging\ndescription: test aspect\nanchors:\n  - id: audit-entry\n    claim: "All mutations produce audit logs"\n',
+        yaml: 'name: Logging\ndescription: test aspect\n',
         files: { 'rules.md': 'Log all mutations.\n' },
       }],
     });
     await recordBaseline(tmpDir);
+    // No claimResults seeded -- baseline only
     // Modify aspect to trigger cascade
     await writeFile(path.join(yggRoot, 'aspects/logging/rules.md'), 'Updated rules.\n');
     const graph = await loadGraph(tmpDir);
     const result = await classifyDrift(graph);
     const e021 = result.filter(i => i.code === 'E021' && i.nodePath === 'svc/my-service');
     expect(e021.length).toBeGreaterThanOrEqual(1);
-    // Node has aspect but no anchors realization (no anchors: { ... } in node yaml)
-    expect(e021[0].anchorsPassing).toBeUndefined();
+    expect(e021[0].verificationLabel).toBe('never verified');
     await rm(tmpDir, { recursive: true, force: true });
   });
 
