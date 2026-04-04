@@ -1,4 +1,7 @@
 name: YAML Parser Contract
 description: "Consistent pipeline for parsing graph YAML files into typed domain objects"
 anchors:
-  - yaml-parse-call
+  - id: manual-validation
+    claim: "Field validation uses explicit type guards, not schema libraries like joi or zod"
+  - id: descriptive-errors
+    claim: "Validation failures include file path and field name in the error message"

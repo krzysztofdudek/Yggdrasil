@@ -1,4 +1,9 @@
 name: Determinism
 description: "Same inputs must produce identical outputs — no randomness, no implicit system state, no network calls"
+implies:
+  - posix-paths
 anchors:
-  - pure-function
+  - id: no-side-effects
+    claim: "Functions do not use Date.now(), Math.random(), filesystem writes, or network calls"
+  - id: deterministic-output
+    claim: "Exported functions return values derived only from their arguments and imported constants"

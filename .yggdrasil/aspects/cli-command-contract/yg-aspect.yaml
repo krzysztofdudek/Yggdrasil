@@ -1,6 +1,9 @@
 name: CLI Command Contract
 description: "Output, error handling, and exit code conventions for all CLI command handlers"
 anchors:
-  - stdout-write
-  - error-handler
-  - exit-code
+  - id: stdout-write
+    claim: "Command output is written via process.stdout.write(), never console.log"
+  - id: error-handler
+    claim: "Command action body is wrapped in try/catch with errors written to process.stderr.write()"
+  - id: exit-code
+    claim: "Command calls process.exit(1) on failure or actionable state"

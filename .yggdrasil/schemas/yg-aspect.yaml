@@ -7,5 +7,6 @@
 name: CrossCuttingRequirementName  # required — display name
 description: "Short description for discovery via yg aspects"  # optional
 # implies: [other-aspect, another-aspect] # optional — other aspect identifiers included automatically (recursive, must be acyclic)
-anchors:                      # required — abstract anchor IDs that nodes must realize (E039 if missing)
-  - proof-point-id            # nodes carrying this aspect must realize each ID with a typed pattern
+anchors:                      # required — per-file verifiable claims (E039 if missing)
+  - id: claim-identifier      # unique ID for this claim
+    claim: "Per-file verifiable property that source files must satisfy"
