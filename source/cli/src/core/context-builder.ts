@@ -541,6 +541,41 @@ export function determineAspectSource(
   return sources.length > 0 ? sources.join('; ') : 'unknown source';
 }
 
+function determineFallbackAspectSource(aspectId: string, node: GraphNode, graph: Graph): string {
+  const sources: string[] = [];
+
+  if ((node.meta.aspects ?? []).includes(aspectId)) {
+    sources.push('own declaration');
+  }
+
+  let ancestor = node.parent;
+  while (ancestor) {
+    if ((ancestor.meta.aspects ?? []).includes(aspectId)) {
+      sources.push(`inherited from parent (${ancestor.path})`);
+      break;
+    }
+    ancestor = ancestor.parent;
+  }
+
+  const ancestorPaths = new Set([node.path, ...collectAncestors(node).map((a) => a.path)]);
+  for (const flow of graph.flows) {
+    if (flow.nodes.some((n) => ancestorPaths.has(n)) && flow.aspects?.includes(aspectId)) {
+      sources.push(`flow '${flow.path}'`);
+    }
+  }
+
+  if (sources.length === 0) {
+    for (const otherAspect of graph.aspects) {
+      if (otherAspect.implies?.includes(aspectId)) {
+        sources.push(`implied by '${otherAspect.id}'`);
+        break;
+      }
+    }
+  }
+
+  return sources.length > 0 ? sources.join('; ') : 'unknown source';
+}
+
 export function toContextMapOutput(
   pkg: ContextPackage,
   graph: Graph,
@@ -785,7 +820,7 @@ export function buildNodeContextData(graph: Graph, nodePath: string): NodeContex
     const aspectDef = graph.aspects.find(a => a.id === aspectId);
     const source = graph.architecture
       ? determineAspectSource(aspectId, node, graph, graph.flows, false)
-      : 'own declaration';
+      : determineFallbackAspectSource(aspectId, node, graph);
     return {
       id: aspectId,
       name: aspectDef?.name ?? aspectId,

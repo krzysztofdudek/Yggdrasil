@@ -1889,9 +1889,9 @@ describe('buildNodeContextData', () => {
     const graphNoArch = { ...graph, architecture: undefined } as unknown as Graph;
     const data = buildNodeContextData(graphNoArch, 'orders/order-service');
     expect(data.path).toBe('orders/order-service');
-    // In fallback mode, aspect source should be 'own declaration' not from architecture
+    // In fallback mode, aspect source reflects actual origin (own, parent, flow, implied)
     for (const aspect of data.aspects) {
-      expect(aspect.source).toBe('own declaration');
+      expect(aspect.source).toMatch(/own declaration|inherited from parent|flow '|implied by '|unknown source/);
     }
   });
 

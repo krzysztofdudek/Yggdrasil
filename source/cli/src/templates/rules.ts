@@ -155,7 +155,7 @@ START (every conversation, before any work):
 
 UNDERSTANDING any source file (questions, research, OR planning):
   - [ ] 1. yg context --file <path>
-         Mapped → read the YAML map (glossary first, then artifact files).
+         Mapped → read structured text output. Artifact file paths are listed with "read:" prefix — read them.
          Unmapped → use file analysis, state it is not graph-backed.
   Never use grep or raw file reads as primary understanding when graph coverage exists.
 
@@ -250,22 +250,26 @@ Two context commands serve different purposes:
 - **\`yg context --node <path>\`** — node overview: aspects, claims, flows, dependents, artifact pointers
 - **\`yg context --file <path>\`** — per-file: claims to satisfy, consumed dependencies
 
-**Reading context:** \`yg context --node <path>\` returns a YAML map structured as follows:
+**Reading context:** Both commands output structured text. Artifact file paths appear with a \`read:\` prefix — read each one to get the full content.
 
-- **\`glossary\`** (top) — definitions for every aspect and flow referenced in the map, each with \`files\` listing their artifact paths. Read this first.
-- **\`node\`** — the target node with inline \`files\` (its artifact paths).
-- **\`hierarchy\`** — ancestor and sibling nodes, each with inline \`files\`.
-- **\`dependencies\`** — dependency nodes, each with inline \`files\`.
-- **\`meta\`** (bottom) — context assembly metadata.
+\`yg context --node <path>\` outputs:
+- **Header** — node path, description, type
+- **Source files** — files owned by this node
+- **Must satisfy** — aspects with claims, source, verified-against paths, and implies chain
+- **Participates in** — flows with read paths to their description files
+- **Dependencies** — nodes this node depends on, with read paths to their interfaces
+- **Dependents** — count of nodes that depend on this one (consequence framing for blast radius)
+- **Parent** — parent node with read path to its artifacts
+- **Artifacts** — read paths for responsibility.md, interface.md, internals.md
+- **Token budget** — current / limit / status
 
-All artifact paths are relative to \`.yggdrasil/\` — construct full path as \`.yggdrasil/<path>\`. Read the YAML map, then read artifact files:
+\`yg context --file <path>\` outputs:
+- **Owner** — node path and type (or "unmapped" with candidate nodes)
+- **Claims to satisfy** — per-aspect claims with verified-against paths
+- **Dependencies consumed** — what this file uses from each dependency
+- **Node context** — back-pointer: run \`yg context --node\` for full node overview
 
-1. **Glossary first** — defines aspects and flows. Aspects are constraints your implementation must satisfy. Flows are business processes whose invariants you must not break.
-2. **Node section** — your target's own artifacts. Read before modifying.
-3. **Hierarchy** — parent artifacts contain inherited requirements not repeated in child nodes.
-4. **Dependencies** — interfaces you consume or that consume you. Read before changing contracts.
-
-A typical context package is ~8K tokens. Read ALL artifact files listed — the cost is low, the risk of skipping is high.
+Read ALL artifact files listed — the cost is low, the risk of skipping is high.
 
 ### Information Routing
 

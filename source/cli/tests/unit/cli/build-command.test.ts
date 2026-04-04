@@ -17,7 +17,7 @@ async function withFixtureCopy<T>(fn: (cwd: string) => Promise<T>): Promise<T> {
 }
 
 describe('build-context command (unit-like CLI contract)', () => {
-  it('requires --node', async () => {
+  it('requires --node or --file', async () => {
     await withFixtureCopy(async (cwd) => {
       const result = spawnSync('node', [BIN_PATH, 'build-context'], {
         cwd,
