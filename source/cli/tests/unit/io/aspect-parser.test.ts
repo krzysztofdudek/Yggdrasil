@@ -147,14 +147,19 @@ implies:
       aspectPath,
       `name: Logging
 anchors:
-  - audit-entry
-  - log-format
+  - id: audit-entry
+    claim: "All mutations record an audit entry"
+  - id: log-format
+    claim: "Log entries follow the standard format"
 `,
       'utf-8',
     );
 
     const aspect = await parseAspect(tmpDir, aspectPath, 'logging');
-    expect(aspect.anchors).toEqual(['audit-entry', 'log-format']);
+    expect(aspect.anchors).toEqual([
+      { id: 'audit-entry', claim: 'All mutations record an audit entry' },
+      { id: 'log-format', claim: 'Log entries follow the standard format' },
+    ]);
 
     await rm(tmpDir, { recursive: true, force: true });
   });
@@ -178,7 +183,7 @@ anchors:
     await writeFile(aspectPath, `name: Test\nanchors: "not-an-array"\n`, 'utf-8');
 
     await expect(parseAspect(tmpDir, aspectPath, 'bad-anchors')).rejects.toThrow(
-      "'anchors' must be an array of strings",
+      "'anchors' must be an array",
     );
 
     await rm(tmpDir, { recursive: true, force: true });
@@ -195,8 +200,10 @@ description: A fully specified aspect
 implies:
   - other-aspect
 anchors:
-  - proof-point-1
-  - proof-point-2
+  - id: proof-point-1
+    claim: "First proof point claim"
+  - id: proof-point-2
+    claim: "Second proof point claim"
 `,
       'utf-8',
     );
@@ -205,8 +212,93 @@ anchors:
     expect(aspect.name).toBe('Full Aspect');
     expect(aspect.description).toBe('A fully specified aspect');
     expect(aspect.implies).toEqual(['other-aspect']);
-    expect(aspect.anchors).toEqual(['proof-point-1', 'proof-point-2']);
+    expect(aspect.anchors).toEqual([
+      { id: 'proof-point-1', claim: 'First proof point claim' },
+      { id: 'proof-point-2', claim: 'Second proof point claim' },
+    ]);
 
     await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  describe('aspect-parser claims', () => {
+    it('parses anchors as {id, claim} objects', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-aspect-claims');
+      await mkdir(tmpDir, { recursive: true });
+      const aspectPath = path.join(tmpDir, 'yg-aspect.yaml');
+      await writeFile(
+        aspectPath,
+        `name: Determinism
+description: Same inputs produce identical outputs
+anchors:
+  - id: no-side-effects
+    claim: "Functions do not use Date.now(), Math.random(), or filesystem writes"
+  - id: pure-transforms
+    claim: "Exported functions return values derived only from their arguments"
+`,
+        'utf-8',
+      );
+
+      const aspect = await parseAspect(tmpDir, aspectPath, 'deterministic');
+      expect(aspect.anchors).toEqual([
+        { id: 'no-side-effects', claim: 'Functions do not use Date.now(), Math.random(), or filesystem writes' },
+        { id: 'pure-transforms', claim: 'Exported functions return values derived only from their arguments' },
+      ]);
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('rejects anchors without id field', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-aspect-no-id');
+      await mkdir(tmpDir, { recursive: true });
+      const aspectPath = path.join(tmpDir, 'yg-aspect.yaml');
+      await writeFile(
+        aspectPath,
+        `name: Bad
+anchors:
+  - claim: "no id"
+`,
+        'utf-8',
+      );
+
+      await expect(parseAspect(tmpDir, aspectPath, 'bad')).rejects.toThrow(/id/);
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('rejects anchors without claim field', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-aspect-no-claim');
+      await mkdir(tmpDir, { recursive: true });
+      const aspectPath = path.join(tmpDir, 'yg-aspect.yaml');
+      await writeFile(
+        aspectPath,
+        `name: Bad
+anchors:
+  - id: test
+`,
+        'utf-8',
+      );
+
+      await expect(parseAspect(tmpDir, aspectPath, 'bad')).rejects.toThrow(/claim/);
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('rejects old string-format anchors with migration hint', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-aspect-old-format');
+      await mkdir(tmpDir, { recursive: true });
+      const aspectPath = path.join(tmpDir, 'yg-aspect.yaml');
+      await writeFile(
+        aspectPath,
+        `name: Old
+anchors:
+  - proof-point-id
+`,
+        'utf-8',
+      );
+
+      await expect(parseAspect(tmpDir, aspectPath, 'old')).rejects.toThrow(/upgrade/i);
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
   });
 });

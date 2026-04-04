@@ -3,4 +3,5 @@ description: x
 implies:
   - requires-logging
 anchors:
-  - audit-entry
+  - id: audit-entry
+    claim: "All mutations produce audit log entries"

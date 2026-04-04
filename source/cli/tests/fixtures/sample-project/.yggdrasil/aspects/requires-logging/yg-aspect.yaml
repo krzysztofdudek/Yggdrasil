@@ -1,4 +1,5 @@
 name: Structured Logging
 description: Consistent structured logging across services
 anchors:
-  - log-call
+  - id: log-call
+    claim: "All operations produce log entries"

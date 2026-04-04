@@ -403,7 +403,7 @@ describe('classifyDrift', () => {
       mappingFiles: { 'src/svc/index.ts': 'export function createAuditLog() { return 42; }\n' },
       aspects: [{
         id: 'logging',
-        yaml: 'name: Logging\ndescription: test aspect\nanchors:\n  - audit-entry\n',
+        yaml: 'name: Logging\ndescription: test aspect\nanchors:\n  - id: audit-entry\n    claim: "All mutations produce audit logs"\n',
         files: { 'rules.md': 'Log all mutations.\n' },
       }],
     });
@@ -425,7 +425,7 @@ describe('classifyDrift', () => {
       mappingFiles: { 'src/svc/index.ts': 'export function hello() { return 42; }\n' },
       aspects: [{
         id: 'logging',
-        yaml: 'name: Logging\ndescription: test aspect\nanchors:\n  - audit-entry\n',
+        yaml: 'name: Logging\ndescription: test aspect\nanchors:\n  - id: audit-entry\n    claim: "All mutations produce audit logs"\n',
         files: { 'rules.md': 'Log all mutations.\n' },
       }],
     });
@@ -447,7 +447,7 @@ describe('classifyDrift', () => {
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
       aspects: [{
         id: 'logging',
-        yaml: 'name: Logging\ndescription: test aspect\nanchors:\n  - audit-entry\n',
+        yaml: 'name: Logging\ndescription: test aspect\nanchors:\n  - id: audit-entry\n    claim: "All mutations produce audit logs"\n',
         files: { 'rules.md': 'Log all mutations.\n' },
       }],
     });

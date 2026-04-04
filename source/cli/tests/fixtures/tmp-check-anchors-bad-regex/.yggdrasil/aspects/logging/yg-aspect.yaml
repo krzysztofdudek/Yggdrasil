@@ -1,4 +1,5 @@
 name: Logging
 description: test aspect
 anchors:
-  - audit-entry
+  - id: audit-entry
+    claim: "All mutations are logged"
