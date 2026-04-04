@@ -199,14 +199,14 @@ describe('drift-pipeline', () => {
     // Regular node with mapping
     await writeFile(
       path.join(yggRoot, 'model', 'svc', 'regular', 'yg-node.yaml'),
-      'name: regular\ntype: service\nmapping:\n  - paths:\n      - src/regular.ts\n',
+      'name: regular\ntype: service\nmapping:\n  - src/regular.ts\n',
     );
     await writeFile(path.join(yggRoot, 'model', 'svc', 'regular', 'responsibility.md'), 'Regular node');
 
     // Blackbox node with mapping
     await writeFile(
       path.join(yggRoot, 'model', 'svc', 'blackbox-svc', 'yg-node.yaml'),
-      'name: blackbox-svc\ntype: service\nblackbox: true\nmapping:\n  - paths:\n      - src/blackbox/\n',
+      'name: blackbox-svc\ntype: service\nblackbox: true\nmapping:\n  - src/blackbox/\n',
     );
     await writeFile(path.join(yggRoot, 'model', 'svc', 'blackbox-svc', 'responsibility.md'), 'Blackbox node');
 

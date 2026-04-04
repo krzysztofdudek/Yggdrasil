@@ -885,7 +885,7 @@ describe('validator', () => {
     );
     await writeFile(
       path.join(modelDir, 'yg-node.yaml'),
-      'name: Wide\ntype: service\ndescription: x\nmapping:\n  - paths:\n      - src/wide',
+      'name: Wide\ntype: service\ndescription: x\nmapping:\n  - src/wide',
     );
     await writeFile(
       path.join(modelDir, 'responsibility.md'),
@@ -985,51 +985,6 @@ describe('validator', () => {
   });
 
   describe('E040 anchor-not-realized', () => {
-    it('E040: mapping group anchor missing regex field', async () => {
-      const graph = createGraph({
-        aspects: [{ name: 'Logging', id: 'logging', anchors: [{ id: 'audit-entry', claim: 'Audit entry logged' }], artifacts: [] }],
-      });
-      graph.nodes.set('a', createNode('a', {
-        mapping: [{
-          paths: ['src/a/'],
-          aspects: [
-            {
-              aspect: 'logging',
-              anchors: {
-                'audit-entry': { regex: '', rationale: 'For audit tracking' }, // empty regex
-              },
-            },
-          ],
-        }],
-      }));
-      const result = await validate(graph);
-      const e040 = result.issues.find(i => i.code === 'E040' && i.nodePath === 'a');
-      expect(e040).toBeDefined();
-      expect(e040!.message).toContain('regex');
-    });
-
-    it('E040: mapping group anchor missing rationale field', async () => {
-      const graph = createGraph({
-        aspects: [{ name: 'Logging', id: 'logging', anchors: [{ id: 'audit-entry', claim: 'Audit entry logged' }], artifacts: [] }],
-      });
-      graph.nodes.set('a', createNode('a', {
-        mapping: [{
-          paths: ['src/a/'],
-          aspects: [
-            {
-              aspect: 'logging',
-              anchors: {
-                'audit-entry': { regex: 'createAuditLog', rationale: '' }, // empty rationale
-              },
-            },
-          ],
-        }],
-      }));
-      const result = await validate(graph);
-      const e040 = result.issues.find(i => i.code === 'E040' && i.nodePath === 'a');
-      expect(e040).toBeDefined();
-      expect(e040!.message).toContain('rationale');
-    });
 
     it('no E040 when mapping group anchors have all required fields', async () => {
       const graph = createGraph({

@@ -1,5 +1,0 @@
-name: Logging
-description: test aspect
-anchors:
-  - id: audit-entry
-    claim: "All mutations produce audit logs"

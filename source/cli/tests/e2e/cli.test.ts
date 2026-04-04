@@ -318,8 +318,8 @@ describe.skipIf(!distExists)('CLI E2E', () => {
   it('yg impact --aspect requires-logging shows flow propagation source', () => {
     const { stdout, status } = run(['impact', '--aspect', 'requires-logging']);
     expect(status).toBe(0);
-    // auth/auth-api gets requires-logging from checkout-flow
-    expect(stdout).toContain('auth/auth-api (flow: Checkout Flow)');
+    // orders/order-service gets requires-logging from checkout-flow
+    expect(stdout).toContain('orders/order-service (flow: Checkout Flow)');
     // orders gets requires-logging via implies from requires-audit
     expect(stdout).toContain('orders (implied)');
     expect(stdout).toContain('Flows propagating this aspect: Checkout Flow');

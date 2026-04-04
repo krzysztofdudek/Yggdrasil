@@ -5,5 +5,4 @@ relations:
   - target: orders/order-service
     type: uses
 mapping:
-- paths:
 - src/checkout/checkout.controller.ts

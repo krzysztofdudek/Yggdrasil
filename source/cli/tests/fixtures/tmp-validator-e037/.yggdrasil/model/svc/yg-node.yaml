@@ -2,7 +2,6 @@ name: Svc
 type: service
 description: test
 mapping:
-- paths:
 - src/
     aspects:
 - aspect: logging

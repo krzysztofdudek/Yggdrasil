@@ -7,5 +7,4 @@ aspects:
       audit-entry:
         regex: "[invalid(regex"
 mapping:
-- paths:
 - src/svc/

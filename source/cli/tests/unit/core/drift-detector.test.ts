@@ -185,7 +185,7 @@ describe('drift-detector', () => {
     it('reports UNMATERIALIZED when no drift-state entry and files do not exist', async () => {
       const { tmpDir } = await createTmpProject('drift-unmaterialized', {
         nodePath: 'svc/new-service',
-        nodeYaml: 'name: NewService\ntype: service\nmapping:\n  - paths:\n      - src/svc/new.ts',
+        nodeYaml: 'name: NewService\ntype: service\nmapping:\n  - src/svc/new.ts',
       });
 
       try {
@@ -207,9 +207,8 @@ describe('drift-detector', () => {
         nodeYaml: `name: MultiService
 type: service
 mapping:
-  - paths:
-      - src/multi/file-a.ts
-      - src/multi/file-b.ts
+  - src/multi/file-a.ts
+  - src/multi/file-b.ts
 `,
         mappingFiles: {
           'src/multi/file-a.ts': '// file-a',
@@ -244,7 +243,7 @@ mapping:
       const { tmpDir } = await createTmpProject('drift-blackbox-skip', {
         nodePath: 'svc/blackbox-svc',
         nodeYaml:
-          'name: BlackboxSvc\ntype: service\nblackbox: true\nmapping:\n  - paths:\n      - src/blackbox',
+          'name: BlackboxSvc\ntype: service\nblackbox: true\nmapping:\n  - src/blackbox',
         mappingFiles: {
           'src/blackbox/index.ts': '// blackbox internals',
           'src/blackbox/helper.ts': '// more internals',
@@ -292,7 +291,7 @@ mapping:
       const { tmpDir } = await createTmpProject('drift-sync-update', {
         nodePath: 'svc/my-service',
         nodeYaml:
-          'name: MyService\ntype: service\nmapping:\n  - paths:\n      - src/svc/my.ts',
+          'name: MyService\ntype: service\nmapping:\n  - src/svc/my.ts',
         mappingFiles: {
           'src/svc/my.ts': '// source content',
         },
@@ -331,7 +330,7 @@ mapping:
     it('reports sourceOnlyChange when only source files changed', async () => {
       const { tmpDir } = await createTmpProject('drift-source-only-sync', {
         nodePath: 'svc/src-only',
-        nodeYaml: 'name: SrcOnly\ntype: service\nmapping:\n  - paths:\n      - src/mod.ts',
+        nodeYaml: 'name: SrcOnly\ntype: service\nmapping:\n  - src/mod.ts',
         mappingFiles: {
           'src/mod.ts': 'v1',
         },
@@ -357,7 +356,7 @@ mapping:
     it('sourceOnlyChange is false when graph artifacts also changed', async () => {
       const { tmpDir } = await createTmpProject('drift-both-sync', {
         nodePath: 'svc/both',
-        nodeYaml: 'name: Both\ntype: service\nmapping:\n  - paths:\n      - src/both.ts',
+        nodeYaml: 'name: Both\ntype: service\nmapping:\n  - src/both.ts',
         mappingFiles: {
           'src/both.ts': 'v1',
         },
@@ -373,7 +372,7 @@ mapping:
         await writeFile(path.join(tmpDir, 'src/both.ts'), 'v2');
         await writeFile(
           path.join(tmpDir, '.yggdrasil/model/svc/both/yg-node.yaml'),
-          'name: BothUpdated\ntype: service\nmapping:\n  - paths:\n      - src/both.ts',
+          'name: BothUpdated\ntype: service\nmapping:\n  - src/both.ts',
         );
 
         const result = await syncDriftState(graph, 'svc/both');
@@ -397,7 +396,7 @@ mapping:
       const { tmpDir } = await createTmpProject('drift-blackbox-sync', {
         nodePath: 'svc/bb-sync',
         nodeYaml:
-          'name: BBSync\ntype: service\nblackbox: true\nmapping:\n  - paths:\n      - src/bb.ts',
+          'name: BBSync\ntype: service\nblackbox: true\nmapping:\n  - src/bb.ts',
         mappingFiles: {
           'src/bb.ts': '// content',
         },
@@ -418,7 +417,7 @@ mapping:
     it('sourceOnlyChange is false when a graph artifact file is deleted', async () => {
       const { tmpDir } = await createTmpProject('drift-graph-deleted-sync', {
         nodePath: 'svc/del-svc',
-        nodeYaml: 'name: DelSvc\ntype: service\nmapping:\n  - paths:\n      - src/del.ts',
+        nodeYaml: 'name: DelSvc\ntype: service\nmapping:\n  - src/del.ts',
         mappingFiles: {
           'src/del.ts': 'v1',
         },
@@ -458,7 +457,7 @@ mapping:
   it('detects source-drift when only source file changes', async () => {
     const { tmpDir } = await createTmpProject('drift-source-only', {
       nodePath: 'svc/file-svc',
-      nodeYaml: 'name: FS\ntype: service\nmapping:\n  - paths:\n      - src/file.ts',
+      nodeYaml: 'name: FS\ntype: service\nmapping:\n  - src/file.ts',
       mappingFiles: {
         'src/file.ts': 'v1',
       },
@@ -493,7 +492,7 @@ mapping:
   it('reports drift with deleted file in directory mapping', async () => {
     const { tmpDir } = await createTmpProject('drift-deleted', {
       nodePath: 'svc/dir-svc',
-      nodeYaml: 'name: DS\ntype: service\nmapping:\n  - paths:\n      - src/dir',
+      nodeYaml: 'name: DS\ntype: service\nmapping:\n  - src/dir',
       mappingFiles: {
         'src/dir/a.ts': 'a',
         'src/dir/b.ts': 'b',
@@ -525,7 +524,7 @@ mapping:
   it('reports drift when no drift-state but files exist', async () => {
     const { tmpDir } = await createTmpProject('drift-no-state', {
       nodePath: 'svc/exist-svc',
-      nodeYaml: 'name: ES\ntype: service\nmapping:\n  - paths:\n      - src/exist.ts',
+      nodeYaml: 'name: ES\ntype: service\nmapping:\n  - src/exist.ts',
       mappingFiles: {
         'src/exist.ts': 'content',
       },
@@ -545,7 +544,7 @@ mapping:
   it('reports ok when synced and nothing changed', async () => {
     const { tmpDir } = await createTmpProject('drift-ok-synced', {
       nodePath: 'svc/files-svc',
-      nodeYaml: 'name: L\ntype: service\nmapping:\n  - paths:\n      - src/files.ts',
+      nodeYaml: 'name: L\ntype: service\nmapping:\n  - src/files.ts',
       mappingFiles: {
         'src/files.ts': 'content',
       },
@@ -593,8 +592,7 @@ type: service
 aspects:
   - requires-audit
 mapping:
-  - paths:
-      - src/audited.ts
+  - src/audited.ts
 `,
         mappingFiles: {
           'src/audited.ts': '// audited service code',
@@ -643,7 +641,7 @@ mapping:
     it('detects full-drift when both source and graph change', async () => {
       const { tmpDir } = await createTmpProject('drift-full', {
         nodePath: 'svc/full-svc',
-        nodeYaml: 'name: FullSvc\ntype: service\nmapping:\n  - paths:\n      - src/full.ts',
+        nodeYaml: 'name: FullSvc\ntype: service\nmapping:\n  - src/full.ts',
         mappingFiles: {
           'src/full.ts': '// original source',
         },
@@ -664,7 +662,7 @@ mapping:
         await writeFile(path.join(tmpDir, 'src/full.ts'), '// modified source');
         await writeFile(
           path.join(tmpDir, '.yggdrasil/model/svc/full-svc/yg-node.yaml'),
-          'name: FullSvcRenamed\ntype: service\nmapping:\n  - paths:\n      - src/full.ts',
+          'name: FullSvcRenamed\ntype: service\nmapping:\n  - src/full.ts',
         );
 
         const reportAfter = await detectDrift(graph);
@@ -683,7 +681,7 @@ mapping:
     it('detects source-drift when only source changes (changedFiles verified)', async () => {
       const { tmpDir } = await createTmpProject('drift-source-cat', {
         nodePath: 'svc/src-svc',
-        nodeYaml: 'name: SrcSvc\ntype: service\nmapping:\n  - paths:\n      - src/src.ts',
+        nodeYaml: 'name: SrcSvc\ntype: service\nmapping:\n  - src/src.ts',
         mappingFiles: {
           'src/src.ts': '// original',
         },
@@ -713,8 +711,7 @@ type: service
 aspects:
   - test-aspect
 mapping:
-  - paths:
-      - src/graph.ts
+  - src/graph.ts
 `,
         mappingFiles: {
           'src/graph.ts': '// graph service',
@@ -760,7 +757,7 @@ mapping:
     const { tmpDir } = await createTmpProject('drift-blackbox-gc', {
       nodePath: 'svc/bb-gc',
       nodeYaml:
-        'name: BBGC\ntype: service\nblackbox: true\nmapping:\n  - paths:\n      - src/bb.ts',
+        'name: BBGC\ntype: service\nblackbox: true\nmapping:\n  - src/bb.ts',
       mappingFiles: {
         'src/bb.ts': '// content',
       },
@@ -803,12 +800,12 @@ mapping:
       await mkdir(path.join(yggRoot, '.drift-state'), { recursive: true });
       await writeFile(
         path.join(parentNodeDir, 'yg-node.yaml'),
-        'name: Platform\ntype: module\nmapping:\n  - paths:\n      - src/platform\n',
+        'name: Platform\ntype: module\nmapping:\n  - src/platform\n',
       );
       await writeFile(path.join(parentNodeDir, 'responsibility.md'), 'Platform handles shared concerns.');
       await writeFile(
         path.join(childNodeDir, 'yg-node.yaml'),
-        'name: Auth\ntype: module\nmapping:\n  - paths:\n      - src/platform/auth\n',
+        'name: Auth\ntype: module\nmapping:\n  - src/platform/auth\n',
       );
       await writeFile(path.join(childNodeDir, 'responsibility.md'), 'Auth handles authentication.');
 

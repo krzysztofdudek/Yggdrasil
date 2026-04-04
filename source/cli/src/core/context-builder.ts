@@ -26,7 +26,7 @@ import type {
 } from '../model/types.js';
 import { normalizeMappingPaths } from '../utils/paths.js';
 import { estimateTokens } from '../utils/tokens.js';
-import { computeEffectiveAspects } from './effective-aspects.js';
+import { computeEffectiveAspects, computeEffectiveIntegrationAspects } from './effective-aspects.js';
 
 const STRUCTURAL_RELATION_TYPES = new Set(['uses', 'calls', 'extends', 'implements']);
 const EVENT_RELATION_TYPES = new Set(['emits', 'listens']);
@@ -610,7 +610,6 @@ export function toContextMapOutput(
   if (graph.architecture) {
     const parentTypes = ancestors.map((a) => a.meta.type);
     const ownAspectIds = node.meta.aspects ?? [];
-    const ownIntegrationAspectIds = node.meta.integration_aspects ?? [];
     const flowAspects = participatingFlows.flatMap((f) => f.aspects ?? []);
 
     const effective = computeEffectiveAspects({
@@ -618,7 +617,6 @@ export function toContextMapOutput(
       architecture: graph.architecture,
       parentTypes,
       ownAspects: ownAspectIds,
-      ownIntegrationAspects: ownIntegrationAspectIds,
       flowAspects,
       allAspects: graph.aspects,
       allFlows: graph.flows,
@@ -630,9 +628,10 @@ export function toContextMapOutput(
       requiredAspects.push({ id: aspectId, source });
     }
 
-    // Build integration_aspects with source information
-    if (effective.integration.size > 0) {
-      integrationAspects = Array.from(effective.integration).map((aspectId) => {
+    // Build integration_aspects (from port consumption and architecture requirements)
+    const integrationAspectIds = computeEffectiveIntegrationAspects(node, graph);
+    if (integrationAspectIds.size > 0) {
+      integrationAspects = Array.from(integrationAspectIds).map((aspectId) => {
         const source = determineAspectSource(aspectId, node, graph, graph.flows, true);
         return { id: aspectId, source };
       });

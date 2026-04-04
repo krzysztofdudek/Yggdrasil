@@ -38,6 +38,7 @@ export function computeEffectiveAspects(params: {
   flowAspects: string[];
   allAspects: AspectDef[];
   allFlows: FlowDef[];
+  ownIntegrationAspects?: string[];
 }): EffectiveAspects {
   const regular = new Set<string>();
 

@@ -1,1 +1,0 @@
-Updated responsibility reflecting the new default value of 99.

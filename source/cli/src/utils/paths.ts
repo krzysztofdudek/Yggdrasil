@@ -53,9 +53,17 @@ export function normalizeMappingPaths(mapping: NodeMapping | undefined): string[
   if (!mapping || !Array.isArray(mapping)) return [];
 
   const paths: string[] = [];
-  for (const group of mapping) {
-    if (group.paths && Array.isArray(group.paths)) {
-      for (const p of group.paths) {
+  for (const item of mapping) {
+    // v4 format: flat array of strings
+    if (typeof item === 'string') {
+      const trimmed = item.trim();
+      if (trimmed) {
+        paths.push(trimmed);
+      }
+    }
+    // v3 format (for backward compatibility): array of objects with paths property
+    else if (item && typeof item === 'object' && 'paths' in item && Array.isArray(item.paths)) {
+      for (const p of item.paths as string[]) {
         const trimmed = p.trim();
         if (trimmed) {
           paths.push(trimmed);

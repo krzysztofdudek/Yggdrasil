@@ -1,1 +1,0 @@
-Updated: Legacy auth now returns true for all login attempts.

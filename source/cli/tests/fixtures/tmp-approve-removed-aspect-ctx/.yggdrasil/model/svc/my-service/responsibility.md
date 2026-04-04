@@ -1,1 +1,0 @@
-This node handles testing of the approve function in detail.

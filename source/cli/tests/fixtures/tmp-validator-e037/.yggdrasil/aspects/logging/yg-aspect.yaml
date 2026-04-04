@@ -1,4 +1,5 @@
 name: Logging
 description: test
 anchors:
-  - audit-entry
+  - id: audit-entry
+    claim: TODO: Write claim for anchor 'audit-entry'
