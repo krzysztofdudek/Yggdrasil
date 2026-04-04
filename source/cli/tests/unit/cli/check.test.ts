@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import type { CheckResult, CheckIssue } from '../../../src/core/check.js';
 import { formatOutput } from '../../../src/cli/check.js';
 
@@ -13,6 +13,7 @@ function makeCheckResult(overrides: Partial<CheckResult> = {}): CheckResult {
     totalFiles: 0,
     issues: [],
     suggestedNext: null,
+    llmAvailable: true,
     ...overrides,
   };
 }
@@ -38,34 +39,20 @@ function makeWarning(code: string, message: string): CheckIssue {
 }
 
 describe('formatOutput', () => {
-  let output: string;
-
-  beforeEach(() => {
-    output = '';
-    vi.spyOn(process.stdout, 'write').mockImplementation((data: unknown) => {
-      output += String(data);
-      return true;
-    });
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
   it('check output does not include health score', () => {
-    formatOutput(makeCheckResult({ issues: [] }));
+    const output = formatOutput(makeCheckResult({ issues: [] }));
     expect(output).not.toContain('Health:');
   });
 
   it('displays full W001 message including breakdown', () => {
-    formatOutput(makeCheckResult({
+    const output = formatOutput(makeCheckResult({
       issues: [makeWarning('W001', 'Context is 18,000 tokens...\n     own: 2,100 | hierarchy: 3,200 | ...')],
     }));
     expect(output).toContain('own: 2,100');
   });
 
   it('hides warnings when errors exist, shows count in result line', () => {
-    formatOutput(makeCheckResult({
+    const output = formatOutput(makeCheckResult({
       issues: [makeError('E020', 'drift'), makeWarning('W001', 'budget')],
     }));
     expect(output).not.toContain('Warnings (');
@@ -73,7 +60,7 @@ describe('formatOutput', () => {
   });
 
   it('shows full warnings when no errors', () => {
-    formatOutput(makeCheckResult({
+    const output = formatOutput(makeCheckResult({
       issues: [makeWarning('W001', 'budget warning message')],
     }));
     expect(output).toContain('Warnings (1)');
@@ -82,13 +69,23 @@ describe('formatOutput', () => {
 
   it('shows summary header when >10 E050 errors', () => {
     const issues = Array.from({ length: 15 }, (_, i) => makeError('E050', `Aspect 'auth' referenced by node-${i}...`, `node-${i}`));
-    formatOutput(makeCheckResult({ issues }));
+    const output = formatOutput(makeCheckResult({ issues }));
     expect(output).toContain('Architecture (15 errors)');
   });
 
   it('no summary header when <=10 E050 errors', () => {
     const issues = Array.from({ length: 5 }, (_, i) => makeError('E050', `msg`, `node-${i}`));
-    formatOutput(makeCheckResult({ issues }));
+    const output = formatOutput(makeCheckResult({ issues }));
     expect(output).not.toContain('Architecture (5 errors)');
+  });
+
+  it('shows LLM notice when no provider configured', () => {
+    const output = formatOutput(makeCheckResult({ llmAvailable: false }));
+    expect(output).toContain('Claim verification disabled');
+  });
+
+  it('does not show LLM notice when provider is available', () => {
+    const output = formatOutput(makeCheckResult({ llmAvailable: true }));
+    expect(output).not.toContain('Claim verification disabled');
   });
 });

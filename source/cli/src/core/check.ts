@@ -53,6 +53,8 @@ export interface CheckResult {
   issues: CheckIssue[];
   /** Suggested next command based on highest-priority error */
   suggestedNext: string | null;
+  /** Whether an LLM provider is configured (false = claim verification disabled) */
+  llmAvailable: boolean;
 }
 
 // ── Drift classification ───────────────────────────────────
@@ -459,6 +461,7 @@ export async function runCheck(graph: Graph, gitTrackedFiles: string[] | null): 
   }
 
   const suggestedNext = computeSuggestedNext(allIssues);
+  const llmAvailable = graph.config.llm !== undefined;
 
   return {
     projectName: graph.config.name || 'project',
@@ -470,6 +473,7 @@ export async function runCheck(graph: Graph, gitTrackedFiles: string[] | null): 
     totalFiles,
     issues: allIssues,
     suggestedNext,
+    llmAvailable,
   };
 }
 

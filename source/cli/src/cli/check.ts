@@ -29,7 +29,7 @@ export function registerCheckCommand(program: Command): void {
         }
 
         const result = await runCheck(graph, gitFiles);
-        formatOutput(result);
+        process.stdout.write(formatOutput(result));
 
         const hasErrors = result.issues.some(i => i.severity === 'error');
         process.exit(hasErrors ? 1 : 0);
@@ -42,7 +42,7 @@ export function registerCheckCommand(program: Command): void {
 
 // ── Output formatting ──────────────────────────────────────
 
-export function formatOutput(result: CheckResult): void {
+export function formatOutput(result: CheckResult): string {
   const lines: string[] = [];
 
   // Header
@@ -55,6 +55,10 @@ export function formatOutput(result: CheckResult): void {
   if (result.totalFiles > 0) {
     const pct = Math.round((result.coveredFiles / result.totalFiles) * 100);
     lines.push(`Coverage: ${result.coveredFiles}/${result.totalFiles} source files (${pct}%)`);
+  }
+
+  if (!result.llmAvailable) {
+    lines.push('Claim verification disabled — no LLM provider configured.');
   }
   lines.push('');
 
@@ -250,7 +254,7 @@ export function formatOutput(result: CheckResult): void {
   }
 
   lines.push('');
-  process.stdout.write(lines.join('\n'));
+  return lines.join('\n');
 }
 
 function sortByNodePath(issues: CheckIssue[]): CheckIssue[] {
