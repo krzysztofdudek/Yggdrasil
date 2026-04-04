@@ -44,7 +44,9 @@ describe('to-4.0.0 migration', () => {
 
     it('skips config if no yg-config.yaml exists', async () => {
       const result = await migrateToV4(TMP_DIR);
-      expect(result.actions).toEqual([]);
+      // Should create secrets files even with no config
+      expect(result.actions.some((a) => a.includes('yg-secrets.example.yaml'))).toBe(true);
+      expect(result.actions.some((a) => a.includes('.gitignore'))).toBe(true);
     });
   });
 
@@ -219,8 +221,9 @@ describe('to-4.0.0 migration', () => {
   describe('edge cases and idempotency', () => {
     it('returns early when model directory does not exist', async () => {
       const result = await migrateToV4(TMP_DIR);
-      expect(result.actions).toEqual([]);
-      expect(result.warnings).toEqual([]);
+      // Should create secrets files even with no model directory
+      expect(result.actions.some((a) => a.includes('yg-secrets.example.yaml'))).toBe(true);
+      expect(result.actions.some((a) => a.includes('.gitignore'))).toBe(true);
     });
 
     it('no-ops when node has no aspects', async () => {
@@ -231,8 +234,9 @@ describe('to-4.0.0 migration', () => {
         'name: Svc\ntype: service\n',
       );
       const result = await migrateToV4(TMP_DIR);
-      expect(result.actions).toEqual([]);
-      expect(result.warnings).toEqual([]);
+      // Should create secrets files even if node has no aspects
+      expect(result.actions.some((a) => a.includes('yg-secrets.example.yaml'))).toBe(true);
+      expect(result.actions.some((a) => a.includes('.gitignore'))).toBe(true);
     });
 
     it('warns on invalid YAML object in node file', async () => {
@@ -361,7 +365,9 @@ describe('to-4.0.0 migration', () => {
       // Create yg-node.yaml as a directory to cause read error
       await mkdir(path.join(nodeDir, 'yg-node.yaml'), { recursive: true });
       const result = await migrateToV4(TMP_DIR);
-      expect(result.actions).toEqual([]);
+      // Should create secrets files even if node file read fails
+      expect(result.actions.some((a) => a.includes('yg-secrets.example.yaml'))).toBe(true);
+      expect(result.actions.some((a) => a.includes('.gitignore'))).toBe(true);
     });
 
     it('handles null aspect entry gracefully', async () => {
@@ -474,6 +480,73 @@ describe('to-4.0.0 migration', () => {
       const result = await migrateToV4(TMP_DIR);
       const doc = parseYaml(await readFile(path.join(nodeDir, 'yg-node.yaml'), 'utf-8')) as Record<string, unknown>;
       expect((doc.aspects as string[]).includes('audit')).toBe(true);
+    });
+  });
+
+  describe('to-4.0.0 migration extensions', () => {
+    it('removes integration_aspects from architecture', async () => {
+      const archPath = path.join(TMP_DIR, 'yg-architecture.yaml');
+      await writeFile(
+        archPath,
+        'node_types:\n  service:\n    description: "Request handler"\n    aspects: [requires-auth]\n    integration_aspects: [correlation-tracking]\n',
+      );
+
+      const result = await migrateToV4(TMP_DIR);
+
+      const arch = parseYaml(await readFile(archPath, 'utf-8')) as Record<string, unknown>;
+      const nodeTypes = arch.node_types as Record<string, unknown>;
+      const service = nodeTypes.service as Record<string, unknown>;
+      expect(service.integration_aspects).toBeUndefined();
+      expect(service.aspects).toBeDefined();
+      expect(result.warnings.some((w) => w.includes('integration_aspects'))).toBe(true);
+    });
+
+    it('removes integration_aspects from nodes', async () => {
+      const nodeDir = path.join(TMP_DIR, 'model', 'svc');
+      await mkdir(nodeDir, { recursive: true });
+      await writeFile(
+        path.join(nodeDir, 'yg-node.yaml'),
+        'name: PaymentService\ntype: service\nintegration_aspects:\n  - correlation-tracking\nmapping:\n  - paths:\n      - src/service.ts\n',
+      );
+
+      const result = await migrateToV4(TMP_DIR);
+
+      const doc = parseYaml(await readFile(path.join(nodeDir, 'yg-node.yaml'), 'utf-8')) as Record<string, unknown>;
+      expect(doc.integration_aspects).toBeUndefined();
+      expect(result.warnings.some((w) => w.includes('integration_aspects'))).toBe(true);
+    });
+
+    it('creates yg-secrets.example.yaml with template', async () => {
+      const result = await migrateToV4(TMP_DIR);
+
+      const secretsExample = path.join(TMP_DIR, 'yg-secrets.example.yaml');
+      const content = await readFile(secretsExample, 'utf-8');
+      expect(content).toContain('llm:');
+      expect(content).toContain('api_key:');
+      expect(content).toContain('provider:');
+      expect(result.actions.some((a) => a.includes('yg-secrets.example.yaml'))).toBe(true);
+    });
+
+    it('adds yg-secrets.yaml to .yggdrasil/.gitignore', async () => {
+      const result = await migrateToV4(TMP_DIR);
+
+      const gitignore = path.join(TMP_DIR, '.gitignore');
+      const content = await readFile(gitignore, 'utf-8');
+      expect(content).toContain('yg-secrets.yaml');
+      expect(result.actions.some((a) => a.includes('.gitignore'))).toBe(true);
+    });
+
+    it('adds llm section placeholder to yg-config.yaml', async () => {
+      await writeFile(
+        path.join(TMP_DIR, 'yg-config.yaml'),
+        'version: "3.0.0"\nname: "Test"\n',
+      );
+
+      const result = await migrateToV4(TMP_DIR);
+
+      const config = parseYaml(await readFile(path.join(TMP_DIR, 'yg-config.yaml'), 'utf-8')) as Record<string, unknown>;
+      expect(config.llm).toBeDefined();
+      expect(result.warnings.some((w) => w.includes('LLM config'))).toBe(true);
     });
   });
 });

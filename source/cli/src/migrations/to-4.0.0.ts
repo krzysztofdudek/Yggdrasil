@@ -19,6 +19,18 @@ export async function migrateToV4(yggRoot: string): Promise<MigrationResult> {
     await transformNodeFiles(modelDir, actions, warnings);
   }
 
+  // Step 3: Migrate architecture file — remove integration_aspects
+  const architecturePath = path.join(yggRoot, 'yg-architecture.yaml');
+  if (await fileExists(architecturePath)) {
+    await migrateArchitecture(architecturePath, actions, warnings);
+  }
+
+  // Step 4: Create yg-secrets.example.yaml
+  await createSecretsExample(yggRoot, actions, warnings);
+
+  // Step 5: Update .gitignore to include yg-secrets.yaml
+  await updateGitignore(yggRoot, actions, warnings);
+
   return { actions, warnings };
 }
 
@@ -66,10 +78,26 @@ async function migrateConfig(configPath: string, yggRoot: string, actions: strin
     configChanged = true;
   }
 
+  // Add LLM config placeholder if not present
+  if (!config.llm) {
+    config.llm = {
+      provider: 'ollama',
+      model: 'llama3.1:8b',
+      endpoint: 'http://localhost:11434',
+      temperature: 0,
+      consensus: 1,
+      max_tokens: 'auto',
+    };
+    configChanged = true;
+    warnings.push(`Added LLM config placeholder to yg-config.yaml (commented out, needs configuration)`);
+  }
+
   // Write config if changed
   if (configChanged) {
     await writeFile(configPath, stringifyYaml(config, { lineWidth: 120 }), 'utf-8');
-    actions.push('Removed node_types from yg-config.yaml');
+    if (!config.node_types) {
+      actions.push('Removed node_types from yg-config.yaml');
+    }
   }
 }
 
@@ -180,11 +208,14 @@ async function transformSingleNode(filePath: string, actions: string[], warnings
   }
 
   // Step 4: Remove deprecated fields
-  const deprecatedFields = ['exceptions', 'integration_anchors', 'tags'];
+  const deprecatedFields = ['exceptions', 'integration_anchors', 'tags', 'integration_aspects'];
   for (const field of deprecatedFields) {
     if (field in doc) {
       delete doc[field];
       changed = true;
+      if (field === 'integration_aspects') {
+        warnings.push(`Removed integration_aspects from node`);
+      }
     }
   }
 
@@ -257,3 +288,94 @@ function migrateAnchors(anchorsObj: Record<string, unknown>): Record<string, unk
 
   return changed ? result : anchorsObj;
 }
+
+/**
+ * Migrate architecture file: remove integration_aspects from node_types
+ */
+async function migrateArchitecture(archPath: string, actions: string[], warnings: string[]): Promise<void> {
+  let content: string;
+  try {
+    content = await readFile(archPath, 'utf-8');
+  } catch {
+    return;
+  }
+
+  const arch = parseYaml(content) as Record<string, unknown> | null;
+  if (!arch || typeof arch !== 'object') {
+    warnings.push(`Skipped architecture migration: not a valid YAML object`);
+    return;
+  }
+
+  let changed = false;
+
+  if (arch.node_types && typeof arch.node_types === 'object') {
+    const nodeTypes = arch.node_types as Record<string, unknown>;
+    for (const [, nodeType] of Object.entries(nodeTypes)) {
+      if (typeof nodeType === 'object' && nodeType !== null) {
+        const typeObj = nodeType as Record<string, unknown>;
+        if ('integration_aspects' in typeObj) {
+          delete typeObj.integration_aspects;
+          changed = true;
+          warnings.push(`Removed integration_aspects from architecture node_types`);
+        }
+      }
+    }
+  }
+
+  if (changed) {
+    await writeFile(archPath, stringifyYaml(arch, { lineWidth: 120 }), 'utf-8');
+    actions.push('Removed integration_aspects from yg-architecture.yaml');
+  }
+}
+
+/**
+ * Create yg-secrets.example.yaml with template content
+ */
+async function createSecretsExample(yggRoot: string, actions: string[], warnings: string[]): Promise<void> {
+  const secretsExamplePath = path.join(yggRoot, 'yg-secrets.example.yaml');
+
+  const template = `# Copy this to yg-secrets.yaml and fill in sensitive values (never commit yg-secrets.yaml)
+llm:
+  api_key: <your-api-key>
+  provider: openai    # or: ollama, anthropic
+  model: gpt-4        # override if needed
+`;
+
+  try {
+    await writeFile(secretsExamplePath, template, 'utf-8');
+    actions.push('Created yg-secrets.example.yaml');
+  } catch (err) {
+    warnings.push(`Failed to create yg-secrets.example.yaml: ${(err as Error).message}`);
+  }
+}
+
+/**
+ * Update .gitignore to include yg-secrets.yaml
+ */
+async function updateGitignore(yggRoot: string, actions: string[], warnings: string[]): Promise<void> {
+  const gitignorePath = path.join(yggRoot, '.gitignore');
+  const gitignoreEntry = 'yg-secrets.yaml\n';
+
+  let content = '';
+  try {
+    content = await readFile(gitignorePath, 'utf-8');
+  } catch {
+    // File doesn't exist, we'll create it
+  }
+
+  // Check if entry already exists
+  if (content.includes('yg-secrets.yaml')) {
+    return; // Already present
+  }
+
+  // Append entry
+  const newContent = content.endsWith('\n') ? content + gitignoreEntry : content + '\n' + gitignoreEntry;
+
+  try {
+    await writeFile(gitignorePath, newContent, 'utf-8');
+    actions.push('Added yg-secrets.yaml to .yggdrasil/.gitignore');
+  } catch (err) {
+    warnings.push(`Failed to update .gitignore: ${(err as Error).message}`);
+  }
+}
+

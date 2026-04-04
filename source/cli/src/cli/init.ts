@@ -41,7 +41,15 @@ async function refreshSchemas(yggRoot: string): Promise<void> {
   }
 }
 
-const GITIGNORE_CONTENT = ``;
+const GITIGNORE_CONTENT = `yg-secrets.yaml
+`;
+
+const SECRETS_EXAMPLE_CONTENT = `# Copy this to yg-secrets.yaml and fill in sensitive values (never commit yg-secrets.yaml)
+llm:
+  api_key: <your-api-key>
+  provider: openai    # or: ollama, anthropic
+  model: gpt-4        # override if needed
+`;
 
 export function registerInitCommand(program: Command): void {
   program
@@ -165,6 +173,7 @@ export function registerInitCommand(program: Command): void {
       await writeFile(path.join(yggRoot, 'yg-config.yaml'), config, 'utf-8');
       await writeFile(path.join(yggRoot, 'yg-architecture.yaml'), DEFAULT_ARCHITECTURE, 'utf-8');
       await writeFile(path.join(yggRoot, '.gitignore'), GITIGNORE_CONTENT, 'utf-8');
+      await writeFile(path.join(yggRoot, 'yg-secrets.example.yaml'), SECRETS_EXAMPLE_CONTENT, 'utf-8');
 
       const rulesPath = await installRulesForPlatform(projectRoot, platform);
 
@@ -173,6 +182,7 @@ export function registerInitCommand(program: Command): void {
       process.stdout.write('  .yggdrasil/yg-config.yaml\n');
       process.stdout.write('  .yggdrasil/yg-architecture.yaml\n');
       process.stdout.write('  .yggdrasil/.gitignore\n');
+      process.stdout.write('  .yggdrasil/yg-secrets.example.yaml\n');
       process.stdout.write('  .yggdrasil/model/\n');
       process.stdout.write('  .yggdrasil/aspects/\n');
       process.stdout.write('  .yggdrasil/flows/\n');
