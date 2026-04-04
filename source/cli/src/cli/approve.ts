@@ -257,16 +257,16 @@ function formatRefused(nodePath: string, result: ApproveResult): void {
 
 async function loadLlmProvider(
   graph: { rootPath: string; config: { llm?: import('../model/types.js').LlmConfig } },
-): Promise<{ provider: LlmProvider | undefined; maxTokens: number | undefined; cloudNotice: string | undefined }> {
+): Promise<{ provider: LlmProvider | undefined; maxTokens: number | undefined; consensus: number | undefined; cloudNotice: string | undefined }> {
   const llmConfig = graph.config.llm;
-  if (!llmConfig) return { provider: undefined, maxTokens: undefined, cloudNotice: undefined };
+  if (!llmConfig) return { provider: undefined, maxTokens: undefined, consensus: undefined, cloudNotice: undefined };
 
   const secrets = await loadSecrets(graph.rootPath);
   const mergedConfig = secrets ? mergeLlmConfig(llmConfig, secrets) : llmConfig;
   const provider = createLlmProvider(mergedConfig);
 
   if (!(await provider.isAvailable())) {
-    return { provider: undefined, maxTokens: undefined, cloudNotice: undefined };
+    return { provider: undefined, maxTokens: undefined, consensus: undefined, cloudNotice: undefined };
   }
 
   let cloudNotice: string | undefined;
@@ -279,7 +279,7 @@ async function loadLlmProvider(
     ? (await provider.getContextWindowSize() ?? 8192)
     : (mergedConfig.max_tokens as number);
 
-  return { provider, maxTokens, cloudNotice };
+  return { provider, maxTokens, consensus: mergedConfig.consensus, cloudNotice };
 }
 
 // ── Command registration ─────────────────────────────────────
@@ -295,7 +295,7 @@ export function registerApproveCommand(program: Command): void {
       try {
         const graph = await loadGraph(process.cwd());
         const nodePath = options.node.trim().replace(/^\.\//, '').replace(/\/+$/, '');
-        const { provider, maxTokens, cloudNotice } = await loadLlmProvider(graph);
+        const { provider, maxTokens, consensus, cloudNotice } = await loadLlmProvider(graph);
         if (cloudNotice) {
           process.stdout.write(chalk.yellow(`Notice: ${cloudNotice}\n`));
         }
@@ -303,6 +303,7 @@ export function registerApproveCommand(program: Command): void {
           acknowledge: options.acknowledge,
           llmProvider: provider,
           maxTokens,
+          consensus,
         });
         formatResult(nodePath, result);
         if (result.action === 'refused') {

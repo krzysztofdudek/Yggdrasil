@@ -80,7 +80,7 @@ describe('claim-verifier', () => {
         { path: 'b.ts', content: 'y'.repeat(200) },
       ],
       consensus: 1,
-      maxTokens: 300, // Forces chunking
+      maxTokens: 75, // Forces chunking (75 * 4 * 0.7 = 210 chars — less than one file block)
     });
 
     // Should have been called twice (one per chunk)

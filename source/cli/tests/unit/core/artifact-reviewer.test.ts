@@ -49,7 +49,7 @@ describe('artifact-reviewer', () => {
         { path: 'a.ts', content: 'x'.repeat(200) },
         { path: 'b.ts', content: 'y'.repeat(200) },
       ],
-      maxTokens: 300, // Forces chunking
+      maxTokens: 75, // Forces chunking (75 * 4 * 0.7 = 210 chars — less than one file block)
     });
     expect(calls.length).toBe(2);
   });

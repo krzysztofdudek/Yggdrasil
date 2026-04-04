@@ -32,6 +32,8 @@ export interface ApproveOptions {
   llmProvider?: LlmProvider;
   /** Max tokens for LLM calls — resolved from config or queried from provider */
   maxTokens?: number;
+  /** Consensus vote count for claim verification (default: 1) */
+  consensus?: number;
 }
 
 /**
@@ -348,7 +350,7 @@ export async function approveNode(
         provider: llmProvider,
         aspects: aspectsWithClaims,
         sourceFiles,
-        consensus: 1,
+        consensus: options.consensus ?? 1,
         maxTokens: resolvedMaxTokens,
       });
       for (const [aspectId, claims] of Object.entries(claimResults)) {

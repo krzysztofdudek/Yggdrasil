@@ -85,8 +85,10 @@ function chunkSourceFiles(
   files: Array<{ path: string; content: string }>,
   maxTokens: number,
 ): Array<{ code: string; files: string[] }> {
+  // Estimate: ~4 chars per token
+  const maxChars = maxTokens * 4;
   // Reserve ~30% for prompt overhead (aspect content, system prompt, claim)
-  const availableChars = Math.floor(maxTokens * 0.7);
+  const availableChars = Math.floor(maxChars * 0.7);
 
   const chunks: Array<{ code: string; files: string[] }> = [];
   let currentCode = '';
