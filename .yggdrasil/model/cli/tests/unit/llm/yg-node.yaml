@@ -1,0 +1,8 @@
+name: LLM Unit Tests
+type: library
+description: Unit tests for LLM provider factory and provider implementations
+blackbox: false
+aspects: []
+relations: []
+mapping:
+  - source/cli/tests/unit/llm/provider.test.ts

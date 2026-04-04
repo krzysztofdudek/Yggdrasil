@@ -1,0 +1,8 @@
+name: LLM Provider
+type: library
+description: LLM integration layer for claim verification and artifact review — adapter pattern supporting multiple providers
+
+relations: []
+
+mapping:
+  - source/cli/src/llm/

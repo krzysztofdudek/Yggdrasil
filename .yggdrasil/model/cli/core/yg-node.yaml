@@ -4,3 +4,6 @@ description: "Pure domain logic layer implementing graph operations independent 
 aspects:
   - deterministic
 relations: []
+mapping:
+  - source/cli/src/core/artifact-reviewer.ts
+  - source/cli/src/core/claim-verifier.ts
