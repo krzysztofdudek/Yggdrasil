@@ -41,7 +41,6 @@ node_types:
   service:
     description: "Request handler"
     aspects: [requires-auth, error-format]
-    integration_aspects: [correlation-tracking]
     parents: [module]
     relations:
       calls: [service, library]
@@ -50,7 +49,6 @@ node_types:
     const arch = await parseArchitecture(file);
     const svc = arch.node_types.service;
     expect(svc.aspects).toEqual(['requires-auth', 'error-format']);
-    expect(svc.integration_aspects).toEqual(['correlation-tracking']);
     expect(svc.parents).toEqual(['module']);
     expect(svc.relations?.calls).toEqual(['service', 'library']);
     expect(svc.relations?.uses).toEqual(['library']);
@@ -140,20 +138,6 @@ node_types:
     await cleanup(file);
   });
 
-  it('parses aspects and integration_aspects independently', async () => {
-    const file = await writeTmp('yg-architecture.yaml', `
-node_types:
-  service:
-    description: "test"
-    aspects: [foo]
-    integration_aspects: [bar]
-`);
-    const arch = await parseArchitecture(file);
-    expect(arch.node_types.service.aspects).toEqual(['foo']);
-    expect(arch.node_types.service.integration_aspects).toEqual(['bar']);
-    await cleanup(file);
-  });
-
   it('allows node_types with only description (minimal valid entry)', async () => {
     const file = await writeTmp('yg-architecture.yaml', `
 node_types:
@@ -170,5 +154,33 @@ node_types:
     expect(arch.node_types.service.description).toBe('handler');
     expect(arch.node_types.library.description).toBe('utility');
     await cleanup(file);
+  });
+
+  describe('architecture-parser v4 changes', () => {
+    it('rejects integration_aspects with migration hint', async () => {
+      const file = await writeTmp('yg-architecture.yaml', `
+node_types:
+  service:
+    description: "Request handler"
+    aspects: [requires-auth]
+    integration_aspects: [correlation-tracking]
+`);
+      await expect(parseArchitecture(file)).rejects.toThrow(/integration_aspects.*removed|upgrade/i);
+      await cleanup(file);
+    });
+
+    it('parses architecture without integration_aspects', async () => {
+      const file = await writeTmp('yg-architecture.yaml', `
+node_types:
+  service:
+    description: "Request handler"
+    aspects: [requires-auth]
+    parents: [module]
+`);
+      const arch = await parseArchitecture(file);
+      expect(arch.node_types.service.aspects).toEqual(['requires-auth']);
+      expect(arch.node_types.service).not.toHaveProperty('integration_aspects');
+      await cleanup(file);
+    });
   });
 });

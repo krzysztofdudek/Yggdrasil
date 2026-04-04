@@ -31,12 +31,17 @@ export async function parseArchitecture(filePath: string): Promise<ArchitectureD
       );
     }
 
+    // Reject integration_aspects field (removed in v4)
+    if (entry.integration_aspects !== undefined) {
+      throw new Error(
+        `yg-architecture.yaml: node type '${typeName}' has 'integration_aspects'. ` +
+        `This field is removed in v4. Use 'ports' on individual nodes instead. ` +
+        `Run 'yg init --upgrade' to migrate.`,
+      );
+    }
+
     const aspects = Array.isArray(entry.aspects)
       ? (entry.aspects as unknown[]).filter((t): t is string => typeof t === 'string')
-      : undefined;
-
-    const integrationAspects = Array.isArray(entry.integration_aspects)
-      ? (entry.integration_aspects as unknown[]).filter((t): t is string => typeof t === 'string')
       : undefined;
 
     const parents = Array.isArray(entry.parents)
@@ -48,7 +53,6 @@ export async function parseArchitecture(filePath: string): Promise<ArchitectureD
     nodeTypes[typeName] = {
       description: entry.description as string,
       aspects: aspects && aspects.length > 0 ? aspects : undefined,
-      integration_aspects: integrationAspects && integrationAspects.length > 0 ? integrationAspects : undefined,
       parents: parents && parents.length > 0 ? parents : undefined,
       relations: relations,
     };
