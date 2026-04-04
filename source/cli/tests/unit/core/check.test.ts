@@ -395,6 +395,47 @@ describe('classifyDrift', () => {
   });
 
 
+  it('E021 collapse: multiple upstream changes emit only ONE E021 with all causes merged', async () => {
+    const { tmpDir, yggRoot } = await createTmpProject('cascade-collapse', {
+      nodePath: 'svc/my-service',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - logging\nrelations:\n  - target: svc/dep\n    type: uses\nmapping:\n  - src/svc/\n',
+      mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
+      aspects: [{
+        id: 'logging',
+        yaml: 'name: Logging\ndescription: test aspect\n',
+        files: { 'rules.md': 'Log all mutations.\n' },
+      }],
+      parentNodes: [
+        {
+          path: 'svc',
+          yaml: 'name: Svc\ntype: service\ndescription: parent\n',
+        },
+        {
+          path: 'svc/dep',
+          yaml: 'name: Dep\ntype: service\ndescription: dependency\n',
+          artifacts: { 'interface.md': 'Dep interface.\n' },
+        },
+      ],
+    });
+    await recordBaseline(tmpDir);
+    // Trigger cascade from TWO different upstream sources simultaneously:
+    // 1. aspect file change
+    await writeFile(path.join(yggRoot, 'aspects/logging/rules.md'), 'Updated logging rules triggering cascade.\n');
+    // 2. dependency artifact change
+    await writeFile(path.join(yggRoot, 'model/svc/dep/interface.md'), 'Updated dep interface triggering cascade.\n');
+    const graph = await loadGraph(tmpDir);
+    const result = await classifyDrift(graph);
+    const e021 = result.filter(i => i.code === 'E021' && i.nodePath === 'svc/my-service');
+    // Must collapse to exactly ONE E021 for this node
+    expect(e021).toHaveLength(1);
+    // Must contain causes from both upstream changes
+    expect(e021[0].cascadeCauses!.length).toBeGreaterThanOrEqual(2);
+    const layers = e021[0].cascadeCauses!.map(c => c.layer);
+    expect(layers).toContain('aspects');
+    expect(layers).toContain('relational');
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
   it('E021 annotated with anchorsPassing=true when anchors match source', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('anchors-pass', {
       nodePath: 'svc/my-service',

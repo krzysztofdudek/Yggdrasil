@@ -104,8 +104,8 @@ export function formatOutput(result: CheckResult): void {
         return (a.nodePath ?? '').localeCompare(b.nodePath ?? '');
       });
       for (const issue of sortedCascade) {
-        const anchorLabel = issue.verificationLabel ? ` (${issue.verificationLabel})` : '';
-        lines.push(`  ${issue.code} ${issue.nodePath ?? ''} — cascade drift${anchorLabel}`);
+        const verificationLabel = issue.verificationLabel ? ` (${issue.verificationLabel})` : '';
+        lines.push(`  ${issue.code} ${issue.nodePath ?? ''} — cascade drift${verificationLabel}`);
         for (const line of issue.message.split('\n')) {
           lines.push(`       ${line}`);
         }
