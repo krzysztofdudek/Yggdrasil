@@ -128,4 +128,89 @@ describe('formatNodeContext', () => {
     const output = formatNodeContext(makeNodeData({ parentPath: undefined }));
     expect(output).not.toContain('Parent:');
   });
+
+  it('shows portAspects required for dependency with port aspects', () => {
+    const output = formatNodeContext(makeNodeData({
+      dependencies: [{
+        path: 'payments/payment-service',
+        relation: 'uses',
+        consumes: ['charge'],
+        portAspects: [{ aspectId: 'idempotency', claims: ['Retries are safe'], verifiedAgainst: 'aspects/idempotency/content.md' }],
+      }],
+    }));
+    expect(output).toContain('Required: idempotency');
+  });
+
+  it('shows dependency with description and consumes', () => {
+    const output = formatNodeContext(makeNodeData({
+      dependencies: [{
+        path: 'auth/auth-api',
+        relation: 'uses',
+        description: 'Authentication provider',
+        consumes: ['authenticate', 'verify'],
+      }],
+    }));
+    expect(output).toContain('auth/auth-api (uses) — Authentication provider — consumes: authenticate, verify');
+  });
+
+  it('shows dependency without description or readPath', () => {
+    const output = formatNodeContext(makeNodeData({
+      dependencies: [{
+        path: 'utils/logger',
+        relation: 'uses',
+      }],
+    }));
+    expect(output).toContain('utils/logger (uses)');
+    expect(output).not.toContain('undefined');
+  });
+
+  it('handles dependentCount 1-5 with no dependentPaths (undefined)', () => {
+    const output = formatNodeContext(makeNodeData({
+      dependentCount: 2,
+      dependentPaths: undefined,
+    }));
+    expect(output).toContain('Dependents (2):');
+    expect(output).toContain('Run: yg impact');
+  });
+
+  it('uses singular for 1 aspect and 1 claim', () => {
+    const output = formatNodeContext(makeNodeData({
+      aspects: [{
+        id: 'deterministic',
+        name: 'Determinism',
+        description: 'Same inputs produce identical outputs',
+        source: 'architecture',
+        verifiedAgainst: 'aspects/deterministic/content.md',
+        claims: ['Functions do not use Date.now()'],
+      }],
+    }));
+    expect(output).toContain('Must satisfy (1 aspect, 1 claim):');
+  });
+
+  it('uses singular for 1 flow', () => {
+    const output = formatNodeContext(makeNodeData({
+      aspects: [],
+      flows: [{
+        id: 'validate',
+        name: 'Validate',
+        description: 'Runs all structural and completeness checks',
+        readPath: 'flows/validate/description.md',
+      }],
+    }));
+    expect(output).toContain('Participates in (1 flow):');
+  });
+
+  it('shows parent with no parentType or parentReadPath', () => {
+    const output = formatNodeContext(makeNodeData({
+      parentPath: 'cli',
+      parentType: undefined,
+      parentReadPath: undefined,
+    }));
+    expect(output).toContain('Parent: cli (module)');
+    // No read line directly after Parent: line
+    const lines = output.split('\n');
+    const parentLineIdx = lines.findIndex(l => l.startsWith('Parent:'));
+    expect(parentLineIdx).toBeGreaterThan(-1);
+    expect(lines[parentLineIdx + 1]).not.toContain('read: model/cli/');
+  });
 });

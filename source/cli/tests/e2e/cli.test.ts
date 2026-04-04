@@ -95,10 +95,9 @@ describe.skipIf(!distExists)('CLI E2E', () => {
   it('yg build-context', () => {
     const { stdout, status } = run(['build-context', '--node', 'orders/order-service']);
     expect(status).toBe(0);
-    expect(stdout).toContain('meta:');
-    expect(stdout).toContain('name: OrderService');
-    expect(stdout).toContain('project:');
-    expect(stdout).toContain('glossary:');
+    expect(stdout).toContain('orders/order-service');
+    expect(stdout).toContain('Source files');
+    expect(stdout).toContain('Token budget:');
   });
 
   it('yg build-context nonexistent node', () => {
@@ -115,17 +114,16 @@ describe.skipIf(!distExists)('CLI E2E', () => {
   it('yg context --node works (renamed from build-context)', () => {
     const { stdout, status } = run(['context', '--node', 'orders/order-service']);
     expect(status).toBe(0);
-    expect(stdout).toContain('meta:');
-    expect(stdout).toContain('name: OrderService');
-    expect(stdout).toContain('project:');
-    expect(stdout).toContain('glossary:');
+    expect(stdout).toContain('orders/order-service');
+    expect(stdout).toContain('Source files');
+    expect(stdout).toContain('Token budget:');
   });
 
   it('yg build-context still works as alias', () => {
     const { stdout, status } = run(['build-context', '--node', 'orders/order-service']);
     expect(status).toBe(0);
-    expect(stdout).toContain('meta:');
-    expect(stdout).toContain('name: OrderService');
+    expect(stdout).toContain('orders/order-service');
+    expect(stdout).toContain('Source files');
   });
 
   it('yg deps returns non-zero (command removed)', () => {

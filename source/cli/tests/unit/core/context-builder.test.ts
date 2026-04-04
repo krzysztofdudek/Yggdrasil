@@ -14,6 +14,8 @@ import {
   collectEffectiveAspectIds,
   computeBudgetBreakdown,
   toContextMapOutput,
+  buildNodeContextData,
+  buildFileContextData,
 } from '../../../src/core/context-builder.js';
 import { formatContextMarkdown } from '../../../src/formatters/markdown.js';
 import { loadGraph } from '../../../src/core/graph-loader.js';
@@ -1767,5 +1769,167 @@ describe('toContextMapOutput', () => {
     expect(output.node).toBeDefined();
     expect(output.glossary.aspects['parent-aspect']).toBeDefined();
     expect(output.glossary.aspects['child-aspect']).toBeDefined();
+  });
+
+  it('determines aspect source as architecture when node type has aspect', async () => {
+    // Exercise the architecture source path in determineAspectSource (line 481)
+    const archAspect: AspectDef = {
+      name: 'Arch Aspect',
+      id: 'arch-aspect',
+      anchors: [],
+      artifacts: [{ filename: 'content.md', content: 'arch rules' }],
+    };
+    const node: GraphNode = {
+      path: 'svc',
+      meta: { name: 'Svc', type: 'service' },
+      artifacts: [{ filename: 'responsibility.md', content: 'x' }],
+      children: [],
+      parent: null,
+    };
+    const graph: Graph = {
+      config: { name: 'T', node_types: { service: { description: 'x' } } },
+      architecture: {
+        node_types: { service: { description: 'x', aspects: ['arch-aspect'] } },
+      },
+      nodes: new Map([['svc', node]]),
+      aspects: [archAspect],
+      flows: [],
+      schemas: [],
+      rootPath: '/tmp',
+    };
+
+    const pkg = await buildContext(graph, 'svc');
+    const output = toContextMapOutput(pkg, graph);
+    const aspectRef = output.node.required_aspects.find(a => a.id === 'arch-aspect');
+    expect(aspectRef).toBeDefined();
+    expect(aspectRef!.source).toContain('architecture');
+  });
+
+  it('determines aspect source as inherited from parent when parent type has aspect', async () => {
+    // Exercise the parent inheritance path in determineAspectSource
+    const inheritedAspect: AspectDef = {
+      name: 'Inherited Aspect',
+      id: 'inherited-aspect',
+      anchors: [],
+      artifacts: [{ filename: 'content.md', content: 'inherited rules' }],
+    };
+    const parentNode: GraphNode = {
+      path: 'parent',
+      meta: { name: 'Parent', type: 'module' },
+      artifacts: [{ filename: 'responsibility.md', content: 'x' }],
+      children: [],
+      parent: null,
+    };
+    const childNode: GraphNode = {
+      path: 'parent/child',
+      meta: { name: 'Child', type: 'service' },
+      artifacts: [{ filename: 'responsibility.md', content: 'x' }],
+      children: [],
+      parent: parentNode,
+    };
+    const graph: Graph = {
+      config: { name: 'T', node_types: { module: { description: 'x' }, service: { description: 'x' } } },
+      architecture: {
+        node_types: {
+          module: { description: 'x', aspects: ['inherited-aspect'] },
+          service: { description: 'x' },
+        },
+      },
+      nodes: new Map([['parent', parentNode], ['parent/child', childNode]]),
+      aspects: [inheritedAspect],
+      flows: [],
+      schemas: [],
+      rootPath: '/tmp',
+    };
+
+    const pkg = await buildContext(graph, 'parent/child');
+    const output = toContextMapOutput(pkg, graph);
+    // The child node should have inherited-aspect with source indicating parent inheritance
+    const aspectRef = output.node.required_aspects.find(a => a.id === 'inherited-aspect');
+    expect(aspectRef).toBeDefined();
+    expect(aspectRef!.source).toContain('inherited from parent');
+  });
+});
+
+describe('buildNodeContextData', () => {
+  it('returns node context data for a valid node using fixture', async () => {
+    const graph = await loadGraph(FIXTURE_PROJECT);
+    const data = buildNodeContextData(graph, 'orders/order-service');
+
+    expect(data.path).toBe('orders/order-service');
+    expect(data.type).toBe('service');
+    expect(data.sourceFiles).toBeDefined();
+    expect(Array.isArray(data.aspects)).toBe(true);
+    expect(Array.isArray(data.flows)).toBe(true);
+    expect(Array.isArray(data.dependencies)).toBe(true);
+    expect(typeof data.dependentCount).toBe('number');
+    expect(data.tokenBudget).toBeDefined();
+    expect(data.tokenBudget.status).toMatch(/^(ok|warning|severe)$/);
+  });
+
+  it('throws when node not found', async () => {
+    const graph = await loadGraph(FIXTURE_PROJECT);
+    expect(() => buildNodeContextData(graph, 'does/not/exist')).toThrow('Node not found');
+  });
+
+  it('includes dependentPaths for nodes with <= 5 dependents', async () => {
+    const graph = await loadGraph(FIXTURE_PROJECT);
+    const data = buildNodeContextData(graph, 'orders/order-service');
+
+    if (data.dependentCount > 0 && data.dependentCount <= 5) {
+      expect(data.dependentPaths).toBeDefined();
+      expect(data.dependentPaths!.length).toBe(data.dependentCount);
+    } else if (data.dependentCount > 5) {
+      expect(data.dependentPaths).toBeUndefined();
+    }
+  });
+
+  it('handles graph without architecture using fallback aspect collection', async () => {
+    const graph = await loadGraph(FIXTURE_PROJECT);
+    const graphNoArch = { ...graph, architecture: undefined } as unknown as Graph;
+    const data = buildNodeContextData(graphNoArch, 'orders/order-service');
+    expect(data.path).toBe('orders/order-service');
+    // In fallback mode, aspect source should be 'own declaration' not from architecture
+    for (const aspect of data.aspects) {
+      expect(aspect.source).toBe('own declaration');
+    }
+  });
+
+});
+
+describe('buildFileContextData', () => {
+  it('returns file context data for a valid node using fixture', async () => {
+    const graph = await loadGraph(FIXTURE_PROJECT);
+    const data = buildFileContextData(graph, 'src/orders/service.ts', 'orders/order-service');
+
+    expect(data.filePath).toBe('src/orders/service.ts');
+    expect(data.ownerPath).toBe('orders/order-service');
+    expect(data.ownerType).toBe('service');
+    expect(Array.isArray(data.claims)).toBe(true);
+    expect(Array.isArray(data.dependencies)).toBe(true);
+    expect(typeof data.dependentCount).toBe('number');
+  });
+
+  it('throws when owner node not found', async () => {
+    const graph = await loadGraph(FIXTURE_PROJECT);
+    expect(() => buildFileContextData(graph, 'src/foo.ts', 'does/not/exist')).toThrow('Node not found');
+  });
+
+  it('filters claims to only those with at least one anchor claim', async () => {
+    const graph = await loadGraph(FIXTURE_PROJECT);
+    const data = buildFileContextData(graph, 'src/orders/service.ts', 'orders/order-service');
+    // All returned claims should have at least one claim string
+    for (const c of data.claims) {
+      expect(c.claims.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('handles graph without architecture using fallback aspect collection', async () => {
+    const graph = await loadGraph(FIXTURE_PROJECT);
+    const graphNoArch = { ...graph, architecture: undefined } as unknown as Graph;
+    const data = buildFileContextData(graphNoArch, 'src/orders/service.ts', 'orders/order-service');
+    expect(data.ownerPath).toBe('orders/order-service');
+    // Claims should still be populated from fallback collectEffectiveAspectIds
+    expect(Array.isArray(data.claims)).toBe(true);
   });
 });

@@ -24,6 +24,8 @@ import type {
   DependencyRef,
   BudgetBreakdown,
 } from '../model/types.js';
+import type { NodeContextData } from '../formatters/context-node.js';
+import type { FileContextData } from '../formatters/context-file.js';
 import { normalizeMappingPaths } from '../utils/paths.js';
 import { estimateTokens } from '../utils/tokens.js';
 import { computeEffectiveAspects, computeEffectiveAspectsForConsumer } from './effective-aspects.js';
@@ -462,7 +464,7 @@ export function computeBudgetBreakdown(
  * Determine the source(s) of an aspect for a node.
  * Returns a descriptive source string indicating where the aspect comes from.
  */
-function determineAspectSource(
+export function determineAspectSource(
   aspectId: string,
   node: GraphNode,
   graph: Graph,
@@ -737,6 +739,179 @@ function buildGlossary(
   }
 
   return { aspects, flows };
+}
+
+/**
+ * Compute how many nodes have a structural relation targeting nodePath.
+ */
+function countDependents(graph: Graph, nodePath: string): { count: number; paths: string[] } {
+  const paths: string[] = [];
+  for (const [path, node] of graph.nodes) {
+    const hasRelation = (node.meta.relations ?? []).some(
+      r => r.target === nodePath && (STRUCTURAL_RELATION_TYPES.has(r.type) || EVENT_RELATION_TYPES.has(r.type)),
+    );
+    if (hasRelation) paths.push(path);
+  }
+  return { count: paths.length, paths };
+}
+
+export function buildNodeContextData(graph: Graph, nodePath: string): NodeContextData {
+  const node = graph.nodes.get(nodePath);
+  if (!node) throw new Error(`Node not found: ${nodePath}`);
+
+  const ancestors = collectAncestors(node);
+  const parentTypes = ancestors.map(a => a.meta.type);
+  const ownAspectIds = node.meta.aspects ?? [];
+  const participatingFlows = collectParticipatingFlows(graph, node);
+  const flowAspects = participatingFlows.flatMap(f => f.aspects ?? []);
+
+  // Compute effective aspects
+  let effective: { regular: Set<string> };
+  if (graph.architecture) {
+    effective = computeEffectiveAspects({
+      nodeType: node.meta.type,
+      architecture: graph.architecture,
+      parentTypes,
+      ownAspects: ownAspectIds,
+      flowAspects,
+      allAspects: graph.aspects,
+      allFlows: graph.flows,
+    });
+  } else {
+    effective = { regular: collectEffectiveAspectIds(graph, nodePath) };
+  }
+
+  const aspects = Array.from(effective.regular).map(aspectId => {
+    const aspectDef = graph.aspects.find(a => a.id === aspectId);
+    const source = graph.architecture
+      ? determineAspectSource(aspectId, node, graph, graph.flows, false)
+      : 'own declaration';
+    return {
+      id: aspectId,
+      name: aspectDef?.name ?? aspectId,
+      description: aspectDef?.description ?? '',
+      source,
+      verifiedAgainst: `aspects/${aspectId}/content.md`,
+      claims: aspectDef?.anchors?.map(a => a.claim) ?? [],
+      implies: aspectDef?.implies,
+    };
+  });
+
+  const flows = participatingFlows.map(f => ({
+    id: f.path,
+    name: f.name,
+    description: f.description ?? '',
+    readPath: `flows/${f.path}/description.md`,
+  }));
+
+  const ancestorPaths = new Set(ancestors.map(a => a.path));
+  const dependencies = (node.meta.relations ?? [])
+    .filter(r => !ancestorPaths.has(r.target) && (STRUCTURAL_RELATION_TYPES.has(r.type) || EVENT_RELATION_TYPES.has(r.type)))
+    .map(r => {
+      const target = graph.nodes.get(r.target);
+      const structuralFilenames = Object.entries(STANDARD_ARTIFACTS)
+        .filter(([, c]) => c.included_in_relations)
+        .map(([f]) => f);
+      const hasInterface = target?.artifacts.some(a => structuralFilenames.includes(a.filename) || a.filename === 'interface.md');
+      const readPath = hasInterface ? `model/${r.target}/interface.md` : undefined;
+      return {
+        path: r.target,
+        relation: r.type,
+        description: target?.meta.description,
+        readPath,
+        consumes: r.consumes,
+      };
+    });
+
+  const { count: dependentCount, paths: dependentPaths } = countDependents(graph, nodePath);
+
+  const parent = ancestors.length > 0 ? ancestors[ancestors.length - 1] : undefined;
+
+  const artifactPaths = node.artifacts
+    .filter(a => !YG_YAML_FILES.has(a.filename))
+    .map(a => `model/${nodePath}/${a.filename}`);
+
+  const sourceFiles = normalizeMappingPaths(node.meta.mapping);
+
+  // Token budget: estimate from own artifacts
+  const budgetWarning = graph.config.quality?.context_budget?.warning ?? 10000;
+  const budgetError = graph.config.quality?.context_budget?.error ?? 20000;
+  const ownText = node.artifacts.map(a => a.content).join(' ');
+  const tokenEstimate = estimateTokens(ownText);
+  const budgetStatus = tokenEstimate >= budgetError ? 'severe' : tokenEstimate >= budgetWarning ? 'warning' : 'ok';
+
+  return {
+    path: nodePath,
+    name: node.meta.name,
+    type: node.meta.type,
+    description: node.meta.description,
+    sourceFiles,
+    aspects,
+    flows,
+    dependencies,
+    dependentCount,
+    dependentPaths: dependentCount <= 5 ? dependentPaths : undefined,
+    parentPath: parent?.path,
+    parentType: parent?.meta.type,
+    parentReadPath: parent ? `model/${parent.path}/responsibility.md` : undefined,
+    artifactPaths,
+    tokenBudget: { current: tokenEstimate, limit: budgetWarning, status: budgetStatus },
+  };
+}
+
+export function buildFileContextData(graph: Graph, filePath: string, ownerPath: string): FileContextData {
+  const node = graph.nodes.get(ownerPath);
+  if (!node) throw new Error(`Node not found: ${ownerPath}`);
+
+  const ancestors = collectAncestors(node);
+  const parentTypes = ancestors.map(a => a.meta.type);
+  const ownAspectIds = node.meta.aspects ?? [];
+  const participatingFlows = collectParticipatingFlows(graph, node);
+  const flowAspects = participatingFlows.flatMap(f => f.aspects ?? []);
+
+  let effective: { regular: Set<string> };
+  if (graph.architecture) {
+    effective = computeEffectiveAspects({
+      nodeType: node.meta.type,
+      architecture: graph.architecture,
+      parentTypes,
+      ownAspects: ownAspectIds,
+      flowAspects,
+      allAspects: graph.aspects,
+      allFlows: graph.flows,
+    });
+  } else {
+    effective = { regular: collectEffectiveAspectIds(graph, ownerPath) };
+  }
+
+  const claims = Array.from(effective.regular).map(aspectId => {
+    const aspectDef = graph.aspects.find(a => a.id === aspectId);
+    return {
+      aspectId,
+      aspectDescription: aspectDef?.description ?? aspectDef?.name ?? aspectId,
+      verifiedAgainst: `aspects/${aspectId}/content.md`,
+      claims: aspectDef?.anchors?.map(a => a.claim) ?? [],
+    };
+  }).filter(c => c.claims.length > 0);
+
+  const ancestorPathsSet = new Set(ancestors.map(a => a.path));
+  const dependencies = (node.meta.relations ?? [])
+    .filter(r => !ancestorPathsSet.has(r.target) && STRUCTURAL_RELATION_TYPES.has(r.type))
+    .map(r => ({
+      path: r.target,
+      consumed: r.consumes ?? [],
+    }));
+
+  const { count: dependentCount } = countDependents(graph, ownerPath);
+
+  return {
+    filePath,
+    ownerPath,
+    ownerType: node.meta.type,
+    claims,
+    dependencies,
+    dependentCount,
+  };
 }
 
 /** Compute effective aspect ids for a node: own + hierarchy + flow + implies expanded. */

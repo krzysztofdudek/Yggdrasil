@@ -1,7 +1,8 @@
 import { Command } from 'commander';
 import { loadGraph } from '../core/graph-loader.js';
-import { buildContext, collectAncestors, toContextMapOutput } from '../core/context-builder.js';
-import { formatContextYaml, formatFullContent } from '../formatters/context-text.js';
+import { collectAncestors, buildNodeContextData, buildFileContextData } from '../core/context-builder.js';
+import { formatNodeContext } from '../formatters/context-node.js';
+import { formatFileContext } from '../formatters/context-file.js';
 import { validate } from '../core/validator.js';
 import { findOwner } from './owner.js';
 import { normalizeMappingPaths, projectRootFromGraph } from '../utils/paths.js';
@@ -62,7 +63,7 @@ function collectRelevantNodePaths(graph: Graph, nodePath: string): Set<string> {
 }
 
 export function registerBuildCommand(program: Command): void {
-  const contextAction = async (options: { node?: string; file?: string; full?: boolean }) => {
+  const contextAction = async (options: { node?: string; file?: string }) => {
       try {
         if (!options.node && !options.file) {
           process.stderr.write("Error: either '--node <path>' or '--file <path>' is required\n");
@@ -75,6 +76,7 @@ export function registerBuildCommand(program: Command): void {
 
         const graph = await loadGraph(process.cwd());
         let nodePath: string;
+        let resolvedFilePath: string | undefined;
 
         if (options.file) {
           const repoRoot = projectRootFromGraph(graph.rootPath);
@@ -96,6 +98,7 @@ export function registerBuildCommand(program: Command): void {
           }
           process.stderr.write(`${result.file} -> ${result.nodePath}\n`);
           nodePath = result.nodePath;
+          resolvedFilePath = result.file;
 
           // Check if the owning node is a blackbox — show decomposition guidance
           const ownerNode = graph.nodes.get(nodePath);
@@ -136,52 +139,13 @@ export function registerBuildCommand(program: Command): void {
           process.exit(1);
         }
 
-        const pkg = await buildContext(graph, nodePath);
-        const mapOutput = toContextMapOutput(pkg, graph);
-
-        let output = formatContextYaml(mapOutput);
-
-        if (options.full) {
-          const seen = new Set<string>();
-          const allFiles: Array<{ path: string; content: string }> = [];
-
-          async function collectFile(filePath: string): Promise<void> {
-            if (seen.has(filePath)) return;
-            seen.add(filePath);
-            const content = await findFileContent(filePath, graph);
-            if (content !== undefined) {
-              allFiles.push({ path: filePath, content });
-            }
-          }
-
-          // Glossary files
-          for (const aspect of Object.values(mapOutput.glossary.aspects)) {
-            for (const f of aspect.files) await collectFile(f);
-          }
-          for (const flow of Object.values(mapOutput.glossary.flows)) {
-            for (const f of flow.files) await collectFile(f);
-          }
-
-          // Node files
-          for (const f of mapOutput.node.files) await collectFile(f);
-
-          // Hierarchy files
-          for (const ancestor of mapOutput.hierarchy) {
-            for (const f of ancestor.files ?? []) await collectFile(f);
-          }
-
-          // Dependency files (including their hierarchy)
-          for (const dep of mapOutput.dependencies) {
-            for (const ancestor of dep.hierarchy) {
-              for (const f of ancestor.files ?? []) await collectFile(f);
-            }
-            for (const f of dep.files ?? []) await collectFile(f);
-          }
-
-          output += formatFullContent(allFiles);
+        if (resolvedFilePath) {
+          const data = buildFileContextData(graph, resolvedFilePath, nodePath);
+          process.stdout.write(formatFileContext(data));
+        } else {
+          const data = buildNodeContextData(graph, nodePath);
+          process.stdout.write(formatNodeContext(data));
         }
-
-        process.stdout.write(output);
       } catch (error) {
         process.stderr.write(`Error: ${(error as Error).message}\n`);
         process.exit(1);
@@ -194,7 +158,6 @@ export function registerBuildCommand(program: Command): void {
     .description('Assemble a context package for one node')
     .option('--node <node-path>', 'Node path relative to .yggdrasil/model/')
     .option('--file <file-path>', 'Source file path — resolves owner node automatically')
-    .option('--full', 'Include artifact file contents in output')
     .action(contextAction);
 
   // Backward-compatible alias: `yg build-context`
@@ -203,44 +166,5 @@ export function registerBuildCommand(program: Command): void {
     .description('(alias for context) Assemble a context package for one node')
     .option('--node <node-path>', 'Node path relative to .yggdrasil/model/')
     .option('--file <file-path>', 'Source file path — resolves owner node automatically')
-    .option('--full', 'Include artifact file contents in output')
     .action(contextAction);
-}
-
-/**
- * Find file content from the loaded graph data.
- * Paths are relative to .yggdrasil/ (e.g., "model/cli/core/loader/responsibility.md").
- */
-async function findFileContent(filePath: string, graph: Graph): Promise<string | undefined> {
-  if (filePath.startsWith('model/')) {
-    const rest = filePath.slice('model/'.length);
-    const parts = rest.split('/');
-    const filename = parts.pop()!;
-    const nodePath = parts.join('/');
-    const node = graph.nodes.get(nodePath);
-    if (!node) return undefined;
-    const art = node.artifacts.find((a) => a.filename === filename);
-    return art?.content;
-  }
-  if (filePath.startsWith('aspects/')) {
-    const rest = filePath.slice('aspects/'.length);
-    const parts = rest.split('/');
-    const aspectId = parts[0];
-    const filename = parts.slice(1).join('/');
-    const aspect = graph.aspects.find((a) => a.id === aspectId);
-    if (!aspect) return undefined;
-    const art = aspect.artifacts.find((a) => a.filename === filename);
-    return art?.content;
-  }
-  if (filePath.startsWith('flows/')) {
-    const rest = filePath.slice('flows/'.length);
-    const parts = rest.split('/');
-    const flowPath = parts[0];
-    const filename = parts.slice(1).join('/');
-    const flow = graph.flows.find((f) => f.path === flowPath);
-    if (!flow) return undefined;
-    const art = flow.artifacts.find((a) => a.filename === filename);
-    return art?.content;
-  }
-  return undefined;
 }
