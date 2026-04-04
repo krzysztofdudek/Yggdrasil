@@ -247,54 +247,6 @@ async function transformSingleNode(filePath: string, actions: string[], warnings
 }
 
 /**
- * Convert anchor array format to object format
- * Input: ["audit-entry", "log-call"]
- * Output: {audit-entry: "audit-entry", log-call: "log-call"}
- */
-function convertAnchorArrayToObject(anchorsArray: unknown[]): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  for (const anchor of anchorsArray) {
-    if (typeof anchor === 'string' && anchor.trim() !== '') {
-      result[anchor] = anchor;
-    }
-  }
-  return result;
-}
-
-/**
- * Migrate anchors from various formats to v4 typed format
- * v3 input: {id: "pattern"} or {id: {regex: "pattern", rationale: "..."}}
- * v4 output: {id: {regex: "pattern", rationale: "..."}} always
- */
-function migrateAnchors(anchorsObj: Record<string, unknown>): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  let changed = false;
-
-  for (const [id, value] of Object.entries(anchorsObj)) {
-    if (typeof value === 'string') {
-      // v3 bare string format
-      result[id] = { regex: value, rationale: 'migrated from v3' };
-      changed = true;
-    } else if (typeof value === 'object' && value !== null) {
-      const valueObj = value as Record<string, unknown>;
-      // Already in typed format (has 'regex' or other type)
-      if ('regex' in valueObj) {
-        // Already correct format
-        result[id] = value;
-      } else {
-        // Unknown format, try to preserve
-        result[id] = value;
-      }
-    } else {
-      // Unknown format, preserve as-is
-      result[id] = value;
-    }
-  }
-
-  return changed ? result : anchorsObj;
-}
-
-/**
  * Migrate architecture file: remove integration_aspects from node_types
  */
 async function migrateArchitecture(archPath: string, actions: string[], warnings: string[]): Promise<void> {

@@ -26,7 +26,7 @@ import type {
 } from '../model/types.js';
 import { normalizeMappingPaths } from '../utils/paths.js';
 import { estimateTokens } from '../utils/tokens.js';
-import { computeEffectiveAspects, computeEffectiveIntegrationAspects } from './effective-aspects.js';
+import { computeEffectiveAspects, computeEffectiveAspectsForConsumer } from './effective-aspects.js';
 
 const STRUCTURAL_RELATION_TYPES = new Set(['uses', 'calls', 'extends', 'implements']);
 const EVENT_RELATION_TYPES = new Set(['emits', 'listens']);
@@ -474,28 +474,36 @@ function determineAspectSource(
 
   // Check if from architecture (node type constraints)
   const nodeType = architecture.node_types[node.meta.type];
-  const architectureAspects = isIntegration
-    ? nodeType?.integration_aspects ?? []
-    : nodeType?.aspects ?? [];
+  const architectureAspects = nodeType?.aspects ?? [];
   if (architectureAspects.includes(aspectId)) {
     sources.push(`architecture (type: ${node.meta.type})`);
   }
 
   // Check if from own declaration
-  const ownAspectIds = isIntegration
-    ? node.meta.integration_aspects ?? []
-    : node.meta.aspects ?? [];
+  const ownAspectIds = node.meta.aspects ?? [];
   if (ownAspectIds.includes(aspectId)) {
     sources.push('own declaration');
+  }
+
+  // Check if from port consumption
+  if (isIntegration && node.meta.relations) {
+    for (const relation of node.meta.relations) {
+      const target = graph.nodes.get(relation.target);
+      if (!target?.meta.ports || !relation.consumes) continue;
+      for (const portName of relation.consumes) {
+        const port = target.meta.ports[portName];
+        if (port?.aspects?.includes(aspectId)) {
+          sources.push(`port '${portName}' on '${relation.target}'`);
+        }
+      }
+    }
   }
 
   // Check if from parent inheritance
   let ancestor = node.parent;
   while (ancestor) {
     const ancestorType = architecture.node_types[ancestor.meta.type];
-    const ancestorAspects = isIntegration
-      ? ancestorType?.integration_aspects ?? []
-      : ancestorType?.aspects ?? [];
+    const ancestorAspects = ancestorType?.aspects ?? [];
     if (ancestorAspects.includes(aspectId)) {
       sources.push(`inherited from parent (type: ${ancestor.meta.type})`);
       break;
@@ -628,8 +636,8 @@ export function toContextMapOutput(
       requiredAspects.push({ id: aspectId, source });
     }
 
-    // Build integration_aspects (from port consumption and architecture requirements)
-    const integrationAspectIds = computeEffectiveIntegrationAspects(node, graph);
+    // Build integration_aspects (from port consumption)
+    const integrationAspectIds = computeEffectiveAspectsForConsumer(node, graph);
     if (integrationAspectIds.size > 0) {
       integrationAspects = Array.from(integrationAspectIds).map((aspectId) => {
         const source = determineAspectSource(aspectId, node, graph, graph.flows, true);

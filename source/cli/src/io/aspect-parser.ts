@@ -36,7 +36,7 @@ export async function parseAspect(
   }
 
   // Parse anchors as claim objects (v4 format)
-  let anchors: ClaimAnchor[] = [];
+  const anchors: ClaimAnchor[] = [];
   if (raw.anchors !== undefined) {
     if (!Array.isArray(raw.anchors)) {
       throw new Error(`Aspect file ${aspectYamlPath}: 'anchors' must be an array`);

@@ -1663,10 +1663,25 @@ describe('toContextMapOutput', () => {
     expect(output.node.files.length).toBeGreaterThan(0);
   });
 
-  it('builds integration_aspects when effective.integration is non-empty', async () => {
-    const node: GraphNode = {
+  it('builds integration_aspects from consumed ports', async () => {
+    const targetNode: GraphNode = {
+      path: 'target',
+      meta: {
+        name: 'Target',
+        type: 'service',
+        ports: { charge: { description: 'Payment', aspects: ['correlation-id'] } },
+      },
+      artifacts: [{ filename: 'responsibility.md', content: 'x' }],
+      children: [],
+      parent: null,
+    };
+    const consumerNode: GraphNode = {
       path: 'svc',
-      meta: { name: 'Svc', type: 'service', integration_aspects: ['correlation-id'] },
+      meta: {
+        name: 'Svc',
+        type: 'service',
+        relations: [{ target: 'target', type: 'calls', consumes: ['charge'] }],
+      },
       artifacts: [{ filename: 'responsibility.md', content: 'x' }],
       children: [],
       parent: null,
@@ -1677,9 +1692,9 @@ describe('toContextMapOutput', () => {
         node_types: { service: { description: 'x' } },
       },
       architecture: {
-        node_types: { service: { description: 'x', integration_aspects: ['correlation-id'] } },
+        node_types: { service: { description: 'x' } },
       },
-      nodes: new Map([['svc', node]]),
+      nodes: new Map([['svc', consumerNode], ['target', targetNode]]),
       aspects: [
         {
           name: 'Correlation ID',
@@ -1721,7 +1736,6 @@ describe('toContextMapOutput', () => {
     const nodeType = {
       description: 'x',
       aspects: ['parent-aspect'],
-      integration_aspects: [],
     };
     const node: GraphNode = {
       path: 'svc',

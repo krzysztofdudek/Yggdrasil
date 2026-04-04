@@ -42,32 +42,20 @@ export async function findYggRoot(projectRoot: string): Promise<string> {
   }
 }
 
-import type { NodeMapping } from '../model/types.js';
-
 /**
  * Normalize a mapping to always return an array of paths (relative to project root).
  * Each path can be a file or directory — type is detected at runtime by hash/owner.
- * Handles MappingGroup[] array format by collecting all paths from all groups.
+ * v4 format: flat string array.
  */
-export function normalizeMappingPaths(mapping: NodeMapping | undefined): string[] {
+export function normalizeMappingPaths(mapping: string[] | undefined): string[] {
   if (!mapping || !Array.isArray(mapping)) return [];
 
   const paths: string[] = [];
   for (const item of mapping) {
-    // v4 format: flat array of strings
     if (typeof item === 'string') {
       const trimmed = item.trim();
       if (trimmed) {
         paths.push(trimmed);
-      }
-    }
-    // v3 format (for backward compatibility): array of objects with paths property
-    else if (item && typeof item === 'object' && 'paths' in item && Array.isArray(item.paths)) {
-      for (const p of item.paths as string[]) {
-        const trimmed = p.trim();
-        if (trimmed) {
-          paths.push(trimmed);
-        }
       }
     }
   }

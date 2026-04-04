@@ -50,32 +50,24 @@ describe('paths', () => {
       expect(normalizeMappingPaths(undefined)).toEqual([]);
     });
 
-    it('returns single path for mapping group with one path', () => {
-      expect(normalizeMappingPaths([{ paths: ['src/module.ts'] }])).toEqual(['src/module.ts']);
+    it('returns single path for flat string array', () => {
+      expect(normalizeMappingPaths(['src/module.ts'])).toEqual(['src/module.ts']);
     });
 
-    it('returns paths for mapping group with multiple elements', () => {
-      expect(normalizeMappingPaths([{ paths: ['src/a.ts', 'src/b.ts'] }])).toEqual([
+    it('returns paths for multiple elements', () => {
+      expect(normalizeMappingPaths(['src/a.ts', 'src/b.ts'])).toEqual([
         'src/a.ts',
         'src/b.ts',
       ]);
     });
 
-    it('returns empty when mapping group paths is empty', () => {
-      expect(normalizeMappingPaths([{ paths: [] }])).toEqual([]);
-    });
-
-    it('returns all paths from multiple mapping groups', () => {
+    it('returns all paths from flat array', () => {
       expect(
-        normalizeMappingPaths([
-          { paths: ['src/a.ts', 'src/b.ts'] },
-          { paths: ['src/c.ts'] },
-          { paths: ['src/d.ts', 'src/e.ts'] },
-        ]),
+        normalizeMappingPaths(['src/a.ts', 'src/b.ts', 'src/c.ts', 'src/d.ts', 'src/e.ts']),
       ).toEqual(['src/a.ts', 'src/b.ts', 'src/c.ts', 'src/d.ts', 'src/e.ts']);
     });
 
-    it('returns empty for empty mapping group array', () => {
+    it('returns empty for empty array', () => {
       expect(normalizeMappingPaths([])).toEqual([]);
     });
   });

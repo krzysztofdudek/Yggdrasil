@@ -1,10 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   computeEffectiveAspects,
-  computeEffectiveIntegrationAspects,
   computeEffectiveAspectsForConsumer,
   getAspectSource,
-  getIntegrationAspectSource,
 } from '../../../src/core/effective-aspects.js';
 import type { ArchitectureDef, AspectDef, FlowDef, Graph, GraphNode } from '../../../src/model/types.js';
 
@@ -431,61 +429,6 @@ function makeGraph(overrides: Partial<Graph> = {}): Graph {
   } as Graph;
 }
 
-describe('computeEffectiveIntegrationAspects', () => {
-  it('returns empty set when no integration aspects', () => {
-    const node = makeNode('svc');
-    const graph = makeGraph();
-    expect(computeEffectiveIntegrationAspects(node, graph)).toEqual(new Set());
-  });
-
-  it('collects from architecture type integration_aspects', () => {
-    const node = makeNode('svc', { meta: { name: 'svc', type: 'service' } });
-    const graph = makeGraph({
-      architecture: {
-        node_types: {
-          service: { description: 'x', integration_aspects: ['correlation'] },
-        },
-      },
-    });
-    expect(computeEffectiveIntegrationAspects(node, graph)).toContain('correlation');
-  });
-
-  it('collects from own integration_aspects', () => {
-    const node = makeNode('svc', { meta: { name: 'svc', type: 'service', integration_aspects: ['tracing'] } });
-    const graph = makeGraph();
-    expect(computeEffectiveIntegrationAspects(node, graph)).toContain('tracing');
-  });
-
-  it('inherits from parent recursively', () => {
-    const parent = makeNode('parent', { meta: { name: 'parent', type: 'module', integration_aspects: ['audit'] } });
-    const child = makeNode('child', { parent, meta: { name: 'child', type: 'library' } });
-    const graph = makeGraph();
-    expect(computeEffectiveIntegrationAspects(child, graph)).toContain('audit');
-  });
-
-  it('expands implies chain', () => {
-    const node = makeNode('svc', { meta: { name: 'svc', type: 'service', integration_aspects: ['base'] } });
-    const graph = makeGraph({
-      aspects: [
-        { name: 'Base', id: 'base', implies: ['derived'], anchors: [], artifacts: [] },
-        { name: 'Derived', id: 'derived', anchors: [], artifacts: [] },
-      ],
-    });
-    const result = computeEffectiveIntegrationAspects(node, graph);
-    expect(result).toContain('base');
-    expect(result).toContain('derived');
-  });
-
-  it('uses cache on second call', () => {
-    const node = makeNode('svc', { meta: { name: 'svc', type: 'service', integration_aspects: ['x'] } });
-    const graph = makeGraph();
-    const cache = new Map<string, Set<string>>();
-    computeEffectiveIntegrationAspects(node, graph, cache);
-    expect(cache.has('svc')).toBe(true);
-    const cached = computeEffectiveIntegrationAspects(node, graph, cache);
-    expect(cached).toContain('x');
-  });
-});
 
 describe('getAspectSource', () => {
   it('identifies architecture type requirement', () => {
@@ -551,48 +494,6 @@ describe('getAspectSource', () => {
   });
 });
 
-describe('getIntegrationAspectSource', () => {
-  it('identifies architecture type requirement', () => {
-    const node = makeNode('svc', { meta: { name: 'svc', type: 'service' } });
-    const graph = makeGraph({
-      architecture: {
-        node_types: { service: { description: 'x', integration_aspects: ['tracing'] } },
-      },
-    });
-    expect(getIntegrationAspectSource('tracing', node, graph)).toContain('architecture');
-  });
-
-  it('identifies own declaration', () => {
-    const node = makeNode('svc', { meta: { name: 'svc', type: 'service', integration_aspects: ['custom'] } });
-    const graph = makeGraph();
-    expect(getIntegrationAspectSource('custom', node, graph)).toContain('own declaration');
-  });
-
-  it('identifies parent with own integration_aspects', () => {
-    const parent = makeNode('mod', { meta: { name: 'mod', type: 'module', integration_aspects: ['audit'] } });
-    const child = makeNode('svc', { parent, meta: { name: 'svc', type: 'service' } });
-    const graph = makeGraph();
-    expect(getIntegrationAspectSource('audit', child, graph)).toContain("parent 'mod'");
-  });
-
-  it('identifies parent via architecture type', () => {
-    const parent = makeNode('mod', { meta: { name: 'mod', type: 'module' } });
-    const child = makeNode('svc', { parent, meta: { name: 'svc', type: 'service' } });
-    const graph = makeGraph({
-      architecture: {
-        node_types: { module: { description: 'x', integration_aspects: ['logging'] }, service: { description: 'y' } },
-      },
-    });
-    expect(getIntegrationAspectSource('logging', child, graph)).toContain("parent 'mod'");
-    expect(getIntegrationAspectSource('logging', child, graph)).toContain('architecture type');
-  });
-
-  it('returns implied when source not found', () => {
-    const node = makeNode('svc', { meta: { name: 'svc', type: 'service' } });
-    const graph = makeGraph();
-    expect(getIntegrationAspectSource('unknown', node, graph)).toContain('implied');
-  });
-});
 
 // ---- Port-based integration aspects ----
 

@@ -139,14 +139,14 @@ export function collectTrackedFiles(node: GraphNode, graph: Graph): TrackedFile[
       }
     }
 
-    // Track integration_aspects hash only (not full yg-node.yaml) — scoped cascade
-    // This ensures only integration_aspects changes cascade to dependents,
+    // Track ports hash only (not full yg-node.yaml) — scoped cascade
+    // This ensures only port aspect changes cascade to dependents,
     // not unrelated target metadata changes (description, relations, mapping)
-    if (target.meta.integration_aspects && target.meta.integration_aspects.length > 0) {
-      const anchorsJson = JSON.stringify(target.meta.integration_aspects.sort());
+    if (target.meta.ports && Object.keys(target.meta.ports).length > 0) {
+      const portsJson = JSON.stringify(target.meta.ports);
       addSyntheticHash(
-        `integration-anchors:${target.path}`,
-        anchorsJson,
+        `port-aspects:${target.path}`,
+        portsJson,
         'graph',
         'relational',
       );

@@ -10,8 +10,8 @@ import { readDriftState, readNodeDriftState } from '../io/drift-state-store.js';
 import { hashTrackedFiles } from '../utils/hash.js';
 import { collectTrackedFiles } from './context-files.js';
 import { normalizeMappingPaths } from '../utils/paths.js';
-import { validate, expandMappingToFiles } from './validator.js';
-import { access, readFile } from 'node:fs/promises';
+import { validate } from './validator.js';
+import { access } from 'node:fs/promises';
 import path from 'node:path';
 
 // ── Types ──────────────────────────────────────────────────
@@ -246,24 +246,22 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
     for (const [, groupCauses] of causeGroups) {
       const primaryCause = groupCauses[0];
 
-      // Check if this is an integration_aspects cascade (dependency yg-node.yaml change
-      // on a target that has integration_aspects, OR synthetic integration-anchors: entry)
-      const isIntegrationAnchorsCascade = primaryCause.layer === 'relational'
-        && (groupCauses.some(c => c.file.startsWith('integration-anchors:'))
+      // Check if this is a port-aspects cascade (dependency port change on a target with ports)
+      const isPortAspectsCascade = primaryCause.layer === 'relational'
+        && (groupCauses.some(c => c.file.startsWith('port-aspects:'))
           || (groupCauses.some(c => c.file.endsWith('yg-node.yaml'))
             && (() => {
-              // Extract target path from cause description
               const match = primaryCause.description.match(/dependency '([^']+)'/);
               if (!match) return false;
               const target = graph.nodes.get(match[1]);
-              return (target?.meta.integration_aspects?.length ?? 0) > 0;
+              return target?.meta.ports != null && Object.keys(target.meta.ports).length > 0;
             })()));
 
       let message: string;
       const causeLines = groupCauses.map(c => '     Cause: ' + c.description).join('\n');
 
-      if (isIntegrationAnchorsCascade) {
-        message = `Context package changed due to upstream modification.\n${causeLines}\n     New integration anchors may be required. Run yg check for E040 errors.\n     Review and approve --acknowledge, or realize new anchors first.`;
+      if (isPortAspectsCascade) {
+        message = `Context package changed due to upstream port modification.\n${causeLines}\n     Port aspect requirements may have changed. Review consumed ports and approve.`;
       } else {
         const reviewTarget = primaryCause.layer === 'aspects' ? 'updated context'
           : primaryCause.layer === 'relational' ? 'updated dependency interface'
@@ -608,42 +606,12 @@ async function allPathsMissing(projectRoot: string, mappingPaths: string[]): Pro
 
 
 /**
- * Check whether all realized anchor regex patterns still match source for a node.
- * Returns true if all pass, false if any fail, undefined if no realized anchors exist.
- *
- * Note: With the v4 redesign, aspects and relations no longer carry anchor realizations.
- * Anchor realizations are now in mapping groups only. This function checks mapping group anchors.
+ * Check whether all realized anchor patterns still match source for a node.
+ * Returns undefined — v4 uses claim-based verification via LLM (Plan 3).
+ * Regex-based anchor checking is removed; this stub keeps callers compiling.
  */
-async function checkNodeAnchorsPass(graph: Graph, nodePath: string): Promise<boolean | undefined> {
-  const node = graph.nodes.get(nodePath);
-  if (!node) return undefined;
-  const mappingPaths = normalizeMappingPaths(node.meta.mapping);
-  if (mappingPaths.length === 0) return undefined;
-
-  const projectRoot = path.dirname(graph.rootPath);
-  const sourceFiles = await expandMappingToFiles(projectRoot, mappingPaths);
-  const fileContents: string[] = [];
-  for (const fp of sourceFiles) {
-    try { fileContents.push(await readFile(fp, 'utf-8')); } catch { /* skip */ }
-  }
-
-  let hasAnyRealizedAnchors = false;
-
-  // Check mapping group anchors
-  for (const group of node.meta.mapping ?? []) {
-    for (const aspectGroup of group.aspects ?? []) {
-      for (const anchor of Object.values(aspectGroup.anchors ?? {})) {
-        if (!anchor.regex) continue;
-        hasAnyRealizedAnchors = true;
-        try {
-          const regex = new RegExp(anchor.regex);
-          if (!fileContents.some(c => regex.test(c))) return false;
-        } catch { return false; }
-      }
-    }
-  }
-
-  return hasAnyRealizedAnchors ? true : undefined;
+async function checkNodeAnchorsPass(_graph: Graph, _nodePath: string): Promise<boolean | undefined> {
+  return undefined;
 }
 
 /**

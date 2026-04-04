@@ -409,13 +409,13 @@ describe('collectTrackedFiles', () => {
     expect(files.length).toBeGreaterThan(0);
   });
 
-  it('tracks target yg-node.yaml when dependency has integration_anchors', () => {
+  it('tracks target ports hash when dependency has ports', () => {
     const target: GraphNode = {
       path: 'dep/svc',
       meta: {
         name: 'DepSvc',
         type: 'service',
-        integration_aspects: ['correlation-id'],
+        ports: { charge: { description: 'Payment', aspects: ['correlation-id'] } },
       },
       artifacts: [
         { filename: 'responsibility.md', content: 'resp' },
@@ -453,22 +453,20 @@ describe('collectTrackedFiles', () => {
     const files = collectTrackedFiles(node, graph);
     const paths = files.map((f) => f.path);
 
-    // Target with integration_aspects should have a synthetic hash entry (not full yg-node.yaml)
-    expect(paths).toContain('integration-anchors:dep/svc');
+    // Target with ports should have a synthetic hash entry
+    expect(paths).toContain('port-aspects:dep/svc');
     expect(paths).not.toContain('.yggdrasil/model/dep/svc/yg-node.yaml');
-    // Its layer should be relational
-    const tracked = files.find(f => f.path === 'integration-anchors:dep/svc');
+    const tracked = files.find(f => f.path === 'port-aspects:dep/svc');
     expect(tracked?.layer).toBe('relational');
     expect(tracked?.syntheticHash).toBeDefined();
   });
 
-  it('does NOT track target yg-node.yaml when dependency has no integration_aspects', () => {
+  it('does NOT track target ports hash when dependency has no ports', () => {
     const target: GraphNode = {
       path: 'dep/svc',
       meta: {
         name: 'DepSvc',
         type: 'service',
-        // No integration_aspects
       },
       artifacts: [
         { filename: 'responsibility.md', content: 'resp' },
@@ -506,7 +504,7 @@ describe('collectTrackedFiles', () => {
     const files = collectTrackedFiles(node, graph);
     const paths = files.map((f) => f.path);
 
-    // Target without integration_anchors should NOT have yg-node.yaml tracked
+    expect(paths).not.toContain('port-aspects:dep/svc');
     expect(paths).not.toContain('.yggdrasil/model/dep/svc/yg-node.yaml');
   });
 

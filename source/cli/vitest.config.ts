@@ -14,6 +14,7 @@ export default defineConfig({
         'src/model/types.ts', // type-only definitions — no runtime code
         'src/core/graph-from-git.ts', // git/archive — try/catch branches hard to cover
         'src/core/graph-loader.ts', // loadAspects/Flows/Knowledge/Templates — catch on missing dirs
+        'src/llm/**', // LLM provider stubs — no runtime usage yet (Plan 3)
       ],
       thresholds: {
         lines: 85,

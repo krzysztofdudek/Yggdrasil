@@ -1,4 +1,4 @@
-import { readdir, readFile, stat } from 'node:fs/promises';
+import { readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { STANDARD_ARTIFACTS } from '../model/types.js';
 import type { Graph, ValidationResult, ValidationIssue, ArtifactConfig } from '../model/types.js';
@@ -952,7 +952,7 @@ function checkArchitectureConstraints(graph: Graph): ValidationIssue[] {
  * Temporarily simplified: mapping is now flat string[], no per-mapping aspects.
  * Full aspect checking will be replaced by LLM verification in Plan 2.
  */
-function checkMappingGroupAspects(graph: Graph): ValidationIssue[] {
+function checkMappingGroupAspects(_graph: Graph): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   // TODO Plan 2: Reimplement using LLM claim verification
   return issues;
@@ -967,7 +967,7 @@ function checkMappingGroupAspects(graph: Graph): ValidationIssue[] {
  * E053 — integration-aspect-missing (temporarily disabled)
  * Will be replaced by LLM claim verification in Plan 2.
  */
-async function checkIntegrationAspects(graph: Graph): Promise<ValidationIssue[]> {
+async function checkIntegrationAspects(_graph: Graph): Promise<ValidationIssue[]> {
   const issues: ValidationIssue[] = [];
   // TODO Plan 2: Reimplement using LLM claim verification and port-based requirements
   return issues;

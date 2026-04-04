@@ -254,8 +254,6 @@ export interface RequiredAspectRef {
 /** Reference to a node aspect in context output */
 export interface NodeAspectRef {
   id: string;
-  /** The aspect ID this entry references */
-  anchors?: Record<string, AnchorRealization>;
   /** Exceptions to this aspect for this node */
   exceptions?: string[];
 }
