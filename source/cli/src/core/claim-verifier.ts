@@ -76,6 +76,7 @@ async function verifyWithConsensus(
   }
   const satisfiedCount = votes.filter(v => v.satisfied).length;
   const majority = satisfiedCount > consensus / 2;
+  /* v8 ignore next -- defensive fallback: mathematically always finds a matching vote */
   const majorityVote = votes.find(v => v.satisfied === majority) ?? votes[0];
   return majorityVote;
 }

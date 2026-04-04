@@ -325,8 +325,8 @@ export async function approveNode(
   let claimResults: Record<string, Record<string, ClaimVerificationResult>> | undefined;
   let artifactReviewResults: Record<string, ArtifactReviewResult> | undefined;
   let llmSkipped = false;
-  let e055Violations: Array<{ aspect: string; claim: string; reason: string }> = [];
-  let e056Violations: Array<{ name: string; reason: string }> = [];
+  const e055Violations: Array<{ aspect: string; claim: string; reason: string }> = [];
+  const e056Violations: Array<{ name: string; reason: string }> = [];
 
   if (action !== 'refused' && !isBlackbox && llmProvider) {
     const resolvedMaxTokens = options.maxTokens

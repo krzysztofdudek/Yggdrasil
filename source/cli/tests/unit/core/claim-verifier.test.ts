@@ -87,6 +87,18 @@ describe('claim-verifier', () => {
     expect(calls.length).toBe(2);
   });
 
+  it('returns empty chunk when sourceFiles is empty', async () => {
+    const provider = mockProvider([{ satisfied: true, reason: 'ok' }]);
+    const results = await verifyClaims({
+      provider,
+      aspects: [{ id: 'a', claims: [{ id: 'c', claim: 'test' }], contentFile: 'content' }],
+      sourceFiles: [], // empty — triggers fallback chunk
+      consensus: 1,
+      maxTokens: 8192,
+    });
+    expect(results['a']['c'].satisfied).toBe(true);
+  });
+
   it('skips TODO claims and marks as not satisfied', async () => {
     const provider = mockProvider([]);
     const results = await verifyClaims({
