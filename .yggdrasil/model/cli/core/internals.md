@@ -65,3 +65,11 @@ The graph is the intended truth. If tools produced different output for the same
 ## Why core doesn't parse YAML
 
 Separation of concerns. The io layer parses files; core consumes typed structures. Core focuses on graph logic — assembly, validation, dependency resolution. IO focuses on file format. Clear boundary, testable in isolation.
+
+## Why claim verification is per-node not per-file (v4)
+
+Chose to verify claims at node granularity (all node source files concatenated) rather than per-file. Reason: aspects apply to nodes, not files. A claim like "no Date.now()" must hold across ALL files in the node. Per-file would miss cross-file patterns and create overhead of N LLM calls per node. For large nodes, source is chunked by file boundaries — all chunks must pass. Rejected alternative: per-file verification — rejected because claims are node-level properties.
+
+## Why approve runs both claim verification and artifact review (v4)
+
+Two distinct LLM operations at approve time: (1) claims check if code satisfies aspect rules, (2) artifact review checks if documentation is current. Both are needed: claims ensure behavioral correctness, artifacts ensure documentation accuracy. They fire different error codes (E055 vs E056) with different fix paths. Rejected alternative: single combined LLM check — rejected because the fix actions are different (fix code vs fix docs).
