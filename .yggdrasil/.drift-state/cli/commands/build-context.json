@@ -6,6 +6,7 @@
     ".yggdrasil/model/cli/commands/build-context/internals.md": "c8b44de813a4244d4b08d7928c22f198f6fb6e9a7addb6675cc596ecc21ef541",
     ".yggdrasil/model/cli/commands/build-context/responsibility.md": "2f9eab8f91082c35845018ec3e31d5a4525be686bf6530a3d2eaf1950c70df39",
     ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df",
+    ".yggdrasil/model/cli/internals.md": "7440678f012e45d8b15a4efc252cc3b4220fe7aec98fb673786abd9c2a37f9f0",
     ".yggdrasil/model/cli/responsibility.md": "696e0f5f377eba69a843a18379e8f20e0322dc037182690629652a75aa2227fb",
     ".yggdrasil/model/cli/commands/yg-node.yaml": "304ba077a87aae0ecd30b30323391e3f54ccfbc2843bb4020acf43d1a26a26da",
     ".yggdrasil/model/cli/commands/internals.md": "5a3b679d5c2b9600c7fa3dc01b2f28661b7bfb11850a922ff885a7a583d455c7",
@@ -34,8 +35,7 @@
     ".yggdrasil/flows/build-context/description.md": "60e4619e480293f028a1c2b756ce30c8800adc613dc9c64e6bd6ef7f3d5fcf87",
     ".yggdrasil/flows/graph-analysis/yg-flow.yaml": "6643c01963cfd3731ba76f0a34a34e7ce2ed09e2ae2da793734c59adc4f87624",
     ".yggdrasil/flows/graph-analysis/description.md": "aca097a8ecbf74d140e5deb9ad6113c752d49e193077b0e1d201b7f99da574f4",
-    "source/cli/src/cli/build-context.ts": "95933be09bcd80d543b5838a4bc6d37f458cdcb2846edcf5dcde84dae2255a0e",
-    ".yggdrasil/model/cli/internals.md": "7440678f012e45d8b15a4efc252cc3b4220fe7aec98fb673786abd9c2a37f9f0"
+    "source/cli/src/cli/build-context.ts": "95933be09bcd80d543b5838a4bc6d37f458cdcb2846edcf5dcde84dae2255a0e"
   },
   "mtimes": {
     ".yggdrasil/model/cli/commands/build-context/yg-node.yaml": 1775327956332.7717,
@@ -74,5 +74,51 @@
     ".yggdrasil/flows/graph-analysis/description.md": 1775046980292.1602,
     "source/cli/src/cli/build-context.ts": 1775325143024.5308
   },
-  "acknowledgeReason": "cascade from parent decision docs"
+  "acknowledgeReason": "v4 migration: flat mapping, claims, and doc updates",
+  "claimResults": {
+    "deterministic": {
+      "no-side-effects": {
+        "satisfied": false,
+        "reason": "LLM response could not be parsed"
+      },
+      "deterministic-output": {
+        "satisfied": false,
+        "reason": "LLM response could not be parsed"
+      }
+    },
+    "posix-paths": {
+      "forward-slash-normalization": {
+        "satisfied": false,
+        "reason": "LLM response could not be parsed"
+      }
+    },
+    "cli-command-contract": {
+      "stdout-write": {
+        "satisfied": true,
+        "reason": "All output in this file uses process.stdout.write() for success messages and process.stderr.write() for errors, with no console.log calls present."
+      },
+      "error-handler": {
+        "satisfied": false,
+        "reason": "LLM response could not be parsed"
+      },
+      "exit-code": {
+        "satisfied": false,
+        "reason": "LLM response could not be parsed"
+      }
+    }
+  },
+  "artifactReview": {
+    "interface.md": {
+      "current": false,
+      "reason": "LLM response could not be parsed"
+    },
+    "internals.md": {
+      "current": false,
+      "reason": "LLM response could not be parsed"
+    },
+    "responsibility.md": {
+      "current": false,
+      "reason": "LLM response could not be parsed"
+    }
+  }
 }

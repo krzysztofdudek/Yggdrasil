@@ -296,15 +296,13 @@ When you encounter information, route it to the correct location:
 
 - [ ] 1. Read `schemas/yg-aspect.yaml`
 - [ ] 2. Create `aspects/<id>/` directory
-- [ ] 3. Write `yg-aspect.yaml` — name, description, anchors (required proof points), optional implies
+- [ ] 3. Write `yg-aspect.yaml` — name, description, anchors (required claims), optional implies
 - [ ] 4. Write content `.md` files: WHAT must be satisfied + WHY (user's words, do not invent)
 - [ ] 5. `yg check`
 
 Test: "Does this requirement apply to more than one node?" Yes → aspect. No → local artifact.
 
-**Anchor requirement:** Every aspect MUST define at least one anchor ID — abstract proof points that nodes carrying the aspect must realize. For example, an `audit-logging` aspect might define anchors: `audit-entry`, `audit-actor`, `audit-timestamp`. Nodes realize anchors as typed objects in their `yg-node.yaml` (supports `regex` type).
-
-When a node follows an aspect's pattern with exceptions, record them in the `exceptions` field of the aspect entry in `yg-node.yaml`.
+**Anchor requirement:** Every aspect MUST define at least one claim in the anchors field. Claims are natural language properties that source files must satisfy. Example: an `audit-logging` aspect might define claims: "Every data-modifying operation creates an audit log entry", "Audit entries include the authenticated user." Claims are verified by LLM at approve time — agents do not write regex proofs.
 
 **Claim authoring guidance:** Claims should be per-file verifiable properties. Good claims:
 - "Functions do not use Date.now(), Math.random(), or filesystem writes"
@@ -324,6 +322,29 @@ Avoid claims requiring cross-file reasoning. Use flow descriptions for cross-fil
 Test: "Does this describe what happens in the world, or only in the software?" If only software — rewrite.
 
 **Flow identification heuristic:** If a spec, conversation, or code reveals a sequence of steps toward a business goal — it IS a flow. This applies to multi-actor processes AND single-actor workflows.
+
+### Ports
+
+Nodes can declare typed ports — named entry points with required aspects:
+
+```yaml
+ports:
+  charge:
+    description: "Charge payment"
+    aspects: [correlation-tracking]
+```
+
+Consumers reference ports via consumes on relations:
+
+```yaml
+relations:
+  - target: payments/service
+    type: calls
+    consumes: [charge]
+```
+
+At check time: E057 fires if target has ports but consumer has no consumes. E058 fires if consumes references undefined port.
+At approve time: LLM verifies consumer satisfies port-required aspect claims (E055).
 
 ### CLI Reference
 
@@ -370,7 +391,7 @@ Test: "Does this describe what happens in the world, or only in the software?" I
 |------|------|---------|
 | E022 | unmapped-file | Git-tracked file not covered by any node (proper or blackbox) |
 
-**Completeness (E030-E041):**
+**Completeness (E030-E039):**
 
 | Code | Name | Meaning |
 |------|------|---------|
@@ -380,21 +401,33 @@ Test: "Does this describe what happens in the world, or only in the software?" I
 | E033 | unpaired-event | Event relation without complement |
 | E034 | missing-schema | Schema file missing from schemas/ |
 | E036 | mapping-path-missing | Mapped path doesn't exist on disk |
-| E037 | anchor-not-found | Anchor pattern not found in source files |
 | E038 | missing-description | Node, aspect, or flow has no description |
-| E039 | aspect-missing-anchors | Aspect has no anchors field |
-| E040 | anchor-not-realized | Node missing anchor realization for required IDs |
-| E041 | unknown-anchor-type | Unrecognized anchor type (supported: regex) |
+| E039 | aspect-missing-claims | Aspect has no claims in anchors field |
 
-**Warnings (W001-W005):** budget-warning, own-budget-warning, wide-node, high-fan-out, orphaned-drift-state.
+**References (E050, E057-E058):**
+
+| Code | Name | Meaning |
+|------|------|---------|
+| E050 | dangling-aspect-ref | Aspect referenced by node/flow/architecture but not defined in aspects/ |
+| E057 | missing-consumes | Relation target has ports but no consumes field |
+| E058 | unknown-port | consumes references port not defined on target |
+
+**Semantic (approve only, E055-E056):**
+
+| Code | Name | Meaning |
+|------|------|---------|
+| E055 | claim-not-satisfied | LLM found claim not met in source code |
+| E056 | artifact-stale | LLM found artifact outdated vs source code |
+
+**Warnings (W001-W006):** budget-warning, own-budget-warning, wide-node, high-fan-out, orphaned-drift-state, orphaned-aspect.
 
 CLI error messages are self-teaching: each error includes what happened, why it's wrong, and how to fix it. Follow the CLI's suggested next command.
 
 ### Approve Enforcement
 
 Approve is the semantic verification gate. It runs two LLM checks:
-1. Aspect verification: checks each claim against source code
-2. Artifact review: checks if responsibility.md, interface.md, internals.md are current
+1. **Aspect verification (E055):** checks each claim against source code — fires E055 for unmet claims
+2. **Artifact review (E056):** checks if responsibility.md, interface.md, internals.md are current — fires E056 for stale artifacts
 
 If LLM is not configured, approve works as before (three-axis detection only).
 
@@ -412,7 +445,7 @@ If LLM is not configured, approve works as before (three-axis detection only).
 | unchanged | unchanged | changed | REFUSES — requires --acknowledge |
 | unchanged | unchanged | unchanged | ACCEPTS (no-op) |
 
-`--acknowledge "reason"` is the conscious exception: when one side changed but the other doesn't need updating (formatter ran, typo fix, source already compliant with updated aspect). Reason is stored for audit trail.
+`--acknowledge "reason"` is the conscious exception: it overrides both the three-axis gate AND LLM verification (E055/E056). Use when one side changed but the other doesn't need updating (formatter ran, typo fix, source already compliant with updated aspect). Reason is stored for audit trail.
 
 ---
 
