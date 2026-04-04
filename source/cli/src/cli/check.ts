@@ -175,7 +175,7 @@ export function formatOutput(result: CheckResult): void {
     }
   }
 
-  if (warnings.length > 0) {
+  if (warnings.length > 0 && errors.length === 0) {
     lines.push(`Warnings (${warnings.length}):`);
     // Group: Budget (W001, W002) then Structure (W003, W004) then Other (W005+)
     const budgetWarnings = warnings.filter(i => i.code === 'W001' || i.code === 'W002');
@@ -184,7 +184,9 @@ export function formatOutput(result: CheckResult): void {
     for (const group of [budgetWarnings, structureWarnings, otherWarnings]) {
       for (const issue of sortByNodePath(group)) {
         lines.push(`  ${issue.code} ${issue.nodePath ?? ''} — ${issue.rule}`);
-        lines.push(`       ${issue.message.split('\n')[0]}`);
+        for (const line of issue.message.split('\n')) {
+          lines.push(`       ${line}`);
+        }
       }
     }
     lines.push('');
