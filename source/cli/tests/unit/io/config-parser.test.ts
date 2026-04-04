@@ -299,4 +299,79 @@ quality:
 
     await rm(tmpDir, { recursive: true, force: true });
   });
+
+  describe('config-parser llm section', () => {
+    it('parses llm config from yg-config.yaml', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-llm-config');
+      await mkdir(tmpDir, { recursive: true });
+      const configPath = path.join(tmpDir, 'yg-config.yaml');
+      await writeFile(
+        configPath,
+        `
+name: test-project
+version: "4.0.0"
+llm:
+  provider: ollama
+  model: llama3.1:8b
+  endpoint: http://localhost:11434
+  temperature: 0
+  consensus: 1
+  max_tokens: auto
+`,
+        'utf-8',
+      );
+
+      const config = await parseConfig(configPath);
+      expect(config.llm).toEqual({
+        provider: 'ollama',
+        model: 'llama3.1:8b',
+        endpoint: 'http://localhost:11434',
+        temperature: 0,
+        consensus: 1,
+        max_tokens: 'auto',
+      });
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('accepts config without llm section', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-no-llm-config');
+      await mkdir(tmpDir, { recursive: true });
+      const configPath = path.join(tmpDir, 'yg-config.yaml');
+      await writeFile(
+        configPath,
+        `
+name: test-project
+version: "4.0.0"
+`,
+        'utf-8',
+      );
+
+      const config = await parseConfig(configPath);
+      expect(config.llm).toBeUndefined();
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('rejects even consensus value', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-even-consensus');
+      await mkdir(tmpDir, { recursive: true });
+      const configPath = path.join(tmpDir, 'yg-config.yaml');
+      await writeFile(
+        configPath,
+        `
+name: test-project
+llm:
+  provider: ollama
+  model: test
+  consensus: 2
+`,
+        'utf-8',
+      );
+
+      await expect(parseConfig(configPath)).rejects.toThrow(/odd/i);
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+  });
 });

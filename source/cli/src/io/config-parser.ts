@@ -3,6 +3,7 @@ import { parse as parseYaml } from 'yaml';
 import type {
   YggConfig,
   QualityConfig,
+  LlmConfig,
 } from '../model/types.js';
 
 const DEFAULT_QUALITY: QualityConfig = {
@@ -54,9 +55,41 @@ export async function parseConfig(filePath: string): Promise<YggConfig> {
     throw new Error('quality.context_budget.own_warning must be a positive number');
   }
 
+  // Parse llm section (optional)
+  let llm: LlmConfig | undefined;
+  if (raw.llm !== undefined) {
+    const llmRaw = raw.llm as Record<string, unknown>;
+    const provider = llmRaw.provider as string;
+    if (!['ollama', 'openai', 'anthropic'].includes(provider)) {
+      throw new Error(`yg-config.yaml: llm.provider must be 'ollama', 'openai', or 'anthropic', got '${provider}'`);
+    }
+    const model = llmRaw.model as string;
+    if (!model || typeof model !== 'string') {
+      throw new Error(`yg-config.yaml: llm.model must be a non-empty string`);
+    }
+    const consensus = (llmRaw.consensus as number) ?? 1;
+    if (!Number.isInteger(consensus) || consensus < 1 || consensus % 2 === 0) {
+      throw new Error(`yg-config.yaml: llm.consensus must be a positive odd integer >= 1, got ${consensus}`);
+    }
+    const maxTokens = llmRaw.max_tokens ?? 'auto';
+    if (maxTokens !== 'auto' && (typeof maxTokens !== 'number' || maxTokens < 1)) {
+      throw new Error(`yg-config.yaml: llm.max_tokens must be 'auto' or a positive number`);
+    }
+
+    llm = {
+      provider: provider as LlmConfig['provider'],
+      model,
+      endpoint: typeof llmRaw.endpoint === 'string' ? llmRaw.endpoint : undefined,
+      temperature: typeof llmRaw.temperature === 'number' ? llmRaw.temperature : 0,
+      consensus,
+      max_tokens: maxTokens as LlmConfig['max_tokens'],
+    };
+  }
+
   return {
     version,
     name: (raw.name as string).trim(),
     quality,
+    llm,
   };
 }
