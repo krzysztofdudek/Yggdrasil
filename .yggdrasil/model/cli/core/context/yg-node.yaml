@@ -6,18 +6,22 @@ aspects:
 relations:
   - target: cli/model
     type: uses
-    consumes: [Graph, GraphNode, ContextPackage, ContextLayer, ContextSection, YggConfig, AspectDef, KnowledgeItem, FlowDef, Relation]
+    consumes:
+      - Graph
+      - GraphNode
+      - ContextPackage
+      - ContextLayer
+      - ContextSection
+      - YggConfig
+      - AspectDef
+      - KnowledgeItem
+      - FlowDef
+      - Relation
   - target: cli/utils
     type: uses
-    consumes: [normalizeMappingPaths, estimateTokens]
-
+    consumes:
+      - normalizeMappingPaths
+      - estimateTokens
 mapping:
-  - paths:
-    - source/cli/src/core/context-builder.ts
-    - source/cli/src/core/context-files.ts
-    aspects:
-      - aspect: deterministic
-        anchors:
-          pure-function:
-            regex: "export (async )?function"
-            rationale: "Exported functions implement pure logic with deterministic behavior."
+  - source/cli/src/core/context-builder.ts
+  - source/cli/src/core/context-files.ts

@@ -3,14 +3,11 @@ type: library
 description: "Complete logical specification of Yggdrasil: conceptual model, algorithms, data structures, and tool contracts"
 aspects: []
 blackbox: false
-
 relations: []
-
 mapping:
-  - paths:
-    - docs/concept/engine.md
-    - docs/concept/foundation.md
-    - docs/concept/graph.md
-    - docs/concept/integration.md
-    - docs/concept/materialization.md
-    - docs/concept/tools.md
+  - docs/concept/engine.md
+  - docs/concept/foundation.md
+  - docs/concept/graph.md
+  - docs/concept/integration.md
+  - docs/concept/materialization.md
+  - docs/concept/tools.md

@@ -1,24 +1,43 @@
 # yg-node.yaml — Schema for model nodes
 # Every node is a directory under .yggdrasil/model/ containing this file
-# plus artifact .md files.
+# plus artifact .md files defined in yg-config.yaml.
 
-name: <string>                    # required — display name
-type: <string>                    # required — must match a type in yg-architecture.yaml
-description: <string>             # optional
-blackbox: false                   # optional, default false
+name: ComponentName           # required — display name
+type: service                 # required — must match a type from config.node_types
+description: "Short description of what this node does"  # optional
+blackbox: false               # optional, default false — if true, coarse-grained coverage without deep artifacts
 
-aspects: [<aspect-id>]            # optional — own aspect extras beyond inherited
+aspects:                      # optional — list of aspect configurations
+  - aspect: aspect-id         # required — the key MUST be "aspect", value is the aspect directory name under aspects/
+    exceptions:               # optional — how this node deviates from the aspect's pattern
+      - "Description of deviation and why"
+    anchors:                  # optional — map of anchor ID → typed realization object
+      anchor-id:              # key = anchor ID defined in the aspect's anchors field
+        regex: "pattern"      # regex pattern to find in mapped source files (E037 if not found)
+# Example with real values:
+#   aspects:
+#     - aspect: audit-logging
+#       anchors:
+#         audit-entry: { regex: "createAuditLog|auditLog\\.create" }
+#         audit-actor: { regex: "userId|currentUser" }
+#     - aspect: provider-pattern
+#       exceptions: ["Uses eager init instead of lazy — surfaces config errors at startup"]
+#       anchors:
+#         transport-init: { regex: "getTransport|createTransport" }
 
-ports:                            # optional — typed ports for consumers
-  <port-name>:
-    description: <string>         # required
-    aspects: [<aspect-id>]        # required — may be empty list
+integration_anchors:          # optional — anchor IDs that consumers must realize
+  - correlation-id
 
-relations:                        # optional — outgoing dependencies
-  - target: <node-path>           # required — path relative to model/
-    type: <relation-type>         # required — calls | uses | extends | implements | emits | listens
-    consumes: [<port-name>]       # required when target has ports
-    failure: <string>             # optional — failure handling strategy
+relations:                    # optional — outgoing dependencies to other nodes
+  - target: other/module-path # required — path relative to model/
+    type: calls               # required — calls | uses | extends | implements | emits | listens
+    consumes: [methodA, methodB] # optional — what is consumed from target
+    failure: 'retry 3x, then circuit-break' # optional — failure handling strategy
+    anchors:                  # optional — integration anchor ID → typed realization object
+      correlation-id:
+        regex: "correlationId|correlation_id"
+    # event_name: OrderPlaced # optional — display name for event relations (emits, listens)
 
-mapping:                          # optional — flat list of source file/directory paths
-  - <string>                      # file or directory path relative to repo root
+mapping:                      # optional — link to source files for ownership and drift detection
+  paths:                      # required when mapping is present — list of file or directory paths
+    - src/modules/component/  # paths are relative to repository root

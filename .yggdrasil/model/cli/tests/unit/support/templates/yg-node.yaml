@@ -2,10 +2,7 @@ name: Templates Unit Tests
 type: library
 description: "Unit tests for template generation: commands, default-config, platform rules, and project name resolution"
 blackbox: false
-
 aspects: []
 relations: []
-
 mapping:
-  - paths:
-    - source/cli/tests/unit/templates/
+  - source/cli/tests/unit/templates/

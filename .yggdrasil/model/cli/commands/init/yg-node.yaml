@@ -1,31 +1,16 @@
 name: InitCommand
 type: library
-description: "Bootstraps Yggdrasil graph structure in a project or refreshes platform rules via yg init"
+description: Bootstraps Yggdrasil graph structure in a project or refreshes platform rules via yg init
 aspects:
   - deterministic
   - cli-command-contract
 relations:
   - target: cli/templates
     type: uses
-    consumes: [DEFAULT_CONFIG, installRulesForPlatform, PLATFORMS, Platform]
-
+    consumes:
+      - DEFAULT_CONFIG
+      - installRulesForPlatform
+      - PLATFORMS
+      - Platform
 mapping:
-  - paths:
-    - source/cli/src/cli/init.ts
-    aspects:
-      - aspect: deterministic
-        anchors:
-          pure-function:
-            regex: "export function"
-            rationale: "Exported pure functions with no side effects."
-      - aspect: cli-command-contract
-        anchors:
-          stdout-write:
-            regex: "process\\.stdout\\.write"
-            rationale: "Writes output via process.stdout.write."
-          error-handler:
-            regex: "process\\.stderr\\.write"
-            rationale: "Handles errors via process.stderr.write."
-          exit-code:
-            regex: "process\\.exit"
-            rationale: "Controls exit codes."
+  - source/cli/src/cli/init.ts

@@ -1,34 +1,17 @@
 name: CheckCommand
 type: library
-description: "Unified graph gate CLI command — combines drift, validation, coverage, and completeness into a single yg check entry point with grouped output and exit code"
+description: Unified graph gate CLI command — combines drift, validation, coverage, and completeness into a single yg check entry point with grouped output and exit code
 aspects:
   - deterministic
   - cli-command-contract
 relations:
   - target: cli/core/loader
     type: uses
-    consumes: [loadGraph]
+    consumes:
+      - loadGraph
   - target: cli/core/check
     type: uses
-    consumes: [runCheck]
-
+    consumes:
+      - runCheck
 mapping:
-  - paths:
-    - source/cli/src/cli/check.ts
-    aspects:
-      - aspect: deterministic
-        anchors:
-          pure-function:
-            regex: "export function"
-            rationale: "Exported pure functions with no side effects."
-      - aspect: cli-command-contract
-        anchors:
-          stdout-write:
-            regex: "process\\.stdout\\.write"
-            rationale: "Writes output via process.stdout.write."
-          error-handler:
-            regex: "process\\.stderr\\.write"
-            rationale: "Handles errors via process.stderr.write."
-          exit-code:
-            regex: "process\\.exit"
-            rationale: "Controls exit codes."
+  - source/cli/src/cli/check.ts

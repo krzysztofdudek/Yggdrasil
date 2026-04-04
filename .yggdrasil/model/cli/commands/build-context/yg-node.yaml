@@ -1,46 +1,36 @@
 name: BuildContextCommand
 type: library
-description: "Assembles and outputs a context package for a node via yg build-context --node or --file"
+description: Assembles and outputs a context package for a node via yg build-context --node or --file
 aspects:
   - deterministic
   - cli-command-contract
 relations:
   - target: cli/core/loader
     type: uses
-    consumes: [loadGraph]
+    consumes:
+      - loadGraph
   - target: cli/core/context
     type: uses
-    consumes: [buildContext, collectAncestors, toContextMapOutput]
+    consumes:
+      - buildContext
+      - collectAncestors
+      - toContextMapOutput
   - target: cli/core/validator
     type: uses
-    consumes: [validate]
+    consumes:
+      - validate
   - target: cli/formatters
     type: uses
-    consumes: [formatContextYaml, formatFullContent]
+    consumes:
+      - formatContextYaml
+      - formatFullContent
   - target: cli/commands/owner
     type: uses
-    consumes: [findOwner]
+    consumes:
+      - findOwner
   - target: cli/utils
     type: uses
-    consumes: [projectRootFromGraph]
-
+    consumes:
+      - projectRootFromGraph
 mapping:
-  - paths:
-    - source/cli/src/cli/build-context.ts
-    aspects:
-      - aspect: deterministic
-        anchors:
-          pure-function:
-            regex: "export function"
-            rationale: "Exported pure functions with no side effects."
-      - aspect: cli-command-contract
-        anchors:
-          stdout-write:
-            regex: "process\\.stdout\\.write"
-            rationale: "Writes output via process.stdout.write."
-          error-handler:
-            regex: "process\\.stderr\\.write"
-            rationale: "Handles errors via process.stderr.write."
-          exit-code:
-            regex: "process\\.exit"
-            rationale: "Controls exit codes."
+  - source/cli/src/cli/build-context.ts

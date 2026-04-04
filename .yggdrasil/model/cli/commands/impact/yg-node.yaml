@@ -1,46 +1,36 @@
 name: ImpactCommand
 type: library
-description: "Blast radius analysis across node, aspect, and flow modes via yg impact"
+description: Blast radius analysis across node, aspect, and flow modes via yg impact
 aspects:
   - deterministic
   - cli-command-contract
 relations:
   - target: cli/core/loader
     type: uses
-    consumes: [loadGraph, loadGraphFromRef]
+    consumes:
+      - loadGraph
+      - loadGraphFromRef
   - target: cli/core/context
     type: uses
-    consumes: [buildContext, collectAncestors, collectEffectiveAspectIds]
+    consumes:
+      - buildContext
+      - collectAncestors
+      - collectEffectiveAspectIds
   - target: cli/core/drift-detector
     type: uses
-    consumes: [detectDrift]
+    consumes:
+      - detectDrift
   - target: cli/commands/owner
     type: uses
-    consumes: [findOwner]
+    consumes:
+      - findOwner
   - target: cli/utils
     type: uses
-    consumes: [projectRootFromGraph]
+    consumes:
+      - projectRootFromGraph
   - target: cli/model
     type: uses
-    consumes: [Graph]
-
+    consumes:
+      - Graph
 mapping:
-  - paths:
-    - source/cli/src/cli/impact.ts
-    aspects:
-      - aspect: deterministic
-        anchors:
-          pure-function:
-            regex: "export function"
-            rationale: "Exported pure functions with no side effects."
-      - aspect: cli-command-contract
-        anchors:
-          stdout-write:
-            regex: "process\\.stdout\\.write"
-            rationale: "Writes output via process.stdout.write."
-          error-handler:
-            regex: "process\\.stderr\\.write"
-            rationale: "Handles errors via process.stderr.write."
-          exit-code:
-            regex: "process\\.exit"
-            rationale: "Controls exit codes."
+  - source/cli/src/cli/impact.ts

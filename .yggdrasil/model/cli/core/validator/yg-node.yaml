@@ -1,32 +1,28 @@
 name: Validator
 type: library
-description: "Structural validation and completeness checks enforcing graph integrity (E001-E013/E030-E041, W001-W005)"
+description: Structural validation and completeness checks enforcing graph integrity (E001-E013/E030-E041, W001-W005)
 aspects:
   - deterministic
   - posix-paths
 relations:
   - target: cli/core/context
     type: uses
-    consumes: [buildContext, computeBudgetBreakdown]
+    consumes:
+      - buildContext
+      - computeBudgetBreakdown
   - target: cli/model
     type: uses
-    consumes: [Graph, ValidationResult, ValidationIssue, ArtifactConfig, NodeAspectEntry]
+    consumes:
+      - Graph
+      - ValidationResult
+      - ValidationIssue
+      - ArtifactConfig
+      - NodeAspectEntry
   - target: cli/utils
     type: uses
-    consumes: [normalizeMappingPaths, getLastCommitTimestamp]
-
+    consumes:
+      - normalizeMappingPaths
+      - getLastCommitTimestamp
 mapping:
-  - paths:
-    - source/cli/src/core/validator.ts
-    - source/cli/src/core/effective-aspects.ts
-    aspects:
-      - aspect: deterministic
-        anchors:
-          pure-function:
-            regex: "export (async )?function"
-            rationale: "Exported functions implement pure logic with deterministic behavior."
-      - aspect: posix-paths
-        anchors:
-          forward-slash-normalization:
-            regex: "path\\.join|path\\.resolve|normalize"
-            rationale: "Path operations ensure forward-slash separators."
+  - source/cli/src/core/validator.ts
+  - source/cli/src/core/effective-aspects.ts

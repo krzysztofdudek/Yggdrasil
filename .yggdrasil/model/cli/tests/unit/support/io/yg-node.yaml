@@ -2,10 +2,7 @@ name: I/O Unit Tests
 type: library
 description: "Unit tests for I/O parsers: artifact-reader, aspect-parser, config-parser, drift-state-store, flow-parser, node-parser, schema-parser"
 blackbox: false
-
 aspects: []
 relations: []
-
 mapping:
-  - paths:
-    - source/cli/tests/unit/io/
+  - source/cli/tests/unit/io/

@@ -1,25 +1,21 @@
 name: Approve Core
 type: library
-description: "Core approve logic — records drift baseline, implements three-axis change detection and blackbox enforcement"
+description: Core approve logic — records drift baseline, implements three-axis change detection and blackbox enforcement
 blackbox: false
-
 aspects:
   - deterministic
 relations:
   - target: cli/io
     type: uses
-    consumes: [readDriftState, readNodeDriftState, writeNodeDriftState, garbageCollectDriftState]
+    consumes:
+      - readDriftState
+      - readNodeDriftState
+      - writeNodeDriftState
+      - garbageCollectDriftState
   - target: cli/utils
     type: uses
-    consumes: [hashTrackedFiles]
-
+    consumes:
+      - hashTrackedFiles
 mapping:
-  - paths:
-    - source/cli/src/core/approve.ts
-    - source/cli/src/core/.gitkeep
-    aspects:
-      - aspect: deterministic
-        anchors:
-          pure-function:
-            regex: "export (async )?function"
-            rationale: "Exported functions implement pure logic with deterministic behavior."
+  - source/cli/src/core/approve.ts
+  - source/cli/src/core/.gitkeep

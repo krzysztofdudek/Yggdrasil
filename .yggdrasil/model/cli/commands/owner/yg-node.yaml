@@ -1,6 +1,6 @@
 name: OwnerCommand
 type: library
-description: "Resolves a file path to its owning graph node via yg owner"
+description: Resolves a file path to its owning graph node via yg owner
 aspects:
   - deterministic
   - cli-command-contract
@@ -8,36 +8,17 @@ aspects:
 relations:
   - target: cli/core/loader
     type: uses
-    consumes: [loadGraph]
+    consumes:
+      - loadGraph
   - target: cli/utils
     type: uses
-    consumes: [normalizeMappingPaths, normalizeProjectRelativePath]
+    consumes:
+      - normalizeMappingPaths
+      - normalizeProjectRelativePath
   - target: cli/model
     type: uses
-    consumes: [Graph, OwnerResult]
-
+    consumes:
+      - Graph
+      - OwnerResult
 mapping:
-  - paths:
-    - source/cli/src/cli/owner.ts
-    aspects:
-      - aspect: deterministic
-        anchors:
-          pure-function:
-            regex: "export function"
-            rationale: "Exported pure functions with no side effects."
-      - aspect: cli-command-contract
-        anchors:
-          stdout-write:
-            regex: "process\\.stdout\\.write"
-            rationale: "Writes output via process.stdout.write."
-          error-handler:
-            regex: "process\\.stderr\\.write"
-            rationale: "Handles errors via process.stderr.write."
-          exit-code:
-            regex: "process\\.exit"
-            rationale: "Controls exit codes."
-      - aspect: posix-paths
-        anchors:
-          forward-slash-normalization:
-            regex: "path\\.join|path\\.resolve|normalize"
-            rationale: "Path operations ensure forward-slash separators."
+  - source/cli/src/cli/owner.ts

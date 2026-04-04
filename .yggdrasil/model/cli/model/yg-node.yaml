@@ -1,10 +1,7 @@
 name: Model
 type: library
-description: "TypeScript type definitions for all domain types — graph, context, validation, drift"
+description: TypeScript type definitions for all domain types — graph, context, validation, drift
 aspects: []
-
 relations: []
-
 mapping:
-  - paths:
-    - source/cli/src/model/
+  - source/cli/src/model/

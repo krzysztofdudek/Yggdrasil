@@ -2,12 +2,9 @@ name: CLI Package Docs
 type: library
 description: "Package-level documentation and build helper scripts: CLAUDE.md agent rules reference, README, and scripts/"
 blackbox: false
-
 aspects: []
 relations: []
-
 mapping:
-  - paths:
-    - source/cli/CLAUDE.md
-    - source/cli/README.md
-    - source/cli/scripts/
+  - source/cli/CLAUDE.md
+  - source/cli/README.md
+  - source/cli/scripts/

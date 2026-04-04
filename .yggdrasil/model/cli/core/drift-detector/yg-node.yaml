@@ -1,31 +1,30 @@
 name: DriftDetector
 type: library
-description: "Compares current file hashes with drift-state baseline to detect source and graph drift"
+description: Compares current file hashes with drift-state baseline to detect source and graph drift
 aspects:
   - deterministic
   - posix-paths
 relations:
   - target: cli/io
     type: uses
-    consumes: [readDriftState, writeDriftState, getCanonicalHash, getFileHashes]
+    consumes:
+      - readDriftState
+      - writeDriftState
+      - getCanonicalHash
+      - getFileHashes
   - target: cli/model
     type: uses
-    consumes: [Graph, DriftReport, DriftEntry, DriftStatus, DriftNodeState]
+    consumes:
+      - Graph
+      - DriftReport
+      - DriftEntry
+      - DriftStatus
+      - DriftNodeState
   - target: cli/utils
     type: uses
-    consumes: [normalizeMappingPaths, hashForMapping, perFileHashes]
-
+    consumes:
+      - normalizeMappingPaths
+      - hashForMapping
+      - perFileHashes
 mapping:
-  - paths:
-    - source/cli/src/core/drift-detector.ts
-    aspects:
-      - aspect: deterministic
-        anchors:
-          pure-function:
-            regex: "export (async )?function"
-            rationale: "Exported functions implement pure logic with deterministic behavior."
-      - aspect: posix-paths
-        anchors:
-          forward-slash-normalization:
-            regex: "path\\.join|path\\.resolve|normalize"
-            rationale: "Path operations ensure forward-slash separators."
+  - source/cli/src/core/drift-detector.ts

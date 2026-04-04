@@ -2,13 +2,10 @@ name: Context Core Unit Tests
 type: library
 description: "Unit tests for context assembly, file resolution, and graph loading: context-builder, context-files, graph-loader"
 blackbox: false
-
 aspects: []
 relations: []
-
 mapping:
-  - paths:
-    - source/cli/tests/unit/core/context-builder.test.ts
-    - source/cli/tests/unit/core/context-files.test.ts
-    - source/cli/tests/unit/core/graph-loader.test.ts
-    - source/cli/tests/unit/core/__snapshots__/
+  - source/cli/tests/unit/core/context-builder.test.ts
+  - source/cli/tests/unit/core/context-files.test.ts
+  - source/cli/tests/unit/core/graph-loader.test.ts
+  - source/cli/tests/unit/core/__snapshots__/

@@ -1,37 +1,19 @@
 name: Approve Command
 type: service
-description: "CLI command implementing yg approve — records drift baseline after user review"
+description: CLI command implementing yg approve — records drift baseline after user review
 blackbox: false
-
 aspects:
   - deterministic
   - cli-command-contract
 relations:
   - target: cli/core/loader
     type: uses
-    consumes: [loadGraph]
+    consumes:
+      - loadGraph
   - target: cli/core/approve
     type: uses
-    consumes: [approveNode]
-
+    consumes:
+      - approveNode
 mapping:
-  - paths:
-      - source/cli/src/cli/approve.ts
-      - source/cli/src/cli/.gitkeep
-    aspects:
-      - aspect: deterministic
-        anchors:
-          pure-function:
-            regex: "export function"
-            rationale: "Exported pure functions with no side effects."
-      - aspect: cli-command-contract
-        anchors:
-          stdout-write:
-            regex: "process\\.stdout\\.write"
-            rationale: "Writes output via process.stdout.write."
-          error-handler:
-            regex: "process\\.stderr\\.write"
-            rationale: "Handles errors via process.stderr.write."
-          exit-code:
-            regex: "process\\.exit"
-            rationale: "Controls exit codes."
+  - source/cli/src/cli/approve.ts
+  - source/cli/src/cli/.gitkeep

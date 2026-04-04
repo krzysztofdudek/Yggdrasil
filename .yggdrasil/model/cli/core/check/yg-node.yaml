@@ -1,28 +1,31 @@
 name: Check
 type: library
-description: "Unified check orchestrator — combines drift classification (E020/E021), coverage scan (E022), orphaned drift state (W005), validation issues, health score computation, and suggested next command"
+description: Unified check orchestrator — combines drift classification (E020/E021), coverage scan (E022), orphaned drift state (W005), validation issues, health score computation, and suggested next command
 aspects:
   - deterministic
 relations:
   - target: cli/core/validator
     type: uses
-    consumes: [validate]
+    consumes:
+      - validate
   - target: cli/core/drift-detector
     type: uses
-    consumes: [readDriftState, readNodeDriftState, hashTrackedFiles]
+    consumes:
+      - readDriftState
+      - readNodeDriftState
+      - hashTrackedFiles
   - target: cli/core/context
     type: uses
-    consumes: [collectTrackedFiles]
+    consumes:
+      - collectTrackedFiles
   - target: cli/model
     type: uses
-    consumes: [Graph, DriftCategory, DriftFileChange, DriftStatus, TrackedFileLayer, ValidationIssue]
-
+    consumes:
+      - Graph
+      - DriftCategory
+      - DriftFileChange
+      - DriftStatus
+      - TrackedFileLayer
+      - ValidationIssue
 mapping:
-  - paths:
-    - source/cli/src/core/check.ts
-    aspects:
-      - aspect: deterministic
-        anchors:
-          pure-function:
-            regex: "export (async )?function"
-            rationale: "Exported functions implement pure logic with deterministic behavior."
+  - source/cli/src/core/check.ts

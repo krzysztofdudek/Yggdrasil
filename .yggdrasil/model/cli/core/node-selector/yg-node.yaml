@@ -1,22 +1,18 @@
 name: NodeSelector
 type: library
-description: "Task-based node selection using keyword matching against graph artifacts"
+description: Task-based node selection using keyword matching against graph artifacts
 aspects:
   - deterministic
 relations:
   - target: cli/model
     type: uses
-    consumes: [Graph, GraphNode, FlowDef]
+    consumes:
+      - Graph
+      - GraphNode
+      - FlowDef
   - target: cli/utils
     type: uses
-    consumes: [tokenize]
-
+    consumes:
+      - tokenize
 mapping:
-  - paths:
-    - source/cli/src/core/node-selector.ts
-    aspects:
-      - aspect: deterministic
-        anchors:
-          pure-function:
-            regex: "export (async )?function"
-            rationale: "Exported functions implement pure logic with deterministic behavior."
+  - source/cli/src/core/node-selector.ts

@@ -1,12 +1,9 @@
 name: Integration Tests
 type: library
-description: "Pipeline integration tests that exercise multiple CLI layers together using real temp-copy fixture projects"
+description: Pipeline integration tests that exercise multiple CLI layers together using real temp-copy fixture projects
 blackbox: false
-
 aspects: []
 relations: []
-
 mapping:
-  - paths:
-      - source/cli/tests/integration/
-      - source/cli/tests/fixtures/
+  - source/cli/tests/integration/
+  - source/cli/tests/fixtures/

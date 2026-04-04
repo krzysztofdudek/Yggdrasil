@@ -1,19 +1,13 @@
 name: Formatters
 type: library
-description: "Output formatting for context packages, converting structured data to YAML and text"
+description: Output formatting for context packages, converting structured data to YAML and text
 aspects:
   - deterministic
 relations:
   - target: cli/model
     type: uses
-    consumes: [ContextPackage, ContextMapOutput]
-
+    consumes:
+      - ContextPackage
+      - ContextMapOutput
 mapping:
-  - paths:
-    - source/cli/src/formatters/
-    aspects:
-      - aspect: deterministic
-        anchors:
-          pure-function:
-            regex: "export (async )?function|export const"
-            rationale: "Exported functions implement pure formatting logic."
+  - source/cli/src/formatters/

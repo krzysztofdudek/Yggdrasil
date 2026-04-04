@@ -1,19 +1,12 @@
 name: Utils
 type: library
-description: "Shared helper functions for path normalization, SHA-256 hashing, and token estimation"
+description: Shared helper functions for path normalization, SHA-256 hashing, and token estimation
 aspects:
   - posix-paths
 relations:
   - target: cli/model
     type: uses
-    consumes: [NodeMapping]
-
+    consumes:
+      - NodeMapping
 mapping:
-  - paths:
-    - source/cli/src/utils/
-    aspects:
-      - aspect: posix-paths
-        anchors:
-          forward-slash-normalization:
-            regex: "path\\.join|path\\.resolve|normalize"
-            rationale: "Path operations ensure forward-slash separators for cross-platform consistency."
+  - source/cli/src/utils/

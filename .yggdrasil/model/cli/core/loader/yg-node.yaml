@@ -1,31 +1,33 @@
 name: GraphLoader
 type: library
-description: "Loads the graph from .yggdrasil/ — model nodes, aspects, flows, schemas — into memory"
+description: Loads the graph from .yggdrasil/ — model nodes, aspects, flows, schemas — into memory
 aspects:
   - deterministic
   - silent-missing-files
 relations:
   - target: cli/io
     type: uses
-    consumes: [parseConfig, parseNodeYaml, parseAspect, parseFlow, parseKnowledge, parseSchema, readArtifacts]
+    consumes:
+      - parseConfig
+      - parseNodeYaml
+      - parseAspect
+      - parseFlow
+      - parseKnowledge
+      - parseSchema
+      - readArtifacts
   - target: cli/model
     type: uses
-    consumes: [Graph, GraphNode, YggConfig, AspectDef, FlowDef, KnowledgeItem, SchemaDef]
+    consumes:
+      - Graph
+      - GraphNode
+      - YggConfig
+      - AspectDef
+      - FlowDef
+      - KnowledgeItem
+      - SchemaDef
   - target: cli/utils
     type: uses
-    consumes: [findYggRoot]
-
+    consumes:
+      - findYggRoot
 mapping:
-  - paths:
-    - source/cli/src/core/graph-loader.ts
-    aspects:
-      - aspect: deterministic
-        anchors:
-          pure-function:
-            regex: "export (async )?function"
-            rationale: "Exported functions implement pure logic with deterministic behavior."
-      - aspect: silent-missing-files
-        anchors:
-          null-on-missing:
-            regex: "catch|ENOENT|exists"
-            rationale: "Error handling and existence checks return gracefully on missing files."
+  - source/cli/src/core/graph-loader.ts

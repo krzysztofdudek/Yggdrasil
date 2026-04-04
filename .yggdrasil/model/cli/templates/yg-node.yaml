@@ -1,17 +1,9 @@
 name: Templates
 type: library
-description: "Default config, graph schemas, and platform-specific agent rules used by yg init"
+description: Default config, graph schemas, and platform-specific agent rules used by yg init
 aspects:
   - deterministic
 relations: []
-
 mapping:
-  - paths:
-    - source/cli/src/templates/
-    - source/cli/graph-schemas/
-    aspects:
-      - aspect: deterministic
-        anchors:
-          pure-function:
-            regex: "export (async )?function|export const"
-            rationale: "Exported functions and constants provide deterministic template content."
+  - source/cli/src/templates/
+  - source/cli/graph-schemas/

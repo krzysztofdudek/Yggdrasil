@@ -1,37 +1,21 @@
 name: SelectCommand
 type: library
-description: "Finds graph nodes relevant to a natural-language task description via yg select"
+description: Finds graph nodes relevant to a natural-language task description via yg select
 aspects:
   - deterministic
   - cli-command-contract
 relations:
   - target: cli/core/loader
     type: uses
-    consumes: [loadGraph]
+    consumes:
+      - loadGraph
   - target: cli/core/node-selector
     type: uses
-    consumes: [selectNodes]
+    consumes:
+      - selectNodes
   - target: cli/utils
     type: uses
-    consumes: [findYggRoot]
-
+    consumes:
+      - findYggRoot
 mapping:
-  - paths:
-    - source/cli/src/cli/select.ts
-    aspects:
-      - aspect: deterministic
-        anchors:
-          pure-function:
-            regex: "export function"
-            rationale: "Exported pure functions with no side effects."
-      - aspect: cli-command-contract
-        anchors:
-          stdout-write:
-            regex: "process\\.stdout\\.write"
-            rationale: "Writes output via process.stdout.write."
-          error-handler:
-            regex: "process\\.stderr\\.write"
-            rationale: "Handles errors via process.stderr.write."
-          exit-code:
-            regex: "process\\.exit"
-            rationale: "Controls exit codes."
+  - source/cli/src/cli/select.ts

@@ -1,19 +1,10 @@
 name: Migrations
 type: library
-description: "Schema version migrations for Yggdrasil graph files — migrates from old versions to current"
+description: Schema version migrations for Yggdrasil graph files — migrates from old versions to current
 blackbox: false
-
 aspects:
   - deterministic
 relations: []
-
 mapping:
-  - paths:
-      - source/cli/src/core/migrator.ts
-      - source/cli/src/migrations/
-    aspects:
-      - aspect: deterministic
-        anchors:
-          pure-function:
-            regex: "export (async )?function"
-            rationale: "Exported functions implement pure logic with deterministic behavior."
+  - source/cli/src/core/migrator.ts
+  - source/cli/src/migrations/
