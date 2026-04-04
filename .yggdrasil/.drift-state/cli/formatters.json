@@ -6,6 +6,7 @@
     ".yggdrasil/model/cli/formatters/internals.md": "7463a9c03fd3d92acecf503c538e918ddd500a4334216ee1a02e36f61b066758",
     ".yggdrasil/model/cli/formatters/responsibility.md": "408bca84c2de6c339aaa72d3786cba5ea549de2d5bfcda9e1245e737f484dd2c",
     ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df",
+    ".yggdrasil/model/cli/internals.md": "7440678f012e45d8b15a4efc252cc3b4220fe7aec98fb673786abd9c2a37f9f0",
     ".yggdrasil/model/cli/responsibility.md": "696e0f5f377eba69a843a18379e8f20e0322dc037182690629652a75aa2227fb",
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "e6c0c095222ce0d80b79af77f5966d02f541b514205a4b551354b65ef5938900",
     ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
@@ -20,8 +21,7 @@
     "source/cli/src/formatters/.gitkeep": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
     "source/cli/src/formatters/context-file.ts": "4533abd7ea801c0b0a65d08f3ba1f964a263e81fd8d771834f64a4b66a614984",
     "source/cli/src/formatters/context-node.ts": "15fd3a6bfdfdfd699dedf865bd94d7e199a44fda156b59e2da34d4d08a8cbdac",
-    "source/cli/src/formatters/markdown.ts": "eee5241b18a95bb7a6aae4ed656d0fc43186c15b38fd888278a470e7dbff4c55",
-    ".yggdrasil/model/cli/internals.md": "7440678f012e45d8b15a4efc252cc3b4220fe7aec98fb673786abd9c2a37f9f0"
+    "source/cli/src/formatters/markdown.ts": "eee5241b18a95bb7a6aae4ed656d0fc43186c15b38fd888278a470e7dbff4c55"
   },
   "mtimes": {
     ".yggdrasil/model/cli/formatters/yg-node.yaml": 1775327956355.3372,
@@ -46,5 +46,5 @@
     "source/cli/src/formatters/context-node.ts": 1775323226814.0168,
     "source/cli/src/formatters/markdown.ts": 1771702275793.7095
   },
-  "acknowledgeReason": "cascade from parent decision docs"
+  "acknowledgeReason": "v4 migration: flat mapping, claims, and doc updates"
 }

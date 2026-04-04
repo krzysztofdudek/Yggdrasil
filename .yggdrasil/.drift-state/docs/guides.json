@@ -1,15 +1,15 @@
 {
   "hash": "1c0dd425a5b1b35e316988a834a1604a9ad3c3179e8ebb19b9d229c7dfa1d293",
   "files": {
+    ".yggdrasil/model/docs/guides/yg-node.yaml": "76ff2aebba49ef2a905282e16c02b1f83a8c95b2df2e102bdec4a174e342d371",
     ".yggdrasil/model/docs/guides/responsibility.md": "1c7f67efbff5b94d4fbe0aed176fa32247578383d05383e7b30ff95a6b50fac8",
+    ".yggdrasil/model/docs/yg-node.yaml": "36ca70c4bea26714bb7450d306d1a898e70573151394eb8e0fb3a5cf588c84d4",
     ".yggdrasil/model/docs/responsibility.md": "070a2a6c6b29116ab18d2b824068d227cc4682f30fd5ef79b3cbe307dbe632fe",
     "docs/getting-started.md": "bd967ee1fb52aaca13ba218b44610b767c6bf276ab98e1d4dd637ab8955ccf3a",
+    "docs/cli-reference.md": "477da725cea80606c5e6a059920687b05cb51b38a871195857c313855bb5b1b2",
     "docs/configuration.md": "88b7492228dd6dfa4a07b9b458a761c72d84ef97130877a374b73db7c0177c4b",
     "docs/platforms.md": "20e2b9c50f75e37c47d6a796c25e68e77eb53ebf81e56f768300f09d62ee2338",
-    "docs/index.md": "183a218aecd393eb2867a03541ee5b125651e96a016d72c5037d73f61f617914",
-    ".yggdrasil/model/docs/guides/yg-node.yaml": "76ff2aebba49ef2a905282e16c02b1f83a8c95b2df2e102bdec4a174e342d371",
-    ".yggdrasil/model/docs/yg-node.yaml": "36ca70c4bea26714bb7450d306d1a898e70573151394eb8e0fb3a5cf588c84d4",
-    "docs/cli-reference.md": "477da725cea80606c5e6a059920687b05cb51b38a871195857c313855bb5b1b2"
+    "docs/index.md": "183a218aecd393eb2867a03541ee5b125651e96a016d72c5037d73f61f617914"
   },
   "mtimes": {
     ".yggdrasil/model/docs/guides/yg-node.yaml": 1775327956365.5046,
@@ -22,5 +22,5 @@
     "docs/platforms.md": 1772485235626.6682,
     "docs/index.md": 1775025289802.478
   },
-  "acknowledgeReason": "v4 migration: flat mapping, claims, doc updates"
+  "acknowledgeReason": "v4 migration: flat mapping, claims, and doc updates"
 }

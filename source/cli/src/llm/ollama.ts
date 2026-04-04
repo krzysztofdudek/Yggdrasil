@@ -95,7 +95,8 @@ export class OllamaProvider implements LlmProvider {
         { role: 'user', content: user },
       ],
       stream: false,
-      options: { temperature: this.temperature },
+      think: false,
+      options: { temperature: this.temperature, num_predict: 500 },
       format: 'json',
     };
 
@@ -105,7 +106,7 @@ export class OllamaProvider implements LlmProvider {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
-          signal: AbortSignal.timeout(30_000),
+          signal: AbortSignal.timeout(60_000),
         });
         if (!res.ok) continue;
         const data = await res.json() as { message?: { content?: string } };

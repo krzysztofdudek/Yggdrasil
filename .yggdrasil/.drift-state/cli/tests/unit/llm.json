@@ -4,6 +4,7 @@
     ".yggdrasil/model/cli/tests/unit/llm/yg-node.yaml": "4a3c0cd9d6a19dc3cfa60cda17f5efab3bcb4c2942fa908ac93ad054f0f42f1c",
     ".yggdrasil/model/cli/tests/unit/llm/responsibility.md": "14380c509da3773bd185936332319d3041700a04147be4d5d98f67a72b76f188",
     ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df",
+    ".yggdrasil/model/cli/internals.md": "7440678f012e45d8b15a4efc252cc3b4220fe7aec98fb673786abd9c2a37f9f0",
     ".yggdrasil/model/cli/responsibility.md": "696e0f5f377eba69a843a18379e8f20e0322dc037182690629652a75aa2227fb",
     ".yggdrasil/model/cli/tests/yg-node.yaml": "ac0fc246c01a04e62d43ef8abadb2f01551616ca7509c3b268995ef646279bc9",
     ".yggdrasil/model/cli/tests/responsibility.md": "ef48f39a8d5d6b7f1c61e94f2b95ccf38c02365b3496e3ff5fcf21827ffd8138",
@@ -13,8 +14,7 @@
     ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
     ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": "0b98be4ee4221db627b892cddeb548a94e3cb1bfce936b9555bd30d7c225e34d",
     ".yggdrasil/aspects/posix-paths/content.md": "38daf50dec99307443fd8951019cf534c74571a7778d43e55a4354d9d2faeefc",
-    "source/cli/tests/unit/llm/provider.test.ts": "67b4ed64be910fe6cee1ea401beee6095442fa24d96d7e7ac11bba8b4c5485cb",
-    ".yggdrasil/model/cli/internals.md": "7440678f012e45d8b15a4efc252cc3b4220fe7aec98fb673786abd9c2a37f9f0"
+    "source/cli/tests/unit/llm/provider.test.ts": "67b4ed64be910fe6cee1ea401beee6095442fa24d96d7e7ac11bba8b4c5485cb"
   },
   "mtimes": {
     ".yggdrasil/model/cli/tests/unit/llm/yg-node.yaml": 1775328917583.7341,
@@ -32,5 +32,5 @@
     ".yggdrasil/aspects/posix-paths/content.md": 1772743197466.7686,
     "source/cli/tests/unit/llm/provider.test.ts": 1775308157823.8948
   },
-  "acknowledgeReason": "cascade from parent decision docs"
+  "acknowledgeReason": "v4 migration: flat mapping, claims, and doc updates"
 }

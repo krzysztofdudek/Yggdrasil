@@ -4,6 +4,7 @@
     ".yggdrasil/model/cli/tests/unit/core/context/yg-node.yaml": "cc006a6b91d579b1fb0ea6cf136f10e7919a494338ba49679c5d062b9ae3f57a",
     ".yggdrasil/model/cli/tests/unit/core/context/responsibility.md": "98258b03d5c918f493627a37cd39a2a457af9f68d3c4d9c2065870b0ab171799",
     ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df",
+    ".yggdrasil/model/cli/internals.md": "7440678f012e45d8b15a4efc252cc3b4220fe7aec98fb673786abd9c2a37f9f0",
     ".yggdrasil/model/cli/responsibility.md": "696e0f5f377eba69a843a18379e8f20e0322dc037182690629652a75aa2227fb",
     ".yggdrasil/model/cli/tests/yg-node.yaml": "ac0fc246c01a04e62d43ef8abadb2f01551616ca7509c3b268995ef646279bc9",
     ".yggdrasil/model/cli/tests/responsibility.md": "ef48f39a8d5d6b7f1c61e94f2b95ccf38c02365b3496e3ff5fcf21827ffd8138",
@@ -18,8 +19,7 @@
     "source/cli/tests/unit/core/context-builder.test.ts": "cd31b119c5edb6e3bebdbd1e3dd624faa1d3ccb5c592084141bb072a157647b6",
     "source/cli/tests/unit/core/context-files.test.ts": "a4e0caaffdfa15728b89bd1fec97153dbd1200dff0d1aab259a8a1451761405b",
     "source/cli/tests/unit/core/graph-loader.test.ts": "48140ecca74d882f2850b5e1a30c223873799e1a8272158d65f871bfe09c8a24",
-    "source/cli/tests/unit/core/__snapshots__/context-builder.test.ts.snap": "a9f95e301031fe492f635c09baffefcde7c9ccfcfbc82b607b2e1e273339b81e",
-    ".yggdrasil/model/cli/internals.md": "7440678f012e45d8b15a4efc252cc3b4220fe7aec98fb673786abd9c2a37f9f0"
+    "source/cli/tests/unit/core/__snapshots__/context-builder.test.ts.snap": "a9f95e301031fe492f635c09baffefcde7c9ccfcfbc82b607b2e1e273339b81e"
   },
   "mtimes": {
     ".yggdrasil/model/cli/tests/unit/core/context/yg-node.yaml": 1775327956359.1255,
@@ -42,5 +42,5 @@
     "source/cli/tests/unit/core/graph-loader.test.ts": 1773390442109.678,
     "source/cli/tests/unit/core/__snapshots__/context-builder.test.ts.snap": 1775311470218.3948
   },
-  "acknowledgeReason": "cascade from parent decision docs"
+  "acknowledgeReason": "v4 migration: flat mapping, claims, and doc updates"
 }

@@ -200,12 +200,13 @@ describe('approveNode — LLM verification', () => {
       llmProvider: provider,
       acknowledge: 'LLM is wrong, code is intentionally non-deterministic for testing',
     });
-    expect(result.action).toBe('acknowledged');
-    expect(result.claimResults).toBeDefined();
+    // LLM is skipped when acknowledging — bilateral change approves directly
+    expect(result.action).toBe('approved');
+    expect(result.claimResults).toBeUndefined();
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('runs LLM on cascade-only approve with acknowledge', async () => {
+  it('skips LLM on cascade-only approve with acknowledge', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('llm-cascade-ack', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - deterministic\nmapping:\n  - src/svc/\n',
@@ -229,7 +230,8 @@ describe('approveNode — LLM verification', () => {
       acknowledge: 'aspect updated, source already compliant',
     });
     expect(result.action).toBe('acknowledged');
-    expect(result.claimResults).toBeDefined(); // LLM ran despite no source changes
+    // LLM skipped when acknowledging — no wasted compute
+    expect(result.claimResults).toBeUndefined();
     await rm(tmpDir, { recursive: true, force: true });
   });
 

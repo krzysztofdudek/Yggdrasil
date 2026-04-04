@@ -330,7 +330,7 @@ export async function approveNode(
   const e055Violations: Array<{ aspect: string; claim: string; reason: string }> = [];
   const e056Violations: Array<{ name: string; reason: string }> = [];
 
-  if (action !== 'refused' && !isBlackbox && llmProvider) {
+  if (action !== 'refused' && !isBlackbox && llmProvider && !acknowledge) {
     const resolvedMaxTokens = options.maxTokens
       ?? (await llmProvider.getContextWindowSize() ?? 8192);
 
@@ -377,28 +377,26 @@ export async function approveNode(
     }
 
     if (e055Violations.length > 0 || e056Violations.length > 0) {
-      if (!acknowledge) {
-        const gcPaths = await runGC(graph);
-        return {
-          action: 'refused',
-          previousHash: storedEntry.hash,
-          currentHash: canonicalHash,
-          refuseReason: 'LLM verification found issues',
-          claimResults,
-          artifactReviewResults,
-          e055Violations,
-          e056Violations,
-          axes,
-          gcPaths,
-          blackboxBlocked: false,
-          antiLaunderingBlocked: false,
-          acknowledgeAttempted: false,
-          isBlackbox,
-        };
-      }
-      // acknowledge overrides LLM refusal — mark as acknowledged
-      action = 'acknowledged';
+      const gcPaths = await runGC(graph);
+      return {
+        action: 'refused',
+        previousHash: storedEntry.hash,
+        currentHash: canonicalHash,
+        refuseReason: 'LLM verification found issues',
+        claimResults,
+        artifactReviewResults,
+        e055Violations,
+        e056Violations,
+        axes,
+        gcPaths,
+        blackboxBlocked: false,
+        antiLaunderingBlocked: false,
+        acknowledgeAttempted: false,
+        isBlackbox,
+      };
     }
+  } else if (acknowledge) {
+    llmSkipped = true; // acknowledge skips LLM — no point running expensive verification
   } else if (!llmProvider) {
     llmSkipped = true;
   } else if (isBlackbox) {

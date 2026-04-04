@@ -1,6 +1,7 @@
 {
   "hash": "5ea5f17a9dc6101c94e79176f1a81003d7aab6b7b90cb25564ee61cdc541d5dc",
   "files": {
+    ".yggdrasil/model/root/yg-node.yaml": "058e1e161ce18f3ded4debee84559240371b22c055c19cbf2c774036e950b220",
     ".yggdrasil/model/root/responsibility.md": "6607fe31a2af85dc2f9329f5ca72fb96201c94c76d3d8c1b379bc6bbe3c0204e",
     ".claude/settings.local.json": "a12c71d91e7c3bb9cefb60afba8e7eb7478d091d41587e90c0c5c3c0c2f464b5",
     ".cursor/rules/yggdrasil.mdc": "d4a2b797d68fdf26305fee7174d54841618dc95f457ea21cd66f0518fe0f4c30",
@@ -19,6 +20,7 @@
     ".markdownlint-cli2.jsonc": "9f01728d19c7a071af91a01331ce0b942bcf7b5bd5ecfe10ffa21d4c0c7fec26",
     ".nvmrc": "f14b4987904bcb5814e4459a057ed4d20f58a633152288a761214dcd28780b56",
     "AGENTS.md": "daa16826bd691e37e3b3b06228a081b9d2622535ffcd0d28603a21a155db50cb",
+    "CHANGELOG.md": "4a2cdfe6b69231b94ce61637399cbee7c456048b20d8bc7daba6fe3273b78a93",
     "CLAUDE.md": "c8512f4d6a3f7fb8d7e10556586ca2e832f757a205e5186488d32fb610cb8791",
     "CODE_OF_CONDUCT.md": "ca754dbf6be4f6aed4433f52942d0510b28ab77a56f95cfb1c77a18897683d29",
     "CONTRIBUTING.md": "f9849f24f17a8b4bf426398a704848d3d559aa618879f7336c7dd738a026d5e3",
@@ -28,9 +30,7 @@
     "SUPPORT.md": "dbef1a996af0f3055484bef1e1fbc4f4fb1d5a0f92786a9f0c978cbff5bcdc7d",
     "Yggdrasil.code-workspace": "953991f5d8556a2fb5f0abcc9f1e4cc80939a90cdb96994cae3e236a4d52dac4",
     "trailer.html": "d8a88494da600617368403314b19024191f462468c8241687a7de27d65aff4dc",
-    "source/.gitkeep": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    ".yggdrasil/model/root/yg-node.yaml": "058e1e161ce18f3ded4debee84559240371b22c055c19cbf2c774036e950b220",
-    "CHANGELOG.md": "4a2cdfe6b69231b94ce61637399cbee7c456048b20d8bc7daba6fe3273b78a93"
+    "source/.gitkeep": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
   },
   "mtimes": {
     ".yggdrasil/model/root/yg-node.yaml": 1775327956368.3252,
@@ -64,5 +64,5 @@
     "trailer.html": 1774035679182.4175,
     "source/.gitkeep": 1771702275788.3037
   },
-  "acknowledgeReason": "v4 migration: flat mapping, claims, doc updates"
+  "acknowledgeReason": "v4 migration: flat mapping, claims, and doc updates"
 }

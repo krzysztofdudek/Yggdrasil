@@ -1,9 +1,10 @@
 {
-  "hash": "4696dc190647f627ffb53755c656856e53a10466d26ab01229baadd2a810349c",
+  "hash": "03a91e9d0e9f92581d733207797f866e55b223e706dd09fe0cdc9c0781ae18d7",
   "files": {
     ".yggdrasil/model/cli/tests/unit/core/operations/yg-node.yaml": "0f7fae048c913f8c49c0163744370b21bbdbec5e6089f6fc07626322d2af887d",
     ".yggdrasil/model/cli/tests/unit/core/operations/responsibility.md": "7ea1bcb10116557e218c3cd256f26546ff5ba26bf28146c6152e38a30cf43c99",
     ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df",
+    ".yggdrasil/model/cli/internals.md": "7440678f012e45d8b15a4efc252cc3b4220fe7aec98fb673786abd9c2a37f9f0",
     ".yggdrasil/model/cli/responsibility.md": "696e0f5f377eba69a843a18379e8f20e0322dc037182690629652a75aa2227fb",
     ".yggdrasil/model/cli/tests/yg-node.yaml": "ac0fc246c01a04e62d43ef8abadb2f01551616ca7509c3b268995ef646279bc9",
     ".yggdrasil/model/cli/tests/responsibility.md": "ef48f39a8d5d6b7f1c61e94f2b95ccf38c02365b3496e3ff5fcf21827ffd8138",
@@ -24,10 +25,9 @@
     "source/cli/tests/unit/core/migrator.test.ts": "b54aeddb8b27bb84abbb3ca7aab06f320519d6396d0c118211ed9f5697383015",
     "source/cli/tests/unit/core/node-selector.test.ts": "97e1ba4536135300e025a58886fc3830d8bc0fbc8b7f8e249ee47f6563df2ad0",
     "source/cli/tests/unit/core/validator.test.ts": "732ff6c4be57f3bed76fe3895d505a2bd38ac9e55f43e3b4d3da402ffb9a86a5",
-    "source/cli/tests/unit/core/artifact-reviewer.test.ts": "5215719b9e310c83bba4e213479d77d019acce44d29e2740981f53e93eb7c5a9",
     "source/cli/tests/unit/core/claim-verifier.test.ts": "cafb6b7051d65e081f921023f7360f30f32ff33deb2e42e22ddafdbafee56eff",
-    "source/cli/tests/unit/core/approve-llm.test.ts": "12139521cf1614e7b0407e2a2396bc700987627b737156ce5aa6668193ebcd10",
-    ".yggdrasil/model/cli/internals.md": "7440678f012e45d8b15a4efc252cc3b4220fe7aec98fb673786abd9c2a37f9f0"
+    "source/cli/tests/unit/core/artifact-reviewer.test.ts": "28c297045b0f7454e58b05c481aae4b7c12e6319a61a45abcbb86f4d1617732e",
+    "source/cli/tests/unit/core/approve-llm.test.ts": "bdbec2a3c7defaaffb191fa1dc0c35353a1c503722aa5e18995e4901674b5fd2"
   },
   "mtimes": {
     ".yggdrasil/model/cli/tests/unit/core/operations/yg-node.yaml": 1775328933264.2974,
@@ -54,9 +54,9 @@
     "source/cli/tests/unit/core/migrator.test.ts": 1773083355800.1638,
     "source/cli/tests/unit/core/node-selector.test.ts": 1775239040905.9917,
     "source/cli/tests/unit/core/validator.test.ts": 1775318177959.922,
-    "source/cli/tests/unit/core/artifact-reviewer.test.ts": 1775326401081.832,
+    "source/cli/tests/unit/core/artifact-reviewer.test.ts": 1775329998062.106,
     "source/cli/tests/unit/core/claim-verifier.test.ts": 1775326401082.2117,
-    "source/cli/tests/unit/core/approve-llm.test.ts": 1775321847814.8904
+    "source/cli/tests/unit/core/approve-llm.test.ts": 1775332638719.6172
   },
-  "acknowledgeReason": "cascade from parent decision docs"
+  "acknowledgeReason": "v4 migration: flat mapping, claims, and doc updates"
 }

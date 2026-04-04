@@ -1,12 +1,12 @@
 {
   "hash": "6d71b5a9e13b88aaba69ed7466ce0ae228ecf66a249ff98a2972023f0dc97c5e",
   "files": {
-    "scripts/repo-check.sh": "eadb268044051a15ccce29f25081b2bc9e4d18160c90f2ace4b36dc6295e1bbf",
-    ".yggdrasil/model/scripts/yg-node.yaml": "9c21f25d054dd6d45e9ddc9129f6d3c606900f9520527700193f6587e2139947"
+    ".yggdrasil/model/scripts/yg-node.yaml": "9c21f25d054dd6d45e9ddc9129f6d3c606900f9520527700193f6587e2139947",
+    "scripts/repo-check.sh": "eadb268044051a15ccce29f25081b2bc9e4d18160c90f2ace4b36dc6295e1bbf"
   },
   "mtimes": {
     ".yggdrasil/model/scripts/yg-node.yaml": 1775327956368.713,
     "scripts/repo-check.sh": 1774970906574.6033
   },
-  "acknowledgeReason": "v4 migration: flat mapping, claims, doc updates"
+  "acknowledgeReason": "v4 migration: flat mapping, claims, and doc updates"
 }

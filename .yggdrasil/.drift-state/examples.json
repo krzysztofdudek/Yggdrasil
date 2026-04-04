@@ -323,5 +323,6 @@
     "examples/expense-tracker/README.md": 1772485235642.2573,
     "examples/expense-tracker/package-lock.json": 1772779649581.8284,
     "examples/expense-tracker/package.json": 1772485235654.1108
-  }
+  },
+  "acknowledgeReason": "v4 migration: flat mapping, claims, and doc updates"
 }
