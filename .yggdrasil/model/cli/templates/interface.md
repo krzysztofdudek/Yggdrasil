@@ -21,7 +21,7 @@ Platform paths: Cursor (.cursor/rules/yggdrasil.mdc), Claude Code (CLAUDE.md + i
 
 ## graph-schemas/
 
-Directory (source/cli/graph-schemas/) — yg-node.yaml, yg-aspect.yaml, yg-flow.yaml. Schemas for each graph layer. Copied to .yggdrasil/schemas/ during init. Not imported directly; init reads via readdir/readFile.
+Directory (source/cli/graph-schemas/) — yg-node.yaml, yg-aspect.yaml, yg-flow.yaml, yg-architecture.yaml. Schemas for each graph layer. Copied to .yggdrasil/schemas/ during init. Not imported directly; init reads via readdir/readFile.
 
 ## Failure Modes
 
