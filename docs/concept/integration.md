@@ -34,16 +34,22 @@ what rules apply, and what must not be broken.
 The agent is graph-aware in every interaction without the user having to ask for it.
 This is achieved through behavioral directives that the agent follows as part of normal work:
 
-- **Before modifying a file**, the agent identifies which graph node owns that file,
-  loads the node’s context package, and uses it to understand the semantic intent behind the code.
-- **When starting from a high-level goal**, the agent identifies relevant nodes from the task
-  description. Graph artifacts (responsibility, interface, aspect content) are written in the
-  same vocabulary developers use in task descriptions — making simple keyword matching against
-  artifact content an effective selection mechanism. When a semantic search tool is available,
-  the agent can also search by intent. Either way, the agent identifies relevant nodes and
-  loads their context packages with `yg context`.
-- **After semantic decisions** (new components, changed interfaces, new dependencies),
-  the agent updates the graph to reflect the new state.
+- **When starting from a high-level goal**, the agent runs `yg select --task` to identify
+  relevant nodes, then loads their context with `yg context --node` to get a node overview:
+  aspects, claims, flows, dependents, and artifact pointers. Graph artifacts (responsibility,
+  interface, aspect content) are written in the same vocabulary developers use in task
+  descriptions — making simple keyword matching against artifact content an effective selection
+  mechanism. This layered flow — select, then context — gives the agent a structured reading
+  phase before any design or implementation begins.
+- **Before modifying a file**, the agent runs `yg context --file` to get per-file details:
+  claims to satisfy, consumed dependencies, and the owning node. Claims are natural language
+  properties the file must satisfy (e.g., "All exports have return type annotations") — the
+  agent uses them as implementation constraints.
+- **After modifying**, the agent updates graph artifacts, runs `yg check` (the structural gate),
+  and then `yg approve` (the semantic verification gate). Approve runs LLM checks: it verifies
+  each claim against source code and checks whether artifacts are current. If LLM is not
+  configured, approve falls back to three-axis change detection only — semantic verification
+  is gracefully skipped with a notice.
 - **When it notices files without graph coverage**, the agent stops. If greenfield (new code to be
   created): create proper nodes from the start; blackbox is forbidden. If existing code: ask the
   user to choose reverse-engineering (full node coverage), blackbox (at user-chosen granularity),
@@ -51,7 +57,6 @@ This is achieved through behavioral directives that the agent follows as part of
 - **When using context packages**, the agent treats the graph as the primary source of
   architectural understanding (intent, constraints, relations, rationale). For implementation-level
   precision (exact behavior, error handling, edge cases), the agent verifies against source code.
-- **Before completing a unit of work**, the agent validates the graph’s consistency.
 
 The user experiences this as: “my agent writes better code.” The graph is invisible infrastructure —
 the agent uses it behind the scenes, the user benefits without needing to know why.
@@ -96,39 +101,63 @@ format and conventions (described in detail in the Learning mechanisms section b
 4. The existing graph shows **how** it looks in this project
 5. Tool validation tells it **what** is wrong
 
+### Claims and ports
+
+Two v4 mechanisms replace earlier regex-based approaches with agent-friendly alternatives:
+
+**Claims** replace regex anchors as the primary way aspects constrain source files. Instead of
+writing regular expressions that must match in source code, the agent writes natural language
+claims — per-file verifiable properties like “All exports have return type annotations” or
+“Error handling uses AppError class.” At approve time, the LLM verifies each claim against
+the actual source code. If a claim does not hold, E055 tells the agent exactly what failed.
+
+Claims are more expressive than regex (they can describe behavioral properties, not just
+textual patterns) and more natural for agents to author. Good claims are per-file verifiable;
+claims that require cross-file reasoning belong in flow descriptions instead.
+
+**Ports** replace integration aspects as the way nodes declare typed contracts for their
+dependencies. Instead of requiring consuming nodes to prove an aspect, the node declares what
+it consumes from each dependency as a typed port (e.g., “uses OrderRepository for persistence”).
+This makes dependency interfaces explicit and verifiable.
+
 ### Feedback loop: write → validate → fix
 
 The agent does not need to know the format perfectly. It writes something, runs validation,
-gets concrete feedback, fixes it. This cycle is natural and agents handle it well:
+gets concrete feedback, fixes it. This two-gate cycle is natural and agents handle it well:
 
 ```text
-Agent: creates yg-node.yaml with a relation to "payment/svc"
-  → validation: "relation target 'payment/svc' does not resolve —
-    did you mean 'payments/payment-service'?"
+Agent: creates yg-node.yaml with a relation to “payment/svc”
+  → yg check: “relation target 'payment/svc' does not resolve —
+    did you mean 'payments/payment-service'?”
   → Agent: fixes the path
-  → validation: no errors
+  → yg check: no errors
+  → yg approve: E055 “claim 'no direct DB access' not satisfied in order-service.ts”
+  → Agent: fixes the code (or updates the claim if the requirement changed)
+  → yg approve: all claims verified
 ```
 
 Validation feedback is **contextual and actionable** — not “error”, but “what is wrong,
-why, and what to do.” This is how tools teach an agent to build good graphs without requiring
-prior knowledge of conventions.
+why, and what to do.” `yg check` teaches structural correctness; `yg approve` teaches
+semantic correctness. Together they form a self-teaching loop that guides the agent to build
+good graphs without requiring prior knowledge of conventions.
 
 ### What tools create vs what agents create
 
 | Element                                                        | Created by                 |
 | -------------------------------------------------------------- | -------------------------- |
-| `.yggdrasil/`, `yg-config.yaml`, `yg-architecture.yaml`        | Initialization (one time)  |
+| `.yggdrasil/`, `yg-config.yaml`                                | Initialization (one time)  |
 | Node directories in `model/` + `yg-node.yaml`                  | Agent                      |
 | Node Markdown artifacts                                        | Agent                      |
 | Aspect directories in `aspects/` + `yg-aspect.yaml`            | Agent                      |
 | Flow directories in `flows/` + `yg-flow.yaml`                  | Agent                      |
-| Mapping groups with aspect proofs in `yg-node.yaml`            | Agent                      |
+| Claims (natural language) in `yg-node.yaml` aspect entries     | Agent                      |
+| Ports (typed contracts) in `yg-node.yaml` dependency entries   | Agent                      |
 | Schemas in `schemas/` (node, aspect, flow)                     | Initialization (copied)    |
 | Platform rules file                                            | Initialization (one time)  |
 
 Tools create infrastructure (initialization). The agent creates content (everything after init),
-including architectural constraints (by editing `yg-architecture.yaml` with node type
-requirements and relation constraints).
+including claims (natural language properties verified by LLM at approve time) and ports
+(typed contracts declaring what each dependency provides).
 
 ---
 
@@ -152,12 +181,16 @@ This repository uses Yggdrasil. The graph is in .yggdrasil/
 
 *Exception:* Read-only requests (e.g. "explain this") skip check.
 
+=== BEFORE ANY TASK ===
+- yg select --task "<goal>" → yg context --node on results
+- READ phase: aspects (read content files — rules are inside),
+  flows (read invariants), relations (check interfaces), parent artifacts
+
 === CREATIVE WORK ===
 
 BEFORE MODIFYING A FILE:
-- Find the file owner node (ownership resolution)
-- Load the node context package (yg context)
-- Use context to understand intent, constraints, interfaces
+- yg context --file <path> — resolves owner, shows claims to satisfy
+- Use claims as implementation constraints
 
 WHEN OWNER NOT FOUND (file without graph coverage):
 - STOP. Determine: greenfield, partially mapped, or existing code?
@@ -165,8 +198,11 @@ WHEN OWNER NOT FOUND (file without graph coverage):
 - Partially mapped (file inside mapped module): ask user — add to existing node or new node?
 - Existing code: present three options (Reverse engineering, Blackbox, Abort); wait for user.
 
-AFTER SEMANTIC DECISIONS:
-- Persist the decision: update the graph
+AFTER MODIFYING:
+- Update graph artifacts (per file, not batched)
+- yg check — structural gate
+- yg approve --node — LLM verifies claims + artifact freshness
+  (no LLM configured → falls back to change detection only)
 
 BEFORE A CHANGE THAT AFFECTS MANY NODES:
 - Check impact of the planned change (yg impact)
@@ -177,40 +213,28 @@ BEFORE A CHANGE THAT AFFECTS MANY NODES:
 - Report exactly what nodes and files were changed
 ```
 
-**Execution checklists** (agent must output and execute before finishing):
+**Layered workflow** (the primary agent flow):
 
-- **Code-first:** Read spec → Modify code → Sync graph artifacts → `yg approve --node`.
-- **Graph-first:** Read schema → Edit graph → Verify source files → `yg check` → `yg approve --node`.
+1. `yg select --task "<goal>"` — find relevant nodes
+2. `yg context --node` on each result — node overview (aspects, claims, flows, dependents)
+3. `yg context --file <path>` — per-file details (claims to satisfy, consumed dependencies)
+4. Modify source code — claims tell you what rules to follow
+5. Update artifacts → `yg check` → `yg approve --node`
 
 The directives say **when** to act, not how graph files are structured. Schema and format come from config, templates, and validation feedback.
 
-### 2) Configuration and Architecture → WHAT is allowed
-
-Two files define what is allowed:
+### 2) Configuration → WHAT is allowed
 
 **`yg-config.yaml`** contains project-level configuration:
 
+- Which node types exist and their descriptions
 - Which artifacts exist and when they are required
-- Which quality thresholds apply (minimum artifact length, context budget, max relations)
+- Which quality thresholds apply (minimum artifact length, context budget)
+- Which aspects are required on each node type
 
-**`yg-architecture.yaml`** defines architectural constraints:
-
-- Which node types exist and their descriptions (service, repository, controller, …)
-- What aspects are required on each node type
-- What aspects consumers must prove when depending on a node type
-- Which parent types are allowed for each node type
-- Which target types can be called/used via each relation type
-
-By reading these files, the agent immediately knows:
-
-- What node types are allowed (and what constraints apply to each)
-- What parent hierarchy is valid
-- What aspects each node must prove and why
-- How different node types can relate to each other
-- Quality thresholds and artifact requirements
-
-Two files, two audiences, zero duplication: tools read them to validate; the agent reads
-them to understand what is allowed and what constraints apply to their choices.
+By reading this file, the agent immediately knows what node types are allowed, what aspects
+each node must prove, and what quality thresholds apply. Tools read the same file to validate;
+the agent reads it to understand what constraints apply to its choices.
 
 ### 3) Schemas → HOW files look
 
@@ -230,13 +254,21 @@ any documentation.
 
 ### 5) Validation → WHAT is wrong
 
-After every graph modification, the agent runs validation and receives concrete, contextual
-feedback:
+After every graph modification, the agent runs validation (`yg check`) and receives concrete,
+contextual feedback. At approve time, the agent gets deeper semantic feedback:
 
-- Which artifacts are required for this node type and why
-- Which references do not resolve and what might be wrong
-- Which aspect identifiers do not resolve
-- Whether the context package fits into the budget
+- `yg check` — structural gate: missing artifacts, broken references, budget violations,
+  coverage gaps. Fast and deterministic.
+- `yg approve` — semantic gate: LLM verifies claims against source code and checks artifact
+  freshness. Self-teaching errors tell the agent exactly what to fix:
+  - **E055 (claim-not-satisfied):** a claim does not hold for the source file — the agent
+    must fix the code or update the claim.
+  - **E056 (artifact-stale):** an artifact no longer reflects the source code — the agent
+    must update it.
+
+If no LLM is configured, approve falls back to three-axis change detection (own artifacts,
+source files, upstream changes). Semantic verification is gracefully degraded, not blocked —
+a notice tells the agent that LLM checks were skipped.
 
 This feedback is **configuration-aware**. It does not teach generic graph building — it teaches
 this project’s conventions. A medical project gets feedback about missing `compliance` artifacts.
@@ -305,7 +337,9 @@ The graph reflects system **intent**: what it is, why it is that way, and what r
 ### Default flow: graph + code
 
 By default, the agent updates the graph immediately so graph and code stay synchronized.
-After any graph edit: run `yg check` and fix issues until clean.
+After any graph edit: run `yg check` (structural gate) and fix issues until clean, then
+run `yg approve --node` (semantic gate) which uses LLM to verify claims hold against
+source code and artifacts are current.
 
 ### Agent decision: new node or attach
 
@@ -568,9 +602,11 @@ Without a graph, the agent explores the repository speculatively — opening rel
 scanning for patterns, building understanding from raw files. This is expensive and repeated every
 session.
 
-With a graph, the agent reads a focused context package — pre-structured knowledge assembled
-deterministically. The package is typically 5,000–10,000 tokens regardless of project size.
-The agent does not need to explore.
+With a graph, the agent reads focused context at two levels — `yg context --node` for the
+node overview (aspects, claims, flows, dependents) and `yg context --file` for per-file
+details (claims to satisfy, consumed dependencies). Both output structured text with artifact
+pointers. The context is typically 5,000-10,000 tokens regardless of project size. The agent
+does not need to explore.
 
 ### Reduced correction loops
 
@@ -634,10 +670,12 @@ A CRUD endpoint does not need a state machine specification.
 The agent has access to semantic memory but returns to default behavior: reads the repository
 directly, ignores context packages, does not update the graph after changes.
 
-Defense: mechanical enforcement through `yg check`. Drift detection (E020/E021) catches changes
-made without updating semantic memory. Coverage enforcement (E022) catches new files without
-graph coverage. The agent cannot commit without a clean `yg check` — the system enforces
-graph usage through its unified gate, not through soft behavioral directives alone.
+Defense: mechanical enforcement through two gates. `yg check` (structural) catches drift
+(E020/E021), coverage gaps (E022), and completeness issues. `yg approve` (semantic) catches
+claim violations (E055 — a claim does not hold for source code) and stale artifacts (E056 —
+an artifact no longer reflects the source). The agent cannot commit without a clean `yg check`,
+and approve's self-teaching errors guide the agent to fix exactly what is wrong. The system
+enforces graph usage through its gates, not through soft behavioral directives alone.
 
 Mitigation in CI: `yg check` as a quality gate catches inconsistencies regardless
 of whether the agent followed directives.

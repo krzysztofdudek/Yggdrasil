@@ -317,10 +317,12 @@ Operations are invoked as tool commands with the `yg` prefix:
 ```text
 yg init --platform cursor
 yg init --platform cursor --upgrade   # refreshes rules when .yggdrasil/ exists
-yg context --node orders/order-service
-yg context --file src/modules/orders/order.service.ts  # resolves owner + context
+yg context --node orders/order-service       # structural overview
+yg context --file src/modules/orders/order.service.ts  # resolves owner + full details
+yg select --task "add payment retry logic"   # find relevant nodes for a task
 yg tree
 yg aspects
+yg flows
 yg check
 yg owner --file src/modules/orders/order.service.ts          # quick ownership check
 yg impact --node payments/payment-service
@@ -436,13 +438,16 @@ constraints (`aspects`, `integration_aspects`, `parents`, `relations`).
 Assemble a context package for the specified node. The main operation of the system.
 Alias: `build-context`.
 
+Two levels of context are available: `--node` for a structural overview (node metadata,
+hierarchy, dependency map) and `--file` for full file-level details (resolves owner,
+includes artifact content). Both produce structured text output.
+
 **Parameters:**
 
 | Parameter | Type   | Required            | Description                                                        |
 | --------- | ------ | ------------------- | ------------------------------------------------------------------ |
-| `file`    | string | One of two required | File path — resolves owner node, then assembles context            |
-| `node`    | string | One of two required | Node path relative to `model/`                                     |
-| `--full`  | flag   | No                  | Embed artifact content inline instead of listing paths only        |
+| `file`    | string | One of two required | File path — resolves owner node, then assembles full details       |
+| `node`    | string | One of two required | Node path relative to `model/` — assembles structural overview     |
 
 Exactly one of `file` or `node` must be provided.
 
@@ -468,10 +473,15 @@ Token estimation: ~4 characters per token (heuristic from the [Engine](engine) d
 
 **Result:**
 
-YAML with structural map (default) or artifact content (`--full`), as defined in the
-[Engine](engine) document (Context package format section). The structural map contains:
+Structured text output with the context package. The two modes differ in detail level:
 
-- `project` — project name (top).
+- `--node` — structural overview: node metadata, hierarchy, dependency map with artifact
+  paths listed but not inlined. Suitable for orientation and navigation.
+- `--file` — full details: resolves the owner node, then assembles the complete context
+  package with artifact content. Suitable for implementation work on the file.
+
+Both modes include:
+
 - `glossary` — definitions of all aspects and flows referenced in this context, each with
   name, description, and `files` listing their artifact paths.
 - `node` — target node metadata with inline `files` listing its own artifact paths.
@@ -539,25 +549,44 @@ Lists aspects with metadata in YAML format. Use to discover valid aspect identif
 
 1. Resolve `.yggdrasil/` root (repository root or nearest parent).
 2. Load the graph — find all aspect directories under `.yggdrasil/aspects/` (including nested).
-3. Sort by aspect identifier.
-4. Output YAML with `id`, `name`, `description` (if present), `implies` (if present), `anchors`.
+3. For each aspect, compute usage stats: count of nodes carrying the aspect (directly or
+   via inheritance/flows/implies), and count of claims (anchors) defined.
+4. Detect orphaned aspects — aspects not referenced by any node, architecture type, or flow.
+5. Sort by aspect identifier.
+6. Output YAML with `id`, `name`, `description` (if present), `implies` (if present),
+   `anchors`, `claims` (count), `nodes` (usage count), and `orphan` flag (if true).
 
 **Result:**
 
 ```yaml
 - id: deterministic
   name: Determinism
+  claims: 1
+  nodes: 4
   anchors:
     - deterministic-output
 - id: observability/logging
   name: Audit Logging
   description: Every state-changing operation must produce an audit log entry
+  claims: 3
+  nodes: 7
   implies:
     - observability/tracing
   anchors:
     - audit-entry
     - audit-actor
+- id: legacy-format
+  name: Legacy Format
+  claims: 1
+  nodes: 0
+  orphan: true
+  anchors:
+    - legacy-output
 ```
+
+Orphan detection surfaces aspects that are defined but unused (same condition as W006).
+The `nodes` count and `orphan` flag help agents identify aspects that may need cleanup
+or broader adoption.
 
 **Errors:**
 
@@ -569,7 +598,8 @@ Lists aspects with metadata in YAML format. Use to discover valid aspect identif
 ### Flows
 
 Lists flows with metadata in YAML format. Use to discover defined business processes,
-their participants, and associated aspects.
+their participants, and associated aspects. Enriched with participant count and flow
+aspects for quick overview.
 
 **Parameters:** none.
 
@@ -577,20 +607,33 @@ their participants, and associated aspects.
 
 1. Resolve `.yggdrasil/` root (repository root or nearest parent).
 2. Load the graph — find all flow directories under `.yggdrasil/flows/`.
-3. Sort by flow name.
-4. Output YAML with `name`, `nodes` (participants), `description` (if present), `aspects` (if present).
+3. For each flow, compute participant count from the `nodes` list.
+4. Sort by flow name.
+5. Output YAML with `name`, `participants` (count), `nodes` (participant list),
+   `description` (if present), `aspects` (if present).
 
 **Result:**
 
 ```yaml
 - name: Checkout Flow
+  participants: 2
   nodes:
     - orders/order-service
     - auth/auth-api
   description: "End-to-end purchase flow from cart to confirmation"
   aspects:
     - requires-audit
+- name: Onboarding Flow
+  participants: 3
+  nodes:
+    - users/user-service
+    - auth/auth-api
+    - notifications/email-service
+  description: "New user registration and welcome sequence"
 ```
+
+The `participants` count provides a quick signal of flow complexity without requiring
+the agent to count the `nodes` list.
 
 **Errors:**
 
@@ -893,6 +936,20 @@ directory in `aspects/`. E051 and E052 validate structural constraints from
 `yg-architecture.yaml`: relation target types (E051) and parent types (E052). E053 fires
 when a node consumes a port and that port's required aspect is not defined in `aspects/`.
 
+**Semantic (E055-E056) — approve only:**
+
+| Code   | Name                  | Description                                                                       |
+| ------ | --------------------- | --------------------------------------------------------------------------------- |
+| `E055` | `claim-not-satisfied` | Source file does not satisfy a claim declared in the node's aspect anchors         |
+| `E056` | `artifact-stale`      | Node artifact content does not reflect the current state of source files           |
+
+Semantic errors are produced by `yg approve` during its LLM verification gate (see
+Approve section). They do not appear in `yg check` output — they are reported only
+when approve runs its verification pass. E055 fires when the LLM determines that a
+claimed aspect anchor is not actually satisfied by the source code. E056 fires when
+the LLM determines that artifact content (responsibility, interface, or internals) is
+stale relative to the current source files.
+
 **Port consumption (E057-E058):**
 
 | Code   | Name               | Description                                                                              |
@@ -948,8 +1005,17 @@ Summary at the end: PASS or FAIL with category counts.
 
 **Grouping order:** Errors are grouped in this order: Drift (E020), Cascade (E021),
 Structural (E001-E013, E050), Coverage (E022), Completeness (E030-E039),
-Architecture (E051-E053), Port consumption (E057-E058). Warnings are grouped:
+Architecture (E051-E053), Port consumption (E057-E058). Semantic errors (E055-E056) are
+reported only by `yg approve`, not by `yg check`. Warnings are grouped:
 Budget (W001-W002), Structure (W003-W004), orphaned state (W005), orphaned aspects (W006).
+
+**Warnings hidden when errors exist:** When `yg check` reports any errors, warnings are
+suppressed from the output. This keeps the agent focused on blocking issues. Warnings
+appear only when the check passes with zero errors.
+
+**LLM provider notice:** When no LLM provider is configured, `yg check` includes an
+informational notice that LLM-based verification (used by `yg approve`) is unavailable.
+This is not an error — it does not affect the exit code.
 
 **Stable ordering:** Errors within each category are sorted deterministically: first
 by cascade cause (grouping related cascades), then alphabetically by node path.
@@ -988,7 +1054,7 @@ resolved drift. Alias: `drift-sync`.
 | Parameter     | Type   | Required | Description                                                       |
 | ------------- | ------ | -------- | ----------------------------------------------------------------- |
 | `node`        | string | Yes      | Node path relative to `model/`.                                   |
-| `acknowledge` | string | No       | Reason for approving when one side did not change. Audit trail.   |
+| `acknowledge` | string | No       | Reason for overriding. Bypasses both the three-axis gate and the LLM verification gate. Stored for audit trail. |
 
 Per-node only — no `--all`, no `--recursive`. One node at a time.
 
@@ -1002,9 +1068,21 @@ Per-node only — no `--all`, no `--recursive`. One node at a time.
    - **Source files** (`mapping.paths`) — changed since last approve?
    - **Other tracked files** (aspects, deps, flows, ancestors) — changed since last approve?
 3. Apply enforcement rules (see table below).
-4. If accepted: compute hashes for all tracked files and write to
+4. **LLM verification gate** (when a provider is configured):
+   - **Claim verification:** For each aspect anchor claimed by the node, the LLM checks
+     whether the source files actually satisfy the claim. Failures produce E055
+     (claim-not-satisfied).
+   - **Artifact review:** The LLM compares artifact content (responsibility, interface,
+     internals) against current source files to detect staleness. Failures produce E056
+     (artifact-stale).
+   - **Caching:** Verification results are cached per file hash. Unchanged files skip
+     re-verification on subsequent approvals.
+   - If E055 or E056 errors are found, approve refuses.
+   - When no LLM provider is configured, approve prints a notice and skips the
+     verification gate (the three-axis gate still applies).
+5. If accepted: compute hashes for all tracked files and write to
    `.yggdrasil/.drift-state/<node-path>.json`.
-5. Garbage collection: remove orphaned drift state files for nodes that no longer exist.
+6. Garbage collection: remove orphaned drift state files for nodes that no longer exist.
 
 **Three-axis enforcement:**
 

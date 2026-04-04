@@ -17,6 +17,7 @@ Semantic memory lives under `.yggdrasil/`.
 ```text
 .yggdrasil/
   yg-config.yaml
+  yg-secrets.yaml          # gitignored — API keys and provider overrides
   model/
   aspects/
   flows/
@@ -24,6 +25,8 @@ Semantic memory lives under `.yggdrasil/`.
 ```
 
 - `yg-config.yaml` — configuration and schema for the graph.
+- `yg-secrets.yaml` — gitignored file that overrides `yg-config.yaml` LLM fields (API keys,
+  provider, endpoint). Never committed.
 - `model/` — semantic model of the system: components and their relationships.
 - `aspects/` — cross-cutting requirements.
 - `flows/` — end-to-end flows spanning multiple nodes.
@@ -38,6 +41,7 @@ Context assembly, validation, and drift detection are defined in the
 ```text
 .yggdrasil/
   yg-config.yaml     # reserved
+  yg-secrets.yaml    # reserved (gitignored)
   model/             # reserved
   aspects/           # reserved
   flows/             # reserved
@@ -104,6 +108,46 @@ descriptions internally.
 
 Tools validate artifact presence based on these rules and attach artifact content to context
 packages.
+
+### LLM configuration
+
+```yaml
+llm:
+  provider: openai
+  model: gpt-4o
+  endpoint: https://api.openai.com/v1
+  temperature: 0.0
+  consensus: 1
+  max_tokens: 4096
+```
+
+The `llm` section configures the language model used for claim verification at approve time.
+All fields are optional — tools use sensible defaults when omitted.
+
+| Field         | Purpose                                                                 |
+| ------------- | ----------------------------------------------------------------------- |
+| `provider`    | LLM provider name (e.g. `openai`, `anthropic`)                         |
+| `model`       | Model identifier                                                        |
+| `endpoint`    | API endpoint URL                                                        |
+| `temperature` | Sampling temperature for verification calls                             |
+| `consensus`   | Number of agreeing verification passes required (default 1)             |
+| `max_tokens`  | Maximum tokens per verification request                                 |
+
+#### Secrets (`yg-secrets.yaml`)
+
+Sensitive fields — API keys, provider credentials, endpoint overrides — belong in
+`yg-secrets.yaml`, which lives alongside `yg-config.yaml` but is **gitignored**. Fields in
+`yg-secrets.yaml` override the corresponding `yg-config.yaml llm` fields at runtime.
+
+```yaml
+# .yggdrasil/yg-secrets.yaml (gitignored)
+llm:
+  api_key: sk-...
+  provider: anthropic         # overrides yg-config.yaml
+  endpoint: https://custom.endpoint/v1
+```
+
+This separation keeps configuration declarative and committable while secrets stay local.
 
 ### Quality thresholds
 
@@ -181,47 +225,38 @@ aspects:
   - aspect: requires-audit
     exceptions:
       - "Batch import skips per-record audit — emits single summary event instead"
-    anchors:  # map: anchor ID → typed realization object
-      audit-entry:
-        regex: "createAuditLog|auditLog\\.create"
-      audit-actor:
-        regex: "userId|currentUser|actor"
   - aspect: requires-auth
 
-integration_anchors:  # optional — anchor IDs that consumers must realize
-  - correlation-id
-  - retry-policy
+ports:                    # optional — typed contracts this node exposes for consumers
+  - name: correlation-id
+    claim: "Caller must propagate a correlation ID on every request"
+  - name: retry-policy
+    claim: "Caller must implement retry with backoff on transient failures"
 
 relations:
   - target: payments/payment-service
     type: calls
-    consumes: [charge, refund]
+    consumes: [charge, refund, correlation-id]  # includes port names from the target
     failure: retry 3x, then mark order as payment-failed
-    anchors:  # realizes integration anchors from the target
-      correlation-id:
-        regex: "correlationId|correlation_id"
-      retry-policy:
-        regex: "retry|retryPolicy|withRetry"
 
   - target: inventory/inventory-service
     type: calls
     consumes: [reserve, release]
 
 mapping:
-  paths:
-    - src/modules/orders/order.service.ts
+  - src/modules/orders/order.service.ts
 ```
 
-| Field                  | Required | Purpose                                                      |
-| ---------------------- | -------- | ------------------------------------------------------------ |
-| `name`                 | Yes      | Display name                                                 |
-| `type`                 | Yes      | Node type from `config.node_types`                           |
-| `description`          | No       | Short summary shown in context maps for quick orientation    |
-| `aspects`              | No       | Aspect entries with exceptions and typed anchor realizations |
-| `integration_anchors`  | No       | Anchor IDs that consumers (relation sources) must realize    |
-| `relations`            | No       | Outgoing dependencies to other nodes, with anchor realizations |
-| `mapping`              | No       | Link to source files (see Mapping section)                   |
-| `blackbox`             | No       | If `true`, node describes something existing, not controlled |
+| Field         | Required | Purpose                                                      |
+| ------------- | -------- | ------------------------------------------------------------ |
+| `name`        | Yes      | Display name                                                 |
+| `type`        | Yes      | Node type from `config.node_types`                           |
+| `description` | No       | Short summary shown in context maps for quick orientation    |
+| `aspects`     | No       | Aspect entries with exceptions                               |
+| `ports`       | No       | Typed contracts consumers must satisfy (replaces integration_anchors) |
+| `relations`   | No       | Outgoing dependencies to other nodes                         |
+| `mapping`     | No       | Flat list of source file/directory paths (see Mapping section) |
+| `blackbox`    | No       | If `true`, node describes something existing, not controlled |
 
 Each block (hierarchy, own, flow) declares its own aspects. No inheritance — a node receives
 aspects only from blocks that explicitly list aspect identifiers. See the [Engine](engine) document for the
@@ -310,7 +345,7 @@ events_. They do not contribute edges to topological sorting.
 relations:
   - target: payments/payment-service
     type: calls
-    consumes: [charge, refund]
+    consumes: [charge, refund, correlation-id]
     failure: retry 3x, then mark order as payment-failed
 ```
 
@@ -321,11 +356,14 @@ relations:
 | `consumes` | No       | What is consumed from the target          |
 | `failure`  | No       | Behavior when dependency is unavailable   |
 
-The `consumes` field annotates the context package. Its meaning depends on relation class:
+The `consumes` field annotates the context package. It can reference both interface methods
+and **port names** from the target node:
 
 - For structural relations (`uses`, `calls`, `extends`, `implements`) — concrete methods
-  consumed from the target's interface (e.g. `charge`, `refund`). Tools attach full interface
-  content along with annotations indicating which methods are used.
+  consumed from the target's interface (e.g. `charge`, `refund`) and port names the caller
+  satisfies (e.g. `correlation-id`). When a port name appears in `consumes`, the caller
+  declares that it fulfills that port's contract. Tools attach full interface content along
+  with annotations indicating which methods are used and which ports are consumed.
 - For event relations (`emits`, `listens`) — specific data consumed from the event
   (e.g. `orderId`, `amount`, `status`). Tools attach event information with annotations
   describing consumed data.
@@ -359,7 +397,7 @@ aspects/
 name: Audit logging
 description: "Short description for discovery via yg aspects"  # optional
 # implies: [requires-logging]   # optional: other aspect identifiers to include automatically
-anchors:                         # required — claim-based proof points nodes must realize
+anchors:                         # required — claim-based proof points (E039 if empty or missing)
   - id: audit-entry
     claim: "Every mutation logs an audit entry"
   - id: audit-actor
@@ -367,9 +405,10 @@ anchors:                         # required — claim-based proof points nodes m
 ```
 
 `name` is required. `description` is optional — a short summary for discovery via `yg aspects`.
-`implies` is optional. `anchors` is required — a list of claim objects (`id` + `claim`) that
-describe what must be proven (E039 if empty or missing). The aspect identifier is implicit —
-it is the relative directory path.
+`implies` is optional. `anchors` is required — a list of `{id, claim}` objects. Each claim is
+a natural-language statement describing a per-file verifiable property that source files must
+satisfy. Claims are verified by LLM at approve time — no regex patterns. The aspect identifier
+is implicit — it is the relative directory path.
 
 Nested directories under `aspects/` are organizational — they allow grouping related aspects
 (e.g. `observability/logging`, `observability/tracing`). However, nesting does **not** create
@@ -502,10 +541,12 @@ requirements. It is **separate from** `yg-config.yaml`.
 The architecture file enforces architectural guardrails at the graph level:
 
 - **Node type constraints** — what kinds of nodes can relate to each other, which parent types
-  are allowed, what aspects every node of a type must prove.
-- **Integration contracts** — what aspects consumers must prove when depending on a node type.
-- **Propagating requirements** — aspects required at the type level automatically flow to
-  every file in nodes of that type.
+  are allowed, what aspects every node of a type must carry.
+- **Propagating requirements** — aspects required at the type level automatically apply to
+  every node of that type.
+
+Integration contracts (what consumers must prove) are defined per-node via `ports`, not at
+the architecture level. See the Node metadata section.
 
 ### Architecture file format
 
@@ -513,8 +554,7 @@ The architecture file enforces architectural guardrails at the graph level:
 node_types:
   service:
     description: "Request-handling module with external contracts"
-    aspects: [requires-auth, error-format]          # required on every file
-    integration_aspects: [correlation-tracking]      # required on consumers
+    aspects: [requires-auth, error-format]          # required on every node of this type
     parents: [module, domain]                        # allowed parent types
     relations:                                       # allowed target types
       calls: [service, library]
@@ -531,20 +571,22 @@ node_types:
     description: "Business logic unit with clear domain responsibility"
 ```
 
-| Field                   | Purpose                                                               |
-| ----------------------- | --------------------------------------------------------------------- |
-| `description`           | Required. What this type of node is for (agent guidance)              |
-| `aspects`               | Optional. Aspect IDs that every file of this type must prove          |
-| `integration_aspects`   | Optional. Aspect IDs that consumers of this type must prove           |
-| `parents`               | Optional. Whitelist of allowed parent node types                      |
-| `relations`             | Optional. Allowed target types by relation type (calls, uses, etc.)   |
+| Field         | Purpose                                                             |
+| ------------- | ------------------------------------------------------------------- |
+| `description` | Required. What this type of node is for (agent guidance)            |
+| `aspects`     | Optional. Aspect IDs required on every node of this type            |
+| `parents`     | Optional. Whitelist of allowed parent node types                    |
+| `relations`   | Optional. Allowed target types by relation type (calls, uses, etc.) |
+
+Integration contracts are no longer defined at the architecture level. Instead, each node
+declares its own `ports` — typed contracts that consumers must satisfy. This moves integration
+requirements closer to the nodes that define them. See the Node metadata section for the
+`ports` field.
 
 **Semantics:**
 
 - When a node has `type: service` and the architecture declares `aspects: [requires-auth]`,
-  every file in that node's `mapping` must prove the `requires-auth` aspect via mapping groups.
-- When a node depends on a `service` node via a relation, the consumer must prove any
-  `integration_aspects` declared for the `service` type.
+  the node must carry the `requires-auth` aspect.
 - Absence of any field means no constraint — e.g. no `parents` field means any node type can
   be a parent.
 
@@ -559,8 +601,8 @@ node_types:
 ```
 
 If a node has `type: api` and `relations.calls` is not in the architecture, that node can call
-any target type. If `relations.calls` IS defined (as a whitelist), the target type must be
-in the list.
+any target type. If `relations.calls` IS defined (as a whitelist), the target type must be in
+the list.
 
 ---
 
@@ -582,129 +624,57 @@ No ambiguity. No absolute paths. No guessing which directory a reference points 
 ## Mapping: Graph to Source
 
 Nodes in the graph can be mapped to source files via declarations in `yg-node.yaml`. Mapping enables
-three things:
+two things:
 
 - Ownership lookup — which node owns a given file.
 - Drift detection — did the file change since last synchronization.
-- Aspect proof — which files implement which aspects, and how.
 
-### Mapping Groups
+Aspect verification is handled separately by the LLM at approve time (see Aspects section).
 
-Mapping is organized into **groups**. Each group is a set of files that share the same
-aspect proof profile. Different groups in the same node can prove the same aspect using
-different implementations.
+### Mapping format
 
-```yaml
-mapping:
-  - paths:
-      - src/routes/expenses.ts
-    aspects:
-      - aspect: requires-auth
-        anchors:
-          auth-guard:
-            regex: "requireAuth\\("
-            rationale: "Middleware at router level before handlers."
-      - aspect: error-format
-        anchors:
-          error-shape:
-            regex: "formatError"
-            rationale: "Shared error formatter in catch blocks."
-
-  - paths:
-      - src/services/expenses.ts
-    aspects:
-      - aspect: requires-auth
-        anchors:
-          auth-context:
-            regex: "ctx\\.userId"
-            rationale: "Receives authenticated user from route context."
-      - aspect: error-format
-        anchors:
-          error-throw:
-            regex: "AppError|throw.*Error"
-            rationale: "Throws typed errors caught by route handler."
-```
-
-**Key properties:**
-
-- Each group declares one or more file paths and the aspects that group proves.
-- **Different groups, same aspect, different proof:** The first group proves `requires-auth`
-  via the `requireAuth()` middleware call. The second group proves it by accessing `ctx.userId`.
-  Both proofs are valid — they show different implementations of the same requirement.
-- **Every file in a group must match every anchor:** If a group declares `requires-auth` with
-  an anchor regex `"requireAuth\\("`, every file in that group must contain the pattern.
-- **All effective aspects must be proven:** The union of aspects from all mapping groups must
-  cover all effective aspects (from architecture, parent, flow, and own declarations). Missing
-  aspects trigger error E050.
-
-### Mapping group fields
+Mapping is a **flat list of paths** — files or directories relative to the repository root.
 
 ```yaml
 mapping:
-  - paths:                       # required — list of files/directories in this group
-      - src/routes/expenses.ts
-      - src/routes/invoices.ts
-    aspects:                     # required when effective aspects > 0
-      - aspect: requires-auth    # required — aspect identifier
-        anchors:                 # required — anchor ID → proof object
-          auth-guard:
-            regex: "requireAuth\\("   # required — regex pattern
-            rationale: "..."           # required — max 2 sentences
+  - src/routes/expenses.ts
+  - src/services/expenses.ts
 ```
-
-**Semantics:**
-
-- `paths` — files or directories (globs reserved for future). Every file in a directory is
-  resolved at check time. All resolved files must match all anchor regexes.
-- `aspects` — list of aspects this group proves. Required unless effective aspects = 0.
-- `aspect` — aspect identifier from the graph.
-- `anchors` — map from anchor ID to typed proof object. Every anchor ID defined in the aspect's
-  `yg-aspect.yaml` must be realized. Anchor IDs are matched exactly; typos are errors (E040).
-- `regex` — pattern to search for in source files. Must match in every file in the group.
-- `rationale` — why this pattern proves the aspect (max 2 sentences). Helps maintainers
-  understand the proof and guides agents when updating implementations.
-
-### Paths in mapping groups
 
 **Single file:**
 
 ```yaml
 mapping:
-  - paths:
-      - src/modules/orders/order.service.ts
+  - src/modules/orders/order.service.ts
 ```
 
 **Directory** — all files recursively:
 
 ```yaml
 mapping:
-  - paths:
-      - src/modules/orders
+  - src/modules/orders
 ```
 
 More robust to internal changes — adding or deleting files inside the directory automatically
 includes/excludes them from the mapping without updating the declaration.
 
-**Multiple paths in one group:**
+**Multiple paths:**
 
 ```yaml
 mapping:
-  - paths:
-      - src/routes/orders.ts
-      - src/routes/payments.ts
-    aspects:
-      - aspect: requires-auth
-        anchors:
-          guard:
-            regex: "requireAuth\\("
-            rationale: "Both route files are protected by middleware."
+  - src/routes/orders.ts
+  - src/routes/payments.ts
 ```
-
-All files in the group share the same aspect proof profile.
 
 **No mapping** — node exists purely for semantic memory and is not mapped to any file. Module
 nodes, abstract concepts, and planning nodes may be unmapped. The `mapping` field is simply
 absent. Drift detection does not apply to unmapped nodes.
+
+The previous group-based mapping (with per-group aspects and regex anchors) has been replaced
+by this flat structure. Aspect compliance is no longer proven through regex patterns in mapping
+groups. Instead, aspect claims are verified by LLM during `yg approve`, which reads the source
+files and evaluates each claim in natural language. This moves complexity from the mapping
+declaration to the verification layer.
 
 ### Mapping constraints
 
@@ -734,11 +704,13 @@ The `schemas/` directory contains schema files — one per graph layer. Each fil
 expected structure of its element type. The agent reads the appropriate schema before creating
 or editing that element.
 
-| File              | Element type | Purpose                                                    |
-| ----------------- | ------------ | ---------------------------------------------------------- |
-| `yg-node.yaml`   | Nodes        | Structure of `yg-node.yaml` in model directories            |
-| `yg-aspect.yaml` | Aspects      | Structure of `yg-aspect.yaml` in aspects directories        |
-| `yg-flow.yaml`   | Flows        | Structure of `yg-flow.yaml` in flows directories            |
+| File                | Element type   | Purpose                                                     |
+| ------------------- | -------------- | ----------------------------------------------------------- |
+| `yg-node.yaml`     | Nodes          | Structure of `yg-node.yaml` in model directories            |
+| `yg-aspect.yaml`   | Aspects        | Structure of `yg-aspect.yaml` in aspects directories        |
+| `yg-flow.yaml`     | Flows          | Structure of `yg-flow.yaml` in flows directories            |
+| `yg-config.yaml`   | Configuration  | Structure of the project configuration file                 |
+| `yg-secrets.yaml`  | Secrets        | Structure of the gitignored secrets override file            |
 
 These are generalized schemas, not type-specific examples. The agent consults the schema for the
 element type it is creating or editing. Artifact requirements and structure come from

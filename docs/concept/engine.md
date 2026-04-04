@@ -6,8 +6,10 @@ The [Integration](integration) document defines how agents use these mechanics.
 This document defines the deterministic mechanics — algorithms and tools that operate on the
 graph: context assembly, check (unified gate), and tool operations.
 
-Everything described in this document is **deterministic**. The same graph state always produces
-the same output. No heuristics. No guessing. No searching.
+Most of this document describes **deterministic** mechanics — the same graph state always
+produces the same output. No heuristics. No guessing. No searching. The exception is
+[LLM-based verification](#llm-based-verification-approve-only), which runs at approve time
+and provides semantic checks that structural validation cannot.
 
 ---
 
@@ -69,16 +71,20 @@ Each step is deterministic.
                   Hierarchy block: each ancestor may have `aspects="id1,id2"` in its metadata.
                   Own block: yg-node.yaml has `aspects` as a list of entries, each with an `aspect`
                   field identifying the aspect (e.g. `- aspect: requires-audit`). Entries may
-                  also include embedded `exceptions` and `anchors`.
+                  also include embedded `exceptions`.
                   Flow block: yg-flow.yaml has `aspects: [id1, id2]` for flows where N or an
-                  ancestor participates. Effective aspects = union of all identifiers from these blocks.
+                  ancestor participates.
+                  Port block: when N has a relation that consumes a port on a target, the port's
+                  required aspects are included with provenance (port name + target node).
+                  Effective aspects = union of all identifiers from these blocks.
                   The `aspects` attribute on each block shows the resolved set (including implied
                   aspects), not just the raw declared identifiers.
                   For each aspect identifier: content of the matching aspect (aspects/<id>/) plus any
                   aspects implied by that aspect (recursive). Implies are resolved with cycle detection;
                   a cycle (A implies B implies A) is an error. No source attribute on aspect
                   output — aspects are rendered without provenance. Aspects section = union of
-                  aspect identifiers from hierarchy + own + flow blocks, expand implies, render content.
+                  aspect identifiers from hierarchy + own + flow + port blocks, expand implies,
+                  render content.
                   If an aspect entry declares `exceptions`, the exception notes are appended to
                   that aspect's layer as warnings.
 
@@ -161,112 +167,88 @@ annotate it with metadata from YAML. The agent interprets.
 
 ### Context Package Format
 
-The context package is a YAML document with two modes:
+The context package uses **two-level progressive disclosure** in structured text format:
 
-- **Default (paths-only):** outputs a structural map with artifact file paths. The agent
-  reads artifact files separately as needed. This is the primary mode — lightweight and
-  fast.
-- **Full (`--full`):** embeds artifact content inline. Useful when the agent needs
-  everything in a single payload.
+- **Node overview (default):** a compact structural map showing node metadata, hierarchy,
+  dependencies, aspects, and flows — with artifact file paths but not their content. The
+  agent reads artifact files separately as needed. This is the primary mode — lightweight
+  and fast for orientation.
+- **File details (`--full`):** embeds artifact content inline beneath each entry. Useful
+  when the agent needs everything in a single payload or cannot read files individually.
 
-The structural map includes the node's metadata, its ancestor hierarchy, dependency hierarchy
-(each dependency includes its own ancestor chain for domain context), aspects, and flows.
+The output is structured text (not YAML) — readable by any agent without a parser.
 
-```yaml
-project: MyProject
+```text
+# Context: orders/order-service
 
-# Glossary: definitions of all aspects and flows referenced in this context.
-# Read this first — IDs below (in node, hierarchy, dependencies) refer to entries here.
-glossary:
-  aspects:
-    requires-audit:
-      name: Audit Logging
-      description: "Every state-changing operation must produce an audit log entry"
-      files:
-        - aspects/requires-audit/content.md
-    requires-saga:
-      name: Saga Pattern
-      description: "Multi-step operations must be coordinated via saga with compensating actions"
-      files:
-        - aspects/requires-saga/content.md
-  flows:
-    checkout:
-      name: Checkout Flow
-      description: "End-to-end purchase flow from cart to payment confirmation"
-      participants:
-        - orders/order-service
-        - auth/auth-api
-        - payments/payment-service
-      aspects:
-        - requires-saga
-      files:
-        - flows/checkout/description.md
+## Glossary
 
-# Target node: the component you are working on.
-node:
-  path: orders/order-service
-  name: OrderService
-  type: service
-  description: "Manages order lifecycle from placement to fulfilment"
-  mappings:
-    - src/orders/order.service.ts
-  aspects:
-    - id: requires-audit
-  flows:
-    - path: checkout
-      aspects:
-        - requires-saga
-  files:
+Aspects and flows referenced in this context. Read first — IDs below refer to entries here.
+
+### Aspect: requires-audit
+  Name: Audit Logging
+  Description: Every state-changing operation must produce an audit log entry
+  Files:
+    - aspects/requires-audit/content.md
+
+### Aspect: requires-saga
+  Name: Saga Pattern
+  Description: Multi-step operations must be coordinated via saga with compensating actions
+  Files:
+    - aspects/requires-saga/content.md
+
+### Flow: checkout
+  Name: Checkout Flow
+  Description: End-to-end purchase flow from cart to payment confirmation
+  Participants: orders/order-service, auth/auth-api, payments/payment-service
+  Aspects: requires-saga
+  Files:
+    - flows/checkout/description.md
+
+## Node
+
+  Path: orders/order-service
+  Name: OrderService
+  Type: service
+  Description: Manages order lifecycle from placement to fulfilment
+  Mappings: src/orders/order.service.ts
+  Aspects: requires-audit
+  Flows: checkout (aspects: requires-saga)
+  Files:
     - model/orders/order-service/responsibility.md
     - model/orders/order-service/interface.md
 
-# Hierarchy: ancestor modules from root to parent. Context is inherited top-down.
-hierarchy:
-  - path: orders
-    name: Orders
-    type: module
-    aspects:
-      - deterministic
-    files:
+## Hierarchy
+
+  orders
+    Name: Orders
+    Type: module
+    Aspects: deterministic
+    Files:
       - model/orders/responsibility.md
 
-# Dependencies: components this node directly depends on.
-dependencies:
-  - path: auth/auth-api
-    name: Auth API
-    type: service
-    description: "Validates tokens and resolves caller identity"
-    relation: uses
-    consumes:
-      - validateToken
-    aspects:
-      - deterministic
-    hierarchy:
-      - path: auth
-        name: Auth
-        type: module
-        aspects: []
-        files:
-          - model/auth/responsibility.md
-    files:
+## Dependencies
+
+  auth/auth-api [uses]
+    Name: Auth API
+    Type: service
+    Description: Validates tokens and resolves caller identity
+    Consumes: validateToken
+    Aspects: deterministic
+    Hierarchy: auth (module)
+    Files:
       - model/auth/auth-api/responsibility.md
       - model/auth/auth-api/interface.md
 
-meta:
-  token-count: 1234
-  budget-status: ok
-  breakdown:
-    own: 420
-    hierarchy: 180
-    aspects: 310
-    flows: 195
-    dependencies: 129
-    total: 1234
+## Meta
+
+  Tokens: 1234 (ok)
+  Breakdown: own=420 hierarchy=180 aspects=310 flows=195 dependencies=129
 ```
 
-The format is fixed — the same YAML structure regardless of project. Content within the
+The format is fixed — the same structure regardless of project. Content within the
 structure is variable — depends on project config and the specific node. Each dependency
-entry includes its own `hierarchy` list, providing ancestor context for that dependency
+entry includes its own hierarchy summary, providing domain context for that dependency
 without requiring the agent to traverse the graph manually.
 
 **The context package contains only graph content, not source code.** The agent fetches
@@ -394,11 +376,24 @@ The `implies` field on an aspect causes all nodes that carry the aspect to also 
 implied aspect. The implies graph must be acyclic (E013) and all implied identifiers must
 resolve (E012).
 
-### Port-based integration validation
+### Port-based aspect propagation
 
-When a node declares a relation with a `consumes` field, it is consuming a named port on
-the target node. Each port declares required `aspects`. E053 fires if any of those aspect
-identifiers are not defined in `aspects/`.
+Ports replace the previous `integration_aspects` mechanism. When node A relates to node B
+and consumes port X:
+
+1. Port X declares required `aspects` (a list of aspect identifiers).
+2. Node A must satisfy those aspects in its source code.
+3. `yg check` validates the structure: E057 fires when a relation target has ports but the
+   consumer relation has no `consumes` field. E058 fires when `consumes` names a port that
+   does not exist on the target.
+4. E053 fires if any port aspect identifier is not defined in `aspects/`.
+5. Semantic verification happens at approve time via LLM — E055 fires when the LLM
+   determines a port's required aspect is not satisfied in the consumer's source code (see
+   [LLM-based verification](#llm-based-verification-approve-only)).
+
+This two-phase approach separates fast structural checks (check) from expensive semantic
+checks (approve). Structural checks catch missing declarations immediately; semantic checks
+confirm actual compliance when the agent records a baseline.
 
 ### Structural architecture constraints
 
@@ -409,25 +404,21 @@ Validated from `yg-architecture.yaml`:
 
 ### Context output
 
-Context packages include the resolved aspect list under `node:`:
+Context packages include the resolved aspect list under the node section:
 
-```yaml
-node:
-  path: cli/core/validator
-  name: Validator
-  type: library
-  required_aspects:
-    - id: deterministic
-      source: architecture (type: library)
-    - id: posix-paths
-      source: own declaration
-  integration_aspects:
-    - id: error-handling
-      source: architecture (type: library)
+```text
+## Node
+
+  Path: cli/core/validator
+  Name: Validator
+  Type: library
+  Aspects: deterministic (architecture: library), posix-paths (own declaration)
+  Port aspects: error-handling (port: cli-errors on cli/core/engine)
 ```
 
-The agent sees what must be proven and why — making the requirement explicit without
-exposing per-file implementation details.
+The agent sees what must be satisfied and why — making the requirement explicit without
+exposing per-file implementation details. Port aspects show which port and target node
+introduced the requirement.
 
 ---
 
@@ -462,9 +453,9 @@ collected:
 3. **Aspects** — `yg-aspect.yaml` and content files for all resolved aspects (own + ancestor +
    flow-propagated, with recursive `implies` expansion).
 4. **Relational dependencies** — structural-context artifacts of structural relation targets
-   (`uses`, `calls`, `extends`, `implements`). Also tracks a hash of the `integration_anchors`
-   field from each target's `yg-node.yaml` (scoped — only changes to `integration_anchors`
-   cascade, not other target metadata).
+   (`uses`, `calls`, `extends`, `implements`). Also tracks a hash of the `ports` field from
+   each target's `yg-node.yaml` (scoped — only changes to `ports` cascade, not other target
+   metadata).
 5. **Relational flows** — `yg-flow.yaml` and content artifacts of all flows listing this node or
    an ancestor as a participant.
 6. **Source** — files from the node's `mapping.paths`.
@@ -487,6 +478,15 @@ exactly which files changed and whether they are source or graph files.
 The mechanism is deliberately simple: **hash changed → something changed**. Tools classify
 the change by checking which files differ and whether they are source or graph files. The
 agent assesses the significance and decides on resolution.
+
+#### LLM result caching
+
+LLM verification results (claim verification and artifact review — see
+[LLM-based verification](#llm-based-verification-approve-only)) are cached in the drift
+state alongside file hashes. When E020 (direct drift) or E021 (cascade drift) fires for a
+node, all cached LLM results for that node are invalidated — the next approve re-runs
+verification from scratch. This ensures LLM judgments are never stale: any change to source
+files, artifacts, or upstream dependencies forces re-evaluation.
 
 ### Drift States
 
@@ -585,33 +585,62 @@ the work of the agent or human — tools only read.
 
 ---
 
+## LLM-Based Verification (Approve Only)
+
+Approve runs two LLM checks on drifted nodes:
+
+**Claim verification.** For each aspect on the node, the LLM receives the aspect
+description, claim text, and concatenated source files. It responds with
+`satisfied: true|false` and a reason. If unsatisfied, E055 fires. For large nodes,
+source is chunked by file boundaries — all chunks must pass.
+
+**Artifact review.** The LLM receives artifact content (responsibility.md, interface.md,
+internals.md) and current source code. It responds with `current: true|false` and a
+reason. If outdated, E056 fires.
+
+**Consensus.** Configurable via `llm.consensus` in yg-config.yaml (positive odd integer,
+default 1). When set to 3+, the LLM runs multiple times and majority vote decides.
+
+**Caching.** Verification results are cached in drift state. When a node drifts (E020/E021),
+cached results are invalidated and the next approve re-runs verification from scratch.
+
+**Graceful degradation.** When no LLM provider is configured, approve works as before
+(three-axis detection only, no E055/E056). A notice informs the user.
+
+---
+
 ## Complete Assembly Example
 
 Given graph state:
 
-```
+```text
 yg-config.yaml
 model/orders/order-service/yg-node.yaml aspects:
                                           - aspect: requires-audit
                                         relations: calls payments/payment-service
-                                                           consumes: charge, refund
+                                                           consumes: [charge, refund]
+
+model/payments/payment-service/yg-node.yaml ports:
+                                              - name: charge
+                                                aspects: [requires-idempotency]
 
 aspects/requires-audit/                 aspect id = directory path
-  yg-aspect.yaml                        name, optional description, optional implies
+  yg-aspect.yaml                        name, description, claims (anchors)
 
 flows/checkout/yg-flow.yaml             lists orders/order-service as participant
 ```
 
 Context package for `orders/order-service` contains:
 
-```
+```text
 Step 1.  yg-config.yaml: project name
 Step 2.  Domain context of orders/ module artifacts
 Step 3.  Own artifacts of OrderService: responsibility, interface, internals
 Step 4.  Aspect: Audit logging  [aspect requires-audit]
+         Aspect: Idempotency   [port: charge on payments/payment-service]
 Step 5.  Structural-context artifacts of PaymentService: responsibility, interface
          + annotation: consumes charge, refund; on failure: retry 3x, then payment-failed
-         Flow: Checkout flow  [description.md, sequence.md]
+         Flow: Checkout flow  [description.md]
 ```
 
 ---

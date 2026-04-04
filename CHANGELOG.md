@@ -7,107 +7,107 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-- Append-only audit log (`.yggdrasil/.audit-log.jsonl`) — every `yg approve` records timestamp, node, action, hashes, reason, and changed files. Gitignored; never read by CLI.
-- `feat: add E057 (missing-consumes)` — relation target has ports but consumer has no `consumes` field; skipped for `emits`/`listens` event relations.
-- `feat: add E058 (unknown-port)` — `consumes` references a port name that does not exist on the target node.
-- `feat: add W006 (orphaned-aspect)` — aspect defined but not referenced by any node, architecture type, or flow.
-
 ## [4.0.0]
 
 ### Breaking Changes
 
-- **Aspect `anchors` field required.** Every aspect must define at least one anchor
-  (proof-point ID) in yg-aspect.yaml. E039 fires if missing.
-- **Typed anchor realizations.** Node aspect entries use `{ anchor-id: { regex: "pattern" } }`
-  format instead of bare strings. E041 fires for unknown types.
-- **`stability` field removed** from aspects. No longer parsed or validated.
+- **Regex anchors replaced by LLM-verified claims.** Aspect anchors are now
+  `{id, claim}` objects with natural language claims verified by LLM at approve
+  time. Regex proofs, rationale fields, and anchor realizations are removed.
+- **Mapping groups replaced by flat path lists.** Node mapping is a simple list
+  of file/directory paths. Per-group aspect proofs, anchor entries, and exceptions
+  fields are removed. Verification moved to LLM layer.
+- **`integration_aspects` replaced by typed ports.** Nodes declare named ports
+  with required aspects. Relations use `consumes` to reference ports. Per-relation
+  contracts replace global aspect propagation.
+- **`--full` flag removed from `yg context`.** Replaced by two-level progressive
+  disclosure: `--node` (overview) and `--file` (per-file details).
+- **Health score removed** from `yg check` output.
+- **Error codes removed:** E003 (subsumed by E050), E035 (subsumed by E050),
+  E037 (replaced by E055), E040 (removed — LLM verifies), E041 (removed —
+  only claim type), E054 (removed — mapping groups gone).
 - **`yg approve` replaces `drift-sync`.** `drift-sync` is now a backward-compatible
-  alias that delegates to approve logic. `--all` and `--recursive` flags are removed
-  from `drift-sync` — approve one node at a time with `--node <path>`.
-- **`yg context` replaces `build-context`.** `build-context` kept as backward-compatible
-  alias. `--self` option removed — always returns full context package.
-- **`yg deps` command removed.** Use `yg impact --node <path>` for dependency analysis.
+  alias. `--all` and `--recursive` flags removed — approve one node at a time.
+- **`yg context` replaces `build-context`.** `build-context` kept as alias.
+  `--self` option removed — always returns full context package.
+- **`yg deps` command removed.** Use `yg impact --node <path>` instead.
 - **`yg impact` simplified.** `--simulate` and `--method` options removed.
-- **`yg check` replaces `validate`, `drift`, `status`, `preflight`.** Single unified
-  gate command with exit 0 (clean) / exit 1 (errors). All four old commands removed.
+- **`yg check` replaces `validate`, `drift`, `status`, `preflight`.** Single
+  unified gate command. All four old commands removed.
 - **Error codes renumbered to v4 scheme.** E001-E013 structural, E020-E022
-  drift/coverage, E030-E041 completeness, W001-W005 warnings.
-- **Promoted warnings to errors.** missing-artifact (E030), shallow-artifact (E031),
-  budget-exceeded (E032), unpaired-event (E033), missing-schema (E034),
-  missing-required-aspect (E035), mapping-path-missing (E036), missing-description (E038).
+  drift/coverage, E030-E041 completeness, E050-E058 architecture, W001-W006.
+- **`stability` field removed** from aspects.
 
 ### Added
 
-- **E037 anchor-not-found** — regex pattern from realization not found in source files.
-- **E039 aspect-missing-anchors** — aspect has no anchors field.
-- **E040 anchor-not-realized** — node missing realization for aspect or integration anchor.
-- **E041 unknown-anchor-type** — realization uses unsupported type (only `regex` in v4).
-- **Integration anchors** — nodes can define `integration_anchors` that consumers must
-  realize on their relation entries. Automatic propagation via relations. Layer 4
-  tracking only cascades when target has integration_anchors defined.
-- **Anchor-pass annotation** on E021 cascade drift — shows whether cascaded node's
-  anchors still match source (`anchors-pass` / `anchors-fail`).
-- **Integration anchors cascade message** — E021 from dependency yg-node.yaml changes
-  on targets with integration_anchors uses specific message guiding to E040 resolution.
-- **`yg approve --node <path>`** — three-axis gate command. Accepts when both
-  source and own artifacts changed bilaterally, or when `--acknowledge <reason>`
-  is provided. Refuses unilateral changes with cause-specific error messages and
-  fix guidance. Exit 0 on success, exit 1 on refuse.
-- **Three-axis drift detection in approve.** Classifies changes as: own artifacts
-  (`.md` files under the node directory), source files (mapped source paths), and
-  other-tracked (aspects, flows, hierarchy — cascade). Enables precise diagnosis.
-- **Blackbox enforcement in approve.** Source changes on blackbox nodes are always
-  refused, even with `--acknowledge`. Forces decomposition.
-- **Anti-laundering check in approve.** First approve of a blackbox node is
-  refused if any mapped file already appears in another node's drift state.
-- **`--acknowledge <reason>` flag** — conscious exception flag. Allows approving
-  unilateral changes (source-only, artifact-only, cascade-only) when the developer
-  confirms no further action is needed. Reason is recorded in drift state.
-- **GC on every approve invocation.** Orphaned drift state entries (nodes removed
-  from graph) are garbage-collected automatically on each `yg approve` call.
-- **E020 direct-drift** — detects source/graph/full drift, missing files,
-  unmaterialized mappings with cause-specific messages and fix guidance.
-- **E021 cascade-drift** — detects upstream changes (aspect/dependency/flow/parent)
-  with cause identification and layer-specific review instructions.
-- **E022 unmapped-file** — enforces full coverage: every git-tracked file must belong
-  to a node. Aggregated output with cold-start guidance for low-coverage repos.
+- **LLM verification at approve time.** Two operations: claim verification
+  (E055 if claim not satisfied) and artifact review (E056 if artifact stale).
+  Configurable consensus voting, source chunking for large nodes, cached results.
+- **Typed ports on nodes.** Nodes declare named ports with required aspects.
+  Consumers reference ports via `consumes` field on relations.
+- **E055 claim-not-satisfied** — LLM evaluated claim against source and found
+  it not satisfied. Fires at approve time only.
+- **E056 artifact-stale** — LLM evaluated artifact and found it outdated.
+  Fires at approve time only.
+- **E057 missing-consumes** — relation target has ports but consumer has no
+  `consumes` field.
+- **E058 unknown-port** — `consumes` references a port name not defined on
+  the target node.
+- **W006 orphaned-aspect** — aspect defined but not referenced by any node,
+  architecture type, or flow.
+- **Progressive disclosure in context output.** `yg context --node` shows
+  overview (aspects with claims, flows, dependents with consequence framing,
+  artifact pointers, token budget). `yg context --file` shows per-file details
+  (claims to satisfy, dependencies consumed, back-pointer to node).
+- **Consequence framing for dependents.** 1-5: plain list, 6-15: cascade
+  warning with count, 16+: HIGH blast radius warning.
+- **`yg aspects` enriched.** Usage stats per aspect (by source: architecture,
+  own, implied, flow), claim count, orphan detection.
+- **`yg flows` enriched.** Participant count with node names, flow aspects.
+- **LLM provider integration.** `llm` section in yg-config.yaml (provider,
+  model, endpoint, temperature, consensus, max_tokens). Supports Ollama
+  (default), OpenAI, Anthropic.
+- **`yg-secrets.yaml`** — gitignored file for API keys and LLM config
+  overrides. `yg-secrets.example.yaml` template created by init.
+- **Graceful LLM degradation.** No LLM configured → check/approve work
+  without semantic verification. Notice shown to user.
+- **Append-only audit log** (`.yggdrasil/.audit-log.jsonl`) — every approve
+  records timestamp, node, action, hashes, reason, changed files. Gitignored.
+- **`yg approve --node <path>`** — three-axis gate command. Accepts bilateral
+  changes, refuses unilateral without `--acknowledge`. LLM verification runs
+  on drifted nodes.
+- **Three-axis drift detection in approve.** Own artifacts, source files,
+  other-tracked (aspects, flows, hierarchy). Precise diagnosis.
+- **Blackbox enforcement in approve.** Source changes always refused.
+- **Anti-laundering check in approve.** Shows conflicting files and owning nodes.
+- **`--acknowledge <reason>` flag** — conscious exception for unilateral changes.
+- **E020 direct-drift** — source/graph/full drift with cause-specific messages.
+- **E021 cascade-drift** — upstream changes with cause identification. Collapsed
+  per-node, cached verification label.
+- **E022 unmapped-file** — full coverage enforcement with cold-start guidance.
 - **W005 orphaned-drift-state** — warns about drift state for deleted nodes.
-- **Health score** (0-100) in check output header.
+- **E050 dangling-aspect-ref** — aspect referenced but not defined in graph.
+  Subsumes E003 and E035.
 - **Cascade tree summary** — groups E021 errors by upstream cause.
 - **Suggested next command** — actionable guidance after check result.
-
-- **Auto-detect project name on `yg init`.** Reads `package.json` name (strips
-  `@scope/` prefix, uses scope for generic names like `root`/`app`) or falls
-  back to directory name. Eliminates the empty-name config error on first run.
-- **Candidate node listing for unmapped files.** `yg build-context --file` now
-  lists candidate nodes when a file has no graph coverage but sibling files in
-  the same directory are mapped. Helps agents find the right context when
-  creating new files.
-- **Aspect check step (5b) in Modify Source Code workflow.** Post-implementation
-  trigger for organic aspect discovery during normal work. Includes
-  anti-rationalization: "only N nodes mapped" is not a valid reason to skip.
-- **Convention extraction step (6b) in reverse-engineering protocol.** When the
-  same utility/guard/helper appears in 3+ files, record it as a MUST-use
-  convention, not just a description.
-- **New file creation trigger in agent rules.** Added "BEFORE creating a NEW
-  source file" to the critical protocol.
-- **Operational aspect category** in aspect identification heuristic.
-- **Invariant extraction step (4b)** in reverse-engineering protocol.
+- **E050 summary header** when >10 architecture errors.
+- **Warnings hidden** when errors exist (reduce noise).
+- **Auto-detect project name on `yg init`.**
+- **Candidate node listing for unmapped files** in `yg context --file`.
+- **Aspect check step (5b)** in Modify Source Code workflow.
+- **New file creation trigger** in agent rules.
 
 ### Changed
 
-- **Error codes renumbered to v4 scheme.** Structural errors: E001-E013 (compact,
-  no gaps). Completeness errors: E030-E041 (includes promoted warnings E030-E038
-  and new anchor errors E039-E041). Remaining warnings: W001-W004
-  (budget-warning, own-budget-warning, wide-node, high-fan-out). Removed: W013
-  (directory-without-node, subsumed by E022) and W014 (anchor-not-found, replaced
-  by typed anchors).
-- **Aspect Discovery During Implementation** now applies to brownfield, not just
-  greenfield. Added brownfield trigger for utility functions in 3+ files.
-- **Schema example in `yg-node.yaml`.** Added commented example with real values
-  to prevent `id:` vs `aspect:` confusion.
+- **E050 renamed** from missing-required-aspect to dangling-aspect-ref.
+- **E039 renamed** from aspect-missing-anchors to aspect-missing-claims.
+- **E053 rewritten** for per-consumed-port validation (was global).
+- **E021 collapsed** per-node with cached verification label.
+- **W001 shows full breakdown** of token budget usage.
+- **Anti-laundering** shows conflicting files and owning nodes.
+- **Context output** from YAML dump to structured text with progressive disclosure.
+- **Aspect Discovery During Implementation** applies to brownfield, not just
+  greenfield.
 
 ## [3.0.0] - 2026-03-29
 
