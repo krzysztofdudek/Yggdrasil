@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { selectNodes } from '../../../src/core/node-selector.js';
+import { selectNodes, selectTask } from '../../../src/core/node-selector.js';
 import { loadGraph } from '../../../src/core/graph-loader.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -128,5 +128,103 @@ describe('selectNodes', () => {
       const results = selectNodes(graph, 'quantum blockchain', 5);
       expect(results).toEqual([]);
     });
+  });
+});
+
+describe('selectTask', () => {
+  it('returns nodes, aspects, and flows in result', async () => {
+    const graph = await loadGraph(FIXTURE_PROJECT);
+    const result = selectTask(graph, 'order audit', 5);
+    expect(result.nodes).toBeDefined();
+    expect(result.aspects).toBeDefined();
+    expect(result.flows).toBeDefined();
+  });
+
+  it('returns empty result for empty task', async () => {
+    const graph = await loadGraph(FIXTURE_PROJECT);
+    const result = selectTask(graph, '', 5);
+    expect(result).toEqual({ nodes: [], aspects: [], flows: [] });
+  });
+
+  it('returns empty result for stop-words-only task', async () => {
+    const graph = await loadGraph(FIXTURE_PROJECT);
+    const result = selectTask(graph, 'the is a', 5);
+    expect(result).toEqual({ nodes: [], aspects: [], flows: [] });
+  });
+
+  it('matches aspects directly by content keywords', async () => {
+    const graph = await loadGraph(FIXTURE_PROJECT);
+    // "audit" appears in the requires-audit aspect content
+    const result = selectTask(graph, 'audit logging', 5);
+    const auditAspect = result.aspects.find((a) => a.aspectId === 'requires-audit');
+    expect(auditAspect).toBeDefined();
+    expect(auditAspect!.matched).toBe(true);
+  });
+
+  it('counts aspect occurrences on returned nodes', async () => {
+    const graph = await loadGraph(FIXTURE_PROJECT);
+    // order-service has requires-audit aspect
+    const result = selectTask(graph, 'order lifecycle', 5);
+    const orderNode = result.nodes.find((n) => n.node === 'orders/order-service');
+    expect(orderNode).toBeDefined();
+    const auditAspect = result.aspects.find((a) => a.aspectId === 'requires-audit');
+    if (auditAspect) {
+      expect(auditAspect.nodeCount).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it('matches flows by content keywords', async () => {
+    const graph = await loadGraph(FIXTURE_PROJECT);
+    // "checkout" appears in the checkout-flow name
+    const result = selectTask(graph, 'checkout flow', 5);
+    const checkoutFlow = result.flows.find((f) => f.flowPath === 'checkout-flow');
+    expect(checkoutFlow).toBeDefined();
+    expect(checkoutFlow!.matched).toBe(true);
+  });
+
+  it('counts flow participant overlap with returned nodes', async () => {
+    const graph = await loadGraph(FIXTURE_PROJECT);
+    // order-service participates in checkout-flow
+    const result = selectTask(graph, 'order lifecycle management', 5);
+    const checkoutFlow = result.flows.find((f) => f.flowPath === 'checkout-flow');
+    if (checkoutFlow) {
+      expect(checkoutFlow.nodeCount).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it('includes readPaths for matched aspects', async () => {
+    const graph = await loadGraph(FIXTURE_PROJECT);
+    const result = selectTask(graph, 'audit logging', 5);
+    const auditAspect = result.aspects.find((a) => a.aspectId === 'requires-audit');
+    expect(auditAspect).toBeDefined();
+    expect(auditAspect!.readPaths.length).toBeGreaterThan(0);
+    expect(auditAspect!.readPaths[0]).toContain('aspects/requires-audit/');
+  });
+
+  it('includes readPath for matched flows', async () => {
+    const graph = await loadGraph(FIXTURE_PROJECT);
+    const result = selectTask(graph, 'checkout flow', 5);
+    const checkoutFlow = result.flows.find((f) => f.flowPath === 'checkout-flow');
+    expect(checkoutFlow).toBeDefined();
+    expect(checkoutFlow!.readPath).toContain('flows/checkout-flow/description.md');
+  });
+
+  it('respects limit parameter for all sections', async () => {
+    const graph = await loadGraph(FIXTURE_PROJECT);
+    const result = selectTask(graph, 'order audit checkout', 1);
+    expect(result.nodes.length).toBeLessThanOrEqual(1);
+    expect(result.aspects.length).toBeLessThanOrEqual(1);
+    expect(result.flows.length).toBeLessThanOrEqual(1);
+  });
+
+  it('sorts aspects with matched first', async () => {
+    const graph = await loadGraph(FIXTURE_PROJECT);
+    const result = selectTask(graph, 'audit order', 10);
+    // If there are both matched and unmatched aspects, matched should come first
+    const matchedIdx = result.aspects.findIndex((a) => a.matched);
+    const unmatchedIdx = result.aspects.findIndex((a) => !a.matched);
+    if (matchedIdx >= 0 && unmatchedIdx >= 0) {
+      expect(matchedIdx).toBeLessThan(unmatchedIdx);
+    }
   });
 });
