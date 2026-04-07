@@ -3,7 +3,6 @@ type: library
 description: Core approve logic — records drift baseline, implements three-axis change detection and blackbox enforcement
 blackbox: false
 aspects:
-  - deterministic
   - posix-paths
 relations:
   - target: cli/io
@@ -19,4 +18,3 @@ relations:
       - hashTrackedFiles
 mapping:
   - source/cli/src/core/approve.ts
-  - source/cli/src/core/.gitkeep

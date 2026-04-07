@@ -15,12 +15,11 @@ Factory function that returns a concrete provider based on `config.provider`:
 
 ```typescript
 interface LlmProvider {
-  verifyClaim(params: {
+  verifyAspect(params: {
     aspectContent: string;
-    claim: string;
     sourceCode: string;
     sourceFiles: string[];
-  }): Promise<ClaimResponse>;
+  }): Promise<AspectResponse>;
 
   reviewArtifact(params: {
     artifactContent: string;
@@ -34,10 +33,10 @@ interface LlmProvider {
 }
 ```
 
-### `ClaimResponse`
+### `AspectResponse`
 
 ```typescript
-interface ClaimResponse {
+interface AspectResponse {
   satisfied: boolean;
   reason: string;
 }

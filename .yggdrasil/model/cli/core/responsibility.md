@@ -12,7 +12,7 @@ Core has no dependency on Commander, process.exit, stdout, or stderr. It receive
 | -------- | ------- | ---- |
 | cli/core/loader | `loadGraph`, `loadGraphFromRef` | Scan model/, aspects/, flows/, schemas/ to build the in-memory graph. Git archive for ref-based loading. Consumes cli/io, cli/model, cli/utils. |
 | cli/core/context | `buildContext` | 5-step layer assembly: global, hierarchy, own, aspects, relational. Produces the deterministic context package for a node. Consumes cli/model, cli/utils. |
-| cli/core/validator | `validate` | Structural checks (E001-E019, W001-W014). Scope filtering, context budget enforcement, anchor validation. Consumes cli/core/context, cli/model, cli/utils. |
+| cli/core/validator | `validate` | Structural checks (E001-E019, W001-W014). Scope filtering, context budget enforcement. Consumes cli/core/context, cli/model, cli/utils. |
 | cli/core/drift-detector | `detectDrift`, `syncDriftState` | Hash comparison vs .drift-state. Reports per-file status: ok, drift, missing, unmaterialized. Consumes cli/io, cli/model, cli/utils. |
 | cli/core/dependency-resolver | `resolveDeps`, `findChangedNodes`, `buildDependencyTree`, `formatDependencyTree`, `collectTransitiveDeps` | Topological sort of structural relations, git diff integration, tree output. Consumes cli/model only. |
 

@@ -24,7 +24,7 @@ Errors (<N>):
        <message lines>
 
   Cascade:
-  E021 <node> — cascade drift[anchors-pass|anchors-fail]
+  E021 <node> — cascade drift
        <message lines>
 
   Cascade summary: <N> upstream change(s) → <N> cascaded node(s)

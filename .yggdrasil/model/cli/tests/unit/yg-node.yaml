@@ -4,5 +4,3 @@ description: Parent node for CLI unit tests — children cover core, CLI command
 blackbox: false
 aspects: []
 relations: []
-mapping:
-  - source/cli/tests/unit/.gitkeep

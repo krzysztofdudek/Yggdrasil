@@ -16,16 +16,16 @@ Library used by cli/core (loader, drift-detector). All paths are absolute; calle
 
 - `parseNodeYaml(filePath: string): Promise<NodeMeta>`
   - Parses yg-node.yaml with required fields: name (non-empty string), type (non-empty string, must match config.node_types). Optional: description, blackbox (boolean), mapping, relations, aspects, ports.
-  - **Mapping format (v4):** Array of MappingGroup objects. Each group has `paths: string[]` (required, must be relative to repo root, no leading slash, non-empty) and optional `aspects: MappingGroupAspect[]`. Each aspect has `aspect: string` (required) and `anchors: Record<string, MappingGroupAnchor>` mapping anchor IDs to `{regex: string, rationale: string}` (both required, non-empty strings). Backward compatible with old format `mapping: {paths: [...]}` (converted internally to array).
+  - **Mapping format (v4):** Flat list of file/directory paths relative to repo root (no leading slash, non-empty). Backward compatible with old object format `mapping: {paths: [...]}` (converted internally to flat list).
   - **Relations:** Array of relation objects with `target: string` (required, relative path), `type: RelationType` (required: uses|calls|extends|implements|emits|listens), optional `consumes: string[]`, `failure: string`, `event_name: string`. No longer supports `anchors` field on relations.
-  - **Aspects:** Array of aspect entries (old format only for backward compatibility). Each entry is object with `aspect: string` (required, id of aspect), optional `exceptions: string[]` (deviations from aspect pattern), optional `anchors: Record<string, AnchorRealization>` (map of anchor ID to `{regex: string, ...}` objects). New format supports flat strings in the array (`aspects: [aspect-id-1, aspect-id-2]`) for simple cases.
+  - **Aspects:** Array of aspect entries. Each entry is either a flat string (aspect ID) or an object with `aspect: string` (required, id of aspect) and optional `exceptions: string[]` (deviations from aspect pattern).
   - **ports:** Optional array of aspect IDs (strings) that consumers must realize.
   - Throws on invalid name, type, relations, mapping (non-array or object, invalid structure), aspects (non-array, duplicate ids, invalid entries), ports (non-array), blackbox (non-boolean).
 
 ## aspect-parser.ts
 
 - `parseAspect(aspectDir: string, aspectYamlPath: string, id: string): Promise<AspectDef>`
-  - Throws on missing name or empty id. Reads artifacts from aspectDir excluding yg-aspect.yaml.
+  - Throws on missing name or empty id. Reads content artifacts from aspectDir excluding yg-aspect.yaml.
 
 ## flow-parser.ts
 
@@ -70,7 +70,7 @@ Parsers and stores throw `Error` on invalid input. No dedicated error codes — 
 
 **architecture-parser:** Empty file, missing node_types (not a non-empty object), entries missing description, invalid relation types (not one of the valid types), relation values not arrays of strings. Propagates ENOENT, EACCES from readFile.
 
-**node-parser:** Missing name/type, invalid relations (non-array, invalid type, missing target), invalid mapping (paths must be relative, non-empty, no leading slash), invalid aspects (non-array, entries not objects, missing/empty aspect string, invalid exceptions/anchors not arrays of strings, duplicate aspect ids). Propagates ENOENT, EACCES from readFile.
+**node-parser:** Missing name/type, invalid relations (non-array, invalid type, missing target), invalid mapping (paths must be relative, non-empty, no leading slash), invalid aspects (non-array, invalid entries, missing/empty aspect string, invalid exceptions, duplicate aspect ids). Propagates ENOENT, EACCES from readFile.
 
 **aspect-parser:** Missing name or empty id. Propagates readFile and readArtifacts errors.
 

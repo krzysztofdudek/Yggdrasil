@@ -43,7 +43,7 @@ Records a new drift baseline for a node after reviewing its current state.
 
 When `llmProvider` is supplied and not skipped, runs:
 
-1. **Claim verification (E055)** — checks each aspect claim against source files
+1. **Aspect verification (E055)** — checks each aspect's content.md requirements against source files
 2. **Artifact review (E056)** — checks if responsibility/interface/internals are current
 
 Reviewer is skipped (with reason) when: no provider configured (`'not-configured'`), provider unreachable (`'unavailable'`), or blackbox node (`'blackbox'`). When `--reviewed` is passed, the three-axis gate is bypassed but the reviewer still runs.
@@ -51,9 +51,9 @@ Reviewer is skipped (with reason) when: no provider configured (`'not-configured
 **Returns** (reviewer fields on `ApproveResult`):
 
 - `llmSkipped?: 'not-configured' | 'unavailable' | 'blackbox'` — why reviewer was skipped
-- `claimResults?: Record<aspectId, Record<claimId, ClaimVerificationResult>>` — per-claim results
+- `aspectResults?: Record<string, AspectVerificationResult>` — per-aspect results
 - `artifactReviewResults?: Record<artifactName, ArtifactReviewResult>` — per-artifact freshness
-- `e055Violations?: Array<{ aspect, claim, reason }>` — claims not satisfied
+- `e055Violations?: Array<{ aspect, reason }>` — aspects not satisfied
 - `e056Violations?: Array<{ name, reason }>` — stale artifacts
 
 ## `ApproveOptions`
@@ -64,7 +64,7 @@ interface ApproveOptions {
   llmProvider?: LlmProvider; // for semantic verification (E055/E056)
   llmNotConfigured?: boolean; // true = no reviewer section in config (vs provider unreachable)
   maxTokens?: number;      // resolved from config or queried from provider
-  consensus?: number;      // vote count for claim verification (default: 1)
+  consensus?: number;      // vote count for aspect verification (default: 1)
   verifyArtifacts?: boolean; // run artifact review E056 (default: false)
 }
 ```

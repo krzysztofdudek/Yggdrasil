@@ -27,7 +27,7 @@
 **Structured output converter:**
 
 - `toContextMapOutput(pkg: ContextPackage, graph: Graph): ContextMapOutput` — converts a layers-based ContextPackage into the structured ContextMapOutput format. Builds a `glossary` (aspects + flows referenced in the package, each with name/description/files via `buildGlossary`), inlines `files` directly into `node`, `hierarchy`, and `dependencies` entries via `buildNodeFiles` and `buildDepNodeFiles` helpers. Budget status uses `'severe'` (not `'error'`) for over-budget. Includes `breakdown: BudgetBreakdown` in meta via `computeBudgetBreakdown`. The `node` section includes:
-  - `aspects: NodeAspectRef[]` from `node.meta.aspects` with anchors and exceptions
+  - `aspects: NodeAspectRef[]` from `node.meta.aspects` with exceptions
   - `required_aspects: RequiredAspectRef[]` — computed from architecture constraints, parent inheritance, own aspects, and flow participation using `computeEffectiveAspects` (when architecture is available); includes source information (e.g., "architecture (type: service)", "own declaration", "flow 'checkout'", "inherited from parent"). Falls back to simple collection when architecture is unavailable.
   - `ports?: RequiredAspectRef[]` — computed similarly from port sources (if any exist)
 

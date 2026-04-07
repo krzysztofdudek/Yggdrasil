@@ -19,6 +19,7 @@ interface CheckResult {
   totalFiles: number;
   issues: CheckIssue[];
   suggestedNext: string | null;  // highest-priority next command with workflow anchor
+  llmAvailable: boolean;         // whether a reviewer is configured in yg-config.yaml
 }
 ```
 
@@ -31,7 +32,7 @@ Extends `ValidationIssue` with:
 - `cascadeCauses?: CascadeCause[]` — for E021: what triggered the cascade
 - `uncoveredFiles?: string[]` — for E022: file paths not covered
 - `uncoveredCount?: number` — for E022: total count
-- `anchorsPassing?: boolean` — for E021: whether anchors still match source
+- `verificationLabel?: string` — for E021: cached verification status from last approve (`'last verified: pass'`, `'last verified: fail'`, `'never verified'`)
 
 The `suggestedNext` string follows the format: `<command>\n  <N> of <total> <category> — <workflow anchor>`. Priority order: drift (E020) → cascade (E021) → structural (E001-E013) → coverage (E022) → completeness (E030+). Workflow anchor labels: "post-modify workflow" (drift), "cascade review" (cascade), "bootstrap workflow" (coverage).
 

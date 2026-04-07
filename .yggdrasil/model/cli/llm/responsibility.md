@@ -1,15 +1,14 @@
 # LLM Provider — Responsibility
 
-Provides a unified interface for interacting with LLM providers to verify architectural claims against source code and review artifact freshness.
+Provides a unified interface for interacting with LLM providers to verify architectural aspect requirements against source code and review artifact freshness.
 
 ## What This Module Does
 
-- Defines the `LlmProvider` interface with two core operations: `verifyClaim` (check if source code satisfies an aspect claim) and `reviewArtifact` (check if documentation is current against source code)
+- Defines the `LlmProvider` interface with two core operations: `verifyAspect` (check if source code satisfies an aspect's content.md requirements) and `reviewArtifact` (check if documentation is current against source code)
 - Implements the adapter pattern via `createLlmProvider()` factory, selecting the concrete provider based on `LlmConfig.provider` field
-- Provides three provider implementations:
-  - **OllamaProvider** — fully implemented; communicates with local Ollama API over HTTP, uses JSON format mode, retries once on failure, strips markdown code fences from responses
-  - **OpenAIProvider** — stub; throws "not yet implemented"
-  - **AnthropicProvider** — stub; throws "not yet implemented"
+- Provides two provider implementations:
+  - **OllamaProvider** — communicates with local Ollama API over HTTP, uses JSON format mode, retries once on failure, strips markdown code fences from responses
+  - **ClaudeCodeProvider** — spawns `claude --model <model> --print` as a subprocess, writes prompt to stdin, parses JSON from stdout; falls back to natural-language extraction if JSON parse fails; 60 s timeout per call
 - Handles provider availability checking (`isAvailable`) and context window size detection (`getContextWindowSize`)
 - Resolves max tokens from config, auto-detection, or safe fallback (4096)
 
@@ -17,4 +16,4 @@ Provides a unified interface for interacting with LLM providers to verify archit
 
 - Constructing the source code snippets or aspect content passed to the LLM — callers provide ready-to-use content
 - Deciding when to invoke LLM verification — that decision belongs to the caller
-- Prompt engineering beyond the fixed system prompts for claim/artifact review
+- Prompt engineering beyond the fixed system prompts for aspect/artifact review

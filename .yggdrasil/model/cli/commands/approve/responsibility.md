@@ -19,7 +19,7 @@ CLI command handler implementing `yg approve` and the backward-compatible `yg dr
   - Formats batch output: per-node result lines + summary counts
   - Exit code: 1 if any refused, 0 if all approved/reviewed
 - **Output formatting** — `formatResult` and `formatRefused` render all five outcome cases:
-  - `approved` — green success line, hash transition (`prev -> curr`); if reviewer ran, shows verification summary ("N claims satisfied, N artifacts current")
+  - `approved` — green success line, hash transition (`prev -> curr`); if reviewer ran, shows verification summary ("N aspects satisfied, N artifacts current")
   - `reviewed` — green with "Three-axis gate bypassed — reviewer not run (reason)" or "reviewer verified claims" depending on `llmSkipped`
   - `initial` — green with "(initial)" marker
   - `no-change` — plain output with "baseline already current. No approval needed."
@@ -27,8 +27,8 @@ CLI command handler implementing `yg approve` and the backward-compatible `yg dr
 - **Node path normalization** — strips leading `./` and trailing `/` from `--node` value before passing to core.
 - **Reviewer loading** — `loadLlmProvider` reads `llm` config field (populated from `reviewer:` yaml section) and `yg-secrets.yaml`, creates provider, checks `isAvailable()`. Returns `llmNotConfigured: true` when no reviewer section exists, `llmNotConfigured: false` with `provider: undefined` when provider is unreachable.
 - **Reviewer skip messaging** — `formatLlmResults` shows distinct messages based on `llmSkipped` reason:
-  - `'not-configured'` — "Reviewer not configured — claims not verified. Structural checks only. To enable: add reviewer section to yg-config.yaml."
-  - `'unavailable'` — "Reviewer configured but not reachable — claims not verified. Structural checks only."
+  - `'not-configured'` — "Reviewer not configured — aspects not verified. Structural checks only. To enable: add reviewer section to yg-config.yaml."
+  - `'unavailable'` — "Reviewer configured but not reachable — aspects not verified. Structural checks only."
   - `'blackbox'` — "Reviewer skipped for blackbox node."
 - **GC reporting** — prints orphaned drift state removals as dim lines.
 

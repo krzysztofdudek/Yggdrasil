@@ -6,7 +6,7 @@ Type library — exports TypeScript interfaces and types only. No runtime functi
 
 **Node:** Graph, GraphNode, NodeMeta, Relation, RelationType, Artifact
 
-**LLM verification (new in v4):** ClaimAnchor, ClaimVerificationResult, ArtifactReviewResult, PortDef, LlmConfig. `ApproveResult.llmSkipped` is a discriminated string union (`'not-configured' | 'unavailable' | 'acknowledge' | 'blackbox'`) — not a boolean.
+**LLM verification (new in v4):** AspectVerificationResult, ArtifactReviewResult, PortDef, LlmConfig. `ApproveResult.llmSkipped` is a discriminated string union (`'not-configured' | 'unavailable' | 'blackbox'`) — not a boolean.
 
 **Architecture:** ArchitectureDef, ArchitectureNodeType
 
@@ -34,13 +34,11 @@ Type library — exports TypeScript interfaces and types only. No runtime functi
 
 **Relation:** target, type, optional consumes, failure, event_name
 
-**ClaimAnchor:** id, claim (natural language statement verified by LLM)
-
 **PortDef:** description, aspects (string[] — required aspects for consumers)
 
 **LlmConfig:** provider (ollama/openai/anthropic), model, optional endpoint, optional api_key, temperature, consensus, max_tokens (number or 'auto'), verify_artifacts (boolean, default false), optional context_length_field (string — Ollama model_info key override)
 
-**ClaimVerificationResult:** satisfied (boolean), reason (string)
+**AspectVerificationResult:** satisfied (boolean), reason (string)
 
 **ArtifactReviewResult:** current (boolean), reason (string)
 
@@ -97,14 +95,14 @@ Model is a TypeScript type library — it contains no executable code and does n
 
 - **DriftReport** — Full drift scan result: entries, counts by status (ok, source-drift, graph-drift, full-drift, missing, unmaterialized).
 - **DriftEntry** — Per-node drift result: nodePath, status, optional changedFiles and details.
-- **DriftNodeState** — Stored state per node: canonical hash + per-file hashes (path to SHA-256), optional acknowledgeReason, optional claimResults cache (per-aspect claim verification results), optional artifactReview cache (per-artifact review results).
+- **DriftNodeState** — Stored state per node: canonical hash + per-file hashes (path to SHA-256), optional acknowledgeReason, optional aspectResults cache (per-aspect verification results), optional artifactReview cache (per-artifact review results).
 - **DriftState** — Record mapping node paths to DriftNodeState.
 - **DriftFileChange** — Per-file change detail: filePath, category (source or graph).
 - **TrackedFileLayer** — Type union: `'own' | 'hierarchy' | 'aspects' | 'relational' | 'flows' | 'source'`. Indicates which context package layer brought a file into tracking — used by drift classification (E020/E021) to distinguish direct drift (own/source) from cascade drift (hierarchy/aspects/relational/flows).
 
 ## Cross-cutting definitions
 
-- **AspectDef** — Loaded aspect: name, id, optional description, optional implies, anchors (ClaimAnchor[] — claim-based proof points), artifacts.
+- **AspectDef** — Loaded aspect: name, id, optional description, optional implies, artifacts.
 - **FlowDef** — Loaded flow: path, name, optional description, nodes (participant paths), optional aspects, artifacts.
 - **SchemaDef** — Schema reference: schemaType (node/aspect/flow).
 

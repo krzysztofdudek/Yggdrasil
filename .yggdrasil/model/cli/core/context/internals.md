@@ -42,8 +42,6 @@ This means a node's context package includes not just the dependency's own artif
 
 When building aspect layers, the builder looks up each resolved aspect in `node.meta.aspects` by matching `entry.aspect === aspect.id`. If found and the entry has `exceptions`, they are joined with '; ' and passed to `buildAspectLayer` as the exception note, which appends it as a warning block. This prevents aspect generalizations from masking node-specific deviations.
 
-Code anchors live in `yg-node.yaml` embedded in aspect entries (`anchors` field) and are validated by `cli/core/validator` (W014) rather than included in context output.
-
 ## Budget Breakdown Computation
 
 `computeBudgetBreakdown` categorizes tokens from `pkg.layers` by layer type:

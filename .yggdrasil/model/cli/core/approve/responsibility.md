@@ -12,10 +12,10 @@ Implements the core approve logic for the `yg approve` command. Records a new dr
   - *other tracked* — hierarchy artifacts, aspect content, flow descriptions, dependency interfaces
 - **Accept/refuse rules**:
   - Both axes (own + source) changed → `approved`
-  - Only one axis changed → `refused` unless `--acknowledge` is provided → `acknowledged`
-  - Only other tracked changed (cascade) → `refused` unless `--acknowledge` → `acknowledged`
+  - Only one axis changed → `refused` unless `--reviewed <reason>` → `reviewed`
+  - Only other tracked changed (cascade) → `refused` unless `--reviewed <reason>` → `reviewed`
   - No changes → `no-change` (baseline still recorded)
-- **Blackbox enforcement**: if the node is `blackbox: true` and source files changed, approve is unconditionally refused — `--acknowledge` cannot override this. Decomposition into a proper node is required.
+- **Blackbox enforcement**: if the node is `blackbox: true` and source files changed, approve is unconditionally refused — `--reviewed` cannot override this. Decomposition into a proper node is required.
 - **Anti-laundering check**: on first approve of a blackbox node, refuses if mapped files already appear in drift state of other nodes (prevents hiding already-tracked files under a new blackbox).
 - **Garbage collection**: a private function `runGC` calls `garbageCollectDriftState` on every invocation to remove drift state entries for nodes no longer in the graph.
 - **Audit logging**: on every non-refused approve (initial, approved, acknowledged, no-change), appends a JSONL entry to `.yggdrasil/.audit-log.jsonl` via `appendAuditEntry`. Write-only side effect — never read by CLI.
@@ -28,7 +28,7 @@ Uses the child-wins model: if a parent node and a child node both map overlappin
 
 After the three-axis decision (when not refused, not blackbox, and provider is available), runs LLM verification:
 
-- **Claim verification**: resolves effective aspects with claims, sends source files to LLM for each claim
+- **Aspect verification**: resolves effective aspects with content files, sends content.md and source files to LLM for each aspect
 - **Artifact review**: sends artifacts + source files to LLM to check freshness
 - If E055/E056 violations found, returns `action: 'refused'` with violation details
-- Tracks skip reason as a discriminated string (`'not-configured' | 'unavailable' | 'acknowledge' | 'blackbox'`) — the `llmNotConfigured` option distinguishes "no config" from "provider unreachable"
+- Tracks skip reason as a discriminated string (`'not-configured' | 'unavailable' | 'blackbox'`) — the `llmNotConfigured` option distinguishes "no config" from "provider unreachable"
