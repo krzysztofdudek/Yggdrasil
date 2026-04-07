@@ -1,6 +1,6 @@
 name: SelectCommand
 type: library
-description: Finds graph nodes relevant to a natural-language task description via yg select
+description: "Finds nodes, aspects, and flows relevant to a task via yg select \"<query>\""
 aspects:
   - cli-command-contract
 relations:
@@ -11,7 +11,7 @@ relations:
   - target: cli/core/node-selector
     type: uses
     consumes:
-      - selectNodes
+      - selectTask
   - target: cli/utils
     type: uses
     consumes:

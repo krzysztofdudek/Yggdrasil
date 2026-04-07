@@ -24,16 +24,7 @@ tools expect and enforce.
 ```yaml
 name: my-project # string, required
 
-node_types: # object, required, non-empty — keys are type names
-  module:
-    description: "Business logic unit with clear domain responsibility"
-  service:
-    description: "Component providing functionality to other nodes"
-  library:
-    description: "Shared utility code with no domain knowledge"
-  infrastructure:
-    description: "Guards, middleware, interceptors — invisible in call graphs but affect blast radius"
-    # required_aspects: [requires-audit]  # optional — aspects every node of this type must have
+# node_types are defined in yg-architecture.yaml (not here)
 
 quality: # map, optional (has default values) — all keys snake_case
   min_artifact_length: 50 # int, default 50
@@ -42,6 +33,8 @@ quality: # map, optional (has default values) — all keys snake_case
     warning: 10000 # int, default 10000 (tokens)
     error: 20000 # int, default 20000 (tokens)
     own_warning: 5000 # int, optional (tokens) — warn when own artifacts alone exceed this
+
+parallel: 1 # int, optional, default 1 — concurrency limit for batch approve
 
 reviewer: # map, optional — reviewer configuration for semantic verification
   active: ollama # string, optional — which provider to use (required when multiple providers configured)
@@ -64,7 +57,7 @@ and required conditions.
 **Validation rules for yg-config.yaml:**
 
 - `name` must be non-empty.
-- `node_types` must be a non-empty object. Each entry must have a `description` string. Optional `required_aspects` list. Node `type` must match a key in `node_types`.
+- Node types are defined in `yg-architecture.yaml` (not in `yg-config.yaml`). Each entry must have a `description` string. Optional `aspects` list. Node `type` must match a key in the architecture file's `node_types`.
 - `quality.context_budget.error` must be >= `quality.context_budget.warning`.
 - `reviewer` is optional. When not configured, semantic verification
   (`yg approve` aspect verification) is skipped with an informational notice.
@@ -175,7 +168,7 @@ parent-child relationship from nesting — `implies` is always explicit.
 
 All files in the aspect directory except `yg-aspect.yaml` are content attached to the context
 packages of nodes carrying the specified aspect. Content files (e.g. `content.md`) describe
-the aspect's requirements in natural language — these are verified by the LLM at approve time.
+the aspect's requirements in natural language — these are verified by the reviewer at approve time.
 When `implies` is present, the aspect's content plus all implied aspects' content is attached.
 Tools resolve implications recursively and detect cycles.
 
@@ -789,11 +782,11 @@ Indirectly affected (structural dependents of descendants):
   <- reports/adapter-monitor <- payments/payment-service/stripe-adapter
 
 Flows: checkout
-Aspects (scope covers node): requires-saga, requires-idempotency
+Aspects: requires-saga, requires-idempotency
 Nodes sharing aspects:
   orders/order-service (requires-saga, requires-idempotency)
 
-Total scope: 6 nodes, 1 flows, 2 aspects
+Blast radius: 6 nodes, 1 flows, 2 aspects
 ```
 
 #### Aspect mode (`--aspect`)
@@ -819,7 +812,7 @@ Flows propagating this aspect: (none)
 Implied by: (none)
 Implies: (none)
 
-Total scope: 4 nodes, 0 flows
+Blast radius: 4 nodes, 0 flows
 ```
 
 #### Flow mode (`--flow`)
@@ -845,7 +838,7 @@ Indirectly affected (structural dependents):
 
 Flow aspects: requires-saga
 
-Total scope: 5 nodes
+Blast radius: 5 nodes
 ```
 
 **Errors:**

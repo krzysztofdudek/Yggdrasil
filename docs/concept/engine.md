@@ -510,7 +510,7 @@ knowledge in the graph.
 | Context assembly | `yg context --file/--node`             | Assemble context package for a node                      |
 | Impact analysis  | `yg impact --file/--node/--aspect/--flow` | Blast radius analysis                                 |
 | Check            | `yg check`                             | Unified gate — structural integrity, drift, coverage, completeness |
-| Approve          | `yg approve --node [--reviewed]`       | Record baseline after review                             |
+| Approve          | `yg approve --node/--aspect/--flow [--reviewed]` | Record baseline after review                   |
 
 Read operations (`context`, `impact`) modify nothing. `check` is read-only.
 `approve` updates synchronization metadata (`.drift-state/`) after an explicit review

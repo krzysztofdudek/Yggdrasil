@@ -46,8 +46,8 @@ This is achieved through behavioral directives that the agent follows as part of
   requirements are cross-cutting rules defined in aspect content files — the agent uses them
   as implementation constraints.
 - **After modifying**, the agent updates graph artifacts, runs `yg check` (the structural gate),
-  and then `yg approve` (the semantic verification gate). Approve runs LLM checks: it verifies
-  each aspect against source code and checks whether artifacts are current. If LLM is not
+  and then `yg approve` (the semantic verification gate). Approve runs reviewer checks: it verifies
+  each aspect against source code and checks whether artifacts are current. If no reviewer is
   configured, approve falls back to three-axis change detection only — semantic verification
   is gracefully skipped with a notice.
 - **When it notices files without graph coverage**, the agent stops. If greenfield (new code to be
@@ -108,7 +108,7 @@ Two v4 mechanisms replace earlier regex-based approaches with agent-friendly alt
 **Aspect verification** replaces regex anchors as the primary way aspects constrain source
 files. Instead of writing regular expressions that must match in source code, the agent writes
 aspect content files (`content.md`) describing requirements in natural language. At approve
-time, the LLM verifies each aspect's content against the actual source code. If an aspect is
+time, the reviewer verifies each aspect's content against the actual source code. If an aspect is
 not satisfied, E055 tells the agent exactly what failed.
 
 Aspect content files are more expressive than regex (they can describe behavioral properties,
@@ -156,7 +156,7 @@ good graphs without requiring prior knowledge of conventions.
 | Platform rules file                                            | Initialization (one time)  |
 
 Tools create infrastructure (initialization). The agent creates content (everything after init),
-including aspect content files (requirements verified by LLM at approve time) and ports
+including aspect content files (requirements verified by the reviewer at approve time) and ports
 (typed contracts declaring what each dependency provides).
 
 ---
@@ -201,8 +201,8 @@ WHEN OWNER NOT FOUND (file without graph coverage):
 AFTER MODIFYING:
 - Update graph artifacts (per file, not batched)
 - yg check — structural gate
-- yg approve --node — LLM verifies aspects + artifact freshness
-  (no LLM configured → falls back to change detection only)
+- yg approve --node — reviewer verifies aspects + artifact freshness
+  (no reviewer configured → falls back to change detection only)
 
 BEFORE A CHANGE THAT AFFECTS MANY NODES:
 - Check impact of the planned change (yg impact)
@@ -259,16 +259,16 @@ contextual feedback. At approve time, the agent gets deeper semantic feedback:
 
 - `yg check` — structural gate: missing artifacts, broken references, budget violations,
   coverage gaps. Fast and deterministic.
-- `yg approve` — semantic gate: LLM verifies aspects against source code and checks artifact
+- `yg approve` — semantic gate: reviewer verifies aspects against source code and checks artifact
   freshness. Self-teaching errors tell the agent exactly what to fix:
   - **E055 (aspect-not-satisfied):** an aspect is not satisfied by the source file — the agent
     must fix the code or update the aspect.
   - **E056 (artifact-stale):** an artifact no longer reflects the source code — the agent
     must update it.
 
-If no LLM is configured, approve falls back to three-axis change detection (own artifacts,
+If no reviewer is configured, approve falls back to three-axis change detection (own artifacts,
 source files, upstream changes). Semantic verification is gracefully degraded, not blocked —
-a notice tells the agent that LLM checks were skipped.
+a notice tells the agent that reviewer checks were skipped.
 
 This feedback is **configuration-aware**. It does not teach generic graph building — it teaches
 this project’s conventions. A medical project gets feedback about missing `compliance` artifacts.
@@ -338,7 +338,7 @@ The graph reflects system **intent**: what it is, why it is that way, and what r
 
 By default, the agent updates the graph immediately so graph and code stay synchronized.
 After any graph edit: run `yg check` (structural gate) and fix issues until clean, then
-run `yg approve --node` (semantic gate) which uses LLM to verify aspects hold against
+run `yg approve --node` (semantic gate) which uses the reviewer to verify aspects hold against
 source code and artifacts are current.
 
 ### Agent decision: new node or attach

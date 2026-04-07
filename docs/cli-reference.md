@@ -13,29 +13,26 @@ This page is for people who want to inspect or debug the repo's semantic memory.
 
 | Command | Purpose |
 |---------|---------|
-| `yg context --file <path>` / `--node <path>` `[--full]` | Assemble context package |
+| `yg context --file <path>` / `--node <path>` | Assemble context package |
 | `yg impact --file <path>` / `--node <path>` / `--aspect <id>` / `--flow <name>` | Blast radius analysis |
 | `yg check` | Unified gate — everything wrong, always global |
 | `yg approve --node <paths...> [--reviewed "reason"]` / `--aspect <id>` / `--flow <name>` | Record baseline after review |
 
 ### `yg context`
 
-Shows the exact context package your agent reads before working on a node. Output is a
-two-section YAML format: a structural map (topology, relationships, aspects, flows) followed
-by an artifact registry (file paths). Default mode returns paths only — agents read files
-individually using their file-reading tool. Alias: `build-context`.
+Shows the exact context package your agent reads before working on a node. Output is
+structured text with `read:` pointers to artifact files. Agents read files individually
+using their file-reading tool. Alias: `build-context`.
 
 ```bash
-yg context --node <node-path> [--full]
-yg context --file <file-path> [--full]
+yg context --node <node-path>
+yg context --file <file-path>
 ```
 
 - `--file <path>` — Resolves the owning node automatically, then assembles context. Prints
   owner mapping to stderr. If the file has no graph coverage but other files in the same
   directory are mapped, lists candidate nodes with file counts and a hint to use `--node`.
   Exits 1 if no coverage. Mutually exclusive with `--node`.
-- `--full` — Appends artifact file contents below a `---` separator in XML-style tags, for
-  environments without file reading capabilities
 
 ### `yg impact`
 

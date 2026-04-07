@@ -25,7 +25,7 @@ Semantic memory lives under `.yggdrasil/`.
 ```
 
 - `yg-config.yaml` — configuration and schema for the graph.
-- `yg-secrets.yaml` — gitignored file that overrides `yg-config.yaml` LLM fields (API keys,
+- `yg-secrets.yaml` — gitignored file that overrides `yg-config.yaml` reviewer fields (API keys,
   provider, endpoint). Never committed.
 - `model/` — semantic model of the system: components and their relationships.
 - `aspects/` — cross-cutting requirements.
@@ -392,7 +392,7 @@ description: "Short description for discovery via yg aspects"  # optional
 `name` is required. `description` is optional — a short summary for discovery via `yg aspects`.
 `implies` is optional. The aspect identifier is implicit — it is the relative directory path.
 Aspect content lives in `.md` files alongside the YAML — these describe the requirements that
-source files must satisfy. Verification is performed by LLM at approve time.
+source files must satisfy. Verification is performed by the reviewer at approve time.
 
 Nested directories under `aspects/` are organizational — they allow grouping related aspects
 (e.g. `observability/logging`, `observability/tracing`). However, nesting does **not** create
@@ -607,7 +607,7 @@ two things:
 - Ownership lookup — which node owns a given file.
 - Drift detection — did the file change since last synchronization.
 
-Aspect verification is handled separately by the LLM at approve time (see Aspects section).
+Aspect verification is handled separately by the reviewer at approve time (see Aspects section).
 
 ### Mapping format
 
@@ -650,7 +650,7 @@ absent. Drift detection does not apply to unmapped nodes.
 
 The previous group-based mapping (with per-group aspects and regex anchors) has been replaced
 by this flat structure. Aspect compliance is no longer proven through regex patterns in mapping
-groups. Instead, aspect requirements are verified by LLM during `yg approve`, which reads the
+groups. Instead, aspect requirements are verified by the reviewer during `yg approve`, which reads the
 aspect content files and evaluates them against source code. This moves complexity from the mapping
 declaration to the verification layer.
 
