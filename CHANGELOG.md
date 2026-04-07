@@ -45,6 +45,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Improved:** Artifact review prompt tuned to reduce false positives — reports
   stale only for behavioral contradictions or missing public interfaces, not
   minor wording differences.
+- **Breaking:** Config key `llm:` renamed to `reviewer:` with nested provider
+  structure. Internal TypeScript types remain `LlmConfig`/`LlmProvider`.
+- **Added:** Claude Code provider (`claude-code`) — spawns `claude` CLI for
+  claim verification. Configure via `reviewer: { claude-code: { model: haiku } }`.
+- **Added:** `yg approve --aspect <id>` — batch approve all E021 cascade nodes
+  from a specific aspect change.
+- **Added:** `yg approve --flow <name>` — batch approve all E021 cascade nodes
+  from a specific flow change.
+- **Added:** `yg approve --node` is now variadic — accepts multiple node paths
+  for batch approval.
+- **Added:** `yg approve --node <parent>` on a no-mapping parent auto-redirects
+  to batch approve cascaded children.
+- **Added:** `parallel: N` in `yg-config.yaml` controls concurrent approval
+  limit (default: 1 = sequential). Parallel approvals write to separate
+  drift-state files — no contention.
+- **Improved:** `yg check` suggestedNext detects cascade patterns — suggests
+  `--aspect` or `--flow` batch commands when >=2 E021 share the same cause.
 
 ## [4.0.0]
 

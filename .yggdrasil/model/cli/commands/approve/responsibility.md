@@ -5,8 +5,19 @@ CLI command handler implementing `yg approve` and the backward-compatible `yg dr
 ## Scope
 
 - **`registerApproveCommand(program)`** — registers two commands on the Commander instance:
-  - `yg approve --node <path>` — primary command. Accepts `--reviewed <reason>` for conscious exceptions.
-  - `yg drift-sync --node <path>` — deprecated alias. Accepts same options. Rejects `--all` and `--recursive` with a descriptive error.
+  - `yg approve` — primary command with three target modes:
+    - `--node <paths...>` — one or more node paths (variadic). Single node: direct approve. Multiple: batch. No-mapping parent: redirects to batch children.
+    - `--aspect <id>` — batch approve all E021 cascade nodes from this aspect.
+    - `--flow <name>` — batch approve all E021 cascade nodes from this flow.
+    - Exactly one of `--node`, `--aspect`, `--flow` required (mutually exclusive).
+    - Accepts `--reviewed <reason>` for conscious exceptions.
+  - `yg drift-sync --node <path>` — deprecated alias. Single-node only, no batch. Rejects `--all` and `--recursive`.
+- **Batch approve** — `--aspect <id>`, `--flow <name>`, or `--node <path>` (no mapping) triggers batch mode:
+  - Runs `classifyDrift()` to find E021 cascade issues
+  - Filters by cause prefix matching the specified entity via `filterCascadeNodes`
+  - Runs `runBatch` worker-pool semaphore with `parallel` concurrency from config
+  - Formats batch output: per-node result lines + summary counts
+  - Exit code: 1 if any refused, 0 if all approved/reviewed
 - **Output formatting** — `formatResult` and `formatRefused` render all five outcome cases:
   - `approved` — green success line, hash transition (`prev -> curr`); if reviewer ran, shows verification summary ("N claims satisfied, N artifacts current")
   - `reviewed` — green with "Three-axis gate bypassed — reviewer not run (reason)" or "reviewer verified claims" depending on `llmSkipped`

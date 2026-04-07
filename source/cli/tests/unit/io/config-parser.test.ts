@@ -300,6 +300,34 @@ quality:
     await rm(tmpDir, { recursive: true, force: true });
   });
 
+  it('parses parallel: 5', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-parallel');
+    await mkdir(tmpDir, { recursive: true });
+    await writeFile(path.join(tmpDir, 'yg-config.yaml'), 'name: "Test"\nparallel: 5\n', 'utf-8');
+    const config = await parseConfig(path.join(tmpDir, 'yg-config.yaml'));
+    expect(config.parallel).toBe(5);
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('parallel field absent → config.parallel is undefined', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-noparallel');
+    await mkdir(tmpDir, { recursive: true });
+    await writeFile(path.join(tmpDir, 'yg-config.yaml'), 'name: "Test"\n', 'utf-8');
+    const config = await parseConfig(path.join(tmpDir, 'yg-config.yaml'));
+    expect(config.parallel).toBeUndefined();
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('throws when parallel is 0', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-parallel-zero');
+    await mkdir(tmpDir, { recursive: true });
+    await writeFile(path.join(tmpDir, 'yg-config.yaml'), 'name: "Test"\nparallel: 0\n', 'utf-8');
+    await expect(parseConfig(path.join(tmpDir, 'yg-config.yaml'))).rejects.toThrow(
+      'parallel must be a positive integer',
+    );
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
   it('accepts config without reviewer section', async () => {
       const tmpDir = path.join(__dirname, '../../fixtures/tmp-no-llm-config');
       await mkdir(tmpDir, { recursive: true });

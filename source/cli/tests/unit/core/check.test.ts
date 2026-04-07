@@ -950,4 +950,64 @@ describe('runCheck', () => {
     }
     await rm(tmpDir, { recursive: true, force: true });
   });
+
+  it('suggests --aspect batch command when >=2 E021 share same aspect cause', async () => {
+    const { tmpDir, yggRoot } = await createTmpProject('cascade-suggest-aspect', {
+      nodePath: 'svc/alpha',
+      nodeYaml: 'name: Alpha\ntype: service\ndescription: alpha\naspects:\n  - audit\nmapping:\n  - src/alpha/\n',
+      mappingFiles: { 'src/alpha/index.ts': 'export const a = 1;\n' },
+      aspects: [{
+        id: 'audit',
+        yaml: 'name: Audit\ndescription: audit\nanchors:\n  - id: log\n    claim: Log mutations\n',
+        files: { 'rules.md': 'Log mutations.\n' },
+      }],
+    });
+
+    // Create second node with same aspect
+    const node2Dir = path.join(yggRoot, 'model/svc/beta');
+    await mkdir(node2Dir, { recursive: true });
+    await writeFile(path.join(node2Dir, 'yg-node.yaml'),
+      'name: Beta\ntype: service\ndescription: beta\naspects:\n  - audit\nmapping:\n  - src/beta/\n');
+    await writeFile(path.join(node2Dir, 'responsibility.md'), 'Beta responsibility.\n');
+    await mkdir(path.join(tmpDir, 'src/beta'), { recursive: true });
+    await writeFile(path.join(tmpDir, 'src/beta/index.ts'), 'export const b = 2;\n');
+
+    await recordBaseline(tmpDir);
+
+    // Modify aspect to trigger cascade on both nodes
+    await writeFile(path.join(yggRoot, 'aspects/audit/rules.md'), 'Updated audit rules.\n');
+
+    const graph = await loadGraph(tmpDir);
+    const result = await runCheck(graph, ['src/alpha/index.ts', 'src/beta/index.ts']);
+
+    expect(result.suggestedNext).toContain('--aspect audit');
+    expect(result.suggestedNext).toContain('--reviewed');
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('suggests single node context when only 1 E021 exists', async () => {
+    const { tmpDir, yggRoot } = await createTmpProject('cascade-suggest-single', {
+      nodePath: 'svc/alpha',
+      nodeYaml: 'name: Alpha\ntype: service\ndescription: alpha\naspects:\n  - audit\nmapping:\n  - src/alpha/\n',
+      mappingFiles: { 'src/alpha/index.ts': 'export const a = 1;\n' },
+      aspects: [{
+        id: 'audit',
+        yaml: 'name: Audit\ndescription: audit\nanchors:\n  - id: log\n    claim: Log mutations\n',
+        files: { 'rules.md': 'Log mutations.\n' },
+      }],
+    });
+
+    await recordBaseline(tmpDir);
+    await writeFile(path.join(yggRoot, 'aspects/audit/rules.md'), 'Updated.\n');
+
+    const graph = await loadGraph(tmpDir);
+    const result = await runCheck(graph, ['src/alpha/index.ts']);
+
+    // With only 1 cascade node, should suggest yg context --node, not batch
+    expect(result.suggestedNext).toContain('yg context --node');
+    expect(result.suggestedNext).not.toContain('--aspect');
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
 });

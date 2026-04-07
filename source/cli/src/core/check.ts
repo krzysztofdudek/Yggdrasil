@@ -493,7 +493,7 @@ export async function runCheck(graph: Graph, gitTrackedFiles: string[] | null): 
     nodeTypeCounts.set(t, (nodeTypeCounts.get(t) ?? 0) + 1);
   }
 
-  const suggestedNext = computeSuggestedNext(allIssues);
+  const suggestedNext = computeSuggestedNext(allIssues, graph);
   const llmAvailable = graph.config.llm !== undefined;
 
   return {
@@ -620,10 +620,57 @@ async function allPathsMissing(projectRoot: string, mappingPaths: string[]): Pro
 
 
 /**
+ * Group E021 cascade issues by their upstream cause entity.
+ * Returns Map<"aspect:id"|"flow:name"|"parent:path", Set<nodePath>>.
+ */
+function groupCascadeByCause(cascadeErrors: CheckIssue[], graph?: Graph): Map<string, Set<string>> {
+  const groups = new Map<string, Set<string>>();
+  const yggPrefix = graph
+    ? path.relative(path.dirname(graph.rootPath), graph.rootPath).split(path.sep).join('/')
+    : '.yggdrasil';
+  const escPrefix = yggPrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+  for (const issue of cascadeErrors) {
+    if (!issue.nodePath || !issue.cascadeCauses) continue;
+    for (const cause of issue.cascadeCauses) {
+      const normalized = cause.file.replace(/\\/g, '/');
+      let key: string | null = null;
+
+      const aspectMatch = normalized.match(new RegExp(`^${escPrefix}/aspects/([^/]+(?:/[^/]+)*)/`));
+      if (aspectMatch) {
+        key = `aspect:${aspectMatch[1]}`;
+      }
+
+      if (!key) {
+        const flowMatch = normalized.match(new RegExp(`^${escPrefix}/flows/([^/]+)/`));
+        if (flowMatch) {
+          key = `flow:${flowMatch[1]}`;
+        }
+      }
+
+      if (!key) {
+        const modelMatch = normalized.match(new RegExp(`^${escPrefix}/model/(.+)/[^/]+$`));
+        if (modelMatch) {
+          key = `parent:${modelMatch[1]}`;
+        }
+      }
+
+      if (key) {
+        const nodes = groups.get(key) ?? new Set<string>();
+        nodes.add(issue.nodePath);
+        groups.set(key, nodes);
+      }
+    }
+  }
+
+  return groups;
+}
+
+/**
  * Suggest the next command to run based on highest-priority error.
  * Priority: drift > cascade > structural > coverage > completeness.
  */
-function computeSuggestedNext(issues: CheckIssue[]): string | null {
+function computeSuggestedNext(issues: CheckIssue[], graph?: Graph): string | null {
   const errors = issues.filter(i => i.severity === 'error');
   /* v8 ignore next -- tested by clean-check test, but v8 sometimes marks it uncovered */
   if (errors.length === 0) return null;
@@ -646,6 +693,30 @@ function computeSuggestedNext(issues: CheckIssue[]): string | null {
   }
 
   if (cascadeErrors.length > 0) {
+    const entityGroups = groupCascadeByCause(cascadeErrors, graph);
+
+    // Find the largest group with >=2 nodes
+    let bestEntity: { type: string; id: string; count: number } | null = null;
+    for (const [key, nodes] of entityGroups) {
+      if (nodes.size >= 2 && (!bestEntity || nodes.size > bestEntity.count)) {
+        const [type, id] = key.split(':', 2);
+        bestEntity = { type, id, count: nodes.size };
+      }
+    }
+
+    if (bestEntity) {
+      const flagMap: Record<string, string> = {
+        aspect: '--aspect',
+        flow: '--flow',
+        parent: '--node',
+      };
+      const flag = flagMap[bestEntity.type] ?? '--aspect';
+      addRemaining(coverageErrors.length > 0 ? (coverageErrors[0].uncoveredCount ?? 0) : 0, 'files need coverage');
+      const then = remaining.length > 0 ? `\n  Then: ${remaining.join(', ')}` : '';
+      return `yg approve ${flag} ${bestEntity.id} --reviewed "cascade change reviewed"\n  ${bestEntity.count} cascade node${bestEntity.count === 1 ? '' : 's'} from ${bestEntity.type} change${then}`;
+    }
+
+    // Single cascade node — fall through to original behavior
     const node = cascadeErrors[0].nodePath!;
     addRemaining(coverageErrors.length > 0 ? (coverageErrors[0].uncoveredCount ?? 0) : 0, 'files need coverage');
     const then = remaining.length > 0 ? `\n  Then: ${remaining.join(', ')}` : '';
