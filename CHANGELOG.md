@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `yg select --task "query"` is now `yg select "query"` (positional argument).
+- `yg select` output is now structured text (not YAML) with three sections: Nodes, Aspects, Flows.
+  Aspects and flows show `(matched)` (directly relevant) and `(N nodes)` (present on returned nodes) annotations.
+  Each aspect and flow entry includes a `read:` path pointing to its content file.
+
 ## [4.0.0]
 
 ### Breaking Changes
