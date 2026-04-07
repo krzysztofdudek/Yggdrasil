@@ -93,10 +93,10 @@ You are not allowed to edit or create source code without establishing graph cov
 
 **Step 2a** — Owner found: execute checklist:
 
-- [ ] 1. `yg context --file <path>` — read claims and dependencies
+- [ ] 1. `yg context --file <path>` — read aspect content files and dependencies
 - [ ] 2. Read local node artifacts (responsibility, interface, internals) from the context package. Cross-cutting constraints (aspects, flows) should already be internalized from the task-level READ phase.
 - [ ] 3. Assess blast radius: `yg impact --node <node_path>`
-- [ ] 4. Modify source code — claims tell you what rules to follow
+- [ ] 4. Modify source code — aspect content files tell you what rules to follow
 - [ ] 5. Update artifacts if behavior changed. Each artifact has its own trigger:
         - responsibility.md — when the node's identity, boundaries, or business rules changed
         - interface.md — when exported API signatures or contracts changed
@@ -104,7 +104,7 @@ You are not allowed to edit or create source code without establishing graph cov
 - [ ] 5b. If you split, merged, or renamed a node: run `yg flows` and update any flow `nodes` lists that referenced the old node path to point to the correct child/new nodes.
 - [ ] 6. Run `yg check` — follow CLI's suggested next command (if unfixable after 3 attempts → stop, report to user)
 - [ ] 6b. **Aspect check** — did you just apply a pattern that also exists in other files? If the node has no aspect for it and you saw the same pattern in 3+ files, create the aspect now.
-- [ ] 7. Run `yg approve --node <node_path>` — reviewer verifies claims + artifact freshness
+- [ ] 7. Run `yg approve --node <node_path>` — reviewer verifies aspects + artifact freshness
 
 **Step 2b** — Owner not found: establish coverage first. Present options to the user:
 
@@ -304,15 +304,15 @@ Decisions are the only artifact content that vanishes after the conversation end
 
 Two context commands serve different purposes:
 
-- **`yg context --node <path>`** — node overview: aspects, claims, flows, dependents, artifact pointers
-- **`yg context --file <path>`** — per-file: claims to satisfy, consumed dependencies
+- **`yg context --node <path>`** — node overview: aspects, flows, dependents, artifact pointers
+- **`yg context --file <path>`** — per-file: aspects to satisfy, consumed dependencies
 
 **Reading context:** Both commands output structured text. Artifact file paths appear with a `read:` prefix — read each one to get the full content.
 
 `yg context --node <path>` outputs:
 - **Header** — node path, description, type
 - **Source files** — files owned by this node
-- **Must satisfy** — aspects with claims, source, verified-against paths, and implies chain
+- **Must satisfy** — aspects, source, verified-against paths, and implies chain
 - **Participates in** — flows with read paths to their description files
 - **Dependencies** — nodes this node depends on, with read paths to their interfaces
 - **Dependents** — count of nodes that depend on this one (consequence framing for blast radius)
@@ -322,7 +322,7 @@ Two context commands serve different purposes:
 
 `yg context --file <path>` outputs:
 - **Owner** — node path and type (or "unmapped" with candidate nodes)
-- **Claims to satisfy** — per-aspect claims with verified-against paths
+- **Must satisfy** — aspects with verified-against paths
 - **Dependencies consumed** — what this file uses from each dependency
 - **Node context** — back-pointer: run `yg context --node` for full node overview
 
@@ -372,20 +372,11 @@ When you encounter information, route it to the correct location:
 
 - [ ] 1. Read `schemas/yg-aspect.yaml`
 - [ ] 2. Create `aspects/<id>/` directory
-- [ ] 3. Write `yg-aspect.yaml` — name, description, anchors (required claims), optional implies
+- [ ] 3. Write `yg-aspect.yaml` — name, description, optional implies
 - [ ] 4. Write content `.md` files: WHAT must be satisfied + WHY (user's words, do not invent)
 - [ ] 5. `yg check`
 
 Test: "Does this requirement apply to more than one node?" Yes → aspect. No → local artifact.
-
-**Anchor requirement:** Every aspect MUST define at least one claim in the anchors field. Claims are natural language properties that source files must satisfy. Example: an `audit-logging` aspect might define claims: "Every data-modifying operation creates an audit log entry", "Audit entries include the authenticated user." Claims are verified by the reviewer at approve time — agents do not write regex proofs.
-
-**Claim authoring guidance:** Claims should be per-file verifiable properties. Good claims:
-- "Functions do not use Date.now(), Math.random(), or filesystem writes"
-- "All exports have return type annotations"
-- "Error handling uses AppError class"
-
-Avoid claims requiring cross-file reasoning. Use flow descriptions for cross-file invariants.
 
 ### Creating Flows
 
@@ -420,7 +411,7 @@ relations:
 ```
 
 At check time: E057 fires if target has ports but consumer has no consumes. E058 fires if consumes references undefined port.
-At approve time: Reviewer verifies consumer satisfies port-required aspect claims (E055).
+At approve time: Reviewer verifies consumer satisfies port-required aspects (E055).
 
 ### CLI Commands
 
@@ -436,19 +427,19 @@ and what command to run next.
 - **Drift (E020-E021):** source and graph artifacts out of sync. Post-modify workflow.
 - **Structural (E001-E013):** YAML broken or graph inconsistent. Fix the YAML.
 - **Coverage (E022):** source files not mapped. Bootstrap workflow.
-- **Completeness (E030-E039):** artifacts missing or too thin. Write them.
+- **Completeness (E030-E038):** artifacts missing or too thin. Write them.
 - **Architecture (E050-E058):** references broken or contracts violated. Fix references.
-- **Semantic (E055-E056, approve only):** Reviewer found claims not met or artifacts stale.
+- **Semantic (E055-E056, approve only):** Reviewer found aspects not satisfied or artifacts stale.
 
 Follow the CLI's suggested next command.
 
 ### Approve Enforcement
 
 Approve is the semantic verification gate. It runs two reviewer checks:
-1. **Aspect verification (E055):** checks each claim against source code — fires E055 for unmet claims
+1. **Aspect verification (E055):** checks each aspect against source code — fires E055 for unmet aspects
 2. **Artifact review (E056):** checks if responsibility.md, interface.md, internals.md are current — fires E056 for stale artifacts
 
-**Do NOT interrupt `yg approve`.** When reviewer is configured, approve calls the reviewer for every claim across every source file — this takes time and is intentional. Interrupting it leaves drift state unrecorded and forces a re-run.
+**Do NOT interrupt `yg approve`.** When reviewer is configured, approve calls the reviewer for every aspect across every source file — this takes time and is intentional. Interrupting it leaves drift state unrecorded and forces a re-run.
 
 If reviewer is not configured, approve works as before (three-axis detection only).
 
@@ -460,7 +451,7 @@ source files changed?, upstream context changed?
 - Only upstream changed → REFUSES (review compliance, or --reviewed)
 
 `--reviewed "reason"` bypasses the three-axis gate ONLY. The reviewer still
-verifies claims (E055) and artifact freshness (E056). Use when one side
+verifies aspects (E055) and artifact freshness (E056). Use when one side
 changed but the other doesn't need updating.
 CLI explains the specific mismatch and recovery steps when approve refuses.
 
