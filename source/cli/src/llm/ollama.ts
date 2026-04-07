@@ -1,22 +1,24 @@
-import type { LlmProvider, ClaimResponse, ArtifactResponse } from './types.js';
+import type { LlmProvider, AspectResponse, ArtifactResponse } from './types.js';
 import type { LlmConfig } from '../model/types.js';
+import { ARTIFACT_GUIDANCE } from './artifact-guidance.js';
 
-const CLAIM_SYSTEM_PROMPT = `You are a code reviewer verifying architectural claims about source code.
-You will receive: an aspect description, a specific claim, and source code files.
+const ASPECT_SYSTEM_PROMPT = `You are a code reviewer verifying whether source code satisfies architectural requirements.
+You will receive: aspect requirements (from a content.md file) and source code files.
 Respond with EXACTLY this JSON format, nothing else:
 {"satisfied": true|false, "reason": "one sentence explanation"}`;
 
-const ARTIFACT_SYSTEM_PROMPT = `You review whether documentation matches source code behavior.
+const ARTIFACT_SYSTEM_PROMPT = `You review whether a graph artifact follows the quality guidelines.
 
-Report STALE only when:
-- Documentation describes behavior the code does NOT have
-- Documentation omits a PUBLIC export, parameter, or return type that consumers need
-- Documentation contradicts the code (says X but code does Y)
+${ARTIFACT_GUIDANCE}
+
+Report STALE when:
+- Artifact contradicts the source code (describes behavior the code does NOT have)
+- Artifact violates the quality test (contains file inventories, pseudocode, config paraphrases, sibling listings, or internal helper signatures)
+- Artifact is missing knowledge it should capture (identity, boundaries, decisions, contracts)
 
 Report CURRENT when:
-- Documentation is a correct high-level summary even if it omits private/internal details
-- Wording differs but meaning is the same
-- Documentation uses simpler terms for implementation details
+- Artifact captures knowledge the code cannot express and follows the quality test
+- Artifact is a correct high-level summary — omitting implementation details is correct behavior
 
 Respond with EXACTLY this JSON, nothing else:
 {"current": true|false, "reason": "one sentence"}`;
@@ -73,19 +75,17 @@ export class OllamaProvider implements LlmProvider {
     return detected ?? 4096; // Safe default fallback
   }
 
-  async verifyClaim(params: {
+  async verifyAspect(params: {
     aspectContent: string;
-    claim: string;
     sourceCode: string;
     sourceFiles: string[];
-  }): Promise<ClaimResponse> {
+  }): Promise<AspectResponse> {
     const userPrompt =
-      `ASPECT:\n${params.aspectContent}\n\n` +
-      `CLAIM: ${params.claim}\n\n` +
+      `ASPECT REQUIREMENTS:\n${params.aspectContent}\n\n` +
       `SOURCE FILES:\n${params.sourceCode}\n\n` +
-      `Does this code satisfy the claim?`;
+      `Does this code satisfy these requirements?`;
 
-    return this.chat<ClaimResponse>(CLAIM_SYSTEM_PROMPT, userPrompt, { satisfied: false, reason: 'LLM response could not be parsed' });
+    return this.chat<AspectResponse>(ASPECT_SYSTEM_PROMPT, userPrompt, { satisfied: false, reason: 'LLM response could not be parsed' });
   }
 
   async reviewArtifact(params: {
@@ -97,7 +97,7 @@ export class OllamaProvider implements LlmProvider {
     const userPrompt =
       `ARTIFACT (${params.artifactName}):\n${params.artifactContent}\n\n` +
       `SOURCE CODE:\n${params.sourceCode}\n\n` +
-      `Does this documentation contradict the code or omit any public interface?`;
+      `Does this artifact follow the quality guidelines?`;
 
     return this.chat<ArtifactResponse>(ARTIFACT_SYSTEM_PROMPT, userPrompt, { current: false, reason: 'LLM response could not be parsed' });
   }

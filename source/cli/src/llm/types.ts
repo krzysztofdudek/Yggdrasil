@@ -1,11 +1,10 @@
 export interface LlmProvider {
-  /** Verify a claim against source code */
-  verifyClaim(params: {
+  /** Verify source code against an aspect's content.md requirements */
+  verifyAspect(params: {
     aspectContent: string;
-    claim: string;
     sourceCode: string;
     sourceFiles: string[];
-  }): Promise<ClaimResponse>;
+  }): Promise<AspectResponse>;
 
   /** Review an artifact against source code */
   reviewArtifact(params: {
@@ -22,7 +21,7 @@ export interface LlmProvider {
   getContextWindowSize(): Promise<number | undefined>;
 }
 
-export interface ClaimResponse {
+export interface AspectResponse {
   satisfied: boolean;
   reason: string;
 }

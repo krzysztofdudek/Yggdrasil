@@ -1,33 +1,34 @@
 import { spawn } from 'node:child_process';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import type { LlmProvider, ClaimResponse, ArtifactResponse } from './types.js';
+import type { LlmProvider, AspectResponse, ArtifactResponse } from './types.js';
+import { ARTIFACT_GUIDANCE } from './artifact-guidance.js';
 
 const execFileAsync = promisify(execFile);
 
-const CLAIM_PROMPT_TEMPLATE = `You are a code reviewer verifying architectural claims about source code.
+const ASPECT_PROMPT_TEMPLATE = `You are a code reviewer verifying whether source code satisfies architectural requirements.
 
-ASPECT:
+ASPECT REQUIREMENTS:
 {aspectContent}
-
-CLAIM: {claim}
 
 SOURCE FILES:
 {sourceCode}
 
-Does this code satisfy the claim? Respond with EXACTLY this JSON format, nothing else:
+Does this code satisfy the requirements described above? Respond with EXACTLY this JSON format, nothing else:
 {"satisfied": true|false, "reason": "one sentence explanation"}`;
 
-const ARTIFACT_PROMPT_TEMPLATE = `You review whether documentation matches source code behavior.
+const ARTIFACT_PROMPT_TEMPLATE = `You review whether a graph artifact follows the quality guidelines.
 
-Report STALE only when:
-- Documentation describes behavior the code does NOT have
-- Documentation omits a PUBLIC export, parameter, or return type that consumers need
-- Documentation contradicts the code (says X but code does Y)
+${ARTIFACT_GUIDANCE}
+
+Report STALE when:
+- Artifact contradicts the source code (describes behavior the code does NOT have)
+- Artifact violates the quality test (contains file inventories, pseudocode, config paraphrases, sibling listings, or internal helper signatures)
+- Artifact is missing knowledge it should capture (identity, boundaries, decisions, contracts)
 
 Report CURRENT when:
-- Documentation is a correct high-level summary even if it omits private/internal details
-- Wording differs but meaning is the same
+- Artifact captures knowledge the code cannot express and follows the quality test
+- Artifact is a correct high-level summary — omitting implementation details is correct behavior
 
 ARTIFACT ({artifactName}):
 {artifactContent}
@@ -35,7 +36,7 @@ ARTIFACT ({artifactName}):
 SOURCE CODE:
 {sourceCode}
 
-Does this documentation contradict the code or omit any public interface?
+Does this artifact follow the quality guidelines?
 Respond with EXACTLY this JSON, nothing else:
 {"current": true|false, "reason": "one sentence"}`;
 
@@ -59,18 +60,16 @@ export class ClaudeCodeProvider implements LlmProvider {
     return undefined; // claude-code manages context internally
   }
 
-  async verifyClaim(params: {
+  async verifyAspect(params: {
     aspectContent: string;
-    claim: string;
     sourceCode: string;
     sourceFiles: string[];
-  }): Promise<ClaimResponse> {
-    const prompt = CLAIM_PROMPT_TEMPLATE
+  }): Promise<AspectResponse> {
+    const prompt = ASPECT_PROMPT_TEMPLATE
       .replace('{aspectContent}', params.aspectContent)
-      .replace('{claim}', params.claim)
       .replace('{sourceCode}', params.sourceCode);
 
-    return this.runClaude<ClaimResponse>(prompt, { satisfied: false, reason: 'Reviewer unavailable' });
+    return this.runClaude<AspectResponse>(prompt, { satisfied: false, reason: 'Reviewer unavailable' });
   }
 
   async reviewArtifact(params: {
