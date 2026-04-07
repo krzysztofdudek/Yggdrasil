@@ -1,5 +1,5 @@
 {
-  "hash": "17ba39ea81ed08a066274451ca34d1af239ec7d6cc318d2b0d1ba50c847d66d3",
+  "hash": "3597c5ff5bf0cf5f79822a8242635fd8c15a1314ebd3b7955b0582d3e03356a0",
   "files": {
     ".yggdrasil/model/cli/commands/tree/yg-node.yaml": "b0f2dae7cde788e7236c9141a275453daa51eedf8b98879c0f53e10a78eee76d",
     ".yggdrasil/model/cli/commands/tree/interface.md": "7205a01e45012c8863f18707b2a73ae2c272f2ec03e597ceb496fc2d238adae2",
@@ -22,9 +22,9 @@
     ".yggdrasil/model/cli/core/responsibility.md": "2aa9f1d64abf86aed604a1823392c3d40b963eb8416b38ef877bcccddd7ff086",
     ".yggdrasil/model/cli/core/interface.md": "807008eb6f673273034d7d3325a36f37ea1c7a4e46df362e2a4fa9ccd9451de9",
     ".yggdrasil/model/cli/model/responsibility.md": "b668c6db2090a36a54277f62fb228c266d87c6d119f89e6ed67e140392863a66",
-    ".yggdrasil/model/cli/model/interface.md": "3901ba335b3667b7862c43f2bcb48c49a4d69a58127a18ad0190f1e274c67a2b",
     ".yggdrasil/flows/graph-navigation/yg-flow.yaml": "7a7f7ee56a6dc45cb3dce0ab9073b976d307f3b7c31bc6c23ca4317473ba2c5d",
     ".yggdrasil/flows/graph-navigation/description.md": "ff4ccee2e245a38e8a06e84b7ccb60a54f5650e63ec2039cbac1600cee970d34",
+    ".yggdrasil/model/cli/model/interface.md": "702e39d06832de110518f0220f130de376fa8116fcaffc7e17c2580e4b7ed988",
     "source/cli/src/cli/tree.ts": "16737878e0c4c9acc86739d5087a043d253666a0dc8cecc6a492d682f725e9ab"
   },
   "mtimes": {
@@ -49,56 +49,10 @@
     ".yggdrasil/model/cli/core/responsibility.md": 1772828321933.1968,
     ".yggdrasil/model/cli/core/interface.md": 1772743197442.582,
     ".yggdrasil/model/cli/model/responsibility.md": 1772778759688.719,
-    ".yggdrasil/model/cli/model/interface.md": 1775305296252.0251,
+    ".yggdrasil/model/cli/model/interface.md": 1775509701891.0308,
     ".yggdrasil/flows/graph-navigation/yg-flow.yaml": 1775046083604.8381,
     ".yggdrasil/flows/graph-navigation/description.md": 1775046998794.586,
-    "source/cli/src/cli/tree.ts": 1775222138531.182
+    "source/cli/src/cli/tree.ts": 1775503587878.585
   },
-  "acknowledgeReason": "v4 migration: flat mapping, claims, and doc updates",
-  "claimResults": {
-    "deterministic": {
-      "no-side-effects": {
-        "satisfied": false,
-        "reason": "LLM response could not be parsed"
-      },
-      "deterministic-output": {
-        "satisfied": false,
-        "reason": "LLM response could not be parsed"
-      }
-    },
-    "posix-paths": {
-      "forward-slash-normalization": {
-        "satisfied": false,
-        "reason": "LLM response could not be parsed"
-      }
-    },
-    "cli-command-contract": {
-      "stdout-write": {
-        "satisfied": true,
-        "reason": "The code uses process.stdout.write() for all output and process.stderr.write() for errors, with no usage of console.log."
-      },
-      "error-handler": {
-        "satisfied": false,
-        "reason": "LLM response could not be parsed"
-      },
-      "exit-code": {
-        "satisfied": false,
-        "reason": "LLM response could not be parsed"
-      }
-    }
-  },
-  "artifactReview": {
-    "interface.md": {
-      "current": false,
-      "reason": "LLM response could not be parsed"
-    },
-    "internals.md": {
-      "current": false,
-      "reason": "LLM response could not be parsed"
-    },
-    "responsibility.md": {
-      "current": false,
-      "reason": "LLM response could not be parsed"
-    }
-  }
+  "acknowledgeReason": "cascade from upstream artifact changes — source already compliant"
 }

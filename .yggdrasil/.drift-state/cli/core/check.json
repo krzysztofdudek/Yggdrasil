@@ -1,6 +1,9 @@
 {
-  "hash": "533fb6e49456374444d539f3e631dedd3539c156b351442574fa77bcf42a5f30",
+  "hash": "640eb94ffe180b1335e074b284e0b7c27333f43a589beb0501fe7e8b5534a68a",
   "files": {
+    ".yggdrasil/model/cli/core/check/yg-node.yaml": "4c39c6d2f095ab77928bd959b109a241b87000a6ffaa5d7b7211329bf48350d2",
+    ".yggdrasil/model/cli/core/check/interface.md": "c9f5916bc0abfc46773dcbd1bb6e3e08fa817958fa96ee99c25284fa9e9faa58",
+    ".yggdrasil/model/cli/core/check/responsibility.md": "2977d42a774c91f46ecaf453bb564486aef83b6015f581a9ac7998ad4d4e2414",
     ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df",
     ".yggdrasil/model/cli/internals.md": "7440678f012e45d8b15a4efc252cc3b4220fe7aec98fb673786abd9c2a37f9f0",
     ".yggdrasil/model/cli/responsibility.md": "696e0f5f377eba69a843a18379e8f20e0322dc037182690629652a75aa2227fb",
@@ -17,13 +20,10 @@
     ".yggdrasil/model/cli/core/drift-detector/responsibility.md": "926478f7aeddd1c18eb38494c910510c3f0d2feecac6e06774792d7f650f6065",
     ".yggdrasil/model/cli/core/drift-detector/interface.md": "7136927e5d6a1c23bc098356cb7b1f1cc88fcd760040c6fd04f83c0efd6622e9",
     ".yggdrasil/model/cli/core/context/responsibility.md": "62350b3416df89ffd1c00486f7564a69c0775276030dcf64f02bc1cbdacd74a4",
+    ".yggdrasil/model/cli/core/context/interface.md": "686725c3c077dc3ab7f03ebd71736af3cff4a7373118c2c46422f3379dfe740e",
     ".yggdrasil/model/cli/model/responsibility.md": "b668c6db2090a36a54277f62fb228c266d87c6d119f89e6ed67e140392863a66",
-    ".yggdrasil/model/cli/model/interface.md": "3901ba335b3667b7862c43f2bcb48c49a4d69a58127a18ad0190f1e274c67a2b",
-    "source/cli/src/core/check.ts": "601a82be8335f05df96b45a64e6278b8d16e68e9407ee0f13805775670883390",
-    ".yggdrasil/model/cli/core/check/yg-node.yaml": "4c39c6d2f095ab77928bd959b109a241b87000a6ffaa5d7b7211329bf48350d2",
-    ".yggdrasil/model/cli/core/check/interface.md": "c9f5916bc0abfc46773dcbd1bb6e3e08fa817958fa96ee99c25284fa9e9faa58",
-    ".yggdrasil/model/cli/core/check/responsibility.md": "2977d42a774c91f46ecaf453bb564486aef83b6015f581a9ac7998ad4d4e2414",
-    ".yggdrasil/model/cli/core/context/interface.md": "686725c3c077dc3ab7f03ebd71736af3cff4a7373118c2c46422f3379dfe740e"
+    ".yggdrasil/model/cli/model/interface.md": "702e39d06832de110518f0220f130de376fa8116fcaffc7e17c2580e4b7ed988",
+    "source/cli/src/core/check.ts": "601a82be8335f05df96b45a64e6278b8d16e68e9407ee0f13805775670883390"
   },
   "mtimes": {
     ".yggdrasil/model/cli/core/check/yg-node.yaml": 1775332280373.3035,
@@ -47,8 +47,8 @@
     ".yggdrasil/model/cli/core/context/responsibility.md": 1774967446806.7505,
     ".yggdrasil/model/cli/core/context/interface.md": 1775332261436.1562,
     ".yggdrasil/model/cli/model/responsibility.md": 1772778759688.719,
-    ".yggdrasil/model/cli/model/interface.md": 1775305296252.0251,
-    "source/cli/src/core/check.ts": 1775319041783.4153
+    ".yggdrasil/model/cli/model/interface.md": 1775509701891.0308,
+    "source/cli/src/core/check.ts": 1775503587878.565
   },
-  "acknowledgeReason": "v4 migration: flat mapping, claims, and doc updates"
+  "acknowledgeReason": "cascade from upstream artifact changes — source already compliant"
 }

@@ -1,7 +1,10 @@
 {
-  "hash": "18cb422bff4141837c44df3da724203258f98db117292b483d8a8d4141d171ca",
+  "hash": "4513f8c6f34637efdc2bae392600b185552135899dd5cd224ddbfc36ed94afe6",
   "files": {
     ".yggdrasil/model/cli/io/yg-node.yaml": "dc67affca28b162ce0262c4fec15a49e30a0d22eb2b13b26bdeba421dd170e37",
+    ".yggdrasil/model/cli/io/interface.md": "79ea1701427e6f39dc44aade7d275931d0c08159c053de34dc41fb095b0406ab",
+    ".yggdrasil/model/cli/io/internals.md": "ca4d8e1dc7d6682bc1a2a9075bf4e77824c8813e2e19be43f599d6701087ddb6",
+    ".yggdrasil/model/cli/io/responsibility.md": "ef22e0a0164d75ab5898e180a04e6b943c3ce24d57242258e52cbc05ae48a7a5",
     ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df",
     ".yggdrasil/model/cli/internals.md": "7440678f012e45d8b15a4efc252cc3b4220fe7aec98fb673786abd9c2a37f9f0",
     ".yggdrasil/model/cli/responsibility.md": "696e0f5f377eba69a843a18379e8f20e0322dc037182690629652a75aa2227fb",
@@ -14,21 +17,18 @@
     ".yggdrasil/aspects/silent-missing-files/yg-aspect.yaml": "902ca03cbbedb844bd8cbb3e19122457a131788206d88a7cf5801a5684556e1e",
     ".yggdrasil/aspects/silent-missing-files/content.md": "184f0c0c511bc8d819bd5657cd122f1f20f149ac62f1d3687e4b68ab2e1b613e",
     ".yggdrasil/model/cli/model/responsibility.md": "b668c6db2090a36a54277f62fb228c266d87c6d119f89e6ed67e140392863a66",
-    ".yggdrasil/model/cli/model/interface.md": "3901ba335b3667b7862c43f2bcb48c49a4d69a58127a18ad0190f1e274c67a2b",
     "source/cli/src/io/.gitkeep": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
     "source/cli/src/io/architecture-parser.ts": "5c1de660ec01071d5641cc3da46307820fa46410148f2764a96e577e2b69c736",
     "source/cli/src/io/artifact-reader.ts": "360662e5362e331de8886a584b29ddd87e323094a3b1d35f8b4eb8958f2e397e",
     "source/cli/src/io/aspect-parser.ts": "b521e02c49592c6c0149d0b99a0f9eb49150cc193c89fa870b9b9b34fcbba1d1",
     "source/cli/src/io/audit-log.ts": "2568efd4d19252ed6dba22f887d50818567cd650c10fc92b10943c24c10844ab",
-    "source/cli/src/io/config-parser.ts": "b50e65a63f8353c26862c6ca94df78bab82635aedd238bd9073caac90e219415",
     "source/cli/src/io/drift-state-store.ts": "f500c293b784ee161ddbb56bcba564bec0e6275e7e961c8c6b29145149fed2e6",
     "source/cli/src/io/flow-parser.ts": "1a3a15146b162a4930a6261f2321774f9265943971de1c4b31782fdd43ecb950",
-    "source/cli/src/io/node-parser.ts": "1e18936fd1b40e3116848a3c401e57183d65e4368a6c92856400f362da0e8a0d",
     "source/cli/src/io/schema-parser.ts": "ec5d0bcdafd58c5a93d32393a77527301ace2a0c095af250db22eef6619c1dc4",
-    ".yggdrasil/model/cli/io/interface.md": "79ea1701427e6f39dc44aade7d275931d0c08159c053de34dc41fb095b0406ab",
-    ".yggdrasil/model/cli/io/internals.md": "ca4d8e1dc7d6682bc1a2a9075bf4e77824c8813e2e19be43f599d6701087ddb6",
-    ".yggdrasil/model/cli/io/responsibility.md": "ef22e0a0164d75ab5898e180a04e6b943c3ce24d57242258e52cbc05ae48a7a5",
-    "source/cli/src/io/secrets-parser.ts": "3a5e9c308c4c4a795eb9755a2b903c0377afb20ea56214caf5fa0c5f6f7de1b9"
+    "source/cli/src/io/secrets-parser.ts": "3a5e9c308c4c4a795eb9755a2b903c0377afb20ea56214caf5fa0c5f6f7de1b9",
+    ".yggdrasil/model/cli/model/interface.md": "702e39d06832de110518f0220f130de376fa8116fcaffc7e17c2580e4b7ed988",
+    "source/cli/src/io/config-parser.ts": "d2afc0fd194373411ae064bb1c97ac14f533cd73dae96ec1c9804a0616411625",
+    "source/cli/src/io/node-parser.ts": "1e18936fd1b40e3116848a3c401e57183d65e4368a6c92856400f362da0e8a0d"
   },
   "mtimes": {
     ".yggdrasil/model/cli/io/yg-node.yaml": 1775327956356.2444,
@@ -47,18 +47,18 @@
     ".yggdrasil/aspects/silent-missing-files/yg-aspect.yaml": 1775328138452.5798,
     ".yggdrasil/aspects/silent-missing-files/content.md": 1772778782476.146,
     ".yggdrasil/model/cli/model/responsibility.md": 1772778759688.719,
-    ".yggdrasil/model/cli/model/interface.md": 1775305296252.0251,
+    ".yggdrasil/model/cli/model/interface.md": 1775509701891.0308,
     "source/cli/src/io/.gitkeep": 1771702275793.8906,
     "source/cli/src/io/architecture-parser.ts": 1775308039639.3198,
     "source/cli/src/io/artifact-reader.ts": 1772776392207.8506,
     "source/cli/src/io/aspect-parser.ts": 1775313141983.3572,
     "source/cli/src/io/audit-log.ts": 1775277041805.8528,
-    "source/cli/src/io/config-parser.ts": 1775307401015.3442,
+    "source/cli/src/io/config-parser.ts": 1775509513619.0923,
     "source/cli/src/io/drift-state-store.ts": 1772781980232.5386,
     "source/cli/src/io/flow-parser.ts": 1774864350265.6045,
-    "source/cli/src/io/node-parser.ts": 1775307070813.4185,
+    "source/cli/src/io/node-parser.ts": 1775503587878.586,
     "source/cli/src/io/schema-parser.ts": 1772776392209.3076,
     "source/cli/src/io/secrets-parser.ts": 1775332524359.858
   },
-  "acknowledgeReason": "v4 migration: flat mapping, claims, and doc updates"
+  "acknowledgeReason": "config-parser: mechanical addition of verify_artifacts and context_length_field parsing"
 }

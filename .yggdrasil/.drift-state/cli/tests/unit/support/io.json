@@ -1,7 +1,8 @@
 {
-  "hash": "57baf98066d7fc39e93bec9217ec16735069c9fe6b28d97675c0dc703154a78f",
+  "hash": "dbb0d249a511e520db56ae1ec172d5f745557331b1f1ac140feeab2e324940b3",
   "files": {
     ".yggdrasil/model/cli/tests/unit/support/io/yg-node.yaml": "1af50d0e61db9559a826846e0ef057d0797c5ccacda8707d68f1f37599e62d36",
+    ".yggdrasil/model/cli/tests/unit/support/io/responsibility.md": "c1bc9175914339178993d782c0e6756a94656f63c4584451d5dd6ac2585a287c",
     ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df",
     ".yggdrasil/model/cli/internals.md": "7440678f012e45d8b15a4efc252cc3b4220fe7aec98fb673786abd9c2a37f9f0",
     ".yggdrasil/model/cli/responsibility.md": "696e0f5f377eba69a843a18379e8f20e0322dc037182690629652a75aa2227fb",
@@ -23,9 +24,8 @@
     "source/cli/tests/unit/io/flow-parser.test.ts": "c8b30935c68c3ac0abac65278daa5ff763a11a1c62bcafdbfe3ef8421c40a0ae",
     "source/cli/tests/unit/io/node-parser.test.ts": "7f33aaf0be3baf7c70ad22a1054da493acf12a548572f5ce15bee49c1b63a208",
     "source/cli/tests/unit/io/schema-parser.test.ts": "f57c58c79fd33c2d225d84f0d2c8bb81d68bcac3cbafc6e2fd4d6ea840266f95",
-    ".yggdrasil/model/cli/tests/unit/support/io/responsibility.md": "c1bc9175914339178993d782c0e6756a94656f63c4584451d5dd6ac2585a287c",
-    "source/cli/tests/unit/io/config-parser.test.ts": "88987fb75563b33dfb85c99e2599adc93ac6d7899f4a4e5c2bf0bee61833b599",
-    "source/cli/tests/unit/io/secrets-parser.test.ts": "fdd6bacd57c1610e7a759004c1e1ce2270077cbeaa40ac5531c88825712b699c"
+    "source/cli/tests/unit/io/secrets-parser.test.ts": "fdd6bacd57c1610e7a759004c1e1ce2270077cbeaa40ac5531c88825712b699c",
+    "source/cli/tests/unit/io/config-parser.test.ts": "e07e999216a5fcc5954aad01f47aeea60d8108c39433d1cbdc9c4029605c7b90"
   },
   "mtimes": {
     ".yggdrasil/model/cli/tests/unit/support/io/yg-node.yaml": 1775327956360.6697,
@@ -47,12 +47,12 @@
     "source/cli/tests/unit/io/artifact-reader.test.ts": 1772776392220.913,
     "source/cli/tests/unit/io/aspect-parser.test.ts": 1775305644947.3787,
     "source/cli/tests/unit/io/audit-log.test.ts": 1775277031697.6335,
-    "source/cli/tests/unit/io/config-parser.test.ts": 1775330011785.8264,
+    "source/cli/tests/unit/io/config-parser.test.ts": 1775509983128.0544,
     "source/cli/tests/unit/io/drift-state-store.test.ts": 1772781906206.4846,
     "source/cli/tests/unit/io/flow-parser.test.ts": 1774864350266.7651,
-    "source/cli/tests/unit/io/node-parser.test.ts": 1775307189167.3481,
+    "source/cli/tests/unit/io/node-parser.test.ts": 1775503587889.5776,
     "source/cli/tests/unit/io/schema-parser.test.ts": 1773392454498.4453,
     "source/cli/tests/unit/io/secrets-parser.test.ts": 1775332680189.159
   },
-  "acknowledgeReason": "v4 migration: flat mapping, claims, and doc updates"
+  "acknowledgeReason": "new config-parser test for verify_artifacts and context_length_field"
 }

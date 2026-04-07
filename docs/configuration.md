@@ -67,6 +67,31 @@ quality:
 
 ---
 
+## LLM config
+
+Optional. Enables semantic verification during `yg approve` — claim checking (E055)
+and optionally artifact review (E056).
+
+| Field                  | Default                  | Description                                                                                                   |
+| ---------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| `provider`             | —                        | `ollama`, `openai`, or `anthropic`                                                                            |
+| `model`                | —                        | Model identifier (e.g. `qwen3.5:9b`)                                                                         |
+| `endpoint`             | `http://localhost:11434` | Provider endpoint URL                                                                                         |
+| `temperature`          | `0`                      | Sampling temperature                                                                                          |
+| `consensus`            | `1`                      | Number of agreeing responses required (odd integer)                                                           |
+| `max_tokens`           | `auto`                   | Max context tokens. `auto` queries the provider                                                               |
+| `verify_artifacts`     | `false`                  | Run artifact review (E056). Off by default — small models produce false positives on large artifacts          |
+| `context_length_field` | auto-detected            | Ollama `model_info` key for context window size. Auto-detected by finding key ending with `.context_length`   |
+
+Credentials (`api_key`) go in `.yggdrasil/yg-secrets.yaml` (gitignored):
+
+```yaml
+llm:
+  api_key: "sk-..."
+```
+
+---
+
 ## Notes
 
 - Artifact name `yg-node.yaml` is reserved.

@@ -1,5 +1,5 @@
 {
-  "hash": "3c0f47bab8b0215c19ef722baf82a12f848378699dda4ad3842b4d418e0f6d4f",
+  "hash": "442efba414b3b3f0de545d1e7ab259e8b2c9a459c43775b1cfd080e4b2697331",
   "files": {
     ".yggdrasil/model/cli/core/loader/yg-node.yaml": "05866db81250be21a6705bf0d994a93ed6880c0aea9d80d848babf2dcb74ffb1",
     ".yggdrasil/model/cli/core/loader/interface.md": "0bb87fa5a5b9ce62786196668076207af49ca1744a8d10f967409b18f82fc2ba",
@@ -18,8 +18,9 @@
     ".yggdrasil/aspects/posix-paths/content.md": "38daf50dec99307443fd8951019cf534c74571a7778d43e55a4354d9d2faeefc",
     ".yggdrasil/aspects/silent-missing-files/yg-aspect.yaml": "902ca03cbbedb844bd8cbb3e19122457a131788206d88a7cf5801a5684556e1e",
     ".yggdrasil/aspects/silent-missing-files/content.md": "184f0c0c511bc8d819bd5657cd122f1f20f149ac62f1d3687e4b68ab2e1b613e",
+    ".yggdrasil/model/cli/io/responsibility.md": "ef22e0a0164d75ab5898e180a04e6b943c3ce24d57242258e52cbc05ae48a7a5",
+    ".yggdrasil/model/cli/io/interface.md": "79ea1701427e6f39dc44aade7d275931d0c08159c053de34dc41fb095b0406ab",
     ".yggdrasil/model/cli/model/responsibility.md": "b668c6db2090a36a54277f62fb228c266d87c6d119f89e6ed67e140392863a66",
-    ".yggdrasil/model/cli/model/interface.md": "3901ba335b3667b7862c43f2bcb48c49a4d69a58127a18ad0190f1e274c67a2b",
     ".yggdrasil/model/cli/utils/responsibility.md": "4918c48366c7b3f35bb7b97fa74252c47f14ba72417c5cc5f3e1100b503c7ddd",
     ".yggdrasil/model/cli/utils/interface.md": "051aef97613feeaf82746a2d576f2a96346c3bb916144d88b8bc13b115b2d2ba",
     ".yggdrasil/flows/build-context/yg-flow.yaml": "ad7b1fd9f74aacd66fe207b87d611c0b39f13903cc2737f6b0a971c110e07359",
@@ -34,9 +35,8 @@
     ".yggdrasil/flows/preflight/description.md": "20d14b71af13a79417c5faeb5b02194f99445a1a05c9cf0aa1398dc3601edabb",
     ".yggdrasil/flows/validate/yg-flow.yaml": "ac7d3e18c4d443b113e4883426d03a35af4f3d8a6f92e97803eb6b8ef8d3efb5",
     ".yggdrasil/flows/validate/description.md": "e361415e9567de84d0c121dc709aa7b4b13b1bc99725344bd50b67486267dcdb",
-    "source/cli/src/core/graph-loader.ts": "117186a5c61b948e89e238bbdebe29723c486c94f9c02e9e337f4e67d9acf9e8",
-    ".yggdrasil/model/cli/io/responsibility.md": "ef22e0a0164d75ab5898e180a04e6b943c3ce24d57242258e52cbc05ae48a7a5",
-    ".yggdrasil/model/cli/io/interface.md": "79ea1701427e6f39dc44aade7d275931d0c08159c053de34dc41fb095b0406ab"
+    ".yggdrasil/model/cli/model/interface.md": "702e39d06832de110518f0220f130de376fa8116fcaffc7e17c2580e4b7ed988",
+    "source/cli/src/core/graph-loader.ts": "117186a5c61b948e89e238bbdebe29723c486c94f9c02e9e337f4e67d9acf9e8"
   },
   "mtimes": {
     ".yggdrasil/model/cli/core/loader/yg-node.yaml": 1775327956351.2534,
@@ -59,7 +59,7 @@
     ".yggdrasil/model/cli/io/responsibility.md": 1775332254662.6868,
     ".yggdrasil/model/cli/io/interface.md": 1775332404756.6104,
     ".yggdrasil/model/cli/model/responsibility.md": 1772778759688.719,
-    ".yggdrasil/model/cli/model/interface.md": 1775305296252.0251,
+    ".yggdrasil/model/cli/model/interface.md": 1775509701891.0308,
     ".yggdrasil/model/cli/utils/responsibility.md": 1772743197446.85,
     ".yggdrasil/model/cli/utils/interface.md": 1775217330039.2043,
     ".yggdrasil/flows/build-context/yg-flow.yaml": 1774035679160.1672,
@@ -74,7 +74,7 @@
     ".yggdrasil/flows/preflight/description.md": 1775046967142.8008,
     ".yggdrasil/flows/validate/yg-flow.yaml": 1775046092444.8713,
     ".yggdrasil/flows/validate/description.md": 1775046942154.0942,
-    "source/cli/src/core/graph-loader.ts": 1775278021400.6729
+    "source/cli/src/core/graph-loader.ts": 1775503587878.5244
   },
-  "acknowledgeReason": "v4 migration: flat mapping, claims, and doc updates"
+  "acknowledgeReason": "cascade from upstream artifact changes — source already compliant"
 }

@@ -329,6 +329,7 @@ llm:
         temperature: 0,
         consensus: 1,
         max_tokens: 'auto',
+        verify_artifacts: false,
       });
 
       await rm(tmpDir, { recursive: true, force: true });
@@ -431,6 +432,31 @@ llm:
       );
 
       await expect(parseConfig(configPath)).rejects.toThrow(/odd/i);
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('parses verify_artifacts and context_length_field', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-llm-full-config');
+      await mkdir(tmpDir, { recursive: true });
+      const configPath = path.join(tmpDir, 'yg-config.yaml');
+      await writeFile(
+        configPath,
+        `
+name: test-project
+version: "4.0.0"
+llm:
+  provider: ollama
+  model: qwen3.5:9b
+  verify_artifacts: true
+  context_length_field: "qwen35.context_length"
+`,
+        'utf-8',
+      );
+
+      const config = await parseConfig(configPath);
+      expect(config.llm!.verify_artifacts).toBe(true);
+      expect(config.llm!.context_length_field).toBe('qwen35.context_length');
 
       await rm(tmpDir, { recursive: true, force: true });
     });

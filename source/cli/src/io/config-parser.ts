@@ -83,6 +83,8 @@ export async function parseConfig(filePath: string): Promise<YggConfig> {
       temperature: typeof llmRaw.temperature === 'number' ? llmRaw.temperature : 0,
       consensus,
       max_tokens: maxTokens as LlmConfig['max_tokens'],
+      verify_artifacts: llmRaw.verify_artifacts === true,
+      context_length_field: typeof llmRaw.context_length_field === 'string' ? llmRaw.context_length_field : undefined,
     };
   }
 

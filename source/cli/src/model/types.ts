@@ -90,6 +90,10 @@ export interface LlmConfig {
   temperature: number;
   consensus: number;
   max_tokens: number | 'auto';
+  /** Whether to run artifact review (E056) during approve. Default: false. */
+  verify_artifacts: boolean;
+  /** Ollama model_info key for context length (e.g. "qwen35.context_length"). Auto-detected if omitted. */
+  context_length_field?: string;
 }
 
 /** Cached LLM verification result per claim */
@@ -447,8 +451,8 @@ export interface ApproveResult {
   claimResults?: Record<string, Record<string, ClaimVerificationResult>>;
   /** LLM artifact review results (E056) */
   artifactReviewResults?: Record<string, ArtifactReviewResult>;
-  /** Whether LLM verification was skipped (no provider) */
-  llmSkipped?: boolean;
+  /** Why LLM verification was skipped, if it was */
+  llmSkipped?: 'not-configured' | 'unavailable' | 'acknowledge' | 'blackbox';
   /** E055 structured violations for programmatic consumption */
   e055Violations?: Array<{ aspect: string; claim: string; reason: string }>;
   /** E056 structured violations for programmatic consumption */

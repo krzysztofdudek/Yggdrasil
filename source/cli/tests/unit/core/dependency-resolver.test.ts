@@ -611,5 +611,32 @@ describe('dependency-resolver', () => {
       expect(output).toContain('uses B');
       expect(output).not.toContain('emits');
     });
+
+    it('formatDependencyTree shows multiple children with correct connectors and blackbox', () => {
+      const graph = createGraph([
+        createNode(
+          'A',
+          [
+            { target: 'B', type: 'uses' },
+            { target: 'C', type: 'uses' },
+          ],
+          { path: 'a.ts' },
+        ),
+        createNode('B', [{ target: 'D', type: 'calls' }], { path: 'b.ts' }),
+        createNode('C', [], { path: 'c.ts' }, true),
+        createNode('D', [], { path: 'd.ts' }),
+      ]);
+
+      const output = formatDependencyTree(graph, 'A');
+
+      // First child uses ├── (not last), second uses └── (last)
+      expect(output).toContain('├── uses B');
+      expect(output).toContain('└── uses C');
+      // Blackbox marker
+      expect(output).toContain('■ blackbox');
+      // Nested child under B uses │ prefix
+      expect(output).toContain('│');
+      expect(output).toContain('calls D');
+    });
   });
 });

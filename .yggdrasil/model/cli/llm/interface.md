@@ -60,6 +60,6 @@ Resolves max token limit: uses `config.max_tokens` if set, otherwise queries `pr
 
 ## Provider Behavior
 
-- **OllamaProvider**: Uses `POST /api/chat` with `format: 'json'` and `stream: false`. Retries once on failure. Strips markdown code fences from JSON responses before parsing. Returns a safe fallback response on parse failure.
+- **OllamaProvider**: Uses `POST /api/chat` with `format: 'json'` and `stream: false`. Retries once on failure. Strips markdown code fences from JSON responses before parsing. Returns a safe fallback response on parse failure. `getContextWindowSize()` auto-detects the context length from Ollama model_info by finding a key ending with `.context_length` — or uses `LlmConfig.context_length_field` if configured.
 - **OpenAIProvider**: Stub — `isAvailable()` returns false, operations throw.
 - **AnthropicProvider**: Stub — `isAvailable()` returns false, operations throw.

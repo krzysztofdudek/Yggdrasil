@@ -110,6 +110,17 @@ describe('migrator', () => {
       const results = await runMigrations('not-a-version', migrations, '');
       expect(results).toHaveLength(0);
     });
+
+    it('skips migrations with invalid semver target version', async () => {
+      const order: string[] = [];
+      const migrations: Migration[] = [
+        { to: 'bad-version', description: 'bad', run: async () => { order.push('bad'); return { actions: [], warnings: [] }; } },
+        { to: '2.0.0', description: 'good', run: async () => { order.push('2.0.0'); return { actions: [], warnings: [] }; } },
+      ];
+      const results = await runMigrations('1.4.3', migrations, '');
+      expect(order).toEqual(['2.0.0']);
+      expect(results).toHaveLength(1);
+    });
   });
 
   describe('updateConfigVersion', () => {

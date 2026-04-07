@@ -6,20 +6,32 @@ You will receive: an aspect description, a specific claim, and source code files
 Respond with EXACTLY this JSON format, nothing else:
 {"satisfied": true|false, "reason": "one sentence explanation"}`;
 
-const ARTIFACT_SYSTEM_PROMPT = `You are reviewing whether documentation accurately describes source code.
-You will receive: a documentation artifact and the current source code.
-Respond with EXACTLY this JSON format, nothing else:
-{"current": true|false, "reason": "one sentence explanation of what is outdated, or 'up to date'"}`;
+const ARTIFACT_SYSTEM_PROMPT = `You review whether documentation matches source code behavior.
+
+Report STALE only when:
+- Documentation describes behavior the code does NOT have
+- Documentation omits a PUBLIC export, parameter, or return type that consumers need
+- Documentation contradicts the code (says X but code does Y)
+
+Report CURRENT when:
+- Documentation is a correct high-level summary even if it omits private/internal details
+- Wording differs but meaning is the same
+- Documentation uses simpler terms for implementation details
+
+Respond with EXACTLY this JSON, nothing else:
+{"current": true|false, "reason": "one sentence"}`;
 
 export class OllamaProvider implements LlmProvider {
   private endpoint: string;
   private model: string;
   private temperature: number;
+  private contextLengthField?: string;
 
   constructor(config: LlmConfig) {
     this.endpoint = config.endpoint ?? 'http://localhost:11434';
     this.model = config.model;
     this.temperature = config.temperature;
+    this.contextLengthField = config.context_length_field;
   }
 
   async isAvailable(): Promise<boolean> {
@@ -41,9 +53,12 @@ export class OllamaProvider implements LlmProvider {
       });
       if (!res.ok) return undefined;
       const data = await res.json() as Record<string, unknown>;
-      // Ollama returns model info with context_length in parameters
       const params = data.model_info as Record<string, unknown> | undefined;
-      const ctxLength = params?.['context_length'] as number | undefined;
+      if (!params) return undefined;
+      // Use configured field, or find any key ending with .context_length
+      const key = this.contextLengthField
+        ?? Object.keys(params).find(k => k === 'context_length' || k.endsWith('.context_length'));
+      const ctxLength = key ? params[key] as number | undefined : undefined;
       return ctxLength ?? undefined;
     } catch {
       return undefined;
@@ -82,7 +97,7 @@ export class OllamaProvider implements LlmProvider {
     const userPrompt =
       `ARTIFACT (${params.artifactName}):\n${params.artifactContent}\n\n` +
       `SOURCE CODE:\n${params.sourceCode}\n\n` +
-      `Is this documentation still accurate and complete given the current code?`;
+      `Does this documentation contradict the code or omit any public interface?`;
 
     return this.chat<ArtifactResponse>(ARTIFACT_SYSTEM_PROMPT, userPrompt, { current: false, reason: 'LLM response could not be parsed' });
   }

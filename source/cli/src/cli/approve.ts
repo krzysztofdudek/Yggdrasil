@@ -72,7 +72,13 @@ export function formatResult(nodePath: string, result: ApproveResult): void {
 
 function formatLlmResults(result: ApproveResult): void {
   if (result.llmSkipped) {
-    process.stdout.write(chalk.dim('  LLM not configured — aspect verification and artifact review skipped.\n'));
+    const messages: Record<NonNullable<ApproveResult['llmSkipped']>, string> = {
+      'not-configured': 'LLM not configured — aspect verification and artifact review skipped.',
+      'unavailable': 'LLM configured but not reachable — aspect verification and artifact review skipped.',
+      'acknowledge': 'LLM verification skipped (--acknowledge overrides).',
+      'blackbox': 'LLM verification skipped for blackbox node.',
+    };
+    process.stdout.write(chalk.dim(`  ${messages[result.llmSkipped]}\n`));
     return;
   }
 
@@ -257,16 +263,16 @@ function formatRefused(nodePath: string, result: ApproveResult): void {
 
 async function loadLlmProvider(
   graph: { rootPath: string; config: { llm?: import('../model/types.js').LlmConfig } },
-): Promise<{ provider: LlmProvider | undefined; maxTokens: number | undefined; consensus: number | undefined; cloudNotice: string | undefined }> {
+): Promise<{ provider: LlmProvider | undefined; llmNotConfigured: boolean; maxTokens: number | undefined; consensus: number | undefined; cloudNotice: string | undefined }> {
   const llmConfig = graph.config.llm;
-  if (!llmConfig) return { provider: undefined, maxTokens: undefined, consensus: undefined, cloudNotice: undefined };
+  if (!llmConfig) return { provider: undefined, llmNotConfigured: true, maxTokens: undefined, consensus: undefined, cloudNotice: undefined };
 
   const secrets = await loadSecrets(graph.rootPath);
   const mergedConfig = secrets ? mergeLlmConfig(llmConfig, secrets) : llmConfig;
   const provider = createLlmProvider(mergedConfig);
 
   if (!(await provider.isAvailable())) {
-    return { provider: undefined, maxTokens: undefined, consensus: undefined, cloudNotice: undefined };
+    return { provider: undefined, llmNotConfigured: false, maxTokens: undefined, consensus: undefined, cloudNotice: undefined };
   }
 
   let cloudNotice: string | undefined;
@@ -279,7 +285,7 @@ async function loadLlmProvider(
     ? (await provider.getContextWindowSize() ?? 8192)
     : (mergedConfig.max_tokens as number);
 
-  return { provider, maxTokens, consensus: mergedConfig.consensus, cloudNotice };
+  return { provider, llmNotConfigured: false, maxTokens, consensus: mergedConfig.consensus, cloudNotice };
 }
 
 // ── Command registration ─────────────────────────────────────
@@ -295,15 +301,17 @@ export function registerApproveCommand(program: Command): void {
       try {
         const graph = await loadGraph(process.cwd());
         const nodePath = options.node.trim().replace(/^\.\//, '').replace(/\/+$/, '');
-        const { provider, maxTokens, consensus, cloudNotice } = await loadLlmProvider(graph);
+        const { provider, llmNotConfigured, maxTokens, consensus, cloudNotice } = await loadLlmProvider(graph);
         if (cloudNotice) {
           process.stdout.write(chalk.yellow(`Notice: ${cloudNotice}\n`));
         }
         const result = await approveNode(graph, nodePath, {
           acknowledge: options.acknowledge,
           llmProvider: provider,
+          llmNotConfigured,
           maxTokens,
           consensus,
+          verifyArtifacts: graph.config.llm?.verify_artifacts,
         });
         formatResult(nodePath, result);
         if (result.action === 'refused') {
@@ -359,14 +367,16 @@ export function registerApproveCommand(program: Command): void {
         try {
           const graph = await loadGraph(process.cwd());
           const nodePath = options.node.trim().replace(/^\.\//, '').replace(/\/+$/, '');
-          const { provider, maxTokens, cloudNotice } = await loadLlmProvider(graph);
+          const { provider, llmNotConfigured, maxTokens, cloudNotice } = await loadLlmProvider(graph);
           if (cloudNotice) {
             process.stdout.write(chalk.yellow(`Notice: ${cloudNotice}\n`));
           }
           const result = await approveNode(graph, nodePath, {
             acknowledge: options.acknowledge,
             llmProvider: provider,
+            llmNotConfigured,
             maxTokens,
+            verifyArtifacts: graph.config.llm?.verify_artifacts,
           });
           formatResult(nodePath, result);
           if (result.action === 'refused') {

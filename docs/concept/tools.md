@@ -50,6 +50,8 @@ llm: # map, optional — LLM provider configuration for semantic verification
   temperature: 0 # number, default 0 — sampling temperature
   consensus: 1 # int, default 1 — number of agreeing responses required
   max_tokens: auto # int or "auto" — max response tokens
+  verify_artifacts: false # bool, default false — run artifact review (E056) during approve
+  context_length_field: "qwen35.context_length" # string, optional — Ollama model_info key for context window size
 ```
 
 Artifacts (`responsibility.md`, `interface.md`, `internals.md`) are built into the
@@ -302,6 +304,30 @@ entry is written to its own JSON file under `.drift-state/`.
 
 **Garbage collection:** When `yg approve` runs, orphaned drift state files (files
 under `.drift-state/` that no longer correspond to a mapped node) are removed.
+
+### .audit-log.jsonl
+
+Append-only JSONL file at `.yggdrasil/.audit-log.jsonl`. Records every successful
+approve action. Gitignored — local tooling artifact, not shared repo state.
+The CLI only appends to this file; it never reads it.
+
+Each line is a JSON object:
+
+```json
+{"ts":"2026-04-06T12:00:00.000Z","node":"cli/core/approve","action":"approved","prev":"d37ba0b1","hash":"1a6bc0d0","reason":null,"files":["source/cli/src/core/approve.ts"]}
+```
+
+| Field    | Type             | Description                                                    |
+| -------- | ---------------- | -------------------------------------------------------------- |
+| `ts`     | string           | ISO-8601 timestamp                                             |
+| `node`   | string           | Node path                                                      |
+| `action` | string           | `initial`, `approved`, `acknowledged`, or `no-change`          |
+| `prev`   | string or null   | Previous baseline hash (`null` on first approve)               |
+| `hash`   | string           | New baseline hash                                              |
+| `reason` | string or null   | `--acknowledge` reason, `null` otherwise                       |
+| `files`  | string[]         | Changed files (own artifacts + source)                         |
+
+Refused outcomes are not logged (no state mutation occurred).
 
 ---
 
@@ -977,6 +1003,15 @@ E030 orders/order-service -> missing artifact 'interface'.
 W001 orders/order-service -> context: ~15,200 tokens (warning: 10,000)
      own: 3,100 (20%) | hierarchy: 4,800 (32%) | aspects: 4,200 (28%) |
      flows: 1,600 (10%) | dependencies: 1,500 (10%)
+
+E021 cli/commands/check — cascade drift (last verified: pass)
+     Context package changed due to 2 upstream modifications:
+          Cause: dependency 'cli/core/check' responsibility changed
+          Cause: dependency 'cli/core/check' interface changed
+
+  Cascade summary: 2 upstream changes → 3 cascaded nodes
+    dependency 'cli/core/check' responsibility changed → cli/commands/check
+    dependency 'cli/core/context' interface changed → cli/commands/build-context, cli/commands/impact
 ```
 
 Messages are **contextual and actionable** — not just "error", but what is wrong,
@@ -1058,14 +1093,16 @@ Per-node only — no `--all`, no `--recursive`. One node at a time.
    - **Claim verification:** For each aspect anchor claimed by the node, the LLM checks
      whether the source files actually satisfy the claim. Failures produce E055
      (claim-not-satisfied).
-   - **Artifact review:** The LLM compares artifact content (responsibility, interface,
-     internals) against current source files to detect staleness. Failures produce E056
-     (artifact-stale).
+   - **Artifact review** (opt-in, `llm.verify_artifacts: true`): The LLM compares
+     artifact content (responsibility, interface, internals) against current source files
+     to detect staleness. Failures produce E056 (artifact-stale). Disabled by default
+     because small models produce false positives on large artifacts.
    - **Caching:** Verification results are cached per file hash. Unchanged files skip
      re-verification on subsequent approvals.
    - If E055 or E056 errors are found, approve refuses.
-   - When no LLM provider is configured, approve prints a notice and skips the
-     verification gate (the three-axis gate still applies).
+   - When LLM verification is skipped, the reason is shown:
+     `not-configured` (no `llm` section), `unavailable` (provider unreachable),
+     `acknowledge` (`--acknowledge` overrides), or `blackbox` (blackbox node).
 5. If accepted: compute hashes for all tracked files and write to
    `.yggdrasil/.drift-state/<node-path>.json`.
 6. Garbage collection: remove orphaned drift state files for nodes that no longer exist.
@@ -1088,7 +1125,14 @@ blackbox into a proper node for the modified files.
 tracked by any other node. Approve refuses first-approve on a blackbox node if any
 of its mapped files appear in the drift-state of any other node — regardless of
 whether that other node currently has pending E020. Decomposition must produce a
-proper node for files with prior tracking history.
+proper node for files with prior tracking history. Output on refusal:
+
+```text
+ERROR: Anti-laundering — cannot create blackbox over previously tracked files.
+  Conflicting files:
+    path/to/file.ts (tracked by other/node)
+  Decompose: create a proper node (not blackbox) for these files.
+```
 
 **First approve:** If node has no stored baseline (no drift state file), approve accepts
 and records the initial baseline.
@@ -1099,7 +1143,8 @@ both.
 
 **Approve always records:** Approve always records the new baseline hash when it
 accepts, including on no-op. This ensures structural metadata changes (`yg-node.yaml`)
-are captured even when no axis registers them as a change.
+are captured even when no axis registers them as a change. Every accepted approve
+appends an entry to `.yggdrasil/.audit-log.jsonl` (see [.audit-log.jsonl](#audit-logjsonl)).
 
 **Artifact scope:** `yg-node.yaml` is not counted as an artifact for the three-axis
 check — only `.md` content files count as own artifacts.

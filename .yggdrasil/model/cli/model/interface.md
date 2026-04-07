@@ -6,7 +6,7 @@ Type library — exports TypeScript interfaces and types only. No runtime functi
 
 **Node:** Graph, GraphNode, NodeMeta, Relation, RelationType, Artifact
 
-**LLM verification (new in v4):** ClaimAnchor, ClaimVerificationResult, ArtifactReviewResult, PortDef, LlmConfig
+**LLM verification (new in v4):** ClaimAnchor, ClaimVerificationResult, ArtifactReviewResult, PortDef, LlmConfig. `ApproveResult.llmSkipped` is a discriminated string union (`'not-configured' | 'unavailable' | 'acknowledge' | 'blackbox'`) — not a boolean.
 
 **Architecture:** ArchitectureDef, ArchitectureNodeType
 
@@ -38,7 +38,7 @@ Type library — exports TypeScript interfaces and types only. No runtime functi
 
 **PortDef:** description, aspects (string[] — required aspects for consumers)
 
-**LlmConfig:** provider (ollama/openai/anthropic), model, optional endpoint, optional api_key, temperature, consensus, max_tokens (number or 'auto')
+**LlmConfig:** provider (ollama/openai/anthropic), model, optional endpoint, optional api_key, temperature, consensus, max_tokens (number or 'auto'), verify_artifacts (boolean, default false), optional context_length_field (string — Ollama model_info key override)
 
 **ClaimVerificationResult:** satisfied (boolean), reason (string)
 

@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Fixed:** `yg approve` now shows distinct messages when LLM verification is
+  skipped — differentiates between "not configured", "configured but not
+  reachable", "--acknowledge override", and "blackbox node".
+- **Added:** `llm.verify_artifacts` config option (default: `false`) to control
+  artifact review (E056) during approve. Disabled by default to avoid false
+  positives from small local models.
+- **Added:** `llm.context_length_field` config option for Ollama — specifies the
+  model_info key for context window size. Auto-detected if omitted (finds any
+  key ending with `.context_length`).
+- **Fixed:** Ollama context window auto-detection now works with models that use
+  architecture-prefixed keys (e.g. `qwen35.context_length`).
+- **Improved:** Artifact review prompt tuned to reduce false positives — reports
+  stale only for behavioral contradictions or missing public interfaces, not
+  minor wording differences.
+
 ## [4.0.0]
 
 ### Breaking Changes

@@ -1,16 +1,16 @@
 {
-  "hash": "c25ce9562821f058ced68d5e8959f2d2bf14923a3c6d1700bdab7bc237b8160f",
+  "hash": "d63a6c6c706e8ddb69c9df758141f7c786391f4f3551bf8ee5cd84f40dfd15f4",
   "files": {
     ".yggdrasil/model/docs/concept/yg-node.yaml": "e9f47d45f61f1dcce3a0c9f4686307095bd2b211131cc0d98f5be8ec97a4a522",
     ".yggdrasil/model/docs/concept/responsibility.md": "1b5a6590a3620359d6010c5bd05e665732cb35dff7b765a0d205244577bca2dd",
     ".yggdrasil/model/docs/yg-node.yaml": "36ca70c4bea26714bb7450d306d1a898e70573151394eb8e0fb3a5cf588c84d4",
     ".yggdrasil/model/docs/responsibility.md": "070a2a6c6b29116ab18d2b824068d227cc4682f30fd5ef79b3cbe307dbe632fe",
-    "docs/concept/foundation.md": "4ab53b044d48d718a8a54afffbcf2e99ee9ef59055a1ed8e6874017aa18353e6",
-    "docs/concept/materialization.md": "0fef8e79a0b3e038aa7954cb8f290c7fa09badebaf6a1e57773d10c0a5df21af",
     "docs/concept/engine.md": "f0474028452a87cfd25f43bb73f1e1ee03bc39d3e06db65a3ea0cc533566d824",
+    "docs/concept/foundation.md": "4ab53b044d48d718a8a54afffbcf2e99ee9ef59055a1ed8e6874017aa18353e6",
     "docs/concept/graph.md": "37c638cf238f7f16a5041e8d356982c2d61cdc49c3bbd2d33e735f6bdd99e65c",
     "docs/concept/integration.md": "691ed2099240c82575ec5b698497cb88383eddbd2db7b51091b71c380faf5db3",
-    "docs/concept/tools.md": "6d675a2351b1754d28256efcf5995e47a724432db4fe5d134a0f07d2f24d08e9"
+    "docs/concept/materialization.md": "0fef8e79a0b3e038aa7954cb8f290c7fa09badebaf6a1e57773d10c0a5df21af",
+    "docs/concept/tools.md": "c5daa347e5a6cf1346278e62c3565f3f82e3221acf68afdaa626093f2f4db1ef"
   },
   "mtimes": {
     ".yggdrasil/model/docs/concept/yg-node.yaml": 1775327956365.0742,
@@ -22,7 +22,7 @@
     "docs/concept/graph.md": 1775331152559.4612,
     "docs/concept/integration.md": 1775331178830.6614,
     "docs/concept/materialization.md": 1775025218263.0195,
-    "docs/concept/tools.md": 1775331000104.996
+    "docs/concept/tools.md": 1775510959268.634
   },
-  "acknowledgeReason": "v4 migration: flat mapping, claims, and doc updates"
+  "acknowledgeReason": "added audit log section, E021 output example, anti-laundering display to tools.md"
 }

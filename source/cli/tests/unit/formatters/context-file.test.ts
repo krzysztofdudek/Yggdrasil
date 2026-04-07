@@ -11,6 +11,7 @@ describe('formatFileContext', () => {
         aspectId: 'deterministic',
         aspectDescription: 'Same inputs produce identical outputs',
         verifiedAgainst: 'aspects/deterministic/content.md',
+        source: 'required aspect for type \'library\'',
         claims: [
           'Functions do not use Date.now(), Math.random(), or filesystem writes',
           'Exported functions return values derived only from their arguments',
@@ -28,6 +29,7 @@ describe('formatFileContext', () => {
     expect(output).toContain('Claims to satisfy:');
     expect(output).toContain('deterministic — Same inputs produce identical outputs');
     expect(output).toContain('Verified against: aspects/deterministic/content.md');
+    expect(output).toContain('Source: required aspect for type \'library\'');
     expect(output).toContain('Functions do not use Date.now()');
     expect(output).toContain('Dependencies consumed:');
     expect(output).toContain('cli/core/context — buildContext()');

@@ -155,8 +155,27 @@ describe('approveNode — LLM verification', () => {
     await writeFile(path.join(yggRoot, 'model/svc/my-service/responsibility.md'), 'Updated.\n');
 
     const graph = await loadGraph(tmpDir);
+    const result = await approveNode(graph, 'svc/my-service', { llmNotConfigured: true });
+    expect(result.llmSkipped).toBe('not-configured');
+    expect(result.action).toBe('approved');
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('reports LLM unavailable when provider configured but not reachable', async () => {
+    const { tmpDir, yggRoot } = await createTmpProject('llm-skip-unavailable', {
+      nodePath: 'svc/my-service',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - deterministic\nmapping:\n  - src/svc/\n',
+      mappingFiles: { 'src/svc/index.ts': 'const x = 1;\n' },
+      aspects: [{ id: 'deterministic', yaml: ASPECT_YAML_WITH_CLAIMS }],
+    });
+    await recordBaseline(tmpDir);
+    await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'const x = 2;\n');
+    await writeFile(path.join(yggRoot, 'model/svc/my-service/responsibility.md'), 'Updated.\n');
+
+    const graph = await loadGraph(tmpDir);
+    // No llmProvider, llmNotConfigured defaults to false → 'unavailable'
     const result = await approveNode(graph, 'svc/my-service');
-    expect(result.llmSkipped).toBe(true);
+    expect(result.llmSkipped).toBe('unavailable');
     expect(result.action).toBe('approved');
     await rm(tmpDir, { recursive: true, force: true });
   });
@@ -177,7 +196,7 @@ describe('approveNode — LLM verification', () => {
     });
     const result = await approveNode(graph, 'svc/my-service', { llmProvider: provider });
     // No changes → no-change, but LLM is skipped because blackbox
-    expect(result.llmSkipped).toBe(true);
+    expect(result.llmSkipped).toBe('blackbox');
     await rm(tmpDir, { recursive: true, force: true });
   });
 
@@ -261,7 +280,7 @@ describe('approveNode — LLM verification', () => {
       },
     });
 
-    const result = await approveNode(graph, 'svc/my-service', { llmProvider: provider });
+    const result = await approveNode(graph, 'svc/my-service', { llmProvider: provider, verifyArtifacts: true });
     expect(result.action).toBe('refused');
     expect(result.e056Violations).toBeDefined();
     expect(result.e056Violations!.length).toBeGreaterThan(0);

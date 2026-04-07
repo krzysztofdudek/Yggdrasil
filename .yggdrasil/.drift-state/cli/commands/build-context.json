@@ -1,5 +1,5 @@
 {
-  "hash": "e754b49ff1aeb7341329f7bdf7ddc1de23dd319df9bf48f0112160278144c5b7",
+  "hash": "b60a14a4a913d3a0f4b0be017e6e177b6fc472910a2d9928af7b29d27bd3c858",
   "files": {
     ".yggdrasil/model/cli/commands/build-context/yg-node.yaml": "d8ece6d39208243d0c648bfdb95af0e4ce97ba2d922747e1ba303c94bec4564b",
     ".yggdrasil/model/cli/commands/build-context/interface.md": "c445207aece9508c6280210a401845fdc5a877c772f5ef19363dbd49d677251e",
@@ -22,7 +22,6 @@
     ".yggdrasil/model/cli/core/responsibility.md": "2aa9f1d64abf86aed604a1823392c3d40b963eb8416b38ef877bcccddd7ff086",
     ".yggdrasil/model/cli/core/interface.md": "807008eb6f673273034d7d3325a36f37ea1c7a4e46df362e2a4fa9ccd9451de9",
     ".yggdrasil/model/cli/core/context/responsibility.md": "62350b3416df89ffd1c00486f7564a69c0775276030dcf64f02bc1cbdacd74a4",
-    ".yggdrasil/model/cli/core/context/interface.md": "240aaca78320255bef4ef4ba9c7e27103f4436493c6ac45ffa2101f5a0d16a94",
     ".yggdrasil/model/cli/core/validator/responsibility.md": "1aba1eb4b9b3afd5516c23463d38a47f60241ead31a0d89d6d1aab1b04fc609a",
     ".yggdrasil/model/cli/core/validator/interface.md": "fe2b3e9163b55c4a11c05d92f650665365c68707cc49298ff646e4abb9359d2d",
     ".yggdrasil/model/cli/formatters/responsibility.md": "408bca84c2de6c339aaa72d3786cba5ea549de2d5bfcda9e1245e737f484dd2c",
@@ -35,7 +34,8 @@
     ".yggdrasil/flows/build-context/description.md": "60e4619e480293f028a1c2b756ce30c8800adc613dc9c64e6bd6ef7f3d5fcf87",
     ".yggdrasil/flows/graph-analysis/yg-flow.yaml": "6643c01963cfd3731ba76f0a34a34e7ce2ed09e2ae2da793734c59adc4f87624",
     ".yggdrasil/flows/graph-analysis/description.md": "aca097a8ecbf74d140e5deb9ad6113c752d49e193077b0e1d201b7f99da574f4",
-    "source/cli/src/cli/build-context.ts": "95933be09bcd80d543b5838a4bc6d37f458cdcb2846edcf5dcde84dae2255a0e"
+    "source/cli/src/cli/build-context.ts": "95933be09bcd80d543b5838a4bc6d37f458cdcb2846edcf5dcde84dae2255a0e",
+    ".yggdrasil/model/cli/core/context/interface.md": "686725c3c077dc3ab7f03ebd71736af3cff4a7373118c2c46422f3379dfe740e"
   },
   "mtimes": {
     ".yggdrasil/model/cli/commands/build-context/yg-node.yaml": 1775327956332.7717,
@@ -59,7 +59,7 @@
     ".yggdrasil/model/cli/core/responsibility.md": 1772828321933.1968,
     ".yggdrasil/model/cli/core/interface.md": 1772743197442.582,
     ".yggdrasil/model/cli/core/context/responsibility.md": 1774967446806.7505,
-    ".yggdrasil/model/cli/core/context/interface.md": 1775217031584.3328,
+    ".yggdrasil/model/cli/core/context/interface.md": 1775332261436.1562,
     ".yggdrasil/model/cli/core/validator/responsibility.md": 1775317463746.7031,
     ".yggdrasil/model/cli/core/validator/interface.md": 1774783352192.546,
     ".yggdrasil/model/cli/formatters/responsibility.md": 1773381039569.8894,
@@ -74,5 +74,5 @@
     ".yggdrasil/flows/graph-analysis/description.md": 1775046980292.1602,
     "source/cli/src/cli/build-context.ts": 1775325143024.5308
   },
-  "acknowledgeReason": "v4 migration: flat mapping, claims, and doc updates"
+  "acknowledgeReason": "cascade from upstream artifact changes — source already compliant"
 }

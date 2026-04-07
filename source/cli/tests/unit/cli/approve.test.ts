@@ -62,12 +62,39 @@ describe('formatResult — LLM results', () => {
     expect(output).toContain('current');
   });
 
-  it('shows LLM skipped notice when llmSkipped is true', () => {
+  it('shows LLM skipped notice when not configured', () => {
     const result = makeApproveResult({
       action: 'approved',
-      llmSkipped: true,
+      llmSkipped: 'not-configured',
     });
     const output = captureOutput(() => formatResult('some/node', result));
-    expect(output).toContain('LLM');
+    expect(output).toContain('LLM not configured');
+  });
+
+  it('shows LLM unavailable notice', () => {
+    const result = makeApproveResult({
+      action: 'approved',
+      llmSkipped: 'unavailable',
+    });
+    const output = captureOutput(() => formatResult('some/node', result));
+    expect(output).toContain('not reachable');
+  });
+
+  it('shows LLM skipped for acknowledge', () => {
+    const result = makeApproveResult({
+      action: 'approved',
+      llmSkipped: 'acknowledge',
+    });
+    const output = captureOutput(() => formatResult('some/node', result));
+    expect(output).toContain('--acknowledge');
+  });
+
+  it('shows LLM skipped for blackbox', () => {
+    const result = makeApproveResult({
+      action: 'approved',
+      llmSkipped: 'blackbox',
+    });
+    const output = captureOutput(() => formatResult('some/node', result));
+    expect(output).toContain('blackbox');
   });
 });

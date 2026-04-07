@@ -30,10 +30,14 @@ export interface ApproveOptions {
   acknowledge?: string;
   /** LLM provider for semantic verification (E055/E056) */
   llmProvider?: LlmProvider;
+  /** True when no llm section exists in config (vs provider created but unavailable) */
+  llmNotConfigured?: boolean;
   /** Max tokens for LLM calls — resolved from config or queried from provider */
   maxTokens?: number;
   /** Consensus vote count for claim verification (default: 1) */
   consensus?: number;
+  /** Whether to run artifact review (E056). Default: false. */
+  verifyArtifacts?: boolean;
 }
 
 /**
@@ -326,7 +330,7 @@ export async function approveNode(
   // ── LLM verification (after three-axis, before recording baseline) ──
   let claimResults: Record<string, Record<string, ClaimVerificationResult>> | undefined;
   let artifactReviewResults: Record<string, ArtifactReviewResult> | undefined;
-  let llmSkipped = false;
+  let llmSkipped: ApproveResult['llmSkipped'];
   const e055Violations: Array<{ aspect: string; claim: string; reason: string }> = [];
   const e056Violations: Array<{ name: string; reason: string }> = [];
 
@@ -362,7 +366,7 @@ export async function approveNode(
       }
     }
 
-    if (artifacts.length > 0 && sourceFiles.length > 0) {
+    if (options.verifyArtifacts && artifacts.length > 0 && sourceFiles.length > 0) {
       artifactReviewResults = await reviewArtifacts({
         provider: llmProvider,
         artifacts,
@@ -396,11 +400,11 @@ export async function approveNode(
       };
     }
   } else if (acknowledge) {
-    llmSkipped = true; // acknowledge skips LLM — no point running expensive verification
+    llmSkipped = 'acknowledge';
   } else if (!llmProvider) {
-    llmSkipped = true;
+    llmSkipped = options.llmNotConfigured ? 'not-configured' : 'unavailable';
   } else if (isBlackbox) {
-    llmSkipped = true;
+    llmSkipped = 'blackbox';
   }
 
   // Record baseline if accepted — preserve previous acknowledgeReason for audit trail

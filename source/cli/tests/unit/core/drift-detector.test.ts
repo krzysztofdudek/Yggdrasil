@@ -414,6 +414,30 @@ mapping:
 
     // Tests the deleted-files loop in syncDriftState (lines 235-242):
     // When a graph file is deleted between syncs, the hasGraphChange path fires.
+    it('sourceOnlyChange is true when a source file is deleted', async () => {
+      const { tmpDir } = await createTmpProject('drift-source-deleted-sync', {
+        nodePath: 'svc/del-src',
+        nodeYaml: 'name: DelSrc\ntype: service\nmapping:\n  - src/a.ts\n  - src/b.ts',
+        mappingFiles: {
+          'src/a.ts': 'v1',
+          'src/b.ts': 'v1',
+        },
+      });
+
+      try {
+        const graph = await loadGraph(tmpDir);
+        await syncDriftState(graph, 'svc/del-src');
+
+        // Delete a source file — the deleted-files loop detects hasSourceChange = true
+        await rm(path.join(tmpDir, 'src/b.ts'));
+
+        const result = await syncDriftState(graph, 'svc/del-src');
+        expect(result.sourceOnlyChange).toBe(true);
+      } finally {
+        await rm(tmpDir, { recursive: true, force: true });
+      }
+    });
+
     it('sourceOnlyChange is false when a graph artifact file is deleted', async () => {
       const { tmpDir } = await createTmpProject('drift-graph-deleted-sync', {
         nodePath: 'svc/del-svc',

@@ -14,6 +14,12 @@ CLI command handler implementing `yg approve` and the backward-compatible `yg dr
   - `no-change` — plain output with baseline confirmation
   - `refused` — red error to stderr with contextual guidance per failure case (blackbox blocked, anti-laundering, unilateral artifact change, unilateral source change, cascade-only)
 - **Node path normalization** — strips leading `./` and trailing `/` from `--node` value before passing to core.
+- **LLM provider loading** — `loadLlmProvider` reads `llm` config section and `yg-secrets.yaml`, creates provider, checks `isAvailable()`. Returns `llmNotConfigured: true` when no `llm` section exists, `llmNotConfigured: false` with `provider: undefined` when provider is unreachable.
+- **LLM skip messaging** — `formatLlmResults` shows four distinct messages based on `llmSkipped` reason:
+  - `'not-configured'` — "LLM not configured"
+  - `'unavailable'` — "LLM configured but not reachable"
+  - `'acknowledge'` — "--acknowledge overrides"
+  - `'blackbox'` — "blackbox node"
 - **GC reporting** — prints orphaned drift state removals as dim lines.
 
 ## Failure modes handled
