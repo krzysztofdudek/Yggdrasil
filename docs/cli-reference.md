@@ -16,7 +16,7 @@ This page is for people who want to inspect or debug the repo's semantic memory.
 | `yg context --file <path>` / `--node <path>` `[--full]` | Assemble context package |
 | `yg impact --file <path>` / `--node <path>` / `--aspect <id>` / `--flow <name>` | Blast radius analysis |
 | `yg check` | Unified gate — everything wrong, always global |
-| `yg approve --node <path> [--acknowledge "reason"]` | Record baseline after review |
+| `yg approve --node <paths...> [--reviewed "reason"]` / `--aspect <id>` / `--flow <name>` | Record baseline after review |
 
 ### `yg context`
 
@@ -72,16 +72,26 @@ Exit code 0 if fully clean, 1 if any errors found.
 
 ### `yg approve`
 
-Records the current file state as the new baseline after review. Per-node only.
+Records the current file state as the new baseline after review.
 Alias: `drift-sync`.
 
 ```bash
 yg approve --node <path>
-yg approve --node <path> --acknowledge "reason text"
+yg approve --node <path1> <path2> <path3>
+yg approve --node <path> --reviewed "reason text"
+yg approve --aspect <id> [--reviewed "reason"]
+yg approve --flow <name> [--reviewed "reason"]
 ```
 
-- `--acknowledge "reason"` — Required when only one side changed (e.g., source changed but
-  artifacts did not, or cascade drift where source is already compliant). Provides audit trail.
+Exactly one of `--node`, `--aspect`, or `--flow` is required.
+
+- `--node <paths...>` — One or more node paths to approve. When a single node has no mapping,
+  CLI redirects to batch-approve its children with cascade drift.
+- `--aspect <id>` — Batch approve all nodes with cascade drift from this aspect.
+- `--flow <name>` — Batch approve all nodes with cascade drift from this flow.
+- `--reviewed "reason"` — Bypasses the three-axis gate (when only one side changed), but
+  the reviewer still verifies aspects (E055) and artifact freshness (E056) if configured.
+  Provides audit trail.
 
 ---
 
@@ -89,7 +99,7 @@ yg approve --node <path> --acknowledge "reason text"
 
 | Command | Purpose |
 |---------|---------|
-| `yg select --task <description> [--limit <n>]` | Find relevant nodes |
+| `yg select <query> [--limit <n>]` | Find relevant nodes, aspects, and flows |
 | `yg tree [--root <path>] [--depth <n>]` | Graph structure |
 | `yg aspects` | List aspects |
 | `yg flows` | List flows |
@@ -97,25 +107,27 @@ yg approve --node <path> --acknowledge "reason text"
 
 ### `yg select`
 
-Find graph nodes relevant to a task description using keyword matching.
+Find graph nodes, aspects, and flows relevant to a task description.
 
 ```bash
-yg select --task <description> [--limit <n>]
+yg select <query> [--limit <n>]
 ```
 
 Uses weighted keyword matching against node artifacts (responsibility x3, interface x2,
 aspects x2, others x1). Falls back to flow-based selection when no nodes match directly.
 
-- `--task <description>` — Natural-language task description
-- `--limit <n>` — Maximum nodes to return (default: 5)
+- `<query>` — Natural-language task description (positional argument)
+- `--limit <n>` — Maximum results per section (default: 5)
 
-Output: YAML list sorted by relevance score.
+Output: structured text with three sections:
 
-```yaml
-- node: orders/order-service
-  score: 12
-  name: OrderService
-```
+- **Nodes** — scored by keyword match against artifacts
+- **Aspects** — annotated `(matched)` when directly relevant to the query,
+  or `(N nodes)` when the aspect governs returned nodes. Each entry includes
+  a `read:` path to its content file.
+- **Flows** — annotated `(matched)` when directly relevant, or `(N nodes)`
+  when participants overlap with returned nodes. Each entry includes a `read:`
+  path to its description file.
 
 ### `yg tree`
 

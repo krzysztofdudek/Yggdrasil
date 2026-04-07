@@ -341,7 +341,7 @@ yg init --platform cursor
 yg init --platform cursor --upgrade   # refreshes rules when .yggdrasil/ exists
 yg context --node orders/order-service       # structural overview
 yg context --file src/modules/orders/order.service.ts  # resolves owner + full details
-yg select --task "add payment retry logic"   # find relevant nodes for a task
+yg select "add payment retry logic"   # find relevant nodes for a task
 yg tree
 yg aspects
 yg flows
@@ -577,17 +577,14 @@ for `yg-node.yaml` and `yg-flow.yaml`.
 ```text
 deterministic — Determinism
   Used by: 4 nodes (architecture: 2, own: 2)
-  Claims: 1
 
 observability/logging — Audit Logging
   Every state-changing operation must produce an audit log entry
   Used by: 7 nodes (architecture: 3, own: 2, implied: 1, flow: 1)
-  Claims: 3
   Implies: observability/tracing
 
 legacy-format — Legacy Format
   Used by: 0 nodes — orphaned
-  Claims: 1
 ```
 
 Orphan detection surfaces aspects that are defined but unused (same condition as W006).

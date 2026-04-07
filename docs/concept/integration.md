@@ -34,20 +34,20 @@ what rules apply, and what must not be broken.
 The agent is graph-aware in every interaction without the user having to ask for it.
 This is achieved through behavioral directives that the agent follows as part of normal work:
 
-- **When starting from a high-level goal**, the agent runs `yg select --task` to identify
+- **When starting from a high-level goal**, the agent runs `yg select` to identify
   relevant nodes, then loads their context with `yg context --node` to get a node overview:
-  aspects, claims, flows, dependents, and artifact pointers. Graph artifacts (responsibility,
+  aspects, flows, dependents, and artifact pointers. Graph artifacts (responsibility,
   interface, aspect content) are written in the same vocabulary developers use in task
   descriptions — making simple keyword matching against artifact content an effective selection
   mechanism. This layered flow — select, then context — gives the agent a structured reading
   phase before any design or implementation begins.
 - **Before modifying a file**, the agent runs `yg context --file` to get per-file details:
-  claims to satisfy, consumed dependencies, and the owning node. Claims are natural language
-  properties the file must satisfy (e.g., "All exports have return type annotations") — the
-  agent uses them as implementation constraints.
+  aspect requirements to satisfy, consumed dependencies, and the owning node. Aspect
+  requirements are cross-cutting rules defined in aspect content files — the agent uses them
+  as implementation constraints.
 - **After modifying**, the agent updates graph artifacts, runs `yg check` (the structural gate),
   and then `yg approve` (the semantic verification gate). Approve runs LLM checks: it verifies
-  each claim against source code and checks whether artifacts are current. If LLM is not
+  each aspect against source code and checks whether artifacts are current. If LLM is not
   configured, approve falls back to three-axis change detection only — semantic verification
   is gracefully skipped with a notice.
 - **When it notices files without graph coverage**, the agent stops. If greenfield (new code to be
@@ -101,19 +101,18 @@ format and conventions (described in detail in the Learning mechanisms section b
 4. The existing graph shows **how** it looks in this project
 5. Tool validation tells it **what** is wrong
 
-### Claims and ports
+### Aspect verification and ports
 
 Two v4 mechanisms replace earlier regex-based approaches with agent-friendly alternatives:
 
-**Claims** replace regex anchors as the primary way aspects constrain source files. Instead of
-writing regular expressions that must match in source code, the agent writes natural language
-claims — per-file verifiable properties like “All exports have return type annotations” or
-“Error handling uses AppError class.” At approve time, the LLM verifies each claim against
-the actual source code. If a claim does not hold, E055 tells the agent exactly what failed.
+**Aspect verification** replaces regex anchors as the primary way aspects constrain source
+files. Instead of writing regular expressions that must match in source code, the agent writes
+aspect content files (`content.md`) describing requirements in natural language. At approve
+time, the LLM verifies each aspect's content against the actual source code. If an aspect is
+not satisfied, E055 tells the agent exactly what failed.
 
-Claims are more expressive than regex (they can describe behavioral properties, not just
-textual patterns) and more natural for agents to author. Good claims are per-file verifiable;
-claims that require cross-file reasoning belong in flow descriptions instead.
+Aspect content files are more expressive than regex (they can describe behavioral properties,
+not just textual patterns) and more natural for agents to author.
 
 **Ports** replace integration aspects as the way provider nodes declare typed contracts for
 their consumers. Instead of requiring consuming nodes to prove an aspect at the architecture
@@ -132,9 +131,9 @@ Agent: creates yg-node.yaml with a relation to “payment/svc”
     did you mean 'payments/payment-service'?”
   → Agent: fixes the path
   → yg check: no errors
-  → yg approve: E055 “claim 'no direct DB access' not satisfied in order-service.ts”
-  → Agent: fixes the code (or updates the claim if the requirement changed)
-  → yg approve: all claims verified
+  → yg approve: E055 “aspect 'no-direct-db-access' not satisfied in order-service.ts”
+  → Agent: fixes the code (or updates the aspect if the requirement changed)
+  → yg approve: all aspects verified
 ```
 
 Validation feedback is **contextual and actionable** — not “error”, but “what is wrong,
@@ -151,13 +150,13 @@ good graphs without requiring prior knowledge of conventions.
 | Node Markdown artifacts                                        | Agent                      |
 | Aspect directories in `aspects/` + `yg-aspect.yaml`            | Agent                      |
 | Flow directories in `flows/` + `yg-flow.yaml`                  | Agent                      |
-| Claims (natural language) in `yg-aspect.yaml` anchors          | Agent                      |
+| Aspect content files (requirements in `content.md`)            | Agent                      |
 | Ports (typed contracts) in `yg-node.yaml` dependency entries   | Agent                      |
 | Schemas in `schemas/` (node, aspect, flow)                     | Initialization (copied)    |
 | Platform rules file                                            | Initialization (one time)  |
 
 Tools create infrastructure (initialization). The agent creates content (everything after init),
-including claims (natural language properties verified by LLM at approve time) and ports
+including aspect content files (requirements verified by LLM at approve time) and ports
 (typed contracts declaring what each dependency provides).
 
 ---
@@ -183,15 +182,15 @@ This repository uses Yggdrasil. The graph is in .yggdrasil/
 *Exception:* Read-only requests (e.g. "explain this") skip check.
 
 === BEFORE ANY TASK ===
-- yg select --task "<goal>" → yg context --node on results
+- yg select "<goal>" → yg context --node on results
 - READ phase: aspects (read content files — rules are inside),
   flows (read invariants), relations (check interfaces), parent artifacts
 
 === CREATIVE WORK ===
 
 BEFORE MODIFYING A FILE:
-- yg context --file <path> — resolves owner, shows claims to satisfy
-- Use claims as implementation constraints
+- yg context --file <path> — resolves owner, shows aspect requirements to satisfy
+- Use aspect requirements as implementation constraints
 
 WHEN OWNER NOT FOUND (file without graph coverage):
 - STOP. Determine: greenfield, partially mapped, or existing code?
@@ -202,7 +201,7 @@ WHEN OWNER NOT FOUND (file without graph coverage):
 AFTER MODIFYING:
 - Update graph artifacts (per file, not batched)
 - yg check — structural gate
-- yg approve --node — LLM verifies claims + artifact freshness
+- yg approve --node — LLM verifies aspects + artifact freshness
   (no LLM configured → falls back to change detection only)
 
 BEFORE A CHANGE THAT AFFECTS MANY NODES:
@@ -216,10 +215,10 @@ BEFORE A CHANGE THAT AFFECTS MANY NODES:
 
 **Layered workflow** (the primary agent flow):
 
-1. `yg select --task "<goal>"` — find relevant nodes
-2. `yg context --node` on each result — node overview (aspects, claims, flows, dependents)
-3. `yg context --file <path>` — per-file details (claims to satisfy, consumed dependencies)
-4. Modify source code — claims tell you what rules to follow
+1. `yg select "<goal>"` — find relevant nodes
+2. `yg context --node` on each result — node overview (aspects, flows, dependents)
+3. `yg context --file <path>` — per-file details (aspect requirements to satisfy, consumed dependencies)
+4. Modify source code — aspect requirements tell you what rules to follow
 5. Update artifacts → `yg check` → `yg approve --node`
 
 The directives say **when** to act, not how graph files are structured. Schema and format come from config, templates, and validation feedback.
@@ -260,10 +259,10 @@ contextual feedback. At approve time, the agent gets deeper semantic feedback:
 
 - `yg check` — structural gate: missing artifacts, broken references, budget violations,
   coverage gaps. Fast and deterministic.
-- `yg approve` — semantic gate: LLM verifies claims against source code and checks artifact
+- `yg approve` — semantic gate: LLM verifies aspects against source code and checks artifact
   freshness. Self-teaching errors tell the agent exactly what to fix:
-  - **E055 (claim-not-satisfied):** a claim does not hold for the source file — the agent
-    must fix the code or update the claim.
+  - **E055 (aspect-not-satisfied):** an aspect is not satisfied by the source file — the agent
+    must fix the code or update the aspect.
   - **E056 (artifact-stale):** an artifact no longer reflects the source code — the agent
     must update it.
 
@@ -339,7 +338,7 @@ The graph reflects system **intent**: what it is, why it is that way, and what r
 
 By default, the agent updates the graph immediately so graph and code stay synchronized.
 After any graph edit: run `yg check` (structural gate) and fix issues until clean, then
-run `yg approve --node` (semantic gate) which uses LLM to verify claims hold against
+run `yg approve --node` (semantic gate) which uses LLM to verify aspects hold against
 source code and artifacts are current.
 
 ### Agent decision: new node or attach
@@ -604,8 +603,8 @@ scanning for patterns, building understanding from raw files. This is expensive 
 session.
 
 With a graph, the agent reads focused context at two levels — `yg context --node` for the
-node overview (aspects, claims, flows, dependents) and `yg context --file` for per-file
-details (claims to satisfy, consumed dependencies). Both output structured text with artifact
+node overview (aspects, flows, dependents) and `yg context --file` for per-file
+details (aspect requirements to satisfy, consumed dependencies). Both output structured text with artifact
 pointers. The context is typically 5,000-10,000 tokens regardless of project size. The agent
 does not need to explore.
 
@@ -673,8 +672,8 @@ directly, ignores context packages, does not update the graph after changes.
 
 Defense: mechanical enforcement through two gates. `yg check` (structural) catches drift
 (E020/E021), coverage gaps (E022), and completeness issues. `yg approve` (semantic) catches
-claim violations (E055 — a claim does not hold for source code) and stale artifacts (E056 —
-an artifact no longer reflects the source). The agent cannot commit without a clean `yg check`,
+aspect violations (E055 — an aspect is not satisfied by source code) and stale artifacts
+(E056 — an artifact no longer reflects the source). The agent cannot commit without a clean `yg check`,
 and approve's self-teaching errors guide the agent to fix exactly what is wrong. The system
 enforces graph usage through its gates, not through soft behavioral directives alone.
 
