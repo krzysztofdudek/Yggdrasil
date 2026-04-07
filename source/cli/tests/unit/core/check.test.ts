@@ -665,11 +665,11 @@ describe('buildCoverageIssue', () => {
     expect(issue).not.toBeNull();
     expect(issue!.code).toBe('E022');
     expect(issue!.uncoveredCount).toBe(20);
-    // Guidance should come before "Examples of uncovered files"
+    // Examples come before guidance (what → why → next)
     const msg = issue!.message;
+    const examplesIdx = msg.indexOf('Examples:');
     const guidanceIdx = msg.indexOf('Add to an existing');
-    const examplesIdx = msg.indexOf('Examples of uncovered files');
-    expect(guidanceIdx).toBeLessThan(examplesIdx);
+    expect(examplesIdx).toBeLessThan(guidanceIdx);
     expect(msg).toContain('... and 15 more');
   });
 

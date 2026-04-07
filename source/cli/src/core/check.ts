@@ -13,6 +13,7 @@ import { normalizeMappingPaths } from '../utils/paths.js';
 import { validate } from './validator.js';
 import { access } from 'node:fs/promises';
 import path from 'node:path';
+import { buildIssueMessage } from '../formatters/message-builder.js';
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -81,8 +82,16 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
         code: 'E020',
         rule: 'direct-drift',
         message: allMissing
-          ? `Mapping declared but source files never created:\n${mappingPaths.map(p => '       ' + p).join('\n')}\n     Implement from the graph specification, then approve.`
-          : `Mapping declared but no baseline recorded:\n${mappingPaths.map(p => '       ' + p).join('\n')}\n     Verify artifacts match source, then approve.`,
+          ? buildIssueMessage({
+              what: `Mapping declared but source files never created:\n${mappingPaths.map(p => '  ' + p).join('\n')}`,
+              why: 'Node specifies files that do not exist yet.',
+              next: `Implement from the graph specification, then: yg approve --node ${nodePath}`,
+            })
+          : buildIssueMessage({
+              what: `Mapping declared but no baseline recorded:\n${mappingPaths.map(p => '  ' + p).join('\n')}`,
+              why: 'Node has never been approved — drift tracking is not active.',
+              next: `Verify artifacts match source, then: yg approve --node ${nodePath}`,
+            }),
         nodePath,
         driftSubtype: 'unmaterialized',
         directChangedFiles: [],
@@ -97,7 +106,11 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
         severity: 'error',
         code: 'E020',
         rule: 'direct-drift',
-        message: `Mapped source files not found on disk:\n${mappingPaths.map(p => '       ' + p).join('\n')}\n     Re-create the file, or remove the mapping from yg-node.yaml.`,
+        message: buildIssueMessage({
+          what: `Mapped source files not found on disk:\n${mappingPaths.map(p => '  ' + p).join('\n')}`,
+          why: 'Mapped files were deleted or moved.',
+          next: `Re-create the file, or remove the mapping from yg-node.yaml.`,
+        }),
         nodePath,
         driftSubtype: 'missing',
         directChangedFiles: mappingPaths.map(p => ({ filePath: p, category: 'source' as DriftCategory })),
@@ -216,11 +229,23 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
 
       let message: string;
       if (driftSubtype === 'source-drift') {
-        message = `Source files changed since last approve. Graph artifacts unchanged.\nChanged:\n${sourceFiles.map(f => '  ' + f).join('\n')}\nUpdate artifacts to reflect source changes, then approve.\nIf change is cosmetic (formatting, comments): approve --acknowledge.`;
+        message = buildIssueMessage({
+          what: `Source files changed since last approve. Graph artifacts unchanged.\nChanged:\n${sourceFiles.map(f => '  ' + f).join('\n')}`,
+          why: 'Graph artifacts may no longer describe the actual behavior.',
+          next: `Update artifacts to reflect source changes, then: yg approve --node ${nodePath}\nIf change is cosmetic (formatting, comments): yg approve --node ${nodePath} --acknowledge "cosmetic"`,
+        });
       } else if (driftSubtype === 'graph-drift') {
-        message = `Graph artifacts changed since last approve. Source files unchanged.\nChanged:\n${graphFiles.map(f => '  ' + f).join('\n')}\nImplement the graph changes in source, then approve.\nIf change is cosmetic (typo, clarification): approve --acknowledge.`;
+        message = buildIssueMessage({
+          what: `Graph artifacts changed since last approve. Source files unchanged.\nChanged:\n${graphFiles.map(f => '  ' + f).join('\n')}`,
+          why: 'Source may not yet implement the updated graph specification.',
+          next: `Implement the graph changes in source, then: yg approve --node ${nodePath}\nIf change is cosmetic (typo, clarification): yg approve --node ${nodePath} --acknowledge "cosmetic"`,
+        });
       } else {
-        message = `Both source files and graph artifacts changed since last approve.\nSource:\n${sourceFiles.map(f => '  ' + f).join('\n')}\nGraph:\n${graphFiles.map(f => '  ' + f).join('\n')}\nEnsure source and artifacts are consistent, then approve.`;
+        message = buildIssueMessage({
+          what: `Both source files and graph artifacts changed since last approve.\nSource:\n${sourceFiles.map(f => '  ' + f).join('\n')}\nGraph:\n${graphFiles.map(f => '  ' + f).join('\n')}`,
+          why: 'Source and graph artifacts must be consistent before approval.',
+          next: `Ensure source and artifacts are consistent, then: yg approve --node ${nodePath}`,
+        });
       }
 
       issues.push({
@@ -253,8 +278,12 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
       // Build a single collapsed E021 for this node with all causes
       // Use causeGroups.size for the count -- reflects distinct logical upstream sources, not raw file count
       const causeCount = causeGroups.size;
-      const causeLines = nodeE021Causes.map((c: CascadeCause) => '     Cause: ' + c.description).join('\n');
-      const message = `Context package changed due to ${causeCount} upstream modification${causeCount === 1 ? '' : 's'}:\n${causeLines}\n     Review source compliance with updated context, then:\n       - If source needs changes: update source + artifacts, approve.\n       - If source is already compliant: approve --acknowledge.`;
+      const causeLines = nodeE021Causes.map((c: CascadeCause) => '  Cause: ' + c.description).join('\n');
+      const message = buildIssueMessage({
+        what: `Context package changed due to ${causeCount} upstream modification${causeCount === 1 ? '' : 's'}:\n${causeLines}`,
+        why: 'Source may no longer satisfy updated claims.',
+        next: `Load context: yg context --node ${nodePath}\nVerify source compliance, update if needed, then: yg approve --node ${nodePath}\nIf source is already compliant: yg approve --node ${nodePath} --acknowledge "reviewed"`,
+      });
 
       issues.push({
         severity: 'error',
@@ -364,17 +393,21 @@ export function buildCoverageIssue(uncoveredFiles: string[], totalGitFiles: numb
 
   if (uncoveredFiles.length <= sampleSize) {
     // Small count: files listed directly, guidance after
-    message = `${uncoveredFiles.length.toLocaleString()} source file${uncoveredFiles.length === 1 ? '' : 's'} not covered by any node\n${sample.map(f => '     ' + f).join('\n')}`;
-    message += `\n     Add to an existing node's mapping, create a new node, or blackbox the area.`;
+    message = buildIssueMessage({
+      what: `${uncoveredFiles.length.toLocaleString()} source file${uncoveredFiles.length === 1 ? '' : 's'} not covered by any node.\n${sample.map(f => '  ' + f).join('\n')}`,
+      why: 'Files without graph coverage cannot be modified under the protocol.',
+      next: `Check ownership candidates: yg context --file <path>\nThen: add to existing node mapping, create a new node, or blackbox.`,
+    });
   } else {
     // Large count: guidance BEFORE examples (per CLI messages spec)
-    message = `${uncoveredFiles.length.toLocaleString()} source files have no graph coverage`;
-    if (coveragePct < 50) {
-      message += `\n     Establish coverage: create proper nodes for areas you will work on,\n     blackbox areas you won't touch. Start with the area relevant to your\n     current task, blackbox the rest.`;
-    } else {
-      message += `\n     Add to an existing node's mapping, create a new node, or blackbox the area.`;
-    }
-    message += `\n     Examples of uncovered files:\n${sample.map(f => '       ' + f).join('\n')}\n       ... and ${remaining.toLocaleString()} more`;
+    const guidance = coveragePct < 50
+      ? 'Establish coverage: create proper nodes for areas you will work on, blackbox the rest.'
+      : 'Add to an existing node mapping, create a new node, or blackbox.';
+    message = buildIssueMessage({
+      what: `${uncoveredFiles.length.toLocaleString()} source files have no graph coverage.\nExamples:\n${sample.map(f => '  ' + f).join('\n')}\n... and ${remaining.toLocaleString()} more`,
+      why: 'Files without graph coverage cannot be modified under the protocol.',
+      next: `${guidance}\nCheck ownership candidates: yg context --file <path>`,
+    });
   }
 
   return {
@@ -595,34 +628,45 @@ function computeSuggestedNext(issues: CheckIssue[]): string | null {
   /* v8 ignore next -- tested by clean-check test, but v8 sometimes marks it uncovered */
   if (errors.length === 0) return null;
 
-  // Drift first
-  const drift = errors.find(i => i.code === 'E020');
-  if (drift && drift.nodePath) {
-    return `yg context --node ${drift.nodePath}\n      (Load context for drifted node, update artifacts, then approve)`;
+  const driftErrors = errors.filter(i => i.code === 'E020');
+  const cascadeErrors = errors.filter(i => i.code === 'E021');
+  const structuralErrors = errors.filter(i => i.code >= 'E001' && i.code <= 'E013');
+  const coverageErrors = errors.filter(i => i.code === 'E022');
+  const completenessErrors = errors.filter(i => i.code >= 'E030' && i.code <= 'E041');
+
+  const remaining: string[] = [];
+  const addRemaining = (count: number, label: string) => { if (count > 0) remaining.push(`${count} ${label}`); };
+
+  if (driftErrors.length > 0) {
+    const node = driftErrors[0].nodePath!;
+    addRemaining(cascadeErrors.length, 'cascade reviews');
+    addRemaining(coverageErrors.length > 0 ? (coverageErrors[0].uncoveredCount ?? 0) : 0, 'files need coverage');
+    const then = remaining.length > 0 ? `\n  Then: ${remaining.join(', ')}` : '';
+    return `yg context --node ${node}\n  1 of ${driftErrors.length} drifted node${driftErrors.length === 1 ? '' : 's'} — post-modify workflow${then}`;
   }
 
-  // Cascade
-  const cascade = errors.find(i => i.code === 'E021');
-  if (cascade && cascade.nodePath) {
-    return `yg context --node ${cascade.nodePath}\n      (Review source compliance with updated upstream context)`;
+  if (cascadeErrors.length > 0) {
+    const node = cascadeErrors[0].nodePath!;
+    addRemaining(coverageErrors.length > 0 ? (coverageErrors[0].uncoveredCount ?? 0) : 0, 'files need coverage');
+    const then = remaining.length > 0 ? `\n  Then: ${remaining.join(', ')}` : '';
+    return `yg context --node ${node}\n  1 of ${cascadeErrors.length} cascade node${cascadeErrors.length === 1 ? '' : 's'} — cascade review${then}`;
   }
 
-  // Structural
-  const structural = errors.find(i => i.code && i.code >= 'E001' && i.code <= 'E013');
-  if (structural) {
-    return `Fix ${structural.code} in ${structural.nodePath ?? '.yggdrasil/'}\n      (Resolve structural error before other work)`;
+  if (structuralErrors.length > 0) {
+    const first = structuralErrors[0];
+    addRemaining(coverageErrors.length > 0 ? (coverageErrors[0].uncoveredCount ?? 0) : 0, 'files need coverage');
+    const then = remaining.length > 0 ? `\n  Then: ${remaining.join(', ')}` : '';
+    return `Fix ${first.code} in ${first.nodePath ?? '.yggdrasil/'}\n  1 of ${structuralErrors.length} structural error${structuralErrors.length === 1 ? '' : 's'}${then}`;
   }
 
-  // Coverage
-  const coverage = errors.find(i => i.code === 'E022');
-  if (coverage) {
-    return `Create nodes or blackbox for uncovered files\n      (Establish graph coverage for your active work area)`;
+  if (coverageErrors.length > 0) {
+    const count = coverageErrors[0].uncoveredCount ?? 0;
+    return `yg context --file <uncovered-path>\n  ${count} file${count === 1 ? '' : 's'} need coverage — bootstrap workflow`;
   }
 
-  // Completeness
-  const completeness = errors.find(i => i.code && i.code >= 'E030');
-  if (completeness && completeness.nodePath) {
-    return `Fix ${completeness.code} for ${completeness.nodePath}\n      (${completeness.rule}: add missing content)`;
+  if (completenessErrors.length > 0) {
+    const first = completenessErrors[0];
+    return `Fix ${first.code} for ${first.nodePath}\n  1 of ${completenessErrors.length} completeness error${completenessErrors.length === 1 ? '' : 's'} — post-modify workflow`;
   }
 
   return null;

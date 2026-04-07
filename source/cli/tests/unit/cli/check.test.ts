@@ -42,7 +42,7 @@ function makeCascadeIssue(nodePath: string, causeDescription: string): CheckIssu
   const causes: CascadeCause[] = [
     { file: `.yggdrasil/aspects/some-aspect/rules.md`, layer: 'aspects', description: causeDescription },
   ];
-  const message = `Context package changed due to 1 upstream modification:\n     Cause: ${causeDescription}\n     Review source compliance with updated context, then:\n       - If source needs changes: update source + artifacts, approve.\n       - If source is already compliant: approve --acknowledge.`;
+  const message = `Context package changed due to 1 upstream modification:\n  Cause: ${causeDescription}\nSource may no longer satisfy updated claims.\nLoad context: yg context --node ${nodePath}\nVerify source compliance, update if needed, then: yg approve --node ${nodePath}\nIf source is already compliant: yg approve --node ${nodePath} --acknowledge "reviewed"`;
   return {
     severity: 'error',
     code: 'E021',
@@ -59,9 +59,9 @@ function makeCoverageIssue(uncoveredCount: number): CheckIssue {
   const remaining = uncoveredCount - files.length;
   let message: string;
   if (uncoveredCount <= 5) {
-    message = `${uncoveredCount} source file${uncoveredCount === 1 ? '' : 's'} not covered by any node\n${files.map(f => '     ' + f).join('\n')}\n     Add to an existing node's mapping, create a new node, or blackbox the area.`;
+    message = `${uncoveredCount} source file${uncoveredCount === 1 ? '' : 's'} not covered by any node.\n${files.map(f => '  ' + f).join('\n')}\nFiles without graph coverage cannot be modified under the protocol.\nCheck ownership candidates: yg context --file <path>\nThen: add to existing node mapping, create a new node, or blackbox.`;
   } else {
-    message = `${uncoveredCount.toLocaleString()} source files have no graph coverage\n     Establish coverage: create proper nodes for areas you will work on,\n     blackbox areas you won't touch. Start with the area relevant to your\n     current task, blackbox the rest.\n     Examples of uncovered files:\n${files.map(f => '       ' + f).join('\n')}\n       ... and ${remaining.toLocaleString()} more`;
+    message = `${uncoveredCount.toLocaleString()} source files have no graph coverage.\nExamples:\n${files.map(f => '  ' + f).join('\n')}\n... and ${remaining.toLocaleString()} more\nFiles without graph coverage cannot be modified under the protocol.\nEstablish coverage: create proper nodes for areas you will work on, blackbox the rest.\nCheck ownership candidates: yg context --file <path>`;
   }
   return {
     severity: 'error',
@@ -86,11 +86,11 @@ describe('formatOutput', () => {
     expect(output).toContain('own: 2,100');
   });
 
-  it('hides warnings when errors exist, shows count in result line', () => {
+  it('shows warnings even when errors exist', () => {
     const output = formatOutput(makeCheckResult({
       issues: [makeError('E020', 'drift'), makeWarning('W001', 'budget')],
     }));
-    expect(output).not.toContain('Warnings (');
+    expect(output).toContain('Warnings (1)');
     expect(output).toContain('1 warning');
   });
 
@@ -140,9 +140,10 @@ describe('preserved check features', () => {
   it('Next: suggested command appears after result line', () => {
     const output = formatOutput(makeCheckResult({
       issues: [makeError('E020', 'drift')],
-      suggestedNext: 'yg context --node cli/core/validator\n      (Load context for drifted node, update artifacts, then approve)',
+      suggestedNext: 'yg context --node cli/core/validator\n  1 of 1 drifted node — post-modify workflow',
     }));
     expect(output).toContain('Next: yg context --node cli/core/validator');
+    expect(output).toContain('post-modify workflow');
   });
 
   it('errors sorted by node path (stable ordering)', () => {

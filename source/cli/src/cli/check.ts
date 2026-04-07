@@ -197,7 +197,7 @@ export function formatOutput(result: CheckResult): string {
     }
   }
 
-  if (warnings.length > 0 && errors.length === 0) {
+  if (warnings.length > 0) {
     lines.push(`Warnings (${warnings.length}):`);
     // Group: Budget (W001, W002) then Structure (W003, W004) then Other (W005+)
     const budgetWarnings = warnings.filter(i => i.code === 'W001' || i.code === 'W002');
