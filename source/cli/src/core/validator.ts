@@ -39,7 +39,6 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
     issues.push(...checkImpliedAspectsExist(graph));
     issues.push(...checkImpliesNoCycles(graph));
     // E035 removed — replaced by E051 (architecture enforcement)
-    issues.push(...checkAspectAnchors(graph));
     // E040, E041 removed — anchor realization checks will be replaced by LLM verification in Plan 2
     // E037 removed — anchor pattern checks will be replaced by LLM verification in Plan 2
     issues.push(...checkRequiredArtifacts(graph));
@@ -207,7 +206,7 @@ function checkDanglingAspectRefs(graph: Graph): ValidationIssue[] {
           nodePath,
           message: buildIssueMessage({
             what: `Aspect '${aspectId}' is referenced by this node but not defined in aspects/.`,
-            why: `Node declares an aspect that does not exist — claims cannot be verified.`,
+            why: `Node declares an aspect that does not exist — aspect requirements cannot be verified.`,
             next: `Create aspects/${aspectId}/ with yg-aspect.yaml and content.md.`,
           }),
         });
@@ -297,7 +296,7 @@ function checkAspectIdUniqueness(graph: Graph): ValidationIssue[] {
       rule: 'duplicate-aspect-binding',
       message: buildIssueMessage({
         what: `Aspect '${id}' is bound to multiple aspects (${names.join(', ')}).`,
-        why: `Aspect ids must be unique — duplicate ids cause ambiguous claim resolution.`,
+        why: `Aspect ids must be unique — duplicate ids cause ambiguous aspect resolution.`,
         next: `Rename one of the aspect directories to make ids unique.`,
       }),
     });
@@ -322,7 +321,7 @@ function checkImpliedAspectsExist(graph: Graph): ValidationIssue[] {
           rule: 'implied-aspect-missing',
           message: buildIssueMessage({
             what: `Aspect '${aspect.name}' implies '${impliedId}' but no aspect with that id exists in aspects/.`,
-            why: `Implies chain is broken — implied claims cannot be resolved.`,
+            why: `Implies chain is broken — implied aspect requirements cannot be resolved.`,
             next: `Create the implied aspect or remove it from the implies list.`,
           }),
         });
@@ -895,7 +894,7 @@ async function checkDirectoriesHaveNodeYaml(graph: Graph): Promise<ValidationIss
   return issues;
 }
 
-// --- Anchor validation (E039, E040, E041, E037) ---
+// --- Mapping expansion utility ---
 
 export async function expandMappingToFiles(projectRoot: string, mappingPaths: string[]): Promise<string[]> {
   const files: string[] = [];
@@ -928,26 +927,7 @@ export async function expandMappingToFiles(projectRoot: string, mappingPaths: st
   return files;
 }
 
-// E039: Every aspect must have claims
-function checkAspectAnchors(graph: Graph): ValidationIssue[] {
-  const issues: ValidationIssue[] = [];
-  for (const aspect of graph.aspects) {
-    if (!aspect.anchors || aspect.anchors.length === 0) {
-      issues.push({
-        severity: 'error',
-        code: 'E039',
-        rule: 'aspect-missing-claims',
-        message: buildIssueMessage({
-          what: `Aspect '${aspect.id}' has no claims.`,
-          why: `Claims are verified at approve time — an aspect without claims has no enforceable requirements.`,
-          next: `Add at least one claim with {id, claim} to the anchors field in yg-aspect.yaml.`,
-        }),
-        nodePath: `aspects/${aspect.id}`,
-      });
-    }
-  }
-  return issues;
-}
+// E039 removed — anchors/claims replaced by aspect-level verification
 
 // E040, E041 removed — anchor realization checks will be replaced by LLM verification in Plan 2
 // function checkAnchorRealizations(graph: Graph): ValidationIssue[] { ... }
