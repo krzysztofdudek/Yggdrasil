@@ -248,7 +248,7 @@ async function handleAspectImpact(
   process.stdout.write(`  All ${affected.length} directly affected nodes would show E021 if this aspect changes.\n`);
   const totalAffected = affected.length + indirectPaths.length;
   if (totalAffected >= 10) {
-    process.stdout.write(`  High blast radius — review claims in affected nodes before modifying this aspect.\n`);
+    process.stdout.write(`  High blast radius — review aspect requirements in affected nodes before modifying this aspect.\n`);
   }
 
 }

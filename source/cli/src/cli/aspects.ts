@@ -54,8 +54,6 @@ export function formatAspectsOutput(graph: Graph): string {
 
   for (const aspect of graph.aspects.sort((a, b) => a.id.localeCompare(b.id))) {
     const u = usage.get(aspect.id) ?? { architecture: 0, own: 0, implied: 0, flow: 0, total: 0 };
-    const claimCount = aspect.anchors?.length ?? 0;
-
     const displayName = aspect.description ?? aspect.name;
     lines.push(`${aspect.id} — ${displayName}`);
 
@@ -69,8 +67,6 @@ export function formatAspectsOutput(graph: Graph): string {
       if (u.flow) parts.push(`flow: ${u.flow}`);
       lines.push(`  Used by: ${u.total} node${u.total === 1 ? '' : 's'} (${parts.join(', ')})`);
     }
-
-    lines.push(`  Claims: ${claimCount}`);
 
     if (aspect.implies && aspect.implies.length > 0) {
       lines.push(`  Implies: ${aspect.implies.join(', ')}`);

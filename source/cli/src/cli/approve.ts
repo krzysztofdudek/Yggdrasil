@@ -28,14 +28,14 @@ export function formatResult(nodePath: string, result: ApproveResult): void {
     case 'approved':
       process.stdout.write(chalk.green(`Approved: ${nodePath}\n`));
       process.stdout.write(`  Hash: ${prev} -> ${curr}\n`);
-      if (result.claimResults || result.artifactReviewResults) {
-        const claimCount = result.claimResults
-          ? Object.values(result.claimResults).reduce((sum, claims) => sum + Object.keys(claims).length, 0)
+      if (result.aspectResults || result.artifactReviewResults) {
+        const aspectCount = result.aspectResults
+          ? Object.keys(result.aspectResults).length
           : 0;
         const artifactCount = result.artifactReviewResults
           ? Object.keys(result.artifactReviewResults).length
           : 0;
-        process.stdout.write(`  Verified: ${claimCount} claims satisfied, ${artifactCount} artifacts current.\n`);
+        process.stdout.write(`  Verified: ${aspectCount} aspects satisfied, ${artifactCount} artifacts current.\n`);
       }
       break;
 
@@ -54,7 +54,7 @@ export function formatResult(nodePath: string, result: ApproveResult): void {
         process.stdout.write(
           result.llmSkipped
             ? `  Three-axis gate bypassed — reviewer not run (${result.llmSkipped}).\n`
-            : `  Three-axis gate bypassed — reviewer verified claims.\n`,
+            : `  Three-axis gate bypassed — reviewer verified aspects.\n`,
         );
       }
       break;
@@ -88,25 +88,22 @@ export function formatResult(nodePath: string, result: ApproveResult): void {
 function formatLlmResults(result: ApproveResult): void {
   if (result.llmSkipped) {
     const messages: Record<NonNullable<ApproveResult['llmSkipped']>, string> = {
-      'not-configured': 'Reviewer not configured — claims not verified. Structural checks only.\n  To enable: add reviewer section to yg-config.yaml.',
-      'unavailable': 'Reviewer configured but not reachable — claims not verified. Structural checks only.',
+      'not-configured': 'Reviewer not configured — aspects not verified. Structural checks only.\n  To enable: add reviewer section to yg-config.yaml.',
+      'unavailable': 'Reviewer configured but not reachable — aspects not verified. Structural checks only.',
       'blackbox': 'Reviewer skipped for blackbox node.',
     };
     process.stdout.write(chalk.dim(`  ${messages[result.llmSkipped]}\n`));
     return;
   }
 
-  if (result.claimResults) {
+  if (result.aspectResults) {
     process.stdout.write('\nAspect verification:\n');
-    for (const [aspectId, claims] of Object.entries(result.claimResults)) {
-      process.stdout.write(`  ${aspectId}:\n`);
-      for (const [claimId, claimResult] of Object.entries(claims)) {
-        if (claimResult.satisfied) {
-          process.stdout.write(chalk.green(`    - "${claimId}" — SATISFIED\n`));
-        } else {
-          process.stdout.write(chalk.red(`    - "${claimId}" — NOT SATISFIED\n`));
-          process.stdout.write(`        ${claimResult.reason}\n`);
-        }
+    for (const [aspectId, aspectResult] of Object.entries(result.aspectResults)) {
+      if (aspectResult.satisfied) {
+        process.stdout.write(chalk.green(`  ${aspectId} — SATISFIED\n`));
+      } else {
+        process.stdout.write(chalk.red(`  ${aspectId} — NOT SATISFIED\n`));
+        process.stdout.write(`    ${aspectResult.reason}\n`);
       }
     }
   }
@@ -335,7 +332,7 @@ function formatBatchOutput(results: BatchResult[], parallel: number): void {
     if (result.action === 'refused') {
       failed++;
       const reason = result.e055Violations?.length
-        ? result.e055Violations.map(v => `E055 ${v.aspect}/${v.claim}`).join(', ')
+        ? result.e055Violations.map(v => `E055 ${v.aspect}`).join(', ')
         : (result.refuseReason ?? 'refused');
       process.stdout.write(`${prefix}${nodePath.padEnd(50)} ${chalk.red('✗')} ${reason}\n`);
     } else {
@@ -432,7 +429,7 @@ export function registerApproveCommand(program: Command): void {
     .option('--node <paths...>', 'One or more node paths to approve')
     .option('--aspect <id>', 'Batch approve all nodes with cascade drift from this aspect')
     .option('--flow <name>', 'Batch approve all nodes with cascade drift from this flow')
-    .option('--reviewed <reason>', 'Bypasses three-axis gate — reviewer still verifies claims')
+    .option('--reviewed <reason>', 'Bypasses three-axis gate — reviewer still verifies aspects')
     .action(async (options: { node?: string[]; aspect?: string; flow?: string; reviewed?: string }) => {
       try {
         // Validate: exactly one of --node, --aspect, --flow
@@ -528,7 +525,7 @@ export function registerApproveCommand(program: Command): void {
           process.stdout.write(chalk.yellow(`Notice: ${cloudNotice}\n`));
         }
         if (provider) {
-          process.stdout.write(chalk.dim(`Verifying claims with reviewer — this may take a while. Do not interrupt.\n`));
+          process.stdout.write(chalk.dim(`Verifying aspects with reviewer — this may take a while. Do not interrupt.\n`));
         }
         const result = await approveNode(graph, nodePath, {
           reviewed: options.reviewed,
@@ -555,7 +552,7 @@ export function registerApproveCommand(program: Command): void {
       '[deprecated] Use "yg approve" instead. Backward-compatible alias for approving a node.',
     )
     .option('--node <path>', 'Node path to approve')
-    .option('--reviewed <reason>', 'Bypasses three-axis gate — reviewer still verifies claims')
+    .option('--reviewed <reason>', 'Bypasses three-axis gate — reviewer still verifies aspects')
     .option('--all', '(removed) use "yg approve --node" for each node')
     .option('--recursive', '(removed) approve one node at a time')
     .action(
