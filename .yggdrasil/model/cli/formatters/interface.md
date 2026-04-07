@@ -23,6 +23,19 @@ Public API consumed by cli/commands/build-context.
   - Converts a context package to Markdown. Used by tests.
   - Output: Markdown with `##` sections, `###` layer labels.
 
+## message-builder.ts
+
+- `buildIssueMessage(msg: IssueMessage): string`
+  - Constructs a structured diagnostic message for CLI output.
+  - Input: `IssueMessage` interface with three fields: `what` (what happened), `why` (why it matters), `next` (how to resolve).
+  - Output: Single string with fields joined by single newlines; internal newlines within fields are preserved.
+  - Pure transformation — no I/O, no validation.
+
+- `IssueMessage` interface
+  - `what: string` — Facts describing what happened (one line or short block).
+  - `why: string` — Context explaining why the event is a problem.
+  - `next: string` — Concrete command or instruction to resolve.
+
 ## Failure Modes
 
 No thrown errors — pure transformation. Callers must ensure valid input.
