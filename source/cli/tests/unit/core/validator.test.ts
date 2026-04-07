@@ -48,7 +48,7 @@ function createGraph(overrides: Partial<Graph> = {}): Graph {
       node_types: { service: { description: 'x' } },
     },
     nodes: new Map(),
-    aspects: [{ name: 'Valid', id: 'valid-tag', anchors: [{ id: 'proof-point', claim: 'Has a proof point' }], artifacts: [] }],
+    aspects: [{ name: 'Valid', id: 'valid-tag', artifacts: [] }],
     flows: [],
     schemas: [],
     rootPath: path.join(FIXTURE_PROJECT, '.yggdrasil'),
@@ -171,8 +171,8 @@ describe('validator', () => {
   it('duplicate-aspect-binding returns E010 when id bound to multiple aspects', async () => {
     const graph = createGraph({
       aspects: [
-        { name: 'Aspect One', id: 'audit', anchors: [{ id: 'proof', claim: 'Proof provided' }], artifacts: [] },
-        { name: 'Aspect Two', id: 'audit', anchors: [{ id: 'proof', claim: 'Proof provided' }], artifacts: [] },
+        { name: 'Aspect One', id: 'audit', artifacts: [] },
+        { name: 'Aspect Two', id: 'audit', artifacts: [] },
       ],
     });
     graph.nodes.set('a', createNode('a'));
@@ -811,8 +811,8 @@ describe('validator', () => {
   it('aspect-id-uniqueness returns error when id bound to multiple aspects', async () => {
     const graph = createGraph({
       aspects: [
-        { name: 'Aspect1', id: 'dup-tag', anchors: [{ id: 'proof', claim: 'Proof provided' }], artifacts: [] },
-        { name: 'Aspect2', id: 'dup-tag', anchors: [{ id: 'proof', claim: 'Proof provided' }], artifacts: [] },
+        { name: 'Aspect1', id: 'dup-tag', artifacts: [] },
+        { name: 'Aspect2', id: 'dup-tag', artifacts: [] },
       ],
     });
     graph.nodes.set('a', createNode('a'));
@@ -827,7 +827,7 @@ describe('validator', () => {
   it('implied-aspect-missing returns error when implied id has no aspect', async () => {
     const graph = createGraph({
       aspects: [
-        { name: 'HIPAA', id: 'requires-hipaa', anchors: [{ id: 'proof', claim: 'Proof provided' }], implies: ['requires-audit'], artifacts: [] },
+        { name: 'HIPAA', id: 'requires-hipaa', implies: ['requires-audit'], artifacts: [] },
       ],
     });
     graph.nodes.set('a', createNode('a'));
@@ -843,8 +843,8 @@ describe('validator', () => {
   it('aspect-implies-cycle returns error when implies form cycle', async () => {
     const graph = createGraph({
       aspects: [
-        { name: 'A', id: 'tag-a', anchors: [{ id: 'proof', claim: 'Proof provided' }], implies: ['tag-b'], artifacts: [] },
-        { name: 'B', id: 'tag-b', anchors: [{ id: 'proof', claim: 'Proof provided' }], implies: ['tag-a'], artifacts: [] },
+        { name: 'A', id: 'tag-a', implies: ['tag-b'], artifacts: [] },
+        { name: 'B', id: 'tag-b', implies: ['tag-a'], artifacts: [] },
       ],
     });
     graph.nodes.set('a', createNode('a'));
@@ -981,7 +981,7 @@ describe('validator', () => {
 
     it('E038 emitted for an aspect without description', async () => {
       const graph = createGraph({
-        aspects: [{ name: 'NoDesc', id: 'no-desc-aspect', anchors: [{ id: 'proof', claim: 'Proof provided' }], artifacts: [] }],
+        aspects: [{ name: 'NoDesc', id: 'no-desc-aspect', artifacts: [] }],
       });
       graph.nodes.set('a', createNode('a'));
 
@@ -1013,185 +1013,9 @@ describe('validator', () => {
     });
   });
 
-  describe('E039 aspect-missing-claims', () => {
-    it('E039: aspect with empty anchors array', async () => {
-      const graph = createGraph({
-        aspects: [{ name: 'EmptyAnchors', id: 'empty-anchors', anchors: [], artifacts: [] }],
-      });
-      const result = await validate(graph);
-      const e039 = result.issues.find(i => i.code === 'E039');
-      expect(e039).toBeDefined();
-      expect(e039!.rule).toBe('aspect-missing-claims');
-      expect(e039!.message).toContain('at least one claim');
-      expect(e039!.nodePath).toBe('aspects/empty-anchors');
-    });
+  // E039 removed — anchors/claims replaced by aspect-level verification
 
-    it('no E039 for aspect with anchors', async () => {
-      const graph = createGraph({
-        aspects: [{ name: 'HasAnchors', id: 'has-anchors', anchors: [{ id: 'proof-point', claim: 'Proof point claimed' }], artifacts: [] }],
-      });
-      const result = await validate(graph);
-      const e039 = result.issues.filter(i => i.code === 'E039');
-      expect(e039).toHaveLength(0);
-    });
-  });
-
-  describe('E040 anchor-not-realized', () => {
-
-    it('no E040 when mapping group anchors have all required fields', async () => {
-      const graph = createGraph({
-        aspects: [{ name: 'Logging', id: 'logging', anchors: [{ id: 'audit-entry', claim: 'Audit entry logged' }], artifacts: [] }],
-      });
-      graph.nodes.set('a', createNode('a', {
-        mapping: [{
-          paths: ['src/a/'],
-          aspects: [
-            {
-              aspect: 'logging',
-              anchors: {
-                'audit-entry': { regex: 'createAuditLog', rationale: 'Needed for compliance' },
-              },
-            },
-          ],
-        }],
-      }));
-      const result = await validate(graph);
-      const e040 = result.issues.filter(i => i.code === 'E040');
-      expect(e040).toHaveLength(0);
-    });
-
-    it('no E040 for blackbox nodes (exempt from anchor validation)', async () => {
-      const graph = createGraph({
-        aspects: [{ name: 'Logging', id: 'logging', anchors: [{ id: 'audit-entry', claim: 'Audit entry logged' }], artifacts: [] }],
-      });
-      graph.nodes.set('a', createNode('a', {
-        blackbox: true,
-        mapping: {
-          paths: ['src/a/'],
-          aspects: [
-            {
-              aspect: 'logging',
-              anchors: {
-                'audit-entry': { regex: '', rationale: '' }, // missing fields, but blackbox exempts
-              },
-            },
-          ],
-        },
-      }));
-      const result = await validate(graph);
-      const e040 = result.issues.filter(i => i.code === 'E040' && i.nodePath === 'a');
-      expect(e040).toHaveLength(0);
-    });
-
-    it('no E040 for event relations (emits/listens) even if target has integration_anchors', async () => {
-      const graph = createGraph();
-      graph.nodes.set('target', createNode('target', {
-        mapping: ['src/target/'],
-      }));
-      graph.nodes.set('listener', createNode('listener', {
-        relations: [{ target: 'target', type: 'listens' }], // event relation, not structural
-        mapping: ['src/listener/'],
-      }));
-      const result = await validate(graph);
-      const e040 = result.issues.filter(i => i.code === 'E040' && i.nodePath === 'listener');
-      expect(e040).toHaveLength(0);
-    });
-
-    // E040 and E041 tests removed: relation.anchors field no longer exists
-    // Integration anchors are now defined in mapping groups, not on relations
-  });
-
-  describe('E037 anchor-not-found', () => {
-    async function createTmpProjectForAnchors(name: string, opts: {
-      nodeYaml: string;
-      sourceFiles?: Record<string, string>;
-      aspects?: Array<{ id: string; yaml: string }>;
-      extraNodes?: Array<{ path: string; yaml: string }>;
-    }): Promise<{ tmpDir: string }> {
-      const tmpDir = path.join(__dirname, `../../fixtures/tmp-validator-${name}`);
-      const yggRoot = path.join(tmpDir, '.yggdrasil');
-      const modelDir = path.join(yggRoot, 'model', 'svc');
-
-      await mkdir(modelDir, { recursive: true });
-      await writeFile(
-        path.join(yggRoot, 'yg-config.yaml'),
-        'name: V\nnode_types:\n  service:\n    description: x',
-      );
-      await writeFile(path.join(modelDir, 'yg-node.yaml'), opts.nodeYaml);
-      await writeFile(path.join(modelDir, 'responsibility.md'), 'x'.repeat(60));
-
-      // Create source files
-      for (const [filePath, content] of Object.entries(opts.sourceFiles ?? {})) {
-        const absPath = path.join(tmpDir, filePath);
-        await mkdir(path.dirname(absPath), { recursive: true });
-        await writeFile(absPath, content);
-      }
-
-      // Create aspects
-      for (const aspect of opts.aspects ?? []) {
-        const aspectDir = path.join(yggRoot, 'aspects', aspect.id);
-        await mkdir(aspectDir, { recursive: true });
-        await writeFile(path.join(aspectDir, 'yg-aspect.yaml'), aspect.yaml);
-      }
-
-      // Create extra nodes
-      for (const extra of opts.extraNodes ?? []) {
-        const nodeDir = path.join(yggRoot, 'model', extra.path);
-        await mkdir(nodeDir, { recursive: true });
-        await writeFile(path.join(nodeDir, 'yg-node.yaml'), extra.yaml);
-        await writeFile(path.join(nodeDir, 'responsibility.md'), 'x'.repeat(60));
-      }
-
-      // Create required schemas
-      const schemasDir = path.join(yggRoot, 'schemas');
-      await mkdir(schemasDir, { recursive: true });
-      await writeFile(path.join(schemasDir, 'yg-node.yaml'), '# node schema');
-      await writeFile(path.join(schemasDir, 'yg-aspect.yaml'), '# aspect schema');
-      await writeFile(path.join(schemasDir, 'yg-flow.yaml'), '# flow schema');
-
-      return { tmpDir };
-    }
-
-    it.skip('E037: mapping group regex pattern not found in source files', async () => {
-      const { tmpDir } = await createTmpProjectForAnchors('e037', {
-        nodeYaml: `name: Svc\ntype: service\ndescription: test\nmapping:\n  - paths:\n      - src/\n    aspects:\n      - aspect: logging\n        anchors:\n          audit-entry:\n            regex: "NONEXISTENT_PATTERN"\n            rationale: "Test rationale"\n`,
-        sourceFiles: { 'src/index.ts': 'export function hello() { return 42; }\n' },
-        aspects: [{ id: 'logging', yaml: 'name: Logging\ndescription: test\nanchors:\n  - audit-entry\n' }],
-      });
-      const graph = await loadGraph(tmpDir);
-      const result = await validate(graph);
-      const e037 = result.issues.find(i => i.code === 'E037');
-      expect(e037).toBeDefined();
-      expect(e037!.message).toContain('NONEXISTENT_PATTERN');
-      await rm(tmpDir, { recursive: true, force: true });
-    });
-
-    it('no E037 when mapping group regex matches source', async () => {
-      const { tmpDir } = await createTmpProjectForAnchors('e037-match', {
-        nodeYaml: `name: Svc\ntype: service\ndescription: test\nmapping:\n  - paths:\n      - src/\n    aspects:\n      - aspect: logging\n        anchors:\n          audit-entry:\n            regex: "hello"\n            rationale: "Test rationale"\n`,
-        sourceFiles: { 'src/index.ts': 'export function hello() { return 42; }\n' },
-        aspects: [{ id: 'logging', yaml: 'name: Logging\ndescription: test\nanchors:\n  - audit-entry\n' }],
-      });
-      const graph = await loadGraph(tmpDir);
-      const result = await validate(graph);
-      const e037 = result.issues.filter(i => i.code === 'E037');
-      expect(e037).toHaveLength(0);
-      await rm(tmpDir, { recursive: true, force: true });
-    });
-
-    it('E037: blackbox exempt from anchor-not-found', async () => {
-      const { tmpDir } = await createTmpProjectForAnchors('e037-blackbox', {
-        nodeYaml: `name: Legacy\ntype: service\ndescription: test\nblackbox: true\nmapping:\n  - paths:\n      - src/\n    aspects:\n      - aspect: logging\n        anchors:\n          audit-entry:\n            regex: "NONEXISTENT"\n            rationale: "Test rationale"\n`,
-        sourceFiles: { 'src/index.ts': 'nothing here\n' },
-        aspects: [{ id: 'logging', yaml: 'name: Logging\ndescription: test\nanchors:\n  - audit-entry\n' }],
-      });
-      const graph = await loadGraph(tmpDir);
-      const result = await validate(graph);
-      const e037 = result.issues.filter(i => i.code === 'E037');
-      expect(e037).toHaveLength(0);
-      await rm(tmpDir, { recursive: true, force: true });
-    });
-  });
+  // E040, E041, E037 removed — anchor/claim checks replaced by aspect-level verification
 
   describe('Architecture Constraints (E050-E054)', () => {
     // E050, E053, E054 checks disabled — will be replaced by LLM claim verification in Plan 2
@@ -1207,7 +1031,7 @@ describe('validator', () => {
             },
           },
         },
-        aspects: [{ name: 'Audit', id: 'audit-logging', anchors: [{ id: 'proof', claim: 'Proof provided' }], artifacts: [] }],
+        aspects: [{ name: 'Audit', id: 'audit-logging', artifacts: [] }],
       });
       graph.nodes.set('a', createNode('a', {
         type: 'service',
@@ -1231,7 +1055,7 @@ describe('validator', () => {
             },
           },
         },
-        aspects: [{ name: 'Audit', id: 'audit-logging', anchors: [{ id: 'proof', claim: 'Proof provided' }], artifacts: [] }],
+        aspects: [{ name: 'Audit', id: 'audit-logging', artifacts: [] }],
       });
       graph.nodes.set('a', createNode('a', {
         type: 'service',
@@ -1380,7 +1204,7 @@ describe('validator', () => {
 
     it('E053: not fired when consumer uses a port whose required aspect exists', async () => {
       const graph = createGraph({
-        aspects: [{ name: 'Audit', id: 'audit-logging', anchors: [{ id: 'proof', claim: 'Proof provided' }], artifacts: [] }],
+        aspects: [{ name: 'Audit', id: 'audit-logging', artifacts: [] }],
       });
       graph.nodes.set('target', createNode('target', {
         ports: { 'api': { description: 'API port', aspects: ['audit-logging'] } },
@@ -1428,7 +1252,7 @@ describe('validator', () => {
   describe('E057 missing-consumes', () => {
     it('fires when relation target has ports but consumer has no consumes', async () => {
       const graph = createGraph({
-        aspects: [{ name: 'Audit', id: 'valid-tag', anchors: [{ id: 'proof', claim: 'Proof' }], artifacts: [] }],
+        aspects: [{ name: 'Audit', id: 'valid-tag', artifacts: [] }],
       });
       graph.nodes.set('provider', createNode('provider', {
         ports: { charge: { description: 'Pay', aspects: ['valid-tag'] } },
@@ -1468,7 +1292,7 @@ describe('validator', () => {
 
     it('does not fire when consumer has consumes field', async () => {
       const graph = createGraph({
-        aspects: [{ name: 'Audit', id: 'valid-tag', anchors: [{ id: 'proof', claim: 'Proof' }], artifacts: [] }],
+        aspects: [{ name: 'Audit', id: 'valid-tag', artifacts: [] }],
       });
       graph.nodes.set('provider', createNode('provider', {
         ports: { charge: { description: 'Pay', aspects: ['valid-tag'] } },
@@ -1483,7 +1307,7 @@ describe('validator', () => {
 
     it('does not fire for emits/listens relations even when target has ports', async () => {
       const graph = createGraph({
-        aspects: [{ name: 'Audit', id: 'valid-tag', anchors: [{ id: 'proof', claim: 'Proof' }], artifacts: [] }],
+        aspects: [{ name: 'Audit', id: 'valid-tag', artifacts: [] }],
       });
       graph.nodes.set('provider', createNode('provider', {
         ports: { charge: { description: 'Pay', aspects: ['valid-tag'] } },
@@ -1503,7 +1327,7 @@ describe('validator', () => {
   describe('E058 unknown-port', () => {
     it('fires when consumes references non-existent port', async () => {
       const graph = createGraph({
-        aspects: [{ name: 'Audit', id: 'valid-tag', anchors: [{ id: 'proof', claim: 'Proof' }], artifacts: [] }],
+        aspects: [{ name: 'Audit', id: 'valid-tag', artifacts: [] }],
       });
       graph.nodes.set('provider', createNode('provider', {
         ports: { charge: { description: 'Pay', aspects: ['valid-tag'] } },
@@ -1520,7 +1344,7 @@ describe('validator', () => {
 
     it('does not fire when consumes references a valid port', async () => {
       const graph = createGraph({
-        aspects: [{ name: 'Audit', id: 'valid-tag', anchors: [{ id: 'proof', claim: 'Proof' }], artifacts: [] }],
+        aspects: [{ name: 'Audit', id: 'valid-tag', artifacts: [] }],
       });
       graph.nodes.set('provider', createNode('provider', {
         ports: { charge: { description: 'Pay', aspects: ['valid-tag'] } },
@@ -1538,8 +1362,8 @@ describe('validator', () => {
     it('fires when aspect is not used by any node, architecture, or flow', async () => {
       const graph = createGraph({
         aspects: [
-          { name: 'Valid', id: 'valid-tag', anchors: [{ id: 'proof-point', claim: 'Has a proof point' }], description: 'Referenced', artifacts: [] },
-          { name: 'Orphan', id: 'orphan-aspect', anchors: [{ id: 'proof', claim: 'Proof' }], description: 'Never used', artifacts: [] },
+          { name: 'Valid', id: 'valid-tag', description: 'Referenced', artifacts: [] },
+          { name: 'Orphan', id: 'orphan-aspect', description: 'Never used', artifacts: [] },
         ],
       });
       graph.nodes.set('a', createNode('a', { aspects: ['valid-tag'] }));
@@ -1555,7 +1379,7 @@ describe('validator', () => {
 
     it('does not fire when aspect is referenced by a node', async () => {
       const graph = createGraph({
-        aspects: [{ name: 'Used', id: 'valid-tag', anchors: [{ id: 'proof', claim: 'Proof' }], description: 'Used', artifacts: [] }],
+        aspects: [{ name: 'Used', id: 'valid-tag', description: 'Used', artifacts: [] }],
       });
       graph.nodes.set('a', createNode('a', { aspects: ['valid-tag'] }));
 
@@ -1565,7 +1389,7 @@ describe('validator', () => {
 
     it('does not fire when aspect is referenced by a port', async () => {
       const graph = createGraph({
-        aspects: [{ name: 'Used', id: 'valid-tag', anchors: [{ id: 'proof', claim: 'Proof' }], description: 'Used', artifacts: [] }],
+        aspects: [{ name: 'Used', id: 'valid-tag', description: 'Used', artifacts: [] }],
       });
       graph.nodes.set('a', createNode('a', {
         ports: { api: { description: 'API', aspects: ['valid-tag'] } },
@@ -1577,7 +1401,7 @@ describe('validator', () => {
 
     it('does not fire when aspect is referenced by a flow', async () => {
       const graph = createGraph({
-        aspects: [{ name: 'Used', id: 'valid-tag', anchors: [{ id: 'proof', claim: 'Proof' }], description: 'Used', artifacts: [] }],
+        aspects: [{ name: 'Used', id: 'valid-tag', description: 'Used', artifacts: [] }],
       });
       graph.nodes.set('a', createNode('a'));
       graph.flows.push({
@@ -1595,8 +1419,8 @@ describe('validator', () => {
     it('does not fire for implied aspects when the implying aspect is referenced', async () => {
       const graph = createGraph({
         aspects: [
-          { name: 'HIPAA', id: 'hipaa', anchors: [{ id: 'proof', claim: 'Proof' }], description: 'Used', implies: ['audit'], artifacts: [] },
-          { name: 'Audit', id: 'audit', anchors: [{ id: 'proof', claim: 'Proof' }], description: 'Implied', artifacts: [] },
+          { name: 'HIPAA', id: 'hipaa', description: 'Used', implies: ['audit'], artifacts: [] },
+          { name: 'Audit', id: 'audit', description: 'Implied', artifacts: [] },
         ],
       });
       graph.nodes.set('a', createNode('a', { aspects: ['hipaa'] }));

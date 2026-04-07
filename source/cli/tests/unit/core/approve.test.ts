@@ -242,7 +242,7 @@ describe('approveNode — proper nodes', () => {
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
       aspects: [{
         id: 'test-aspect',
-        yaml: 'name: TestAspect\ndescription: test\nanchors:\n  - id: must-export\n    claim: "File must export a default value"\n',
+        yaml: 'name: TestAspect\ndescription: test\n',
         files: { 'content.md': 'Must export a default value.\n' },
       }],
     });
@@ -250,9 +250,9 @@ describe('approveNode — proper nodes', () => {
     await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'export default 99;\n');
     const graph = await loadGraph(tmpDir);
 
-    // Mock LLM provider that fails a claim
+    // Mock LLM provider that fails an aspect
     const mockProvider = {
-      async verifyClaim() { return { satisfied: false, reason: 'Mock: claim not satisfied' }; },
+      async verifyAspect() { return { satisfied: false, reason: 'Mock: aspect not satisfied' }; },
       async reviewArtifact() { return { current: true, reason: 'ok' }; },
       async isAvailable() { return true; },
       async getContextWindowSize() { return 8192; },

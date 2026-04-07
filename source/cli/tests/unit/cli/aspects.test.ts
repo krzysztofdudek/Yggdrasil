@@ -7,10 +7,6 @@ function makeAspect(id: string, overrides: Partial<AspectDef> = {}): AspectDef {
     id,
     name: id.charAt(0).toUpperCase() + id.slice(1),
     description: `Description of ${id}`,
-    anchors: [
-      { id: `${id}-anchor-1`, claim: `Claim one for ${id}` },
-      { id: `${id}-anchor-2`, claim: `Claim two for ${id}` },
-    ],
     artifacts: [],
     ...overrides,
   };
@@ -114,7 +110,6 @@ describe('formatAspectsOutput', () => {
     const output = formatAspectsOutput(graph);
     expect(output).toContain('deterministic');
     expect(output).toContain('Used by:');
-    expect(output).toContain('Claims:');
   });
 
   it('shows orphaned label for unused aspect', () => {
@@ -129,14 +124,6 @@ describe('formatAspectsOutput', () => {
     const graph = makeGraph(aspects);
     const output = formatAspectsOutput(graph);
     expect(output).toContain('Implies: child-aspect');
-  });
-
-  it('shows claim count', () => {
-    const aspects = [makeAspect('deterministic')]; // has 2 anchors
-    const nodes = [makeNode('cli/core', ['deterministic'])];
-    const graph = makeGraph(aspects, nodes);
-    const output = formatAspectsOutput(graph);
-    expect(output).toContain('Claims: 2');
   });
 
   it('handles aspect with no description', () => {

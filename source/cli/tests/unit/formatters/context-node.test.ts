@@ -15,10 +15,6 @@ function makeNodeData(overrides: Partial<NodeContextData> = {}): NodeContextData
       description: 'Same inputs produce identical outputs',
       source: 'architecture (type: library)',
       verifiedAgainst: 'aspects/deterministic/content.md',
-      claims: [
-        'Functions do not use Date.now(), Math.random(), or filesystem writes',
-        'Exported functions return values derived only from their arguments',
-      ],
       implies: ['posix-paths'],
     }],
     flows: [{
@@ -57,11 +53,10 @@ describe('formatNodeContext', () => {
     expect(output).toContain('Source files (2):');
     expect(output).toContain('  source/cli/src/core/validator.ts');
     // Aspects with claims
-    expect(output).toContain('Must satisfy (1 aspect, 2 claims):');
+    expect(output).toContain('Must satisfy (1 aspect):');
     expect(output).toContain('deterministic — Same inputs produce identical outputs');
     expect(output).toContain('Source: architecture (type: library)');
     expect(output).toContain('Verified against: aspects/deterministic/content.md');
-    expect(output).toContain('Functions do not use Date.now()');
     expect(output).toContain('Implies: posix-paths');
     // Flows
     expect(output).toContain('Participates in (1 flow):');
@@ -135,7 +130,7 @@ describe('formatNodeContext', () => {
         path: 'payments/payment-service',
         relation: 'uses',
         consumes: ['charge'],
-        portAspects: [{ aspectId: 'idempotency', claims: ['Retries are safe'], verifiedAgainst: 'aspects/idempotency/content.md' }],
+        portAspects: [{ aspectId: 'idempotency', verifiedAgainst: 'aspects/idempotency/content.md' }],
       }],
     }));
     expect(output).toContain('Required: idempotency');
@@ -173,7 +168,7 @@ describe('formatNodeContext', () => {
     expect(output).toContain('Run: yg impact');
   });
 
-  it('uses singular for 1 aspect and 1 claim', () => {
+  it('uses singular for 1 aspect', () => {
     const output = formatNodeContext(makeNodeData({
       aspects: [{
         id: 'deterministic',
@@ -181,10 +176,9 @@ describe('formatNodeContext', () => {
         description: 'Same inputs produce identical outputs',
         source: 'architecture',
         verifiedAgainst: 'aspects/deterministic/content.md',
-        claims: ['Functions do not use Date.now()'],
       }],
     }));
-    expect(output).toContain('Must satisfy (1 aspect, 1 claim):');
+    expect(output).toContain('Must satisfy (1 aspect):');
   });
 
   it('uses singular for 1 flow', () => {

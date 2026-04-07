@@ -84,7 +84,6 @@ describe('context-builder', () => {
       const layer = buildAspectLayer({
         name: 'PubSub Events',
         id: 'pubsub-events',
-        anchors: [{ id: 'fire-and-forget', claim: 'Fire-and-forget pattern used' }],
         artifacts: [{ filename: 'rules.md', content: 'Fire and forget pattern' }],
       });
       expect(layer.content).not.toContain('Stability tier');
@@ -1580,7 +1579,7 @@ describe('toContextMapOutput', () => {
         {
           name: 'Stable Aspect',
           id: 'stable-aspect',
-          anchors: [],
+
           artifacts: [{ filename: 'content.md', content: 'rules' }],
         },
       ],
@@ -1700,7 +1699,7 @@ describe('toContextMapOutput', () => {
         {
           name: 'Correlation ID',
           id: 'correlation-id',
-          anchors: [],
+
           artifacts: [{ filename: 'content.md', content: 'correlation rules' }],
         },
       ],
@@ -1904,7 +1903,7 @@ describe('buildFileContextData', () => {
     expect(data.filePath).toBe('src/orders/service.ts');
     expect(data.ownerPath).toBe('orders/order-service');
     expect(data.ownerType).toBe('service');
-    expect(Array.isArray(data.claims)).toBe(true);
+    expect(Array.isArray(data.aspects)).toBe(true);
     expect(Array.isArray(data.dependencies)).toBe(true);
     expect(typeof data.dependentCount).toBe('number');
   });
@@ -1914,13 +1913,10 @@ describe('buildFileContextData', () => {
     expect(() => buildFileContextData(graph, 'src/foo.ts', 'does/not/exist')).toThrow('Node not found');
   });
 
-  it('filters claims to only those with at least one anchor claim', async () => {
+  it('returns aspects for the node', async () => {
     const graph = await loadGraph(FIXTURE_PROJECT);
     const data = buildFileContextData(graph, 'src/orders/service.ts', 'orders/order-service');
-    // All returned claims should have at least one claim string
-    for (const c of data.claims) {
-      expect(c.claims.length).toBeGreaterThan(0);
-    }
+    expect(Array.isArray(data.aspects)).toBe(true);
   });
 
   it('handles graph without architecture using fallback aspect collection', async () => {
@@ -1928,7 +1924,7 @@ describe('buildFileContextData', () => {
     const graphNoArch = { ...graph, architecture: undefined } as unknown as Graph;
     const data = buildFileContextData(graphNoArch, 'src/orders/service.ts', 'orders/order-service');
     expect(data.ownerPath).toBe('orders/order-service');
-    // Claims should still be populated from fallback collectEffectiveAspectIds
-    expect(Array.isArray(data.claims)).toBe(true);
+    // Aspects should still be populated from fallback collectEffectiveAspectIds
+    expect(Array.isArray(data.aspects)).toBe(true);
   });
 });

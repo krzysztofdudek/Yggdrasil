@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { ClaudeCodeProvider } from '../../../src/llm/claude-code.js';
-import type { ClaimResponse, ArtifactResponse } from '../../../src/llm/types.js';
+import type { AspectResponse, ArtifactResponse } from '../../../src/llm/types.js';
 
 describe('ClaudeCodeProvider', () => {
   it('constructs with default model', () => {
@@ -22,11 +22,10 @@ describe('ClaudeCodeProvider', () => {
     expect(size).toBeUndefined();
   });
 
-  it('verifyClaim returns result with expected shape', async () => {
+  it('verifyAspect returns result with expected shape', async () => {
     const provider = new ClaudeCodeProvider({ model: 'haiku' });
-    const result = await provider.verifyClaim({
+    const result = await provider.verifyAspect({
       aspectContent: 'test aspect',
-      claim: 'test claim',
       sourceCode: 'const x = 1;',
       sourceFiles: ['test.ts'],
     });
@@ -49,7 +48,7 @@ describe('ClaudeCodeProvider', () => {
 
 describe('ClaudeCodeProvider.parseResponse', () => {
   it('parses clean JSON', () => {
-    const result = ClaudeCodeProvider.parseResponse<ClaimResponse>(
+    const result = ClaudeCodeProvider.parseResponse<AspectResponse>(
       '{"satisfied": true, "reason": "code matches"}',
       { satisfied: false, reason: 'fallback' },
     );
@@ -58,7 +57,7 @@ describe('ClaudeCodeProvider.parseResponse', () => {
   });
 
   it('parses JSON in markdown fence', () => {
-    const result = ClaudeCodeProvider.parseResponse<ClaimResponse>(
+    const result = ClaudeCodeProvider.parseResponse<AspectResponse>(
       'Here is my analysis:\n```json\n{"satisfied": false, "reason": "missing export"}\n```',
       { satisfied: false, reason: 'fallback' },
     );
@@ -67,7 +66,7 @@ describe('ClaudeCodeProvider.parseResponse', () => {
   });
 
   it('extracts JSON object from mixed text', () => {
-    const result = ClaudeCodeProvider.parseResponse<ClaimResponse>(
+    const result = ClaudeCodeProvider.parseResponse<AspectResponse>(
       'After reviewing the code, I found: {"satisfied": true, "reason": "all good"}. That is my conclusion.',
       { satisfied: false, reason: 'fallback' },
     );
@@ -75,7 +74,7 @@ describe('ClaudeCodeProvider.parseResponse', () => {
   });
 
   it('falls back to natural language for claim responses', () => {
-    const result = ClaudeCodeProvider.parseResponse<ClaimResponse>(
+    const result = ClaudeCodeProvider.parseResponse<AspectResponse>(
       'The code is satisfied with the claim because it correctly implements...',
       { satisfied: false, reason: 'fallback' },
     );
@@ -92,7 +91,7 @@ describe('ClaudeCodeProvider.parseResponse', () => {
 
   it('returns fallback on empty output', () => {
     const fallback = { satisfied: false, reason: 'fallback' };
-    const result = ClaudeCodeProvider.parseResponse<ClaimResponse>('', fallback);
+    const result = ClaudeCodeProvider.parseResponse<AspectResponse>('', fallback);
     expect(result).toEqual(fallback);
   });
 });

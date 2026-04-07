@@ -37,16 +37,14 @@ function captureOutput(fn: () => void): string {
 }
 
 describe('formatResult — LLM results', () => {
-  it('displays claim verification results in approve output', () => {
+  it('displays aspect verification results in approve output', () => {
     const result = makeApproveResult({
       action: 'refused',
       refuseReason: 'Reviewer verification found issues',
       axes: { ownArtifacts: 'unchanged', source: 'unchanged', otherTracked: 'unchanged' },
-      claimResults: {
-        deterministic: {
-          'no-side-effects': { satisfied: true, reason: 'ok' },
-          'pure-transforms': { satisfied: false, reason: 'fs.readFileSync on line 89' },
-        },
+      aspectResults: {
+        'deterministic': { satisfied: true, reason: 'ok' },
+        'pure-transforms': { satisfied: false, reason: 'fs.readFileSync on line 89' },
       },
       artifactReviewResults: {
         'responsibility.md': { current: false, reason: 'Missing new function' },
@@ -68,7 +66,7 @@ describe('formatResult — LLM results', () => {
       llmSkipped: 'not-configured',
     });
     const output = captureOutput(() => formatResult('some/node', result));
-    expect(output).toContain('claims not verified');
+    expect(output).toContain('aspects not verified');
     expect(output).toContain('Structural checks only');
   });
 
@@ -78,7 +76,7 @@ describe('formatResult — LLM results', () => {
       llmSkipped: 'unavailable',
     });
     const output = captureOutput(() => formatResult('some/node', result));
-    expect(output).toContain('claims not verified');
+    expect(output).toContain('aspects not verified');
   });
 
   it('shows LLM skipped for blackbox', () => {

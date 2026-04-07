@@ -36,13 +36,13 @@ describe('OllamaProvider', () => {
     expect(available).toBe(false);
   });
 
-  it('returns fallback on connection failure for verifyClaim', async () => {
+  it('returns fallback on connection failure for verifyAspect', async () => {
     const provider = createLlmProvider({
       provider: 'ollama', model: 'test', endpoint: 'http://localhost:99999',
       temperature: 0, consensus: 1, max_tokens: 'auto', verify_artifacts: false,
     });
-    const result = await provider.verifyClaim({
-      aspectContent: 'test', claim: 'test', sourceCode: 'test', sourceFiles: ['test.ts'],
+    const result = await provider.verifyAspect({
+      aspectContent: 'test', sourceCode: 'test', sourceFiles: ['test.ts'],
     });
     expect(result.satisfied).toBe(false);
     expect(result.reason).toContain('could not be parsed');

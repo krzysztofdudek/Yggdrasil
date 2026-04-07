@@ -11,9 +11,8 @@ import type { LlmProvider } from '../../../src/llm/types.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const ASPECT_YAML_WITH_CLAIMS =
-  'name: Deterministic\ndescription: Pure transforms only\n' +
-  'anchors:\n  - id: no-side-effects\n    claim: "No side effects"\n  - id: pure-transforms\n    claim: "Pure transforms only"\n';
+const ASPECT_YAML =
+  'name: Deterministic\ndescription: Pure transforms only\n';
 
 async function createTmpProject(name: string, opts: {
   nodePath: string;
@@ -99,10 +98,10 @@ async function recordBaseline(tmpDir: string) {
 
 function makeMockProvider(overrides: Partial<LlmProvider> = {}): LlmProvider {
   return {
-    async verifyClaim() { return { satisfied: true, reason: 'ok' }; },
-    async reviewArtifact() { return { current: true, reason: 'up to date' }; },
-    async isAvailable() { return true; },
-    async getContextWindowSize() { return 8192; },
+    verifyAspect: async () => ({ satisfied: true, reason: 'ok' }),
+    reviewArtifact: async () => ({ current: true, reason: 'up to date' }),
+    isAvailable: async () => true,
+    getContextWindowSize: async () => 8192,
     ...overrides,
   };
 }
@@ -115,7 +114,7 @@ describe('approveNode — LLM verification', () => {
       mappingFiles: { 'src/svc/index.ts': 'const x = 1;\n' },
       aspects: [{
         id: 'deterministic',
-        yaml: ASPECT_YAML_WITH_CLAIMS,
+        yaml: ASPECT_YAML,
         files: { 'content.md': 'Code must be deterministic.\n' },
       }],
     });
@@ -126,11 +125,8 @@ describe('approveNode — LLM verification', () => {
 
     const graph = await loadGraph(tmpDir);
     const provider = makeMockProvider({
-      async verifyClaim(params) {
-        if (params.claim === 'No side effects') {
-          return { satisfied: false, reason: 'Date.now() found — not side-effect free' };
-        }
-        return { satisfied: true, reason: 'ok' };
+      async verifyAspect() {
+        return { satisfied: false, reason: 'Date.now() found — not side-effect free' };
       },
     });
 
@@ -139,7 +135,7 @@ describe('approveNode — LLM verification', () => {
     expect(result.e055Violations).toBeDefined();
     expect(result.e055Violations!.length).toBeGreaterThan(0);
     expect(result.e055Violations![0].reason).toContain('Date.now()');
-    expect(result.claimResults?.['deterministic']?.['no-side-effects'].satisfied).toBe(false);
+    expect(result.aspectResults?.['deterministic']?.satisfied).toBe(false);
     await rm(tmpDir, { recursive: true, force: true });
   });
 
@@ -148,7 +144,7 @@ describe('approveNode — LLM verification', () => {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - deterministic\nmapping:\n  - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'const x = 1;\n' },
-      aspects: [{ id: 'deterministic', yaml: ASPECT_YAML_WITH_CLAIMS }],
+      aspects: [{ id: 'deterministic', yaml: ASPECT_YAML }],
     });
     await recordBaseline(tmpDir);
     await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'const x = 2;\n');
@@ -166,7 +162,7 @@ describe('approveNode — LLM verification', () => {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - deterministic\nmapping:\n  - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'const x = 1;\n' },
-      aspects: [{ id: 'deterministic', yaml: ASPECT_YAML_WITH_CLAIMS }],
+      aspects: [{ id: 'deterministic', yaml: ASPECT_YAML }],
     });
     await recordBaseline(tmpDir);
     await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'const x = 2;\n');
@@ -192,7 +188,7 @@ describe('approveNode — LLM verification', () => {
     // Instead: just test no-change (approved = no-op) with LLM skipped
     const graph = await loadGraph(tmpDir);
     const provider = makeMockProvider({
-      async verifyClaim() { return { satisfied: false, reason: 'should not be called' }; },
+      async verifyAspect() { return { satisfied: false, reason: 'should not be called' }; },
     });
     const result = await approveNode(graph, 'svc/my-service', { llmProvider: provider });
     // No changes → no-change, but LLM is skipped because blackbox
@@ -205,7 +201,7 @@ describe('approveNode — LLM verification', () => {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - deterministic\nmapping:\n  - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'const x = 1;\n' },
-      aspects: [{ id: 'deterministic', yaml: ASPECT_YAML_WITH_CLAIMS }],
+      aspects: [{ id: 'deterministic', yaml: ASPECT_YAML }],
     });
     await recordBaseline(tmpDir);
     await writeFile(path.join(yggRoot, 'model/svc/my-service/responsibility.md'), 'Updated.\n');
@@ -225,7 +221,11 @@ describe('approveNode — LLM verification', () => {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - deterministic\nmapping:\n  - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'const x = 1;\n' },
-      aspects: [{ id: 'deterministic', yaml: ASPECT_YAML_WITH_CLAIMS }],
+      aspects: [{
+        id: 'deterministic',
+        yaml: ASPECT_YAML,
+        files: { 'content.md': 'Code must be deterministic.\n' },
+      }],
     });
     await recordBaseline(tmpDir);
     await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'const x = Date.now();\n');
@@ -233,7 +233,7 @@ describe('approveNode — LLM verification', () => {
 
     const graph = await loadGraph(tmpDir);
     const provider = makeMockProvider({
-      async verifyClaim() { return { satisfied: false, reason: 'claim not satisfied' }; },
+      async verifyAspect() { return { satisfied: false, reason: 'aspect not satisfied' }; },
     });
     const result = await approveNode(graph, 'svc/my-service', {
       llmProvider: provider,
@@ -241,7 +241,7 @@ describe('approveNode — LLM verification', () => {
     });
     // --reviewed bypasses three-axis only — LLM still runs and can refuse
     expect(result.action).toBe('refused');
-    expect(result.claimResults).toBeDefined();
+    expect(result.aspectResults).toBeDefined();
     await rm(tmpDir, { recursive: true, force: true });
   });
 
@@ -252,7 +252,7 @@ describe('approveNode — LLM verification', () => {
       mappingFiles: { 'src/svc/index.ts': 'const x = 1;\n' },
       aspects: [{
         id: 'deterministic',
-        yaml: ASPECT_YAML_WITH_CLAIMS,
+        yaml: ASPECT_YAML,
         files: { 'content.md': 'Determinism rules.\n' },
       }],
     });
@@ -262,7 +262,7 @@ describe('approveNode — LLM verification', () => {
 
     const graph = await loadGraph(tmpDir);
     const provider = makeMockProvider({
-      async verifyClaim() { return { satisfied: true, reason: 'code is compliant' }; },
+      async verifyAspect() { return { satisfied: true, reason: 'code is compliant' }; },
     });
     const result = await approveNode(graph, 'svc/my-service', {
       llmProvider: provider,
@@ -270,7 +270,7 @@ describe('approveNode — LLM verification', () => {
     });
     expect(result.action).toBe('reviewed');
     // LLM runs even with --reviewed — reviewer verifies claims
-    expect(result.claimResults).toBeDefined();
+    expect(result.aspectResults).toBeDefined();
     await rm(tmpDir, { recursive: true, force: true });
   });
 
@@ -281,7 +281,7 @@ describe('approveNode — LLM verification', () => {
       mappingFiles: { 'src/svc/index.ts': 'const x = 1;\n' },
       aspects: [{
         id: 'deterministic',
-        yaml: ASPECT_YAML_WITH_CLAIMS,
+        yaml: ASPECT_YAML,
         files: { 'content.md': 'Code must be deterministic.\n' },
       }],
     });
@@ -293,7 +293,7 @@ describe('approveNode — LLM verification', () => {
     const graph = await loadGraph(tmpDir);
     const provider = makeMockProvider({
       // Claims pass — no E055
-      async verifyClaim() { return { satisfied: true, reason: 'ok' }; },
+      async verifyAspect() { return { satisfied: true, reason: 'ok' }; },
       // Artifact review fails — E056
       async reviewArtifact() {
         return { current: false, reason: 'responsibility.md does not mention the new endpoint' };

@@ -508,52 +508,7 @@ describe('collectTrackedFiles', () => {
     expect(paths).not.toContain('.yggdrasil/model/dep/svc/yg-node.yaml');
   });
 
-  it('does NOT track target yg-node.yaml when integration_anchors is empty array', () => {
-    const target: GraphNode = {
-      path: 'dep/svc',
-      meta: {
-        name: 'DepSvc',
-        type: 'service',
-        integration_anchors: [], // empty
-      },
-      artifacts: [
-        { filename: 'responsibility.md', content: 'resp' },
-      ],
-      children: [],
-      parent: null,
-    };
-    const node: GraphNode = {
-      path: 'my/svc',
-      meta: {
-        name: 'MySvc',
-        type: 'service',
-        relations: [{ target: 'dep/svc', type: 'calls' }],
-      },
-      artifacts: [{ filename: 'responsibility.md', content: 'x' }],
-      children: [],
-      parent: null,
-    };
-    const graph: Graph = {
-      config: {
-        name: 'T',
-        node_types: { service: { description: 'x' } },
-      },
-      nodes: new Map([
-        ['my/svc', node],
-        ['dep/svc', target],
-      ]),
-      aspects: [],
-      flows: [],
-      schemas: [],
-      rootPath: '/project/.yggdrasil',
-    };
-
-    const files = collectTrackedFiles(node, graph);
-    const paths = files.map((f) => f.path);
-
-    // Empty integration_anchors should not trigger tracking
-    expect(paths).not.toContain('.yggdrasil/model/dep/svc/yg-node.yaml');
-  });
+  // integration_anchors test removed — field no longer exists in v4
 
   it('deduplicates aspect files inherited from both own and ancestor', () => {
     const parent: GraphNode = {

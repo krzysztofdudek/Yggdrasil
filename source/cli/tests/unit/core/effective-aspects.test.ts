@@ -34,7 +34,7 @@ describe('computeEffectiveAspects', () => {
       id,
       description: `Aspect ${id}`,
       implies: config.implies,
-      anchors: [],
+
       artifacts: [],
     }));
   }
@@ -156,21 +156,21 @@ it('should add flow participation aspects to regular set', () => {
         name: 'a',
         id: 'a',
         implies: ['b'],
-        anchors: [],
+  
         artifacts: [],
       },
       {
         name: 'b',
         id: 'b',
         implies: ['c'],
-        anchors: [],
+  
         artifacts: [],
       },
       {
         name: 'c',
         id: 'c',
         implies: ['a'],
-        anchors: [],
+  
         artifacts: [],
       },
     ];
@@ -525,9 +525,9 @@ describe('computeEffectiveAspectsForConsumer (port-based)', () => {
         ['nodeB', nodeB],
       ]),
       aspects: [
-        { name: 'correlation-tracking', id: 'correlation-tracking', anchors: [], artifacts: [] },
-        { name: 'idempotency', id: 'idempotency', anchors: [], artifacts: [] },
-        { name: 'retry-policy', id: 'retry-policy', anchors: [], artifacts: [] },
+        { name: 'correlation-tracking', id: 'correlation-tracking', artifacts: [] },
+        { name: 'idempotency', id: 'idempotency', artifacts: [] },
+        { name: 'retry-policy', id: 'retry-policy', artifacts: [] },
       ],
     });
 
@@ -582,8 +582,8 @@ describe('computeEffectiveAspectsForConsumer (port-based)', () => {
         ['nodeB', nodeB],
       ]),
       aspects: [
-        { name: 'base-tracking', id: 'base-tracking', implies: ['logging'], anchors: [], artifacts: [] },
-        { name: 'logging', id: 'logging', anchors: [], artifacts: [] },
+        { name: 'base-tracking', id: 'base-tracking', implies: ['logging'], artifacts: [] },
+        { name: 'logging', id: 'logging', artifacts: [] },
       ],
     });
 
@@ -617,8 +617,8 @@ describe('computeEffectiveAspectsForConsumer (port-based)', () => {
         ['nodeB', nodeB],
       ]),
       aspects: [
-        { name: 'correlation-tracking', id: 'correlation-tracking', anchors: [], artifacts: [] },
-        { name: 'idempotency', id: 'idempotency', anchors: [], artifacts: [] },
+        { name: 'correlation-tracking', id: 'correlation-tracking', artifacts: [] },
+        { name: 'idempotency', id: 'idempotency', artifacts: [] },
       ],
     });
 
@@ -664,8 +664,8 @@ describe('computeEffectiveAspectsForConsumer (port-based)', () => {
         ['nodeC', nodeC],
       ]),
       aspects: [
-        { name: 'correlation-tracking', id: 'correlation-tracking', anchors: [], artifacts: [] },
-        { name: 'event-based', id: 'event-based', anchors: [], artifacts: [] },
+        { name: 'correlation-tracking', id: 'correlation-tracking', artifacts: [] },
+        { name: 'event-based', id: 'event-based', artifacts: [] },
       ],
     });
 
@@ -744,7 +744,7 @@ describe('computeEffectiveAspectsForConsumer (port-based)', () => {
         ['nodeB', nodeB],
       ]),
       aspects: [
-        { name: 'correlation-tracking', id: 'correlation-tracking', anchors: [], artifacts: [] },
+        { name: 'correlation-tracking', id: 'correlation-tracking', artifacts: [] },
       ],
     });
 

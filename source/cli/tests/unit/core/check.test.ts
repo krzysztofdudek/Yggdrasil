@@ -475,7 +475,7 @@ describe('classifyDrift', () => {
     const existing = await storeModule.readNodeDriftState(yggRoot, 'svc/my-service');
     await storeModule.writeNodeDriftState(yggRoot, 'svc/my-service', {
       ...existing!,
-      claimResults: { 'logging': { 'audit-entry': { satisfied: true, reason: 'found audit log' } } },
+      aspectResults: { 'logging': { satisfied: true, reason: 'found audit log' } },
     });
     // Modify aspect content to trigger cascade
     await writeFile(path.join(yggRoot, 'aspects/logging/rules.md'), 'Updated rules.\n');
@@ -504,7 +504,7 @@ describe('classifyDrift', () => {
     const existing = await storeModule.readNodeDriftState(yggRoot, 'svc/my-service');
     await storeModule.writeNodeDriftState(yggRoot, 'svc/my-service', {
       ...existing!,
-      claimResults: { 'logging': { 'audit-entry': { satisfied: false, reason: 'no audit log found' } } },
+      aspectResults: { 'logging': { satisfied: false, reason: 'no audit log found' } },
     });
     // Modify aspect content to trigger cascade
     await writeFile(path.join(yggRoot, 'aspects/logging/rules.md'), 'Updated rules.\n');
@@ -958,7 +958,7 @@ describe('runCheck', () => {
       mappingFiles: { 'src/alpha/index.ts': 'export const a = 1;\n' },
       aspects: [{
         id: 'audit',
-        yaml: 'name: Audit\ndescription: audit\nanchors:\n  - id: log\n    claim: Log mutations\n',
+        yaml: 'name: Audit\ndescription: audit\n',
         files: { 'rules.md': 'Log mutations.\n' },
       }],
     });
@@ -993,7 +993,7 @@ describe('runCheck', () => {
       mappingFiles: { 'src/alpha/index.ts': 'export const a = 1;\n' },
       aspects: [{
         id: 'audit',
-        yaml: 'name: Audit\ndescription: audit\nanchors:\n  - id: log\n    claim: Log mutations\n',
+        yaml: 'name: Audit\ndescription: audit\n',
         files: { 'rules.md': 'Log mutations.\n' },
       }],
     });
