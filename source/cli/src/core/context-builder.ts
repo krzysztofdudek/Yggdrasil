@@ -827,7 +827,6 @@ export function buildNodeContextData(graph: Graph, nodePath: string): NodeContex
       description: aspectDef?.description ?? '',
       source,
       verifiedAgainst: `aspects/${aspectId}/content.md`,
-      claims: aspectDef?.anchors?.map(a => a.claim) ?? [],
       implies: aspectDef?.implies,
     };
   });
@@ -919,15 +918,14 @@ export function buildFileContextData(graph: Graph, filePath: string, ownerPath: 
     effective = { regular: collectEffectiveAspectIds(graph, ownerPath) };
   }
 
-  const claims = Array.from(effective.regular).map(aspectId => {
+  const aspects = Array.from(effective.regular).map(aspectId => {
     const aspectDef = graph.aspects.find(a => a.id === aspectId);
     return {
       aspectId,
       aspectDescription: aspectDef?.description ?? aspectDef?.name ?? aspectId,
       verifiedAgainst: `aspects/${aspectId}/content.md`,
-      claims: aspectDef?.anchors?.map(a => a.claim) ?? [],
     };
-  }).filter(c => c.claims.length > 0);
+  });
 
   const ancestorPathsSet = new Set(ancestors.map(a => a.path));
   const dependencies = (node.meta.relations ?? [])
@@ -943,7 +941,7 @@ export function buildFileContextData(graph: Graph, filePath: string, ownerPath: 
     filePath,
     ownerPath,
     ownerType: node.meta.type,
-    claims,
+    aspects,
     dependencies,
     dependentCount,
   };
