@@ -640,36 +640,58 @@ the agent to count the `nodes` list.
 
 ### Node selection
 
-Finds graph nodes relevant to a natural-language task description.
+Finds graph nodes, aspects, and flows relevant to a natural-language task description.
+Three-dimensional search: nodes (keyword matching against artifacts), aspects (matching
+against descriptions and content files), and flows (matching against descriptions and
+content). Additionally, aspects and flows assigned to returned nodes are surfaced with
+node counts.
 
 **Parameters:**
 
-| Parameter     | Type   | Required | Description                                     |
-| ------------- | ------ | -------- | ----------------------------------------------- |
-| `task`        | string | Yes      | Natural-language task description               |
-| `limit`       | number | No       | Maximum nodes to return. Default: `5`.          |
+| Parameter | Type   | Required | Description                                            |
+| --------- | ------ | -------- | ------------------------------------------------------ |
+| `query`   | string | Yes      | Natural-language task description (positional argument) |
+| `limit`   | number | No       | Maximum results per section. Default: `5`.             |
 
 **Behavior:**
 
-1. Tokenize the task description: lowercase, split on non-alphanumeric, remove stop words.
-2. **S1 (keyword matching):** For each node, score keyword hits against artifact content with
-   weights: `responsibility.md` x3, `interface.md` x2, aspect content x2, other artifacts x1.
-3. If any node scores above 0: sort by score descending, return top-K.
-4. **S2 (flow-based fallback):** If no node matched via S1, match tokens against flow
-   descriptions and names. Return participants of matching flows.
+1. Tokenize the query: lowercase, split on non-alphanumeric, remove stop words.
+2. **Nodes:** Score keyword hits against node artifact content with weights:
+   `responsibility.md` x3, `interface.md` x2, aspect content x2, other artifacts x1.
+   Falls back to flow-based selection when no nodes match directly.
+3. **Aspects:** Semantic match of query against each aspect's `yg-aspect.yaml` description
+   and content `.md` files. Additionally, collect aspects from returned nodes (direct +
+   inherited). Annotate: `(matched)` for direct semantic match, `(N nodes)` for aspects
+   present on N returned nodes.
+4. **Flows:** Semantic match of query against each flow's `yg-flow.yaml` description and
+   `description.md`. Additionally, collect flows where returned nodes participate.
+   Same annotations as aspects.
+5. Deduplicate by ID. Apply `--limit` per section.
 
 **Result:**
 
-YAML list of `{ node, score, name }` sorted by relevance. Empty list when nothing matches.
+Structured text with three sections. Each aspect and flow entry includes a `read:` path
+to its content file. Sections are omitted when empty.
 
-```yaml
-- node: orders/order-service
-  score: 12
-  name: OrderService
-- node: orders
-  score: 6
-  name: Orders
+```text
+Results for "add payment retry logic":
+
+Nodes:
+  orders/order-service     — Manages order lifecycle from placement to fulfilment
+
+Aspects:
+  requires-saga            — (matched)     read: .yggdrasil/aspects/requires-saga/content.md
+  requires-idempotency     — (2 nodes)     read: .yggdrasil/aspects/requires-idempotency/content.md
+
+Flows:
+  checkout                 — (matched)     read: .yggdrasil/flows/checkout/description.md
 ```
+
+Annotations:
+
+- `(matched)` — found by direct semantic search; may not be assigned to any returned node
+- `(N nodes)` — present on N of the returned nodes; found via graph structure
+- An entry can show both: `(matched, N nodes)`
 
 **Errors:**
 
@@ -1055,12 +1077,22 @@ resolved drift. Alias: `drift-sync`.
 
 **Parameters:**
 
-| Parameter  | Type   | Required | Description                                                                                                   |
-| ---------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------- |
-| `node`     | string | Yes      | Node path relative to `model/`.                                                                               |
-| `reviewed` | string | No       | Reason for bypassing the three-axis gate. The reviewer still runs and can refuse. Stored for audit trail.     |
+| Parameter  | Type     | Required              | Description                                                                       |
+| ---------- | -------- | --------------------- | --------------------------------------------------------------------------------- |
+| `node`     | string[] | One of three required | One or more node paths relative to `model/`. Variadic.                            |
+| `aspect`   | string   | One of three required | Aspect id — batch approve all nodes with cascade drift from this aspect.          |
+| `flow`     | string   | One of three required | Flow name — batch approve all nodes with cascade drift from this flow.            |
+| `reviewed` | string   | No                    | Reason for bypassing the three-axis gate. Reviewer still runs. Audit trail.       |
 
-Per-node only — no `--all`, no `--recursive`. One node at a time.
+Exactly one of `node`, `aspect`, or `flow` is required. No `--all`, no `--recursive`.
+
+**`--node` behavior:** When a single node path is given and the node has mapping, it is a
+single-node approve (unchanged). When a single node path is given and the node has no
+mapping, the CLI redirects to batch-approve its children with cascade drift. Multiple
+node paths run standard approve on each.
+
+**`--aspect` / `--flow` behavior:** Inherently batch. Finds all nodes with cascade drift
+(E021) caused by the specified aspect or flow, then runs standard approve on each.
 
 **Behavior:**
 

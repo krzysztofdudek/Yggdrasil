@@ -211,9 +211,7 @@ name: OrderService
 type: service
 description: "Manages order lifecycle from placement to fulfilment"  # optional
 
-aspects:
-  - aspect: requires-audit
-  - aspect: requires-auth
+aspects: [requires-audit, requires-auth]
 
 ports:                    # optional — typed contracts this node exposes for consumers
   correlation-id:
