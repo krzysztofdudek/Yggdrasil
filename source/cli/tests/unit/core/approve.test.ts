@@ -756,7 +756,7 @@ describe('approveNode — GC and recording', () => {
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
     });
     await recordBaseline(tmpDir);
-    // Change both source and artifact → bilateral approve
+    // Change both source and artifact → both sides updated → approve
     await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'export default 99;\n');
     await writeFile(
       path.join(yggRoot, 'model/svc/my-service/responsibility.md'),

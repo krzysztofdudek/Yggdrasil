@@ -1009,8 +1009,8 @@ async function checkContextBudget(graph: Graph): Promise<ValidationIssue[]> {
           code: 'W002',
           rule: 'own-budget-warning',
           message: buildIssueMessage({
-            what: `Own artifacts: ${breakdown.own.toLocaleString()} tokens (threshold: ${ownWarningThreshold.toLocaleString()}).`,
-            why: `Large own-artifact budgets make this node expensive to include as a dependency.`,
+            what: `Node artifacts: ${breakdown.own.toLocaleString()} tokens (threshold: ${ownWarningThreshold.toLocaleString()}).`,
+            why: `Large node artifact budgets make this node expensive to include as a dependency.`,
             next: `Consider splitting this node's responsibilities into child nodes.`,
           }),
           nodePath,

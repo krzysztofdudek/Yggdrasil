@@ -219,7 +219,7 @@ describe('approveNode — LLM verification', () => {
       llmProvider: provider,
       acknowledge: 'LLM is wrong, code is intentionally non-deterministic for testing',
     });
-    // LLM is skipped when acknowledging — bilateral change approves directly
+    // LLM is skipped when acknowledging — conscious exception approves directly
     expect(result.action).toBe('approved');
     expect(result.claimResults).toBeUndefined();
     await rm(tmpDir, { recursive: true, force: true });

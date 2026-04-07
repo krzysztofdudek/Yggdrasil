@@ -107,7 +107,7 @@ describe('approve-pipeline', () => {
     expect(stable.currentHash).toBe(approved.currentHash);
   });
 
-  it('acknowledge bypasses bilateral check (source changed only)', async () => {
+  it('acknowledge bypasses one-side-only check (source changed only)', async () => {
     const root = await setupProject();
     cleanupPaths.push(root);
 
@@ -140,7 +140,7 @@ describe('approve-pipeline', () => {
     expect(noChange.action).toBe('no-change');
   });
 
-  it('acknowledge bypasses bilateral check (artifact changed only)', async () => {
+  it('acknowledge bypasses one-side-only check (artifact changed only)', async () => {
     const root = await setupProject();
     cleanupPaths.push(root);
 
@@ -201,7 +201,7 @@ describe('approve-pipeline', () => {
     await touchFile(srcFile);
     await touchFile(artifactFile);
 
-    // Both changed → bilateral → approved in one approve call
+    // Both changed → both sides updated → approved in one approve call
     const graph2 = await loadGraph(root);
     const approved = await approveNode(graph2, nodePath);
     expect(approved.action).toBe('approved');
@@ -230,7 +230,7 @@ describe('approve-pipeline', () => {
     const init = await approveNode(graph, nodePath);
     expect(init.action).toBe('initial');
 
-    // Modify source only (no bilateral artifact update) + modify an aspect file
+    // Modify source only (no corresponding artifact update) + modify an aspect file
     const srcFile = path.join(root, 'src', 'auth', 'auth.controller.ts');
     const aspectFile = path.join(
       root,
