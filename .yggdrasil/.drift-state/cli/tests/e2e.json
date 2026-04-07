@@ -1,5 +1,5 @@
 {
-  "hash": "2c225ff25c9d1cfcbdcff788d24d0d32f7b3081e1b1252935a5d0bb08c593b0d",
+  "hash": "0d332714046e524bb613d73c4549c000a2be0acacf15133e60c2a3b3413b779f",
   "files": {
     ".yggdrasil/model/cli/tests/e2e/yg-node.yaml": "a6a10d47fd0dfd499ae5a4707360ac4a46d3fc54f4e36e62ab4d6ed404b30d27",
     ".yggdrasil/model/cli/tests/e2e/responsibility.md": "56b783c5912173097eda22809e7de7cfd8212c6f1a243dcfdc1475205fe8df6a",
@@ -8,11 +8,9 @@
     ".yggdrasil/model/cli/responsibility.md": "696e0f5f377eba69a843a18379e8f20e0322dc037182690629652a75aa2227fb",
     ".yggdrasil/model/cli/tests/yg-node.yaml": "ac0fc246c01a04e62d43ef8abadb2f01551616ca7509c3b268995ef646279bc9",
     ".yggdrasil/model/cli/tests/responsibility.md": "ef48f39a8d5d6b7f1c61e94f2b95ccf38c02365b3496e3ff5fcf21827ffd8138",
-    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "e6c0c095222ce0d80b79af77f5966d02f541b514205a4b551354b65ef5938900",
     ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
-    ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": "0b98be4ee4221db627b892cddeb548a94e3cb1bfce936b9555bd30d7c225e34d",
-    ".yggdrasil/aspects/posix-paths/content.md": "38daf50dec99307443fd8951019cf534c74571a7778d43e55a4354d9d2faeefc",
     "source/cli/tests/e2e/.gitkeep": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "462df48ae702ab782902adfecb0ce3d3fee925134847b7a984fc33b8459fdd0d",
     "source/cli/tests/e2e/cli.test.ts": "c1acda84fe714f9090786114e68bac8486718544cf5227295672ac46cdf3d089"
   },
   "mtimes": {
@@ -23,12 +21,10 @@
     ".yggdrasil/model/cli/responsibility.md": 1775045623775.336,
     ".yggdrasil/model/cli/tests/yg-node.yaml": 1775243577592.7366,
     ".yggdrasil/model/cli/tests/responsibility.md": 1775051893259.6592,
-    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775328133881.7266,
+    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775558093855.0654,
     ".yggdrasil/aspects/deterministic/content.md": 1772778780694.5889,
-    ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": 1775328137050.7122,
-    ".yggdrasil/aspects/posix-paths/content.md": 1772743197466.7686,
     "source/cli/tests/e2e/.gitkeep": 1771702275796.506,
-    "source/cli/tests/e2e/cli.test.ts": 1775542703759.886
+    "source/cli/tests/e2e/cli.test.ts": 1775545085536.7703
   },
-  "acknowledgeReason": "test assertions updated to match new CLI message format — vocabulary alignment"
+  "reviewedReason": "aspect implies chain updated: posix-paths removed from deterministic.implies"
 }

@@ -87,6 +87,14 @@ describe('selectNodes', () => {
     node.meta.aspects = originalAspects;
   });
 
+  it('scores internals.md with x1 weight (else branch)', async () => {
+    const graph = await loadGraph(FIXTURE_PROJECT);
+    // "denylist" and "HMAC" only appear in auth/internals.md
+    const results = selectNodes(graph, 'denylist HMAC rotating keys', 5);
+    expect(results.length).toBeGreaterThan(0);
+    expect(results[0].node).toBe('auth');
+  });
+
   describe('S2 flow-based fallback', () => {
     it('falls back to flow matching when no nodes match directly', async () => {
       const graph = await loadGraph(FIXTURE_PROJECT);
@@ -98,6 +106,21 @@ describe('selectNodes', () => {
       expect(nodePaths.some((p) => p === 'orders/order-service' || p === 'auth/auth-api')).toBe(
         true,
       );
+    });
+
+    it('deduplicates participants appearing in multiple flows', async () => {
+      const graph = await loadGraph(FIXTURE_PROJECT);
+      // Add a second flow that shares a participant with checkout-flow
+      graph.flows.push({
+        path: 'test-flow',
+        name: 'test sequence overlap',
+        nodes: ['orders/order-service', 'nonexistent/node'],
+        artifacts: [{ filename: 'description.md', content: 'test sequence overlap' }],
+      });
+      const results = selectNodes(graph, 'sequence overlap', 10);
+      // orders/order-service should appear only once
+      const hits = results.filter((r) => r.node === 'orders/order-service');
+      expect(hits.length).toBe(1);
     });
 
     it('returns empty when neither S1 nor S2 match', async () => {

@@ -9,7 +9,7 @@ function makeApproveResult(overrides: Partial<ApproveResult> = {}): ApproveResul
     previousHash: '12345678',
     blackboxBlocked: false,
     antiLaunderingBlocked: false,
-    acknowledgeAttempted: false,
+    reviewedAttempted: false,
     isBlackbox: false,
     ...overrides,
   };
@@ -40,7 +40,7 @@ describe('formatResult — LLM results', () => {
   it('displays claim verification results in approve output', () => {
     const result = makeApproveResult({
       action: 'refused',
-      refuseReason: 'LLM verification found issues',
+      refuseReason: 'Reviewer verification found issues',
       axes: { ownArtifacts: 'unchanged', source: 'unchanged', otherTracked: 'unchanged' },
       claimResults: {
         deterministic: {
@@ -79,15 +79,6 @@ describe('formatResult — LLM results', () => {
     });
     const output = captureOutput(() => formatResult('some/node', result));
     expect(output).toContain('claims not verified');
-  });
-
-  it('shows LLM skipped for acknowledge', () => {
-    const result = makeApproveResult({
-      action: 'approved',
-      llmSkipped: 'acknowledge',
-    });
-    const output = captureOutput(() => formatResult('some/node', result));
-    expect(output).toContain('--acknowledge');
   });
 
   it('shows LLM skipped for blackbox', () => {

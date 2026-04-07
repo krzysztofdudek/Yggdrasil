@@ -26,8 +26,8 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 export interface ApproveOptions {
-  /** Conscious exception — approve without both source and artifacts changing */
-  acknowledge?: string;
+  /** Conscious exception — bypasses three-axis gate only. Reviewer still verifies claims. */
+  reviewed?: string;
   /** LLM provider for semantic verification (E055/E056) */
   llmProvider?: LlmProvider;
   /** True when no llm section exists in config (vs provider created but unavailable) */
@@ -49,11 +49,11 @@ export async function approveNode(
   nodePath: string,
   options: ApproveOptions = {},
 ): Promise<ApproveResult> {
-  const { acknowledge, llmProvider } = options;
+  const { reviewed, llmProvider } = options;
 
-  // Validate acknowledge reason if provided
-  if (acknowledge !== undefined && acknowledge.trim() === '') {
-    throw new Error('--acknowledge requires a non-empty reason string.');
+  // Validate reviewed reason if provided
+  if (reviewed !== undefined && reviewed.trim() === '') {
+    throw new Error('--reviewed requires a non-empty reason string.');
   }
 
   // Validate node exists
@@ -269,11 +269,11 @@ export async function approveNode(
       action: 'refused',
       previousHash: storedEntry.hash,
       currentHash: canonicalHash,
-      refuseReason: acknowledge
-        ? 'Cannot acknowledge source changes on a blackbox node.'
+      refuseReason: reviewed
+        ? 'Cannot use --reviewed for source changes on a blackbox node.'
         : 'Cannot approve source changes on a blackbox node.',
       blackboxBlocked: true,
-      acknowledgeAttempted: !!acknowledge,
+      reviewedAttempted: !!reviewed,
       isBlackbox: true,
       axes: {
         ownArtifacts: ownChanged ? 'changed' : 'unchanged',
@@ -303,24 +303,24 @@ export async function approveNode(
     action = 'approved';
   } else if (ownChanged && !sourceChanged) {
     // Row 2: artifacts changed, source unchanged
-    if (acknowledge) {
-      action = 'acknowledged';
+    if (reviewed) {
+      action = 'reviewed';
     } else {
       action = 'refused';
       refuseReason = 'Artifacts changed but source unchanged.';
     }
   } else if (!ownChanged && sourceChanged) {
     // Row 3: source changed, artifacts unchanged
-    if (acknowledge) {
-      action = 'acknowledged';
+    if (reviewed) {
+      action = 'reviewed';
     } else {
       action = 'refused';
       refuseReason = 'Source changed but artifacts unchanged.';
     }
   } else {
     // Row 4: only other tracked changed (cascade)
-    if (acknowledge) {
-      action = 'acknowledged';
+    if (reviewed) {
+      action = 'reviewed';
     } else {
       action = 'refused';
       refuseReason = 'Context changed but graph artifacts and source unchanged.';
@@ -334,7 +334,7 @@ export async function approveNode(
   const e055Violations: Array<{ aspect: string; claim: string; reason: string }> = [];
   const e056Violations: Array<{ name: string; reason: string }> = [];
 
-  if (action !== 'refused' && !isBlackbox && llmProvider && !acknowledge) {
+  if (action !== 'refused' && !isBlackbox && llmProvider) {
     const resolvedMaxTokens = options.maxTokens
       ?? (await llmProvider.getContextWindowSize() ?? 8192);
 
@@ -386,7 +386,7 @@ export async function approveNode(
         action: 'refused',
         previousHash: storedEntry.hash,
         currentHash: canonicalHash,
-        refuseReason: 'LLM verification found issues',
+        refuseReason: 'Reviewer verification found issues',
         claimResults,
         artifactReviewResults,
         e055Violations,
@@ -395,26 +395,24 @@ export async function approveNode(
         gcPaths,
         blackboxBlocked: false,
         antiLaunderingBlocked: false,
-        acknowledgeAttempted: false,
+        reviewedAttempted: false,
         isBlackbox,
       };
     }
-  } else if (acknowledge) {
-    llmSkipped = 'acknowledge';
   } else if (!llmProvider) {
     llmSkipped = options.llmNotConfigured ? 'not-configured' : 'unavailable';
   } else if (isBlackbox) {
     llmSkipped = 'blackbox';
   }
 
-  // Record baseline if accepted — preserve previous acknowledgeReason for audit trail
+  // Record baseline if accepted — preserve previous reviewedReason for audit trail
   if (action !== 'refused') {
     const stateToWrite = {
       hash: canonicalHash,
       files: fileHashes,
       mtimes: fileMtimes,
-      // New acknowledge reason replaces old; regular approve preserves existing reason
-      acknowledgeReason: acknowledge ?? storedEntry.acknowledgeReason,
+      // New reviewed reason replaces old; regular approve preserves existing reason
+      reviewedReason: reviewed ?? storedEntry.reviewedReason,
       ...(claimResults ? { claimResults } : {}),
       ...(artifactReviewResults ? { artifactReview: artifactReviewResults } : {}),
     };
@@ -432,7 +430,7 @@ export async function approveNode(
       action,
       prev: storedEntry.hash,
       hash: canonicalHash,
-      reason: acknowledge ?? null,
+      reason: reviewed ?? null,
       files: changedFiles,
     });
   }
@@ -470,7 +468,7 @@ export async function approveNode(
     unchangedSourceFiles: ownChanged && !sourceChanged ? allSourceFiles : undefined,
     blackboxBlocked: false,
     antiLaunderingBlocked: false,
-    acknowledgeAttempted: !!acknowledge,
+    reviewedAttempted: !!reviewed,
     isBlackbox,
     gcPaths,
     claimResults,

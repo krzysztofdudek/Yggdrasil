@@ -1,20 +1,18 @@
 {
-  "hash": "479ffa36261e3c22e684f863638f6c0e7de7a9a60b92dea6c036b059972a92cb",
+  "hash": "71793bafa6637ffe7f412c706998cc82cc93685a086f1dcb405e18d45974b590",
   "files": {
+    ".yggdrasil/model/cli/commands/impact/yg-node.yaml": "f512891e7527be847796c47cfc5115443ab223fa6c3db8063d6f761b103a7edb",
     ".yggdrasil/model/cli/commands/impact/interface.md": "089b792a8fa98830d89a53246d441b65a71a2e9b893a437c528e83e7670e8066",
     ".yggdrasil/model/cli/commands/impact/internals.md": "2234a464828074263cd57401cc503dece7ac692b9f58e558031e1388a46d181f",
     ".yggdrasil/model/cli/commands/impact/responsibility.md": "69e57c8aec35200ae9bcd8e525454f870997eb1e5b98c5e5bcdde1e93d70dd02",
     ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df",
     ".yggdrasil/model/cli/internals.md": "7440678f012e45d8b15a4efc252cc3b4220fe7aec98fb673786abd9c2a37f9f0",
-    ".yggdrasil/model/cli/responsibility.md": "696e0f5f377eba69a843a18379e8f20e0322dc037182690629652a75aa2227fb",
+    ".yggdrasil/model/cli/commands/yg-node.yaml": "d55896632ad5686d8ea01093197534a9a8230f71449d90d8291062ed4436f2c4",
     ".yggdrasil/model/cli/commands/internals.md": "5a3b679d5c2b9600c7fa3dc01b2f28661b7bfb11850a922ff885a7a583d455c7",
     ".yggdrasil/model/cli/commands/responsibility.md": "dd8146f9c54251a68f81f4036fdf931d526f3159707709b92a59493fe383a080",
     ".yggdrasil/aspects/cli-command-contract/yg-aspect.yaml": "c818ab194c19f451955987badc7d3f14026349be6a1f633f1440778c1beae802",
     ".yggdrasil/aspects/cli-command-contract/content.md": "b1509ccd44cc91f1cff43926b69f16845407f518ecf4d448d24a0b4a4e2894c3",
-    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "e6c0c095222ce0d80b79af77f5966d02f541b514205a4b551354b65ef5938900",
     ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
-    ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": "0b98be4ee4221db627b892cddeb548a94e3cb1bfce936b9555bd30d7c225e34d",
-    ".yggdrasil/aspects/posix-paths/content.md": "38daf50dec99307443fd8951019cf534c74571a7778d43e55a4354d9d2faeefc",
     ".yggdrasil/model/cli/core/loader/responsibility.md": "ad751ae7c2345373a1eb3dcf64775f2dd6950d1f0a9ae7f347320336fdf18332",
     ".yggdrasil/model/cli/core/loader/interface.md": "0bb87fa5a5b9ce62786196668076207af49ca1744a8d10f967409b18f82fc2ba",
     ".yggdrasil/model/cli/core/responsibility.md": "2aa9f1d64abf86aed604a1823392c3d40b963eb8416b38ef877bcccddd7ff086",
@@ -32,26 +30,24 @@
     ".yggdrasil/flows/graph-analysis/yg-flow.yaml": "6643c01963cfd3731ba76f0a34a34e7ce2ed09e2ae2da793734c59adc4f87624",
     ".yggdrasil/flows/graph-analysis/description.md": "aca097a8ecbf74d140e5deb9ad6113c752d49e193077b0e1d201b7f99da574f4",
     "source/cli/src/cli/impact.ts": "8ea05e821cca6d673ee01e2428f16e76300c9937b7c3cfaed20619a709c76e3e",
-    ".yggdrasil/model/cli/commands/impact/yg-node.yaml": "f512891e7527be847796c47cfc5115443ab223fa6c3db8063d6f761b103a7edb",
-    ".yggdrasil/model/cli/commands/yg-node.yaml": "d55896632ad5686d8ea01093197534a9a8230f71449d90d8291062ed4436f2c4"
+    ".yggdrasil/model/cli/responsibility.md": "b1b42bf482d727823ed25d0bcf1369dbba917ae192723a57464b233a53644c0f",
+    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "462df48ae702ab782902adfecb0ce3d3fee925134847b7a984fc33b8459fdd0d"
   },
   "mtimes": {
-    ".yggdrasil/model/cli/commands/impact/yg-node.yaml": 1775544543985.0662,
+    ".yggdrasil/model/cli/commands/impact/yg-node.yaml": 1775545085529.8926,
     ".yggdrasil/model/cli/commands/impact/interface.md": 1775045716363.2827,
     ".yggdrasil/model/cli/commands/impact/internals.md": 1775045772372.6106,
     ".yggdrasil/model/cli/commands/impact/responsibility.md": 1775045732748.118,
     ".yggdrasil/model/cli/yg-node.yaml": 1775243577620.7664,
     ".yggdrasil/model/cli/internals.md": 1775329681280.232,
-    ".yggdrasil/model/cli/responsibility.md": 1775045623775.336,
-    ".yggdrasil/model/cli/commands/yg-node.yaml": 1775544531927.7505,
+    ".yggdrasil/model/cli/responsibility.md": 1775567498378.8098,
+    ".yggdrasil/model/cli/commands/yg-node.yaml": 1775545085531.0886,
     ".yggdrasil/model/cli/commands/internals.md": 1775046923261.1494,
     ".yggdrasil/model/cli/commands/responsibility.md": 1775045632026.2983,
     ".yggdrasil/aspects/cli-command-contract/yg-aspect.yaml": 1775328135743.9414,
     ".yggdrasil/aspects/cli-command-contract/content.md": 1772778786204.255,
-    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775328133881.7266,
+    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775561447770.7463,
     ".yggdrasil/aspects/deterministic/content.md": 1772778780694.5889,
-    ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": 1775328137050.7122,
-    ".yggdrasil/aspects/posix-paths/content.md": 1772743197466.7686,
     ".yggdrasil/model/cli/core/loader/responsibility.md": 1774784572379.804,
     ".yggdrasil/model/cli/core/loader/interface.md": 1775208301390.8315,
     ".yggdrasil/model/cli/core/responsibility.md": 1772828321933.1968,
@@ -68,7 +64,33 @@
     ".yggdrasil/model/cli/model/interface.md": 1775509701891.0308,
     ".yggdrasil/flows/graph-analysis/yg-flow.yaml": 1775046079335.846,
     ".yggdrasil/flows/graph-analysis/description.md": 1775046980292.1602,
-    "source/cli/src/cli/impact.ts": 1775542634242.184
+    "source/cli/src/cli/impact.ts": 1775551896880.0823
   },
-  "acknowledgeReason": "removed deterministic aspect — command handlers are inherently impure (I/O, process.exit, execSync); aspect was incorrectly applied"
+  "reviewedReason": "compliance verified: cli responsibility.md added Terminology section — no behavioral change",
+  "claimResults": {
+    "cli-command-contract": {
+      "stdout-write": {
+        "satisfied": true,
+        "reason": "The code exclusively uses process.stdout.write() for all output and never uses console.log, satisfying the claim."
+      },
+      "error-handler": {
+        "satisfied": true,
+        "reason": "The code wraps the entire command action body in a try/catch block and writes errors to process.stderr.write() before exiting with code 1, satisfying the claim."
+      },
+      "exit-code": {
+        "satisfied": true,
+        "reason": "The code satisfies the claim by calling process.exit(1) in all error scenarios including missing graph, invalid options, missing nodes, and the catch block for any thrown errors."
+      }
+    },
+    "deterministic": {
+      "no-side-effects": {
+        "satisfied": true,
+        "reason": "The code does not use Date.now(), Math.random(), filesystem writes, or network calls, relying solely on deterministic graph traversal and data structures."
+      },
+      "deterministic-output": {
+        "satisfied": true,
+        "reason": "The code derives all return values strictly from the provided graph object, node paths, and imported constants without using random number generators, timestamps, or external network calls."
+      }
+    }
+  }
 }

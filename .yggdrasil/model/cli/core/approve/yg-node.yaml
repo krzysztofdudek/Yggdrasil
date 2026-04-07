@@ -4,6 +4,7 @@ description: Core approve logic — records drift baseline, implements three-axi
 blackbox: false
 aspects:
   - deterministic
+  - posix-paths
 relations:
   - target: cli/io
     type: uses

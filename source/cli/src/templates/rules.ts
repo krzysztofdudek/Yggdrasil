@@ -108,11 +108,14 @@ You are not allowed to edit or create source code without establishing graph cov
 - [ ] 2. Read local node artifacts (responsibility, interface, internals) from the context package. Cross-cutting constraints (aspects, flows) should already be internalized from the task-level READ phase.
 - [ ] 3. Assess blast radius: \`yg impact --node <node_path>\`
 - [ ] 4. Modify source code — claims tell you what rules to follow
-- [ ] 5. Update artifacts if behavior changed
+- [ ] 5. Update artifacts if behavior changed. Each artifact has its own trigger:
+        - responsibility.md — when the node's identity, boundaries, or business rules changed
+        - interface.md — when exported API signatures or contracts changed
+        - internals.md — when a design decision was made (record it) or a constraint emerged
 - [ ] 5b. If you split, merged, or renamed a node: run \`yg flows\` and update any flow \`nodes\` lists that referenced the old node path to point to the correct child/new nodes.
 - [ ] 6. Run \`yg check\` — follow CLI's suggested next command (if unfixable after 3 attempts → stop, report to user)
 - [ ] 6b. **Aspect check** — did you just apply a pattern that also exists in other files? If the node has no aspect for it and you saw the same pattern in 3+ files, create the aspect now.
-- [ ] 7. Run \`yg approve --node <node_path>\` — LLM verifies claims + artifact freshness
+- [ ] 7. Run \`yg approve --node <node_path>\` — reviewer verifies claims + artifact freshness
 
 **Step 2b** — Owner not found: establish coverage first. Present options to the user:
 
@@ -120,7 +123,7 @@ You are not allowed to edit or create source code without establishing graph cov
 
 *Existing code:*
 
-- Option A — Full node: create node(s), map files, write artifacts from code analysis
+- Option A — Proper node: create node(s), map files, write artifacts per Artifact Structure guidance
 - Option B — Blackbox: create a blackbox node at agreed granularity
 - Option C — Abort
 
@@ -129,7 +132,9 @@ You are not allowed to edit or create source code without establishing graph cov
 0. **If spec/external documents exist:** route ALL knowledge from specs to the graph per the Information Routing table BEFORE any feature work.
 1. Create aspects first (cross-cutting requirements the new code must satisfy)
 2. Create flows if the code participates in a business process
-3. Create nodes with full artifacts — description in \`yg-node.yaml\`, responsibility, interface, internals
+3. Create nodes with artifacts — description in \`yg-node.yaml\`, then:
+   - responsibility.md: identity + boundaries + domain rules
+   - interface.md: exported API contracts (when node will have consumers)
 4. Review the context package (\`yg context\`) — it is now the behavioral specification
 5. Create \`yg-node.yaml\` with mapping (flat list of file paths) before \`yg check\`
 6. Implement code that satisfies the specification. Every source file must be mapped.
@@ -186,10 +191,10 @@ WRAP-UP (user signals "done", "wrap up", "that's enough"):
 **Blackbox-first adoption.** When adopting Yggdrasil on an existing codebase:
 1. Run \`yg check\` — E022 shows all uncovered files
 2. Create blackbox nodes for areas you will NOT work on (cheap: just \`yg-node.yaml\` with description)
-3. Create proper nodes for areas you WILL work on (full artifacts)
+3. Create proper nodes for areas you WILL work on (artifacts per Artifact Structure guidance)
 4. Run \`yg check\` — E022 should be 0
 
-**Blackbox decomposition (mechanically enforced).** Blackbox nodes track file hashes. When source files under a blackbox change, E020 fires and \`yg approve\` REFUSES — no exceptions, no \`--acknowledge\`. The only path:
+**Blackbox decomposition (mechanically enforced).** Blackbox nodes track file hashes. When source files under a blackbox change, E020 fires and \`yg approve\` REFUSES — no exceptions, no \`--reviewed\`. The only path:
 1. Create a proper node (with real artifacts) for the modified files
 2. Adjust the blackbox mapping to exclude them
 3. Approve the new proper node
@@ -242,11 +247,68 @@ Key facts:
 
 Three artifacts capture node knowledge at three levels:
 
-- **responsibility.md** (always required) — WHAT: identity, boundaries, what the node is NOT responsible for.
-- **interface.md** (required when node has consumers) — HOW TO USE: public methods, parameters, return types, contracts, failure modes, exposed data structures.
-- **internals.md** (optional, highest value for cross-module nodes) — HOW IT WORKS + WHY: algorithms, control flow, business rules, invariants, state machines, lifecycle, and design decisions with rejected alternatives. Use sections: ## Logic, ## Constraints, ## State, ## Decisions (with "Chose X over Y because Z" format).
+- **responsibility.md** (always required) — IDENTITY: what this node IS, what it is NOT, its role relative to siblings and parent. Business rules and domain constraints that the code enforces but doesn't explain.
 
-**Enrichment priority:** \`interface.md\` first (highest cross-module ROI), then \`responsibility.md\` (identity and boundaries), then \`internals.md\` (depth for complex nodes).
+  Example (good — context code cannot express):
+    "Processes payment refunds. Partial refunds allowed only within 30 days;
+     full refunds within 90. Amounts below the original transaction fee are
+     rejected — the fee is non-recoverable. Does not handle chargebacks
+     or communicate with payment providers directly."
+
+  Example (too detailed — already in code, yg-node.yaml, or ls):
+    "- refund-validator.ts — validates refund eligibility
+     - refund-processor.ts — executes refund transactions
+     - refund-types.ts — TypeScript type definitions..."
+
+  "Not responsible for" should state boundary decisions, not list sibling nodes:
+    Good: "Does not interpret markdown content — copies and annotates only."
+    Noise: "Out of scope: Validation (payments/validator), Logging (payments/logger)."
+    The graph already knows boundaries through relations and hierarchy.
+
+- **interface.md** (required when node has consumers) — CONTRACT: what consumers call, what they get back, what can go wrong. Exported function signatures, parameter types, return types, failure modes.
+
+  Example (good — the contract a consumer needs):
+    "processRefund(order, amount, reason): RefundResult — validates eligibility,
+     debits the merchant account, returns confirmation or rejection with code.
+     Throws InsufficientFundsError if merchant balance < amount."
+
+  Example (too detailed — internal helpers consumers never call):
+    "validateWindow(order, policy): internal; checks refund time window.
+     calculateFee(amount, rate): internal; computes non-recoverable fee.
+     buildLedgerEntry(refund): internal; creates accounting record."
+
+- **internals.md** (optional) — WHY + CONSTRAINTS: design decisions with rejected alternatives, non-obvious constraints, business rules that shaped the implementation. Use sections: ## Decisions (required — "Chose X over Y because Z"), ## Constraints (when applicable).
+
+  Example (good — knowledge invisible in code):
+    "## Decisions
+     Chose synchronous fee calculation over async lookup because fees are
+     fixed per payment method and change quarterly. Rejected: real-time
+     fee API — added 200ms latency for data that updates 4x/year."
+
+  Example (too detailed — the source code rewritten in prose):
+    "## Logic
+     1. Parse options from CLI arguments
+     2. Load config from disk
+     3. If --verbose: enable debug logging
+     4. Call processRefund with parsed args
+     5. Format output and write to stdout"
+
+**Enrichment priority:** \`interface.md\` first (highest cross-module ROI), then \`responsibility.md\` (identity and boundaries), then \`internals.md\` (depth for complex nodes). If no decisions were made during implementation, internals.md is not needed — but see "Recognizing decisions" below before concluding that.
+
+**Artifact quality test — apply before writing any content:**
+1. "Can an agent learn this by reading the source code?" If yes — it is already there.
+2. "Is this declared in yg-node.yaml?" (mappings, children, relations, aspects) If yes — it is already there.
+3. "Is this visible by reading the file or running the command?" (config settings, CLI output format, directory listing) If yes — explain WHY, not WHAT.
+Artifacts capture what code cannot express: identity, boundaries, WHY decisions were made, rejected alternatives, domain constraints, and business rules.
+
+**Parent vs child artifacts:** Parent responsibility defines the shared contract — what unifies children and what rules all children follow. Child responsibility defines what distinguishes THIS child from its siblings. If parent and child say the same thing, delete it from the child — hierarchy inheritance delivers parent context automatically.
+
+**Recognizing decisions:** Every time you choose between alternatives — even when the choice feels obvious — that is a decision to record. Common blind spots:
+- Naming: "kept internal type name X while renaming user-facing term to Y" — why the split?
+- Structure: "nested config under parent key instead of flat top-level" — why nesting?
+- Scope: "handled this in module A instead of module B" — why A?
+- Omission: "did not add migration for old format" — why not needed?
+Decisions are the only artifact content that vanishes after the conversation ends. Code can be re-read. Config can be re-parsed. But "chose X over Y because Z" exists only in the conversation until you write it down. Prioritize by what is irrecoverable, not by what generates errors.
 
 ### Context Assembly
 
@@ -280,12 +342,16 @@ Read ALL artifact files listed — the cost is low, the risk of skipping is high
 
 When you encounter information, route it to the correct location:
 
-- **Specific to this node** → local node artifact (\`responsibility.md\`, \`interface.md\`, or \`internals.md\` depending on the knowledge type)
+- **Node identity and boundaries** → responsibility.md ("this module handles X, is NOT responsible for Y")
+- **Domain rules and business constraints** → responsibility.md ("rejects orders below minimum because margin doesn't cover shipping")
+- **Exported API contracts** → interface.md (signatures, return types, failure modes)
+- **Design decisions with rejected alternatives** → internals.md ## Decisions ("Chose X over Y because Z")
+- **Non-obvious constraints** → internals.md ## Constraints
+- **Internal function signatures, algorithm steps, config file settings, directory listings** → already in source code (no artifact needed)
 - **Rule for many nodes** → aspect (\`aspects/<id>/\` with \`yg-aspect.yaml\` + content \`.md\` files). If applies to ALL nodes of a type → required aspects in \`yg-config.yaml\`
 - **Business process** → flow (\`flows/<name>/\` with \`yg-flow.yaml\` + \`description.md\`). Ask user if process unclear.
 - **Shared across a domain** → parent node artifact. Children receive it through hierarchy.
 - **Technology stack or standard** → node artifact at the appropriate hierarchy level
-- **Decision (why + why NOT):** one node → Decisions section of \`internals.md\` with format "Chose X over Y because Z"; category of nodes → aspect content files. Always include rejected alternatives. If rationale unknown: record with "rationale: unknown." Never invent.
 - **Business strategy** (personas, pricing, acquisition channels) → root node artifact or dedicated business-context aspect. This knowledge has NO source file — it exists only in specs and conversations.
 - **Quality targets** (performance budgets, accessibility, test coverage goals) → aspect per quality dimension.
 - **UX patterns** (autosave, version history, empty states) → aspect when the pattern applies to 3+ screens.
@@ -295,7 +361,12 @@ When you encounter information, route it to the correct location:
 
 | What you have | Where it goes |
 |---|---|
-| Information specific to this node | Local node artifact (\`responsibility.md\`, \`interface.md\`, or \`internals.md\`) |
+| Node identity and boundaries | responsibility.md |
+| Domain rules and business constraints | responsibility.md |
+| Exported API contracts | interface.md |
+| Design decisions (chose X over Y because Z) | internals.md ## Decisions |
+| Non-obvious constraints | internals.md ## Constraints |
+| Already visible in source code or config files | No artifact needed |
 | Rule that applies to many nodes | Aspect (content \`.md\` files in \`aspects/<id>/\`) |
 | Architectural invariant for a node type | Required aspect in \`yg-config.yaml\` |
 | Business process participation | Flow (\`yg-flow.yaml nodes\`) |
@@ -317,7 +388,7 @@ When you encounter information, route it to the correct location:
 
 Test: "Does this requirement apply to more than one node?" Yes → aspect. No → local artifact.
 
-**Anchor requirement:** Every aspect MUST define at least one claim in the anchors field. Claims are natural language properties that source files must satisfy. Example: an \`audit-logging\` aspect might define claims: "Every data-modifying operation creates an audit log entry", "Audit entries include the authenticated user." Claims are verified by LLM at approve time — agents do not write regex proofs.
+**Anchor requirement:** Every aspect MUST define at least one claim in the anchors field. Claims are natural language properties that source files must satisfy. Example: an \`audit-logging\` aspect might define claims: "Every data-modifying operation creates an audit log entry", "Audit entries include the authenticated user." Claims are verified by the reviewer at approve time — agents do not write regex proofs.
 
 **Claim authoring guidance:** Claims should be per-file verifiable properties. Good claims:
 - "Functions do not use Date.now(), Math.random(), or filesystem writes"
@@ -359,7 +430,7 @@ relations:
 \`\`\`
 
 At check time: E057 fires if target has ports but consumer has no consumes. E058 fires if consumes references undefined port.
-At approve time: LLM verifies consumer satisfies port-required aspect claims (E055).
+At approve time: Reviewer verifies consumer satisfies port-required aspect claims (E055).
 
 ### CLI Commands
 
@@ -377,27 +448,30 @@ and what command to run next.
 - **Coverage (E022):** source files not mapped. Bootstrap workflow.
 - **Completeness (E030-E039):** artifacts missing or too thin. Write them.
 - **Architecture (E050-E058):** references broken or contracts violated. Fix references.
-- **Semantic (E055-E056, approve only):** LLM found claims not met or artifacts stale.
+- **Semantic (E055-E056, approve only):** Reviewer found claims not met or artifacts stale.
 
 Follow the CLI's suggested next command.
 
 ### Approve Enforcement
 
-Approve is the semantic verification gate. It runs two LLM checks:
+Approve is the semantic verification gate. It runs two reviewer checks:
 1. **Aspect verification (E055):** checks each claim against source code — fires E055 for unmet claims
 2. **Artifact review (E056):** checks if responsibility.md, interface.md, internals.md are current — fires E056 for stale artifacts
 
-If LLM is not configured, approve works as before (three-axis detection only).
+**Do NOT interrupt \`yg approve\`.** When reviewer is configured, approve calls the reviewer for every claim across every source file — this takes time and is intentional. Interrupting it leaves drift state unrecorded and forces a re-run.
+
+If reviewer is not configured, approve works as before (three-axis detection only).
 
 \`yg approve --node <path>\` checks three axes: graph artifacts changed?,
 source files changed?, upstream context changed?
 
 - Both artifacts AND source changed → ACCEPTS
-- Only one side changed → REFUSES (update the other side, or --acknowledge)
-- Only upstream changed → REFUSES (review compliance, or --acknowledge)
+- Only one side changed → REFUSES (update the other side, or --reviewed)
+- Only upstream changed → REFUSES (review compliance, or --reviewed)
 
-\`--acknowledge "reason"\` is the conscious exception: overrides the gate
-when one side changed but the other doesn't need updating.
+\`--reviewed "reason"\` bypasses the three-axis gate ONLY. The reviewer still
+verifies claims (E055) and artifact freshness (E056). Use when one side
+changed but the other doesn't need updating.
 CLI explains the specific mismatch and recovery steps when approve refuses.`;
 
 // prettier-ignore
@@ -476,7 +550,7 @@ Trigger: \`yg check\` shows E022 with high uncovered file count, or 0 nodes.
 
 - [ ] 1. Identify the active work area (files the user wants to modify)
 - [ ] 2. Create blackbox nodes for areas you will NOT work on
-- [ ] 3. Create proper nodes for areas you WILL work on (full artifacts)
+- [ ] 3. Create proper nodes for areas you WILL work on (artifacts per Artifact Structure guidance)
 - [ ] 4. Scan for cross-cutting patterns → create aspects
 - [ ] 5. Ask user about business processes → create flows if applicable
 - [ ] 6. \`yg check\`, \`yg approve\` per node

@@ -1,5 +1,5 @@
 {
-  "hash": "1209a026547249d4ef2c85b1bcc552032999b067607723e88c825e7706007390",
+  "hash": "9be9d451a49810dbcd2db3f7f2a34533a5497dc096cacc7122d2354fc5d217d5",
   "files": {
     ".yggdrasil/model/cli/tests/unit/core/context/yg-node.yaml": "cc006a6b91d579b1fb0ea6cf136f10e7919a494338ba49679c5d062b9ae3f57a",
     ".yggdrasil/model/cli/tests/unit/core/context/responsibility.md": "98258b03d5c918f493627a37cd39a2a457af9f68d3c4d9c2065870b0ab171799",
@@ -12,14 +12,12 @@
     ".yggdrasil/model/cli/tests/unit/responsibility.md": "b3f97072d3b27d4c7874906ee918b4f1d41d0ac22ddba05da7af4f64452ed103",
     ".yggdrasil/model/cli/tests/unit/core/yg-node.yaml": "298e5421fca1bb3f0a6c3536cc8d5514e9f5b943e68f085eafa089f04d8168cf",
     ".yggdrasil/model/cli/tests/unit/core/responsibility.md": "b66b8241f6d2ce98ef68af26fe3b7bf484c85c6451bdfdf0599d71ec3288e3b6",
-    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "e6c0c095222ce0d80b79af77f5966d02f541b514205a4b551354b65ef5938900",
+    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "462df48ae702ab782902adfecb0ce3d3fee925134847b7a984fc33b8459fdd0d",
     ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
-    ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": "0b98be4ee4221db627b892cddeb548a94e3cb1bfce936b9555bd30d7c225e34d",
-    ".yggdrasil/aspects/posix-paths/content.md": "38daf50dec99307443fd8951019cf534c74571a7778d43e55a4354d9d2faeefc",
-    "source/cli/tests/unit/core/context-builder.test.ts": "cd31b119c5edb6e3bebdbd1e3dd624faa1d3ccb5c592084141bb072a157647b6",
     "source/cli/tests/unit/core/context-files.test.ts": "a4e0caaffdfa15728b89bd1fec97153dbd1200dff0d1aab259a8a1451761405b",
     "source/cli/tests/unit/core/graph-loader.test.ts": "48140ecca74d882f2850b5e1a30c223873799e1a8272158d65f871bfe09c8a24",
-    "source/cli/tests/unit/core/__snapshots__/context-builder.test.ts.snap": "a9f95e301031fe492f635c09baffefcde7c9ccfcfbc82b607b2e1e273339b81e"
+    "source/cli/tests/unit/core/context-builder.test.ts": "5c0750b95bbae277ae35014e500e56027af899ad4d199876c1f21f47965e4c7c",
+    "source/cli/tests/unit/core/__snapshots__/context-builder.test.ts.snap": "5a055215ff66a82ee4f6362345cd02c78f3356b66bf95904cd5cc4741215cb60"
   },
   "mtimes": {
     ".yggdrasil/model/cli/tests/unit/core/context/yg-node.yaml": 1775327956359.1255,
@@ -33,14 +31,12 @@
     ".yggdrasil/model/cli/tests/unit/responsibility.md": 1775052695088.1653,
     ".yggdrasil/model/cli/tests/unit/core/yg-node.yaml": 1775243577536.9612,
     ".yggdrasil/model/cli/tests/unit/core/responsibility.md": 1775054577303.7114,
-    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775328133881.7266,
+    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775558093855.0654,
     ".yggdrasil/aspects/deterministic/content.md": 1772778780694.5889,
-    ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": 1775328137050.7122,
-    ".yggdrasil/aspects/posix-paths/content.md": 1772743197466.7686,
-    "source/cli/tests/unit/core/context-builder.test.ts": 1775327571682.9082,
-    "source/cli/tests/unit/core/context-files.test.ts": 1775313141985.4495,
+    "source/cli/tests/unit/core/context-builder.test.ts": 1775561084003.6226,
+    "source/cli/tests/unit/core/context-files.test.ts": 1775551896865.804,
     "source/cli/tests/unit/core/graph-loader.test.ts": 1773390442109.678,
-    "source/cli/tests/unit/core/__snapshots__/context-builder.test.ts.snap": 1775311470218.3948
+    "source/cli/tests/unit/core/__snapshots__/context-builder.test.ts.snap": 1775561110571.5823
   },
-  "acknowledgeReason": "v4 migration: flat mapping, claims, and doc updates"
+  "reviewedReason": "removed Generated timestamp assertion — formatContextMarkdown no longer emits Date.now()"
 }

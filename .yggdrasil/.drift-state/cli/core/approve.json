@@ -1,7 +1,8 @@
 {
-  "hash": "6b0755cbe84ac83ac600acc3a1f51ba0411b4837b9b63c39c695ae66d2f6f27f",
+  "hash": "789159f8baa68c5df4d7cdb38b106a1c0c447c85e2b7d934830d85a5720b6121",
   "files": {
-    ".yggdrasil/model/cli/core/approve/yg-node.yaml": "f12eaeac8968e5dcb64950b3366b75c098b5eb6ddf0b41011ab86cc6065c62ed",
+    ".yggdrasil/model/cli/core/approve/yg-node.yaml": "4cd7b7685a24b786b2d8c1c47bc55a9089779d026e93db37c9411f0b4c6127ff",
+    ".yggdrasil/model/cli/core/approve/internals.md": "c53dc320e304fa84b175d386ca59eefc986559f75994aa9d73d81323f838e113",
     ".yggdrasil/model/cli/core/approve/responsibility.md": "2e4d20349ca40fbe44558587a0ccf2d34260947dbdb1f3ac76c285c92aaf1b9e",
     ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df",
     ".yggdrasil/model/cli/internals.md": "7440678f012e45d8b15a4efc252cc3b4220fe7aec98fb673786abd9c2a37f9f0",
@@ -10,21 +11,22 @@
     ".yggdrasil/model/cli/core/interface.md": "807008eb6f673273034d7d3325a36f37ea1c7a4e46df362e2a4fa9ccd9451de9",
     ".yggdrasil/model/cli/core/internals.md": "804638612a8f8372a83b08b9c720e4421be43caefb12d20117d59d1b5194b4c1",
     ".yggdrasil/model/cli/core/responsibility.md": "2aa9f1d64abf86aed604a1823392c3d40b963eb8416b38ef877bcccddd7ff086",
-    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "e6c0c095222ce0d80b79af77f5966d02f541b514205a4b551354b65ef5938900",
+    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "462df48ae702ab782902adfecb0ce3d3fee925134847b7a984fc33b8459fdd0d",
     ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
     ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": "0b98be4ee4221db627b892cddeb548a94e3cb1bfce936b9555bd30d7c225e34d",
     ".yggdrasil/aspects/posix-paths/content.md": "38daf50dec99307443fd8951019cf534c74571a7778d43e55a4354d9d2faeefc",
     ".yggdrasil/model/cli/io/responsibility.md": "ef22e0a0164d75ab5898e180a04e6b943c3ce24d57242258e52cbc05ae48a7a5",
-    ".yggdrasil/model/cli/io/interface.md": "79ea1701427e6f39dc44aade7d275931d0c08159c053de34dc41fb095b0406ab",
     ".yggdrasil/model/cli/utils/responsibility.md": "4918c48366c7b3f35bb7b97fa74252c47f14ba72417c5cc5f3e1100b503c7ddd",
     ".yggdrasil/model/cli/utils/interface.md": "051aef97613feeaf82746a2d576f2a96346c3bb916144d88b8bc13b115b2d2ba",
+    "source/cli/src/core/approve.ts": "3177e766ebca9306a2c2a031ef2d5e5c443f8aed0d1c063b32d4c57a303f5a7f",
     "source/cli/src/core/.gitkeep": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
-    ".yggdrasil/model/cli/core/approve/interface.md": "cb78cf1bed22acc3ab0088601fa179e4aec4ce6be48016a05cc7742ce27eccea",
-    "source/cli/src/core/approve.ts": "6be41ea338970c2a185d740a942a5a45dd9f63a70b909da00cc9fcd27b9db07e"
+    ".yggdrasil/model/cli/core/approve/interface.md": "28931429752a2fc67fe6c510dde0dae9c31e7a0293e62603ad8aa0bb16dfdf28",
+    ".yggdrasil/model/cli/io/interface.md": "afc3ed662c571b4d8ee75b1282a7c0b711c895e05534cd1a1ae0d95aaf29cf31"
   },
   "mtimes": {
-    ".yggdrasil/model/cli/core/approve/yg-node.yaml": 1775327956346.4243,
-    ".yggdrasil/model/cli/core/approve/interface.md": 1775543684764.8723,
+    ".yggdrasil/model/cli/core/approve/yg-node.yaml": 1775561447770.956,
+    ".yggdrasil/model/cli/core/approve/interface.md": 1775565977680.385,
+    ".yggdrasil/model/cli/core/approve/internals.md": 1775556067526.9194,
     ".yggdrasil/model/cli/core/approve/responsibility.md": 1775508052540.4014,
     ".yggdrasil/model/cli/yg-node.yaml": 1775243577620.7664,
     ".yggdrasil/model/cli/internals.md": 1775329681280.232,
@@ -33,16 +35,16 @@
     ".yggdrasil/model/cli/core/interface.md": 1772743197442.582,
     ".yggdrasil/model/cli/core/internals.md": 1775329732456.7566,
     ".yggdrasil/model/cli/core/responsibility.md": 1772828321933.1968,
-    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775328133881.7266,
+    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775561447770.7463,
     ".yggdrasil/aspects/deterministic/content.md": 1772778780694.5889,
     ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": 1775328137050.7122,
     ".yggdrasil/aspects/posix-paths/content.md": 1772743197466.7686,
     ".yggdrasil/model/cli/io/responsibility.md": 1775332254662.6868,
-    ".yggdrasil/model/cli/io/interface.md": 1775332404756.6104,
+    ".yggdrasil/model/cli/io/interface.md": 1775564798266.503,
     ".yggdrasil/model/cli/utils/responsibility.md": 1772743197446.85,
     ".yggdrasil/model/cli/utils/interface.md": 1775217330039.2043,
-    "source/cli/src/core/approve.ts": 1775542520513.625,
+    "source/cli/src/core/approve.ts": 1775563906652.5513,
     "source/cli/src/core/.gitkeep": 1771702275792.706
   },
-  "acknowledgeReason": "vocabulary alignment — JSDoc 'bilateral' → 'conscious exception', refuseReason 'own artifacts' → 'graph artifacts'; no logic change"
+  "reviewedReason": "artifact update only: renamed acknowledge→reviewed in interface.md to match existing source; source was already using reviewed"
 }

@@ -184,8 +184,8 @@ describe('approveNode — proper nodes', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  // Row 2 with --acknowledge: ACCEPTS
-  it('accepts graph-only change with --acknowledge', async () => {
+  // Row 2 with --reviewed: ACCEPTS
+  it('accepts graph-only change with --reviewed', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('graph-ack', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
@@ -197,8 +197,8 @@ describe('approveNode — proper nodes', () => {
       'Typo fix in responsibility, no source impact at all here.',
     );
     const graph = await loadGraph(tmpDir);
-    const result = await approveNode(graph, 'svc/my-service', { acknowledge: 'typo fix in docs' });
-    expect(result.action).toBe('acknowledged');
+    const result = await approveNode(graph, 'svc/my-service', { reviewed: 'typo fix in docs' });
+    expect(result.action).toBe('reviewed');
     await rm(tmpDir, { recursive: true, force: true });
   });
 
@@ -219,8 +219,8 @@ describe('approveNode — proper nodes', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  // Row 3 with --acknowledge: ACCEPTS
-  it('accepts source-only change with --acknowledge', async () => {
+  // Row 3 with --reviewed: ACCEPTS
+  it('accepts source-only change with --reviewed', async () => {
     const { tmpDir } = await createTmpProject('source-ack', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
@@ -229,12 +229,49 @@ describe('approveNode — proper nodes', () => {
     await recordBaseline(tmpDir);
     await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'export default 99;\n');
     const graph = await loadGraph(tmpDir);
-    const result = await approveNode(graph, 'svc/my-service', { acknowledge: 'formatter ran, no semantic change' });
-    expect(result.action).toBe('acknowledged');
+    const result = await approveNode(graph, 'svc/my-service', { reviewed: 'formatter ran, no semantic change' });
+    expect(result.action).toBe('reviewed');
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  // Row 4: cascade only → REFUSES (requires --acknowledge)
+  // --reviewed: reviewer still runs (key behavioral change from --acknowledge)
+  it('runs LLM verification even with --reviewed', async () => {
+    const { tmpDir, yggRoot } = await createTmpProject('reviewed-llm', {
+      nodePath: 'svc/my-service',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - test-aspect\nmapping:\n  - src/svc/\n',
+      mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
+      aspects: [{
+        id: 'test-aspect',
+        yaml: 'name: TestAspect\ndescription: test\nanchors:\n  - id: must-export\n    claim: "File must export a default value"\n',
+        files: { 'content.md': 'Must export a default value.\n' },
+      }],
+    });
+    await recordBaseline(tmpDir);
+    await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'export default 99;\n');
+    const graph = await loadGraph(tmpDir);
+
+    // Mock LLM provider that fails a claim
+    const mockProvider = {
+      async verifyClaim() { return { satisfied: false, reason: 'Mock: claim not satisfied' }; },
+      async reviewArtifact() { return { current: true, reason: 'ok' }; },
+      async isAvailable() { return true; },
+      async getContextWindowSize() { return 8192; },
+    };
+
+    const result = await approveNode(graph, 'svc/my-service', {
+      reviewed: 'formatting change',
+      llmProvider: mockProvider,
+    });
+
+    // Key assertion: even with --reviewed, LLM refusal wins
+    expect(result.action).toBe('refused');
+    expect(result.refuseReason).toContain('Reviewer verification found issues');
+    expect(result.e055Violations).toBeDefined();
+    expect(result.e055Violations!.length).toBeGreaterThan(0);
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  // Row 4: cascade only → REFUSES (requires --reviewed)
   it('refuses when only other tracked files changed (cascade)', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('cascade-only', {
       nodePath: 'svc/my-service',
@@ -256,8 +293,8 @@ describe('approveNode — proper nodes', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  // Row 4 with --acknowledge: ACCEPTS
-  it('accepts cascade with --acknowledge', async () => {
+  // Row 4 with --reviewed: ACCEPTS
+  it('accepts cascade with --reviewed', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('cascade-ack', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - logging\nmapping:\n  - src/svc/\n',
@@ -271,8 +308,8 @@ describe('approveNode — proper nodes', () => {
     await recordBaseline(tmpDir);
     await writeFile(path.join(yggRoot, 'aspects/logging/rules.md'), 'Log ALL operations.\n');
     const graph = await loadGraph(tmpDir);
-    const result = await approveNode(graph, 'svc/my-service', { acknowledge: 'source already compliant' });
-    expect(result.action).toBe('acknowledged');
+    const result = await approveNode(graph, 'svc/my-service', { reviewed: 'source already compliant' });
+    expect(result.action).toBe('reviewed');
     await rm(tmpDir, { recursive: true, force: true });
   });
 
@@ -326,8 +363,8 @@ describe('approveNode — proper nodes', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  // --acknowledge with empty reason → error
-  it('rejects empty acknowledge reason', async () => {
+  // --reviewed with empty reason → error
+  it('rejects empty reviewed reason', async () => {
     const { tmpDir } = await createTmpProject('empty-ack', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
@@ -336,7 +373,7 @@ describe('approveNode — proper nodes', () => {
     await recordBaseline(tmpDir);
     await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'export default 99;\n');
     const graph = await loadGraph(tmpDir);
-    await expect(approveNode(graph, 'svc/my-service', { acknowledge: '' }))
+    await expect(approveNode(graph, 'svc/my-service', { reviewed: '' }))
       .rejects.toThrow('non-empty');
     await rm(tmpDir, { recursive: true, force: true });
   });
@@ -384,8 +421,8 @@ describe('approveNode — blackbox nodes', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  // Blackbox: source changed + --acknowledge → REFUSES
-  it('refuses acknowledge on blackbox source change', async () => {
+  // Blackbox: source changed + --reviewed → REFUSES
+  it('refuses --reviewed on blackbox source change', async () => {
     const { tmpDir } = await createTmpProject('bb-source-ack', {
       nodePath: 'legacy/auth',
       nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\nmapping:\n  - src/auth/\n',
@@ -394,7 +431,7 @@ describe('approveNode — blackbox nodes', () => {
     await recordBaseline(tmpDir);
     await writeFile(path.join(tmpDir, 'src/auth/login.ts'), 'export function login() { return true; }\n');
     const graph = await loadGraph(tmpDir);
-    const result = await approveNode(graph, 'legacy/auth', { acknowledge: 'reason' });
+    const result = await approveNode(graph, 'legacy/auth', { reviewed: 'reason' });
     expect(result.action).toBe('refused');
     expect(result.blackboxBlocked).toBe(true);
     await rm(tmpDir, { recursive: true, force: true });
@@ -420,8 +457,8 @@ describe('approveNode — blackbox nodes', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  // Blackbox: cascade → requires --acknowledge
-  it('refuses cascade on blackbox without --acknowledge', async () => {
+  // Blackbox: cascade → requires --reviewed
+  it('refuses cascade on blackbox without --reviewed', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('bb-cascade', {
       nodePath: 'legacy/auth',
       nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\naspects:\n  - logging\nmapping:\n  - src/auth/\n',
@@ -440,8 +477,8 @@ describe('approveNode — blackbox nodes', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  // Blackbox: cascade + --acknowledge → ACCEPTS
-  it('accepts cascade on blackbox with --acknowledge', async () => {
+  // Blackbox: cascade + --reviewed → ACCEPTS
+  it('accepts cascade on blackbox with --reviewed', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('bb-cascade-ack', {
       nodePath: 'legacy/auth',
       nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\naspects:\n  - logging\nmapping:\n  - src/auth/\n',
@@ -455,13 +492,13 @@ describe('approveNode — blackbox nodes', () => {
     await recordBaseline(tmpDir);
     await writeFile(path.join(yggRoot, 'aspects/logging/rules.md'), 'Updated logging rules.\n');
     const graph = await loadGraph(tmpDir);
-    const result = await approveNode(graph, 'legacy/auth', { acknowledge: 'blackbox intact, upstream reviewed' });
-    expect(result.action).toBe('acknowledged');
+    const result = await approveNode(graph, 'legacy/auth', { reviewed: 'blackbox intact, upstream reviewed' });
+    expect(result.action).toBe('reviewed');
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  // Blackbox: graph (.md) + cascade (no source) → REFUSES without acknowledge
-  it('refuses graph+cascade on blackbox without --acknowledge', async () => {
+  // Blackbox: graph (.md) + cascade (no source) → REFUSES without --reviewed
+  it('refuses graph+cascade on blackbox without --reviewed', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('bb-graph-cascade', {
       nodePath: 'legacy/auth',
       nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\naspects:\n  - logging\nmapping:\n  - src/auth/\n',
@@ -485,10 +522,10 @@ describe('approveNode — blackbox nodes', () => {
     const graph = await loadGraph(tmpDir);
     const result = await approveNode(graph, 'legacy/auth');
     expect(result.action).toBe('refused');
-    // With --acknowledge it should accept
+    // With --reviewed it should accept
     const graph2 = await loadGraph(tmpDir);
-    const result2 = await approveNode(graph2, 'legacy/auth', { acknowledge: 'graph+cascade reviewed' });
-    expect(result2.action).toBe('acknowledged');
+    const result2 = await approveNode(graph2, 'legacy/auth', { reviewed: 'graph+cascade reviewed' });
+    expect(result2.action).toBe('reviewed');
     await rm(tmpDir, { recursive: true, force: true });
   });
 
@@ -552,8 +589,8 @@ describe('approveNode — blackbox nodes', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  // Blackbox: .md artifact changed only (no source, no cascade) → REFUSES without --acknowledge
-  it('refuses .md artifact change on blackbox without --acknowledge', async () => {
+  // Blackbox: .md artifact changed only (no source, no cascade) → REFUSES without --reviewed
+  it('refuses .md artifact change on blackbox without --reviewed', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('bb-md-only', {
       nodePath: 'legacy/auth',
       nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\nmapping:\n  - src/auth/\n',
@@ -570,10 +607,10 @@ describe('approveNode — blackbox nodes', () => {
     const graph = await loadGraph(tmpDir);
     const result = await approveNode(graph, 'legacy/auth');
     expect(result.action).toBe('refused');
-    // With --acknowledge it should accept
+    // With --reviewed it should accept
     const graph2 = await loadGraph(tmpDir);
-    const result2 = await approveNode(graph2, 'legacy/auth', { acknowledge: '.md enrichment only' });
-    expect(result2.action).toBe('acknowledged');
+    const result2 = await approveNode(graph2, 'legacy/auth', { reviewed: '.md enrichment only' });
+    expect(result2.action).toBe('reviewed');
     await rm(tmpDir, { recursive: true, force: true });
   });
 });
@@ -635,7 +672,7 @@ describe('approveNode — anti-laundering', () => {
       files: { 'src/auth/controller.ts': 'fake-hash' },
     });
     const graph = await loadGraph(tmpDir);
-    const result = await approveNode(graph, 'new-blackbox', { acknowledge: undefined });
+    const result = await approveNode(graph, 'new-blackbox', { reviewed: undefined });
     expect(result.action).toBe('refused');
     expect(result.antiLaunderingBlocked).toBe(true);
     expect(result.conflictingFiles).toContainEqual({
@@ -732,7 +769,7 @@ describe('approveNode — GC and recording', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('stores acknowledge reason in drift state', async () => {
+  it('stores reviewed reason in drift state', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('store-reason', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
@@ -741,11 +778,11 @@ describe('approveNode — GC and recording', () => {
     await recordBaseline(tmpDir);
     await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'export default 99;\n');
     const graph = await loadGraph(tmpDir);
-    await approveNode(graph, 'svc/my-service', { acknowledge: 'formatter ran' });
+    await approveNode(graph, 'svc/my-service', { reviewed: 'formatter ran' });
     // Read drift state and verify reason is stored
     const { readNodeDriftState: readState } = await import('../../../src/io/drift-state-store.js');
     const state = await readState(yggRoot, 'svc/my-service');
-    expect(state?.acknowledgeReason).toBe('formatter ran');
+    expect(state?.reviewedReason).toBe('formatter ran');
     await rm(tmpDir, { recursive: true, force: true });
   });
 
@@ -783,7 +820,7 @@ describe('approveNode — GC and recording', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('audit log includes acknowledge reason', async () => {
+  it('audit log includes reviewed reason', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('audit-ack', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
@@ -792,13 +829,13 @@ describe('approveNode — GC and recording', () => {
     await recordBaseline(tmpDir);
     await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'export default 99;\n');
     const graph = await loadGraph(tmpDir);
-    await approveNode(graph, 'svc/my-service', { acknowledge: 'formatter ran' });
+    await approveNode(graph, 'svc/my-service', { reviewed: 'formatter ran' });
 
     const { readFile: rf } = await import('node:fs/promises');
     const logContent = await rf(path.join(yggRoot, '.audit-log.jsonl'), 'utf-8');
     const lastLine = logContent.trim().split('\n').pop()!;
     const entry = JSON.parse(lastLine);
-    expect(entry.action).toBe('acknowledged');
+    expect(entry.action).toBe('reviewed');
     expect(entry.reason).toBe('formatter ran');
 
     await rm(tmpDir, { recursive: true, force: true });
@@ -962,23 +999,23 @@ describe('approveNode — GC and recording', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('acknowledge reason preserved across subsequent regular approve', async () => {
+  it('reviewed reason preserved across subsequent regular approve', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('reason-persist', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
     });
     await recordBaseline(tmpDir);
-    // Acknowledge with reason
+    // Review with reason
     await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'export default 99;\n');
     let graph = await loadGraph(tmpDir);
-    await approveNode(graph, 'svc/my-service', { acknowledge: 'formatter ran' });
+    await approveNode(graph, 'svc/my-service', { reviewed: 'formatter ran' });
     // Regular approve (no changes) — reason should persist
     graph = await loadGraph(tmpDir);
     await approveNode(graph, 'svc/my-service');
     const { readNodeDriftState: readState } = await import('../../../src/io/drift-state-store.js');
     const state = await readState(yggRoot, 'svc/my-service');
-    expect(state?.acknowledgeReason).toBe('formatter ran');
+    expect(state?.reviewedReason).toBe('formatter ran');
     await rm(tmpDir, { recursive: true, force: true });
   });
 });

@@ -8,11 +8,10 @@ quality:
     warning: 10000
     error: 20000
 
-llm:
-  provider: ollama
-  model: "qwen3.5:9b"
-  endpoint: "http://host.docker.internal:11434"
-  temperature: 0
-  consensus: 1
-  max_tokens: auto
+parallel: 10
+
+reviewer:
   verify_artifacts: false
+  consensus: 1
+  claude-code:
+    model: haiku

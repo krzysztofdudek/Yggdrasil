@@ -5,7 +5,7 @@ Library used by cli/core (loader, drift-detector). All paths are absolute; calle
 ## config-parser.ts
 
 - `parseConfig(filePath: string): Promise<YggConfig>`
-  - Reads and parses yg-config.yaml. Throws on missing name, invalid node_types (must be non-empty object keyed by type name, each entry must have non-empty description string), invalid quality (context_budget.error < warning). Returns parsed config with quality defaults. No longer parses or validates an `artifacts` section — artifacts are hardcoded as STANDARD_ARTIFACTS in cli/model.
+  - Reads and parses yg-config.yaml. Throws on missing name, invalid quality (context_budget.error < warning). Returns parsed config with quality defaults. Parses `reviewer:` section (nested provider structure) into flat `LlmConfig`. Throws on unknown keys under `reviewer:`, multiple providers without `active:` selector, `active:` pointing to unconfigured provider, invalid provider-specific fields (model, max_tokens, consensus). No `llm:` flat format support — removed.
 
 ## architecture-parser.ts
 
@@ -54,6 +54,13 @@ Library used by cli/core (loader, drift-detector). All paths are absolute; calle
 
 - `appendAuditEntry(yggRoot: string, entry: AuditEntry): Promise<void>`
   - Appends a single JSONL line to `.yggdrasil/.audit-log.jsonl`. Creates the file if it doesn't exist. Never reads or parses existing content — pure append. Callers provide the fully-formed entry; this function only serializes and writes.
+
+## secrets-parser.ts
+
+- `loadSecrets(rootPath: string, providerName?: string): Promise<Partial<LlmConfig> | undefined>`
+  - Reads `yg-secrets.yaml` from the given directory. Returns secrets for the given provider under `reviewer.<providerName>`. Returns `undefined` if no secrets file exists, no `reviewer:` section, or the provider key is absent. No `llm:` legacy format support.
+- `mergeLlmConfig(base: LlmConfig, secrets: Partial<LlmConfig>): LlmConfig`
+  - Merges secrets overrides into base config. Secrets fields take precedence.
 
 ## Failure Modes
 

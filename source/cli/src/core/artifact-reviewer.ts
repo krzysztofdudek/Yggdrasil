@@ -38,7 +38,7 @@ export async function reviewArtifacts(
         ? { current: false, reason: staleReason }
         : { current: true, reason: 'up to date' };
     } catch {
-      results[artifact.name] = { current: false, reason: 'LLM review failed' };
+      results[artifact.name] = { current: false, reason: 'Reviewer failed' };
     }
   }
 

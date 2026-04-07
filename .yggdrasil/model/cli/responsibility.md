@@ -33,6 +33,10 @@ The CLI is organized in a layered architecture with clear separation of concerns
 - Writing to graph files (model, aspects, flows) — tools read and validate only; agent writes
 - Capturing user intent (specify/clarify/plan) — that is process tooling, not this CLI
 
+## Terminology
+
+User-facing terminology uses "reviewer" (config key `reviewer:`, CLI messages "Verifying claims with reviewer"). Internal TypeScript code uses "LLM" (`LlmConfig`, `LlmProvider`, `llm/` directory, `llmSkipped`). The YAML key `reviewer:` is parsed into the `llm` field on `YggConfig`. This split is deliberate: "reviewer" describes the role (what it does for the user); "LLM" describes the implementation (what it is technically). Renaming internal types would be churn across 20+ files with no user-visible benefit.
+
 ## Invariant
 
 Tools never write yg-node.yaml or artifacts. Exception: init creates bootstrap structure; approve writes .drift-state.

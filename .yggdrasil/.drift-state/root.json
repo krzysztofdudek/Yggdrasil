@@ -1,10 +1,10 @@
 {
-  "hash": "ecf5e25ed5f44c55c362c4ac6ddc67b6b4521b0c695479920ab67a42eb477811",
+  "hash": "b401335271ec10b09e7ae4ab1334d68b620f373ffced3923450aacadc4862046",
   "files": {
     ".yggdrasil/model/root/yg-node.yaml": "058e1e161ce18f3ded4debee84559240371b22c055c19cbf2c774036e950b220",
     ".yggdrasil/model/root/responsibility.md": "6607fe31a2af85dc2f9329f5ca72fb96201c94c76d3d8c1b379bc6bbe3c0204e",
     ".claude/settings.local.json": "a12c71d91e7c3bb9cefb60afba8e7eb7478d091d41587e90c0c5c3c0c2f464b5",
-    ".cursor/rules/yggdrasil.mdc": "d4a2b797d68fdf26305fee7174d54841618dc95f457ea21cd66f0518fe0f4c30",
+    ".cursor/rules/yggdrasil.mdc": "31f238c847bacee5120e87c5df8ab5bef463edc7a3e846c2ebf6f2db49a9c6d2",
     ".devcontainer/Dockerfile": "5ac853e6fd512645c01b4eda77fa525dabf5c9197e3893348ac056dbbc4f7ec2",
     ".devcontainer/devcontainer.json": "7fd97efdebe9b4b9103ef048765fbe53c39995328011ef8dc5d47023a72b5539",
     ".devcontainer/post-create.sh": "88adca8a6b756708c1dc5f15efd1397f308bdb74b9fba25511d80d8e00c717c0",
@@ -19,8 +19,8 @@
     ".gitignore": "49aba51909f5ca8371ceb8d0dafd76ebc8f9df49f3d81f9db7b655f6196d42b6",
     ".markdownlint-cli2.jsonc": "9f01728d19c7a071af91a01331ce0b942bcf7b5bd5ecfe10ffa21d4c0c7fec26",
     ".nvmrc": "f14b4987904bcb5814e4459a057ed4d20f58a633152288a761214dcd28780b56",
-    "AGENTS.md": "daa16826bd691e37e3b3b06228a081b9d2622535ffcd0d28603a21a155db50cb",
-    "CLAUDE.md": "c8512f4d6a3f7fb8d7e10556586ca2e832f757a205e5186488d32fb610cb8791",
+    "CHANGELOG.md": "a1ce63989cb2c9524c9705e20f62f73dd76c33da4e0fd2d3ea69f678cad6ac4d",
+    "CLAUDE.md": "6904da5321bd8e3b5a4f55eae1156cb4b4b10ffcbeab71c6378e214c2d132899",
     "CODE_OF_CONDUCT.md": "ca754dbf6be4f6aed4433f52942d0510b28ab77a56f95cfb1c77a18897683d29",
     "CONTRIBUTING.md": "f9849f24f17a8b4bf426398a704848d3d559aa618879f7336c7dd738a026d5e3",
     "LICENSE": "bebb1b5a0f55991bda4fdc25b55b16f7e296af4b626a16546f90093097ebcee6",
@@ -30,13 +30,13 @@
     "Yggdrasil.code-workspace": "b45f51c191f4221f9ea6ebb27c4e1e91bdd3fbdc41a2d4058fca3eb1f9ac0e6e",
     "trailer.html": "d8a88494da600617368403314b19024191f462468c8241687a7de27d65aff4dc",
     "source/.gitkeep": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "CHANGELOG.md": "96c9172e626511752e05e6436b550b09b97ef163745a2f5945b20de78d96a2e7"
+    "AGENTS.md": "f1618ceb40dbf5153b0274e9a72a7b73e451906dca7f9df5d00d4cebcc61f5f0"
   },
   "mtimes": {
     ".yggdrasil/model/root/yg-node.yaml": 1775327956368.3252,
     ".yggdrasil/model/root/responsibility.md": 1775304994911.8604,
     ".claude/settings.local.json": 1774962645148.887,
-    ".cursor/rules/yggdrasil.mdc": 1775278021393.3076,
+    ".cursor/rules/yggdrasil.mdc": 1775553438046.6458,
     ".devcontainer/Dockerfile": 1771702275764.0933,
     ".devcontainer/devcontainer.json": 1771787302621.9912,
     ".devcontainer/post-create.sh": 1771787305385.4128,
@@ -51,9 +51,9 @@
     ".gitignore": 1774937632197.0374,
     ".markdownlint-cli2.jsonc": 1774969139392.975,
     ".nvmrc": 1771702275769.176,
-    "AGENTS.md": 1775029557799.4475,
-    "CHANGELOG.md": 1775542969935.184,
-    "CLAUDE.md": 1775276600404.4944,
+    "AGENTS.md": 1775567224926.4556,
+    "CHANGELOG.md": 1775562909440.6223,
+    "CLAUDE.md": 1775552021462.8713,
     "CODE_OF_CONDUCT.md": 1771702275784.5166,
     "CONTRIBUTING.md": 1775029551569.4338,
     "LICENSE": 1771411022613.348,
@@ -64,5 +64,5 @@
     "trailer.html": 1774035679182.4175,
     "source/.gitkeep": 1771702275788.3037
   },
-  "acknowledgeReason": "CHANGELOG.md updated — content addition only, no behavioral change to root node"
+  "reviewedReason": "cascade from docs changes; root artifacts unchanged"
 }

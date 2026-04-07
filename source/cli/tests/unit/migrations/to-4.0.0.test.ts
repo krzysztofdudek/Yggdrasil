@@ -516,9 +516,9 @@ describe('to-4.0.0 migration', () => {
 
       const secretsExample = path.join(TMP_DIR, 'yg-secrets.example.yaml');
       const content = await readFile(secretsExample, 'utf-8');
-      expect(content).toContain('llm:');
-      expect(content).toContain('api_key:');
-      expect(content).toContain('provider:');
+      expect(content).toContain('reviewer:');
+      expect(content).toContain('ollama:');
+      expect(content).toContain('claude-code:');
       expect(result.actions.some((a) => a.includes('yg-secrets.example.yaml'))).toBe(true);
     });
 
@@ -632,7 +632,7 @@ describe('to-4.0.0 migration', () => {
       expect(result.actions.some((a) => a.includes("Migrated aspect 'already-migrated'"))).toBe(false);
     });
 
-    it('adds llm section placeholder to yg-config.yaml', async () => {
+    it('does not add reviewer placeholder — config without reviewer section is valid', async () => {
       await writeFile(
         path.join(TMP_DIR, 'yg-config.yaml'),
         'version: "3.0.0"\nname: "Test"\n',
@@ -641,8 +641,8 @@ describe('to-4.0.0 migration', () => {
       const result = await migrateToV4(TMP_DIR);
 
       const config = parseYaml(await readFile(path.join(TMP_DIR, 'yg-config.yaml'), 'utf-8')) as Record<string, unknown>;
-      expect(config.llm).toBeDefined();
-      expect(result.warnings.some((w) => w.includes('LLM config'))).toBe(true);
+      expect(config.reviewer).toBeUndefined();
+      expect(result.warnings.some((w) => w.toLowerCase().includes('reviewer'))).toBe(false);
     });
   });
 });

@@ -3,7 +3,6 @@
 exports[`context-builder > formatContextMarkdown > produces correct markdown structure (snapshot) 1`] = `
 "# Context Package: OrderService
 # Path: orders/order-service
-# Generated: 2026-02-10T12:00:00.000Z
 
 ---
 

@@ -58,7 +58,7 @@ export function formatOutput(result: CheckResult): string {
   }
 
   if (!result.llmAvailable) {
-    lines.push('Claim verification disabled — no LLM provider configured.');
+    lines.push('Claim verification disabled — no reviewer configured.');
   }
   lines.push('');
 

@@ -1,16 +1,14 @@
 {
-  "hash": "18c93662f1b486b4c0c338b7b274a7236251574490ecdbaf7211611f0bb7a097",
+  "hash": "497122e3e1e7d35a3409c9d531449e3f5d22039683e48cfb4f54db8e6e903cfa",
   "files": {
     ".yggdrasil/model/cli/templates/yg-node.yaml": "1d63abdf81a1e10fee901e0a379e905de1a48a91513a34fac7ddb63b181f3c07",
     ".yggdrasil/model/cli/templates/interface.md": "cc71b80c1bd87529d80784cb3b6f8ca3640b1d4d91e6da0219985b85c7f065f3",
     ".yggdrasil/model/cli/templates/internals.md": "7a5b9c7204fcf9896c172258b61c8ace494760327599359e0a1392d667a6e44d",
+    ".yggdrasil/model/cli/templates/responsibility.md": "9288e63e871ba1815c0f492c7ab413202497a16cc8720eff69399eb2353a544c",
     ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df",
     ".yggdrasil/model/cli/internals.md": "7440678f012e45d8b15a4efc252cc3b4220fe7aec98fb673786abd9c2a37f9f0",
     ".yggdrasil/model/cli/responsibility.md": "696e0f5f377eba69a843a18379e8f20e0322dc037182690629652a75aa2227fb",
-    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "e6c0c095222ce0d80b79af77f5966d02f541b514205a4b551354b65ef5938900",
     ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
-    ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": "0b98be4ee4221db627b892cddeb548a94e3cb1bfce936b9555bd30d7c225e34d",
-    ".yggdrasil/aspects/posix-paths/content.md": "38daf50dec99307443fd8951019cf534c74571a7778d43e55a4354d9d2faeefc",
     ".yggdrasil/flows/init/yg-flow.yaml": "eb35f927c712f8bae38cb5c5fcd0193432aea2fb7adc5e75f777764300ce3177",
     ".yggdrasil/flows/init/description.md": "7ab06dca456fe57c748e343faba4dff4db88ef73792ab2eaf28298ff595adba0",
     "source/cli/src/templates/default-config.ts": "826522e57c0430856a4edbfe973862e150908439f4ac75acf22f688caeb86d38",
@@ -20,31 +18,29 @@
     "source/cli/graph-schemas/yg-config.yaml": "fec515cccdc37c743b79f097c6d99a0083c375ee4411a82b677c909e1aa87f22",
     "source/cli/graph-schemas/yg-flow.yaml": "0aebb3697ff75158bb5d2adf3c386b1acb7d628b59015b51b1e22b90980ed4ca",
     "source/cli/graph-schemas/yg-node.yaml": "459eaa01b75d297f346ad87205e271622b467184bd2779e7c223b40e0ac9f2b3",
-    ".yggdrasil/model/cli/templates/responsibility.md": "9288e63e871ba1815c0f492c7ab413202497a16cc8720eff69399eb2353a544c",
-    "source/cli/src/templates/rules.ts": "7acafce019be989304b3ecdf6859b08a981fbd0c3021a1bb895bcaeb49ac42ac"
+    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "462df48ae702ab782902adfecb0ce3d3fee925134847b7a984fc33b8459fdd0d",
+    "source/cli/src/templates/rules.ts": "f57cb616dc094b9aa5876077c707627a213cb04b95a2dc51697f5673cabe19af"
   },
   "mtimes": {
     ".yggdrasil/model/cli/templates/yg-node.yaml": 1775327956357.4224,
     ".yggdrasil/model/cli/templates/interface.md": 1775304875643.616,
     ".yggdrasil/model/cli/templates/internals.md": 1775045046749.9734,
-    ".yggdrasil/model/cli/templates/responsibility.md": 1775543720652.8997,
+    ".yggdrasil/model/cli/templates/responsibility.md": 1775545085532.323,
     ".yggdrasil/model/cli/yg-node.yaml": 1775243577620.7664,
     ".yggdrasil/model/cli/internals.md": 1775329681280.232,
     ".yggdrasil/model/cli/responsibility.md": 1775045623775.336,
-    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775328133881.7266,
+    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775561447770.7463,
     ".yggdrasil/aspects/deterministic/content.md": 1772778780694.5889,
-    ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": 1775328137050.7122,
-    ".yggdrasil/aspects/posix-paths/content.md": 1772743197466.7686,
     ".yggdrasil/flows/init/yg-flow.yaml": 1774035679161.664,
     ".yggdrasil/flows/init/description.md": 1772743197468.9497,
     "source/cli/src/templates/default-config.ts": 1775278021402.9246,
     "source/cli/src/templates/platform.ts": 1771702373192.354,
-    "source/cli/src/templates/rules.ts": 1775541620877.9124,
+    "source/cli/src/templates/rules.ts": 1775563571232.6826,
     "source/cli/graph-schemas/yg-architecture.yaml": 1775331985667.792,
     "source/cli/graph-schemas/yg-aspect.yaml": 1775331564130.646,
     "source/cli/graph-schemas/yg-config.yaml": 1775331996618.1624,
     "source/cli/graph-schemas/yg-flow.yaml": 1774864350264.0596,
     "source/cli/graph-schemas/yg-node.yaml": 1775331694181.9688
   },
-  "acknowledgeReason": "artifacts updated to reflect trimmed rules.ts: error tables replaced with categories, approve matrix replaced with prose, new CLI handoff points; posix-paths finding is pre-existing"
+  "reviewedReason": "cosmetic: LLM→reviewer terminology in rules string content + added Do NOT interrupt note; module interface unchanged"
 }

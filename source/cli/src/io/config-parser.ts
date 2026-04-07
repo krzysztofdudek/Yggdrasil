@@ -55,37 +55,25 @@ export async function parseConfig(filePath: string): Promise<YggConfig> {
     throw new Error('quality.context_budget.own_warning must be a positive number');
   }
 
-  // Parse llm section (optional)
-  let llm: LlmConfig | undefined;
-  if (raw.llm !== undefined) {
-    const llmRaw = raw.llm as Record<string, unknown>;
-    const provider = llmRaw.provider as string;
-    if (!['ollama', 'openai', 'anthropic'].includes(provider)) {
-      throw new Error(`yg-config.yaml: llm.provider must be 'ollama', 'openai', or 'anthropic', got '${provider}'`);
-    }
-    const model = llmRaw.model as string;
-    if (!model || typeof model !== 'string') {
-      throw new Error(`yg-config.yaml: llm.model must be a non-empty string`);
-    }
-    const consensus = (llmRaw.consensus as number) ?? 1;
-    if (!Number.isInteger(consensus) || consensus < 1 || consensus % 2 === 0) {
-      throw new Error(`yg-config.yaml: llm.consensus must be a positive odd integer >= 1, got ${consensus}`);
-    }
-    const maxTokens = llmRaw.max_tokens ?? 'auto';
-    if (maxTokens !== 'auto' && (typeof maxTokens !== 'number' || maxTokens < 1)) {
-      throw new Error(`yg-config.yaml: llm.max_tokens must be 'auto' or a positive number`);
-    }
+  // Known provider names
+  const KNOWN_PROVIDERS = ['ollama', 'claude-code'] as const;
+  // Known general keys under reviewer:
+  const GENERAL_KEYS = new Set(['active', 'verify_artifacts', 'consensus']);
 
-    llm = {
-      provider: provider as LlmConfig['provider'],
-      model,
-      endpoint: typeof llmRaw.endpoint === 'string' ? llmRaw.endpoint : undefined,
-      temperature: typeof llmRaw.temperature === 'number' ? llmRaw.temperature : 0,
-      consensus,
-      max_tokens: maxTokens as LlmConfig['max_tokens'],
-      verify_artifacts: llmRaw.verify_artifacts === true,
-      context_length_field: typeof llmRaw.context_length_field === 'string' ? llmRaw.context_length_field : undefined,
-    };
+  // Parse reviewer: section (or legacy llm: fallback)
+  let llm: LlmConfig | undefined;
+
+  if (raw.reviewer !== undefined) {
+    llm = parseReviewerSection(raw.reviewer as Record<string, unknown>, KNOWN_PROVIDERS, GENERAL_KEYS);
+  }
+
+  let parallel: number | undefined;
+  if (raw.parallel !== undefined) {
+    const p = raw.parallel as number;
+    if (!Number.isInteger(p) || p < 1) {
+      throw new Error(`yg-config.yaml: parallel must be a positive integer >= 1, got ${p}`);
+    }
+    parallel = p;
   }
 
   return {
@@ -93,5 +81,99 @@ export async function parseConfig(filePath: string): Promise<YggConfig> {
     name: (raw.name as string).trim(),
     quality,
     llm,
+    parallel,
   };
 }
+
+function parseReviewerSection(
+  reviewerRaw: Record<string, unknown>,
+  knownProviders: readonly string[],
+  generalKeys: Set<string>,
+): LlmConfig | undefined {
+  // Separate general keys from provider keys
+  const generalConfig: Record<string, unknown> = {};
+  const providerEntries: Array<{ name: string; config: Record<string, unknown> }> = [];
+
+  for (const [key, value] of Object.entries(reviewerRaw)) {
+    if (generalKeys.has(key)) {
+      generalConfig[key] = value;
+    } else if (knownProviders.includes(key)) {
+      if (value && typeof value === 'object') {
+        providerEntries.push({ name: key, config: value as Record<string, unknown> });
+      }
+    } else {
+      throw new Error(
+        `yg-config.yaml: unknown key '${key}' under reviewer:. Known general keys: ${[...generalKeys].join(', ')}. Known providers: ${knownProviders.join(', ')}.`,
+      );
+    }
+  }
+
+  // Provider discovery
+  if (providerEntries.length === 0) return undefined;
+
+  let selectedProvider: { name: string; config: Record<string, unknown> };
+
+  if (generalConfig.active !== undefined) {
+    const activeName = String(generalConfig.active);
+    const found = providerEntries.find(p => p.name === activeName);
+    if (!found) {
+      throw new Error(
+        `yg-config.yaml: reviewer.active is '${activeName}' but '${activeName}' is not configured under reviewer:.`,
+      );
+    }
+    selectedProvider = found;
+  } else if (providerEntries.length === 1) {
+    selectedProvider = providerEntries[0];
+  } else {
+    throw new Error(
+      `yg-config.yaml: multiple providers configured under reviewer: (${providerEntries.map(p => p.name).join(', ')}). Set reviewer.active to select one.`,
+    );
+  }
+
+  // Extract general params
+  const verifyArtifacts = generalConfig.verify_artifacts === true;
+  const consensus = (generalConfig.consensus as number) ?? 1;
+  if (!Number.isInteger(consensus) || consensus < 1 || consensus % 2 === 0) {
+    throw new Error(`yg-config.yaml: reviewer.consensus must be a positive odd integer >= 1, got ${consensus}`);
+  }
+
+  // Normalize provider-specific config to flat LlmConfig
+  const pc = selectedProvider.config;
+
+  if (selectedProvider.name === 'ollama') {
+    const model = pc.model as string;
+    if (!model || typeof model !== 'string') {
+      throw new Error(`yg-config.yaml: reviewer.ollama.model must be a non-empty string`);
+    }
+    const maxTokens = pc.max_tokens ?? 'auto';
+    if (maxTokens !== 'auto' && (typeof maxTokens !== 'number' || maxTokens < 1)) {
+      throw new Error(`yg-config.yaml: reviewer.ollama.max_tokens must be 'auto' or a positive number`);
+    }
+    return {
+      provider: 'ollama',
+      model,
+      endpoint: typeof pc.endpoint === 'string' ? pc.endpoint : undefined,
+      temperature: typeof pc.temperature === 'number' ? pc.temperature : 0,
+      consensus,
+      max_tokens: maxTokens as LlmConfig['max_tokens'],
+      verify_artifacts: verifyArtifacts,
+      context_length_field: typeof pc.context_length_field === 'string' ? pc.context_length_field : undefined,
+    };
+  }
+
+  if (selectedProvider.name === 'claude-code') {
+    const model = typeof pc.model === 'string' ? pc.model : 'haiku';
+    return {
+      provider: 'claude-code',
+      model,
+      endpoint: undefined,
+      temperature: 0,
+      consensus,
+      max_tokens: 'auto',
+      verify_artifacts: verifyArtifacts,
+    };
+  }
+
+  throw new Error(`yg-config.yaml: unknown provider '${selectedProvider.name}'`);
+}
+

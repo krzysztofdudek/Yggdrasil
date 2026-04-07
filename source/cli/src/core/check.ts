@@ -232,13 +232,13 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
         message = buildIssueMessage({
           what: `Source files changed since last approve. Graph artifacts unchanged.\nChanged:\n${sourceFiles.map(f => '  ' + f).join('\n')}`,
           why: 'Graph artifacts may no longer describe the actual behavior.',
-          next: `Update artifacts to reflect source changes, then: yg approve --node ${nodePath}\nIf change is cosmetic (formatting, comments): yg approve --node ${nodePath} --acknowledge "cosmetic"`,
+          next: `Update artifacts to reflect source changes, then: yg approve --node ${nodePath}\nIf change is cosmetic (formatting, comments): yg approve --node ${nodePath} --reviewed "cosmetic"`,
         });
       } else if (driftSubtype === 'graph-drift') {
         message = buildIssueMessage({
           what: `Graph artifacts changed since last approve. Source files unchanged.\nChanged:\n${graphFiles.map(f => '  ' + f).join('\n')}`,
           why: 'Source may not yet implement the updated graph specification.',
-          next: `Implement the graph changes in source, then: yg approve --node ${nodePath}\nIf change is cosmetic (typo, clarification): yg approve --node ${nodePath} --acknowledge "cosmetic"`,
+          next: `Implement the graph changes in source, then: yg approve --node ${nodePath}\nIf change is cosmetic (typo, clarification): yg approve --node ${nodePath} --reviewed "cosmetic"`,
         });
       } else {
         message = buildIssueMessage({
@@ -282,7 +282,7 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
       const message = buildIssueMessage({
         what: `Context package changed due to ${causeCount} upstream modification${causeCount === 1 ? '' : 's'}:\n${causeLines}`,
         why: 'Source may no longer satisfy updated claims.',
-        next: `Load context: yg context --node ${nodePath}\nVerify source compliance, update if needed, then: yg approve --node ${nodePath}\nIf source is already compliant: yg approve --node ${nodePath} --acknowledge "reviewed"`,
+        next: `Load context: yg context --node ${nodePath}\nVerify source compliance, update if needed, then: yg approve --node ${nodePath}\nIf source is already compliant: yg approve --node ${nodePath} --reviewed "compliance verified"`,
       });
 
       issues.push({

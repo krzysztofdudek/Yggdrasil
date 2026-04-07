@@ -42,7 +42,7 @@ function makeCascadeIssue(nodePath: string, causeDescription: string): CheckIssu
   const causes: CascadeCause[] = [
     { file: `.yggdrasil/aspects/some-aspect/rules.md`, layer: 'aspects', description: causeDescription },
   ];
-  const message = `Context package changed due to 1 upstream modification:\n  Cause: ${causeDescription}\nSource may no longer satisfy updated claims.\nLoad context: yg context --node ${nodePath}\nVerify source compliance, update if needed, then: yg approve --node ${nodePath}\nIf source is already compliant: yg approve --node ${nodePath} --acknowledge "reviewed"`;
+  const message = `Context package changed due to 1 upstream modification:\n  Cause: ${causeDescription}\nSource may no longer satisfy updated claims.\nLoad context: yg context --node ${nodePath}\nVerify source compliance, update if needed, then: yg approve --node ${nodePath}\nIf source is already compliant: yg approve --node ${nodePath} --reviewed "compliance verified"`;
   return {
     severity: 'error',
     code: 'E021',

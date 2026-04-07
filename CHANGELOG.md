@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Breaking:** `--acknowledge` replaced with `--reviewed`. `--reviewed` bypasses
+  the three-axis gate only — reviewer verification still runs. Agents can no
+  longer rubber-stamp claim failures.
 - **Improved:** CLI messages follow consistent what/why/next structure via
   `buildIssueMessage` helper — every error tells the agent what happened, why
   it matters, and what command to run next.
@@ -30,7 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   added to connect rules workflow with CLI guidance.
 - **Fixed:** `yg approve` now shows distinct messages when LLM verification is
   skipped — differentiates between "not configured", "configured but not
-  reachable", "--acknowledge override", and "blackbox node".
+  reachable", and "blackbox node".
 - **Added:** `llm.verify_artifacts` config option (default: `false`) to control
   artifact review (E056) during approve. Disabled by default to avoid false
   positives from small local models.

@@ -1,44 +1,34 @@
 {
-  "hash": "a23b4724d0fe2c23c6dbd717217a67e96f4162b4d4422fc806971f5ad5977729",
+  "hash": "7e35271c24b49d48f3334c2c06cb757fb0489e550b9665a43cbee7a5327a653a",
   "files": {
     ".yggdrasil/model/cli/config/quality/yg-node.yaml": "3087c2d94365a22515a1d87943de499843eb91076227f9f938161c2c0a7faa04",
     ".yggdrasil/model/cli/config/quality/responsibility.md": "4450cb34732c2ae82c5d9cf520be1b5fa9af3b6fecc7e1eafdcd321e1d6878a9",
     ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df",
     ".yggdrasil/model/cli/internals.md": "7440678f012e45d8b15a4efc252cc3b4220fe7aec98fb673786abd9c2a37f9f0",
-    ".yggdrasil/model/cli/responsibility.md": "696e0f5f377eba69a843a18379e8f20e0322dc037182690629652a75aa2227fb",
     ".yggdrasil/model/cli/config/yg-node.yaml": "9cacb4bd841cdf0f78581c909468e1d5b8cfe1678a75e39821398c144f092302",
     ".yggdrasil/model/cli/config/responsibility.md": "d10421b990737cf9049a220fd37ff4e051cada58c7793323826b97ed26083c91",
-    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "e6c0c095222ce0d80b79af77f5966d02f541b514205a4b551354b65ef5938900",
     ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
-    ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": "0b98be4ee4221db627b892cddeb548a94e3cb1bfce936b9555bd30d7c225e34d",
-    ".yggdrasil/aspects/posix-paths/content.md": "38daf50dec99307443fd8951019cf534c74571a7778d43e55a4354d9d2faeefc",
     "source/cli/eslint.config.js": "53f67dbd2f524cfecc0df0e84af9b56ace682ecb55156e925faa1aee1e89b01f",
     "source/cli/vitest.config.ts": "3395580aebb4e2408be9eb522c715d4e82a7873267fb4cd65520de56b9624c88",
     "source/cli/.prettierrc": "c043a3fc85f17fe1d1e4198de8387969cb1d2bc6dd921f3c16444579fc797aa4",
-    "source/cli/.prettierignore": "a7b3f5b54a4bf806eccd51313e8edcc81dc7e2f556361fc25163789d62a05627"
+    "source/cli/.prettierignore": "a7b3f5b54a4bf806eccd51313e8edcc81dc7e2f556361fc25163789d62a05627",
+    ".yggdrasil/model/cli/responsibility.md": "b1b42bf482d727823ed25d0bcf1369dbba917ae192723a57464b233a53644c0f",
+    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "462df48ae702ab782902adfecb0ce3d3fee925134847b7a984fc33b8459fdd0d"
   },
   "mtimes": {
     ".yggdrasil/model/cli/config/quality/yg-node.yaml": 1775327956344.936,
     ".yggdrasil/model/cli/config/quality/responsibility.md": 1775053617313.8115,
     ".yggdrasil/model/cli/yg-node.yaml": 1775243577620.7664,
     ".yggdrasil/model/cli/internals.md": 1775329681280.232,
-    ".yggdrasil/model/cli/responsibility.md": 1775045623775.336,
+    ".yggdrasil/model/cli/responsibility.md": 1775567498378.8098,
     ".yggdrasil/model/cli/config/yg-node.yaml": 1775243577492.5159,
     ".yggdrasil/model/cli/config/responsibility.md": 1775051863302.48,
-    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775328133881.7266,
+    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775561447770.7463,
     ".yggdrasil/aspects/deterministic/content.md": 1772778780694.5889,
-    ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": 1775328137050.7122,
-    ".yggdrasil/aspects/posix-paths/content.md": 1772743197466.7686,
     "source/cli/eslint.config.js": 1771702275789.2537,
     "source/cli/vitest.config.ts": 1775313240325.5012,
     "source/cli/.prettierrc": 1771702275789.0093,
     "source/cli/.prettierignore": 1771702275788.8928
   },
-  "acknowledgeReason": "v4 migration: flat mapping, claims, and doc updates",
-  "artifactReview": {
-    "responsibility.md": {
-      "current": false,
-      "reason": "The documentation incorrectly states that the ESLint config ignores 'build/' and 'node_modules/', whereas the source code explicitly ignores 'build/' but does not ignore 'node_modules/' (it only ignores 'dist/', 'coverage/', config files, and minified JS)."
-    }
-  }
+  "reviewedReason": "compliance verified: cli responsibility.md added Terminology section — no behavioral change"
 }

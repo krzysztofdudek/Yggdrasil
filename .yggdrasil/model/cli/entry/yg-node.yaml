@@ -1,8 +1,6 @@
 name: Entry
 type: service
 description: CLI entry point that bootstraps Commander and registers all yg subcommands
-aspects:
-  - cli-command-contract
 relations:
   - target: cli/commands/init
     type: uses

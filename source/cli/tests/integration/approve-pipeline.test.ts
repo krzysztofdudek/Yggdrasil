@@ -107,7 +107,7 @@ describe('approve-pipeline', () => {
     expect(stable.currentHash).toBe(approved.currentHash);
   });
 
-  it('acknowledge bypasses one-side-only check (source changed only)', async () => {
+  it('--reviewed bypasses one-side-only check (source changed only)', async () => {
     const root = await setupProject();
     cleanupPaths.push(root);
 
@@ -121,26 +121,26 @@ describe('approve-pipeline', () => {
     const srcFile = path.join(root, 'src', 'orders', 'order.service.ts');
     await touchFile(srcFile);
 
-    // Without --acknowledge → refused
+    // Without --reviewed → refused
     const graph2 = await loadGraph(root);
     const refused = await approveNode(graph2, nodePath);
     expect(refused.action).toBe('refused');
 
-    // With --acknowledge → acknowledged
+    // With --reviewed → reviewed
     const graph3 = await loadGraph(root);
     const acked = await approveNode(graph3, nodePath, {
-      acknowledge: 'formatting only, no semantic change',
+      reviewed: 'formatting only, no semantic change',
     });
-    expect(acked.action).toBe('acknowledged');
+    expect(acked.action).toBe('reviewed');
     expect(acked.currentHash).not.toBe(acked.previousHash);
 
-    // After acknowledge, next run → no-change
+    // After reviewed, next run → no-change
     const graph4 = await loadGraph(root);
     const noChange = await approveNode(graph4, nodePath);
     expect(noChange.action).toBe('no-change');
   });
 
-  it('acknowledge bypasses one-side-only check (artifact changed only)', async () => {
+  it('--reviewed bypasses one-side-only check (artifact changed only)', async () => {
     const root = await setupProject();
     cleanupPaths.push(root);
 
@@ -161,17 +161,17 @@ describe('approve-pipeline', () => {
     );
     await touchFile(artifactFile);
 
-    // Without --acknowledge → refused
+    // Without --reviewed → refused
     const graph2 = await loadGraph(root);
     const refused = await approveNode(graph2, nodePath);
     expect(refused.action).toBe('refused');
     expect(refused.axes?.ownArtifacts).toBe('changed');
     expect(refused.axes?.source).toBe('unchanged');
 
-    // With --acknowledge → acknowledged
+    // With --reviewed → reviewed
     const graph3 = await loadGraph(root);
-    const acked = await approveNode(graph3, nodePath, { acknowledge: 'typo fix in docs' });
-    expect(acked.action).toBe('acknowledged');
+    const acked = await approveNode(graph3, nodePath, { reviewed: 'typo fix in docs' });
+    expect(acked.action).toBe('reviewed');
   });
 
   it('compound drift: source + artifact + aspect → one approve clears all', async () => {
@@ -214,7 +214,7 @@ describe('approve-pipeline', () => {
     expect(noChange.action).toBe('no-change');
   });
 
-  it('compound drift: source + aspect cascade → acknowledge clears all', async () => {
+  it('compound drift: source + aspect cascade → --reviewed clears all', async () => {
     const root = await setupProject();
     cleanupPaths.push(root);
 
@@ -242,19 +242,19 @@ describe('approve-pipeline', () => {
     await touchFile(srcFile);
     await touchFile(aspectFile);
 
-    // Source changed + context changed (otherTracked) → refused without acknowledge
+    // Source changed + context changed (otherTracked) → refused without --reviewed
     // (source changed, artifacts unchanged — that takes priority)
     const graph2 = await loadGraph(root);
     const refused = await approveNode(graph2, nodePath);
     expect(refused.action).toBe('refused');
     expect(refused.axes?.source).toBe('changed');
 
-    // Acknowledge clears everything
+    // --reviewed clears everything
     const graph3 = await loadGraph(root);
     const acked = await approveNode(graph3, nodePath, {
-      acknowledge: 'cosmetic change + aspect clarification reviewed',
+      reviewed: 'cosmetic change + aspect clarification reviewed',
     });
-    expect(acked.action).toBe('acknowledged');
+    expect(acked.action).toBe('reviewed');
 
     // All drift cleared
     const graph4 = await loadGraph(root);
@@ -306,13 +306,13 @@ describe('approve-pipeline', () => {
     );
   });
 
-  it('acknowledge requires non-empty reason string', async () => {
+  it('--reviewed requires non-empty reason string', async () => {
     const root = await setupProject();
     cleanupPaths.push(root);
 
     const graph = await loadGraph(root);
     await expect(
-      approveNode(graph, 'orders/order-service', { acknowledge: '   ' }),
+      approveNode(graph, 'orders/order-service', { reviewed: '   ' }),
     ).rejects.toThrow(/non-empty reason/);
   });
 });

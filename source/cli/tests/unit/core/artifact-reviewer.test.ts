@@ -28,7 +28,7 @@ describe('artifact-reviewer', () => {
       maxTokens: 8192,
     });
     expect(results['responsibility.md'].current).toBe(false);
-    expect(results['responsibility.md'].reason).toContain('LLM review failed');
+    expect(results['responsibility.md'].reason).toContain('Reviewer failed');
   });
 
   it('chunks source files when exceeding maxTokens', async () => {

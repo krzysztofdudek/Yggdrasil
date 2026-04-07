@@ -45,10 +45,15 @@ const GITIGNORE_CONTENT = `yg-secrets.yaml
 `;
 
 const SECRETS_EXAMPLE_CONTENT = `# Copy this to yg-secrets.yaml and fill in sensitive values (never commit yg-secrets.yaml)
-llm:
-  api_key: <your-api-key>
-  provider: openai    # or: ollama, anthropic
-  model: gpt-4        # override if needed
+reviewer:
+  ollama:
+    endpoint: http://localhost:11434     # override endpoint
+    model: qwen3.5:9b                   # override model
+    temperature: 0                      # override temperature
+    max_tokens: auto                    # override max tokens (int or "auto")
+    context_length_field: ""            # ollama model_info key for context window size
+  claude-code:
+    model: haiku                        # override model (haiku, sonnet, opus)
 `;
 
 export function registerInitCommand(program: Command): void {
@@ -62,6 +67,7 @@ export function registerInitCommand(program: Command): void {
     )
     .option('--upgrade', 'Refresh rules only (when .yggdrasil/ already exists)')
     .action(async (options: { platform?: string; upgrade?: boolean }) => {
+      try {
       const projectRoot = process.cwd();
       const yggRoot = path.join(projectRoot, '.yggdrasil');
 
@@ -192,5 +198,9 @@ export function registerInitCommand(program: Command): void {
       process.stdout.write('  1. Edit .yggdrasil/yg-config.yaml — set name and configure node types\n');
       process.stdout.write('  2. Create nodes under .yggdrasil/model/\n');
       process.stdout.write('  3. Run: yg check\n');
+      } catch (err) {
+        process.stderr.write(`Error: ${(err as Error).message}\n`);
+        process.exit(1);
+      }
     });
 }

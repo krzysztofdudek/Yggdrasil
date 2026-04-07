@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { writeFile, mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -300,42 +300,7 @@ quality:
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  describe('config-parser llm section', () => {
-    it('parses llm config from yg-config.yaml', async () => {
-      const tmpDir = path.join(__dirname, '../../fixtures/tmp-llm-config');
-      await mkdir(tmpDir, { recursive: true });
-      const configPath = path.join(tmpDir, 'yg-config.yaml');
-      await writeFile(
-        configPath,
-        `
-name: test-project
-version: "4.0.0"
-llm:
-  provider: ollama
-  model: llama3.1:8b
-  endpoint: http://localhost:11434
-  temperature: 0
-  consensus: 1
-  max_tokens: auto
-`,
-        'utf-8',
-      );
-
-      const config = await parseConfig(configPath);
-      expect(config.llm).toEqual({
-        provider: 'ollama',
-        model: 'llama3.1:8b',
-        endpoint: 'http://localhost:11434',
-        temperature: 0,
-        consensus: 1,
-        max_tokens: 'auto',
-        verify_artifacts: false,
-      });
-
-      await rm(tmpDir, { recursive: true, force: true });
-    });
-
-    it('accepts config without llm section', async () => {
+  it('accepts config without reviewer section', async () => {
       const tmpDir = path.join(__dirname, '../../fixtures/tmp-no-llm-config');
       await mkdir(tmpDir, { recursive: true });
       const configPath = path.join(tmpDir, 'yg-config.yaml');
@@ -354,111 +319,247 @@ version: "4.0.0"
       await rm(tmpDir, { recursive: true, force: true });
     });
 
-    it('rejects invalid provider', async () => {
-      const tmpDir = path.join(__dirname, '../../fixtures/tmp-invalid-provider');
+  describe('config-parser reviewer section', () => {
+    it('parses reviewer: with single ollama provider (implicit active)', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-reviewer-ollama');
       await mkdir(tmpDir, { recursive: true });
-      const configPath = path.join(tmpDir, 'yg-config.yaml');
       await writeFile(
-        configPath,
+        path.join(tmpDir, 'yg-config.yaml'),
         `
 name: test-project
-llm:
-  provider: azure
-  model: gpt-4
-`,
-        'utf-8',
-      );
-
-      await expect(parseConfig(configPath)).rejects.toThrow(/provider/);
-
-      await rm(tmpDir, { recursive: true, force: true });
-    });
-
-    it('rejects non-string model', async () => {
-      const tmpDir = path.join(__dirname, '../../fixtures/tmp-invalid-model');
-      await mkdir(tmpDir, { recursive: true });
-      const configPath = path.join(tmpDir, 'yg-config.yaml');
-      await writeFile(
-        configPath,
-        `
-name: test-project
-llm:
-  provider: ollama
-  model: 123
-`,
-        'utf-8',
-      );
-
-      await expect(parseConfig(configPath)).rejects.toThrow(/model/);
-
-      await rm(tmpDir, { recursive: true, force: true });
-    });
-
-    it('rejects invalid max_tokens', async () => {
-      const tmpDir = path.join(__dirname, '../../fixtures/tmp-invalid-max-tokens');
-      await mkdir(tmpDir, { recursive: true });
-      const configPath = path.join(tmpDir, 'yg-config.yaml');
-      await writeFile(
-        configPath,
-        `
-name: test-project
-llm:
-  provider: ollama
-  model: llama3.1:8b
-  max_tokens: -5
-`,
-        'utf-8',
-      );
-
-      await expect(parseConfig(configPath)).rejects.toThrow(/max_tokens/);
-
-      await rm(tmpDir, { recursive: true, force: true });
-    });
-
-    it('rejects even consensus value', async () => {
-      const tmpDir = path.join(__dirname, '../../fixtures/tmp-even-consensus');
-      await mkdir(tmpDir, { recursive: true });
-      const configPath = path.join(tmpDir, 'yg-config.yaml');
-      await writeFile(
-        configPath,
-        `
-name: test-project
-llm:
-  provider: ollama
-  model: test
-  consensus: 2
-`,
-        'utf-8',
-      );
-
-      await expect(parseConfig(configPath)).rejects.toThrow(/odd/i);
-
-      await rm(tmpDir, { recursive: true, force: true });
-    });
-
-    it('parses verify_artifacts and context_length_field', async () => {
-      const tmpDir = path.join(__dirname, '../../fixtures/tmp-llm-full-config');
-      await mkdir(tmpDir, { recursive: true });
-      const configPath = path.join(tmpDir, 'yg-config.yaml');
-      await writeFile(
-        configPath,
-        `
-name: test-project
-version: "4.0.0"
-llm:
-  provider: ollama
-  model: qwen3.5:9b
+reviewer:
   verify_artifacts: true
-  context_length_field: "qwen35.context_length"
+  consensus: 3
+  ollama:
+    model: qwen3
+    temperature: 0.1
+    endpoint: http://localhost:11434
+    max_tokens: auto
+    context_length_field: qwen35.context_length
 `,
         'utf-8',
       );
 
-      const config = await parseConfig(configPath);
-      expect(config.llm!.verify_artifacts).toBe(true);
-      expect(config.llm!.context_length_field).toBe('qwen35.context_length');
+      const config = await parseConfig(path.join(tmpDir, 'yg-config.yaml'));
+      expect(config.llm).toEqual({
+        provider: 'ollama',
+        model: 'qwen3',
+        endpoint: 'http://localhost:11434',
+        temperature: 0.1,
+        consensus: 3,
+        max_tokens: 'auto',
+        verify_artifacts: true,
+        context_length_field: 'qwen35.context_length',
+      });
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('parses reviewer: with single claude-code provider (implicit active)', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-reviewer-claude');
+      await mkdir(tmpDir, { recursive: true });
+      await writeFile(
+        path.join(tmpDir, 'yg-config.yaml'),
+        `
+name: test-project
+reviewer:
+  verify_artifacts: true
+  claude-code:
+    model: haiku
+`,
+        'utf-8',
+      );
+
+      const config = await parseConfig(path.join(tmpDir, 'yg-config.yaml'));
+      expect(config.llm).toEqual({
+        provider: 'claude-code',
+        model: 'haiku',
+        endpoint: undefined,
+        temperature: 0,
+        consensus: 1,
+        max_tokens: 'auto',
+        verify_artifacts: true,
+      });
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('parses reviewer: with explicit active selector', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-reviewer-active');
+      await mkdir(tmpDir, { recursive: true });
+      await writeFile(
+        path.join(tmpDir, 'yg-config.yaml'),
+        `
+name: test-project
+reviewer:
+  active: claude-code
+  verify_artifacts: true
+  consensus: 1
+  ollama:
+    model: qwen3
+    temperature: 0.0
+  claude-code:
+    model: haiku
+`,
+        'utf-8',
+      );
+
+      const config = await parseConfig(path.join(tmpDir, 'yg-config.yaml'));
+      expect(config.llm!.provider).toBe('claude-code');
+      expect(config.llm!.model).toBe('haiku');
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('returns undefined llm when reviewer: has no providers', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-reviewer-empty');
+      await mkdir(tmpDir, { recursive: true });
+      await writeFile(
+        path.join(tmpDir, 'yg-config.yaml'),
+        `
+name: test-project
+reviewer:
+  verify_artifacts: true
+`,
+        'utf-8',
+      );
+
+      const config = await parseConfig(path.join(tmpDir, 'yg-config.yaml'));
+      expect(config.llm).toBeUndefined();
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('throws when two providers and no active selector', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-reviewer-two-no-active');
+      await mkdir(tmpDir, { recursive: true });
+      await writeFile(
+        path.join(tmpDir, 'yg-config.yaml'),
+        `
+name: test-project
+reviewer:
+  ollama:
+    model: qwen3
+  claude-code:
+    model: haiku
+`,
+        'utf-8',
+      );
+
+      await expect(parseConfig(path.join(tmpDir, 'yg-config.yaml'))).rejects.toThrow(
+        /reviewer\.active/,
+      );
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('throws when active points to unconfigured provider', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-reviewer-bad-active');
+      await mkdir(tmpDir, { recursive: true });
+      await writeFile(
+        path.join(tmpDir, 'yg-config.yaml'),
+        `
+name: test-project
+reviewer:
+  active: claude-code
+  ollama:
+    model: qwen3
+`,
+        'utf-8',
+      );
+
+      await expect(parseConfig(path.join(tmpDir, 'yg-config.yaml'))).rejects.toThrow(
+        /claude-code.*not configured/,
+      );
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('throws on unknown key under reviewer:', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-reviewer-unknown-key');
+      await mkdir(tmpDir, { recursive: true });
+      await writeFile(
+        path.join(tmpDir, 'yg-config.yaml'),
+        `
+name: test-project
+reviewer:
+  foo:
+    model: bar
+`,
+        'utf-8',
+      );
+
+      await expect(parseConfig(path.join(tmpDir, 'yg-config.yaml'))).rejects.toThrow(
+        /unknown key 'foo' under reviewer/,
+      );
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('throws when reviewer.consensus is an even number', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-reviewer-bad-consensus');
+      await mkdir(tmpDir, { recursive: true });
+      await writeFile(
+        path.join(tmpDir, 'yg-config.yaml'),
+        `
+name: test-project
+reviewer:
+  consensus: 2
+  ollama:
+    model: qwen3
+`,
+        'utf-8',
+      );
+
+      await expect(parseConfig(path.join(tmpDir, 'yg-config.yaml'))).rejects.toThrow(
+        /consensus must be a positive odd integer/,
+      );
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('throws when reviewer.ollama.model is empty', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-reviewer-no-model');
+      await mkdir(tmpDir, { recursive: true });
+      await writeFile(
+        path.join(tmpDir, 'yg-config.yaml'),
+        `
+name: test-project
+reviewer:
+  ollama:
+    model: ""
+`,
+        'utf-8',
+      );
+
+      await expect(parseConfig(path.join(tmpDir, 'yg-config.yaml'))).rejects.toThrow(
+        /reviewer.ollama.model must be a non-empty string/,
+      );
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('throws when reviewer.ollama.max_tokens is invalid (zero)', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-reviewer-bad-max-tokens');
+      await mkdir(tmpDir, { recursive: true });
+      await writeFile(
+        path.join(tmpDir, 'yg-config.yaml'),
+        `
+name: test-project
+reviewer:
+  ollama:
+    model: qwen3
+    max_tokens: 0
+`,
+        'utf-8',
+      );
+
+      await expect(parseConfig(path.join(tmpDir, 'yg-config.yaml'))).rejects.toThrow(
+        /reviewer.ollama.max_tokens must be 'auto' or a positive number/,
+      );
 
       await rm(tmpDir, { recursive: true, force: true });
     });
   });
+
 });

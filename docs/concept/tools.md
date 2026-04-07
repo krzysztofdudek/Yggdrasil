@@ -43,15 +43,18 @@ quality: # map, optional (has default values) — all keys snake_case
     error: 20000 # int, default 20000 (tokens)
     own_warning: 5000 # int, optional (tokens) — warn when own artifacts alone exceed this
 
-llm: # map, optional — LLM provider configuration for semantic verification
-  provider: ollama # string — provider name (e.g. ollama, openai)
-  model: "qwen3.5:9b" # string — model identifier
-  endpoint: "http://localhost:11434" # string — provider endpoint URL
-  temperature: 0 # number, default 0 — sampling temperature
-  consensus: 1 # int, default 1 — number of agreeing responses required
-  max_tokens: auto # int or "auto" — max response tokens
+reviewer: # map, optional — reviewer configuration for semantic verification
+  active: ollama # string, optional — which provider to use (required when multiple providers configured)
   verify_artifacts: false # bool, default false — run artifact review (E056) during approve
-  context_length_field: "qwen35.context_length" # string, optional — Ollama model_info key for context window size
+  consensus: 1 # int, default 1 — number of agreeing responses required (must be odd)
+  ollama: # map, optional — Ollama provider config
+    model: "qwen3.5:9b" # string, required — model identifier
+    endpoint: "http://localhost:11434" # string, optional — provider endpoint URL
+    temperature: 0 # number, default 0 — sampling temperature
+    max_tokens: auto # int or "auto" — max response tokens
+    context_length_field: "qwen35.context_length" # string, optional — Ollama model_info key for context window size
+  claude-code: # map, optional — Claude Code provider config
+    model: haiku # string, optional, default "haiku" — claude model shortname
 ```
 
 Artifacts (`responsibility.md`, `interface.md`, `internals.md`) are built into the
@@ -63,22 +66,25 @@ and required conditions.
 - `name` must be non-empty.
 - `node_types` must be a non-empty object. Each entry must have a `description` string. Optional `required_aspects` list. Node `type` must match a key in `node_types`.
 - `quality.context_budget.error` must be >= `quality.context_budget.warning`.
-- `llm` fields are optional. When no LLM provider is configured, semantic verification
+- `reviewer` is optional. When not configured, semantic verification
   (`yg approve` claim checks) is skipped with an informational notice.
 
 ### yg-secrets.yaml
 
-Optional file for LLM credentials that should not be committed. Located at
+Optional file for reviewer credentials that should not be committed. Located at
 `.yggdrasil/yg-secrets.yaml` and listed in `.yggdrasil/.gitignore`.
 
 ```yaml
-llm:
-  api_key: "sk-..." # string — API key for the LLM provider
+reviewer:
+  ollama:
+    api_key: "sk-..." # string — API key for Ollama
+  claude-code:
+    model: haiku # string — override model
 ```
 
-Fields in `yg-secrets.yaml` override corresponding fields in `yg-config.yaml`'s `llm`
-section. Any field supported under `llm` in `yg-config.yaml` can also appear here
-(provider, model, endpoint, temperature, etc.), but the primary use case is `api_key`.
+Fields in `yg-secrets.yaml` override corresponding fields in `yg-config.yaml`'s `reviewer`
+section. Any field supported under the provider in `yg-config.yaml` can also appear here
+(model, endpoint, temperature, etc.), but the primary use case is `api_key`.
 
 ### yg-node.yaml
 
@@ -125,7 +131,7 @@ mapping:                                    # optional — flat list of paths
 
 Mapping is a flat list of file paths and/or directories (relative to project root).
 Directories are expanded recursively at check time, respecting `.gitignore`. There are
-no aspect proofs in the mapping — claim verification is performed by the LLM at
+no aspect proofs in the mapping — claim verification is performed by the reviewer at
 `yg approve` time (see E055 in the Approve section).
 
 **Aspect inheritance:**
@@ -321,10 +327,10 @@ Each line is a JSON object:
 | -------- | ---------------- | -------------------------------------------------------------- |
 | `ts`     | string           | ISO-8601 timestamp                                             |
 | `node`   | string           | Node path                                                      |
-| `action` | string           | `initial`, `approved`, `acknowledged`, or `no-change`          |
+| `action` | string           | `initial`, `approved`, `reviewed`, or `no-change`              |
 | `prev`   | string or null   | Previous baseline hash (`null` on first approve)               |
 | `hash`   | string           | New baseline hash                                              |
-| `reason` | string or null   | `--acknowledge` reason, `null` otherwise                       |
+| `reason` | string or null   | `--reviewed` reason, `null` otherwise                          |
 | `files`  | string[]         | Changed files (own artifacts + source)                         |
 
 Refused outcomes are not logged (no state mutation occurred).
@@ -955,11 +961,11 @@ when a node consumes a port and that port's required aspect is not defined in `a
 | `E055` | `claim-not-satisfied` | Source file does not satisfy a claim declared in the node's aspect anchors         |
 | `E056` | `artifact-stale`      | Node artifact content does not reflect the current state of source files           |
 
-Semantic errors are produced by `yg approve` during its LLM verification gate (see
+Semantic errors are produced by `yg approve` during its reviewer verification gate (see
 Approve section). They do not appear in `yg check` output — they are reported only
-when approve runs its verification pass. E055 fires when the LLM determines that a
+when approve runs its verification pass. E055 fires when the reviewer determines that a
 claimed aspect anchor is not actually satisfied by the source code. E056 fires when
-the LLM determines that artifact content (responsibility, interface, or internals) is
+the reviewer determines that artifact content (responsibility, interface, or internals) is
 stale relative to the current source files.
 
 **Port consumption (E057-E058):**
@@ -1034,8 +1040,8 @@ Budget (W001-W002), Structure (W003-W004), orphaned state (W005), orphaned aspec
 suppressed from the output. This keeps the agent focused on blocking issues. Warnings
 appear only when the check passes with zero errors.
 
-**LLM provider notice:** When no LLM provider is configured, `yg check` includes an
-informational notice that LLM-based verification (used by `yg approve`) is unavailable.
+**Reviewer notice:** When no reviewer is configured, `yg check` includes an
+informational notice that reviewer-based verification (used by `yg approve`) is unavailable.
 This is not an error — it does not affect the exit code.
 
 **Stable ordering:** Errors within each category are sorted deterministically: first
@@ -1045,10 +1051,10 @@ by cascade cause (grouping related cascades), then alphabetically by node path.
 they are grouped into a cascade summary showing the number of upstream changes and
 affected nodes.
 
-**Verification label:** Each E021 error is annotated with the last known LLM verification
+**Verification label:** Each E021 error is annotated with the last known reviewer verification
 status: `(last verified: pass)` if claims were satisfied at last approve,
 `(last verified: fail)` if not, or `(never verified)` if the node has not been through
-LLM verification. This helps agents prioritize which cascaded nodes need attention.
+reviewer verification. This helps agents prioritize which cascaded nodes need attention.
 
 **Category counts:** The Result line includes per-category counts:
 `FAIL (1 drift, 2 cascade, 1 completeness — 4 errors, 2 warnings)`
@@ -1072,10 +1078,10 @@ resolved drift. Alias: `drift-sync`.
 
 **Parameters:**
 
-| Parameter     | Type   | Required | Description                                                       |
-| ------------- | ------ | -------- | ----------------------------------------------------------------- |
-| `node`        | string | Yes      | Node path relative to `model/`.                                   |
-| `acknowledge` | string | No       | Reason for overriding. Bypasses both the three-axis gate and the LLM verification gate. Stored for audit trail. |
+| Parameter  | Type   | Required | Description                                                                                                   |
+| ---------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------- |
+| `node`     | string | Yes      | Node path relative to `model/`.                                                                               |
+| `reviewed` | string | No       | Reason for bypassing the three-axis gate. The reviewer still runs and can refuse. Stored for audit trail.     |
 
 Per-node only — no `--all`, no `--recursive`. One node at a time.
 
@@ -1089,20 +1095,20 @@ Per-node only — no `--all`, no `--recursive`. One node at a time.
    - **Source files** (`mapping.paths`) — changed since last approve?
    - **Other tracked files** (aspects, deps, flows, ancestors) — changed since last approve?
 3. Apply enforcement rules (see table below).
-4. **LLM verification gate** (when a provider is configured):
-   - **Claim verification:** For each aspect anchor claimed by the node, the LLM checks
+4. **Reviewer verification gate** (when a reviewer is configured):
+   - **Claim verification:** For each aspect anchor claimed by the node, the reviewer checks
      whether the source files actually satisfy the claim. Failures produce E055
      (claim-not-satisfied).
-   - **Artifact review** (opt-in, `llm.verify_artifacts: true`): The LLM compares
+   - **Artifact review** (opt-in, `reviewer.verify_artifacts: true`): The reviewer compares
      artifact content (responsibility, interface, internals) against current source files
      to detect staleness. Failures produce E056 (artifact-stale). Disabled by default
      because small models produce false positives on large artifacts.
    - **Caching:** Verification results are cached per file hash. Unchanged files skip
      re-verification on subsequent approvals.
    - If E055 or E056 errors are found, approve refuses.
-   - When LLM verification is skipped, the reason is shown:
-     `not-configured` (no `llm` section), `unavailable` (provider unreachable),
-     `acknowledge` (`--acknowledge` overrides), or `blackbox` (blackbox node).
+   - When reviewer verification is skipped, the reason is shown:
+     `not-configured` (no `reviewer` section), `unavailable` (provider unreachable),
+     or `blackbox` (blackbox node).
 5. If accepted: compute hashes for all tracked files and write to
    `.yggdrasil/.drift-state/<node-path>.json`.
 6. Garbage collection: remove orphaned drift state files for nodes that no longer exist.
@@ -1112,13 +1118,13 @@ Per-node only — no `--all`, no `--recursive`. One node at a time.
 | Own artifacts | Source | Other tracked | Result                                          |
 | ------------- | ------ | ------------- | ----------------------------------------------- |
 | changed       | changed | any          | ACCEPTS                                         |
-| changed       | unchanged | any        | REFUSES (or `--acknowledge`)                    |
-| unchanged     | changed | any          | REFUSES (or `--acknowledge`)                    |
-| unchanged     | unchanged | changed    | REFUSES — requires `--acknowledge`              |
+| changed       | unchanged | any        | REFUSES (or `--reviewed`)                       |
+| unchanged     | changed | any          | REFUSES (or `--reviewed`)                       |
+| unchanged     | unchanged | changed    | REFUSES — requires `--reviewed`                 |
 | unchanged     | unchanged | unchanged  | ACCEPTS (no-op, records baseline)               |
 
 **Blackbox blocker:** Approve always refuses when source files changed on blackbox nodes.
-No `--acknowledge` for source changes on blackbox. The only path is to decompose the
+No `--reviewed` for source changes on blackbox. The only path is to decompose the
 blackbox into a proper node for the modified files.
 
 **Anti-laundering:** A new blackbox node cannot inherit files that were previously

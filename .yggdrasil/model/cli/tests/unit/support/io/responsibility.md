@@ -12,6 +12,8 @@ Unit tests for file system I/O parsers in `src/io/`. Verifies YAML parsing, sche
 - `flow-parser.test.ts` — flow YAML parsing and validation
 - `node-parser.test.ts` — node YAML parsing and validation (supports old and new aspects format, ports, typed anchor realizations)
 - `schema-parser.test.ts` — schema file parsing
+- `secrets-parser.test.ts` — secrets YAML loading and LlmConfig merging
+- `audit-log.test.ts` — audit log append behavior
 
 ## Out of scope
 

@@ -1,5 +1,5 @@
 {
-  "hash": "d63a6c6c706e8ddb69c9df758141f7c786391f4f3551bf8ee5cd84f40dfd15f4",
+  "hash": "44a7ff18cfbbafdac6be7674afd5837e95824bdd91b56db4b68d9f172960972d",
   "files": {
     ".yggdrasil/model/docs/concept/yg-node.yaml": "e9f47d45f61f1dcce3a0c9f4686307095bd2b211131cc0d98f5be8ec97a4a522",
     ".yggdrasil/model/docs/concept/responsibility.md": "1b5a6590a3620359d6010c5bd05e665732cb35dff7b765a0d205244577bca2dd",
@@ -10,7 +10,7 @@
     "docs/concept/graph.md": "37c638cf238f7f16a5041e8d356982c2d61cdc49c3bbd2d33e735f6bdd99e65c",
     "docs/concept/integration.md": "691ed2099240c82575ec5b698497cb88383eddbd2db7b51091b71c380faf5db3",
     "docs/concept/materialization.md": "0fef8e79a0b3e038aa7954cb8f290c7fa09badebaf6a1e57773d10c0a5df21af",
-    "docs/concept/tools.md": "c5daa347e5a6cf1346278e62c3565f3f82e3221acf68afdaa626093f2f4db1ef"
+    "docs/concept/tools.md": "b3a8f46cc747edb5a40996cdaed6e1fcaf3c91d69e6d79a022ff9be504df76bd"
   },
   "mtimes": {
     ".yggdrasil/model/docs/concept/yg-node.yaml": 1775327956365.0742,
@@ -22,7 +22,7 @@
     "docs/concept/graph.md": 1775331152559.4612,
     "docs/concept/integration.md": 1775331178830.6614,
     "docs/concept/materialization.md": 1775025218263.0195,
-    "docs/concept/tools.md": 1775510959268.634
+    "docs/concept/tools.md": 1775567510803.3462
   },
-  "acknowledgeReason": "added audit log section, E021 output example, anti-laundering display to tools.md"
+  "reviewedReason": "LLM→reviewer terminology in tools.md; artifacts describe documentation scope which is unchanged"
 }

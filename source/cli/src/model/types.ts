@@ -13,6 +13,7 @@ export interface YggConfig {
   node_types?: Record<string, NodeTypeConfig>;
   quality?: QualityConfig;
   llm?: LlmConfig;
+  parallel?: number;
 }
 
 // ============================================================
@@ -83,7 +84,7 @@ export interface PortDef {
 
 /** LLM configuration — merged from yg-config.yaml + yg-secrets.yaml */
 export interface LlmConfig {
-  provider: 'ollama' | 'openai' | 'anthropic';
+  provider: 'ollama' | 'claude-code';
   model: string;
   endpoint?: string;
   api_key?: string;
@@ -397,8 +398,8 @@ export interface DriftNodeState {
   hash: string;
   files: Record<string, string>;  // path → sha256 hex — now required, not optional
   mtimes?: Record<string, number>; // path → mtime in ms — for mtime-based drift optimization
-  /** Reason provided with --acknowledge, stored for audit trail */
-  acknowledgeReason?: string;
+  /** Reason provided with --reviewed, stored for audit trail */
+  reviewedReason?: string;
   /** Cached claim verification results from last LLM-powered approve */
   claimResults?: Record<string, Record<string, ClaimVerificationResult>>;
   /** Cached artifact review results from last LLM-powered approve */
@@ -415,7 +416,7 @@ export interface AnnotatedChange {
 /** Result of approveNode() — what happened and why */
 export interface ApproveResult {
   /** What approve decided */
-  action: 'approved' | 'acknowledged' | 'no-change' | 'initial' | 'refused';
+  action: 'approved' | 'reviewed' | 'no-change' | 'initial' | 'refused';
   /** Previous hash (undefined for first approve) */
   previousHash?: string;
   /** Current hash after recording */
@@ -441,9 +442,9 @@ export interface ApproveResult {
   antiLaunderingBlocked?: boolean;
   /** Conflicting files for anti-laundering message */
   conflictingFiles?: Array<{ file: string; trackedBy: string }>;
-  /** Was --acknowledge used when refused? (distinct blackbox message) */
-  acknowledgeAttempted?: boolean;
-  /** Is the node a blackbox? (for cascade acknowledge success message) */
+  /** Was --reviewed used when refused? (distinct blackbox message) */
+  reviewedAttempted?: boolean;
+  /** Is the node a blackbox? (for cascade reviewed success message) */
   isBlackbox?: boolean;
   /** GC'd orphaned drift state paths */
   gcPaths?: string[];
@@ -452,7 +453,7 @@ export interface ApproveResult {
   /** LLM artifact review results (E056) */
   artifactReviewResults?: Record<string, ArtifactReviewResult>;
   /** Why LLM verification was skipped, if it was */
-  llmSkipped?: 'not-configured' | 'unavailable' | 'acknowledge' | 'blackbox';
+  llmSkipped?: 'not-configured' | 'unavailable' | 'blackbox';
   /** E055 structured violations for programmatic consumption */
   e055Violations?: Array<{ aspect: string; claim: string; reason: string }>;
   /** E056 structured violations for programmatic consumption */
@@ -466,7 +467,7 @@ export type DriftState = Record<string, DriftNodeState>;
 export interface AuditEntry {
   ts: string;
   node: string;
-  action: 'approved' | 'acknowledged' | 'no-change' | 'initial';
+  action: 'approved' | 'reviewed' | 'no-change' | 'initial';
   prev: string | null;
   hash: string;
   reason: string | null;

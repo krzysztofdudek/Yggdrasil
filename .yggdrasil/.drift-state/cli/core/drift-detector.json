@@ -1,5 +1,5 @@
 {
-  "hash": "d4fbe91de2ced6cba2ce7ddb90b57628c014cb8405eee249c0e61ff5e3f7700e",
+  "hash": "350daf84fa09e63179922b1e1f17afb128a50b77a4cb989f97de0b1e44c74f00",
   "files": {
     ".yggdrasil/model/cli/core/drift-detector/yg-node.yaml": "fb37ca9c6fe1236971e498d8547fda2f5cc784b52cd9c3130750fa70a8bf1876",
     ".yggdrasil/model/cli/core/drift-detector/interface.md": "7136927e5d6a1c23bc098356cb7b1f1cc88fcd760040c6fd04f83c0efd6622e9",
@@ -12,13 +12,12 @@
     ".yggdrasil/model/cli/core/interface.md": "807008eb6f673273034d7d3325a36f37ea1c7a4e46df362e2a4fa9ccd9451de9",
     ".yggdrasil/model/cli/core/internals.md": "804638612a8f8372a83b08b9c720e4421be43caefb12d20117d59d1b5194b4c1",
     ".yggdrasil/model/cli/core/responsibility.md": "2aa9f1d64abf86aed604a1823392c3d40b963eb8416b38ef877bcccddd7ff086",
-    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "e6c0c095222ce0d80b79af77f5966d02f541b514205a4b551354b65ef5938900",
     ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
     ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": "0b98be4ee4221db627b892cddeb548a94e3cb1bfce936b9555bd30d7c225e34d",
     ".yggdrasil/aspects/posix-paths/content.md": "38daf50dec99307443fd8951019cf534c74571a7778d43e55a4354d9d2faeefc",
     ".yggdrasil/model/cli/io/responsibility.md": "ef22e0a0164d75ab5898e180a04e6b943c3ce24d57242258e52cbc05ae48a7a5",
-    ".yggdrasil/model/cli/io/interface.md": "79ea1701427e6f39dc44aade7d275931d0c08159c053de34dc41fb095b0406ab",
     ".yggdrasil/model/cli/model/responsibility.md": "b668c6db2090a36a54277f62fb228c266d87c6d119f89e6ed67e140392863a66",
+    ".yggdrasil/model/cli/model/interface.md": "702e39d06832de110518f0220f130de376fa8116fcaffc7e17c2580e4b7ed988",
     ".yggdrasil/model/cli/utils/responsibility.md": "4918c48366c7b3f35bb7b97fa74252c47f14ba72417c5cc5f3e1100b503c7ddd",
     ".yggdrasil/model/cli/utils/interface.md": "051aef97613feeaf82746a2d576f2a96346c3bb916144d88b8bc13b115b2d2ba",
     ".yggdrasil/flows/drift/yg-flow.yaml": "da4da5c6f03dd0c258ec17f8eb23161ca54f0f3613bc2e238d46d5ad8786fb24",
@@ -26,7 +25,8 @@
     ".yggdrasil/flows/preflight/yg-flow.yaml": "c26dbdb9b515a781ed3318fbe5b23ff2257b8eda72b5540b0bcacbef0b976cf8",
     ".yggdrasil/flows/preflight/description.md": "20d14b71af13a79417c5faeb5b02194f99445a1a05c9cf0aa1398dc3601edabb",
     "source/cli/src/core/drift-detector.ts": "b55791936cd9b84faac3b912ea61845ebd88d5b44ebbe3833dd65995848a4641",
-    ".yggdrasil/model/cli/model/interface.md": "702e39d06832de110518f0220f130de376fa8116fcaffc7e17c2580e4b7ed988"
+    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "462df48ae702ab782902adfecb0ce3d3fee925134847b7a984fc33b8459fdd0d",
+    ".yggdrasil/model/cli/io/interface.md": "afc3ed662c571b4d8ee75b1282a7c0b711c895e05534cd1a1ae0d95aaf29cf31"
   },
   "mtimes": {
     ".yggdrasil/model/cli/core/drift-detector/yg-node.yaml": 1775327956350.2815,
@@ -40,12 +40,12 @@
     ".yggdrasil/model/cli/core/interface.md": 1772743197442.582,
     ".yggdrasil/model/cli/core/internals.md": 1775329732456.7566,
     ".yggdrasil/model/cli/core/responsibility.md": 1772828321933.1968,
-    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775328133881.7266,
+    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775561447770.7463,
     ".yggdrasil/aspects/deterministic/content.md": 1772778780694.5889,
     ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": 1775328137050.7122,
     ".yggdrasil/aspects/posix-paths/content.md": 1772743197466.7686,
     ".yggdrasil/model/cli/io/responsibility.md": 1775332254662.6868,
-    ".yggdrasil/model/cli/io/interface.md": 1775332404756.6104,
+    ".yggdrasil/model/cli/io/interface.md": 1775564798266.503,
     ".yggdrasil/model/cli/model/responsibility.md": 1772778759688.719,
     ".yggdrasil/model/cli/model/interface.md": 1775509701891.0308,
     ".yggdrasil/model/cli/utils/responsibility.md": 1772743197446.85,
@@ -56,5 +56,5 @@
     ".yggdrasil/flows/preflight/description.md": 1775046967142.8008,
     "source/cli/src/core/drift-detector.ts": 1774474730787.6184
   },
-  "acknowledgeReason": "cascade from upstream artifact changes — source already compliant"
+  "reviewedReason": "compliance verified: cli/io interface update (secrets-parser section) does not affect drift-detector; only readDriftState/writeDriftState are consumed"
 }

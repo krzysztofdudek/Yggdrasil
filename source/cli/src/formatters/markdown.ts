@@ -4,8 +4,7 @@ export function formatContextMarkdown(pkg: ContextPackage): string {
   let md = '';
 
   md += `# Context Package: ${pkg.nodeName}\n`;
-  md += `# Path: ${pkg.nodePath}\n`;
-  md += `# Generated: ${new Date().toISOString()}\n\n`;
+  md += `# Path: ${pkg.nodePath}\n\n`;
   md += `---\n\n`;
 
   for (const section of pkg.sections) {

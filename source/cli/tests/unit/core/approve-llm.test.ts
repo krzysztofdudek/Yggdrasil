@@ -200,8 +200,28 @@ describe('approveNode — LLM verification', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('acknowledge overrides LLM refusal', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('llm-ack-override', {
+  it('--reviewed with no LLM configured sets llmSkipped to not-configured', async () => {
+    const { tmpDir, yggRoot } = await createTmpProject('llm-reviewed-no-llm', {
+      nodePath: 'svc/my-service',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - deterministic\nmapping:\n  - src/svc/\n',
+      mappingFiles: { 'src/svc/index.ts': 'const x = 1;\n' },
+      aspects: [{ id: 'deterministic', yaml: ASPECT_YAML_WITH_CLAIMS }],
+    });
+    await recordBaseline(tmpDir);
+    await writeFile(path.join(yggRoot, 'model/svc/my-service/responsibility.md'), 'Updated.\n');
+
+    const graph = await loadGraph(tmpDir);
+    const result = await approveNode(graph, 'svc/my-service', {
+      llmNotConfigured: true,
+      reviewed: 'artifacts updated, source unchanged',
+    });
+    expect(result.action).toBe('reviewed');
+    expect(result.llmSkipped).toBe('not-configured');
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('--reviewed does not bypass LLM refusal', async () => {
+    const { tmpDir, yggRoot } = await createTmpProject('llm-reviewed-no-override', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - deterministic\nmapping:\n  - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'const x = 1;\n' },
@@ -217,16 +237,16 @@ describe('approveNode — LLM verification', () => {
     });
     const result = await approveNode(graph, 'svc/my-service', {
       llmProvider: provider,
-      acknowledge: 'LLM is wrong, code is intentionally non-deterministic for testing',
+      reviewed: 'code is intentionally non-deterministic for testing',
     });
-    // LLM is skipped when acknowledging — conscious exception approves directly
-    expect(result.action).toBe('approved');
-    expect(result.claimResults).toBeUndefined();
+    // --reviewed bypasses three-axis only — LLM still runs and can refuse
+    expect(result.action).toBe('refused');
+    expect(result.claimResults).toBeDefined();
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('skips LLM on cascade-only approve with acknowledge', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('llm-cascade-ack', {
+  it('runs LLM on cascade-only approve with --reviewed', async () => {
+    const { tmpDir, yggRoot } = await createTmpProject('llm-cascade-reviewed', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - deterministic\nmapping:\n  - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'const x = 1;\n' },
@@ -246,11 +266,11 @@ describe('approveNode — LLM verification', () => {
     });
     const result = await approveNode(graph, 'svc/my-service', {
       llmProvider: provider,
-      acknowledge: 'aspect updated, source already compliant',
+      reviewed: 'aspect updated, source already compliant',
     });
-    expect(result.action).toBe('acknowledged');
-    // LLM skipped when acknowledging — no wasted compute
-    expect(result.claimResults).toBeUndefined();
+    expect(result.action).toBe('reviewed');
+    // LLM runs even with --reviewed — reviewer verifies claims
+    expect(result.claimResults).toBeDefined();
     await rm(tmpDir, { recursive: true, force: true });
   });
 

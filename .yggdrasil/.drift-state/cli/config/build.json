@@ -1,17 +1,15 @@
 {
-  "hash": "e95a5ea1f3f83b04dc4b7930de7a566fb62b287093ad00a21508c6a78fc7f1eb",
+  "hash": "4f18606e0ef4f6b2865947d2772fcec4f9fa6a300bbadcfed161e9177e058db6",
   "files": {
     ".yggdrasil/model/cli/config/build/yg-node.yaml": "3f000cf22d67f185735a417f5243e3cdda5a3c9a4edcf34dd972d6c798016386",
     ".yggdrasil/model/cli/config/build/responsibility.md": "366b5a36d95b23a661d7ba343ebfb32f05049c142cd2a2a488d923f4bcbfb918",
     ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df",
     ".yggdrasil/model/cli/internals.md": "7440678f012e45d8b15a4efc252cc3b4220fe7aec98fb673786abd9c2a37f9f0",
-    ".yggdrasil/model/cli/responsibility.md": "696e0f5f377eba69a843a18379e8f20e0322dc037182690629652a75aa2227fb",
+    ".yggdrasil/model/cli/responsibility.md": "b1b42bf482d727823ed25d0bcf1369dbba917ae192723a57464b233a53644c0f",
     ".yggdrasil/model/cli/config/yg-node.yaml": "9cacb4bd841cdf0f78581c909468e1d5b8cfe1678a75e39821398c144f092302",
     ".yggdrasil/model/cli/config/responsibility.md": "d10421b990737cf9049a220fd37ff4e051cada58c7793323826b97ed26083c91",
-    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "e6c0c095222ce0d80b79af77f5966d02f541b514205a4b551354b65ef5938900",
+    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "462df48ae702ab782902adfecb0ce3d3fee925134847b7a984fc33b8459fdd0d",
     ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
-    ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": "0b98be4ee4221db627b892cddeb548a94e3cb1bfce936b9555bd30d7c225e34d",
-    ".yggdrasil/aspects/posix-paths/content.md": "38daf50dec99307443fd8951019cf534c74571a7778d43e55a4354d9d2faeefc",
     "source/cli/tsconfig.json": "4c663b14bb228d4986fc265f4753a19b8a844ee7cffd47dac7dc8c51d0690d02",
     "source/cli/tsup.config.ts": "65026ec8016f4048f41e11f11936ddd05b304d7de63fd47993f1a30758dd2a91",
     "source/cli/.npmignore": "6352e6067c91078366f5c1b29cb065af4818efc1aea31ac5d132898785d1ccf6",
@@ -24,13 +22,11 @@
     ".yggdrasil/model/cli/config/build/responsibility.md": 1775053497340.9106,
     ".yggdrasil/model/cli/yg-node.yaml": 1775243577620.7664,
     ".yggdrasil/model/cli/internals.md": 1775329681280.232,
-    ".yggdrasil/model/cli/responsibility.md": 1775045623775.336,
+    ".yggdrasil/model/cli/responsibility.md": 1775567498378.8098,
     ".yggdrasil/model/cli/config/yg-node.yaml": 1775243577492.5159,
     ".yggdrasil/model/cli/config/responsibility.md": 1775051863302.48,
-    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775328133881.7266,
+    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775561447770.7463,
     ".yggdrasil/aspects/deterministic/content.md": 1772778780694.5889,
-    ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": 1775328137050.7122,
-    ".yggdrasil/aspects/posix-paths/content.md": 1772743197466.7686,
     "source/cli/tsconfig.json": 1771702275811.786,
     "source/cli/tsup.config.ts": 1771702275811.8867,
     "source/cli/.npmignore": 1771702275788.6226,
@@ -38,11 +34,5 @@
     "source/cli/package.json": 1775239040903.8784,
     "source/cli/package-lock.json": 1775239040903.2893
   },
-  "acknowledgeReason": "v4 migration: flat mapping, claims, and doc updates",
-  "artifactReview": {
-    "responsibility.md": {
-      "current": false,
-      "reason": "LLM response could not be parsed"
-    }
-  }
+  "reviewedReason": "compliance verified: cli responsibility.md added Terminology section — no behavioral change"
 }

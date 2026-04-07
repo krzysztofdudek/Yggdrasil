@@ -1,7 +1,6 @@
 {
-  "hash": "79ea59f22efed41e985a9e9de13cf4fdc16623d27d15601b038f8d38bab17249",
+  "hash": "cca3a32e6afed0852573b104735ca6295d90ecffc235b61c9e2248bc27d0e726",
   "files": {
-    ".yggdrasil/model/cli/core/migrations/yg-node.yaml": "4c84c8ecd18a3545bbeefc4da15c0c9d01fb436dcfeef2d5813a1de5cec9e5b5",
     ".yggdrasil/model/cli/core/migrations/responsibility.md": "6ad0b626c57b1b8795532fe694fc49dc6937642911dfafa2d880634229c8bcee",
     ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df",
     ".yggdrasil/model/cli/internals.md": "7440678f012e45d8b15a4efc252cc3b4220fe7aec98fb673786abd9c2a37f9f0",
@@ -10,18 +9,17 @@
     ".yggdrasil/model/cli/core/interface.md": "807008eb6f673273034d7d3325a36f37ea1c7a4e46df362e2a4fa9ccd9451de9",
     ".yggdrasil/model/cli/core/internals.md": "804638612a8f8372a83b08b9c720e4421be43caefb12d20117d59d1b5194b4c1",
     ".yggdrasil/model/cli/core/responsibility.md": "2aa9f1d64abf86aed604a1823392c3d40b963eb8416b38ef877bcccddd7ff086",
-    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "e6c0c095222ce0d80b79af77f5966d02f541b514205a4b551354b65ef5938900",
     ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
-    ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": "0b98be4ee4221db627b892cddeb548a94e3cb1bfce936b9555bd30d7c225e34d",
-    ".yggdrasil/aspects/posix-paths/content.md": "38daf50dec99307443fd8951019cf534c74571a7778d43e55a4354d9d2faeefc",
     "source/cli/src/core/migrator.ts": "d0fc5a1c0e84c1c9566009c3389cb3bf3fdf9e98f5f815e2736fc32c4316e429",
     "source/cli/src/migrations/index.ts": "cc376a43a09e0a7915c6881136a1f4eb79c8949eeea4811721ee2a344329bc47",
     "source/cli/src/migrations/to-2.0.0.ts": "32e8f56d9388b75929bd46fb2213dd3db3cfc50c2cc6d2ed45530ddc1d4850e1",
     "source/cli/src/migrations/to-3.0.0.ts": "6ae83a2b655d320b4810d65267ee95b469cf3a45aa167569f20bef32493a3211",
-    "source/cli/src/migrations/to-4.0.0.ts": "5fb9c81894340048c5edb9f66a1c56aad71dde85da0e18522dbb9ca0f8bf0d02"
+    ".yggdrasil/model/cli/core/migrations/yg-node.yaml": "931982cfa2beec9f361d49ca68fc7d49678d6f9076838f2ca470eb6644e0a9d9",
+    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "462df48ae702ab782902adfecb0ce3d3fee925134847b7a984fc33b8459fdd0d",
+    "source/cli/src/migrations/to-4.0.0.ts": "377b1c7cfc42f742eea57a3408cd3f522f6db6a429e1fc37ae651ac3da8f246c"
   },
   "mtimes": {
-    ".yggdrasil/model/cli/core/migrations/yg-node.yaml": 1775327956351.8672,
+    ".yggdrasil/model/cli/core/migrations/yg-node.yaml": 1775561447771.3872,
     ".yggdrasil/model/cli/core/migrations/responsibility.md": 1775051517137.968,
     ".yggdrasil/model/cli/yg-node.yaml": 1775243577620.7664,
     ".yggdrasil/model/cli/internals.md": 1775329681280.232,
@@ -30,15 +28,13 @@
     ".yggdrasil/model/cli/core/interface.md": 1772743197442.582,
     ".yggdrasil/model/cli/core/internals.md": 1775329732456.7566,
     ".yggdrasil/model/cli/core/responsibility.md": 1772828321933.1968,
-    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775328133881.7266,
+    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775561447770.7463,
     ".yggdrasil/aspects/deterministic/content.md": 1772778780694.5889,
-    ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": 1775328137050.7122,
-    ".yggdrasil/aspects/posix-paths/content.md": 1772743197466.7686,
     "source/cli/src/core/migrator.ts": 1773083058513.9988,
     "source/cli/src/migrations/index.ts": 1775040105369.6165,
     "source/cli/src/migrations/to-2.0.0.ts": 1772776392209.9172,
     "source/cli/src/migrations/to-3.0.0.ts": 1774782387822.2202,
-    "source/cli/src/migrations/to-4.0.0.ts": 1775332825488.9248
+    "source/cli/src/migrations/to-4.0.0.ts": 1775564287571.4119
   },
-  "acknowledgeReason": "v4 migration: flat mapping, claims, and doc updates"
+  "reviewedReason": "migration step removed, template updated"
 }

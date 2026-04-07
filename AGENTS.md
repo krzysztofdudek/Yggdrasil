@@ -12,6 +12,10 @@ You work on the Yggdrasil repository: an open-source product (CLI + infrastructu
 | `docs/`                 | User docs — for adopters.                                                           |
 | `.plans/`               | Agent working dir — design docs and implementation plans. **Ignore skill paths** (e.g. `docs/plans/`) — always use `<root>/.plans/YYYY-MM-DD-<topic>-design.md` and `.plans/YYYY-MM-DD-<topic>-plan.md`. Gitignored; not committed. |
 
+## Product Scope
+
+`rules.ts` and `agent-rules.md` are consumed by agents in ANY repository that adopts Yggdrasil — not just this one. When editing rules content, examples, or guidance: use domain-neutral examples (no Yggdrasil-specific types or commands). Think "what would help an agent working on an e-commerce app or a mobile game?" not "what would help an agent working on this CLI."
+
 ## Constraints
 
 - Never edit generated rules (platform-specific rules files, or the Yggdrasil section in `AGENTS.md`). To change the rules content: edit `source/cli/src/templates/rules.ts` (content) or `source/cli/src/templates/platform.ts` (frontmatter), then build and run `yg init --platform <name> --upgrade`.

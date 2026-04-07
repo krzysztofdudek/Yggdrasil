@@ -1,50 +1,62 @@
 {
-  "hash": "3ed25361a6be59d35c157f781fae32d3fbc04d08051519b227efad79dc6169a5",
+  "hash": "b15bfcf833a189d347e4e7d9ba108373e0302710124cc0586f0cb753086907d6",
   "files": {
+    ".yggdrasil/model/cli/commands/init/yg-node.yaml": "b6b80a18aee250e818e595661f7c333f25980182cd37fbe650ba0643e3de207a",
     ".yggdrasil/model/cli/commands/init/interface.md": "f5e497e2442107db1407b081a5e23066c442a21f1b34b0c525775ebdd4c72d99",
     ".yggdrasil/model/cli/commands/init/internals.md": "d362117d9c1af9af88726ceba846fd34f38c3112950e74b067ee1ea8bf14c6d7",
     ".yggdrasil/model/cli/commands/init/responsibility.md": "7aa179e925568841a25e294db48f1e9b7978f03aa03c5ce2463d527907ea54a3",
     ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df",
     ".yggdrasil/model/cli/internals.md": "7440678f012e45d8b15a4efc252cc3b4220fe7aec98fb673786abd9c2a37f9f0",
-    ".yggdrasil/model/cli/responsibility.md": "696e0f5f377eba69a843a18379e8f20e0322dc037182690629652a75aa2227fb",
+    ".yggdrasil/model/cli/commands/yg-node.yaml": "d55896632ad5686d8ea01093197534a9a8230f71449d90d8291062ed4436f2c4",
     ".yggdrasil/model/cli/commands/internals.md": "5a3b679d5c2b9600c7fa3dc01b2f28661b7bfb11850a922ff885a7a583d455c7",
     ".yggdrasil/model/cli/commands/responsibility.md": "dd8146f9c54251a68f81f4036fdf931d526f3159707709b92a59493fe383a080",
     ".yggdrasil/aspects/cli-command-contract/yg-aspect.yaml": "c818ab194c19f451955987badc7d3f14026349be6a1f633f1440778c1beae802",
     ".yggdrasil/aspects/cli-command-contract/content.md": "b1509ccd44cc91f1cff43926b69f16845407f518ecf4d448d24a0b4a4e2894c3",
-    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "e6c0c095222ce0d80b79af77f5966d02f541b514205a4b551354b65ef5938900",
+    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "462df48ae702ab782902adfecb0ce3d3fee925134847b7a984fc33b8459fdd0d",
     ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
-    ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": "0b98be4ee4221db627b892cddeb548a94e3cb1bfce936b9555bd30d7c225e34d",
-    ".yggdrasil/aspects/posix-paths/content.md": "38daf50dec99307443fd8951019cf534c74571a7778d43e55a4354d9d2faeefc",
+    ".yggdrasil/model/cli/templates/responsibility.md": "9288e63e871ba1815c0f492c7ab413202497a16cc8720eff69399eb2353a544c",
     ".yggdrasil/model/cli/templates/interface.md": "cc71b80c1bd87529d80784cb3b6f8ca3640b1d4d91e6da0219985b85c7f065f3",
     ".yggdrasil/flows/init/yg-flow.yaml": "eb35f927c712f8bae38cb5c5fcd0193432aea2fb7adc5e75f777764300ce3177",
     ".yggdrasil/flows/init/description.md": "7ab06dca456fe57c748e343faba4dff4db88ef73792ab2eaf28298ff595adba0",
-    "source/cli/src/cli/init.ts": "2ea3685241137528440ef6ef74fa252476ecf47d9400bf13cc97510015e52c61",
-    ".yggdrasil/model/cli/commands/init/yg-node.yaml": "b6b80a18aee250e818e595661f7c333f25980182cd37fbe650ba0643e3de207a",
-    ".yggdrasil/model/cli/commands/yg-node.yaml": "d55896632ad5686d8ea01093197534a9a8230f71449d90d8291062ed4436f2c4",
-    ".yggdrasil/model/cli/templates/responsibility.md": "9288e63e871ba1815c0f492c7ab413202497a16cc8720eff69399eb2353a544c"
+    "source/cli/src/cli/init.ts": "899c42c865b296ad398a8c89df4b292e46baa3fb42757a72bd0bda87e9867732",
+    ".yggdrasil/model/cli/responsibility.md": "b1b42bf482d727823ed25d0bcf1369dbba917ae192723a57464b233a53644c0f"
   },
   "mtimes": {
-    ".yggdrasil/model/cli/commands/init/yg-node.yaml": 1775544543986.1812,
+    ".yggdrasil/model/cli/commands/init/yg-node.yaml": 1775545085530.148,
     ".yggdrasil/model/cli/commands/init/interface.md": 1772743197454.1592,
     ".yggdrasil/model/cli/commands/init/internals.md": 1774864350260.4539,
     ".yggdrasil/model/cli/commands/init/responsibility.md": 1775217991122.7837,
     ".yggdrasil/model/cli/yg-node.yaml": 1775243577620.7664,
     ".yggdrasil/model/cli/internals.md": 1775329681280.232,
-    ".yggdrasil/model/cli/responsibility.md": 1775045623775.336,
-    ".yggdrasil/model/cli/commands/yg-node.yaml": 1775544531927.7505,
+    ".yggdrasil/model/cli/responsibility.md": 1775567498378.8098,
+    ".yggdrasil/model/cli/commands/yg-node.yaml": 1775545085531.0886,
     ".yggdrasil/model/cli/commands/internals.md": 1775046923261.1494,
     ".yggdrasil/model/cli/commands/responsibility.md": 1775045632026.2983,
     ".yggdrasil/aspects/cli-command-contract/yg-aspect.yaml": 1775328135743.9414,
     ".yggdrasil/aspects/cli-command-contract/content.md": 1772778786204.255,
-    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775328133881.7266,
+    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775561447770.7463,
     ".yggdrasil/aspects/deterministic/content.md": 1772778780694.5889,
-    ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": 1775328137050.7122,
-    ".yggdrasil/aspects/posix-paths/content.md": 1772743197466.7686,
-    ".yggdrasil/model/cli/templates/responsibility.md": 1775544278124.9905,
+    ".yggdrasil/model/cli/templates/responsibility.md": 1775545085532.323,
     ".yggdrasil/model/cli/templates/interface.md": 1775304875643.616,
     ".yggdrasil/flows/init/yg-flow.yaml": 1774035679161.664,
     ".yggdrasil/flows/init/description.md": 1772743197468.9497,
-    "source/cli/src/cli/init.ts": 1775309513301.0527
+    "source/cli/src/cli/init.ts": 1775564276028.8083
   },
-  "acknowledgeReason": "removed deterministic aspect — command handlers are inherently impure (I/O, process.exit, execSync); aspect was incorrectly applied"
+  "reviewedReason": "compliance verified: cli responsibility.md added Terminology section — no behavioral change",
+  "claimResults": {
+    "cli-command-contract": {
+      "stdout-write": {
+        "satisfied": true,
+        "reason": "The code exclusively uses process.stdout.write() for all output and process.stderr.write() for errors, never using console.log."
+      },
+      "error-handler": {
+        "satisfied": true,
+        "reason": "The code wraps the command action body in a try/catch block and writes errors to process.stderr.write() before exiting with code 1."
+      },
+      "exit-code": {
+        "satisfied": true,
+        "reason": "The code explicitly calls process.exit(1) in multiple error scenarios (invalid platform, .yggdrasil exists but not a directory, upgrade flag used when .yggdrasil already exists, project version newer than CLI, and general try/catch block), satisfying the claim."
+      }
+    }
+  }
 }

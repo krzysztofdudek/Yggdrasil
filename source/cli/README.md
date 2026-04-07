@@ -55,7 +55,7 @@ yg context --node orders/order-service
 
 **Approving changes:**
 
-- `yg approve --node <path>` — Three-axis gate: accept when source and artifacts changed together, or supply `--acknowledge <reason>` for conscious exceptions
+- `yg approve --node <path>` — Three-axis gate: accept when source and artifacts changed together, or supply `--reviewed <reason>` to bypass the structural gate (reviewer still verifies claims)
 
 **Setup:**
 

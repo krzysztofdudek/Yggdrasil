@@ -84,20 +84,6 @@ async function migrateConfig(configPath: string, yggRoot: string, actions: strin
     configChanged = true;
   }
 
-  // Add LLM config placeholder if not present
-  if (!config.llm) {
-    config.llm = {
-      provider: 'ollama',
-      model: 'llama3.1:8b',
-      endpoint: 'http://localhost:11434',
-      temperature: 0,
-      consensus: 1,
-      max_tokens: 'auto',
-    };
-    configChanged = true;
-    warnings.push(`Added LLM config placeholder to yg-config.yaml (commented out, needs configuration)`);
-  }
-
   // Write config if changed
   if (configChanged) {
     await writeFile(configPath, stringifyYaml(config, { lineWidth: 120 }), 'utf-8');
@@ -298,10 +284,15 @@ async function createSecretsExample(yggRoot: string, actions: string[], warnings
   const secretsExamplePath = path.join(yggRoot, 'yg-secrets.example.yaml');
 
   const template = `# Copy this to yg-secrets.yaml and fill in sensitive values (never commit yg-secrets.yaml)
-llm:
-  api_key: <your-api-key>
-  provider: openai    # or: ollama, anthropic
-  model: gpt-4        # override if needed
+reviewer:
+  ollama:
+    endpoint: http://localhost:11434     # override endpoint
+    model: qwen3.5:9b                   # override model
+    temperature: 0                      # override temperature
+    max_tokens: auto                    # override max tokens (int or "auto")
+    context_length_field: ""            # ollama model_info key for context window size
+  claude-code:
+    model: haiku                        # override model (haiku, sonnet, opus)
 `;
 
   try {

@@ -3,6 +3,7 @@ type: library
 description: Unified check orchestrator — combines drift classification (E020/E021), coverage scan (E022), orphaned drift state (W005), validation issues, and suggested next command
 aspects:
   - deterministic
+  - posix-paths
 relations:
   - target: cli/core/validator
     type: uses

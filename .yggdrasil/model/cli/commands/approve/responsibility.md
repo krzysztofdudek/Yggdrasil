@@ -5,27 +5,26 @@ CLI command handler implementing `yg approve` and the backward-compatible `yg dr
 ## Scope
 
 - **`registerApproveCommand(program)`** — registers two commands on the Commander instance:
-  - `yg approve --node <path>` — primary command. Accepts `--acknowledge <reason>` for conscious exceptions.
+  - `yg approve --node <path>` — primary command. Accepts `--reviewed <reason>` for conscious exceptions.
   - `yg drift-sync --node <path>` — deprecated alias. Accepts same options. Rejects `--all` and `--recursive` with a descriptive error.
 - **Output formatting** — `formatResult` and `formatRefused` render all five outcome cases:
-  - `approved` — green success line, hash transition (`prev -> curr`); if LLM ran, shows verification summary ("N claims satisfied, N artifacts current")
-  - `acknowledged` — green with "Approved as conscious exception — source and artifacts were not both updated"; special message for blackbox cascade
+  - `approved` — green success line, hash transition (`prev -> curr`); if reviewer ran, shows verification summary ("N claims satisfied, N artifacts current")
+  - `reviewed` — green with "Three-axis gate bypassed — reviewer not run (reason)" or "reviewer verified claims" depending on `llmSkipped`
   - `initial` — green with "(initial)" marker
   - `no-change` — plain output with "baseline already current. No approval needed."
   - `refused` — red error to stderr with contextual guidance per failure case (blackbox blocked, anti-laundering, unilateral graph artifact change, unilateral source change, cascade-only)
 - **Node path normalization** — strips leading `./` and trailing `/` from `--node` value before passing to core.
-- **LLM provider loading** — `loadLlmProvider` reads `llm` config section and `yg-secrets.yaml`, creates provider, checks `isAvailable()`. Returns `llmNotConfigured: true` when no `llm` section exists, `llmNotConfigured: false` with `provider: undefined` when provider is unreachable.
-- **LLM skip messaging** — `formatLlmResults` shows four distinct messages based on `llmSkipped` reason:
-  - `'not-configured'` — "LLM not configured — claims not verified. Structural checks only. To enable: configure llm section in yg-config.yaml."
-  - `'unavailable'` — "LLM configured but not reachable — claims not verified. Structural checks only."
-  - `'acknowledge'` — "LLM verification skipped (--acknowledge overrides)."
-  - `'blackbox'` — "LLM verification skipped for blackbox node."
+- **Reviewer loading** — `loadLlmProvider` reads `llm` config field (populated from `reviewer:` yaml section) and `yg-secrets.yaml`, creates provider, checks `isAvailable()`. Returns `llmNotConfigured: true` when no reviewer section exists, `llmNotConfigured: false` with `provider: undefined` when provider is unreachable.
+- **Reviewer skip messaging** — `formatLlmResults` shows distinct messages based on `llmSkipped` reason:
+  - `'not-configured'` — "Reviewer not configured — claims not verified. Structural checks only. To enable: add reviewer section to yg-config.yaml."
+  - `'unavailable'` — "Reviewer configured but not reachable — claims not verified. Structural checks only."
+  - `'blackbox'` — "Reviewer skipped for blackbox node."
 - **GC reporting** — prints orphaned drift state removals as dim lines.
 
 ## Failure modes handled
 
 - `antiLaunderingBlocked` — explains that blackbox cannot cover already-tracked files, instructs decomposition
-- `blackboxBlocked` + `acknowledgeAttempted` — explains `--acknowledge` is unavailable for blackbox source changes
+- `blackboxBlocked` + `reviewedAttempted` — explains `--reviewed` is unavailable for blackbox source changes
 - `blackboxBlocked` — lists changed source files, gives 3-step decomposition instructions
 - Source changed, graph artifacts unchanged — lists changed source files + unchanged artifacts, instructs update-then-approve
 - Graph artifacts changed, source unchanged — lists changed artifacts + source files, instructs implement-then-approve

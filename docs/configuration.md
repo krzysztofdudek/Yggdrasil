@@ -67,27 +67,37 @@ quality:
 
 ---
 
-## LLM config
+## Reviewer config
 
 Optional. Enables semantic verification during `yg approve` — claim checking (E055)
-and optionally artifact review (E056).
-
-| Field                  | Default                  | Description                                                                                                   |
-| ---------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------- |
-| `provider`             | —                        | `ollama`, `openai`, or `anthropic`                                                                            |
-| `model`                | —                        | Model identifier (e.g. `qwen3.5:9b`)                                                                         |
-| `endpoint`             | `http://localhost:11434` | Provider endpoint URL                                                                                         |
-| `temperature`          | `0`                      | Sampling temperature                                                                                          |
-| `consensus`            | `1`                      | Number of agreeing responses required (odd integer)                                                           |
-| `max_tokens`           | `auto`                   | Max context tokens. `auto` queries the provider                                                               |
-| `verify_artifacts`     | `false`                  | Run artifact review (E056). Off by default — small models produce false positives on large artifacts          |
-| `context_length_field` | auto-detected            | Ollama `model_info` key for context window size. Auto-detected by finding key ending with `.context_length`   |
-
-Credentials (`api_key`) go in `.yggdrasil/yg-secrets.yaml` (gitignored):
+and optionally artifact review (E056). The `reviewer:` section in `yg-config.yaml` uses
+a nested provider structure.
 
 ```yaml
-llm:
-  api_key: "sk-..."
+reviewer:
+  active: ollama                  # required when multiple providers listed
+  verify_artifacts: false         # run artifact review (E056) — default false
+  consensus: 1                    # positive odd integer >= 1
+  ollama:
+    model: "qwen3.5:9b"
+    endpoint: "http://localhost:11434"
+    temperature: 0
+    max_tokens: auto              # auto = query provider, or explicit number
+    context_length_field: ""      # ollama model_info key for context window size
+  claude-code:
+    model: haiku                  # haiku, sonnet, or opus
+```
+
+General keys (`active`, `verify_artifacts`, `consensus`) sit at the `reviewer:` level.
+Provider-specific keys sit under the provider name (`ollama:`, `claude-code:`).
+
+Credentials and endpoint overrides go in `.yggdrasil/yg-secrets.yaml` (gitignored):
+
+```yaml
+reviewer:
+  ollama:
+    endpoint: http://localhost:11434
+    model: qwen3.5:9b
 ```
 
 ---

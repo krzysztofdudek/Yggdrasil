@@ -1,5 +1,5 @@
 {
-  "hash": "8ea64ecb85237a9eec6abeb7bfe181c6d01e7f4aead5a9f97564e6fae99bb61e",
+  "hash": "2252d444aba5b1985ff6ddf163b8c1d4eab0afdc711e7fafb0e99ae0b1fdb2d6",
   "files": {
     ".yggdrasil/model/docs/guides/yg-node.yaml": "76ff2aebba49ef2a905282e16c02b1f83a8c95b2df2e102bdec4a174e342d371",
     ".yggdrasil/model/docs/guides/responsibility.md": "1c7f67efbff5b94d4fbe0aed176fa32247578383d05383e7b30ff95a6b50fac8",
@@ -7,9 +7,9 @@
     ".yggdrasil/model/docs/responsibility.md": "070a2a6c6b29116ab18d2b824068d227cc4682f30fd5ef79b3cbe307dbe632fe",
     "docs/getting-started.md": "bd967ee1fb52aaca13ba218b44610b767c6bf276ab98e1d4dd637ab8955ccf3a",
     "docs/cli-reference.md": "477da725cea80606c5e6a059920687b05cb51b38a871195857c313855bb5b1b2",
-    "docs/configuration.md": "7dc22d6c26387a0ce7f376b5e1dadbc0ff2534f96a63446b8293cf8f8ab824cf",
     "docs/platforms.md": "20e2b9c50f75e37c47d6a796c25e68e77eb53ebf81e56f768300f09d62ee2338",
-    "docs/index.md": "183a218aecd393eb2867a03541ee5b125651e96a016d72c5037d73f61f617914"
+    "docs/index.md": "183a218aecd393eb2867a03541ee5b125651e96a016d72c5037d73f61f617914",
+    "docs/configuration.md": "a8416e17c27b5f4462d369b23b7dd56205745f5fe5c7fd90f6f3b9b1a0d83c66"
   },
   "mtimes": {
     ".yggdrasil/model/docs/guides/yg-node.yaml": 1775327956365.5046,
@@ -18,9 +18,9 @@
     ".yggdrasil/model/docs/responsibility.md": 1772828320283.2747,
     "docs/getting-started.md": 1772829457957.486,
     "docs/cli-reference.md": 1775314679226.5176,
-    "docs/configuration.md": 1775509847274.7646,
+    "docs/configuration.md": 1775567483110.22,
     "docs/platforms.md": 1772485235626.6682,
     "docs/index.md": 1775025289802.478
   },
-  "acknowledgeReason": "added LLM config section to configuration.md"
+  "reviewedReason": "LLM→reviewer terminology in configuration.md; rewrote config section to match nested reviewer: format"
 }
