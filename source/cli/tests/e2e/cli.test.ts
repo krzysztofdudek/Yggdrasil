@@ -290,7 +290,7 @@ describe.skipIf(!distExists)('CLI E2E', () => {
     expect(stdout).toContain('Impact of changes in aspect requires-audit');
     expect(stdout).toContain('Directly affected');
     expect(stdout).toContain('orders');
-    expect(stdout).toContain('Total scope:');
+    expect(stdout).toContain('Blast radius:');
   });
 
   it('yg impact --aspect requires-audit shows indirectly affected structural dependents', () => {
@@ -336,7 +336,7 @@ describe.skipIf(!distExists)('CLI E2E', () => {
     expect(stdout).toContain('Impact of changes in flow');
     expect(stdout).toContain('orders/order-service');
     expect(stdout).toContain('auth/auth-api');
-    expect(stdout).toContain('Total scope:');
+    expect(stdout).toContain('Blast radius:');
   });
 
   it('yg impact --flow checkout-flow shows flow aspects', () => {

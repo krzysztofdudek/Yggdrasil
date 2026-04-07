@@ -64,7 +64,7 @@ export function formatAspectsOutput(graph: Graph): string {
     } else {
       const parts: string[] = [];
       if (u.architecture) parts.push(`architecture: ${u.architecture}`);
-      if (u.own) parts.push(`own: ${u.own}`);
+      if (u.own) parts.push(`direct: ${u.own}`);
       if (u.implied) parts.push(`implied: ${u.implied}`);
       if (u.flow) parts.push(`flow: ${u.flow}`);
       lines.push(`  Used by: ${u.total} node${u.total === 1 ? '' : 's'} (${parts.join(', ')})`);

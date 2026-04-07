@@ -44,7 +44,7 @@ export function formatFileContext(data: FileContextData): string {
       for (const c of data.candidates) {
         lines.push(`    ${c.nodePath} — ${c.mappingPrefix}`);
       }
-      lines.push('  Or create a new node. See: yg check for E022 details.');
+      lines.push('  Add this file to a candidate node\'s mapping in yg-node.yaml, or create a new node.');
     }
     lines.push('');
     return lines.join('\n');

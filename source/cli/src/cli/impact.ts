@@ -244,8 +244,12 @@ async function handleAspectImpact(
   );
   process.stdout.write(`Implied by: ${impliedBy.length > 0 ? impliedBy.join(', ') : '(none)'}\n`);
   process.stdout.write(`Implies: ${implies.length > 0 ? implies.join(', ') : '(none)'}\n`);
-  process.stdout.write(`\nTotal scope: ${affected.length + indirectPaths.length} nodes, ${propagatingFlows.length} flows\n`);
+  process.stdout.write(`\nBlast radius: ${affected.length + indirectPaths.length} nodes, ${propagatingFlows.length} flows\n`);
   process.stdout.write(`  All ${affected.length} directly affected nodes would show E021 if this aspect changes.\n`);
+  const totalAffected = affected.length + indirectPaths.length;
+  if (totalAffected >= 10) {
+    process.stdout.write(`  High blast radius — review claims in affected nodes before modifying this aspect.\n`);
+  }
 
 }
 
@@ -295,8 +299,12 @@ async function handleFlowImpact(
     `\nFlow aspects: ${flowAspects.length > 0 ? flowAspects.join(', ') : '(none)'}\n`,
   );
   const declaredParticipants = flow.nodes.filter((n) => graph.nodes.has(n));
-  process.stdout.write(`\nTotal scope: ${sorted.length + indirectPaths.length} nodes\n`);
+  process.stdout.write(`\nBlast radius: ${sorted.length + indirectPaths.length} nodes\n`);
   process.stdout.write(`  All ${declaredParticipants.length} participants would show E021 if this flow changes.\n`);
+  const totalFlowAffected = sorted.length + indirectPaths.length;
+  if (totalFlowAffected >= 10) {
+    process.stdout.write(`  High blast radius — review flow compliance in participants before modifying.\n`);
+  }
 
 }
 
@@ -481,7 +489,7 @@ export function registerImpactCommand(program: Command): void {
             `\nFlows: ${flows.length > 0 ? flows.join(', ') : '(none)'}\n`,
           );
           process.stdout.write(
-            `Aspects (scope covers node): ${aspectsInScope.length > 0 ? aspectsInScope.join(', ') : '(none)'}\n`,
+            `Aspects: ${aspectsInScope.length > 0 ? aspectsInScope.join(', ') : '(none)'}\n`,
           );
 
           const coAspectNodes: Array<{ path: string; shared: string[] }> = [];
@@ -506,11 +514,16 @@ export function registerImpactCommand(program: Command): void {
 
           const allAffected = new Set([...allDependents, ...descendants, ...eventDependents.map((e) => e.path), ...descIndirectPaths]);
           process.stdout.write(
-            `\nTotal scope: ${allAffected.size} nodes, ${flows.length} flows, ${aspectsInScope.length} aspects\n`,
+            `\nBlast radius: ${allAffected.size} nodes, ${flows.length} flows, ${aspectsInScope.length} aspects\n`,
           );
           process.stdout.write(
             `  All ${allAffected.size} nodes would show E021 (cascade drift) if this node changes.\n`,
           );
+          if (allAffected.size >= 10) {
+            process.stdout.write(`  High blast radius — review interface.md of direct dependents before changing this node.\n`);
+          } else if (allAffected.size > 0) {
+            process.stdout.write(`  Review interface.md of direct dependents before changing this node.\n`);
+          }
         } catch (error) {
           process.stderr.write(`Error: ${(error as Error).message}\n`);
           process.exit(1);

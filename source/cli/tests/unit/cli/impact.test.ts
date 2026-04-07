@@ -64,7 +64,7 @@ describe('impact command', () => {
           { cwd, encoding: 'utf-8' },
         );
         expect(result.status).toBe(0);
-        expect(result.stdout).toContain('Total scope');
+        expect(result.stdout).toContain('Blast radius');
       });
     });
 
@@ -143,7 +143,7 @@ describe('impact command', () => {
           { cwd, encoding: 'utf-8' },
         );
         expect(result.status).toBe(0);
-        expect(result.stdout).toContain('Total scope');
+        expect(result.stdout).toContain('Blast radius');
       });
     });
 
@@ -209,7 +209,7 @@ describe('impact command', () => {
           { cwd, encoding: 'utf-8' },
         );
         expect(result.status).toBe(0);
-        expect(result.stdout).toContain('Total scope');
+        expect(result.stdout).toContain('Blast radius');
       });
     });
 

@@ -83,7 +83,7 @@ describe('formatNodeContext', () => {
 
   it('shows consequence framing for 6+ dependents', () => {
     const output = formatNodeContext(makeNodeData({ dependentCount: 8, dependentPaths: [] }));
-    expect(output).toContain("Changes to this node's interface will trigger cascade review on 8 nodes");
+    expect(output).toContain("Moderate blast radius — changes trigger cascade review on 8 nodes");
     expect(output).toContain('Run: yg impact');
   });
 

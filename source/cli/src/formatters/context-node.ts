@@ -113,7 +113,7 @@ export function formatNodeContext(data: NodeContextData): string {
       lines.push(`  HIGH blast radius — changes cascade to ${data.dependentCount} nodes.`);
       lines.push(`  Strongly recommended: yg impact --node ${data.path}`);
     } else if (data.dependentCount >= 6) {
-      lines.push(`  Changes to this node's interface will trigger cascade review on ${data.dependentCount} nodes.`);
+      lines.push(`  Moderate blast radius — changes trigger cascade review on ${data.dependentCount} nodes.`);
       lines.push(`  Run: yg impact --node ${data.path}`);
     } else {
       // 1-5: plain list of dependent node paths
@@ -145,6 +145,10 @@ export function formatNodeContext(data: NodeContextData): string {
 
   // Token budget
   lines.push(`Token budget: ${data.tokenBudget.current.toLocaleString()} / ${data.tokenBudget.limit.toLocaleString()} (${data.tokenBudget.status})`);
+  lines.push('');
+
+  // Workflow footer
+  lines.push(`After modifying source files in this node: update artifacts, run yg check, then yg approve --node ${data.path}`);
   lines.push('');
 
   return lines.join('\n');
