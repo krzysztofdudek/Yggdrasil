@@ -20,7 +20,7 @@ CLI command handler implementing `yg approve` and the backward-compatible `yg dr
   - Exit code: 1 if any refused, 0 if all approved/reviewed
 - **Output formatting** — `formatResult` and `formatRefused` render all five outcome cases:
   - `approved` — green success line, hash transition (`prev -> curr`); if reviewer ran, shows verification summary ("N aspects satisfied, N artifacts current")
-  - `reviewed` — green with "Three-axis gate bypassed — reviewer not run (reason)" or "reviewer verified claims" depending on `llmSkipped`
+  - `reviewed` — green with "Three-axis gate bypassed — reviewer not run (reason)" or "reviewer verified aspects" depending on `llmSkipped`
   - `initial` — green with "(initial)" marker
   - `no-change` — plain output with "baseline already current. No approval needed."
   - `refused` — red error to stderr with contextual guidance per failure case (blackbox blocked, anti-laundering, unilateral graph artifact change, unilateral source change, cascade-only)

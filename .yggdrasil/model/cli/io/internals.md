@@ -43,7 +43,7 @@ Each JSON file contains a `DriftNodeState`: canonical hash, per-file hashes, and
 
 **Ports:** The `ports` field on NodeMeta defines aspect IDs that consumers of this node must propagate in their dependency tracking.
 
-**Nested reviewer config with parser normalization:** Chose to parse the nested `reviewer:` YAML structure (provider sub-keys under `reviewer:`) and normalize it into the flat internal `LlmConfig` type, over changing the `LlmConfig` type to mirror the YAML nesting. Reason: the flat `LlmConfig` is consumed by 5+ modules (provider factory, claim verifier, artifact reviewer, approve command, check). Changing the internal type would cascade through all consumers for zero behavioral gain. The parser absorbs the structural mismatch so the rest of the codebase stays untouched.
+**Nested reviewer config with parser normalization:** Chose to parse the nested `reviewer:` YAML structure (provider sub-keys under `reviewer:`) and normalize it into the flat internal `LlmConfig` type, over changing the `LlmConfig` type to mirror the YAML nesting. Reason: the flat `LlmConfig` is consumed by 5+ modules (provider factory, aspect verifier, artifact reviewer, approve command, check). Changing the internal type would cascade through all consumers for zero behavioral gain. The parser absorbs the structural mismatch so the rest of the codebase stays untouched.
 
 **`deterministic` aspect removed:** The io layer writes files by design (drift-state, audit-log). The `deterministic` aspect is appropriate for pure computation functions; it is not appropriate for the persistence layer.
 

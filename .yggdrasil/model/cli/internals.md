@@ -28,9 +28,9 @@ Tools read and validate the graph; they do not write it. The agent writes the gr
 
 Agents need 5000 *right* tokens, not 50,000 random ones. The graph enables bounded context packages assembled mechanically from explicit declarations. Deterministic discoverability: every piece of knowledge reaches the agent through a declared, tool-verifiable path.
 
-## Why claims replaced regex anchors (v4)
+## Why LLM aspect verification replaced regex anchors (v4)
 
-Chose LLM-verified natural language claims over regex patterns because agents were writing meaningless regexes to pass validation (e.g., `"export function"` as proof of determinism). Regex was a proxy for semantic verification — direct semantic verification via LLM is more honest. Claims in natural language are per-file verifiable, composable, and cannot be gamed. Rejected alternative: keeping regex with stricter patterns — rejected because the fundamental problem was proving semantic properties with syntactic patterns.
+Chose LLM-verified natural language requirements (aspect content.md files) over regex patterns because agents were writing meaningless regexes to pass validation (e.g., `"export function"` as proof of determinism). Regex was a proxy for semantic verification — direct semantic verification via LLM is more honest. Aspect requirements in natural language are composable and cannot be gamed. Rejected alternative: keeping regex with stricter patterns — rejected because the fundamental problem was proving semantic properties with syntactic patterns. Note: an intermediate design used per-claim anchors in yg-aspect.yaml; these were later removed in favor of sending the full content.md to the reviewer, eliminating the lossy compression layer.
 
 ## Why LLM verification at approve, not check (v4)
 
@@ -52,6 +52,6 @@ Agent feedback showed health scores were meaningless without explanation — "90
 
 Chose two-level structured text (node overview, file details) over single YAML dump. Agents don't parse context programmatically — they read it. YAML was verbose and required agents to understand the map structure. Structured text with clear headers and `read:` pointers is more scannable. Two levels provide progressive disclosure: `context --node` for orientation, `context --file` for per-file details when modifying code. Rejected alternative: keeping YAML output — rejected because agents consistently struggled with the YAML map structure.
 
-## Why per-file-verifiable claims (v4)
+## Why per-file-verifiable aspect requirements (v4)
 
-Claims must be verifiable within a single file, not across files. Cross-file claims ("function A calls function B") break with file chunking on large nodes. Per-file claims ("no Date.now()", "error handling uses AppError") are robust, compose well, and can be verified independently. Cross-file invariants belong in flow descriptions and node artifacts, not aspect claims.
+Aspect requirements must be verifiable within a single file, not across files. Cross-file requirements ("function A calls function B") break with file chunking on large nodes. Per-file requirements ("no Date.now()", "error handling uses AppError") are robust, compose well, and can be verified independently. Cross-file invariants belong in flow descriptions and node artifacts, not aspect content files.

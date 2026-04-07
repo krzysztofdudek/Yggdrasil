@@ -35,7 +35,7 @@ The CLI is organized in a layered architecture with clear separation of concerns
 
 ## Terminology
 
-User-facing terminology uses "reviewer" (config key `reviewer:`, CLI messages "Verifying claims with reviewer"). Internal TypeScript code uses "LLM" (`LlmConfig`, `LlmProvider`, `llm/` directory, `llmSkipped`). The YAML key `reviewer:` is parsed into the `llm` field on `YggConfig`. This split is deliberate: "reviewer" describes the role (what it does for the user); "LLM" describes the implementation (what it is technically). Renaming internal types would be churn across 20+ files with no user-visible benefit.
+User-facing terminology uses "reviewer" (config key `reviewer:`, CLI messages "Verifying aspects with reviewer"). Internal TypeScript code uses "LLM" (`LlmConfig`, `LlmProvider`, `llm/` directory, `llmSkipped`). The YAML key `reviewer:` is parsed into the `llm` field on `YggConfig`. This split is deliberate: "reviewer" describes the role (what it does for the user); "LLM" describes the implementation (what it is technically). Renaming internal types would be churn across 20+ files with no user-visible benefit.
 
 ## Invariant
 

@@ -21,7 +21,7 @@ Public API consumed by cli/commands/build-context.
 
 - `formatNodeContext(data: NodeContextData): string`
   - Formats a node context package as human-readable text for `yg context --node` output.
-  - Sections: header, source files, aspects/claims, flows, dependencies, dependents, parent, artifacts, token budget.
+  - Sections: header, source files, aspects, flows, dependencies, dependents, parent, artifacts, token budget.
   - Dependents section uses blast radius vocabulary: "HIGH blast radius" (11+), "Moderate blast radius" (6-10), or plain list (1-5).
   - Ends with a workflow footer: "After modifying source files in this node: update artifacts, run yg check, then yg approve --node <path>"
   - Pure transformation — no I/O, no validation.

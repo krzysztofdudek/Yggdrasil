@@ -52,7 +52,7 @@ Model is a TypeScript type library — it contains no executable code and does n
 
 ## Config types
 
-- **YggConfig** — Top-level config: name, optional version, node_types (Record keyed by type name), optional quality thresholds, optional llm (LlmConfig for claim verification). No longer has an `artifacts` field — artifacts are defined by the STANDARD_ARTIFACTS constant.
+- **YggConfig** — Top-level config: name, optional version, node_types (Record keyed by type name), optional quality thresholds, optional llm (LlmConfig for aspect verification). No longer has an `artifacts` field — artifacts are defined by the STANDARD_ARTIFACTS constant.
 - **STANDARD_ARTIFACTS** — `Record<string, ArtifactConfig>` constant defining the three hardcoded artifacts: `responsibility.md` (required: always, included_in_relations: true), `interface.md` (required: when has_incoming_relations, included_in_relations: true), `internals.md` (required: never, included_in_relations: false). Defines the three standard artifacts.
 - **NodeTypeConfig** — Node type definition with description (required) and optional required_aspects. Key in the Record is the type name.
 - **ArtifactConfig** — Per-artifact config: required condition (always/never/when), description, optional included_in_relations flag.
