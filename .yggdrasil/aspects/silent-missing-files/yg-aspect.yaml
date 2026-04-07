@@ -1,5 +1,2 @@
 name: Silent Missing Files
 description: "Optional graph files and state files return empty defaults instead of throwing on absence"
-anchors:
-  - id: null-on-missing
-    claim: "Missing optional files or directories return empty arrays or objects instead of throwing errors"

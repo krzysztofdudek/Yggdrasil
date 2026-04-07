@@ -1,6 +1,2 @@
 name: Subscription Limits
 description: "Freemium enforcement: free plan caps on expenses (50/month) and custom categories (5)"
-stability: implementation
-anchors:
-  - plan-check
-  - limit-enforcement

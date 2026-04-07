@@ -1,6 +1,2 @@
 name: Requires Authentication
 description: "Routes and pages that require a valid JWT token to access"
-stability: protocol
-anchors:
-  - auth-middleware-check
-  - token-validation

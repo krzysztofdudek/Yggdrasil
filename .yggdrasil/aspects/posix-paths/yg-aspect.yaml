@@ -1,5 +1,2 @@
 name: POSIX Paths
 description: "All internal paths use forward-slash separators for cross-platform consistency"
-anchors:
-  - id: forward-slash-normalization
-    claim: "Path handling normalizes backslashes to forward slashes before comparison or storage"

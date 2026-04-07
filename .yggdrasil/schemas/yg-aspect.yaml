@@ -7,6 +7,3 @@
 name: CrossCuttingRequirementName  # required — display name
 description: "Short description for discovery via yg aspects"  # optional
 # implies: [other-aspect, another-aspect] # optional — other aspect identifiers included automatically (recursive, must be acyclic)
-anchors:                      # required — per-file verifiable claims (E039 if missing)
-  - id: claim-identifier      # unique ID for this claim
-    claim: "Per-file verifiable property that source files must satisfy"
