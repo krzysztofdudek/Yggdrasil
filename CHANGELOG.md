@@ -14,12 +14,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Aspects and flows show `(matched)` (directly relevant) and `(N nodes)` (present on returned nodes) annotations.
   Each aspect and flow entry includes a `read:` path pointing to its content file.
 - Claims/anchors removed from aspects. Reviewer now verifies source code directly against aspect content.md files — one holistic evaluation per aspect instead of per-claim checks. `anchors` field removed from `yg-aspect.yaml`. E039 removed. E055 now means "aspect not satisfied" (was "claim not satisfied").
+- **E050 renamed** from missing-required-aspect to dangling-aspect-ref.
+- **E053 rewritten** for per-consumed-port validation (was global).
+- **E021 collapsed** per-node with cached verification label.
+- **W001 shows full breakdown** of token budget usage.
+- **Anti-laundering** shows conflicting files and owning nodes.
+- **Context output** from YAML dump to structured text with progressive disclosure.
+- **Aspect Discovery During Implementation** applies to brownfield, not just
+  greenfield.
 
 ### Breaking Changes
 
 - **`--acknowledge` replaced with `--reviewed`.** `--reviewed` bypasses
   the three-axis gate only — reviewer verification still runs. Agents can no
-  longer rubber-stamp claim failures.
+  longer rubber-stamp aspect verification failures.
 - **Config key `llm:` renamed to `reviewer:`** with nested provider
   structure. Internal TypeScript types remain `LlmConfig`/`LlmProvider`.
 
@@ -31,7 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   guidance. Information routing expanded with per-type destinations and
   explicit "no artifact needed" category.
 - **Claude Code provider (`claude-code`)** — spawns `claude` CLI for
-  claim verification. Configure via `reviewer: { claude-code: { model: haiku } }`.
+  aspect verification. Configure via `reviewer: { claude-code: { model: haiku } }`.
 - **`yg approve --aspect <id>`** — batch approve all E021 cascade nodes
   from a specific aspect change.
 - **`yg approve --flow <name>`** — batch approve all E021 cascade nodes
@@ -76,11 +84,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Ollama context window** auto-detection now works with models that use
   architecture-prefixed keys (e.g. `qwen35.context_length`).
-- **Regex anchors replaced by LLM-verified claims.** Aspect anchors are now
-  `{id, claim}` objects with natural language claims verified by LLM at approve
-  time. Regex proofs, rationale fields, and anchor realizations are removed.
+- **Regex anchors replaced by LLM aspect verification.** The reviewer verifies
+  source code directly against aspect content.md files. Regex proofs, rationale
+  fields, and anchor realizations are removed.
 - **Mapping groups replaced by flat path lists.** Node mapping is a simple list
-  of file/directory paths. Per-group aspect proofs, anchor entries, and exceptions
+  of file/directory paths. Per-group aspect proofs and exceptions
   fields are removed. Verification moved to LLM layer.
 - **`integration_aspects` replaced by typed ports.** Nodes declare named ports
   with required aspects. Relations use `consumes` to reference ports. Per-relation
@@ -90,7 +98,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Health score removed** from `yg check` output.
 - **Error codes removed:** E003 (subsumed by E050), E035 (subsumed by E050),
   E037 (replaced by E055), E040 (removed — LLM verifies), E041 (removed —
-  only claim type), E054 (removed — mapping groups gone).
+  regex anchors gone), E054 (removed — mapping groups gone).
 - **`yg approve` replaces `drift-sync`.** `drift-sync` is now a backward-compatible
   alias. `--all` and `--recursive` flags removed — approve one node at a time.
 - **`yg context` replaces `build-context`.** `build-context` kept as alias.
@@ -102,13 +110,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Error codes renumbered to v4 scheme.** E001-E013 structural, E020-E022
   drift/coverage, E030-E041 completeness, E050-E058 architecture, W001-W006.
 - **`stability` field removed** from aspects.
-- **LLM verification at approve time.** Two operations: claim verification
-  (E055 if claim not satisfied) and artifact review (E056 if artifact stale).
+- **LLM verification at approve time.** Two operations: aspect verification
+  (E055 if aspect not satisfied) and artifact review (E056 if artifact stale).
   Configurable consensus voting, source chunking for large nodes, cached results.
 - **Typed ports on nodes.** Nodes declare named ports with required aspects.
   Consumers reference ports via `consumes` field on relations.
-- **E055 claim-not-satisfied** — LLM evaluated claim against source and found
-  it not satisfied. Fires at approve time only.
+- **E055 aspect-not-satisfied** — LLM evaluated aspect content.md against source
+  and found requirements not satisfied. Fires at approve time only.
 - **E056 artifact-stale** — LLM evaluated artifact and found it outdated.
   Fires at approve time only.
 - **E057 missing-consumes** — relation target has ports but consumer has no
@@ -118,13 +126,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **W006 orphaned-aspect** — aspect defined but not referenced by any node,
   architecture type, or flow.
 - **Progressive disclosure in context output.** `yg context --node` shows
-  overview (aspects with claims, flows, dependents with consequence framing,
+  overview (aspects, flows, dependents with consequence framing,
   artifact pointers, token budget). `yg context --file` shows per-file details
-  (claims to satisfy, dependencies consumed, back-pointer to node).
+  (aspects to satisfy, dependencies consumed, back-pointer to node).
 - **Consequence framing for dependents.** 1-5: plain list, 6-15: cascade
   warning with count, 16+: HIGH blast radius warning.
 - **`yg aspects` enriched.** Usage stats per aspect (by source: architecture,
-  own, implied, flow), claim count, orphan detection.
+  direct, implied, flow), orphan detection.
 - **`yg flows` enriched.** Participant count with node names, flow aspects.
 - **LLM provider integration.** `llm` section in yg-config.yaml (provider,
   model, endpoint, temperature, consensus, max_tokens). Supports Ollama
@@ -135,14 +143,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   without semantic verification. Notice shown to user.
 - **Append-only audit log** (`.yggdrasil/.audit-log.jsonl`) — every approve
   records timestamp, node, action, hashes, reason, changed files. Gitignored.
-- **`yg approve --node <path>`** — three-axis gate command. Accepts bilateral
-  changes, refuses unilateral without `--acknowledge`. LLM verification runs
-  on drifted nodes.
+- **`yg approve --node <path>`** — three-axis gate command.
 - **Three-axis drift detection in approve.** Own artifacts, source files,
   other-tracked (aspects, flows, hierarchy). Precise diagnosis.
 - **Blackbox enforcement in approve.** Source changes always refused.
 - **Anti-laundering check in approve.** Shows conflicting files and owning nodes.
-- **`--acknowledge <reason>` flag** — conscious exception for unilateral changes.
 - **E020 direct-drift** — source/graph/full drift with cause-specific messages.
 - **E021 cascade-drift** — upstream changes with cause identification. Collapsed
   per-node, cached verification label.
@@ -158,18 +163,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Candidate node listing for unmapped files** in `yg context --file`.
 - **Aspect check step (5b)** in Modify Source Code workflow.
 - **New file creation trigger** in agent rules.
-
-### Changed
-
-- **E050 renamed** from missing-required-aspect to dangling-aspect-ref.
-- **E039 renamed** from aspect-missing-anchors to aspect-missing-claims.
-- **E053 rewritten** for per-consumed-port validation (was global).
-- **E021 collapsed** per-node with cached verification label.
-- **W001 shows full breakdown** of token budget usage.
-- **Anti-laundering** shows conflicting files and owning nodes.
-- **Context output** from YAML dump to structured text with progressive disclosure.
-- **Aspect Discovery During Implementation** applies to brownfield, not just
-  greenfield.
 
 ## [3.0.0] - 2026-03-29
 
