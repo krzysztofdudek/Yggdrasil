@@ -2,7 +2,7 @@
 
 # Yggdrasil
 
-**Stop re-explaining your codebase. Give your agent a map.**
+**Your AI agent doesn't know your architecture. It guesses, breaks things, and says it's done. Yggdrasil fixes that.**
 
 [![CI](https://github.com/krzysztofdudek/Yggdrasil/actions/workflows/ci.yml/badge.svg)](https://github.com/krzysztofdudek/Yggdrasil/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/@chrisdudek/yg.svg)](https://www.npmjs.com/package/@chrisdudek/yg)
@@ -34,9 +34,11 @@ Architecture, constraints, cross-cutting rules, decisions — in one bounded con
 
 ## The problem
 
-Your agent reads code. It does not see that rate limiting applies here, that this area uses event sourcing, or that the retry logic exists because of a production incident six months ago. So it guesses. It breaks things you didn't know it could reach.
+Every "memory tool" for AI agents does the same thing: parses your code with Tree-sitter, builds a call graph, and gives the agent more code to read. That doesn't help. The agent already reads code. What it can't read is why your payment service uses sync retries instead of a queue. Or that rate limiting applies to this module. Or that changing this interface breaks three downstream services.
 
-The most valuable knowledge in your codebase isn't in any file — it lives in the connections between files, in cross-cutting rules, in decisions that were made and alternatives that were rejected. Agents can't see that. Neither can grep. Neither can RAG.
+That knowledge isn't in code. It never was. You can parse AST until the end of time and you won't extract architectural decisions, cross-cutting rules, or the business flow that passes through a function. Tree-sitter tells the agent where things are. Nobody tells the agent what things mean and what must not change.
+
+So the agent guesses. It breaks things you didn't know it could reach. Then it says "done."
 
 ---
 
@@ -73,22 +75,11 @@ Plain Markdown and YAML. No database. No lock-in. Delete `.yggdrasil` and your p
 
 ---
 
-## Results
+## Early results
 
-Tested on real open-source repositories: Hoppscotch, Medusa, Django, DRF, Caddy, Payload CMS. Python, Go, TypeScript. [Full methodology and raw data](https://krzysztofdudek.github.io/Yggdrasil/).
+Tested on real open-source repositories: Hoppscotch, Medusa, Django, DRF, Caddy, Payload CMS. Python, Go, TypeScript. Agent with Yggdrasil graph context answered architectural questions correctly without reading source code. Results are promising but this is R&D, not a finished benchmark. [Methodology and raw data](https://krzysztofdudek.github.io/Yggdrasil/).
 
-| What was tested                                                          | Result                        |
-| ------------------------------------------------------------------------ | ----------------------------- |
-| Architectural questions answered correctly (graph context only, no code) | **15/15**                     |
-| Agent accuracy with zero code access, graph only                         | **89.5%**                     |
-| Effectiveness vs manual expert protocol                                  | **97.5%**                     |
-| Improvement over no-graph on constraint-aware tasks                      | **+178%**                     |
-| Graph auto-constructed from git history — structural coverage            | **100%**                      |
-| PR-based graph maintenance — precision                                   | **100%**, 0% false positives  |
-| Keyword search node selection                                            | **89% precision**, 96% recall |
-| Guided onboarding session (8-13 questions) — graph quality vs expert     | **82-90%**                    |
-
-The persistent gap: decision capture (32-86%). The hardest knowledge to extract is _why_ something was designed a certain way. This is also the highest-value content.
+The persistent gap: decision capture. The hardest knowledge to extract is _why_ something was designed a certain way. This is also the highest-value content. Formal benchmarks will be published with the governance release.
 
 ---
 
@@ -106,7 +97,10 @@ Cursor · Claude Code · GitHub Copilot · Codex · Cline / RooCode · Windsurf 
 Rules files are flat text — global conventions pasted into every prompt. They don't know which rules apply to which part of the system. Yggdrasil is a structured graph with inheritance, scoped aspects, typed relations, and flows. Your agent gets context _for the specific node it's working on_, not a wall of text it has to filter through.
 
 **How is this different from RAG?**
-RAG retrieves text chunks that are textually similar to your query. It finds _more files_. It doesn't find the cross-cutting knowledge that lives _between_ files — which aspects apply here, what business flow passes through this code, what breaks downstream if you change this interface. Yggdrasil captures architectural meaning, not textual similarity.
+RAG retrieves text chunks that are textually similar to your query. It finds _more files_. It doesn't find the cross-cutting knowledge that lives _between_ files, which aspects apply here, what business flow passes through this code, what breaks downstream if you change this interface. Yggdrasil captures architectural meaning, not textual similarity.
+
+**How is this different from Tree-sitter based tools?**
+Tree-sitter parses code into an AST. It tells the agent where functions are, what calls what, what imports what. That's useful but it only extracts what's already in the code. It can't extract why you chose sync retries over a queue, that rate limiting applies to this module, or that changing this interface breaks the checkout flow. Yggdrasil stores the knowledge that doesn't exist in code and never will. Tree-sitter tells the agent what IS. Yggdrasil tells the agent what SHOULD BE and checks whether the agent broke it.
 
 ---
 
