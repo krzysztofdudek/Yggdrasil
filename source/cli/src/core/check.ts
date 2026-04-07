@@ -54,7 +54,7 @@ export interface CheckResult {
   issues: CheckIssue[];
   /** Suggested next command based on highest-priority error */
   suggestedNext: string | null;
-  /** Whether an LLM provider is configured (false = claim verification disabled) */
+  /** Whether an LLM provider is configured (false = aspect verification disabled) */
   llmAvailable: boolean;
 }
 
@@ -281,7 +281,7 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
       const causeLines = nodeE021Causes.map((c: CascadeCause) => '  Cause: ' + c.description).join('\n');
       const message = buildIssueMessage({
         what: `Context package changed due to ${causeCount} upstream modification${causeCount === 1 ? '' : 's'}:\n${causeLines}`,
-        why: 'Source may no longer satisfy updated claims.',
+        why: 'Source may no longer satisfy updated aspect requirements.',
         next: `Load context: yg context --node ${nodePath}\nVerify source compliance, update if needed, then: yg approve --node ${nodePath}\nIf source is already compliant: yg approve --node ${nodePath} --reviewed "compliance verified"`,
       });
 
@@ -307,9 +307,9 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
     // Annotate E021 with verification label BEFORE invalidating cache,
     // so the label reflects the last known state prior to this drift.
     if (issue.code === 'E021') {
-      if (driftState?.claimResults) {
-        const allSatisfied = Object.values(driftState.claimResults)
-          .every(claims => Object.values(claims).every(r => r.satisfied));
+      if (driftState?.aspectResults) {
+        const allSatisfied = Object.values(driftState.aspectResults)
+          .every(r => r.satisfied);
         issue.verificationLabel = allSatisfied ? 'last verified: pass' : 'last verified: fail';
       } else {
         issue.verificationLabel = 'never verified';
@@ -318,8 +318,8 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
 
     // Invalidate cached LLM results when any drift is detected (E020 or E021)
     if ((issue.code === 'E020' || issue.code === 'E021') &&
-        driftState && (driftState.claimResults || driftState.artifactReview)) {
-      delete driftState.claimResults;
+        driftState && (driftState.aspectResults || driftState.artifactReview)) {
+      delete driftState.aspectResults;
       delete driftState.artifactReview;
       await writeNodeDriftState(graph.rootPath, issue.nodePath, driftState);
     }
@@ -545,12 +545,6 @@ function describeCascadeCause(filePath: string, layer: TrackedFileLayer, graph: 
   }
 
   if (layer === 'relational') {
-    // Handle synthetic integration-anchors: entries (no disk path)
-    const syntheticMatch = filePath.match(/^integration-anchors:(.+)$/);
-    if (syntheticMatch) {
-      const depPath = syntheticMatch[1];
-      return `dependency '${depPath}' integration anchors changed\n       (${filePath})`;
-    }
     const match = normalized.match(new RegExp(`${escPrefix}/model/(.+)/([^/]+)$`));
     const depPath = match ? match[1] : 'unknown';
     const filename = match ? match[2] : '';
