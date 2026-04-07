@@ -4,6 +4,7 @@ import { STANDARD_ARTIFACTS } from '../model/types.js';
 import type { Graph, ValidationResult, ValidationIssue, ArtifactConfig } from '../model/types.js';
 import { buildContext, computeBudgetBreakdown } from './context-builder.js';
 import { normalizeMappingPaths } from '../utils/paths.js';
+import { buildIssueMessage } from '../formatters/message-builder.js';
 
 /** Reserved directories that are NOT nodes (within model/) */
 const RESERVED_DIRS = new Set<string>();
@@ -112,7 +113,11 @@ function checkNodeTypes(graph: Graph): ValidationIssue[] {
         severity: 'error',
         code: 'E002',
         rule: 'unknown-node-type',
-        message: `Node type '${node.meta.type}' not in config.node_types (${[...allowedTypes].join(', ')})`,
+        message: buildIssueMessage({
+          what: `Node type '${node.meta.type}' is not defined.`,
+          why: `Allowed types: ${[...allowedTypes].join(', ')}.`,
+          next: `Change type in yg-node.yaml to one of the allowed types.`,
+        }),
         nodePath,
       });
     }
@@ -172,7 +177,11 @@ function checkRelationTargets(graph: Graph): ValidationIssue[] {
           severity: 'error',
           code: 'E004',
           rule: 'broken-relation',
-          message: `Relation target '${rel.target}' does not exist${existingLine}${hint}`,
+          message: buildIssueMessage({
+            what: `Relation target '${rel.target}' does not exist.`,
+            why: `This node declares a dependency that cannot be resolved.${existingLine}`,
+            next: `Fix the target path in yg-node.yaml relations.${hint}`,
+          }),
           nodePath,
         });
       }
@@ -196,9 +205,11 @@ function checkDanglingAspectRefs(graph: Graph): ValidationIssue[] {
           code: 'E050',
           rule: 'dangling-aspect-ref',
           nodePath,
-          message:
-            `Aspect '${aspectId}' is referenced by this node but not defined in aspects/.\n` +
-            `Create aspects/${aspectId}/ with yg-aspect.yaml and content.md.`,
+          message: buildIssueMessage({
+            what: `Aspect '${aspectId}' is referenced by this node but not defined in aspects/.`,
+            why: `Node declares an aspect that does not exist — claims cannot be verified.`,
+            next: `Create aspects/${aspectId}/ with yg-aspect.yaml and content.md.`,
+          }),
         });
       }
     }
@@ -212,9 +223,11 @@ function checkDanglingAspectRefs(graph: Graph): ValidationIssue[] {
               code: 'E050',
               rule: 'dangling-aspect-ref',
               nodePath,
-              message:
-                `Aspect '${aspectId}' is referenced by port '${portName}' but not defined in aspects/.\n` +
-                `Create aspects/${aspectId}/ with yg-aspect.yaml and content.md.`,
+              message: buildIssueMessage({
+                what: `Aspect '${aspectId}' is referenced by port '${portName}' but not defined in aspects/.`,
+                why: `Port declares a required aspect that does not exist — port contracts cannot be enforced.`,
+                next: `Create aspects/${aspectId}/ with yg-aspect.yaml and content.md.`,
+              }),
             });
           }
         }
@@ -230,7 +243,11 @@ function checkDanglingAspectRefs(graph: Graph): ValidationIssue[] {
           severity: 'error',
           code: 'E050',
           rule: 'dangling-aspect-ref',
-          message: `Aspect '${aspectId}' is referenced by architecture type '${typeId}' but not defined in aspects/.`,
+          message: buildIssueMessage({
+            what: `Aspect '${aspectId}' is referenced by architecture type '${typeId}' but not defined in aspects/.`,
+            why: `Architecture declares a required aspect that does not exist.`,
+            next: `Create aspects/${aspectId}/ with yg-aspect.yaml and content.md.`,
+          }),
         });
       }
     }
@@ -244,7 +261,11 @@ function checkDanglingAspectRefs(graph: Graph): ValidationIssue[] {
           severity: 'error',
           code: 'E050',
           rule: 'dangling-aspect-ref',
-          message: `Aspect '${aspectId}' is referenced by flow '${flow.name}' but not defined in aspects/.`,
+          message: buildIssueMessage({
+            what: `Aspect '${aspectId}' is referenced by flow '${flow.name}' but not defined in aspects/.`,
+            why: `Flow declares an aspect that does not exist — flow requirements cannot propagate.`,
+            next: `Create aspects/${aspectId}/ with yg-aspect.yaml and content.md.`,
+          }),
         });
       }
     }
@@ -274,7 +295,11 @@ function checkAspectIdUniqueness(graph: Graph): ValidationIssue[] {
       severity: 'error',
       code: 'E010',
       rule: 'duplicate-aspect-binding',
-      message: `Aspect '${id}' is bound to multiple aspects (${names.join(', ')})`,
+      message: buildIssueMessage({
+        what: `Aspect '${id}' is bound to multiple aspects (${names.join(', ')}).`,
+        why: `Aspect ids must be unique — duplicate ids cause ambiguous claim resolution.`,
+        next: `Rename one of the aspect directories to make ids unique.`,
+      }),
     });
   }
   return issues;
@@ -295,7 +320,11 @@ function checkImpliedAspectsExist(graph: Graph): ValidationIssue[] {
           severity: 'error',
           code: 'E012',
           rule: 'implied-aspect-missing',
-          message: `Aspect '${aspect.name}' implies '${impliedId}' but no aspect with that id exists in aspects/`,
+          message: buildIssueMessage({
+            what: `Aspect '${aspect.name}' implies '${impliedId}' but no aspect with that id exists in aspects/.`,
+            why: `Implies chain is broken — implied claims cannot be resolved.`,
+            next: `Create the implied aspect or remove it from the implies list.`,
+          }),
         });
       }
     }
@@ -329,7 +358,11 @@ function checkImpliesNoCycles(graph: Graph): ValidationIssue[] {
           severity: 'error',
           code: 'E013',
           rule: 'aspect-implies-cycle',
-          message: `Aspect implies cycle: ${cycle.join(' → ')}`,
+          message: buildIssueMessage({
+            what: `Aspect implies cycle: ${cycle.join(' → ')}.`,
+            why: `Cycles in implies prevent aspect resolution.`,
+            next: `Break the cycle by removing one implies edge.`,
+          }),
         });
         pathArr.pop();
         color.set(id, BLACK);
@@ -386,7 +419,11 @@ function checkNoCycles(graph: Graph): ValidationIssue[] {
             severity: 'error',
             code: 'E008',
             rule: 'structural-cycle',
-            message: `Circular dependency: ${cyclePath.join(' -> ')}`,
+            message: buildIssueMessage({
+              what: `Circular dependency: ${cyclePath.join(' -> ')}.`,
+              why: `Cycles prevent deterministic context assembly and cascade tracking.`,
+              next: `Break the cycle: extract a shared interface, invert a dependency, or merge nodes.`,
+            }),
           });
         }
         return true;
@@ -456,10 +493,11 @@ function checkMappingOverlap(graph: Graph): ValidationIssue[] {
         severity: 'error',
         code: 'E007',
         rule: 'overlapping-mapping',
-        message:
-          `Mapping paths '${current.mappingPath}' (${current.nodePath}) and ` +
-          `'${candidate.mappingPath}' (${candidate.nodePath}) overlap. ` +
-          `Keep one owner mapping and model other concerns via relations.`,
+        message: buildIssueMessage({
+          what: `Mapping paths '${current.mappingPath}' (${current.nodePath}) and '${candidate.mappingPath}' (${candidate.nodePath}) overlap.`,
+          why: `Each source file must have exactly one owner node.`,
+          next: `Keep one owner mapping and model other concerns via relations.`,
+        }),
         nodePath: candidate.nodePath,
       });
     }
@@ -486,7 +524,11 @@ async function checkMappingPathsExist(graph: Graph): Promise<ValidationIssue[]> 
           severity: 'error',
           code: 'E036',
           rule: 'mapping-path-missing',
-          message: `Mapping path '${mp}' does not exist on disk`,
+          message: buildIssueMessage({
+            what: `Mapping path '${mp}' does not exist on disk.`,
+            why: `Node maps a file that was deleted or moved.`,
+            next: `Update mapping in yg-node.yaml: fix the path or remove the entry.`,
+          }),
           nodePath,
         });
       }
@@ -560,14 +602,16 @@ function checkRequiredArtifacts(graph: Graph): ValidationIssue[] {
           incoming.length > 0
             ? ` Node has ${incoming.length} incoming relation(s): ${incoming.slice(0, 5).join(', ')}${incoming.length > 5 ? '...' : ''}.`
             : '';
-        const msg = action
-          ? `Missing required artifact '${filename}' (${reason}).${incomingStr} ${action}`
-          : `Missing required artifact '${filename}' (${reason}).${incomingStr}`;
+        const msg = buildIssueMessage({
+          what: `Missing required artifact '${filename}' (${reason}).`,
+          why: `${incomingStr ? incomingStr.trim() + ' ' : ''}Consumers cannot understand this node without its artifacts.`,
+          next: action || `Create ${filename} in the node directory.`,
+        });
         issues.push({
           severity: 'error',
           code: 'E030',
           rule: 'missing-artifact',
-          message: msg.trim(),
+          message: msg,
           nodePath,
         });
       }
@@ -589,7 +633,11 @@ function checkBrokenFlowRefs(graph: Graph): ValidationIssue[] {
           severity: 'error',
           code: 'E005',
           rule: 'broken-flow-ref',
-          message: `Flow '${flow.name}' references non-existent node '${n}'`,
+          message: buildIssueMessage({
+            what: `Flow '${flow.name}' references non-existent node '${n}'.`,
+            why: `Flow participants must exist in the graph.`,
+            next: `Fix the nodes list in yg-flow.yaml or create the missing node.`,
+          }),
         });
       }
     }
@@ -610,7 +658,11 @@ function checkFlowAspectIds(graph: Graph): ValidationIssue[] {
           severity: 'error',
           code: 'E006',
           rule: 'broken-aspect-ref',
-          message: `Flow '${flow.name}' references aspect '${aspectId}' but no aspect with that id exists in aspects/`,
+          message: buildIssueMessage({
+            what: `Flow '${flow.name}' references aspect '${aspectId}' but no aspect with that id exists in aspects/.`,
+            why: `Flow aspects must exist for requirements to propagate.`,
+            next: `Create the aspect or remove it from the flow's aspects list.`,
+          }),
         });
       }
     }
@@ -632,7 +684,11 @@ async function checkShallowArtifacts(graph: Graph): Promise<ValidationIssue[]> {
           severity: 'error',
           code: 'E031',
           rule: 'shallow-artifact',
-          message: `Artifact '${art.filename}' is below minimum length (${art.content.trim().length} < ${minLen})`,
+          message: buildIssueMessage({
+            what: `Artifact '${art.filename}' is below minimum length (${art.content.trim().length} < ${minLen} chars).`,
+            why: `Shallow artifacts provide insufficient context for agents.`,
+            next: `Expand ${art.filename} — describe the node's responsibility, contracts, and constraints.`,
+          }),
           nodePath,
         });
       }
@@ -664,7 +720,11 @@ async function checkWideNodes(graph: Graph): Promise<ValidationIssue[]> {
       severity: 'warning',
       code: 'W003',
       rule: 'wide-node',
-      message: `Node maps ${sourceFiles.length} source files (max: ${maxFiles}) with ${filledArtifacts} artifact(s). Consider splitting into child nodes with focused responsibilities.`,
+      message: buildIssueMessage({
+        what: `Node maps ${sourceFiles.length} source files (max: ${maxFiles}) with ${filledArtifacts} artifact(s).`,
+        why: `Wide nodes are hard for agents to reason about and produce oversized context packages.`,
+        next: `Consider splitting into child nodes with focused responsibilities.`,
+      }),
       nodePath,
     });
   }
@@ -683,7 +743,11 @@ function checkHighFanOut(graph: Graph): ValidationIssue[] {
         severity: 'warning',
         code: 'W004',
         rule: 'high-fan-out',
-        message: `Node has ${count} direct relations (max: ${maxRel})`,
+        message: buildIssueMessage({
+          what: `Node has ${count} direct relations (max: ${maxRel}).`,
+          why: `High fan-out makes context packages large and suggests unclear separation of concerns.`,
+          next: `Consider splitting responsibilities or introducing an intermediary node.`,
+        }),
         nodePath,
       });
     }
@@ -719,7 +783,11 @@ function checkUnpairedEvents(graph: Graph): ValidationIssue[] {
           severity: 'error',
           code: 'E033',
           rule: 'unpaired-event',
-          message: `Node '${emitter}' emits to '${target}' but '${target}' has no listens from '${emitter}'`,
+          message: buildIssueMessage({
+            what: `Node '${emitter}' emits to '${target}' but '${target}' has no listens from '${emitter}'.`,
+            why: `Events need paired emits/listens for flow tracking.`,
+            next: `Add the complementary event relation.`,
+          }),
           nodePath: emitter,
         });
       }
@@ -733,7 +801,11 @@ function checkUnpairedEvents(graph: Graph): ValidationIssue[] {
           severity: 'error',
           code: 'E033',
           rule: 'unpaired-event',
-          message: `Node '${listener}' listens from '${source}' but '${source}' has no emits to '${listener}'`,
+          message: buildIssueMessage({
+            what: `Node '${listener}' listens from '${source}' but '${source}' has no emits to '${listener}'.`,
+            why: `Events need paired emits/listens for flow tracking.`,
+            next: `Add the complementary event relation.`,
+          }),
           nodePath: listener,
         });
       }
@@ -756,7 +828,11 @@ function checkSchemas(graph: Graph): ValidationIssue[] {
         severity: 'error',
         code: 'E034',
         rule: 'missing-schema',
-        message: `Schema 'yg-${required}.yaml' missing from .yggdrasil/schemas/`,
+        message: buildIssueMessage({
+          what: `Schema 'yg-${required}.yaml' missing from .yggdrasil/schemas/.`,
+          why: `Schemas validate graph elements — missing schemas allow invalid ${required} definitions.`,
+          next: `Run yg init to restore missing schemas.`,
+        }),
       });
     }
   }
@@ -786,7 +862,11 @@ async function checkDirectoriesHaveNodeYaml(graph: Graph): Promise<ValidationIss
           severity: 'error',
           code: 'E011',
           rule: 'missing-node-yaml',
-          message: `Directory '${graphPath}' has files but no yg-node.yaml`,
+          message: buildIssueMessage({
+            what: `Directory '${graphPath}' has files but no yg-node.yaml.`,
+            why: `Every directory in model/ must have a node definition.`,
+            next: `Create yg-node.yaml in ${graphPath}/ or move files to an existing node directory.`,
+          }),
           nodePath: graphPath,
         });
       }
@@ -857,7 +937,11 @@ function checkAspectAnchors(graph: Graph): ValidationIssue[] {
         severity: 'error',
         code: 'E039',
         rule: 'aspect-missing-claims',
-        message: `Aspect has no claims. Add at least one claim with {id, claim} to the anchors field.`,
+        message: buildIssueMessage({
+          what: `Aspect '${aspect.id}' has no claims.`,
+          why: `Claims are verified at approve time — an aspect without claims has no enforceable requirements.`,
+          next: `Add at least one claim with {id, claim} to the anchors field in yg-aspect.yaml.`,
+        }),
         nodePath: `aspects/${aspect.id}`,
       });
     }
@@ -898,7 +982,11 @@ async function checkContextBudget(graph: Graph): Promise<ValidationIssue[]> {
           severity: 'error',
           code: 'E032',
           rule: 'budget-exceeded',
-          message: `Context is ${breakdown.total.toLocaleString()} tokens (error threshold: ${errorThreshold.toLocaleString()}).\n     ${breakdownLine}`,
+          message: buildIssueMessage({
+            what: `Context is ${breakdown.total.toLocaleString()} tokens (error threshold: ${errorThreshold.toLocaleString()}).`,
+            why: `${breakdownLine}`,
+            next: `Split this node into child nodes to reduce context size below the error threshold.`,
+          }),
           nodePath,
         });
       } else if (breakdown.total >= warningThreshold) {
@@ -906,7 +994,11 @@ async function checkContextBudget(graph: Graph): Promise<ValidationIssue[]> {
           severity: 'warning',
           code: 'W001',
           rule: 'budget-warning',
-          message: `Context is ${breakdown.total.toLocaleString()} tokens (warning threshold: ${warningThreshold.toLocaleString()}).\n     ${breakdownLine}`,
+          message: buildIssueMessage({
+            what: `Context is ${breakdown.total.toLocaleString()} tokens (warning threshold: ${warningThreshold.toLocaleString()}).`,
+            why: `${breakdownLine}`,
+            next: `Consider splitting this node into child nodes to reduce context size.`,
+          }),
           nodePath,
         });
       }
@@ -916,7 +1008,11 @@ async function checkContextBudget(graph: Graph): Promise<ValidationIssue[]> {
           severity: 'warning',
           code: 'W002',
           rule: 'own-budget-warning',
-          message: `Own artifacts: ${breakdown.own.toLocaleString()} tokens (threshold: ${ownWarningThreshold.toLocaleString()}). Consider splitting this node's responsibilities into child nodes.`,
+          message: buildIssueMessage({
+            what: `Own artifacts: ${breakdown.own.toLocaleString()} tokens (threshold: ${ownWarningThreshold.toLocaleString()}).`,
+            why: `Large own-artifact budgets make this node expensive to include as a dependency.`,
+            next: `Consider splitting this node's responsibilities into child nodes.`,
+          }),
           nodePath,
         });
       }
@@ -944,7 +1040,11 @@ function checkMissingDescriptions(graph: Graph): ValidationIssue[] {
         severity: 'error',
         code: 'E038',
         rule: 'missing-description',
-        message: `Node has no description`,
+        message: buildIssueMessage({
+          what: `Node has no description.`,
+          why: `Description is used in select and context output — agents need it for orientation.`,
+          next: `Add a description field to yg-node.yaml.`,
+        }),
         nodePath,
       });
     }
@@ -957,7 +1057,11 @@ function checkMissingDescriptions(graph: Graph): ValidationIssue[] {
         severity: 'error',
         code: 'E038',
         rule: 'missing-description',
-        message: `Aspect '${aspect.id}' has no description`,
+        message: buildIssueMessage({
+          what: `Aspect '${aspect.id}' has no description.`,
+          why: `Description is used in select and context output — agents need it for orientation.`,
+          next: `Add a description field to yg-aspect.yaml.`,
+        }),
       });
     }
   }
@@ -969,7 +1073,11 @@ function checkMissingDescriptions(graph: Graph): ValidationIssue[] {
         severity: 'error',
         code: 'E038',
         rule: 'missing-description',
-        message: `Flow '${flow.name}' has no description`,
+        message: buildIssueMessage({
+          what: `Flow '${flow.name}' has no description.`,
+          why: `Description is used in select and context output — agents need it for orientation.`,
+          next: `Add a description field to yg-flow.yaml.`,
+        }),
       });
     }
   }
@@ -1021,10 +1129,11 @@ function checkPortAspectsDefined(graph: Graph): ValidationIssue[] {
               code: 'E053',
               rule: 'integration-aspect-missing',
               nodePath,
-              message:
-                `Relation: ${rel.type} -> ${rel.target}, port '${portName}'\n` +
-                `Port requires aspect '${aspectId}' but it is not defined in aspects/.\n` +
-                `Create aspects/${aspectId}/ with yg-aspect.yaml and content.md.`,
+              message: buildIssueMessage({
+                what: `Relation: ${rel.type} -> ${rel.target}, port '${portName}'`,
+                why: `Port requires aspect '${aspectId}' but it is not defined in aspects/ — port contracts are broken.`,
+                next: `Create aspects/${aspectId}/ with yg-aspect.yaml and content.md.`,
+              }),
             });
           }
         }
@@ -1061,14 +1170,11 @@ function checkArchitectureRelations(graph: Graph): ValidationIssue[] {
           code: 'E051',
           rule: 'invalid-relation-target',
           nodePath,
-          message:
-            `Relation: ${rel.type} -> ${rel.target} (type: ${target.meta.type})\n` +
-            `  Architecture does not allow type '${node.meta.type}' to '${rel.type}' type '${target.meta.type}'.\n` +
-            `  Allowed targets for '${rel.type}': [${allowedTypes.join(', ')}]\n\n` +
-            `  Either:\n` +
-            `    1. Change the relation type\n` +
-            `    2. Change the target node's type\n` +
-            `    3. Update yg-architecture.yaml to allow this relation`,
+          message: buildIssueMessage({
+            what: `Relation: ${rel.type} -> ${rel.target} (type: ${target.meta.type})`,
+            why: `Architecture does not allow type '${node.meta.type}' to '${rel.type}' type '${target.meta.type}'. Allowed targets for '${rel.type}': [${allowedTypes.join(', ')}]`,
+            next: `Either change the relation type, change the target node's type, or update yg-architecture.yaml to allow this relation.`,
+          }),
         });
       }
     }
@@ -1096,14 +1202,11 @@ function checkArchitectureParents(graph: Graph): ValidationIssue[] {
         code: 'E052',
         rule: 'invalid-parent-type',
         nodePath,
-        message:
-          `Parent: ${node.parent.path} (type: ${node.parent.meta.type})\n` +
-          `  Architecture does not allow type '${node.meta.type}' under parent type '${node.parent.meta.type}'.\n` +
-          `  Allowed parents: [${typeConfig.parents.join(', ')}]\n\n` +
-          `  Either:\n` +
-          `    1. Move this node under an allowed parent type\n` +
-          `    2. Change this node's type\n` +
-          `    3. Update yg-architecture.yaml to allow this parent`,
+        message: buildIssueMessage({
+          what: `Parent: ${node.parent.path} (type: ${node.parent.meta.type})`,
+          why: `Architecture does not allow type '${node.meta.type}' under parent type '${node.parent.meta.type}'. Allowed parents: [${typeConfig.parents.join(', ')}]`,
+          next: `Either move this node under an allowed parent type, change this node's type, or update yg-architecture.yaml to allow this parent.`,
+        }),
       });
     }
   }
@@ -1141,10 +1244,11 @@ function checkPortConsumes(graph: Graph): ValidationIssue[] {
           code: 'E057',
           rule: 'missing-consumes',
           nodePath,
-          message:
-            `Relation: ${rel.type} -> ${rel.target}\n` +
-            `Target has ports: [${portNames.join(', ')}]\n` +
-            `Add consumes: [<port-names>] to this relation in yg-node.yaml.`,
+          message: buildIssueMessage({
+            what: `Relation: ${rel.type} -> ${rel.target}`,
+            why: `Target has ports: [${portNames.join(', ')}] — port-required aspects won't be verified without a consumes declaration.`,
+            next: `Add consumes: [<port-names>] to this relation in yg-node.yaml.`,
+          }),
         });
         continue;
       }
@@ -1158,10 +1262,11 @@ function checkPortConsumes(graph: Graph): ValidationIssue[] {
             code: 'E058',
             rule: 'unknown-port',
             nodePath,
-            message:
-              `Relation: ${rel.type} -> ${rel.target}\n` +
-              `Port '${portName}' not found in target's ports.\n` +
-              `Available ports: [${available.join(', ')}]`,
+            message: buildIssueMessage({
+              what: `Relation: ${rel.type} -> ${rel.target}, port '${portName}' not found.`,
+              why: `Port contract cannot be enforced for an undefined port. Available ports: [${available.join(', ')}]`,
+              next: `Fix the port name in consumes, or add the port definition to the target node.`,
+            }),
           });
         }
       }
@@ -1224,10 +1329,11 @@ function checkOrphanedAspects(graph: Graph): ValidationIssue[] {
         code: 'W006',
         rule: 'orphaned-aspect',
         nodePath: `aspects/${aspect.id}`,
-        message:
-          `Aspect '${aspect.id}' is defined but not referenced by any node,\n` +
-          `architecture type, or flow.\n` +
-          `Either add it to a node/architecture/flow or remove it.`,
+        message: buildIssueMessage({
+          what: `Aspect '${aspect.id}' is defined but not referenced by any node, architecture type, or flow.`,
+          why: `Orphaned aspects add noise to the graph without enforcing any requirements.`,
+          next: `Either add it to a node/architecture/flow or remove it.`,
+        }),
       });
     }
   }
