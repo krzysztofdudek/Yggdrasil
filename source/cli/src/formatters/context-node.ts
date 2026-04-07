@@ -22,7 +22,6 @@ export interface NodeContextAspect {
   description: string;
   source: string;
   verifiedAgainst: string;
-  claims: string[];
   implies?: string[];
 }
 
@@ -39,7 +38,7 @@ export interface NodeContextDep {
   description?: string;
   readPath?: string;
   consumes?: string[];
-  portAspects?: Array<{ aspectId: string; claims: string[]; verifiedAgainst: string }>;
+  portAspects?: Array<{ aspectId: string; verifiedAgainst: string }>;
 }
 
 export function formatNodeContext(data: NodeContextData): string {
@@ -57,19 +56,14 @@ export function formatNodeContext(data: NodeContextData): string {
   }
   lines.push('');
 
-  // Aspects with claims
+  // Aspects
   if (data.aspects.length > 0) {
-    const totalClaims = data.aspects.reduce((sum, a) => sum + a.claims.length, 0);
-    lines.push(`Must satisfy (${data.aspects.length} aspect${data.aspects.length === 1 ? '' : 's'}, ${totalClaims} claim${totalClaims === 1 ? '' : 's'}):`);
+    lines.push(`Must satisfy (${data.aspects.length} aspect${data.aspects.length === 1 ? '' : 's'}):`);
     lines.push('');
     for (const aspect of data.aspects) {
       lines.push(`  ${aspect.id} — ${aspect.description}`);
       lines.push(`    Source: ${aspect.source}`);
       lines.push(`    Verified against: ${aspect.verifiedAgainst}`);
-      lines.push(`    Claims:`);
-      for (const claim of aspect.claims) {
-        lines.push(`      - "${claim}"`);
-      }
       if (aspect.implies && aspect.implies.length > 0) {
         lines.push(`    Implies: ${aspect.implies.join(', ')}`);
       }

@@ -2,7 +2,7 @@ export interface FileContextData {
   filePath: string;
   ownerPath?: string;
   ownerType?: string;
-  claims: FileContextAspect[];
+  aspects: FileContextAspect[];
   dependencies: FileContextDep[];
   dependentCount: number;
   candidates?: Array<{ nodePath: string; mappingPrefix: string }>;
@@ -13,20 +13,11 @@ export interface FileContextAspect {
   aspectDescription: string;
   verifiedAgainst: string;
   source?: string; // for implied aspects
-  claims: string[];
 }
 
 export interface FileContextDep {
   path: string;
   consumed: string[];
-  portClaims?: FileContextPortClaim[];
-}
-
-export interface FileContextPortClaim {
-  aspectId: string;
-  aspectDescription: string;
-  verifiedAgainst: string;
-  claims: string[];
 }
 
 export function formatFileContext(data: FileContextData): string {
@@ -52,18 +43,15 @@ export function formatFileContext(data: FileContextData): string {
 
   lines.push('');
 
-  // Claims
-  if (data.claims.length > 0) {
-    lines.push('Claims to satisfy:');
+  // Aspects
+  if (data.aspects.length > 0) {
+    lines.push('Must satisfy:');
     lines.push('');
-    for (const aspect of data.claims) {
+    for (const aspect of data.aspects) {
       lines.push(`  ${aspect.aspectId} — ${aspect.aspectDescription}`);
       lines.push(`    Verified against: ${aspect.verifiedAgainst}`);
       if (aspect.source) {
         lines.push(`    Source: ${aspect.source}`);
-      }
-      for (const claim of aspect.claims) {
-        lines.push(`    - "${claim}"`);
       }
       lines.push('');
     }
@@ -74,16 +62,6 @@ export function formatFileContext(data: FileContextData): string {
     lines.push('Dependencies consumed:');
     for (const dep of data.dependencies) {
       lines.push(`  ${dep.path} — ${dep.consumed.join(', ')}`);
-      if (dep.portClaims && dep.portClaims.length > 0) {
-        lines.push('    Claims to satisfy:');
-        for (const pc of dep.portClaims) {
-          lines.push(`      ${pc.aspectId} — ${pc.aspectDescription}`);
-          lines.push(`        Verified against: ${pc.verifiedAgainst}`);
-          for (const claim of pc.claims) {
-            lines.push(`        - "${claim}"`);
-          }
-        }
-      }
     }
     lines.push('');
   }
