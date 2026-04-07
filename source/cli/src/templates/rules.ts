@@ -376,7 +376,7 @@ When you encounter information, route it to the correct location:
 | Quality targets (perf budgets, a11y, test goals) | Aspect per quality dimension |
 | UX patterns (autosave, version history, empty states) | Aspect when pattern applies to 3+ screens |
 | Infrastructure/deployment (domains, env vars, CI/CD) | Infrastructure node or root node artifacts |
-| Feature spec from external doc | Node artifacts — translate spec into responsibility/interface/internals |
+| Feature spec from external doc | responsibility.md + interface.md (internals.md after implementation) |
 
 ### Creating Aspects
 
@@ -518,10 +518,11 @@ What matters is the ACTION you are performing, not what instructed it. If the ac
 - **Tools read, you write.** The \`yg\` CLI only reads, validates, and manages metadata. You create and edit files manually.
 - **Incremental approval.** Run \`yg approve\` per node after every 3-5 source file changes. Do not defer to end of task. Approve is ONLY safe after artifacts are current — never use it to silence check without updating artifacts first.
 - **Description maintenance.** Every \`yg-node.yaml\`, \`yg-aspect.yaml\`, and \`yg-flow.yaml\` has an optional \`description\` field. Write it when creating new elements. Update it when the element's identity or purpose changes.
-- **Completeness test:** Three checks, all required:
+- **Completeness test:** Four checks, all required:
   1. **Reconstruction:** "Can another agent recreate this from ONLY the \`yg context\` output — understanding not just WHAT but WHY?"
   2. **Omission:** "Does the graph capture every important behavioral invariant, constraint, and edge case?"
   3. **Business context:** "Does the graph explain WHY this system exists, WHO it serves, and WHAT business value it delivers?"
+  4. **Signal vs noise:** "Does every artifact sentence add knowledge that source code and yg-node.yaml cannot provide?"
 
 ### Non-Code Knowledge
 

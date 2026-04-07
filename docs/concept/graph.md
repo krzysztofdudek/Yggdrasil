@@ -100,11 +100,12 @@ The three standard artifacts (`responsibility.md`, `interface.md`, `internals.md
 into the CLI. They are not configurable — the CLI defines their required conditions and
 descriptions internally.
 
-- **`responsibility.md`** — always required. What this node is responsible for, and what it is not.
-- **`interface.md`** — required when the node has incoming relations. Public API: methods,
-  parameters, return types, contracts, failure modes, exposed data structures.
-- **`internals.md`** — always optional. How the node works and why: algorithms, business rules,
-  state machines, design decisions with rejected alternatives.
+- **`responsibility.md`** — always required. Identity, boundaries, business rules and domain
+  constraints the code enforces but doesn't explain.
+- **`interface.md`** — required when the node has incoming relations. Contract: what consumers
+  call, what they get back, what can go wrong.
+- **`internals.md`** — always optional. Design decisions with rejected alternatives, non-obvious
+  constraints. Sections: ## Decisions, ## Constraints.
 
 Tools validate artifact presence based on these rules and attach artifact content to context
 packages.
@@ -292,11 +293,11 @@ is coarse.
 Content artifacts are text files placed next to `yg-node.yaml`. The three standard artifacts
 are built into the CLI. Content must be UTF-8 encodable for context assembly.
 
-| File                | Purpose                                                                                              | Requirement                                |
-| ------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| `responsibility.md` | What the node is responsible for, and what it is not                                                  | Required always                            |
-| `interface.md`      | Public API — methods, parameters, return types, contracts, failure modes, exposed data structures     | Required when someone depends on this node |
-| `internals.md`      | How the node works and why — algorithms, business rules, state machines, design decisions with rejected alternatives | Optional                                   |
+| File                | Purpose                                                                                                           | Requirement                                |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `responsibility.md` | Identity, boundaries, business rules and domain constraints the code enforces but doesn't explain                 | Required always                            |
+| `interface.md`      | Contract: what consumers call, what they get back, what can go wrong                                              | Required when someone depends on this node |
+| `internals.md`      | Design decisions with rejected alternatives, non-obvious constraints. Sections: ## Decisions, ## Constraints      | Optional                                   |
 
 A simple utility node might have only `responsibility.md`. A complex service may have all three.
 The self-calibrating granularity principle from the [Foundation](foundation) document applies:
