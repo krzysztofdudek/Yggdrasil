@@ -20,7 +20,7 @@ import { normalizeMappingPaths } from '../utils/paths.js';
 import { appendAuditEntry } from '../io/audit-log.js';
 import { computeEffectiveAspects, computeEffectiveAspectsForConsumer } from './effective-aspects.js';
 import { collectAncestors } from './context-builder.js';
-import { verifyClaims } from './claim-verifier.js';
+import { verifyAspects } from './aspect-verifier.js';
 import { reviewArtifacts } from './artifact-reviewer.js';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -328,17 +328,17 @@ export async function approveNode(
   }
 
   // ── LLM verification (after three-axis, before recording baseline) ──
-  let claimResults: Record<string, Record<string, ClaimVerificationResult>> | undefined;
+  let aspectResults: Record<string, AspectVerificationResult> | undefined;
   let artifactReviewResults: Record<string, ArtifactReviewResult> | undefined;
   let llmSkipped: ApproveResult['llmSkipped'];
-  const e055Violations: Array<{ aspect: string; claim: string; reason: string }> = [];
+  const e055Violations: Array<{ aspect: string; reason: string }> = [];
   const e056Violations: Array<{ name: string; reason: string }> = [];
 
   if (action !== 'refused' && !isBlackbox && llmProvider) {
     const resolvedMaxTokens = options.maxTokens
       ?? (await llmProvider.getContextWindowSize() ?? 8192);
 
-    const aspectsWithClaims = resolveAspectsWithClaims(node, graph);
+    const aspects = resolveAspects(node, graph);
     const artifacts = node.artifacts
       .filter(a => a.filename.endsWith('.md'))
       .map(a => ({ name: a.filename, content: a.content }));
@@ -349,19 +349,17 @@ export async function approveNode(
     });
     const sourceFiles = await loadSourceFiles(sourceFilePaths, projectRoot);
 
-    if (aspectsWithClaims.length > 0) {
-      claimResults = await verifyClaims({
+    if (aspects.length > 0) {
+      aspectResults = await verifyAspects({
         provider: llmProvider,
-        aspects: aspectsWithClaims,
+        aspects,
         sourceFiles,
         consensus: options.consensus ?? 1,
         maxTokens: resolvedMaxTokens,
       });
-      for (const [aspectId, claims] of Object.entries(claimResults)) {
-        for (const [claimId, res] of Object.entries(claims)) {
-          if (!res.satisfied) {
-            e055Violations.push({ aspect: aspectId, claim: claimId, reason: res.reason });
-          }
+      for (const [aspectId, res] of Object.entries(aspectResults)) {
+        if (!res.satisfied) {
+          e055Violations.push({ aspect: aspectId, reason: res.reason });
         }
       }
     }
@@ -387,7 +385,7 @@ export async function approveNode(
         previousHash: storedEntry.hash,
         currentHash: canonicalHash,
         refuseReason: 'Reviewer verification found issues',
-        claimResults,
+        aspectResults,
         artifactReviewResults,
         e055Violations,
         e056Violations,
@@ -413,7 +411,7 @@ export async function approveNode(
       mtimes: fileMtimes,
       // New reviewed reason replaces old; regular approve preserves existing reason
       reviewedReason: reviewed ?? storedEntry.reviewedReason,
-      ...(claimResults ? { claimResults } : {}),
+      ...(aspectResults ? { aspectResults } : {}),
       ...(artifactReviewResults ? { artifactReview: artifactReviewResults } : {}),
     };
     await writeNodeDriftState(graph.rootPath, nodePath, stateToWrite);
@@ -471,7 +469,7 @@ export async function approveNode(
     reviewedAttempted: !!reviewed,
     isBlackbox,
     gcPaths,
-    claimResults,
+    aspectResults,
     artifactReviewResults,
     llmSkipped: llmSkipped || undefined,
     e055Violations: e055Violations.length > 0 ? e055Violations : undefined,
@@ -528,11 +526,11 @@ async function loadSourceFiles(
   return results;
 }
 
-/** Resolve aspects with claims for LLM verification */
-function resolveAspectsWithClaims(
+/** Resolve aspects with content files for LLM verification */
+function resolveAspects(
   node: GraphNode,
   graph: Graph,
-): Array<{ id: string; claims: Array<{ id: string; claim: string }>; contentFile: string }> {
+): Array<{ id: string; contentFile: string }> {
   const ancestors = collectAncestors(node);
   const parentTypes = ancestors.map(a => a.meta.type);
   const flowAspects = graph.flows
@@ -553,19 +551,14 @@ function resolveAspectsWithClaims(
   const portAspects = computeEffectiveAspectsForConsumer(node, graph);
   const allAspectIds = new Set([...effective.regular, ...portAspects]);
 
-  const result: Array<{ id: string; claims: Array<{ id: string; claim: string }>; contentFile: string }> = [];
+  const result: Array<{ id: string; contentFile: string }> = [];
   for (const aspectId of allAspectIds) {
     const aspectDef = graph.aspects.find(a => a.id === aspectId);
-    if (!aspectDef || aspectDef.anchors.length === 0) continue;
-    const contentFile = aspectDef.artifacts
-      .filter(a => a.filename.endsWith('.md'))
-      .map(a => a.content)
-      .join('\n\n') || `Aspect: ${aspectDef.name}`;
-    result.push({
-      id: aspectId,
-      claims: aspectDef.anchors.map(a => ({ id: a.id, claim: a.claim })),
-      contentFile,
-    });
+    if (!aspectDef) continue;
+    const contentFiles = aspectDef.artifacts.filter(a => a.filename.endsWith('.md'));
+    if (contentFiles.length === 0) continue;
+    const contentFile = contentFiles.map(a => a.content).join('\n\n');
+    result.push({ id: aspectId, contentFile });
   }
   return result;
 }
