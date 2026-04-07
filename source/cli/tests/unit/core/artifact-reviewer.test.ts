@@ -6,7 +6,7 @@ function mockProvider(overrides: {
   reviewArtifact: (params: { artifactContent: string; artifactName: string; sourceCode: string; sourceFiles: string[] }) => Promise<ArtifactResponse>;
 }): LlmProvider {
   return {
-    async verifyClaim() { return { satisfied: true, reason: 'ok' }; },
+    async verifyAspect() { return { satisfied: true, reason: 'ok' }; },
     reviewArtifact: overrides.reviewArtifact,
     async isAvailable() { return true; },
     async getContextWindowSize() { return 8192; },
@@ -16,7 +16,7 @@ function mockProvider(overrides: {
 describe('artifact-reviewer', () => {
   it('marks artifact as not current when provider throws', async () => {
     const provider: LlmProvider = {
-      async verifyClaim() { return { satisfied: true, reason: 'ok' }; },
+      async verifyAspect() { return { satisfied: true, reason: 'ok' }; },
       async reviewArtifact() { throw new Error('network error'); },
       async isAvailable() { return true; },
       async getContextWindowSize() { return 8192; },
@@ -34,7 +34,7 @@ describe('artifact-reviewer', () => {
   it('chunks source files when exceeding maxTokens', async () => {
     const calls: string[] = [];
     const provider: LlmProvider = {
-      async verifyClaim() { return { satisfied: true, reason: 'ok' }; },
+      async verifyAspect() { return { satisfied: true, reason: 'ok' }; },
       async reviewArtifact(params) {
         calls.push(params.sourceCode.substring(0, 20));
         return { current: true, reason: 'ok' };
