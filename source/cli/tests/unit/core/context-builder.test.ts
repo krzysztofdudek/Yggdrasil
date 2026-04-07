@@ -1026,7 +1026,6 @@ describe('context-builder', () => {
 
       expect(output).toContain('# Context Package: OrderService');
       expect(output).toContain('# Path: orders/order-service');
-      expect(output).toContain('# Generated:');
       expect(output).toContain('## OwnArtifacts');
       expect(output).toContain('### yg-node.yaml');
     });

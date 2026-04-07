@@ -266,6 +266,28 @@ describe('classifyDrift', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
+  it('detects deleted source file in drift (partial deletion)', async () => {
+    const { tmpDir } = await createTmpProject('partial-deleted', {
+      nodePath: 'svc/my-service',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/index.ts\n  - src/svc/helper.ts\n',
+      mappingFiles: {
+        'src/svc/index.ts': 'export default 42;\n',
+        'src/svc/helper.ts': 'export const helper = () => {};\n',
+      },
+    });
+    await recordBaseline(tmpDir);
+    // Delete one of the two mapped files — allPathsMissing returns false since index.ts still exists
+    await rm(path.join(tmpDir, 'src/svc/helper.ts'), { force: true });
+    const graph = await loadGraph(tmpDir);
+    const result = await classifyDrift(graph);
+    // Should detect E020 drift (deleted source file)
+    const e020 = result.filter(i => i.code === 'E020');
+    expect(e020.length).toBeGreaterThanOrEqual(1);
+    const changedFiles = e020.flatMap(i => i.directChangedFiles ?? []);
+    expect(changedFiles.some(f => f.filePath.includes('deleted'))).toBe(true);
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
   it('returns E020 full-drift when both source and own graph artifacts change', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('full-drift', {
       nodePath: 'svc/my-service',

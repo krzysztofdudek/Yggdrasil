@@ -135,6 +135,36 @@ describe('formatFileContext', () => {
     expect(output).not.toContain('Claims to satisfy:');
   });
 
+  it('falls back to "unknown" when ownerType is not set', () => {
+    const output = formatFileContext({
+      filePath: 'source/cli/src/core/foo.ts',
+      ownerPath: 'cli/core/foo',
+      ownerType: undefined,
+      claims: [],
+      dependencies: [],
+      dependentCount: 0,
+    });
+    expect(output).toContain('Owner: cli/core/foo (unknown)');
+  });
+
+  it('omits source line when aspect.source is undefined', () => {
+    const output = formatFileContext({
+      filePath: 'source/cli/src/core/bar.ts',
+      ownerPath: 'cli/core/bar',
+      ownerType: 'library',
+      claims: [{
+        aspectId: 'deterministic',
+        aspectDescription: 'Same inputs produce identical outputs',
+        verifiedAgainst: 'aspects/deterministic/content.md',
+        claims: ['Functions do not use Date.now()'],
+      }],
+      dependencies: [],
+      dependentCount: 0,
+    });
+    expect(output).toContain('deterministic');
+    expect(output).not.toContain('Source:');
+  });
+
   it('omits dependencies section when empty', () => {
     const output = formatFileContext({
       filePath: 'source/cli/src/core/validator.ts',
