@@ -171,7 +171,7 @@ The context package uses **two-level progressive disclosure** in structured text
   agent reads artifact files separately as needed. This is the primary mode — lightweight
   and fast for orientation.
 - **Per-file details (`--file`):** when the agent runs `yg context --file <path>`, it gets
-  details scoped to that file — claims to satisfy, consumed dependencies, and the owning
+  details scoped to that file — aspects to satisfy, consumed dependencies, and the owning
   node. The agent uses this before modifying a specific file.
 
 The output is structured text (not YAML) — readable by any agent without a parser.
@@ -183,20 +183,15 @@ Source files (2):
   src/orders/order.service.ts
   src/orders/order.repository.ts
 
-Must satisfy (2 aspects, 3 claims):
+Must satisfy (2 aspects):
 
   requires-audit — Every state-changing operation must produce an audit log entry
     Source: own declaration
     Verified against: all source files
-    Claims:
-      - "Every mutation logs an audit entry"
-      - "Audit entries include the acting user identity"
 
   requires-saga — Multi-step operations coordinated via saga with compensating actions
     Source: flow:Checkout flow
     Verified against: all source files
-    Claims:
-      - "Multi-step operations use saga with compensating actions"
 
 Participates in (1 flow):
   checkout — End-to-end purchase flow from cart to payment confirmation
@@ -457,7 +452,7 @@ agent assesses the significance and decides on resolution.
 
 #### LLM result caching
 
-LLM verification results (claim verification and artifact review — see
+LLM verification results (aspect verification and artifact review — see
 [LLM-based verification](#llm-based-verification-approve-only)) are cached in the drift
 state alongside file hashes. When E020 (direct drift) or E021 (cascade drift) fires for a
 node, all cached LLM results for that node are invalidated — the next approve re-runs
@@ -566,8 +561,8 @@ the work of the agent or human — tools only read and verify.
 
 Approve runs two LLM checks on drifted nodes:
 
-**Claim verification.** For each aspect on the node, the LLM receives the aspect
-description, claim text, and concatenated source files. It responds with
+**Aspect verification.** For each aspect on the node, the LLM receives the aspect
+description, content files, and concatenated source files. It responds with
 `satisfied: true|false` and a reason. If unsatisfied, E055 fires. For large nodes,
 source is chunked by file boundaries — all chunks must pass.
 
@@ -602,7 +597,7 @@ model/payments/payment-service/yg-node.yaml ports:
                                                 aspects: [requires-idempotency]
 
 aspects/requires-audit/                 aspect id = directory path
-  yg-aspect.yaml                        name, description, claims (anchors)
+  yg-aspect.yaml                        name, description, implies
 
 flows/checkout/yg-flow.yaml             lists orders/order-service as participant
 ```

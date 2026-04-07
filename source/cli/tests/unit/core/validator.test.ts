@@ -1018,55 +1018,6 @@ describe('validator', () => {
   // E040, E041, E037 removed — anchor/claim checks replaced by aspect-level verification
 
   describe('Architecture Constraints (E050-E054)', () => {
-    // E050, E053, E054 checks disabled — will be replaced by LLM claim verification in Plan 2
-    // These tests are kept for reference but skipped since mapping groups no longer carry aspects
-
-    it.skip('E050: missing-required-aspect when mapping group lacks required aspect', async () => {
-      const graph = createGraph({
-        architecture: {
-          node_types: {
-            service: {
-              description: 'A service',
-              aspects: ['audit-logging'],
-            },
-          },
-        },
-        aspects: [{ name: 'Audit', id: 'audit-logging', artifacts: [] }],
-      });
-      graph.nodes.set('a', createNode('a', {
-        type: 'service',
-        mapping: ['src/service.ts'], // No aspects declared in group
-      }));
-
-      const result = await validate(graph);
-      const e050 = result.issues.find(i => i.code === 'E050' && i.nodePath === 'a');
-      expect(e050).toBeDefined();
-      expect(e050!.message).toContain('audit-logging');
-      expect(e050!.message).toContain('architecture');
-    });
-
-    it.skip('E050: not fired when mapping group declares required aspect', async () => {
-      const graph = createGraph({
-        architecture: {
-          node_types: {
-            service: {
-              description: 'A service',
-              aspects: ['audit-logging'],
-            },
-          },
-        },
-        aspects: [{ name: 'Audit', id: 'audit-logging', artifacts: [] }],
-      });
-      graph.nodes.set('a', createNode('a', {
-        type: 'service',
-        mapping: ['src/service.ts'],
-      }));
-
-      const result = await validate(graph);
-      const e050 = result.issues.find(i => i.code === 'E050' && i.nodePath === 'a');
-      expect(e050).toBeUndefined();
-    });
-
     it('E051: invalid-relation-target when relation target type not allowed', async () => {
       const graph = createGraph({
         architecture: {
@@ -1165,22 +1116,6 @@ describe('validator', () => {
       const result = await validate(graph);
       const e052 = result.issues.find(i => i.code === 'E052' && i.nodePath === 'parent/child');
       expect(e052).toBeUndefined();
-    });
-
-    it.skip('E054: unexpected-aspect when mapping group declares aspect outside allowed set', async () => {
-      // Skipped — E054 checks removed with mapping group aspects
-    });
-
-    it.skip('E054: not fired when all declared aspects are in allowed set', async () => {
-      // Skipped — E054 checks removed with mapping group aspects
-    });
-
-    it.skip('E050: message includes flow source when aspect comes from flow', async () => {
-      // Skipped — E050 checks removed
-    });
-
-    it.skip('E050: message includes parent source when aspect comes from parent inheritance', async () => {
-      // Skipped — E050 checks removed
     });
 
     it('E053: integration-aspect-missing when consumer uses a port whose required aspect is not defined', async () => {

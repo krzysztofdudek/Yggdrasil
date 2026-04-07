@@ -69,7 +69,7 @@ quality:
 
 ## Reviewer config
 
-Optional. Enables semantic verification during `yg approve` — claim checking (E055)
+Optional. Enables semantic verification during `yg approve` — aspect verification (E055)
 and optionally artifact review (E056). The `reviewer:` section in `yg-config.yaml` uses
 a nested provider structure.
 

@@ -458,7 +458,7 @@ describe('classifyDrift', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('E021 verificationLabel is "last verified: pass" when claimResults all satisfied', async () => {
+  it('E021 verificationLabel is "last verified: pass" when aspectResults all satisfied', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('verif-pass', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - logging\nmapping:\n  - src/svc/\n',
@@ -470,7 +470,7 @@ describe('classifyDrift', () => {
       }],
     });
     await recordBaseline(tmpDir);
-    // Seed drift state with all-satisfied claimResults (simulating prior LLM-powered approve)
+    // Seed drift state with all-satisfied aspectResults (simulating prior LLM-powered approve)
     const storeModule = await import('../../../src/io/drift-state-store.js');
     const existing = await storeModule.readNodeDriftState(yggRoot, 'svc/my-service');
     await storeModule.writeNodeDriftState(yggRoot, 'svc/my-service', {
@@ -487,7 +487,7 @@ describe('classifyDrift', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('E021 verificationLabel is "last verified: fail" when claimResults has unsatisfied entry', async () => {
+  it('E021 verificationLabel is "last verified: fail" when aspectResults has unsatisfied entry', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('verif-fail', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - logging\nmapping:\n  - src/svc/\n',
@@ -499,7 +499,7 @@ describe('classifyDrift', () => {
       }],
     });
     await recordBaseline(tmpDir);
-    // Seed drift state with a failing claimResults entry
+    // Seed drift state with a failing aspectResults entry
     const storeModule = await import('../../../src/io/drift-state-store.js');
     const existing = await storeModule.readNodeDriftState(yggRoot, 'svc/my-service');
     await storeModule.writeNodeDriftState(yggRoot, 'svc/my-service', {
@@ -516,7 +516,7 @@ describe('classifyDrift', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('E021 verificationLabel is "never verified" when no claimResults in drift state', async () => {
+  it('E021 verificationLabel is "never verified" when no aspectResults in drift state', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('verif-none', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - logging\nmapping:\n  - src/svc/\n',
@@ -528,7 +528,7 @@ describe('classifyDrift', () => {
       }],
     });
     await recordBaseline(tmpDir);
-    // No claimResults seeded -- baseline only
+    // No aspectResults seeded -- baseline only
     // Modify aspect to trigger cascade
     await writeFile(path.join(yggRoot, 'aspects/logging/rules.md'), 'Updated rules.\n');
     const graph = await loadGraph(tmpDir);

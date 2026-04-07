@@ -52,41 +52,42 @@ Yggdrasil is persistent semantic memory stored in `.yggdrasil/`. It maps the rep
 ### Quick Start
 
 ```
-EVERY conversation: yg check — no exceptions.
-  check is the single gate. It catches drift, structural errors, and coverage gaps.
+EVERY conversation: yg check — read the full report, follow CLI guidance.
+  CLI tells you what broke, why, and the next command to run.
   check failures block commits and CI. Resolve all errors before committing.
 
 BEFORE any task (brainstorming, design, planning, implementation):
   yg select --task "<goal>" → yg context on results
   READ phase — collect constraints before designing:
-    - Architecture: read yg-architecture.yaml to understand node type constraints (aspects, integration_aspects, allowed parents/relations)
-    - Aspects: read content files (not just YAML description). Rules are inside. Understand proofs in mapping groups.
+    - Aspects: read content files (not just YAML description). Rules are inside.
     - Flows: read invariants. Your changes must not break business processes.
-    - Relations: check interfaces — who depends on you, who you depend on. Check allowed relation types.
+    - Relations: check interfaces — who depends on you, who you depend on.
     - Parent artifacts: inherited context not repeated in child nodes.
   This is the moment that determines quality. Everything after follows from here.
 
 BEFORE any source file interaction (read, modify, OR create):
   yg context --file <path>  (existing file: resolves owner)
-  yg context --node <path>  (new file: load target node context, includes required_aspects from architecture)
-  Read local node artifacts. Read aspect rules and mapping group proofs the file must follow.
-  Check yg-architecture.yaml for node type constraints.
+  yg context --node <path>  (new file: load target node context)
+  Read local node artifacts. Read aspect rules the file must follow.
   If you skipped the task-level READ phase above — do it now before proceeding.
   For blast radius: also run yg impact --file <path>.
 
 AFTER modifying:
   Update graph artifacts (per file, not batched)
-  For each file: verify mapping group aspect proofs in yg-node.yaml
-  yg check — fix all errors (especially E050-E054 for architecture and mapping enforcement)
+  yg check — fix all errors
   yg approve --node <owner>
 
 ALWAYS: establish graph coverage before modifying code.
-ALWAYS: read yg-architecture.yaml when understanding node constraints.
 ALWAYS: run yg context --file before reading source.
 ALWAYS: run yg impact before assessing blast radius.
 ALWAYS: ask the user for rationale — record it, do not invent it.
 ALWAYS: ask before resolving ambiguity.
 WHEN UNSURE: ask the user. Do not guess. Do not assume.
+
+How CLI guides you:
+  Every error message follows: WHAT happened → WHY it's a problem → NEXT command.
+  suggestedNext at the end of check gives one concrete step + remaining scale.
+  Follow it. Re-run check after each fix.
 ```
 
 ### Modify Source Code
@@ -97,16 +98,18 @@ You are not allowed to edit or create source code without establishing graph cov
 
 **Step 2a** — Owner found: execute checklist:
 
-- [ ] 1. Read yg-architecture.yaml — understand required aspects for your node type, integration aspects for relation targets, and allowed parent/relation types.
-- [ ] 2. Read local node artifacts (responsibility, interface, internals) and dependency interfaces from the context package. Note required_aspects with sources.
-- [ ] 3. Assess blast radius: `yg impact --node <node_path>` — review dependents, descendants, and co-aspect nodes before changing interfaces or shared behavior. Check relation type constraints in architecture.
-- [ ] 4. Modify source code. When implementing logic subject to an aspect, re-read that aspect's content file NOW — don't rely on memory from the task-level READ phase. Aspect rules are specific and fade from working memory. Read them at the moment you need them.
-- [ ] 5. Sync graph artifacts — edit artifact files to reflect the changes (after each file, not batched — context is freshest immediately after the change). If the node's purpose changed, update `description` in `yg-node.yaml`.
-- [ ] 5b. **Update mapping groups:** For files you modified, ensure their mapping group includes all required aspects with anchors proving implementation. Anchors = regex patterns + rationale matching patterns in the source code. Ensure every anchor matches every file in the group.
-- [ ] 5c. If you split, merged, or renamed a node: run `yg flows` and update any flow `nodes` lists that referenced the old node path to point to the correct child/new nodes. Check architecture parent/relation constraints.
-- [ ] 6. Run `yg check` — fix all errors (if unfixable after 3 attempts → stop, report to user). Focus on E050-E054 (architecture/mapping enforcement) in addition to existing error codes.
-- [ ] 6b. **Aspect check** — did you just apply a pattern (audit log, webhook, job dispatch, auth check) that also exists in other files? If the node has no aspect for it and you saw the same pattern in 3+ files, create the aspect now.
-- [ ] 7. Run `yg approve --node <node_path>` — only after graph and code are both current
+- [ ] 1. `yg context --file <path>` — read aspect content files and dependencies
+- [ ] 2. Read local node artifacts (responsibility, interface, internals) from the context package. Cross-cutting constraints (aspects, flows) should already be internalized from the task-level READ phase.
+- [ ] 3. Assess blast radius: `yg impact --node <node_path>`
+- [ ] 4. Modify source code — aspect content files tell you what rules to follow
+- [ ] 5. Update artifacts if behavior changed. Each artifact has its own trigger:
+        - responsibility.md — when the node's identity, boundaries, or business rules changed
+        - interface.md — when exported API signatures or contracts changed
+        - internals.md — when a design decision was made (record it) or a constraint emerged
+- [ ] 5b. If you split, merged, or renamed a node: run `yg flows` and update any flow `nodes` lists that referenced the old node path to point to the correct child/new nodes.
+- [ ] 6. Run `yg check` — follow CLI's suggested next command (if unfixable after 3 attempts → stop, report to user)
+- [ ] 6b. **Aspect check** — did you just apply a pattern that also exists in other files? If the node has no aspect for it and you saw the same pattern in 3+ files, create the aspect now.
+- [ ] 7. Run `yg approve --node <node_path>` — reviewer verifies aspects + artifact freshness
 
 **Step 2b** — Owner not found: establish coverage first. Present options to the user:
 
@@ -114,7 +117,7 @@ You are not allowed to edit or create source code without establishing graph cov
 
 *Existing code:*
 
-- Option A — Full node: create node(s), map files, write artifacts from code analysis
+- Option A — Proper node: create node(s), map files, write artifacts per Artifact Structure guidance
 - Option B — Blackbox: create a blackbox node at agreed granularity
 - Option C — Abort
 
@@ -123,11 +126,14 @@ You are not allowed to edit or create source code without establishing graph cov
 0. **If spec/external documents exist:** route ALL knowledge from specs to the graph per the Information Routing table BEFORE any feature work.
 1. Create aspects first (cross-cutting requirements the new code must satisfy)
 2. Create flows if the code participates in a business process
-3. Create nodes with full artifacts — description in `yg-node.yaml`, responsibility, interface, internals
+3. Create nodes with artifacts — description in `yg-node.yaml`, then:
+   - responsibility.md: identity + boundaries + domain rules
+   - interface.md: exported API contracts (when node will have consumers)
 4. Review the context package (`yg context`) — it is now the behavioral specification
-5. Implement code that satisfies the specification. Every source file must be mapped.
-6. After implementing each node, write `internals.md` with a ## Decisions section. Record every design choice: "Chose X over Y because Z." This is required in greenfield — not optional.
-7. The graph specifies WHAT and WHY; the code implements HOW
+5. Create `yg-node.yaml` with mapping (flat list of file paths) before `yg check`
+6. Implement code that satisfies the specification. Every source file must be mapped.
+7. After implementing each node, write `internals.md` with a ## Decisions section. Record every design choice: "Chose X over Y because Z." This is required in greenfield — not optional.
+8. The graph specifies WHAT and WHY; the code implements HOW
 
 **Node sizing rule:** One node per cohesive feature area, NOT per directory. If a node would map >10 source files or cover >3 distinct user workflows, split it into child nodes.
 
@@ -153,7 +159,7 @@ START (every conversation, before any work):
 
 UNDERSTANDING any source file (questions, research, OR planning):
   - [ ] 1. yg context --file <path>
-         Mapped → read the YAML map (glossary first, then artifact files).
+         Mapped → read structured text output. Artifact file paths are listed with "read:" prefix — read them.
          Unmapped → use file analysis, state it is not graph-backed.
   Never use grep or raw file reads as primary understanding when graph coverage exists.
 
@@ -168,13 +174,10 @@ WRAP-UP (user signals "done", "wrap up", "that's enough"):
 ### Modify Graph
 
 - [ ] 1. Read the relevant schema from `schemas/` before touching any YAML
-- [ ] 2. Before changing architecture, aspects, or flows, check scope: `yg impact --aspect <id>` or `yg impact --flow <name>` — understand which nodes are affected before modifying shared rules or processes
-- [ ] 3. Make changes:
-     - **Architecture changes:** Review affected nodes. Node types must be updated to match. Required aspects may change — may require mapping group updates.
-     - **Aspect changes:** Adding/removing anchors may require nodes to add/remove mapping group proofs.
-     - **Flow changes:** Adding/removing aspects may require node mapping groups to prove new aspects.
-- [ ] 4. Run `yg check` immediately — fix all errors (E050-E054 indicate mapping group/architecture issues)
-- [ ] 5. Verify affected source files are consistent — update yg-node.yaml mapping groups if required aspects changed. Update node types if changing architecture.
+- [ ] 2. Before changing an aspect or flow, check blast radius: `yg impact --aspect <id>` or `yg impact --flow <name>` — understand which nodes are affected before modifying shared rules or processes
+- [ ] 3. Make changes
+- [ ] 4. Run `yg check` immediately — fix all errors
+- [ ] 5. Verify affected source files are consistent — update if needed
 - [ ] 6. Run `yg approve` for affected nodes
 
 ### Blackbox Guidance
@@ -182,10 +185,10 @@ WRAP-UP (user signals "done", "wrap up", "that's enough"):
 **Blackbox-first adoption.** When adopting Yggdrasil on an existing codebase:
 1. Run `yg check` — E022 shows all uncovered files
 2. Create blackbox nodes for areas you will NOT work on (cheap: just `yg-node.yaml` with description)
-3. Create proper nodes for areas you WILL work on (full artifacts)
+3. Create proper nodes for areas you WILL work on (artifacts per Artifact Structure guidance)
 4. Run `yg check` — E022 should be 0
 
-**Blackbox decomposition (mechanically enforced).** Blackbox nodes track file hashes. When source files under a blackbox change, E020 fires and `yg approve` REFUSES — no exceptions, no `--acknowledge`. The only path:
+**Blackbox decomposition (mechanically enforced).** Blackbox nodes track file hashes. When source files under a blackbox change, E020 fires and `yg approve` REFUSES — no exceptions, no `--reviewed`. The only path:
 1. Create a proper node (with real artifacts) for the modified files
 2. Adjust the blackbox mapping to exclude them
 3. Approve the new proper node
@@ -219,86 +222,131 @@ A subagent that delivers code without corresponding graph updates has not comple
 
 ```
 .yggdrasil/
-  yg-config.yaml        ← version, name, quality thresholds
-  yg-architecture.yaml  ← node types with constraints: aspects, integration_aspects, parents, relations
-  model/                ← what exists: nodes, hierarchy, relations, file mappings with aspect proofs
-  aspects/              ← what must: cross-cutting requirements with anchors (proof-point IDs)
-  flows/                ← why and in what process: business processes with node participation
-  schemas/              ← YAML schemas — read before creating any graph element
-  .drift-state/         ← generated by CLI; never edit manually
+  yg-config.yaml     ← version, vocabulary, node types, required aspects
+  model/             ← what exists: nodes, hierarchy, relations, file mappings
+  aspects/           ← what must: cross-cutting requirements with rationale and guidance
+  flows/             ← why and in what process: business processes with node participation
+  schemas/           ← YAML schemas — read before creating any graph element
+  .drift-state/      ← generated by CLI; never edit manually
 ```
 
 Key facts:
 
-- **Architecture:** `yg-architecture.yaml` defines node types with constraints. Every node's type must match an architecture type and satisfy its constraints.
-  - `aspects` — required on every file of nodes of this type. Agents must prove these on mapping groups.
-  - `integration_aspects` — required on consumers (files that have relations to) nodes of this type.
-  - `parents` — whitelist of allowed parent node types. Absence = unconstrained.
-  - `relations` — whitelist of allowed relation targets per relation type. Absence = unconstrained.
-- **Hierarchy:** nodes nest in `model/`. Children inherit parent context and required aspects. Do not repeat parent content in children.
-- **Mapping groups:** In `yg-node.yaml`, `mapping:` is a list of groups (not a flat path list). Each group has `paths` (files/directories sharing a profile) and `aspects` with anchors proving implementation.
-  - Each group must prove ALL required aspects (from architecture + flows + parents + own).
-  - Anchors = regex patterns + rationale proving the file implements the aspect.
-  - Every anchor ID from the aspect's definition must be realized in every mapping group carrying that aspect.
-  - Every file in a group must match every anchor regex in that group.
-- **Effective aspects:** Aspects propagate from multiple sources. Agents don't manually compute — `yg context` shows `required_aspects` with sources. Understand: architecture requirement? Flow requirement? Parent inheritance? Own extra?
-- **Aspect id = directory path** under `aspects/`. Each aspect has `yg-aspect.yaml` (defines anchors) + content `.md` files. No automatic parent-child — use `implies` explicitly.
+- **Hierarchy:** nodes nest in `model/`. Children inherit parent context. Do not repeat parent content in children.
+- **Aspect id = directory path** under `aspects/`. Each aspect has `yg-aspect.yaml` + content `.md` files. No automatic parent-child — use `implies` explicitly.
 - **Flows = business processes.** A flow describes what happens in the world, not code sequences. Flow aspects propagate to all participants.
 
-**Node type guidance:** Each type in `yg-architecture.yaml node_types` has a `description` that tells you when to use it. Check the project's architecture for the full list and constraints. Common types: `module` (business logic), `service` (providing functionality), `library` (shared utilities), `infrastructure` (guards, middleware, interceptors — invisible in call graphs but affect blast radius).
+**Node type guidance:** Each type in `yg-config.yaml node_types` has a `description` that tells you when to use it. Check the project's config for the full list and descriptions. Common types: `module` (business logic), `service` (providing functionality), `library` (shared utilities), `infrastructure` (guards, middleware, interceptors — invisible in call graphs but affect blast radius).
 
 ### Artifact Structure
 
 Three artifacts capture node knowledge at three levels:
 
-- **responsibility.md** (always required) — WHAT: identity, boundaries, what the node is NOT responsible for.
-- **interface.md** (required when node has consumers) — HOW TO USE: public methods, parameters, return types, contracts, failure modes, exposed data structures.
-- **internals.md** (optional, highest value for cross-module nodes) — HOW IT WORKS + WHY: algorithms, control flow, business rules, invariants, state machines, lifecycle, and design decisions with rejected alternatives. Use sections: ## Logic, ## Constraints, ## State, ## Decisions (with "Chose X over Y because Z" format).
+- **responsibility.md** (always required) — IDENTITY: what this node IS, what it is NOT, its role relative to siblings and parent. Business rules and domain constraints that the code enforces but doesn't explain.
 
-**Mapping groups** (in `yg-node.yaml` under `mapping:`) prove aspects through anchors. Three components:
-- **paths** — files or directories grouped by shared aspect proof profile
-- **aspects** — list of aspects this group proves
-- **anchors** — regex patterns proving each aspect, with rationale explaining the pattern. Rationale is bounded (max 2 sentences) and links the pattern to the requirement.
+  Example (good — context code cannot express):
+    "Processes payment refunds. Partial refunds allowed only within 30 days;
+     full refunds within 90. Amounts below the original transaction fee are
+     rejected — the fee is non-recoverable. Does not handle chargebacks
+     or communicate with payment providers directly."
 
-**Enrichment priority:** `interface.md` first (highest cross-module ROI), then `responsibility.md` (identity and boundaries), then `internals.md` (depth for complex nodes), then mapping group anchors and rationales (evidence of compliance).
+  Example (too detailed — already in code, yg-node.yaml, or ls):
+    "- refund-validator.ts — validates refund eligibility
+     - refund-processor.ts — executes refund transactions
+     - refund-types.ts — TypeScript type definitions..."
+
+  "Not responsible for" should state boundary decisions, not list sibling nodes:
+    Good: "Does not interpret markdown content — copies and annotates only."
+    Noise: "Out of scope: Validation (payments/validator), Logging (payments/logger)."
+    The graph already knows boundaries through relations and hierarchy.
+
+- **interface.md** (required when node has consumers) — CONTRACT: what consumers call, what they get back, what can go wrong. Exported function signatures, parameter types, return types, failure modes.
+
+  Example (good — the contract a consumer needs):
+    "processRefund(order, amount, reason): RefundResult — validates eligibility,
+     debits the merchant account, returns confirmation or rejection with code.
+     Throws InsufficientFundsError if merchant balance < amount."
+
+  Example (too detailed — internal helpers consumers never call):
+    "validateWindow(order, policy): internal; checks refund time window.
+     calculateFee(amount, rate): internal; computes non-recoverable fee.
+     buildLedgerEntry(refund): internal; creates accounting record."
+
+- **internals.md** (optional) — WHY + CONSTRAINTS: design decisions with rejected alternatives, non-obvious constraints, business rules that shaped the implementation. Use sections: ## Decisions (required — "Chose X over Y because Z"), ## Constraints (when applicable).
+
+  Example (good — knowledge invisible in code):
+    "## Decisions
+     Chose synchronous fee calculation over async lookup because fees are
+     fixed per payment method and change quarterly. Rejected: real-time
+     fee API — added 200ms latency for data that updates 4x/year."
+
+  Example (too detailed — the source code rewritten in prose):
+    "## Logic
+     1. Parse options from CLI arguments
+     2. Load config from disk
+     3. If --verbose: enable debug logging
+     4. Call processRefund with parsed args
+     5. Format output and write to stdout"
+
+**Enrichment priority:** `interface.md` first (highest cross-module ROI), then `responsibility.md` (identity and boundaries), then `internals.md` (depth for complex nodes). If no decisions were made during implementation, internals.md is not needed — but see "Recognizing decisions" below before concluding that.
+
+**Artifact quality test — apply before writing any content:**
+1. "Can an agent learn this by reading the source code?" If yes — it is already there.
+2. "Is this declared in yg-node.yaml?" (mappings, children, relations, aspects) If yes — it is already there.
+3. "Is this visible by reading the file or running the command?" (config settings, CLI output format, directory listing) If yes — explain WHY, not WHAT.
+Artifacts capture what code cannot express: identity, boundaries, WHY decisions were made, rejected alternatives, domain constraints, and business rules.
+
+**Parent vs child artifacts:** Parent responsibility defines the shared contract — what unifies children and what rules all children follow. Child responsibility defines what distinguishes THIS child from its siblings. If parent and child say the same thing, delete it from the child — hierarchy inheritance delivers parent context automatically.
+
+**Recognizing decisions:** Every time you choose between alternatives — even when the choice feels obvious — that is a decision to record. Common blind spots:
+- Naming: "kept internal type name X while renaming user-facing term to Y" — why the split?
+- Structure: "nested config under parent key instead of flat top-level" — why nesting?
+- Scope: "handled this in module A instead of module B" — why A?
+- Omission: "did not add migration for old format" — why not needed?
+Decisions are the only artifact content that vanishes after the conversation ends. Code can be re-read. Config can be re-parsed. But "chose X over Y because Z" exists only in the conversation until you write it down. Prioritize by what is irrecoverable, not by what generates errors.
 
 ### Context Assembly
 
-**Reading context:** `yg context --node <path>` returns a YAML map structured as follows:
+Two context commands serve different purposes:
 
-- **`glossary`** (top) — definitions for every aspect and flow referenced in the map, each with `files` listing their artifact paths. Read this first.
-- **`node`** — the target node with:
-  - `files` (its artifact paths)
-  - `required_aspects` — aspects from architecture type + flows + parent + own, each with source attribution
-  - `integration_aspects` — aspects consumers of this node must prove (if any)
-  - `mappings` — source file paths covered by mapping groups
-- **`hierarchy`** — ancestor and sibling nodes, each with inline `files`.
-- **`dependencies`** — dependency nodes, each with inline `files`.
-- **`meta`** (bottom) — context assembly metadata.
+- **`yg context --node <path>`** — node overview: aspects, flows, dependents, artifact pointers
+- **`yg context --file <path>`** — per-file: aspects to satisfy, consumed dependencies
 
-All artifact paths are relative to `.yggdrasil/` — construct full path as `.yggdrasil/<path>`. Read required_aspects and their sources to understand what must be proven and why. For aspect content/anchors, read files listed in glossary.
+**Reading context:** Both commands output structured text. Artifact file paths appear with a `read:` prefix — read each one to get the full content.
 
-**Default mode (paths-only):** Use for all graph operations. Read the YAML map, then read artifact files:
+`yg context --node <path>` outputs:
+- **Header** — node path, description, type
+- **Source files** — files owned by this node
+- **Must satisfy** — aspects, source, verified-against paths, and implies chain
+- **Participates in** — flows with read paths to their description files
+- **Dependencies** — nodes this node depends on, with read paths to their interfaces
+- **Dependents** — count of nodes that depend on this one (consequence framing for blast radius)
+- **Parent** — parent node with read path to its artifacts
+- **Artifacts** — read paths for responsibility.md, interface.md, internals.md
+- **Token budget** — current / limit / status
 
-1. **Glossary first** — defines aspects and flows. Aspects are constraints your implementation must satisfy. Flows are business processes whose invariants you must not break.
-2. **Node section** — your target's own artifacts. Read before modifying.
-3. **Hierarchy** — parent artifacts contain inherited requirements not repeated in child nodes.
-4. **Dependencies** — interfaces you consume or that consume you. Read before changing contracts.
+`yg context --file <path>` outputs:
+- **Owner** — node path and type (or "unmapped" with candidate nodes)
+- **Must satisfy** — aspects with verified-against paths
+- **Dependencies consumed** — what this file uses from each dependency
+- **Node context** — back-pointer: run `yg context --node` for full node overview
 
-A typical context package is ~8K tokens. Read ALL artifact files listed — the cost is low, the risk of skipping is high.
-
-**Full mode (`--full`):** Use only when you cannot read files individually — e.g., when pasting context into a prompt, sharing with a user, or when you have no Read tool available.
+Read ALL artifact files listed — the cost is low, the risk of skipping is high.
 
 ### Information Routing
 
 When you encounter information, route it to the correct location:
 
-- **Specific to this node** → local node artifact (`responsibility.md`, `interface.md`, or `internals.md` depending on the knowledge type)
-- **Rule for many nodes** → aspect (`aspects/<id>/` with `yg-aspect.yaml` + content `.md` files). If applies to ALL nodes of a type → `node_types.<type>.required_aspects` in `yg-config.yaml`
+- **Node identity and boundaries** → responsibility.md ("this module handles X, is NOT responsible for Y")
+- **Domain rules and business constraints** → responsibility.md ("rejects orders below minimum because margin doesn't cover shipping")
+- **Exported API contracts** → interface.md (signatures, return types, failure modes)
+- **Design decisions with rejected alternatives** → internals.md ## Decisions ("Chose X over Y because Z")
+- **Non-obvious constraints** → internals.md ## Constraints
+- **Internal function signatures, algorithm steps, config file settings, directory listings** → already in source code (no artifact needed)
+- **Rule for many nodes** → aspect (`aspects/<id>/` with `yg-aspect.yaml` + content `.md` files). If applies to ALL nodes of a type → required aspects in `yg-config.yaml`
 - **Business process** → flow (`flows/<name>/` with `yg-flow.yaml` + `description.md`). Ask user if process unclear.
 - **Shared across a domain** → parent node artifact. Children receive it through hierarchy.
 - **Technology stack or standard** → node artifact at the appropriate hierarchy level
-- **Decision (why + why NOT):** one node → Decisions section of `internals.md` with format "Chose X over Y because Z"; category of nodes → aspect content files. Always include rejected alternatives. If rationale unknown: record with "rationale: unknown." Never invent.
 - **Business strategy** (personas, pricing, acquisition channels) → root node artifact or dedicated business-context aspect. This knowledge has NO source file — it exists only in specs and conversations.
 - **Quality targets** (performance budgets, accessibility, test coverage goals) → aspect per quality dimension.
 - **UX patterns** (autosave, version history, empty states) → aspect when the pattern applies to 3+ screens.
@@ -308,9 +356,14 @@ When you encounter information, route it to the correct location:
 
 | What you have | Where it goes |
 |---|---|
-| Information specific to this node | Local node artifact (`responsibility.md`, `interface.md`, or `internals.md`) |
+| Node identity and boundaries | responsibility.md |
+| Domain rules and business constraints | responsibility.md |
+| Exported API contracts | interface.md |
+| Design decisions (chose X over Y because Z) | internals.md ## Decisions |
+| Non-obvious constraints | internals.md ## Constraints |
+| Already visible in source code or config files | No artifact needed |
 | Rule that applies to many nodes | Aspect (content `.md` files in `aspects/<id>/`) |
-| Architectural invariant for a node type | Required aspect in `yg-config.yaml node_types` |
+| Architectural invariant for a node type | Required aspect in `yg-config.yaml` |
 | Business process participation | Flow (`yg-flow.yaml nodes`) |
 | Process-level requirement | Flow `aspects` + aspect directory |
 | Context shared across a domain | Parent node artifact |
@@ -318,30 +371,17 @@ When you encounter information, route it to the correct location:
 | Quality targets (perf budgets, a11y, test goals) | Aspect per quality dimension |
 | UX patterns (autosave, version history, empty states) | Aspect when pattern applies to 3+ screens |
 | Infrastructure/deployment (domains, env vars, CI/CD) | Infrastructure node or root node artifacts |
-| Feature spec from external doc | Node artifacts — translate spec into responsibility/interface/internals |
+| Feature spec from external doc | responsibility.md + interface.md (internals.md after implementation) |
 
 ### Creating Aspects
 
 - [ ] 1. Read `schemas/yg-aspect.yaml`
 - [ ] 2. Create `aspects/<id>/` directory
-- [ ] 3. Write `yg-aspect.yaml` — name, description, anchors (abstract proof-point IDs), optional implies
+- [ ] 3. Write `yg-aspect.yaml` — name, description, optional implies
 - [ ] 4. Write content `.md` files: WHAT must be satisfied + WHY (user's words, do not invent)
 - [ ] 5. `yg check`
 
 Test: "Does this requirement apply to more than one node?" Yes → aspect. No → local artifact.
-
-**Anchor requirement:** Every aspect MUST define at least one anchor ID — abstract proof-point identifiers. For example, an `audit-logging` aspect might define anchors: `audit-entry`, `audit-actor`, `audit-timestamp`. These are identifiers; the implementation is PROOF.
-
-**Proofs in mapping groups:** Nodes prove anchors by including them in mapping groups in `yg-node.yaml`. Each anchor proof has:
-- `regex` — pattern matching implementation of this anchor in the source code
-- `rationale` — why this pattern proves the requirement (max 2 sentences, user's words, not "migrated — needs review")
-
-For example, an `audit-logging` aspect with anchors `audit-entry`, `audit-actor`, `audit-timestamp` is proven in a logger file with mapping group entries like:
-- audit-entry: regex matches "LogEntry|AuditLog" with rationale "Typed structure with all fields"
-- audit-actor: regex matches "actor|userId|principal" with rationale "Every log includes principal identity"
-- audit-timestamp: regex matches "timestamp|createdAt|Date" with rationale "Timestamp captured on log creation"
-
-Each mapping group lists paths that share these proofs. Files are grouped by their aspect proof profile.
 
 ### Creating Flows
 
@@ -355,167 +395,70 @@ Test: "Does this describe what happens in the world, or only in the software?" I
 
 **Flow identification heuristic:** If a spec, conversation, or code reveals a sequence of steps toward a business goal — it IS a flow. This applies to multi-actor processes AND single-actor workflows.
 
-### Architecture & Mapping Groups
+### Ports
 
-**Understanding architecture (yg-architecture.yaml):**
-
-Your repository's architecture is defined in `.yggdrasil/yg-architecture.yaml`. It specifies:
-- **Node types** with descriptions — when to use each type
-- **Required aspects per type** — every file of that type must prove these
-- **Integration aspects per type** — consumers of this type must prove these
-- **Allowed parent types** — hierarchy constraints
-- **Allowed relation types** — which node types can call/use/extend/etc. which types
-
-Read the architecture file when:
-1. Choosing a node type for new code
-2. Understanding why a node has required aspects
-3. Assessing whether a relation is allowed
-4. Planning node hierarchy
-
-**Understanding mapping groups:**
-
-Mapping groups are in `yg-node.yaml` under `mapping:`. Each group represents a set of files sharing an aspect proof profile. Structure:
+Nodes can declare typed ports — named entry points with required aspects:
 
 ```yaml
-mapping:
-  - paths:
-      - path/to/file1.ts
-      - path/to/file2.ts
-    aspects:
-      - aspect: aspect-id
-        anchors:
-          anchor-id:
-            regex: "pattern"
-            rationale: "Why this pattern proves the requirement"
+ports:
+  charge:
+    description: "Charge payment"
+    aspects: [correlation-tracking]
 ```
 
-Key rules:
-- Every file in a group must match every anchor regex in that group
-- Every anchor ID from the aspect definition must be in the group (unless aspect is optional)
-- Rationale links the regex pattern to the requirement — bounded to 2 sentences, in user's words
-- Different groups can prove the same aspect with different proofs (route layer vs. service layer)
+Consumers reference ports via consumes on relations:
 
-**Effective aspects:**
+```yaml
+relations:
+  - target: payments/service
+    type: calls
+    consumes: [charge]
+```
 
-When `yg context --file` loads a file, it shows `required_aspects` with sources. These come from:
-1. Architecture type requirements
-2. Flow participation
-3. Parent node inheritance
-4. Node's own declaration
-5. Aspect implies chains
+At check time: E057 fires if target has ports but consumer has no consumes. E058 fires if consumes references undefined port.
+At approve time: Reviewer verifies consumer satisfies port-required aspects (E055).
 
-The effective set is the union of all these. Every mapping group containing that file must prove every effective aspect. Proof requires:
-- Anchor regex matching in EVERY file in the group
-- Rationale explaining how the pattern satisfies the requirement
+### CLI Commands
 
-**Mapping group workflow:**
+Core: `yg check`, `yg context --node/--file`, `yg impact --node/--file/--aspect/--flow`, `yg approve --node`
+Navigation: `yg select --task`, `yg tree`, `yg aspects`, `yg flows`, `yg owner --file`
+Setup: `yg init`
 
-When modifying a file in a mapping group:
-1. Identify which group the file belongs to (in `yg-node.yaml`)
-2. Get `yg context --file <path>` to see required_aspects
-3. For each required aspect, check if the group already has an anchor for it
-4. If modifying implementation of that aspect, update the anchor regex or rationale to match current code
-5. If adding a new aspect, add an anchor + rationale
-6. Verify: run `yg check` — E050/E053 = missing proofs, E054 = unexpected aspect
-7. Run `yg approve --node <owner>` after check passes
+### Error Categories
 
-When creating a new node:
-1. Read architecture to understand type constraints and required aspects
-2. Choose a type based on architecture description
-3. Plan mapping groups — one group per distinct proof profile
-4. For each effective aspect, add anchor + rationale in each group
-5. Create `yg-node.yaml` with complete mapping groups before `yg check`
+CLI groups errors into categories. Each message tells you what happened, why,
+and what command to run next.
 
-### CLI Reference
+- **Drift (E020-E021):** source and graph artifacts out of sync. Post-modify workflow.
+- **Structural (E001-E013):** YAML broken or graph inconsistent. Fix the YAML.
+- **Coverage (E022):** source files not mapped. Bootstrap workflow.
+- **Completeness (E030-E038):** artifacts missing or too thin. Write them.
+- **Architecture (E050-E058):** references broken or contracts violated. Fix references.
+- **Semantic (E055-E056, approve only):** Reviewer found aspects not satisfied or artifacts stale.
 
-**Core workflow (4):**
-
-| Command | Purpose |
-|---------|---------|
-| `yg context --file/--node [--full]` | Assemble context package for a node |
-| `yg impact --file/--node/--aspect/--flow` | Blast radius analysis |
-| `yg check` | Unified gate — everything wrong, always global |
-| `yg approve --node [--acknowledge "reason"]` | Record baseline after review |
-
-**Navigation (5):**
-
-| Command | Purpose |
-|---------|---------|
-| `yg select --task` | Find relevant nodes for a task |
-| `yg tree [--root] [--depth]` | Graph structure visualization |
-| `yg aspects` | List aspects with metadata |
-| `yg flows` | List flows with metadata |
-| `yg owner --file` | Quick ownership lookup |
-
-**Setup (1):**
-
-| Command | Purpose |
-|---------|---------|
-| `yg init [--platform] [--upgrade]` | Initialize or upgrade |
-
-### Error Codes
-
-**Structural integrity (E001-E013):** YAML parse failures, unknown node types, broken relations/flow/aspect references, overlapping mappings, structural cycles, invalid config, missing yg-node.yaml, implied aspect issues.
-
-**Drift (E020-E021):**
-
-| Code | Name | Meaning |
-|------|------|---------|
-| E020 | direct-drift | Node's own source or graph files changed since last approve |
-| E021 | cascade-drift | Node affected by upstream change (dependency/aspect/flow) |
-
-**Coverage (E022):**
-
-| Code | Name | Meaning |
-|------|------|---------|
-| E022 | unmapped-file | Git-tracked file not covered by any node (proper or blackbox) |
-
-**Completeness (E030-E041):**
-
-| Code | Name | Meaning |
-|------|------|---------|
-| E030 | missing-artifact | Required artifact missing (blackbox exempt — only description required) |
-| E031 | shallow-artifact | Artifact below minimum length |
-| E032 | budget-exceeded | Context package too large — node must be split |
-| E033 | unpaired-event | Event relation without complement |
-| E034 | missing-schema | Schema file missing from schemas/ |
-| E036 | mapping-path-missing | Mapped path doesn't exist on disk |
-| E037 | anchor-not-found | Anchor pattern not found in one or more files of mapping group (per-file scope) |
-| E038 | missing-description | Node, aspect, or flow has no description |
-| E039 | aspect-missing-anchors | Aspect has no anchors field |
-| E040 | anchor-not-realized | Mapping group missing anchor ID from aspect definition |
-
-**Architecture & Mapping Enforcement (E050-E054):**
-
-| Code | Name | Meaning |
-|------|------|---------|
-| E050 | missing-required-aspect | File's mapping group missing a required aspect proof |
-| E051 | invalid-relation-target | Relation targets disallowed node type per architecture |
-| E052 | invalid-parent-type | Node's parent type not in whitelist per architecture |
-| E053 | integration-aspect-missing | Consumer files missing integration aspects from target type |
-| E054 | unexpected-aspect | Mapping group declares aspect not in effective set |
-
-**Warnings (W001-W005):** budget-warning, own-budget-warning, wide-node, high-fan-out, orphaned-drift-state.
-
-CLI error messages are self-teaching: each error includes what happened, why it's wrong, and how to fix it. Follow the CLI's suggested next command.
+Follow the CLI's suggested next command.
 
 ### Approve Enforcement
 
-`yg approve --node <path>` is per-node only — no `--all`, no `--recursive`. It checks three axes:
+Approve is the semantic verification gate. It runs two reviewer checks:
+1. **Aspect verification (E055):** checks each aspect against source code — fires E055 for unmet aspects
+2. **Artifact review (E056):** checks if responsibility.md, interface.md, internals.md are current — fires E056 for stale artifacts
 
-1. **Own artifacts** (.md files) — changed since last approve?
-2. **Source files** (mapping.paths) — changed since last approve?
-3. **Other tracked files** (aspects, deps, flows, ancestors) — changed?
+**Do NOT interrupt `yg approve`.** When reviewer is configured, approve calls the reviewer for every aspect across every source file — this takes time and is intentional. Interrupting it leaves drift state unrecorded and forces a re-run.
 
-| Own artifacts | Source | Other tracked | approve |
-|---|---|---|---|
-| changed | changed | any | ACCEPTS |
-| changed | unchanged | any | REFUSES (or --acknowledge) |
-| unchanged | changed | any | REFUSES (or --acknowledge) |
-| unchanged | unchanged | changed | REFUSES — requires --acknowledge |
-| unchanged | unchanged | unchanged | ACCEPTS (no-op) |
+If reviewer is not configured, approve works as before (three-axis detection only).
 
-`--acknowledge "reason"` is the conscious exception: when one side changed but the other doesn't need updating (formatter ran, typo fix, source already compliant with updated aspect). Reason is stored for audit trail.
+`yg approve --node <path>` checks three axes: graph artifacts changed?,
+source files changed?, upstream context changed?
+
+- Both artifacts AND source changed → ACCEPTS
+- Only one side changed → REFUSES (update the other side, or --reviewed)
+- Only upstream changed → REFUSES (review compliance, or --reviewed)
+
+`--reviewed "reason"` bypasses the three-axis gate ONLY. The reviewer still
+verifies aspects (E055) and artifact freshness (E056). Use when one side
+changed but the other doesn't need updating.
+CLI explains the specific mismatch and recovery steps when approve refuses.
 
 ---
 
@@ -523,15 +466,13 @@ CLI error messages are self-teaching: each error includes what happened, why it'
 
 ### Core Rules
 
-1. **Architecture first.** Before designing or coding, read `yg-architecture.yaml`. Understand node type constraints (required aspects, integration aspects, allowed parents, allowed relations). This defines what files MUST prove and prevents invalid architectures before code is written.
-2. **Graph first.** Before reading, researching, planning, or modifying ANY source file, run `yg context --file <path>`. For blast radius, also run `yg impact`. The graph is your primary source of architectural understanding. Review required_aspects and their sources. For implementation-level precision — verify against source code after loading the context package.
-3. **Mapping groups are specifications.** Mapping groups in `yg-node.yaml` are not documentation — they are executable specifications. Each anchor regex + rationale is a contract that every file in the group must satisfy. When code changes, mapping groups must change in sync. Stale anchors hide implementation gaps.
-4. **The graph is the specification; code implements it.** The graph absorbs knowledge from every source — external docs, conversations, decisions — and must be self-sufficient. Update graph artifacts immediately after each file change, while context is fresh — do not batch graph updates to the end of a task. Code and graph move together: code changed → mapping groups updated → graph artifacts updated before moving to the next file.
-5. **Check blocks commits and CI.** `yg check` must pass before every commit. Treat this as fact. All errors (drift, structural, coverage, completeness, architecture, mapping) must be resolved. E050-E054 are not warnings — they are specification violations.
-6. **Never invent why.** The graph captures human intent. If you don't know why something was decided, ask. Never hallucinate rationale. Mapping group anchor rationales must explain the actual pattern — not generic descriptions.
-7. **Always capture why — especially why NOT.** When a design choice is made, record rejected alternatives: "Chose X over Y because Z." Rejected alternatives are the highest-value information — invisible in code and irrecoverable once forgotten.
-8. **Ask before resolving ambiguity.** When multiple valid interpretations exist, stop, list options, ask the user. Never silently choose.
-9. **Yggdrasil is invisible to the user.** Never mention the graph, aspects, flows, nodes, `yg` commands, or `.yggdrasil/` in conversation with the user. Present graph knowledge as your understanding — "this module handles X" not "the graph says this module handles X."
+1. **Graph first.** Before reading, researching, planning, or modifying ANY source file, run `yg context --file <path>`. For blast radius, also run `yg impact`. The graph is your primary source of architectural understanding. For implementation-level precision — verify against source code after loading the context package.
+2. **The graph is the specification; code implements it.** The graph absorbs knowledge from every source — external docs, conversations, decisions — and must be self-sufficient. Update graph artifacts immediately after each file change, while context is fresh — do not batch graph updates to the end of a task. Code and graph move together: code changed → graph updated before moving to the next file.
+3. **Check blocks commits and CI.** `yg check` must pass before every commit. Treat this as fact. All errors (drift, structural, coverage, completeness) must be resolved.
+4. **Never invent why.** The graph captures human intent. If you don't know why something was decided, ask. Never hallucinate rationale.
+5. **Always capture why — especially why NOT.** When a design choice is made, record rejected alternatives: "Chose X over Y because Z." Rejected alternatives are the highest-value information — invisible in code and irrecoverable once forgotten.
+6. **Ask before resolving ambiguity.** When multiple valid interpretations exist, stop, list options, ask the user. Never silently choose.
+7. **Yggdrasil is invisible to the user.** Never mention the graph, aspects, flows, nodes, `yg` commands, or `.yggdrasil/` in conversation with the user. Present graph knowledge as your understanding — "this module handles X" not "the graph says this module handles X."
 
 ### Recognizing Graph-Required Actions
 
@@ -564,52 +505,46 @@ What matters is the ACTION you are performing, not what instructed it. If the ac
 - **Tools read, you write.** The `yg` CLI only reads, validates, and manages metadata. You create and edit files manually.
 - **Incremental approval.** Run `yg approve` per node after every 3-5 source file changes. Do not defer to end of task. Approve is ONLY safe after artifacts are current — never use it to silence check without updating artifacts first.
 - **Description maintenance.** Every `yg-node.yaml`, `yg-aspect.yaml`, and `yg-flow.yaml` has an optional `description` field. Write it when creating new elements. Update it when the element's identity or purpose changes.
-- **Completeness test:** Three checks, all required:
+- **Completeness test:** Four checks, all required:
   1. **Reconstruction:** "Can another agent recreate this from ONLY the `yg context` output — understanding not just WHAT but WHY?"
   2. **Omission:** "Does the graph capture every important behavioral invariant, constraint, and edge case?"
   3. **Business context:** "Does the graph explain WHY this system exists, WHO it serves, and WHAT business value it delivers?"
+  4. **Signal vs noise:** "Does every artifact sentence add knowledge that source code and yg-node.yaml cannot provide?"
 
 ### Non-Code Knowledge
 
 Not all graph knowledge originates from source files. Business strategy, user personas, pricing decisions, quality requirements, deployment configuration — these are graph content with NO corresponding source file.
 
-When you encounter such knowledge (in specs, conversations, or external documents):
+When you encounter such knowledge (in specs, conversations, or external documents), route it based on your current workflow:
 
-- **Route it immediately** per the Information Routing table. Do not wait for a "file change" trigger — there won't be one.
-- **Conversation knowledge is the most volatile source.** When the user states a business fact, constraint, or decision — even casually — route it to the graph immediately. Conversations vanish after context compression. If the user said it and it's not in code, it MUST be in the graph.
+- **Working document exists** (spec, plan, design doc): accumulate decisions there. Implementation must include transferring decisions to graph artifacts before the work is done.
+- **No working document**: route to graph immediately — it is the only persistent store.
+
+In both cases: the graph is the final destination. Working documents are temporary.
+
+- **Conversation knowledge is the most volatile source.** When the user states a business fact, constraint, or decision — even casually — and there is no working document to capture it, route it to the graph immediately. Conversations vanish after context compression. If the user said it and it's not in code or a working document, it MUST be in the graph.
 
 ### Aspect Discovery During Implementation
 
-Aspects emerge from patterns — in greenfield AND brownfield. Architecture + mapping groups make discovery mechanical:
+Aspects emerge from patterns — in greenfield AND brownfield:
 
-- **After working on 3+ files in the same area, pause and check:** Are you proving the same aspect repeatedly with different anchor regexes? Different rationales for the same requirement? If YES, audit the aspect:
-  1. Do all rationales agree on what the requirement is?
-  2. Are the regex patterns capturing genuinely different implementations of the same concept?
-  3. Do the anchor IDs in yg-aspect.yaml cover the variation you're seeing?
-  If rationales diverge → requirement is ambiguous. Ask user for clarification, then update aspect + all mapping groups.
-
-- **Watch for "invisible" aspects:** Patterns that don't feel "architectural" but ARE cross-cutting: audit logging on every mutation, webhook dispatch after state changes, job dispatch for async operations, authorization guards on every endpoint. When you write the same anchor rationale for the 3rd file, stop and extract the aspect.
-
-- **Brownfield trigger:** When you read existing code and see the same utility called in 3+ files, that IS an aspect waiting to be created. If those 3+ nodes all declare the same aspect but with different anchor regexes, consider whether the aspect anchors are missing dimensions — does yg-aspect.yaml need new anchor IDs?
-
-- **During mapping group creation:** If you find yourself writing contradictory rationales for the same anchor across groups, that's a sign the mapping group division is wrong — files with incompatible proofs should not be in the same group.
+- **After working on 3+ files in the same area, pause and check:** Are you applying the same pattern repeatedly? If YES, stop and create an aspect NOW.
+- **Watch for "invisible" aspects:** Patterns that don't feel "architectural" but ARE cross-cutting: audit logging on every mutation, webhook dispatch after state changes, job dispatch for async operations, authorization guards on every endpoint.
+- **Brownfield trigger:** When you read existing code and see the same utility called in 3+ files, that IS an aspect waiting to be created.
 
 ### Bootstrap Mode
 
 Trigger: `yg check` shows E022 with high uncovered file count, or 0 nodes.
 
-- [ ] 1. Read or create `yg-architecture.yaml` with node types and constraints (if not already present)
-- [ ] 2. Identify the active work area (files the user wants to modify)
-- [ ] 3. Create blackbox nodes for areas you will NOT work on
-- [ ] 4. Create proper nodes for areas you WILL work on, matching architecture types and declaring required aspects upfront
-- [ ] 5. For proper nodes, populate mapping groups with aspect proofs BEFORE writing implementation code. Mapping groups are the specification.
-- [ ] 6. Scan for cross-cutting patterns → create aspects with anchor definitions
-- [ ] 7. Ask user about business processes → create flows if applicable, which may add aspects to node requirements
-- [ ] 8. `yg check`, fix E050-E054 (architecture/mapping), `yg approve` per node
-- [ ] 9. Implement code to satisfy mapping group specifications
-- [ ] 10. Proceed with user's original request
+- [ ] 1. Identify the active work area (files the user wants to modify)
+- [ ] 2. Create blackbox nodes for areas you will NOT work on
+- [ ] 3. Create proper nodes for areas you WILL work on (artifacts per Artifact Structure guidance)
+- [ ] 4. Scan for cross-cutting patterns → create aspects
+- [ ] 5. Ask user about business processes → create flows if applicable
+- [ ] 6. `yg check`, `yg approve` per node
+- [ ] 7. Proceed with user's original request
 
-Constraint: Focus on the active area. Expand incrementally. Architecture and mapping groups are created BEFORE implementation — not after.
+Constraint: Focus on the active area. Expand incrementally.
 
 ### Escape Hatch
 

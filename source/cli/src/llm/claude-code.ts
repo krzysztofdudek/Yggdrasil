@@ -141,7 +141,7 @@ export class ClaudeCodeProvider implements LlmProvider {
       } catch { /* not valid JSON */ }
     }
 
-    // Natural language fallback for claim responses
+    // Natural language fallback for aspect responses
     const lower = trimmed.toLowerCase();
     if ('satisfied' in (fallback as Record<string, unknown>)) {
       const satisfied = lower.includes('satisfied') && !lower.includes('not satisfied');

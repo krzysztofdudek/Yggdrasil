@@ -30,7 +30,7 @@ async function createBatchProject(name: string) {
   // Create aspect
   const aspDir = path.join(yggRoot, 'aspects', 'audit');
   await mkdir(aspDir, { recursive: true });
-  await writeFile(path.join(aspDir, 'yg-aspect.yaml'), 'name: Audit\ndescription: audit aspect\nanchors:\n  - id: log-mutations\n    claim: Log all mutations\n');
+  await writeFile(path.join(aspDir, 'yg-aspect.yaml'), 'name: Audit\ndescription: audit aspect\n');
   await writeFile(path.join(aspDir, 'rules.md'), 'Log all data mutations.\n');
 
   // Create parent node (no mapping)

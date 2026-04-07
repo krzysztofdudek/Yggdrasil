@@ -398,18 +398,12 @@ aspects/
 name: Audit logging
 description: "Short description for discovery via yg aspects"  # optional
 # implies: [requires-logging]   # optional: other aspect identifiers to include automatically
-anchors:                         # required — claim-based proof points (E039 if empty or missing)
-  - id: audit-entry
-    claim: "Every mutation logs an audit entry"
-  - id: audit-actor
-    claim: "Audit entries include the acting user identity"
 ```
 
 `name` is required. `description` is optional — a short summary for discovery via `yg aspects`.
-`implies` is optional. `anchors` is required — a list of `{id, claim}` objects. Each claim is
-a natural-language statement describing a per-file verifiable property that source files must
-satisfy. Claims are verified by LLM at approve time — no regex patterns. The aspect identifier
-is implicit — it is the relative directory path.
+`implies` is optional. The aspect identifier is implicit — it is the relative directory path.
+Aspect content lives in `.md` files alongside the YAML — these describe the requirements that
+source files must satisfy. Verification is performed by LLM at approve time.
 
 Nested directories under `aspects/` are organizational — they allow grouping related aspects
 (e.g. `observability/logging`, `observability/tracing`). However, nesting does **not** create

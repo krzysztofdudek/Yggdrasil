@@ -136,7 +136,7 @@ Lists all defined aspects with metadata.
 yg aspects
 ```
 
-Output: YAML format with fields: `id`, `name`, `description`, `implies`, `anchors`.
+Output: YAML format with fields: `id`, `name`, `description`, `implies`.
 
 ### `yg flows`
 

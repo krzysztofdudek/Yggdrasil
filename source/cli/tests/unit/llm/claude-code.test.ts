@@ -73,9 +73,9 @@ describe('ClaudeCodeProvider.parseResponse', () => {
     expect(result.satisfied).toBe(true);
   });
 
-  it('falls back to natural language for claim responses', () => {
+  it('falls back to natural language for aspect responses', () => {
     const result = ClaudeCodeProvider.parseResponse<AspectResponse>(
-      'The code is satisfied with the claim because it correctly implements...',
+      'The code is satisfied with the aspect because it correctly implements...',
       { satisfied: false, reason: 'fallback' },
     );
     expect(result.satisfied).toBe(true);

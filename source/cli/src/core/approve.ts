@@ -26,7 +26,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 export interface ApproveOptions {
-  /** Conscious exception — bypasses three-axis gate only. Reviewer still verifies claims. */
+  /** Conscious exception — bypasses three-axis gate only. Reviewer still verifies aspects. */
   reviewed?: string;
   /** LLM provider for semantic verification (E055/E056) */
   llmProvider?: LlmProvider;
@@ -34,7 +34,7 @@ export interface ApproveOptions {
   llmNotConfigured?: boolean;
   /** Max tokens for LLM calls — resolved from config or queried from provider */
   maxTokens?: number;
-  /** Consensus vote count for claim verification (default: 1) */
+  /** Consensus vote count for aspect verification (default: 1) */
   consensus?: number;
   /** Whether to run artifact review (E056). Default: false. */
   verifyArtifacts?: boolean;
