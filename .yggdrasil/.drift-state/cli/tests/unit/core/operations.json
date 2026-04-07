@@ -1,5 +1,5 @@
 {
-  "hash": "916e322afb8db704f659da4774f57a091e0be63610b4adc6b717c28ac7a0039f",
+  "hash": "4c30a9f1cf37821c26637cdfd47980a8f4b14ba48f8f6e6b374aa3c62402dc5e",
   "files": {
     ".yggdrasil/model/cli/tests/unit/core/operations/yg-node.yaml": "0f7fae048c913f8c49c0163744370b21bbdbec5e6089f6fc07626322d2af887d",
     ".yggdrasil/model/cli/tests/unit/core/operations/responsibility.md": "7ea1bcb10116557e218c3cd256f26546ff5ba26bf28146c6152e38a30cf43c99",
@@ -16,18 +16,18 @@
     ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
     ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": "0b98be4ee4221db627b892cddeb548a94e3cb1bfce936b9555bd30d7c225e34d",
     ".yggdrasil/aspects/posix-paths/content.md": "38daf50dec99307443fd8951019cf534c74571a7778d43e55a4354d9d2faeefc",
-    "source/cli/tests/unit/core/effective-aspects.test.ts": "ee6c2f10d884a02baf8f3d0cfb5751aa652348fd9402bc3556c2367c2aa20b9d",
-    "source/cli/tests/unit/core/impact.test.ts": "d2d8cefe6e5b63279ae91e46213ec17908418ae07318268520c0cb5ae0ec324f",
-    "source/cli/tests/unit/core/node-selector.test.ts": "97e1ba4536135300e025a58886fc3830d8bc0fbc8b7f8e249ee47f6563df2ad0",
-    "source/cli/tests/unit/core/artifact-reviewer.test.ts": "28c297045b0f7454e58b05c481aae4b7c12e6319a61a45abcbb86f4d1617732e",
-    "source/cli/tests/unit/core/claim-verifier.test.ts": "cafb6b7051d65e081f921023f7360f30f32ff33deb2e42e22ddafdbafee56eff",
     "source/cli/tests/unit/core/approve.test.ts": "493aa51b441b8ecfd87511ea648c0a20c169280fe023e66e1f3f68248e65a5d9",
-    "source/cli/tests/unit/core/check.test.ts": "923600dd85130b995b06adab7ab562a47fa3dd160e9941773c02b45676523193",
     "source/cli/tests/unit/core/dependency-resolver.test.ts": "53aa4afc6de8fdce64436c990d07afc0a09f000d505c34cf6af8988535f12fec",
     "source/cli/tests/unit/core/drift-detector.test.ts": "5eb2935b0ad72d1c6eacaf459d68b2514bf19c085f483aa83b6938c1cc1d3098",
+    "source/cli/tests/unit/core/effective-aspects.test.ts": "ee6c2f10d884a02baf8f3d0cfb5751aa652348fd9402bc3556c2367c2aa20b9d",
+    "source/cli/tests/unit/core/impact.test.ts": "d2d8cefe6e5b63279ae91e46213ec17908418ae07318268520c0cb5ae0ec324f",
     "source/cli/tests/unit/core/migrator.test.ts": "129e9e3c862576d589a8482d3df93b82bbdbd5321818af7af488ac9a61fab3e1",
+    "source/cli/tests/unit/core/node-selector.test.ts": "97e1ba4536135300e025a58886fc3830d8bc0fbc8b7f8e249ee47f6563df2ad0",
     "source/cli/tests/unit/core/validator.test.ts": "732ff6c4be57f3bed76fe3895d505a2bd38ac9e55f43e3b4d3da402ffb9a86a5",
-    "source/cli/tests/unit/core/approve-llm.test.ts": "0ff5d75cad6f80587244b8284322bdb88cfc0c9016864ae171fbf1ff0964180c"
+    "source/cli/tests/unit/core/artifact-reviewer.test.ts": "28c297045b0f7454e58b05c481aae4b7c12e6319a61a45abcbb86f4d1617732e",
+    "source/cli/tests/unit/core/claim-verifier.test.ts": "cafb6b7051d65e081f921023f7360f30f32ff33deb2e42e22ddafdbafee56eff",
+    "source/cli/tests/unit/core/approve-llm.test.ts": "0ff5d75cad6f80587244b8284322bdb88cfc0c9016864ae171fbf1ff0964180c",
+    "source/cli/tests/unit/core/check.test.ts": "bb4e734b02d7a5ab766756fd85e1da7f50a0980c084007c77e1a4ad920ffacf0"
   },
   "mtimes": {
     ".yggdrasil/model/cli/tests/unit/core/operations/yg-node.yaml": 1775328933264.2974,
@@ -46,7 +46,7 @@
     ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": 1775328137050.7122,
     ".yggdrasil/aspects/posix-paths/content.md": 1772743197466.7686,
     "source/cli/tests/unit/core/approve.test.ts": 1775503587858.4434,
-    "source/cli/tests/unit/core/check.test.ts": 1775503587878.513,
+    "source/cli/tests/unit/core/check.test.ts": 1775542375525.0825,
     "source/cli/tests/unit/core/dependency-resolver.test.ts": 1775507286256.2627,
     "source/cli/tests/unit/core/drift-detector.test.ts": 1775507721990.405,
     "source/cli/tests/unit/core/effective-aspects.test.ts": 1775313141985.7227,
@@ -58,5 +58,5 @@
     "source/cli/tests/unit/core/claim-verifier.test.ts": 1775326401082.2117,
     "source/cli/tests/unit/core/approve-llm.test.ts": 1775508794874.6956
   },
-  "acknowledgeReason": "test/cosmetic changes from LLM skip refactor"
+  "acknowledgeReason": "test assertions updated to match new CLI message format — vocabulary alignment"
 }

@@ -1,5 +1,5 @@
 {
-  "hash": "2d9d2c5d1258cdb26a37c6d7b8e5a2ad71c204397bca30a3411f748e8ab7a693",
+  "hash": "5606f5fee92009116d430a869e9f795a2c6d889191981e04060cc28f9c7f36ea",
   "files": {
     ".yggdrasil/model/cli/entry/yg-node.yaml": "2d5d5aa5c3638c217fb7a79e50957566aac1aa86c85f3cb2971ddcc1b30263dd",
     ".yggdrasil/model/cli/entry/internals.md": "6ab5c10ad4fa962bddd739e77b7e151c7200b07a3322e9f5f5b13dc0fbd72e6b",
@@ -31,8 +31,8 @@
     ".yggdrasil/model/cli/commands/select/responsibility.md": "9ee22a7df093512250bf3bcd756d42bfeb0b28a16d0c708aa15f955d0531fcf3",
     ".yggdrasil/model/cli/commands/select/interface.md": "294bd59b59d6263d043c997bf3cb091246e886dc35a1d0c206f767f484bbf6df",
     ".yggdrasil/model/cli/commands/check/responsibility.md": "42cd5c397f233e9a90aaed4fc1d5ad933d63eec5aa9453adbf70e0ead430ff41",
-    ".yggdrasil/model/cli/commands/check/interface.md": "bef1f1d4c687b71e9be9c5bd4978d2e6718cbef8280da8ffbcd5e41f5af8e42e",
-    "source/cli/src/bin.ts": "dd90e277e1cc2b547334553be15d035ccf5ab5ac27ae07fdd56dd8353e115294"
+    "source/cli/src/bin.ts": "dd90e277e1cc2b547334553be15d035ccf5ab5ac27ae07fdd56dd8353e115294",
+    ".yggdrasil/model/cli/commands/check/interface.md": "f05864e1ae7e46b244118315971859d6373ac0c16ae73c4c61b6d0bcb2f60984"
   },
   "mtimes": {
     ".yggdrasil/model/cli/entry/yg-node.yaml": 1775327956354.8193,
@@ -65,8 +65,8 @@
     ".yggdrasil/model/cli/commands/select/responsibility.md": 1773081267586.23,
     ".yggdrasil/model/cli/commands/select/interface.md": 1773081311346.194,
     ".yggdrasil/model/cli/commands/check/responsibility.md": 1775217752705.9026,
-    ".yggdrasil/model/cli/commands/check/interface.md": 1775217752705.6204,
+    ".yggdrasil/model/cli/commands/check/interface.md": 1775543636543.4436,
     "source/cli/src/bin.ts": 1775023244445.4343
   },
-  "acknowledgeReason": "v4 migration: flat mapping, claims, and doc updates"
+  "acknowledgeReason": "cascade from cli/commands/check interface.md update — artifact update was vocabulary/format change; source unchanged and compliant"
 }

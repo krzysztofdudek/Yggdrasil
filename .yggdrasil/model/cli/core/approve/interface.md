@@ -10,7 +10,7 @@ Records a new drift baseline for a node after reviewing its current state.
 
 - `graph: Graph` — loaded in-memory graph (from `cli/core/loader`)
 - `nodePath: string` — node path relative to `model/` (e.g., `cli/commands/approve`)
-- `options.acknowledge?: string` — non-empty reason string for a conscious exception (approves without bilateral changes)
+- `options.acknowledge?: string` — non-empty reason string for a conscious exception (approves without both source and artifacts changing)
 
 **Returns:** `ApproveResult` with:
 

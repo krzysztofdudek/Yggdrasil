@@ -1,5 +1,5 @@
 {
-  "hash": "bf47c8188705fe5c2febd75d5ce576af95ea9dbce54f23ac1c07c8cb9bedb68f",
+  "hash": "9c4c0fd1f66b74f3196c3857125ca82f831ee77a1f1a93af22bdb45c912751dc",
   "files": {
     ".yggdrasil/model/cli/commands/init/yg-node.yaml": "789a026544a7f92a447d3d60b2d896866c504f299f9c66f70339b023a8067cab",
     ".yggdrasil/model/cli/commands/init/interface.md": "f5e497e2442107db1407b081a5e23066c442a21f1b34b0c525775ebdd4c72d99",
@@ -17,11 +17,11 @@
     ".yggdrasil/aspects/posix-paths/content.md": "38daf50dec99307443fd8951019cf534c74571a7778d43e55a4354d9d2faeefc",
     ".yggdrasil/aspects/cli-command-contract/yg-aspect.yaml": "c818ab194c19f451955987badc7d3f14026349be6a1f633f1440778c1beae802",
     ".yggdrasil/aspects/cli-command-contract/content.md": "b1509ccd44cc91f1cff43926b69f16845407f518ecf4d448d24a0b4a4e2894c3",
-    ".yggdrasil/model/cli/templates/responsibility.md": "79388a66dda7271346c555597bf8d6b9591622001d072f69ab08dc8417384b1c",
     ".yggdrasil/model/cli/templates/interface.md": "cc71b80c1bd87529d80784cb3b6f8ca3640b1d4d91e6da0219985b85c7f065f3",
     ".yggdrasil/flows/init/yg-flow.yaml": "eb35f927c712f8bae38cb5c5fcd0193432aea2fb7adc5e75f777764300ce3177",
     ".yggdrasil/flows/init/description.md": "7ab06dca456fe57c748e343faba4dff4db88ef73792ab2eaf28298ff595adba0",
-    "source/cli/src/cli/init.ts": "2ea3685241137528440ef6ef74fa252476ecf47d9400bf13cc97510015e52c61"
+    "source/cli/src/cli/init.ts": "2ea3685241137528440ef6ef74fa252476ecf47d9400bf13cc97510015e52c61",
+    ".yggdrasil/model/cli/templates/responsibility.md": "9288e63e871ba1815c0f492c7ab413202497a16cc8720eff69399eb2353a544c"
   },
   "mtimes": {
     ".yggdrasil/model/cli/commands/init/yg-node.yaml": 1775327956338.1985,
@@ -40,57 +40,11 @@
     ".yggdrasil/aspects/posix-paths/content.md": 1772743197466.7686,
     ".yggdrasil/aspects/cli-command-contract/yg-aspect.yaml": 1775328135743.9414,
     ".yggdrasil/aspects/cli-command-contract/content.md": 1772778786204.255,
-    ".yggdrasil/model/cli/templates/responsibility.md": 1775304871840.7756,
+    ".yggdrasil/model/cli/templates/responsibility.md": 1775543720652.8997,
     ".yggdrasil/model/cli/templates/interface.md": 1775304875643.616,
     ".yggdrasil/flows/init/yg-flow.yaml": 1774035679161.664,
     ".yggdrasil/flows/init/description.md": 1772743197468.9497,
     "source/cli/src/cli/init.ts": 1775309513301.0527
   },
-  "acknowledgeReason": "v4 migration: flat mapping, claims, and doc updates",
-  "claimResults": {
-    "deterministic": {
-      "no-side-effects": {
-        "satisfied": false,
-        "reason": "LLM response could not be parsed"
-      },
-      "deterministic-output": {
-        "satisfied": false,
-        "reason": "LLM response could not be parsed"
-      }
-    },
-    "posix-paths": {
-      "forward-slash-normalization": {
-        "satisfied": false,
-        "reason": "LLM response could not be parsed"
-      }
-    },
-    "cli-command-contract": {
-      "stdout-write": {
-        "satisfied": false,
-        "reason": "LLM response could not be parsed"
-      },
-      "error-handler": {
-        "satisfied": false,
-        "reason": "LLM response could not be parsed"
-      },
-      "exit-code": {
-        "satisfied": false,
-        "reason": "LLM response could not be parsed"
-      }
-    }
-  },
-  "artifactReview": {
-    "interface.md": {
-      "current": false,
-      "reason": "LLM response could not be parsed"
-    },
-    "internals.md": {
-      "current": false,
-      "reason": "LLM response could not be parsed"
-    },
-    "responsibility.md": {
-      "current": false,
-      "reason": "LLM response could not be parsed"
-    }
-  }
+  "acknowledgeReason": "cascade from cli/templates responsibility.md update — rules.ts content description updated; source unchanged and compliant"
 }

@@ -49,7 +49,10 @@ Warnings (<N>):
 Result: PASS|FAIL (<categories> — <N> errors, <N> warnings)
 
 Next: <suggested command>
+     <workflow anchor — e.g., "1 of N drifted nodes — post-modify workflow">
 ```
+
+Warnings are always shown regardless of whether errors are present.
 
 ### Failure modes
 

@@ -1,5 +1,5 @@
 {
-  "hash": "3fcc5c35a66ee33a4334000ef9bcb40e0ef06d4168c14e3cbcd6107d739e439a",
+  "hash": "2c225ff25c9d1cfcbdcff788d24d0d32f7b3081e1b1252935a5d0bb08c593b0d",
   "files": {
     ".yggdrasil/model/cli/tests/e2e/yg-node.yaml": "a6a10d47fd0dfd499ae5a4707360ac4a46d3fc54f4e36e62ab4d6ed404b30d27",
     ".yggdrasil/model/cli/tests/e2e/responsibility.md": "56b783c5912173097eda22809e7de7cfd8212c6f1a243dcfdc1475205fe8df6a",
@@ -13,7 +13,7 @@
     ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": "0b98be4ee4221db627b892cddeb548a94e3cb1bfce936b9555bd30d7c225e34d",
     ".yggdrasil/aspects/posix-paths/content.md": "38daf50dec99307443fd8951019cf534c74571a7778d43e55a4354d9d2faeefc",
     "source/cli/tests/e2e/.gitkeep": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
-    "source/cli/tests/e2e/cli.test.ts": "a2fb745e4ffad9b5c7893321d3ac75e2af9c7cc5e74024cef81159c7a20df881"
+    "source/cli/tests/e2e/cli.test.ts": "c1acda84fe714f9090786114e68bac8486718544cf5227295672ac46cdf3d089"
   },
   "mtimes": {
     ".yggdrasil/model/cli/tests/e2e/yg-node.yaml": 1775327956358.0098,
@@ -28,7 +28,7 @@
     ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": 1775328137050.7122,
     ".yggdrasil/aspects/posix-paths/content.md": 1772743197466.7686,
     "source/cli/tests/e2e/.gitkeep": 1771702275796.506,
-    "source/cli/tests/e2e/cli.test.ts": 1775325143025.2056
+    "source/cli/tests/e2e/cli.test.ts": 1775542703759.886
   },
-  "acknowledgeReason": "v4 migration: flat mapping, claims, and doc updates"
+  "acknowledgeReason": "test assertions updated to match new CLI message format — vocabulary alignment"
 }

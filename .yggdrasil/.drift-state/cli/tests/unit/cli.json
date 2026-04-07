@@ -1,5 +1,5 @@
 {
-  "hash": "785f85e34048fe1153db2f61a3eb59b06652710dc5643fb3069d2297997aaaa9",
+  "hash": "637173736b5e9e02e1591c91ba8d8189d66f9873b52870498f17fd517195807a",
   "files": {
     ".yggdrasil/model/cli/tests/unit/cli/yg-node.yaml": "8e00c1488ee440aba9966e7ef44ae38eb344b4ca814a31010d3bc7e34516e891",
     ".yggdrasil/model/cli/tests/unit/cli/responsibility.md": "c8b58123ef7123446381c26425f93771d3cb12a3cd7b94e9d1e674ae76ad713d",
@@ -15,13 +15,13 @@
     ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": "0b98be4ee4221db627b892cddeb548a94e3cb1bfce936b9555bd30d7c225e34d",
     ".yggdrasil/aspects/posix-paths/content.md": "38daf50dec99307443fd8951019cf534c74571a7778d43e55a4354d9d2faeefc",
     "source/cli/tests/unit/cli/aspects.test.ts": "197938172c9d04f395e864bbfbfe1b414ce0f69298107886d9d97b6c878ec909",
-    "source/cli/tests/unit/cli/build-command.test.ts": "3c509e024d0844dffe6fd6c83979fd54c5fab58f1b111a5d752c216088b13ad6",
-    "source/cli/tests/unit/cli/check.test.ts": "90e5f4ba8553692b0d2179cee2ea83b0b82719d97f9e23c71fc1ae3bcc9b0182",
     "source/cli/tests/unit/cli/flows.test.ts": "9212953ec21284d6b25ef00d058ab5e3f3aab81afb9e5c546c1f5ab492eb8ceb",
-    "source/cli/tests/unit/cli/impact.test.ts": "3a1b83e851c6880577fdcb01fc20163e4918c251e01b417b379924ee8dd6a7ee",
     "source/cli/tests/unit/cli/owner.test.ts": "31dae3c6211426b4e98690e7c9761b1ce22eeef24f5500e6b6241ab466ed2dcb",
     "source/cli/tests/unit/cli/which.test.ts": "13fae8d5ce5300e81fc435fe936925c313896a0bd012c432b19477ad96223026",
-    "source/cli/tests/unit/cli/approve.test.ts": "33c53681fb532ccb1ccecba9375e7fba1aa12f767eac4a8f77f9a6da854a18ec"
+    "source/cli/tests/unit/cli/approve.test.ts": "92fdafacd5abaf59d3e31adbcd0c148f173356fb602b4c06c72b17ab85438540",
+    "source/cli/tests/unit/cli/build-command.test.ts": "f9ace08a55afd939ca47df8bffe4d3dc6edf46f56ea87eb86bc95801ca037c38",
+    "source/cli/tests/unit/cli/check.test.ts": "9e1e274094d1f38fbf37bd4d6c26eda00372e582420dbd1f8e04bbb7306aa9c6",
+    "source/cli/tests/unit/cli/impact.test.ts": "3451dde961e6cc995b2d8ad8597e81a433be664b745bf3dc55f48d5e827f3280"
   },
   "mtimes": {
     ".yggdrasil/model/cli/tests/unit/cli/yg-node.yaml": 1775327956358.7664,
@@ -37,14 +37,14 @@
     ".yggdrasil/aspects/deterministic/content.md": 1772778780694.5889,
     ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": 1775328137050.7122,
     ".yggdrasil/aspects/posix-paths/content.md": 1772743197466.7686,
-    "source/cli/tests/unit/cli/approve.test.ts": 1775505168214.372,
+    "source/cli/tests/unit/cli/approve.test.ts": 1775542528759.0725,
     "source/cli/tests/unit/cli/aspects.test.ts": 1775325731463.4675,
-    "source/cli/tests/unit/cli/build-command.test.ts": 1775332758710.0034,
-    "source/cli/tests/unit/cli/check.test.ts": 1775320263764.0122,
+    "source/cli/tests/unit/cli/build-command.test.ts": 1775542862690.8862,
+    "source/cli/tests/unit/cli/check.test.ts": 1775542361369.087,
     "source/cli/tests/unit/cli/flows.test.ts": 1775325912368.0752,
-    "source/cli/tests/unit/cli/impact.test.ts": 1775040957296.7773,
+    "source/cli/tests/unit/cli/impact.test.ts": 1775542692411.8396,
     "source/cli/tests/unit/cli/owner.test.ts": 1775041077372.0745,
     "source/cli/tests/unit/cli/which.test.ts": 1775313141984.8013
   },
-  "acknowledgeReason": "test/cosmetic changes from LLM skip refactor"
+  "acknowledgeReason": "test assertions updated to match new CLI message format — vocabulary alignment"
 }

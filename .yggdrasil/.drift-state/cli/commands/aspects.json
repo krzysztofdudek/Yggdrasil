@@ -1,11 +1,12 @@
 {
-  "hash": "8110c650c70b77a27802700ca781fc49c5b602112e76a5916bb6b0472eecfc5b",
+  "hash": "62b3188386efbbf928b696c549927bd84fad08cf73fc7350b72d19df5155c7dc",
   "files": {
     ".yggdrasil/model/cli/commands/aspects/yg-node.yaml": "c3093fcd41be1629f162f45ca3a499925debcc929ec293de3c43150da943a687",
     ".yggdrasil/model/cli/commands/aspects/interface.md": "3985556ef769c908c2ddcc818f6f4bcb5218ffde1c0a17316e6ce1da2161d553",
     ".yggdrasil/model/cli/commands/aspects/internals.md": "3b560a62a473f3e9a523d4b99b40391b7213de98c68c9018d5694a34d39d1f69",
     ".yggdrasil/model/cli/commands/aspects/responsibility.md": "9323217071da1f60d7c34628719fae7856e6fc97db642d409cb7e18ca51dad52",
     ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df",
+    ".yggdrasil/model/cli/internals.md": "7440678f012e45d8b15a4efc252cc3b4220fe7aec98fb673786abd9c2a37f9f0",
     ".yggdrasil/model/cli/responsibility.md": "696e0f5f377eba69a843a18379e8f20e0322dc037182690629652a75aa2227fb",
     ".yggdrasil/model/cli/commands/yg-node.yaml": "304ba077a87aae0ecd30b30323391e3f54ccfbc2843bb4020acf43d1a26a26da",
     ".yggdrasil/model/cli/commands/internals.md": "5a3b679d5c2b9600c7fa3dc01b2f28661b7bfb11850a922ff885a7a583d455c7",
@@ -24,8 +25,7 @@
     ".yggdrasil/model/cli/utils/interface.md": "051aef97613feeaf82746a2d576f2a96346c3bb916144d88b8bc13b115b2d2ba",
     ".yggdrasil/flows/graph-analysis/yg-flow.yaml": "6643c01963cfd3731ba76f0a34a34e7ce2ed09e2ae2da793734c59adc4f87624",
     ".yggdrasil/flows/graph-analysis/description.md": "aca097a8ecbf74d140e5deb9ad6113c752d49e193077b0e1d201b7f99da574f4",
-    "source/cli/src/cli/aspects.ts": "6b0cff4b5dfebf1b0fa8d2a49fa9eb884e7fd7628aeed5838bac63443e92b687",
-    ".yggdrasil/model/cli/internals.md": "7440678f012e45d8b15a4efc252cc3b4220fe7aec98fb673786abd9c2a37f9f0"
+    "source/cli/src/cli/aspects.ts": "a4ff6a52d0f83762f2d006dda2c4e11b12545b11a63f4f0254be78dba2f62739"
   },
   "mtimes": {
     ".yggdrasil/model/cli/commands/aspects/yg-node.yaml": 1775327956330.6914,
@@ -52,7 +52,7 @@
     ".yggdrasil/model/cli/utils/interface.md": 1775217330039.2043,
     ".yggdrasil/flows/graph-analysis/yg-flow.yaml": 1775046079335.846,
     ".yggdrasil/flows/graph-analysis/description.md": 1775046980292.1602,
-    "source/cli/src/cli/aspects.ts": 1775325656232.65
+    "source/cli/src/cli/aspects.ts": 1775542638153.2603
   },
-  "acknowledgeReason": "cascade from upstream artifact changes — source already compliant"
+  "acknowledgeReason": "vocabulary alignment — 'own:' → 'direct:' in one string; no logic change"
 }

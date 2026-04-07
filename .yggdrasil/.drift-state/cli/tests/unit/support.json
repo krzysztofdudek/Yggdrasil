@@ -1,5 +1,5 @@
 {
-  "hash": "1fba1d093f5d2f9b5c31a9407f60ea0677588f30b9797efc36b47e50bed78114",
+  "hash": "0fcc482bf06e93ad3a8266b2656b9da41474487efa026910fd25a6ef2b2429a6",
   "files": {
     ".yggdrasil/model/cli/tests/unit/support/yg-node.yaml": "cde7a8ea24c1a4992397b27ca5cd67d5d1126c197a72ca4cd69659d06b32ccde",
     ".yggdrasil/model/cli/tests/unit/support/responsibility.md": "8c2a60f01bab04f7bf67cc5fb6f6ec8dbae3f01cae01ae2b9fe3e8b0318ecf80",
@@ -14,11 +14,12 @@
     ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
     ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": "0b98be4ee4221db627b892cddeb548a94e3cb1bfce936b9555bd30d7c225e34d",
     ".yggdrasil/aspects/posix-paths/content.md": "38daf50dec99307443fd8951019cf534c74571a7778d43e55a4354d9d2faeefc",
-    "source/cli/tests/unit/formatters/context-node.test.ts": "aa6285c2e832ba9e43e9115efe2f7ffa40c50f0a96137c8a5c89fa0c05aefd85",
+    "source/cli/tests/unit/formatters/context-file.test.ts": "f0bddfd23ce7a9a0685d5aeaca56e9acf8f92afdb165fc84bd8825cc8476ba41",
+    "source/cli/tests/unit/formatters/message-builder.test.ts": "b956b56f816e3c71c2e06a8c0b7f0b6c06f4b5ad03e10e034e590b02a8b7eb79",
     "source/cli/tests/unit/migrations/to-2.0.0.test.ts": "d43866facdb584d1e9097ce264ecb0a545b6c9c9d0a8cf775cac4fd055c18f3f",
     "source/cli/tests/unit/migrations/to-3.0.0.test.ts": "d12196f53b5173b0d87a7693b881ddd1c15f6b2c055453fbbf4cc71d15d4900e",
     "source/cli/tests/unit/migrations/to-4.0.0.test.ts": "ec7bb0514e06427c22d8b6ef1c8d5807df7aa0b4ec01b9ce664bdb012e00663f",
-    "source/cli/tests/unit/formatters/context-file.test.ts": "f0bddfd23ce7a9a0685d5aeaca56e9acf8f92afdb165fc84bd8825cc8476ba41"
+    "source/cli/tests/unit/formatters/context-node.test.ts": "73ad259b8b8f7209046d9d6d85bdeac1ddaa504a4005a9cf150be338a9f99925"
   },
   "mtimes": {
     ".yggdrasil/model/cli/tests/unit/support/yg-node.yaml": 1775327956362.123,
@@ -35,10 +36,11 @@
     ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": 1775328137050.7122,
     ".yggdrasil/aspects/posix-paths/content.md": 1772743197466.7686,
     "source/cli/tests/unit/formatters/context-file.test.ts": 1775507681829.0476,
-    "source/cli/tests/unit/formatters/context-node.test.ts": 1775325143026.4255,
+    "source/cli/tests/unit/formatters/context-node.test.ts": 1775542658231.8708,
+    "source/cli/tests/unit/formatters/message-builder.test.ts": 1775541373123.6292,
     "source/cli/tests/unit/migrations/to-2.0.0.test.ts": 1775239713664.3308,
     "source/cli/tests/unit/migrations/to-3.0.0.test.ts": 1774782434000.1372,
     "source/cli/tests/unit/migrations/to-4.0.0.test.ts": 1775332952204.755
   },
-  "acknowledgeReason": "test/cosmetic changes from LLM skip refactor"
+  "acknowledgeReason": "test assertions updated to match new formatter output — vocabulary alignment"
 }
