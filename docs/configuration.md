@@ -14,20 +14,30 @@ Config file: `.yggdrasil/yg-config.yaml`
 ### Required fields
 
 - **name** — Project identity (non-empty string)
-- **node_types** — Non-empty object of node type definitions. Each key is a type name, value is `{ description, required_aspects? }`. `description` is required agent guidance. `required_aspects` lists aspects that nodes of this type must have coverage for (directly or via aspect `implies`).
 
 ### Optional fields
 
 - **version** — CLI version that last wrote this config. Set automatically by `yg init` and
   `yg init --upgrade`.
 - **quality** — Quality thresholds
+- **parallel** — Concurrency limit for batch approve (positive integer, default: 1). Higher
+  values run multiple `approveNode()` calls concurrently during `--aspect`/`--flow`/multi-node
+  approve.
+- **reviewer** — Semantic verification config (see [Reviewer config](#reviewer-config) below)
+
+Node types are defined in the separate **architecture file** (`.yggdrasil/yg-architecture.yaml`),
+not in `yg-config.yaml`.
 
 ---
 
 ## What you can customize
 
-- **Node types** — The vocabulary of parts your repo uses (e.g. `module`, `service`, `library`). Each type has a `description` (agent guidance) and optionally `required_aspects` — aspects that nodes of that type must have coverage for (directly or via aspect composition).
+- **Node types** — Defined in `yg-architecture.yaml` (not `yg-config.yaml`). The vocabulary of
+  parts your repo uses (e.g. `module`, `service`, `library`), with optional `aspects`, `parents`,
+  and `relations` constraints.
 - **Quality thresholds** — When to warn about shallow memory or large context
+- **Parallel** — Concurrency for batch approve operations
+- **Reviewer** — Semantic verification provider and settings
 
 The three standard artifacts (`responsibility.md`, `interface.md`, `internals.md`) are built into the CLI and cannot be configured. `responsibility.md` is always required, `interface.md` is required when a node has consumers, and `internals.md` is always optional.
 
@@ -49,20 +59,27 @@ The three standard artifacts (`responsibility.md`, `interface.md`, `internals.md
 ```yaml
 name: my-repo
 
-node_types:
-  module:
-    description: "Business logic unit with clear domain responsibility"
-  service:
-    description: "Component providing functionality to other nodes"
-  library:
-    description: "Shared utility code with no domain knowledge"
-
 quality:
   min_artifact_length: 50
   max_direct_relations: 10
   context_budget:
     warning: 10000
     error: 20000
+
+parallel: 1
+```
+
+Node types go in `yg-architecture.yaml`:
+
+```yaml
+node_types:
+  module:
+    description: "Business logic unit with clear domain responsibility"
+  service:
+    description: "Component providing functionality to other nodes"
+    aspects: [requires-audit]
+  library:
+    description: "Shared utility code with no domain knowledge"
 ```
 
 ---

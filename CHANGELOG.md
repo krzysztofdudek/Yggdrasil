@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [4.0.0]
 
 ### Changed
 
@@ -13,8 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `yg select` output is now structured text (not YAML) with three sections: Nodes, Aspects, Flows.
   Aspects and flows show `(matched)` (directly relevant) and `(N nodes)` (present on returned nodes) annotations.
   Each aspect and flow entry includes a `read:` path pointing to its content file.
-
-## [4.0.0]
+- Claims/anchors removed from aspects. Reviewer now verifies source code directly against aspect content.md files — one holistic evaluation per aspect instead of per-claim checks. `anchors` field removed from `yg-aspect.yaml`. E039 removed. E055 now means "aspect not satisfied" (was "claim not satisfied").
 
 ### Breaking Changes
 

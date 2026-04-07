@@ -681,7 +681,7 @@ YAML list of `{ node, score, name }` sorted by relevance. Empty list when nothin
 **Errors:**
 
 - No `.yggdrasil/` — repository is not initialized.
-- Empty `--task` — missing required option.
+- Empty query — missing required argument.
 
 ---
 

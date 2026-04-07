@@ -1,54 +1,64 @@
 {
-  "hash": "76d01d18b59dafa1e7d5bb5b879621f1118aaffedf7ce7ccbbd0c8c5c4e3e238",
+  "hash": "12d9353c29424bc1944051dc764373c2cf18d13b1b306b20983b704a60f6de99",
   "files": {
-    ".yggdrasil/model/cli/core/check/interface.md": "bff91e7dc20372e6d0aded16ff4a033763fed7bc0332abd8f6136a9a464373f3",
-    ".yggdrasil/model/cli/core/check/responsibility.md": "2977d42a774c91f46ecaf453bb564486aef83b6015f581a9ac7998ad4d4e2414",
     ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df",
     ".yggdrasil/model/cli/internals.md": "7440678f012e45d8b15a4efc252cc3b4220fe7aec98fb673786abd9c2a37f9f0",
-    ".yggdrasil/model/cli/responsibility.md": "696e0f5f377eba69a843a18379e8f20e0322dc037182690629652a75aa2227fb",
     ".yggdrasil/model/cli/core/yg-node.yaml": "2a44e768e9b707d3f7bc2aa458e3a9fdf36e34788b5efcc2733cb78744d546cd",
     ".yggdrasil/model/cli/core/interface.md": "807008eb6f673273034d7d3325a36f37ea1c7a4e46df362e2a4fa9ccd9451de9",
     ".yggdrasil/model/cli/core/internals.md": "804638612a8f8372a83b08b9c720e4421be43caefb12d20117d59d1b5194b4c1",
     ".yggdrasil/model/cli/core/responsibility.md": "2aa9f1d64abf86aed604a1823392c3d40b963eb8416b38ef877bcccddd7ff086",
-    ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
     ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": "0b98be4ee4221db627b892cddeb548a94e3cb1bfce936b9555bd30d7c225e34d",
     ".yggdrasil/aspects/posix-paths/content.md": "38daf50dec99307443fd8951019cf534c74571a7778d43e55a4354d9d2faeefc",
-    ".yggdrasil/model/cli/core/validator/responsibility.md": "1aba1eb4b9b3afd5516c23463d38a47f60241ead31a0d89d6d1aab1b04fc609a",
+    ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
     ".yggdrasil/model/cli/core/validator/interface.md": "fe2b3e9163b55c4a11c05d92f650665365c68707cc49298ff646e4abb9359d2d",
-    ".yggdrasil/model/cli/core/drift-detector/responsibility.md": "926478f7aeddd1c18eb38494c910510c3f0d2feecac6e06774792d7f650f6065",
     ".yggdrasil/model/cli/core/drift-detector/interface.md": "7136927e5d6a1c23bc098356cb7b1f1cc88fcd760040c6fd04f83c0efd6622e9",
-    ".yggdrasil/model/cli/core/context/responsibility.md": "62350b3416df89ffd1c00486f7564a69c0775276030dcf64f02bc1cbdacd74a4",
     ".yggdrasil/model/cli/core/context/interface.md": "686725c3c077dc3ab7f03ebd71736af3cff4a7373118c2c46422f3379dfe740e",
-    ".yggdrasil/model/cli/model/responsibility.md": "b668c6db2090a36a54277f62fb228c266d87c6d119f89e6ed67e140392863a66",
     ".yggdrasil/model/cli/model/interface.md": "702e39d06832de110518f0220f130de376fa8116fcaffc7e17c2580e4b7ed988",
-    ".yggdrasil/model/cli/core/check/yg-node.yaml": "be10dc9fb652e7a0b594b972050f492426d2a08cdb1ca44fbd166106d0739010",
+    ".yggdrasil/model/cli/core/check/yg-node.yaml": "da24bcf686b70d4565f5dede9d19432d33add08a8c81d74e9a8e1add99f4a338",
+    ".yggdrasil/model/cli/core/check/interface.md": "98558fc9e952120025aca1917747da1178a797da73e6ecae8ae33fa56db89338",
+    ".yggdrasil/model/cli/core/check/internals.md": "060c97b3782a994a48bad3ad1db1a7598dd3a942cd6389e141cb2cd7a7c47a8f",
+    ".yggdrasil/model/cli/core/check/responsibility.md": "69f15c12fc03f5f4199d8fe35ef56da80ad0a7cb9d9856829db0e84de0883dcb",
+    ".yggdrasil/model/cli/responsibility.md": "b1b42bf482d727823ed25d0bcf1369dbba917ae192723a57464b233a53644c0f",
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "462df48ae702ab782902adfecb0ce3d3fee925134847b7a984fc33b8459fdd0d",
-    "source/cli/src/core/check.ts": "ac14de890eac730bf1a6a94660cc8be0c687c8b5709a1bf056392c307e92b92a"
+    ".yggdrasil/model/cli/core/validator/responsibility.md": "316bfe32acc608635f410be8b4e58711ac7f1a6e7226e565dd3d9e158478ff3b",
+    ".yggdrasil/model/cli/core/drift-detector/responsibility.md": "a00430922bf04001bdc8a991763bbb1df09901ac8221f15e24e00e8c119469de",
+    ".yggdrasil/model/cli/core/context/responsibility.md": "339d6f6633f1c001578deeffc5d195dfd7717b15752169ccb1312a158eb5e277",
+    ".yggdrasil/model/cli/model/responsibility.md": "d000b3f7996ab9e0abea6852260e3af071f437ca31ffc4400677a8506f348342",
+    "source/cli/src/core/check.ts": "e2c446229d551666d1115ecca698d3230e5542092b37eececa4ff3aaeb67c836"
   },
   "mtimes": {
-    ".yggdrasil/model/cli/core/check/yg-node.yaml": 1775558099697.0151,
-    ".yggdrasil/model/cli/core/check/interface.md": 1775545085531.5913,
-    ".yggdrasil/model/cli/core/check/responsibility.md": 1775332535279.532,
+    ".yggdrasil/model/cli/core/check/yg-node.yaml": 1775570775288.0557,
+    ".yggdrasil/model/cli/core/check/interface.md": 1775570413651.8792,
+    ".yggdrasil/model/cli/core/check/internals.md": 1775570788855.2966,
+    ".yggdrasil/model/cli/core/check/responsibility.md": 1775570402822.1987,
     ".yggdrasil/model/cli/yg-node.yaml": 1775243577620.7664,
     ".yggdrasil/model/cli/internals.md": 1775329681280.232,
-    ".yggdrasil/model/cli/responsibility.md": 1775045623775.336,
+    ".yggdrasil/model/cli/responsibility.md": 1775567498378.8098,
     ".yggdrasil/model/cli/core/yg-node.yaml": 1775328914585.9414,
     ".yggdrasil/model/cli/core/interface.md": 1772743197442.582,
     ".yggdrasil/model/cli/core/internals.md": 1775329732456.7566,
     ".yggdrasil/model/cli/core/responsibility.md": 1772828321933.1968,
-    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775558093855.0654,
-    ".yggdrasil/aspects/deterministic/content.md": 1772778780694.5889,
     ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": 1775328137050.7122,
     ".yggdrasil/aspects/posix-paths/content.md": 1772743197466.7686,
-    ".yggdrasil/model/cli/core/validator/responsibility.md": 1775317463746.7031,
+    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775561447770.7463,
+    ".yggdrasil/aspects/deterministic/content.md": 1772778780694.5889,
+    ".yggdrasil/model/cli/core/validator/responsibility.md": 1775569591195.6382,
     ".yggdrasil/model/cli/core/validator/interface.md": 1774783352192.546,
-    ".yggdrasil/model/cli/core/drift-detector/responsibility.md": 1772743197437.916,
+    ".yggdrasil/model/cli/core/drift-detector/responsibility.md": 1775569621131.168,
     ".yggdrasil/model/cli/core/drift-detector/interface.md": 1774070026335.9746,
-    ".yggdrasil/model/cli/core/context/responsibility.md": 1774967446806.7505,
+    ".yggdrasil/model/cli/core/context/responsibility.md": 1775569621131.7236,
     ".yggdrasil/model/cli/core/context/interface.md": 1775332261436.1562,
-    ".yggdrasil/model/cli/model/responsibility.md": 1772778759688.719,
+    ".yggdrasil/model/cli/model/responsibility.md": 1775569578677.668,
     ".yggdrasil/model/cli/model/interface.md": 1775509701891.0308,
-    "source/cli/src/core/check.ts": 1775557911437.185
+    "source/cli/src/core/check.ts": 1775569085974.4075
   },
-  "reviewedReason": "posix-paths added directly, removed from deterministic.implies"
+  "reviewedReason": "posix-paths added directly, removed from deterministic.implies",
+  "claimResults": {
+    "posix-paths": {
+      "forward-slash-normalization": {
+        "satisfied": true,
+        "reason": "Code consistently normalizes backslashes to forward slashes before comparisons: in scanUncoveredFiles, resolveLayer, describeCascadeCause, categorizeFile, and groupCascadeByCause functions all use .replace(/\\\\/g, '/') before startsWith/regex matching operations."
+      }
+    }
+  }
 }

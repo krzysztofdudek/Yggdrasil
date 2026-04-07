@@ -1,13 +1,11 @@
 {
-  "hash": "4f18606e0ef4f6b2865947d2772fcec4f9fa6a300bbadcfed161e9177e058db6",
+  "hash": "4765f05d7718affac99ab363201dd477b6aaf503fac1e66d8a4a8b8ee9eabb4f",
   "files": {
     ".yggdrasil/model/cli/config/build/yg-node.yaml": "3f000cf22d67f185735a417f5243e3cdda5a3c9a4edcf34dd972d6c798016386",
-    ".yggdrasil/model/cli/config/build/responsibility.md": "366b5a36d95b23a661d7ba343ebfb32f05049c142cd2a2a488d923f4bcbfb918",
     ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df",
     ".yggdrasil/model/cli/internals.md": "7440678f012e45d8b15a4efc252cc3b4220fe7aec98fb673786abd9c2a37f9f0",
     ".yggdrasil/model/cli/responsibility.md": "b1b42bf482d727823ed25d0bcf1369dbba917ae192723a57464b233a53644c0f",
     ".yggdrasil/model/cli/config/yg-node.yaml": "9cacb4bd841cdf0f78581c909468e1d5b8cfe1678a75e39821398c144f092302",
-    ".yggdrasil/model/cli/config/responsibility.md": "d10421b990737cf9049a220fd37ff4e051cada58c7793323826b97ed26083c91",
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "462df48ae702ab782902adfecb0ce3d3fee925134847b7a984fc33b8459fdd0d",
     ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
     "source/cli/tsconfig.json": "4c663b14bb228d4986fc265f4753a19b8a844ee7cffd47dac7dc8c51d0690d02",
@@ -15,16 +13,18 @@
     "source/cli/.npmignore": "6352e6067c91078366f5c1b29cb065af4818efc1aea31ac5d132898785d1ccf6",
     "source/cli/.npmrc": "de994f0b60a1afa80c0e821ff17a093bfe17acf8e2760f490433ab9a6891883b",
     "source/cli/package.json": "d489b0ddeb509ed03d88f304656d74e40043346fe092cd4e32910d7f99e541e3",
-    "source/cli/package-lock.json": "50b86fba3b12a658e9d162dd6fa75d75799d6076664e33347b9bc83f3b533a74"
+    "source/cli/package-lock.json": "50b86fba3b12a658e9d162dd6fa75d75799d6076664e33347b9bc83f3b533a74",
+    ".yggdrasil/model/cli/config/build/responsibility.md": "31128ed5e01c5fb505f0f536cd943bef5913716975c66e59d392902e9bda81ad",
+    ".yggdrasil/model/cli/config/responsibility.md": "fba9fc771744a668ed4886fb43dec97b24f7b6e38d869e31d616b2c58af64ffa"
   },
   "mtimes": {
     ".yggdrasil/model/cli/config/build/yg-node.yaml": 1775327956343.6824,
-    ".yggdrasil/model/cli/config/build/responsibility.md": 1775053497340.9106,
+    ".yggdrasil/model/cli/config/build/responsibility.md": 1775569541998.4019,
     ".yggdrasil/model/cli/yg-node.yaml": 1775243577620.7664,
     ".yggdrasil/model/cli/internals.md": 1775329681280.232,
     ".yggdrasil/model/cli/responsibility.md": 1775567498378.8098,
     ".yggdrasil/model/cli/config/yg-node.yaml": 1775243577492.5159,
-    ".yggdrasil/model/cli/config/responsibility.md": 1775051863302.48,
+    ".yggdrasil/model/cli/config/responsibility.md": 1775569539261.5564,
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775561447770.7463,
     ".yggdrasil/aspects/deterministic/content.md": 1772778780694.5889,
     "source/cli/tsconfig.json": 1771702275811.786,
@@ -34,5 +34,5 @@
     "source/cli/package.json": 1775239040903.8784,
     "source/cli/package-lock.json": 1775239040903.2893
   },
-  "reviewedReason": "compliance verified: cli responsibility.md added Terminology section — no behavioral change"
+  "reviewedReason": "cosmetic update to responsibility.md"
 }

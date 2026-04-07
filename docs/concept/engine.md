@@ -8,7 +8,7 @@ graph: context assembly, check (unified gate), and tool operations.
 
 Most of this document describes **deterministic** mechanics — the same graph state always
 produces the same output. No heuristics. No guessing. No searching. The exception is
-[LLM-based verification](#llm-based-verification-approve-only), which runs at approve time
+[Reviewer-based verification](#reviewer-based-verification-approve-only), which runs at approve time
 and provides semantic checks that structural validation cannot.
 
 ---
@@ -358,9 +358,10 @@ and consumes port X:
    consumer relation has no `consumes` field. E058 fires when `consumes` names a port that
    does not exist on the target.
 4. E053 fires if any port aspect identifier is not defined in `aspects/`.
-5. Semantic verification happens at approve time via LLM — E055 fires when the LLM
-   determines a port's required aspect is not satisfied in the consumer's source code (see
-   [LLM-based verification](#llm-based-verification-approve-only)).
+5. Semantic verification happens at approve time via the reviewer — E055 fires when the
+   reviewer determines a port's required aspect is not satisfied in the consumer's source code
+   (see
+   [Reviewer-based verification](#reviewer-based-verification-approve-only)).
 
 This two-phase approach separates fast structural checks (check) from expensive semantic
 checks (approve). Structural checks catch missing declarations immediately; semantic checks
@@ -450,13 +451,13 @@ The mechanism is deliberately simple: **hash changed → something changed**. To
 the change by checking which files differ and whether they are source or graph files. The
 agent assesses the significance and decides on resolution.
 
-#### LLM result caching
+#### Reviewer result caching
 
-LLM verification results (aspect verification and artifact review — see
-[LLM-based verification](#llm-based-verification-approve-only)) are cached in the drift
+Reviewer verification results (aspect verification and artifact review — see
+[Reviewer-based verification](#reviewer-based-verification-approve-only)) are cached in the drift
 state alongside file hashes. When E020 (direct drift) or E021 (cascade drift) fires for a
-node, all cached LLM results for that node are invalidated — the next approve re-runs
-verification from scratch. This ensures LLM judgments are never stale: any change to source
+node, all cached reviewer results for that node are invalidated — the next approve re-runs
+verification from scratch. This ensures reviewer judgments are never stale: any change to source
 files, artifacts, or upstream dependencies forces re-evaluation.
 
 ### Drift States
@@ -551,32 +552,32 @@ the result and give feedback.
 
 This model is analogous to the programmer–compiler relationship: the programmer writes code,
 the compiler checks correctness. Two exceptions exist: initialization (creates the starting
-structure and config) and LLM-based verification at approve time (reads source and artifacts
+structure and config) and reviewer-based verification at approve time (reads source and artifacts
 to verify semantic compliance). After initialization, all content changes in the graph are
 the work of the agent or human — tools only read and verify.
 
 ---
 
-## LLM-Based Verification (Approve Only)
+## Reviewer-Based Verification (Approve Only)
 
-Approve runs two LLM checks on drifted nodes:
+Approve runs two reviewer checks on drifted nodes:
 
-**Aspect verification.** For each aspect on the node, the LLM receives the aspect
+**Aspect verification.** For each aspect on the node, the reviewer receives the aspect
 description, content files, and concatenated source files. It responds with
 `satisfied: true|false` and a reason. If unsatisfied, E055 fires. For large nodes,
 source is chunked by file boundaries — all chunks must pass.
 
-**Artifact review.** The LLM receives artifact content (responsibility.md, interface.md,
+**Artifact review.** The reviewer receives artifact content (responsibility.md, interface.md,
 internals.md) and current source code. It responds with `current: true|false` and a
 reason. If outdated, E056 fires.
 
-**Consensus.** Configurable via `llm.consensus` in yg-config.yaml (positive odd integer,
-default 1). When set to 3+, the LLM runs multiple times and majority vote decides.
+**Consensus.** Configurable via `reviewer.consensus` in yg-config.yaml (positive odd integer,
+default 1). When set to 3+, the reviewer runs multiple times and majority vote decides.
 
 **Caching.** Verification results are cached in drift state. When a node drifts (E020/E021),
 cached results are invalidated and the next approve re-runs verification from scratch.
 
-**Graceful degradation.** When no LLM provider is configured, approve works as before
+**Graceful degradation.** When no reviewer is configured, approve works as before
 (three-axis detection only, no E055/E056). A notice informs the user.
 
 ---

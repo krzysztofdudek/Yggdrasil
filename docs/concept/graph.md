@@ -73,26 +73,13 @@ Technology stack and coding standards are described in node artifacts at the app
 
 ### Node types
 
-```yaml
-node_types:
-  module:
-    description: "Business logic unit with clear domain responsibility"
-  service:
-    description: "Component providing functionality to other nodes"
-    required_aspects: [requires-audit]
-  library:
-    description: "Shared utility code with no domain knowledge"
-  infrastructure:
-    description: "Guards, middleware, interceptors — invisible in call graphs but affect blast radius"
-```
+Node types are defined in the **architecture file** (`.yggdrasil/yg-architecture.yaml`), not in
+`yg-config.yaml`. Each type classifies the architectural _role_ of a node. See the
+[Architecture File](#architecture-file) section for the full format, including `aspects`,
+`parents`, and `relations` constraints.
 
-Node types classify the architectural _role_ of each node. Each entry is keyed by type name
-and must have a `description` (agent guidance for when to use this type) and optional
-`required_aspects` — aspects that nodes of this type must have coverage for (directly or via
-aspect `implies`).
-
-Templates (see below) can be bound to node types, providing structural hints for scaffolding.
-Tools validate that every node declares a type that is a key in this object.
+Tools validate that every node declares a type that is a key in the architecture file's
+`node_types` object.
 
 ### Artifact types
 
@@ -110,42 +97,44 @@ descriptions internally.
 Tools validate artifact presence based on these rules and attach artifact content to context
 packages.
 
-### LLM configuration
+### Reviewer configuration
 
 ```yaml
-llm:
-  provider: openai
-  model: gpt-4o
-  endpoint: https://api.openai.com/v1
-  temperature: 0.0
+reviewer:
+  verify_artifacts: false
   consensus: 1
-  max_tokens: 4096
+  ollama:
+    model: qwen3.5:9b
+    endpoint: http://localhost:11434
+    temperature: 0.0
+    max_tokens: auto
 ```
 
-The `llm` section configures the language model used for aspect verification at approve time.
-All fields are optional — tools use sensible defaults when omitted.
+The `reviewer` section configures the semantic verifier used for aspect verification and
+artifact review at approve time. General keys (`verify_artifacts`, `consensus`) sit at the
+`reviewer:` level. Provider-specific keys sit under the provider name (`ollama:`, `claude-code:`).
 
-| Field         | Purpose                                                                 |
-| ------------- | ----------------------------------------------------------------------- |
-| `provider`    | LLM provider name (e.g. `openai`, `anthropic`)                         |
-| `model`       | Model identifier                                                        |
-| `endpoint`    | API endpoint URL                                                        |
-| `temperature` | Sampling temperature for verification calls                             |
-| `consensus`   | Number of agreeing verification passes required (default 1)             |
-| `max_tokens`  | Maximum tokens per verification request                                 |
+| Field              | Purpose                                                              |
+| ------------------ | -------------------------------------------------------------------- |
+| `verify_artifacts` | Run artifact freshness review (E056) — default false                 |
+| `consensus`        | Number of agreeing verification passes required (default 1)          |
+| `active`           | Required when multiple providers configured — selects the active one |
+
+Provider keys (`ollama:`, `claude-code:`) contain provider-specific settings (model, endpoint,
+temperature, max_tokens). See the [Configuration](../configuration.md) page for full details.
 
 #### Secrets (`yg-secrets.yaml`)
 
-Sensitive fields — API keys, provider credentials, endpoint overrides — belong in
-`yg-secrets.yaml`, which lives alongside `yg-config.yaml` but is **gitignored**. Fields in
-`yg-secrets.yaml` override the corresponding `yg-config.yaml llm` fields at runtime.
+Sensitive fields — API keys, endpoint overrides — belong in `yg-secrets.yaml`, which lives
+alongside `yg-config.yaml` but is **gitignored**. Fields in `yg-secrets.yaml` override the
+corresponding provider-specific fields at runtime.
 
 ```yaml
 # .yggdrasil/yg-secrets.yaml (gitignored)
-llm:
-  api_key: sk-...
-  provider: anthropic         # overrides yg-config.yaml
-  endpoint: https://custom.endpoint/v1
+reviewer:
+  ollama:
+    endpoint: http://localhost:11434
+    model: qwen3.5:9b
 ```
 
 This separation keeps configuration declarative and committable while secrets stay local.

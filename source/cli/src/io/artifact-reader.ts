@@ -7,7 +7,12 @@ export async function readArtifacts(
   excludeFiles: string[] = ['yg-node.yaml'],
   includeFiles?: string[],
 ): Promise<Artifact[]> {
-  const entries = await readdir(dirPath, { withFileTypes: true });
+  let entries;
+  try {
+    entries = await readdir(dirPath, { withFileTypes: true });
+  } catch {
+    return [];
+  }
   const artifacts: Artifact[] = [];
   const includeSet = includeFiles && includeFiles.length > 0 ? new Set(includeFiles) : null;
 

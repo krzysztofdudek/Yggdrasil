@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import type {
   YggConfig,
@@ -13,17 +14,18 @@ const DEFAULT_QUALITY: QualityConfig = {
 };
 
 export async function parseConfig(filePath: string): Promise<YggConfig> {
+  const filename = path.basename(filePath);
   const content = await readFile(filePath, 'utf-8');
   const raw = parseYaml(content) as Record<string, unknown>;
 
   if (!raw || typeof raw !== 'object') {
-    throw new Error(`yg-config.yaml: file is empty or not a valid YAML mapping`);
+    throw new Error(`${filename}: file is empty or not a valid YAML mapping`);
   }
 
   const version = typeof raw.version === 'string' ? raw.version.trim() : undefined;
 
   if (!raw.name || typeof raw.name !== 'string' || raw.name.trim() === '') {
-    throw new Error(`yg-config.yaml: missing or invalid 'name' field`);
+    throw new Error(`${filename}: missing or invalid 'name' field`);
   }
 
   const qualityRaw = raw.quality as Record<string, unknown> | undefined;
@@ -47,12 +49,12 @@ export async function parseConfig(filePath: string): Promise<YggConfig> {
 
   if (quality.context_budget.error < quality.context_budget.warning) {
     throw new Error(
-      `yg-config.yaml: quality.context_budget.error (${quality.context_budget.error}) must be >= warning (${quality.context_budget.warning})`,
+      `${filename}: quality.context_budget.error (${quality.context_budget.error}) must be >= warning (${quality.context_budget.warning})`,
     );
   }
 
   if (quality.context_budget.own_warning !== undefined && quality.context_budget.own_warning <= 0) {
-    throw new Error('quality.context_budget.own_warning must be a positive number');
+    throw new Error(`${filename}: quality.context_budget.own_warning must be a positive number`);
   }
 
   // Known provider names
@@ -64,14 +66,14 @@ export async function parseConfig(filePath: string): Promise<YggConfig> {
   let llm: LlmConfig | undefined;
 
   if (raw.reviewer !== undefined) {
-    llm = parseReviewerSection(raw.reviewer as Record<string, unknown>, KNOWN_PROVIDERS, GENERAL_KEYS);
+    llm = parseReviewerSection(raw.reviewer as Record<string, unknown>, KNOWN_PROVIDERS, GENERAL_KEYS, filename);
   }
 
   let parallel: number | undefined;
   if (raw.parallel !== undefined) {
     const p = raw.parallel as number;
     if (!Number.isInteger(p) || p < 1) {
-      throw new Error(`yg-config.yaml: parallel must be a positive integer >= 1, got ${p}`);
+      throw new Error(`${filename}: parallel must be a positive integer >= 1, got ${p}`);
     }
     parallel = p;
   }
@@ -89,6 +91,7 @@ function parseReviewerSection(
   reviewerRaw: Record<string, unknown>,
   knownProviders: readonly string[],
   generalKeys: Set<string>,
+  filename: string,
 ): LlmConfig | undefined {
   // Separate general keys from provider keys
   const generalConfig: Record<string, unknown> = {};
@@ -103,7 +106,7 @@ function parseReviewerSection(
       }
     } else {
       throw new Error(
-        `yg-config.yaml: unknown key '${key}' under reviewer:. Known general keys: ${[...generalKeys].join(', ')}. Known providers: ${knownProviders.join(', ')}.`,
+        `${filename}: unknown key '${key}' under reviewer:. Known general keys: ${[...generalKeys].join(', ')}. Known providers: ${knownProviders.join(', ')}.`,
       );
     }
   }
@@ -118,7 +121,7 @@ function parseReviewerSection(
     const found = providerEntries.find(p => p.name === activeName);
     if (!found) {
       throw new Error(
-        `yg-config.yaml: reviewer.active is '${activeName}' but '${activeName}' is not configured under reviewer:.`,
+        `${filename}: reviewer.active is '${activeName}' but '${activeName}' is not configured under reviewer:.`,
       );
     }
     selectedProvider = found;
@@ -126,7 +129,7 @@ function parseReviewerSection(
     selectedProvider = providerEntries[0];
   } else {
     throw new Error(
-      `yg-config.yaml: multiple providers configured under reviewer: (${providerEntries.map(p => p.name).join(', ')}). Set reviewer.active to select one.`,
+      `${filename}: multiple providers configured under reviewer: (${providerEntries.map(p => p.name).join(', ')}). Set reviewer.active to select one.`,
     );
   }
 
@@ -134,7 +137,7 @@ function parseReviewerSection(
   const verifyArtifacts = generalConfig.verify_artifacts === true;
   const consensus = (generalConfig.consensus as number) ?? 1;
   if (!Number.isInteger(consensus) || consensus < 1 || consensus % 2 === 0) {
-    throw new Error(`yg-config.yaml: reviewer.consensus must be a positive odd integer >= 1, got ${consensus}`);
+    throw new Error(`${filename}: reviewer.consensus must be a positive odd integer >= 1, got ${consensus}`);
   }
 
   // Normalize provider-specific config to flat LlmConfig
@@ -143,11 +146,11 @@ function parseReviewerSection(
   if (selectedProvider.name === 'ollama') {
     const model = pc.model as string;
     if (!model || typeof model !== 'string') {
-      throw new Error(`yg-config.yaml: reviewer.ollama.model must be a non-empty string`);
+      throw new Error(`${filename}: reviewer.ollama.model must be a non-empty string`);
     }
     const maxTokens = pc.max_tokens ?? 'auto';
     if (maxTokens !== 'auto' && (typeof maxTokens !== 'number' || maxTokens < 1)) {
-      throw new Error(`yg-config.yaml: reviewer.ollama.max_tokens must be 'auto' or a positive number`);
+      throw new Error(`${filename}: reviewer.ollama.max_tokens must be 'auto' or a positive number`);
     }
     return {
       provider: 'ollama',
@@ -174,6 +177,6 @@ function parseReviewerSection(
     };
   }
 
-  throw new Error(`yg-config.yaml: unknown provider '${selectedProvider.name}'`);
+  throw new Error(`${filename}: unknown provider '${selectedProvider.name}'`);
 }
 

@@ -10,7 +10,7 @@ This is your operating manual for working in a Yggdrasil-managed repository.
 
 <critical_protocol>
 BEFORE starting any task — brainstorming, design, planning, OR implementation:
-  `yg select --task "<goal>"` → `yg context` on each result → read artifact files.
+  `yg select "<goal>"` → `yg context` on each result → read artifact files.
   This is the READING phase — collect constraints that shape your design:
   - Aspects = cross-cutting requirements your work MUST satisfy. Read their content files — not just the YAML description. The rules are inside.
   - Flows = business processes your work must not break. Read invariants.
@@ -57,7 +57,11 @@ EVERY conversation: yg check — read the full report, follow CLI guidance.
   check failures block commits and CI. Resolve all errors before committing.
 
 BEFORE any task (brainstorming, design, planning, implementation):
-  yg select --task "<goal>" → yg context on results
+  yg select "<goal>" → yg context on results
+  Output has three sections:
+    - Nodes: scored by keyword match against artifacts
+    - Aspects: (matched) = directly relevant; (N nodes) = governs work in this area — read their content files
+    - Flows: (matched) = directly relevant; (N nodes) = participants overlap with returned nodes
   READ phase — collect constraints before designing:
     - Aspects: read content files (not just YAML description). Rules are inside.
     - Flows: read invariants. Your changes must not break business processes.
@@ -421,7 +425,7 @@ At approve time: Reviewer verifies consumer satisfies port-required aspects (E05
 ### CLI Commands
 
 Core: `yg check`, `yg context --node/--file`, `yg impact --node/--file/--aspect/--flow`, `yg approve --node`
-Navigation: `yg select --task`, `yg tree`, `yg aspects`, `yg flows`, `yg owner --file`
+Navigation: `yg select`, `yg tree`, `yg aspects`, `yg flows`, `yg owner --file`
 Setup: `yg init`
 
 ### Error Categories

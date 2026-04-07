@@ -18,14 +18,17 @@ quality:                          # optional — quality thresholds
     warning: 10000                #   tokens — warning threshold
     error: 20000                  #   tokens — error threshold (suggests splitting)
 
-llm:                              # optional — LLM provider for claim verification and artifact review
-  provider: ollama                #   ollama | openai | anthropic
-  model: "qwen3.5:9b"            #   model ID per provider
-  endpoint: "http://localhost:11434"  #   custom endpoint (required for ollama)
-  temperature: 0                  #   reduces variability — keep at 0
-  consensus: 1                    #   positive odd integer >= 1 (3+ for majority vote)
-  max_tokens: auto                #   auto = query provider, or explicit number
+parallel: 1                       # optional — concurrency limit for batch approve (positive integer, default: 1)
 
-parallel: 1                       # optional — maximum concurrent approve operations.
-                                  # Default: 1 (sequential). Set to 5+ for parallel reviewer runs.
-                                  # Must be a positive integer.
+reviewer:                         # optional — semantic verification during yg approve
+  active: ollama                  #   required when multiple providers configured
+  verify_artifacts: false         #   run artifact review (E056) — default false
+  consensus: 1                    #   positive odd integer >= 1 (3+ for majority vote)
+  ollama:                         #   provider-specific config
+    model: "qwen3.5:9b"          #     model ID
+    endpoint: "http://localhost:11434"  #   custom endpoint
+    temperature: 0                #     reduces variability — keep at 0
+    max_tokens: auto              #     auto = query provider, or explicit number
+    context_length_field: ""      #     ollama model_info key for context window size
+  claude-code:                    #   alternative provider — uses claude CLI subprocess
+    model: haiku                  #     haiku, sonnet, or opus
