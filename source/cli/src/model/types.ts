@@ -70,12 +70,6 @@ export interface QualityConfig {
 
 export type RelationType = 'uses' | 'calls' | 'extends' | 'implements' | 'emits' | 'listens';
 
-/** Claim-based anchor — natural language statement verified by LLM */
-export interface ClaimAnchor {
-  id: string;
-  claim: string;
-}
-
 /** Port on a target node — consumers must satisfy port's aspects */
 export interface PortDef {
   description: string;
@@ -97,8 +91,8 @@ export interface LlmConfig {
   context_length_field?: string;
 }
 
-/** Cached LLM verification result per claim */
-export interface ClaimVerificationResult {
+/** Cached LLM aspect verification result */
+export interface AspectVerificationResult {
   satisfied: boolean;
   reason: string;
 }
@@ -161,9 +155,6 @@ export interface AspectDef {
   id: string;
   description?: string;
   implies?: string[];
-  /** Claim-based anchors — natural language statements verified by LLM.
-   *  Always present (parser defaults to []). E039 fires when empty. */
-  anchors: ClaimAnchor[];
   artifacts: Artifact[];
 }
 
@@ -400,8 +391,8 @@ export interface DriftNodeState {
   mtimes?: Record<string, number>; // path → mtime in ms — for mtime-based drift optimization
   /** Reason provided with --reviewed, stored for audit trail */
   reviewedReason?: string;
-  /** Cached claim verification results from last LLM-powered approve */
-  claimResults?: Record<string, Record<string, ClaimVerificationResult>>;
+  /** Cached aspect verification results from last LLM-powered approve */
+  aspectResults?: Record<string, AspectVerificationResult>;
   /** Cached artifact review results from last LLM-powered approve */
   artifactReview?: Record<string, ArtifactReviewResult>;
 }
@@ -448,14 +439,14 @@ export interface ApproveResult {
   isBlackbox?: boolean;
   /** GC'd orphaned drift state paths */
   gcPaths?: string[];
-  /** LLM claim verification results (E055) */
-  claimResults?: Record<string, Record<string, ClaimVerificationResult>>;
+  /** LLM aspect verification results (E055) */
+  aspectResults?: Record<string, AspectVerificationResult>;
   /** LLM artifact review results (E056) */
   artifactReviewResults?: Record<string, ArtifactReviewResult>;
   /** Why LLM verification was skipped, if it was */
   llmSkipped?: 'not-configured' | 'unavailable' | 'blackbox';
   /** E055 structured violations for programmatic consumption */
-  e055Violations?: Array<{ aspect: string; claim: string; reason: string }>;
+  e055Violations?: Array<{ aspect: string; reason: string }>;
   /** E056 structured violations for programmatic consumption */
   e056Violations?: Array<{ name: string; reason: string }>;
 }

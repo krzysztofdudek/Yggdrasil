@@ -1,5 +1,5 @@
 import type { LlmProvider, ClaimResponse } from '../llm/types.js';
-import type { ClaimVerificationResult } from '../model/types.js';
+import type { AspectVerificationResult } from '../model/types.js';
 
 export interface VerifyClaimsParams {
   provider: LlmProvider;

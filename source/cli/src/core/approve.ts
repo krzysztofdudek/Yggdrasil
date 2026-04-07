@@ -4,7 +4,7 @@ import type {
   ApproveResult,
   AnnotatedChange,
   TrackedFileLayer,
-  ClaimVerificationResult,
+  AspectVerificationResult,
   ArtifactReviewResult,
 } from '../model/types.js';
 import type { LlmProvider } from '../llm/types.js';
