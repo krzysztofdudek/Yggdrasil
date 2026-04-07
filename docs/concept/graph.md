@@ -122,7 +122,7 @@ llm:
   max_tokens: 4096
 ```
 
-The `llm` section configures the language model used for claim verification at approve time.
+The `llm` section configures the language model used for aspect verification at approve time.
 All fields are optional — tools use sensible defaults when omitted.
 
 | Field         | Purpose                                                                 |
@@ -661,8 +661,8 @@ absent. Drift detection does not apply to unmapped nodes.
 
 The previous group-based mapping (with per-group aspects and regex anchors) has been replaced
 by this flat structure. Aspect compliance is no longer proven through regex patterns in mapping
-groups. Instead, aspect claims are verified by LLM during `yg approve`, which reads the source
-files and evaluates each claim in natural language. This moves complexity from the mapping
+groups. Instead, aspect requirements are verified by LLM during `yg approve`, which reads the
+aspect content files and evaluates them against source code. This moves complexity from the mapping
 declaration to the verification layer.
 
 ### Mapping constraints

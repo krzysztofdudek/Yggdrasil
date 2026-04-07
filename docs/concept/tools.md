@@ -67,7 +67,7 @@ and required conditions.
 - `node_types` must be a non-empty object. Each entry must have a `description` string. Optional `required_aspects` list. Node `type` must match a key in `node_types`.
 - `quality.context_budget.error` must be >= `quality.context_budget.warning`.
 - `reviewer` is optional. When not configured, semantic verification
-  (`yg approve` claim checks) is skipped with an informational notice.
+  (`yg approve` aspect verification) is skipped with an informational notice.
 
 ### yg-secrets.yaml
 
@@ -131,7 +131,7 @@ mapping:                                    # optional — flat list of paths
 
 Mapping is a flat list of file paths and/or directories (relative to project root).
 Directories are expanded recursively at check time, respecting `.gitignore`. There are
-no aspect proofs in the mapping — claim verification is performed by the reviewer at
+no aspect proofs in the mapping — aspect verification is performed by the reviewer at
 `yg approve` time (see E055 in the Approve section).
 
 **Aspect inheritance:**
@@ -168,34 +168,22 @@ path under `aspects/` (e.g. `aspects/requires-audit/` has identifier `requires-a
 name: Audit logging # string, required
 description: "Short description for discovery" # string, optional
 implies: [requires-logging] # list of strings, optional — ids of other aspects
-anchors: # list of objects, required — claims that nodes must satisfy
-  - id: audit-entry
-    claim: "Every data-modifying operation creates an audit log entry"
-  - id: audit-actor
-    claim: "Audit entries include the authenticated user who performed the action"
-  - id: audit-timestamp
-    claim: "Audit entries include a server-side timestamp"
 ```
 
 Nested directories under `aspects/` are organizational groupings. There is no automatic
 parent-child relationship from nesting — `implies` is always explicit.
 
 All files in the aspect directory except `yg-aspect.yaml` are content attached to the context
-packages of nodes carrying the specified aspect. When `implies` is present, the aspect's content
-plus all implied aspects' content is attached. Tools resolve implications recursively and detect cycles.
-
-**Anchors:**
-
-Every aspect must define at least one claim in the `anchors` field (E039 if empty or missing).
-Anchor IDs are abstract names — they describe WHAT must be proven (e.g. "audit-entry",
-"audit-actor"), not HOW.
+packages of nodes carrying the specified aspect. Content files (e.g. `content.md`) describe
+the aspect's requirements in natural language — these are verified by the LLM at approve time.
+When `implies` is present, the aspect's content plus all implied aspects' content is attached.
+Tools resolve implications recursively and detect cycles.
 
 **Validation rules:**
 
 - `name` must be non-empty.
 - Every identifier in `implies` must have a corresponding aspect directory under `aspects/`.
 - The aspect implies graph must be acyclic (no A implies B implies A).
-- `anchors` must be a non-empty list of objects, each with `id` (string) and `claim` (string).
 
 ### yg-flow.yaml
 
@@ -509,11 +497,11 @@ Token estimation: ~4 characters per token (heuristic from the [Engine](engine) d
 
 Structured text output with the context package. The two modes differ in detail level:
 
-- `--node` — overview with aspects (including claims, source attribution, verified-against
+- `--node` — overview with aspects (source attribution, verified-against
   status), flows, dependencies with consumes/port aspects, dependents (consequence framing),
   parent, artifact paths, and token budget. Suitable for orientation and navigation.
-- `--file` — per-file detail: resolves the owner node, then lists claims to satisfy
-  (from effective aspects), consumed dependencies with port claims, dependent count, and a
+- `--file` — per-file detail: resolves the owner node, then lists aspects to satisfy,
+  consumed dependencies with port aspects, dependent count, and a
   back-pointer to the node context (`yg context --node`). Suitable for implementation work
   on the file.
 
@@ -577,11 +565,11 @@ for `yg-node.yaml` and `yg-flow.yaml`.
 1. Resolve `.yggdrasil/` root (repository root or nearest parent).
 2. Load the graph — find all aspect directories under `.yggdrasil/aspects/` (including nested).
 3. For each aspect, compute usage stats: count of nodes carrying the aspect (directly or
-   via inheritance/flows/implies), and count of claims (anchors) defined.
+   via inheritance/flows/implies).
 4. Detect orphaned aspects — aspects not referenced by any node, architecture type, or flow.
 5. Sort by aspect identifier.
 6. Output text with aspect id, name, description (if present), usage breakdown
-   (`architecture`, `own`, `implied`, `flow`), claims count, implies (if present),
+   (`architecture`, `own`, `implied`, `flow`), implies (if present),
    and orphaned label (if unused).
 
 **Result:**
@@ -938,7 +926,6 @@ nearest parent directory of `.yggdrasil/`, not the entire git repository.
 | `E034` | `missing-schema`            | Schema file missing from `schemas/`                                             |
 | `E036` | `mapping-path-missing`      | Mapped path does not exist on disk (stale/broken mapping)                       |
 | `E038` | `missing-description`       | Node, aspect, or flow has no `description` in YAML                              |
-| `E039` | `aspect-missing-claims`     | Aspect has no `anchors` field — every aspect must define at least one claim     |
 
 **Architecture Enforcement (E051-E053):**
 
@@ -956,15 +943,15 @@ when a node consumes a port and that port's required aspect is not defined in `a
 
 **Semantic (E055-E056) — approve only:**
 
-| Code   | Name                  | Description                                                                       |
-| ------ | --------------------- | --------------------------------------------------------------------------------- |
-| `E055` | `claim-not-satisfied` | Source file does not satisfy a claim declared in the node's aspect anchors         |
-| `E056` | `artifact-stale`      | Node artifact content does not reflect the current state of source files           |
+| Code   | Name                   | Description                                                              |
+| ------ | ---------------------- | ------------------------------------------------------------------------ |
+| `E055` | `aspect-not-satisfied` | Source file does not satisfy an aspect's requirements                    |
+| `E056` | `artifact-stale`       | Node artifact content does not reflect the current state of source files |
 
 Semantic errors are produced by `yg approve` during its reviewer verification gate (see
 Approve section). They do not appear in `yg check` output — they are reported only
 when approve runs its verification pass. E055 fires when the reviewer determines that a
-claimed aspect anchor is not actually satisfied by the source code. E056 fires when
+aspect requirement is not actually satisfied by the source code. E056 fires when
 the reviewer determines that artifact content (responsibility, interface, or internals) is
 stale relative to the current source files.
 
@@ -1052,7 +1039,7 @@ they are grouped into a cascade summary showing the number of upstream changes a
 affected nodes.
 
 **Verification label:** Each E021 error is annotated with the last known reviewer verification
-status: `(last verified: pass)` if claims were satisfied at last approve,
+status: `(last verified: pass)` if aspects were satisfied at last approve,
 `(last verified: fail)` if not, or `(never verified)` if the node has not been through
 reviewer verification. This helps agents prioritize which cascaded nodes need attention.
 
@@ -1096,9 +1083,9 @@ Per-node only — no `--all`, no `--recursive`. One node at a time.
    - **Other tracked files** (aspects, deps, flows, ancestors) — changed since last approve?
 3. Apply enforcement rules (see table below).
 4. **Reviewer verification gate** (when a reviewer is configured):
-   - **Claim verification:** For each aspect anchor claimed by the node, the reviewer checks
-     whether the source files actually satisfy the claim. Failures produce E055
-     (claim-not-satisfied).
+   - **Aspect verification:** For each aspect on the node, the reviewer checks whether the
+     source files satisfy the aspect requirements defined in content.md. Failures produce E055
+     (aspect-not-satisfied).
    - **Artifact review** (opt-in, `reviewer.verify_artifacts: true`): The reviewer compares
      artifact content (responsibility, interface, internals) against current source files
      to detect staleness. Failures produce E056 (artifact-stale). Disabled by default
