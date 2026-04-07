@@ -66,31 +66,5 @@
     ".yggdrasil/flows/graph-analysis/description.md": 1775046980292.1602,
     "source/cli/src/cli/impact.ts": 1775551896880.0823
   },
-  "reviewedReason": "compliance verified: cli responsibility.md added Terminology section — no behavioral change",
-  "claimResults": {
-    "cli-command-contract": {
-      "stdout-write": {
-        "satisfied": true,
-        "reason": "The code exclusively uses process.stdout.write() for all output and never uses console.log, satisfying the claim."
-      },
-      "error-handler": {
-        "satisfied": true,
-        "reason": "The code wraps the entire command action body in a try/catch block and writes errors to process.stderr.write() before exiting with code 1, satisfying the claim."
-      },
-      "exit-code": {
-        "satisfied": true,
-        "reason": "The code satisfies the claim by calling process.exit(1) in all error scenarios including missing graph, invalid options, missing nodes, and the catch block for any thrown errors."
-      }
-    },
-    "deterministic": {
-      "no-side-effects": {
-        "satisfied": true,
-        "reason": "The code does not use Date.now(), Math.random(), filesystem writes, or network calls, relying solely on deterministic graph traversal and data structures."
-      },
-      "deterministic-output": {
-        "satisfied": true,
-        "reason": "The code derives all return values strictly from the provided graph object, node paths, and imported constants without using random number generators, timestamps, or external network calls."
-      }
-    }
-  }
+  "reviewedReason": "compliance verified: cli responsibility.md added Terminology section — no behavioral change"
 }

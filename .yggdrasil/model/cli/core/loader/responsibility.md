@@ -10,9 +10,3 @@ Loads the graph from `.yggdrasil/` — model nodes, aspects, flows, schemas. Imp
 - **loadAspects**, **loadSchemas**: Internal; readdir + parse; return [] on ENOENT.
 - **loadFlows**: Internal; readdir + parse; return [] only on missing flows/ dir; parse errors in individual flows propagate.
 - **toModelPath**: Internal; converts absolute path to model-relative path with forward slashes.
-
-**Out of scope:**
-
-- YAML parsing (cli/io)
-- Context building (cli/core/context)
-- Validation (cli/core/validator)

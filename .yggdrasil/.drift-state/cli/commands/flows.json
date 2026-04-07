@@ -46,21 +46,5 @@
     ".yggdrasil/model/cli/utils/interface.md": 1775217330039.2043,
     "source/cli/src/cli/flows.ts": 1775325904912.475
   },
-  "reviewedReason": "compliance verified: cli responsibility.md added Terminology section — no behavioral change",
-  "claimResults": {
-    "cli-command-contract": {
-      "stdout-write": {
-        "satisfied": true,
-        "reason": "The code uses process.stdout.write() for output and process.stderr.write() for errors, adhering to the CLI Command Contract."
-      },
-      "error-handler": {
-        "satisfied": true,
-        "reason": "The code wraps the command action body in a try/catch block and writes errors to process.stderr.write() before exiting."
-      },
-      "exit-code": {
-        "satisfied": true,
-        "reason": "The code wraps the command action in a try/catch block and calls process.exit(1) in the catch block for both ENOENT errors and other errors, satisfying the claim."
-      }
-    }
-  }
+  "reviewedReason": "compliance verified: cli responsibility.md added Terminology section — no behavioral change"
 }

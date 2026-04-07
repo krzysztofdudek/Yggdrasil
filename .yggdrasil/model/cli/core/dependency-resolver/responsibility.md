@@ -14,8 +14,3 @@ Topological sort and change detection for graph nodes. Uses structural relations
 - `filterRelationType`: Internal; filters relation types (structural, event, all).
 - `collectTransitiveDepsFiltered`: Internal; transitive deps with depth and relationType filter.
 - `buildChildren`: Internal; recursive tree builder with cycle avoidance via branch set.
-
-**Out of scope:**
-
-- Drift detection (cli/core/drift-detector)
-- Graph loading (cli/core/loader)

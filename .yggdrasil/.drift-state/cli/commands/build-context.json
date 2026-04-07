@@ -70,31 +70,5 @@
     ".yggdrasil/flows/graph-analysis/description.md": 1775046980292.1602,
     "source/cli/src/cli/build-context.ts": 1775545085533.6726
   },
-  "reviewedReason": "compliance verified: cli responsibility.md added Terminology section — no behavioral change",
-  "claimResults": {
-    "cli-command-contract": {
-      "stdout-write": {
-        "satisfied": true,
-        "reason": "The code exclusively uses process.stdout.write() for successful output and process.stderr.write() for errors, never using console.log."
-      },
-      "error-handler": {
-        "satisfied": true,
-        "reason": "The code wraps the command action body in a try/catch block and writes errors to process.stderr.write() before exiting with code 1, satisfying the claim."
-      },
-      "exit-code": {
-        "satisfied": true,
-        "reason": "The code explicitly calls process.exit(1) in all error scenarios including missing arguments, mutually exclusive options, no graph coverage, blackbox nodes, and validation errors, satisfying the claim."
-      }
-    },
-    "deterministic": {
-      "no-side-effects": {
-        "satisfied": true,
-        "reason": "The provided code does not contain any calls to Date.now(), Math.random(), filesystem writes, or network calls, satisfying the determinism claim."
-      },
-      "deterministic-output": {
-        "satisfied": true,
-        "reason": "The code derives all return values (context data, error messages, candidate lists) strictly from function arguments, imported constants, and deterministic graph state without using random number generators, timestamps, or external network calls."
-      }
-    }
-  }
+  "reviewedReason": "compliance verified: cli responsibility.md added Terminology section — no behavioral change"
 }

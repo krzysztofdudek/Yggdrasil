@@ -16,6 +16,4 @@ TypeScript type definitions for the graph and operations on it. Single source of
 
 **Out of scope:**
 
-- Parsing implementation (cli/io)
-- Validation logic (cli/core)
 - Runtime behavior — types only, no executable code, no thrown errors

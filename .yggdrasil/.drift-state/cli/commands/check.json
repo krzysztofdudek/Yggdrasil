@@ -56,21 +56,5 @@
     ".yggdrasil/flows/validate/description.md": 1775046942154.0942,
     "source/cli/src/cli/check.ts": 1775563526190.721
   },
-  "reviewedReason": "compliance verified: cli responsibility.md added Terminology section — no behavioral change",
-  "claimResults": {
-    "cli-command-contract": {
-      "stdout-write": {
-        "satisfied": true,
-        "reason": "The code exclusively uses process.stdout.write() for output and never uses console.log, satisfying the claim."
-      },
-      "error-handler": {
-        "satisfied": true,
-        "reason": "The code wraps the command action body in a try/catch block and writes errors to process.stderr.write() as specified."
-      },
-      "exit-code": {
-        "satisfied": true,
-        "reason": "The code explicitly calls process.exit(1) in the catch block for errors and after checking for errors in the result, satisfying the claim."
-      }
-    }
-  }
+  "reviewedReason": "compliance verified: cli responsibility.md added Terminology section — no behavioral change"
 }

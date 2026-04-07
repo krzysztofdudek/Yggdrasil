@@ -15,5 +15,4 @@ Structural validation and completeness checks. Implements error/warning scheme: 
 
 **Out of scope:**
 
-- Graph loading (cli/core/loader)
-- Context building (cli/core/context) — validator consumes buildContext for budget check only
+- Consumes buildContext only for budget calculation — does not participate in context assembly.

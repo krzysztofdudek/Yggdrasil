@@ -12,6 +12,7 @@ Batch orchestration lives entirely in the CLI layer (`cli/approve.ts`). Core app
 ### Cause Matching
 
 Each E021 issue carries `cascadeCauses` with file paths relative to project root, including the `.yggdrasil/` prefix. Batch filtering matches these paths against a prefix:
+
 - `--aspect X` matches files under `<yggPrefix>/aspects/X/`
 - `--flow X` matches files under `<yggPrefix>/flows/X/`
 - `--node X` (no mapping) matches files under `<yggPrefix>/model/X/`

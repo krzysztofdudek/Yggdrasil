@@ -42,21 +42,5 @@
     ".yggdrasil/flows/init/description.md": 1772743197468.9497,
     "source/cli/src/cli/init.ts": 1775564276028.8083
   },
-  "reviewedReason": "compliance verified: cli responsibility.md added Terminology section — no behavioral change",
-  "claimResults": {
-    "cli-command-contract": {
-      "stdout-write": {
-        "satisfied": true,
-        "reason": "The code exclusively uses process.stdout.write() for all output and process.stderr.write() for errors, never using console.log."
-      },
-      "error-handler": {
-        "satisfied": true,
-        "reason": "The code wraps the command action body in a try/catch block and writes errors to process.stderr.write() before exiting with code 1."
-      },
-      "exit-code": {
-        "satisfied": true,
-        "reason": "The code explicitly calls process.exit(1) in multiple error scenarios (invalid platform, .yggdrasil exists but not a directory, upgrade flag used when .yggdrasil already exists, project version newer than CLI, and general try/catch block), satisfying the claim."
-      }
-    }
-  }
+  "reviewedReason": "compliance verified: cli responsibility.md added Terminology section — no behavioral change"
 }

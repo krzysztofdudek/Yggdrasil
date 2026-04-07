@@ -10,8 +10,3 @@ Compares current file hashes with .drift-state. States: ok, drift, missing, unma
 - State logic: unmaterialized when no stored entry and all mapping paths missing; drift when hash mismatch; missing when hashForMapping throws (paths don't exist); ok when hash matches.
 - `diagnoseChangedFiles`: Internal; compares perFileHashes with stored; returns list of changed/deleted paths.
 - `allPathsMissing`: Internal; uses access() per path; returns true only when all paths missing.
-
-**Out of scope:**
-
-- Drift state storage (cli/io)
-- Dependency resolution (cli/core/dependency-resolver)

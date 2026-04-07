@@ -19,8 +19,3 @@ Assembles context packages for nodes — the 5-step layer assembly used by `yg b
 - **Relation type sets**: STRUCTURAL_RELATION_TYPES (uses, calls, extends, implements), EVENT_RELATION_TYPES (emits, listens). Relations not in either set are skipped.
 
 - **collectTrackedFiles(node, graph)**: Mirrors build-context traversal but returns file paths instead of content. Used by drift-detector to know which files to track for a node. Collects: own files (yg-node.yaml + artifacts), hierarchical (ancestor files), aspect files (recursive implies), relational-deps (structural target artifacts + dependency ancestor artifacts), event relations (emits/listens target artifacts + their ancestor artifacts), relational-flows (flow files), source files (from mapping.paths). Dependency ancestors and event relation ancestors use included_in_relations artifacts when available, falling back to all standard artifacts. Each TrackedFile now carries a `layer` field (TrackedFileLayer) — 'own', 'hierarchy', 'aspects', 'relational', 'flows', or 'source' — indicating which context layer brought the file into tracking. This enables E020/E021 drift classification (own/source = direct drift; hierarchy/aspects/relational/flows = cascade drift). Synchronous — all data from loaded Graph.
-
-**Out of scope:**
-
-- Graph loading (cli/core/loader)
-- Validation (cli/core/validator)

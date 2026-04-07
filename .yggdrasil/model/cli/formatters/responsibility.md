@@ -12,6 +12,4 @@ CLI output formatting — converts structured data to human-readable text.
 
 **Out of scope:**
 
-- Building context package (cli/core/context)
-- Console coloring (cli/commands)
 - Validation of input (callers must ensure valid input)

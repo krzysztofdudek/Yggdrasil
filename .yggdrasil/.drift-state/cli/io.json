@@ -56,33 +56,5 @@
     "source/cli/src/io/schema-parser.ts": 1772776392209.3076,
     "source/cli/src/io/secrets-parser.ts": 1775563783057.5037
   },
-  "reviewedReason": "added nested reviewer config decision to internals.md + cascade from cli responsibility.md Terminology section; no source changes",
-  "claimResults": {
-    "deterministic": {
-      "no-side-effects": {
-        "satisfied": true,
-        "reason": "The provided source code exclusively uses synchronous file reads/writes, deterministic YAML parsing, and standard library functions without any calls to Date.now(), Math.random(), network APIs, or non-deterministic filesystem operations."
-      },
-      "deterministic-output": {
-        "satisfied": true,
-        "reason": "All exported functions in the provided source files derive their return values strictly from their arguments, imported constants, or deterministic file system operations (readFile, readdir) without using random number generators, timestamps, or external network calls."
-      }
-    },
-    "yaml-parser-contract": {
-      "manual-validation": {
-        "satisfied": true,
-        "reason": "All YAML parsers in the provided source files use manual type guards (e.g., typeof checks, Array.isArray) and throw descriptive errors without importing or using schema validation libraries like Joi or Zod."
-      },
-      "descriptive-errors": {
-        "satisfied": true,
-        "reason": "All YAML parsers in the provided source files (architecture-parser.ts, aspect-parser.ts, config-parser.ts, flow-parser.ts, node-parser.ts) consistently include the file path and specific field name in their error messages when validation fails."
-      }
-    },
-    "silent-missing-files": {
-      "null-on-missing": {
-        "satisfied": true,
-        "reason": "The code satisfies the claim by using try-catch blocks to handle missing optional files (like .drift-state) and returning empty objects or arrays instead of throwing errors, while still throwing errors for missing required configuration files."
-      }
-    }
-  }
+  "reviewedReason": "added nested reviewer config decision to internals.md + cascade from cli responsibility.md Terminology section; no source changes"
 }

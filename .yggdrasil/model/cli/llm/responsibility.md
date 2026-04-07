@@ -15,7 +15,6 @@ Provides a unified interface for interacting with LLM providers to verify archit
 
 ## What This Module Is NOT Responsible For
 
-- Constructing the source code snippets or aspect content passed to the LLM — that is the caller's responsibility (artifact-reviewer, claim-verifier in core)
-- Deciding when to invoke LLM verification — that decision belongs to the check pipeline
-- Managing LLM configuration — config comes from `LlmConfig` in the model layer
+- Constructing the source code snippets or aspect content passed to the LLM — callers provide ready-to-use content
+- Deciding when to invoke LLM verification — that decision belongs to the caller
 - Prompt engineering beyond the fixed system prompts for claim/artifact review

@@ -7,66 +7,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- **Breaking:** `--acknowledge` replaced with `--reviewed`. `--reviewed` bypasses
-  the three-axis gate only — reviewer verification still runs. Agents can no
-  longer rubber-stamp claim failures.
-- **Improved:** CLI messages follow consistent what/why/next structure via
-  `buildIssueMessage` helper — every error tells the agent what happened, why
-  it matters, and what command to run next.
-- **Improved:** `yg check` suggestedNext shows one concrete step + remaining
-  scale + workflow anchor name (e.g. "1 of 5 drifted nodes — post-modify
-  workflow").
-- **Improved:** `yg check` warnings now always visible, even when errors exist.
-- **Improved:** `yg approve` vocabulary aligned — "bilateral" replaced with
-  "conscious exception", "own artifacts" with "graph artifacts".
-- **Added:** `yg approve` success shows verification summary when LLM ran.
-- **Improved:** `yg approve` no-change message clarified ("baseline already
-  current. No approval needed.").
-- **Improved:** `yg approve` LLM skip messages include actionability context.
-- **Improved:** `yg impact` vocabulary — "Total scope" replaced with "Blast
-  radius", guidance footer added for high-impact changes.
-- **Added:** `yg context --node` adds post-modify workflow footer.
-- **Improved:** `yg context --file` unmapped output includes actionable next step.
-- **Improved:** `yg aspects` usage breakdown — "own" replaced with "direct".
-- **Improved:** Rules trimmed — error code tables replaced with categories,
-  approve matrix replaced with prose, CLI reference compacted. Handoff points
-  added to connect rules workflow with CLI guidance.
-- **Fixed:** `yg approve` now shows distinct messages when LLM verification is
-  skipped — differentiates between "not configured", "configured but not
-  reachable", and "blackbox node".
-- **Added:** `llm.verify_artifacts` config option (default: `false`) to control
-  artifact review (E056) during approve. Disabled by default to avoid false
-  positives from small local models.
-- **Added:** `llm.context_length_field` config option for Ollama — specifies the
-  model_info key for context window size. Auto-detected if omitted (finds any
-  key ending with `.context_length`).
-- **Fixed:** Ollama context window auto-detection now works with models that use
-  architecture-prefixed keys (e.g. `qwen35.context_length`).
-- **Improved:** Artifact review prompt tuned to reduce false positives — reports
-  stale only for behavioral contradictions or missing public interfaces, not
-  minor wording differences.
-- **Breaking:** Config key `llm:` renamed to `reviewer:` with nested provider
-  structure. Internal TypeScript types remain `LlmConfig`/`LlmProvider`.
-- **Added:** Claude Code provider (`claude-code`) — spawns `claude` CLI for
-  claim verification. Configure via `reviewer: { claude-code: { model: haiku } }`.
-- **Added:** `yg approve --aspect <id>` — batch approve all E021 cascade nodes
-  from a specific aspect change.
-- **Added:** `yg approve --flow <name>` — batch approve all E021 cascade nodes
-  from a specific flow change.
-- **Added:** `yg approve --node` is now variadic — accepts multiple node paths
-  for batch approval.
-- **Added:** `yg approve --node <parent>` on a no-mapping parent auto-redirects
-  to batch approve cascaded children.
-- **Added:** `parallel: N` in `yg-config.yaml` controls concurrent approval
-  limit (default: 1 = sequential). Parallel approvals write to separate
-  drift-state files — no contention.
-- **Improved:** `yg check` suggestedNext detects cascade patterns — suggests
-  `--aspect` or `--flow` batch commands when >=2 E021 share the same cause.
-
 ## [4.0.0]
 
 ### Breaking Changes
 
+- **`--acknowledge` replaced with `--reviewed`.** `--reviewed` bypasses
+  the three-axis gate only — reviewer verification still runs. Agents can no
+  longer rubber-stamp claim failures.
+- **Config key `llm:` renamed to `reviewer:`** with nested provider
+  structure. Internal TypeScript types remain `LlmConfig`/`LlmProvider`.
+
+### Added
+
+- **Artifact quality guidelines in agent rules.** Each artifact type
+  (responsibility, interface, internals) now has good/too-detailed examples,
+  a 3-rule quality test, parent-vs-child guidance, and decision recognition
+  guidance. Information routing expanded with per-type destinations and
+  explicit "no artifact needed" category.
+- **Claude Code provider (`claude-code`)** — spawns `claude` CLI for
+  claim verification. Configure via `reviewer: { claude-code: { model: haiku } }`.
+- **`yg approve --aspect <id>`** — batch approve all E021 cascade nodes
+  from a specific aspect change.
+- **`yg approve --flow <name>`** — batch approve all E021 cascade nodes
+  from a specific flow change.
+- **`yg approve --node`** is now variadic — accepts multiple node paths
+  for batch approval.
+- **`yg approve --node <parent>`** on a no-mapping parent auto-redirects
+  to batch approve cascaded children.
+- **`parallel: N`** in `yg-config.yaml` controls concurrent approval
+  limit (default: 1 = sequential). Parallel approvals write to separate
+  drift-state files — no contention.
+- **`llm.verify_artifacts`** config option (default: `false`) to control
+  artifact review (E056) during approve.
+- **`llm.context_length_field`** config option for Ollama — specifies the
+  model_info key for context window size.
+- **`yg context --node`** adds post-modify workflow footer.
+- **`yg approve`** success shows verification summary when LLM ran.
+
+### Improved
+
+- **CLI messages** follow consistent what/why/next structure via
+  `buildIssueMessage` helper.
+- **`yg check` suggestedNext** shows one concrete step + remaining
+  scale + workflow anchor name. Detects cascade patterns — suggests
+  `--aspect` or `--flow` batch commands when >=2 E021 share the same cause.
+- **`yg check` warnings** now always visible, even when errors exist.
+- **`yg approve` vocabulary** — "bilateral" replaced with "conscious
+  exception", "own artifacts" with "graph artifacts".
+- **`yg approve` messaging** — no-change clarified, LLM skip messages
+  include actionability context, distinct messages for not-configured vs
+  unreachable vs blackbox.
+- **`yg impact` vocabulary** — "Total scope" replaced with "Blast
+  radius", guidance footer added for high-impact changes.
+- **`yg context --file`** unmapped output includes actionable next step.
+- **`yg aspects`** usage breakdown — "own" replaced with "direct".
+- **Rules trimmed** — error code tables replaced with categories,
+  approve matrix replaced with prose, CLI reference compacted.
+- **Artifact review prompt** tuned to reduce false positives — reports
+  stale only for behavioral contradictions, not minor wording differences.
+
+### Fixed
+
+- **Ollama context window** auto-detection now works with models that use
+  architecture-prefixed keys (e.g. `qwen35.context_length`).
 - **Regex anchors replaced by LLM-verified claims.** Aspect anchors are now
   `{id, claim}` objects with natural language claims verified by LLM at approve
   time. Regex proofs, rationale fields, and anchor realizations are removed.
@@ -93,9 +96,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Error codes renumbered to v4 scheme.** E001-E013 structural, E020-E022
   drift/coverage, E030-E041 completeness, E050-E058 architecture, W001-W006.
 - **`stability` field removed** from aspects.
-
-### Added
-
 - **LLM verification at approve time.** Two operations: claim verification
   (E055 if claim not satisfied) and artifact review (E056 if artifact stale).
   Configurable consensus voting, source chunking for large nodes, cached results.

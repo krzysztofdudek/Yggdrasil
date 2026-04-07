@@ -5,4 +5,4 @@ blackbox: false
 aspects: []
 relations: []
 mapping:
-  - source/cli/tests/unit/llm/provider.test.ts
+  - source/cli/tests/unit/llm/

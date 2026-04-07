@@ -44,21 +44,5 @@
     "source/cli/src/cli/approve.ts": 1775563742414.8064,
     "source/cli/src/cli/.gitkeep": 1771702275791.1433
   },
-  "reviewedReason": "compliance verified: cli responsibility.md added Terminology section — no behavioral change",
-  "claimResults": {
-    "cli-command-contract": {
-      "stdout-write": {
-        "satisfied": true,
-        "reason": "The code exclusively uses process.stdout.write() for all output and process.stderr.write() for errors, never using console.log."
-      },
-      "error-handler": {
-        "satisfied": true,
-        "reason": "The code wraps command action bodies in try/catch blocks and writes errors to process.stderr.write() as specified."
-      },
-      "exit-code": {
-        "satisfied": true,
-        "reason": "The code explicitly calls process.exit(1) in catch blocks for errors and when result.action is 'refused' (actionable state), satisfying the claim."
-      }
-    }
-  }
+  "reviewedReason": "compliance verified: cli responsibility.md added Terminology section — no behavioral change"
 }

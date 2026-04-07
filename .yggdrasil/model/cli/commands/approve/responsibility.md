@@ -40,9 +40,3 @@ CLI command handler implementing `yg approve` and the backward-compatible `yg dr
 - Source changed, graph artifacts unchanged — lists changed source files + unchanged artifacts, instructs update-then-approve
 - Graph artifacts changed, source unchanged — lists changed artifacts + source files, instructs implement-then-approve
 - Cascade only (other tracked changed) — lists upstream changes with annotation labels, gives compliant/non-compliant paths
-
-## Out of scope
-
-- The three-axis decision logic and drift state I/O (that is `cli/core/approve`)
-- Graph loading from disk (that is `cli/core/loader`)
-- Hash computation (that is `cli/utils`)

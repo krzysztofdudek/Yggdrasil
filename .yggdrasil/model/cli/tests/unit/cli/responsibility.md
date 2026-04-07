@@ -1,16 +1,5 @@
 # CLI Command Unit Tests — Responsibility
 
-Unit tests for the thin command wrapper modules in `src/cli/`. These test argument parsing and delegation without invoking core logic end-to-end.
+Tests for the thin command wrappers in `src/cli/`. Verifies argument parsing and delegation to core modules without invoking full pipeline execution. Each test stubs or mocks the underlying core function.
 
-## Scope
-
-- `build-command.test.ts` — `yg build-context` command wrapper
-- `impact.test.ts` — `yg impact` command wrapper
-- `owner.test.ts` — `yg owner` command wrapper
-- `which.test.ts` — `yg which` command wrapper
-
-## Out of scope
-
-- Core library tests — belongs to `cli/tests/unit/core`
-- Full pipeline tests — belongs to `cli/tests/integration`
-- Black-box binary invocation — belongs to `cli/tests/e2e`
+Does not test core logic, full pipelines, or black-box binary invocation — those belong to core, integration, and e2e nodes respectively.

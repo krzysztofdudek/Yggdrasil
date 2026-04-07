@@ -1,15 +1,5 @@
 # Templates Unit Tests — Responsibility
 
-Unit tests for template generation modules in `src/templates/`. Verifies command output templates, configuration defaults, platform-specific rules, and project name resolution.
+Tests for template generation modules in `src/templates/`. Covers default config content, platform-specific rules file generation, and project name auto-detection. Asserts on string output — no filesystem writes.
 
-## Scope
-
-- `commands.test.ts` — command output template generation
-- `default-config.test.ts` — default `yg-config.yaml` template content
-- `platform.test.ts` — platform-specific rules file generation
-- `resolve-project-name.test.ts` — project name auto-detection logic
-
-## Out of scope
-
-- I/O parser tests — belongs to `cli/tests/unit/support/io`
-- Utility function tests — belongs to `cli/tests/unit/support/utils`
+Does not test I/O parsers or utility functions — those belong to sibling nodes.

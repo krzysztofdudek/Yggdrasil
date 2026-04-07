@@ -58,27 +58,5 @@
     ".yggdrasil/flows/graph-navigation/description.md": 1775046998794.586,
     "source/cli/src/cli/owner.ts": 1775040105368.0469
   },
-  "reviewedReason": "compliance verified: cli responsibility.md added Terminology section — no behavioral change",
-  "claimResults": {
-    "cli-command-contract": {
-      "stdout-write": {
-        "satisfied": true,
-        "reason": "The code exclusively uses process.stdout.write() for all output and never uses console.log, satisfying the claim."
-      },
-      "error-handler": {
-        "satisfied": true,
-        "reason": "The code wraps the command action body in a try/catch block and writes errors to process.stderr.write() before exiting with code 1, satisfying the claim."
-      },
-      "exit-code": {
-        "satisfied": true,
-        "reason": "The code wraps the command action in a try/catch block and calls process.exit(1) in the catch block after writing an error to stderr, satisfying the claim."
-      }
-    },
-    "posix-paths": {
-      "forward-slash-normalization": {
-        "satisfied": true,
-        "reason": "The code explicitly implements the normalization rule by replacing backslashes with forward slashes and stripping trailing slashes in the normalizeForMatch function before performing path comparisons."
-      }
-    }
-  }
+  "reviewedReason": "compliance verified: cli responsibility.md added Terminology section — no behavioral change"
 }

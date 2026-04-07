@@ -50,21 +50,5 @@
     ".yggdrasil/flows/graph-navigation/description.md": 1775046998794.586,
     "source/cli/src/cli/tree.ts": 1775551896865.9558
   },
-  "reviewedReason": "compliance verified: cli responsibility.md added Terminology section — no behavioral change",
-  "claimResults": {
-    "cli-command-contract": {
-      "stdout-write": {
-        "satisfied": true,
-        "reason": "The code exclusively uses process.stdout.write() for output and process.stderr.write() for errors, with no console.log calls present."
-      },
-      "error-handler": {
-        "satisfied": true,
-        "reason": "The code wraps the command action body in a try/catch block and writes errors to process.stderr.write() before exiting with code 1."
-      },
-      "exit-code": {
-        "satisfied": true,
-        "reason": "The code explicitly calls process.exit(1) in the catch block for general errors and when a specified root path is not found, satisfying the claim."
-      }
-    }
-  }
+  "reviewedReason": "compliance verified: cli responsibility.md added Terminology section — no behavioral change"
 }
