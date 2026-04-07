@@ -58,8 +58,8 @@ Yggdrasil is persistent semantic memory stored in \`.yggdrasil/\`. It maps the r
 ### Quick Start
 
 \`\`\`
-EVERY conversation: yg check — no exceptions.
-  check is the single gate. It catches drift, structural errors, and coverage gaps.
+EVERY conversation: yg check — read the full report, follow CLI guidance.
+  CLI tells you what broke, why, and the next command to run.
   check failures block commits and CI. Resolve all errors before committing.
 
 BEFORE any task (brainstorming, design, planning, implementation):
@@ -89,6 +89,11 @@ ALWAYS: run yg impact before assessing blast radius.
 ALWAYS: ask the user for rationale — record it, do not invent it.
 ALWAYS: ask before resolving ambiguity.
 WHEN UNSURE: ask the user. Do not guess. Do not assume.
+
+How CLI guides you:
+  Every error message follows: WHAT happened → WHY it's a problem → NEXT command.
+  suggestedNext at the end of check gives one concrete step + remaining scale.
+  Follow it. Re-run check after each fix.
 \`\`\`
 
 ### Modify Source Code
@@ -105,7 +110,7 @@ You are not allowed to edit or create source code without establishing graph cov
 - [ ] 4. Modify source code — claims tell you what rules to follow
 - [ ] 5. Update artifacts if behavior changed
 - [ ] 5b. If you split, merged, or renamed a node: run \`yg flows\` and update any flow \`nodes\` lists that referenced the old node path to point to the correct child/new nodes.
-- [ ] 6. Run \`yg check\` — fast structural gate (if unfixable after 3 attempts → stop, report to user)
+- [ ] 6. Run \`yg check\` — follow CLI's suggested next command (if unfixable after 3 attempts → stop, report to user)
 - [ ] 6b. **Aspect check** — did you just apply a pattern that also exists in other files? If the node has no aspect for it and you saw the same pattern in 3+ files, create the aspect now.
 - [ ] 7. Run \`yg approve --node <node_path>\` — LLM verifies claims + artifact freshness
 
@@ -170,7 +175,7 @@ WRAP-UP (user signals "done", "wrap up", "that's enough"):
 ### Modify Graph
 
 - [ ] 1. Read the relevant schema from \`schemas/\` before touching any YAML
-- [ ] 2. Before changing an aspect or flow, check scope: \`yg impact --aspect <id>\` or \`yg impact --flow <name>\` — understand which nodes are affected before modifying shared rules or processes
+- [ ] 2. Before changing an aspect or flow, check blast radius: \`yg impact --aspect <id>\` or \`yg impact --flow <name>\` — understand which nodes are affected before modifying shared rules or processes
 - [ ] 3. Make changes
 - [ ] 4. Run \`yg check\` immediately — fix all errors
 - [ ] 5. Verify affected source files are consistent — update if needed
@@ -356,82 +361,25 @@ relations:
 At check time: E057 fires if target has ports but consumer has no consumes. E058 fires if consumes references undefined port.
 At approve time: LLM verifies consumer satisfies port-required aspect claims (E055).
 
-### CLI Reference
+### CLI Commands
 
-**Core workflow (4):**
+Core: \`yg check\`, \`yg context --node/--file\`, \`yg impact --node/--file/--aspect/--flow\`, \`yg approve --node\`
+Navigation: \`yg select --task\`, \`yg tree\`, \`yg aspects\`, \`yg flows\`, \`yg owner --file\`
+Setup: \`yg init\`
 
-| Command | Purpose |
-|---------|---------|
-| \`yg context --node <path>\` | Node overview: aspects, claims, flows, dependents, artifact pointers |
-| \`yg context --file <path>\` | Per-file: claims to satisfy, consumed dependencies |
-| \`yg impact --file/--node/--aspect/--flow\` | Blast radius analysis |
-| \`yg check\` | Unified gate — everything wrong, always global |
-| \`yg approve --node [--acknowledge "reason"]\` | Record baseline after review |
+### Error Categories
 
-**Navigation (5):**
+CLI groups errors into categories. Each message tells you what happened, why,
+and what command to run next.
 
-| Command | Purpose |
-|---------|---------|
-| \`yg select --task\` | Find relevant nodes for a task |
-| \`yg tree [--root] [--depth]\` | Graph structure visualization |
-| \`yg aspects\` | List aspects with metadata |
-| \`yg flows\` | List flows with metadata |
-| \`yg owner --file\` | Quick ownership lookup |
+- **Drift (E020-E021):** source and graph artifacts out of sync. Post-modify workflow.
+- **Structural (E001-E013):** YAML broken or graph inconsistent. Fix the YAML.
+- **Coverage (E022):** source files not mapped. Bootstrap workflow.
+- **Completeness (E030-E039):** artifacts missing or too thin. Write them.
+- **Architecture (E050-E058):** references broken or contracts violated. Fix references.
+- **Semantic (E055-E056, approve only):** LLM found claims not met or artifacts stale.
 
-**Setup (1):**
-
-| Command | Purpose |
-|---------|---------|
-| \`yg init [--platform] [--upgrade]\` | Initialize or upgrade |
-
-### Error Codes
-
-**Structural integrity (E001-E013):** YAML parse failures, unknown node types, broken relations/flow/aspect references, overlapping mappings, structural cycles, invalid config, missing yg-node.yaml, implied aspect issues.
-
-**Drift (E020-E021):**
-
-| Code | Name | Meaning |
-|------|------|---------|
-| E020 | direct-drift | Node's own source or graph files changed since last approve |
-| E021 | cascade-drift | Node affected by upstream change (dependency/aspect/flow) |
-
-**Coverage (E022):**
-
-| Code | Name | Meaning |
-|------|------|---------|
-| E022 | unmapped-file | Git-tracked file not covered by any node (proper or blackbox) |
-
-**Completeness (E030-E039):**
-
-| Code | Name | Meaning |
-|------|------|---------|
-| E030 | missing-artifact | Required artifact missing (blackbox exempt — only description required) |
-| E031 | shallow-artifact | Artifact below minimum length |
-| E032 | budget-exceeded | Context package too large — node must be split |
-| E033 | unpaired-event | Event relation without complement |
-| E034 | missing-schema | Schema file missing from schemas/ |
-| E036 | mapping-path-missing | Mapped path doesn't exist on disk |
-| E038 | missing-description | Node, aspect, or flow has no description |
-| E039 | aspect-missing-claims | Aspect has no claims in anchors field |
-
-**References (E050, E057-E058):**
-
-| Code | Name | Meaning |
-|------|------|---------|
-| E050 | dangling-aspect-ref | Aspect referenced by node/flow/architecture but not defined in aspects/ |
-| E057 | missing-consumes | Relation target has ports but no consumes field |
-| E058 | unknown-port | consumes references port not defined on target |
-
-**Semantic (approve only, E055-E056):**
-
-| Code | Name | Meaning |
-|------|------|---------|
-| E055 | claim-not-satisfied | LLM found claim not met in source code |
-| E056 | artifact-stale | LLM found artifact outdated vs source code |
-
-**Warnings (W001-W006):** budget-warning, own-budget-warning, wide-node, high-fan-out, orphaned-drift-state, orphaned-aspect.
-
-CLI error messages are self-teaching: each error includes what happened, why it's wrong, and how to fix it. Follow the CLI's suggested next command.
+Follow the CLI's suggested next command.
 
 ### Approve Enforcement
 
@@ -441,21 +389,16 @@ Approve is the semantic verification gate. It runs two LLM checks:
 
 If LLM is not configured, approve works as before (three-axis detection only).
 
-\`yg approve --node <path>\` is per-node only — no \`--all\`, no \`--recursive\`. It checks three axes:
+\`yg approve --node <path>\` checks three axes: graph artifacts changed?,
+source files changed?, upstream context changed?
 
-1. **Own artifacts** (.md files) — changed since last approve?
-2. **Source files** (mapping.paths) — changed since last approve?
-3. **Other tracked files** (aspects, deps, flows, ancestors) — changed?
+- Both artifacts AND source changed → ACCEPTS
+- Only one side changed → REFUSES (update the other side, or --acknowledge)
+- Only upstream changed → REFUSES (review compliance, or --acknowledge)
 
-| Own artifacts | Source | Other tracked | approve |
-|---|---|---|---|
-| changed | changed | any | ACCEPTS |
-| changed | unchanged | any | REFUSES (or --acknowledge) |
-| unchanged | changed | any | REFUSES (or --acknowledge) |
-| unchanged | unchanged | changed | REFUSES — requires --acknowledge |
-| unchanged | unchanged | unchanged | ACCEPTS (no-op) |
-
-\`--acknowledge "reason"\` is the conscious exception: it overrides both the three-axis gate AND LLM verification (E055/E056). Use when one side changed but the other doesn't need updating (formatter ran, typo fix, source already compliant with updated aspect). Reason is stored for audit trail.`;
+\`--acknowledge "reason"\` is the conscious exception: overrides the gate
+when one side changed but the other doesn't need updating.
+CLI explains the specific mismatch and recovery steps when approve refuses.`;
 
 // prettier-ignore
 const GUARD_RAILS = `## GUARD RAILS
