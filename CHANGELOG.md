@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Improved:** CLI messages follow consistent what/why/next structure via
+  `buildIssueMessage` helper — every error tells the agent what happened, why
+  it matters, and what command to run next.
+- **Improved:** `yg check` suggestedNext shows one concrete step + remaining
+  scale + workflow anchor name (e.g. "1 of 5 drifted nodes — post-modify
+  workflow").
+- **Improved:** `yg check` warnings now always visible, even when errors exist.
+- **Improved:** `yg approve` vocabulary aligned — "bilateral" replaced with
+  "conscious exception", "own artifacts" with "graph artifacts".
+- **Added:** `yg approve` success shows verification summary when LLM ran.
+- **Improved:** `yg approve` no-change message clarified ("baseline already
+  current. No approval needed.").
+- **Improved:** `yg approve` LLM skip messages include actionability context.
+- **Improved:** `yg impact` vocabulary — "Total scope" replaced with "Blast
+  radius", guidance footer added for high-impact changes.
+- **Added:** `yg context --node` adds post-modify workflow footer.
+- **Improved:** `yg context --file` unmapped output includes actionable next step.
+- **Improved:** `yg aspects` usage breakdown — "own" replaced with "direct".
+- **Improved:** Rules trimmed — error code tables replaced with categories,
+  approve matrix replaced with prose, CLI reference compacted. Handoff points
+  added to connect rules workflow with CLI guidance.
 - **Fixed:** `yg approve` now shows distinct messages when LLM verification is
   skipped — differentiates between "not configured", "configured but not
   reachable", "--acknowledge override", and "blackbox node".
