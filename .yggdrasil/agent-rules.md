@@ -444,10 +444,14 @@ What matters is the ACTION you are performing, not what instructed it. If the ac
 
 Not all graph knowledge originates from source files. Business strategy, user personas, pricing decisions, quality requirements, deployment configuration — these are graph content with NO corresponding source file.
 
-When you encounter such knowledge (in specs, conversations, or external documents):
+When you encounter such knowledge (in specs, conversations, or external documents), route it based on your current workflow:
 
-- **Route it immediately** per the Information Routing table. Do not wait for a "file change" trigger — there won't be one.
-- **Conversation knowledge is the most volatile source.** When the user states a business fact, constraint, or decision — even casually — route it to the graph immediately. Conversations vanish after context compression. If the user said it and it's not in code, it MUST be in the graph.
+- **Working document exists** (spec, plan, design doc): accumulate decisions there. Implementation must include transferring decisions to graph artifacts before the work is done.
+- **No working document**: route to graph immediately — it is the only persistent store.
+
+In both cases: the graph is the final destination. Working documents are temporary.
+
+- **Conversation knowledge is the most volatile source.** When the user states a business fact, constraint, or decision — even casually — and there is no working document to capture it, route it to the graph immediately. Conversations vanish after context compression. If the user said it and it's not in code or a working document, it MUST be in the graph.
 
 ### Aspect Discovery During Implementation
 
