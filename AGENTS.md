@@ -31,6 +31,18 @@ To add a new platform (e.g. a new IDE or agent): add it to `source/cli/src/templ
   2. Run `npm install` in `source/cli/` to update `package-lock.json`.
   3. Move `[Unreleased]` entries to the new version section in `CHANGELOG.md`.
 
+## CLI Message Design Principle
+
+Every diagnostic message the CLI outputs to an agent must follow the **what / why / next** structure:
+
+- **WHAT** happened — facts, one line or short block
+- **WHY** it's a problem — context the agent needs to understand the situation
+- **NEXT** — concrete command or instruction to resolve
+
+Use `buildIssueMessage({ what, why, next })` from `source/cli/src/formatters/message-builder.ts` for all error/warning messages in validator, check, approve, and build-context. The builder enforces the structure; the caller handles presentation (indentation, error code prefix).
+
+This applies to CLI output only. Rules.ts (system prompt) provides the map — workflow, vocabulary, categories. CLI provides the GPS — specific errors, next commands. They share vocabulary but never duplicate information.
+
 ## Quality Gate
 
 **ALWAYS run `scripts/repo-check.sh` from repo root before ANY commit and ensure it passes cleanly.** Do not commit with failing checks. This is non-negotiable — every commit must leave the repo in a green state.
