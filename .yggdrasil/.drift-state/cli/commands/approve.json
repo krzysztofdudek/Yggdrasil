@@ -1,84 +1,52 @@
 {
-  "hash": "aa5026b47b3419285e564f43c12320108caa6340b1d22d6934dd7824ebbdf9ae",
+  "hash": "b68d21f5504cc0e511721486388c2d62b9d8e5222d73ee75294f8662d1f1d1e0",
   "files": {
-    ".yggdrasil/model/cli/commands/approve/yg-node.yaml": "22acc31e2ca8a56cf2c1c1cb6c453d6b6dc7fa9fb4c512cc0338c984da9a9ada",
     ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df",
     ".yggdrasil/model/cli/internals.md": "7440678f012e45d8b15a4efc252cc3b4220fe7aec98fb673786abd9c2a37f9f0",
     ".yggdrasil/model/cli/responsibility.md": "696e0f5f377eba69a843a18379e8f20e0322dc037182690629652a75aa2227fb",
-    ".yggdrasil/model/cli/commands/yg-node.yaml": "304ba077a87aae0ecd30b30323391e3f54ccfbc2843bb4020acf43d1a26a26da",
     ".yggdrasil/model/cli/commands/internals.md": "5a3b679d5c2b9600c7fa3dc01b2f28661b7bfb11850a922ff885a7a583d455c7",
     ".yggdrasil/model/cli/commands/responsibility.md": "dd8146f9c54251a68f81f4036fdf931d526f3159707709b92a59493fe383a080",
+    ".yggdrasil/aspects/cli-command-contract/yg-aspect.yaml": "c818ab194c19f451955987badc7d3f14026349be6a1f633f1440778c1beae802",
+    ".yggdrasil/aspects/cli-command-contract/content.md": "b1509ccd44cc91f1cff43926b69f16845407f518ecf4d448d24a0b4a4e2894c3",
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "e6c0c095222ce0d80b79af77f5966d02f541b514205a4b551354b65ef5938900",
     ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
     ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": "0b98be4ee4221db627b892cddeb548a94e3cb1bfce936b9555bd30d7c225e34d",
     ".yggdrasil/aspects/posix-paths/content.md": "38daf50dec99307443fd8951019cf534c74571a7778d43e55a4354d9d2faeefc",
-    ".yggdrasil/aspects/cli-command-contract/yg-aspect.yaml": "c818ab194c19f451955987badc7d3f14026349be6a1f633f1440778c1beae802",
-    ".yggdrasil/aspects/cli-command-contract/content.md": "b1509ccd44cc91f1cff43926b69f16845407f518ecf4d448d24a0b4a4e2894c3",
     ".yggdrasil/model/cli/core/loader/responsibility.md": "ad751ae7c2345373a1eb3dcf64775f2dd6950d1f0a9ae7f347320336fdf18332",
     ".yggdrasil/model/cli/core/loader/interface.md": "0bb87fa5a5b9ce62786196668076207af49ca1744a8d10f967409b18f82fc2ba",
     ".yggdrasil/model/cli/core/responsibility.md": "2aa9f1d64abf86aed604a1823392c3d40b963eb8416b38ef877bcccddd7ff086",
     ".yggdrasil/model/cli/core/interface.md": "807008eb6f673273034d7d3325a36f37ea1c7a4e46df362e2a4fa9ccd9451de9",
     ".yggdrasil/model/cli/core/approve/responsibility.md": "2e4d20349ca40fbe44558587a0ccf2d34260947dbdb1f3ac76c285c92aaf1b9e",
+    "source/cli/src/cli/approve.ts": "7468caea34de160d3ebd9c5f1cfa75cba91d38431b805de9c95659e93dd561dc",
     "source/cli/src/cli/.gitkeep": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+    ".yggdrasil/model/cli/commands/approve/yg-node.yaml": "822aa632a1ceb179d43f5d85f154628a5450b760716f9ae17206f4838372b333",
     ".yggdrasil/model/cli/commands/approve/responsibility.md": "a6468ca7c5a18542a170c2b4362288e24f810511f542147dda010c71b52d9c99",
-    ".yggdrasil/model/cli/core/approve/interface.md": "cb78cf1bed22acc3ab0088601fa179e4aec4ce6be48016a05cc7742ce27eccea",
-    "source/cli/src/cli/approve.ts": "7468caea34de160d3ebd9c5f1cfa75cba91d38431b805de9c95659e93dd561dc"
+    ".yggdrasil/model/cli/commands/yg-node.yaml": "d55896632ad5686d8ea01093197534a9a8230f71449d90d8291062ed4436f2c4",
+    ".yggdrasil/model/cli/core/approve/interface.md": "cb78cf1bed22acc3ab0088601fa179e4aec4ce6be48016a05cc7742ce27eccea"
   },
   "mtimes": {
-    ".yggdrasil/model/cli/commands/approve/yg-node.yaml": 1775327956328.6804,
-    ".yggdrasil/model/cli/commands/approve/responsibility.md": 1775543679490.7637,
+    ".yggdrasil/model/cli/commands/approve/yg-node.yaml": 1775544543976.357,
+    ".yggdrasil/model/cli/commands/approve/responsibility.md": 1775544278123.2178,
     ".yggdrasil/model/cli/yg-node.yaml": 1775243577620.7664,
     ".yggdrasil/model/cli/internals.md": 1775329681280.232,
     ".yggdrasil/model/cli/responsibility.md": 1775045623775.336,
-    ".yggdrasil/model/cli/commands/yg-node.yaml": 1775243577670.2058,
+    ".yggdrasil/model/cli/commands/yg-node.yaml": 1775544531927.7505,
     ".yggdrasil/model/cli/commands/internals.md": 1775046923261.1494,
     ".yggdrasil/model/cli/commands/responsibility.md": 1775045632026.2983,
+    ".yggdrasil/aspects/cli-command-contract/yg-aspect.yaml": 1775328135743.9414,
+    ".yggdrasil/aspects/cli-command-contract/content.md": 1772778786204.255,
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775328133881.7266,
     ".yggdrasil/aspects/deterministic/content.md": 1772778780694.5889,
     ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": 1775328137050.7122,
     ".yggdrasil/aspects/posix-paths/content.md": 1772743197466.7686,
-    ".yggdrasil/aspects/cli-command-contract/yg-aspect.yaml": 1775328135743.9414,
-    ".yggdrasil/aspects/cli-command-contract/content.md": 1772778786204.255,
     ".yggdrasil/model/cli/core/loader/responsibility.md": 1774784572379.804,
     ".yggdrasil/model/cli/core/loader/interface.md": 1775208301390.8315,
     ".yggdrasil/model/cli/core/responsibility.md": 1772828321933.1968,
     ".yggdrasil/model/cli/core/interface.md": 1772743197442.582,
     ".yggdrasil/model/cli/core/approve/responsibility.md": 1775508052540.4014,
-    ".yggdrasil/model/cli/core/approve/interface.md": 1775543684764.8723,
+    ".yggdrasil/model/cli/core/approve/interface.md": 1775544278123.8303,
     "source/cli/src/cli/approve.ts": 1775542511349.7205,
     "source/cli/src/cli/.gitkeep": 1771702275791.1433
   },
-  "acknowledgeReason": "responsibility.md already documents verify_artifacts passthrough",
-  "claimResults": {
-    "deterministic": {
-      "no-side-effects": {
-        "satisfied": true,
-        "reason": "The code does not contain any calls to Date.now(), Math.random(), filesystem writes, or network calls within the provided source files."
-      },
-      "deterministic-output": {
-        "satisfied": true,
-        "reason": "The exported functions in approve.ts (formatResult, registerApproveCommand) derive their return values or side effects solely from their arguments (nodePath, result, options) and imported constants, without introducing external non-deterministic state."
-      }
-    },
-    "posix-paths": {
-      "forward-slash-normalization": {
-        "satisfied": true,
-        "reason": "The code normalizes paths by trimming whitespace, removing trailing slashes, and replacing backslashes with forward slashes before processing, which satisfies the claim."
-      }
-    },
-    "cli-command-contract": {
-      "stdout-write": {
-        "satisfied": true,
-        "reason": "The code exclusively uses process.stdout.write() for all output and never uses console.log, satisfying the claim."
-      },
-      "error-handler": {
-        "satisfied": true,
-        "reason": "The code wraps command action bodies in try/catch blocks and writes errors to process.stderr.write() as specified."
-      },
-      "exit-code": {
-        "satisfied": true,
-        "reason": "The code explicitly calls process.exit(1) in the catch block for errors and when result.action is 'refused' (actionable state), satisfying the claim."
-      }
-    }
-  }
+  "acknowledgeReason": "removed deterministic aspect — command handlers are inherently impure (I/O, process.exit, execSync); aspect was incorrectly applied"
 }

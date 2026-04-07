@@ -2,7 +2,6 @@ name: ImpactCommand
 type: library
 description: Blast radius analysis across node, aspect, and flow modes via yg impact
 aspects:
-  - deterministic
   - cli-command-contract
 relations:
   - target: cli/core/loader

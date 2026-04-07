@@ -2,7 +2,6 @@ name: BuildContextCommand
 type: library
 description: Assembles and outputs a context package for a node via yg build-context --node or --file
 aspects:
-  - deterministic
   - cli-command-contract
 relations:
   - target: cli/core/loader

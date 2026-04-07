@@ -2,6 +2,5 @@ name: Commands
 type: module
 description: "Thin orchestration wrappers over core services, one per yg subcommand"
 aspects:
-  - deterministic
   - cli-command-contract
 relations: []

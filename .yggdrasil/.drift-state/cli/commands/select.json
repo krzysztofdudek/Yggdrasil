@@ -1,21 +1,19 @@
 {
-  "hash": "4fb27635a94a8e9c2c034bfb6b42af3cf0cc28a9191efb3f9755fc76701c5147",
+  "hash": "800d4606314a878ead3df1a06464afb4861a10a54654560e8104690f90d2755b",
   "files": {
-    ".yggdrasil/model/cli/commands/select/yg-node.yaml": "f4547217f899e6c91f3ba59e3c0b45a94e9f6818967678e9c2ca63e92f7a1bf9",
     ".yggdrasil/model/cli/commands/select/interface.md": "294bd59b59d6263d043c997bf3cb091246e886dc35a1d0c206f767f484bbf6df",
     ".yggdrasil/model/cli/commands/select/responsibility.md": "9ee22a7df093512250bf3bcd756d42bfeb0b28a16d0c708aa15f955d0531fcf3",
     ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df",
     ".yggdrasil/model/cli/internals.md": "7440678f012e45d8b15a4efc252cc3b4220fe7aec98fb673786abd9c2a37f9f0",
     ".yggdrasil/model/cli/responsibility.md": "696e0f5f377eba69a843a18379e8f20e0322dc037182690629652a75aa2227fb",
-    ".yggdrasil/model/cli/commands/yg-node.yaml": "304ba077a87aae0ecd30b30323391e3f54ccfbc2843bb4020acf43d1a26a26da",
     ".yggdrasil/model/cli/commands/internals.md": "5a3b679d5c2b9600c7fa3dc01b2f28661b7bfb11850a922ff885a7a583d455c7",
     ".yggdrasil/model/cli/commands/responsibility.md": "dd8146f9c54251a68f81f4036fdf931d526f3159707709b92a59493fe383a080",
+    ".yggdrasil/aspects/cli-command-contract/yg-aspect.yaml": "c818ab194c19f451955987badc7d3f14026349be6a1f633f1440778c1beae802",
+    ".yggdrasil/aspects/cli-command-contract/content.md": "b1509ccd44cc91f1cff43926b69f16845407f518ecf4d448d24a0b4a4e2894c3",
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "e6c0c095222ce0d80b79af77f5966d02f541b514205a4b551354b65ef5938900",
     ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
     ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": "0b98be4ee4221db627b892cddeb548a94e3cb1bfce936b9555bd30d7c225e34d",
     ".yggdrasil/aspects/posix-paths/content.md": "38daf50dec99307443fd8951019cf534c74571a7778d43e55a4354d9d2faeefc",
-    ".yggdrasil/aspects/cli-command-contract/yg-aspect.yaml": "c818ab194c19f451955987badc7d3f14026349be6a1f633f1440778c1beae802",
-    ".yggdrasil/aspects/cli-command-contract/content.md": "b1509ccd44cc91f1cff43926b69f16845407f518ecf4d448d24a0b4a4e2894c3",
     ".yggdrasil/model/cli/core/loader/responsibility.md": "ad751ae7c2345373a1eb3dcf64775f2dd6950d1f0a9ae7f347320336fdf18332",
     ".yggdrasil/model/cli/core/loader/interface.md": "0bb87fa5a5b9ce62786196668076207af49ca1744a8d10f967409b18f82fc2ba",
     ".yggdrasil/model/cli/core/responsibility.md": "2aa9f1d64abf86aed604a1823392c3d40b963eb8416b38ef877bcccddd7ff086",
@@ -24,24 +22,26 @@
     ".yggdrasil/model/cli/core/node-selector/interface.md": "e5044f1e23dc70b2fe6158a76b4725102792bedf00aa0362a7aecb307310d072",
     ".yggdrasil/model/cli/utils/responsibility.md": "4918c48366c7b3f35bb7b97fa74252c47f14ba72417c5cc5f3e1100b503c7ddd",
     ".yggdrasil/model/cli/utils/interface.md": "051aef97613feeaf82746a2d576f2a96346c3bb916144d88b8bc13b115b2d2ba",
-    "source/cli/src/cli/select.ts": "8dd7bb75588984a343016c1280013d632861b35a1fb4996c1f9af980e67110ce"
+    "source/cli/src/cli/select.ts": "8dd7bb75588984a343016c1280013d632861b35a1fb4996c1f9af980e67110ce",
+    ".yggdrasil/model/cli/commands/select/yg-node.yaml": "cb8d148a721ec21a2210a0d3c2962aeb1ded7326e06dbe2c5e3b5b16744aa5ff",
+    ".yggdrasil/model/cli/commands/yg-node.yaml": "d55896632ad5686d8ea01093197534a9a8230f71449d90d8291062ed4436f2c4"
   },
   "mtimes": {
-    ".yggdrasil/model/cli/commands/select/yg-node.yaml": 1775327956340.8455,
+    ".yggdrasil/model/cli/commands/select/yg-node.yaml": 1775544543988.589,
     ".yggdrasil/model/cli/commands/select/interface.md": 1773081311346.194,
     ".yggdrasil/model/cli/commands/select/responsibility.md": 1773081267586.23,
     ".yggdrasil/model/cli/yg-node.yaml": 1775243577620.7664,
     ".yggdrasil/model/cli/internals.md": 1775329681280.232,
     ".yggdrasil/model/cli/responsibility.md": 1775045623775.336,
-    ".yggdrasil/model/cli/commands/yg-node.yaml": 1775243577670.2058,
+    ".yggdrasil/model/cli/commands/yg-node.yaml": 1775544531927.7505,
     ".yggdrasil/model/cli/commands/internals.md": 1775046923261.1494,
     ".yggdrasil/model/cli/commands/responsibility.md": 1775045632026.2983,
+    ".yggdrasil/aspects/cli-command-contract/yg-aspect.yaml": 1775328135743.9414,
+    ".yggdrasil/aspects/cli-command-contract/content.md": 1772778786204.255,
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775328133881.7266,
     ".yggdrasil/aspects/deterministic/content.md": 1772778780694.5889,
     ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": 1775328137050.7122,
     ".yggdrasil/aspects/posix-paths/content.md": 1772743197466.7686,
-    ".yggdrasil/aspects/cli-command-contract/yg-aspect.yaml": 1775328135743.9414,
-    ".yggdrasil/aspects/cli-command-contract/content.md": 1772778786204.255,
     ".yggdrasil/model/cli/core/loader/responsibility.md": 1774784572379.804,
     ".yggdrasil/model/cli/core/loader/interface.md": 1775208301390.8315,
     ".yggdrasil/model/cli/core/responsibility.md": 1772828321933.1968,
@@ -52,47 +52,5 @@
     ".yggdrasil/model/cli/utils/interface.md": 1775217330039.2043,
     "source/cli/src/cli/select.ts": 1773070929969.364
   },
-  "acknowledgeReason": "v4 migration: flat mapping, claims, and doc updates",
-  "claimResults": {
-    "deterministic": {
-      "no-side-effects": {
-        "satisfied": true,
-        "reason": "The code does not contain Date.now(), Math.random(), filesystem writes, or network calls - it only uses process.cwd() for path resolution and process.stdout/stderr.write() for output."
-      },
-      "deterministic-output": {
-        "satisfied": false,
-        "reason": "LLM response could not be parsed"
-      }
-    },
-    "posix-paths": {
-      "forward-slash-normalization": {
-        "satisfied": false,
-        "reason": "LLM response could not be parsed"
-      }
-    },
-    "cli-command-contract": {
-      "stdout-write": {
-        "satisfied": true,
-        "reason": "The code uses process.stdout.write() for output and process.stderr.write() for errors, with no console.log calls present."
-      },
-      "error-handler": {
-        "satisfied": true,
-        "reason": "The action body is wrapped in a try/catch block and the catch block writes errors to process.stderr.write() as specified."
-      },
-      "exit-code": {
-        "satisfied": false,
-        "reason": "LLM response could not be parsed"
-      }
-    }
-  },
-  "artifactReview": {
-    "interface.md": {
-      "current": false,
-      "reason": "LLM response could not be parsed"
-    },
-    "responsibility.md": {
-      "current": false,
-      "reason": "LLM response could not be parsed"
-    }
-  }
+  "acknowledgeReason": "removed deterministic aspect — command handlers are inherently impure (I/O, process.exit, execSync); aspect was incorrectly applied"
 }

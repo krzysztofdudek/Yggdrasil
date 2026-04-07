@@ -2,7 +2,6 @@ name: OwnerCommand
 type: library
 description: Resolves a file path to its owning graph node via yg owner
 aspects:
-  - deterministic
   - cli-command-contract
   - posix-paths
 relations:

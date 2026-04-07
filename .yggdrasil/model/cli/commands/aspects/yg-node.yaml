@@ -2,7 +2,6 @@ name: AspectsCommand
 type: library
 description: Lists all aspects with metadata in YAML format via yg aspects
 aspects:
-  - deterministic
   - cli-command-contract
 relations:
   - target: cli/core/loader

@@ -3,7 +3,6 @@ type: service
 description: CLI command implementing yg approve — records drift baseline after user review
 blackbox: false
 aspects:
-  - deterministic
   - cli-command-contract
 relations:
   - target: cli/core/loader

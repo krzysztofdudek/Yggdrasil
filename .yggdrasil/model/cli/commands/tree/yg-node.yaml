@@ -2,7 +2,6 @@ name: TreeCommand
 type: library
 description: Prints graph hierarchy as an indented tree with metadata via yg tree
 aspects:
-  - deterministic
   - cli-command-contract
 relations:
   - target: cli/core/loader
