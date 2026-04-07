@@ -1,11 +1,15 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
+import path from 'node:path';
 import { loadGraph } from '../core/graph-loader.js';
 import { approveNode } from '../core/approve.js';
+import { classifyDrift } from '../core/check.js';
+import type { CheckIssue, CascadeCause } from '../core/check.js';
 import { createLlmProvider } from '../llm/provider.js';
 import { loadSecrets, mergeLlmConfig } from '../io/secrets-parser.js';
+import { normalizeMappingPaths } from '../utils/paths.js';
 import type { LlmProvider } from '../llm/types.js';
-import type { ApproveResult } from '../model/types.js';
+import type { ApproveResult, Graph } from '../model/types.js';
 
 // Track cloud provider notice per process session
 let sessionNoticeShown = false;
@@ -35,20 +39,22 @@ export function formatResult(nodePath: string, result: ApproveResult): void {
       }
       break;
 
-    case 'acknowledged': {
+    case 'reviewed': {
       const isBlackboxCascade =
         result.isBlackbox && !result.blackboxBlocked && result.changedOther?.length;
       if (isBlackboxCascade) {
-        process.stdout.write(chalk.green(`Acknowledged: ${nodePath} (blackbox, cascade)\n`));
+        process.stdout.write(chalk.green(`Reviewed: ${nodePath} (blackbox, cascade)\n`));
         process.stdout.write(`  Hash: ${prev} -> ${curr}\n`);
         process.stdout.write(
           `  Note: upstream context changed, source not modified. Blackbox intact.\n`,
         );
       } else {
-        process.stdout.write(chalk.green(`Acknowledged: ${nodePath}\n`));
+        process.stdout.write(chalk.green(`Reviewed: ${nodePath}\n`));
         process.stdout.write(`  Hash: ${prev} -> ${curr}\n`);
         process.stdout.write(
-          `  Approved as conscious exception — source and artifacts were not both updated.\n`,
+          result.llmSkipped
+            ? `  Three-axis gate bypassed — reviewer not run (${result.llmSkipped}).\n`
+            : `  Three-axis gate bypassed — reviewer verified claims.\n`,
         );
       }
       break;
@@ -82,10 +88,9 @@ export function formatResult(nodePath: string, result: ApproveResult): void {
 function formatLlmResults(result: ApproveResult): void {
   if (result.llmSkipped) {
     const messages: Record<NonNullable<ApproveResult['llmSkipped']>, string> = {
-      'not-configured': 'LLM not configured — claims not verified. Structural checks only.\n  To enable: configure llm section in yg-config.yaml.',
-      'unavailable': 'LLM configured but not reachable — claims not verified. Structural checks only.',
-      'acknowledge': 'LLM verification skipped (--acknowledge overrides).',
-      'blackbox': 'LLM verification skipped for blackbox node.',
+      'not-configured': 'Reviewer not configured — claims not verified. Structural checks only.\n  To enable: add reviewer section to yg-config.yaml.',
+      'unavailable': 'Reviewer configured but not reachable — claims not verified. Structural checks only.',
+      'blackbox': 'Reviewer skipped for blackbox node.',
     };
     process.stdout.write(chalk.dim(`  ${messages[result.llmSkipped]}\n`));
     return;
@@ -145,12 +150,12 @@ function formatRefused(nodePath: string, result: ApproveResult): void {
 
   // Blackbox source change
   if (result.blackboxBlocked) {
-    if (result.acknowledgeAttempted) {
+    if (result.reviewedAttempted) {
       process.stderr.write(
-        chalk.red(`ERROR: Cannot acknowledge source changes on a blackbox node.\n`),
+        chalk.red(`ERROR: Cannot use --reviewed for source changes on a blackbox node.\n`),
       );
       process.stderr.write(
-        `  --acknowledge is not available for blackbox source changes.\n`,
+        `  --reviewed does not apply to blackbox source changes.\n`,
       );
       process.stderr.write(
         `  Decompose the blackbox: create a proper node for modified files.\n`,
@@ -204,7 +209,7 @@ function formatRefused(nodePath: string, result: ApproveResult): void {
       `  Update artifacts to reflect source changes, then approve.\n`,
     );
     process.stderr.write(
-      `  If change has no graph impact (formatting, comments): approve --acknowledge.\n`,
+      `  If change has no graph impact (formatting, comments): approve --reviewed "reason".\n`,
     );
     return;
   }
@@ -230,7 +235,7 @@ function formatRefused(nodePath: string, result: ApproveResult): void {
       `  Implement the artifact changes in source, then approve.\n`,
     );
     process.stderr.write(
-      `  If change has no source impact (typo, clarification): approve --acknowledge.\n`,
+      `  If change has no source impact (typo, clarification): approve --reviewed "reason".\n`,
     );
     return;
   }
@@ -254,7 +259,7 @@ function formatRefused(nodePath: string, result: ApproveResult): void {
       `  Review source compliance with updated context.\n`,
     );
     process.stderr.write(
-      `  If source is already compliant: approve --acknowledge.\n`,
+      `  If source is already compliant: approve --reviewed "reason".\n`,
     );
     process.stderr.write(
       `  If source needs changes: update source + artifacts, then approve.\n`,
@@ -268,7 +273,82 @@ function formatRefused(nodePath: string, result: ApproveResult): void {
   );
 }
 
-// ── LLM provider loading ────────────────────────────────────
+// ── Batch types and execution ─────────────────────────────────
+
+export interface BatchResult {
+  nodePath: string;
+  result: ApproveResult;
+}
+
+/**
+ * Worker-pool semaphore: runs approveOne on each node with at most
+ * `concurrency` concurrent operations. Returns results in input order.
+ */
+export async function runBatch(
+  nodes: string[],
+  concurrency: number,
+  approveOne: (nodePath: string) => Promise<ApproveResult>,
+): Promise<BatchResult[]> {
+  const results: BatchResult[] = new Array(nodes.length);
+  const queue = [...nodes.entries()]; // [[0, 'path0'], [1, 'path1'], ...]
+  const workers = Array.from({ length: Math.min(concurrency, nodes.length) }, async () => {
+    while (true) {
+      const item = queue.shift(); // atomic in JS single-threaded event loop
+      if (!item) break;
+      const [i, nodePath] = item;
+      results[i] = { nodePath, result: await approveOne(nodePath) };
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
+/**
+ * Filter E021 cascade issues by cause prefix.
+ * Returns node paths whose cascadeCauses include files under the given prefix.
+ */
+export function filterCascadeNodes(
+  issues: CheckIssue[],
+  causePrefix: string,
+): string[] {
+  const matched: string[] = [];
+  for (const issue of issues) {
+    if (issue.code !== 'E021' || !issue.nodePath || !issue.cascadeCauses) continue;
+    const hasMatchingCause = issue.cascadeCauses.some(
+      (c: CascadeCause) => c.file.replace(/\\/g, '/').startsWith(causePrefix),
+    );
+    if (hasMatchingCause) {
+      matched.push(issue.nodePath);
+    }
+  }
+  return matched;
+}
+
+function formatBatchOutput(results: BatchResult[], parallel: number): void {
+  const total = results.length;
+  let approved = 0;
+  let failed = 0;
+
+  for (let i = 0; i < results.length; i++) {
+    const { nodePath, result } = results[i];
+    const prefix = parallel > 1 ? '' : `[${i + 1}/${total}] `;
+    if (result.action === 'refused') {
+      failed++;
+      const reason = result.e055Violations?.length
+        ? result.e055Violations.map(v => `E055 ${v.aspect}/${v.claim}`).join(', ')
+        : (result.refuseReason ?? 'refused');
+      process.stdout.write(`${prefix}${nodePath.padEnd(50)} ${chalk.red('✗')} ${reason}\n`);
+    } else {
+      approved++;
+      process.stdout.write(`${prefix}${nodePath.padEnd(50)} ${chalk.green('✓')} ${result.action}\n`);
+    }
+  }
+
+  if (parallel > 1) process.stdout.write('\n');
+  process.stdout.write(`${approved} approved, ${failed} failed.\n`);
+}
+
+// ── Reviewer provider loading ────────────────────────────────
 
 async function loadLlmProvider(
   graph: { rootPath: string; config: { llm?: import('../model/types.js').LlmConfig } },
@@ -276,7 +356,7 @@ async function loadLlmProvider(
   const llmConfig = graph.config.llm;
   if (!llmConfig) return { provider: undefined, llmNotConfigured: true, maxTokens: undefined, consensus: undefined, cloudNotice: undefined };
 
-  const secrets = await loadSecrets(graph.rootPath);
+  const secrets = await loadSecrets(graph.rootPath, llmConfig.provider);
   const mergedConfig = secrets ? mergeLlmConfig(llmConfig, secrets) : llmConfig;
   const provider = createLlmProvider(mergedConfig);
 
@@ -297,6 +377,51 @@ async function loadLlmProvider(
   return { provider, llmNotConfigured: false, maxTokens, consensus: mergedConfig.consensus, cloudNotice };
 }
 
+// ── Batch approve orchestrator ───────────────────────────────
+
+async function runBatchApprove(
+  graph: Graph,
+  entityLabel: string,
+  causePrefix: string,
+  reviewed: string | undefined,
+): Promise<boolean> {
+  const issues = await classifyDrift(graph);
+  const matchedNodes = filterCascadeNodes(issues, causePrefix);
+
+  if (matchedNodes.length === 0) {
+    process.stdout.write(`No cascade drift found for ${entityLabel}.\n`);
+    return true;
+  }
+
+  const { provider, llmNotConfigured, maxTokens, consensus, cloudNotice } = await loadLlmProvider(graph);
+  if (cloudNotice) {
+    process.stdout.write(chalk.yellow(`Notice: ${cloudNotice}\n`));
+  }
+
+  const parallel = graph.config.parallel ?? 1;
+  const sorted = matchedNodes.sort();
+
+  if (parallel > 1) {
+    process.stdout.write(`Approving ${sorted.length} nodes cascaded from ${entityLabel} (parallel: ${parallel})...\n\n`);
+  } else {
+    process.stdout.write(`Approving ${sorted.length} nodes cascaded from ${entityLabel}...\n`);
+  }
+
+  const results = await runBatch(sorted, parallel, (nodePath) =>
+    approveNode(graph, nodePath, {
+      reviewed,
+      llmProvider: provider,
+      llmNotConfigured,
+      maxTokens,
+      consensus,
+      verifyArtifacts: graph.config.llm?.verify_artifacts,
+    }),
+  );
+
+  formatBatchOutput(results, parallel);
+  return results.every(r => r.result.action !== 'refused');
+}
+
 // ── Command registration ─────────────────────────────────────
 
 export function registerApproveCommand(program: Command): void {
@@ -304,18 +429,109 @@ export function registerApproveCommand(program: Command): void {
   program
     .command('approve')
     .description('Approve a node\'s current state, recording it as the new baseline')
-    .requiredOption('--node <path>', 'Node path to approve')
-    .option('--acknowledge <reason>', 'Conscious exception — approve without both source and artifacts changing')
-    .action(async (options: { node: string; acknowledge?: string }) => {
+    .option('--node <paths...>', 'One or more node paths to approve')
+    .option('--aspect <id>', 'Batch approve all nodes with cascade drift from this aspect')
+    .option('--flow <name>', 'Batch approve all nodes with cascade drift from this flow')
+    .option('--reviewed <reason>', 'Bypasses three-axis gate — reviewer still verifies claims')
+    .action(async (options: { node?: string[]; aspect?: string; flow?: string; reviewed?: string }) => {
       try {
+        // Validate: exactly one of --node, --aspect, --flow
+        const targets = [options.node, options.aspect, options.flow].filter(Boolean);
+        if (targets.length === 0) {
+          process.stderr.write('ERROR: One of --node, --aspect, or --flow is required.\n');
+          process.exit(1);
+        }
+        if (targets.length > 1) {
+          process.stderr.write('ERROR: Only one of --node, --aspect, or --flow can be specified.\n');
+          process.exit(1);
+        }
+
         const graph = await loadGraph(process.cwd());
-        const nodePath = options.node.trim().replace(/^\.\//, '').replace(/\/+$/, '');
+        const yggPrefix = path.relative(path.dirname(graph.rootPath), graph.rootPath)
+          .split(path.sep).join('/');
+
+        // --aspect: batch approve all nodes with cascade drift from this aspect
+        if (options.aspect) {
+          const aspectId = options.aspect.trim();
+          const aspectExists = graph.aspects.some(a => a.id === aspectId);
+          if (!aspectExists) {
+            process.stderr.write(chalk.red(`ERROR: Aspect '${aspectId}' does not exist.\n`));
+            process.exit(1);
+          }
+          const causePrefix = `${yggPrefix}/aspects/${aspectId}/`;
+          const allPassed = await runBatchApprove(graph, `aspect '${aspectId}'`, causePrefix, options.reviewed);
+          process.exit(allPassed ? 0 : 1);
+        }
+
+        // --flow: batch approve all nodes with cascade drift from this flow
+        if (options.flow) {
+          const flowName = options.flow.trim();
+          const flowExists = graph.flows.some(f => f.path === flowName);
+          if (!flowExists) {
+            process.stderr.write(chalk.red(`ERROR: Flow '${flowName}' does not exist.\n`));
+            process.exit(1);
+          }
+          const causePrefix = `${yggPrefix}/flows/${flowName}/`;
+          const allPassed = await runBatchApprove(graph, `flow '${flowName}'`, causePrefix, options.reviewed);
+          process.exit(allPassed ? 0 : 1);
+        }
+
+        // --node: multi-node batch or single node
+        if (options.node && options.node.length > 1) {
+          const parallel = graph.config.parallel ?? 1;
+          const nodePaths = options.node.map(n => n.trim().replace(/^\.\//, '').replace(/\/+$/, ''));
+          const { provider, llmNotConfigured, maxTokens, consensus, cloudNotice } = await loadLlmProvider(graph);
+          if (cloudNotice) {
+            process.stdout.write(chalk.yellow(`Notice: ${cloudNotice}\n`));
+          }
+          if (parallel > 1) {
+            process.stdout.write(`Approving ${nodePaths.length} nodes (parallel: ${parallel})...\n\n`);
+          } else {
+            process.stdout.write(`Approving ${nodePaths.length} nodes...\n`);
+          }
+          const batchResults = await runBatch(nodePaths, parallel, (nodePath) =>
+            approveNode(graph, nodePath, {
+              reviewed: options.reviewed,
+              llmProvider: provider,
+              llmNotConfigured,
+              maxTokens,
+              consensus,
+              verifyArtifacts: graph.config.llm?.verify_artifacts,
+            }),
+          );
+          formatBatchOutput(batchResults, parallel);
+          const anyFailed = batchResults.some(r => r.result.action === 'refused');
+          if (anyFailed) process.exit(1);
+          return;
+        }
+
+        // Single node
+        const nodePath = options.node![0].trim().replace(/^\.\//, '').replace(/\/+$/, '');
+
+        // No-mapping parent redirect to batch
+        const node = graph.nodes.get(nodePath);
+        if (!node) {
+          process.stderr.write(chalk.red(`ERROR: Node '${nodePath}' does not exist.\n`));
+          process.exit(1);
+        }
+
+        const mappingPaths = normalizeMappingPaths(node.meta.mapping);
+        if (mappingPaths.length === 0) {
+          const causePrefix = `${yggPrefix}/model/${nodePath}/`;
+          const allPassed = await runBatchApprove(graph, `parent node '${nodePath}'`, causePrefix, options.reviewed);
+          process.exit(allPassed ? 0 : 1);
+        }
+
+        // Has mapping — single node approve
         const { provider, llmNotConfigured, maxTokens, consensus, cloudNotice } = await loadLlmProvider(graph);
         if (cloudNotice) {
           process.stdout.write(chalk.yellow(`Notice: ${cloudNotice}\n`));
         }
+        if (provider) {
+          process.stdout.write(chalk.dim(`Verifying claims with reviewer — this may take a while. Do not interrupt.\n`));
+        }
         const result = await approveNode(graph, nodePath, {
-          acknowledge: options.acknowledge,
+          reviewed: options.reviewed,
           llmProvider: provider,
           llmNotConfigured,
           maxTokens,
@@ -339,13 +555,13 @@ export function registerApproveCommand(program: Command): void {
       '[deprecated] Use "yg approve" instead. Backward-compatible alias for approving a node.',
     )
     .option('--node <path>', 'Node path to approve')
-    .option('--acknowledge <reason>', 'Conscious exception — approve without both source and artifacts changing')
+    .option('--reviewed <reason>', 'Bypasses three-axis gate — reviewer still verifies claims')
     .option('--all', '(removed) use "yg approve --node" for each node')
     .option('--recursive', '(removed) approve one node at a time')
     .action(
       async (options: {
         node?: string;
-        acknowledge?: string;
+        reviewed?: string;
         all?: boolean;
         recursive?: boolean;
       }) => {
@@ -381,7 +597,7 @@ export function registerApproveCommand(program: Command): void {
             process.stdout.write(chalk.yellow(`Notice: ${cloudNotice}\n`));
           }
           const result = await approveNode(graph, nodePath, {
-            acknowledge: options.acknowledge,
+            reviewed: options.reviewed,
             llmProvider: provider,
             llmNotConfigured,
             maxTokens,
