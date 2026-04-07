@@ -68,7 +68,8 @@ describe('formatResult — LLM results', () => {
       llmSkipped: 'not-configured',
     });
     const output = captureOutput(() => formatResult('some/node', result));
-    expect(output).toContain('LLM not configured');
+    expect(output).toContain('claims not verified');
+    expect(output).toContain('Structural checks only');
   });
 
   it('shows LLM unavailable notice', () => {
@@ -77,7 +78,7 @@ describe('formatResult — LLM results', () => {
       llmSkipped: 'unavailable',
     });
     const output = captureOutput(() => formatResult('some/node', result));
-    expect(output).toContain('not reachable');
+    expect(output).toContain('claims not verified');
   });
 
   it('shows LLM skipped for acknowledge', () => {

@@ -26,7 +26,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 export interface ApproveOptions {
-  /** Conscious exception — approve without bilateral changes */
+  /** Conscious exception — approve without both source and artifacts changing */
   acknowledge?: string;
   /** LLM provider for semantic verification (E055/E056) */
   llmProvider?: LlmProvider;
@@ -323,7 +323,7 @@ export async function approveNode(
       action = 'acknowledged';
     } else {
       action = 'refused';
-      refuseReason = 'Context changed but own artifacts and source unchanged.';
+      refuseReason = 'Context changed but graph artifacts and source unchanged.';
     }
   }
 

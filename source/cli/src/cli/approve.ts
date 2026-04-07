@@ -24,6 +24,15 @@ export function formatResult(nodePath: string, result: ApproveResult): void {
     case 'approved':
       process.stdout.write(chalk.green(`Approved: ${nodePath}\n`));
       process.stdout.write(`  Hash: ${prev} -> ${curr}\n`);
+      if (result.claimResults || result.artifactReviewResults) {
+        const claimCount = result.claimResults
+          ? Object.values(result.claimResults).reduce((sum, claims) => sum + Object.keys(claims).length, 0)
+          : 0;
+        const artifactCount = result.artifactReviewResults
+          ? Object.keys(result.artifactReviewResults).length
+          : 0;
+        process.stdout.write(`  Verified: ${claimCount} claims satisfied, ${artifactCount} artifacts current.\n`);
+      }
       break;
 
     case 'acknowledged': {
@@ -39,7 +48,7 @@ export function formatResult(nodePath: string, result: ApproveResult): void {
         process.stdout.write(chalk.green(`Acknowledged: ${nodePath}\n`));
         process.stdout.write(`  Hash: ${prev} -> ${curr}\n`);
         process.stdout.write(
-          `  Note: approved without bilateral artifact+source changes.\n`,
+          `  Approved as conscious exception — source and artifacts were not both updated.\n`,
         );
       }
       break;
@@ -52,7 +61,7 @@ export function formatResult(nodePath: string, result: ApproveResult): void {
 
     case 'no-change':
       process.stdout.write(`No changes: ${nodePath}\n`);
-      process.stdout.write(`  Hash: ${curr} (baseline recorded)\n`);
+      process.stdout.write(`  Hash: ${curr} — baseline already current. No approval needed.\n`);
       break;
 
     case 'refused':
@@ -73,8 +82,8 @@ export function formatResult(nodePath: string, result: ApproveResult): void {
 function formatLlmResults(result: ApproveResult): void {
   if (result.llmSkipped) {
     const messages: Record<NonNullable<ApproveResult['llmSkipped']>, string> = {
-      'not-configured': 'LLM not configured — aspect verification and artifact review skipped.',
-      'unavailable': 'LLM configured but not reachable — aspect verification and artifact review skipped.',
+      'not-configured': 'LLM not configured — claims not verified. Structural checks only.\n  To enable: configure llm section in yg-config.yaml.',
+      'unavailable': 'LLM configured but not reachable — claims not verified. Structural checks only.',
       'acknowledge': 'LLM verification skipped (--acknowledge overrides).',
       'blackbox': 'LLM verification skipped for blackbox node.',
     };
@@ -179,7 +188,7 @@ function formatRefused(nodePath: string, result: ApproveResult): void {
   // Row 3: source changed, artifacts unchanged
   if (axes.source === 'changed' && axes.ownArtifacts === 'unchanged') {
     process.stderr.write(
-      chalk.red(`ERROR: Source changed but artifacts unchanged.\n`),
+      chalk.red(`ERROR: Source changed but graph artifacts unchanged.\n`),
     );
     if (result.changedSource && result.changedSource.length > 0) {
       process.stderr.write(`  Source changed:\n`);
@@ -203,7 +212,7 @@ function formatRefused(nodePath: string, result: ApproveResult): void {
   // Row 2: artifacts changed, source unchanged
   if (axes.ownArtifacts === 'changed' && axes.source === 'unchanged') {
     process.stderr.write(
-      chalk.red(`ERROR: Artifacts changed but source unchanged.\n`),
+      chalk.red(`ERROR: Graph artifacts changed but source unchanged.\n`),
     );
     if (result.changedOwnArtifacts && result.changedOwnArtifacts.length > 0) {
       process.stderr.write(`  Artifacts changed:\n`);
@@ -233,7 +242,7 @@ function formatRefused(nodePath: string, result: ApproveResult): void {
     axes.otherTracked === 'changed'
   ) {
     process.stderr.write(
-      chalk.red(`ERROR: Context changed but own artifacts and source unchanged.\n`),
+      chalk.red(`ERROR: Context changed but graph artifacts and source unchanged.\n`),
     );
     if (result.changedOther && result.changedOther.length > 0) {
       process.stderr.write(`  Upstream changes:\n`);
@@ -296,7 +305,7 @@ export function registerApproveCommand(program: Command): void {
     .command('approve')
     .description('Approve a node\'s current state, recording it as the new baseline')
     .requiredOption('--node <path>', 'Node path to approve')
-    .option('--acknowledge <reason>', 'Conscious exception — approve without bilateral changes')
+    .option('--acknowledge <reason>', 'Conscious exception — approve without both source and artifacts changing')
     .action(async (options: { node: string; acknowledge?: string }) => {
       try {
         const graph = await loadGraph(process.cwd());
@@ -330,7 +339,7 @@ export function registerApproveCommand(program: Command): void {
       '[deprecated] Use "yg approve" instead. Backward-compatible alias for approving a node.',
     )
     .option('--node <path>', 'Node path to approve')
-    .option('--acknowledge <reason>', 'Conscious exception — approve without bilateral changes')
+    .option('--acknowledge <reason>', 'Conscious exception — approve without both source and artifacts changing')
     .option('--all', '(removed) use "yg approve --node" for each node')
     .option('--recursive', '(removed) approve one node at a time')
     .action(
