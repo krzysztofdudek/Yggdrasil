@@ -92,7 +92,7 @@ describe('build-context command (unit-like CLI contract)', () => {
 
       expect(result.status).toBe(1);
       expect(result.stderr).toContain('no graph coverage');
-      expect(result.stderr).toContain('Candidate nodes');
+      expect(result.stderr).toContain('Other files in the same directory are mapped to these nodes');
       expect(result.stderr).toContain('orders/order-service');
       expect(result.stderr).toContain('yg context --node');
     });
@@ -127,7 +127,7 @@ describe('build-context command (unit-like CLI contract)', () => {
 
       expect(result.status).toBe(1);
       expect(result.stderr).toContain('no graph coverage');
-      expect(result.stderr).not.toContain('Candidate nodes');
+      expect(result.stderr).not.toContain('Other files in the same directory are mapped to these nodes');
     });
   });
 });

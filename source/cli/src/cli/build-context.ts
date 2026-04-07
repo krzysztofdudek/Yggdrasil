@@ -6,6 +6,7 @@ import { formatFileContext } from '../formatters/context-file.js';
 import { validate } from '../core/validator.js';
 import { findOwner } from './owner.js';
 import { normalizeMappingPaths, projectRootFromGraph } from '../utils/paths.js';
+import { buildIssueMessage } from '../formatters/message-builder.js';
 import type { Graph } from '../model/types.js';
 
 type CandidateNode = { nodePath: string; fileCount: number };
@@ -84,13 +85,16 @@ export function registerBuildCommand(program: Command): void {
           if (!result.nodePath) {
             const candidates = findCandidateNodes(graph, result.file);
             if (candidates.length > 0) {
-              let msg = `${result.file} -> no graph coverage\n`;
-              msg += `\nCandidate nodes (other files in the same directory are mapped to these nodes):\n`;
+              let candidatesList = '';
               for (const c of candidates) {
-                msg += `  - ${c.nodePath} (${c.fileCount} file${c.fileCount === 1 ? '' : 's'} in same dir)\n`;
+                candidatesList += `  - ${c.nodePath} (${c.fileCount} file${c.fileCount === 1 ? '' : 's'} in same dir)\n`;
               }
-              msg += `\nUse: yg context --node <node-path>\n`;
-              process.stderr.write(msg);
+              const msg = buildIssueMessage({
+                what: `${result.file} has no graph coverage.`,
+                why: `File is not mapped to any node. Other files in the same directory are mapped to these nodes:\n${candidatesList}This suggests the file should be added to one of them.`,
+                next: 'Use: yg context --node <node-path>',
+              });
+              process.stderr.write(`${msg}\n`);
             } else {
               process.stderr.write(`${result.file} -> no graph coverage\n`);
             }
@@ -105,11 +109,12 @@ export function registerBuildCommand(program: Command): void {
           if (ownerNode && ownerNode.meta.blackbox) {
             const mappingPaths = normalizeMappingPaths(ownerNode.meta.mapping);
             const mappingDisplay = mappingPaths.join(', ');
-            process.stderr.write(
-              `No detailed graph coverage for ${result.file}.\n` +
-              `  File is inside blackbox node '${nodePath}' (mapping: ${mappingDisplay}).\n` +
-              `  To get full context: decompose the blackbox into a proper node.\n`,
-            );
+            const msg = buildIssueMessage({
+              what: `No detailed graph coverage for ${result.file}.`,
+              why: `File is inside blackbox node '${nodePath}' (mapping: ${mappingDisplay}). Blackbox nodes have minimal coverage by design.`,
+              next: 'To get full context: decompose the blackbox into a proper node.',
+            });
+            process.stderr.write(`${msg}\n`);
             process.exit(1);
           }
         } else {
@@ -127,15 +132,21 @@ export function registerBuildCommand(program: Command): void {
         if (relevantErrors.length > 0) {
           const totalErrors = validationResult.issues.filter((i) => i.severity === 'error').length;
           const skippedErrors = totalErrors - relevantErrors.length;
-          let msg = `Error: build-context blocked by ${relevantErrors.length} error(s) affecting this node's context.\n`;
-          if (skippedErrors > 0) {
-            msg += `(${skippedErrors} unrelated error(s) in other nodes ignored.)\n`;
-          }
+          let errorList = '';
           for (const err of relevantErrors) {
             const loc = err.nodePath ? `${err.nodePath}: ` : '';
-            msg += `  ${err.code ?? ''} ${loc}${err.message}\n`;
+            errorList += `  ${err.code ?? ''} ${loc}${err.message}\n`;
           }
-          process.stderr.write(msg);
+          let whyText = 'Context cannot be assembled when structural errors exist.';
+          if (skippedErrors > 0) {
+            whyText += ` (${skippedErrors} unrelated error(s) in other nodes ignored.)`;
+          }
+          const msg = buildIssueMessage({
+            what: `build-context blocked by ${relevantErrors.length} error${relevantErrors.length === 1 ? '' : 's'} affecting this node's context.`,
+            why: whyText,
+            next: `Run yg check and fix the listed errors first:\n${errorList}`,
+          });
+          process.stderr.write(`Error: ${msg}\n`);
           process.exit(1);
         }
 
