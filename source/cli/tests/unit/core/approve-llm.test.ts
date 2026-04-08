@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import { mkdir, writeFile, rm } from 'node:fs/promises';
 import { loadGraph } from '../../../src/core/graph-loader.js';
 import { approveNode } from '../../../src/core/approve.js';
+import { runLlmVerification } from '../../../src/cli/approve.js';
+import type { LlmConfig } from '../../../src/cli/approve.js';
 import { writeNodeDriftState } from '../../../src/io/drift-state-store.js';
 import { hashTrackedFiles } from '../../../src/utils/hash.js';
 import { collectTrackedFiles } from '../../../src/core/context-files.js';
@@ -106,8 +108,20 @@ function makeMockProvider(overrides: Partial<LlmProvider> = {}): LlmProvider {
   };
 }
 
-describe('approveNode — LLM verification', () => {
-  it('runs LLM claim verification and refuses when claim not satisfied', async () => {
+function makeLlmConfig(provider: LlmProvider | undefined, overrides: Partial<LlmConfig> = {}): LlmConfig {
+  return {
+    provider,
+    llmNotConfigured: !provider && !(overrides.llmNotConfigured === false),
+    maxTokens: undefined,
+    consensus: undefined,
+    verifyAspects: true,
+    verifyArtifacts: false,
+    ...overrides,
+  };
+}
+
+describe('LLM verification (CLI layer)', () => {
+  it('runs LLM aspect verification and refuses when aspect not satisfied', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('llm-refuse', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - deterministic\nmapping:\n  - src/svc/\n',
@@ -130,7 +144,8 @@ describe('approveNode — LLM verification', () => {
       },
     });
 
-    const result = await approveNode(graph, 'svc/my-service', { llmProvider: provider });
+    const coreResult = await approveNode(graph, 'svc/my-service');
+    const result = await runLlmVerification(graph, 'svc/my-service', coreResult, makeLlmConfig(provider));
     expect(result.action).toBe('refused');
     expect(result.e055Violations).toBeDefined();
     expect(result.e055Violations!.length).toBeGreaterThan(0);
@@ -151,7 +166,8 @@ describe('approveNode — LLM verification', () => {
     await writeFile(path.join(yggRoot, 'model/svc/my-service/responsibility.md'), 'Updated.\n');
 
     const graph = await loadGraph(tmpDir);
-    const result = await approveNode(graph, 'svc/my-service', { llmNotConfigured: true });
+    const coreResult = await approveNode(graph, 'svc/my-service');
+    const result = await runLlmVerification(graph, 'svc/my-service', coreResult, makeLlmConfig(undefined, { llmNotConfigured: true }));
     expect(result.llmSkipped).toBe('not-configured');
     expect(result.action).toBe('approved');
     await rm(tmpDir, { recursive: true, force: true });
@@ -169,8 +185,9 @@ describe('approveNode — LLM verification', () => {
     await writeFile(path.join(yggRoot, 'model/svc/my-service/responsibility.md'), 'Updated.\n');
 
     const graph = await loadGraph(tmpDir);
-    // No llmProvider, llmNotConfigured defaults to false → 'unavailable'
-    const result = await approveNode(graph, 'svc/my-service');
+    const coreResult = await approveNode(graph, 'svc/my-service');
+    // No provider, llmNotConfigured false → 'unavailable'
+    const result = await runLlmVerification(graph, 'svc/my-service', coreResult, makeLlmConfig(undefined, { llmNotConfigured: false }));
     expect(result.llmSkipped).toBe('unavailable');
     expect(result.action).toBe('approved');
     await rm(tmpDir, { recursive: true, force: true });
@@ -183,14 +200,12 @@ describe('approveNode — LLM verification', () => {
       mappingFiles: { 'src/svc/index.ts': 'const x = 1;\n' },
     });
     await recordBaseline(tmpDir);
-    // Only cascade change for blackbox (can't change source on blackbox without blocking)
-    // Change an aspect to trigger cascade — but we need the aspect to exist
-    // Instead: just test no-change (approved = no-op) with LLM skipped
     const graph = await loadGraph(tmpDir);
     const provider = makeMockProvider({
       async verifyAspect() { return { satisfied: false, reason: 'should not be called' }; },
     });
-    const result = await approveNode(graph, 'svc/my-service', { llmProvider: provider });
+    const coreResult = await approveNode(graph, 'svc/my-service');
+    const result = await runLlmVerification(graph, 'svc/my-service', coreResult, makeLlmConfig(provider));
     // No changes → no-change, but LLM is skipped because blackbox
     expect(result.llmSkipped).toBe('blackbox');
     await rm(tmpDir, { recursive: true, force: true });
@@ -207,10 +222,10 @@ describe('approveNode — LLM verification', () => {
     await writeFile(path.join(yggRoot, 'model/svc/my-service/responsibility.md'), 'Updated.\n');
 
     const graph = await loadGraph(tmpDir);
-    const result = await approveNode(graph, 'svc/my-service', {
-      llmNotConfigured: true,
+    const coreResult = await approveNode(graph, 'svc/my-service', {
       reviewed: 'artifacts updated, source unchanged',
     });
+    const result = await runLlmVerification(graph, 'svc/my-service', coreResult, makeLlmConfig(undefined, { llmNotConfigured: true }));
     expect(result.action).toBe('reviewed');
     expect(result.llmSkipped).toBe('not-configured');
     await rm(tmpDir, { recursive: true, force: true });
@@ -235,11 +250,11 @@ describe('approveNode — LLM verification', () => {
     const provider = makeMockProvider({
       async verifyAspect() { return { satisfied: false, reason: 'aspect not satisfied' }; },
     });
-    const result = await approveNode(graph, 'svc/my-service', {
-      llmProvider: provider,
+    const coreResult = await approveNode(graph, 'svc/my-service', {
       reviewed: 'code is intentionally non-deterministic for testing',
     });
     // --reviewed bypasses three-axis only — LLM still runs and can refuse
+    const result = await runLlmVerification(graph, 'svc/my-service', coreResult, makeLlmConfig(provider));
     expect(result.action).toBe('refused');
     expect(result.aspectResults).toBeDefined();
     await rm(tmpDir, { recursive: true, force: true });
@@ -264,12 +279,12 @@ describe('approveNode — LLM verification', () => {
     const provider = makeMockProvider({
       async verifyAspect() { return { satisfied: true, reason: 'code is compliant' }; },
     });
-    const result = await approveNode(graph, 'svc/my-service', {
-      llmProvider: provider,
+    const coreResult = await approveNode(graph, 'svc/my-service', {
       reviewed: 'aspect updated, source already compliant',
     });
+    const result = await runLlmVerification(graph, 'svc/my-service', coreResult, makeLlmConfig(provider));
     expect(result.action).toBe('reviewed');
-    // LLM runs even with --reviewed — reviewer verifies claims
+    // LLM runs even with --reviewed — reviewer verifies aspects
     expect(result.aspectResults).toBeDefined();
     await rm(tmpDir, { recursive: true, force: true });
   });
@@ -292,7 +307,7 @@ describe('approveNode — LLM verification', () => {
 
     const graph = await loadGraph(tmpDir);
     const provider = makeMockProvider({
-      // Claims pass — no E055
+      // Aspects pass — no E055
       async verifyAspect() { return { satisfied: true, reason: 'ok' }; },
       // Artifact review fails — E056
       async reviewArtifact() {
@@ -300,7 +315,8 @@ describe('approveNode — LLM verification', () => {
       },
     });
 
-    const result = await approveNode(graph, 'svc/my-service', { llmProvider: provider, verifyArtifacts: true });
+    const coreResult = await approveNode(graph, 'svc/my-service');
+    const result = await runLlmVerification(graph, 'svc/my-service', coreResult, makeLlmConfig(provider, { verifyArtifacts: true }));
     expect(result.action).toBe('refused');
     expect(result.e056Violations).toBeDefined();
     expect(result.e056Violations!.length).toBeGreaterThan(0);

@@ -1,7 +1,7 @@
 # Approve Responsibility
 
-Three-axis change detection and LLM reviewer verification for node approval. Determines whether a node's graph artifacts and source code have been updated together, then optionally runs semantic verification (aspect compliance, artifact freshness) via an LLM reviewer.
+Deterministic three-axis change detection for node approval. Compares own artifacts, source files, and upstream context — both artifacts AND source must change together, or a `--reviewed` reason must explain why only one side changed.
 
-Blackbox nodes are sealed: any source file change unconditionally refuses approval — `--reviewed` cannot override this. The only path forward is decomposing into a proper node. Anti-laundering prevents hiding already-tracked files under a new blackbox on first approve.
+Blackbox nodes are sealed: any source file change unconditionally refuses approval — `--reviewed` cannot override this. Anti-laundering prevents hiding already-tracked files under a new blackbox on first approve.
 
-The `--reviewed` flag bypasses the three-axis structural gate only. The LLM reviewer still runs and can independently refuse if aspects are unmet (E055) or artifacts are stale (E056). This two-gate design prevents agents from rubber-stamping semantic failures.
+Records baseline to drift state, appends audit trail, and garbage-collects orphaned drift entries. Does not know about LLM verification — semantic review (E055/E056) is orchestrated by the calling CLI layer.

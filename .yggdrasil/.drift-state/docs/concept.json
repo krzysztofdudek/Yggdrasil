@@ -1,28 +1,34 @@
 {
-  "hash": "cab1a7de4ea11ed3b8ec6e0ef66771bc18e6178188c3378d6f088e36021ad8b8",
+  "hash": "d553fbfdc5673bd9a2f255f7dc2fa918b332fc77351b870320b76e204e2699e2",
   "files": {
-    ".yggdrasil/model/docs/concept/yg-node.yaml": "e9f47d45f61f1dcce3a0c9f4686307095bd2b211131cc0d98f5be8ec97a4a522",
-    ".yggdrasil/model/docs/concept/responsibility.md": "1b5a6590a3620359d6010c5bd05e665732cb35dff7b765a0d205244577bca2dd",
     ".yggdrasil/model/docs/yg-node.yaml": "36ca70c4bea26714bb7450d306d1a898e70573151394eb8e0fb3a5cf588c84d4",
     ".yggdrasil/model/docs/responsibility.md": "070a2a6c6b29116ab18d2b824068d227cc4682f30fd5ef79b3cbe307dbe632fe",
     "docs/concept/foundation.md": "4ab53b044d48d718a8a54afffbcf2e99ee9ef59055a1ed8e6874017aa18353e6",
     "docs/concept/integration.md": "c724466ae68621ccf1af0378d24fb26c965304b47b18c0f51ad44b347ee7d1ac",
     "docs/concept/materialization.md": "0fef8e79a0b3e038aa7954cb8f290c7fa09badebaf6a1e57773d10c0a5df21af",
-    "docs/concept/engine.md": "fee2650f6d07f878e5419f4a77a4a38be421bdca959ce93c54bb15e81ba522ef",
-    "docs/concept/graph.md": "f1a8dc5346f0d8654d473ce81d565f3d8eeb20cf295db083e9bb44a00905b5cf",
-    "docs/concept/tools.md": "05354eac0a57c6f8ae7eb7ef177b30de06682ce3cb2b2a4d222d4d425aac003e"
+    ".yggdrasil/model/docs/concept/yg-node.yaml": "774d6fb9317e668f08b40ecd300ae153c311beb4ac84b8ba8ad2a47a491ff5d3",
+    ".yggdrasil/model/docs/concept/responsibility.md": "ede09bd7fe6014099f2607c7257b6a20cbe91cc0f4a66599d516bb4406858592",
+    "docs/concept/engine.md": "1fb41256a944219f4d2e5d4dfc4aae1df9f947d1676952f742391d8cd6787eb8",
+    "docs/concept/graph.md": "a45e794ae8062f656558dc05f884f27b7b8f27d29f99f71a544628072e055cea",
+    "docs/concept/tools.md": "4c6a7682b50351117a735a30926085cd96134a0c1742e9ee9387e4ce19a522ee"
   },
   "mtimes": {
-    ".yggdrasil/model/docs/concept/yg-node.yaml": 1775327956365.0742,
-    ".yggdrasil/model/docs/concept/responsibility.md": 1772828318480.2405,
+    ".yggdrasil/model/docs/concept/yg-node.yaml": 1775639494733.114,
+    ".yggdrasil/model/docs/concept/responsibility.md": 1775645563173.4172,
     ".yggdrasil/model/docs/yg-node.yaml": 1775243577367.4014,
     ".yggdrasil/model/docs/responsibility.md": 1772828320283.2747,
-    "docs/concept/engine.md": 1775625678488.6387,
+    "docs/concept/engine.md": 1775642917673.1868,
     "docs/concept/foundation.md": 1775025063809.139,
-    "docs/concept/graph.md": 1775625659221.0188,
+    "docs/concept/graph.md": 1775640000432.749,
     "docs/concept/integration.md": 1775588054476.619,
     "docs/concept/materialization.md": 1775025218263.0195,
-    "docs/concept/tools.md": 1775625684889.8613
+    "docs/concept/tools.md": 1775640715300.4402
   },
-  "reviewedReason": "docs updated for consumes/failure removal and verify_aspects"
+  "reviewedReason": "responsibility rewritten — pure blast radius focus",
+  "artifactReview": {
+    "responsibility.md": {
+      "current": true,
+      "reason": "up to date"
+    }
+  }
 }

@@ -1,5 +1,6 @@
-import type { LlmProvider } from '../llm/types.js';
+import type { LlmProvider } from './types.js';
 import type { ArtifactReviewResult } from '../model/drift.js';
+import { debugWrite } from '../utils/debug-log.js';
 
 export interface ReviewArtifactsParams {
   provider: LlmProvider;
@@ -51,7 +52,8 @@ export async function reviewArtifacts(
         results[artifact.name] = isStale
           ? { current: false, reason: staleReason }
           : { current: true, reason: 'up to date' };
-      } catch {
+      } catch (err) {
+        debugWrite(`[artifact-reviewer] failed reviewing ${artifact.name}: ${(err as Error).message}`);
         results[artifact.name] = { current: false, reason: 'Reviewer failed' };
       }
     }
@@ -73,7 +75,8 @@ export async function reviewArtifacts(
         results[artifact.name] = result.current
           ? { current: true, reason: 'up to date' }
           : { current: false, reason: result.reason };
-      } catch {
+      } catch (err) {
+        debugWrite(`[artifact-reviewer] failed reviewing ${artifact.name}: ${(err as Error).message}`);
         results[artifact.name] = { current: false, reason: 'Reviewer failed' };
       }
     }

@@ -1,32 +1,28 @@
 {
-  "hash": "4765f05d7718affac99ab363201dd477b6aaf503fac1e66d8a4a8b8ee9eabb4f",
+  "hash": "723d1f04260912f0c1a8721d88be97272c2d0e2f234775a8bfe750c9eb182d90",
   "files": {
-    ".yggdrasil/model/cli/config/build/yg-node.yaml": "3f000cf22d67f185735a417f5243e3cdda5a3c9a4edcf34dd972d6c798016386",
-    ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df",
-    ".yggdrasil/model/cli/internals.md": "7440678f012e45d8b15a4efc252cc3b4220fe7aec98fb673786abd9c2a37f9f0",
-    ".yggdrasil/model/cli/responsibility.md": "b1b42bf482d727823ed25d0bcf1369dbba917ae192723a57464b233a53644c0f",
     ".yggdrasil/model/cli/config/yg-node.yaml": "9cacb4bd841cdf0f78581c909468e1d5b8cfe1678a75e39821398c144f092302",
-    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "462df48ae702ab782902adfecb0ce3d3fee925134847b7a984fc33b8459fdd0d",
-    ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
+    ".yggdrasil/model/cli/config/responsibility.md": "fba9fc771744a668ed4886fb43dec97b24f7b6e38d869e31d616b2c58af64ffa",
     "source/cli/tsconfig.json": "4c663b14bb228d4986fc265f4753a19b8a844ee7cffd47dac7dc8c51d0690d02",
     "source/cli/tsup.config.ts": "65026ec8016f4048f41e11f11936ddd05b304d7de63fd47993f1a30758dd2a91",
     "source/cli/.npmignore": "6352e6067c91078366f5c1b29cb065af4818efc1aea31ac5d132898785d1ccf6",
     "source/cli/.npmrc": "de994f0b60a1afa80c0e821ff17a093bfe17acf8e2760f490433ab9a6891883b",
     "source/cli/package.json": "d489b0ddeb509ed03d88f304656d74e40043346fe092cd4e32910d7f99e541e3",
     "source/cli/package-lock.json": "50b86fba3b12a658e9d162dd6fa75d75799d6076664e33347b9bc83f3b533a74",
-    ".yggdrasil/model/cli/config/build/responsibility.md": "31128ed5e01c5fb505f0f536cd943bef5913716975c66e59d392902e9bda81ad",
-    ".yggdrasil/model/cli/config/responsibility.md": "fba9fc771744a668ed4886fb43dec97b24f7b6e38d869e31d616b2c58af64ffa"
+    ".yggdrasil/model/cli/config/build/yg-node.yaml": "26300ea987f2aa2eb8fb2095976121bd36b3c049a74263fdc1133577ed565539",
+    ".yggdrasil/model/cli/config/build/responsibility.md": "b4a6ff94a01c1525d72389a12367afda8593b3a375054d8afc4d0065a34ce554",
+    ".yggdrasil/model/cli/yg-node.yaml": "41ddbf73fbc1ee27a28a5ea5ec7ad656ea34f5938284bd5ab4ea7c3afcbbd69b",
+    ".yggdrasil/model/cli/internals.md": "6ed08e0ee1a22270af6dcb23306acae750c7e55744a43a17671c4713684f4b91",
+    ".yggdrasil/model/cli/responsibility.md": "f35cbcee252f56323379f08b65c38989787e0758c94f5eee2a36188c0260d05d"
   },
   "mtimes": {
-    ".yggdrasil/model/cli/config/build/yg-node.yaml": 1775327956343.6824,
-    ".yggdrasil/model/cli/config/build/responsibility.md": 1775569541998.4019,
-    ".yggdrasil/model/cli/yg-node.yaml": 1775243577620.7664,
-    ".yggdrasil/model/cli/internals.md": 1775329681280.232,
-    ".yggdrasil/model/cli/responsibility.md": 1775567498378.8098,
+    ".yggdrasil/model/cli/config/build/yg-node.yaml": 1775639498816.8616,
+    ".yggdrasil/model/cli/config/build/responsibility.md": 1775645518344.312,
+    ".yggdrasil/model/cli/yg-node.yaml": 1775639608581.9402,
+    ".yggdrasil/model/cli/internals.md": 1775586290475.0237,
+    ".yggdrasil/model/cli/responsibility.md": 1775586232234.4275,
     ".yggdrasil/model/cli/config/yg-node.yaml": 1775243577492.5159,
     ".yggdrasil/model/cli/config/responsibility.md": 1775569539261.5564,
-    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775561447770.7463,
-    ".yggdrasil/aspects/deterministic/content.md": 1772778780694.5889,
     "source/cli/tsconfig.json": 1771702275811.786,
     "source/cli/tsup.config.ts": 1771702275811.8867,
     "source/cli/.npmignore": 1771702275788.6226,
@@ -34,5 +30,11 @@
     "source/cli/package.json": 1775239040903.8784,
     "source/cli/package-lock.json": 1775239040903.2893
   },
-  "reviewedReason": "cosmetic update to responsibility.md"
+  "reviewedReason": "responsibility rewritten — pure blast radius focus",
+  "artifactReview": {
+    "responsibility.md": {
+      "current": true,
+      "reason": "up to date"
+    }
+  }
 }

@@ -52,7 +52,7 @@ export function registerOwnerCommand(program: Command): void {
         const repoRoot = projectRootFromGraph(graph.rootPath);
         const rawPath = options.file.trim();
         const absolute = path.resolve(cwd, rawPath);
-        const repoRelative = path.relative(repoRoot, absolute).split(path.sep).join('/');
+        const repoRelative = path.relative(repoRoot, absolute).replace(/\\/g, '/').replace(/\/+$/, '');
         const result = findOwner(graph, repoRoot, repoRelative);
 
         if (!result.nodePath) {

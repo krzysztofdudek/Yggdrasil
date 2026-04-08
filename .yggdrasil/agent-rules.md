@@ -420,8 +420,8 @@ At approve time: Reviewer verifies consumer satisfies port-required aspects (E05
 
 ### CLI Commands
 
-Core: `yg check`, `yg context --node/--file`, `yg impact --node/--file/--aspect/--flow`, `yg approve --node`
-Navigation: `yg select`, `yg tree`, `yg aspects`, `yg flows`, `yg owner --file`
+Core: `yg check`, `yg context --node/--file`, `yg impact --node/--file/--aspect/--flow`, `yg approve --node/--aspect/--flow`
+Navigation: `yg select "<query>"`, `yg tree`, `yg aspects`, `yg flows`, `yg owner --file`
 Setup: `yg init`
 
 ### Error Categories
@@ -440,13 +440,25 @@ Follow the CLI's suggested next command.
 
 ### Approve Enforcement
 
-Approve is the semantic verification gate. It runs two reviewer checks:
+Approve is the semantic verification gate. It runs two checks:
 1. **Aspect verification (E055):** checks each aspect against source code — fires E055 for unmet aspects
 2. **Artifact review (E056):** checks if responsibility.md, interface.md, internals.md are current — fires E056 for stale artifacts
 
+**Three modes:**
+
+- `yg approve --node <path> [<path2> ...]` — one or more node paths. Multiple paths run as a batch.
+- `yg approve --aspect <id>` — batch approve all E021 cascade nodes caused by this aspect change.
+- `yg approve --flow <name>` — batch approve all E021 cascade nodes caused by this flow change.
+
+Batch mode runs approvals in parallel (up to `parallel` config limit). Use batch when `yg check` suggests it in `suggestedNext`.
+
 **Do NOT interrupt `yg approve`.** When reviewer is configured, approve calls the reviewer for every aspect across every source file — this takes time and is intentional. Interrupting it leaves drift state unrecorded and forces a re-run.
 
-**Run `yg approve` one node at a time.** Never run multiple approve commands in parallel — each approve modifies shared drift state and spawns a reviewer subprocess. Wait for one to finish before starting the next.
+**Always read the FULL raw output of `yg approve`.** Every aspect result, every artifact review, every error message — read it all. The reviewer already ran and the cost is paid; the output is the return on that investment.
+
+Always run the command without `| grep`, `| head`, `| tail`, or any filter that discards lines. Saving to a file and reading it (`tee`) is fine — that preserves all data. The rule is: all reviewer output must reach you unmodified.
+
+Always batch at most 3-5 nodes per approve invocation. This is a maximum, not a suggestion. If even one node produces output too large to read, that is a problem with the node (too many aspects, too many files), not a reason to filter.
 
 If reviewer is not configured, approve works as before (three-axis detection only).
 

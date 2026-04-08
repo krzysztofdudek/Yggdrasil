@@ -22,6 +22,7 @@ You work on the Yggdrasil repository: an open-source product (CLI + infrastructu
 - **Ignore generated rules files** for understanding: `.yggdrasil/agent-rules.md`, `.cursor/rules/yggdrasil.mdc`, etc. are auto-generated output. Never read or search them. The source of truth for rules content is `source/cli/src/templates/rules.ts`.
 - When modifying `docs/` or any `*.md`, run `npx markdownlint-cli2 "**/*.md" ".markdownlint-cli2.jsonc"` and fix issues.
 - **Always reflect changes in corresponding documentation.** When modifying code behavior, algorithms, or data structures, identify and update all documentation that describes the changed behavior — `docs/concept/` (spec), `docs/` (user docs), and `.yggdrasil/` (graph metadata). Changes to the spec or engine behavior are not complete until every document describing that behavior is consistent.
+- **NEVER run `yg init` from a subdirectory.** Always run from the repository root. Running from `source/cli/` or any subdirectory creates a new `.yggdrasil/` there or corrupts the project config. Use `node source/cli/dist/bin.js` for local builds, not `npx yg` (which may use a cached global version).
 
 ## Adding Support for a New Agent
 

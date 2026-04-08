@@ -1,8 +1,6 @@
 {
-  "hash": "9d4f3bf908cc83917962a129ed05ecb5b55f7a0b8bf3b24e328b182c7ef39552",
+  "hash": "c2af0e5add6d899f357a33f258eaf789761bfd676fe9e7f9c86b55853f897810",
   "files": {
-    ".yggdrasil/model/docs/site/yg-node.yaml": "52e61aec999595f6ab904aa027a5c54135f361388fc7e786a4db28532fcc925d",
-    ".yggdrasil/model/docs/site/responsibility.md": "4afeab0dceda94f9c2cf36a0fc9dfb7545c84424c08195c0de9f6e609f18353b",
     ".yggdrasil/model/docs/yg-node.yaml": "36ca70c4bea26714bb7450d306d1a898e70573151394eb8e0fb3a5cf588c84d4",
     ".yggdrasil/model/docs/responsibility.md": "070a2a6c6b29116ab18d2b824068d227cc4682f30fd5ef79b3cbe307dbe632fe",
     "docs/package.json": "e3c48dc4ed7f4a2fc56f5d8dec2cbf2a07ffcad6f566d41a206a88a68225d756",
@@ -11,11 +9,13 @@
     "docs/public/logo.svg": "4ad480da8bdcbeff35b7e9d24893f42166d4edc973ca16b13a2157e34261059a",
     "docs/.vitepress/config.ts": "6b48c47ed3f09f1851d590ddfdf8287e68523e882820514761c60be1a0bcc0a4",
     "docs/.vitepress/theme/custom.css": "0f383338159534c8a78e76019cc3c28bb1cefcb9116b9da138f895061f6e264a",
-    "docs/.vitepress/theme/index.ts": "47a53a53574c3437c65aaf76b1c7e0e3c30db953df85f0c45af4e7e2ad249dc8"
+    "docs/.vitepress/theme/index.ts": "47a53a53574c3437c65aaf76b1c7e0e3c30db953df85f0c45af4e7e2ad249dc8",
+    ".yggdrasil/model/docs/site/yg-node.yaml": "1171e0ee5532db3d74aa6f9d639d1bdef6860b3f8f62853045f5704a3be176ef",
+    ".yggdrasil/model/docs/site/responsibility.md": "0a69e39f42395e19dc0b807a56a91ce32c2f7dac63a5c157a7543be95f7482cf"
   },
   "mtimes": {
-    ".yggdrasil/model/docs/site/yg-node.yaml": 1775327956366.3308,
-    ".yggdrasil/model/docs/site/responsibility.md": 1775054102919.0425,
+    ".yggdrasil/model/docs/site/yg-node.yaml": 1775639496770.9426,
+    ".yggdrasil/model/docs/site/responsibility.md": 1775645666173.1716,
     ".yggdrasil/model/docs/yg-node.yaml": 1775243577367.4014,
     ".yggdrasil/model/docs/responsibility.md": 1772828320283.2747,
     "docs/package.json": 1773085358086.3213,
@@ -26,5 +26,11 @@
     "docs/.vitepress/theme/custom.css": 1774195609716.5776,
     "docs/.vitepress/theme/index.ts": 1773085352706.9504
   },
-  "acknowledgeReason": "v4 migration: flat mapping, claims, and doc updates"
+  "reviewedReason": "responsibility rewritten with specifics and child distinction",
+  "artifactReview": {
+    "responsibility.md": {
+      "current": true,
+      "reason": "up to date"
+    }
+  }
 }

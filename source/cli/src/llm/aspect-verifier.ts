@@ -1,4 +1,4 @@
-import type { LlmProvider, AspectVerifyParams } from '../llm/types.js';
+import type { LlmProvider, AspectVerifyParams } from './types.js';
 import type { AspectVerificationResult } from '../model/drift.js';
 
 export interface VerifyAspectsParams {

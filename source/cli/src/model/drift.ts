@@ -94,16 +94,6 @@ export interface ApproveResult {
   isBlackbox?: boolean;
   /** GC'd orphaned drift state paths */
   gcPaths?: string[];
-  /** LLM aspect verification results (E055) */
-  aspectResults?: Record<string, AspectVerificationResult>;
-  /** LLM artifact review results (E056) */
-  artifactReviewResults?: Record<string, ArtifactReviewResult>;
-  /** Why LLM verification was skipped, if it was */
-  llmSkipped?: 'not-configured' | 'unavailable' | 'blackbox';
-  /** E055 structured violations for programmatic consumption */
-  e055Violations?: Array<{ aspect: string; reason: string }>;
-  /** E056 structured violations for programmatic consumption */
-  e056Violations?: Array<{ name: string; reason: string }>;
 }
 
 /** Map: node-path → DriftNodeState. Legacy string format no longer supported. */

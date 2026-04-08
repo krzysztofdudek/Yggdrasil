@@ -15,7 +15,8 @@
 - `readNodeDriftState(yggRoot, nodePath): Promise<DriftNodeState | undefined>` — single node's drift state. Returns undefined if missing.
 - `writeNodeDriftState(yggRoot, nodePath, state): Promise<void>` — writes per-node JSON with `mkdir -p`.
 - `garbageCollectDriftState(yggRoot, validNodePaths): Promise<string[]>` — removes orphaned drift entries, cleans empty dirs.
-- `readDriftState(yggRoot): Promise<DriftState>` — full state with legacy migration. Returns `{}` on missing/parse error.
+- `readDriftState(yggRoot): Promise<DriftState>` — full legacy state (all nodes). Returns `{}` on missing/parse error.
+- `writeDriftState(yggRoot, state): Promise<void>` — writes full legacy state. Use `writeNodeDriftState` for per-node writes.
 - `appendAuditEntry(yggRoot, entry): Promise<void>` — append-only JSONL. Never reads existing content.
 - `loadSecrets(rootPath, providerName?): Promise<Partial<LlmConfig> | undefined>` — reviewer secrets from `yg-secrets.yaml`.
 - `mergeLlmConfig(base, secrets): LlmConfig` — secrets override base fields.

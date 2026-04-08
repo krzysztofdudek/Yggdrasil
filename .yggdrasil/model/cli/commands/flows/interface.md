@@ -5,14 +5,12 @@
 **Output structure per flow:**
 
 ```
-<name> — <description>
+<name> — <description>             # description line omitted when flow has no description
   Participants: <count> nodes (<sorted comma-separated paths>)
   Aspects: <comma-separated aspect ids>    # only when flow has aspects
 ```
 
 Flows sorted alphabetically by name.
-
-**Contract:** Flow-level aspects propagate to all participants — every participant must satisfy them. This is the enforcement mechanism for cross-cutting business process requirements.
 
 ## Failure Modes
 

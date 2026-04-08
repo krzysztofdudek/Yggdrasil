@@ -67,7 +67,7 @@ export function normalizeMappingPaths(mapping: string[] | undefined): string[] {
  * E.g., "/abs/path/.yggdrasil/orders/order-service" → "orders/order-service"
  */
 export function toGraphPath(absolutePath: string, yggRoot: string): string {
-  return path.relative(yggRoot, absolutePath).split(path.sep).join('/');
+  return path.relative(yggRoot, absolutePath).replace(/\\/g, '/').replace(/\/+$/, '');
 }
 
 /**
@@ -87,7 +87,7 @@ export function normalizeProjectRelativePath(projectRoot: string, rawPath: strin
     throw new Error(`Path is outside project root: ${rawPath}`);
   }
 
-  return relative.split(path.sep).join('/').replace(/\/+$/, '');
+  return relative.replace(/\\/g, '/').replace(/\/+$/, '');
 }
 
 /**

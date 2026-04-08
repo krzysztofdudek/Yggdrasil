@@ -1,16 +1,3 @@
 # Utils Unit Tests — Responsibility
 
-Unit tests for general utility modules in `src/utils/`. Verifies helper functions for git integration, hashing, path manipulation, tokenization, and token counting.
-
-## Scope
-
-- `git.test.ts` — git utility helpers (branch detection, repo root)
-- `hash.test.ts` — file content hashing
-- `paths.test.ts` — path normalization and resolution utilities
-- `tokenizer.test.ts` — text tokenization for token budget calculations
-- `tokens.test.ts` — token counting and budget enforcement
-
-## Out of scope
-
-- I/O parser tests — belongs to `cli/tests/unit/support/io`
-- Template generation tests — belongs to `cli/tests/unit/support/templates`
+Guards determinism of path normalization, hashing, and token estimation — the primitives that drift detection and context budget depend on. A hash function that produces different results for the same input breaks every approval baseline. A path normalizer that mishandles separators breaks every file mapping on Windows. Debug log tests guard that diagnostic capture doesn't interfere with normal stdout/stderr output.

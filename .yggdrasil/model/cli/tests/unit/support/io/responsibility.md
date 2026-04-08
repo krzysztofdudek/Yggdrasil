@@ -1,5 +1,3 @@
 # I/O Unit Tests — Responsibility
 
-Unit tests for the I/O layer — verifies YAML parsing, config loading, drift state persistence, and audit log writing. Exists because parsers are the boundary between raw files and typed domain objects; malformed input, missing files, and schema violations must be caught here before they propagate into core logic.
-
-Each parser has a corresponding test verifying its contracts. All filesystem access is mocked or uses minimal in-memory fixtures.
+Guards the complete I/O boundary: YAML parsing (architecture, aspect, flow, node, schema, config), artifact file reading, drift-state persistence, audit-log append-only integrity, and secrets loading. Parser bugs silently corrupt the in-memory graph. Drift state loss breaks approval recovery. Audit log loss breaks auditability. Secrets loading failures hide configuration errors that surface as mysterious reviewer behavior.

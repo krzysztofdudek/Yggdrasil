@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import { mkdir, writeFile, rm } from 'node:fs/promises';
 import { loadGraph } from '../../../src/core/graph-loader.js';
 import { approveNode } from '../../../src/core/approve.js';
+import { runLlmVerification } from '../../../src/cli/approve.js';
+import type { LlmConfig } from '../../../src/cli/approve.js';
 import { writeNodeDriftState } from '../../../src/io/drift-state-store.js';
 import { hashTrackedFiles } from '../../../src/utils/hash.js';
 import { collectTrackedFiles } from '../../../src/core/context-files.js';
@@ -236,7 +238,7 @@ describe('approveNode — proper nodes', () => {
 
   // --reviewed: reviewer still runs (key behavioral change from --acknowledge)
   it('runs LLM verification even with --reviewed', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('reviewed-llm', {
+    const { tmpDir } = await createTmpProject('reviewed-llm', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - test-aspect\nmapping:\n  - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
@@ -258,10 +260,19 @@ describe('approveNode — proper nodes', () => {
       async getContextWindowSize() { return 8192; },
     };
 
-    const result = await approveNode(graph, 'svc/my-service', {
+    const coreResult = await approveNode(graph, 'svc/my-service', {
       reviewed: 'formatting change',
-      llmProvider: mockProvider,
     });
+
+    const llmCfg: LlmConfig = {
+      provider: mockProvider,
+      llmNotConfigured: false,
+      maxTokens: undefined,
+      consensus: undefined,
+      verifyAspects: true,
+      verifyArtifacts: false,
+    };
+    const result = await runLlmVerification(graph, 'svc/my-service', coreResult, llmCfg);
 
     // Key assertion: even with --reviewed, LLM refusal wins
     expect(result.action).toBe('refused');

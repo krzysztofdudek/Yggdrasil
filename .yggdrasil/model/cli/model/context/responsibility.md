@@ -1,7 +1,5 @@
 # Context Types Responsibility
 
-Types for context assembly output — the structured data that `yg context` produces for agent consumption.
+Types for the two context output patterns: ContextPackage (layer-based, internal representation) and ContextMapOutput (structured reference-based output with glossary and budget tracking). Separated from graph types because context assembly evolves independently — adding new output fields or restructuring the map format doesn't touch the core graph model.
 
-**In scope:** ContextPackage, ContextLayer, ContextSection, ContextSectionKey, ContextMapOutput, Glossary, BudgetBreakdown, and all reference types (AncestorRef, DependencyRef, RequiredAspectRef, NodeAspectRef, FlowRef, GlossaryAspectEntry, GlossaryFlowEntry).
-
-**Out of scope:** Graph model types (cli/model/graph), context assembly logic (cli/core/context). No runtime behavior — types only.
+ContextPackage uses layers (global, hierarchy, own, relational, aspects, flows) as its organizing principle. ContextMapOutput reorganizes the same data into a consumer-friendly structure with an artifact registry, glossary of aspects/flows, and budget breakdown. The two coexist because ContextPackage is the assembly format and ContextMapOutput is the presentation format.

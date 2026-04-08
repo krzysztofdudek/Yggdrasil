@@ -1,7 +1,6 @@
 {
-  "hash": "dcc16ffb27343d7625e02eb81d905ed78ed1d003ffc54506f0851dfbc5bb90a0",
+  "hash": "400e9dcdeb630fbc4ea98c18db4e9dd6e163bbeb61e97a27a783c9e9f5abd27c",
   "files": {
-    ".yggdrasil/model/experiments/yg-node.yaml": "e10e91d5e6cab383be8d1e9240921f81a58f091d9387fb2146df38ace230e70b",
     "experiments/2-concept-test/exp10-materials/blindfold-Rep-A-yggdrasil.md": "85378cc5587a8ad6e2c127bbb2ad2ded9ad81aafc508360675f3fdaa2a01615e",
     "experiments/2-concept-test/exp10-materials/blindfold-Rep-B-adrs.md": "78718ce4609e30a542d44368797c4dbd756ca97dd541ca575ea125c38580ca4e",
     "experiments/2-concept-test/exp10-materials/blindfold-Rep-C-comments.md": "58a2e8358c77d71f181ff07d4778e0ee07501ff6087d0dc2f1a4c0cd84d6df15",
@@ -684,10 +683,11 @@
     "experiments/5-invisibility/exp-5.5-non-expert-quality/results.md": "ea9e47559f55d042282d89bc677db104e80b56d99394d43d36ca467b10b173bc",
     "experiments/5-invisibility/METHODOLOGY.md": "53c1fb20f1aa906c0e1afb90343929304dc2671bda1fbd724c02879f07e40ff9",
     "experiments/5-invisibility/STATUS.md": "8cf61ce002cf419c8050204c74012ad89fb1c19d1b24e3eb9735eae64aaa8c54",
-    "experiments/5-invisibility/synthesis.md": "d192bcb11d39b4d7edc6f118fd0a220ff7027b13ce47c25989ddf27fa6f05e37"
+    "experiments/5-invisibility/synthesis.md": "d192bcb11d39b4d7edc6f118fd0a220ff7027b13ce47c25989ddf27fa6f05e37",
+    ".yggdrasil/model/experiments/yg-node.yaml": "9acb80179a7606e7e662330b71fd18eaac9ad10ca9e91aaff1e82560406c0f5b"
   },
   "mtimes": {
-    ".yggdrasil/model/experiments/yg-node.yaml": 1775327956367.5923,
+    ".yggdrasil/model/experiments/yg-node.yaml": 1775639492672.7354,
     "experiments/2-concept-test/exp10-materials/blindfold-Rep-A-yggdrasil.md": 1772657412206.6787,
     "experiments/2-concept-test/exp10-materials/blindfold-Rep-B-adrs.md": 1772657412206.9023,
     "experiments/2-concept-test/exp10-materials/blindfold-Rep-C-comments.md": 1772657412207.126,
@@ -1372,5 +1372,5 @@
     "experiments/5-invisibility/STATUS.md": 1773055235675.5488,
     "experiments/5-invisibility/synthesis.md": 1773055241091.6191
   },
-  "acknowledgeReason": "v4 migration: flat mapping, claims, and doc updates"
+  "reviewedReason": "type changed to project, architecture redesign"
 }

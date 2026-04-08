@@ -22,7 +22,7 @@ import { readArtifacts } from '../io/artifact-reader.js';
 import { findYggRoot } from '../utils/paths.js';
 
 function toModelPath(absolutePath: string, modelDir: string): string {
-  return path.relative(modelDir, absolutePath).split(path.sep).join('/');
+  return path.relative(modelDir, absolutePath).replace(/\\/g, '/').replace(/\/+$/, '');
 }
 
 const FALLBACK_CONFIG: YggConfig = {
@@ -210,7 +210,7 @@ async function scanAspectsDirectory(
   const hasAspectYaml = entries.some((e) => e.isFile() && e.name === 'yg-aspect.yaml');
 
   if (hasAspectYaml) {
-    const id = path.relative(aspectsRoot, dirPath).split(path.sep).join('/');
+    const id = path.relative(aspectsRoot, dirPath).replace(/\\/g, '/').replace(/\/+$/, '');
     const aspectYamlPath = path.join(dirPath, 'yg-aspect.yaml');
     const aspect = await parseAspect(dirPath, aspectYamlPath, id);
     aspects.push(aspect);

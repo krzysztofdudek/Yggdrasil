@@ -32,7 +32,7 @@ export function collectTrackedFiles(node: GraphNode, graph: Graph): TrackedFile[
   const projectRoot = path.dirname(graph.rootPath);
   const yggPrefix = path.relative(projectRoot, graph.rootPath);
   // Normalize to forward slashes for consistency
-  const yggPrefixNormalized = yggPrefix.split(path.sep).join('/');
+  const yggPrefixNormalized = yggPrefix.replace(/\\/g, '/').replace(/\/+$/, '');
 
   const configArtifactKeys = new Set(Object.keys(STANDARD_ARTIFACTS));
 

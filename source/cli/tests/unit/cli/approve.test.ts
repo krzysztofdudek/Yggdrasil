@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { ApproveResult } from '../../../src/model/drift.js';
-import { formatResult } from '../../../src/cli/approve.js';
+import { formatResult, formatBatchOutput } from '../../../src/cli/approve.js';
 
 function makeApproveResult(overrides: Partial<ApproveResult> = {}): ApproveResult {
   return {
@@ -86,5 +86,52 @@ describe('formatResult — LLM results', () => {
     });
     const output = captureOutput(() => formatResult('some/node', result));
     expect(output).toContain('blackbox');
+  });
+});
+
+describe('formatBatchOutput', () => {
+  it('outputs full formatResult for each node, not one-line summaries', () => {
+    const results = [
+      {
+        nodePath: 'cli/core/loader',
+        result: makeApproveResult({
+          action: 'approved',
+          aspectResults: {
+            'deterministic': { satisfied: true, reason: 'ok' },
+          },
+        }),
+      },
+      {
+        nodePath: 'cli/core/validator',
+        result: makeApproveResult({
+          action: 'refused',
+          refuseReason: 'Reviewer verification found issues',
+          aspectResults: {
+            'posix-paths': { satisfied: false, reason: 'Missing normalization on line 42' },
+          },
+          artifactReviewResults: {
+            'responsibility.md': { current: false, reason: 'Restates pseudocode' },
+          },
+        }),
+      },
+    ];
+    const output = captureOutput(() => formatBatchOutput(results));
+
+    // Separator per node
+    expect(output).toContain('─── cli/core/loader ─');
+    expect(output).toContain('─── cli/core/validator ─');
+
+    // Full output for approved node — not just "✓ approved"
+    expect(output).toContain('Approved: cli/core/loader');
+    expect(output).toContain('aspects satisfied');
+
+    // Full output for refused node — not just "✗ E055"
+    expect(output).toContain('NOT SATISFIED');
+    expect(output).toContain('Missing normalization on line 42');
+    expect(output).toContain('STALE');
+    expect(output).toContain('Restates pseudocode');
+
+    // Summary at end
+    expect(output).toContain('1 approved, 1 failed.');
   });
 });

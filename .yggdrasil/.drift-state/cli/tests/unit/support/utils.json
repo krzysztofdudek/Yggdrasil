@@ -1,44 +1,48 @@
 {
-  "hash": "c929ef189c0ab99ad8195b3aac550d275fd643d396622ec9afa65f854746d3a5",
+  "hash": "31ba2c720408a851dd85712b883916417454b797c0cc06d8050354945c15784c",
   "files": {
-    ".yggdrasil/model/cli/tests/unit/support/utils/yg-node.yaml": "452186f43bc93d742783cb741569fb2911376ae2d71365c9d6e144ed6e6d7ea6",
-    ".yggdrasil/model/cli/tests/unit/support/utils/responsibility.md": "4813907174f9897f2ba2edabcefccdfba0007f0cce6fd8c5cb04b83efa2ebe6a",
-    ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df",
-    ".yggdrasil/model/cli/internals.md": "7440678f012e45d8b15a4efc252cc3b4220fe7aec98fb673786abd9c2a37f9f0",
-    ".yggdrasil/model/cli/responsibility.md": "696e0f5f377eba69a843a18379e8f20e0322dc037182690629652a75aa2227fb",
     ".yggdrasil/model/cli/tests/yg-node.yaml": "ac0fc246c01a04e62d43ef8abadb2f01551616ca7509c3b268995ef646279bc9",
-    ".yggdrasil/model/cli/tests/responsibility.md": "ef48f39a8d5d6b7f1c61e94f2b95ccf38c02365b3496e3ff5fcf21827ffd8138",
-    ".yggdrasil/model/cli/tests/unit/yg-node.yaml": "ae64bb1e8762600e0fb39f223cdb3c522179e188fb11257a7773080f034aee71",
-    ".yggdrasil/model/cli/tests/unit/responsibility.md": "b3f97072d3b27d4c7874906ee918b4f1d41d0ac22ddba05da7af4f64452ed103",
     ".yggdrasil/model/cli/tests/unit/support/yg-node.yaml": "cde7a8ea24c1a4992397b27ca5cd67d5d1126c197a72ca4cd69659d06b32ccde",
-    ".yggdrasil/model/cli/tests/unit/support/responsibility.md": "8c2a60f01bab04f7bf67cc5fb6f6ec8dbae3f01cae01ae2b9fe3e8b0318ecf80",
-    ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
     "source/cli/tests/unit/utils/git.test.ts": "b0248bd2a287de1c049e53b951a6552528e18c5996a2f1ae402dd0ea8075449f",
     "source/cli/tests/unit/utils/hash.test.ts": "cf2c553ff6d9cfdd4efc54cf88d451e02d23345bcd555786cacfcc592e6b5bc4",
+    "source/cli/tests/unit/utils/paths.test.ts": "22538f2c60f8c6191112cdf8eb4569e825395d0d85ec252ce1a88d9c033561d1",
     "source/cli/tests/unit/utils/tokenizer.test.ts": "d26f04a1fc0f569f1e313738c67cdcdf1f0b4b6a996f9eda3872f1d18f929d65",
     "source/cli/tests/unit/utils/tokens.test.ts": "7bb077c5f4655f37fe11a5909fc9917bf5f41374d3c45931594ca426818d51dc",
-    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "462df48ae702ab782902adfecb0ce3d3fee925134847b7a984fc33b8459fdd0d",
-    "source/cli/tests/unit/utils/paths.test.ts": "22538f2c60f8c6191112cdf8eb4569e825395d0d85ec252ce1a88d9c033561d1"
+    ".yggdrasil/model/cli/tests/unit/support/utils/yg-node.yaml": "e98ddba2fa4428b5711a1c69693ff7d58a2b9d2fee4a8a8eac75d412e2cb5f7d",
+    ".yggdrasil/model/cli/tests/unit/support/utils/responsibility.md": "be1af53f8aa3c682d02843d518649d90731a3f965f6108821b4a0425532378e1",
+    ".yggdrasil/model/cli/yg-node.yaml": "41ddbf73fbc1ee27a28a5ea5ec7ad656ea34f5938284bd5ab4ea7c3afcbbd69b",
+    ".yggdrasil/model/cli/internals.md": "6ed08e0ee1a22270af6dcb23306acae750c7e55744a43a17671c4713684f4b91",
+    ".yggdrasil/model/cli/responsibility.md": "f35cbcee252f56323379f08b65c38989787e0758c94f5eee2a36188c0260d05d",
+    ".yggdrasil/model/cli/tests/responsibility.md": "6bbd70c62c9e7dd79901d4730147ef9dd10a5c50d0d16c12409ab99a080d1b44",
+    ".yggdrasil/model/cli/tests/unit/yg-node.yaml": "a0b1c1aa70527cce6cbb0e60d9408db63919d6b17a0ce51a3dd1cb0f531d38f6",
+    ".yggdrasil/model/cli/tests/unit/responsibility.md": "cc1518370e9ddaf77b8180325843c74d1be693f9c37c1b534e8904ec5549bb2b",
+    ".yggdrasil/model/cli/tests/unit/support/responsibility.md": "4d10aeb30a472c00625b7802fae70124b85c26787e1672cb4ee2fe1f5490a994",
+    "source/cli/tests/unit/utils/debug-log.test.ts": "88d5a7a2ca493d5ed5d0659365ca274c3031a0ae165be1b2c18b17dbbf7916f0"
   },
   "mtimes": {
-    ".yggdrasil/model/cli/tests/unit/support/utils/yg-node.yaml": 1775327956361.7769,
-    ".yggdrasil/model/cli/tests/unit/support/utils/responsibility.md": 1775056437335.7104,
-    ".yggdrasil/model/cli/yg-node.yaml": 1775243577620.7664,
-    ".yggdrasil/model/cli/internals.md": 1775329681280.232,
-    ".yggdrasil/model/cli/responsibility.md": 1775045623775.336,
+    ".yggdrasil/model/cli/tests/unit/support/utils/yg-node.yaml": 1775639486234.5137,
+    ".yggdrasil/model/cli/tests/unit/support/utils/responsibility.md": 1775645137958.8933,
+    ".yggdrasil/model/cli/yg-node.yaml": 1775639608581.9402,
+    ".yggdrasil/model/cli/internals.md": 1775586290475.0237,
+    ".yggdrasil/model/cli/responsibility.md": 1775586232234.4275,
     ".yggdrasil/model/cli/tests/yg-node.yaml": 1775243577592.7366,
-    ".yggdrasil/model/cli/tests/responsibility.md": 1775051893259.6592,
-    ".yggdrasil/model/cli/tests/unit/yg-node.yaml": 1775327956362.4197,
-    ".yggdrasil/model/cli/tests/unit/responsibility.md": 1775052695088.1653,
+    ".yggdrasil/model/cli/tests/responsibility.md": 1775569538051.1086,
+    ".yggdrasil/model/cli/tests/unit/yg-node.yaml": 1775570526808.3728,
+    ".yggdrasil/model/cli/tests/unit/responsibility.md": 1775569529006.107,
     ".yggdrasil/model/cli/tests/unit/support/yg-node.yaml": 1775327956362.123,
-    ".yggdrasil/model/cli/tests/unit/support/responsibility.md": 1775056684131.7905,
-    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775558093855.0654,
-    ".yggdrasil/aspects/deterministic/content.md": 1772778780694.5889,
+    ".yggdrasil/model/cli/tests/unit/support/responsibility.md": 1775569530766.7358,
+    "source/cli/tests/unit/utils/debug-log.test.ts": 1775640997487.5151,
     "source/cli/tests/unit/utils/git.test.ts": 1772776392222.936,
     "source/cli/tests/unit/utils/hash.test.ts": 1775239814628.2378,
     "source/cli/tests/unit/utils/paths.test.ts": 1775551896880.0542,
     "source/cli/tests/unit/utils/tokenizer.test.ts": 1773070117024.6606,
     "source/cli/tests/unit/utils/tokens.test.ts": 1771702275811.6807
   },
-  "reviewedReason": "aspect implies chain updated: posix-paths removed from deterministic.implies"
+  "reviewedReason": "type changed to test, responsibility rewritten per quality profile",
+  "artifactReview": {
+    "responsibility.md": {
+      "current": true,
+      "reason": "up to date"
+    }
+  }
 }

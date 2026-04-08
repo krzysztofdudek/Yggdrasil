@@ -470,7 +470,7 @@ export async function runCheck(graph: Graph, gitTrackedFiles: string[] | null): 
 
   // 4. Orphaned drift state (W005)
   const orphanedPaths = await detectOrphanedDriftState(graph);
-  const yggRelative = path.relative(path.dirname(graph.rootPath), graph.rootPath).split(path.sep).join('/');
+  const yggRelative = path.relative(path.dirname(graph.rootPath), graph.rootPath).replace(/\\/g, '/').replace(/\/+$/, '');
   const orphanWarnings: CheckIssue[] = orphanedPaths.map(p => ({
     severity: 'warning' as const,
     code: 'W005',
@@ -515,7 +515,7 @@ export async function runCheck(graph: Graph, gitTrackedFiles: string[] | null): 
 
 /* v8 ignore start -- duplicated from drift-detector.ts, tested there */
 function categorizeFile(filePath: string, rootPath: string, projectRoot: string): DriftCategory {
-  const yggPrefix = path.relative(projectRoot, rootPath).split(path.sep).join('/');
+  const yggPrefix = path.relative(projectRoot, rootPath).replace(/\\/g, '/').replace(/\/+$/, '');
   const normalized = filePath.replace(/\\/g, '/').replace(/\/+$/, '');
   return normalized.startsWith(yggPrefix) ? 'graph' : 'source';
 }
@@ -527,7 +527,7 @@ function categorizeFile(filePath: string, rootPath: string, projectRoot: string)
  */
 function describeCascadeCause(filePath: string, layer: TrackedFileLayer, graph: Graph): string {
   const normalized = filePath.replace(/\\/g, '/').replace(/\/+$/, '');
-  const yggPrefix = path.relative(path.dirname(graph.rootPath), graph.rootPath).split(path.sep).join('/');
+  const yggPrefix = path.relative(path.dirname(graph.rootPath), graph.rootPath).replace(/\\/g, '/').replace(/\/+$/, '');
   const escPrefix = yggPrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
   /* v8 ignore start -- regex match fallbacks are defensive; paths are always well-formed */
@@ -621,7 +621,7 @@ async function allPathsMissing(projectRoot: string, mappingPaths: string[]): Pro
 function groupCascadeByCause(cascadeErrors: CheckIssue[], graph?: Graph): Map<string, Set<string>> {
   const groups = new Map<string, Set<string>>();
   const yggPrefix = graph
-    ? path.relative(path.dirname(graph.rootPath), graph.rootPath).split(path.sep).join('/')
+    ? path.relative(path.dirname(graph.rootPath), graph.rootPath).replace(/\\/g, '/').replace(/\/+$/, '')
     : '.yggdrasil';
   const escPrefix = yggPrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 

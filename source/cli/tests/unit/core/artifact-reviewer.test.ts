@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { reviewArtifacts } from '../../../src/core/artifact-reviewer.js';
+import { reviewArtifacts } from '../../../src/llm/artifact-reviewer.js';
 import type { LlmProvider, ArtifactResponse } from '../../../src/llm/types.js';
 
 function mockProvider(overrides: {

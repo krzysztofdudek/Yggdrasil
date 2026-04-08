@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { verifyAspects } from '../../../src/core/aspect-verifier.js';
+import { verifyAspects } from '../../../src/llm/aspect-verifier.js';
 import type { LlmProvider } from '../../../src/llm/types.js';
 
 function mockProvider(responses: Array<{ satisfied: boolean; reason: string }>): LlmProvider {

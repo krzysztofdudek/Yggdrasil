@@ -1,5 +1,5 @@
 # LLM Provider — Responsibility
 
-Isolates the CLI from LLM backends so that providers can be swapped without changing callers. The approve command calls `verifyAspect` and `reviewArtifact` without knowing whether the LLM is a local Ollama instance or a Claude Code subprocess.
+LLM backend boundary — shields the approve pipeline from knowing whether verification runs against a local API (Ollama) or a CLI subprocess (Claude Code). Callers invoke `verifyAspect` and `reviewArtifact` against a uniform interface regardless of provider.
 
-The key design split: CLI-based providers (claude-code) read source files themselves and don't need content inlined in prompts. API-based providers (ollama) need all content chunked into the prompt. The `needsChunking` flag on the provider interface lets callers (aspect-verifier, artifact-reviewer) adapt without knowing which backend is active.
+The critical behavioral split: CLI-based providers (claude-code) read source files themselves via subprocesses — inlining file content into prompts would be redundant and wasteful. API-based providers (ollama) have no filesystem access, so all content must be chunked into the request. This split cannot be inferred from call sites — it is a constraint imposed by the provider runtime environment.

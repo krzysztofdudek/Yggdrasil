@@ -1,8 +1,7 @@
 {
-  "hash": "b64b30785a5534570a24d49690cb768981a7e11df6ca94120eea4d3a4d0f5c3c",
+  "hash": "d983a7a7f002c9bbfeaa4e788feb8f92b14e1f040564ffa6f3f1f5cff7446772",
   "files": {
-    ".yggdrasil/model/cli/tests/unit/core/context/yg-node.yaml": "cc006a6b91d579b1fb0ea6cf136f10e7919a494338ba49679c5d062b9ae3f57a",
-    ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df",
+    ".yggdrasil/model/cli/tests/unit/core/context/responsibility.md": "ab70c4e3b9e61034ac190cde8f2b3b22169d03a5b4737a3c7eb5ae18250a21f4",
     ".yggdrasil/model/cli/internals.md": "6ed08e0ee1a22270af6dcb23306acae750c7e55744a43a17671c4713684f4b91",
     ".yggdrasil/model/cli/responsibility.md": "f35cbcee252f56323379f08b65c38989787e0758c94f5eee2a36188c0260d05d",
     ".yggdrasil/model/cli/tests/yg-node.yaml": "ac0fc246c01a04e62d43ef8abadb2f01551616ca7509c3b268995ef646279bc9",
@@ -11,18 +10,17 @@
     ".yggdrasil/model/cli/tests/unit/responsibility.md": "cc1518370e9ddaf77b8180325843c74d1be693f9c37c1b534e8904ec5549bb2b",
     ".yggdrasil/model/cli/tests/unit/core/yg-node.yaml": "298e5421fca1bb3f0a6c3536cc8d5514e9f5b943e68f085eafa089f04d8168cf",
     ".yggdrasil/model/cli/tests/unit/core/responsibility.md": "b66b8241f6d2ce98ef68af26fe3b7bf484c85c6451bdfdf0599d71ec3288e3b6",
-    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "20f321091b4f489efbf167feea9d42d73f7cffb21ea2e86958e565b550da164b",
-    ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
-    "source/cli/tests/unit/core/graph-loader.test.ts": "48140ecca74d882f2850b5e1a30c223873799e1a8272158d65f871bfe09c8a24",
-    ".yggdrasil/model/cli/tests/unit/core/context/responsibility.md": "ab70c4e3b9e61034ac190cde8f2b3b22169d03a5b4737a3c7eb5ae18250a21f4",
     "source/cli/tests/unit/core/context-builder.test.ts": "b468e882b73014738d33aa82ba4356dcf7d69a106dcff8ff653b7688598def6d",
     "source/cli/tests/unit/core/context-files.test.ts": "c9998543f71e8691ea2a842efd883f3d1a143a6a178e1e30cf6ae6e6643b3321",
-    "source/cli/tests/unit/core/__snapshots__/context-builder.test.ts.snap": "46c204c31df77e0e68010f66f1e23fd7cd053469b8d036c09da10478026e59c9"
+    "source/cli/tests/unit/core/graph-loader.test.ts": "48140ecca74d882f2850b5e1a30c223873799e1a8272158d65f871bfe09c8a24",
+    "source/cli/tests/unit/core/__snapshots__/context-builder.test.ts.snap": "46c204c31df77e0e68010f66f1e23fd7cd053469b8d036c09da10478026e59c9",
+    ".yggdrasil/model/cli/tests/unit/core/context/yg-node.yaml": "dc99a64dd394b8b36cfc14e7a33f55e78e52a40d6f7839cbee4dee32a503a20b",
+    ".yggdrasil/model/cli/yg-node.yaml": "41ddbf73fbc1ee27a28a5ea5ec7ad656ea34f5938284bd5ab4ea7c3afcbbd69b"
   },
   "mtimes": {
-    ".yggdrasil/model/cli/tests/unit/core/context/yg-node.yaml": 1775327956359.1255,
+    ".yggdrasil/model/cli/tests/unit/core/context/yg-node.yaml": 1775639481108.2588,
     ".yggdrasil/model/cli/tests/unit/core/context/responsibility.md": 1775629446979.5464,
-    ".yggdrasil/model/cli/yg-node.yaml": 1775243577620.7664,
+    ".yggdrasil/model/cli/yg-node.yaml": 1775639608581.9402,
     ".yggdrasil/model/cli/internals.md": 1775586290475.0237,
     ".yggdrasil/model/cli/responsibility.md": 1775586232234.4275,
     ".yggdrasil/model/cli/tests/yg-node.yaml": 1775243577592.7366,
@@ -31,12 +29,16 @@
     ".yggdrasil/model/cli/tests/unit/responsibility.md": 1775569529006.107,
     ".yggdrasil/model/cli/tests/unit/core/yg-node.yaml": 1775243577536.9612,
     ".yggdrasil/model/cli/tests/unit/core/responsibility.md": 1775054577303.7114,
-    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775580563004.8235,
-    ".yggdrasil/aspects/deterministic/content.md": 1772778780694.5889,
     "source/cli/tests/unit/core/context-builder.test.ts": 1775625661724.5078,
     "source/cli/tests/unit/core/context-files.test.ts": 1775623295666.2637,
     "source/cli/tests/unit/core/graph-loader.test.ts": 1773390442109.678,
     "source/cli/tests/unit/core/__snapshots__/context-builder.test.ts.snap": 1775625702427.7788
   },
-  "reviewedReason": "import path changes, responsibility rewritten"
+  "reviewedReason": "type changed to test, architecture redesign",
+  "artifactReview": {
+    "responsibility.md": {
+      "current": true,
+      "reason": "up to date"
+    }
+  }
 }

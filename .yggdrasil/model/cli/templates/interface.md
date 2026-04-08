@@ -12,6 +12,10 @@ YAML string for default yg-config.yaml — node types (module, service, library,
 
 YAML string for default yg-architecture.yaml — node types with descriptions, optional aspects/relations per type.
 
+## `resolveProjectName(projectRoot): Promise<string>`
+
+Infers project name for `yg init`. Reads `package.json` name, handles scoped packages (uses scope name if bare name is generic like "root" or "app"), falls back to directory basename.
+
 ## `installRulesForPlatform(projectRoot, platform): Promise<string>`
 
 Writes rules to platform-specific location. Returns absolute path to rules file. Unknown platform falls through to generic.

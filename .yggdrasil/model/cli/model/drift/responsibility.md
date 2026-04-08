@@ -1,7 +1,5 @@
 # Drift Types Responsibility
 
-Types for drift detection, node approval, and audit trail.
+Types for the trust lifecycle: drift detection → approval → audit. These types form a cohesive domain because they all describe states of the "is this node's graph consistent with its source?" question. DriftNodeState persists the baseline, DriftEntry reports current status, ApproveResult captures the approval decision, and AuditEntry records the history.
 
-**In scope:** DriftReport, DriftEntry, DriftStatus, DriftState, DriftNodeState, DriftCategory, TrackedFileLayer, DriftFileChange, AnnotatedChange, ApproveResult, AuditEntry, AspectVerificationResult, ArtifactReviewResult.
-
-**Out of scope:** Graph model types (cli/model/graph), drift detection logic (cli/core/drift-detector), approval logic (cli/core/approve). No runtime behavior — types only.
+Separated from graph types because drift state is ephemeral and per-node (changes every approve), while graph types are structural and stable. AspectVerificationResult and ArtifactReviewResult live here (not in LLM types) because they're cached in drift state — they're verification results, not provider contracts.

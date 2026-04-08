@@ -1,8 +1,9 @@
 name: Approve Core
 type: engine
-description: Core approve logic — records drift baseline, implements three-axis change detection and blackbox enforcement
+description: Core approve logic — records drift baseline, implements three-axis change detection and blackbox enforcement. Deterministic only — no LLM calls.
 blackbox: false
 aspects:
+  - deterministic
   - posix-paths
   - what-why-next
   - diagnostic-logging
@@ -11,9 +12,5 @@ relations:
     type: uses
   - target: cli/utils
     type: uses
-  - target: cli/llm
-    type: uses
 mapping:
   - source/cli/src/core/approve.ts
-  - source/cli/src/core/aspect-verifier.ts
-  - source/cli/src/core/artifact-reviewer.ts

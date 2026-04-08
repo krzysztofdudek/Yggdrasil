@@ -2,19 +2,189 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import path from 'node:path';
 import { loadGraph } from '../core/graph-loader.js';
-import { initDebugLog } from '../utils/debug-log.js';
-import { approveNode } from '../core/approve.js';
+import { initDebugLog, debugWrite } from '../utils/debug-log.js';
+import { approveNode, resolveAspects, loadSourceFiles } from '../core/approve.js';
+import { collectTrackedFiles } from '../core/context-files.js';
+import { hashTrackedFiles } from '../utils/hash.js';
 import { classifyDrift } from '../core/check.js';
 import type { CheckIssue, CascadeCause } from '../core/check.js';
 import { createLlmProvider } from '../llm/provider.js';
+import { verifyAspects } from '../llm/aspect-verifier.js';
+import { reviewArtifacts } from '../llm/artifact-reviewer.js';
 import { loadSecrets, mergeLlmConfig } from '../io/secrets-parser.js';
 import { normalizeMappingPaths } from '../utils/paths.js';
+import { buildNodeContextData } from '../core/context-builder.js';
+import { formatNodeContext } from '../formatters/context-node.js';
+import { writeNodeDriftState } from '../io/drift-state-store.js';
 import type { LlmProvider } from '../llm/types.js';
-import type { ApproveResult } from '../model/drift.js';
+import type { ApproveResult, AspectVerificationResult, ArtifactReviewResult } from '../model/drift.js';
 import type { Graph } from '../model/graph.js';
 
 // Track cloud provider notice per process session
 let sessionNoticeShown = false;
+
+/** Extended result that includes LLM verification data (tracked in CLI layer, not in core) */
+export interface LlmApproveResult extends ApproveResult {
+  /** LLM aspect verification results (E055) */
+  aspectResults?: Record<string, AspectVerificationResult>;
+  /** LLM artifact review results (E056) */
+  artifactReviewResults?: Record<string, ArtifactReviewResult>;
+  /** Why LLM verification was skipped, if it was */
+  llmSkipped?: 'not-configured' | 'unavailable' | 'blackbox';
+  /** E055 structured violations for programmatic consumption */
+  e055Violations?: Array<{ aspect: string; reason: string }>;
+  /** E056 structured violations for programmatic consumption */
+  e056Violations?: Array<{ name: string; reason: string }>;
+}
+
+/** LLM configuration resolved from graph config */
+export interface LlmConfig {
+  provider: LlmProvider | undefined;
+  llmNotConfigured: boolean;
+  maxTokens: number | undefined;
+  consensus: number | undefined;
+  verifyAspects: boolean;
+  verifyArtifacts: boolean;
+}
+
+/**
+ * Run LLM verification on an approved node result, returning an extended result.
+ * If LLM refuses, the result action is set to 'refused'.
+ */
+export async function runLlmVerification(
+  graph: Graph,
+  nodePath: string,
+  result: ApproveResult,
+  llmConfig: LlmConfig,
+): Promise<LlmApproveResult> {
+  const { provider, llmNotConfigured } = llmConfig;
+  const node = graph.nodes.get(nodePath);
+  const isBlackbox = node?.meta.blackbox === true;
+
+  // Determine if LLM should be skipped
+  if (!provider) {
+    return {
+      ...result,
+      llmSkipped: llmNotConfigured ? 'not-configured' : 'unavailable',
+    };
+  }
+
+  if (isBlackbox) {
+    return { ...result, llmSkipped: 'blackbox' };
+  }
+
+  if (result.action === 'refused' || !node) {
+    return result;
+  }
+
+  const projectRoot = path.dirname(graph.rootPath);
+  const resolvedMaxTokens = llmConfig.maxTokens
+    ?? (await provider.getContextWindowSize() ?? 8192);
+
+  const aspects = resolveAspects(node, graph);
+  const artifacts = node.artifacts
+    .filter(a => a.filename.endsWith('.md'))
+    .map(a => ({ name: a.filename, content: a.content }));
+
+  // Collect source file paths by expanding directory mappings to actual files
+  const trackedFiles = collectTrackedFiles(node, graph);
+  const { fileHashes } = await hashTrackedFiles(projectRoot, trackedFiles, undefined, []);
+  const yggPrefix = path.relative(projectRoot, graph.rootPath).split(path.sep).join('/');
+  const sourceFilePaths = Object.keys(fileHashes).filter(f => {
+    const normalized = f.replace(/\\/g, '/').replace(/\/+$/, '');
+    return !normalized.startsWith(yggPrefix);
+  });
+  const sourceFiles = await loadSourceFiles(sourceFilePaths, projectRoot);
+
+  // Pre-compute node context for reviewer
+  let nodeContext: string | undefined;
+  try {
+    const contextData = buildNodeContextData(graph, nodePath);
+    nodeContext = formatNodeContext(contextData);
+  } catch (err) {
+    debugWrite(`[approve] context build failed for ${nodePath}: ${(err as Error).message}`);
+  }
+
+  let aspectResults: Record<string, AspectVerificationResult> | undefined;
+  let artifactReviewResults: Record<string, ArtifactReviewResult> | undefined;
+  const e055Violations: Array<{ aspect: string; reason: string }> = [];
+  const e056Violations: Array<{ name: string; reason: string }> = [];
+
+  if ((llmConfig.verifyAspects) && aspects.length > 0) {
+    aspectResults = await verifyAspects({
+      provider,
+      aspects,
+      sourceFiles,
+      nodePath,
+      nodeType: node.meta.type,
+      projectRoot,
+      consensus: llmConfig.consensus ?? 1,
+      maxTokens: resolvedMaxTokens,
+      nodeContext,
+    });
+    for (const [aspectId, res] of Object.entries(aspectResults)) {
+      if (!res.satisfied) {
+        e055Violations.push({ aspect: aspectId, reason: res.reason });
+      }
+    }
+  }
+
+  if (llmConfig.verifyArtifacts && artifacts.length > 0 && sourceFiles.length > 0) {
+    const nodeTypeDef = graph.architecture?.node_types[node.meta.type];
+    artifactReviewResults = await reviewArtifacts({
+      provider,
+      artifacts,
+      sourceFiles,
+      maxTokens: resolvedMaxTokens,
+      nodePath,
+      nodeType: node.meta.type,
+      qualityProfile: nodeTypeDef?.quality_profile,
+      nodeContext,
+      projectRoot,
+    });
+    for (const [name, review] of Object.entries(artifactReviewResults)) {
+      if (!review.current) {
+        e056Violations.push({ name, reason: review.reason });
+      }
+    }
+  }
+
+  // If violations found, override to refused
+  if (e055Violations.length > 0 || e056Violations.length > 0) {
+    return {
+      ...result,
+      action: 'refused',
+      refuseReason: 'Reviewer verification found issues',
+      aspectResults,
+      artifactReviewResults,
+      e055Violations,
+      e056Violations,
+    };
+  }
+
+  // Update drift state with LLM results
+  if (aspectResults || artifactReviewResults) {
+    try {
+      const { readNodeDriftState } = await import('../io/drift-state-store.js');
+      const storedEntry = await readNodeDriftState(graph.rootPath, nodePath);
+      if (storedEntry) {
+        await writeNodeDriftState(graph.rootPath, nodePath, {
+          ...storedEntry,
+          ...(aspectResults ? { aspectResults } : {}),
+          ...(artifactReviewResults ? { artifactReview: artifactReviewResults } : {}),
+        });
+      }
+    } catch (err) {
+      debugWrite(`[approve] failed to update drift state with LLM results: ${(err as Error).message}`);
+    }
+  }
+
+  return {
+    ...result,
+    aspectResults,
+    artifactReviewResults,
+  };
+}
 
 // ── Output formatting ────────────────────────────────────────
 
@@ -22,7 +192,7 @@ function shortHash(h: string): string {
   return h.slice(0, 8);
 }
 
-export function formatResult(nodePath: string, result: ApproveResult): void {
+export function formatResult(nodePath: string, result: LlmApproveResult): void {
   const prev = result.previousHash ? shortHash(result.previousHash) : '(none)';
   const curr = result.currentHash ? shortHash(result.currentHash) : '(none)';
 
@@ -87,9 +257,9 @@ export function formatResult(nodePath: string, result: ApproveResult): void {
   }
 }
 
-function formatLlmResults(result: ApproveResult): void {
+function formatLlmResults(result: LlmApproveResult): void {
   if (result.llmSkipped) {
-    const messages: Record<NonNullable<ApproveResult['llmSkipped']>, string> = {
+    const messages: Record<NonNullable<LlmApproveResult['llmSkipped']>, string> = {
       'not-configured': 'Reviewer not configured — aspects not verified. Structural checks only.\n  To enable: add reviewer section to yg-config.yaml.',
       'unavailable': 'Reviewer configured but not reachable — aspects not verified. Structural checks only.',
       'blackbox': 'Reviewer skipped for blackbox node.',
@@ -123,7 +293,7 @@ function formatLlmResults(result: ApproveResult): void {
   }
 }
 
-function formatRefused(nodePath: string, result: ApproveResult): void {
+function formatRefused(nodePath: string, result: LlmApproveResult): void {
   // Anti-laundering
   if (result.antiLaunderingBlocked) {
     process.stderr.write(
@@ -276,7 +446,7 @@ function formatRefused(nodePath: string, result: ApproveResult): void {
 
 export interface BatchResult {
   nodePath: string;
-  result: ApproveResult;
+  result: LlmApproveResult;
 }
 
 /**
@@ -286,7 +456,7 @@ export interface BatchResult {
 export async function runBatch(
   nodes: string[],
   concurrency: number,
-  approveOne: (nodePath: string) => Promise<ApproveResult>,
+  approveOne: (nodePath: string) => Promise<LlmApproveResult>,
 ): Promise<BatchResult[]> {
   const results: BatchResult[] = new Array(nodes.length);
   const queue = [...nodes.entries()]; // [[0, 'path0'], [1, 'path1'], ...]
@@ -323,28 +493,21 @@ export function filterCascadeNodes(
   return matched;
 }
 
-function formatBatchOutput(results: BatchResult[], parallel: number): void {
-  const total = results.length;
+export function formatBatchOutput(results: BatchResult[]): void {
   let approved = 0;
   let failed = 0;
 
   for (let i = 0; i < results.length; i++) {
     const { nodePath, result } = results[i];
-    const prefix = parallel > 1 ? '' : `[${i + 1}/${total}] `;
-    if (result.action === 'refused') {
-      failed++;
-      const reason = result.e055Violations?.length
-        ? result.e055Violations.map(v => `E055 ${v.aspect}`).join(', ')
-        : (result.refuseReason ?? 'refused');
-      process.stdout.write(`${prefix}${nodePath.padEnd(50)} ${chalk.red('✗')} ${reason}\n`);
-    } else {
-      approved++;
-      process.stdout.write(`${prefix}${nodePath.padEnd(50)} ${chalk.green('✓')} ${result.action}\n`);
+    if (results.length > 1) {
+      process.stdout.write(`\n${'─'.repeat(3)} ${nodePath} ${'─'.repeat(Math.max(1, 50 - nodePath.length))}\n\n`);
     }
+    formatResult(nodePath, result);
+    if (result.action === 'refused') failed++;
+    else approved++;
   }
 
-  if (parallel > 1) process.stdout.write('\n');
-  process.stdout.write(`${approved} approved, ${failed} failed.\n`);
+  process.stdout.write(`\n${approved} approved, ${failed} failed.\n`);
 }
 
 // ── Reviewer provider loading ────────────────────────────────
@@ -406,19 +569,17 @@ async function runBatchApprove(
     process.stdout.write(`Approving ${sorted.length} nodes cascaded from ${entityLabel}...\n`);
   }
 
-  const results = await runBatch(sorted, parallel, (nodePath) =>
-    approveNode(graph, nodePath, {
-      reviewed,
-      llmProvider: provider,
-      llmNotConfigured,
-      maxTokens,
-      consensus,
-      verifyAspects: graph.config.llm?.verify_aspects,
-      verifyArtifacts: graph.config.llm?.verify_artifacts,
-    }),
-  );
+  const llmCfg: LlmConfig = {
+    provider, llmNotConfigured, maxTokens, consensus,
+    verifyAspects: graph.config.llm?.verify_aspects ?? true,
+    verifyArtifacts: graph.config.llm?.verify_artifacts ?? false,
+  };
+  const results = await runBatch(sorted, parallel, async (nodePath) => {
+    const result = await approveNode(graph, nodePath, { reviewed });
+    return runLlmVerification(graph, nodePath, result, llmCfg);
+  });
 
-  formatBatchOutput(results, parallel);
+  formatBatchOutput(results);
   return results.every(r => r.result.action !== 'refused');
 }
 
@@ -449,7 +610,7 @@ export function registerApproveCommand(program: Command): void {
         const graph = await loadGraph(process.cwd());
         initDebugLog(graph.rootPath, graph.config.debug ?? false);
         const yggPrefix = path.relative(path.dirname(graph.rootPath), graph.rootPath)
-          .split(path.sep).join('/');
+          .replace(/\\/g, '/').replace(/\/+$/, '');
 
         // --aspect: batch approve all nodes with cascade drift from this aspect
         if (options.aspect) {
@@ -490,18 +651,16 @@ export function registerApproveCommand(program: Command): void {
           } else {
             process.stdout.write(`Approving ${nodePaths.length} nodes...\n`);
           }
-          const batchResults = await runBatch(nodePaths, parallel, (nodePath) =>
-            approveNode(graph, nodePath, {
-              reviewed: options.reviewed,
-              llmProvider: provider,
-              llmNotConfigured,
-              maxTokens,
-              consensus,
-              verifyAspects: graph.config.llm?.verify_aspects,
-      verifyArtifacts: graph.config.llm?.verify_artifacts,
-            }),
-          );
-          formatBatchOutput(batchResults, parallel);
+          const llmCfg: LlmConfig = {
+            provider, llmNotConfigured, maxTokens, consensus,
+            verifyAspects: graph.config.llm?.verify_aspects ?? true,
+            verifyArtifacts: graph.config.llm?.verify_artifacts ?? false,
+          };
+          const batchResults = await runBatch(nodePaths, parallel, async (nodePath) => {
+            const result = await approveNode(graph, nodePath, { reviewed: options.reviewed });
+            return runLlmVerification(graph, nodePath, result, llmCfg);
+          });
+          formatBatchOutput(batchResults);
           const anyFailed = batchResults.some(r => r.result.action === 'refused');
           if (anyFailed) process.exit(1);
           return;
@@ -532,15 +691,15 @@ export function registerApproveCommand(program: Command): void {
         if (provider) {
           process.stdout.write(chalk.dim(`Verifying aspects with reviewer — this may take a while. Do not interrupt.\n`));
         }
-        const result = await approveNode(graph, nodePath, {
+        const coreResult = await approveNode(graph, nodePath, {
           reviewed: options.reviewed,
-          llmProvider: provider,
-          llmNotConfigured,
-          maxTokens,
-          consensus,
-          verifyAspects: graph.config.llm?.verify_aspects,
-      verifyArtifacts: graph.config.llm?.verify_artifacts,
         });
+        const llmCfg: LlmConfig = {
+          provider, llmNotConfigured, maxTokens, consensus,
+          verifyAspects: graph.config.llm?.verify_aspects ?? true,
+          verifyArtifacts: graph.config.llm?.verify_artifacts ?? false,
+        };
+        const result = await runLlmVerification(graph, nodePath, coreResult, llmCfg);
         formatResult(nodePath, result);
         if (result.action === 'refused') {
           process.exit(1);
@@ -552,7 +711,7 @@ export function registerApproveCommand(program: Command): void {
             chalk.red(`Error: No .yggdrasil/ directory found. Run 'yg init' first.\n`),
           );
         } else {
-          process.stderr.write(chalk.red(`ERROR: ${(error as Error).message}\n`));
+          process.stderr.write(chalk.red(`Error: ${(error as Error).message}\n`));
         }
         process.exit(1);
       }
@@ -603,24 +762,32 @@ export function registerApproveCommand(program: Command): void {
           const graph = await loadGraph(process.cwd());
           initDebugLog(graph.rootPath, graph.config.debug ?? false);
           const nodePath = options.node.trim().replace(/\/$/, '');
-          const { provider, llmNotConfigured, maxTokens, cloudNotice } = await loadLlmProvider(graph);
+          const { provider, llmNotConfigured, maxTokens, consensus, cloudNotice } = await loadLlmProvider(graph);
           if (cloudNotice) {
             process.stdout.write(chalk.yellow(`Notice: ${cloudNotice}\n`));
           }
-          const result = await approveNode(graph, nodePath, {
+          const coreResult = await approveNode(graph, nodePath, {
             reviewed: options.reviewed,
-            llmProvider: provider,
-            llmNotConfigured,
-            maxTokens,
-            verifyAspects: graph.config.llm?.verify_aspects,
-      verifyArtifacts: graph.config.llm?.verify_artifacts,
           });
+          const llmCfg: LlmConfig = {
+            provider, llmNotConfigured, maxTokens, consensus,
+            verifyAspects: graph.config.llm?.verify_aspects ?? true,
+            verifyArtifacts: graph.config.llm?.verify_artifacts ?? false,
+          };
+          const result = await runLlmVerification(graph, nodePath, coreResult, llmCfg);
           formatResult(nodePath, result);
           if (result.action === 'refused') {
             process.exit(1);
           }
         } catch (error) {
-          process.stderr.write(chalk.red(`ERROR: ${(error as Error).message}\n`));
+          const err = error as NodeJS.ErrnoException;
+          if (err.code === 'ENOENT') {
+            process.stderr.write(
+              chalk.red(`Error: No .yggdrasil/ directory found. Run 'yg init' first.\n`),
+            );
+          } else {
+            process.stderr.write(chalk.red(`Error: ${(error as Error).message}\n`));
+          }
           process.exit(1);
         }
       },

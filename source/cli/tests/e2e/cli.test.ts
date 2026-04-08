@@ -108,7 +108,7 @@ describe.skipIf(!distExists)('CLI E2E', () => {
   it('yg build-context without --node or --file returns exit 1', () => {
     const { status, stderr } = run(['build-context']);
     expect(status).toBe(1);
-    expect(stderr).toContain("either '--node <path>' or '--file <path>' is required");
+    expect(stderr).toContain("'--node <path>' or '--file <path>' is required");
   });
 
   it('yg context --node works (renamed from build-context)', () => {

@@ -106,7 +106,7 @@ export async function perFileHashes(
       });
       for (const h of hashes) {
         result.push({
-          path: path.join(p, h.path).split(path.sep).join('/'),
+          path: path.join(p, h.path).replace(/\\/g, '/').replace(/\/+$/, ''),
           hash: h.hash,
         });
       }

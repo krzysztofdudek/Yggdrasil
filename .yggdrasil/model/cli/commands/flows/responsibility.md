@@ -1,7 +1,5 @@
 # Flows Command Responsibility
 
-**In scope:** `yg flows`. Inventory of all business-process flows in the graph.
+**In scope:** `yg flows`. Helps agents understand which business processes exist and which nodes participate before modifying code that could break process invariants.
 
-Shows each flow's participants and propagated aspects. This diagnostic helps agents understand which nodes participate in cross-cutting business processes before modifying code that could break process invariants.
-
-**Out of scope:** Flow creation, modification, impact analysis (use `yg impact --flow`).
+Agents use this during the READING phase to decide which flow descriptions to read and whether a planned change might affect a business process they haven't considered.

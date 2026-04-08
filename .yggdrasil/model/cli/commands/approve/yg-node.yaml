@@ -1,12 +1,14 @@
 name: Approve Command
 type: command
-description: CLI command implementing yg approve — records drift baseline after user review
+description: CLI command implementing yg approve — orchestrates three-axis detection (core) and LLM verification (llm), formats output
 blackbox: false
 aspects: []
 relations:
   - target: cli/core/loader
     type: uses
   - target: cli/core/approve
+    type: uses
+  - target: cli/llm
     type: uses
 mapping:
   - source/cli/src/cli/approve.ts

@@ -1,15 +1,17 @@
 # Approve Interface
 
-**`approveNode(graph, nodePath, options?): Promise<ApproveResult>`** — records a new drift baseline after verifying a node's state through two gates:
+**`approveNode(graph, nodePath, options?): Promise<ApproveResult>`** — three-axis change detection + baseline recording. No LLM calls.
 
-1. **Three-axis gate:** Compares own artifacts, source files, and upstream context. Both artifacts AND source must change together — unilateral changes are refused with guidance. `--reviewed` bypasses this gate only.
-2. **Reviewer gate (when LLM configured):** Verifies aspects (E055) against source code and optionally reviews artifact freshness (E056). This gate cannot be bypassed.
+`options.reviewed?: string` — bypasses three-axis gate with a reason.
 
-**`ApproveResult.action`** values: `'approved'` (both gates pass), `'reviewed'` (three-axis bypassed, reviewer passed), `'initial'` (first approve for node), `'no-change'` (baseline already current), `'refused'` (gate failed — check `axes`, `e055Violations`, `e056Violations`, `blackboxBlocked` for reason).
+**`ApproveResult.action`** values: `'approved'`, `'reviewed'`, `'initial'`, `'no-change'`, `'refused'`.
 
-**`options.verifyAspects`** (default true) and **`options.verifyArtifacts`** (default false) control which reviewer checks run.
+**Exported helpers for CLI layer:**
+
+- `resolveAspects(node, graph)` — computes effective aspects with content paths for LLM verification.
+- `loadSourceFiles(filePaths, projectRoot)` — reads source files from disk, skipping unreadable ones.
 
 ## Failure Modes
 
 - Throws on: empty reviewed reason, non-existent node, node without mapping.
-- Returns refused (not throw): blackbox source changes, anti-laundering violations, gate failures.
+- Returns `'refused'` (not throw): blackbox source changes, anti-laundering violations, unilateral changes.

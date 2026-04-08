@@ -69,11 +69,19 @@ export function registerBuildCommand(program: Command): void {
   const contextAction = async (options: { node?: string; file?: string }) => {
       try {
         if (!options.node && !options.file) {
-          process.stderr.write(chalk.red("Error: either '--node <path>' or '--file <path>' is required\n"));
+          process.stderr.write(chalk.red(buildIssueMessage({
+            what: "No target specified.",
+            why: "Either '--node <path>' or '--file <path>' is required.",
+            next: "Run: yg context --node <path> or yg context --file <path>",
+          }) + '\n'));
           process.exit(1);
         }
         if (options.node && options.file) {
-          process.stderr.write(chalk.red("Error: '--node' and '--file' are mutually exclusive\n"));
+          process.stderr.write(chalk.red(buildIssueMessage({
+            what: "Conflicting options.",
+            why: "'--node' and '--file' are mutually exclusive.",
+            next: "Use one or the other, not both.",
+          }) + '\n'));
           process.exit(1);
         }
 
@@ -99,7 +107,12 @@ export function registerBuildCommand(program: Command): void {
               });
               process.stderr.write(`${msg}\n`);
             } else {
-              process.stderr.write(`${result.file} -> no graph coverage\n`);
+              const noGraphMsg = buildIssueMessage({
+                what: `${result.file} has no graph coverage.`,
+                why: 'File is not mapped to any node and no candidate nodes found in the same directory.',
+                next: 'Add the file to an existing node mapping, or create a new node.',
+              });
+              process.stderr.write(`${noGraphMsg}\n`);
             }
             process.exit(1);
           }
