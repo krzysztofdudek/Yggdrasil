@@ -1,6 +1,7 @@
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import type { Artifact } from '../model/graph.js';
+import { debugWrite } from '../utils/debug-log.js';
 
 export async function readArtifacts(
   dirPath: string,
@@ -10,7 +11,8 @@ export async function readArtifacts(
   let entries;
   try {
     entries = await readdir(dirPath, { withFileTypes: true });
-  } catch {
+  } catch (err) {
+    debugWrite(`[artifact-reader] readdir: ${(err as Error).message}`);
     return [];
   }
   const artifacts: Artifact[] = [];

@@ -101,7 +101,8 @@ export class ClaudeCodeProvider implements LlmProvider {
     try {
       await execFileAsync('which', ['claude'], { timeout: 5000 });
       return true;
-    } catch {
+    } catch (err) {
+      debugWrite(`[claude-code] isAvailable: ${(err as Error).message}`);
       return false;
     }
   }
@@ -160,20 +161,20 @@ export class ClaudeCodeProvider implements LlmProvider {
     if (!trimmed) return fallback;
     try {
       return JSON.parse(trimmed) as T;
-    } catch { /* not pure JSON */ }
+    } catch (err) { debugWrite(`[claude-code] direct JSON parse failed: ${(err as Error).message}`); }
 
     const fenceMatch = trimmed.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
     if (fenceMatch) {
       try {
         return JSON.parse(fenceMatch[1].trim()) as T;
-      } catch { /* not valid JSON in fence */ }
+      } catch (err) { debugWrite(`[claude-code] fence JSON parse failed: ${(err as Error).message}`); }
     }
 
     const jsonMatch = trimmed.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       try {
         return JSON.parse(jsonMatch[0]) as T;
-      } catch { /* not valid JSON */ }
+      } catch (err) { debugWrite(`[claude-code] embedded JSON parse failed: ${(err as Error).message}`); }
     }
 
     debugWrite('[claude-code] json_parse_failed, using natural language fallback');

@@ -105,14 +105,14 @@ export function registerBuildCommand(program: Command): void {
                 why: `File is not mapped to any node. Other files in the same directory are mapped to these nodes:\n${candidatesList}This suggests the file should be added to one of them.`,
                 next: 'Use: yg context --node <node-path>',
               });
-              process.stderr.write(`${msg}\n`);
+              process.stderr.write(chalk.red(`${msg}\n`));
             } else {
               const noGraphMsg = buildIssueMessage({
                 what: `${result.file} has no graph coverage.`,
                 why: 'File is not mapped to any node and no candidate nodes found in the same directory.',
                 next: 'Add the file to an existing node mapping, or create a new node.',
               });
-              process.stderr.write(`${noGraphMsg}\n`);
+              process.stderr.write(chalk.red(`${noGraphMsg}\n`));
             }
             process.exit(1);
           }
@@ -130,7 +130,7 @@ export function registerBuildCommand(program: Command): void {
               why: `File is inside blackbox node '${nodePath}' (mapping: ${mappingDisplay}). Blackbox nodes have minimal coverage by design.`,
               next: 'To get full context: decompose the blackbox into a proper node.',
             });
-            process.stderr.write(`${msg}\n`);
+            process.stderr.write(chalk.red(`${msg}\n`));
             process.exit(1);
           }
         } else {
@@ -162,7 +162,7 @@ export function registerBuildCommand(program: Command): void {
             why: whyText,
             next: `Run yg check and fix the listed errors first:\n${errorList}`,
           });
-          process.stderr.write(`Error: ${msg}\n`);
+          process.stderr.write(chalk.red(`Error: ${msg}\n`));
           process.exit(1);
         }
 

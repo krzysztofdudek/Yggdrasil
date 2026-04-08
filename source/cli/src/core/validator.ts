@@ -86,7 +86,7 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
         };
       }
       return {
-        issues: [{ severity: 'error', rule: 'invalid-scope', message: `Node not found: ${scope}` }],
+        issues: [{ severity: 'error', rule: 'invalid-scope', message: buildIssueMessage({ what: `Node not found: ${scope}`, why: 'Validation scope references a node that does not exist in the graph.', next: 'Check the node path and try again.' }) }],
         nodesScanned: 0,
       };
     }
@@ -847,7 +847,7 @@ async function checkDirectoriesHaveNodeYaml(graph: Graph): Promise<ValidationIss
   const modelDir = path.join(graph.rootPath, 'model');
 
   async function scanDir(dirPath: string, segments: string[]): Promise<void> {
-    const entries = await readdir(dirPath, { withFileTypes: true });
+    const entries = (await readdir(dirPath, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name));
     const hasNodeYaml = entries.some((e) => e.isFile() && e.name === 'yg-node.yaml');
     const dirName = path.basename(dirPath);
 
@@ -882,7 +882,7 @@ async function checkDirectoriesHaveNodeYaml(graph: Graph): Promise<ValidationIss
   }
 
   try {
-    const rootEntries = await readdir(modelDir, { withFileTypes: true });
+    const rootEntries = (await readdir(modelDir, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name));
     for (const entry of rootEntries) {
       if (!entry.isDirectory()) continue;
       if (entry.name.startsWith('.')) continue;

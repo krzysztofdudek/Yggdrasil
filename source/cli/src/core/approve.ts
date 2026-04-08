@@ -66,7 +66,7 @@ export async function approveNode(
       const seen = new Set<string>();
       // Expand mapping paths to check against other nodes' drift state files
       for (const mp of mappingPaths) {
-        const normalized = mp.replace(/\\/g, '/').replace(/\/+$/, '');
+        const normalized = mp.trim().replace(/\\/g, '/').replace(/\/+$/, '');
         // Check each other node's tracked files
         for (const [otherPath, otherState] of Object.entries(allDriftState)) {
           if (otherPath === nodePath) continue;
@@ -151,19 +151,21 @@ export async function approveNode(
   const fileLayerMap = new Map<string, TrackedFileLayer>();
   const dirPrefixes: Array<{ prefix: string; layer: TrackedFileLayer }> = [];
   for (const tf of trackedFiles) {
-    if (!fileLayerMap.has(tf.path)) {
-      fileLayerMap.set(tf.path, tf.layer);
+    const tfKey = tf.path.trim().replace(/\\/g, '/').replace(/\/+$/, '');
+    if (!fileLayerMap.has(tfKey)) {
+      fileLayerMap.set(tfKey, tf.layer);
     }
-    const normalized = tf.path.replace(/\\/g, '/').replace(/\/+$/, '');
-    if (tf.path.endsWith('/') || tf.path.endsWith('\\')) {
+    const normalized = tfKey;
+    const trimmedPath = tf.path.trim().replace(/\\/g, '/');
+    if (trimmedPath.endsWith('/')) {
       dirPrefixes.push({ prefix: normalized + '/', layer: tf.layer });
     }
   }
 
   function resolveLayer(filePath: string): TrackedFileLayer | undefined {
-    const direct = fileLayerMap.get(filePath);
+    const normalized = filePath.trim().replace(/\\/g, '/').replace(/\/+$/, '');
+    const direct = fileLayerMap.get(normalized);
     if (direct) return direct;
-    const normalized = filePath.replace(/\\/g, '/').replace(/\/+$/, '');
     for (const { prefix, layer } of dirPrefixes) {
       if (normalized.startsWith(prefix)) return layer;
     }
@@ -197,7 +199,7 @@ export async function approveNode(
     filePath: string,
     layer: TrackedFileLayer | undefined,
   ): string {
-    const normalized = filePath.replace(/\\/g, '/').replace(/\/+$/, '');
+    const normalized = filePath.trim().replace(/\\/g, '/').replace(/\/+$/, '');
     if (layer === 'aspects' || normalized.includes('/aspects/')) return 'aspect content';
     if (layer === 'flows' || normalized.includes('/flows/')) return 'flow description';
     if (layer === 'hierarchy') return 'parent artifact';
@@ -207,7 +209,7 @@ export async function approveNode(
 
   function classifyChangedFile(filePath: string): void {
     const layer = resolveLayer(filePath);
-    const isGraph = filePath.replace(/\\/g, '/').replace(/\/+$/, '').startsWith(yggPrefix);
+    const isGraph = filePath.trim().replace(/\\/g, '/').replace(/\/+$/, '').startsWith(yggPrefix);
 
     if (layer === 'source' || (!isGraph && !layer)) {
       changedSource.push(filePath);
@@ -228,7 +230,7 @@ export async function approveNode(
       // check if it was an own artifact (.md in node dir) or upstream
       const nodePrefix = `${yggPrefix}/model/${nodePath}/`;
       if (
-        filePath.replace(/\\/g, '/').replace(/\/+$/, '').startsWith(nodePrefix) &&
+        filePath.trim().replace(/\\/g, '/').replace(/\/+$/, '').startsWith(nodePrefix) &&
         filePath.endsWith('.md')
       ) {
         changedOwnArtifacts.push(filePath);
@@ -357,7 +359,7 @@ export async function approveNode(
   // Collect actual source file paths (expanded from directory mappings)
   const allSourceFiles = Object.keys(fileHashes).filter((f) => {
     const layer = resolveLayer(f);
-    return layer === 'source' || (!f.replace(/\\/g, '/').replace(/\/+$/, '').startsWith(yggPrefix) && !layer);
+    return layer === 'source' || (!f.trim().replace(/\\/g, '/').replace(/\/+$/, '').startsWith(yggPrefix) && !layer);
   });
 
   return {

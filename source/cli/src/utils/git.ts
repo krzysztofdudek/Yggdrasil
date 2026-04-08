@@ -1,5 +1,4 @@
 import { execSync } from 'node:child_process';
-import path from 'node:path';
 
 /**
  * Returns Unix timestamp (seconds) of the last commit touching the given path,

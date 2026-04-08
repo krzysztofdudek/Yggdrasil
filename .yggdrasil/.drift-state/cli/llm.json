@@ -1,36 +1,46 @@
 {
-  "hash": "b3d738ed2279505cc362d0e47c24bbb19d480c9b09b77a857d1706b2cd54f451",
+  "hash": "b10a0ac12418cc760dccfdd06f02f93ec435662c9951f44ad9a4deb9e6b498f3",
   "files": {
-    ".yggdrasil/model/cli/llm/yg-node.yaml": "23c1dfe28111789dee577d2b990af90ab281c0e745d1da929f969960dc7be123",
-    ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df",
+    ".yggdrasil/model/cli/llm/yg-node.yaml": "7cfd65d6bc7674665e9d62fffa02ea5c186e5b7524850f1b1d1ae3efb9142973",
+    ".yggdrasil/model/cli/llm/interface.md": "6d8e2d51a7916d25bf060bc82dd579aba4f7aee60c2c9f3b69be58a68cc9313e",
+    ".yggdrasil/model/cli/llm/responsibility.md": "971dc5e1f854499755b7aa1bcb0c3f5adb7913928c85fb7bdfe6d9146b6d6f57",
+    ".yggdrasil/model/cli/yg-node.yaml": "41ddbf73fbc1ee27a28a5ea5ec7ad656ea34f5938284bd5ab4ea7c3afcbbd69b",
     ".yggdrasil/model/cli/internals.md": "6ed08e0ee1a22270af6dcb23306acae750c7e55744a43a17671c4713684f4b91",
     ".yggdrasil/model/cli/responsibility.md": "f35cbcee252f56323379f08b65c38989787e0758c94f5eee2a36188c0260d05d",
-    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "20f321091b4f489efbf167feea9d42d73f7cffb21ea2e86958e565b550da164b",
-    ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
+    ".yggdrasil/aspects/diagnostic-logging/yg-aspect.yaml": "d2f92251b7ac3da65b1e00800a1839a14f7508c11905dc9089bf0b62d310ee2b",
+    ".yggdrasil/aspects/diagnostic-logging/content.md": "861da9ccecc91d8c08168ba10fb297a729158f272fe8da5c136fd6a7e997fb41",
     "source/cli/src/llm/artifact-guidance.ts": "28b6107867b9a091e5f6ea0af5c0e554d268c27231a8a54a7db1bec614987db2",
+    "source/cli/src/llm/artifact-reviewer.ts": "253b1abdbe5140ed50cf7c634f86a4b2cb8b5de23805aaf039aa713123b0b84a",
+    "source/cli/src/llm/aspect-verifier.ts": "4c892543b70407ca2226f298ec5980e766bf45ebee90edb0adf3eb3650d56c69",
     "source/cli/src/llm/index.ts": "f16c9dc3eb1bff01dcf6f0e84654feec90fa050039979c47000658e3cc1f2362",
+    "source/cli/src/llm/ollama.ts": "7c4107264f6181cc28a7cf4d97d0e2ccb6b626ae8d83e871cc38d2d77ac5ac7b",
     "source/cli/src/llm/provider.ts": "a9f5d8f8d9b3c68d18ae79d4b360208a7cb49d7025a68b41179bdbfb5dbdb4db",
-    ".yggdrasil/model/cli/llm/interface.md": "5cfbb2d3c90bdedc51b6e46d7e931eced318e59ca106783a028c5d746158f200",
-    ".yggdrasil/model/cli/llm/responsibility.md": "263041fdaeb7ec26639a8515bbd289d773a81022f515f08a255f12f636f8412a",
-    "source/cli/src/llm/claude-code.ts": "c11fcd219c6412a00cbf92f693aa163fb2ccc453888cfce80b493401d76207ba",
-    "source/cli/src/llm/ollama.ts": "e1bc1da02e0a8b94e12ff10f577ebe4911c3f62ba7cfe9e7e0f304c117bdd014",
-    "source/cli/src/llm/types.ts": "f168414eb210f49128cf8f332ca11b150536b9c1d29f5753500f9ab506fa8386"
+    "source/cli/src/llm/types.ts": "4afaab8abe965c1f35f8e6d65941e2497645af1939aff2f526923ede9e5214a9",
+    "source/cli/src/llm/claude-code.ts": "e83c73fcdfcc0c08c76aed10282cc1243e25ebfe9410e818df3f0d165547b1ec"
   },
   "mtimes": {
-    ".yggdrasil/model/cli/llm/yg-node.yaml": 1775328890231.1516,
-    ".yggdrasil/model/cli/llm/interface.md": 1775634936973.9568,
-    ".yggdrasil/model/cli/llm/responsibility.md": 1775634926385.4963,
-    ".yggdrasil/model/cli/yg-node.yaml": 1775243577620.7664,
+    ".yggdrasil/model/cli/llm/yg-node.yaml": 1775650763730.3113,
+    ".yggdrasil/model/cli/llm/interface.md": 1775648404434.9707,
+    ".yggdrasil/model/cli/llm/responsibility.md": 1775648377795.186,
+    ".yggdrasil/model/cli/yg-node.yaml": 1775639608581.9402,
     ".yggdrasil/model/cli/internals.md": 1775586290475.0237,
     ".yggdrasil/model/cli/responsibility.md": 1775586232234.4275,
-    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775580563004.8235,
-    ".yggdrasil/aspects/deterministic/content.md": 1772778780694.5889,
+    ".yggdrasil/aspects/diagnostic-logging/yg-aspect.yaml": 1775639646041.8462,
+    ".yggdrasil/aspects/diagnostic-logging/content.md": 1775639651576.1426,
     "source/cli/src/llm/artifact-guidance.ts": 1775571151338.5376,
-    "source/cli/src/llm/claude-code.ts": 1775630474417.8572,
+    "source/cli/src/llm/artifact-reviewer.ts": 1775650144724.3594,
+    "source/cli/src/llm/aspect-verifier.ts": 1775650143672.8672,
+    "source/cli/src/llm/claude-code.ts": 1775656787926.5588,
     "source/cli/src/llm/index.ts": 1775582204174.667,
-    "source/cli/src/llm/ollama.ts": 1775630469214.7861,
+    "source/cli/src/llm/ollama.ts": 1775656423179.107,
     "source/cli/src/llm/provider.ts": 1775623063134.9075,
-    "source/cli/src/llm/types.ts": 1775630450763.9316
+    "source/cli/src/llm/types.ts": 1775643236215.2952
   },
-  "reviewedReason": "import path + consumes/failure cleanup, responsibility rewritten"
+  "reviewedReason": "debugWrite added to parseResponse catch blocks",
+  "aspectResults": {
+    "diagnostic-logging": {
+      "satisfied": true,
+      "reason": "All catch blocks that swallow errors call debugWrite(). Verified locations: artifact-reviewer.ts:56,79 (calls debugWrite on reviewer failures), claude-code.ts:105,143,147,164,170,177,180 (calls debugWrite on spawn errors, exit codes, and JSON parse failures), ollama.ts:49,71,162,170 (calls debugWrite on fetch/parse failures). Each message includes module identifier in brackets and error context. No silent failures found."
+    }
+  }
 }

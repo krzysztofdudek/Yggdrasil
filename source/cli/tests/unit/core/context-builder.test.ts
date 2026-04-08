@@ -1879,6 +1879,54 @@ describe('buildNodeContextData', () => {
     }
   });
 
+  it('determineFallbackAspectSource: implies branch when sources empty but implier aspect exists', () => {
+    // Exercise lines 563-570 in context-builder.ts:
+    // A node has 'child-aspect' via the implies chain of 'parent-aspect',
+    // but the node does NOT directly declare 'parent-aspect', has no parent ancestor
+    // with the aspect, and no flow gives it. So sources would be empty before the
+    // implies check — the implies loop should add "implied by 'parent-aspect'".
+    const parentAspect: AspectDef = {
+      name: 'Parent Aspect',
+      id: 'parent-aspect',
+      implies: ['child-aspect'],
+      anchors: [],
+      artifacts: [{ filename: 'content.md', content: 'parent rules' }],
+    };
+    const childAspect: AspectDef = {
+      name: 'Child Aspect',
+      id: 'child-aspect',
+      anchors: [],
+      artifacts: [{ filename: 'content.md', content: 'child rules' }],
+    };
+    // Node declares only 'parent-aspect'; 'child-aspect' arrives via implies
+    const node: GraphNode = {
+      path: 'svc',
+      meta: {
+        name: 'Svc',
+        type: 'service',
+        aspects: ['parent-aspect'],
+      },
+      artifacts: [{ filename: 'responsibility.md', content: 'x' }],
+      children: [],
+      parent: null,
+    };
+    // Graph has NO architecture — so determineFallbackAspectSource is used
+    const graph: Graph = {
+      config: { name: 'T', node_types: { service: { description: 'x' } } },
+      nodes: new Map([['svc', node]]),
+      aspects: [parentAspect, childAspect],
+      flows: [],
+      schemas: [],
+      rootPath: '/tmp',
+    };
+
+    const data = buildNodeContextData(graph, 'svc');
+    // The child-aspect should appear in results with source indicating it was implied
+    const childAspectEntry = data.aspects.find(a => a.id === 'child-aspect');
+    expect(childAspectEntry).toBeDefined();
+    expect(childAspectEntry!.source).toContain("implied by 'parent-aspect'");
+  });
+
 });
 
 describe('buildFileContextData', () => {

@@ -1010,4 +1010,91 @@ describe('runCheck', () => {
 
     await rm(tmpDir, { recursive: true, force: true });
   });
+
+  it('suggests --flow batch command when >=2 E021 share same flow cause', async () => {
+    // Create two nodes that share a flow, then trigger cascade from flow artifact change
+    const { tmpDir, yggRoot } = await createTmpProject('cascade-suggest-flow', {
+      nodePath: 'svc/alpha',
+      nodeYaml: 'name: Alpha\ntype: service\ndescription: alpha\nmapping:\n  - src/alpha/\n',
+      mappingFiles: { 'src/alpha/index.ts': 'export const a = 1;\n' },
+    });
+
+    // Create second node
+    const node2Dir = path.join(yggRoot, 'model/svc/beta');
+    await mkdir(node2Dir, { recursive: true });
+    await writeFile(path.join(node2Dir, 'yg-node.yaml'),
+      'name: Beta\ntype: service\ndescription: beta\nmapping:\n  - src/beta/\n');
+    await writeFile(path.join(node2Dir, 'responsibility.md'), 'Beta responsibility.\n');
+    await mkdir(path.join(tmpDir, 'src/beta'), { recursive: true });
+    await writeFile(path.join(tmpDir, 'src/beta/index.ts'), 'export const b = 2;\n');
+
+    // Create a flow that references both nodes
+    const flowDir = path.join(yggRoot, 'flows/checkout-flow');
+    await mkdir(flowDir, { recursive: true });
+    await writeFile(path.join(flowDir, 'yg-flow.yaml'),
+      'name: Checkout\ndescription: checkout\nnodes:\n  - svc/alpha\n  - svc/beta\n');
+    await writeFile(path.join(flowDir, 'description.md'), 'Original flow description.\n');
+
+    await recordBaseline(tmpDir);
+
+    // Modify flow artifact to trigger cascade on both nodes
+    await writeFile(path.join(flowDir, 'description.md'), 'Updated flow description.\n');
+
+    const graph = await loadGraph(tmpDir);
+    const result = await runCheck(graph, ['src/alpha/index.ts', 'src/beta/index.ts']);
+
+    // Both nodes should have E021 cascade from flow
+    const e021 = result.issues.filter(i => i.code === 'E021');
+    expect(e021.length).toBeGreaterThanOrEqual(2);
+
+    // suggestedNext should reference --flow batch command
+    expect(result.suggestedNext).toContain('--flow checkout-flow');
+    expect(result.suggestedNext).toContain('--reviewed');
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('suggests --node batch command when >=2 E021 share same parent model cause', async () => {
+    // Two sibling nodes sharing the same parent — parent artifact change triggers cascade on both
+    const { tmpDir, yggRoot } = await createTmpProject('cascade-suggest-parent', {
+      nodePath: 'svc/alpha',
+      nodeYaml: 'name: Alpha\ntype: service\ndescription: alpha\nmapping:\n  - src/alpha/\n',
+      mappingFiles: { 'src/alpha/index.ts': 'export const a = 1;\n' },
+      parentNodes: [{
+        path: 'svc',
+        yaml: 'name: Svc\ntype: service\ndescription: parent\n',
+        artifacts: { 'responsibility.md': 'Parent responsibility.\n' },
+      }],
+    });
+
+    // Create second sibling node under same parent
+    const node2Dir = path.join(yggRoot, 'model/svc/beta');
+    await mkdir(node2Dir, { recursive: true });
+    await writeFile(path.join(node2Dir, 'yg-node.yaml'),
+      'name: Beta\ntype: service\ndescription: beta\nmapping:\n  - src/beta/\n');
+    await writeFile(path.join(node2Dir, 'responsibility.md'), 'Beta responsibility.\n');
+    await mkdir(path.join(tmpDir, 'src/beta'), { recursive: true });
+    await writeFile(path.join(tmpDir, 'src/beta/index.ts'), 'export const b = 2;\n');
+
+    await recordBaseline(tmpDir);
+
+    // Modify parent artifact to trigger cascade on both children
+    await writeFile(
+      path.join(yggRoot, 'model/svc/responsibility.md'),
+      'Updated parent responsibility.\n',
+    );
+
+    const graph = await loadGraph(tmpDir);
+    const result = await runCheck(graph, ['src/alpha/index.ts', 'src/beta/index.ts']);
+
+    // Both nodes should have E021 cascade from parent
+    const e021 = result.issues.filter(i => i.code === 'E021');
+    expect(e021.length).toBeGreaterThanOrEqual(2);
+
+    // suggestedNext should reference --node batch with parent path
+    expect(result.suggestedNext).toContain('--node svc');
+    expect(result.suggestedNext).toContain('--reviewed');
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
 });

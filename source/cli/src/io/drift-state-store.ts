@@ -2,6 +2,7 @@ import { readFile, writeFile, stat, readdir, mkdir, rm } from 'node:fs/promises'
 import path from 'node:path';
 import { parse as yamlParse } from 'yaml';
 import type { DriftState, DriftNodeState } from '../model/drift.js';
+import { debugWrite } from '../utils/debug-log.js';
 
 const DRIFT_STATE_DIR = '.drift-state';
 
@@ -19,7 +20,8 @@ async function scanJsonFiles(dir: string, baseDir: string): Promise<string[]> {
   let entries;
   try {
     entries = await readdir(dir, { withFileTypes: true });
-  } catch {
+  } catch (err) {
+    debugWrite(`[drift-state-store] scanJsonFiles readdir: ${(err as Error).message}`);
     return results;
   }
   for (const entry of entries) {
@@ -51,7 +53,8 @@ async function removeEmptyParents(filePath: string, stopDir: string): Promise<vo
       } else {
         break;
       }
-    } catch {
+    } catch (err) {
+      debugWrite(`[drift-state-store] removeEmptyParents: ${(err as Error).message}`);
       break;
     }
   }
@@ -67,7 +70,8 @@ export async function readNodeDriftState(
     const content = await readFile(filePath, 'utf-8');
     const parsed = JSON.parse(content) as DriftNodeState;
     return parsed;
-  } catch {
+  } catch (err) {
+    debugWrite(`[drift-state-store] readNodeDriftState: ${(err as Error).message}`);
     return undefined;
   }
 }
@@ -121,7 +125,8 @@ export async function readDriftState(yggRoot: string): Promise<DriftState> {
   let driftStat;
   try {
     driftStat = await stat(driftPath);
-  } catch {
+  } catch (err) {
+    debugWrite(`[drift-state-store] readDriftState stat: ${(err as Error).message}`);
     return {};
   }
 
@@ -131,7 +136,8 @@ export async function readDriftState(yggRoot: string): Promise<DriftState> {
     let raw: unknown;
     try {
       raw = JSON.parse(content);
-    } catch {
+    } catch (err) {
+      debugWrite(`[drift-state-store] readDriftState JSON parse: ${(err as Error).message}`);
       raw = yamlParse(content);
     }
 

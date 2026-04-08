@@ -1293,6 +1293,38 @@ describe('validator', () => {
     });
   });
 
+  describe('E059 consumes-without-ports', () => {
+    it('fires when relation has consumes but target has no ports', async () => {
+      const graph = createGraph();
+      // Provider has NO ports
+      graph.nodes.set('provider', createNode('provider'));
+      graph.nodes.set('consumer', createNode('consumer', {
+        relations: [{ target: 'provider', type: 'calls', consumes: ['some-port'] }],
+      }));
+
+      const result = await validate(graph);
+      expect(result.issues).toContainEqual(expect.objectContaining({
+        code: 'E059', rule: 'consumes-without-ports',
+      }));
+    });
+
+    it('does not fire when relation has consumes and target has ports', async () => {
+      const graph = createGraph({
+        aspects: [{ name: 'Audit', id: 'valid-tag', artifacts: [] }],
+      });
+      // Provider HAS ports
+      graph.nodes.set('provider', createNode('provider', {
+        ports: { charge: { description: 'Pay', aspects: ['valid-tag'] } },
+      }));
+      graph.nodes.set('consumer', createNode('consumer', {
+        relations: [{ target: 'provider', type: 'calls', consumes: ['charge'] }],
+      }));
+
+      const result = await validate(graph);
+      expect(result.issues.filter(i => i.code === 'E059')).toHaveLength(0);
+    });
+  });
+
   describe('W006 orphaned-aspect', () => {
     it('fires when aspect is not used by any node, architecture, or flow', async () => {
       const graph = createGraph({

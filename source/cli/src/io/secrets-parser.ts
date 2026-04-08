@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import type { LlmConfig } from '../model/graph.js';
+import { debugWrite } from '../utils/debug-log.js';
 
 /**
  * Load yg-secrets.yaml from .yggdrasil/ and extract reviewer secrets.
@@ -13,7 +14,8 @@ export async function loadSecrets(rootPath: string, providerName?: string): Prom
   let content: string;
   try {
     content = await readFile(secretsPath, 'utf-8');
-  } catch {
+  } catch (err) {
+    debugWrite(`[secrets-parser] readFile: ${(err as Error).message}`);
     return undefined; // No secrets file — graceful
   }
 

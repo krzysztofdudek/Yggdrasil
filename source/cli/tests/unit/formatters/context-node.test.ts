@@ -73,7 +73,7 @@ describe('formatNodeContext', () => {
     // Artifacts
     expect(output).toContain('read: model/cli/core/validator/responsibility.md');
     // Token budget
-    expect(output).toContain('Token budget: 3,137 / 10,000 (ok)');
+    expect(output).toContain('Token budget: 3137 / 10000 (ok)');
   });
 
   it('shows consequence framing for 6+ dependents', () => {
@@ -206,5 +206,54 @@ describe('formatNodeContext', () => {
     const parentLineIdx = lines.findIndex(l => l.startsWith('Parent:'));
     expect(parentLineIdx).toBeGreaterThan(-1);
     expect(lines[parentLineIdx + 1]).not.toContain('read: model/cli/');
+  });
+
+  it('omits Artifacts section when artifactPaths is empty', () => {
+    const output = formatNodeContext(makeNodeData({ artifactPaths: [] }));
+    expect(output).not.toContain('Artifacts:');
+  });
+
+  it('uses plural form for 2+ aspects (line 61 plural branch)', () => {
+    const output = formatNodeContext(makeNodeData({
+      aspects: [
+        {
+          id: 'aspect-a',
+          name: 'Aspect A',
+          description: 'First aspect',
+          source: 'own declaration',
+          verifiedAgainst: 'aspects/aspect-a/content.md',
+        },
+        {
+          id: 'aspect-b',
+          name: 'Aspect B',
+          description: 'Second aspect',
+          source: 'own declaration',
+          verifiedAgainst: 'aspects/aspect-b/content.md',
+        },
+      ],
+    }));
+    // Should say "2 aspects" (plural)
+    expect(output).toContain('Must satisfy (2 aspects):');
+  });
+
+  it('uses plural form for 2+ flows (line 76 plural branch)', () => {
+    const output = formatNodeContext(makeNodeData({
+      flows: [
+        {
+          id: 'flow-a',
+          name: 'Flow A',
+          description: 'First flow',
+          readPath: 'flows/flow-a/description.md',
+        },
+        {
+          id: 'flow-b',
+          name: 'Flow B',
+          description: 'Second flow',
+          readPath: 'flows/flow-b/description.md',
+        },
+      ],
+    }));
+    // Should say "2 flows" (plural)
+    expect(output).toContain('Participates in (2 flows):');
   });
 });

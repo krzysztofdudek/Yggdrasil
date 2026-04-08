@@ -227,4 +227,31 @@ describe('selectTask', () => {
       expect(matchedIdx).toBeLessThan(unmatchedIdx);
     }
   });
+
+  it('sorts flows with matched first (before unmatched-but-overlapping flows)', async () => {
+    const graph = await loadGraph(FIXTURE_PROJECT);
+
+    // Add a second flow with no keyword matches but with node participants from the top results
+    // "checkout" matches checkout-flow by name; the extra flow won't match by keywords but
+    // will have participants overlapping with the returned nodes.
+    graph.flows.push({
+      path: 'extra-overlap-flow',
+      name: 'extra overlap test flow',
+      nodes: ['orders/order-service'],  // same participant as checkout-flow
+      artifacts: [{ filename: 'description.md', content: 'unique-zzzxxx-content' }],
+    });
+
+    // Query for "checkout" — checkout-flow matches by name (matched=true),
+    // extra-overlap-flow doesn't match by keywords (matched=false) but has overlapping nodes
+    const result = selectTask(graph, 'checkout order', 10);
+
+    const matchedFlows = result.flows.filter(f => f.matched);
+    const unmatchedFlows = result.flows.filter(f => !f.matched);
+
+    if (matchedFlows.length > 0 && unmatchedFlows.length > 0) {
+      const firstMatchedIdx = result.flows.findIndex(f => f.matched);
+      const firstUnmatchedIdx = result.flows.findIndex(f => !f.matched);
+      expect(firstMatchedIdx).toBeLessThan(firstUnmatchedIdx);
+    }
+  });
 });

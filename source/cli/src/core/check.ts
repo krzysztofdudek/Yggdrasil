@@ -475,7 +475,11 @@ export async function runCheck(graph: Graph, gitTrackedFiles: string[] | null): 
     severity: 'warning' as const,
     code: 'W005',
     rule: 'orphaned-drift-state',
-    message: `Drift state file exists for node that is no longer in the graph:\n     ${yggRelative}/.drift-state/${p}.json\n     Remove the orphaned file or restore the node.`,
+    message: buildIssueMessage({
+      what: `Drift state file exists for '${p}' but node is no longer in the graph.`,
+      why: `Orphaned file: ${yggRelative}/.drift-state/${p}.json`,
+      next: `Remove the orphaned file or restore the node.`,
+    }),
     nodePath: p,
   }));
 

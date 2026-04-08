@@ -138,7 +138,7 @@ export function formatNodeContext(data: NodeContextData): string {
   }
 
   // Token budget
-  lines.push(`Token budget: ${data.tokenBudget.current.toLocaleString()} / ${data.tokenBudget.limit.toLocaleString()} (${data.tokenBudget.status})`);
+  lines.push(`Token budget: ${data.tokenBudget.current.toFixed(0)} / ${data.tokenBudget.limit.toFixed(0)} (${data.tokenBudget.status})`);
   lines.push('');
 
   // Workflow footer

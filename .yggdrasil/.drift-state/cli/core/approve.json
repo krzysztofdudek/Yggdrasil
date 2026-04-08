@@ -1,7 +1,10 @@
 {
-  "hash": "56c1551700fdc047f2cda59dcbe497fef848f173eea9feb23e332c1bd4ecd6a4",
+  "hash": "3f85f3e60a66725237c9d9b4b7a5ffde3572ccaebbd169b0c2e38b38781c6e41",
   "files": {
     ".yggdrasil/model/cli/core/approve/yg-node.yaml": "027f60f9197035c2acd5349fb9edb7e7e1a55cd74e1e6dde62b6ee5133b2d9c5",
+    ".yggdrasil/model/cli/core/approve/interface.md": "5f9040ffa296ace8166cfa274e3e7a7fb10e0a272c81ca36645058cffac73671",
+    ".yggdrasil/model/cli/core/approve/internals.md": "9af5204de21ecc10ec0b4666ded7903c0e51d3e4c6e9eb796679b4780099d9c9",
+    ".yggdrasil/model/cli/core/approve/responsibility.md": "0632c482f4c9af38e42f4dc0e0c5a25d3c2e6a1a8dfd83f898c3ca886ba9268c",
     ".yggdrasil/model/cli/yg-node.yaml": "41ddbf73fbc1ee27a28a5ea5ec7ad656ea34f5938284bd5ab4ea7c3afcbbd69b",
     ".yggdrasil/model/cli/internals.md": "6ed08e0ee1a22270af6dcb23306acae750c7e55744a43a17671c4713684f4b91",
     ".yggdrasil/model/cli/responsibility.md": "f35cbcee252f56323379f08b65c38989787e0758c94f5eee2a36188c0260d05d",
@@ -10,7 +13,6 @@
     ".yggdrasil/model/cli/core/internals.md": "868ed9c0bf60c5165e30449d04f47d0d2aeeb6753cfdea32a25165cc55615962",
     ".yggdrasil/model/cli/core/responsibility.md": "2c8b1cbd14e89d129322002896ba5b6c6a37f86857e4e324e41141301a086a58",
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "20f321091b4f489efbf167feea9d42d73f7cffb21ea2e86958e565b550da164b",
-    ".yggdrasil/aspects/deterministic/content.md": "e36ee93520cbbb489e60cdafa76a5f56e2fc8470a10bf4702cfacffc34d52b75",
     ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": "3f025d4986e5dceea0b8fec8695cf9224305ef75229632e7a21a78600b0da29b",
     ".yggdrasil/aspects/posix-paths/content.md": "38daf50dec99307443fd8951019cf534c74571a7778d43e55a4354d9d2faeefc",
     ".yggdrasil/aspects/what-why-next/yg-aspect.yaml": "3dc44ca9f217265beaf528bbfd13720e77985be4ec8fae0ce1f2c044968c8faf",
@@ -21,16 +23,14 @@
     ".yggdrasil/model/cli/io/interface.md": "bc7f250a251a6b5b442549c3d2cdd20ea3dbda75cbb11b52209db28eed995233",
     ".yggdrasil/model/cli/utils/responsibility.md": "cf25f07f4fac037827f1f9ac69f972edd1d9b72c35d7e9764da5da8189117120",
     ".yggdrasil/model/cli/utils/interface.md": "cf07a77067667c85df7e8cf7026ba5d6970d314da0c5f5a5de90fa0cb9064f39",
-    "source/cli/src/core/approve.ts": "898108b80cb6b1886adc9ba298de76b475a4a1c6f30810b36ff829b3af033337",
-    ".yggdrasil/model/cli/core/approve/interface.md": "761ae0ac7fc606fb4b21229c6cfb1bfaed543560494cf7301d5e89e9b6caedda",
-    ".yggdrasil/model/cli/core/approve/internals.md": "9af5204de21ecc10ec0b4666ded7903c0e51d3e4c6e9eb796679b4780099d9c9",
-    ".yggdrasil/model/cli/core/approve/responsibility.md": "d83fd2e4c46113451ce0a50e6060ae7f41e186028868638de8f3bfe84a6369e0"
+    "source/cli/src/core/approve.ts": "9dcd161784599d69da89d4f7b9bae80c4c0c9aa917f12737b0ee0a6e8b53247a",
+    ".yggdrasil/aspects/deterministic/content.md": "82a5311abc13d6000f906bbdbd04399b233692256c49819a9cb15f95f988250a"
   },
   "mtimes": {
     ".yggdrasil/model/cli/core/approve/yg-node.yaml": 1775650755676.7822,
-    ".yggdrasil/model/cli/core/approve/interface.md": 1775651445553.9607,
+    ".yggdrasil/model/cli/core/approve/interface.md": 1775654024706.3708,
     ".yggdrasil/model/cli/core/approve/internals.md": 1775651565824.5574,
-    ".yggdrasil/model/cli/core/approve/responsibility.md": 1775651309379.36,
+    ".yggdrasil/model/cli/core/approve/responsibility.md": 1775653138481.5454,
     ".yggdrasil/model/cli/yg-node.yaml": 1775639608581.9402,
     ".yggdrasil/model/cli/internals.md": 1775586290475.0237,
     ".yggdrasil/model/cli/responsibility.md": 1775586232234.4275,
@@ -39,7 +39,7 @@
     ".yggdrasil/model/cli/core/internals.md": 1775585783881.4124,
     ".yggdrasil/model/cli/core/responsibility.md": 1775585790511.578,
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775580563004.8235,
-    ".yggdrasil/aspects/deterministic/content.md": 1775647926395.2356,
+    ".yggdrasil/aspects/deterministic/content.md": 1775655562335.338,
     ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": 1775580557269.0808,
     ".yggdrasil/aspects/posix-paths/content.md": 1772743197466.7686,
     ".yggdrasil/aspects/what-why-next/yg-aspect.yaml": 1775639624123.0955,
@@ -50,7 +50,25 @@
     ".yggdrasil/model/cli/io/interface.md": 1775648355412.6597,
     ".yggdrasil/model/cli/utils/responsibility.md": 1775648438188.4685,
     ".yggdrasil/model/cli/utils/interface.md": 1775648459128.7744,
-    "source/cli/src/core/approve.ts": 1775650231537.5876
+    "source/cli/src/core/approve.ts": 1775654675622.2964
   },
-  "reviewedReason": "artifacts updated for LLM extraction"
+  "reviewedReason": "cascade from upstream changes",
+  "aspectResults": {
+    "deterministic": {
+      "satisfied": true,
+      "reason": "Code adheres to determinism requirement. No Math.random() or Date.now() in core logic. Two Date.now() calls via new Date().toISOString() appear at lines 117 and 335, but both are in audit log entries which are explicitly excepted from the deterministic contract per aspect content ('observability outputs...are not part of the deterministic contract'). All core decision logic (file hashing, layer classification, three-axis change detection) is deterministic relative to filesystem and graph state. Filesystem operations are excepted as deterministic relative to filesystem state. No network calls. File hash comparisons use provided hashTrackedFiles utility (deterministic via SHA-256 per dependency). Change detection and approval decisions follow deterministic branching logic based only on file state and path comparisons."
+    },
+    "posix-paths": {
+      "satisfied": true,
+      "reason": "All internal path handling follows the POSIX paths pattern consistently. Backslashes are replaced with forward slashes and trailing slashes are stripped before any comparison or storage throughout the file. Key instances: line 69 (mapping path normalization), line 154 (tracked file normalization), line 166 (layer resolution normalization), line 202 (upstream change annotation normalization), line 212 (isGraph check normalization), line 233 (node prefix check normalization), line 362 (source file classification normalization). Additionally, line 177-178 normalizes path.relative() output with .split(path.sep).join('/'). All file path comparisons use normalized forms. The code properly uses the specified normalization pattern: path.trim().replace(/\\\\/g, '/').replace(/\\/+$/, '')."
+    },
+    "what-why-next": {
+      "satisfied": true,
+      "reason": "The what-why-next aspect applies to process.stderr.write output only (per aspect rule: 'This aspect applies to process.stderr.write output only — not to throw new Error()'). This file contains only internal throw statements (lines 41, 46, 51) and one debugWrite call (line 427), neither of which require what-why-next formatting. The function returns structured ApproveResult objects (line 365-381) for the command handler to format as agent-visible output. No violations of the aspect rules."
+    },
+    "diagnostic-logging": {
+      "satisfied": true,
+      "reason": "```json\n{\n  \"satisfied\": true,\n  \"reason\": \"The single catch block in the file at source/cli/src/core/approve.ts:426-428 (loadSourceFiles function) properly calls debugWrite() with diagnostic context "
+    }
+  }
 }

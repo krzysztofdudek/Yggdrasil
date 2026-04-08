@@ -107,8 +107,9 @@ export async function detectDrift(graph: Graph, filterNodePath?: string): Promis
     const storedFiles = storedEntry.files;
 
     // Check current files against stored
-    for (const [filePath, hash] of Object.entries(fileHashes)) {
-      const storedHash = storedFiles[filePath];
+    for (const [rawFilePath, hash] of Object.entries(fileHashes)) {
+      const filePath = rawFilePath.trim().replace(/\\/g, '/').replace(/\/+$/, '');
+      const storedHash = storedFiles[rawFilePath] ?? storedFiles[filePath];
       if (!storedHash || storedHash !== hash) {
         changedFiles.push({
           filePath,

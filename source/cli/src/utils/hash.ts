@@ -98,7 +98,7 @@ export async function perFileHashes(
     const absPath = path.join(root, p);
     const st = await stat(absPath);
     if (st.isFile()) {
-      result.push({ path: p, hash: await hashFile(absPath) });
+      result.push({ path: p.replace(/\\/g, '/').replace(/\/+$/, ''), hash: await hashFile(absPath) });
     } else if (st.isDirectory()) {
       const hashes = await collectDirectoryFileHashes(absPath, absPath, {
         projectRoot: root,
@@ -131,10 +131,10 @@ export async function hashForMapping(
     const absPath = path.join(root, p);
     const st = await stat(absPath);
     if (st.isFile()) {
-      pairs.push({ path: p, hash: await hashFile(absPath) });
+      pairs.push({ path: p.replace(/\\/g, '/').replace(/\/+$/, ''), hash: await hashFile(absPath) });
     } else if (st.isDirectory()) {
       const dirHash = await hashPath(absPath, { projectRoot: root });
-      pairs.push({ path: p, hash: dirHash });
+      pairs.push({ path: p.replace(/\\/g, '/').replace(/\/+$/, ''), hash: dirHash });
     }
   }
 

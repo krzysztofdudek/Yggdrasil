@@ -45,7 +45,8 @@ export class OllamaProvider implements LlmProvider {
     try {
       const res = await fetch(`${this.endpoint}/api/tags`, { signal: AbortSignal.timeout(5000) });
       return res.ok;
-    } catch {
+    } catch (err) {
+      debugWrite(`[ollama] isAvailable: ${(err as Error).message}`);
       return false;
     }
   }
@@ -66,7 +67,8 @@ export class OllamaProvider implements LlmProvider {
         ?? Object.keys(params).find(k => k === 'context_length' || k.endsWith('.context_length'));
       const ctxLength = key ? params[key] as number | undefined : undefined;
       return ctxLength ?? undefined;
-    } catch {
+    } catch (err) {
+      debugWrite(`[ollama] getContextWindowSize: ${(err as Error).message}`);
       return undefined;
     }
   }

@@ -1,23 +1,23 @@
 {
-  "hash": "31ba2c720408a851dd85712b883916417454b797c0cc06d8050354945c15784c",
+  "hash": "4f78d8208593ae1e483a4245e47849fec9b4c97bcd8d9e4455a6c022432b58ff",
   "files": {
-    ".yggdrasil/model/cli/tests/yg-node.yaml": "ac0fc246c01a04e62d43ef8abadb2f01551616ca7509c3b268995ef646279bc9",
-    ".yggdrasil/model/cli/tests/unit/support/yg-node.yaml": "cde7a8ea24c1a4992397b27ca5cd67d5d1126c197a72ca4cd69659d06b32ccde",
-    "source/cli/tests/unit/utils/git.test.ts": "b0248bd2a287de1c049e53b951a6552528e18c5996a2f1ae402dd0ea8075449f",
-    "source/cli/tests/unit/utils/hash.test.ts": "cf2c553ff6d9cfdd4efc54cf88d451e02d23345bcd555786cacfcc592e6b5bc4",
-    "source/cli/tests/unit/utils/paths.test.ts": "22538f2c60f8c6191112cdf8eb4569e825395d0d85ec252ce1a88d9c033561d1",
-    "source/cli/tests/unit/utils/tokenizer.test.ts": "d26f04a1fc0f569f1e313738c67cdcdf1f0b4b6a996f9eda3872f1d18f929d65",
-    "source/cli/tests/unit/utils/tokens.test.ts": "7bb077c5f4655f37fe11a5909fc9917bf5f41374d3c45931594ca426818d51dc",
     ".yggdrasil/model/cli/tests/unit/support/utils/yg-node.yaml": "e98ddba2fa4428b5711a1c69693ff7d58a2b9d2fee4a8a8eac75d412e2cb5f7d",
     ".yggdrasil/model/cli/tests/unit/support/utils/responsibility.md": "be1af53f8aa3c682d02843d518649d90731a3f965f6108821b4a0425532378e1",
     ".yggdrasil/model/cli/yg-node.yaml": "41ddbf73fbc1ee27a28a5ea5ec7ad656ea34f5938284bd5ab4ea7c3afcbbd69b",
     ".yggdrasil/model/cli/internals.md": "6ed08e0ee1a22270af6dcb23306acae750c7e55744a43a17671c4713684f4b91",
     ".yggdrasil/model/cli/responsibility.md": "f35cbcee252f56323379f08b65c38989787e0758c94f5eee2a36188c0260d05d",
+    ".yggdrasil/model/cli/tests/yg-node.yaml": "ac0fc246c01a04e62d43ef8abadb2f01551616ca7509c3b268995ef646279bc9",
     ".yggdrasil/model/cli/tests/responsibility.md": "6bbd70c62c9e7dd79901d4730147ef9dd10a5c50d0d16c12409ab99a080d1b44",
     ".yggdrasil/model/cli/tests/unit/yg-node.yaml": "a0b1c1aa70527cce6cbb0e60d9408db63919d6b17a0ce51a3dd1cb0f531d38f6",
     ".yggdrasil/model/cli/tests/unit/responsibility.md": "cc1518370e9ddaf77b8180325843c74d1be693f9c37c1b534e8904ec5549bb2b",
+    ".yggdrasil/model/cli/tests/unit/support/yg-node.yaml": "cde7a8ea24c1a4992397b27ca5cd67d5d1126c197a72ca4cd69659d06b32ccde",
     ".yggdrasil/model/cli/tests/unit/support/responsibility.md": "4d10aeb30a472c00625b7802fae70124b85c26787e1672cb4ee2fe1f5490a994",
-    "source/cli/tests/unit/utils/debug-log.test.ts": "88d5a7a2ca493d5ed5d0659365ca274c3031a0ae165be1b2c18b17dbbf7916f0"
+    "source/cli/tests/unit/utils/git.test.ts": "b0248bd2a287de1c049e53b951a6552528e18c5996a2f1ae402dd0ea8075449f",
+    "source/cli/tests/unit/utils/hash.test.ts": "cf2c553ff6d9cfdd4efc54cf88d451e02d23345bcd555786cacfcc592e6b5bc4",
+    "source/cli/tests/unit/utils/paths.test.ts": "22538f2c60f8c6191112cdf8eb4569e825395d0d85ec252ce1a88d9c033561d1",
+    "source/cli/tests/unit/utils/tokenizer.test.ts": "d26f04a1fc0f569f1e313738c67cdcdf1f0b4b6a996f9eda3872f1d18f929d65",
+    "source/cli/tests/unit/utils/tokens.test.ts": "7bb077c5f4655f37fe11a5909fc9917bf5f41374d3c45931594ca426818d51dc",
+    "source/cli/tests/unit/utils/debug-log.test.ts": "84bebea8f9c261178369fc5ea8eba738dd18af98ed42d2a9aaf09a5f02a5f58f"
   },
   "mtimes": {
     ".yggdrasil/model/cli/tests/unit/support/utils/yg-node.yaml": 1775639486234.5137,
@@ -31,18 +31,12 @@
     ".yggdrasil/model/cli/tests/unit/responsibility.md": 1775569529006.107,
     ".yggdrasil/model/cli/tests/unit/support/yg-node.yaml": 1775327956362.123,
     ".yggdrasil/model/cli/tests/unit/support/responsibility.md": 1775569530766.7358,
-    "source/cli/tests/unit/utils/debug-log.test.ts": 1775640997487.5151,
+    "source/cli/tests/unit/utils/debug-log.test.ts": 1775659173095.84,
     "source/cli/tests/unit/utils/git.test.ts": 1772776392222.936,
     "source/cli/tests/unit/utils/hash.test.ts": 1775239814628.2378,
     "source/cli/tests/unit/utils/paths.test.ts": 1775551896880.0542,
     "source/cli/tests/unit/utils/tokenizer.test.ts": 1773070117024.6606,
     "source/cli/tests/unit/utils/tokens.test.ts": 1771702275811.6807
   },
-  "reviewedReason": "type changed to test, responsibility rewritten per quality profile",
-  "artifactReview": {
-    "responsibility.md": {
-      "current": true,
-      "reason": "up to date"
-    }
-  }
+  "reviewedReason": "test coverage additions + lint fix + markdown fix"
 }

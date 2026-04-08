@@ -32,11 +32,5 @@
     "source/cli/src/migrations/to-3.0.0.ts": 1774782387822.2202,
     "source/cli/src/migrations/to-4.0.0.ts": 1775580600396.4438
   },
-  "reviewedReason": "type changed + posix fixes + debugWrite + artifact updates",
-  "artifactReview": {
-    "responsibility.md": {
-      "current": true,
-      "reason": "up to date"
-    }
-  }
+  "reviewedReason": "type changed to engine/adapter + posix fixes"
 }

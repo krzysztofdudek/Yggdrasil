@@ -571,5 +571,21 @@ describe('to-4.0.0 migration', () => {
       expect(config.reviewer).toBeUndefined();
       expect(result.warnings.some((w) => w.toLowerCase().includes('reviewer'))).toBe(false);
     });
+
+    it('deletes mapping when v3 object format has empty paths array (line 160-161)', async () => {
+      // isMigrated=true but flatPaths.length=0 → delete doc.mapping
+      const nodeDir = path.join(TMP_DIR, 'model', 'svc');
+      await mkdir(nodeDir, { recursive: true });
+      await writeFile(
+        path.join(nodeDir, 'yg-node.yaml'),
+        'name: EmptyMapping\ntype: service\nmapping:\n  paths: []\n',
+      );
+
+      await migrateToV4(TMP_DIR);
+
+      const doc = parseYaml(await readFile(path.join(nodeDir, 'yg-node.yaml'), 'utf-8')) as Record<string, unknown>;
+      // mapping should be deleted since flatPaths was empty after migration
+      expect(doc.mapping).toBeUndefined();
+    });
   });
 });
