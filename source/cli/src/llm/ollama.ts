@@ -115,7 +115,11 @@ Does this code satisfy the aspect requirements?`;
       ? `\n<node path="${params.nodePath}" type="${params.nodeType ?? 'unknown'}">\n${contextSection}\n</node>\n`
       : '';
 
-    const userPrompt = `${typeRulesSection}${ruleInteraction}${nodeSection}
+    const rulesSection = typeRulesSection
+      ? `<rules>\n${typeRulesSection}${ruleInteraction}\n</rules>\n`
+      : '';
+
+    const userPrompt = `${rulesSection}${nodeSection}
 <review-target>
   <artifact name="${params.artifactName}">
 ${params.artifactContent}

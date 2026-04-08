@@ -390,6 +390,7 @@ export async function approveNode(
         nodeType: node.meta.type,
         qualityProfile: nodeTypeDef?.quality_profile,
         nodeContext,
+        projectRoot,
       });
       for (const [name, review] of Object.entries(artifactReviewResults)) {
         if (!review.current) {

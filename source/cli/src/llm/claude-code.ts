@@ -117,7 +117,7 @@ export class ClaudeCodeProvider implements LlmProvider {
 
   async reviewArtifact(params: ArtifactReviewParams): Promise<ArtifactResponse> {
     const prompt = buildArtifactPrompt(params);
-    return this.runClaude<ArtifactResponse>(prompt, { current: false, reason: 'Reviewer unavailable' });
+    return this.runClaude<ArtifactResponse>(prompt, { current: false, reason: 'Reviewer unavailable' }, params.projectRoot);
   }
 
   private runClaude<T>(prompt: string, fallback: T, cwd?: string): Promise<T> {

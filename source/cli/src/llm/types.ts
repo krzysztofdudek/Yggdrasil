@@ -32,6 +32,8 @@ export interface ArtifactReviewParams {
   qualityProfile?: string;
   /** Pre-computed yg context --node output (for API providers) or node path for CLI to run */
   nodeContext?: string;
+  /** Absolute path to project root — used as cwd for CLI providers reading files */
+  projectRoot?: string;
 }
 
 export interface LlmProvider {

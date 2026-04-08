@@ -14,6 +14,8 @@ export interface ReviewArtifactsParams {
   qualityProfile?: string;
   /** Pre-computed yg context --node output */
   nodeContext?: string;
+  /** Absolute path to project root */
+  projectRoot?: string;
 }
 
 export async function reviewArtifacts(
@@ -38,6 +40,7 @@ export async function reviewArtifacts(
             nodeType: params.nodeType,
             qualityProfile: params.qualityProfile,
             nodeContext: params.nodeContext,
+            projectRoot: params.projectRoot,
           });
           if (!chunkResult.current) {
             isStale = true;
