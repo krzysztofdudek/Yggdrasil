@@ -1,18 +1,18 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import {
-  STANDARD_ARTIFACTS,
-} from '../model/types.js';
+import { STANDARD_ARTIFACTS } from '../model/graph.js';
 import type {
   Graph,
   GraphNode,
-  ContextPackage,
-  ContextLayer,
-  ContextSection,
   YggConfig,
   AspectDef,
   FlowDef,
   Relation,
+} from '../model/graph.js';
+import type {
+  ContextPackage,
+  ContextLayer,
+  ContextSection,
   ContextMapOutput,
   Glossary,
   GlossaryAspectEntry,
@@ -23,7 +23,7 @@ import type {
   AncestorRef,
   DependencyRef,
   BudgetBreakdown,
-} from '../model/types.js';
+} from '../model/context.js';
 import type { NodeContextData } from '../formatters/context-node.js';
 import type { FileContextData } from '../formatters/context-file.js';
 import { normalizeMappingPaths } from '../utils/paths.js';
@@ -54,7 +54,7 @@ export async function buildContext(graph: Graph, nodePath: string): Promise<Cont
   // 3. Own (yg-node.yaml + configured artifacts)
   layers.push(await buildOwnLayer(node, graph.config, graph.rootPath, graph));
 
-  // 4. Relational (structural + event, with consumes/failure)
+  // 4. Relational (structural + event, with consumes)
   //    Skip relations targeting ancestors — their context is already in hierarchy layers.
   const ancestorPaths = new Set(ancestors.map((a) => a.path));
   for (const relation of node.meta.relations ?? []) {
@@ -241,9 +241,6 @@ export function buildStructuralRelationLayer(
   if (relation.consumes?.length) {
     content += `Consumes: ${relation.consumes.join(', ')}\n\n`;
   }
-  if (relation.failure) {
-    content += `On failure: ${relation.failure}\n\n`;
-  }
 
   const structuralArtifactFilenames = Object.entries(STANDARD_ARTIFACTS)
     .filter(([, c]) => c.included_in_relations)
@@ -268,7 +265,6 @@ export function buildStructuralRelationLayer(
     type: relation.type,
   };
   if (relation.consumes?.length) attrs.consumes = relation.consumes.join(', ');
-  if (relation.failure) attrs.failure = relation.failure;
 
   return {
     type: 'relational',
@@ -631,7 +627,6 @@ export function toContextMapOutput(
       files: buildDepNodeFiles(target, config, `model/${target.path}`),
     };
     if (relation.consumes?.length) ref.consumes = relation.consumes;
-    if (relation.failure) ref.failure = relation.failure;
     if (relation.event_name) ref['event-name'] = relation.event_name;
     depRefs.push(ref);
   }
@@ -967,6 +962,12 @@ export function collectEffectiveAspectIds(graph: Graph, nodePath: string): Set<s
     if (flow.nodes.some((n) => ancestorPaths.has(n))) {
       for (const id of flow.aspects ?? []) raw.add(id);
     }
+  }
+
+  // Architecture type aspects
+  if (graph.architecture) {
+    const typeDef = graph.architecture.node_types[node.meta.type];
+    for (const id of typeDef?.aspects ?? []) raw.add(id);
   }
 
   // Expand implies

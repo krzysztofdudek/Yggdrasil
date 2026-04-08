@@ -1,7 +1,8 @@
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { STANDARD_ARTIFACTS } from '../model/types.js';
-import type { Graph, GraphNode, DriftCategory, FlowDef, TrackedFileLayer } from '../model/types.js';
+import { STANDARD_ARTIFACTS } from '../model/graph.js';
+import type { Graph, GraphNode, FlowDef } from '../model/graph.js';
+import type { DriftCategory, TrackedFileLayer } from '../model/drift.js';
 import { normalizeMappingPaths } from '../utils/paths.js';
 import { collectAncestors, resolveAspects } from './context-builder.js';
 

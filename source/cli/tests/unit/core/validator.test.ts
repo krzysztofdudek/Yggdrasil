@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { writeFile, mkdir, rm } from 'node:fs/promises';
 import { validate } from '../../../src/core/validator.js';
 import { loadGraph } from '../../../src/core/graph-loader.js';
-import type { Graph, GraphNode } from '../../../src/model/types.js';
+import type { Graph, GraphNode } from '../../../src/model/graph.js';
 
 vi.mock('../../../src/core/context-builder.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../src/core/context-builder.js')>();

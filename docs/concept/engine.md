@@ -91,7 +91,6 @@ Each step is deterministic.
         - dependency hierarchy: ancestors of the target (from model/ root to target's parent)
           with their metadata and aspects, providing domain context for the dependency
         - consumes annotation from the relation field (if declared)
-        - failure annotation from the relation field (if declared)
       for each event relation of N (emits, listens):
         - event name and type
         - consumes annotation from the relation field (if declared)
@@ -133,7 +132,6 @@ relation fields.
 ```markdown
 ── Dependency: PaymentService [calls]
 Consumes: charge, refund
-On failure: retry 3x, then mark order as payment-failed
 
 Responsibility (full content of responsibility.md / PaymentService)
 ...
@@ -152,12 +150,13 @@ You publish OrderPlaced.
 ── Event: PaymentCompleted [listens]
 Source: payments/payment-service
 You listen for PaymentCompleted.
-Consumes: orderId, amount, status
 ```
 
-The `consumes` and `failure` fields come from YAML declarations — tools understand them.
-Artifact content is copied verbatim — tools treat it as text. The agent interprets which
-methods or events are relevant and focuses accordingly.
+The `consumes` field comes from the YAML declaration — tools understand it.
+The `consumes` field is strictly for port references on the target — it is not used for
+annotating interface methods or event data. Artifact content is copied verbatim — tools
+treat it as text. The agent interprets which methods or events are relevant and focuses
+accordingly.
 
 **Fundamental principle**: tools never interpret Markdown content. They copy content and
 annotate it with metadata from YAML. The agent interprets.
@@ -198,7 +197,7 @@ Participates in (1 flow):
     read: .yggdrasil/flows/checkout/description.md
 
 Dependencies (2):
-  auth/auth-api (uses) — Validates tokens and resolves caller identity — consumes: validateToken
+  auth/auth-api (uses) — Validates tokens and resolves caller identity
     read: yg context --file .yggdrasil/model/auth/auth-api/interface.md
   payments/payment-service (calls) — consumes: charge, refund
     Required: requires-idempotency
@@ -356,7 +355,8 @@ and consumes port X:
 2. Node A must satisfy those aspects in its source code.
 3. `yg check` validates the structure: E057 fires when a relation target has ports but the
    consumer relation has no `consumes` field. E058 fires when `consumes` names a port that
-   does not exist on the target.
+   does not exist on the target. E059 fires when `consumes` is declared but the target has
+   no ports.
 4. E053 fires if any port aspect identifier is not defined in `aspects/`.
 5. Semantic verification happens at approve time via the reviewer — E055 fires when the
    reviewer determines a port's required aspect is not satisfied in the consumer's source code
@@ -560,16 +560,44 @@ the work of the agent or human — tools only read and verify.
 
 ## Reviewer-Based Verification (Approve Only)
 
-Approve runs two reviewer checks on drifted nodes:
+Approve runs two reviewer checks on drifted nodes. Both use XML-structured prompts
+with clearly separated sections.
 
-**Aspect verification.** For each aspect on the node, the reviewer receives the aspect
-description, content files, and concatenated source files. It responds with
-`satisfied: true|false` and a reason. If unsatisfied, E055 fires. For large nodes,
-source is chunked by file boundaries — all chunks must pass.
+**Context injection.** Before calling the reviewer, approve pre-computes
+`yg context --node` output for the node. This gives the reviewer full graph
+understanding (aspects, dependencies, parent hierarchy) without requiring
+it to explore the graph itself.
 
-**Artifact review.** The reviewer receives artifact content (responsibility.md, interface.md,
-internals.md) and current source code. It responds with `current: true|false` and a
-reason. If outdated, E056 fires.
+**Aspect verification (E055).** For each aspect on the node, the reviewer receives:
+
+- `<role>` — what it is doing (verifying aspect compliance)
+- `<aspect>` — aspect id + content (path for CLI, inline for API)
+- `<node>` — node path, type, and pre-computed context
+- `<source-files>` — files to check (paths for CLI, inline for API)
+- `<task>` — explicit instruction to read files and respond with JSON
+
+The reviewer responds with `satisfied: true|false` and a reason. If unsatisfied, E055
+fires.
+
+**Artifact review (E056).** The reviewer receives:
+
+- `<role>` — what it is doing (reviewing artifact quality)
+- `<rules>` with sub-sections:
+  - `<general-rules>` — shared artifact quality guidelines (from `ARTIFACT_GUIDANCE`)
+  - `<type-rules>` — type-specific `quality_profile` from architecture (when available)
+  - `<rule-interaction>` — how type rules refine general rules
+- `<node>` — node path, type, and pre-computed context
+- `<review-target>` — the artifact being reviewed
+- `<source-files>` — files to compare against
+- `<task>` — explicit instruction to apply both rule layers
+
+The reviewer responds with `current: true|false` and a reason. If outdated, E056 fires.
+
+**CLI vs API providers.** Both use the same XML prompt structure. The difference
+is content delivery: CLI providers receive file paths (self-closing `<file />` tags)
+and read files themselves; API providers receive full file content inline. CLI
+providers that do not need chunking (`needsChunking: false`) receive all files
+in a single call.
 
 **Consensus.** Configurable via `reviewer.consensus` in yg-config.yaml (positive odd integer,
 default 1). When set to 3+, the reviewer runs multiple times and majority vote decides.
@@ -612,7 +640,7 @@ Step 3.  Own artifacts of OrderService: responsibility, interface, internals
 Step 4.  Aspect: Audit logging  [aspect requires-audit]
          Aspect: Idempotency   [port: charge on payments/payment-service]
 Step 5.  Structural-context artifacts of PaymentService: responsibility, interface
-         + annotation: consumes charge, refund; on failure: retry 3x, then payment-failed
+         + annotation: consumes charge, refund
          Flow: Checkout flow  [description.md]
 ```
 

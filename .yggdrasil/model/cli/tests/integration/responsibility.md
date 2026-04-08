@@ -1,19 +1,5 @@
 # Integration Tests — Responsibility
 
-Pipeline tests that exercise multiple CLI layers together using a real (temp-copy) fixture project. Each test file covers a full vertical slice through the system.
+Integration tests that verify CLI commands work end-to-end against real graph fixtures. Exists because unit tests cannot catch regressions that emerge from the interaction of multiple layers — filesystem access, graph loading, validation, and output formatting combined in a single command invocation.
 
-## Scope
-
-- `approve-pipeline.test.ts` — three-axis approve logic, blackbox enforcement, anti-laundering
-- `build-pipeline.test.ts` — context assembly end-to-end
-- `check-pipeline.test.ts` — full check gate: drift, validation, coverage, completeness
-- `context-pipeline.test.ts` — context package generation
-- `drift-pipeline.test.ts` — drift detection across file changes
-- `flow-support.test.ts` — flow participant resolution and aspect propagation
-- `validation-pipeline.test.ts` — structural error detection
-
-## Out of scope
-
-- Isolated unit tests with no filesystem — belongs to `cli/tests/unit`
-- Black-box binary invocation via subprocess — belongs to `cli/tests/e2e`
-- Test input data and sample projects — belongs to `cli/tests/fixtures`
+Each test exercises a full vertical slice through the system using a temp-copy fixture project. Does not test isolated functions in memory (unit tests) or black-box binary invocation (e2e tests).

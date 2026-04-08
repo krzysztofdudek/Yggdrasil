@@ -1,19 +1,15 @@
 # Tree Command Interface
 
-| Function | Signature | Command | Options |
-| -------- | --------- | ------- | ------- |
-| registerTreeCommand | (program: Command) => void | tree | --root (optional path), --depth (optional int) |
+**Command:** `yg tree [--root <path>] [--depth <n>]`
 
-**Return:** void. Contract: errors to stderr, process.exit(1) on failure.
+Renders the graph hierarchy to stdout as an indented tree showing node names, types, aspects, blackbox status, and relation counts. Without `--root`, output starts with a `model/` header.
+
+**--root:** Scopes output to the subtree rooted at the given node path. Omits the project header. Exits with error if the path does not exist in the graph.
+
+**--depth:** Limits how many levels deep the tree recurses. Without this flag, the full depth is shown.
 
 ## Failure Modes
 
-**Propagated from loadGraph:**
-
-- Missing .yggdrasil/: `Error: No .yggdrasil/ directory found. Run 'yg init' first.`
-
-**Command-specific:**
-
-- Path not found: `Error: path '${path}' not found` — when --root specifies a path that does not exist in the graph.
-
-**Generic:** I/O errors — standard Node.js Error, caught and reported to stderr.
+- No .yggdrasil/ directory: `Error: No .yggdrasil/ directory found. Run 'yg init' first.`
+- Invalid --root path: `Error: path '<path>' not found`, exit 1.
+- Generic errors to stderr, exit 1.

@@ -1,6 +1,8 @@
 import { Command } from 'commander';
+import chalk from 'chalk';
 import { loadGraph } from '../core/graph-loader.js';
-import type { GraphNode } from '../model/types.js';
+import { initDebugLog } from '../utils/debug-log.js';
+import type { GraphNode } from '../model/graph.js';
 
 export function registerTreeCommand(program: Command): void {
   program
@@ -11,6 +13,7 @@ export function registerTreeCommand(program: Command): void {
     .action(async (options: { root?: string; depth?: number }) => {
       try {
         const graph = await loadGraph(process.cwd());
+        initDebugLog(graph.rootPath, graph.config.debug ?? false);
 
         let roots: GraphNode[];
         let showProjectName: boolean;
@@ -19,7 +22,7 @@ export function registerTreeCommand(program: Command): void {
           const path = options.root.trim().replace(/\/$/, '');
           const node = graph.nodes.get(path);
           if (!node) {
-            process.stderr.write(`Error: path '${path}' not found\n`);
+            process.stderr.write(chalk.red(`Error: path '${path}' not found\n`));
             process.exit(1);
           }
           roots = [node];
@@ -40,7 +43,14 @@ export function registerTreeCommand(program: Command): void {
           printNode(roots[i], '', isLast, 1, options.depth);
         }
       } catch (error) {
-        process.stderr.write(`Error: ${(error as Error).message}\n`);
+        const err = error as NodeJS.ErrnoException;
+        if (err.code === 'ENOENT') {
+          process.stderr.write(
+            chalk.red(`Error: No .yggdrasil/ directory found. Run 'yg init' first.\n`),
+          );
+        } else {
+          process.stderr.write(chalk.red(`Error: ${(error as Error).message}\n`));
+        }
         process.exit(1);
       }
     });

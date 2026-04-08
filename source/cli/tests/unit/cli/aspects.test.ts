@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { Graph, AspectDef, GraphNode } from '../../../src/model/types.js';
+import type { Graph, AspectDef, GraphNode } from '../../../src/model/graph.js';
 import { computeAspectUsage, formatAspectsOutput } from '../../../src/cli/aspects.js';
 
 function makeAspect(id: string, overrides: Partial<AspectDef> = {}): AspectDef {

@@ -1,5 +1,5 @@
 name: Migrations
-type: library
+type: adapter
 description: Schema version migrations for Yggdrasil graph files — migrates from old versions to current
 blackbox: false
 relations: []

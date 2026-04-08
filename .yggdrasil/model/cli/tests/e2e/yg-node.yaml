@@ -1,5 +1,5 @@
 name: E2E Tests
-type: library
+type: test
 description: Subprocess-based end-to-end tests that spawn the compiled dist/bin.js binary and assert on stdout/stderr/exit code
 blackbox: false
 aspects: []

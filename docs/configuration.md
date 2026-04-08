@@ -67,6 +67,7 @@ quality:
     error: 20000
 
 parallel: 1
+debug: true                        # optional — append all CLI output to .yggdrasil/.debug.log
 ```
 
 Node types go in `yg-architecture.yaml`:
@@ -80,6 +81,8 @@ node_types:
     aspects: [requires-audit]
   library:
     description: "Shared utility code with no domain knowledge"
+  # Optional fields per type: quality_profile, parents, relations
+  # See docs/concept/graph.md for the full architecture file format.
 ```
 
 ---
@@ -93,6 +96,7 @@ a nested provider structure.
 ```yaml
 reviewer:
   active: ollama                  # required when multiple providers listed
+  verify_aspects: true            # run aspect verification (E055) — default true
   verify_artifacts: false         # run artifact review (E056) — default false
   consensus: 1                    # positive odd integer >= 1
   ollama:
@@ -105,7 +109,7 @@ reviewer:
     model: haiku                  # haiku, sonnet, or opus
 ```
 
-General keys (`active`, `verify_artifacts`, `consensus`) sit at the `reviewer:` level.
+General keys (`active`, `verify_aspects`, `verify_artifacts`, `consensus`) sit at the `reviewer:` level.
 Provider-specific keys sit under the provider name (`ollama:`, `claude-code:`).
 
 Credentials and endpoint overrides go in `.yggdrasil/yg-secrets.yaml` (gitignored):

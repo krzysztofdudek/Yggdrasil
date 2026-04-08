@@ -1,7 +1,7 @@
 import { readFile, writeFile, stat, readdir, mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { parse as yamlParse } from 'yaml';
-import type { DriftState, DriftNodeState } from '../model/types.js';
+import type { DriftState, DriftNodeState } from '../model/drift.js';
 
 const DRIFT_STATE_DIR = '.drift-state';
 

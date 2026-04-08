@@ -1,26 +1,9 @@
 # Init Command Responsibility
 
-**In scope:** `yg init` — bootstrap Yggdrasil graph in current project.
+**In scope:** `yg init`. Bootstrap operation — creates the `.yggdrasil/` directory structure and platform-specific rules file. The entry point for adopting Yggdrasil in any repository.
 
-**Full init (when .yggdrasil/ does not exist):**
+Two modes: full init (creates everything from scratch) and upgrade (`--upgrade` — refreshes rules, runs migrations, updates schemas without touching existing graph content). This distinction exists because rules and schemas evolve with CLI versions, but the graph content belongs to the project.
 
-- Create directories: .yggdrasil/model, aspects, flows, schemas. mkdir recursive.
-- getGraphSchemasDir(): from import.meta.url, package root = parent of cli dir, join packageRoot, 'graph-schemas'.
-- Copy graph-schemas: readdir, filter files, copy each to .yggdrasil/schemas. On failure: write warning to stderr, continue (do not exit).
-- Write yg-config.yaml (DEFAULT_CONFIG), yg-architecture.yaml (DEFAULT_ARCHITECTURE), .gitignore.
-- installRulesForPlatform(projectRoot, platform).
-- Output created paths and next steps.
+Does not use `loadGraph` or `findYggRoot` — it creates the structure these functions depend on.
 
-**Upgrade mode (--upgrade when .yggdrasil/ exists):**
-
-- stat(.yggdrasil). If not directory: exit 1 "Error: .yggdrasil exists but is not a directory."
-- If exists and no --upgrade: exit 1 "Error: .yggdrasil/ already exists. Use --upgrade to refresh rules only."
-- If --upgrade: run migrations (if project is older than CLI), refresh schemas, create yg-architecture.yaml if missing, then installRulesForPlatform. Output "✓ Rules refreshed." and rules path. Return.
-
-**Platform validation:** (options.platform ?? 'generic') as Platform. If not in PLATFORMS: exit 1 "Error: Unknown platform '${platform}'. Use: ${PLATFORMS.join(', ')}".
-
-**Uses:** path.join(projectRoot, '.yggdrasil') directly; does not use findYggRoot.
-
-**Consumes:** DEFAULT_CONFIG, DEFAULT_ARCHITECTURE, installRulesForPlatform, PLATFORMS, Platform (cli/templates).
-
-**Out of scope:** Graph loading, validation, drift.
+**Out of scope:** Graph loading, validation, drift detection, node/aspect/flow creation.

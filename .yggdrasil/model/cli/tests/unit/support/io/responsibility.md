@@ -1,5 +1,5 @@
 # I/O Unit Tests — Responsibility
 
-Tests for the I/O parser layer in `src/io/`. Each parser has a 1:1 test file verifying YAML parsing contracts, schema validation, and graceful handling of missing or malformed files. All filesystem access is mocked or uses minimal in-memory fixtures.
+Unit tests for the I/O layer — verifies YAML parsing, config loading, drift state persistence, and audit log writing. Exists because parsers are the boundary between raw files and typed domain objects; malformed input, missing files, and schema violations must be caught here before they propagate into core logic.
 
-Does not test template generation, utility functions, or formatters — those belong to sibling nodes.
+Each parser has a corresponding test verifying its contracts. All filesystem access is mocked or uses minimal in-memory fixtures.

@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { parse as parseYaml } from 'yaml';
-import type { ArchitectureDef, ArchitectureNodeType, RelationType } from '../model/types.js';
+import type { ArchitectureDef, ArchitectureNodeType, RelationType } from '../model/graph.js';
 
 const VALID_RELATION_TYPES: Set<string> = new Set(['uses', 'calls', 'extends', 'implements', 'emits', 'listens']);
 
@@ -50,11 +50,14 @@ export async function parseArchitecture(filePath: string): Promise<ArchitectureD
 
     const relations: Partial<Record<RelationType, string[]>> | undefined = parseRelations(entry.relations, typeName);
 
+    const qualityProfile = typeof entry.quality_profile === 'string' ? entry.quality_profile.trim() : undefined;
+
     nodeTypes[typeName] = {
       description: entry.description as string,
       aspects: aspects && aspects.length > 0 ? aspects : undefined,
       parents: parents && parents.length > 0 ? parents : undefined,
       relations: relations,
+      quality_profile: qualityProfile || undefined,
     };
   }
 

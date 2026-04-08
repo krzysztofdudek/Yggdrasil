@@ -2,7 +2,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
   STANDARD_ARTIFACTS,
-} from '../model/types.js';
+} from '../model/graph.js';
 import type {
   Graph,
   GraphNode,
@@ -11,7 +11,7 @@ import type {
   SchemaDef,
   YggConfig,
   ArchitectureDef,
-} from '../model/types.js';
+} from '../model/graph.js';
 import { parseConfig } from '../io/config-parser.js';
 import { parseNodeYaml } from '../io/node-parser.js';
 import { parseAspect } from '../io/aspect-parser.js';
@@ -123,7 +123,7 @@ async function scanModelDirectory(
   nodeParseErrors: Array<{ nodePath: string; message: string }>,
   artifactFilenames: string[],
 ): Promise<void> {
-  const entries = await readdir(dirPath, { withFileTypes: true });
+  const entries = (await readdir(dirPath, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name));
   const hasNodeYaml = entries.some((e) => e.isFile() && e.name === 'yg-node.yaml');
 
   if (!hasNodeYaml && dirPath !== modelDir) {
@@ -206,7 +206,7 @@ async function scanAspectsDirectory(
   aspectsRoot: string,
   aspects: AspectDef[],
 ): Promise<void> {
-  const entries = await readdir(dirPath, { withFileTypes: true });
+  const entries = (await readdir(dirPath, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name));
   const hasAspectYaml = entries.some((e) => e.isFile() && e.name === 'yg-aspect.yaml');
 
   if (hasAspectYaml) {
@@ -226,7 +226,7 @@ async function scanAspectsDirectory(
 async function loadFlows(flowsDir: string): Promise<FlowDef[]> {
   let entries;
   try {
-    entries = await readdir(flowsDir, { withFileTypes: true });
+    entries = (await readdir(flowsDir, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name));
   } catch {
     return []; // flows/ directory does not exist — OK
   }
@@ -242,7 +242,7 @@ async function loadFlows(flowsDir: string): Promise<FlowDef[]> {
 
 async function loadSchemas(schemasDir: string): Promise<SchemaDef[]> {
   try {
-    const entries = await readdir(schemasDir, { withFileTypes: true });
+    const entries = (await readdir(schemasDir, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name));
     const schemas: SchemaDef[] = [];
     for (const entry of entries) {
       if (!entry.isFile()) continue;

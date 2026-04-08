@@ -1,5 +1,7 @@
 import { Command } from 'commander';
+import chalk from 'chalk';
 import { loadGraph } from '../core/graph-loader.js';
+import { initDebugLog } from '../utils/debug-log.js';
 import { runCheck } from '../core/check.js';
 import type { CheckIssue, CheckResult } from '../core/check.js';
 import { execSync } from 'node:child_process';
@@ -13,6 +15,7 @@ export function registerCheckCommand(program: Command): void {
       try {
         const cwd = process.cwd();
         const graph = await loadGraph(cwd, { tolerateInvalidConfig: true });
+        initDebugLog(graph.rootPath, graph.config.debug ?? false);
 
         // Get git-tracked files for E022
         let gitFiles: string[] | null = null;
@@ -34,7 +37,12 @@ export function registerCheckCommand(program: Command): void {
         const hasErrors = result.issues.some(i => i.severity === 'error');
         process.exit(hasErrors ? 1 : 0);
       } catch (error) {
-        process.stderr.write(`Error: ${(error as Error).message}\n`);
+        const msg = (error as Error).message;
+        if (msg.includes('No .yggdrasil/ directory found') || msg.includes('does not exist')) {
+          process.stderr.write(chalk.red(`Error: No .yggdrasil/ directory found. Run 'yg init' first.\n`));
+        } else {
+          process.stderr.write(chalk.red(`Error: ${msg}\n`));
+        }
         process.exit(1);
       }
     });
@@ -67,7 +75,7 @@ export function formatOutput(result: CheckResult): string {
   const warnings = result.issues.filter(i => i.severity === 'warning');
 
   if (errors.length > 0) {
-    lines.push(`Errors (${errors.length}):`);
+    lines.push(chalk.red(`Errors (${errors.length}):`));
     lines.push('');
 
     // Group by category
@@ -198,7 +206,7 @@ export function formatOutput(result: CheckResult): string {
   }
 
   if (warnings.length > 0) {
-    lines.push(`Warnings (${warnings.length}):`);
+    lines.push(chalk.yellow(`Warnings (${warnings.length}):`));
     // Group: Budget (W001, W002) then Structure (W003, W004) then Other (W005+)
     const budgetWarnings = warnings.filter(i => i.code === 'W001' || i.code === 'W002');
     const structureWarnings = warnings.filter(i => i.code === 'W003' || i.code === 'W004');
@@ -220,7 +228,7 @@ export function formatOutput(result: CheckResult): string {
 
   if (errorCount === 0) {
     if (warningCount > 0) {
-      lines.push(`Result: PASS (0 errors, ${warningCount} warning${warningCount === 1 ? '' : 's'})`);
+      lines.push(chalk.green(`Result: PASS`) + ` (0 errors, ${warningCount} warning${warningCount === 1 ? '' : 's'})`);
       for (const w of warnings.slice(0, 3)) {
         // Compact summary: first line of message truncated to 60 chars
         const firstLine = w.message.split('\n')[0];
@@ -228,7 +236,7 @@ export function formatOutput(result: CheckResult): string {
         lines.push(`  ${w.code} ${w.nodePath ?? ''} — ${summary}`);
       }
     } else {
-      lines.push('Result: PASS (0 errors, 0 warnings)');
+      lines.push(chalk.green('Result: PASS') + ' (0 errors, 0 warnings)');
     }
   } else {
     const cats: string[] = [];
@@ -244,7 +252,7 @@ export function formatOutput(result: CheckResult): string {
     if (archCount) cats.push(`${archCount} architecture`);
     if (cov) cats.push(`${cov} coverage`);
     if (comp) cats.push(`${comp} completeness`);
-    lines.push(`Result: FAIL (${cats.join(', ')} — ${errorCount} error${errorCount === 1 ? '' : 's'}, ${warningCount} warning${warningCount === 1 ? '' : 's'})`);
+    lines.push(chalk.red(`Result: FAIL`) + ` (${cats.join(', ')} — ${errorCount} error${errorCount === 1 ? '' : 's'}, ${warningCount} warning${warningCount === 1 ? '' : 's'})`);
   }
 
   // Suggested next command

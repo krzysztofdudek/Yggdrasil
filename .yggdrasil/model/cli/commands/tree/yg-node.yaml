@@ -1,16 +1,11 @@
 name: TreeCommand
-type: library
+type: command
 description: Prints graph hierarchy as an indented tree with metadata via yg tree
-aspects:
-  - cli-command-contract
+aspects: []
 relations:
   - target: cli/core/loader
     type: uses
-    consumes:
-      - loadGraph
-  - target: cli/model
+  - target: cli/model/graph
     type: uses
-    consumes:
-      - GraphNode
 mapping:
   - source/cli/src/cli/tree.ts

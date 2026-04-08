@@ -5,10 +5,8 @@ description: "Expense CRUD with subscription limit enforcement and budget overag
 relations:
   - target: api/db
     type: uses
-    consumes: [db.prepare, db.run]
   - target: api/auth
     type: uses
-    consumes: [requireAuth]
 
 mapping:
   - paths:

@@ -6,7 +6,7 @@ import {
   collectIndirectDependents,
 } from '../../../src/cli/impact.js';
 import { collectEffectiveAspectIds } from '../../../src/core/context-builder.js';
-import type { Graph, GraphNode } from '../../../src/model/types.js';
+import type { Graph, GraphNode } from '../../../src/model/graph.js';
 
 function makeNode(nodePath: string, overrides: Partial<GraphNode> = {}): GraphNode {
   return {

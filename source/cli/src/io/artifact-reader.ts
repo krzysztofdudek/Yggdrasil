@@ -1,6 +1,6 @@
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
-import type { Artifact } from '../model/types.js';
+import type { Artifact } from '../model/graph.js';
 
 export async function readArtifacts(
   dirPath: string,

@@ -1,18 +1,11 @@
 name: NodeSelector
-type: library
+type: engine
 description: Task-based node selection using keyword matching against graph artifacts
-aspects:
-  - deterministic
+aspects: []
 relations:
-  - target: cli/model
+  - target: cli/model/graph
     type: uses
-    consumes:
-      - Graph
-      - GraphNode
-      - FlowDef
   - target: cli/utils
     type: uses
-    consumes:
-      - tokenize
 mapping:
   - source/cli/src/core/node-selector.ts

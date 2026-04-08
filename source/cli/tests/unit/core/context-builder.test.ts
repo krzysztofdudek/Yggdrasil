@@ -19,16 +19,18 @@ import {
 } from '../../../src/core/context-builder.js';
 import { formatContextMarkdown } from '../../../src/formatters/markdown.js';
 import { loadGraph } from '../../../src/core/graph-loader.js';
-import { STANDARD_ARTIFACTS } from '../../../src/model/types.js';
+import { STANDARD_ARTIFACTS } from '../../../src/model/graph.js';
 import type {
   Graph,
   GraphNode,
   YggConfig,
   Relation,
   AspectDef,
+} from '../../../src/model/graph.js';
+import type {
   ContextMapOutput,
   ContextPackage,
-} from '../../../src/model/types.js';
+} from '../../../src/model/context.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE_PROJECT = path.join(__dirname, '../../fixtures/sample-project');
@@ -176,7 +178,7 @@ describe('context-builder', () => {
       node_types: { service: { description: 'x' } },
     };
 
-    it('includes consumes and failure when present', () => {
+    it('includes consumes when present', () => {
       const target: GraphNode = {
         path: 'dep/svc',
         meta: { name: 'DepSvc', type: 'service' },
@@ -191,18 +193,15 @@ describe('context-builder', () => {
         target: 'dep/svc',
         type: 'uses',
         consumes: ['methodA'],
-        failure: 'retry 3x',
       };
       const layer = buildStructuralRelationLayer(target, rel);
       expect(layer.content).toContain('methodA');
-      expect(layer.content).toContain('retry 3x');
       expect(layer.content).toContain('### responsibility.md');
       expect(layer.content).toContain('### interface.md');
       expect(layer.attrs!.consumes).toBe('methodA');
-      expect(layer.attrs!.failure).toBe('retry 3x');
     });
 
-    it('omits consumes and failure when absent', () => {
+    it('omits consumes when absent', () => {
       const target: GraphNode = {
         path: 'dep/svc',
         meta: { name: 'DepSvc', type: 'service' },
@@ -213,10 +212,8 @@ describe('context-builder', () => {
       const rel: Relation = { target: 'dep/svc', type: 'uses' };
       const layer = buildStructuralRelationLayer(target, rel);
       expect(layer.content).not.toContain('Consumes:');
-      expect(layer.content).not.toContain('On failure:');
       expect(layer.content).toContain('### interface.md');
       expect(layer.attrs!.consumes).toBeUndefined();
-      expect(layer.attrs!.failure).toBeUndefined();
     });
 
     it('uses included_in_relations artifacts from STANDARD_ARTIFACTS', () => {
@@ -1223,17 +1220,6 @@ describe('toContextMapOutput', () => {
         expect(f).toMatch(/^aspects\//);
       }
     }
-  });
-
-  it('includes consumes and failure on dependency refs', async () => {
-    const graph = await loadGraph(FIXTURE_PROJECT);
-    const pkg = await buildContext(graph, 'orders/order-service');
-    const output = toContextMapOutput(pkg, graph);
-
-    const authDep = output.dependencies.find((d) => d.path === 'auth/auth-api');
-    expect(authDep).toBeDefined();
-    expect(authDep!.consumes).toEqual(['authenticate']);
-    expect(authDep!.failure).toBe('reject-request');
   });
 
   it('includes implies on aspects in glossary', async () => {

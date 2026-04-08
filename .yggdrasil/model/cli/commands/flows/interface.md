@@ -1,17 +1,20 @@
 # Flows Command Interface
 
-| Function | Signature | Command | Options |
-| -------- | --------- | ------- | ------- |
-| registerFlowsCommand | (program: Command) => void | flows | None |
+**Command:** `yg flows` — no arguments, no options.
 
-**Return:** void. Contract: errors to stderr, process.exit(1) on failure.
+**Output structure per flow:**
+
+```
+<name> — <description>
+  Participants: <count> nodes (<sorted comma-separated paths>)
+  Aspects: <comma-separated aspect ids>    # only when flow has aspects
+```
+
+Flows sorted alphabetically by name.
+
+**Contract:** Flow-level aspects propagate to all participants — every participant must satisfy them. This is the enforcement mechanism for cross-cutting business process requirements.
 
 ## Failure Modes
 
-**Propagated from loadGraph:**
-
-- Missing .yggdrasil/: `Error: No .yggdrasil/ directory found. Run 'yg init' first.`
-
-**No command-specific errors.**
-
-**Generic:** I/O errors -- standard Node.js Error, caught and reported to stderr.
+- No .yggdrasil/ directory: exit 1.
+- Generic I/O errors: stderr, exit 1.

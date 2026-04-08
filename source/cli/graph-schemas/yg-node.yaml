@@ -19,7 +19,6 @@ relations:                    # optional — outgoing dependencies to other node
   - target: other/module-path # required — path relative to model/
     type: calls               # required — calls | uses | extends | implements | emits | listens
     consumes: [port-name]     # optional — port names consumed from target (required when target has ports)
-    failure: 'retry 3x, then circuit-break' # optional — failure handling strategy
 
 mapping:                      # optional — flat list of source file or directory paths
   - src/modules/component/    # paths are relative to repository root

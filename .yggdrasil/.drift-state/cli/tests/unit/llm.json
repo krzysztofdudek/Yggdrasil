@@ -1,32 +1,34 @@
 {
-  "hash": "9cc55cdd743093ab9d59e0035ab6309c10e29097903498831244d37c49e5f107",
+  "hash": "52b3955592d06a298b76543ee15c2b27262439a14da7a6217e0813d42355163d",
   "files": {
-    ".yggdrasil/model/cli/tests/unit/llm/yg-node.yaml": "4a3c0cd9d6a19dc3cfa60cda17f5efab3bcb4c2942fa908ac93ad054f0f42f1c",
-    ".yggdrasil/model/cli/tests/unit/llm/responsibility.md": "14380c509da3773bd185936332319d3041700a04147be4d5d98f67a72b76f188",
+    ".yggdrasil/model/cli/tests/unit/llm/yg-node.yaml": "97fe3fc7916c74765978ea204276551b85ae115a480e2f484545b33df21f48c3",
     ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df",
-    ".yggdrasil/model/cli/internals.md": "7440678f012e45d8b15a4efc252cc3b4220fe7aec98fb673786abd9c2a37f9f0",
-    ".yggdrasil/model/cli/responsibility.md": "696e0f5f377eba69a843a18379e8f20e0322dc037182690629652a75aa2227fb",
+    ".yggdrasil/model/cli/internals.md": "6ed08e0ee1a22270af6dcb23306acae750c7e55744a43a17671c4713684f4b91",
+    ".yggdrasil/model/cli/responsibility.md": "f35cbcee252f56323379f08b65c38989787e0758c94f5eee2a36188c0260d05d",
     ".yggdrasil/model/cli/tests/yg-node.yaml": "ac0fc246c01a04e62d43ef8abadb2f01551616ca7509c3b268995ef646279bc9",
-    ".yggdrasil/model/cli/tests/responsibility.md": "ef48f39a8d5d6b7f1c61e94f2b95ccf38c02365b3496e3ff5fcf21827ffd8138",
-    ".yggdrasil/model/cli/tests/unit/yg-node.yaml": "ae64bb1e8762600e0fb39f223cdb3c522179e188fb11257a7773080f034aee71",
-    ".yggdrasil/model/cli/tests/unit/responsibility.md": "b3f97072d3b27d4c7874906ee918b4f1d41d0ac22ddba05da7af4f64452ed103",
+    ".yggdrasil/model/cli/tests/responsibility.md": "6bbd70c62c9e7dd79901d4730147ef9dd10a5c50d0d16c12409ab99a080d1b44",
+    ".yggdrasil/model/cli/tests/unit/yg-node.yaml": "a0b1c1aa70527cce6cbb0e60d9408db63919d6b17a0ce51a3dd1cb0f531d38f6",
+    ".yggdrasil/model/cli/tests/unit/responsibility.md": "cc1518370e9ddaf77b8180325843c74d1be693f9c37c1b534e8904ec5549bb2b",
+    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "20f321091b4f489efbf167feea9d42d73f7cffb21ea2e86958e565b550da164b",
     ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
-    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "462df48ae702ab782902adfecb0ce3d3fee925134847b7a984fc33b8459fdd0d",
-    "source/cli/tests/unit/llm/provider.test.ts": "0dacaf366d8123813fd412c46cb606308b6c2b47203fc4efc687a0f00fd5f65b"
+    "source/cli/tests/unit/llm/claude-code.test.ts": "9c75518877755b028e0a28d6a8d31ca12142c4244ff717fec52f8d0aaf2b7e07",
+    ".yggdrasil/model/cli/tests/unit/llm/responsibility.md": "922c21990a10c9ecc6e103821b4cef19a1f879343ccc4738a894ba234c50957c",
+    "source/cli/tests/unit/llm/provider.test.ts": "7c5f2a1309bff1b945b5fc13b48cd8ca7f5fb9e5192802186a1aeafa6b313bd9"
   },
   "mtimes": {
-    ".yggdrasil/model/cli/tests/unit/llm/yg-node.yaml": 1775328917583.7341,
-    ".yggdrasil/model/cli/tests/unit/llm/responsibility.md": 1775328939187.8682,
+    ".yggdrasil/model/cli/tests/unit/llm/yg-node.yaml": 1775570157776.7073,
+    ".yggdrasil/model/cli/tests/unit/llm/responsibility.md": 1775629144557.5835,
     ".yggdrasil/model/cli/yg-node.yaml": 1775243577620.7664,
-    ".yggdrasil/model/cli/internals.md": 1775329681280.232,
-    ".yggdrasil/model/cli/responsibility.md": 1775045623775.336,
+    ".yggdrasil/model/cli/internals.md": 1775586290475.0237,
+    ".yggdrasil/model/cli/responsibility.md": 1775586232234.4275,
     ".yggdrasil/model/cli/tests/yg-node.yaml": 1775243577592.7366,
-    ".yggdrasil/model/cli/tests/responsibility.md": 1775051893259.6592,
-    ".yggdrasil/model/cli/tests/unit/yg-node.yaml": 1775327956362.4197,
-    ".yggdrasil/model/cli/tests/unit/responsibility.md": 1775052695088.1653,
-    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775561447770.7463,
+    ".yggdrasil/model/cli/tests/responsibility.md": 1775569538051.1086,
+    ".yggdrasil/model/cli/tests/unit/yg-node.yaml": 1775570526808.3728,
+    ".yggdrasil/model/cli/tests/unit/responsibility.md": 1775569529006.107,
+    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775580563004.8235,
     ".yggdrasil/aspects/deterministic/content.md": 1772778780694.5889,
-    "source/cli/tests/unit/llm/provider.test.ts": 1775563503410.0623
+    "source/cli/tests/unit/llm/claude-code.test.ts": 1775583351250.2698,
+    "source/cli/tests/unit/llm/provider.test.ts": 1775624991791.7107
   },
-  "reviewedReason": "cosmetic: added verify_artifacts field to test fixtures after LlmConfig update; test coverage and purpose unchanged"
+  "reviewedReason": "import path changes, responsibility rewritten"
 }

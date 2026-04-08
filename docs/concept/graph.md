@@ -101,6 +101,7 @@ packages.
 
 ```yaml
 reviewer:
+  verify_aspects: true
   verify_artifacts: false
   consensus: 1
   ollama:
@@ -111,11 +112,12 @@ reviewer:
 ```
 
 The `reviewer` section configures the semantic verifier used for aspect verification and
-artifact review at approve time. General keys (`verify_artifacts`, `consensus`) sit at the
+artifact review at approve time. General keys (`verify_aspects`, `verify_artifacts`, `consensus`) sit at the
 `reviewer:` level. Provider-specific keys sit under the provider name (`ollama:`, `claude-code:`).
 
 | Field              | Purpose                                                              |
 | ------------------ | -------------------------------------------------------------------- |
+| `verify_aspects`   | Run aspect verification (E055) — default true                        |
 | `verify_artifacts` | Run artifact freshness review (E056) — default false                 |
 | `consensus`        | Number of agreeing verification passes required (default 1)          |
 | `active`           | Required when multiple providers configured — selects the active one |
@@ -225,7 +227,6 @@ relations:
   - target: payments/payment-service
     type: calls
     consumes: [charge, refund, correlation-id]  # includes port names from the target
-    failure: retry 3x, then mark order as payment-failed
 
   - target: inventory/inventory-service
     type: calls
@@ -334,30 +335,22 @@ relations:
   - target: payments/payment-service
     type: calls
     consumes: [charge, refund, correlation-id]
-    failure: retry 3x, then mark order as payment-failed
 ```
 
-| Field      | Required | Purpose                                   |
-| ---------- | -------- | ----------------------------------------- |
-| `target`   | Yes      | Path to target node, relative to `model/` |
-| `type`     | Yes      | Relation type from tables above           |
-| `consumes` | No       | What is consumed from the target          |
-| `failure`  | No       | Behavior when dependency is unavailable   |
+| Field      | Required | Purpose                                                     |
+| ---------- | -------- | ----------------------------------------------------------- |
+| `target`   | Yes      | Path to target node, relative to `model/`                   |
+| `type`     | Yes      | Relation type from tables above                             |
+| `consumes` | No       | Port names on the target (only valid when target has ports) |
 
-The `consumes` field annotates the context package. It can reference both interface methods
-and **port names** from the target node:
+The `consumes` field references **port names** on the target node. It is only valid when the
+target declares ports — E059 fires if `consumes` is declared on a relation to a target
+without ports. The relation itself (`target` + `type`) is sufficient to express the
+dependency; `consumes` adds port-level specificity.
 
-- For structural relations (`uses`, `calls`, `extends`, `implements`) — concrete methods
-  consumed from the target's interface (e.g. `charge`, `refund`) and port names the caller
-  satisfies (e.g. `correlation-id`). When a port name appears in `consumes`, the caller
-  declares that it fulfills that port's contract. Tools attach full interface content along
-  with annotations indicating which methods are used and which ports are consumed.
-- For event relations (`emits`, `listens`) — specific data consumed from the event
-  (e.g. `orderId`, `amount`, `status`). Tools attach event information with annotations
-  describing consumed data.
-
-The `failure` field captures what the node does when the dependency is
-unavailable — critical information that cannot be inferred from code or interface alone.
+When a port name appears in `consumes`, the caller declares that it uses that port's
+contract. Tools attach full interface content along with annotations indicating which ports
+are consumed. The `consumes` field is not used on event relations (`emits`, `listens`).
 
 ---
 
@@ -539,6 +532,9 @@ node_types:
   library:
     description: "Shared utility with no domain knowledge"
     aspects: [deterministic]
+    quality_profile: |                               # guidance for artifact reviewer
+      interface.md: Function signatures, return types, failure modes.
+      responsibility.md: What this library provides and why it exists as a unit.
     parents: [module]
     relations:
       uses: [library]
@@ -547,12 +543,13 @@ node_types:
     description: "Business logic unit with clear domain responsibility"
 ```
 
-| Field         | Purpose                                                             |
-| ------------- | ------------------------------------------------------------------- |
-| `description` | Required. What this type of node is for (agent guidance)            |
-| `aspects`     | Optional. Aspect IDs required on every node of this type            |
-| `parents`     | Optional. Whitelist of allowed parent node types                    |
-| `relations`   | Optional. Allowed target types by relation type (calls, uses, etc.) |
+| Field             | Purpose                                                                                |
+| ----------------- | -------------------------------------------------------------------------------------- |
+| `description`     | Required. What this type of node is for (agent guidance)                               |
+| `aspects`         | Optional. Aspect IDs required on every node of this type                               |
+| `quality_profile` | Optional. Guidance for the LLM reviewer on how to evaluate artifacts of this node type |
+| `parents`         | Optional. Whitelist of allowed parent node types                                       |
+| `relations`       | Optional. Allowed target types by relation type (calls, uses, etc.)                    |
 
 Integration contracts are no longer defined at the architecture level. Instead, each node
 declares its own `ports` — typed contracts that consumers must satisfy. This moves integration
@@ -563,6 +560,10 @@ requirements closer to the nodes that define them. See the Node metadata section
 
 - When a node has `type: service` and the architecture declares `aspects: [requires-auth]`,
   the node must carry the `requires-auth` aspect.
+- When a node type has `quality_profile`, the LLM reviewer receives this text as guidance
+  when evaluating artifacts during `yg approve`. Different node types need different artifact
+  styles — e.g. a command node's interface is its output format, while a library's interface
+  is its function signatures.
 - Absence of any field means no constraint — e.g. no `parents` field means any node type can
   be a parent.
 

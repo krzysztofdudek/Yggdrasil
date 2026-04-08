@@ -1,17 +1,12 @@
 name: Approve Command
-type: service
+type: command
 description: CLI command implementing yg approve — records drift baseline after user review
 blackbox: false
-aspects:
-  - cli-command-contract
+aspects: []
 relations:
   - target: cli/core/loader
     type: uses
-    consumes:
-      - loadGraph
   - target: cli/core/approve
     type: uses
-    consumes:
-      - approveNode
 mapping:
   - source/cli/src/cli/approve.ts

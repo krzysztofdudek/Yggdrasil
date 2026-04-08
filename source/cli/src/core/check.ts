@@ -1,11 +1,11 @@
+import type { Graph } from '../model/graph.js';
 import type {
-  Graph,
   DriftCategory,
   DriftFileChange,
   DriftStatus,
   TrackedFileLayer,
-  ValidationIssue,
-} from '../model/types.js';
+} from '../model/drift.js';
+import type { ValidationIssue } from '../model/validation.js';
 import { readDriftState, readNodeDriftState, writeNodeDriftState } from '../io/drift-state-store.js';
 import { hashTrackedFiles } from '../utils/hash.js';
 import { collectTrackedFiles } from './context-files.js';
@@ -141,21 +141,19 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
     const fileLayerMap = new Map<string, TrackedFileLayer>();
     const dirPrefixes: Array<{ prefix: string; layer: TrackedFileLayer }> = [];
     for (const tf of trackedFiles) {
-      if (!fileLayerMap.has(tf.path)) {
-        fileLayerMap.set(tf.path, tf.layer);
+      const tfNormalized = tf.path.replace(/\\/g, '/').replace(/\/+$/, '');
+      if (!fileLayerMap.has(tfNormalized)) {
+        fileLayerMap.set(tfNormalized, tf.layer);
       }
-      // Track directory prefixes for files expanded from directory mappings
-      const normalized = tf.path.replace(/\\/g, '/');
-      if (normalized.endsWith('/')) {
-        dirPrefixes.push({ prefix: normalized, layer: tf.layer });
-      }
+      // Track directory prefixes for files expanded from directory mappings.
+      const normalized = tfNormalized;
+      dirPrefixes.push({ prefix: normalized + '/', layer: tf.layer });
     }
 
     function resolveLayer(filePath: string): TrackedFileLayer | undefined {
-      const direct = fileLayerMap.get(filePath);
+      const normalized = filePath.replace(/\\/g, '/').replace(/\/+$/, '');
+      const direct = fileLayerMap.get(normalized);
       if (direct) return direct;
-      // Check if the file falls under a tracked directory
-      const normalized = filePath.replace(/\\/g, '/');
       for (const { prefix, layer } of dirPrefixes) {
         if (normalized.startsWith(prefix)) return layer;
       }
@@ -167,8 +165,9 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
     const cascadeCauses: CascadeCause[] = [];
 
     // Current files vs stored
-    for (const [filePath, hash] of Object.entries(fileHashes)) {
-      const storedHash = storedEntry.files[filePath];
+    for (const [rawFilePath, hash] of Object.entries(fileHashes)) {
+      const filePath = rawFilePath.replace(/\\/g, '/').replace(/\/+$/, '');
+      const storedHash = storedEntry.files[rawFilePath] ?? storedEntry.files[filePath];
       if (storedHash && storedHash === hash) continue;
 
       const layer = resolveLayer(filePath);
@@ -186,8 +185,10 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
     }
 
     // Deleted files (in stored but not in current)
+    const normalizedFileHashes = new Set(Object.keys(fileHashes).map(p => p.replace(/\\/g, '/').replace(/\/+$/, '')));
     for (const storedPath of Object.keys(storedEntry.files)) {
-      if (storedPath in fileHashes) continue;
+      const normalizedStored = storedPath.replace(/\\/g, '/').replace(/\/+$/, '');
+      if (normalizedStored in fileHashes || normalizedFileHashes.has(normalizedStored)) continue;
       const layer = resolveLayer(storedPath);
       const category = categorizeFile(storedPath, graph.rootPath, projectRoot);
 
@@ -345,12 +346,12 @@ export function scanUncoveredFiles(graph: Graph, gitTrackedFiles: string[]): str
 
   // Determine .yggdrasil prefix relative to project root
   const projectRoot = path.dirname(graph.rootPath);
-  const yggPrefix = path.relative(projectRoot, graph.rootPath).split(path.sep).join('/');
+  const yggPrefix = path.relative(projectRoot, graph.rootPath).replace(/\\/g, '/').replace(/\/+$/, '');
 
   const uncovered: string[] = [];
 
   for (const file of gitTrackedFiles) {
-    const normalized = file.replace(/\\/g, '/');
+    const normalized = file.trim().replace(/\\/g, '/').replace(/\/+$/, '');
 
     // Exclude .yggdrasil/ files
     if (normalized.startsWith(yggPrefix + '/') || normalized === yggPrefix) continue;
@@ -359,7 +360,7 @@ export function scanUncoveredFiles(graph: Graph, gitTrackedFiles: string[]): str
     let covered = false;
     for (const rawMp of allMappings) {
       // Normalize: strip trailing slash to avoid double-slash in startsWith check
-      const mp = rawMp.replace(/\/+$/, '');
+      const mp = rawMp.replace(/\\/g, '/').replace(/\/+$/, '');
       if (normalized === mp || normalized.startsWith(mp + '/')) {
         covered = true;
         break;
@@ -459,7 +460,7 @@ export async function runCheck(graph: Graph, gitTrackedFiles: string[] | null): 
   if (gitTrackedFiles !== null) {
     // Exclude .yggdrasil/ files from total count
     const projectRoot = path.dirname(graph.rootPath);
-    const yggPrefix = path.relative(projectRoot, graph.rootPath).split(path.sep).join('/');
+    const yggPrefix = path.relative(projectRoot, graph.rootPath).replace(/\\/g, '/').replace(/\/+$/, '');
     const sourceFiles = gitTrackedFiles.filter(f => !f.startsWith(yggPrefix + '/') && f !== yggPrefix);
     totalFiles = sourceFiles.length;
     const uncovered = scanUncoveredFiles(graph, gitTrackedFiles);
@@ -515,7 +516,7 @@ export async function runCheck(graph: Graph, gitTrackedFiles: string[] | null): 
 /* v8 ignore start -- duplicated from drift-detector.ts, tested there */
 function categorizeFile(filePath: string, rootPath: string, projectRoot: string): DriftCategory {
   const yggPrefix = path.relative(projectRoot, rootPath).split(path.sep).join('/');
-  const normalized = filePath.replace(/\\/g, '/');
+  const normalized = filePath.replace(/\\/g, '/').replace(/\/+$/, '');
   return normalized.startsWith(yggPrefix) ? 'graph' : 'source';
 }
 /* v8 ignore stop */
@@ -525,7 +526,7 @@ function categorizeFile(filePath: string, rootPath: string, projectRoot: string)
  * Each cause type has a distinct message per the CLI messages spec.
  */
 function describeCascadeCause(filePath: string, layer: TrackedFileLayer, graph: Graph): string {
-  const normalized = filePath.replace(/\\/g, '/');
+  const normalized = filePath.replace(/\\/g, '/').replace(/\/+$/, '');
   const yggPrefix = path.relative(path.dirname(graph.rootPath), graph.rootPath).split(path.sep).join('/');
   const escPrefix = yggPrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -627,7 +628,7 @@ function groupCascadeByCause(cascadeErrors: CheckIssue[], graph?: Graph): Map<st
   for (const issue of cascadeErrors) {
     if (!issue.nodePath || !issue.cascadeCauses) continue;
     for (const cause of issue.cascadeCauses) {
-      const normalized = cause.file.replace(/\\/g, '/');
+      const normalized = cause.file.replace(/\\/g, '/').replace(/\/+$/, '');
       let key: string | null = null;
 
       const aspectMatch = normalized.match(new RegExp(`^${escPrefix}/aspects/([^/]+(?:/[^/]+)*)/`));

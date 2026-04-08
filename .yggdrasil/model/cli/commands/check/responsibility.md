@@ -1,9 +1,9 @@
-## Responsibility
+# Check Command Responsibility
 
-The `check` command is the unified graph gate for the Yggdrasil CLI. It invokes `runCheck` from `cli/core/check`, formats the output with grouped error categories (drift, cascade, structural, architecture, coverage, completeness), and exits with code 1 if any errors are present.
+**In scope:** `yg check`. The unified graph gate — the single command agents run to know if the graph is healthy before starting or committing work.
 
-This node is NOT responsible for:
+Combines drift detection, structural validation, coverage scanning, and completeness checking into one pass. Groups output by error category so agents can address issues in priority order. The "suggested next" at the end gives one concrete step to resolve the most pressing issue.
 
-- The logic of drift detection, validation, or coverage scanning (that is in `cli/core/check`)
-- Loading the graph from disk (that is in `cli/core/loader`)
-- Computing git-tracked files beyond calling `git ls-files` via execSync
+Blocks commits and CI when errors exist — this is the enforcement mechanism for the graph-first workflow.
+
+**Out of scope:** Individual check logic (delegated to cli/core/check).

@@ -1,0 +1,7 @@
+name: ValidationTypes
+type: types
+description: Validation result types — ValidationIssue, ValidationResult
+aspects: []
+relations: []
+mapping:
+  - source/cli/src/model/validation.ts

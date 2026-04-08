@@ -53,9 +53,9 @@ export function normalizeMappingPaths(mapping: string[] | undefined): string[] {
   const paths: string[] = [];
   for (const item of mapping) {
     if (typeof item === 'string') {
-      const trimmed = item.trim();
-      if (trimmed) {
-        paths.push(trimmed);
+      const normalized = item.trim().replace(/\\/g, '/').replace(/\/+$/, '');
+      if (normalized) {
+        paths.push(normalized);
       }
     }
   }
@@ -87,14 +87,14 @@ export function normalizeProjectRelativePath(projectRoot: string, rawPath: strin
     throw new Error(`Path is outside project root: ${rawPath}`);
   }
 
-  return relative.split(path.sep).join('/');
+  return relative.split(path.sep).join('/').replace(/\/+$/, '');
 }
 
 /**
  * Normalize a --node path argument: strip leading ./ and trailing /.
  */
 export function normalizeNodePath(rawPath: string): string {
-  return rawPath.trim().replace(/^\.\//, '').replace(/\/+$/, '');
+  return rawPath.trim().replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+$/, '');
 }
 
 /**

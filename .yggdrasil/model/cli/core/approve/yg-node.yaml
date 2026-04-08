@@ -1,20 +1,19 @@
 name: Approve Core
-type: library
+type: engine
 description: Core approve logic — records drift baseline, implements three-axis change detection and blackbox enforcement
 blackbox: false
 aspects:
   - posix-paths
+  - what-why-next
+  - diagnostic-logging
 relations:
   - target: cli/io
     type: uses
-    consumes:
-      - readDriftState
-      - readNodeDriftState
-      - writeNodeDriftState
-      - garbageCollectDriftState
   - target: cli/utils
     type: uses
-    consumes:
-      - hashTrackedFiles
+  - target: cli/llm
+    type: uses
 mapping:
   - source/cli/src/core/approve.ts
+  - source/cli/src/core/aspect-verifier.ts
+  - source/cli/src/core/artifact-reviewer.ts

@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { collectTrackedFiles } from '../../../src/core/context-files.js';
 import { loadGraph } from '../../../src/core/graph-loader.js';
-import type { Graph, GraphNode } from '../../../src/model/types.js';
+import type { Graph, GraphNode } from '../../../src/model/graph.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE_PROJECT = path.join(__dirname, '../../fixtures/sample-project');

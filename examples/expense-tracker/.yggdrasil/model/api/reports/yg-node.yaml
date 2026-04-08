@@ -5,10 +5,8 @@ description: "Read-only spending aggregation: monthly summary and per-category b
 relations:
   - target: api/db
     type: uses
-    consumes: [db.prepare]
   - target: api/auth
     type: uses
-    consumes: [requireAuth]
 
 mapping:
   - paths:

@@ -1,35 +1,17 @@
 name: ImpactCommand
-type: library
+type: command
 description: Blast radius analysis across node, aspect, and flow modes via yg impact
-aspects:
-  - cli-command-contract
+aspects: []
 relations:
   - target: cli/core/loader
     type: uses
-    consumes:
-      - loadGraph
-      - loadGraphFromRef
   - target: cli/core/context
     type: uses
-    consumes:
-      - buildContext
-      - collectAncestors
-      - collectEffectiveAspectIds
   - target: cli/core/drift-detector
     type: uses
-    consumes:
-      - detectDrift
   - target: cli/commands/owner
     type: uses
-    consumes:
-      - findOwner
   - target: cli/utils
     type: uses
-    consumes:
-      - projectRootFromGraph
-  - target: cli/model
-    type: uses
-    consumes:
-      - Graph
 mapping:
   - source/cli/src/cli/impact.ts

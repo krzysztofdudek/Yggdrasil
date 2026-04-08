@@ -5,7 +5,7 @@ describe('LLM provider factory', () => {
   it('creates ollama provider', () => {
     const provider = createLlmProvider({
       provider: 'ollama', model: 'test', temperature: 0, consensus: 1, max_tokens: 'auto',
-      verify_artifacts: false,
+      verify_aspects: true, verify_artifacts: false,
     });
     expect(provider).toBeDefined();
   });
@@ -13,7 +13,7 @@ describe('LLM provider factory', () => {
   it('creates claude-code provider', () => {
     const provider = createLlmProvider({
       provider: 'claude-code', model: 'haiku', temperature: 0, consensus: 1, max_tokens: 'auto',
-      verify_artifacts: false,
+      verify_aspects: true, verify_artifacts: false,
     });
     expect(provider).toBeDefined();
   });
@@ -21,7 +21,7 @@ describe('LLM provider factory', () => {
   it('throws on unknown provider', () => {
     expect(() => createLlmProvider({
       provider: 'unknown' as any, model: 'test', temperature: 0, consensus: 1, max_tokens: 'auto',
-      verify_artifacts: false,
+      verify_aspects: true, verify_artifacts: false,
     })).toThrow(/unknown/i);
   });
 });

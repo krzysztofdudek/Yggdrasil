@@ -1,9 +1,52 @@
 node_types:
   module:
-    description: "Business logic unit with clear domain responsibility"
-  service:
-    description: "Component providing functionality to other nodes"
-  library:
-    description: "Shared utility code with no domain knowledge"
-  infrastructure:
-    description: "Guards, middleware, interceptors — invisible in call graphs but affect blast radius"
+    description: "Grouping node — organizes children under shared domain responsibility"
+
+  command:
+    description: "CLI command handler — registers Commander subcommand and formats output"
+    aspects: [cli-command-contract]
+    quality_profile: |
+      interface.md: Output format IS the contract — document command syntax,
+      output structure, flag semantics, exit codes. Agents parse this output.
+      Do NOT reject output format documentation as "restating observable behavior."
+      responsibility.md: Role in agent workflow — why this command exists,
+      what decision it enables. Not algorithm steps.
+
+  engine:
+    description: "Core domain logic — algorithms, validation, assembly, detection"
+    aspects: [deterministic]
+    quality_profile: |
+      interface.md: Function signatures, parameter types, return types, failure
+      modes. These are the contract consumers depend on.
+      responsibility.md: What invariant this module enforces and why.
+      Not algorithm walkthroughs.
+      internals.md: Design decisions with rejected alternatives only.
+
+  adapter:
+    description: "I/O boundary — parsers, persistence, LLM providers, formatters"
+    quality_profile: |
+      interface.md: Input/output transformation contract — what goes in,
+      what comes out, what fails.
+      responsibility.md: What boundary this adapter guards and why
+      the boundary exists.
+
+  types:
+    description: "Pure type definitions — no runtime behavior, no executable code"
+    quality_profile: |
+      interface.md: Not required — TypeScript types ARE the interface.
+      Only document non-obvious constraints between types.
+      responsibility.md: Which domain this type group serves and why
+      it is separated from other type groups.
+
+  test:
+    description: "Test suite guarding system invariants"
+    quality_profile: |
+      responsibility.md: What invariant the tests guard and WHY it matters
+      if these tests are removed. Not what they test — that is visible
+      from test names and assertions.
+
+  project:
+    description: "Top-level project infrastructure — CI, documentation, configuration, examples"
+    quality_profile: |
+      responsibility.md: Role in the project and implicit blast radius.
+      Changes here affect every contributor and CI run.

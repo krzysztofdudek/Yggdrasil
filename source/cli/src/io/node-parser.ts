@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { parse as parseYaml } from 'yaml';
-import type { NodeMeta, PortDef, Relation, RelationType } from '../model/types.js';
+import type { NodeMeta, PortDef, Relation, RelationType } from '../model/graph.js';
 
 const RELATION_TYPES: RelationType[] = [
   'uses',
@@ -123,9 +123,6 @@ function parseRelations(raw: unknown, filePath: string): Relation[] {
     };
     if (Array.isArray(obj.consumes)) {
       rel.consumes = (obj.consumes as unknown[]).filter((c): c is string => typeof c === 'string');
-    }
-    if (typeof obj.failure === 'string') {
-      rel.failure = obj.failure;
     }
     if (typeof obj.event_name === 'string' && obj.event_name.trim()) {
       rel.event_name = obj.event_name.trim();

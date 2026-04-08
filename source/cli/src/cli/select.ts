@@ -1,8 +1,9 @@
 import { Command } from 'commander';
+import chalk from 'chalk';
 import { loadGraph } from '../core/graph-loader.js';
+import { initDebugLog } from '../utils/debug-log.js';
 import { selectTask } from '../core/node-selector.js';
 import type { EnrichedSelectResult, AspectMatch, FlowMatch } from '../core/node-selector.js';
-import { findYggRoot } from '../utils/paths.js';
 
 export function registerSelectCommand(program: Command): void {
   program
@@ -12,17 +13,24 @@ export function registerSelectCommand(program: Command): void {
     .option('--limit <n>', 'Maximum results per section (nodes, aspects, flows)', '5')
     .action(async (query: string, options: { limit: string }) => {
       try {
-        const yggRoot = await findYggRoot(process.cwd());
-        const graph = await loadGraph(yggRoot);
+        const graph = await loadGraph(process.cwd());
+        initDebugLog(graph.rootPath, graph.config.debug ?? false);
         const limit = parseInt(options.limit, 10);
         if (isNaN(limit) || limit < 1) {
-          process.stderr.write('Error: --limit must be a positive integer\n');
+          process.stderr.write(chalk.red('Error: --limit must be a positive integer\n'));
           process.exit(1);
         }
         const result = selectTask(graph, query, limit);
         process.stdout.write(formatEnrichedResult(result, query));
       } catch (error) {
-        process.stderr.write(`Error: ${(error as Error).message}\n`);
+        const err = error as NodeJS.ErrnoException;
+        if (err.code === 'ENOENT') {
+          process.stderr.write(
+            chalk.red(`Error: No .yggdrasil/ directory found. Run 'yg init' first.\n`),
+          );
+        } else {
+          process.stderr.write(chalk.red(`Error: ${(error as Error).message}\n`));
+        }
         process.exit(1);
       }
     });

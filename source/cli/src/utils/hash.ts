@@ -190,7 +190,7 @@ export async function hashTrackedFiles(
         });
         for (const entry of dirEntries) {
           allFiles.push({
-            relPath: path.join(tf.path, entry.relPath).replace(/\\/g, '/'),
+            relPath: path.join(tf.path, entry.relPath).replace(/\\/g, '/').replace(/\/+$/, ''),
             absPath: entry.absPath,
             mtimeMs: entry.mtimeMs,
           });
@@ -283,7 +283,7 @@ async function collectDirectoryFilePaths(
     Promise.all(files.map(async (f) => {
       const fileStat = await stat(f);
       return {
-        relPath: path.relative(rootDirectoryPath, f),
+        relPath: path.relative(rootDirectoryPath, f).replace(/\\/g, '/').replace(/\/+$/, ''),
         absPath: f,
         mtimeMs: fileStat.mtimeMs,
       };

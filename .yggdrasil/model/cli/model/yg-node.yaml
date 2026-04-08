@@ -1,7 +1,5 @@
 name: Model
-type: library
+type: module
 description: TypeScript type definitions for all domain types — graph, context, validation, drift
 aspects: []
 relations: []
-mapping:
-  - source/cli/src/model/

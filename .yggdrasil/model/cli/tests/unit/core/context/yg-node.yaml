@@ -1,5 +1,5 @@
 name: Context Core Unit Tests
-type: library
+type: test
 description: "Unit tests for context assembly, file resolution, and graph loading: context-builder, context-files, graph-loader"
 blackbox: false
 aspects: []

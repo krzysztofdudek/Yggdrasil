@@ -1,9 +1,5 @@
-# Entry Responsibility
+# Entry — Responsibility
 
-CLI entry point — `bin.ts`. Bootstraps Commander and delegates to command handlers.
+CLI entry point — wires the Commander program, registers all commands, and parses argv. Exists as the single composition root so that individual commands remain decoupled from each other and from the bootstrapping process.
 
-**In scope:**
-
-- Creating Commander instance with name `yg`, description "Yggdrasil — architectural knowledge infrastructure for AI agents", version from package.json
-- Registering subcommands via `register*Command(program)`: init, context (alias: build-context), approve (alias: drift-sync), tree, owner, impact, aspects, flows, select, check
-- Invoking `program.parse()` for argv handling (Commander handles exit on failure)
+The only file that knows about all commands; adding or removing a command requires changing only this node. Does not contain command logic — delegates immediately to command handlers.

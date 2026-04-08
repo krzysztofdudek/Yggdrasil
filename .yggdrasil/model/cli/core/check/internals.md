@@ -2,6 +2,6 @@
 
 ## Decisions
 
-Removed `deterministic` aspect: `classifyDrift` writes to disk when invalidating cached LLM aspect results on drift detection (`writeNodeDriftState` inside the classification loop). This side effect was added intentionally so that stale LLM results don't persist across drift cycles. Rejected: keeping `deterministic` and moving cache invalidation elsewhere — the invalidation belongs at detection time, not at a separate caller.
+- **Cache invalidation at detection time.** `classifyDrift` writes to disk when invalidating cached LLM results on drift detection. Rejected: deferring invalidation to a separate caller — the invalidation must happen at detection time to prevent approve from reusing stale verification.
 
-`suggestedNext` prefers batch approve commands when multiple cascade nodes share the same upstream cause. Groups cascade issues by entity (aspect, flow, parent), picks the largest group with ≥2 nodes, and emits `yg approve --aspect/--flow/--node`. Rejected: always suggesting single-node context command — agents should use batch paths when available.
+- **Batch approve in suggestedNext.** When multiple cascade nodes share the same upstream cause, `suggestedNext` suggests a batch approve command (groups by entity, picks largest group). Rejected: always suggesting single-node context command — agents should use batch paths when available.

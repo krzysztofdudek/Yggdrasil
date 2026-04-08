@@ -5,7 +5,6 @@ description: "Category list and custom category creation with limit counter"
 relations:
   - target: api/categories
     type: calls
-    consumes: [GET /categories, POST /categories, DELETE /categories/:id]
 
 mapping:
   - paths:

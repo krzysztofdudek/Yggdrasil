@@ -1,13 +1,9 @@
 name: DependencyResolver
-type: library
+type: engine
 description: Topological sort, change detection, and dependency tree formatting for graph nodes
-aspects:
-  - deterministic
+aspects: []
 relations:
-  - target: cli/model
+  - target: cli/model/graph
     type: uses
-    consumes:
-      - Graph
-      - Stage
 mapping:
   - source/cli/src/core/dependency-resolver.ts

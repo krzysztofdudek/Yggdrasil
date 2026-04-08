@@ -5,7 +5,6 @@ description: "Monthly spending breakdown by category with percentages"
 relations:
   - target: api/reports
     type: calls
-    consumes: [GET /reports]
 
 mapping:
   - paths:

@@ -5,10 +5,8 @@ description: "Category CRUD with system defaults and subscription limit on custo
 relations:
   - target: api/db
     type: uses
-    consumes: [db.prepare, db.run]
   - target: api/auth
     type: uses
-    consumes: [requireAuth]
 
 mapping:
   - paths:

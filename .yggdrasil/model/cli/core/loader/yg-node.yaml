@@ -1,33 +1,14 @@
 name: GraphLoader
-type: library
+type: engine
 description: Loads the graph from .yggdrasil/ — model nodes, aspects, flows, schemas — into memory
 aspects:
-  - deterministic
   - silent-missing-files
 relations:
   - target: cli/io
     type: uses
-    consumes:
-      - parseConfig
-      - parseNodeYaml
-      - parseAspect
-      - parseFlow
-      - parseKnowledge
-      - parseSchema
-      - readArtifacts
-  - target: cli/model
+  - target: cli/model/graph
     type: uses
-    consumes:
-      - Graph
-      - GraphNode
-      - YggConfig
-      - AspectDef
-      - FlowDef
-      - KnowledgeItem
-      - SchemaDef
   - target: cli/utils
     type: uses
-    consumes:
-      - findYggRoot
 mapping:
   - source/cli/src/core/graph-loader.ts

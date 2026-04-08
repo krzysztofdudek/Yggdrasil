@@ -1,64 +1,20 @@
 # LLM Provider — Interface
 
-## Exports (from index.ts)
+**`createLlmProvider(config: LlmConfig): LlmProvider`** — factory function. Returns concrete provider based on `config.provider` ('ollama' or 'claude-code'). Throws on unknown provider.
 
-### `createLlmProvider(config: LlmConfig): LlmProvider`
+**`LlmProvider` interface:**
 
-Factory function that returns a concrete provider based on `config.provider`:
+- `needsChunking: boolean` — whether the provider needs source content inlined in prompts (true for API providers) or reads files itself (false for CLI providers). Callers use this to decide chunking strategy.
+- `verifyAspect(params): Promise<AspectResponse>` — checks if source files satisfy an aspect. Params include `nodeContext` (pre-computed `yg context --node` output) so the reviewer has full graph understanding.
+- `reviewArtifact(params): Promise<ArtifactResponse>` — checks if an artifact is current. Params include `nodeContext`, `nodeType`, and `qualityProfile` from architecture so the reviewer applies type-specific evaluation criteria.
+- `isAvailable(): Promise<boolean>` — connectivity check.
+- `getContextWindowSize(): Promise<number | undefined>` — for API providers to report model limits.
 
-- `'ollama'` -> `OllamaProvider`
-- `'openai'` -> `OpenAIProvider`
-- `'anthropic'` -> `AnthropicProvider`
-- Unknown value -> throws `Error`
+**Prompt structure:** Both providers use the same XML structure (`<role>`, `<rules>`, `<aspect>`, `<node>`, `<source-files>`, `<task>`). CLI providers receive file paths (self-closing `<file />` tags); API providers receive inline content. This standardization ensures consistent reviewer behavior regardless of backend.
 
-### `LlmProvider` (interface)
+**Provider contract:** All providers return structured JSON responses. On failure (timeout, parse error, unreachable), providers return safe fallback responses (`satisfied: false` / `current: false`) rather than throwing — callers never need try/catch around verification calls.
 
-```typescript
-interface LlmProvider {
-  verifyAspect(params: {
-    aspectContent: string;
-    sourceCode: string;
-    sourceFiles: string[];
-  }): Promise<AspectResponse>;
+## Failure Modes
 
-  reviewArtifact(params: {
-    artifactContent: string;
-    artifactName: string;
-    sourceCode: string;
-    sourceFiles: string[];
-  }): Promise<ArtifactResponse>;
-
-  isAvailable(): Promise<boolean>;
-  getContextWindowSize(): Promise<number | undefined>;
-}
-```
-
-### `AspectResponse`
-
-```typescript
-interface AspectResponse {
-  satisfied: boolean;
-  reason: string;
-}
-```
-
-### `ArtifactResponse`
-
-```typescript
-interface ArtifactResponse {
-  current: boolean;
-  reason: string;
-}
-```
-
-## Static Methods
-
-### `OllamaProvider.resolveMaxTokens(config: LlmConfig, provider: LlmProvider): Promise<number>`
-
-Resolves max token limit: uses `config.max_tokens` if set, otherwise queries `provider.getContextWindowSize()`, falling back to 4096.
-
-## Provider Behavior
-
-- **OllamaProvider**: Uses `POST /api/chat` with `format: 'json'` and `stream: false`. Retries once on failure. Strips markdown code fences from JSON responses before parsing. Returns a safe fallback response on parse failure. `getContextWindowSize()` auto-detects the context length from Ollama model_info by finding a key ending with `.context_length` — or uses `LlmConfig.context_length_field` if configured.
-- **OpenAIProvider**: Stub — `isAvailable()` returns false, operations throw.
-- **AnthropicProvider**: Stub — `isAvailable()` returns false, operations throw.
+- Unknown provider name: throws from factory.
+- Provider unavailable: `isAvailable()` returns false, verification calls return fallback.

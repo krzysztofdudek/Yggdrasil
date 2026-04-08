@@ -1,50 +1,11 @@
-## Logic
-
-# Utils Logic
-
-## hash.ts
-
-### hashFile
-
-- readFile, createHash('sha256').update(content).digest('hex')
-
-### hashPath (file or directory)
-
-- **File**: mapped files always hashed (gitignore only applies to directory scans)
-- **Directory**: collectDirectoryFileHashes (recursive, hierarchical .gitignore); sort by path; digest = sorted "path:hash" pairs joined by newline; hashString(digest)
-
-### hashForMapping (drift hash)
-
-- paths from mapping.paths; empty → throw "Invalid mapping for hash: no paths"
-- For each path: if file → hashFile; if directory → hashPath (with projectRoot for .gitignore)
-- pairs sorted by path; digest = "path:hash" joined; SHA-256 of digest
-
-### hashTrackedFiles (drift detection)
-
-- Loads root gitignore stack, passes to collectDirectoryFileHashes when expanding directory tracked files
-- Returns canonicalHash + per-file hashes for bidirectional drift detection
-
-### perFileHashes
-
-- For each path: if file → { path, hash }; if directory → collectDirectoryFileHashes, prefix paths with mapping path
-- Returns flat list; used for diagnoseChangedFiles
-
-### collectDirectoryFileHashes
-
-- On entering a directory, checks for local .gitignore and adds to gitignore stack
-- readdir; for each entry: if ignored by any matcher in stack → skip; if dir → recurse (passing stack); if file → hashFile, path relative to rootDirectoryPath
-- Gitignore is hierarchical: root .gitignore loaded by caller, nested .gitignore files discovered during walk; each matcher checks paths relative to its own basePath
-
-### isIgnoredByStack
-
-- Checks candidatePath against all GitignoreEntry matchers in the stack
-- Each matcher tests path relative to its own basePath
-- Returns true if any matcher ignores the path
+# Utils Internals
 
 ## Decisions
 
-# Utils Decisions
+- **Hierarchical gitignore stack over single-root.** Directory hashing walks nested `.gitignore` files and maintains a stack of matchers. Rejected: root-only gitignore — loses precision in monorepos where subdirectories have their own ignores. The stack approach matches git's actual behavior.
 
-**Primitive helpers:** Utils provide low-level operations (paths, hashing, token estimation, git) that multiple modules need. No domain knowledge — just filesystem, crypto, and git primitives. This avoids duplication and keeps core/commands focused on Yggdrasil-specific logic.
+- **SHA-256 for all hashing.** Drift detection needs collision-resistant hashes. SHA-256 is deterministic, fast enough for file-level use, and available in Node crypto. No reason to use weaker alternatives.
 
-**Determinism:** hash* and estimateTokens are deterministic. Drift detection and context budgeting rely on reproducible outputs.
+- **Token estimation as fixed heuristic (~4 chars/token).** Rejected: tiktoken or model-specific tokenizer — adds a dependency for marginal accuracy improvement. Budget thresholds are warnings, not hard limits, so approximate counting is acceptable.
+
+- **getLastCommitTimestamp returns null instead of throwing.** Git may not be available (CI containers, non-git repos). Callers need graceful degradation, not try/catch everywhere.

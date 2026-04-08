@@ -6,9 +6,6 @@ aspects:
 relations:
   - target: auth/auth-api
     type: uses
-    consumes:
-      - authenticate
-    failure: reject-request
   - target: users/user-repo
     type: uses
   - target: users/user-repo

@@ -1,14 +1,17 @@
 # Validator Interface
 
-- `validate(graph: Graph, scope?: string): Promise<ValidationResult>`
-  - Parameters: `graph` (Graph), `scope` (string, default 'all') — 'all' or node path.
-  - Returns: `ValidationResult` with `issues` (ValidationIssue[]), `nodesScanned` (number).
-  - When scope is a node path: filters issues to that node; returns single error in issues if node not found (invalid-scope, nodesScanned: 0).
-  - No throw for normal validation — all issues returned in result. Uses buildContext internally for W005/W006 (context budget).
+## `validate(graph, scope?): Promise<ValidationResult>`
+
+Validates the graph and returns all issues found.
+
+- `graph: Graph` — loaded graph
+- `scope: string` — `'all'` (default) or a node path to filter issues to that node
+
+Returns `ValidationResult` with `issues: ValidationIssue[]` and `nodesScanned: number`.
+
+When scope is a node path that doesn't exist, returns a single `invalid-scope` error with `nodesScanned: 0`.
 
 ## Failure Modes
 
-- **validate**: No throws for normal validation — all issues returned as ValidationResult.issues (errors + warnings).
-- **invalid-scope**: When scope is non-empty and node not found, returns single error in ValidationResult: `{ severity: 'error', rule: 'invalid-scope', message: "Node not found: ${scope}" }`, nodesScanned: 0.
-- **buildContext failure**: If buildContext throws during W005/W006 check, error is caught and skipped (other rules will surface structural issues).
-- E020 removed — standard artifacts are now hardcoded in STANDARD_ARTIFACTS constant (not configurable via config), so the check is no longer needed.
+- No throws for normal validation — all issues returned in `ValidationResult.issues`.
+- `buildContext` failure during budget check: caught and skipped (other rules surface structural issues).

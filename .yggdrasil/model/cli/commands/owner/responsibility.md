@@ -1,11 +1,7 @@
 # Owner Command Responsibility
 
-**In scope:** `yg owner --file <path>`. Resolve a file path to its owning graph node.
+**In scope:** `yg owner --file <path>`. Resolves a source file to its owning graph node — the first step in the graph-first workflow before reading or modifying any file.
 
-- Load graph via `loadGraph(process.cwd())`.
-- `findOwner(graph, projectRoot, rawPath)`: normalize input path using `normalizeProjectRelativePath`, then compare against node mappings via `normalizeMappingPaths`. Matching: exact file match, directory containment, or path prefix.
-- Output: `${file} -> ${nodePath}` or `${file} -> no graph coverage`. When coverage comes from an ancestor directory (file has no direct mapping), a second line explains this and suggests `yg build-context --node <path>`.
-
-**Consumes:** loadGraph (cli/core/loader), normalizeMappingPaths, normalizeProjectRelativePath (cli/utils), Graph, OwnerResult (cli/model).
+Distinguishes three outcomes: direct mapping (file explicitly listed), ancestor directory mapping (file covered by parent directory), and no coverage. The ancestor case guides the agent to use `yg context --node` since the file lacks its own mapping entry.
 
 **Out of scope:** Context building, validation, drift detection.

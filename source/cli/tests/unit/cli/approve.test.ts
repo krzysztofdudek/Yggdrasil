@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { ApproveResult } from '../../../src/model/types.js';
+import type { ApproveResult } from '../../../src/model/drift.js';
 import { formatResult } from '../../../src/cli/approve.js';
 
 function makeApproveResult(overrides: Partial<ApproveResult> = {}): ApproveResult {

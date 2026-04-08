@@ -1,15 +1,5 @@
 # Formatters Responsibility
 
-CLI output formatting — converts structured data to human-readable text.
+Output formatting for CLI commands — transforms structured context data into human-readable text. Pure functions with no I/O, no validation, no graph modification. Callers own input validity.
 
-**In scope:**
-
-- `formatContextYaml(data: ContextMapOutput): string` — converts structured context map to YAML for `yg build-context` output (primary)
-- `formatFullContent(files): string` — formats file contents for `--full` mode, appended after YAML section
-- `formatContextMarkdown(pkg: ContextPackage): string` — legacy Markdown format (used by tests)
-- `buildIssueMessage(msg: IssueMessage): string` — structured diagnostic messages for CLI error/warning output
-- Pure transformation — no I/O, no validation, deterministic (tag: deterministic)
-
-**Out of scope:**
-
-- Validation of input (callers must ensure valid input)
+Covers YAML context output (`formatContextYaml`), node context text (`formatNodeContext` with blast radius vocabulary), file context text (`formatFileContext` with candidate nodes for unmapped files), full content mode (`formatFullContent` with XML-style tags), and structured diagnostic messages (`buildIssueMessage` enforcing what/why/next structure).

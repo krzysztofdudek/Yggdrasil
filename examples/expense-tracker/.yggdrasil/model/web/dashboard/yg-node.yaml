@@ -5,10 +5,8 @@ description: "Main overview page: monthly summary, top categories, and recent ex
 relations:
   - target: api/reports
     type: calls
-    consumes: [GET /reports/summary]
   - target: api/expenses
     type: calls
-    consumes: [GET /expenses]
 
 mapping:
   - paths:

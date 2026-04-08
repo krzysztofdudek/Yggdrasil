@@ -1,6 +1,5 @@
 name: CLI
 type: module
 description: "Deterministic CLI tool implementing Yggdrasil's persistent semantic memory for repositories"
-aspects:
-  - deterministic
+aspects: []
 relations: []

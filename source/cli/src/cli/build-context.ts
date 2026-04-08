@@ -1,5 +1,7 @@
 import { Command } from 'commander';
+import chalk from 'chalk';
 import { loadGraph } from '../core/graph-loader.js';
+import { initDebugLog } from '../utils/debug-log.js';
 import { collectAncestors, buildNodeContextData, buildFileContextData } from '../core/context-builder.js';
 import { formatNodeContext } from '../formatters/context-node.js';
 import { formatFileContext } from '../formatters/context-file.js';
@@ -7,7 +9,7 @@ import { validate } from '../core/validator.js';
 import { findOwner } from './owner.js';
 import { normalizeMappingPaths, projectRootFromGraph } from '../utils/paths.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
-import type { Graph } from '../model/types.js';
+import type { Graph } from '../model/graph.js';
 
 type CandidateNode = { nodePath: string; fileCount: number };
 
@@ -67,15 +69,16 @@ export function registerBuildCommand(program: Command): void {
   const contextAction = async (options: { node?: string; file?: string }) => {
       try {
         if (!options.node && !options.file) {
-          process.stderr.write("Error: either '--node <path>' or '--file <path>' is required\n");
+          process.stderr.write(chalk.red("Error: either '--node <path>' or '--file <path>' is required\n"));
           process.exit(1);
         }
         if (options.node && options.file) {
-          process.stderr.write("Error: '--node' and '--file' are mutually exclusive\n");
+          process.stderr.write(chalk.red("Error: '--node' and '--file' are mutually exclusive\n"));
           process.exit(1);
         }
 
         const graph = await loadGraph(process.cwd());
+        initDebugLog(graph.rootPath, graph.config.debug ?? false);
         let nodePath: string;
         let resolvedFilePath: string | undefined;
 
@@ -158,7 +161,14 @@ export function registerBuildCommand(program: Command): void {
           process.stdout.write(formatNodeContext(data));
         }
       } catch (error) {
-        process.stderr.write(`Error: ${(error as Error).message}\n`);
+        const err = error as NodeJS.ErrnoException;
+        if (err.code === 'ENOENT') {
+          process.stderr.write(
+            chalk.red(`Error: No .yggdrasil/ directory found. Run 'yg init' first.\n`),
+          );
+        } else {
+          process.stderr.write(chalk.red(`Error: ${(error as Error).message}\n`));
+        }
         process.exit(1);
       }
   };

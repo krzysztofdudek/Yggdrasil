@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import path from 'node:path';
 import { loadGraph } from '../core/graph-loader.js';
+import { initDebugLog } from '../utils/debug-log.js';
 import { approveNode } from '../core/approve.js';
 import { classifyDrift } from '../core/check.js';
 import type { CheckIssue, CascadeCause } from '../core/check.js';
@@ -9,7 +10,8 @@ import { createLlmProvider } from '../llm/provider.js';
 import { loadSecrets, mergeLlmConfig } from '../io/secrets-parser.js';
 import { normalizeMappingPaths } from '../utils/paths.js';
 import type { LlmProvider } from '../llm/types.js';
-import type { ApproveResult, Graph } from '../model/types.js';
+import type { ApproveResult } from '../model/drift.js';
+import type { Graph } from '../model/graph.js';
 
 // Track cloud provider notice per process session
 let sessionNoticeShown = false;
@@ -348,7 +350,7 @@ function formatBatchOutput(results: BatchResult[], parallel: number): void {
 // ── Reviewer provider loading ────────────────────────────────
 
 async function loadLlmProvider(
-  graph: { rootPath: string; config: { llm?: import('../model/types.js').LlmConfig } },
+  graph: { rootPath: string; config: { llm?: import('../model/graph.js').LlmConfig } },
 ): Promise<{ provider: LlmProvider | undefined; llmNotConfigured: boolean; maxTokens: number | undefined; consensus: number | undefined; cloudNotice: string | undefined }> {
   const llmConfig = graph.config.llm;
   if (!llmConfig) return { provider: undefined, llmNotConfigured: true, maxTokens: undefined, consensus: undefined, cloudNotice: undefined };
@@ -411,6 +413,7 @@ async function runBatchApprove(
       llmNotConfigured,
       maxTokens,
       consensus,
+      verifyAspects: graph.config.llm?.verify_aspects,
       verifyArtifacts: graph.config.llm?.verify_artifacts,
     }),
   );
@@ -444,6 +447,7 @@ export function registerApproveCommand(program: Command): void {
         }
 
         const graph = await loadGraph(process.cwd());
+        initDebugLog(graph.rootPath, graph.config.debug ?? false);
         const yggPrefix = path.relative(path.dirname(graph.rootPath), graph.rootPath)
           .split(path.sep).join('/');
 
@@ -476,7 +480,7 @@ export function registerApproveCommand(program: Command): void {
         // --node: multi-node batch or single node
         if (options.node && options.node.length > 1) {
           const parallel = graph.config.parallel ?? 1;
-          const nodePaths = options.node.map(n => n.trim().replace(/^\.\//, '').replace(/\/+$/, ''));
+          const nodePaths = options.node.map(n => n.trim().replace(/\/$/, ''));
           const { provider, llmNotConfigured, maxTokens, consensus, cloudNotice } = await loadLlmProvider(graph);
           if (cloudNotice) {
             process.stdout.write(chalk.yellow(`Notice: ${cloudNotice}\n`));
@@ -493,7 +497,8 @@ export function registerApproveCommand(program: Command): void {
               llmNotConfigured,
               maxTokens,
               consensus,
-              verifyArtifacts: graph.config.llm?.verify_artifacts,
+              verifyAspects: graph.config.llm?.verify_aspects,
+      verifyArtifacts: graph.config.llm?.verify_artifacts,
             }),
           );
           formatBatchOutput(batchResults, parallel);
@@ -503,7 +508,7 @@ export function registerApproveCommand(program: Command): void {
         }
 
         // Single node
-        const nodePath = options.node![0].trim().replace(/^\.\//, '').replace(/\/+$/, '');
+        const nodePath = options.node![0].trim().replace(/\/$/, '');
 
         // No-mapping parent redirect to batch
         const node = graph.nodes.get(nodePath);
@@ -533,14 +538,22 @@ export function registerApproveCommand(program: Command): void {
           llmNotConfigured,
           maxTokens,
           consensus,
-          verifyArtifacts: graph.config.llm?.verify_artifacts,
+          verifyAspects: graph.config.llm?.verify_aspects,
+      verifyArtifacts: graph.config.llm?.verify_artifacts,
         });
         formatResult(nodePath, result);
         if (result.action === 'refused') {
           process.exit(1);
         }
       } catch (error) {
-        process.stderr.write(chalk.red(`ERROR: ${(error as Error).message}\n`));
+        const err = error as NodeJS.ErrnoException;
+        if (err.code === 'ENOENT') {
+          process.stderr.write(
+            chalk.red(`Error: No .yggdrasil/ directory found. Run 'yg init' first.\n`),
+          );
+        } else {
+          process.stderr.write(chalk.red(`ERROR: ${(error as Error).message}\n`));
+        }
         process.exit(1);
       }
     });
@@ -588,7 +601,8 @@ export function registerApproveCommand(program: Command): void {
 
         try {
           const graph = await loadGraph(process.cwd());
-          const nodePath = options.node.trim().replace(/^\.\//, '').replace(/\/+$/, '');
+          initDebugLog(graph.rootPath, graph.config.debug ?? false);
+          const nodePath = options.node.trim().replace(/\/$/, '');
           const { provider, llmNotConfigured, maxTokens, cloudNotice } = await loadLlmProvider(graph);
           if (cloudNotice) {
             process.stdout.write(chalk.yellow(`Notice: ${cloudNotice}\n`));
@@ -598,7 +612,8 @@ export function registerApproveCommand(program: Command): void {
             llmProvider: provider,
             llmNotConfigured,
             maxTokens,
-            verifyArtifacts: graph.config.llm?.verify_artifacts,
+            verifyAspects: graph.config.llm?.verify_aspects,
+      verifyArtifacts: graph.config.llm?.verify_artifacts,
           });
           formatResult(nodePath, result);
           if (result.action === 'refused') {

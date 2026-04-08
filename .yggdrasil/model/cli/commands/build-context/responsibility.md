@@ -1,18 +1,7 @@
 # Build Context Command Responsibility
 
-**In scope:** `yg build-context --node <path> [--full]` or `yg build-context --file <path> [--full]`. Assemble and output context package for a node.
+The primary command in the graph-first workflow — agents run this before reading or modifying any mapped source file. Exists because agents need a single entry point that takes "I want to work on X" and returns all the constraints, dependencies, and rules that apply.
 
-- `--file <path>`: resolves the owning node via `findOwner`, prints owner mapping to stderr, then proceeds as `--node`. Exits 1 if file has no graph coverage.
-- `--node` and `--file` are mutually exclusive. At least one is required.
-- Load graph via `loadGraph(process.cwd())`. Trim node path, strip leading `./` and trailing `/`.
-- Collect relevant node paths (node, ancestors, relation targets, relation target ancestors) for scoped validation.
-- Validate graph first: `validate(graph, 'all')`. If any errors (severity 'error') affect the node's context, block build-context and report validation failure. Unrelated errors are ignored with a count.
-- `buildContext(graph, nodePath)` — assemble context package.
-- `toContextMapOutput(pkg, graph)` — convert to structured map output.
-- `formatContextYaml(mapOutput)` — format as YAML context map.
-- If `--full`: collect and append full artifact file contents via `formatFullContent`.
-- Output to stdout.
+Blocks output when validation errors affect the node's context scope (own node, ancestors, relation targets). This protects the invariant that agents never receive a context package built from a structurally broken graph — partial or incorrect context leads to code that violates invisible constraints.
 
-**Consumes:** loadGraph (cli/core/loader), buildContext + collectAncestors + toContextMapOutput (cli/core/context), validate (cli/core/validator), formatContextYaml + formatFullContent (cli/formatters), findOwner (cli/commands/owner), projectRootFromGraph (cli/utils).
-
-**Out of scope:** Context assembly algorithm (cli/core/context), formatting logic (cli/formatters), validation rules (cli/core/validator).
+Also registered as `yg build-context` (legacy alias).

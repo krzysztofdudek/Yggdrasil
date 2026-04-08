@@ -7,7 +7,7 @@ import path from 'node:path';
  * Path is relative to projectRoot.
  */
 export function getLastCommitTimestamp(projectRoot: string, relativePath: string): number | null {
-  const normalized = path.normalize(relativePath).replace(/\\/g, '/');
+  const normalized = relativePath.trim().replace(/\\/g, '/').replace(/\/+$/, '');
   try {
     const out = execSync(`git log -1 --format=%ct -- "${normalized}"`, {
       cwd: projectRoot,

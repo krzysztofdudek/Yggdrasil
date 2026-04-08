@@ -1,5 +1,5 @@
 name: Root
-type: module
+type: project
 description: "Root-level project files: configuration, documentation, CI/CD, devcontainer, and editor tooling"
 aspects: []
 relations: []

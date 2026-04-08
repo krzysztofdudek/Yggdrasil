@@ -1,16 +1,9 @@
 name: FlowsCommand
-type: library
+type: command
 description: Lists all flows with metadata in YAML format via yg flows
-aspects:
-  - cli-command-contract
+aspects: []
 relations:
   - target: cli/core/loader
     type: uses
-    consumes:
-      - loadGraph
-  - target: cli/utils
-    type: uses
-    consumes:
-      - findYggRoot
 mapping:
   - source/cli/src/cli/flows.ts

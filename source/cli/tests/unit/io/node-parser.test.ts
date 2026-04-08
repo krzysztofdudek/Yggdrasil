@@ -14,7 +14,7 @@ describe('node-parser', () => {
     expect(meta.name).toBe('OrderService');
     expect(meta.type).toBe('service');
     expect(meta.relations).toContainEqual(
-      expect.objectContaining({ target: 'auth/auth-api', type: 'uses', consumes: ['authenticate'], failure: 'reject-request' }),
+      expect.objectContaining({ target: 'auth/auth-api', type: 'uses' }),
     );
     expect(meta.relations).toContainEqual(
       expect.objectContaining({ target: 'users/user-repo', type: 'uses' }),
@@ -478,7 +478,7 @@ relations:
 
   // Test removed: aspects are now strings only, no .aspect/.exceptions fields
 
-  it('parses node with relations including consumes and failure', async () => {
+  it('parses node with relations including consumes', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-rels');
     await mkdir(tmpDir, { recursive: true });
     const nodePath = path.join(tmpDir, 'yg-node.yaml');
@@ -493,7 +493,6 @@ relations:
     consumes: [login, logout]
   - target: users/user-repo
     type: calls
-    failure: "retry 3x"
 `,
       'utf-8',
     );
@@ -508,7 +507,6 @@ relations:
     expect(meta.relations![1]).toEqual({
       target: 'users/user-repo',
       type: 'calls',
-      failure: 'retry 3x',
     });
 
     await rm(tmpDir, { recursive: true, force: true });

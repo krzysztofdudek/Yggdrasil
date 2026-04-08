@@ -1,26 +1,14 @@
 name: IO
-type: library
+type: adapter
 description: Filesystem I/O layer for parsing graph YAML files and persisting drift state
 aspects:
   - yaml-parser-contract
   - silent-missing-files
+  - diagnostic-logging
 relations:
-  - target: cli/model
+  - target: cli/model/graph
     type: uses
-    consumes:
-      - YggConfig
-      - ArtifactConfig
-      - QualityConfig
-      - NodeMeta
-      - NodeAspectEntry
-      - NodeMapping
-      - Relation
-      - RelationType
-      - Artifact
-      - FlowDef
-      - AspectDef
-      - SchemaDef
-      - DriftState
-      - DriftNodeState
+  - target: cli/model/drift
+    type: uses
 mapping:
   - source/cli/src/io/

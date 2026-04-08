@@ -1,7 +1,8 @@
 import { Command } from 'commander';
+import chalk from 'chalk';
 import { loadGraph } from '../core/graph-loader.js';
-import { findYggRoot } from '../utils/paths.js';
-import type { Graph } from '../model/types.js';
+import { initDebugLog } from '../utils/debug-log.js';
+import type { Graph } from '../model/graph.js';
 
 export function formatFlowsOutput(graph: Graph): string {
   if (graph.flows.length === 0) return '';
@@ -29,17 +30,17 @@ export function registerFlowsCommand(program: Command): void {
     .description('List flows with participant counts and aspects')
     .action(async () => {
       try {
-        const yggRoot = await findYggRoot(process.cwd());
-        const graph = await loadGraph(yggRoot);
+        const graph = await loadGraph(process.cwd());
+        initDebugLog(graph.rootPath, graph.config.debug ?? false);
         process.stdout.write(formatFlowsOutput(graph));
       } catch (error) {
         const err = error as NodeJS.ErrnoException;
         if (err.code === 'ENOENT') {
           process.stderr.write(
-            `Error: No .yggdrasil/ directory found. Run 'yg init' first.\n`,
+            chalk.red(`Error: No .yggdrasil/ directory found. Run 'yg init' first.\n`),
           );
         } else {
-          process.stderr.write(`Error: ${(error as Error).message}\n`);
+          process.stderr.write(chalk.red(`Error: ${(error as Error).message}\n`));
         }
         process.exit(1);
       }

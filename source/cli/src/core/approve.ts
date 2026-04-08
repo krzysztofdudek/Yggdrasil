@@ -1,12 +1,11 @@
+import type { Graph, GraphNode } from '../model/graph.js';
 import type {
-  Graph,
-  GraphNode,
   ApproveResult,
   AnnotatedChange,
   TrackedFileLayer,
   AspectVerificationResult,
   ArtifactReviewResult,
-} from '../model/types.js';
+} from '../model/drift.js';
 import type { LlmProvider } from '../llm/types.js';
 import {
   readDriftState,
@@ -19,7 +18,8 @@ import { collectTrackedFiles } from './context-files.js';
 import { normalizeMappingPaths } from '../utils/paths.js';
 import { appendAuditEntry } from '../io/audit-log.js';
 import { computeEffectiveAspects, computeEffectiveAspectsForConsumer } from './effective-aspects.js';
-import { collectAncestors } from './context-builder.js';
+import { collectAncestors, buildNodeContextData } from './context-builder.js';
+import { formatNodeContext } from '../formatters/context-node.js';
 import { verifyAspects } from './aspect-verifier.js';
 import { reviewArtifacts } from './artifact-reviewer.js';
 import { readFile } from 'node:fs/promises';
@@ -36,6 +36,8 @@ export interface ApproveOptions {
   maxTokens?: number;
   /** Consensus vote count for aspect verification (default: 1) */
   consensus?: number;
+  /** Whether to run aspect verification (E055). Default: true. */
+  verifyAspects?: boolean;
   /** Whether to run artifact review (E056). Default: false. */
   verifyArtifacts?: boolean;
 }
@@ -81,7 +83,7 @@ export async function approveNode(
       const seen = new Set<string>();
       // Expand mapping paths to check against other nodes' drift state files
       for (const mp of mappingPaths) {
-        const normalized = mp.replace(/\/+$/, '');
+        const normalized = mp.replace(/\\/g, '/').replace(/\/+$/, '');
         // Check each other node's tracked files
         for (const [otherPath, otherState] of Object.entries(allDriftState)) {
           if (otherPath === nodePath) continue;
@@ -169,16 +171,16 @@ export async function approveNode(
     if (!fileLayerMap.has(tf.path)) {
       fileLayerMap.set(tf.path, tf.layer);
     }
-    const normalized = tf.path.replace(/\\/g, '/');
-    if (normalized.endsWith('/')) {
-      dirPrefixes.push({ prefix: normalized, layer: tf.layer });
+    const normalized = tf.path.replace(/\\/g, '/').replace(/\/+$/, '');
+    if (tf.path.endsWith('/') || tf.path.endsWith('\\')) {
+      dirPrefixes.push({ prefix: normalized + '/', layer: tf.layer });
     }
   }
 
   function resolveLayer(filePath: string): TrackedFileLayer | undefined {
     const direct = fileLayerMap.get(filePath);
     if (direct) return direct;
-    const normalized = filePath.replace(/\\/g, '/');
+    const normalized = filePath.replace(/\\/g, '/').replace(/\/+$/, '');
     for (const { prefix, layer } of dirPrefixes) {
       if (normalized.startsWith(prefix)) return layer;
     }
@@ -212,7 +214,7 @@ export async function approveNode(
     filePath: string,
     layer: TrackedFileLayer | undefined,
   ): string {
-    const normalized = filePath.replace(/\\/g, '/');
+    const normalized = filePath.replace(/\\/g, '/').replace(/\/+$/, '');
     if (layer === 'aspects' || normalized.includes('/aspects/')) return 'aspect content';
     if (layer === 'flows' || normalized.includes('/flows/')) return 'flow description';
     if (layer === 'hierarchy') return 'parent artifact';
@@ -222,7 +224,7 @@ export async function approveNode(
 
   function classifyChangedFile(filePath: string): void {
     const layer = resolveLayer(filePath);
-    const isGraph = filePath.replace(/\\/g, '/').startsWith(yggPrefix);
+    const isGraph = filePath.replace(/\\/g, '/').replace(/\/+$/, '').startsWith(yggPrefix);
 
     if (layer === 'source' || (!isGraph && !layer)) {
       changedSource.push(filePath);
@@ -243,7 +245,7 @@ export async function approveNode(
       // check if it was an own artifact (.md in node dir) or upstream
       const nodePrefix = `${yggPrefix}/model/${nodePath}/`;
       if (
-        filePath.replace(/\\/g, '/').startsWith(nodePrefix) &&
+        filePath.replace(/\\/g, '/').replace(/\/+$/, '').startsWith(nodePrefix) &&
         filePath.endsWith('.md')
       ) {
         changedOwnArtifacts.push(filePath);
@@ -345,17 +347,30 @@ export async function approveNode(
 
     const sourceFilePaths = Object.keys(fileHashes).filter(f => {
       const layer = resolveLayer(f);
-      return layer === 'source' || (!f.replace(/\\/g, '/').startsWith(yggPrefix) && !layer);
+      return layer === 'source' || (!f.replace(/\\/g, '/').replace(/\/+$/, '').startsWith(yggPrefix) && !layer);
     });
     const sourceFiles = await loadSourceFiles(sourceFilePaths, projectRoot);
 
-    if (aspects.length > 0) {
+    // Pre-compute node context for reviewer — gives it full graph understanding
+    let nodeContext: string | undefined;
+    try {
+      const contextData = buildNodeContextData(graph, nodePath);
+      nodeContext = formatNodeContext(contextData);
+    } catch {
+      // Context build may fail if graph has errors — reviewer proceeds without it
+    }
+
+    if ((options.verifyAspects ?? true) && aspects.length > 0) {
       aspectResults = await verifyAspects({
         provider: llmProvider,
         aspects,
         sourceFiles,
+        nodePath,
+        nodeType: node.meta.type,
+        projectRoot,
         consensus: options.consensus ?? 1,
         maxTokens: resolvedMaxTokens,
+        nodeContext,
       });
       for (const [aspectId, res] of Object.entries(aspectResults)) {
         if (!res.satisfied) {
@@ -365,11 +380,16 @@ export async function approveNode(
     }
 
     if (options.verifyArtifacts && artifacts.length > 0 && sourceFiles.length > 0) {
+      const nodeTypeDef = graph.architecture?.node_types[node.meta.type];
       artifactReviewResults = await reviewArtifacts({
         provider: llmProvider,
         artifacts,
         sourceFiles,
         maxTokens: resolvedMaxTokens,
+        nodePath,
+        nodeType: node.meta.type,
+        qualityProfile: nodeTypeDef?.quality_profile,
+        nodeContext,
       });
       for (const [name, review] of Object.entries(artifactReviewResults)) {
         if (!review.current) {
@@ -450,7 +470,7 @@ export async function approveNode(
   // Collect actual source file paths (expanded from directory mappings)
   const allSourceFiles = Object.keys(fileHashes).filter((f) => {
     const layer = resolveLayer(f);
-    return layer === 'source' || (!f.replace(/\\/g, '/').startsWith(yggPrefix) && !layer);
+    return layer === 'source' || (!f.replace(/\\/g, '/').replace(/\/+$/, '').startsWith(yggPrefix) && !layer);
   });
 
   return {
@@ -530,7 +550,7 @@ async function loadSourceFiles(
 function resolveAspects(
   node: GraphNode,
   graph: Graph,
-): Array<{ id: string; contentFile: string }> {
+): Array<{ id: string; contentFile: string; contentPath: string }> {
   const ancestors = collectAncestors(node);
   const parentTypes = ancestors.map(a => a.meta.type);
   const flowAspects = graph.flows
@@ -551,14 +571,16 @@ function resolveAspects(
   const portAspects = computeEffectiveAspectsForConsumer(node, graph);
   const allAspectIds = new Set([...effective.regular, ...portAspects]);
 
-  const result: Array<{ id: string; contentFile: string }> = [];
+  const yggDirName = path.basename(graph.rootPath);
+  const result: Array<{ id: string; contentFile: string; contentPath: string }> = [];
   for (const aspectId of allAspectIds) {
     const aspectDef = graph.aspects.find(a => a.id === aspectId);
     if (!aspectDef) continue;
     const contentFiles = aspectDef.artifacts.filter(a => a.filename.endsWith('.md'));
     if (contentFiles.length === 0) continue;
     const contentFile = contentFiles.map(a => a.content).join('\n\n');
-    result.push({ id: aspectId, contentFile });
+    const contentPath = `${yggDirName}/aspects/${aspectId}/${contentFiles[0].filename}`;
+    result.push({ id: aspectId, contentFile, contentPath });
   }
   return result;
 }

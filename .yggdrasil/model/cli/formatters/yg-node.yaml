@@ -1,13 +1,9 @@
 name: Formatters
-type: library
+type: adapter
 description: Output formatting for context packages, converting structured data to YAML and text
-aspects:
-  - deterministic
+aspects: []
 relations:
-  - target: cli/model
+  - target: cli/model/context
     type: uses
-    consumes:
-      - ContextPackage
-      - ContextMapOutput
 mapping:
   - source/cli/src/formatters/

@@ -1,29 +1,47 @@
-import type { LlmProvider } from '../llm/types.js';
-import type { AspectVerificationResult } from '../model/types.js';
+import type { LlmProvider, AspectVerifyParams } from '../llm/types.js';
+import type { AspectVerificationResult } from '../model/drift.js';
 
 export interface VerifyAspectsParams {
   provider: LlmProvider;
-  aspects: Array<{ id: string; contentFile: string }>;
+  aspects: Array<{ id: string; contentFile: string; contentPath: string }>;
   sourceFiles: Array<{ path: string; content: string }>;
+  nodePath: string;
+  nodeType?: string;
+  projectRoot: string;
   consensus?: number;
   maxTokens?: number;
+  /** Pre-computed yg context --node output */
+  nodeContext?: string;
 }
 
 /**
  * Verify source files against aspect requirements.
- * One LLM call per aspect — provider receives full content.md and source code.
+ * One LLM call per aspect — provider receives full context.
  */
 export async function verifyAspects(
   params: VerifyAspectsParams,
 ): Promise<Record<string, AspectVerificationResult>> {
-  const { provider, aspects, sourceFiles, consensus = 1, maxTokens } = params;
+  const { provider, aspects, sourceFiles, nodePath, nodeType, projectRoot, consensus = 1, maxTokens, nodeContext } = params;
 
-  const sourceCode = formatSourceFiles(sourceFiles, maxTokens);
+  const sourceFilePaths = sourceFiles.map(f => f.path);
+  const sourceCode = provider.needsChunking ? formatSourceFiles(sourceFiles, maxTokens) : '';
   const results: Record<string, AspectVerificationResult> = {};
 
   for (const aspect of aspects) {
     results[aspect.id] = await verifyWithConsensus(
-      provider, aspect.contentFile, sourceCode, sourceFiles.map(f => f.path), consensus,
+      provider,
+      {
+        aspectContent: aspect.contentFile,
+        aspectId: aspect.id,
+        aspectContentPath: aspect.contentPath,
+        sourceCode,
+        sourceFiles: sourceFilePaths,
+        nodePath,
+        nodeType,
+        projectRoot,
+        nodeContext,
+      },
+      consensus,
     );
   }
 
@@ -32,18 +50,16 @@ export async function verifyAspects(
 
 async function verifyWithConsensus(
   provider: LlmProvider,
-  aspectContent: string,
-  sourceCode: string,
-  sourceFiles: string[],
+  params: AspectVerifyParams,
   consensus: number,
 ): Promise<AspectVerificationResult> {
   if (consensus <= 1) {
-    return provider.verifyAspect({ aspectContent, sourceCode, sourceFiles });
+    return provider.verifyAspect(params);
   }
 
   const votes: AspectVerificationResult[] = [];
   for (let i = 0; i < consensus; i++) {
-    votes.push(await provider.verifyAspect({ aspectContent, sourceCode, sourceFiles }));
+    votes.push(await provider.verifyAspect(params));
   }
 
   const satisfied = votes.filter(v => v.satisfied).length;
@@ -55,11 +71,11 @@ async function verifyWithConsensus(
   return { satisfied: false, reason: votes.find(v => !v.satisfied)!.reason };
 }
 
-function formatSourceFiles(
+export function formatSourceFiles(
   files: Array<{ path: string; content: string }>,
   maxTokens?: number,
 ): string {
-  const parts = files.map(f => `--- ${f.path} ---\n${f.content}`);
+  const parts = files.map(f => `<file path="${f.path}">\n${f.content}\n</file>`);
   let combined = parts.join('\n\n');
 
   if (maxTokens) {

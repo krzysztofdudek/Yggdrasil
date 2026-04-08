@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { Graph, FlowDef } from '../../../src/model/types.js';
+import type { Graph, FlowDef } from '../../../src/model/graph.js';
 import { formatFlowsOutput } from '../../../src/cli/flows.js';
 
 function makeFlow(id: string, overrides: Partial<FlowDef> = {}): FlowDef {

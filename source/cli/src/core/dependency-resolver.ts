@@ -1,4 +1,4 @@
-import type { Graph, Stage } from '../model/types.js';
+import type { Graph, Stage } from '../model/graph.js';
 import { execSync } from 'node:child_process';
 import path from 'node:path';
 

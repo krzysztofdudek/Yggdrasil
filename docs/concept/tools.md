@@ -36,8 +36,11 @@ quality: # map, optional (has default values) — all keys snake_case
 
 parallel: 1 # int, optional, default 1 — concurrency limit for batch approve
 
+debug: false # bool, optional, default false — append all CLI output to .yggdrasil/.debug.log
+
 reviewer: # map, optional — reviewer configuration for semantic verification
   active: ollama # string, optional — which provider to use (required when multiple providers configured)
+  verify_aspects: true # bool, default true — run aspect verification (E055) during approve
   verify_artifacts: false # bool, default false — run artifact review (E056) during approve
   consensus: 1 # int, default 1 — number of agreeing responses required (must be odd)
   ollama: # map, optional — Ollama provider config
@@ -57,7 +60,7 @@ and required conditions.
 **Validation rules for yg-config.yaml:**
 
 - `name` must be non-empty.
-- Node types are defined in `yg-architecture.yaml` (not in `yg-config.yaml`). Each entry must have a `description` string. Optional `aspects` list. Node `type` must match a key in the architecture file's `node_types`.
+- Node types are defined in `yg-architecture.yaml` (not in `yg-config.yaml`). Each entry must have a `description` string. Optional fields: `aspects` (required on all nodes of this type), `quality_profile` (reviewer guidance for artifact evaluation), `parents`, `relations`. Node `type` must match a key in the architecture file's `node_types`.
 - `quality.context_budget.error` must be >= `quality.context_budget.warning`.
 - `reviewer` is optional. When not configured, semantic verification
   (`yg approve` aspect verification) is skipped with an informational notice.
@@ -101,9 +104,7 @@ ports:                                      # optional — named capabilities ex
 relations:                                  # optional
   - target: payments/payment-service        # string, required — path relative to model/
     type: calls                             # string, required — relation type (see table)
-    consumes: [charge, refund]              # list of strings, optional — port names on the target
-    failure: "retry 3x, then payment-failed" # string, optional
-
+    consumes: [charge, refund]              # list of strings, optional — port names on the target (only valid when target has ports)
 mapping:                                    # optional — flat list of paths
   - src/routes/orders.ts
   - src/services/orders.ts
@@ -444,7 +445,8 @@ node_types:
 The tool auto-detects the project name from `package.json` (if present) or the
 directory name. The agent can override by editing `yg-config.yaml`. Node types
 are defined in `yg-architecture.yaml` and can be customized with architectural
-constraints (`aspects`, `parents`, `relations`).
+constraints (`aspects`, `parents`, `relations`) and a `quality_profile` that guides
+the LLM reviewer on how to evaluate artifacts for each node type.
 
 ---
 
@@ -478,7 +480,7 @@ The 5-step algorithm defined in the [Engine](engine) document. Summary:
    matching aspect. No source attribute on aspect output.
 5. **Relational** — for structural relations: artifacts with `included_in_relations: true`
    (default: responsibility, interface) of the target with consumes
-   and failure annotations. If the target has no artifacts with `included_in_relations: true`,
+   annotations. If the target has no artifacts with `included_in_relations: true`,
    all configured artifacts are included as fallback. For each dependency, ancestors of the
    target node are included (dependency hierarchy) to provide domain context. For event
    relations: event name and type with consumes annotation. Flow artifacts for flows listing
@@ -967,18 +969,22 @@ aspect requirement is not actually satisfied by the source code. E056 fires when
 the reviewer determines that artifact content (responsibility, interface, or internals) is
 stale relative to the current source files.
 
-**Port consumption (E057-E058):**
+**Port consumption (E057-E059):**
 
-| Code   | Name               | Description                                                                              |
-| ------ | ------------------ | ---------------------------------------------------------------------------------------- |
-| `E057` | `missing-consumes` | Relation target has ports but the consumer relation has no `consumes` field              |
-| `E058` | `unknown-port`     | `consumes` references a port name that does not exist on the target node                 |
+| Code   | Name                     | Description                                                             |
+| ------ | ------------------------ | ----------------------------------------------------------------------- |
+| `E057` | `missing-consumes`       | Relation target has ports but the consumer relation has no `consumes`   |
+| `E058` | `unknown-port`           | `consumes` references a port name that does not exist on the target     |
+| `E059` | `consumes-without-ports` | `consumes` declared on a relation to a target that has no ports         |
 
 **Port consumption validation:** E057 fires when a node has a relation to a target that
 exposes named ports but the relation declaration does not include a `consumes` field. This
 enforces explicit port selection — callers must declare which ports they use. E058 fires
-when `consumes` names a port that does not exist on the target. Both checks are skipped
-for `emits` and `listens` event relations, which do not consume ports.
+when `consumes` names a port that does not exist on the target. E059 fires when `consumes`
+is declared on a relation whose target has no ports — `consumes` is strictly for port
+references, not for annotating which functions or methods are used from a dependency. All
+three checks are skipped for `emits` and `listens` event relations, which do not consume
+ports.
 
 **Blackbox exemption:** Blackbox nodes are exempt from E030 (missing artifact) and
 E051-E053 (architecture enforcement).
@@ -1105,9 +1111,10 @@ node paths run standard approve on each.
    - **Other tracked files** (aspects, deps, flows, ancestors) — changed since last approve?
 3. Apply enforcement rules (see table below).
 4. **Reviewer verification gate** (when a reviewer is configured):
-   - **Aspect verification:** For each aspect on the node, the reviewer checks whether the
-     source files satisfy the aspect requirements defined in content.md. Failures produce E055
-     (aspect-not-satisfied).
+   - **Aspect verification** (on by default, `reviewer.verify_aspects: true`): For each aspect
+     on the node, the reviewer checks whether the source files satisfy the aspect requirements
+     defined in content.md. Failures produce E055 (aspect-not-satisfied). Can be disabled with
+     `verify_aspects: false`.
    - **Artifact review** (opt-in, `reviewer.verify_artifacts: true`): The reviewer compares
      artifact content (responsibility, interface, internals) against current source files
      to detect staleness. Failures produce E056 (artifact-stale). Disabled by default

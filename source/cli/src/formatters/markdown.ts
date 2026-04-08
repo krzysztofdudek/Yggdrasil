@@ -1,4 +1,4 @@
-import type { ContextPackage } from '../model/types.js';
+import type { ContextPackage } from '../model/context.js';
 
 export function formatContextMarkdown(pkg: ContextPackage): string {
   let md = '';

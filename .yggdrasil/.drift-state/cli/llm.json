@@ -1,34 +1,36 @@
 {
-  "hash": "858fab881c1477b609bfa22536e02d668f64ec4c66082eecd4b295ad0b016e6f",
+  "hash": "b3d738ed2279505cc362d0e47c24bbb19d480c9b09b77a857d1706b2cd54f451",
   "files": {
     ".yggdrasil/model/cli/llm/yg-node.yaml": "23c1dfe28111789dee577d2b990af90ab281c0e745d1da929f969960dc7be123",
-    ".yggdrasil/model/cli/llm/interface.md": "f4fdc20757415c6d3dabeeedec1d509180b0be743b7799d655ea69832a34472f",
-    ".yggdrasil/model/cli/llm/responsibility.md": "b0a6b1c615174cb331beca489af12cd75518e5fd0a76083b1d65d95087da0ced",
     ".yggdrasil/model/cli/yg-node.yaml": "500749e2eeefbbbe1c3abe95f1f73d005bc3d70f97e042515cc50ce835ce61df",
-    ".yggdrasil/model/cli/internals.md": "7440678f012e45d8b15a4efc252cc3b4220fe7aec98fb673786abd9c2a37f9f0",
-    ".yggdrasil/model/cli/responsibility.md": "696e0f5f377eba69a843a18379e8f20e0322dc037182690629652a75aa2227fb",
+    ".yggdrasil/model/cli/internals.md": "6ed08e0ee1a22270af6dcb23306acae750c7e55744a43a17671c4713684f4b91",
+    ".yggdrasil/model/cli/responsibility.md": "f35cbcee252f56323379f08b65c38989787e0758c94f5eee2a36188c0260d05d",
+    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "20f321091b4f489efbf167feea9d42d73f7cffb21ea2e86958e565b550da164b",
     ".yggdrasil/aspects/deterministic/content.md": "1f1b33f34741a7dbe90f15783e2a11eaa874529b297702423ae503e470a70089",
-    "source/cli/src/llm/index.ts": "eade0905bfdc577b9bbe8e5fc9232638daccc95a127b31f7163f4f1e1b279910",
-    "source/cli/src/llm/ollama.ts": "b6e2f85d4f5a2651c1173f0042961cf8390a9d59e4bf1cd18f4d92b19878a1f0",
-    "source/cli/src/llm/types.ts": "a317703b0a1a8b5990860416c2bf3bf85b13e6d06e1f7ee4acff2a7cc669b816",
-    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "462df48ae702ab782902adfecb0ce3d3fee925134847b7a984fc33b8459fdd0d",
-    "source/cli/src/llm/claude-code.ts": "ea75ecce8ed9079079a051a7c85e61c86ff2453563d6413c46cb37a73865273b",
-    "source/cli/src/llm/provider.ts": "79557bafaa01540923728834b83afd8d3d3b11478c4bbf6ba2e33097f5ebdbda"
+    "source/cli/src/llm/artifact-guidance.ts": "28b6107867b9a091e5f6ea0af5c0e554d268c27231a8a54a7db1bec614987db2",
+    "source/cli/src/llm/index.ts": "f16c9dc3eb1bff01dcf6f0e84654feec90fa050039979c47000658e3cc1f2362",
+    "source/cli/src/llm/provider.ts": "a9f5d8f8d9b3c68d18ae79d4b360208a7cb49d7025a68b41179bdbfb5dbdb4db",
+    ".yggdrasil/model/cli/llm/interface.md": "5cfbb2d3c90bdedc51b6e46d7e931eced318e59ca106783a028c5d746158f200",
+    ".yggdrasil/model/cli/llm/responsibility.md": "263041fdaeb7ec26639a8515bbd289d773a81022f515f08a255f12f636f8412a",
+    "source/cli/src/llm/claude-code.ts": "c11fcd219c6412a00cbf92f693aa163fb2ccc453888cfce80b493401d76207ba",
+    "source/cli/src/llm/ollama.ts": "e1bc1da02e0a8b94e12ff10f577ebe4911c3f62ba7cfe9e7e0f304c117bdd014",
+    "source/cli/src/llm/types.ts": "f168414eb210f49128cf8f332ca11b150536b9c1d29f5753500f9ab506fa8386"
   },
   "mtimes": {
     ".yggdrasil/model/cli/llm/yg-node.yaml": 1775328890231.1516,
-    ".yggdrasil/model/cli/llm/interface.md": 1775509694653.187,
-    ".yggdrasil/model/cli/llm/responsibility.md": 1775328899721.0615,
+    ".yggdrasil/model/cli/llm/interface.md": 1775634936973.9568,
+    ".yggdrasil/model/cli/llm/responsibility.md": 1775634926385.4963,
     ".yggdrasil/model/cli/yg-node.yaml": 1775243577620.7664,
-    ".yggdrasil/model/cli/internals.md": 1775329681280.232,
-    ".yggdrasil/model/cli/responsibility.md": 1775045623775.336,
-    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775561447770.7463,
+    ".yggdrasil/model/cli/internals.md": 1775586290475.0237,
+    ".yggdrasil/model/cli/responsibility.md": 1775586232234.4275,
+    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775580563004.8235,
     ".yggdrasil/aspects/deterministic/content.md": 1772778780694.5889,
-    "source/cli/src/llm/claude-code.ts": 1775563481085.4946,
-    "source/cli/src/llm/index.ts": 1775308152473.3965,
-    "source/cli/src/llm/ollama.ts": 1775509529911.7407,
-    "source/cli/src/llm/provider.ts": 1775563490731.0906,
-    "source/cli/src/llm/types.ts": 1775308121539.4075
+    "source/cli/src/llm/artifact-guidance.ts": 1775571151338.5376,
+    "source/cli/src/llm/claude-code.ts": 1775630474417.8572,
+    "source/cli/src/llm/index.ts": 1775582204174.667,
+    "source/cli/src/llm/ollama.ts": 1775630469214.7861,
+    "source/cli/src/llm/provider.ts": 1775623063134.9075,
+    "source/cli/src/llm/types.ts": 1775630450763.9316
   },
-  "reviewedReason": "artifact-reviewer: updated error string"
+  "reviewedReason": "import path + consumes/failure cleanup, responsibility rewritten"
 }

@@ -5,10 +5,8 @@ description: "Expense list, add, and edit pages with budget overage warnings"
 relations:
   - target: api/expenses
     type: calls
-    consumes: [GET /expenses, GET /expenses/:id, POST /expenses, PUT /expenses/:id, DELETE /expenses/:id]
   - target: api/categories
     type: calls
-    consumes: [GET /categories]
 
 mapping:
   - paths:

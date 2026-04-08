@@ -5,7 +5,6 @@ description: "Monthly budget table with inline limit editing and overage highlig
 relations:
   - target: api/budgets
     type: calls
-    consumes: [GET /budgets, PUT /budgets]
 
 mapping:
   - paths:

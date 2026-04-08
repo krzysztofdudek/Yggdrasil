@@ -1,19 +1,12 @@
 # Model Responsibility
 
-TypeScript type definitions for the graph and operations on it. Single source of truth for all domain types.
+TypeScript type definitions for all domain types. Single source of truth for the CLI's type vocabulary.
 
-**In scope:**
+Split into four child modules by domain:
 
-- **Config:** YggConfig, ArtifactConfig, QualityConfig
-- **Node:** GraphNode, NodeMeta, Relation, RelationType, NodeMapping, Artifact
-- **Graph elements:** AspectDef, FlowDef, SchemaDef
-- **Graph:** Graph (config, nodes, aspects, flows, schemas, rootPath, configError, nodeParseErrors)
-- **Context:** ContextPackage, ContextLayer, ContextSection, ContextSectionKey
-- **Dependency resolution:** Stage
-- **Validation:** ValidationResult, ValidationIssue, IssueSeverity
-- **Drift:** DriftReport, DriftEntry, DriftStatus, DriftState, DriftNodeState
-- **Owner:** OwnerResult
+- **graph** — core graph model (Graph, GraphNode, Config, Architecture, Aspects, Flows)
+- **context** — context assembly output (ContextPackage, ContextMapOutput)
+- **drift** — drift detection, approval, audit (DriftEntry, ApproveResult, DriftState)
+- **validation** — validation results (ValidationIssue, ValidationResult)
 
-**Out of scope:**
-
-- Runtime behavior — types only, no executable code, no thrown errors
+**Shared constraint:** No runtime behavior — types and one constant (STANDARD_ARTIFACTS) only.

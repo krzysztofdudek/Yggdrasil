@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { parse as parseYaml } from 'yaml';
-import type { AspectDef } from '../model/types.js';
+import type { AspectDef } from '../model/graph.js';
 import { readArtifacts } from './artifact-reader.js';
 
 export async function parseAspect(

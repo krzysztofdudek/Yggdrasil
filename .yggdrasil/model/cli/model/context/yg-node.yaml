@@ -1,0 +1,7 @@
+name: ContextTypes
+type: types
+description: Context assembly and context map output types — ContextPackage, ContextMapOutput, Glossary
+aspects: []
+relations: []
+mapping:
+  - source/cli/src/model/context.ts

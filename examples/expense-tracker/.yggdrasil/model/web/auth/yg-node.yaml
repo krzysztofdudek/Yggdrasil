@@ -5,7 +5,6 @@ description: "Login, register, and landing pages for unauthenticated users"
 relations:
   - target: api/auth
     type: calls
-    consumes: [POST /auth/register, POST /auth/login]
 
 mapping:
   - paths:

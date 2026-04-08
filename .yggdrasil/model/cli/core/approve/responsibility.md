@@ -1,34 +1,7 @@
-# Approve Core Responsibility
+# Approve Responsibility
 
-Implements the core approve logic for the `yg approve` command. Records a new drift baseline after reviewing a node's state, enforces the three-axis bilateral change requirement, and blocks blackbox source modifications.
+Three-axis change detection and LLM reviewer verification for node approval. Determines whether a node's graph artifacts and source code have been updated together, then optionally runs semantic verification (aspect compliance, artifact freshness) via an LLM reviewer.
 
-## Scope
+Blackbox nodes are sealed: any source file change unconditionally refuses approval — `--reviewed` cannot override this. The only path forward is decomposing into a proper node. Anti-laundering prevents hiding already-tracked files under a new blackbox on first approve.
 
-- `approveNode(graph, nodePath, options)` — primary entry point. Validates the node exists and has a mapping, then dispatches to first-approve or re-approve logic.
-- **First approve**: hashes all tracked files (source + graph artifacts + hierarchy + aspects + dependency interfaces), writes the initial drift baseline, appends an `initial` audit log entry. Runs garbage collection of orphaned drift state entries.
-- **Re-approve (three-axis decision)**: classifies each changed file into one of three axes:
-  - *own artifacts* — `.md` files in the node's artifact directory (changes to `yg-node.yaml` are explicitly excluded from this axis)
-  - *source* — files from `mapping.paths`
-  - *other tracked* — hierarchy artifacts, aspect content, flow descriptions, dependency interfaces
-- **Accept/refuse rules**:
-  - Both axes (own + source) changed → `approved`
-  - Only one axis changed → `refused` unless `--reviewed <reason>` → `reviewed`
-  - Only other tracked changed (cascade) → `refused` unless `--reviewed <reason>` → `reviewed`
-  - No changes → `no-change` (baseline still recorded)
-- **Blackbox enforcement**: if the node is `blackbox: true` and source files changed, approve is unconditionally refused — `--reviewed` cannot override this. Decomposition into a proper node is required.
-- **Anti-laundering check**: on first approve of a blackbox node, refuses if mapped files already appear in drift state of other nodes (prevents hiding already-tracked files under a new blackbox).
-- **Garbage collection**: a private function `runGC` calls `garbageCollectDriftState` on every invocation to remove drift state entries for nodes no longer in the graph.
-- **Audit logging**: on every non-refused approve (initial, approved, acknowledged, no-change), appends a JSONL entry to `.yggdrasil/.audit-log.jsonl` via `appendAuditEntry`. Write-only side effect — never read by CLI.
-
-## Child mapping exclusions
-
-Uses the child-wins model: if a parent node and a child node both map overlapping paths, the child's mapping takes precedence. Parent's hash computation excludes child-mapped paths.
-
-## LLM verification
-
-After the three-axis decision (when not refused, not blackbox, and provider is available), runs LLM verification:
-
-- **Aspect verification**: resolves effective aspects with content files, sends content.md and source files to LLM for each aspect
-- **Artifact review**: sends artifacts + source files to LLM to check freshness
-- If E055/E056 violations found, returns `action: 'refused'` with violation details
-- Tracks skip reason as a discriminated string (`'not-configured' | 'unavailable' | 'blackbox'`) — the `llmNotConfigured` option distinguishes "no config" from "provider unreachable"
+The `--reviewed` flag bypasses the three-axis structural gate only. The LLM reviewer still runs and can independently refuse if aspects are unmet (E055) or artifacts are stale (E056). This two-gate design prevents agents from rubber-stamping semantic failures.

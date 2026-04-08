@@ -11,7 +11,7 @@ import {
   buildDependencyTree,
   formatDependencyTree,
 } from '../../../src/core/dependency-resolver.js';
-import type { Graph, GraphNode } from '../../../src/model/types.js';
+import type { Graph, GraphNode } from '../../../src/model/graph.js';
 
 function createNode(
   path: string,

@@ -9,7 +9,7 @@ import {
   writeNodeDriftState,
   garbageCollectDriftState,
 } from '../../../src/io/drift-state-store.js';
-import type { DriftState } from '../../../src/model/types.js';
+import type { DriftState } from '../../../src/model/drift.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 

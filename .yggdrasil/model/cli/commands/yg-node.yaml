@@ -1,6 +1,5 @@
 name: Commands
 type: module
 description: "Thin orchestration wrappers over core services, one per yg subcommand"
-aspects:
-  - cli-command-contract
+aspects: []
 relations: []

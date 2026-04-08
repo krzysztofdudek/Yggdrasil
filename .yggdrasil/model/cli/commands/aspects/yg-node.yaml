@@ -1,16 +1,11 @@
 name: AspectsCommand
-type: library
-description: Lists all aspects with metadata in YAML format via yg aspects
-aspects:
-  - cli-command-contract
+type: command
+description: Lists all aspects with usage statistics in human-readable format via yg aspects
+aspects: []
 relations:
   - target: cli/core/loader
     type: uses
-    consumes:
-      - loadGraph
-  - target: cli/utils
+  - target: cli/core/context
     type: uses
-    consumes:
-      - findYggRoot
 mapping:
   - source/cli/src/cli/aspects.ts

@@ -1,42 +1,24 @@
 name: Entry
-type: service
+type: adapter
 description: CLI entry point that bootstraps Commander and registers all yg subcommands
 relations:
   - target: cli/commands/init
     type: uses
-    consumes:
-      - registerInitCommand
   - target: cli/commands/build-context
     type: uses
-    consumes:
-      - registerBuildCommand
   - target: cli/commands/owner
     type: uses
-    consumes:
-      - registerOwnerCommand
   - target: cli/commands/tree
     type: uses
-    consumes:
-      - registerTreeCommand
   - target: cli/commands/impact
     type: uses
-    consumes:
-      - registerImpactCommand
   - target: cli/commands/aspects
     type: uses
-    consumes:
-      - registerAspectsCommand
   - target: cli/commands/flows
     type: uses
-    consumes:
-      - registerFlowsCommand
   - target: cli/commands/select
     type: uses
-    consumes:
-      - registerSelectCommand
   - target: cli/commands/check
     type: uses
-    consumes:
-      - registerCheckCommand
 mapping:
   - source/cli/src/bin.ts

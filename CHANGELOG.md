@@ -30,6 +30,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   longer rubber-stamp aspect verification failures.
 - **Config key `llm:` renamed to `reviewer:`** with nested provider
   structure. Internal TypeScript types remain `LlmConfig`/`LlmProvider`.
+- **`failure` field removed from relations.** Error handling strategy
+  should be expressed via aspects, not unenforceable YAML annotations.
+- **`consumes` field restricted to port references only.** Using `consumes`
+  to annotate function/method names is no longer valid (E059).
+- **`types.ts` split** into `graph.ts`, `context.ts`, `drift.ts`,
+  `validation.ts` — all imports updated.
+- **Architecture redesigned** with 7 node types (module, command, engine,
+  adapter, types, test, project) replacing the previous 4 (module, service,
+  library, infrastructure).
 
 ### Added
 
@@ -51,10 +60,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`parallel: N`** in `yg-config.yaml` controls concurrent approval
   limit (default: 1 = sequential). Parallel approvals write to separate
   drift-state files — no contention.
+- **`debug: true`** in `yg-config.yaml` enables structured append log at
+  `.yggdrasil/.debug.log`. Captures all CLI stdout/stderr output and
+  internal errors (LLM parse failures, HTTP errors). Off by default.
+  Log is gitignored.
+- **`llm.verify_aspects`** config option (default: `true`) to control
+  aspect verification (E055) during approve.
 - **`llm.verify_artifacts`** config option (default: `false`) to control
   artifact review (E056) during approve.
 - **`llm.context_length_field`** config option for Ollama — specifies the
   model_info key for context window size.
+- **`quality_profile`** on architecture node types — guides the LLM reviewer
+  on how to evaluate artifacts for each node type (command vs library vs test).
+- **E059** (`consumes-without-ports`) — fires when `consumes` is declared
+  on a relation to a target that has no ports.
+- **`diagnostic-logging` aspect** — catch blocks that swallow errors must
+  call `debugWrite()`.
+- **`what-why-next` aspect** — agent-visible diagnostics must use
+  `buildIssueMessage` with structured what/why/next format.
+- **`needsChunking`** on `LlmProvider` interface — CLI providers read
+  files themselves; API providers get content chunked into the prompt.
 - **`yg context --node`** adds post-modify workflow footer.
 - **`yg approve`** success shows verification summary when LLM ran.
 

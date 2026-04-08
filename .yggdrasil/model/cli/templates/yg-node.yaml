@@ -1,8 +1,7 @@
 name: Templates
-type: library
+type: adapter
 description: Default config, graph schemas, and platform-specific agent rules used by yg init
-aspects:
-  - deterministic
+aspects: []
 relations: []
 mapping:
   - source/cli/src/templates/

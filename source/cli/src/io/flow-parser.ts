@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parse as parseYaml } from 'yaml';
-import type { FlowDef } from '../model/types.js';
+import type { FlowDef } from '../model/graph.js';
 import { readArtifacts } from './artifact-reader.js';
 
 export async function parseFlow(flowDir: string, flowYamlPath: string): Promise<FlowDef> {

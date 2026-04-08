@@ -4,8 +4,9 @@ import type { LlmProvider, ArtifactResponse } from '../../../src/llm/types.js';
 
 function mockProvider(overrides: {
   reviewArtifact: (params: { artifactContent: string; artifactName: string; sourceCode: string; sourceFiles: string[] }) => Promise<ArtifactResponse>;
-}): LlmProvider {
+}, opts?: { needsChunking?: boolean }): LlmProvider {
   return {
+    needsChunking: opts?.needsChunking ?? true,
     async verifyAspect() { return { satisfied: true, reason: 'ok' }; },
     reviewArtifact: overrides.reviewArtifact,
     async isAvailable() { return true; },
@@ -16,6 +17,7 @@ function mockProvider(overrides: {
 describe('artifact-reviewer', () => {
   it('marks artifact as not current when provider throws', async () => {
     const provider: LlmProvider = {
+      needsChunking: true,
       async verifyAspect() { return { satisfied: true, reason: 'ok' }; },
       async reviewArtifact() { throw new Error('network error'); },
       async isAvailable() { return true; },
@@ -34,6 +36,7 @@ describe('artifact-reviewer', () => {
   it('chunks source files when exceeding maxTokens', async () => {
     const calls: string[] = [];
     const provider: LlmProvider = {
+      needsChunking: true,
       async verifyAspect() { return { satisfied: true, reason: 'ok' }; },
       async reviewArtifact(params) {
         calls.push(params.sourceCode.substring(0, 20));

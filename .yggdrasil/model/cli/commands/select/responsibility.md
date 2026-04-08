@@ -1,12 +1,7 @@
 # Select Command Responsibility
 
-**In scope:** `yg select "<query>" [--limit <n>]`. Find graph nodes, aspects, and flows relevant to a natural-language task description.
+**In scope:** `yg select "<query>"`. Entry point for the graph-first workflow — finds the most relevant nodes, aspects, and flows for a given task before the agent starts work.
 
-- Load graph via `loadGraph(yggRoot)`.
-- Delegate selection to `selectTask(graph, query, limit)` from cli/core/node-selector.
-- Output format: structured text with three sections (Nodes, Aspects, Flows). Aspects and flows show `(matched)` and `(N nodes)` annotations. Each aspect/flow entry includes `read:` paths to content files.
-- Default limit: 5 per section. Empty sections show `(none)`.
-
-**Consumes:** loadGraph (cli/core/loader), selectTask (cli/core/node-selector), findYggRoot (cli/utils).
+The three-section output (Nodes, Aspects, Flows) with `read:` paths is designed to drive the READING phase: agents use the paths to load constraints before designing an approach. Aspect and flow annotations (`(matched)`, `(N nodes)`) help agents prioritize what to read.
 
 **Out of scope:** Context assembly (use `yg context`), impact analysis (use `yg impact`).

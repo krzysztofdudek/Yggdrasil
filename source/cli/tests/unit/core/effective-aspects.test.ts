@@ -4,7 +4,7 @@ import {
   computeEffectiveAspectsForConsumer,
   getAspectSource,
 } from '../../../src/core/effective-aspects.js';
-import type { ArchitectureDef, AspectDef, FlowDef, Graph, GraphNode } from '../../../src/model/types.js';
+import type { ArchitectureDef, AspectDef, FlowDef, Graph, GraphNode } from '../../../src/model/graph.js';
 
 describe('computeEffectiveAspects', () => {
   // Helper to create minimal architecture

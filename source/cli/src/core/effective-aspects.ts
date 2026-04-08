@@ -4,7 +4,7 @@ import type {
   FlowDef,
   Graph,
   GraphNode,
-} from '../model/types.js';
+} from '../model/graph.js';
 
 /**
  * Complete set of aspects that a node MUST satisfy.

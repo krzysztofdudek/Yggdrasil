@@ -1,8 +1,9 @@
 import { Command } from 'commander';
+import chalk from 'chalk';
 import { loadGraph } from '../core/graph-loader.js';
-import { findYggRoot } from '../utils/paths.js';
+import { initDebugLog } from '../utils/debug-log.js';
 import { collectEffectiveAspectIds } from '../core/context-builder.js';
-import type { Graph } from '../model/types.js';
+import type { Graph } from '../model/graph.js';
 
 interface AspectUsage {
   architecture: number;
@@ -58,7 +59,7 @@ export function formatAspectsOutput(graph: Graph): string {
     lines.push(`${aspect.id} — ${displayName}`);
 
     if (u.total === 0) {
-      lines.push(`  Used by: 0 nodes — orphaned`);
+      lines.push(chalk.yellow(`  Used by: 0 nodes — orphaned`));
     } else {
       const parts: string[] = [];
       if (u.architecture) parts.push(`architecture: ${u.architecture}`);
@@ -84,8 +85,8 @@ export function registerAspectsCommand(program: Command): void {
     .description('List aspects with usage stats')
     .action(async () => {
       try {
-        const yggRoot = await findYggRoot(process.cwd());
-        const graph = await loadGraph(yggRoot);
+        const graph = await loadGraph(process.cwd());
+        initDebugLog(graph.rootPath, graph.config.debug ?? false);
         process.stdout.write(formatAspectsOutput(graph));
       } catch (error) {
         const err = error as NodeJS.ErrnoException;

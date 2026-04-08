@@ -1,5 +1,5 @@
 name: Docs — Concept
-type: library
+type: project
 description: "Complete logical specification of Yggdrasil: conceptual model, algorithms, data structures, and tool contracts"
 aspects: []
 blackbox: false

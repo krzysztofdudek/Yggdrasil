@@ -1,0 +1,7 @@
+name: GraphTypes
+type: types
+description: Core graph model types — Graph, GraphNode, Config, Architecture, Aspects, Flows, Schemas
+aspects: []
+relations: []
+mapping:
+  - source/cli/src/model/graph.ts

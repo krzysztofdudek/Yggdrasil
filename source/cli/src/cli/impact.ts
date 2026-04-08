@@ -1,12 +1,14 @@
 import { Command } from 'commander';
+import chalk from 'chalk';
 import { loadGraph } from '../core/graph-loader.js';
+import { initDebugLog } from '../utils/debug-log.js';
 import {
   collectAncestors,
   collectEffectiveAspectIds,
 } from '../core/context-builder.js';
 import { findOwner } from './owner.js';
 import { projectRootFromGraph } from '../utils/paths.js';
-import type { Graph } from '../model/types.js';
+import type { Graph } from '../model/graph.js';
 
 const STRUCTURAL_TYPES = new Set(['uses', 'calls', 'extends', 'implements']);
 
@@ -171,7 +173,7 @@ async function handleAspectImpact(
 ): Promise<void> {
   const aspect = graph.aspects.find((a) => a.id === aspectId);
   if (!aspect) {
-    process.stderr.write(`Aspect not found: ${aspectId}\n`);
+    process.stderr.write(chalk.red(`Aspect not found: ${aspectId}\n`));
     process.exit(1);
   }
 
@@ -259,7 +261,7 @@ async function handleFlowImpact(
 ): Promise<void> {
   const flow = graph.flows.find((f) => f.name === flowName || f.path === flowName);
   if (!flow) {
-    process.stderr.write(`Flow not found: ${flowName}\n`);
+    process.stderr.write(chalk.red(`Flow not found: ${flowName}\n`));
     process.exit(1);
   }
 
@@ -320,32 +322,33 @@ export function registerImpactCommand(program: Command): void {
       async (options: { node?: string; file?: string; aspect?: string; flow?: string }) => {
         try {
           if (options.node && options.file) {
-            process.stderr.write("Error: '--node' and '--file' are mutually exclusive\n");
+            process.stderr.write(chalk.red("Error: '--node' and '--file' are mutually exclusive\n"));
             process.exit(1);
           }
 
           const modeCount = [options.node || options.file, options.aspect, options.flow].filter(Boolean).length;
           if (modeCount === 0) {
             process.stderr.write(
-              'Error: one of --node, --file, --aspect, or --flow is required\n',
+              chalk.red('Error: one of --node, --file, --aspect, or --flow is required\n'),
             );
             process.exit(1);
           }
           if (modeCount > 1) {
             process.stderr.write(
-              'Error: --node/--file, --aspect, and --flow are mutually exclusive\n',
+              chalk.red('Error: --node/--file, --aspect, and --flow are mutually exclusive\n'),
             );
             process.exit(1);
           }
 
           const graph = await loadGraph(process.cwd());
+          initDebugLog(graph.rootPath, graph.config.debug ?? false);
 
           // Resolve --file to --node
           if (options.file) {
             const repoRoot = projectRootFromGraph(graph.rootPath);
             const result = findOwner(graph, repoRoot, options.file.trim());
             if (!result.nodePath) {
-              process.stderr.write(`${result.file} -> no graph coverage\n`);
+              process.stderr.write(chalk.red(`${result.file} -> no graph coverage\n`));
               process.exit(1);
             }
             process.stderr.write(`${result.file} -> ${result.nodePath}\n`);
@@ -361,10 +364,10 @@ export function registerImpactCommand(program: Command): void {
             return;
           }
 
-          const nodePath = options.node!.trim().replace(/^\.\//, '').replace(/\/+$/, '');
+          const nodePath = options.node!.trim().replace(/\/$/, '');
 
           if (!graph.nodes.has(nodePath)) {
-            process.stderr.write(`Node not found: ${nodePath}\n`);
+            process.stderr.write(chalk.red(`Node not found: ${nodePath}\n`));
             process.exit(1);
           }
 
@@ -525,7 +528,14 @@ export function registerImpactCommand(program: Command): void {
             process.stdout.write(`  Review interface.md of direct dependents before changing this node.\n`);
           }
         } catch (error) {
-          process.stderr.write(`Error: ${(error as Error).message}\n`);
+          const err = error as NodeJS.ErrnoException;
+          if (err.code === 'ENOENT') {
+            process.stderr.write(
+              chalk.red(`Error: No .yggdrasil/ directory found. Run 'yg init' first.\n`),
+            );
+          } else {
+            process.stderr.write(chalk.red(`Error: ${(error as Error).message}\n`));
+          }
           process.exit(1);
         }
       },

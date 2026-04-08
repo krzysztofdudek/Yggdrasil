@@ -1,19 +1,10 @@
 # Aspects Command Interface
 
-| Function | Signature | Command | Options |
-| -------- | --------- | ------- | ------- |
-| registerAspectsCommand | (program: Command) => void | aspects | None |
+**Command:** `yg aspects` — no options.
 
-**Return:** void. Contract: errors to stderr, process.exit(1) on failure.
-
-**Output format:** YAML array of aspect entries, sorted by id. Each entry contains: `id`, `name`, optional `description`, optional `implies` (when non-empty).
+**Output format:** Human-readable text to stdout, sorted by aspect id. Each aspect: id, description, usage count with source breakdown (architecture/direct/implied/flow), implies chain. Orphaned aspects flagged in yellow.
 
 ## Failure Modes
 
-**Propagated from loadGraph:**
-
-- Missing .yggdrasil/: `Error: No .yggdrasil/ directory found. Run 'yg init' first.`
-
-**No command-specific errors.**
-
-**Generic:** I/O errors — standard Node.js Error, caught and reported to stderr.
+- Missing .yggdrasil/: propagated from loadGraph.
+- Generic I/O errors to stderr, exit 1.

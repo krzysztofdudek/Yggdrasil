@@ -1,5 +1,5 @@
 name: Quality Config
-type: library
+type: project
 description: "Code quality tooling configuration: ESLint, Vitest, Prettier rules and ignore files"
 blackbox: false
 aspects: []

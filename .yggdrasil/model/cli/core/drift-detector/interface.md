@@ -1,16 +1,18 @@
 # Drift Detector Interface
 
-- `detectDrift(graph: Graph, filterNodePath?: string): Promise<DriftReport>`
-  - Parameters: `graph` (Graph), `filterNodePath` (string, optional) — when set, only that node is checked.
-  - Returns: DriftReport with entries (nodePath, mappingPaths, status, details), totalChecked, okCount, driftCount, missingCount, unmaterializedCount.
-  - Status: `ok` | `drift` | `missing` | `unmaterialized`. Skips nodes without mapping.
+## `detectDrift(graph, filterNodePath?): Promise<DriftReport>`
 
-- `syncDriftState(graph: Graph, nodePath: string): Promise<SyncResult>`
-  - Parameters: `graph` (Graph), `nodePath` (string).
-  - Returns: `SyncResult { previousHash?: string; currentHash: string; sourceOnlyChange: boolean }` — previousHash if node had drift state, currentHash always, sourceOnlyChange true when source files changed but no graph artifacts changed since last sync (W018 signal).
-  - Computes current hash from node mapping via hashForMapping, writes entry (hash + per-file hashes) to .drift-state via writeDriftState.
+Checks each mapped non-blackbox node for drift. When `filterNodePath` is set, checks only that node and its descendants.
+
+Returns `DriftReport` with per-node entries (status, changedFiles with source/graph category), and aggregate counts: totalChecked, okCount, sourceDriftCount, graphDriftCount, fullDriftCount, missingCount, unmaterializedCount.
+
+Status values: `ok` | `source-drift` | `graph-drift` | `full-drift` | `missing` | `unmaterialized`.
+
+## `syncDriftState(graph, nodePath): Promise<SyncResult>`
+
+Writes a new baseline for a node. Returns `{ previousHash?, currentHash, sourceOnlyChange }`. The `sourceOnlyChange` flag signals W018 when source files changed but no graph artifacts changed since last sync.
 
 ## Failure Modes
 
-- **detectDrift**: `readDriftState` returns empty object on file missing/parse error; no throw. `hashForMapping` propagates read errors (ENOENT, permission denied) — caught as status 'missing', details 'Mapped path(s) do not exist'. `allPathsMissing` uses access() — ENOENT handled per path (returns true only when all paths missing). `diagnoseChangedFiles` catches errors and returns [].
-- **syncDriftState**: Throws `Error("Node not found: ${nodePath}")` if node does not exist; throws `Error("Node has no mapping: ${nodePath}")` if node has no mapping. Propagates hashForMapping and writeDriftState errors.
+- `detectDrift`: never throws. Missing drift state or hash errors produce `missing`/`unmaterialized` status.
+- `syncDriftState`: throws if node does not exist, has no mapping, or is blackbox.

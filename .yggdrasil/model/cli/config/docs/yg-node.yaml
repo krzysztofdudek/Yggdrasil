@@ -1,5 +1,5 @@
 name: CLI Package Docs
-type: library
+type: project
 description: "Package-level documentation and build helper scripts: CLAUDE.md agent rules reference, README, and scripts/"
 blackbox: false
 aspects: []

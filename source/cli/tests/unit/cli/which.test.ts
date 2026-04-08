@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { Graph, GraphNode } from '../../../src/model/types.js';
+import type { Graph, GraphNode } from '../../../src/model/graph.js';
 import { findOwner } from '../../../src/cli/owner.js';
 
 function createNode(nodePath: string, mapping: { paths: string[] }): GraphNode {

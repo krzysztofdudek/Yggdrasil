@@ -1,29 +1,34 @@
-import type { LlmProvider, AspectResponse, ArtifactResponse } from './types.js';
-import type { LlmConfig } from '../model/types.js';
+import type { LlmProvider, AspectResponse, ArtifactResponse, AspectVerifyParams, ArtifactReviewParams } from './types.js';
+import { debugWrite } from '../utils/debug-log.js';
+import type { LlmConfig } from '../model/graph.js';
 import { ARTIFACT_GUIDANCE } from './artifact-guidance.js';
 
-const ASPECT_SYSTEM_PROMPT = `You are a code reviewer verifying whether source code satisfies architectural requirements.
-You will receive: aspect requirements (from a content.md file) and source code files.
+const ASPECT_SYSTEM_PROMPT = `<role>
+You verify whether source code satisfies an architectural aspect.
 Respond with EXACTLY this JSON format, nothing else:
-{"satisfied": true|false, "reason": "one sentence explanation"}`;
+{"satisfied": true|false, "reason": "explanation with specific file references"}
+</role>`;
 
-const ARTIFACT_SYSTEM_PROMPT = `You review whether a graph artifact follows the quality guidelines.
+const ARTIFACT_SYSTEM_PROMPT = `<role>
+You review whether a graph artifact is current and follows quality guidelines.
+</role>
 
+<rules>
+  <general-rules>
 ${ARTIFACT_GUIDANCE}
+  </general-rules>
+</rules>
 
-Report STALE when:
-- Artifact contradicts the source code (describes behavior the code does NOT have)
-- Artifact violates the quality test (contains file inventories, pseudocode, config paraphrases, sibling listings, or internal helper signatures)
-- Artifact is missing knowledge it should capture (identity, boundaries, decisions, contracts)
-
-Report CURRENT when:
-- Artifact captures knowledge the code cannot express and follows the quality test
-- Artifact is a correct high-level summary — omitting implementation details is correct behavior
+<task>
+CURRENT = artifact captures knowledge source code cannot express, follows all rules.
+STALE = artifact contradicts source, violates rules, or is missing knowledge it should capture.
 
 Respond with EXACTLY this JSON, nothing else:
-{"current": true|false, "reason": "one sentence"}`;
+{"current": true|false, "reason": "explanation"}
+</task>`;
 
 export class OllamaProvider implements LlmProvider {
+  readonly needsChunking = true;
   private endpoint: string;
   private model: string;
   private temperature: number;
@@ -57,7 +62,6 @@ export class OllamaProvider implements LlmProvider {
       const data = await res.json() as Record<string, unknown>;
       const params = data.model_info as Record<string, unknown> | undefined;
       if (!params) return undefined;
-      // Use configured field, or find any key ending with .context_length
       const key = this.contextLengthField
         ?? Object.keys(params).find(k => k === 'context_length' || k.endsWith('.context_length'));
       const ctxLength = key ? params[key] as number | undefined : undefined;
@@ -67,37 +71,62 @@ export class OllamaProvider implements LlmProvider {
     }
   }
 
-  /** Resolve max tokens: config value, auto-detect, or fallback to 4096 */
   static async resolveMaxTokens(config: LlmConfig, provider: LlmProvider): Promise<number> {
     if (typeof config.max_tokens === 'number') return config.max_tokens;
-    // auto: query provider
     const detected = await provider.getContextWindowSize();
-    return detected ?? 4096; // Safe default fallback
+    return detected ?? 4096;
   }
 
-  async verifyAspect(params: {
-    aspectContent: string;
-    sourceCode: string;
-    sourceFiles: string[];
-  }): Promise<AspectResponse> {
-    const userPrompt =
-      `ASPECT REQUIREMENTS:\n${params.aspectContent}\n\n` +
-      `SOURCE FILES:\n${params.sourceCode}\n\n` +
-      `Does this code satisfy these requirements?`;
+  async verifyAspect(params: AspectVerifyParams): Promise<AspectResponse> {
+    const contextSection = params.nodeContext
+      ? `  <context>\n${params.nodeContext}\n  </context>`
+      : '';
+
+    const userPrompt = `<aspect id="${params.aspectId}">
+  <content>
+${params.aspectContent}
+  </content>
+</aspect>
+
+<node path="${params.nodePath}" type="${params.nodeType ?? 'unknown'}">
+${contextSection}
+</node>
+
+<source-files>
+${params.sourceCode}
+</source-files>
+
+Does this code satisfy the aspect requirements?`;
 
     return this.chat<AspectResponse>(ASPECT_SYSTEM_PROMPT, userPrompt, { satisfied: false, reason: 'LLM response could not be parsed' });
   }
 
-  async reviewArtifact(params: {
-    artifactContent: string;
-    artifactName: string;
-    sourceCode: string;
-    sourceFiles: string[];
-  }): Promise<ArtifactResponse> {
-    const userPrompt =
-      `ARTIFACT (${params.artifactName}):\n${params.artifactContent}\n\n` +
-      `SOURCE CODE:\n${params.sourceCode}\n\n` +
-      `Does this artifact follow the quality guidelines?`;
+  async reviewArtifact(params: ArtifactReviewParams): Promise<ArtifactResponse> {
+    const typeRulesSection = params.qualityProfile
+      ? `\n<type-rules type="${params.nodeType}">\n${params.qualityProfile}\n</type-rules>\n`
+      : '';
+    const ruleInteraction = params.qualityProfile
+      ? `\n<rule-interaction>\nType-specific rules REFINE general rules — they do not override them.\nWhen a type rule says "output format IS the contract", it means the general\nrule "don't restate observable behavior" does NOT apply to output format\nfor this node type.\n</rule-interaction>\n`
+      : '';
+    const contextSection = params.nodeContext
+      ? `  <context>\n${params.nodeContext}\n  </context>`
+      : '';
+    const nodeSection = params.nodePath
+      ? `\n<node path="${params.nodePath}" type="${params.nodeType ?? 'unknown'}">\n${contextSection}\n</node>\n`
+      : '';
+
+    const userPrompt = `${typeRulesSection}${ruleInteraction}${nodeSection}
+<review-target>
+  <artifact name="${params.artifactName}">
+${params.artifactContent}
+  </artifact>
+</review-target>
+
+<source-files>
+${params.sourceCode}
+</source-files>
+
+Does this artifact follow the quality guidelines?`;
 
     return this.chat<ArtifactResponse>(ARTIFACT_SYSTEM_PROMPT, userPrompt, { current: false, reason: 'LLM response could not be parsed' });
   }
@@ -123,13 +152,16 @@ export class OllamaProvider implements LlmProvider {
           body: JSON.stringify(body),
           signal: AbortSignal.timeout(60_000),
         });
-        if (!res.ok) continue;
+        if (!res.ok) {
+          debugWrite(`[ollama] http_error attempt=${attempt}: ${res.status} ${res.statusText}`);
+          continue;
+        }
         const data = await res.json() as { message?: { content?: string } };
         const content = data.message?.content ?? '';
-        // Strip markdown code fences if present
         const cleaned = content.replace(/^```(?:json)?\s*\n?/m, '').replace(/\n?```\s*$/m, '').trim();
         return JSON.parse(cleaned) as T;
-      } catch {
+      } catch (err) {
+        debugWrite(`[ollama] error attempt=${attempt}: ${(err as Error).message}`);
         if (attempt === 1) return fallback;
       }
     }

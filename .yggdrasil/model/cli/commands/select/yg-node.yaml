@@ -1,20 +1,11 @@
 name: SelectCommand
-type: library
+type: command
 description: "Finds nodes, aspects, and flows relevant to a task via yg select \"<query>\""
-aspects:
-  - cli-command-contract
+aspects: []
 relations:
   - target: cli/core/loader
     type: uses
-    consumes:
-      - loadGraph
   - target: cli/core/node-selector
     type: uses
-    consumes:
-      - selectTask
-  - target: cli/utils
-    type: uses
-    consumes:
-      - findYggRoot
 mapping:
   - source/cli/src/cli/select.ts

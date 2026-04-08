@@ -5,10 +5,8 @@ description: "User profile, password change, and subscription management pages"
 relations:
   - target: api/users
     type: calls
-    consumes: [PUT /users/me/password]
   - target: api/subscriptions
     type: calls
-    consumes: [GET /subscriptions/me, POST /subscriptions/upgrade]
 
 mapping:
   - paths:

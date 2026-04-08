@@ -1,51 +1,12 @@
-## Interface
+# Check Interface
 
-### `runCheck(graph: Graph, gitTrackedFiles: string[] | null): Promise<CheckResult>`
+**`runCheck(graph, gitTrackedFiles)`** — runs health check pipeline. Pass `null` for gitTrackedFiles when git is unavailable (E022 skipped).
 
-Runs the full graph health check. Returns `CheckResult` with all issues, counts, and suggested next command.
+**`suggestedNext` contract:** Always present when issues exist. Points to one concrete `yg` command targeting the highest-priority issue. Priority: drift (E020) > cascade (E021) > structural > coverage > completeness. This ordering exists because drift blocks approve, which blocks everything else — agents should resolve drift first.
 
-- `gitTrackedFiles`: pass `null` to skip E022 (no git available)
+**`scanUncoveredFiles(graph, gitTrackedFiles)`** — returns git-tracked files not covered by any node mapping. Excludes `.yggdrasil/` files.
 
-### `CheckResult`
+## Failure Modes
 
-```typescript
-interface CheckResult {
-  projectName: string;
-  nodeCount: number;
-  nodeTypeCounts: Map<string, number>;
-  aspectCount: number;
-  flowCount: number;
-  coveredFiles: number;
-  totalFiles: number;
-  issues: CheckIssue[];
-  suggestedNext: string | null;  // highest-priority next command with workflow anchor
-  llmAvailable: boolean;         // whether a reviewer is configured in yg-config.yaml
-}
-```
-
-### `CheckIssue`
-
-Extends `ValidationIssue` with:
-
-- `driftSubtype?: DriftStatus` — for E020: source-drift, graph-drift, full-drift, missing, unmaterialized
-- `directChangedFiles?: DriftFileChange[]` — for E020: changed source/graph files
-- `cascadeCauses?: CascadeCause[]` — for E021: what triggered the cascade
-- `uncoveredFiles?: string[]` — for E022: file paths not covered
-- `uncoveredCount?: number` — for E022: total count
-- `verificationLabel?: string` — for E021: cached verification status from last approve (`'last verified: pass'`, `'last verified: fail'`, `'never verified'`)
-
-The `suggestedNext` string follows the format: `<command>\n  <N> of <total> <category> — <workflow anchor>`. Priority order: drift (E020) → cascade (E021) → structural (E001-E013) → coverage (E022) → completeness (E030+). Workflow anchor labels: "post-modify workflow" (drift), "cascade review" (cascade), "bootstrap workflow" (coverage).
-
-### `scanUncoveredFiles(graph, gitTrackedFiles): string[]`
-
-Returns sorted list of git-tracked files not covered by any node mapping. Excludes `.yggdrasil/` files.
-
-### `buildCoverageIssue(uncoveredFiles, totalGitFiles): CheckIssue | null`
-
-Builds the E022 issue from uncovered files list.
-
-### Failure modes
-
-- Returns empty issues array on graph load errors (caller handles load failure)
-
-- git unavailable: pass null for gitTrackedFiles, E022 is skipped
+- Graph load errors: caller's responsibility (runCheck assumes valid Graph).
+- Git unavailable: pass null, E022 skipped.

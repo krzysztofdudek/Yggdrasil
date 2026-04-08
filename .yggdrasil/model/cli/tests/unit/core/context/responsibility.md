@@ -1,5 +1,3 @@
 # Context Core Unit Tests — Responsibility
 
-Tests for the context assembly pipeline: graph loading, context file resolution, and context map construction. Includes snapshot tests to verify output stability across changes. Uses in-memory graph fixtures.
-
-Does not test core operations (approve, check, drift, impact) — those belong to the operations sibling node.
+Guards the context assembly contract: correct layer merging, budget computation, and structured output generation. Context packages are the primary interface between the CLI and agents — incorrect assembly means agents receive wrong constraints, leading to code that violates aspects or misses dependencies. Uses in-memory graph fixtures to cover edge cases that real graph fixtures cannot reliably reproduce.

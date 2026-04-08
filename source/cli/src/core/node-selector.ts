@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { Graph, GraphNode, AspectDef } from '../model/types.js';
+import type { Graph, GraphNode, AspectDef } from '../model/graph.js';
 import { tokenize } from '../utils/tokenizer.js';
 
 export interface SelectionResult {

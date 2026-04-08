@@ -1,6 +1,8 @@
 name: LLM Provider
-type: library
+type: adapter
 description: LLM integration layer for claim verification and artifact review — adapter pattern supporting multiple providers
+aspects:
+  - diagnostic-logging
 
 relations: []
 

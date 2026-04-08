@@ -328,6 +328,24 @@ quality:
     await rm(tmpDir, { recursive: true, force: true });
   });
 
+  it('parses debug: true', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-debug-true');
+    await mkdir(tmpDir, { recursive: true });
+    await writeFile(path.join(tmpDir, 'yg-config.yaml'), 'name: "Test"\ndebug: true\n', 'utf-8');
+    const config = await parseConfig(path.join(tmpDir, 'yg-config.yaml'));
+    expect(config.debug).toBe(true);
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('debug absent → config.debug is undefined', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-no-debug');
+    await mkdir(tmpDir, { recursive: true });
+    await writeFile(path.join(tmpDir, 'yg-config.yaml'), 'name: "Test"\n', 'utf-8');
+    const config = await parseConfig(path.join(tmpDir, 'yg-config.yaml'));
+    expect(config.debug).toBeUndefined();
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
   it('accepts config without reviewer section', async () => {
       const tmpDir = path.join(__dirname, '../../fixtures/tmp-no-llm-config');
       await mkdir(tmpDir, { recursive: true });
@@ -376,6 +394,7 @@ reviewer:
         temperature: 0.1,
         consensus: 3,
         max_tokens: 'auto',
+        verify_aspects: true,
         verify_artifacts: true,
         context_length_field: 'qwen35.context_length',
       });
@@ -406,6 +425,7 @@ reviewer:
         temperature: 0,
         consensus: 1,
         max_tokens: 'auto',
+        verify_aspects: true,
         verify_artifacts: true,
       });
 

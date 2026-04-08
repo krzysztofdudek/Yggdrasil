@@ -1,0 +1,7 @@
+name: DriftTypes
+type: types
+description: Drift detection, approval, and audit types — DriftEntry, ApproveResult, DriftState
+aspects: []
+relations: []
+mapping:
+  - source/cli/src/model/drift.ts

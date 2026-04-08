@@ -1,8 +1,8 @@
 name: Examples
-type: module
+type: project
 description: Self-contained example projects demonstrating Yggdrasil usage for adopters
 aspects: []
-blackbox: true
+blackbox: false
 relations: []
 mapping:
   - examples

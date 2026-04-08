@@ -102,18 +102,19 @@ You are not allowed to edit or create source code without establishing graph cov
 
 **Step 2a** — Owner found: execute checklist:
 
-- [ ] 1. `yg context --file <path>` — read aspect content files and dependencies
-- [ ] 2. Read local node artifacts (responsibility, interface, internals) from the context package. Cross-cutting constraints (aspects, flows) should already be internalized from the task-level READ phase.
-- [ ] 3. Assess blast radius: `yg impact --node <node_path>`
-- [ ] 4. Modify source code — aspect content files tell you what rules to follow
-- [ ] 5. Update artifacts if behavior changed. Each artifact has its own trigger:
+- [ ] 1. `yg context --file <path>` — note all aspects in "Must satisfy" and all dependency interfaces
+- [ ] 2. **Read aspect content files.** For every aspect in "Must satisfy": open and read its content `.md` files. The aspect description is not sufficient — the content files contain the actual implementation rules. `yg approve` (step 8) delegates to a reviewer that checks source code against these rules and rejects non-compliant code.
+- [ ] 3. Read local node artifacts (responsibility, interface, internals) from the context package.
+- [ ] 4. Assess blast radius: `yg impact --node <node_path>`
+- [ ] 5. Modify source code — apply the rules from aspect content files
+- [ ] 6. Update artifacts if behavior changed. Each artifact has its own trigger:
         - responsibility.md — when the node's identity, boundaries, or business rules changed
         - interface.md — when exported API signatures or contracts changed
         - internals.md — when a design decision was made (record it) or a constraint emerged
-- [ ] 5b. If you split, merged, or renamed a node: run `yg flows` and update any flow `nodes` lists that referenced the old node path to point to the correct child/new nodes.
-- [ ] 6. Run `yg check` — follow CLI's suggested next command (if unfixable after 3 attempts → stop, report to user)
-- [ ] 6b. **Aspect check** — did you just apply a pattern that also exists in other files? If the node has no aspect for it and you saw the same pattern in 3+ files, create the aspect now.
-- [ ] 7. Run `yg approve --node <node_path>` — reviewer verifies aspects + artifact freshness
+- [ ] 6b. If you split, merged, or renamed a node: run `yg flows` and update any flow `nodes` lists that referenced the old node path to point to the correct child/new nodes.
+- [ ] 7. Run `yg check` — follow CLI's suggested next command (if unfixable after 3 attempts → stop, report to user)
+- [ ] 7b. **Aspect check** — did you just apply a pattern that also exists in other files? If the node has no aspect for it and you saw the same pattern in 3+ files, create the aspect now.
+- [ ] 8. Run `yg approve --node <node_path>` — reviewer verifies aspects + artifact freshness
 
 **Step 2b** — Owner not found: establish coverage first. Present options to the user:
 
@@ -419,7 +420,7 @@ relations:
     consumes: [charge]
 ```
 
-At check time: E057 fires if target has ports but consumer has no consumes. E058 fires if consumes references undefined port.
+At check time: E057 fires if target has ports but consumer has no consumes. E058 fires if consumes references undefined port. E059 fires if consumes is declared but target has no ports.
 At approve time: Reviewer verifies consumer satisfies port-required aspects (E055).
 
 ### CLI Commands
@@ -437,7 +438,7 @@ and what command to run next.
 - **Structural (E001-E013):** YAML broken or graph inconsistent. Fix the YAML.
 - **Coverage (E022):** source files not mapped. Bootstrap workflow.
 - **Completeness (E030-E038):** artifacts missing or too thin. Write them.
-- **Architecture (E050-E058):** references broken or contracts violated. Fix references.
+- **Architecture (E050-E059):** references broken or contracts violated. Fix references.
 - **Semantic (E055-E056, approve only):** Reviewer found aspects not satisfied or artifacts stale.
 
 Follow the CLI's suggested next command.
@@ -449,6 +450,8 @@ Approve is the semantic verification gate. It runs two reviewer checks:
 2. **Artifact review (E056):** checks if responsibility.md, interface.md, internals.md are current — fires E056 for stale artifacts
 
 **Do NOT interrupt `yg approve`.** When reviewer is configured, approve calls the reviewer for every aspect across every source file — this takes time and is intentional. Interrupting it leaves drift state unrecorded and forces a re-run.
+
+**Run `yg approve` one node at a time.** Never run multiple approve commands in parallel — each approve modifies shared drift state and spawns a reviewer subprocess. Wait for one to finish before starting the next.
 
 If reviewer is not configured, approve works as before (three-axis detection only).
 

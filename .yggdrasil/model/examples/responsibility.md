@@ -1,5 +1,5 @@
 # Examples — Responsibility
 
-Example projects for Yggdrasil adopters. Each subdirectory (e.g. expense-tracker) is a self-contained demo with its own `.yggdrasil/` graph. Blackbox by design — main repo graph does not model internal structure of examples.
+Self-contained example projects demonstrating Yggdrasil adoption for different tech stacks. Each subdirectory has its own `.yggdrasil/` graph — they are independent projects that happen to live in this repo for discoverability.
 
-Not responsible for: CLI implementation, docs.
+Examples serve as both documentation and regression fixtures — if a CLI change breaks example graphs, it's a signal that the change affects adopter workflows.

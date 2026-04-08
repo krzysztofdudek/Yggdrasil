@@ -38,9 +38,6 @@ aspects:
 relations:
   - target: auth/auth-api
     type: uses
-    consumes:
-      - authenticate
-    failure: reject-request
   - target: users/user-repo
     type: uses
   - target: users/user-repo
@@ -105,10 +102,6 @@ Use appropriate log levels: error for failures, warn for degraded state, info fo
 
 ### Dependency: AuthApi (uses) — auth/auth-api
 
-Consumes: authenticate
-
-On failure: reject-request
-
 ### responsibility.md
 Auth API service — handles authentication requests, login, and token issuance.
 
@@ -142,7 +135,7 @@ Sequence: create order -> validate -> payment -> ship.
 
 ---
 
-Context size: 577 tokens
+Context size: 548 tokens
 Layers: global, hierarchy, own, relational, relational, relational, flows, aspects, aspects
 "
 `;

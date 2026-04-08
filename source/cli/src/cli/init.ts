@@ -1,4 +1,5 @@
 import { Command } from 'commander';
+import chalk from 'chalk';
 import { mkdir, writeFile, readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -75,14 +76,14 @@ export function registerInitCommand(program: Command): void {
       try {
         const statResult = await stat(yggRoot);
         if (!statResult.isDirectory()) {
-          process.stderr.write('Error: .yggdrasil exists but is not a directory.\n');
+          process.stderr.write(chalk.red('Error: .yggdrasil exists but is not a directory.\n'));
           process.exit(1);
         }
         if (options.upgrade) {
           upgradeMode = true;
         } else {
           process.stderr.write(
-            'Error: .yggdrasil/ already exists. Use --upgrade to refresh rules only.\n',
+            chalk.red('Error: .yggdrasil/ already exists. Use --upgrade to refresh rules only.\n'),
           );
           process.exit(1);
         }
@@ -93,7 +94,7 @@ export function registerInitCommand(program: Command): void {
       const platform = (options.platform ?? 'generic') as Platform;
       if (!PLATFORMS.includes(platform)) {
         process.stderr.write(
-          `Error: Unknown platform '${platform}'. Use: ${PLATFORMS.join(', ')}\n`,
+          chalk.red(`Error: Unknown platform '${platform}'. Use: ${PLATFORMS.join(', ')}\n`),
         );
         process.exit(1);
       }
@@ -102,7 +103,7 @@ export function registerInitCommand(program: Command): void {
         const projectVersion = await detectVersion(yggRoot);
 
         if (!projectVersion) {
-          process.stderr.write('Error: No Yggdrasil project found. Run `yg init` first.\n');
+          process.stderr.write(chalk.red('Error: No Yggdrasil project found. Run `yg init` first.\n'));
           process.exit(1);
         }
 
@@ -111,7 +112,7 @@ export function registerInitCommand(program: Command): void {
         // Warn if project is newer than CLI
         if (valid(projectVersion) && valid(cliVersion) && gt(projectVersion, cliVersion)) {
           process.stderr.write(
-            `Warning: Project version (${projectVersion}) is newer than CLI (${cliVersion}). Upgrade your CLI.\n`,
+            chalk.yellow(`Warning: Project version (${projectVersion}) is newer than CLI (${cliVersion}). Upgrade your CLI.\n`),
           );
           process.exit(1);
         }
@@ -122,10 +123,10 @@ export function registerInitCommand(program: Command): void {
           const results = await runMigrations(projectVersion, MIGRATIONS, yggRoot);
           for (const result of results) {
             for (const action of result.actions) {
-              process.stdout.write(`  ✓ ${action}\n`);
+              process.stdout.write(chalk.green(`  ✓ ${action}\n`));
             }
             for (const warning of result.warnings) {
-              process.stdout.write(`  ⚠ ${warning}\n`);
+              process.stdout.write(chalk.yellow(`  ⚠ ${warning}\n`));
             }
           }
           if (results.length > 0) {
@@ -148,7 +149,7 @@ export function registerInitCommand(program: Command): void {
 
         // Refresh rules
         const rulesPath = await installRulesForPlatform(projectRoot, platform);
-        process.stdout.write('✓ Rules refreshed.\n');
+        process.stdout.write(chalk.green('✓ Rules refreshed.\n'));
         process.stdout.write(`  ${path.relative(projectRoot, rulesPath)}\n`);
         return;
       }
@@ -170,7 +171,7 @@ export function registerInitCommand(program: Command): void {
         }
       } catch (err) {
         process.stderr.write(
-          `Warning: Could not copy graph schemas from ${graphSchemasDir}: ${(err as Error).message}\n`,
+          chalk.red(`Warning: Could not copy graph schemas from ${graphSchemasDir}: ${(err as Error).message}\n`),
         );
       }
 
@@ -183,7 +184,7 @@ export function registerInitCommand(program: Command): void {
 
       const rulesPath = await installRulesForPlatform(projectRoot, platform);
 
-      process.stdout.write('✓ Yggdrasil initialized.\n\n');
+      process.stdout.write(chalk.green('✓ Yggdrasil initialized.') + '\n\n');
       process.stdout.write('Created:\n');
       process.stdout.write('  .yggdrasil/yg-config.yaml\n');
       process.stdout.write('  .yggdrasil/yg-architecture.yaml\n');
@@ -199,7 +200,7 @@ export function registerInitCommand(program: Command): void {
       process.stdout.write('  2. Create nodes under .yggdrasil/model/\n');
       process.stdout.write('  3. Run: yg check\n');
       } catch (err) {
-        process.stderr.write(`Error: ${(err as Error).message}\n`);
+        process.stderr.write(chalk.red(`Error: ${(err as Error).message}\n`));
         process.exit(1);
       }
     });

@@ -1,15 +1,7 @@
 # Impact Command Responsibility
 
-**In scope:** `yg impact --node <path>|--aspect <id>|--flow <name>`. Blast radius analysis.
+**In scope:** `yg impact`. Answers "what breaks if I change this?" — the blast radius question agents must ask before modifying any node, aspect, or flow.
 
-Three mutually exclusive modes (one required):
+Without impact analysis, agents cannot know whether a change to one node silently breaks dependents, whether an aspect modification cascades to dozens of nodes, or whether a flow change affects participants they haven't considered. This command makes the invisible dependency web visible.
 
-**--node mode:** Collect reverse dependents (structural relations only), build transitive chains (BFS from target), collect descendants (hierarchy children), compute effective aspects, find co-aspect nodes. Output: direct dependents with relation type and consumes, transitive chains, descendants, flows, aspects, co-aspect nodes, total scope.
-
-**--aspect mode:** For every node, compute effective aspects; collect those containing the target aspect. Determine source attribution (own, hierarchy, flow, implied). Report propagating flows, implies relationships. Output: affected nodes with source, flow propagation, implies graph, total scope.
-
-**--flow mode:** Find flow by name or path. Collect declared participants and their descendants. Output: participants (marking descendants), flow aspects, total scope.
-
-**Consumes:** loadGraph (cli/core/loader); collectAncestors, collectEffectiveAspectIds (cli/core/context); Graph (cli/model).
-
-**Out of scope:** Modifying graph, resolving drift, validation output formatting.
+**Out of scope:** Modifying graph, resolving drift, validation.

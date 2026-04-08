@@ -5,7 +5,7 @@ import type {
   YggConfig,
   QualityConfig,
   LlmConfig,
-} from '../model/types.js';
+} from '../model/graph.js';
 
 const DEFAULT_QUALITY: QualityConfig = {
   min_artifact_length: 50,
@@ -60,7 +60,7 @@ export async function parseConfig(filePath: string): Promise<YggConfig> {
   // Known provider names
   const KNOWN_PROVIDERS = ['ollama', 'claude-code'] as const;
   // Known general keys under reviewer:
-  const GENERAL_KEYS = new Set(['active', 'verify_artifacts', 'consensus']);
+  const GENERAL_KEYS = new Set(['active', 'verify_aspects', 'verify_artifacts', 'consensus']);
 
   // Parse reviewer: section (or legacy llm: fallback)
   let llm: LlmConfig | undefined;
@@ -78,12 +78,15 @@ export async function parseConfig(filePath: string): Promise<YggConfig> {
     parallel = p;
   }
 
+  const debug = raw.debug === true ? true : undefined;
+
   return {
     version,
     name: (raw.name as string).trim(),
     quality,
     llm,
     parallel,
+    debug,
   };
 }
 
@@ -134,6 +137,7 @@ function parseReviewerSection(
   }
 
   // Extract general params
+  const verifyAspects = generalConfig.verify_aspects !== false; // default true
   const verifyArtifacts = generalConfig.verify_artifacts === true;
   const consensus = (generalConfig.consensus as number) ?? 1;
   if (!Number.isInteger(consensus) || consensus < 1 || consensus % 2 === 0) {
@@ -159,6 +163,7 @@ function parseReviewerSection(
       temperature: typeof pc.temperature === 'number' ? pc.temperature : 0,
       consensus,
       max_tokens: maxTokens as LlmConfig['max_tokens'],
+      verify_aspects: verifyAspects,
       verify_artifacts: verifyArtifacts,
       context_length_field: typeof pc.context_length_field === 'string' ? pc.context_length_field : undefined,
     };
@@ -173,6 +178,7 @@ function parseReviewerSection(
       temperature: 0,
       consensus,
       max_tokens: 'auto',
+      verify_aspects: verifyAspects,
       verify_artifacts: verifyArtifacts,
     };
   }

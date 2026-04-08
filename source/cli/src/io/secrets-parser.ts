@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
-import type { LlmConfig } from '../model/types.js';
+import type { LlmConfig } from '../model/graph.js';
 
 /**
  * Load yg-secrets.yaml from .yggdrasil/ and extract reviewer secrets.

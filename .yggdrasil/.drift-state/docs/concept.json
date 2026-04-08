@@ -1,28 +1,28 @@
 {
-  "hash": "44a7ff18cfbbafdac6be7674afd5837e95824bdd91b56db4b68d9f172960972d",
+  "hash": "cab1a7de4ea11ed3b8ec6e0ef66771bc18e6178188c3378d6f088e36021ad8b8",
   "files": {
     ".yggdrasil/model/docs/concept/yg-node.yaml": "e9f47d45f61f1dcce3a0c9f4686307095bd2b211131cc0d98f5be8ec97a4a522",
     ".yggdrasil/model/docs/concept/responsibility.md": "1b5a6590a3620359d6010c5bd05e665732cb35dff7b765a0d205244577bca2dd",
     ".yggdrasil/model/docs/yg-node.yaml": "36ca70c4bea26714bb7450d306d1a898e70573151394eb8e0fb3a5cf588c84d4",
     ".yggdrasil/model/docs/responsibility.md": "070a2a6c6b29116ab18d2b824068d227cc4682f30fd5ef79b3cbe307dbe632fe",
-    "docs/concept/engine.md": "f0474028452a87cfd25f43bb73f1e1ee03bc39d3e06db65a3ea0cc533566d824",
     "docs/concept/foundation.md": "4ab53b044d48d718a8a54afffbcf2e99ee9ef59055a1ed8e6874017aa18353e6",
-    "docs/concept/graph.md": "37c638cf238f7f16a5041e8d356982c2d61cdc49c3bbd2d33e735f6bdd99e65c",
-    "docs/concept/integration.md": "691ed2099240c82575ec5b698497cb88383eddbd2db7b51091b71c380faf5db3",
+    "docs/concept/integration.md": "c724466ae68621ccf1af0378d24fb26c965304b47b18c0f51ad44b347ee7d1ac",
     "docs/concept/materialization.md": "0fef8e79a0b3e038aa7954cb8f290c7fa09badebaf6a1e57773d10c0a5df21af",
-    "docs/concept/tools.md": "b3a8f46cc747edb5a40996cdaed6e1fcaf3c91d69e6d79a022ff9be504df76bd"
+    "docs/concept/engine.md": "fee2650f6d07f878e5419f4a77a4a38be421bdca959ce93c54bb15e81ba522ef",
+    "docs/concept/graph.md": "f1a8dc5346f0d8654d473ce81d565f3d8eeb20cf295db083e9bb44a00905b5cf",
+    "docs/concept/tools.md": "05354eac0a57c6f8ae7eb7ef177b30de06682ce3cb2b2a4d222d4d425aac003e"
   },
   "mtimes": {
     ".yggdrasil/model/docs/concept/yg-node.yaml": 1775327956365.0742,
     ".yggdrasil/model/docs/concept/responsibility.md": 1772828318480.2405,
     ".yggdrasil/model/docs/yg-node.yaml": 1775243577367.4014,
     ".yggdrasil/model/docs/responsibility.md": 1772828320283.2747,
-    "docs/concept/engine.md": 1775331162274.4685,
+    "docs/concept/engine.md": 1775625678488.6387,
     "docs/concept/foundation.md": 1775025063809.139,
-    "docs/concept/graph.md": 1775331152559.4612,
-    "docs/concept/integration.md": 1775331178830.6614,
+    "docs/concept/graph.md": 1775625659221.0188,
+    "docs/concept/integration.md": 1775588054476.619,
     "docs/concept/materialization.md": 1775025218263.0195,
-    "docs/concept/tools.md": 1775567510803.3462
+    "docs/concept/tools.md": 1775625684889.8613
   },
-  "reviewedReason": "LLM→reviewer terminology in tools.md; artifacts describe documentation scope which is unchanged"
+  "reviewedReason": "docs updated for consumes/failure removal and verify_aspects"
 }

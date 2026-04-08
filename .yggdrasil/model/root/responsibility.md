@@ -1,19 +1,5 @@
 # Root Responsibility
 
-Root-level project files: repository configuration, documentation, CI/CD workflows, editor tooling, and devcontainer setup.
+Root-level project infrastructure — everything that defines how the repository works as a development environment but is not part of any specific feature module. CI/CD, editor conventions, container setup, licensing, and contribution guidelines.
 
-**In scope:**
-
-- **Docs:** README.md, CHANGELOG.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md, SECURITY.md, SUPPORT.md, AGENTS.md, CLAUDE.md
-- **CI/CD:** `.github/` workflows and configuration
-- **Editor/tooling:** `.editorconfig`, `.nvmrc`, `.markdownlint-cli2.jsonc`, `.cursor/`, `.claude/`, Yggdrasil.code-workspace
-- **Git configuration:** `.gitignore`, `.gitattributes`
-- **Container:** `.devcontainer/`
-- **License:** LICENSE
-
-**Out of scope:**
-
-- CLI source code (`source/cli/`) — see `cli`
-- Documentation site (`docs/`) — see `docs`
-- Scripts (`scripts/`) — see `scripts`
-- Graph metadata (`.yggdrasil/`) — managed by Yggdrasil itself
+This node exists because root-level files affect every contributor and every CI run but don't belong to any module. Changes here (especially to CI workflows or CLAUDE.md/AGENTS.md) have the highest implicit blast radius in the repo — they're invisible to `yg impact` because they're not in the graph's relation model.

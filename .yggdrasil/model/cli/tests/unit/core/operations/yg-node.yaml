@@ -1,5 +1,5 @@
 name: Operations Core Unit Tests
-type: library
+type: test
 description: "Unit tests for core CLI operations: approve, check, dependency-resolver, drift-detector, impact, migrator, node-selector, validator"
 blackbox: false
 aspects: []

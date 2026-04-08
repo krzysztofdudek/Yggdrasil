@@ -1,11 +1,7 @@
 # Flows Command Responsibility
 
-**In scope:** `yg flows`. List all flows with metadata in YAML format.
+**In scope:** `yg flows`. Inventory of all business-process flows in the graph.
 
-- Load graph via `loadGraph(process.cwd())`.
-- For each flow in graph.flows (sorted by name): output YAML with name, nodes (participants), aspects (if present).
-- Output format: YAML array to stdout via `yamlStringify`.
-
-**Consumes:** loadGraph (cli/core/loader), findYggRoot (cli/utils).
+Shows each flow's participants and propagated aspects. This diagnostic helps agents understand which nodes participate in cross-cutting business processes before modifying code that could break process invariants.
 
 **Out of scope:** Flow creation, modification, impact analysis (use `yg impact --flow`).

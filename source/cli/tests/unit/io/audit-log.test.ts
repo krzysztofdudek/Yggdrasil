@@ -3,7 +3,7 @@ import { mkdir, rm, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { appendAuditEntry } from '../../../src/io/audit-log.js';
-import type { AuditEntry } from '../../../src/model/types.js';
+import type { AuditEntry } from '../../../src/model/drift.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 

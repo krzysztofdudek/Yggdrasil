@@ -5,7 +5,6 @@ description: "JWT authentication: registration, login, and request middleware"
 relations:
   - target: api/db
     type: uses
-    consumes: [db.prepare, db.run]
 
 mapping:
   - paths:

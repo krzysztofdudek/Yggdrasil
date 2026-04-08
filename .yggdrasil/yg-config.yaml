@@ -9,9 +9,11 @@ quality:
     error: 20000
 
 parallel: 10
+debug: true
 
 reviewer:
-  verify_artifacts: false
+  verify_aspects: true
+  verify_artifacts: true
   consensus: 1
   claude-code:
     model: haiku

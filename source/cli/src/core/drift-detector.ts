@@ -1,11 +1,11 @@
+import type { Graph } from '../model/graph.js';
 import type {
-  Graph,
   DriftReport,
   DriftEntry,
   DriftStatus,
   DriftFileChange,
   DriftCategory,
-} from '../model/types.js';
+} from '../model/drift.js';
 import {
   readDriftState,
   readNodeDriftState,
@@ -46,11 +46,12 @@ function getChildMappingExclusions(graph: Graph, nodePath: string): string[] {
 
 export async function detectDrift(graph: Graph, filterNodePath?: string): Promise<DriftReport> {
   const projectRoot = path.dirname(graph.rootPath);
+  const normalizedFilter = filterNodePath?.trim().replace(/\\/g, '/').replace(/\/+$/, '');
   const driftState = await readDriftState(graph.rootPath);
   const entries: DriftEntry[] = [];
 
   for (const [nodePath, node] of graph.nodes) {
-    if (filterNodePath && nodePath !== filterNodePath && !nodePath.startsWith(filterNodePath + '/')) continue;
+    if (normalizedFilter && nodePath !== normalizedFilter && !nodePath.startsWith(normalizedFilter + '/')) continue;
     if (node.meta.blackbox) continue;
     const mapping = node.meta.mapping;
     if (!mapping) continue;
@@ -167,10 +168,9 @@ export async function detectDrift(graph: Graph, filterNodePath?: string): Promis
  * under the .yggdrasil/ directory.
  */
 function categorizeFile(filePath: string, _rootPath: string, projectRoot: string): DriftCategory {
-  const yggPrefix = path.relative(projectRoot, _rootPath);
-  const normalizedPrefix = yggPrefix.split(path.sep).join('/');
-  const normalizedFilePath = filePath.replace(/\\/g, '/');
-  return normalizedFilePath.startsWith(normalizedPrefix) ? 'graph' : 'source';
+  const yggPrefix = path.relative(projectRoot, _rootPath).trim().replace(/\\/g, '/').replace(/\/+$/, '');
+  const normalizedFilePath = filePath.trim().replace(/\\/g, '/').replace(/\/+$/, '');
+  return normalizedFilePath.startsWith(yggPrefix) ? 'graph' : 'source';
 }
 
 async function allPathsMissing(projectRoot: string, mappingPaths: string[]): Promise<boolean> {
@@ -198,15 +198,16 @@ export async function syncDriftState(
   nodePath: string,
 ): Promise<SyncResult> {
   const projectRoot = path.dirname(graph.rootPath);
-  const node = graph.nodes.get(nodePath);
-  if (!node) throw new Error(`Node not found: ${nodePath}`);
-  if (!node.meta.mapping) throw new Error(`Node has no mapping: ${nodePath}`);
-  if (node.meta.blackbox) throw new Error(`Cannot sync blackbox node: ${nodePath}`);
+  const normalizedNodePath = nodePath.trim().replace(/\\/g, '/').replace(/\/+$/, '');
+  const node = graph.nodes.get(normalizedNodePath);
+  if (!node) throw new Error(`Node not found: ${normalizedNodePath}`);
+  if (!node.meta.mapping) throw new Error(`Node has no mapping: ${normalizedNodePath}`);
+  if (node.meta.blackbox) throw new Error(`Cannot sync blackbox node: ${normalizedNodePath}`);
 
   const trackedFiles = collectTrackedFiles(node, graph);
-  const excludePrefixes = getChildMappingExclusions(graph, nodePath);
+  const excludePrefixes = getChildMappingExclusions(graph, normalizedNodePath);
   // For sync, pass stored data so unchanged files can reuse cached hashes.
-  const existingEntry = await readNodeDriftState(graph.rootPath, nodePath);
+  const existingEntry = await readNodeDriftState(graph.rootPath, normalizedNodePath);
   const storedFileData = existingEntry?.files
     ? { hashes: existingEntry.files, mtimes: existingEntry.mtimes ?? {} }
     : undefined;
@@ -219,7 +220,7 @@ export async function syncDriftState(
   if (previousHash && previousHash !== canonicalHash && existingEntry?.files) {
     let hasSourceChange = false;
     let hasGraphChange = false;
-    const yggPrefix = path.relative(projectRoot, graph.rootPath).split(path.sep).join('/');
+    const yggPrefix = path.relative(projectRoot, graph.rootPath).trim().replace(/\\/g, '/').replace(/\/+$/, '');
     for (const [filePath, hash] of Object.entries(fileHashes)) {
       const storedHash = existingEntry.files[filePath];
       if (storedHash && storedHash === hash) continue;
@@ -244,7 +245,7 @@ export async function syncDriftState(
     sourceOnlyChange = hasSourceChange && !hasGraphChange;
   }
 
-  await writeNodeDriftState(graph.rootPath, nodePath, {
+  await writeNodeDriftState(graph.rootPath, normalizedNodePath, {
     hash: canonicalHash,
     files: fileHashes,
     mtimes: fileMtimes,

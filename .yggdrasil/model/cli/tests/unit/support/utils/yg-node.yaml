@@ -1,5 +1,5 @@
 name: Utils Unit Tests
-type: library
+type: test
 description: "Unit tests for utility modules: git helpers, hash computation, path utilities, tokenizer, and token counting"
 blackbox: false
 aspects: []

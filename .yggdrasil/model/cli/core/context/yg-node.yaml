@@ -1,27 +1,16 @@
 name: ContextBuilder
-type: library
+type: engine
 description: "Assembles context packages via 5-step layer assembly: global, hierarchy, own, aspects, relational"
-aspects:
-  - deterministic
+aspects: []
 relations:
-  - target: cli/model
+  - target: cli/model/graph
     type: uses
-    consumes:
-      - Graph
-      - GraphNode
-      - ContextPackage
-      - ContextLayer
-      - ContextSection
-      - YggConfig
-      - AspectDef
-      - KnowledgeItem
-      - FlowDef
-      - Relation
+  - target: cli/model/context
+    type: uses
+  - target: cli/model/drift
+    type: uses
   - target: cli/utils
     type: uses
-    consumes:
-      - normalizeMappingPaths
-      - estimateTokens
 mapping:
   - source/cli/src/core/context-builder.ts
   - source/cli/src/core/context-files.ts

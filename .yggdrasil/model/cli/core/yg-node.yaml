@@ -1,9 +1,5 @@
 name: Core
 type: module
 description: "Pure domain logic layer implementing graph operations independent of CLI presentation"
-aspects:
-  - deterministic
+aspects: []
 relations: []
-mapping:
-  - source/cli/src/core/artifact-reviewer.ts
-  - source/cli/src/core/claim-verifier.ts

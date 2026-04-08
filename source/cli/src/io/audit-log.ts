@@ -1,6 +1,6 @@
 import { appendFile } from 'node:fs/promises';
 import path from 'node:path';
-import type { AuditEntry } from '../model/types.js';
+import type { AuditEntry } from '../model/drift.js';
 
 const AUDIT_LOG_FILE = '.audit-log.jsonl';
 

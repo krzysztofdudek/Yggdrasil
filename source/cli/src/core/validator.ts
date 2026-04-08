@@ -1,7 +1,8 @@
 import { readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { STANDARD_ARTIFACTS } from '../model/types.js';
-import type { Graph, ValidationResult, ValidationIssue, ArtifactConfig } from '../model/types.js';
+import { STANDARD_ARTIFACTS } from '../model/graph.js';
+import type { Graph, ArtifactConfig } from '../model/graph.js';
+import type { ValidationResult, ValidationIssue } from '../model/validation.js';
 import { buildContext, computeBudgetBreakdown } from './context-builder.js';
 import { normalizeMappingPaths } from '../utils/paths.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
@@ -1214,11 +1215,30 @@ function checkPortConsumes(graph: Graph): ValidationIssue[] {
       if (rel.type === 'emits' || rel.type === 'listens') continue;
 
       const target = graph.nodes.get(rel.target);
-      if (!target?.meta.ports || Object.keys(target.meta.ports).length === 0) continue;
+      const hasPorts = target?.meta.ports && Object.keys(target.meta.ports).length > 0;
+
+      // E059: consumes on a relation to a target without ports
+      if (!hasPorts && rel.consumes && rel.consumes.length > 0) {
+        issues.push({
+          severity: 'error',
+          code: 'E059',
+          rule: 'consumes-without-ports',
+          nodePath,
+          message: buildIssueMessage({
+            what: `Relation: ${rel.type} -> ${rel.target} declares consumes: [${rel.consumes.join(', ')}]`,
+            why: `Target has no ports. consumes is only meaningful when the target declares ports with required aspects.`,
+            next: `Remove consumes from this relation in yg-node.yaml.`,
+          }),
+        });
+        continue;
+      }
+
+      if (!hasPorts) continue;
+      const ports = target!.meta.ports!;
 
       // E057: target has ports but consumer has no consumes
       if (!rel.consumes || rel.consumes.length === 0) {
-        const portNames = Object.keys(target.meta.ports);
+        const portNames = Object.keys(ports);
         issues.push({
           severity: 'error',
           code: 'E057',
@@ -1235,8 +1255,8 @@ function checkPortConsumes(graph: Graph): ValidationIssue[] {
 
       // E058: consumes references non-existent port
       for (const portName of rel.consumes) {
-        if (!(portName in target.meta.ports)) {
-          const available = Object.keys(target.meta.ports);
+        if (!(portName in ports)) {
+          const available = Object.keys(ports);
           issues.push({
             severity: 'error',
             code: 'E058',

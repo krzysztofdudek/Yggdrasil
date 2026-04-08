@@ -1,5 +1,5 @@
 name: Scripts
-type: module
+type: project
 description: "Repository automation scripts: repo health checks and CI tooling"
 blackbox: true
 aspects: []

@@ -1,4 +1,4 @@
-import type { LlmConfig } from '../model/types.js';
+import type { LlmConfig } from '../model/graph.js';
 import type { LlmProvider } from './types.js';
 import { OllamaProvider } from './ollama.js';
 import { ClaudeCodeProvider } from './claude-code.js';

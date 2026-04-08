@@ -1,28 +1,18 @@
 name: Validator
-type: library
+type: engine
 description: Structural validation and completeness checks enforcing graph integrity (E001-E013/E030-E041, W001-W005)
 aspects:
-  - deterministic
   - posix-paths
+  - what-why-next
 relations:
   - target: cli/core/context
     type: uses
-    consumes:
-      - buildContext
-      - computeBudgetBreakdown
-  - target: cli/model
+  - target: cli/model/graph
     type: uses
-    consumes:
-      - Graph
-      - ValidationResult
-      - ValidationIssue
-      - ArtifactConfig
-      - NodeAspectEntry
+  - target: cli/model/validation
+    type: uses
   - target: cli/utils
     type: uses
-    consumes:
-      - normalizeMappingPaths
-      - getLastCommitTimestamp
 mapping:
   - source/cli/src/core/validator.ts
   - source/cli/src/core/effective-aspects.ts
