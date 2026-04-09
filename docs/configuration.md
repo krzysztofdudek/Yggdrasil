@@ -97,7 +97,7 @@ a nested provider structure.
 reviewer:
   active: ollama                  # required when multiple providers listed
   verify_aspects: true            # run aspect verification (E055) — default true
-  verify_artifacts: false         # run artifact review (E056) — default false
+  verify_artifacts: true          # run artifact review (E056) — default true
   consensus: 1                    # positive odd integer >= 1
   ollama:
     model: "qwen3.5:9b"

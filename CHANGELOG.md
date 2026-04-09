@@ -66,7 +66,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Log is gitignored.
 - **`llm.verify_aspects`** config option (default: `true`) to control
   aspect verification (E055) during approve.
-- **`llm.verify_artifacts`** config option (default: `false`) to control
+- **`llm.verify_artifacts`** config option (default: `true`) to control
   artifact review (E056) during approve.
 - **`llm.context_length_field`** config option for Ollama — specifies the
   model_info key for context window size.
@@ -81,7 +81,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`needsChunking`** on `LlmProvider` interface — CLI providers read
   files themselves; API providers get content chunked into the prompt.
 - **`yg context --node`** adds post-modify workflow footer.
+- **`yg context --file`** shows blackbox decomposition guidance when file
+  is inside a blackbox node.
 - **`yg approve`** success shows verification summary when LLM ran.
+- **`yg impact`** shows E021 prediction — lists nodes that will enter
+  cascade drift if the target is modified.
+- **`projectRoot` parameter** on artifact review functions — LLM providers
+  receive the absolute project root for accurate file path resolution.
 
 ### Improved
 
@@ -102,6 +108,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`yg aspects`** usage breakdown — "own" replaced with "direct".
 - **Rules trimmed** — error code tables replaced with categories,
   approve matrix replaced with prose, CLI reference compacted.
+- **Rules expanded with knowledge-routing framework.** New sections:
+  "Working from External Specifications" (spec-first workflow),
+  "Information Routing" table (where to put each type of knowledge),
+  "Non-Code Knowledge" routing (business strategy, quality targets,
+  UX patterns that have no source file).
+- **Greenfield graph-first workflow** — mandatory ordering: aspects
+  first, then flows, then nodes with artifacts. Code comes last.
+- **Node sizing rule** — one node per cohesive feature area, split
+  when >10 files or >3 distinct workflows.
+- **Flow identification heuristic** — guidance for recognizing flows
+  in specs, conversations, and code (multi-actor AND single-actor).
+- **Subagent delegation protocol** — subagents must read agent-rules.md
+  and deliver graph updates alongside code. Incomplete work rejected.
 - **Artifact review prompt** tuned to reduce false positives — reports
   stale only for behavioral contradictions, not minor wording differences.
 

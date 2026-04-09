@@ -41,7 +41,7 @@ debug: false # bool, optional, default false — append all CLI output to .yggdr
 reviewer: # map, optional — reviewer configuration for semantic verification
   active: ollama # string, optional — which provider to use (required when multiple providers configured)
   verify_aspects: true # bool, default true — run aspect verification (E055) during approve
-  verify_artifacts: false # bool, default false — run artifact review (E056) during approve
+  verify_artifacts: true # bool, default true — run artifact review (E056) during approve
   consensus: 1 # int, default 1 — number of agreeing responses required (must be odd)
   ollama: # map, optional — Ollama provider config
     model: "qwen3.5:9b" # string, required — model identifier

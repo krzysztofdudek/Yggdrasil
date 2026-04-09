@@ -138,7 +138,7 @@ function parseReviewerSection(
 
   // Extract general params
   const verifyAspects = generalConfig.verify_aspects !== false; // default true
-  const verifyArtifacts = generalConfig.verify_artifacts === true;
+  const verifyArtifacts = generalConfig.verify_artifacts !== false; // default true
   const consensus = (generalConfig.consensus as number) ?? 1;
   if (!Number.isInteger(consensus) || consensus < 1 || consensus % 2 === 0) {
     throw new Error(`${filename}: reviewer.consensus must be a positive odd integer >= 1, got ${consensus}`);

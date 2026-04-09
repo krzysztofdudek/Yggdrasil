@@ -572,7 +572,7 @@ async function runBatchApprove(
   const llmCfg: LlmConfig = {
     provider, llmNotConfigured, maxTokens, consensus,
     verifyAspects: graph.config.llm?.verify_aspects ?? true,
-    verifyArtifacts: graph.config.llm?.verify_artifacts ?? false,
+    verifyArtifacts: graph.config.llm?.verify_artifacts ?? true,
   };
   const results = await runBatch(sorted, parallel, async (nodePath) => {
     const result = await approveNode(graph, nodePath, { reviewed });
@@ -654,7 +654,7 @@ export function registerApproveCommand(program: Command): void {
           const llmCfg: LlmConfig = {
             provider, llmNotConfigured, maxTokens, consensus,
             verifyAspects: graph.config.llm?.verify_aspects ?? true,
-            verifyArtifacts: graph.config.llm?.verify_artifacts ?? false,
+            verifyArtifacts: graph.config.llm?.verify_artifacts ?? true,
           };
           const batchResults = await runBatch(nodePaths, parallel, async (nodePath) => {
             const result = await approveNode(graph, nodePath, { reviewed: options.reviewed });
@@ -697,7 +697,7 @@ export function registerApproveCommand(program: Command): void {
         const llmCfg: LlmConfig = {
           provider, llmNotConfigured, maxTokens, consensus,
           verifyAspects: graph.config.llm?.verify_aspects ?? true,
-          verifyArtifacts: graph.config.llm?.verify_artifacts ?? false,
+          verifyArtifacts: graph.config.llm?.verify_artifacts ?? true,
         };
         const result = await runLlmVerification(graph, nodePath, coreResult, llmCfg);
         formatResult(nodePath, result);
@@ -772,7 +772,7 @@ export function registerApproveCommand(program: Command): void {
           const llmCfg: LlmConfig = {
             provider, llmNotConfigured, maxTokens, consensus,
             verifyAspects: graph.config.llm?.verify_aspects ?? true,
-            verifyArtifacts: graph.config.llm?.verify_artifacts ?? false,
+            verifyArtifacts: graph.config.llm?.verify_artifacts ?? true,
           };
           const result = await runLlmVerification(graph, nodePath, coreResult, llmCfg);
           formatResult(nodePath, result);

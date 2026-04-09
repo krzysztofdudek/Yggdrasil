@@ -102,7 +102,7 @@ packages.
 ```yaml
 reviewer:
   verify_aspects: true
-  verify_artifacts: false
+  verify_artifacts: true
   consensus: 1
   ollama:
     model: qwen3.5:9b
@@ -118,7 +118,7 @@ artifact review at approve time. General keys (`verify_aspects`, `verify_artifac
 | Field              | Purpose                                                              |
 | ------------------ | -------------------------------------------------------------------- |
 | `verify_aspects`   | Run aspect verification (E055) — default true                        |
-| `verify_artifacts` | Run artifact freshness review (E056) — default false                 |
+| `verify_artifacts` | Run artifact freshness review (E056) — default true                  |
 | `consensus`        | Number of agreeing verification passes required (default 1)          |
 | `active`           | Required when multiple providers configured — selects the active one |
 

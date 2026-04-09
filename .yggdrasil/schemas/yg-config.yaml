@@ -26,7 +26,7 @@ debug: false                      # optional — when true, appends all command 
 reviewer:                         # optional — semantic verification during yg approve
   active: ollama                  #   required when multiple providers configured
   verify_aspects: true            #   run aspect verification (E055) — default true
-  verify_artifacts: false         #   run artifact review (E056) — default false
+  verify_artifacts: true          #   run artifact review (E056) — default true
   consensus: 1                    #   positive odd integer >= 1 (3+ for majority vote)
   ollama:                         #   provider-specific config
     model: "qwen3.5:9b"          #     model ID
