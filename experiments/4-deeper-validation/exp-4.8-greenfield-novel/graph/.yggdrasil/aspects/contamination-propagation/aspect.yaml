@@ -1,4 +1,0 @@
-name: Contamination Propagation
-description: "When a recipe phase fails on shared equipment, all recipes using that equipment must be notified and may need to abort or enter decontamination"
-stability: protocol
-anchors: [ContaminationEvent, propagateContamination, equipmentContaminated]

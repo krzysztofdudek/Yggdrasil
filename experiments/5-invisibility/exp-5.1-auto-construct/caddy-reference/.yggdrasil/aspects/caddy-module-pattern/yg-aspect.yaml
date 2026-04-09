@@ -1,3 +1,0 @@
-name: Caddy Module Pattern
-description: "All components follow Caddy's module lifecycle: CaddyModule() for registration, Provision() for setup, optional Validate(), optional Cleanup(). Modules are registered via init() and loaded via caddy.Context.LoadModule()."
-stability: protocol

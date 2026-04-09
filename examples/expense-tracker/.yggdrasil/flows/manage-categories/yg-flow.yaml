@@ -1,6 +1,0 @@
-name: Manage Categories
-description: "User creates and deletes custom expense categories within subscription limits"
-nodes:
-  - web/categories
-  - api/categories
-  - api/db

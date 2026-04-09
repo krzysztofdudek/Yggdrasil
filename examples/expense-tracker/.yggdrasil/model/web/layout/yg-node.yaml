@@ -1,8 +1,0 @@
-name: Layout
-type: module
-description: "Shared page layout with navigation header and active route highlighting"
-
-mapping:
-  - paths:
-      - apps/web/src/components/Layout/Layout.tsx
-      - apps/web/src/components/Layout/Header.tsx

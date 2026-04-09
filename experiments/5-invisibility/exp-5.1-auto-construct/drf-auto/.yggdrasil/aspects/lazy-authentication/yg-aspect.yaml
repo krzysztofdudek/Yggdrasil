@@ -1,3 +1,0 @@
-name: Lazy Authentication
-description: "Authentication is performed lazily on first access to request.user or request.auth, unless explicitly triggered by perform_authentication()."
-stability: protocol

@@ -1,7 +1,0 @@
-name: View Reports
-description: "User views monthly spending summary and category breakdown"
-nodes:
-  - web/reports
-  - web/dashboard
-  - api/reports
-  - api/db

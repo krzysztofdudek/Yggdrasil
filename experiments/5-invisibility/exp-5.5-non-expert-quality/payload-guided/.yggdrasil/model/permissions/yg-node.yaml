@@ -1,9 +1,0 @@
-name: Entity Permissions
-type: module
-
-aspects:
-  - aspect: access-control-pattern
-
-mapping:
-  paths:
-    - packages/payload/src/utilities/getEntityPermissions/

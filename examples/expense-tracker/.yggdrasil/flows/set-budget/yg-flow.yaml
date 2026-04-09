@@ -1,6 +1,0 @@
-name: Set Budget
-description: "User sets or updates a monthly spending limit for a category"
-nodes:
-  - web/budgets
-  - api/budgets
-  - api/db

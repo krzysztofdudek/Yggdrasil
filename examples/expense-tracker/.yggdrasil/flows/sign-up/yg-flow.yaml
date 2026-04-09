@@ -1,6 +1,0 @@
-name: Sign Up
-description: "New user creates an account and lands on the dashboard with a free subscription"
-nodes:
-  - web/auth
-  - api/auth
-  - api/db

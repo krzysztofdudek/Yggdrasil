@@ -1,3 +1,0 @@
-name: Lazy Evaluation of Request Properties
-description: "Request properties (user, auth, data) are evaluated lazily on first access, not eagerly during request initialization. This defers potentially expensive operations until they are actually needed."
-stability: implementation

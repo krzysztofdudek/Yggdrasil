@@ -1,9 +1,0 @@
-name: RateLimitConfig
-type: library
-aspects: []
-
-relations: []
-
-mapping:
-  paths:
-    - src/rate-limiter/rate-limit-config.ts

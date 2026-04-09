@@ -1,6 +1,0 @@
-name: Login
-description: "Existing user authenticates and receives a JWT for session access"
-nodes:
-  - web/auth
-  - api/auth
-  - api/db

@@ -1,9 +1,0 @@
-name: Request Proxying
-nodes:
-  - reverse-proxy/handler
-  - reverse-proxy/upstreams
-  - reverse-proxy/selection-policies
-  - reverse-proxy/transport
-  - reverse-proxy/health-checks
-aspects:
-  - hop-by-hop-header-stripping

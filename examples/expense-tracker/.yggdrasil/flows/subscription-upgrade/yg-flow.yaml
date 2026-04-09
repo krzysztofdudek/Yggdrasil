@@ -1,6 +1,0 @@
-name: Subscription Upgrade
-description: "Free-plan user upgrades to Pro to remove expense and category limits"
-nodes:
-  - web/settings
-  - api/subscriptions
-  - api/db

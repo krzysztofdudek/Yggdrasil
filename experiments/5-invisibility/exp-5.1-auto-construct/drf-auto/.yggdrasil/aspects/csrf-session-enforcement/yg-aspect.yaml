@@ -1,3 +1,0 @@
-name: CSRF Session Enforcement
-description: "All DRF views are CSRF-exempt by default, but SessionAuthentication explicitly enforces CSRF validation for authenticated session-based requests."
-stability: protocol

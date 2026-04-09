@@ -1,8 +1,0 @@
-name: Environment
-type: module
-aspects: []
-blackbox: false
-relations: []
-mapping:
-  paths:
-    - src/environment/

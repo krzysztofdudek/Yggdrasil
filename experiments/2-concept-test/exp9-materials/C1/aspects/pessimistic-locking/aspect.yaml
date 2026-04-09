@@ -1,2 +1,0 @@
-name: Optimistic Locking
-description: Version-field based conflict detection for sibling order mutations

@@ -1,3 +1,0 @@
-name: Hop-by-Hop Header Stripping
-description: "Hop-by-hop headers (Connection, Keep-Alive, Transfer-Encoding, Upgrade, etc.) are stripped from proxied requests and responses per RFC 7230. Upgrade headers are selectively restored for protocol upgrades like WebSocket."
-stability: protocol

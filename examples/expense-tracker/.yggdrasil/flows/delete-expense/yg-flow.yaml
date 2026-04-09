@@ -1,6 +1,0 @@
-name: Delete Expense
-description: "User removes an expense from their records"
-nodes:
-  - web/expenses
-  - api/expenses
-  - api/db

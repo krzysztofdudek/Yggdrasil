@@ -1,6 +1,0 @@
-name: User Login
-nodes:
-  - auth-system/auth-endpoints
-  - auth-system/auth-operations
-  - auth-system/auth-infrastructure
-aspects: [brute-force-protection, transaction-safety, hook-lifecycle-pattern]

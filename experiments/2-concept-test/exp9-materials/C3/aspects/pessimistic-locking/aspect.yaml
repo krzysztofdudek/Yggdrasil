@@ -1,2 +1,0 @@
-name: Pessimistic Locking
-description: Row-level locking before sibling order mutations

@@ -1,6 +1,0 @@
-name: Cookies
-type: library
-
-mapping:
-  paths:
-    - packages/payload/src/auth/cookies.ts

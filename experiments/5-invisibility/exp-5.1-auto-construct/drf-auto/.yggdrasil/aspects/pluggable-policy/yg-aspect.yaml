@@ -1,3 +1,0 @@
-name: Pluggable Policy Pattern
-description: "Components are configured as class-level lists and instantiated per-request via get_*() methods, allowing per-view override of authentication, permissions, throttling, parsing, and rendering."
-stability: protocol

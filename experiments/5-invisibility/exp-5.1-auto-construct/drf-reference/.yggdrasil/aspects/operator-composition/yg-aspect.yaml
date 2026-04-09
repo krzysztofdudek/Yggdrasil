@@ -1,3 +1,0 @@
-name: Boolean Operator Composition for Permissions
-description: "Permission classes support &, |, ~ operators to compose complex permission rules from simple ones without writing new classes."
-stability: protocol

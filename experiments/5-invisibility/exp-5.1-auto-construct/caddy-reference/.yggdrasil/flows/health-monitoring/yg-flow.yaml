@@ -1,5 +1,0 @@
-name: Health Monitoring
-nodes:
-  - reverse-proxy/health-checks
-  - reverse-proxy/handler
-  - reverse-proxy/upstreams

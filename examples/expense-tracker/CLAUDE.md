@@ -1,1 +1,0 @@
-@.yggdrasil/agent-rules.md

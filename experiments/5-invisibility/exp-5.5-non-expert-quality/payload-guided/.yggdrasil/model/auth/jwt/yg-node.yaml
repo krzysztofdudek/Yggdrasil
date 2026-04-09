@@ -1,7 +1,0 @@
-name: JWT
-type: library
-
-mapping:
-  paths:
-    - packages/payload/src/auth/jwt.ts
-    - packages/payload/src/auth/extractJWT.ts

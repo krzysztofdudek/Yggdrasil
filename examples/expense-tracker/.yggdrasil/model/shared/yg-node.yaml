@@ -1,9 +1,0 @@
-name: Shared
-type: library
-description: "Shared types and Zod validation schemas used by both API and web"
-
-mapping:
-  - paths:
-      - packages/shared/src/index.ts
-      - packages/shared/src/types.ts
-      - packages/shared/src/validation.ts

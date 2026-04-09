@@ -1,3 +1,0 @@
-name: Sliding Window Throttle
-description: "Rate limiting uses a sliding window algorithm backed by Django's cache framework, with configurable rates per scope."
-stability: implementation

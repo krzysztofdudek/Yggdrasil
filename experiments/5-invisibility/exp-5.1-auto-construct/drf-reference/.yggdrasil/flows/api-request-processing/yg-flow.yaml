@@ -1,8 +1,0 @@
-name: API Request Processing
-nodes:
-  - request-pipeline/api-view
-  - request-pipeline/request
-  - request-pipeline/authentication
-  - request-pipeline/permissions
-  - request-pipeline/throttling
-aspects: [class-based-policy]

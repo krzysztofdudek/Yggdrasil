@@ -1,3 +1,0 @@
-name: Retry with Health Tracking
-description: "Failed proxy attempts are tracked via passive health checks and used to influence upstream selection. Retries loop with configurable duration/interval, re-selecting upstreams each iteration."
-stability: implementation

@@ -1,4 +1,0 @@
-name: Reagent Atomicity
-description: "Reagent allocations for a phase must be all-or-nothing; partial allocation leaves the system in an inconsistent state"
-stability: protocol
-anchors: [allocateReagents, releaseReagents, ReagentLock]

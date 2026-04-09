@@ -1,7 +1,0 @@
-name: Add Expense
-description: "User records a new expense, with subscription limit check and budget overage warning"
-nodes:
-  - web/expenses
-  - api/expenses
-  - api/categories
-  - api/db

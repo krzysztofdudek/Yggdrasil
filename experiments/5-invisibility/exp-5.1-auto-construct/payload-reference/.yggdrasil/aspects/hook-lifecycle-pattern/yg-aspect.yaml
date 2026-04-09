@@ -1,3 +1,0 @@
-name: Hook Lifecycle Pattern
-description: "All auth operations follow a before/after hook lifecycle allowing collection-level customization"
-stability: protocol

@@ -1,6 +1,0 @@
-name: Password Reset
-nodes:
-  - auth-system/auth-endpoints
-  - auth-system/auth-operations
-  - auth-system/auth-infrastructure
-aspects: [transaction-safety, hook-lifecycle-pattern]

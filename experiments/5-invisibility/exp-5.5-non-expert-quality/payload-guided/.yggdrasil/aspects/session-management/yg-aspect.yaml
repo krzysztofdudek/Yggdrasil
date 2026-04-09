@@ -1,3 +1,0 @@
-name: Session Management
-description: "Sessions are stored on the user document. Operations that touch sessions set updatedAt=null to prevent the user profile from appearing modified."
-stability: implementation

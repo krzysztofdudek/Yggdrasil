@@ -1,3 +1,0 @@
-name: Class-Based Policy Configuration
-description: "All request processing policies (authentication, permissions, throttling, parsing, rendering) are configured as class-level attributes that reference lists of policy classes. These are instantiated per-request via get_*() factory methods on the view."
-stability: protocol

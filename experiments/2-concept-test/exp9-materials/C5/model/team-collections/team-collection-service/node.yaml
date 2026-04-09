@@ -1,9 +1,0 @@
-name: TeamCollectionService
-type: service
-aspects: [pessimistic-locking, pubsub-events, retry-on-deadlock]
-
-relations: []
-
-mapping:
-  paths:
-    - packages/hoppscotch-backend/src/team-collection/team-collection.service.ts

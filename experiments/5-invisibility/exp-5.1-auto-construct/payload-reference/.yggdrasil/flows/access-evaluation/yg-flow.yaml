@@ -1,5 +1,0 @@
-name: Access Evaluation
-nodes:
-  - auth-system/access-control
-  - auth-system/entity-permissions
-aspects: [where-based-access-control]

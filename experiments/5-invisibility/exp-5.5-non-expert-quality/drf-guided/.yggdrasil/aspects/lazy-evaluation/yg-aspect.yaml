@@ -1,3 +1,0 @@
-name: Lazy Evaluation
-description: "Properties computed on first access and cached, using Empty sentinel for unset state"
-stability: implementation

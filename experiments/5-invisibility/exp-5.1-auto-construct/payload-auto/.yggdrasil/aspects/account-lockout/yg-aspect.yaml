@@ -1,3 +1,0 @@
-name: Account Lockout
-description: "Brute-force protection via login attempt counting and time-based account locking"
-stability: implementation

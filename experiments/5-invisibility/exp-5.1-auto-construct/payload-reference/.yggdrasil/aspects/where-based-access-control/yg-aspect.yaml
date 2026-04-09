@@ -1,3 +1,0 @@
-name: Where-Based Access Control
-description: "Access functions can return boolean (allow/deny) OR a Where query that filters data at the database level"
-stability: schema

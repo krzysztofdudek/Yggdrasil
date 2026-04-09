@@ -1,3 +1,0 @@
-name: DNS Cache with Double-Check Locking
-description: "Dynamic upstream sources (SRV, A/AAAA) cache DNS lookups with a read-lock-first, write-lock-second pattern to avoid unnecessary DNS queries under concurrent access."
-stability: implementation

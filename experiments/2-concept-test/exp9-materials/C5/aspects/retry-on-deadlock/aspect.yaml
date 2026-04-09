@@ -1,2 +1,0 @@
-name: Retry on Deadlock
-description: Exponential retry for specific database transaction errors

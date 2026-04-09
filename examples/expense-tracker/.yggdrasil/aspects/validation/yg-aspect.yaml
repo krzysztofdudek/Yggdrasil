@@ -1,2 +1,0 @@
-name: Input Validation
-description: "Zod schema validation on all user input before processing"

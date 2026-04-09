@@ -1,7 +1,0 @@
-name: User Authentication
-nodes:
-  - auth/strategies
-  - auth/operations
-  - auth/token-management
-  - permissions
-aspects: [access-control, account-lockout]

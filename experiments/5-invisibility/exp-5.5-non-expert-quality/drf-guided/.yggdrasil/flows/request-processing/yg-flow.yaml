@@ -1,8 +1,0 @@
-name: API Request Processing
-nodes:
-  - api-view
-  - request
-  - authentication
-  - permissions
-  - throttling
-aspects: [policy-pattern]

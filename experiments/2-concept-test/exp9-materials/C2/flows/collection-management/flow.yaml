@@ -1,6 +1,0 @@
-name: Collection Management
-aspects: [pessimistic-locking, pubsub-events]
-
-participants:
-  - node: team-collections/team-collection-service
-    role: Orchestrates all collection CRUD, move, reorder, search, import/export, and duplication operations

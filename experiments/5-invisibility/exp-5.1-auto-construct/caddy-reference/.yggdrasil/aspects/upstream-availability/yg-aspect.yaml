@@ -1,3 +1,0 @@
-name: Upstream Availability
-description: "Every upstream selection must check Available() before use, which combines Healthy() (active health + passive fails + circuit breaker) and Full() (max requests). This is the single point of truth for whether a backend can receive traffic."
-stability: implementation

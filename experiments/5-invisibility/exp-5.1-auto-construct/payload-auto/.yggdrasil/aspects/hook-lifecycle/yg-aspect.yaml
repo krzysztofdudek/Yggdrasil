@@ -1,3 +1,0 @@
-name: Hook Lifecycle
-description: "Operations execute hooks in a defined sequence: beforeOperation, beforeX, afterX, afterRead, afterOperation"
-stability: protocol

@@ -1,2 +1,0 @@
-name: Sliding Window Log
-description: Rate limiting uses the sliding window log algorithm — timestamps of individual requests are stored and counted within a rolling time window, providing smooth rate enforcement without boundary burst problems.

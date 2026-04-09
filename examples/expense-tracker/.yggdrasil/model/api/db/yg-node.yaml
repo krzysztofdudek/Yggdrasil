@@ -1,8 +1,0 @@
-name: Database
-type: library
-description: "SQLite database initialization, schema DDL, and seed data"
-
-mapping:
-  - paths:
-      - apps/api/src/db/index.ts
-      - apps/api/src/db/schema.ts

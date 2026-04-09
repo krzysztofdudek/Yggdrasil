@@ -1,7 +1,0 @@
-name: Edit Expense
-description: "User modifies an existing expense's category, amount, date, or description"
-nodes:
-  - web/expenses
-  - api/expenses
-  - api/categories
-  - api/db

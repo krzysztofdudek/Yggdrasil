@@ -1,3 +1,0 @@
-name: Timing-Safe Comparison
-description: "Password and token verification must use constant-time comparison to prevent timing attacks"
-stability: protocol

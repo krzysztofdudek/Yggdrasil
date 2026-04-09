@@ -1,8 +1,0 @@
-name: API Request Lifecycle
-nodes:
-  - drf/views
-  - drf/request
-  - drf/authentication
-  - drf/permissions
-  - drf/throttling
-aspects: [pluggable-policy]

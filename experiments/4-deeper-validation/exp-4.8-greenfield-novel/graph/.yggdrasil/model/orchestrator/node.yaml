@@ -1,8 +1,0 @@
-name: Orchestrator
-type: module
-aspects: [contamination-propagation, temporal-monotonicity]
-blackbox: false
-relations: []
-mapping:
-  paths:
-    - src/orchestrator/

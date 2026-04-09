@@ -1,6 +1,0 @@
-name: Crypto
-type: library
-
-mapping:
-  paths:
-    - packages/payload/src/auth/crypto.ts

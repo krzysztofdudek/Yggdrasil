@@ -1,2 +1,0 @@
-name: Graceful Degradation
-description: When a backing service (e.g. Redis) is unavailable, fail open — allow the request, log a warning, and emit a metric rather than rejecting traffic.

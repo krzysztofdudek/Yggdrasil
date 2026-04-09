@@ -1,3 +1,0 @@
-name: Policy Pattern
-description: "Pluggable strategy classes instantiated per-request, iterable by the view, with base class defining the interface"
-stability: protocol
