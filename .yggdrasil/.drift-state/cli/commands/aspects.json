@@ -1,5 +1,5 @@
 {
-  "hash": "ed05a0d52b4637752ab4f99da1ab510b5eb97dac251676d1753bd2f03fb0684c",
+  "hash": "210ac8d4f46e5b0d365f0109c911c8d7e5fa362cfe20e93cd9232a532e3dfeea",
   "files": {
     ".yggdrasil/model/cli/commands/aspects/yg-node.yaml": "cf87bdc86f785bbaccb347b4fffeb6922e92f16d412a46b265e7f76e79b32230",
     ".yggdrasil/model/cli/commands/aspects/interface.md": "c41057d78e0d98ec1faf33b3b26745aa864920b9b9ed6b8a6d5501bd4fb76bc7",
@@ -11,16 +11,16 @@
     ".yggdrasil/model/cli/commands/internals.md": "5a3b679d5c2b9600c7fa3dc01b2f28661b7bfb11850a922ff885a7a583d455c7",
     ".yggdrasil/model/cli/commands/responsibility.md": "dd8146f9c54251a68f81f4036fdf931d526f3159707709b92a59493fe383a080",
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "20f321091b4f489efbf167feea9d42d73f7cffb21ea2e86958e565b550da164b",
+    ".yggdrasil/aspects/deterministic/content.md": "82a5311abc13d6000f906bbdbd04399b233692256c49819a9cb15f95f988250a",
     ".yggdrasil/model/cli/core/loader/responsibility.md": "291579962b915a399167549cc72d570ef8b0b8f7a781ca854b7ffdb397837cd1",
-    ".yggdrasil/model/cli/core/loader/interface.md": "b9dfb629a0f091626ed4ec945f6d47eb21ee3dcee9407d9d77e628366153875b",
     ".yggdrasil/model/cli/core/responsibility.md": "2c8b1cbd14e89d129322002896ba5b6c6a37f86857e4e324e41141301a086a58",
     ".yggdrasil/model/cli/core/interface.md": "807008eb6f673273034d7d3325a36f37ea1c7a4e46df362e2a4fa9ccd9451de9",
-    ".yggdrasil/model/cli/core/context/responsibility.md": "7c5ec144be0ee88d14a46efd2f641cc2d7536f2b2c7db1064c01210c317b5812",
-    ".yggdrasil/model/cli/core/context/interface.md": "ab19f36aa0be9fc9a3a7966d335670c0db2e9cc7d25e317893a925c8da3d516e",
     ".yggdrasil/flows/graph-analysis/yg-flow.yaml": "6643c01963cfd3731ba76f0a34a34e7ce2ed09e2ae2da793734c59adc4f87624",
     ".yggdrasil/flows/graph-analysis/description.md": "aca097a8ecbf74d140e5deb9ad6113c752d49e193077b0e1d201b7f99da574f4",
     "source/cli/src/cli/aspects.ts": "fe630870b040926e7e179336f417fab50691f6aa1a1222c4c140df066eb99eed",
-    ".yggdrasil/aspects/deterministic/content.md": "82a5311abc13d6000f906bbdbd04399b233692256c49819a9cb15f95f988250a"
+    ".yggdrasil/model/cli/core/loader/interface.md": "ae4dd4d59bb6dbc4a83c0b80df4eb0236dab8564901fad0db89fc9d35dd9de29",
+    ".yggdrasil/model/cli/core/context/responsibility.md": "8db25b19cd124a9b1d6e31255aaef25bc3c8d0b045d31026ee37f81d93d13eff",
+    ".yggdrasil/model/cli/core/context/interface.md": "1e4472f45588bab11c7f41a545e4390d11c82e9fe7febeabbf8b91461f21dc9c"
   },
   "mtimes": {
     ".yggdrasil/model/cli/commands/aspects/yg-node.yaml": 1775639582524.2861,
@@ -35,24 +35,34 @@
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775580563004.8235,
     ".yggdrasil/aspects/deterministic/content.md": 1775655562335.338,
     ".yggdrasil/model/cli/core/loader/responsibility.md": 1775631839971.4595,
-    ".yggdrasil/model/cli/core/loader/interface.md": 1775631851985.6538,
+    ".yggdrasil/model/cli/core/loader/interface.md": 1775678820374.2441,
     ".yggdrasil/model/cli/core/responsibility.md": 1775585790511.578,
     ".yggdrasil/model/cli/core/interface.md": 1772743197442.582,
-    ".yggdrasil/model/cli/core/context/responsibility.md": 1775632241074.1028,
-    ".yggdrasil/model/cli/core/context/interface.md": 1775633120224.766,
+    ".yggdrasil/model/cli/core/context/responsibility.md": 1775678820373.2979,
+    ".yggdrasil/model/cli/core/context/interface.md": 1775678820372.8782,
     ".yggdrasil/flows/graph-analysis/yg-flow.yaml": 1775046079335.846,
     ".yggdrasil/flows/graph-analysis/description.md": 1775046980292.1602,
     "source/cli/src/cli/aspects.ts": 1775640487010.9683
   },
-  "reviewedReason": "cascade from upstream changes",
+  "reviewedReason": "cascade from impact internals + loader/approve fixes",
   "aspectResults": {
     "cli-command-contract": {
       "satisfied": true,
-      "reason": "All cli-command-contract rules are satisfied: (1) Output routing correct—uses process.stdout.write() for results (line 90), process.stderr.write() for errors (lines 94-98), chalk.yellow() for warnings (line 62); (2) Error handling correct—try/catch wraps action body (lines 87-101), ENOENT handled with special message (lines 93-96), general errors handled with standard format (line 98), process.exit(1) on error (line 100); (3) Exit codes correct—process.exit(1) on failure (line 100), implicit 0 on success; (4) Graph loading correct—loadGraph(process.cwd()) called first (line 88); (5) Node path normalization not applicable to this command (no --node parameter)."
+      "reason": "All rules satisfied: (1) Output routing — results go to stdout via `process.stdout.write()` at line 90, errors to stderr via `process.stderr.write()` at lines 94-98, chalk.yellow used for orphaned warning at line 62 consistent with yellow=warning semantic; (2) Error handling — action body wrapped in try/catch at lines 87/91, catch block writes to stderr and calls `process.exit(1)` at lines 92-101, ENOENT handled with special message at lines 93-96; (3) Exit codes — `process.exit(1)` on error at line 100, implicit exit 0 on success; (4) Graph loading — starts with `await loadGraph(process.cwd())` at line 88; (5) Node path normalization — not applicable as this command takes no `--node` option."
     },
     "deterministic": {
       "satisfied": true,
-      "reason": "Code produces identical output for identical graph input. (1) computeAspectUsage (lines 16-50): deterministic iteration through Map and Set data structures; no randomness. (2) formatAspectsOutput (lines 52-80): sorts aspects using localeCompare() (deterministic); builds output deterministically. (3) registerAspectsCommand (lines 82-103): loadGraph() reads filesystem/graph state (deterministic relative to those inputs per aspect exceptions); formatAspectsOutput() is deterministic; no Math.random(), Date.now(), or network calls. initDebugLog() (line 89) is observability output, explicitly allowed by aspect. Sorting at line 56 with localeCompare() ensures deterministic output order regardless of input graph state."
+      "reason": "The file contains no Math.random, Date.now, network calls, or implicit system state. loadGraph reads from filesystem (deterministic relative to filesystem state — permitted by exception 3). computeAspectUsage (aspects.ts:16-50) and formatAspectsOutput (aspects.ts:52-80) are pure functions over the graph — same graph state produces identical output. The sort at aspects.ts:56 uses localeCompare which is deterministic for a given locale. No heuristics or randomness are introduced anywhere in the file."
+    }
+  },
+  "artifactReview": {
+    "interface.md": {
+      "current": true,
+      "reason": "up to date"
+    },
+    "responsibility.md": {
+      "current": true,
+      "reason": "up to date"
     }
   }
 }

@@ -16,4 +16,4 @@ reviewer:
   verify_artifacts: true
   consensus: 1
   claude-code:
-    model: haiku
+    model: sonnet

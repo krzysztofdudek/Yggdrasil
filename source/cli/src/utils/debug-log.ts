@@ -16,7 +16,7 @@ let exitHandler: ((code: number) => void) | null = null;
 export function initDebugLog(yggRoot: string, enabled: boolean): void {
   if (!enabled || logPath !== null) return;
 
-  logPath = path.join(yggRoot, '.debug.log').replace(/\\/g, '/');
+  logPath = path.join(yggRoot, '.debug.log').replace(/\\/g, '/').replace(/\/+$/, '');
   stderrHeaderWritten = false;
 
   // Write header (append — log accumulates across invocations)

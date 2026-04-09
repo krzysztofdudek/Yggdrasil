@@ -75,7 +75,8 @@ describe('validator', () => {
     const result = await validate(graph);
     const configIssue = result.issues.find((i) => i.rule === 'invalid-config');
     expect(configIssue).toBeDefined();
-    expect(configIssue!.message).toBe('Config parse failed');
+    expect(configIssue!.message).toContain('yg-config.yaml failed to parse.');
+    expect(configIssue!.message).toContain('Config parse failed');
   });
 
   it('returns only expected errors for sample-project', async () => {

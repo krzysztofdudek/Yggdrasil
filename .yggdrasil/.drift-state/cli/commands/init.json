@@ -1,5 +1,5 @@
 {
-  "hash": "a0b155aa283f8abb7cb3a0561202871567b992386047eb04917ded8714871c8a",
+  "hash": "b09efc612a78317617e70704f888386d46f35960ef87ed2f0260934ccf7bf603",
   "files": {
     ".yggdrasil/model/cli/commands/init/yg-node.yaml": "1ccbe358f753dd976758e3da060e7927f3531b5467894e55e11877f7538e2f15",
     ".yggdrasil/model/cli/commands/init/responsibility.md": "eb66abd04a148fa8e346e65d17343d32f958db6e3b615d1458ef2dbc7c458fc0",
@@ -13,12 +13,12 @@
     ".yggdrasil/model/cli/templates/interface.md": "6431a31783dd2cddde926df427822041dce7cdee36080e7d0a7fdacba588f938",
     ".yggdrasil/flows/init/yg-flow.yaml": "eb35f927c712f8bae38cb5c5fcd0193432aea2fb7adc5e75f777764300ce3177",
     ".yggdrasil/flows/init/description.md": "7ab06dca456fe57c748e343faba4dff4db88ef73792ab2eaf28298ff595adba0",
-    "source/cli/src/cli/init.ts": "08b0fceefa9cbdab36a3755f2fde6bfe32e415dffaf3ae2027843f7ab6ac81e5",
-    ".yggdrasil/model/cli/commands/init/interface.md": "f5aef041d2c57f551de831763be87172808a890cd361d28235e0d81c13455ee7"
+    "source/cli/src/cli/init.ts": "69db0311194cafc7ba0a694a9073f4cf21b009b6b4d2ccab38ae5348a9d71903",
+    ".yggdrasil/model/cli/commands/init/interface.md": "e01bcbdcbad3012090058a2b67d057f6c4563a896c132f53072670f8f03a6200"
   },
   "mtimes": {
     ".yggdrasil/model/cli/commands/init/yg-node.yaml": 1775639590741.4688,
-    ".yggdrasil/model/cli/commands/init/interface.md": 1775658893702.2952,
+    ".yggdrasil/model/cli/commands/init/interface.md": 1775665759279.0537,
     ".yggdrasil/model/cli/commands/init/responsibility.md": 1775628310259.8274,
     ".yggdrasil/model/cli/yg-node.yaml": 1775639608581.9402,
     ".yggdrasil/model/cli/internals.md": 1775586290475.0237,
@@ -30,7 +30,23 @@
     ".yggdrasil/model/cli/templates/interface.md": 1775648421240.1826,
     ".yggdrasil/flows/init/yg-flow.yaml": 1774035679161.664,
     ".yggdrasil/flows/init/description.md": 1772743197468.9497,
-    "source/cli/src/cli/init.ts": 1775628286466.6614
+    "source/cli/src/cli/init.ts": 1775665529114.3691
   },
-  "reviewedReason": "test coverage additions + lint fix + markdown fix"
+  "reviewedReason": "artifact fixes per reviewer feedback",
+  "aspectResults": {
+    "cli-command-contract": {
+      "satisfied": true,
+      "reason": "All applicable rules satisfied:\n\n1. Output routing: Uses process.stdout.write() for results (lines 121-152, 186-200), process.stderr.write() for errors (lines 79, 86, 97, 106, 115, 173, 202). Chalk semantics correct: green for success (lines 125, 151, 186), red for errors (lines 79, 86, 97, 106, 202), yellow for warnings (line 128).\n\n2. Error handling: Command action body wrapped in try/catch (lines 71-204). Catch block at lines 201-204 follows pattern: process.stderr.write(chalk.red(`Error: ${(err as Error).message}\\n`)) then process.exit(1).\n\n3. Exit codes: process.exit(1) called on failure states (lines 80, 88, 99, 107, 203). Success paths (lines 153, 186-200) return without explicit exit, yielding implicit exit 0. Warnings alone (line 115) do not trigger exit 1.\n\n4. Graph loading: Not applicable—init is a bootstrap command that creates the graph, not loads it.\n\n5. Node path normalization: Not applicable—init accepts --platform and --upgrade, not --node."
+    }
+  },
+  "artifactReview": {
+    "interface.md": {
+      "current": true,
+      "reason": "up to date"
+    },
+    "responsibility.md": {
+      "current": true,
+      "reason": "up to date"
+    }
+  }
 }

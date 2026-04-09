@@ -1,10 +1,10 @@
 {
-  "hash": "1377c90580acbf217c5538ee73b1b1f2b7feb48b53e20a5a13fef2bb49cb45e5",
+  "hash": "4f90d2fe117427037abf62f04b3f347ccd6b9b09f79536e0540b401055d72618",
   "files": {
     ".yggdrasil/model/cli/core/drift-detector/yg-node.yaml": "2af7b221df5d5e9019ab12da5c892e4614a167718c6b84990cef9df8915fd829",
-    ".yggdrasil/model/cli/core/drift-detector/interface.md": "56f4a33df94426f023333db3ce8fab8810da76c5e41c0efd5ab6d12057cc5983",
-    ".yggdrasil/model/cli/core/drift-detector/internals.md": "7b6abbd48f29288de0fd556f29f689acae51568f023d7fc20d976b982737c4e6",
-    ".yggdrasil/model/cli/core/drift-detector/responsibility.md": "1ff36b35535ab9451eaf5b910c224e8f31391b51cf4dcd7f9d0244d46dd7a185",
+    ".yggdrasil/model/cli/core/drift-detector/interface.md": "d53a0750f4677d26e04b58da39194e0dbc2d9a89d9bc2e809aed7e39c5334c6e",
+    ".yggdrasil/model/cli/core/drift-detector/internals.md": "6d926d467d2afeaa091fe882b139a4ac889a297645da41273af39e16b85c8722",
+    ".yggdrasil/model/cli/core/drift-detector/responsibility.md": "5cf52dd0265d3c5b6141ff40e55345a4a6fd30cd64a668e1bd9e16eab1a2bd8f",
     ".yggdrasil/model/cli/yg-node.yaml": "41ddbf73fbc1ee27a28a5ea5ec7ad656ea34f5938284bd5ab4ea7c3afcbbd69b",
     ".yggdrasil/model/cli/internals.md": "6ed08e0ee1a22270af6dcb23306acae750c7e55744a43a17671c4713684f4b91",
     ".yggdrasil/model/cli/responsibility.md": "f35cbcee252f56323379f08b65c38989787e0758c94f5eee2a36188c0260d05d",
@@ -21,21 +21,21 @@
     ".yggdrasil/model/cli/model/responsibility.md": "75b0ef4dc24c77d3683535798fdb62d45a4d7855038f0bb695b3c40ca7719d83",
     ".yggdrasil/model/cli/model/drift/responsibility.md": "1afc578100bf8cdd02411b76ab689d3904858fd7bb7be5d02f24248884cb83c4",
     ".yggdrasil/model/cli/model/drift/interface.md": "d71bbe1bb0645a6a624b10bcdc237925fc5fed9a9ff6971f6de221ffd862506e",
-    ".yggdrasil/model/cli/utils/responsibility.md": "cf25f07f4fac037827f1f9ac69f972edd1d9b72c35d7e9764da5da8189117120",
-    ".yggdrasil/model/cli/utils/interface.md": "cf07a77067667c85df7e8cf7026ba5d6970d314da0c5f5a5de90fa0cb9064f39",
-    ".yggdrasil/model/cli/core/context/responsibility.md": "7c5ec144be0ee88d14a46efd2f641cc2d7536f2b2c7db1064c01210c317b5812",
-    ".yggdrasil/model/cli/core/context/interface.md": "ab19f36aa0be9fc9a3a7966d335670c0db2e9cc7d25e317893a925c8da3d516e",
+    ".yggdrasil/model/cli/utils/responsibility.md": "8bcb1c430f925368c68311e031344a6874362bbc32cc3ccf6ca904a00f0a92b6",
+    ".yggdrasil/model/cli/utils/interface.md": "a6aba244e5d1b32e6c74c4422715fb3a973a80c2faacec6ae0c715dcb6127ba0",
+    ".yggdrasil/model/cli/core/context/responsibility.md": "8db25b19cd124a9b1d6e31255aaef25bc3c8d0b045d31026ee37f81d93d13eff",
+    ".yggdrasil/model/cli/core/context/interface.md": "1e4472f45588bab11c7f41a545e4390d11c82e9fe7febeabbf8b91461f21dc9c",
     ".yggdrasil/flows/drift/yg-flow.yaml": "da4da5c6f03dd0c258ec17f8eb23161ca54f0f3613bc2e238d46d5ad8786fb24",
     ".yggdrasil/flows/drift/description.md": "825eff309a04e3a98c703716eaf30fa579c278b192582da5599e7486427e4596",
     ".yggdrasil/flows/preflight/yg-flow.yaml": "c26dbdb9b515a781ed3318fbe5b23ff2257b8eda72b5540b0bcacbef0b976cf8",
     ".yggdrasil/flows/preflight/description.md": "20d14b71af13a79417c5faeb5b02194f99445a1a05c9cf0aa1398dc3601edabb",
-    "source/cli/src/core/drift-detector.ts": "d737922ade2c9882ea2187b0f39737eaf94e6903720e5371f2fee3083d284bba"
+    "source/cli/src/core/drift-detector.ts": "9bf0510c2af61932a9c95fbce6d68f0af06c5c6921fc3412d0b18bc22fc4eb18"
   },
   "mtimes": {
     ".yggdrasil/model/cli/core/drift-detector/yg-node.yaml": 1775639600339.7976,
-    ".yggdrasil/model/cli/core/drift-detector/interface.md": 1775631373115.1619,
-    ".yggdrasil/model/cli/core/drift-detector/internals.md": 1775631381375.1333,
-    ".yggdrasil/model/cli/core/drift-detector/responsibility.md": 1775633800746.379,
+    ".yggdrasil/model/cli/core/drift-detector/interface.md": 1775676838177.6099,
+    ".yggdrasil/model/cli/core/drift-detector/internals.md": 1775674968948.2954,
+    ".yggdrasil/model/cli/core/drift-detector/responsibility.md": 1775676439496.1997,
     ".yggdrasil/model/cli/yg-node.yaml": 1775639608581.9402,
     ".yggdrasil/model/cli/internals.md": 1775586290475.0237,
     ".yggdrasil/model/cli/responsibility.md": 1775586232234.4275,
@@ -52,25 +52,39 @@
     ".yggdrasil/model/cli/model/responsibility.md": 1775623848214.9736,
     ".yggdrasil/model/cli/model/drift/responsibility.md": 1775644768009.5757,
     ".yggdrasil/model/cli/model/drift/interface.md": 1775657650100.3916,
-    ".yggdrasil/model/cli/utils/responsibility.md": 1775648438188.4685,
-    ".yggdrasil/model/cli/utils/interface.md": 1775648459128.7744,
-    ".yggdrasil/model/cli/core/context/responsibility.md": 1775632241074.1028,
-    ".yggdrasil/model/cli/core/context/interface.md": 1775633120224.766,
+    ".yggdrasil/model/cli/utils/responsibility.md": 1775673583204.8176,
+    ".yggdrasil/model/cli/utils/interface.md": 1775673572576.178,
+    ".yggdrasil/model/cli/core/context/responsibility.md": 1775674937590.2666,
+    ".yggdrasil/model/cli/core/context/interface.md": 1775676785127.2195,
     ".yggdrasil/flows/drift/yg-flow.yaml": 1775046075093.6372,
     ".yggdrasil/flows/drift/description.md": 1775046955389.6543,
     ".yggdrasil/flows/preflight/yg-flow.yaml": 1775046088280.6543,
     ".yggdrasil/flows/preflight/description.md": 1775046967142.8008,
-    "source/cli/src/core/drift-detector.ts": 1775655304800.3997
+    "source/cli/src/core/drift-detector.ts": 1775676804680.585
   },
-  "reviewedReason": "cascade from types interface restore + pre-existing parser contract",
+  "reviewedReason": "cascade from artifact fixes",
   "aspectResults": {
     "deterministic": {
       "satisfied": true,
-      "reason": "drift-detector.ts satisfies deterministic requirements: (1) No Math.random() or Date.now() calls anywhere in the code; (2) No network calls; (3) All path normalization uses consistent forward-slash conversion (lines 49, 111, 172-174, 202, 224); (4) Determinism depends on filesystem and graph state inputs as documented in aspect exceptions (lines 17-18 for filesystem imports, line 50 for readDriftState, line 65/79 for allPathsMissing); (5) Hash operations delegate to hashTrackedFiles() imported from utils/hash.js (line 14, used at lines 98, 215); (6) Object iteration for fileHashes (line 110) and storedFiles (lines 122-123, 237) is deterministic for string keys in JS; (7) Stored data optimization via storedFileData parameter (lines 95-98, 212-215) is explicitly allowed fallback caching per aspect exceptions; (8) collectTrackedFiles() call (lines 90, 208) produces deterministic output given same graph state."
+      "reason": "drift-detector.ts contains two functions (detectDrift, syncDriftState) and three helpers that all satisfy determinism requirements. No Math.random() or Date.now() calls in core logic (no timestamps in outputs). All path operations use deterministic normalization via trim()+replace (lines 49, 111, 172-173, 179, 202, 224). Hash operations use SHA-256 via hashTrackedFiles (lines 98, 215, interface dependency). File categorization via categorizeFile (line 171) is pure and deterministic. Filesystem reads for drift state (lines 50, 211) and file existence checks (line 181) fall under determinism exception (3)—they are deterministic relative to filesystem state. No network calls, no heuristics beyond declared mappings. Same graph state + filesystem state produces identical output."
     },
     "posix-paths": {
       "satisfied": true,
-      "reason": "All path normalization rules are consistently applied. Line 49 normalizes the filter path; lines 111, 173 normalize file paths; lines 172, 224 normalize the ygg prefix; line 202 normalizes the node path. Each normalization uses the required pattern: trim().replace(/\\\\/g, '/').replace(/\\/+$/, ''). Path comparisons always use normalized forms (lines 54, 174, 229, 239). The code also delegates to normalizeMappingPaths() from utils for other path normalizations (lines 28, 35, 59)."
+      "reason": "All path handling in drift-detector.ts follows the POSIX paths normalization pattern. Backslash replacement with forward slashes is applied at: lines 49, 111, 172, 173, 179, 202, 224. Trailing slash removal and whitespace trimming follow the pattern `.trim().replace(/\\\\/g, '/').replace(/\\/+$/, '')` at lines 49, 111, 172, 173, 179, 202, 224. Path comparisons consistently use normalized forms: line 38 (startsWith with normalized paths), line 54 (normalizedFilter comparison), line 112 (normalized filePath lookup), lines 229/239 (startsWith with yggPrefix). All raw file paths are normalized before storage or comparison. Code also delegates to normalizeMappingPaths utility (lines 28, 35, 59) which handles its own normalization. No raw/unnormalized paths are used in comparisons or storage."
+    }
+  },
+  "artifactReview": {
+    "interface.md": {
+      "current": true,
+      "reason": "up to date"
+    },
+    "internals.md": {
+      "current": true,
+      "reason": "up to date"
+    },
+    "responsibility.md": {
+      "current": true,
+      "reason": "up to date"
     }
   }
 }

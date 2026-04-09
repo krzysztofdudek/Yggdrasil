@@ -108,7 +108,7 @@ Does this code satisfy the aspect requirements?`;
       ? `\n<type-rules type="${params.nodeType}">\n${params.qualityProfile}\n</type-rules>\n`
       : '';
     const ruleInteraction = params.qualityProfile
-      ? `\n<rule-interaction>\nType-specific rules REFINE general rules — they do not override them.\nWhen a type rule says "output format IS the contract", it means the general\nrule "don't restate observable behavior" does NOT apply to output format\nfor this node type.\n</rule-interaction>\n`
+      ? `\n<rule-interaction>\nType-specific rules OVERRIDE general rules where they conflict.\nWhen evaluating an artifact, apply type-specific rules FIRST.\nOnly apply general rules for aspects not covered by type-specific rules.\n</rule-interaction>\n`
       : '';
     const contextSection = params.nodeContext
       ? `  <context>\n${params.nodeContext}\n  </context>`

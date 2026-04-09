@@ -2,14 +2,14 @@
 
 ## Decisions
 
-Chose stable error codes (E001-E058, W001-W017) as machine-readable identifiers. CI pipelines and automation match on codes rather than fragile message text. New rules receive the next available code.
+- **Stable error codes as machine-readable identifiers.** CI and automation match on codes, not message text. Rejected: human-readable-only messages — breaks automation.
 
-Chose to separate informational budget warnings (W005/W006 with per-category breakdown) from actionable own-budget warning (W015). Agents need different responses: W005/W006 require diagnosis (maybe dependencies are the problem), while W015 requires action (split the node). The previous single W005 approach was interpreted by agents as permission to delete artifact content.
+- **Separate budget warnings W001 (overall) from W002 (own-node).** Agents need different responses: W001 may be caused by dependencies, W002 requires splitting the node itself. Rejected: single code — agents deleted artifact content instead of splitting nodes.
 
-Chose to consolidate E003, E035 into E050 (dangling-aspect-ref) — one code for "aspect doesn't exist" regardless of where it's referenced (node, flow, architecture type, port).
+- **Consolidate dangling aspect references into E050.** One code for "aspect doesn't exist" regardless of where referenced. Rejected: separate codes per location — same fix, unnecessary complexity.
 
-Chose to remove E037/E040/E041 (regex proof system) and move semantic verification to approve-time LLM (E055/E056). Deterministic regex matching was too brittle for aspect compliance checking.
+- **Remove regex proof system (E037/E040/E041).** Replaced by LLM-based aspect verification at approve time (E055). Rejected: keeping regex — too brittle for semantic compliance checking.
 
-Chose to tolerate cycles involving blackbox nodes in E008 — blackbox nodes are opaque and breaking on their cycles would prevent validating the rest of the graph.
+- **Tolerate cycles involving blackbox nodes in E008.** Blackbox nodes are opaque. Rejected: breaking on blackbox cycles — prevents validating the rest of the graph.
 
-Chose to rewrite E053 for per-consumed-port validation: if node A consumes port X of node B and port X requires aspect Y, Y must exist. Structural only — semantic verification happens at approve via E055.
+- **E053 per-consumed-port validation.** Structural only — if node A consumes port X and port X requires aspect Y, Y must exist in aspects/. Semantic check happens at approve via E055. Rejected: semantic validation at check time — too expensive without LLM.

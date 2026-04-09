@@ -1,24 +1,20 @@
 # Validator Interface
 
-## `validate(graph, scope?): Promise<ValidationResult>`
+## Validating the full graph
 
-Validates the graph and returns all issues found.
+Call `validate(graph)` with no scope to validate the entire graph. Returns a `ValidationResult` containing all issues found across all nodes, plus `nodesScanned` for progress reporting. All errors and warnings are in `issues` — no throws. Use this when you need a complete picture of graph health (e.g. `yg check`).
 
-- `graph: Graph` — loaded graph
-- `scope: string` — `'all'` (default) or a node path to filter issues to that node
+## Validating a specific node scope
 
-Returns `ValidationResult` with `issues: ValidationIssue[]` and `nodesScanned: number`.
+Call `validate(graph, nodePath)` to filter issues to a single node and its artifacts. Issues unrelated to that node are excluded from the result. When the node path does not exist, returns a single `invalid-scope` error with `nodesScanned: 0`. Use this when a command operates on one node and only wants that node's issues.
 
-When scope is a node path that doesn't exist, returns a single `invalid-scope` error with `nodesScanned: 0`.
+## Expanding mappings for coverage checks
 
-## `expandMappingToFiles(projectRoot, mappingPaths): Promise<string[]>`
+Call `expandMappingToFiles(projectRoot, mappingPaths)` to resolve a list of mapping entries (files or directories) to a flat list of contained file paths. Use this when computing which source files a node covers — drift detection and hash computation both rely on the expanded list.
 
-Expands a list of mapping entries (files or directories) to a flat list of contained file paths. Applies hierarchical `.gitignore` filtering. Used by drift detection and hash computation outside of validation.
-
-- Throws if a mapping entry path type is unsupported.
-- Propagates filesystem errors (ENOENT, EACCES).
+Hidden entries (names starting with `.`) and `node_modules` directories are always excluded. `.gitignore` filtering is NOT applied — only these two hardcoded rules govern exclusions. Filesystem errors (ENOENT, EACCES, etc.) are silently swallowed; inaccessible paths are skipped without surfacing an error.
 
 ## Failure Modes
 
-- `validate`: no throws — all issues returned in `ValidationResult.issues`. `buildContext` failure during budget check is caught and skipped.
-- `expandMappingToFiles`: throws on unsupported path type or filesystem error.
+- `validate`: never throws — all issues are returned in `ValidationResult.issues`.
+- `expandMappingToFiles`: never throws — filesystem errors are silently ignored.

@@ -1,23 +1,28 @@
 # LLM Provider — Interface
 
-**`createLlmProvider(config: LlmConfig): LlmProvider`** — factory. Returns `OllamaProvider` or `ClaudeCodeProvider` based on `config.provider`. Throws on unknown provider name.
+**Provider factory:** `createLlmProvider(config)` — returns an `OllamaProvider` or `ClaudeCodeProvider` based on `config.provider`. Throws on unknown provider name.
 
-**`LlmProvider` interface:**
+**Connectivity check:** `isAvailable()` — callers invoke before verification to avoid spending time on a provider that cannot respond.
 
-- `needsChunking: boolean` — `true` for API providers (Ollama): source content must be inlined in prompts. `false` for CLI providers (claude-code): provider reads files itself via subprocess. Callers adapt chunking strategy from this flag.
-- `verifyAspect(params): Promise<AspectResponse>` — checks whether source files satisfy an aspect. Returns `{ satisfied: boolean, reason: string }`.
-- `reviewArtifact(params): Promise<ArtifactResponse>` — checks whether an artifact is current. Returns `{ current: boolean, reason: string }`.
-- `isAvailable(): Promise<boolean>` — connectivity check before invoking verification.
-- `getContextWindowSize(): Promise<number | undefined>` — meaningful for Ollama (reads from model info API); always returns `undefined` for claude-code.
+**Context window:** `getContextWindowSize()` — meaningful for API providers (Ollama reads from model info API); always returns `undefined` for CLI providers (claude-code). Callers use this to compute safe chunk sizes when `needsChunking` is true.
 
-**Provider differences that matter to callers:**
+## Aspect verification
 
-- Ollama inlines source content into HTTP request bodies; chunking guards against context overflow. `getContextWindowSize()` enables callers to compute safe chunk sizes.
-- claude-code spawns a subprocess (`claude --print`) with file paths in the prompt; no chunking needed. Fallback responses on spawn error or timeout prevent caller try/catch.
+`verifyAspects(params)` — checks whether source files satisfy an aspect. Returns `{ satisfied: boolean, reason: string }`. Uses consensus voting across multiple calls; majority wins. API providers (Ollama) receive source content inlined in the request body; chunk size is computed from `getContextWindowSize()`. CLI providers (claude-code) receive file paths; the subprocess reads files directly — no chunking needed.
 
-**Failure contract:** All verification calls return safe fallbacks (`satisfied: false` / `current: false`) rather than throwing. Callers never need try/catch around verify calls.
+## Artifact review
+
+`reviewArtifacts(params)` — checks whether an artifact is current. Returns `{ current: boolean, reason: string }`. API providers receive file content in chunks; the first stale result short-circuits remaining chunks. CLI providers issue a single call with file paths; no chunking.
+
+## Provider capability flag
+
+`needsChunking: boolean` — `true` for API providers, `false` for CLI providers. Callers adapt their strategy from this flag before invoking verification or review.
+
+## Failure contract
+
+All verification and review calls return safe fallbacks (`satisfied: false` / `current: false`) rather than throwing. Callers never need try/catch around verify or review calls.
 
 ## Failure Modes
 
 - Unknown provider name: throws from factory.
-- Provider unavailable or timed out: verification returns fallback response.
+- Provider unavailable or timed out: verification and review return fallback responses.

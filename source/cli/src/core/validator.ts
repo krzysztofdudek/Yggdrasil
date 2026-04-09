@@ -18,7 +18,11 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
       severity: 'error',
       code: 'E009',
       rule: 'invalid-config',
-      message: graph.configError,
+      message: buildIssueMessage({
+        what: 'yg-config.yaml failed to parse.',
+        why: graph.configError,
+        next: 'Fix the syntax error in .yggdrasil/yg-config.yaml.',
+      }),
     });
   }
 
@@ -27,7 +31,11 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
       severity: 'error',
       code: 'E001',
       rule: 'invalid-node-yaml',
-      message,
+      message: buildIssueMessage({
+        what: `yg-node.yaml parse error in ${nodePath}.`,
+        why: message,
+        next: `Fix the YAML in .yggdrasil/model/${nodePath}/yg-node.yaml.`,
+      }),
       nodePath,
     });
   }

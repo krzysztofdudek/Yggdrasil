@@ -1,15 +1,13 @@
 # Context Builder Interface
 
-Callers follow one of two paths depending on whether they have a node path or a file path:
+**Primary entry point:** `buildContext` assembles the full ContextPackage via 6-layer composition (global → hierarchy → own → relational → flows → aspects). Commands don't call this directly — they use the formatter-facing functions below.
 
-**Node path → `buildNodeContextData(graph, nodePath)`** returns everything an agent needs before working on a node: which aspects to satisfy, which dependencies to check, which flows the node participates in, and the token budget. The `yg context --node` command renders this.
+**For commands:** `buildNodeContextData` (when you have a node path — full context for `yg context --node`) and `buildFileContextData` (when you have a file path — narrow per-file view for `yg context --file`). These build formatter-facing data structures directly from the graph — they do not consume ContextPackage.
 
-**File path → `buildFileContextData(graph, filePath, nodePath)`** returns the narrow view for a specific file: which aspects apply, which dependencies it consumes. The `yg context --file` command renders this.
-
-**Cross-cutting queries** used by multiple commands: `collectEffectiveAspectIds` resolves the complete aspect set (own + inherited + flow + implied) — authoritative for check, approve, aspects, and impact. `collectTrackedFiles` returns all files a node tracks for drift — each tagged with its layer, which drives E020 vs E021 classification.
+**Cross-cutting queries:** `collectEffectiveAspectIds` resolves the complete aspect set for a node — authoritative source used by check, approve, aspects, and impact. `collectTrackedFiles` returns all files tracked for drift with layer classification driving E020 vs E021.
 
 ## Failure Modes
 
-- Node not found: throws — caller provided an invalid path.
-- Broken relation target: throws — graph has a dangling reference that must be fixed before context can be assembled.
-- Aspect implies cycle: throws — circular implies chain detected.
+- Node not found: throws.
+- Broken relation target: throws.
+- Aspect implies cycle: throws.

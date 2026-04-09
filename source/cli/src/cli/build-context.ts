@@ -177,7 +177,11 @@ export function registerBuildCommand(program: Command): void {
         const err = error as NodeJS.ErrnoException;
         if (err.code === 'ENOENT') {
           process.stderr.write(
-            chalk.red(`Error: No .yggdrasil/ directory found. Run 'yg init' first.\n`),
+            chalk.red(buildIssueMessage({
+              what: 'No .yggdrasil/ directory found.',
+              why: 'Yggdrasil is not initialized in this project.',
+              next: "Run 'yg init' to initialize.",
+            }) + '\n'),
           );
         } else {
           process.stderr.write(chalk.red(`Error: ${(error as Error).message}\n`));

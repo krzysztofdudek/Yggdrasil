@@ -1,9 +1,7 @@
 {
-  "hash": "2e75c2e7c70509f4a2aa8ebc31d4625e02853cce8e5d6d995f69fe20a930fe8f",
+  "hash": "19bfa22276831f5c80cc3b8c386042976bd8d5a417dc5bf767f7f436135a7351",
   "files": {
     ".yggdrasil/model/cli/core/loader/yg-node.yaml": "4ebc935b61c421bbf82d13e1ff9e8fa2c13966e40b58fcb4c68b1a8a9c411248",
-    ".yggdrasil/model/cli/core/loader/interface.md": "b9dfb629a0f091626ed4ec945f6d47eb21ee3dcee9407d9d77e628366153875b",
-    ".yggdrasil/model/cli/core/loader/internals.md": "0b37ac99469fc5d15f377475f7d2b6502063f987e7253a15b9f3319dd81089ea",
     ".yggdrasil/model/cli/core/loader/responsibility.md": "291579962b915a399167549cc72d570ef8b0b8f7a781ca854b7ffdb397837cd1",
     ".yggdrasil/model/cli/yg-node.yaml": "41ddbf73fbc1ee27a28a5ea5ec7ad656ea34f5938284bd5ab4ea7c3afcbbd69b",
     ".yggdrasil/model/cli/internals.md": "6ed08e0ee1a22270af6dcb23306acae750c7e55744a43a17671c4713684f4b91",
@@ -19,9 +17,8 @@
     ".yggdrasil/model/cli/io/responsibility.md": "c311c9990b76a3c3497a88107383e48032d23aa06a6a3e36d18b80bc1429b9a3",
     ".yggdrasil/model/cli/io/interface.md": "bc7f250a251a6b5b442549c3d2cdd20ea3dbda75cbb11b52209db28eed995233",
     ".yggdrasil/model/cli/model/graph/responsibility.md": "2603018f04051476704dc7b40e6cf072242e2f894b4d32899866b48331b05002",
+    ".yggdrasil/model/cli/model/graph/interface.md": "578cc61a3aa59f20a669f93e478eca480a0e15eb5343d5a5b6d3406fb45b4c0c",
     ".yggdrasil/model/cli/model/responsibility.md": "75b0ef4dc24c77d3683535798fdb62d45a4d7855038f0bb695b3c40ca7719d83",
-    ".yggdrasil/model/cli/utils/responsibility.md": "cf25f07f4fac037827f1f9ac69f972edd1d9b72c35d7e9764da5da8189117120",
-    ".yggdrasil/model/cli/utils/interface.md": "cf07a77067667c85df7e8cf7026ba5d6970d314da0c5f5a5de90fa0cb9064f39",
     ".yggdrasil/flows/build-context/yg-flow.yaml": "ad7b1fd9f74aacd66fe207b87d611c0b39f13903cc2737f6b0a971c110e07359",
     ".yggdrasil/flows/build-context/description.md": "60e4619e480293f028a1c2b756ce30c8800adc613dc9c64e6bd6ef7f3d5fcf87",
     ".yggdrasil/flows/drift/yg-flow.yaml": "da4da5c6f03dd0c258ec17f8eb23161ca54f0f3613bc2e238d46d5ad8786fb24",
@@ -35,12 +32,15 @@
     ".yggdrasil/flows/validate/yg-flow.yaml": "ac7d3e18c4d443b113e4883426d03a35af4f3d8a6f92e97803eb6b8ef8d3efb5",
     ".yggdrasil/flows/validate/description.md": "e361415e9567de84d0c121dc709aa7b4b13b1bc99725344bd50b67486267dcdb",
     "source/cli/src/core/graph-loader.ts": "3ea198f0f64bfb8108211db8008babf0df7badcc3f6d53e3e278afc5a719dca0",
-    ".yggdrasil/model/cli/model/graph/interface.md": "578cc61a3aa59f20a669f93e478eca480a0e15eb5343d5a5b6d3406fb45b4c0c"
+    ".yggdrasil/model/cli/core/loader/interface.md": "ae4dd4d59bb6dbc4a83c0b80df4eb0236dab8564901fad0db89fc9d35dd9de29",
+    ".yggdrasil/model/cli/core/loader/internals.md": "4a0ab1c39c3958e75ffb4330aeeb292bd254dda0f87bbae7fb2af18e8feacc11",
+    ".yggdrasil/model/cli/utils/responsibility.md": "8bcb1c430f925368c68311e031344a6874362bbc32cc3ccf6ca904a00f0a92b6",
+    ".yggdrasil/model/cli/utils/interface.md": "a6aba244e5d1b32e6c74c4422715fb3a973a80c2faacec6ae0c715dcb6127ba0"
   },
   "mtimes": {
     ".yggdrasil/model/cli/core/loader/yg-node.yaml": 1775639601412.6663,
-    ".yggdrasil/model/cli/core/loader/interface.md": 1775631851985.6538,
-    ".yggdrasil/model/cli/core/loader/internals.md": 1775631870808.14,
+    ".yggdrasil/model/cli/core/loader/interface.md": 1775678820374.2441,
+    ".yggdrasil/model/cli/core/loader/internals.md": 1775678820374.4556,
     ".yggdrasil/model/cli/core/loader/responsibility.md": 1775631839971.4595,
     ".yggdrasil/model/cli/yg-node.yaml": 1775639608581.9402,
     ".yggdrasil/model/cli/internals.md": 1775586290475.0237,
@@ -58,8 +58,8 @@
     ".yggdrasil/model/cli/model/graph/responsibility.md": 1775644738281.31,
     ".yggdrasil/model/cli/model/graph/interface.md": 1775657435624.8142,
     ".yggdrasil/model/cli/model/responsibility.md": 1775623848214.9736,
-    ".yggdrasil/model/cli/utils/responsibility.md": 1775648438188.4685,
-    ".yggdrasil/model/cli/utils/interface.md": 1775648459128.7744,
+    ".yggdrasil/model/cli/utils/responsibility.md": 1775678820377.3147,
+    ".yggdrasil/model/cli/utils/interface.md": 1775678820376.8716,
     ".yggdrasil/flows/build-context/yg-flow.yaml": 1774035679160.1672,
     ".yggdrasil/flows/build-context/description.md": 1773381039567.111,
     ".yggdrasil/flows/drift/yg-flow.yaml": 1775046075093.6372,
@@ -74,15 +74,29 @@
     ".yggdrasil/flows/validate/description.md": 1775046942154.0942,
     "source/cli/src/core/graph-loader.ts": 1775647997921.345
   },
-  "reviewedReason": "cascade from types interface.md restore",
+  "reviewedReason": "artifacts fixed per sonnet feedback",
   "aspectResults": {
     "deterministic": {
       "satisfied": true,
-      "reason": "graph-loader.ts produces deterministic output for identical input. No Math.random() or Date.now() calls in core logic. No network operations. All filesystem operations (readdir, readFile) are deterministic relative to filesystem state. Directory scans are sorted deterministically: line 126 sorts entries with localeCompare for models, line 209 for aspects, line 229 for flows, line 245 for schemas. Fallback values (FALLBACK_CONFIG, fallbackArch) are deterministic constants. Error handling is explicit and repeatable. The code conforms to the aspect's allowances: filesystem reads verify graph-declared paths (deterministic relative to filesystem state), and fallback reads are defensive for optional files."
+      "reason": "The loader satisfies all deterministic rules. No Math.random or Date.now in core logic. No network calls. All filesystem reads are deterministic relative to filesystem state (readdir, readFile on declared paths — covered by exception 3). Directory entries are sorted via localeCompare at graph-loader.ts:126, graph-loader.ts:209, graph-loader.ts:229, graph-loader.ts:245, ensuring stable ordering across platforms. SHA-256 hashing is delegated to cli/utils (not directly called here). Token estimation is not performed in this file. No implicit system state is accessed. The fallback config (graph-loader.ts:28-31) and fallback architecture (graph-loader.ts:90-100) are constant values, not system-state-dependent. Error handling stores messages deterministically. All inputs (projectRoot, options) fully determine outputs given identical filesystem state."
     },
     "silent-missing-files": {
       "satisfied": true,
-      "reason": "All three functions that load optional graph directories follow the silent-missing-files pattern: loadAspects (line 194-202) catches errors and returns [] for missing aspects/, loadFlows (line 226-241) catches readdir errors and returns [] for missing flows/, and loadSchemas (line 243-257) catches readdir errors and returns [] for missing schemas/. The aspect requirement is fully satisfied."
+      "reason": "All three directories covered by the aspect are handled with silent fallbacks. `loadAspects` (line 194-201) wraps the entire scan in try/catch and returns `[]` on any error. `loadFlows` (line 226-241) catches on `readdir` failure at line 228-231 and returns `[]`. `loadSchemas` (line 243-257) wraps everything in try/catch and returns `[]` on failure. The drift-state store is not in this node's source file, so it is out of scope here. All three graph-loader targets named in the aspect (`aspects/`, `flows/`, `schemas/`) correctly treat missing directories as empty state rather than throwing."
+    }
+  },
+  "artifactReview": {
+    "interface.md": {
+      "current": true,
+      "reason": "up to date"
+    },
+    "internals.md": {
+      "current": true,
+      "reason": "up to date"
+    },
+    "responsibility.md": {
+      "current": true,
+      "reason": "up to date"
     }
   }
 }

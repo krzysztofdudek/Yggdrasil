@@ -1,10 +1,10 @@
 {
-  "hash": "2440dd855d561bd2ce438933979b4d5932917e8d836db9a64e6808cef729315b",
+  "hash": "9d865f1d36b04a4a858214ae8d93ea57b628e19913db6566fc07e963a0aa6b8f",
   "files": {
     ".yggdrasil/model/cli/core/validator/yg-node.yaml": "962861483bd2d6a4786478a687f9b33af08b91aee8bc7447cfdc9a12f4153423",
-    ".yggdrasil/model/cli/core/validator/interface.md": "5d9105f184ce039beaa2a0e63b3736c2002af07c72953596260fb511b653e419",
-    ".yggdrasil/model/cli/core/validator/internals.md": "418c277b037c552533aa14147f5c18898b0b128279b8af9f7d207c481d9ed315",
-    ".yggdrasil/model/cli/core/validator/responsibility.md": "d162b30bb412827a6c6bc7472256497c56dadcc5065b23fb2d2b1cf8c1c20a60",
+    ".yggdrasil/model/cli/core/validator/interface.md": "3ff821d6807f1f967eaa017e81635b27510226ed9a291454c8f18103f4830ee7",
+    ".yggdrasil/model/cli/core/validator/internals.md": "96a87a410cab6e9ae2112f9e6afb1920cf4aad11c008342b0280f32a23be8814",
+    ".yggdrasil/model/cli/core/validator/responsibility.md": "e9e468892fb7b1a874f393dc133a22d7c1a13ee74a5c1cd2a1c542063da3917d",
     ".yggdrasil/model/cli/yg-node.yaml": "41ddbf73fbc1ee27a28a5ea5ec7ad656ea34f5938284bd5ab4ea7c3afcbbd69b",
     ".yggdrasil/model/cli/internals.md": "6ed08e0ee1a22270af6dcb23306acae750c7e55744a43a17671c4713684f4b91",
     ".yggdrasil/model/cli/responsibility.md": "f35cbcee252f56323379f08b65c38989787e0758c94f5eee2a36188c0260d05d",
@@ -16,29 +16,29 @@
     ".yggdrasil/aspects/posix-paths/content.md": "38daf50dec99307443fd8951019cf534c74571a7778d43e55a4354d9d2faeefc",
     ".yggdrasil/aspects/what-why-next/yg-aspect.yaml": "3dc44ca9f217265beaf528bbfd13720e77985be4ec8fae0ce1f2c044968c8faf",
     ".yggdrasil/aspects/what-why-next/content.md": "d6895f344703a2712d6f6dabf4eaefd903cab07aa9c433581ab27f41ccc3ae06",
-    ".yggdrasil/model/cli/core/context/responsibility.md": "7c5ec144be0ee88d14a46efd2f641cc2d7536f2b2c7db1064c01210c317b5812",
-    ".yggdrasil/model/cli/core/context/interface.md": "ab19f36aa0be9fc9a3a7966d335670c0db2e9cc7d25e317893a925c8da3d516e",
+    ".yggdrasil/model/cli/core/context/responsibility.md": "8db25b19cd124a9b1d6e31255aaef25bc3c8d0b045d31026ee37f81d93d13eff",
+    ".yggdrasil/model/cli/core/context/interface.md": "1e4472f45588bab11c7f41a545e4390d11c82e9fe7febeabbf8b91461f21dc9c",
     ".yggdrasil/model/cli/model/graph/responsibility.md": "2603018f04051476704dc7b40e6cf072242e2f894b4d32899866b48331b05002",
     ".yggdrasil/model/cli/model/graph/interface.md": "578cc61a3aa59f20a669f93e478eca480a0e15eb5343d5a5b6d3406fb45b4c0c",
     ".yggdrasil/model/cli/model/responsibility.md": "75b0ef4dc24c77d3683535798fdb62d45a4d7855038f0bb695b3c40ca7719d83",
     ".yggdrasil/model/cli/model/validation/responsibility.md": "d7eb400dc917816a1883aee81eb39f8ef4e7ce47238d862083ca54f64895bf77",
     ".yggdrasil/model/cli/model/validation/interface.md": "5eca76f14f76ec1ec4eb4fba0c9d156bca4e0521fcf1f64f36ca9c42ed5b1dee",
-    ".yggdrasil/model/cli/utils/responsibility.md": "cf25f07f4fac037827f1f9ac69f972edd1d9b72c35d7e9764da5da8189117120",
-    ".yggdrasil/model/cli/utils/interface.md": "cf07a77067667c85df7e8cf7026ba5d6970d314da0c5f5a5de90fa0cb9064f39",
+    ".yggdrasil/model/cli/utils/responsibility.md": "8bcb1c430f925368c68311e031344a6874362bbc32cc3ccf6ca904a00f0a92b6",
+    ".yggdrasil/model/cli/utils/interface.md": "a6aba244e5d1b32e6c74c4422715fb3a973a80c2faacec6ae0c715dcb6127ba0",
     ".yggdrasil/flows/build-context/yg-flow.yaml": "ad7b1fd9f74aacd66fe207b87d611c0b39f13903cc2737f6b0a971c110e07359",
     ".yggdrasil/flows/build-context/description.md": "60e4619e480293f028a1c2b756ce30c8800adc613dc9c64e6bd6ef7f3d5fcf87",
     ".yggdrasil/flows/preflight/yg-flow.yaml": "c26dbdb9b515a781ed3318fbe5b23ff2257b8eda72b5540b0bcacbef0b976cf8",
     ".yggdrasil/flows/preflight/description.md": "20d14b71af13a79417c5faeb5b02194f99445a1a05c9cf0aa1398dc3601edabb",
     ".yggdrasil/flows/validate/yg-flow.yaml": "ac7d3e18c4d443b113e4883426d03a35af4f3d8a6f92e97803eb6b8ef8d3efb5",
     ".yggdrasil/flows/validate/description.md": "e361415e9567de84d0c121dc709aa7b4b13b1bc99725344bd50b67486267dcdb",
-    "source/cli/src/core/validator.ts": "5acd0d6c81a2ff974f4af0e34d7d3e6a6ad1ba6845e086d7f133a2ccab3d356d",
+    "source/cli/src/core/validator.ts": "a92865e244c6733a5ec44d18547677fb35113cb14935f30907a5108b27cbe50a",
     "source/cli/src/core/effective-aspects.ts": "a33b5b9d5c2be468a5c86d577057e590818bc818c55f1f3227b28d10982e21f0"
   },
   "mtimes": {
     ".yggdrasil/model/cli/core/validator/yg-node.yaml": 1775639635588.293,
-    ".yggdrasil/model/cli/core/validator/interface.md": 1775648295752.732,
-    ".yggdrasil/model/cli/core/validator/internals.md": 1775631430125.4866,
-    ".yggdrasil/model/cli/core/validator/responsibility.md": 1775631414502.0596,
+    ".yggdrasil/model/cli/core/validator/interface.md": 1775674999023.733,
+    ".yggdrasil/model/cli/core/validator/internals.md": 1775677009097.904,
+    ".yggdrasil/model/cli/core/validator/responsibility.md": 1775675378690.9993,
     ".yggdrasil/model/cli/yg-node.yaml": 1775639608581.9402,
     ".yggdrasil/model/cli/internals.md": 1775586290475.0237,
     ".yggdrasil/model/cli/responsibility.md": 1775586232234.4275,
@@ -50,37 +50,51 @@
     ".yggdrasil/aspects/posix-paths/content.md": 1772743197466.7686,
     ".yggdrasil/aspects/what-why-next/yg-aspect.yaml": 1775639624123.0955,
     ".yggdrasil/aspects/what-why-next/content.md": 1775647944300.92,
-    ".yggdrasil/model/cli/core/context/responsibility.md": 1775632241074.1028,
-    ".yggdrasil/model/cli/core/context/interface.md": 1775633120224.766,
+    ".yggdrasil/model/cli/core/context/responsibility.md": 1775674937590.2666,
+    ".yggdrasil/model/cli/core/context/interface.md": 1775676785127.2195,
     ".yggdrasil/model/cli/model/graph/responsibility.md": 1775644738281.31,
     ".yggdrasil/model/cli/model/graph/interface.md": 1775657435624.8142,
     ".yggdrasil/model/cli/model/responsibility.md": 1775623848214.9736,
     ".yggdrasil/model/cli/model/validation/responsibility.md": 1775623830983.9634,
     ".yggdrasil/model/cli/model/validation/interface.md": 1775657653009.6482,
-    ".yggdrasil/model/cli/utils/responsibility.md": 1775648438188.4685,
-    ".yggdrasil/model/cli/utils/interface.md": 1775648459128.7744,
+    ".yggdrasil/model/cli/utils/responsibility.md": 1775673583204.8176,
+    ".yggdrasil/model/cli/utils/interface.md": 1775673572576.178,
     ".yggdrasil/flows/build-context/yg-flow.yaml": 1774035679160.1672,
     ".yggdrasil/flows/build-context/description.md": 1773381039567.111,
     ".yggdrasil/flows/preflight/yg-flow.yaml": 1775046088280.6543,
     ".yggdrasil/flows/preflight/description.md": 1775046967142.8008,
     ".yggdrasil/flows/validate/yg-flow.yaml": 1775046092444.8713,
     ".yggdrasil/flows/validate/description.md": 1775046942154.0942,
-    "source/cli/src/core/validator.ts": 1775655742200.26,
+    "source/cli/src/core/validator.ts": 1775676870987.0776,
     "source/cli/src/core/effective-aspects.ts": 1775623047550.2239
   },
-  "reviewedReason": "cascade from types interface restore + pre-existing parser contract",
+  "reviewedReason": "retry with sonnet + 120s timeout",
   "aspectResults": {
     "deterministic": {
       "satisfied": true,
-      "reason": "validator.ts and effective-aspects.ts satisfy the deterministic aspect. All core logic uses deterministic operations: pure function composition, graph traversal (deterministic relative to input), set operations, string manipulation, and filesystem reads that verify graph-declared paths (allowed exception). No Math.random, Date.now, or network calls in core logic. Filesystem operations at validator.ts:511-538 (checkMappingPathsExist), validator.ts:900-929 (expandMappingToFiles), and validator.ts:845-896 (checkDirectoriesHaveNodeYaml) are compliant with the 'filesystem reads that verify graph-declared paths exist' exception. All graph traversal in effective-aspects.ts is deterministic (DFS with visited/stack tracking at lines 114-132, stack-based traversal at lines 148-170). Token estimation uses fixed heuristic (imported from context-builder.js). Hash operations use SHA-256 (not visible in these files but delegated to external modules). Same inputs (graph state) produce identical outputs every execution."
+      "reason": "Both files comply with all deterministic aspect rules. effective-aspects.ts (all functions): pure computations — no I/O, no Math.random, no Date.now, no network calls; computeEffectiveAspects and expandImplies are pure DFS/set operations; getAspectSource and computeEffectiveAspectsForConsumer traverse graph state only. validator.ts: no Math.random or Date.now anywhere; no network calls; all async operations are filesystem reads (checkMappingPathsExist:519, checkDirectoriesHaveNodeYaml:853, expandMappingToFiles:908, checkWideNodes:710, checkContextBudget:949) which fall under exception (3) — 'filesystem reads that verify graph-declared paths exist on disk'; pct() at line:1015 uses Math.round which is deterministic; checkDirectoriesHaveNodeYaml sorts readdir output at line:858 ensuring ordering determinism; checkOrphanedAspects fixpoint loop at line:1318 is fully deterministic given fixed graph state; all graph traversals (checkNoCycles, checkImpliesNoCycles, checkRelationTargets, etc.) use Map/Set iteration over passed-in graph data with no external state."
     },
     "posix-paths": {
       "satisfied": true,
-      "reason": "Both source files satisfy all POSIX path rules. (1) In validator.ts:normalizePathForCompare (line 450-452) implements the exact pattern specified: replace(/\\\\/g, '/').replace(/\\/+$/, ''). (2) normalizeMappingPaths (utils/paths.ts line 56) trims whitespace and applies the normalize pattern before storing paths. (3) All path comparisons in checkRelationTargets (line 161-167) use normalized paths from graph.nodes which are guaranteed to be in POSIX format. (4) All mapping paths are normalized before use (line 468-470, 517). (5) effective-aspects.ts contains no path handling—it only deals with aspect computation logic. All internal path operations use forward-slash separators and are normalized before comparison or storage."
+      "reason": "Both source files comply with all posix-paths rules. In validator.ts, `normalizePathForCompare` at line 458-459 implements the canonical pattern (`replace(/\\\\/g, '/').replace(/\\/+$/, '')`) — backslashes replaced, trailing slashes stripped. Path comparisons in `checkMappingOverlap` (line 476-478) always apply `normalizeMappingPaths` (from utils/paths.ts) followed by `normalizePathForCompare` before any equality or `startsWith` comparison, so raw input is never compared directly. The `effective-aspects.ts` file performs no path operations at all — it works only with aspect ID strings and graph structures. Trimming of whitespace is handled upstream by `normalizeMappingPaths` before paths reach `normalizePathForCompare`, satisfying rule 3 at the pipeline level."
     },
     "what-why-next": {
       "satisfied": true,
-      "reason": "All agent-visible diagnostic messages in validator.ts consistently use buildIssueMessage({ what, why, next }) structure. Examples include: checkNodeTypes (line 116-120), checkRelationTargets (line 180-184), checkDanglingAspectRefs (line 208-212, 226-230, 246-250, 264-268), checkImpliedAspectsExist (line 323-327), checkImpliesNoCycles (line 361-365), checkNoCycles (line 422-426), checkMappingOverlap (line 496-499), checkMappingPathsExist (line 527-531), checkRequiredArtifacts (line 605-609), checkBrokenFlowRefs (line 636-640), checkFlowAspectIds (line 661-665), checkShallowArtifacts (line 687-691), checkWideNodes (line 723-727), checkHighFanOut (line 746-750), checkUnpairedEvents (line 786-790, 804-808), checkSchemas (line 831-835), checkDirectoriesHaveNodeYaml (line 865-869), checkContextBudget (line 966-970, 978-982, 992-996), checkMissingDescriptions (line 1024-1028, 1041-1045, 1057-1061), checkArchitectureRelations (line 1154-1158), checkArchitectureParents (line 1186-1190), checkPortAspectsDefined (line 1113-1117), checkPortConsumes (line 1227-1231, 1247-1251, 1265-1269), checkOrphanedAspects (line 1332-1336). The Error thrown in effective-aspects.ts:116 is internal error handling (cycle detection), which is acceptable per the aspect rules for errors without remediation paths. All validation output satisfies the what/why/next structure."
+      "reason": "All diagnostic messages in validator.ts use buildIssueMessage({what, why, next}) consistently. buildIssueMessage is imported at line 7 and every ValidationIssue.message throughout the file (E009, E001, E002, E004, E050, E010, E012, E013, E008, E007, E036, E030, E005, E006, E031, W003, W004, E033, E034, E011, E032, W001, W002, W003, E038, E051, E052, E053, E057, E058, E059, W006) is constructed via buildIssueMessage. All next fields contain concrete runnable commands or actionable instructions. The one passthrough at line 84-90 reuses parseError.message from graph.nodeParseErrors, which is already structured upstream. effective-aspects.ts contains only internal computation logic with no stderr output; its throw new Error() for cycle detection is an internal throw caught by the command handler, which is explicitly exempted by the aspect rules."
+    }
+  },
+  "artifactReview": {
+    "interface.md": {
+      "current": true,
+      "reason": "up to date"
+    },
+    "internals.md": {
+      "current": true,
+      "reason": "up to date"
+    },
+    "responsibility.md": {
+      "current": true,
+      "reason": "up to date"
     }
   }
 }

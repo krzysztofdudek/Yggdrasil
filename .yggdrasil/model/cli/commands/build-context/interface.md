@@ -1,6 +1,6 @@
 # Build Context Command Interface
 
-**Command:** `yg context --node <path>` or `yg context --file <path>` (mutually exclusive, one required).
+**Command:** `yg context --node <path>` or `yg context --file <path>` (mutually exclusive, one required). Also available as `yg build-context` (backward-compatible alias).
 
 **Output contract:** Two modes produce different output shapes by design. `--node` returns the full context package (hierarchy, aspects, flows, dependencies, budget) — everything needed to understand a module before working on it. `--file` returns a narrow view (owning node, applicable aspects, consumed dependencies) — just enough to verify compliance before editing a single file. The owner resolution `<file> -> <node>` goes to stderr so agents can capture it separately from the context output on stdout.
 
@@ -81,6 +81,7 @@ The owner resolution line (`<file> -> <nodePath>`) goes to stderr so agents can 
 
 - No .yggdrasil/ directory: exit 1.
 - Neither --node nor --file: exit 1 with what/why/next guidance.
+- Both --node and --file: exit 1 with what/why/next guidance (mutually exclusive).
 - File unmapped, no candidates: exit 1 with what/why/next guidance suggesting node creation.
 - File unmapped, candidates found: exit 1 listing candidate nodes from same directory with file counts.
 - File in blackbox node: exit 1 with what/why/next guidance to decompose the blackbox.

@@ -109,7 +109,7 @@ export async function detectDrift(graph: Graph, filterNodePath?: string): Promis
     // Check current files against stored
     for (const [rawFilePath, hash] of Object.entries(fileHashes)) {
       const filePath = rawFilePath.trim().replace(/\\/g, '/').replace(/\/+$/, '');
-      const storedHash = storedFiles[rawFilePath] ?? storedFiles[filePath];
+      const storedHash = storedFiles[filePath];
       if (!storedHash || storedHash !== hash) {
         changedFiles.push({
           filePath,
@@ -176,7 +176,7 @@ function categorizeFile(filePath: string, _rootPath: string, projectRoot: string
 
 async function allPathsMissing(projectRoot: string, mappingPaths: string[]): Promise<boolean> {
   for (const mp of mappingPaths) {
-    const absPath = path.join(projectRoot, mp);
+    const absPath = path.join(projectRoot, mp.trim()).replace(/\\/g, '/').replace(/\/+$/, '');
     try {
       await access(absPath);
       return false;

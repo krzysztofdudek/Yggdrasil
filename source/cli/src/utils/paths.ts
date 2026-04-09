@@ -75,7 +75,7 @@ export function toGraphPath(absolutePath: string, yggRoot: string): string {
  * Throws when the target path points outside the project root.
  */
 export function normalizeProjectRelativePath(projectRoot: string, rawPath: string): string {
-  const normalizedInput = rawPath.trim().replace(/\\/g, '/');
+  const normalizedInput = rawPath.trim().replace(/\\/g, '/').replace(/\/+$/, '');
   if (normalizedInput.length === 0) {
     throw new Error('Path cannot be empty');
   }

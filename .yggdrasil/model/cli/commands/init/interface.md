@@ -57,5 +57,5 @@ When already up to date (no migrations needed):
 - .yggdrasil exists but is not a directory: exit 1.
 - Unknown platform: exit 1.
 - Schema copy failure: full init prints warning to stderr and continues; upgrade mode silently ignores the error and continues.
-- Project version newer than CLI (upgrade only): warning to stderr, exit 1.
+- Project version newer than CLI (upgrade only): warning to stderr, continues.
 - Generic I/O errors: exit 1.

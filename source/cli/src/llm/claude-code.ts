@@ -44,7 +44,7 @@ function buildArtifactPrompt(params: ArtifactReviewParams): string {
     ? `\n  <type-rules type="${params.nodeType}">\n${params.qualityProfile}\n  </type-rules>\n`
     : '';
   const ruleInteraction = params.qualityProfile
-    ? `\n  <rule-interaction>\nType-specific rules REFINE general rules — they do not override them.\nWhen a type rule says "output format IS the contract", it means the general\nrule "don't restate observable behavior" does NOT apply to output format\nfor this node type.\n  </rule-interaction>`
+    ? `\n  <rule-interaction>\nType-specific rules OVERRIDE general rules where they conflict.\nWhen evaluating an artifact, apply type-specific rules FIRST.\nOnly apply general rules for aspects not covered by type-specific rules.\n  </rule-interaction>`
     : '';
   const contextSection = params.nodeContext
     ? `  <context>\n${params.nodeContext}\n  </context>`
@@ -125,7 +125,7 @@ export class ClaudeCodeProvider implements LlmProvider {
     return new Promise((resolve) => {
       const child = spawn('claude', ['--model', this.model, '--print'], {
         stdio: ['pipe', 'pipe', 'pipe'],
-        timeout: 60_000,
+        timeout: 120_000,
         cwd,
         env: { ...process.env },
       });
@@ -135,9 +135,9 @@ export class ClaudeCodeProvider implements LlmProvider {
 
       const timer = setTimeout(() => {
         killed = true;
-        debugWrite('[claude-code] timeout after 60s');
+        debugWrite('[claude-code] timeout after 120s');
         child.kill('SIGTERM');
-      }, 60_000);
+      }, 120_000);
 
       child.stdout.on('data', (data: Buffer) => { stdout += data.toString(); });
       child.on('error', () => { clearTimeout(timer); debugWrite('[claude-code] spawn error'); resolve(fallback); });

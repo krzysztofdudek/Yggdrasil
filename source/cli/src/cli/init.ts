@@ -114,7 +114,6 @@ export function registerInitCommand(program: Command): void {
           process.stderr.write(
             chalk.yellow(`Warning: Project version (${projectVersion}) is newer than CLI (${cliVersion}). Upgrade your CLI.\n`),
           );
-          process.exit(1);
         }
 
         // Run migrations if project is older than CLI
