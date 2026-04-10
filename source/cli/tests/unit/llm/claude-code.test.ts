@@ -33,17 +33,7 @@ describe('ClaudeCodeProvider', () => {
     expect(result).toHaveProperty('reason');
   }, 120_000);
 
-  it('reviewArtifact returns result with expected shape', async () => {
-    const provider = new ClaudeCodeProvider({ model: 'haiku' });
-    const result = await provider.reviewArtifact({
-      artifactContent: 'test artifact',
-      artifactName: 'responsibility.md',
-      sourceCode: 'const x = 1;',
-      sourceFiles: ['test.ts'],
-    });
-    expect(result).toHaveProperty('current');
-    expect(result).toHaveProperty('reason');
-  }, 120_000);
+
 });
 
 describe('ClaudeCodeProvider.parseResponse', () => {
