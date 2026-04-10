@@ -8,12 +8,6 @@ export interface AspectVerificationResult {
   reason: string;
 }
 
-/** Cached LLM artifact review result */
-export interface ArtifactReviewResult {
-  current: boolean;
-  reason: string;
-}
-
 // ============================================================
 // Drift
 // ============================================================
@@ -30,26 +24,12 @@ export interface DriftFileChange {
   category: DriftCategory;
 }
 
-export type DriftStatus = 'ok' | 'source-drift' | 'graph-drift' | 'full-drift' | 'missing' | 'unmaterialized';
-
-export interface DriftEntry {
-  nodePath: string;
-  status: DriftStatus;
-  /** Changed files with their category (source or graph) */
-  changedFiles?: DriftFileChange[];
-  details?: string;
-}
+export type NodeLifecycleState = 'ok' | 'missing' | 'unmaterialized';
 
 export interface DriftNodeState {
   hash: string;
   files: Record<string, string>;  // path → sha256 hex — now required, not optional
   mtimes?: Record<string, number>; // path → mtime in ms — for mtime-based drift optimization
-  /** Reason provided with --reviewed, stored for audit trail */
-  reviewedReason?: string;
-  /** Cached aspect verification results from last LLM-powered approve */
-  aspectResults?: Record<string, AspectVerificationResult>;
-  /** Cached artifact review results from last LLM-powered approve */
-  artifactReview?: Record<string, ArtifactReviewResult>;
 }
 
 /** Upstream change with type annotation for CLI messages */
@@ -61,38 +41,17 @@ export interface AnnotatedChange {
 
 /** Result of approveNode() — what happened and why */
 export interface ApproveResult {
-  /** What approve decided */
-  action: 'approved' | 'reviewed' | 'no-change' | 'initial' | 'refused';
-  /** Previous hash (undefined for first approve) */
+  action: 'approved' | 'initial' | 'refused' | 'no-change';
   previousHash?: string;
-  /** Current hash after recording */
   currentHash: string;
-  /** For refused: reason string */
   refuseReason?: string;
-  /** For refused: the three axis states */
-  axes?: {
-    ownArtifacts: 'changed' | 'unchanged';
-    source: 'changed' | 'unchanged';
-    otherTracked: 'changed' | 'unchanged';
-  };
-  /** Changed file details for error messages */
-  changedOwnArtifacts?: string[];
+  aspectViolations?: Array<{ aspectId: string; reason: string }>;
   changedSource?: string[];
-  changedOther?: AnnotatedChange[];
-  /** Unchanged file details for error messages (per CLI messages spec) */
-  unchangedArtifactNames?: string[];
-  unchangedSourceFiles?: string[];
-  /** Was blackbox blocker triggered? */
+  changedUpstream?: AnnotatedChange[];
   blackboxBlocked?: boolean;
-  /** Was anti-laundering triggered? */
   antiLaunderingBlocked?: boolean;
-  /** Conflicting files for anti-laundering message */
   conflictingFiles?: Array<{ file: string; trackedBy: string }>;
-  /** Was --reviewed used when refused? (distinct blackbox message) */
-  reviewedAttempted?: boolean;
-  /** Is the node a blackbox? (for cascade reviewed success message) */
   isBlackbox?: boolean;
-  /** GC'd orphaned drift state paths */
   gcPaths?: string[];
 }
 
@@ -103,20 +62,10 @@ export type DriftState = Record<string, DriftNodeState>;
 export interface AuditEntry {
   ts: string;
   node: string;
-  action: 'approved' | 'reviewed' | 'no-change' | 'initial';
+  action: 'approved' | 'initial';
   prev: string | null;
   hash: string;
   reason: string | null;
   files: string[];
 }
 
-export interface DriftReport {
-  entries: DriftEntry[];
-  totalChecked: number;
-  okCount: number;
-  sourceDriftCount: number;
-  graphDriftCount: number;
-  fullDriftCount: number;
-  missingCount: number;
-  unmaterializedCount: number;
-}
