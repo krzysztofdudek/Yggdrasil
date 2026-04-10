@@ -10,14 +10,13 @@ import { classifyDrift } from '../core/check.js';
 import type { CheckIssue, CascadeCause } from '../core/check.js';
 import { createLlmProvider } from '../llm/provider.js';
 import { verifyAspects } from '../llm/aspect-verifier.js';
-import { reviewArtifacts } from '../llm/artifact-reviewer.js';
 import { loadSecrets, mergeLlmConfig } from '../io/secrets-parser.js';
 import { normalizeMappingPaths } from '../utils/paths.js';
 import { buildNodeContextData } from '../core/context-builder.js';
 import { formatNodeContext } from '../formatters/context-node.js';
 import { writeNodeDriftState } from '../io/drift-state-store.js';
 import type { LlmProvider } from '../llm/types.js';
-import type { ApproveResult, AspectVerificationResult, ArtifactReviewResult } from '../model/drift.js';
+import type { ApproveResult, AspectVerificationResult } from '../model/drift.js';
 import type { Graph } from '../model/graph.js';
 
 // Track cloud provider notice per process session
@@ -106,9 +105,7 @@ export async function runLlmVerification(
   }
 
   let aspectResults: Record<string, AspectVerificationResult> | undefined;
-  let artifactReviewResults: Record<string, ArtifactReviewResult> | undefined;
   const e055Violations: Array<{ aspect: string; reason: string }> = [];
-  const e056Violations: Array<{ name: string; reason: string }> = [];
 
   if ((llmConfig.verifyAspects) && aspects.length > 0) {
     aspectResults = await verifyAspects({
@@ -129,41 +126,19 @@ export async function runLlmVerification(
     }
   }
 
-  if (llmConfig.verifyArtifacts && artifacts.length > 0 && sourceFiles.length > 0) {
-    const nodeTypeDef = graph.architecture?.node_types[node.meta.type];
-    artifactReviewResults = await reviewArtifacts({
-      provider,
-      artifacts,
-      sourceFiles,
-      maxTokens: resolvedMaxTokens,
-      nodePath,
-      nodeType: node.meta.type,
-      qualityProfile: nodeTypeDef?.quality_profile,
-      nodeContext,
-      projectRoot,
-    });
-    for (const [name, review] of Object.entries(artifactReviewResults)) {
-      if (!review.current) {
-        e056Violations.push({ name, reason: review.reason });
-      }
-    }
-  }
-
   // If violations found, override to refused
-  if (e055Violations.length > 0 || e056Violations.length > 0) {
+  if (e055Violations.length > 0) {
     return {
       ...result,
       action: 'refused',
       refuseReason: 'Reviewer verification found issues',
       aspectResults,
-      artifactReviewResults,
       e055Violations,
-      e056Violations,
     };
   }
 
   // Update drift state with LLM results
-  if (aspectResults || artifactReviewResults) {
+  if (aspectResults) {
     try {
       const { readNodeDriftState } = await import('../io/drift-state-store.js');
       const storedEntry = await readNodeDriftState(graph.rootPath, nodePath);
@@ -171,7 +146,6 @@ export async function runLlmVerification(
         await writeNodeDriftState(graph.rootPath, nodePath, {
           ...storedEntry,
           ...(aspectResults ? { aspectResults } : {}),
-          ...(artifactReviewResults ? { artifactReview: artifactReviewResults } : {}),
         });
       }
     } catch (err) {
@@ -182,7 +156,6 @@ export async function runLlmVerification(
   return {
     ...result,
     aspectResults,
-    artifactReviewResults,
   };
 }
 

@@ -1,31 +1,12 @@
-import type { LlmProvider, AspectResponse, ArtifactResponse, AspectVerifyParams, ArtifactReviewParams } from './types.js';
+import type { LlmProvider, AspectResponse, AspectVerifyParams } from './types.js';
 import { debugWrite } from '../utils/debug-log.js';
 import type { LlmConfig } from '../model/graph.js';
-import { ARTIFACT_GUIDANCE } from './artifact-guidance.js';
 
 const ASPECT_SYSTEM_PROMPT = `<role>
 You verify whether source code satisfies an architectural aspect.
 Respond with EXACTLY this JSON format, nothing else:
 {"satisfied": true|false, "reason": "explanation with specific file references"}
 </role>`;
-
-const ARTIFACT_SYSTEM_PROMPT = `<role>
-You review whether a graph artifact is current and follows quality guidelines.
-</role>
-
-<rules>
-  <general-rules>
-${ARTIFACT_GUIDANCE}
-  </general-rules>
-</rules>
-
-<task>
-CURRENT = artifact captures knowledge source code cannot express, follows all rules.
-STALE = artifact contradicts source, violates rules, or is missing knowledge it should capture.
-
-Respond with EXACTLY this JSON, nothing else:
-{"current": true|false, "reason": "explanation"}
-</task>`;
 
 export class OllamaProvider implements LlmProvider {
   readonly needsChunking = true;
@@ -101,40 +82,6 @@ ${params.sourceCode}
 Does this code satisfy the aspect requirements?`;
 
     return this.chat<AspectResponse>(ASPECT_SYSTEM_PROMPT, userPrompt, { satisfied: false, reason: 'LLM response could not be parsed' });
-  }
-
-  async reviewArtifact(params: ArtifactReviewParams): Promise<ArtifactResponse> {
-    const typeRulesSection = params.qualityProfile
-      ? `\n<type-rules type="${params.nodeType}">\n${params.qualityProfile}\n</type-rules>\n`
-      : '';
-    const ruleInteraction = params.qualityProfile
-      ? `\n<rule-interaction>\nType-specific rules OVERRIDE general rules where they conflict.\nWhen evaluating an artifact, apply type-specific rules FIRST.\nOnly apply general rules for aspects not covered by type-specific rules.\n</rule-interaction>\n`
-      : '';
-    const contextSection = params.nodeContext
-      ? `  <context>\n${params.nodeContext}\n  </context>`
-      : '';
-    const nodeSection = params.nodePath
-      ? `\n<node path="${params.nodePath}" type="${params.nodeType ?? 'unknown'}">\n${contextSection}\n</node>\n`
-      : '';
-
-    const rulesSection = typeRulesSection
-      ? `<rules>\n${typeRulesSection}${ruleInteraction}\n</rules>\n`
-      : '';
-
-    const userPrompt = `${rulesSection}${nodeSection}
-<review-target>
-  <artifact name="${params.artifactName}">
-${params.artifactContent}
-  </artifact>
-</review-target>
-
-<source-files>
-${params.sourceCode}
-</source-files>
-
-Does this artifact follow the quality guidelines?`;
-
-    return this.chat<ArtifactResponse>(ARTIFACT_SYSTEM_PROMPT, userPrompt, { current: false, reason: 'LLM response could not be parsed' });
   }
 
   private async chat<T>(system: string, user: string, fallback: T): Promise<T> {

@@ -1,9 +1,8 @@
 import { spawn } from 'node:child_process';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import type { LlmProvider, AspectResponse, ArtifactResponse, AspectVerifyParams, ArtifactReviewParams } from './types.js';
+import type { LlmProvider, AspectResponse, AspectVerifyParams } from './types.js';
 import { debugWrite } from '../utils/debug-log.js';
-import { ARTIFACT_GUIDANCE } from './artifact-guidance.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -38,57 +37,6 @@ Respond with EXACTLY this JSON, nothing else:
 </task>`;
 }
 
-function buildArtifactPrompt(params: ArtifactReviewParams): string {
-  const fileList = params.sourceFiles.map(f => `  <file path="${f}" />`).join('\n');
-  const typeRulesSection = params.qualityProfile
-    ? `\n  <type-rules type="${params.nodeType}">\n${params.qualityProfile}\n  </type-rules>\n`
-    : '';
-  const ruleInteraction = params.qualityProfile
-    ? `\n  <rule-interaction>\nType-specific rules OVERRIDE general rules where they conflict.\nWhen evaluating an artifact, apply type-specific rules FIRST.\nOnly apply general rules for aspects not covered by type-specific rules.\n  </rule-interaction>`
-    : '';
-  const contextSection = params.nodeContext
-    ? `  <context>\n${params.nodeContext}\n  </context>`
-    : params.nodePath
-      ? `  <context-command>yg context --node ${params.nodePath}</context-command>`
-      : '';
-  const nodeSection = params.nodePath
-    ? `\n<node path="${params.nodePath}" type="${params.nodeType ?? 'unknown'}">\n${contextSection}\n</node>\n`
-    : '';
-
-  return `<role>
-You review whether a graph artifact is current and follows quality guidelines.
-Read the source files, then evaluate the artifact against the rules.
-</role>
-
-<rules>
-  <general-rules>
-${ARTIFACT_GUIDANCE}
-  </general-rules>
-${typeRulesSection}${ruleInteraction}
-</rules>
-${nodeSection}
-<review-target>
-  <artifact name="${params.artifactName}">
-${params.artifactContent}
-  </artifact>
-</review-target>
-
-<source-files>
-${fileList}
-</source-files>
-
-<task>
-Read every source file listed above. Compare the artifact against them.
-Apply both general and type-specific rules.
-
-CURRENT = artifact captures knowledge source code cannot express, follows all rules.
-STALE = artifact contradicts source, violates rules, or is missing knowledge it should capture.
-
-Respond with EXACTLY this JSON, nothing else:
-{"current": true|false, "reason": "explanation"}
-</task>`;
-}
-
 export class ClaudeCodeProvider implements LlmProvider {
   readonly needsChunking = false;
   private model: string;
@@ -114,11 +62,6 @@ export class ClaudeCodeProvider implements LlmProvider {
   async verifyAspect(params: AspectVerifyParams): Promise<AspectResponse> {
     const prompt = buildAspectPrompt(params);
     return this.runClaude<AspectResponse>(prompt, { satisfied: false, reason: 'Reviewer unavailable' }, params.projectRoot);
-  }
-
-  async reviewArtifact(params: ArtifactReviewParams): Promise<ArtifactResponse> {
-    const prompt = buildArtifactPrompt(params);
-    return this.runClaude<ArtifactResponse>(prompt, { current: false, reason: 'Reviewer unavailable' }, params.projectRoot);
   }
 
   private runClaude<T>(prompt: string, fallback: T, cwd?: string): Promise<T> {
