@@ -8,7 +8,6 @@ import { registerOwnerCommand } from './cli/owner.js';
 import { registerImpactCommand } from './cli/impact.js';
 import { registerAspectsCommand } from './cli/aspects.js';
 import { registerFlowsCommand } from './cli/flows.js';
-import { registerSelectCommand } from './cli/select.js';
 import { registerCheckCommand } from './cli/check.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -33,7 +32,6 @@ registerOwnerCommand(program);
 registerImpactCommand(program);
 registerAspectsCommand(program);
 registerFlowsCommand(program);
-registerSelectCommand(program);
 registerCheckCommand(program);
 
 program.parse();

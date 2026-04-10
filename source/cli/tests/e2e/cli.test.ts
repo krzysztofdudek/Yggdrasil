@@ -622,37 +622,4 @@ describe.skipIf(!distExists)('CLI E2E', () => {
     }
   });
 
-  // --- select ---
-
-  it('yg select returns structured text with matching nodes', () => {
-    const { stdout, status } = run(['select', 'order lifecycle']);
-    expect(status).toBe(0);
-    expect(stdout).toContain('Nodes:');
-    expect(stdout).toContain('Aspects:');
-    expect(stdout).toContain('Flows:');
-    expect(stdout).toContain('orders/order-service');
-  });
-
-  it('yg select with no matches returns (none) sections', () => {
-    const { stdout, status } = run(['select', 'quantum blockchain singularity']);
-    expect(status).toBe(0);
-    expect(stdout).toContain('Nodes:');
-    expect(stdout).toContain('(none)');
-  });
-
-  it('yg select --limit caps results', () => {
-    const { stdout, status } = run(['select', 'order', '--limit', '1']);
-    expect(status).toBe(0);
-    expect(stdout).toContain('Nodes:');
-    // With limit 1, only one node line should appear (indented with 2 spaces, containing a path)
-    const nodeLines = stdout.split('\n').filter((l: string) => l.match(/^ {2}\S+\/\S+/));
-    expect(nodeLines.length).toBeLessThanOrEqual(1);
-  });
-
-  it('yg select requires query argument', () => {
-    const { status, stderr } = run(['select']);
-    expect(status).toBe(1);
-    expect(stderr).toMatch(/required argument|query/);
-  });
-
 });
