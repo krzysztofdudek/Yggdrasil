@@ -26,45 +26,15 @@ export interface ArchitectureNodeType {
   aspects?: string[];
   parents?: string[];
   relations?: Partial<Record<RelationType, string[]>>;
-  /** Quality evaluation profile for this node type — tells the reviewer how to assess artifacts */
-  quality_profile?: string;
 }
 
 export interface ArchitectureDef {
   node_types: Record<string, ArchitectureNodeType>;
 }
 
-export interface ArtifactConfig {
-  required: 'always' | 'never' | { when: string };
-  description: string;
-  /** When true, include this artifact when building dependency context for structural relations */
-  included_in_relations?: boolean;
-}
-
-/** The three standard artifacts — hardcoded, not configurable. */
-export const STANDARD_ARTIFACTS: Record<string, ArtifactConfig> = {
-  'responsibility.md': {
-    required: 'always',
-    description: 'What this node is responsible for, and what it is not',
-    included_in_relations: true,
-  },
-  'interface.md': {
-    required: { when: 'has_incoming_relations' },
-    description: 'Public API — methods, parameters, return types, contracts, failure modes',
-    included_in_relations: true,
-  },
-  'internals.md': {
-    required: 'never',
-    description: 'How the node works and why — algorithms, business rules, design decisions',
-    included_in_relations: false,
-  },
-};
-
 export interface QualityConfig {
-  min_artifact_length: number;
   max_direct_relations: number;
   max_mapping_source_files?: number;
-  context_budget: { warning: number; error: number; own_warning?: number };
 }
 
 // ============================================================
@@ -90,8 +60,6 @@ export interface LlmConfig {
   max_tokens: number | 'auto';
   /** Whether to run aspect verification (E055) during approve. Default: true. */
   verify_aspects: boolean;
-  /** Whether to run artifact review (E056) during approve. Default: false. */
-  verify_artifacts: boolean;
   /** Ollama model_info key for context length (e.g. "qwen35.context_length"). Auto-detected if omitted. */
   context_length_field?: string;
 }
@@ -123,8 +91,6 @@ export interface GraphNode {
   meta: NodeMeta;
   /** Raw yg-node.yaml file content (for context assembly without disk access) */
   nodeYamlRaw?: string;
-  /** All artifact files in the node's directory */
-  artifacts: Artifact[];
   /** Child nodes (subdirectories with yg-node.yaml) */
   children: GraphNode[];
   /** Parent node (null for top-level nodes) */
@@ -162,7 +128,6 @@ export interface FlowDef {
   nodes: string[];
   /** Optional aspect ids — aspects propagate to all participants */
   aspects?: string[];
-  artifacts: Artifact[];
 }
 
 // ============================================================
@@ -194,16 +159,6 @@ export interface Graph {
   schemas: SchemaDef[];
   /** Absolute path to the .yggdrasil/ directory */
   rootPath: string;
-}
-
-// ============================================================
-// Dependency Resolution
-// ============================================================
-
-export interface Stage {
-  stage: number;
-  parallel: boolean;
-  nodes: string[];
 }
 
 // ============================================================
