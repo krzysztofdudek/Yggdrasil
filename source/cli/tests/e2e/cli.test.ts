@@ -622,58 +622,6 @@ describe.skipIf(!distExists)('CLI E2E', () => {
     }
   });
 
-  it('yg init --upgrade migrates 1.x project to 2.0.0', () => {
-    const tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-init-migrate-'));
-
-    try {
-      // Create a 1.x-style project structure
-      const yggDir = path.join(tmpDir, '.yggdrasil');
-      mkdirSync(path.join(yggDir, 'model', 'svc'), { recursive: true });
-      mkdirSync(path.join(yggDir, 'aspects', 'audit'), { recursive: true });
-      writeFileSync(
-        path.join(yggDir, 'config.yaml'),
-        'name: TestProject\nnode_types: [module, service]\nartifacts:\n  responsibility.md:\n    required: always\n    description: x\nstack:\n  runtime: Node.js\n',
-      );
-      writeFileSync(
-        path.join(yggDir, 'model', 'svc', 'node.yaml'),
-        'name: Svc\ntype: service\naspects: [audit]\n',
-      );
-      writeFileSync(
-        path.join(yggDir, 'aspects', 'audit', 'aspect.yaml'),
-        'name: Audit\n',
-      );
-
-      const { status, stdout } = run(['init', '--upgrade', '--platform', 'generic'], tmpDir);
-      expect(status).toBe(0);
-      expect(stdout).toContain('Rules refreshed');
-
-      // Verify migration happened
-      expect(existsSync(path.join(yggDir, 'yg-config.yaml'))).toBe(true);
-      expect(existsSync(path.join(yggDir, 'config.yaml'))).toBe(false);
-      expect(existsSync(path.join(yggDir, 'model', 'svc', 'yg-node.yaml'))).toBe(true);
-      expect(existsSync(path.join(yggDir, 'model', 'svc', 'node.yaml'))).toBe(false);
-      expect(existsSync(path.join(yggDir, 'aspects', 'audit', 'yg-aspect.yaml'))).toBe(true);
-
-      // Verify config content
-      const config = parseYaml(
-        readFileSync(path.join(yggDir, 'yg-config.yaml'), 'utf-8'),
-      ) as Record<string, unknown>;
-      expect(config.version).toBe(PKG_VERSION);
-      expect(config.stack).toBeUndefined();
-
-      // Verify node transform
-      const node = parseYaml(
-        readFileSync(path.join(yggDir, 'model', 'svc', 'yg-node.yaml'), 'utf-8'),
-      ) as Record<string, unknown>;
-      expect(node.aspects).toEqual(['audit']);
-
-      // Verify stack migrated to internals.md
-      expect(existsSync(path.join(yggDir, 'model', 'internals.md'))).toBe(true);
-    } finally {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
-  });
-
   // --- select ---
 
   it('yg select returns structured text with matching nodes', () => {

@@ -3,26 +3,13 @@ import chalk from 'chalk';
 import { mkdir, writeFile, readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readFileSync } from 'node:fs';
-import { gt, valid } from 'semver';
 import { DEFAULT_CONFIG, DEFAULT_ARCHITECTURE, resolveProjectName } from '../templates/default-config.js';
 import { installRulesForPlatform, PLATFORMS, type Platform } from '../templates/platform.js';
-import { detectVersion, runMigrations, updateConfigVersion } from '../core/migrator.js';
-import { MIGRATIONS } from '../migrations/index.js';
 
 function getGraphSchemasDir(): string {
   const currentDir = path.dirname(fileURLToPath(import.meta.url));
   const packageRoot = path.join(currentDir, '..');
   return path.join(packageRoot, 'graph-schemas');
-}
-
-function getCliVersion(): string {
-  const currentDir = path.dirname(fileURLToPath(import.meta.url));
-  const packageRoot = path.join(currentDir, '..');
-  const pkg = JSON.parse(readFileSync(path.join(packageRoot, 'package.json'), 'utf-8')) as {
-    version: string;
-  };
-  return pkg.version;
 }
 
 async function refreshSchemas(yggRoot: string): Promise<void> {
@@ -100,40 +87,6 @@ export function registerInitCommand(program: Command): void {
       }
 
       if (upgradeMode) {
-        const projectVersion = await detectVersion(yggRoot);
-
-        if (!projectVersion) {
-          process.stderr.write(chalk.red('Error: No Yggdrasil project found. Run `yg init` first.\n'));
-          process.exit(1);
-        }
-
-        const cliVersion = getCliVersion();
-
-        // Warn if project is newer than CLI
-        if (valid(projectVersion) && valid(cliVersion) && gt(projectVersion, cliVersion)) {
-          process.stderr.write(
-            chalk.yellow(`Warning: Project version (${projectVersion}) is newer than CLI (${cliVersion}). Upgrade your CLI.\n`),
-          );
-        }
-
-        // Run migrations if project is older than CLI
-        if (valid(projectVersion) && valid(cliVersion) && gt(cliVersion, projectVersion)) {
-          process.stdout.write(`Migrating from ${projectVersion} to ${cliVersion}...\n\n`);
-          const results = await runMigrations(projectVersion, MIGRATIONS, yggRoot);
-          for (const result of results) {
-            for (const action of result.actions) {
-              process.stdout.write(chalk.green(`  ✓ ${action}\n`));
-            }
-            for (const warning of result.warnings) {
-              process.stdout.write(chalk.yellow(`  ⚠ ${warning}\n`));
-            }
-          }
-          if (results.length > 0) {
-            process.stdout.write('\n');
-          }
-          await updateConfigVersion(yggRoot, cliVersion);
-        }
-
         // Refresh schemas (copy latest schema files)
         await refreshSchemas(yggRoot);
 
@@ -170,7 +123,7 @@ export function registerInitCommand(program: Command): void {
         }
       } catch (err) {
         process.stderr.write(
-          chalk.red(`Warning: Could not copy graph schemas from ${graphSchemasDir}: ${(err as Error).message}\n`),
+          chalk.yellow(`Warning: Could not copy graph schemas from ${graphSchemasDir}: ${(err as Error).message}\n`),
         );
       }
 
