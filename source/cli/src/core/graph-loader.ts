@@ -1,8 +1,5 @@
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
-import {
-  STANDARD_ARTIFACTS,
-} from '../model/graph.js';
 import type {
   Graph,
   GraphNode,
@@ -18,7 +15,6 @@ import { parseAspect } from '../io/aspect-parser.js';
 import { parseFlow } from '../io/flow-parser.js';
 import { parseSchema } from '../io/schema-parser.js';
 import { parseArchitecture } from '../io/architecture-parser.js';
-import { readArtifacts } from '../io/artifact-reader.js';
 import { findYggRoot } from '../utils/paths.js';
 
 function toModelPath(absolutePath: string, modelDir: string): string {
@@ -51,9 +47,8 @@ export async function loadGraph(
   const modelDir = path.join(yggRoot, 'model');
   const nodes = new Map<string, GraphNode>();
   const nodeParseErrors: Array<{ nodePath: string; message: string }> = [];
-  const artifactFilenames = Object.keys(STANDARD_ARTIFACTS);
   try {
-    await scanModelDirectory(modelDir, modelDir, null, nodes, nodeParseErrors, artifactFilenames);
+    await scanModelDirectory(modelDir, modelDir, null, nodes, nodeParseErrors);
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
       throw new Error(`Directory .yggdrasil/model/ does not exist. Run 'yg init' first.`, {
@@ -121,7 +116,6 @@ async function scanModelDirectory(
   parent: GraphNode | null,
   nodes: Map<string, GraphNode>,
   nodeParseErrors: Array<{ nodePath: string; message: string }>,
-  artifactFilenames: string[],
 ): Promise<void> {
   const entries = (await readdir(dirPath, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name));
   const hasNodeYaml = entries.some((e) => e.isFile() && e.name === 'yg-node.yaml');
@@ -145,13 +139,11 @@ async function scanModelDirectory(
       });
       return;
     }
-    const artifacts = await readArtifacts(dirPath, ['yg-node.yaml'], artifactFilenames);
 
     const node: GraphNode = {
       path: graphPath,
       meta,
       nodeYamlRaw,
-      artifacts,
       children: [],
       parent,
     };
@@ -171,7 +163,6 @@ async function scanModelDirectory(
         node,
         nodes,
         nodeParseErrors,
-        artifactFilenames,
       );
     }
   } else {
@@ -185,7 +176,6 @@ async function scanModelDirectory(
         null,
         nodes,
         nodeParseErrors,
-        artifactFilenames,
       );
     }
   }

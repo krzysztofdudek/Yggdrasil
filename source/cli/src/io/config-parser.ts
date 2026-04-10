@@ -8,9 +8,7 @@ import type {
 } from '../model/graph.js';
 
 const DEFAULT_QUALITY: QualityConfig = {
-  min_artifact_length: 50,
   max_direct_relations: 10,
-  context_budget: { warning: 10000, error: 20000, own_warning: undefined },
 };
 
 export async function parseConfig(filePath: string): Promise<YggConfig> {
@@ -31,36 +29,19 @@ export async function parseConfig(filePath: string): Promise<YggConfig> {
   const qualityRaw = raw.quality as Record<string, unknown> | undefined;
   const quality: QualityConfig = qualityRaw
     ? {
-        min_artifact_length:
-          (qualityRaw.min_artifact_length as number) ?? DEFAULT_QUALITY.min_artifact_length,
         max_direct_relations:
           (qualityRaw.max_direct_relations as number) ?? DEFAULT_QUALITY.max_direct_relations,
-        context_budget: {
-          warning:
-            (qualityRaw.context_budget as Record<string, number>)?.warning ??
-            DEFAULT_QUALITY.context_budget.warning,
-          error:
-            (qualityRaw.context_budget as Record<string, number>)?.error ??
-            DEFAULT_QUALITY.context_budget.error,
-          own_warning: (qualityRaw.context_budget as Record<string, number | undefined>)?.own_warning,
-        },
+        max_mapping_source_files:
+          qualityRaw.max_mapping_source_files !== undefined
+            ? (qualityRaw.max_mapping_source_files as number)
+            : undefined,
       }
     : DEFAULT_QUALITY;
-
-  if (quality.context_budget.error < quality.context_budget.warning) {
-    throw new Error(
-      `${filename}: quality.context_budget.error (${quality.context_budget.error}) must be >= warning (${quality.context_budget.warning})`,
-    );
-  }
-
-  if (quality.context_budget.own_warning !== undefined && quality.context_budget.own_warning <= 0) {
-    throw new Error(`${filename}: quality.context_budget.own_warning must be a positive number`);
-  }
 
   // Known provider names
   const KNOWN_PROVIDERS = ['ollama', 'claude-code'] as const;
   // Known general keys under reviewer:
-  const GENERAL_KEYS = new Set(['active', 'verify_aspects', 'verify_artifacts', 'consensus']);
+  const GENERAL_KEYS = new Set(['active', 'verify_aspects', 'consensus']);
 
   // Parse reviewer: section (or legacy llm: fallback)
   let llm: LlmConfig | undefined;
@@ -138,7 +119,6 @@ function parseReviewerSection(
 
   // Extract general params
   const verifyAspects = generalConfig.verify_aspects !== false; // default true
-  const verifyArtifacts = generalConfig.verify_artifacts !== false; // default true
   const consensus = (generalConfig.consensus as number) ?? 1;
   if (!Number.isInteger(consensus) || consensus < 1 || consensus % 2 === 0) {
     throw new Error(`${filename}: reviewer.consensus must be a positive odd integer >= 1, got ${consensus}`);
@@ -164,7 +144,6 @@ function parseReviewerSection(
       consensus,
       max_tokens: maxTokens as LlmConfig['max_tokens'],
       verify_aspects: verifyAspects,
-      verify_artifacts: verifyArtifacts,
       context_length_field: typeof pc.context_length_field === 'string' ? pc.context_length_field : undefined,
     };
   }
@@ -179,7 +158,6 @@ function parseReviewerSection(
       consensus,
       max_tokens: 'auto',
       verify_aspects: verifyAspects,
-      verify_artifacts: verifyArtifacts,
     };
   }
 
