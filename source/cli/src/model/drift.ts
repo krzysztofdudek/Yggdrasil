@@ -16,7 +16,7 @@ export interface AspectVerificationResult {
 export type DriftCategory = 'source' | 'graph';
 
 /** Which layer of the context package brought this file into tracking */
-export type TrackedFileLayer = 'own' | 'hierarchy' | 'aspects' | 'relational' | 'flows' | 'source';
+export type TrackedFileLayer = 'hierarchy' | 'aspects' | 'relational' | 'flows' | 'source';
 
 /** Per-file drift detail */
 export interface DriftFileChange {
