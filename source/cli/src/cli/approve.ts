@@ -24,16 +24,12 @@ let sessionNoticeShown = false;
 
 /** Extended result that includes LLM verification data (tracked in CLI layer, not in core) */
 export interface LlmApproveResult extends ApproveResult {
-  /** LLM aspect verification results (E055) */
+  /** LLM aspect verification results */
   aspectResults?: Record<string, AspectVerificationResult>;
-  /** LLM artifact review results (E056) */
-  artifactReviewResults?: Record<string, ArtifactReviewResult>;
   /** Why LLM verification was skipped, if it was */
   llmSkipped?: 'not-configured' | 'unavailable' | 'blackbox';
-  /** E055 structured violations for programmatic consumption */
+  /** Aspect violations for programmatic consumption */
   e055Violations?: Array<{ aspect: string; reason: string }>;
-  /** E056 structured violations for programmatic consumption */
-  e056Violations?: Array<{ name: string; reason: string }>;
 }
 
 /** LLM configuration resolved from graph config */
@@ -173,14 +169,9 @@ export function formatResult(nodePath: string, result: LlmApproveResult): void {
     case 'approved':
       process.stdout.write(chalk.green(`Approved: ${nodePath}\n`));
       process.stdout.write(`  Hash: ${prev} -> ${curr}\n`);
-      if (result.aspectResults || result.artifactReviewResults) {
-        const aspectCount = result.aspectResults
-          ? Object.keys(result.aspectResults).length
-          : 0;
-        const artifactCount = result.artifactReviewResults
-          ? Object.keys(result.artifactReviewResults).length
-          : 0;
-        process.stdout.write(`  Verified: ${aspectCount} aspects satisfied, ${artifactCount} artifacts current.\n`);
+      if (result.aspectResults) {
+        const aspectCount = Object.keys(result.aspectResults).length;
+        process.stdout.write(`  Verified: ${aspectCount} aspects satisfied.\n`);
       }
       break;
 
@@ -253,17 +244,6 @@ function formatLlmResults(result: LlmApproveResult): void {
     }
   }
 
-  if (result.artifactReviewResults) {
-    process.stdout.write('\nArtifact review:\n');
-    for (const [name, review] of Object.entries(result.artifactReviewResults)) {
-      if (review.current) {
-        process.stdout.write(`  ${name} — ${chalk.green('current')}\n`);
-      } else {
-        process.stdout.write(`  ${name} — ${chalk.red('STALE')}\n`);
-        process.stdout.write(`    ${review.reason}\n`);
-      }
-    }
-  }
 }
 
 function formatRefused(nodePath: string, result: LlmApproveResult): void {
