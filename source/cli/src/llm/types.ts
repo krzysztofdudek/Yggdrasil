@@ -9,7 +9,7 @@ export interface AspectVerifyParams {
   sourceCode: string;
   /** Source file paths relative to project root */
   sourceFiles: string[];
-  /** Node graph path, e.g. "cli/core/drift-detector" */
+  /** Node graph path, e.g. "cli/core/check" */
   nodePath: string;
   /** Node type from architecture, e.g. "command", "engine" */
   nodeType?: string;

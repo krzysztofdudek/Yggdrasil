@@ -517,13 +517,11 @@ export async function runCheck(graph: Graph, gitTrackedFiles: string[] | null): 
 
 // ── Internal helpers ───────────────────────────────────────
 
-/* v8 ignore start -- duplicated from drift-detector.ts, tested there */
 function categorizeFile(filePath: string, rootPath: string, projectRoot: string): DriftCategory {
   const yggPrefix = path.relative(projectRoot, rootPath).replace(/\\/g, '/').replace(/\/+$/, '');
   const normalized = filePath.replace(/\\/g, '/').replace(/\/+$/, '');
   return normalized.startsWith(yggPrefix) ? 'graph' : 'source';
 }
-/* v8 ignore stop */
 
 /**
  * Describe why a cascade fired AND provide the cause-specific review instruction.
@@ -534,7 +532,6 @@ function describeCascadeCause(filePath: string, layer: TrackedFileLayer, graph: 
   const yggPrefix = path.relative(path.dirname(graph.rootPath), graph.rootPath).replace(/\\/g, '/').replace(/\/+$/, '');
   const escPrefix = yggPrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-  /* v8 ignore start -- regex match fallbacks are defensive; paths are always well-formed */
   if (layer === 'aspects') {
     const match = normalized.match(new RegExp(`${escPrefix}/aspects/([^/]+(?:/[^/]+)*)/`));
     const aspectId = match ? match[1] : 'unknown';
@@ -565,7 +562,6 @@ function describeCascadeCause(filePath: string, layer: TrackedFileLayer, graph: 
   }
 
   return `tracked file changed\n       (${normalized})`;
-  /* v8 ignore stop */
 }
 
 /**
@@ -580,9 +576,7 @@ function extractCauseKey(cause: CascadeCause): string {
 
 /**
  * Compute mapping paths owned by descendant nodes (child-wins model).
- * Duplicated from drift-detector.ts -- consider extracting to shared util.
  */
-/* v8 ignore start -- duplicated from drift-detector.ts, tested there */
 function getChildMappingExclusions(graph: Graph, nodePath: string): string[] {
   const node = graph.nodes.get(nodePath);
   if (!node) return [];
@@ -603,9 +597,7 @@ function getChildMappingExclusions(graph: Graph, nodePath: string): string[] {
   }
   return exclusions;
 }
-/* v8 ignore stop */
 
-/* v8 ignore start -- duplicated from drift-detector.ts, tested there */
 async function allPathsMissing(projectRoot: string, mappingPaths: string[]): Promise<boolean> {
   for (const mp of mappingPaths) {
     try {
@@ -615,7 +607,6 @@ async function allPathsMissing(projectRoot: string, mappingPaths: string[]): Pro
   }
   return true;
 }
-/* v8 ignore stop */
 
 
 /**
