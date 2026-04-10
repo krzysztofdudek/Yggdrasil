@@ -5,7 +5,6 @@
 export type ContextSectionKey =
   | 'Global'
   | 'Hierarchy'
-  | 'OwnArtifacts'
   | 'Aspects'
   | 'Relational';
 
@@ -15,7 +14,6 @@ export interface ContextPackage {
   layers: ContextLayer[];
   sections: ContextSection[];
   mapping: string[] | null;
-  tokenCount: number;
 }
 
 export interface ContextLayer {
@@ -64,7 +62,6 @@ export interface GlossaryFlowEntry {
   description?: string;
   participants: string[];
   aspects?: string[];
-  files: string[];
 }
 
 export interface Glossary {
@@ -94,17 +91,7 @@ export interface DependencyRef {
   files?: string[];
 }
 
-export interface BudgetBreakdown {
-  own: number;
-  hierarchy: number;
-  aspects: number;
-  flows: number;
-  dependencies: number;
-  total: number;
-}
-
 export interface ContextMapOutput {
-  meta: { tokenCount: number; budgetStatus: 'ok' | 'warning' | 'severe'; breakdown: BudgetBreakdown };
   project: string;
   node: {
     path: string;
@@ -114,7 +101,6 @@ export interface ContextMapOutput {
     mappings: string[];
     aspects: NodeAspectRef[];
     required_aspects: RequiredAspectRef[];
-    integration_aspects?: RequiredAspectRef[];
     flows: FlowRef[];
     files: string[];
   };
