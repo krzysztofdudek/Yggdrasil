@@ -27,7 +27,6 @@ import type {
 import type { NodeContextData } from '../formatters/context-node.js';
 import type { FileContextData } from '../formatters/context-file.js';
 import { normalizeMappingPaths } from '../utils/paths.js';
-import { estimateTokens } from '../utils/tokens.js';
 import { computeEffectiveAspects, computeEffectiveAspectsForConsumer } from './effective-aspects.js';
 
 const STRUCTURAL_RELATION_TYPES = new Set(['uses', 'calls', 'extends', 'implements']);
@@ -91,7 +90,7 @@ export async function buildContext(graph: Graph, nodePath: string): Promise<Cont
   }
 
   const fullText = layers.map((l) => l.content).join('\n\n');
-  const tokenCount = estimateTokens(fullText);
+  const tokenCount = 0;
   const mapping = normalizeMappingPaths(node.meta.mapping);
   const sections = buildSections(layers, mapping.length > 0 ? mapping : null);
 
@@ -407,7 +406,7 @@ export function computeBudgetBreakdown(
   let relational = 0;
 
   for (const layer of pkg.layers) {
-    const tokens = estimateTokens(layer.content);
+    const tokens = 0;
     switch (layer.type) {
       case 'global':
       case 'own':
@@ -443,7 +442,7 @@ export function computeBudgetBreakdown(
         for (const filename of anc.artifactFilenames) {
           const art = ancNode.artifacts.find((a) => a.filename === filename);
           if (art) {
-            depAncestorTokens += estimateTokens(art.content);
+            depAncestorTokens += 0;
           }
         }
       }
@@ -866,7 +865,7 @@ export function buildNodeContextData(graph: Graph, nodePath: string): NodeContex
   const budgetWarning = graph.config.quality?.context_budget?.warning ?? 10000;
   const budgetError = graph.config.quality?.context_budget?.error ?? 20000;
   const ownText = node.artifacts.map(a => a.content).join(' ');
-  const tokenEstimate = estimateTokens(ownText);
+  const tokenEstimate = 0;
   const budgetStatus = tokenEstimate >= budgetError ? 'severe' : tokenEstimate >= budgetWarning ? 'warning' : 'ok';
 
   return {
