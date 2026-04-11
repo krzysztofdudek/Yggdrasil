@@ -157,7 +157,7 @@ node_types:
   });
 
   describe('architecture-parser v4 changes', () => {
-    it('rejects integration_aspects with migration hint', async () => {
+    it('rejects integration_aspects as unknown field', async () => {
       const file = await writeTmp('yg-architecture.yaml', `
 node_types:
   service:

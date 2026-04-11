@@ -21,7 +21,7 @@ This page is for people who want to inspect or debug the repo's semantic memory.
 ### `yg context`
 
 Shows the exact context package your agent reads before working on a node. Output is
-structured text with `read:` pointers to artifact files. Agents read files individually
+structured text with `read:` pointers to content files. Agents read files individually
 using their file-reading tool. Alias: `build-context`.
 
 ```bash

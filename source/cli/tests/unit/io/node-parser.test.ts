@@ -638,7 +638,7 @@ mapping:
       await rm(tmpDir, { recursive: true, force: true });
     });
 
-    it('rejects old mapping group format with migration hint', async () => {
+    it('rejects old mapping group format (objects)', async () => {
       const tmpDir = path.join(__dirname, '../../fixtures/tmp-old-mapping-group');
       await mkdir(tmpDir, { recursive: true });
       const nodePath = path.join(tmpDir, 'yg-node.yaml');
