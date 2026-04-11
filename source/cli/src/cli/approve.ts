@@ -14,7 +14,6 @@ import { loadSecrets, mergeLlmConfig } from '../io/secrets-parser.js';
 import { normalizeMappingPaths } from '../utils/paths.js';
 import { buildNodeContextData } from '../core/context-builder.js';
 import { formatNodeContext } from '../formatters/context-node.js';
-import { writeNodeDriftState } from '../io/drift-state-store.js';
 import type { LlmProvider } from '../llm/types.js';
 import type { ApproveResult, AspectVerificationResult } from '../model/drift.js';
 import type { Graph } from '../model/graph.js';
@@ -39,7 +38,6 @@ export interface LlmConfig {
   maxTokens: number | undefined;
   consensus: number | undefined;
   verifyAspects: boolean;
-  verifyArtifacts: boolean;
 }
 
 /**
@@ -77,9 +75,6 @@ export async function runLlmVerification(
     ?? (await provider.getContextWindowSize() ?? 8192);
 
   const aspects = resolveAspects(node, graph);
-  const artifacts = node.artifacts
-    .filter(a => a.filename.endsWith('.md'))
-    .map(a => ({ name: a.filename, content: a.content }));
 
   // Collect source file paths by expanding directory mappings to actual files
   const trackedFiles = collectTrackedFiles(node, graph);
@@ -133,22 +128,6 @@ export async function runLlmVerification(
     };
   }
 
-  // Update drift state with LLM results
-  if (aspectResults) {
-    try {
-      const { readNodeDriftState } = await import('../io/drift-state-store.js');
-      const storedEntry = await readNodeDriftState(graph.rootPath, nodePath);
-      if (storedEntry) {
-        await writeNodeDriftState(graph.rootPath, nodePath, {
-          ...storedEntry,
-          ...(aspectResults ? { aspectResults } : {}),
-        });
-      }
-    } catch (err) {
-      debugWrite(`[approve] failed to update drift state with LLM results: ${(err as Error).message}`);
-    }
-  }
-
   return {
     ...result,
     aspectResults,
@@ -174,27 +153,6 @@ export function formatResult(nodePath: string, result: LlmApproveResult): void {
         process.stdout.write(`  Verified: ${aspectCount} aspects satisfied.\n`);
       }
       break;
-
-    case 'reviewed': {
-      const isBlackboxCascade =
-        result.isBlackbox && !result.blackboxBlocked && result.changedOther?.length;
-      if (isBlackboxCascade) {
-        process.stdout.write(chalk.green(`Reviewed: ${nodePath} (blackbox, cascade)\n`));
-        process.stdout.write(`  Hash: ${prev} -> ${curr}\n`);
-        process.stdout.write(
-          `  Note: upstream context changed, source not modified. Blackbox intact.\n`,
-        );
-      } else {
-        process.stdout.write(chalk.green(`Reviewed: ${nodePath}\n`));
-        process.stdout.write(`  Hash: ${prev} -> ${curr}\n`);
-        process.stdout.write(
-          result.llmSkipped
-            ? `  Three-axis gate bypassed — reviewer not run (${result.llmSkipped}).\n`
-            : `  Three-axis gate bypassed — reviewer verified aspects.\n`,
-        );
-      }
-      break;
-    }
 
     case 'initial':
       process.stdout.write(chalk.green(`Approved: ${nodePath} (initial)\n`));
@@ -272,50 +230,8 @@ function formatRefused(nodePath: string, result: LlmApproveResult): void {
 
   // Blackbox source change
   if (result.blackboxBlocked) {
-    if (result.reviewedAttempted) {
-      process.stderr.write(
-        chalk.red(`ERROR: Cannot use --reviewed for source changes on a blackbox node.\n`),
-      );
-      process.stderr.write(
-        `  --reviewed does not apply to blackbox source changes.\n`,
-      );
-      process.stderr.write(
-        `  Decompose the blackbox: create a proper node for modified files.\n`,
-      );
-    } else {
-      process.stderr.write(
-        chalk.red(`ERROR: Cannot approve source changes on a blackbox node.\n`),
-      );
-      if (result.changedSource && result.changedSource.length > 0) {
-        process.stderr.write(`  Source changed:\n`);
-        for (const f of result.changedSource) {
-          process.stderr.write(`    ${f}\n`);
-        }
-      }
-      process.stderr.write(
-        `  Blackbox nodes are sealed — source modifications require decomposition.\n`,
-      );
-      process.stderr.write(`  To resolve:\n`);
-      process.stderr.write(
-        `    1. Create a proper node for the modified files.\n`,
-      );
-      process.stderr.write(
-        `    2. Adjust blackbox mapping to exclude those files.\n`,
-      );
-      process.stderr.write(
-        `    3. Approve the new proper node instead.\n`,
-      );
-    }
-    return;
-  }
-
-  const axes = result.axes;
-  if (!axes) return;
-
-  // Row 3: source changed, artifacts unchanged
-  if (axes.source === 'changed' && axes.ownArtifacts === 'unchanged') {
     process.stderr.write(
-      chalk.red(`ERROR: Source changed but graph artifacts unchanged.\n`),
+      chalk.red(`ERROR: Cannot approve source changes on a blackbox node.\n`),
     );
     if (result.changedSource && result.changedSource.length > 0) {
       process.stderr.write(`  Source changed:\n`);
@@ -323,68 +239,32 @@ function formatRefused(nodePath: string, result: LlmApproveResult): void {
         process.stderr.write(`    ${f}\n`);
       }
     }
-    if (result.unchangedArtifactNames && result.unchangedArtifactNames.length > 0) {
-      process.stderr.write(`  Artifacts unchanged:\n`);
-      process.stderr.write(`    ${result.unchangedArtifactNames.join(', ')}\n`);
-    }
     process.stderr.write(
-      `  Update artifacts to reflect source changes, then approve.\n`,
+      `  Blackbox nodes are sealed — source modifications require decomposition.\n`,
+    );
+    process.stderr.write(`  To resolve:\n`);
+    process.stderr.write(
+      `    1. Create a proper node for the modified files.\n`,
     );
     process.stderr.write(
-      `  If change has no graph impact (formatting, comments): approve --reviewed "reason".\n`,
-    );
-    return;
-  }
-
-  // Row 2: artifacts changed, source unchanged
-  if (axes.ownArtifacts === 'changed' && axes.source === 'unchanged') {
-    process.stderr.write(
-      chalk.red(`ERROR: Graph artifacts changed but source unchanged.\n`),
-    );
-    if (result.changedOwnArtifacts && result.changedOwnArtifacts.length > 0) {
-      process.stderr.write(`  Artifacts changed:\n`);
-      for (const f of result.changedOwnArtifacts) {
-        process.stderr.write(`    ${f}\n`);
-      }
-    }
-    if (result.unchangedSourceFiles && result.unchangedSourceFiles.length > 0) {
-      process.stderr.write(`  Source unchanged:\n`);
-      for (const f of result.unchangedSourceFiles) {
-        process.stderr.write(`    ${f}\n`);
-      }
-    }
-    process.stderr.write(
-      `  Implement the artifact changes in source, then approve.\n`,
+      `    2. Adjust blackbox mapping to exclude those files.\n`,
     );
     process.stderr.write(
-      `  If change has no source impact (typo, clarification): approve --reviewed "reason".\n`,
+      `    3. Approve the new proper node instead.\n`,
     );
     return;
   }
 
-  // Row 4: cascade only
-  if (
-    axes.ownArtifacts === 'unchanged' &&
-    axes.source === 'unchanged' &&
-    axes.otherTracked === 'changed'
-  ) {
+  // LLM reviewer refused
+  if (result.e055Violations && result.e055Violations.length > 0) {
     process.stderr.write(
-      chalk.red(`ERROR: Context changed but graph artifacts and source unchanged.\n`),
+      chalk.red(`ERROR: Reviewer found aspect violations.\n`),
     );
-    if (result.changedOther && result.changedOther.length > 0) {
-      process.stderr.write(`  Upstream changes:\n`);
-      for (const c of result.changedOther) {
-        process.stderr.write(`    ${c.filePath} (${c.annotation})\n`);
-      }
+    for (const v of result.e055Violations) {
+      process.stderr.write(`  ${v.aspect}: ${v.reason}\n`);
     }
     process.stderr.write(
-      `  Review source compliance with updated context.\n`,
-    );
-    process.stderr.write(
-      `  If source is already compliant: approve --reviewed "reason".\n`,
-    );
-    process.stderr.write(
-      `  If source needs changes: update source + artifacts, then approve.\n`,
+      `  Fix the violations and re-run: yg approve --node ${nodePath}\n`,
     );
     return;
   }
@@ -498,7 +378,6 @@ async function runBatchApprove(
   graph: Graph,
   entityLabel: string,
   causePrefix: string,
-  reviewed: string | undefined,
 ): Promise<boolean> {
   const issues = await classifyDrift(graph);
   const matchedNodes = filterCascadeNodes(issues, causePrefix);
@@ -525,10 +404,9 @@ async function runBatchApprove(
   const llmCfg: LlmConfig = {
     provider, llmNotConfigured, maxTokens, consensus,
     verifyAspects: graph.config.llm?.verify_aspects ?? true,
-    verifyArtifacts: graph.config.llm?.verify_artifacts ?? true,
   };
   const results = await runBatch(sorted, parallel, async (nodePath) => {
-    const result = await approveNode(graph, nodePath, { reviewed });
+    const result = await approveNode(graph, nodePath);
     return runLlmVerification(graph, nodePath, result, llmCfg);
   });
 
@@ -546,8 +424,7 @@ export function registerApproveCommand(program: Command): void {
     .option('--node <paths...>', 'One or more node paths to approve')
     .option('--aspect <id>', 'Batch approve all nodes with cascade drift from this aspect')
     .option('--flow <name>', 'Batch approve all nodes with cascade drift from this flow')
-    .option('--reviewed <reason>', 'Bypasses three-axis gate — reviewer still verifies aspects')
-    .action(async (options: { node?: string[]; aspect?: string; flow?: string; reviewed?: string }) => {
+    .action(async (options: { node?: string[]; aspect?: string; flow?: string }) => {
       try {
         // Validate: exactly one of --node, --aspect, --flow
         const targets = [options.node, options.aspect, options.flow].filter(Boolean);
@@ -574,7 +451,7 @@ export function registerApproveCommand(program: Command): void {
             process.exit(1);
           }
           const causePrefix = `${yggPrefix}/aspects/${aspectId}/`;
-          const allPassed = await runBatchApprove(graph, `aspect '${aspectId}'`, causePrefix, options.reviewed);
+          const allPassed = await runBatchApprove(graph, `aspect '${aspectId}'`, causePrefix);
           process.exit(allPassed ? 0 : 1);
         }
 
@@ -587,7 +464,7 @@ export function registerApproveCommand(program: Command): void {
             process.exit(1);
           }
           const causePrefix = `${yggPrefix}/flows/${flowName}/`;
-          const allPassed = await runBatchApprove(graph, `flow '${flowName}'`, causePrefix, options.reviewed);
+          const allPassed = await runBatchApprove(graph, `flow '${flowName}'`, causePrefix);
           process.exit(allPassed ? 0 : 1);
         }
 
@@ -607,10 +484,9 @@ export function registerApproveCommand(program: Command): void {
           const llmCfg: LlmConfig = {
             provider, llmNotConfigured, maxTokens, consensus,
             verifyAspects: graph.config.llm?.verify_aspects ?? true,
-            verifyArtifacts: graph.config.llm?.verify_artifacts ?? true,
           };
           const batchResults = await runBatch(nodePaths, parallel, async (nodePath) => {
-            const result = await approveNode(graph, nodePath, { reviewed: options.reviewed });
+            const result = await approveNode(graph, nodePath);
             return runLlmVerification(graph, nodePath, result, llmCfg);
           });
           formatBatchOutput(batchResults);
@@ -632,7 +508,7 @@ export function registerApproveCommand(program: Command): void {
         const mappingPaths = normalizeMappingPaths(node.meta.mapping);
         if (mappingPaths.length === 0) {
           const causePrefix = `${yggPrefix}/model/${nodePath}/`;
-          const allPassed = await runBatchApprove(graph, `parent node '${nodePath}'`, causePrefix, options.reviewed);
+          const allPassed = await runBatchApprove(graph, `parent node '${nodePath}'`, causePrefix);
           process.exit(allPassed ? 0 : 1);
         }
 
@@ -644,13 +520,10 @@ export function registerApproveCommand(program: Command): void {
         if (provider) {
           process.stdout.write(chalk.dim(`Verifying aspects with reviewer — this may take a while. Do not interrupt.\n`));
         }
-        const coreResult = await approveNode(graph, nodePath, {
-          reviewed: options.reviewed,
-        });
+        const coreResult = await approveNode(graph, nodePath);
         const llmCfg: LlmConfig = {
           provider, llmNotConfigured, maxTokens, consensus,
           verifyAspects: graph.config.llm?.verify_aspects ?? true,
-          verifyArtifacts: graph.config.llm?.verify_artifacts ?? true,
         };
         const result = await runLlmVerification(graph, nodePath, coreResult, llmCfg);
         formatResult(nodePath, result);
@@ -670,79 +543,4 @@ export function registerApproveCommand(program: Command): void {
       }
     });
 
-  // `yg drift-sync` — backward-compatible alias
-  program
-    .command('drift-sync')
-    .description(
-      '[deprecated] Use "yg approve" instead. Backward-compatible alias for approving a node.',
-    )
-    .option('--node <path>', 'Node path to approve')
-    .option('--reviewed <reason>', 'Bypasses three-axis gate — reviewer still verifies aspects')
-    .option('--all', '(removed) use "yg approve --node" for each node')
-    .option('--recursive', '(removed) approve one node at a time')
-    .action(
-      async (options: {
-        node?: string;
-        reviewed?: string;
-        all?: boolean;
-        recursive?: boolean;
-      }) => {
-        // Removed flags
-        if (options.all) {
-          process.stderr.write(
-            chalk.red(
-              'ERROR: --all has been removed. Approve one node at a time.\n',
-            ),
-          );
-          process.exit(1);
-        }
-        if (options.recursive) {
-          process.stderr.write(
-            chalk.red(
-              'ERROR: --recursive has been removed. Approve one node at a time.\n',
-            ),
-          );
-          process.exit(1);
-        }
-        if (!options.node) {
-          process.stderr.write(
-            chalk.red('ERROR: --node <path> is required.\n'),
-          );
-          process.exit(1);
-        }
-
-        try {
-          const graph = await loadGraph(process.cwd());
-          initDebugLog(graph.rootPath, graph.config.debug ?? false);
-          const nodePath = options.node.trim().replace(/\/$/, '');
-          const { provider, llmNotConfigured, maxTokens, consensus, cloudNotice } = await loadLlmProvider(graph);
-          if (cloudNotice) {
-            process.stdout.write(chalk.yellow(`Notice: ${cloudNotice}\n`));
-          }
-          const coreResult = await approveNode(graph, nodePath, {
-            reviewed: options.reviewed,
-          });
-          const llmCfg: LlmConfig = {
-            provider, llmNotConfigured, maxTokens, consensus,
-            verifyAspects: graph.config.llm?.verify_aspects ?? true,
-            verifyArtifacts: graph.config.llm?.verify_artifacts ?? true,
-          };
-          const result = await runLlmVerification(graph, nodePath, coreResult, llmCfg);
-          formatResult(nodePath, result);
-          if (result.action === 'refused') {
-            process.exit(1);
-          }
-        } catch (error) {
-          const err = error as NodeJS.ErrnoException;
-          if (err.code === 'ENOENT') {
-            process.stderr.write(
-              chalk.red(`Error: No .yggdrasil/ directory found. Run 'yg init' first.\n`),
-            );
-          } else {
-            process.stderr.write(chalk.red(`Error: ${(error as Error).message}\n`));
-          }
-          process.exit(1);
-        }
-      },
-    );
 }
