@@ -20,6 +20,7 @@ import { readFile } from 'node:fs/promises';
 import { debugWrite } from '../utils/debug-log.js';
 import path from 'node:path';
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface ApproveOptions {
 }
 

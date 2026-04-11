@@ -25,7 +25,7 @@ import type {
 import type { NodeContextData } from '../formatters/context-node.js';
 import type { FileContextData } from '../formatters/context-file.js';
 import { normalizeMappingPaths } from '../utils/paths.js';
-import { computeEffectiveAspects, computeEffectiveAspectsForConsumer } from './effective-aspects.js';
+import { computeEffectiveAspects } from './effective-aspects.js';
 
 const STRUCTURAL_RELATION_TYPES = new Set(['uses', 'calls', 'extends', 'implements']);
 const EVENT_RELATION_TYPES = new Set(['emits', 'listens']);
