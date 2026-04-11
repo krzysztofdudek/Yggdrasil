@@ -4,4 +4,4 @@ nodes:
   - cli/commands/check
   - cli/core/loader
   - cli/core/validator
-  - cli/core/drift-detector
+  - cli/core/check

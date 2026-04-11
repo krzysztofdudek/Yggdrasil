@@ -3,4 +3,4 @@ description: "Detect and sync divergence between graph metadata and mapped sourc
 nodes:
   - cli/commands/check
   - cli/core/loader
-  - cli/core/drift-detector
+  - cli/core/check

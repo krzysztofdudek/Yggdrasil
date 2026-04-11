@@ -1,9 +1,8 @@
 name: Support Unit Tests
 type: library
-description: Parent node for CLI support unit tests — covers formatters and migrations directly; I/O, templates, and utils have child nodes
+description: Parent node for CLI support unit tests — covers formatters directly; I/O, templates, and utils have child nodes
 blackbox: false
 aspects: []
 relations: []
 mapping:
   - source/cli/tests/unit/formatters/
-  - source/cli/tests/unit/migrations/

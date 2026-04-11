@@ -7,5 +7,5 @@ nodes:
   - cli/commands/build-context
   - cli/core/loader
   - cli/core/context
-  - cli/core/dependency-resolver
+  - cli/core/check
   - cli/formatters
