@@ -104,7 +104,7 @@ mapping:
       'utf-8',
     );
 
-    await expect(parseNodeYaml(nodePath)).rejects.toThrow(/v4 format/i);
+    await expect(parseNodeYaml(nodePath)).rejects.toThrow(/flat list of file\/directory paths/i);
 
     await rm(tmpDir, { recursive: true, force: true });
   });
@@ -541,7 +541,7 @@ relations:
     await writeFile(nodePath, `name: Bad\ntype: service\naspects:\n  - exceptions:\n      - "some note"\n`, 'utf-8');
 
     await expect(parseNodeYaml(nodePath)).rejects.toThrow(
-      "aspects must be an array of strings. Update the YAML to use the v4 format.",
+      "aspects must be an array of strings.",
     );
 
     await rm(tmpDir, { recursive: true, force: true });
@@ -554,7 +554,7 @@ relations:
     await writeFile(nodePath, `name: Bad\ntype: service\naspects:\n  - aspect: my-aspect\n    exceptions: "not-array"\n`, 'utf-8');
 
     await expect(parseNodeYaml(nodePath)).rejects.toThrow(
-      "aspects must be an array of strings. Update the YAML to use the v4 format.",
+      "aspects must be an array of strings.",
     );
 
     await rm(tmpDir, { recursive: true, force: true });
@@ -660,7 +660,7 @@ mapping:
         'utf-8',
       );
 
-      await expect(parseNodeYaml(nodePath)).rejects.toThrow(/v4 format/i);
+      await expect(parseNodeYaml(nodePath)).rejects.toThrow(/flat list of file\/directory paths/i);
 
       await rm(tmpDir, { recursive: true, force: true });
     });
