@@ -37,12 +37,7 @@ node_types:
     description: "Guards, middleware, interceptors — invisible in call graphs but affect blast radius"
 
 quality:
-  min_artifact_length: 50
   max_direct_relations: 10
-  context_budget:
-    warning: 10000
-    error: 20000
-    own_warning: 5000
 `;
 
 export const DEFAULT_ARCHITECTURE = `node_types:
