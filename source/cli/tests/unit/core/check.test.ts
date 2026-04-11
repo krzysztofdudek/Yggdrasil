@@ -218,7 +218,7 @@ describe('classifyDrift', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('returns E020 unmaterialized when no baseline exists', async () => {
+  it('returns unapproved when no baseline exists', async () => {
     const { tmpDir } = await createTmpProject('unmaterialized', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
@@ -227,9 +227,9 @@ describe('classifyDrift', () => {
     // Do NOT record baseline
     const graph = await loadGraph(tmpDir);
     const result = await classifyDrift(graph);
-    const e020 = result.filter(i => i.code === 'source-drift');
-    expect(e020).toHaveLength(1);
-    expect(e020[0].lifecycleState).toBe('unmaterialized');
+    const unapproved = result.filter(i => i.code === 'unapproved');
+    expect(unapproved).toHaveLength(1);
+    expect(unapproved[0].lifecycleState).toBe('unmaterialized');
     await rm(tmpDir, { recursive: true, force: true });
   });
 

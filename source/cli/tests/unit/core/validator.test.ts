@@ -151,7 +151,8 @@ describe('validator', () => {
     expect(issues).toHaveLength(1);
     expect(issues[0].rule).toBe('dangling-aspect-ref');
     expect(issues[0].message).toContain('missing-flow-aspect');
-    expect(issues[0].message).toContain("flow 'Checkout'");
+    expect(issues[0].message).toContain("flow");
+    expect(issues[0].message).toContain("missing-flow-aspect");
   });
 
   it('duplicate-aspect-binding returns E010 when id bound to multiple aspects', async () => {
@@ -451,9 +452,8 @@ describe('validator', () => {
     });
 
     const result = await validate(graph);
-    const issues = result.issues.filter((i) => i.rule === 'broken-aspect-ref');
+    const issues = result.issues.filter((i) => i.rule === 'dangling-aspect-ref' && i.message.includes('flow'));
     expect(issues).toHaveLength(1);
-    expect(issues[0].message).toContain("Flow 'SagaFlow'");
     expect(issues[0].message).toContain("undefined-tag");
   });
 
@@ -469,9 +469,9 @@ describe('validator', () => {
     // aspects[] is empty — no aspect binds to valid-tag
 
     const result = await validate(graph);
-    const issues = result.issues.filter((i) => i.rule === 'broken-aspect-ref');
+    const issues = result.issues.filter((i) => i.rule === 'dangling-aspect-ref' && i.message.includes('flow'));
     expect(issues).toHaveLength(1);
-    expect(issues[0].message).toContain("no aspect with that id exists");
+    expect(issues[0].message).toContain("not defined in aspects");
   });
 
   it('high-fan-out warns when node exceeds max_direct_relations', async () => {

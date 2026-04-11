@@ -75,7 +75,7 @@ export function formatOutput(result: CheckResult): string {
   const warnings = result.issues.filter(i => i.severity === 'warning');
 
   // Code category sets for grouping
-  const STRUCTURAL_CODES = new Set(['yaml-invalid', 'type-invalid', 'relation-broken', 'flow-node-broken', 'flow-aspect-undefined', 'overlapping-mapping', 'structural-cycle', 'config-invalid', 'duplicate-aspect-id', 'node-yaml-missing', 'implied-aspect-missing', 'aspect-implies-cycle']);
+  const STRUCTURAL_CODES = new Set(['yaml-invalid', 'type-invalid', 'relation-broken', 'flow-node-broken', 'aspect-undefined', 'overlapping-mapping', 'structural-cycle', 'config-invalid', 'duplicate-aspect-id', 'node-yaml-missing', 'implied-aspect-missing', 'aspect-implies-cycle']);
   const ARCHITECTURE_CODES = new Set(['aspect-undefined', 'relation-target-forbidden', 'parent-type-forbidden', 'port-missing-aspect', 'port-missing-consumes', 'port-undefined', 'consumes-without-ports']);
   const COMPLETENESS_CODES = new Set(['description-missing', 'event-unpaired', 'schema-missing', 'mapping-path-missing']);
 

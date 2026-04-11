@@ -147,9 +147,9 @@ describe('LLM verification (CLI layer)', () => {
     const coreResult = await approveNode(graph, 'svc/my-service');
     const result = await runLlmVerification(graph, 'svc/my-service', coreResult, makeLlmConfig(provider));
     expect(result.action).toBe('refused');
-    expect(result.e055Violations).toBeDefined();
-    expect(result.e055Violations!.length).toBeGreaterThan(0);
-    expect(result.e055Violations![0].reason).toContain('Date.now()');
+    expect(result.aspectViolations).toBeDefined();
+    expect(result.aspectViolations!.length).toBeGreaterThan(0);
+    expect(result.aspectViolations![0].reason).toContain('Date.now()');
     expect(result.aspectResults?.['deterministic']?.satisfied).toBe(false);
     await rm(tmpDir, { recursive: true, force: true });
   });

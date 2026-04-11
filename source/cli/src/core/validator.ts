@@ -58,7 +58,6 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
   issues.push(...checkMappingOverlap(graph));
   issues.push(...(await checkMappingPathsExist(graph)));
   issues.push(...checkBrokenFlowRefs(graph));
-  issues.push(...checkFlowAspectIds(graph));
   issues.push(...(await checkDirectoriesHaveNodeYaml(graph)));
   issues.push(...(await checkWideNodes(graph)));
   issues.push(...checkUnpairedEvents(graph));
@@ -566,28 +565,7 @@ function checkBrokenFlowRefs(graph: Graph): ValidationIssue[] {
 
 // --- E006: Flow aspect ids must have corresponding aspect ---
 
-function checkFlowAspectIds(graph: Graph): ValidationIssue[] {
-  const issues: ValidationIssue[] = [];
-  const validAspectIds = new Set(graph.aspects.map((a) => a.id));
-
-  for (const flow of graph.flows) {
-    for (const aspectId of flow.aspects ?? []) {
-      if (!validAspectIds.has(aspectId)) {
-        issues.push({
-          severity: 'error',
-          code: 'flow-aspect-undefined',
-          rule: 'broken-aspect-ref',
-          message: buildIssueMessage({
-            what: `Flow '${flow.name}' references aspect '${aspectId}' but no aspect with that id exists in aspects/.`,
-            why: `Flow aspects must exist for requirements to propagate.`,
-            next: `Create the aspect or remove it from the flow's aspects list.`,
-          }),
-        });
-      }
-    }
-  }
-  return issues;
-}
+// checkFlowAspectIds removed — flow aspects are covered by checkDanglingAspectRefs
 
 
 // --- W003: Wide node (maps too many source files) ---

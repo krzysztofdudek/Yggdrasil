@@ -28,7 +28,7 @@ export interface LlmApproveResult extends ApproveResult {
   /** Why LLM verification was skipped, if it was */
   llmSkipped?: 'not-configured' | 'unavailable' | 'blackbox';
   /** Aspect violations for programmatic consumption */
-  e055Violations?: Array<{ aspect: string; reason: string }>;
+  aspectViolations?: Array<{ aspectId: string; reason: string }>;
 }
 
 /** LLM configuration resolved from graph config */
@@ -96,7 +96,7 @@ export async function runLlmVerification(
   }
 
   let aspectResults: Record<string, AspectVerificationResult> | undefined;
-  const e055Violations: Array<{ aspect: string; reason: string }> = [];
+  const aspectViolations: Array<{ aspectId: string; reason: string }> = [];
 
   if ((llmConfig.verifyAspects) && aspects.length > 0) {
     aspectResults = await verifyAspects({
@@ -112,19 +112,19 @@ export async function runLlmVerification(
     });
     for (const [aspectId, res] of Object.entries(aspectResults)) {
       if (!res.satisfied) {
-        e055Violations.push({ aspect: aspectId, reason: res.reason });
+        aspectViolations.push({ aspectId, reason: res.reason });
       }
     }
   }
 
   // If violations found, override to refused
-  if (e055Violations.length > 0) {
+  if (aspectViolations.length > 0) {
     return {
       ...result,
       action: 'refused',
       refuseReason: 'Reviewer verification found issues',
       aspectResults,
-      e055Violations,
+      aspectViolations,
     };
   }
 
@@ -256,12 +256,12 @@ function formatRefused(nodePath: string, result: LlmApproveResult): void {
   }
 
   // LLM reviewer refused
-  if (result.e055Violations && result.e055Violations.length > 0) {
+  if (result.aspectViolations && result.aspectViolations.length > 0) {
     process.stderr.write(
       chalk.red(`ERROR: Reviewer found aspect violations.\n`),
     );
-    for (const v of result.e055Violations) {
-      process.stderr.write(`  ${v.aspect}: ${v.reason}\n`);
+    for (const v of result.aspectViolations) {
+      process.stderr.write(`  ${v.aspectId}: ${v.reason}\n`);
     }
     process.stderr.write(
       `  Fix the violations and re-run: yg approve --node ${nodePath}\n`,
