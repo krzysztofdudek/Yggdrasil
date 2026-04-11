@@ -124,7 +124,7 @@ implies:
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('stability field is silently ignored (v4 removal)', async () => {
+  it('silently ignores unknown stability field', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-aspect-stability');
     await mkdir(tmpDir, { recursive: true });
     const aspectPath = path.join(tmpDir, 'yg-aspect.yaml');
@@ -138,7 +138,7 @@ implies:
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('silently ignores anchors field when present (v4 removal)', async () => {
+  it('silently ignores unknown anchors field', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-aspect-anchors');
     await mkdir(tmpDir, { recursive: true });
     const aspectPath = path.join(tmpDir, 'yg-aspect.yaml');

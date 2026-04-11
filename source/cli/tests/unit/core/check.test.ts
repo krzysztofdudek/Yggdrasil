@@ -131,7 +131,7 @@ describe('classifyDrift', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('returns E020 source-drift when source file changes', async () => {
+  it('returns source-drift when source file changes', async () => {
     const { tmpDir } = await createTmpProject('source-drift', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
@@ -187,7 +187,7 @@ describe('classifyDrift', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('returns E021 cascade-drift when aspect file changes', async () => {
+  it('returns cascade-drift when aspect file changes', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('cascade-aspect', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - logging\nmapping:\n  - src/svc/\n',
@@ -211,7 +211,7 @@ describe('classifyDrift', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('returns both E020 and E021 when direct and cascade changes happen', async () => {
+  it('returns both source-drift and cascade-drift when direct and cascade changes happen', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('compound', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - logging\nmapping:\n  - src/svc/\n',
@@ -251,7 +251,7 @@ describe('classifyDrift', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('returns E020 unmaterialized with files-never-created message when source path absent', async () => {
+  it('returns source-drift unmaterialized with files-never-created message when source path absent', async () => {
     const { tmpDir } = await createTmpProject('unmaterialized-absent', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/absent/\n',
@@ -267,7 +267,7 @@ describe('classifyDrift', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('returns E020 missing when source files are gone', async () => {
+  it('returns source-drift missing when source files are gone', async () => {
     const { tmpDir } = await createTmpProject('missing-src', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
@@ -306,7 +306,7 @@ describe('classifyDrift', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('returns E020 full-drift when both source and own graph artifacts change', async () => {
+  it('returns source-drift full-drift when both source and own graph artifacts change', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('full-drift', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
@@ -470,7 +470,7 @@ describe('classifyDrift', () => {
 
 });
 
-  it('handles drift state without mtimes (legacy baseline)', async () => {
+  it('handles drift state without mtimes', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('no-mtimes', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
@@ -599,7 +599,7 @@ describe('buildCoverageIssue', () => {
     expect(buildCoverageIssue([], 10)).toBeNull();
   });
 
-  it('returns E022 for small count (<=5 files)', () => {
+  it('returns unmapped-files for small count (<=5 files)', () => {
     const issue = buildCoverageIssue(['a.ts', 'b.ts'], 10);
     expect(issue).not.toBeNull();
     expect(issue!.code).toBe('unmapped-files');
@@ -610,7 +610,7 @@ describe('buildCoverageIssue', () => {
     expect(issue!.message).toContain('b.ts');
   });
 
-  it('returns E022 for large count (>5 files) with guidance before examples', () => {
+  it('returns unmapped-files for large count (>5 files) with guidance before examples', () => {
     const files = Array.from({ length: 20 }, (_, i) => `file${i}.ts`);
     const issue = buildCoverageIssue(files, 100);
     expect(issue).not.toBeNull();
@@ -677,7 +677,7 @@ describe('detectOrphanedDriftState', () => {
 // ── computeSuggestedNext (tested indirectly through runCheck) ──
 
 describe('suggestedNext priority', () => {
-  it('suggests cascade when E021 is present without E020', async () => {
+  it('suggests cascade when upstream-drift is present without source-drift', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('suggest-cascade', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - logging\nmapping:\n  - src/svc/\n',
@@ -705,7 +705,7 @@ describe('suggestedNext priority', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('suggests structural fix when E001-E013 are the highest priority', async () => {
+  it('suggests structural fix when structural errors are the highest priority', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('suggest-structural', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\nrelations:\n  - target: nonexistent/node\n    type: uses\nmapping:\n  - src/svc/\n',
@@ -725,7 +725,7 @@ describe('suggestedNext priority', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('suggests coverage when only E022 errors exist', async () => {
+  it('suggests coverage when only unmapped-files errors exist', async () => {
     const { tmpDir } = await createTmpProject('suggest-coverage', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
@@ -766,7 +766,7 @@ describe('runCheck', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('includes E020 drift issues in orchestrated result', async () => {
+  it('includes source-drift issues in orchestrated result', async () => {
     const { tmpDir } = await createTmpProject('check-drift', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
@@ -782,7 +782,7 @@ describe('runCheck', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('includes E022 coverage issues when uncovered files exist', async () => {
+  it('includes unmapped-files coverage issues when uncovered files exist', async () => {
     const { tmpDir } = await createTmpProject('check-coverage', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
@@ -796,7 +796,7 @@ describe('runCheck', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('skips E022 when gitTrackedFiles is null', async () => {
+  it('skips unmapped-files when gitTrackedFiles is null', async () => {
     const { tmpDir } = await createTmpProject('check-no-git', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
@@ -811,7 +811,7 @@ describe('runCheck', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('includes W005 when orphaned drift state exists', async () => {
+  it('includes orphaned-drift-state warning when orphaned drift state exists', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('check-orphan', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
@@ -880,7 +880,7 @@ describe('runCheck', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('suggests --aspect batch command when >=2 E021 share same aspect cause', async () => {
+  it('suggests --aspect batch command when >=2 upstream-drift share same aspect cause', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('cascade-suggest-aspect', {
       nodePath: 'svc/alpha',
       nodeYaml: 'name: Alpha\ntype: service\ndescription: alpha\naspects:\n  - audit\nmapping:\n  - src/alpha/\n',
@@ -914,7 +914,7 @@ describe('runCheck', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('suggests single node context when only 1 E021 exists', async () => {
+  it('suggests single node context when only 1 upstream-drift exists', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('cascade-suggest-single', {
       nodePath: 'svc/alpha',
       nodeYaml: 'name: Alpha\ntype: service\ndescription: alpha\naspects:\n  - audit\nmapping:\n  - src/alpha/\n',
@@ -939,7 +939,7 @@ describe('runCheck', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('suggests --flow batch command when >=2 E021 share same flow cause', async () => {
+  it('suggests --flow batch command when >=2 upstream-drift share same flow cause', async () => {
     // Create two nodes that share a flow, then trigger cascade from flow artifact change
     const { tmpDir, yggRoot } = await createTmpProject('cascade-suggest-flow', {
       nodePath: 'svc/alpha',
@@ -981,7 +981,7 @@ describe('runCheck', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('suggests --node batch command when >=2 E021 share same parent model cause', async () => {
+  it('suggests --node batch command when >=2 upstream-drift share same parent model cause', async () => {
     // Two sibling nodes sharing the same parent — parent artifact change triggers cascade on both
     const { tmpDir, yggRoot } = await createTmpProject('cascade-suggest-parent', {
       nodePath: 'svc/alpha',

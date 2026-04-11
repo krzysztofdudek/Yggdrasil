@@ -3,7 +3,7 @@ import { filterCascadeNodes } from '../../../src/cli/approve.js';
 import type { CheckIssue } from '../../../src/core/check.js';
 
 describe('filterCascadeNodes', () => {
-  const makeE021 = (nodePath: string, causeFiles: string[]): CheckIssue => ({
+  const makeCascadeDrift = (nodePath: string, causeFiles: string[]): CheckIssue => ({
     severity: 'error',
     code: 'upstream-drift',
     rule: 'cascade-drift',
@@ -18,23 +18,23 @@ describe('filterCascadeNodes', () => {
 
   it('matches nodes whose cascade causes start with the prefix', () => {
     const issues: CheckIssue[] = [
-      makeE021('cli/commands/approve', ['.yggdrasil/aspects/deterministic/rules.md']),
-      makeE021('cli/commands/check', ['.yggdrasil/aspects/deterministic/yg-aspect.yaml']),
-      makeE021('cli/commands/init', ['.yggdrasil/aspects/logging/rules.md']),
+      makeCascadeDrift('cli/commands/approve', ['.yggdrasil/aspects/deterministic/rules.md']),
+      makeCascadeDrift('cli/commands/check', ['.yggdrasil/aspects/deterministic/yg-aspect.yaml']),
+      makeCascadeDrift('cli/commands/init', ['.yggdrasil/aspects/logging/rules.md']),
     ];
     const result = filterCascadeNodes(issues, '.yggdrasil/aspects/deterministic/');
     expect(result).toEqual(['cli/commands/approve', 'cli/commands/check']);
   });
 
-  it('returns empty array when no E021 issues match', () => {
+  it('returns empty array when no upstream-drift issues match', () => {
     const issues: CheckIssue[] = [
-      makeE021('cli/commands/init', ['.yggdrasil/aspects/logging/rules.md']),
+      makeCascadeDrift('cli/commands/init', ['.yggdrasil/aspects/logging/rules.md']),
     ];
     const result = filterCascadeNodes(issues, '.yggdrasil/aspects/deterministic/');
     expect(result).toEqual([]);
   });
 
-  it('ignores non-E021 issues', () => {
+  it('ignores non-upstream-drift issues', () => {
     const issues: CheckIssue[] = [{
       severity: 'error',
       code: 'source-drift',
@@ -48,7 +48,7 @@ describe('filterCascadeNodes', () => {
 
   it('matches flow cause prefix', () => {
     const issues: CheckIssue[] = [
-      makeE021('cli/commands/approve', ['.yggdrasil/flows/checkout/yg-flow.yaml']),
+      makeCascadeDrift('cli/commands/approve', ['.yggdrasil/flows/checkout/yg-flow.yaml']),
     ];
     const result = filterCascadeNodes(issues, '.yggdrasil/flows/checkout/');
     expect(result).toEqual(['cli/commands/approve']);
@@ -56,8 +56,8 @@ describe('filterCascadeNodes', () => {
 
   it('matches parent model cause prefix', () => {
     const issues: CheckIssue[] = [
-      makeE021('cli/commands/approve', ['.yggdrasil/model/cli/responsibility.md']),
-      makeE021('cli/core/check', ['.yggdrasil/model/cli/core/responsibility.md']),
+      makeCascadeDrift('cli/commands/approve', ['.yggdrasil/model/cli/responsibility.md']),
+      makeCascadeDrift('cli/core/check', ['.yggdrasil/model/cli/core/responsibility.md']),
     ];
     const result = filterCascadeNodes(issues, '.yggdrasil/model/cli/');
     expect(result).toEqual(['cli/commands/approve', 'cli/core/check']);
@@ -65,7 +65,7 @@ describe('filterCascadeNodes', () => {
 
   it('does not match when cause file is in a different aspect with shared prefix', () => {
     const issues: CheckIssue[] = [
-      makeE021('cli/commands/approve', ['.yggdrasil/aspects/deterministic-v2/rules.md']),
+      makeCascadeDrift('cli/commands/approve', ['.yggdrasil/aspects/deterministic-v2/rules.md']),
     ];
     const result = filterCascadeNodes(issues, '.yggdrasil/aspects/deterministic/');
     expect(result).toEqual([]);

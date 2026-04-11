@@ -58,7 +58,7 @@ describe('flow-support integration (v2.2)', () => {
     }
   });
 
-  it('scenario 6: v2.2 uses FlowDef and graph.flows', async () => {
+  it('scenario 6: FlowDef and graph.flows are populated', async () => {
     const graph = await loadGraph(FIXTURE_PROJECT);
     expect(graph.flows).toBeDefined();
     expect(Array.isArray(graph.flows)).toBe(true);

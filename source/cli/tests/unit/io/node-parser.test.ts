@@ -89,7 +89,7 @@ mapping:
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('throws when mapping contains object instead of string (old format)', async () => {
+  it('throws when mapping contains object instead of string', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-node');
     await mkdir(tmpDir, { recursive: true });
     const nodePath = path.join(tmpDir, 'yg-node.yaml');
@@ -402,7 +402,7 @@ mapping:
   });
 
 
-  it('throws on old mapping format (object instead of array)', async () => {
+  it('throws when mapping is an object instead of array', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-mapping-legacy');
     await mkdir(tmpDir, { recursive: true });
     const nodePath = path.join(tmpDir, 'yg-node.yaml');
@@ -534,7 +534,7 @@ relations:
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('throws when aspects entry is old object format', async () => {
+  it('throws when aspects entry is an object', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-no-aspect-key');
     await mkdir(tmpDir, { recursive: true });
     const nodePath = path.join(tmpDir, 'yg-node.yaml');
@@ -547,7 +547,7 @@ relations:
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('throws when aspects entry is old object format with exceptions', async () => {
+  it('throws when aspects entry is an object with exceptions', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-bad-exc-type');
     await mkdir(tmpDir, { recursive: true });
     const nodePath = path.join(tmpDir, 'yg-node.yaml');
@@ -638,7 +638,7 @@ mapping:
       await rm(tmpDir, { recursive: true, force: true });
     });
 
-    it('rejects old mapping group format (objects)', async () => {
+    it('rejects mapping group format with objects', async () => {
       const tmpDir = path.join(__dirname, '../../fixtures/tmp-old-mapping-group');
       await mkdir(tmpDir, { recursive: true });
       const nodePath = path.join(tmpDir, 'yg-node.yaml');

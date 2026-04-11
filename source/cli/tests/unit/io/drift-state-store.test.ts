@@ -14,30 +14,25 @@ import type { DriftState } from '../../../src/model/drift.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 describe('drift-state-store', () => {
-  it('reads existing drift state (DriftNodeState format)', async () => {
+  it('reads existing drift state from per-node directory format', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-drift-read');
+    await rm(tmpDir, { recursive: true, force: true });
     await mkdir(tmpDir, { recursive: true });
-    await writeFile(
-      path.join(tmpDir, '.drift-state'),
-      `orders/order-service:
-  hash: abc123def456
-  files:
-    src/orders/order.service.ts: abc123def456
-auth/auth-api:
-  hash: fff789
-  files:
-    src/auth/auth.controller.ts: fff789
-`,
-      'utf-8',
-    );
 
-    const state = await readDriftState(tmpDir);
+    // Write per-node JSON files
+    const state: DriftState = {
+      'orders/order-service': { hash: 'abc123def456', files: { 'src/orders/order.service.ts': 'abc123def456' } },
+      'auth/auth-api': { hash: 'fff789', files: { 'src/auth/auth.controller.ts': 'fff789' } },
+    };
+    await writeDriftState(tmpDir, state);
 
-    expect(state['orders/order-service']).toEqual({
+    const result = await readDriftState(tmpDir);
+
+    expect(result['orders/order-service']).toEqual({
       hash: 'abc123def456',
       files: { 'src/orders/order.service.ts': 'abc123def456' },
     });
-    expect(state['auth/auth-api']).toEqual({
+    expect(result['auth/auth-api']).toEqual({
       hash: 'fff789',
       files: { 'src/auth/auth.controller.ts': 'fff789' },
     });
@@ -109,8 +104,8 @@ auth/auth-api:
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('skips legacy string entries silently', async () => {
-    const tmpDir = path.join(__dirname, '../../fixtures/tmp-drift-legacy-skip');
+  it('returns empty when .drift-state is a file instead of directory', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-drift-file-fallback');
     await mkdir(tmpDir, { recursive: true });
     await writeFile(
       path.join(tmpDir, '.drift-state'),
@@ -118,22 +113,12 @@ auth/auth-api:
   hash: 28f3c41611792a2e0cc8a4fdffc9b2294aa49d46
   files:
     src/orders/order.service.ts: 28f3c41611792a2e0cc8a4fdffc9b2294aa49d46
-auth/auth-api: flat-hash-abc
 `,
       'utf-8',
     );
 
     const state = await readDriftState(tmpDir);
-
-    // Object entry is preserved
-    expect(state['orders/order-service']).toEqual({
-      hash: '28f3c41611792a2e0cc8a4fdffc9b2294aa49d46',
-      files: {
-        'src/orders/order.service.ts': '28f3c41611792a2e0cc8a4fdffc9b2294aa49d46',
-      },
-    });
-    // Legacy string entry is skipped
-    expect(state['auth/auth-api']).toBeUndefined();
+    expect(Object.keys(state)).toHaveLength(0);
 
     await rm(tmpDir, { recursive: true, force: true });
   });
@@ -309,52 +294,4 @@ auth/auth-api: flat-hash-abc
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('legacy migration: readDriftState migrates old single-file to per-node files', async () => {
-    const tmpDir = path.join(__dirname, '../../fixtures/tmp-drift-legacy-migrate');
-    await mkdir(tmpDir, { recursive: true });
-
-    // Write old single-file format (as a regular file, not directory)
-    const legacyState: DriftState = {
-      'orders/order-service': { hash: 'abc123', files: { 'src/orders.ts': 'abc123' } },
-      'auth/auth-api': { hash: 'def456', files: { 'src/auth.ts': 'def456' } },
-    };
-    await writeFile(
-      path.join(tmpDir, '.drift-state'),
-      JSON.stringify(legacyState),
-      'utf-8',
-    );
-
-    // readDriftState should transparently migrate
-    const result = await readDriftState(tmpDir);
-
-    expect(result['orders/order-service']).toEqual({
-      hash: 'abc123',
-      files: { 'src/orders.ts': 'abc123' },
-    });
-    expect(result['auth/auth-api']).toEqual({
-      hash: 'def456',
-      files: { 'src/auth.ts': 'def456' },
-    });
-
-    // After migration, per-node files should exist
-    const migratedContent1 = await readFile(
-      path.join(tmpDir, '.drift-state', 'orders', 'order-service.json'),
-      'utf-8',
-    );
-    expect(JSON.parse(migratedContent1)).toEqual({
-      hash: 'abc123',
-      files: { 'src/orders.ts': 'abc123' },
-    });
-
-    const migratedContent2 = await readFile(
-      path.join(tmpDir, '.drift-state', 'auth', 'auth-api.json'),
-      'utf-8',
-    );
-    expect(JSON.parse(migratedContent2)).toEqual({
-      hash: 'def456',
-      files: { 'src/auth.ts': 'def456' },
-    });
-
-    await rm(tmpDir, { recursive: true, force: true });
-  });
 });

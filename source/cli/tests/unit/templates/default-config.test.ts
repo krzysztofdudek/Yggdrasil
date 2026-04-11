@@ -32,11 +32,6 @@ describe('default-config', () => {
     expect(names).toContain('library');
   });
 
-  it('DEFAULT_CONFIG does not contain artifacts section', () => {
-    const parsed = parseYaml(DEFAULT_CONFIG) as Record<string, unknown>;
-    expect(parsed.artifacts).toBeUndefined();
-  });
-
   it('DEFAULT_CONFIG node_types includes infrastructure', () => {
     const parsed = parseYaml(DEFAULT_CONFIG) as {
       node_types: Record<string, { description: string }>;

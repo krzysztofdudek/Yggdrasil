@@ -111,7 +111,7 @@ describe.skipIf(!distExists)('CLI E2E', () => {
     expect(stderr).toContain("'--node <path>' or '--file <path>' is required");
   });
 
-  it('yg context --node works (renamed from build-context)', () => {
+  it('yg context --node works', () => {
     const { stdout, status } = run(['context', '--node', 'orders/order-service']);
     expect(status).toBe(0);
     expect(stdout).toContain('orders/order-service');

@@ -78,7 +78,7 @@ describe('formatOutput', () => {
     expect(output).not.toContain('Health:');
   });
 
-  it('displays full W001 message including breakdown', () => {
+  it('displays full completeness-warning message including breakdown', () => {
     const output = formatOutput(makeCheckResult({
       issues: [makeWarning('W001', 'Context is 18,000 tokens...\n     own: 2,100 | hierarchy: 3,200 | ...')],
     }));
@@ -101,7 +101,7 @@ describe('formatOutput', () => {
     expect(output).toContain('budget warning message');
   });
 
-  it('shows summary header when >10 E050 errors', () => {
+  it('shows summary header when >10 aspect-undefined errors', () => {
     const issues = Array.from({ length: 15 }, (_, i) => makeError('aspect-undefined', `Aspect 'auth' referenced by node-${i}...`, `node-${i}`));
     const output = formatOutput(makeCheckResult({ issues }));
     expect(output).toContain('Structural:');
@@ -126,7 +126,7 @@ describe('formatOutput', () => {
 });
 
 describe('preserved check features', () => {
-  it('cascade tree summary appears after E021 blocks', () => {
+  it('cascade tree summary appears after upstream-drift blocks', () => {
     const output = formatOutput(makeCheckResult({
       issues: [
         makeCascadeIssue('node-a', "aspect 'X' rules changed"),
@@ -158,7 +158,7 @@ describe('preserved check features', () => {
     expect(aPos).toBeLessThan(zPos);
   });
 
-  it('E022 cold start guidance when 0 nodes and many uncovered files', () => {
+  it('unmapped-files cold start guidance when 0 nodes and many uncovered files', () => {
     const output = formatOutput(makeCheckResult({
       nodeCount: 0,
       issues: [makeCoverageIssue(100)],

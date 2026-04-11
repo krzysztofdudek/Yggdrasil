@@ -92,7 +92,7 @@ describe('validator', () => {
     expect(issues[0].nodePath).toBe('a');
   });
 
-  it('dangling-aspect-ref (E050) returns error when node aspect has no aspect def', async () => {
+  it('dangling-aspect-ref returns error when node aspect has no aspect def', async () => {
     const graph = createGraph();
     graph.nodes.set('a', createNode('a', { aspects: ['no-aspect-for-this'] }));
 
@@ -103,7 +103,7 @@ describe('validator', () => {
     expect(issues[0].message).toContain('not defined in aspects/');
   });
 
-  it('dangling-aspect-ref (E050) fires when a port references an undefined aspect', async () => {
+  it('dangling-aspect-ref fires when a port references an undefined aspect', async () => {
     const graph = createGraph();
     graph.nodes.set('a', createNode('a', {
       ports: { 'api': { description: 'API port', aspects: ['missing-aspect'] } },
@@ -117,7 +117,7 @@ describe('validator', () => {
     expect(issues[0].message).toContain("port 'api'");
   });
 
-  it('dangling-aspect-ref (E050) fires when architecture node_type references an undefined aspect', async () => {
+  it('dangling-aspect-ref fires when architecture node_type references an undefined aspect', async () => {
     const graph = createGraph({
       architecture: {
         node_types: {
@@ -136,7 +136,7 @@ describe('validator', () => {
     expect(issues[0].message).toContain("architecture type 'service'");
   });
 
-  it('dangling-aspect-ref (E050) fires when a flow references an undefined aspect', async () => {
+  it('dangling-aspect-ref fires when a flow references an undefined aspect', async () => {
     const graph = createGraph({ aspects: [] });
     graph.nodes.set('a', createNode('a'));
     graph.flows.push({
@@ -155,7 +155,7 @@ describe('validator', () => {
     expect(issues[0].message).toContain("missing-flow-aspect");
   });
 
-  it('duplicate-aspect-binding returns E010 when id bound to multiple aspects', async () => {
+  it('duplicate-aspect-binding returns error when id bound to multiple aspects', async () => {
     const graph = createGraph({
       aspects: [
         { name: 'Aspect One', id: 'audit', artifacts: [] },
@@ -319,7 +319,7 @@ describe('validator', () => {
     expect(issues[0].severity).toBe('error');
   });
 
-  it('config-populated is empty (v2.2: replaced by E012)', async () => {
+  it('config-populated returns no issues for valid config', async () => {
     const graph = createGraph({
       config: {
         name: 'Test',
@@ -627,7 +627,7 @@ describe('validator', () => {
     expect(issues).toHaveLength(1);
   });
 
-  it('checkSchemas: E034 when required schema is missing', async () => {
+  it('checkSchemas: missing-schema when required schema is missing', async () => {
     const graph = createGraph();
     graph.schemas = [{ schemaType: 'node' }, { schemaType: 'aspect' }];
     // flow missing
@@ -639,7 +639,7 @@ describe('validator', () => {
     expect(issues[0].message).toContain('flow');
   });
 
-  it('checkSchemas: no E034 when all 3 schemas present', async () => {
+  it('checkSchemas: no missing-schema when all 3 schemas present', async () => {
     const graph = createGraph();
     graph.schemas = [
       { schemaType: 'node' },
@@ -715,8 +715,8 @@ describe('validator', () => {
     }
   });
 
-  describe('E038 missing-description', () => {
-    it('E038 emitted for a node without description', async () => {
+  describe('missing-description', () => {
+    it('missing-description emitted for a node without description', async () => {
       const graph = createGraph();
       graph.nodes.set('svc/no-desc', createNode('svc/no-desc'));
 
@@ -728,7 +728,7 @@ describe('validator', () => {
       expect(issues[0].message).toContain('no description');
     });
 
-    it('no E038 when node has description set', async () => {
+    it('no missing-description when node has description set', async () => {
       const graph = createGraph();
       graph.nodes.set('svc/with-desc', createNode('svc/with-desc', { description: 'A useful service.' }));
 
@@ -737,7 +737,7 @@ describe('validator', () => {
       expect(issues).toHaveLength(0);
     });
 
-    it('E038 emitted for an aspect without description', async () => {
+    it('missing-description emitted for an aspect without description', async () => {
       const graph = createGraph({
         aspects: [{ name: 'NoDesc', id: 'no-desc-aspect', artifacts: [] }],
       });
@@ -752,7 +752,7 @@ describe('validator', () => {
       expect(issues[0].severity).toBe('error');
     });
 
-    it('E038 emitted for a flow without description', async () => {
+    it('missing-description emitted for a flow without description', async () => {
       const graph = createGraph();
       graph.nodes.set('a', createNode('a'));
       graph.flows.push({
@@ -772,7 +772,7 @@ describe('validator', () => {
   });
 
   describe('Architecture Constraints (E050-E054)', () => {
-    it('E051: invalid-relation-target when relation target type not allowed', async () => {
+    it('invalid-relation-target when relation target type not allowed', async () => {
       const graph = createGraph({
         architecture: {
           node_types: {
@@ -798,7 +798,7 @@ describe('validator', () => {
       expect(e051!.message).toContain('library');
     });
 
-    it('E051: not fired when relation target type is allowed', async () => {
+    it('invalid-relation-target not fired when relation target type is allowed', async () => {
       const graph = createGraph({
         architecture: {
           node_types: {
@@ -821,7 +821,7 @@ describe('validator', () => {
       expect(e051).toBeUndefined();
     });
 
-    it('E052: invalid-parent-type when parent type not in allowed list', async () => {
+    it('invalid-parent-type when parent type not in allowed list', async () => {
       const parentNode = createNode('parent', { type: 'library' });
       const childNode = createNode('parent/child', { type: 'service' });
       childNode.parent = parentNode;
@@ -848,7 +848,7 @@ describe('validator', () => {
       expect(e052!.message).toContain('service');
     });
 
-    it('E052: not fired when parent type is in allowed list', async () => {
+    it('invalid-parent-type not fired when parent type is in allowed list', async () => {
       const parentNode = createNode('parent', { type: 'module' });
       const childNode = createNode('parent/child', { type: 'service' });
       childNode.parent = parentNode;
@@ -872,7 +872,7 @@ describe('validator', () => {
       expect(e052).toBeUndefined();
     });
 
-    it('E053: integration-aspect-missing when consumer uses a port whose required aspect is not defined', async () => {
+    it('integration-aspect-missing when consumer uses a port whose required aspect is not defined', async () => {
       const graph = createGraph({ aspects: [] }); // no aspects defined
       // Target node with a port that requires 'audit-logging'
       graph.nodes.set('target', createNode('target', {
@@ -891,7 +891,7 @@ describe('validator', () => {
       expect(e053[0].message).toContain("port 'api'");
     });
 
-    it('E053: not fired when consumer uses a port whose required aspect exists', async () => {
+    it('integration-aspect-missing not fired when consumer uses a port whose required aspect exists', async () => {
       const graph = createGraph({
         aspects: [{ name: 'Audit', id: 'audit-logging', artifacts: [] }],
       });
@@ -907,7 +907,7 @@ describe('validator', () => {
       expect(e053).toHaveLength(0);
     });
 
-    it('E053: not fired when relation has no consumes field (no port consumption)', async () => {
+    it('integration-aspect-missing not fired when relation has no consumes field (no port consumption)', async () => {
       const graph = createGraph({ aspects: [] });
       graph.nodes.set('target', createNode('target', {
         ports: { 'api': { description: 'API port', aspects: ['audit-logging'] } },
