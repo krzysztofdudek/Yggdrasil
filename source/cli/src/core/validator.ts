@@ -1,9 +1,7 @@
 import { readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { STANDARD_ARTIFACTS } from '../model/graph.js';
-import type { Graph, ArtifactConfig } from '../model/graph.js';
+import type { Graph } from '../model/graph.js';
 import type { ValidationResult, ValidationIssue } from '../model/validation.js';
-import { buildContext, computeBudgetBreakdown } from './context-builder.js';
 import { normalizeMappingPaths } from '../utils/paths.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
 
@@ -50,9 +48,6 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
     // E035 removed — replaced by E051 (architecture enforcement)
     // E040, E041 removed — anchor realization checks will be replaced by LLM verification in Plan 2
     // E037 removed — anchor pattern checks will be replaced by LLM verification in Plan 2
-    issues.push(...checkRequiredArtifacts(graph));
-    // invalid-artifact-condition removed — standard artifacts don't use has_aspect: conditions
-    issues.push(...(await checkContextBudget(graph)));
     issues.push(...checkHighFanOut(graph));
     issues.push(...checkMissingDescriptions(graph));
   }
@@ -65,7 +60,6 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
   issues.push(...checkBrokenFlowRefs(graph));
   issues.push(...checkFlowAspectIds(graph));
   issues.push(...(await checkDirectoriesHaveNodeYaml(graph)));
-  issues.push(...(await checkShallowArtifacts(graph)));
   issues.push(...(await checkWideNodes(graph)));
   issues.push(...checkUnpairedEvents(graph));
   issues.push(...checkArchitectureConstraints(graph));
@@ -545,89 +539,6 @@ async function checkMappingPathsExist(graph: Graph): Promise<ValidationIssue[]> 
   return issues;
 }
 
-// --- Rule 6: Required artifacts per STANDARD_ARTIFACTS (E030) ---
-
-function getIncomingRelationSources(graph: Graph, nodePath: string): string[] {
-  const sources: string[] = [];
-  for (const [srcPath, node] of graph.nodes) {
-    for (const rel of node.meta.relations ?? []) {
-      if (rel.target === nodePath) sources.push(srcPath);
-    }
-  }
-  return sources;
-}
-
-function artifactRequiredReason(
-  graph: Graph,
-  nodePath: string,
-  node: {
-    meta: { relations?: Array<{ target: string }>; aspects?: string[]; blackbox?: boolean };
-    artifacts: Array<{ filename: string }>;
-  },
-  required: ArtifactConfig['required'],
-): string | null {
-  if (required === 'never') return null;
-  if (required === 'always') {
-    return node.meta.blackbox ? null : 'required: always';
-  }
-  const when = (required as { when: string }).when;
-  if (when === 'has_incoming_relations') {
-    const sources = getIncomingRelationSources(graph, nodePath);
-    return sources.length > 0
-      ? `${sources.length} incoming relation(s): ${sources.join(', ')}`
-      : null;
-  }
-  // has_outgoing_relations and has_aspect: conditions removed — standard artifacts don't use them
-  return null;
-}
-
-function getIncomingRelations(graph: Graph, nodePath: string): string[] {
-  const incoming: string[] = [];
-  for (const [fromPath, node] of graph.nodes) {
-    for (const rel of node.meta.relations ?? []) {
-      if (rel.target === nodePath) {
-        incoming.push(fromPath);
-        break;
-      }
-    }
-  }
-  return incoming.sort();
-}
-
-function checkRequiredArtifacts(graph: Graph): ValidationIssue[] {
-  const issues: ValidationIssue[] = [];
-  const artifacts = STANDARD_ARTIFACTS;
-
-  for (const [nodePath, node] of graph.nodes) {
-    for (const [filename, config] of Object.entries(artifacts)) {
-      const hasArtifact = node.artifacts.some((a) => a.filename === filename);
-      const reason = artifactRequiredReason(graph, nodePath, node, config.required);
-
-      if (reason && !hasArtifact) {
-        const action = config.description ?? '';
-        const incoming = getIncomingRelations(graph, nodePath);
-        const incomingStr =
-          incoming.length > 0
-            ? ` Node has ${incoming.length} incoming relation(s): ${incoming.slice(0, 5).join(', ')}${incoming.length > 5 ? '...' : ''}.`
-            : '';
-        const msg = buildIssueMessage({
-          what: `Missing required artifact '${filename}' (${reason}).`,
-          why: `${incomingStr ? incomingStr.trim() + ' ' : ''}Consumers cannot understand this node without its artifacts.`,
-          next: action || `Create ${filename} in the node directory.`,
-        });
-        issues.push({
-          severity: 'error',
-          code: 'E030',
-          rule: 'missing-artifact',
-          message: msg,
-          nodePath,
-        });
-      }
-    }
-  }
-
-  return issues;
-}
 
 // --- E005: Broken flow refs (flow.nodes) ---
 
@@ -678,32 +589,6 @@ function checkFlowAspectIds(graph: Graph): ValidationIssue[] {
   return issues;
 }
 
-// invalid-artifact-condition removed — standard artifacts don't use has_aspect: conditions
-
-// --- E031: Shallow artifacts (below min_artifact_length) ---
-
-async function checkShallowArtifacts(graph: Graph): Promise<ValidationIssue[]> {
-  const issues: ValidationIssue[] = [];
-  const minLen = graph.config.quality?.min_artifact_length ?? 50;
-  for (const [nodePath, node] of graph.nodes) {
-    for (const art of node.artifacts) {
-      if (art.content.trim().length < minLen) {
-        issues.push({
-          severity: 'error',
-          code: 'E031',
-          rule: 'shallow-artifact',
-          message: buildIssueMessage({
-            what: `Artifact '${art.filename}' is below minimum length (${art.content.trim().length} < ${minLen} chars).`,
-            why: `Shallow artifacts provide insufficient context for agents.`,
-            next: `Expand ${art.filename} — describe the node's responsibility, contracts, and constraints.`,
-          }),
-          nodePath,
-        });
-      }
-    }
-  }
-  return issues;
-}
 
 // --- W003: Wide node (maps too many source files) ---
 
@@ -720,16 +605,12 @@ async function checkWideNodes(graph: Graph): Promise<ValidationIssue[]> {
     const sourceFiles = await expandMappingToFiles(projectRoot, mappingPaths);
     if (sourceFiles.length <= maxFiles) continue;
 
-    const filledArtifacts = node.artifacts.filter(
-      (a) => a.content.trim().length >= (graph.config.quality?.min_artifact_length ?? 50),
-    ).length;
-
     issues.push({
       severity: 'warning',
       code: 'W003',
       rule: 'wide-node',
       message: buildIssueMessage({
-        what: `Node maps ${sourceFiles.length} source files (max: ${maxFiles}) with ${filledArtifacts} artifact(s).`,
+        what: `Node maps ${sourceFiles.length} source files (max: ${maxFiles}).`,
         why: `Wide nodes are hard for agents to reason about and produce oversized context packages.`,
         next: `Consider splitting into child nodes with focused responsibilities.`,
       }),
@@ -944,78 +825,6 @@ export async function expandMappingToFiles(projectRoot: string, mappingPaths: st
 // E037 removed — anchor pattern checks will be replaced by LLM verification in Plan 2
 // async function checkAnchorPatterns(graph: Graph): Promise<ValidationIssue[]> { ... }
 
-// --- Context budget (W001 warning, E032 exceeded, W002 own-budget) ---
-
-async function checkContextBudget(graph: Graph): Promise<ValidationIssue[]> {
-  const issues: ValidationIssue[] = [];
-  const budget = graph.config.quality?.context_budget ?? { warning: 10000, error: 20000 };
-  const warningThreshold = budget.warning;
-  const errorThreshold = budget.error;
-  const ownWarningThreshold = budget.own_warning;
-
-  for (const [nodePath] of graph.nodes) {
-    const node = graph.nodes.get(nodePath)!;
-    if (node.meta.blackbox) continue;
-    try {
-      const pkg = await buildContext(graph, nodePath);
-      const breakdown = computeBudgetBreakdown(pkg, graph);
-      const breakdownLine =
-        `own: ${breakdown.own.toLocaleString()} (${pct(breakdown.own, breakdown.total)}) | ` +
-        `hierarchy: ${breakdown.hierarchy.toLocaleString()} (${pct(breakdown.hierarchy, breakdown.total)}) | ` +
-        `aspects: ${breakdown.aspects.toLocaleString()} (${pct(breakdown.aspects, breakdown.total)}) | ` +
-        `flows: ${breakdown.flows.toLocaleString()} (${pct(breakdown.flows, breakdown.total)}) | ` +
-        `dependencies: ${breakdown.dependencies.toLocaleString()} (${pct(breakdown.dependencies, breakdown.total)})`;
-
-      if (breakdown.total >= errorThreshold) {
-        issues.push({
-          severity: 'error',
-          code: 'E032',
-          rule: 'budget-exceeded',
-          message: buildIssueMessage({
-            what: `Context is ${breakdown.total.toLocaleString()} tokens (error threshold: ${errorThreshold.toLocaleString()}).`,
-            why: `${breakdownLine}`,
-            next: `Split this node into child nodes to reduce context size below the error threshold.`,
-          }),
-          nodePath,
-        });
-      } else if (breakdown.total >= warningThreshold) {
-        issues.push({
-          severity: 'warning',
-          code: 'W001',
-          rule: 'budget-warning',
-          message: buildIssueMessage({
-            what: `Context is ${breakdown.total.toLocaleString()} tokens (warning threshold: ${warningThreshold.toLocaleString()}).`,
-            why: `${breakdownLine}`,
-            next: `Consider splitting this node into child nodes to reduce context size.`,
-          }),
-          nodePath,
-        });
-      }
-
-      if (ownWarningThreshold !== undefined && breakdown.own >= ownWarningThreshold) {
-        issues.push({
-          severity: 'warning',
-          code: 'W002',
-          rule: 'own-budget-warning',
-          message: buildIssueMessage({
-            what: `Node artifacts: ${breakdown.own.toLocaleString()} tokens (threshold: ${ownWarningThreshold.toLocaleString()}).`,
-            why: `Large node artifact budgets make this node expensive to include as a dependency.`,
-            next: `Consider splitting this node's responsibilities into child nodes.`,
-          }),
-          nodePath,
-        });
-      }
-    } catch {
-      // buildContext may fail for structurally broken nodes — other rules catch those.
-    }
-  }
-  return issues;
-}
-
-function pct(value: number, total: number): string {
-  if (total === 0) return '0%';
-  return `${Math.round((value / total) * 100)}%`;
-}
 
 // --- E038: Missing description on nodes, aspects, and flows ---
 
@@ -1031,7 +840,7 @@ function checkMissingDescriptions(graph: Graph): ValidationIssue[] {
         rule: 'missing-description',
         message: buildIssueMessage({
           what: `Node has no description.`,
-          why: `Description is used in select and context output — agents need it for orientation.`,
+          why: `Description is used in context output — agents need it for orientation.`,
           next: `Add a description field to yg-node.yaml.`,
         }),
         nodePath,
@@ -1048,7 +857,7 @@ function checkMissingDescriptions(graph: Graph): ValidationIssue[] {
         rule: 'missing-description',
         message: buildIssueMessage({
           what: `Aspect '${aspect.id}' has no description.`,
-          why: `Description is used in select and context output — agents need it for orientation.`,
+          why: `Description is used in context output — agents need it for orientation.`,
           next: `Add a description field to yg-aspect.yaml.`,
         }),
       });
@@ -1064,7 +873,7 @@ function checkMissingDescriptions(graph: Graph): ValidationIssue[] {
         rule: 'missing-description',
         message: buildIssueMessage({
           what: `Flow '${flow.name}' has no description.`,
-          why: `Description is used in select and context output — agents need it for orientation.`,
+          why: `Description is used in context output — agents need it for orientation.`,
           next: `Add a description field to yg-flow.yaml.`,
         }),
       });
