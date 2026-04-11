@@ -1,0 +1,32 @@
+# yg-config.yaml — Schema for the Yggdrasil project configuration
+# Located at .yggdrasil/yg-config.yaml — one per project.
+# Edit this after running yg init to describe your project.
+
+version: "4.0.0"                  # managed by CLI — do not edit manually. Tracks the CLI version
+                                  # that created or last migrated this config. Used by the migration
+                                  # system to determine which migrations to run on upgrade.
+
+name: "My Project"               # required — project display name
+
+# node_types are defined in yg-architecture.yaml (not here).
+
+quality:                          # optional — quality thresholds
+  max_direct_relations: 10        #   maximum outgoing relations per node (warning if above)
+
+parallel: 1                       # optional — concurrency limit for batch approve (positive integer, default: 1)
+
+debug: false                      # optional — when true, appends all command output to .yggdrasil/.debug.log
+                                  # Default: false (off). Log is append-only; rotate or delete manually.
+
+reviewer:                         # optional — semantic verification during yg approve
+  active: ollama                  #   required when multiple providers configured
+  verify_aspects: true            #   run aspect verification — default true
+  consensus: 1                    #   positive odd integer >= 1 (3+ for majority vote)
+  ollama:                         #   provider-specific config
+    model: "qwen3.5:9b"          #     model ID
+    endpoint: "http://localhost:11434"  #   custom endpoint
+    temperature: 0                #     reduces variability — keep at 0
+    max_tokens: auto              #     auto = query provider, or explicit number
+    context_length_field: ""      #     ollama model_info key for context window size
+  claude-code:                    #   alternative provider — uses claude CLI subprocess
+    model: haiku                  #     haiku, sonnet, or opus

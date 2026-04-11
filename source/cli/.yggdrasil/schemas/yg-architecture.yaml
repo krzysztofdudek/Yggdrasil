@@ -1,0 +1,12 @@
+# yg-architecture.yaml — Schema for architecture constraints
+# File: .yggdrasil/yg-architecture.yaml
+# Defines node types with architectural constraints.
+# All properties except description are optional — absence means no enforcement.
+
+node_types:
+  <type-id>:
+    description: <string>                    # required — what this type is for
+    aspects: [<aspect-id>]                   # optional — required on every file of this type
+    parents: [<type-id>]                     # optional — allowed parent types
+    relations:                               # optional — allowed relation targets
+      <relation-type>: [<type-id>]           # calls | uses | extends | implements | emits | listens
