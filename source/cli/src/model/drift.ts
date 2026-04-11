@@ -55,7 +55,7 @@ export interface ApproveResult {
   gcPaths?: string[];
 }
 
-/** Map: node-path → DriftNodeState. Legacy string format no longer supported. */
+/** Map: node-path → DriftNodeState. */
 export type DriftState = Record<string, DriftNodeState>;
 
 /** Append-only audit log entry — written by approve, never read by CLI */

@@ -162,7 +162,7 @@ export interface Graph {
 }
 
 // ============================================================
-// Owner (formerly Which)
+// Owner
 // ============================================================
 
 export interface OwnerResult {

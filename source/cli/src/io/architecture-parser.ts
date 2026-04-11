@@ -33,7 +33,7 @@ export async function parseArchitecture(filePath: string): Promise<ArchitectureD
 
     if (entry.integration_aspects !== undefined) {
       throw new Error(
-        `yg-architecture.yaml: node type '${typeName}' has unknown field 'integration_aspects'.`,
+        `yg-architecture.yaml: node type '${typeName}' has unknown field 'integration_aspects'. Use ports on the target node instead.`,
       );
     }
 

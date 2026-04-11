@@ -152,9 +152,6 @@ export function resolveAspects(
     .filter((a): a is AspectDef => a !== undefined);
 }
 
-// --- backward-compat aliases (used by tests / external callers) ---
-export const expandTags = expandAspects;
-export const expandAspectsForTags = resolveAspects;
 
 // --- Layer builders (exported for testing) ---
 

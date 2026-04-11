@@ -43,7 +43,7 @@ export async function parseConfig(filePath: string): Promise<YggConfig> {
   // Known general keys under reviewer:
   const GENERAL_KEYS = new Set(['active', 'verify_aspects', 'consensus']);
 
-  // Parse reviewer: section (or legacy llm: fallback)
+  // Parse reviewer: section
   let llm: LlmConfig | undefined;
 
   if (raw.reviewer !== undefined) {
