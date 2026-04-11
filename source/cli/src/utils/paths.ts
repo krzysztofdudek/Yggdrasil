@@ -45,7 +45,7 @@ export async function findYggRoot(projectRoot: string): Promise<string> {
 /**
  * Normalize a mapping to always return an array of paths (relative to project root).
  * Each path can be a file or directory — type is detected at runtime by hash/owner.
- * v4 format: flat string array.
+ * Format: flat string array.
  */
 export function normalizeMappingPaths(mapping: string[] | undefined): string[] {
   if (!mapping || !Array.isArray(mapping)) return [];

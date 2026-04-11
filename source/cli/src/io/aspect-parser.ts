@@ -35,8 +35,6 @@ export async function parseAspect(
     implies = (raw.implies as unknown[]).filter((t): t is string => typeof t === 'string');
   }
 
-  // anchors and stability fields not used — silently ignored if present in old configs
-
   return {
     name: (raw.name as string).trim(),
     id: idTrimmed,

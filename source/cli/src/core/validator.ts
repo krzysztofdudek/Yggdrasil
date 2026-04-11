@@ -45,9 +45,6 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
     issues.push(...checkAspectIdUniqueness(graph));
     issues.push(...checkImpliedAspectsExist(graph));
     issues.push(...checkImpliesNoCycles(graph));
-    // required-aspects-coverage removed — replaced by invalid-relation-target (architecture enforcement)
-    // anchor realization checks removed — will be replaced by LLM verification in Plan 2
-    // anchor pattern checks removed — will be replaced by LLM verification in Plan 2
     issues.push(...checkHighFanOut(graph));
     issues.push(...checkMissingDescriptions(graph));
   }
@@ -102,7 +99,7 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
 // --- Rule 0: Node types from config ---
 
 function checkNodeTypes(graph: Graph): ValidationIssue[] {
-  // node_types have moved to yg-architecture.yaml; this check is skipped when config.node_types is undefined
+  // Skipped when node_types are in yg-architecture.yaml instead of config
   if (!graph.config.node_types) {
     return [];
   }
@@ -388,8 +385,6 @@ function checkImpliesNoCycles(graph: Graph): ValidationIssue[] {
   return issues;
 }
 
-// checkRequiredAspectsCoverage removed — replaced by invalid-relation-target in checkArchitectureConstraints
-
 // --- Rule 4: No circular dependencies (cycles involving blackbox are tolerated) ---
 
 function checkNoCycles(graph: Graph): ValidationIssue[] {
@@ -562,11 +557,6 @@ function checkBrokenFlowRefs(graph: Graph): ValidationIssue[] {
   }
   return issues;
 }
-
-// --- Flow aspect id validation (merged into aspect-undefined) ---
-
-// checkFlowAspectIds removed — flow aspects are covered by checkDanglingAspectRefs
-
 
 // --- wide-node: Maps too many source files ---
 
@@ -795,15 +785,6 @@ export async function expandMappingToFiles(projectRoot: string, mappingPaths: st
   return files;
 }
 
-// anchors/claims check removed — replaced by aspect-level verification
-
-// anchor realization checks removed — will be replaced by LLM verification in Plan 2
-// function checkAnchorRealizations(graph: Graph): ValidationIssue[] { ... }
-
-// anchor pattern checks removed — will be replaced by LLM verification in Plan 2
-// async function checkAnchorPatterns(graph: Graph): Promise<ValidationIssue[]> { ... }
-
-
 // --- missing-description: Missing description on nodes, aspects, and flows ---
 
 function checkMissingDescriptions(graph: Graph): ValidationIssue[] {
@@ -989,10 +970,6 @@ function checkArchitectureParents(graph: Graph): ValidationIssue[] {
 
   return issues;
 }
-
-// getFlowAspects removed — was used by old mapping group aspect checking
-
-// getAspectSource removed — was used by old mapping group aspect checking (aspect-undefined, aspect-source-invalid)
 
 /**
  * missing-consumes

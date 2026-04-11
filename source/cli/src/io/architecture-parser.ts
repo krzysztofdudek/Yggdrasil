@@ -31,12 +31,9 @@ export async function parseArchitecture(filePath: string): Promise<ArchitectureD
       );
     }
 
-    // Reject integration_aspects field (removed in v4)
     if (entry.integration_aspects !== undefined) {
       throw new Error(
-        `yg-architecture.yaml: node type '${typeName}' has 'integration_aspects'. ` +
-        `This field is removed in v4. Use 'ports' on individual nodes instead. ` +
-        `Update the YAML to use the v4 format.`,
+        `yg-architecture.yaml: node type '${typeName}' has unknown field 'integration_aspects'.`,
       );
     }
 

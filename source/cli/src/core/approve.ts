@@ -305,7 +305,7 @@ export async function approveNode(
 
 // ── Helpers ────────────────────────────────────────────────
 
-/* v8 ignore start -- duplicated from check.ts, tested there */
+/* v8 ignore start -- tested in check.ts */
 /** Compute child mapping exclusions (child-wins model) */
 function getChildMappingExclusions(graph: Graph, nodePath: string): string[] {
   const node = graph.nodes.get(nodePath);

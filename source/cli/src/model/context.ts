@@ -31,7 +31,7 @@ export interface ContextSection {
 }
 
 // ============================================================
-// Context Map (v2 structured output)
+// Context Map
 // ============================================================
 
 export interface RequiredAspectRef {
