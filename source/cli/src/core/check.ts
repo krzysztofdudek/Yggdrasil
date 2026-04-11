@@ -2,11 +2,11 @@ import type { Graph } from '../model/graph.js';
 import type {
   DriftCategory,
   DriftFileChange,
-  DriftStatus,
+  NodeLifecycleState,
   TrackedFileLayer,
 } from '../model/drift.js';
 import type { ValidationIssue } from '../model/validation.js';
-import { readDriftState, readNodeDriftState, writeNodeDriftState } from '../io/drift-state-store.js';
+import { readDriftState, readNodeDriftState } from '../io/drift-state-store.js';
 import { hashTrackedFiles } from '../utils/hash.js';
 import { collectTrackedFiles } from './context-files.js';
 import { normalizeMappingPaths } from '../utils/paths.js';
@@ -20,18 +20,16 @@ import { buildIssueMessage } from '../formatters/message-builder.js';
 export interface CheckIssue extends Omit<ValidationIssue, 'code'> {
   /** All issues have a code -- override optional from ValidationIssue */
   code: string;
-  /** For E020: drift subtype */
-  driftSubtype?: DriftStatus;
-  /** For E020: changed files that are direct (own/source) */
+  /** For source-drift: lifecycle state */
+  lifecycleState?: NodeLifecycleState;
+  /** For source-drift: changed files that are direct (source) */
   directChangedFiles?: DriftFileChange[];
-  /** For E021: what caused the cascade */
+  /** For upstream-drift: what caused the cascade */
   cascadeCauses?: CascadeCause[];
-  /** For E022: uncovered file paths */
+  /** For unmapped-files: uncovered file paths */
   uncoveredFiles?: string[];
-  /** For E022: total count of uncovered files */
+  /** For unmapped-files: total count of uncovered files */
   uncoveredCount?: number;
-  /** For E021: cached verification label from drift-state (e.g. 'last verified: pass', 'never verified') */
-  verificationLabel?: string;
 }
 
 export interface CascadeCause {
@@ -80,7 +78,7 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
       issues.push({
         severity: 'error',
         code: 'E020',
-        rule: 'direct-drift',
+        rule: 'source-drift',
         message: allMissing
           ? buildIssueMessage({
               what: `Mapping declared but source files never created:\n${mappingPaths.map(p => '  ' + p).join('\n')}`,
@@ -90,10 +88,10 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
           : buildIssueMessage({
               what: `Mapping declared but no baseline recorded:\n${mappingPaths.map(p => '  ' + p).join('\n')}`,
               why: 'Node has never been approved — drift tracking is not active.',
-              next: `Verify artifacts match source, then: yg approve --node ${nodePath}`,
+              next: `Verify source, then: yg approve --node ${nodePath}`,
             }),
         nodePath,
-        driftSubtype: 'unmaterialized',
+        lifecycleState: 'unmaterialized',
         directChangedFiles: [],
       });
       continue;
@@ -105,14 +103,14 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
       issues.push({
         severity: 'error',
         code: 'E020',
-        rule: 'direct-drift',
+        rule: 'source-drift',
         message: buildIssueMessage({
           what: `Mapped source files not found on disk:\n${mappingPaths.map(p => '  ' + p).join('\n')}`,
           why: 'Mapped files were deleted or moved.',
           next: `Re-create the file, or remove the mapping from yg-node.yaml.`,
         }),
         nodePath,
-        driftSubtype: 'missing',
+        lifecycleState: 'missing',
         directChangedFiles: mappingPaths.map(p => ({ filePath: p, category: 'source' as DriftCategory })),
       });
       continue;
@@ -173,7 +171,7 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
       const layer = resolveLayer(filePath);
       const category = categorizeFile(filePath, graph.rootPath, projectRoot);
 
-      if (layer === 'own' || layer === 'source') {
+      if (layer === 'source') {
         directChanges.push({ filePath, category });
       } else if (layer) {
         cascadeCauses.push({
@@ -192,7 +190,7 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
       const layer = resolveLayer(storedPath);
       const category = categorizeFile(storedPath, graph.rootPath, projectRoot);
 
-      if (layer === 'own' || layer === 'source') {
+      if (layer === 'source') {
         directChanges.push({ filePath: `${storedPath} (deleted)`, category });
       } else if (layer) {
         cascadeCauses.push({
@@ -216,46 +214,23 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
       }
     }
 
-    // Emit E020 for direct changes
+    // Emit E020 for direct changes (source files changed)
     if (directChanges.length > 0) {
-      const hasSource = directChanges.some(f => f.category === 'source');
-      const hasGraph = directChanges.some(f => f.category === 'graph');
-      let driftSubtype: DriftStatus;
-      if (hasSource && hasGraph) driftSubtype = 'full-drift';
-      else if (hasGraph) driftSubtype = 'graph-drift';
-      else driftSubtype = 'source-drift';
-
       const sourceFiles = directChanges.filter(f => f.category === 'source').map(f => f.filePath);
-      const graphFiles = directChanges.filter(f => f.category === 'graph').map(f => f.filePath);
 
-      let message: string;
-      if (driftSubtype === 'source-drift') {
-        message = buildIssueMessage({
-          what: `Source files changed since last approve. Graph artifacts unchanged.\nChanged:\n${sourceFiles.map(f => '  ' + f).join('\n')}`,
-          why: 'Graph artifacts may no longer describe the actual behavior.',
-          next: `Update artifacts to reflect source changes, then: yg approve --node ${nodePath}\nIf change is cosmetic (formatting, comments): yg approve --node ${nodePath} --reviewed "cosmetic"`,
-        });
-      } else if (driftSubtype === 'graph-drift') {
-        message = buildIssueMessage({
-          what: `Graph artifacts changed since last approve. Source files unchanged.\nChanged:\n${graphFiles.map(f => '  ' + f).join('\n')}`,
-          why: 'Source may not yet implement the updated graph specification.',
-          next: `Implement the graph changes in source, then: yg approve --node ${nodePath}\nIf change is cosmetic (typo, clarification): yg approve --node ${nodePath} --reviewed "cosmetic"`,
-        });
-      } else {
-        message = buildIssueMessage({
-          what: `Both source files and graph artifacts changed since last approve.\nSource:\n${sourceFiles.map(f => '  ' + f).join('\n')}\nGraph:\n${graphFiles.map(f => '  ' + f).join('\n')}`,
-          why: 'Source and graph artifacts must be consistent before approval.',
-          next: `Ensure source and artifacts are consistent, then: yg approve --node ${nodePath}`,
-        });
-      }
+      const message = buildIssueMessage({
+        what: `Source files changed since last approve.\nChanged:\n${sourceFiles.map(f => '  ' + f).join('\n')}`,
+        why: 'Node needs re-approval after source changes.',
+        next: `yg approve --node ${nodePath}`,
+      });
 
       issues.push({
         severity: 'error',
         code: 'E020',
-        rule: 'direct-drift',
+        rule: 'source-drift',
         message,
         nodePath,
-        driftSubtype,
+        lifecycleState: 'ok',
         directChangedFiles: directChanges,
       });
     }
@@ -283,7 +258,7 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
       const message = buildIssueMessage({
         what: `Context package changed due to ${causeCount} upstream modification${causeCount === 1 ? '' : 's'}:\n${causeLines}`,
         why: 'Source may no longer satisfy updated aspect requirements.',
-        next: `Load context: yg context --node ${nodePath}\nVerify source compliance, update if needed, then: yg approve --node ${nodePath}\nIf source is already compliant: yg approve --node ${nodePath} --reviewed "compliance verified"`,
+        next: `Load context: yg context --node ${nodePath}\nVerify source compliance, update if needed, then: yg approve --node ${nodePath}`,
       });
 
       issues.push({
@@ -294,35 +269,6 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
         nodePath,
         cascadeCauses: nodeE021Causes,
       });
-    }
-  }
-
-  // Load all drift states once for verification label lookup and cache invalidation
-  const allDriftState = await readDriftState(graph.rootPath);
-
-  // Annotate E021 issues with cached verification label; invalidate LLM cache on any drift
-  for (const issue of issues) {
-    if (!issue.nodePath) continue;
-    const driftState = allDriftState[issue.nodePath];
-
-    // Annotate E021 with verification label BEFORE invalidating cache,
-    // so the label reflects the last known state prior to this drift.
-    if (issue.code === 'E021') {
-      if (driftState?.aspectResults) {
-        const allSatisfied = Object.values(driftState.aspectResults)
-          .every(r => r.satisfied);
-        issue.verificationLabel = allSatisfied ? 'last verified: pass' : 'last verified: fail';
-      } else {
-        issue.verificationLabel = 'never verified';
-      }
-    }
-
-    // Invalidate cached LLM results when any drift is detected (E020 or E021)
-    if ((issue.code === 'E020' || issue.code === 'E021') &&
-        driftState && (driftState.aspectResults || driftState.artifactReview)) {
-      delete driftState.aspectResults;
-      delete driftState.artifactReview;
-      await writeNodeDriftState(graph.rootPath, issue.nodePath, driftState);
     }
   }
 
@@ -665,11 +611,14 @@ function computeSuggestedNext(issues: CheckIssue[], graph?: Graph): string | nul
   /* v8 ignore next -- tested by clean-check test, but v8 sometimes marks it uncovered */
   if (errors.length === 0) return null;
 
+  const STRUCTURAL_CODES = new Set(['E001', 'E002', 'E004', 'E005', 'E006', 'E007', 'E008', 'E009', 'E010', 'E011', 'E012', 'E013']);
+  const COMPLETENESS_CODES = new Set(['E030', 'E031', 'E032', 'E038']);
+
   const driftErrors = errors.filter(i => i.code === 'E020');
   const cascadeErrors = errors.filter(i => i.code === 'E021');
-  const structuralErrors = errors.filter(i => i.code >= 'E001' && i.code <= 'E013');
+  const structuralErrors = errors.filter(i => STRUCTURAL_CODES.has(i.code));
   const coverageErrors = errors.filter(i => i.code === 'E022');
-  const completenessErrors = errors.filter(i => i.code >= 'E030' && i.code <= 'E041');
+  const completenessErrors = errors.filter(i => COMPLETENESS_CODES.has(i.code));
 
   const remaining: string[] = [];
   const addRemaining = (count: number, label: string) => { if (count > 0) remaining.push(`${count} ${label}`); };
@@ -703,7 +652,7 @@ function computeSuggestedNext(issues: CheckIssue[], graph?: Graph): string | nul
       const flag = flagMap[bestEntity.type] ?? '--aspect';
       addRemaining(coverageErrors.length > 0 ? (coverageErrors[0].uncoveredCount ?? 0) : 0, 'files need coverage');
       const then = remaining.length > 0 ? `\n  Then: ${remaining.join(', ')}` : '';
-      return `yg approve ${flag} ${bestEntity.id} --reviewed "cascade change reviewed"\n  ${bestEntity.count} cascade node${bestEntity.count === 1 ? '' : 's'} from ${bestEntity.type} change${then}`;
+      return `yg approve ${flag} ${bestEntity.id}\n  ${bestEntity.count} cascade node${bestEntity.count === 1 ? '' : 's'} from ${bestEntity.type} change${then}`;
     }
 
     // Single cascade node — fall through to original behavior
