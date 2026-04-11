@@ -38,7 +38,7 @@ Other tools stop at context delivery. Yggdrasil enforces it.
 ```
 Agent writes code
   → yg check detects drift: "code changed, graph not updated"
-  → Agent must update graph artifacts to match what it did
+  → Agent must update the graph to match what it did
   → yg check passes
   → yg approve runs reviewer: "do source files actually satisfy the aspects?"
   → Reviewer says no: E055 — rate-limiting aspect not satisfied
@@ -56,7 +56,7 @@ This is the difference between giving an agent instructions and giving it walls.
 - **Drift detection.** Code changed but graph wasn't updated? Error. Graph changed but code wasn't updated? Error. Both must move together.
 - **Aspect verification.** The graph says this module requires audit logging. The reviewer checks whether the source code actually has audit logging. Not whether the agent said it added it. Whether it's there.
 - **Coverage.** Every git-tracked file must belong to a node. No orphan code. No dark corners where the agent can hide.
-- **Blackbox is hermetic.** You can blackbox legacy code you don't want to touch. But the moment the agent changes a file inside a blackbox, the system refuses to approve until you decompose it into a proper node with real artifacts. No shortcuts.
+- **Blackbox is hermetic.** You can blackbox legacy code you don't want to touch. But the moment the agent changes a file inside a blackbox, the system refuses to approve until you decompose it into a proper node. No shortcuts.
 
 ---
 
@@ -117,21 +117,21 @@ The agent maintains the graph as part of normal conversations. Knowledge accumul
 
 **Diagnostics:**
 
-- `yg check` — Unified gate: structural integrity, drift detection, coverage, and health score (exit 0 clean / exit 1 errors)
+- `yg check` — Unified gate: structural integrity, drift detection, coverage, and completeness (exit 0 clean / exit 1 errors)
 
 **Reading and analysis:**
 
-- `yg context --file <path> | --node <path> [--full]` — Assemble context package (YAML structural map + artifact paths; `--full` appends file contents)
+- `yg context --file <path> | --node <path>` — Assemble context package (structured text with `read:` pointers to content files)
 - `yg tree [--root <path>] [--depth N]` — Graph structure as tree
 - `yg owner --file <path>` — Find which graph node owns a source file
 - `yg impact --file <path> | --node <path> | --aspect <id> | --flow <name>` — Reverse dependencies and context impact
-- `yg select "<query>" [--limit <n>]` — Find nodes, aspects, and flows relevant to a task
+
 - `yg aspects` — List aspects with metadata (YAML output)
 - `yg flows` — List flows with metadata (YAML output)
 
 **Approving changes:**
 
-- `yg approve --node <path>` — Three-axis gate: accept when source and artifacts changed together, or supply `--reviewed <reason>` to bypass the structural gate (reviewer still verifies claims)
+- `yg approve --node <path> [<path2> ...]` / `--aspect <id>` / `--flow <name>` — Binary approve: records baseline after review, runs LLM aspect verification when configured
 
 **Setup:**
 

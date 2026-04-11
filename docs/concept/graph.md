@@ -373,7 +373,7 @@ identifiers.
 
 Aspects encode requirements that cut **horizontally** across the system: security, audit,
 caching, rate limiting, logging conventions. Without aspects, these requirements would have
-to be repeated in every affected node's artifacts. With aspects, they are declared once and
+to be repeated in every affected node. With aspects, they are declared once and
 distributed automatically.
 
 Each aspect is bound to a single identifier. Aspects impose **obligations** and are tied to
@@ -584,7 +584,7 @@ fixes them in one pass.
 
 Crucial property: refactoring never damages semantic memory. A broken mapping means tools
 cannot detect drift for that node until mapping is fixed. But the node's semantic memory —
-responsibility, interface, constraints — remains intact. Semantic memory survives refactoring
+description, aspects, relations — remains intact. Semantic memory survives refactoring
 even when mapping temporarily does not.
 
 ---

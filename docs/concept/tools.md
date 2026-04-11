@@ -209,7 +209,7 @@ creating or editing that element (see the [Graph](graph) document, Schemas secti
 
 ### .drift-state/
 
-Synchronization state between the graph and all tracked files (source and graph artifacts).
+Synchronization state between the graph and all tracked files (source and graph metadata).
 Managed exclusively by tools — agents and humans do not edit it. Stored as a directory of
 per-node JSON files at `.yggdrasil/.drift-state/`.
 
@@ -257,17 +257,13 @@ Each path in `mapping.paths` is checked at runtime — if it is a file, it is ha
 pairs. The overall canonical `hash` combines all tracked file hashes (source + graph) into a
 single value.
 
-**Legacy migration:** If a single `.drift-state` file (the previous format) is found instead
-of the `.drift-state/` directory, it is migrated automatically on first read — each node
-entry is written to its own JSON file under `.drift-state/`.
-
 **Garbage collection:** When `yg approve` runs, orphaned drift state files (files
 under `.drift-state/` that no longer correspond to a mapped node) are removed.
 
 ### .audit-log.jsonl
 
 Append-only JSONL file at `.yggdrasil/.audit-log.jsonl`. Records every successful
-approve action. Gitignored — local tooling artifact, not shared repo state.
+approve action. Gitignored — local operational file, not shared repo state.
 The CLI only appends to this file; it never reads it.
 
 Each line is a JSON object:
@@ -354,33 +350,17 @@ Upgrade mode — refreshes only the rules file (when `.yggdrasil/` already exist
 3. Write `yg-config.yaml` with default content (see Default configuration below).
 4. Write `yg-architecture.yaml` with default node types (see Architecture file below).
 5. Write `.yggdrasil/.gitignore` (with entries for local operational files).
-6. Run migrations (upgrade mode only):
-
-   a. Read `version` from `yg-config.yaml`. If absent, treat as `1.0.0`.
-
-   b. If project version equals CLI version — skip migrations, proceed to step 7.
-
-   c. If project version is newer than CLI version — print a warning and exit without
-      modifying any files.
-
-   d. For each applicable migration (project version < migration version <= CLI version),
-      run in order. Each action prints with a checkmark prefix on success or a warning prefix on
-      warning/skip.
-
-   e. After all migrations complete, write the updated `version` to `yg-config.yaml`.
-
-7. Generate the platform rules file in the location appropriate for the `platform` parameter
+6. Generate the platform rules file in the location appropriate for the `platform` parameter
    (see Platform rules file section).
 
 **Result:**
 
 - Full initialization: list of created files and directories.
-- Upgrade mode: path of the refreshed rules file and list of migration actions applied.
+- Upgrade mode: path of the refreshed rules file.
 
 **Errors:**
 
 - `.yggdrasil/` already exists and `upgrade` was not provided — full init is a one-time operation.
-- Project version is newer than CLI version — user must upgrade the CLI before running `--upgrade`.
 
 **Default configuration:**
 
@@ -421,7 +401,7 @@ Alias: `build-context`.
 
 Two levels of context are available: `--node` for a structural overview (node metadata,
 hierarchy, dependency map) and `--file` for full file-level details (resolves owner,
-includes artifact content). Both produce structured text output.
+includes aspect content). Both produce structured text output.
 
 **Parameters:**
 
@@ -976,7 +956,7 @@ each.
 5. Garbage collection: remove orphaned drift state files for nodes that no longer exist.
 
 **Binary enforcement:** Approve is binary — no flags, no negotiation. Source or upstream
-changed → run reviewer → pass or fail. No `--reviewed` bypass.
+changed → run reviewer → pass or fail.
 
 **Blackbox blocker:** Approve always refuses when source files changed on blackbox nodes.
 The only path is to decompose the blackbox into a proper node for the modified files.

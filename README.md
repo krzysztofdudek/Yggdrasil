@@ -41,10 +41,10 @@ Other tools stop at context delivery. Yggdrasil enforces it.
 ```
 Agent writes code
   → yg check detects drift: "code changed, graph not updated"
-  → Agent must update graph artifacts to match what it did
+  → Agent must update the graph to match what it did
   → yg check passes
   → yg approve runs reviewer: "do source files actually satisfy the aspects?"
-  → Reviewer says no: E055 — rate-limiting aspect not satisfied
+  → Reviewer says no: aspect-violation — rate-limiting aspect not satisfied
   → Agent fixes the code
   → yg approve passes
   → Commit allowed
@@ -59,7 +59,7 @@ This is the difference between giving an agent instructions and giving it walls.
 - **Drift detection.** Code changed but graph wasn't updated? Error. Graph changed but code wasn't updated? Error. Both must move together.
 - **Aspect verification.** The graph says this module requires audit logging. The reviewer checks whether the source code actually has audit logging. Not whether the agent said it added it. Whether it's there.
 - **Coverage.** Every git-tracked file must belong to a node. No orphan code. No dark corners where the agent can hide.
-- **Blackbox is hermetic.** You can blackbox legacy code you don't want to touch. But the moment the agent changes a file inside a blackbox, the system refuses to approve until you decompose it into a proper node with real artifacts. No shortcuts.
+- **Blackbox is hermetic.** You can blackbox legacy code you don't want to touch. But the moment the agent changes a file inside a blackbox, the system refuses to approve until you decompose it into a proper node. No shortcuts.
 
 ---
 
