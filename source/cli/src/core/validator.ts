@@ -14,7 +14,7 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
   if (graph.configError) {
     issues.push({
       severity: 'error',
-      code: 'E009',
+      code: 'config-invalid',
       rule: 'invalid-config',
       message: buildIssueMessage({
         what: 'yg-config.yaml failed to parse.',
@@ -27,7 +27,7 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
   for (const { nodePath, message } of graph.nodeParseErrors ?? []) {
     issues.push({
       severity: 'error',
-      code: 'E001',
+      code: 'yaml-invalid',
       rule: 'invalid-node-yaml',
       message: buildIssueMessage({
         what: `yg-node.yaml parse error in ${nodePath}.`,
@@ -79,7 +79,7 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
         return {
           issues: [{
             severity: 'error',
-            code: 'E001',
+            code: 'yaml-invalid',
             rule: 'invalid-node-yaml',
             message: parseError.message,
             nodePath: parseError.nodePath,
@@ -113,7 +113,7 @@ function checkNodeTypes(graph: Graph): ValidationIssue[] {
     if (!allowedTypes.has(node.meta.type)) {
       issues.push({
         severity: 'error',
-        code: 'E002',
+        code: 'type-invalid',
         rule: 'unknown-node-type',
         message: buildIssueMessage({
           what: `Node type '${node.meta.type}' is not defined.`,
@@ -177,7 +177,7 @@ function checkRelationTargets(graph: Graph): ValidationIssue[] {
         const hint = suggestion ? `\n     Did you mean '${suggestion}'?` : '';
         issues.push({
           severity: 'error',
-          code: 'E004',
+          code: 'relation-broken',
           rule: 'broken-relation',
           message: buildIssueMessage({
             what: `Relation target '${rel.target}' does not exist.`,
@@ -204,7 +204,7 @@ function checkDanglingAspectRefs(graph: Graph): ValidationIssue[] {
       if (!definedAspects.has(aspectId)) {
         issues.push({
           severity: 'error',
-          code: 'E050',
+          code: 'aspect-undefined',
           rule: 'dangling-aspect-ref',
           nodePath,
           message: buildIssueMessage({
@@ -222,7 +222,7 @@ function checkDanglingAspectRefs(graph: Graph): ValidationIssue[] {
           if (!definedAspects.has(aspectId)) {
             issues.push({
               severity: 'error',
-              code: 'E050',
+              code: 'aspect-undefined',
               rule: 'dangling-aspect-ref',
               nodePath,
               message: buildIssueMessage({
@@ -243,7 +243,7 @@ function checkDanglingAspectRefs(graph: Graph): ValidationIssue[] {
       if (!definedAspects.has(aspectId)) {
         issues.push({
           severity: 'error',
-          code: 'E050',
+          code: 'aspect-undefined',
           rule: 'dangling-aspect-ref',
           message: buildIssueMessage({
             what: `Aspect '${aspectId}' is referenced by architecture type '${typeId}' but not defined in aspects/.`,
@@ -261,7 +261,7 @@ function checkDanglingAspectRefs(graph: Graph): ValidationIssue[] {
       if (!definedAspects.has(aspectId)) {
         issues.push({
           severity: 'error',
-          code: 'E050',
+          code: 'aspect-undefined',
           rule: 'dangling-aspect-ref',
           message: buildIssueMessage({
             what: `Aspect '${aspectId}' is referenced by flow '${flow.name}' but not defined in aspects/.`,
@@ -295,7 +295,7 @@ function checkAspectIdUniqueness(graph: Graph): ValidationIssue[] {
     if (names.length <= 1) continue;
     issues.push({
       severity: 'error',
-      code: 'E010',
+      code: 'duplicate-aspect-id',
       rule: 'duplicate-aspect-binding',
       message: buildIssueMessage({
         what: `Aspect '${id}' is bound to multiple aspects (${names.join(', ')}).`,
@@ -320,7 +320,7 @@ function checkImpliedAspectsExist(graph: Graph): ValidationIssue[] {
       if (!idToAspect.has(impliedId)) {
         issues.push({
           severity: 'error',
-          code: 'E012',
+          code: 'implied-aspect-missing',
           rule: 'implied-aspect-missing',
           message: buildIssueMessage({
             what: `Aspect '${aspect.name}' implies '${impliedId}' but no aspect with that id exists in aspects/.`,
@@ -358,7 +358,7 @@ function checkImpliesNoCycles(graph: Graph): ValidationIssue[] {
         const cycle = pathArr.slice(pathArr.indexOf(implied)).concat(implied);
         issues.push({
           severity: 'error',
-          code: 'E013',
+          code: 'aspect-implies-cycle',
           rule: 'aspect-implies-cycle',
           message: buildIssueMessage({
             what: `Aspect implies cycle: ${cycle.join(' → ')}.`,
@@ -419,7 +419,7 @@ function checkNoCycles(graph: Graph): ValidationIssue[] {
         if (!hasBlackboxInCycle) {
           issues.push({
             severity: 'error',
-            code: 'E008',
+            code: 'structural-cycle',
             rule: 'structural-cycle',
             message: buildIssueMessage({
               what: `Circular dependency: ${cyclePath.join(' -> ')}.`,
@@ -493,7 +493,7 @@ function checkMappingOverlap(graph: Graph): ValidationIssue[] {
 
       issues.push({
         severity: 'error',
-        code: 'E007',
+        code: 'overlapping-mapping',
         rule: 'overlapping-mapping',
         message: buildIssueMessage({
           what: `Mapping paths '${current.mappingPath}' (${current.nodePath}) and '${candidate.mappingPath}' (${candidate.nodePath}) overlap.`,
@@ -524,7 +524,7 @@ async function checkMappingPathsExist(graph: Graph): Promise<ValidationIssue[]> 
       } catch {
         issues.push({
           severity: 'error',
-          code: 'E036',
+          code: 'mapping-path-missing',
           rule: 'mapping-path-missing',
           message: buildIssueMessage({
             what: `Mapping path '${mp}' does not exist on disk.`,
@@ -550,7 +550,7 @@ function checkBrokenFlowRefs(graph: Graph): ValidationIssue[] {
       if (!nodePaths.has(n)) {
         issues.push({
           severity: 'error',
-          code: 'E005',
+          code: 'flow-node-broken',
           rule: 'broken-flow-ref',
           message: buildIssueMessage({
             what: `Flow '${flow.name}' references non-existent node '${n}'.`,
@@ -575,7 +575,7 @@ function checkFlowAspectIds(graph: Graph): ValidationIssue[] {
       if (!validAspectIds.has(aspectId)) {
         issues.push({
           severity: 'error',
-          code: 'E006',
+          code: 'flow-aspect-undefined',
           rule: 'broken-aspect-ref',
           message: buildIssueMessage({
             what: `Flow '${flow.name}' references aspect '${aspectId}' but no aspect with that id exists in aspects/.`,
@@ -607,7 +607,7 @@ async function checkWideNodes(graph: Graph): Promise<ValidationIssue[]> {
 
     issues.push({
       severity: 'warning',
-      code: 'W003',
+      code: 'wide-node',
       rule: 'wide-node',
       message: buildIssueMessage({
         what: `Node maps ${sourceFiles.length} source files (max: ${maxFiles}).`,
@@ -630,7 +630,7 @@ function checkHighFanOut(graph: Graph): ValidationIssue[] {
     if (count > maxRel) {
       issues.push({
         severity: 'warning',
-        code: 'W004',
+        code: 'high-fan-out',
         rule: 'high-fan-out',
         message: buildIssueMessage({
           what: `Node has ${count} direct relations (max: ${maxRel}).`,
@@ -670,7 +670,7 @@ function checkUnpairedEvents(graph: Graph): ValidationIssue[] {
       if (!listenerSet?.has(emitter)) {
         issues.push({
           severity: 'error',
-          code: 'E033',
+          code: 'event-unpaired',
           rule: 'unpaired-event',
           message: buildIssueMessage({
             what: `Node '${emitter}' emits to '${target}' but '${target}' has no listens from '${emitter}'.`,
@@ -688,7 +688,7 @@ function checkUnpairedEvents(graph: Graph): ValidationIssue[] {
       if (!emitterSet?.has(listener)) {
         issues.push({
           severity: 'error',
-          code: 'E033',
+          code: 'event-unpaired',
           rule: 'unpaired-event',
           message: buildIssueMessage({
             what: `Node '${listener}' listens from '${source}' but '${source}' has no emits to '${listener}'.`,
@@ -715,7 +715,7 @@ function checkSchemas(graph: Graph): ValidationIssue[] {
     if (!present.has(required)) {
       issues.push({
         severity: 'error',
-        code: 'E034',
+        code: 'schema-missing',
         rule: 'missing-schema',
         message: buildIssueMessage({
           what: `Schema 'yg-${required}.yaml' missing from .yggdrasil/schemas/.`,
@@ -749,7 +749,7 @@ async function checkDirectoriesHaveNodeYaml(graph: Graph): Promise<ValidationIss
       if (hasFiles) {
         issues.push({
           severity: 'error',
-          code: 'E011',
+          code: 'node-yaml-missing',
           rule: 'missing-node-yaml',
           message: buildIssueMessage({
             what: `Directory '${graphPath}' has files but no yg-node.yaml.`,
@@ -836,7 +836,7 @@ function checkMissingDescriptions(graph: Graph): ValidationIssue[] {
     if (!node.meta.description?.trim()) {
       issues.push({
         severity: 'error',
-        code: 'E038',
+        code: 'description-missing',
         rule: 'missing-description',
         message: buildIssueMessage({
           what: `Node has no description.`,
@@ -853,7 +853,7 @@ function checkMissingDescriptions(graph: Graph): ValidationIssue[] {
     if (!aspect.description?.trim()) {
       issues.push({
         severity: 'error',
-        code: 'E038',
+        code: 'description-missing',
         rule: 'missing-description',
         message: buildIssueMessage({
           what: `Aspect '${aspect.id}' has no description.`,
@@ -869,7 +869,7 @@ function checkMissingDescriptions(graph: Graph): ValidationIssue[] {
     if (!flow.description?.trim()) {
       issues.push({
         severity: 'error',
-        code: 'E038',
+        code: 'description-missing',
         rule: 'missing-description',
         message: buildIssueMessage({
           what: `Flow '${flow.name}' has no description.`,
@@ -924,7 +924,7 @@ function checkPortAspectsDefined(graph: Graph): ValidationIssue[] {
           if (!definedAspects.has(aspectId)) {
             issues.push({
               severity: 'error',
-              code: 'E053',
+              code: 'port-missing-aspect',
               rule: 'integration-aspect-missing',
               nodePath,
               message: buildIssueMessage({
@@ -965,7 +965,7 @@ function checkArchitectureRelations(graph: Graph): ValidationIssue[] {
       if (!allowedTypes.includes(target.meta.type)) {
         issues.push({
           severity: 'error',
-          code: 'E051',
+          code: 'relation-target-forbidden',
           rule: 'invalid-relation-target',
           nodePath,
           message: buildIssueMessage({
@@ -997,7 +997,7 @@ function checkArchitectureParents(graph: Graph): ValidationIssue[] {
     if (!typeConfig.parents.includes(node.parent.meta.type)) {
       issues.push({
         severity: 'error',
-        code: 'E052',
+        code: 'parent-type-forbidden',
         rule: 'invalid-parent-type',
         nodePath,
         message: buildIssueMessage({
@@ -1038,7 +1038,7 @@ function checkPortConsumes(graph: Graph): ValidationIssue[] {
       if (!hasPorts && rel.consumes && rel.consumes.length > 0) {
         issues.push({
           severity: 'error',
-          code: 'E059',
+          code: 'consumes-without-ports',
           rule: 'consumes-without-ports',
           nodePath,
           message: buildIssueMessage({
@@ -1058,7 +1058,7 @@ function checkPortConsumes(graph: Graph): ValidationIssue[] {
         const portNames = Object.keys(ports);
         issues.push({
           severity: 'error',
-          code: 'E057',
+          code: 'port-missing-consumes',
           rule: 'missing-consumes',
           nodePath,
           message: buildIssueMessage({
@@ -1076,7 +1076,7 @@ function checkPortConsumes(graph: Graph): ValidationIssue[] {
           const available = Object.keys(ports);
           issues.push({
             severity: 'error',
-            code: 'E058',
+            code: 'port-undefined',
             rule: 'unknown-port',
             nodePath,
             message: buildIssueMessage({
@@ -1143,7 +1143,7 @@ function checkOrphanedAspects(graph: Graph): ValidationIssue[] {
     if (!referenced.has(aspect.id)) {
       issues.push({
         severity: 'warning',
-        code: 'W006',
+        code: 'orphaned-aspect',
         rule: 'orphaned-aspect',
         nodePath: `aspects/${aspect.id}`,
         message: buildIssueMessage({
