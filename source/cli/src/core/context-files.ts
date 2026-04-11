@@ -4,7 +4,7 @@ import type { Graph, GraphNode, FlowDef } from '../model/graph.js';
 import type { DriftCategory, TrackedFileLayer } from '../model/drift.js';
 import { normalizeMappingPaths } from '../utils/paths.js';
 import { collectAncestors } from './context-builder.js';
-import { computeEffectiveAspects } from './effective-aspects.js';
+import { computeEffectiveAspects, computeEffectiveAspectsForConsumer } from './effective-aspects.js';
 
 export interface TrackedFile {
   path: string;           // relative to project root
@@ -97,8 +97,11 @@ export function collectTrackedFiles(node: GraphNode, graph: Graph): TrackedFile[
     allFlows: graph.flows,
   });
 
-  // Track aspect files for all effective aspects
-  for (const aspectId of effective.regular) {
+  // Track aspect files for all effective aspects (including port-consumed)
+  const portAspectIds = computeEffectiveAspectsForConsumer(node, graph);
+  const allAspectIds = new Set([...effective.regular, ...portAspectIds]);
+
+  for (const aspectId of allAspectIds) {
     const aspect = graph.aspects.find(a => a.id === aspectId);
     if (!aspect) continue;
     addFile(graphPath('aspects', aspect.id, 'yg-aspect.yaml'), 'graph', 'aspects');
