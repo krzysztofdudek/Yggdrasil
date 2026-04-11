@@ -12,7 +12,7 @@
 
 **Initial baseline (first-time approve):** When a node has no prior drift state, approve records the current hashes as the baseline without requiring artifact or source changes. This is the expected path when setting up coverage on existing code.
 
-**No-change path:** When source and artifacts are both unchanged since last approve, approve exits 0 without invoking the reviewer.
+**No-change path:** When source and artifacts are both unchanged since last approve, approve accepts and records baseline. The reviewer (if configured) still runs verification — there is no early return that skips LLM verification for no-change nodes.
 
 ## Failure Modes
 

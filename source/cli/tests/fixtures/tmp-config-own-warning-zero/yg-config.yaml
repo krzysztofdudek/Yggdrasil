@@ -1,0 +1,5 @@
+
+name: "OwnWarningZero"
+quality:
+  context_budget:
+    own_warning: 0

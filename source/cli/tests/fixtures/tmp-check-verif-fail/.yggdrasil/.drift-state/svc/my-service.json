@@ -1,0 +1,24 @@
+{
+  "hash": "58816d2db00ad6f8cd959a36bd6cbd47fb752a588f461b7ec966930b52d81dcc",
+  "files": {
+    "own-subset:svc/my-service": "633ef992fbfd2bf2a85b9dbed66ee555f1457544db22f3a728ec2d86d9cbdee7",
+    ".yggdrasil/model/svc/my-service/yg-node.yaml": "0ca0a69e71a4536f38d7faef2d57ef6899299844939a62a45293accc3e0ec9f9",
+    ".yggdrasil/model/svc/yg-node.yaml": "6e0fe2229c93e89c51f2b8a1fe96c79abeec4d86006edcdd395dbae4796f7176",
+    ".yggdrasil/aspects/logging/yg-aspect.yaml": "1b6f3f3acaca6a1b8d667f308f3a336735c11f0c705d77c717c4c3bfda6c863e",
+    ".yggdrasil/aspects/logging/rules.md": "4cca64ccdd1feab18a90d2aef4b650f9abbc307e13b1c9205a7cc12101f9d5ca",
+    "src/svc/index.ts": "065149d8168ec7d949558859fbb3b42d4e9ec96f2c288da7426a82cecc025fda"
+  },
+  "mtimes": {
+    ".yggdrasil/model/svc/my-service/yg-node.yaml": 1775884662928.6277,
+    ".yggdrasil/model/svc/yg-node.yaml": 1775884662929.0232,
+    ".yggdrasil/aspects/logging/yg-aspect.yaml": 1775884662929.379,
+    ".yggdrasil/aspects/logging/rules.md": 1775884662929.5454,
+    "src/svc/index.ts": 1775884662929.926
+  },
+  "aspectResults": {
+    "logging": {
+      "satisfied": false,
+      "reason": "no audit log found"
+    }
+  }
+}

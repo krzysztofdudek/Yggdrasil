@@ -1,0 +1,5 @@
+name: MyService
+type: service
+description: updated description
+mapping:
+  - src/svc/

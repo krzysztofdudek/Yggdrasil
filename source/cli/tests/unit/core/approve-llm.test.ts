@@ -101,7 +101,7 @@ async function recordBaseline(tmpDir: string) {
 function makeMockProvider(overrides: Partial<LlmProvider> = {}): LlmProvider {
   return {
     verifyAspect: async () => ({ satisfied: true, reason: 'ok' }),
-    reviewArtifact: async () => ({ current: true, reason: 'up to date' }),
+    needsChunking: true,
     isAvailable: async () => true,
     getContextWindowSize: async () => 8192,
     ...overrides,
@@ -211,118 +211,5 @@ describe('LLM verification (CLI layer)', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('--reviewed with no LLM configured sets llmSkipped to not-configured', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('llm-reviewed-no-llm', {
-      nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - deterministic\nmapping:\n  - src/svc/\n',
-      mappingFiles: { 'src/svc/index.ts': 'const x = 1;\n' },
-      aspects: [{ id: 'deterministic', yaml: ASPECT_YAML }],
-    });
-    await recordBaseline(tmpDir);
-    await writeFile(path.join(yggRoot, 'model/svc/my-service/responsibility.md'), 'Updated.\n');
-
-    const graph = await loadGraph(tmpDir);
-    const coreResult = await approveNode(graph, 'svc/my-service', {
-      reviewed: 'artifacts updated, source unchanged',
-    });
-    const result = await runLlmVerification(graph, 'svc/my-service', coreResult, makeLlmConfig(undefined, { llmNotConfigured: true }));
-    expect(result.action).toBe('reviewed');
-    expect(result.llmSkipped).toBe('not-configured');
-    await rm(tmpDir, { recursive: true, force: true });
-  });
-
-  it('--reviewed does not bypass LLM refusal', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('llm-reviewed-no-override', {
-      nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - deterministic\nmapping:\n  - src/svc/\n',
-      mappingFiles: { 'src/svc/index.ts': 'const x = 1;\n' },
-      aspects: [{
-        id: 'deterministic',
-        yaml: ASPECT_YAML,
-        files: { 'content.md': 'Code must be deterministic.\n' },
-      }],
-    });
-    await recordBaseline(tmpDir);
-    await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'const x = Date.now();\n');
-    await writeFile(path.join(yggRoot, 'model/svc/my-service/responsibility.md'), 'Updated.\n');
-
-    const graph = await loadGraph(tmpDir);
-    const provider = makeMockProvider({
-      async verifyAspect() { return { satisfied: false, reason: 'aspect not satisfied' }; },
-    });
-    const coreResult = await approveNode(graph, 'svc/my-service', {
-      reviewed: 'code is intentionally non-deterministic for testing',
-    });
-    // --reviewed bypasses three-axis only — LLM still runs and can refuse
-    const result = await runLlmVerification(graph, 'svc/my-service', coreResult, makeLlmConfig(provider));
-    expect(result.action).toBe('refused');
-    expect(result.aspectResults).toBeDefined();
-    await rm(tmpDir, { recursive: true, force: true });
-  });
-
-  it('runs LLM on cascade-only approve with --reviewed', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('llm-cascade-reviewed', {
-      nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - deterministic\nmapping:\n  - src/svc/\n',
-      mappingFiles: { 'src/svc/index.ts': 'const x = 1;\n' },
-      aspects: [{
-        id: 'deterministic',
-        yaml: ASPECT_YAML,
-        files: { 'content.md': 'Determinism rules.\n' },
-      }],
-    });
-    await recordBaseline(tmpDir);
-    // Change only the aspect (cascade change) — no source or artifact changes
-    await writeFile(path.join(yggRoot, 'aspects/deterministic/content.md'), 'Updated determinism rules.\n');
-
-    const graph = await loadGraph(tmpDir);
-    const provider = makeMockProvider({
-      async verifyAspect() { return { satisfied: true, reason: 'code is compliant' }; },
-    });
-    const coreResult = await approveNode(graph, 'svc/my-service', {
-      reviewed: 'aspect updated, source already compliant',
-    });
-    const result = await runLlmVerification(graph, 'svc/my-service', coreResult, makeLlmConfig(provider));
-    expect(result.action).toBe('reviewed');
-    // LLM runs even with --reviewed — reviewer verifies aspects
-    expect(result.aspectResults).toBeDefined();
-    await rm(tmpDir, { recursive: true, force: true });
-  });
-
-  it('refuses when artifact review returns current: false (E056)', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('llm-e056-refuse', {
-      nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - deterministic\nmapping:\n  - src/svc/\n',
-      mappingFiles: { 'src/svc/index.ts': 'const x = 1;\n' },
-      aspects: [{
-        id: 'deterministic',
-        yaml: ASPECT_YAML,
-        files: { 'content.md': 'Code must be deterministic.\n' },
-      }],
-    });
-    await recordBaseline(tmpDir);
-    // Change both axes so three-axis check passes
-    await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'const x = 2;\nexport function newEndpoint() {}\n');
-    await writeFile(path.join(yggRoot, 'model/svc/my-service/responsibility.md'), 'Updated responsibility.\n');
-
-    const graph = await loadGraph(tmpDir);
-    const provider = makeMockProvider({
-      // Aspects pass — no E055
-      async verifyAspect() { return { satisfied: true, reason: 'ok' }; },
-      // Artifact review fails — E056
-      async reviewArtifact() {
-        return { current: false, reason: 'responsibility.md does not mention the new endpoint' };
-      },
-    });
-
-    const coreResult = await approveNode(graph, 'svc/my-service');
-    const result = await runLlmVerification(graph, 'svc/my-service', coreResult, makeLlmConfig(provider, { verifyArtifacts: true }));
-    expect(result.action).toBe('refused');
-    expect(result.e056Violations).toBeDefined();
-    expect(result.e056Violations!.length).toBeGreaterThan(0);
-    expect(result.e056Violations![0].reason).toContain('does not mention the new endpoint');
-    // E055 should have no violations
-    expect(result.e055Violations ?? []).toHaveLength(0);
-    await rm(tmpDir, { recursive: true, force: true });
-  });
+  // Tests for --reviewed and artifact review removed — features deleted in v4
 });

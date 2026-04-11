@@ -1,6 +1,9 @@
 {
-  "hash": "0111ed784f7f8b446547bf1ab27f4765df00bce2db267531baf1013df9672b49",
+  "hash": "1e26a570fbb1b401e13e30eae237390947506e2671747c8d0f60f034b7ce8460",
   "files": {
+    ".yggdrasil/model/cli/tests/unit/support/io/yg-node.yaml": "2e991e44bb21745fd5cabcf08422ec9e304e868f06c87a2a4cbaa329af9cd2e9",
+    ".yggdrasil/model/cli/tests/unit/support/io/responsibility.md": "cf0ba365555a874b65d8564056371470a93be989d9f46ae06751fb72cbccd5fc",
+    ".yggdrasil/model/cli/yg-node.yaml": "41ddbf73fbc1ee27a28a5ea5ec7ad656ea34f5938284bd5ab4ea7c3afcbbd69b",
     ".yggdrasil/model/cli/internals.md": "6ed08e0ee1a22270af6dcb23306acae750c7e55744a43a17671c4713684f4b91",
     ".yggdrasil/model/cli/responsibility.md": "f35cbcee252f56323379f08b65c38989787e0758c94f5eee2a36188c0260d05d",
     ".yggdrasil/model/cli/tests/yg-node.yaml": "ac0fc246c01a04e62d43ef8abadb2f01551616ca7509c3b268995ef646279bc9",
@@ -13,15 +16,12 @@
     "source/cli/tests/unit/io/artifact-reader.test.ts": "05c14b31841aa39bb7f36a4badd202f1d6be85c6ccbab74980ac54b3f4521810",
     "source/cli/tests/unit/io/aspect-parser.test.ts": "a06c9d3109000d74c846ca7b3c337091d57674ed0fd6c372d6b7535f1e4832ea",
     "source/cli/tests/unit/io/audit-log.test.ts": "c96afce1543a09265918d0e2f40f56b19c3bad64ac54d10d257bc2eef044db62",
+    "source/cli/tests/unit/io/config-parser.test.ts": "faee544a2eb954ba972739d8aa554a5e9d7cb35b5e235e63072840710610e76a",
     "source/cli/tests/unit/io/drift-state-store.test.ts": "ebd4f2d2f96da42e5d5bf65b081e6dada7b768a82da0fc19ba46b928dd63663b",
     "source/cli/tests/unit/io/flow-parser.test.ts": "c8b30935c68c3ac0abac65278daa5ff763a11a1c62bcafdbfe3ef8421c40a0ae",
     "source/cli/tests/unit/io/node-parser.test.ts": "b91f2e5af2d26e692970d957f2768d637424e8245a95a4ff7a475b07188d8ba3",
-    "source/cli/tests/unit/io/schema-parser.test.ts": "f57c58c79fd33c2d225d84f0d2c8bb81d68bcac3cbafc6e2fd4d6ea840266f95",
     "source/cli/tests/unit/io/secrets-parser.test.ts": "0f02a6bfc7eefb6d7e200dd84f7ffe99a9fb6efa3bf7fb1998a4bb1f09731f9d",
-    ".yggdrasil/model/cli/tests/unit/support/io/yg-node.yaml": "2e991e44bb21745fd5cabcf08422ec9e304e868f06c87a2a4cbaa329af9cd2e9",
-    ".yggdrasil/model/cli/tests/unit/support/io/responsibility.md": "cf0ba365555a874b65d8564056371470a93be989d9f46ae06751fb72cbccd5fc",
-    ".yggdrasil/model/cli/yg-node.yaml": "41ddbf73fbc1ee27a28a5ea5ec7ad656ea34f5938284bd5ab4ea7c3afcbbd69b",
-    "source/cli/tests/unit/io/config-parser.test.ts": "faee544a2eb954ba972739d8aa554a5e9d7cb35b5e235e63072840710610e76a"
+    "source/cli/tests/unit/io/schema-parser.test.ts": "ff43b8be235376aad3a2f6986a8a6a78079032b48e5eb1155458fce21d3ff607"
   },
   "mtimes": {
     ".yggdrasil/model/cli/tests/unit/support/io/yg-node.yaml": 1775639484192.5032,
@@ -43,10 +43,10 @@
     "source/cli/tests/unit/io/drift-state-store.test.ts": 1775623187271.656,
     "source/cli/tests/unit/io/flow-parser.test.ts": 1774864350266.7651,
     "source/cli/tests/unit/io/node-parser.test.ts": 1775625668106.666,
-    "source/cli/tests/unit/io/schema-parser.test.ts": 1773392454498.4453,
+    "source/cli/tests/unit/io/schema-parser.test.ts": 1775720033775.5466,
     "source/cli/tests/unit/io/secrets-parser.test.ts": 1775566414357.0498
   },
-  "reviewedReason": "responsibility expanded per reviewer feedback",
+  "reviewedReason": "added schema-parser test for non-mapping YAML guard",
   "artifactReview": {
     "responsibility.md": {
       "current": true,

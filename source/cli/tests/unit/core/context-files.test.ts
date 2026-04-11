@@ -9,26 +9,22 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE_PROJECT = path.join(__dirname, '../../fixtures/sample-project');
 
 describe('collectTrackedFiles', () => {
-  it('includes own yg-node.yaml and artifacts', async () => {
+  it('includes own yg-node.yaml', async () => {
     const graph = await loadGraph(FIXTURE_PROJECT);
     const node = graph.nodes.get('orders/order-service')!;
     const files = collectTrackedFiles(node, graph);
     const paths = files.map((f) => f.path);
 
     expect(paths).toContain('.yggdrasil/model/orders/order-service/yg-node.yaml');
-    // order-service has responsibility.md, interface.md (STANDARD_ARTIFACTS only)
-    expect(paths).toContain('.yggdrasil/model/orders/order-service/responsibility.md');
-    expect(paths).toContain('.yggdrasil/model/orders/order-service/interface.md');
   });
 
-  it('includes parent yg-node.yaml and artifacts', async () => {
+  it('includes parent yg-node.yaml', async () => {
     const graph = await loadGraph(FIXTURE_PROJECT);
     const node = graph.nodes.get('orders/order-service')!;
     const files = collectTrackedFiles(node, graph);
     const paths = files.map((f) => f.path);
 
     expect(paths).toContain('.yggdrasil/model/orders/yg-node.yaml');
-    expect(paths).toContain('.yggdrasil/model/orders/responsibility.md');
   });
 
   it('includes aspect files', async () => {
@@ -42,7 +38,7 @@ describe('collectTrackedFiles', () => {
     expect(paths).toContain('.yggdrasil/aspects/requires-audit/content.md');
   });
 
-  it('includes flow files', async () => {
+  it('includes flow yg-flow.yaml', async () => {
     const graph = await loadGraph(FIXTURE_PROJECT);
     const node = graph.nodes.get('orders/order-service')!;
     const files = collectTrackedFiles(node, graph);
@@ -50,7 +46,6 @@ describe('collectTrackedFiles', () => {
 
     // orders/order-service participates in checkout-flow
     expect(paths).toContain('.yggdrasil/flows/checkout-flow/yg-flow.yaml');
-    expect(paths).toContain('.yggdrasil/flows/checkout-flow/description.md');
   });
 
   it('includes source files from mapping', async () => {
@@ -75,9 +70,9 @@ describe('collectTrackedFiles', () => {
       expect(f.path).not.toMatch(/^\.yggdrasil\//);
     }
 
-    // Graph files should start with .yggdrasil/
+    // Graph files should start with .yggdrasil/ or be synthetic hash entries
     for (const f of graphFiles) {
-      expect(f.path).toMatch(/^\.yggdrasil\//);
+      expect(f.path).toMatch(/^(\.yggdrasil\/|own-subset:|port-aspects:)/);
     }
 
     expect(sourceFiles.length).toBeGreaterThan(0);
@@ -89,14 +84,10 @@ describe('collectTrackedFiles', () => {
     const node = graph.nodes.get('orders/order-service')!;
     const files = collectTrackedFiles(node, graph);
 
-    // Own layer: the node's own yg-node.yaml and artifacts
+    // Hierarchy layer: the node's own yg-node.yaml
     const ownNodeYaml = files.find((f) => f.path === '.yggdrasil/model/orders/order-service/yg-node.yaml');
     expect(ownNodeYaml).toBeDefined();
-    expect(ownNodeYaml?.layer).toBe('own');
-
-    const ownResp = files.find((f) => f.path === '.yggdrasil/model/orders/order-service/responsibility.md');
-    expect(ownResp).toBeDefined();
-    expect(ownResp?.layer).toBe('own');
+    expect(ownNodeYaml?.layer).toBe('hierarchy');
 
     // Hierarchy layer: parent node files
     const hierarchyNodeYaml = files.find((f) => f.path === '.yggdrasil/model/orders/yg-node.yaml');
@@ -123,8 +114,8 @@ describe('collectTrackedFiles', () => {
     expect(sourceFile?.layer).toBe('source');
     expect(sourceFile?.category).toBe('source');
 
-    // Relational layer: dependency artifacts
-    const relationalFile = files.find((f) => f.path === '.yggdrasil/model/auth/auth-api/responsibility.md');
+    // Relational layer: dependency yg-node.yaml
+    const relationalFile = files.find((f) => f.path === '.yggdrasil/model/auth/auth-api/yg-node.yaml');
     expect(relationalFile).toBeDefined();
     expect(relationalFile?.layer).toBe('relational');
   });
@@ -155,29 +146,22 @@ describe('collectTrackedFiles', () => {
     expect(paths).toContain('.yggdrasil/model/orders/yg-node.yaml');
   });
 
-  it('includes relational dependency artifacts', async () => {
+  it('includes relational dependency yg-node.yaml', async () => {
     const graph = await loadGraph(FIXTURE_PROJECT);
     const node = graph.nodes.get('orders/order-service')!;
     const files = collectTrackedFiles(node, graph);
     const paths = files.map((f) => f.path);
 
     // order-service uses auth/auth-api and users/user-repo
-    // Since the fixture config has no included_in_relations artifacts,
-    // it falls back to all config-allowed artifacts on the target
-    expect(paths).toContain('.yggdrasil/model/auth/auth-api/responsibility.md');
-    expect(paths).toContain('.yggdrasil/model/users/user-repo/responsibility.md');
+    // Only yg-node.yaml is tracked for relational deps
+    expect(paths).toContain('.yggdrasil/model/auth/auth-api/yg-node.yaml');
+    expect(paths).toContain('.yggdrasil/model/users/user-repo/yg-node.yaml');
   });
 
-  it('uses included_in_relations artifacts when configured', () => {
-    // Build a synthetic graph where config has included_in_relations
+  it('tracks dependency yg-node.yaml for relational deps', () => {
     const target: GraphNode = {
       path: 'dep/svc',
       meta: { name: 'DepSvc', type: 'service' },
-      artifacts: [
-        { filename: 'responsibility.md', content: 'resp' },
-        { filename: 'interface.md', content: 'api' },
-        { filename: 'description.md', content: 'desc' },
-      ],
       children: [],
       parent: null,
     };
@@ -188,7 +172,6 @@ describe('collectTrackedFiles', () => {
         type: 'service',
         relations: [{ target: 'dep/svc', type: 'uses' }],
       },
-      artifacts: [{ filename: 'responsibility.md', content: 'x' }],
       children: [],
       parent: null,
     };
@@ -197,6 +180,7 @@ describe('collectTrackedFiles', () => {
         name: 'T',
         node_types: { service: { description: 'x' } },
       },
+      architecture: { node_types: {} },
       nodes: new Map([
         ['my/svc', node],
         ['dep/svc', target],
@@ -210,25 +194,20 @@ describe('collectTrackedFiles', () => {
     const files = collectTrackedFiles(node, graph);
     const paths = files.map((f) => f.path);
 
-    // Should include included_in_relations artifacts from dep (responsibility.md and interface.md)
-    expect(paths).toContain('.yggdrasil/model/dep/svc/responsibility.md');
-    expect(paths).toContain('.yggdrasil/model/dep/svc/interface.md');
-    // description.md is not in STANDARD_ARTIFACTS, so should NOT appear
-    expect(paths).not.toContain('.yggdrasil/model/dep/svc/description.md');
+    // Only yg-node.yaml is tracked for relational deps
+    expect(paths).toContain('.yggdrasil/model/dep/svc/yg-node.yaml');
   });
 
   it('flow participation checks ancestor paths', () => {
     const parent: GraphNode = {
       path: 'orders',
       meta: { name: 'Orders', type: 'module' },
-      artifacts: [{ filename: 'responsibility.md', content: 'x' }],
       children: [],
       parent: null,
     };
     const child: GraphNode = {
       path: 'orders/order-service',
       meta: { name: 'OrderService', type: 'service' },
-      artifacts: [{ filename: 'responsibility.md', content: 'x' }],
       children: [],
       parent,
     };
@@ -239,6 +218,7 @@ describe('collectTrackedFiles', () => {
         name: 'T',
         node_types: { module: { description: 'x' }, service: { description: 'x' } },
       },
+      architecture: { node_types: {} },
       nodes: new Map([
         ['orders', parent],
         ['orders/order-service', child],
@@ -248,8 +228,7 @@ describe('collectTrackedFiles', () => {
         {
           path: 'parent-flow',
           name: 'Parent Flow',
-          nodes: ['orders'],  // only the parent is listed
-          artifacts: [{ filename: 'description.md', content: 'Flow desc' }],
+          nodes: ['orders'],
         },
       ],
       schemas: [],
@@ -261,7 +240,6 @@ describe('collectTrackedFiles', () => {
     const paths = files.map((f) => f.path);
 
     expect(paths).toContain('.yggdrasil/flows/parent-flow/yg-flow.yaml');
-    expect(paths).toContain('.yggdrasil/flows/parent-flow/description.md');
   });
 
   it('handles nodes without aspects', async () => {
@@ -298,7 +276,6 @@ describe('collectTrackedFiles', () => {
     const target: GraphNode = {
       path: 'events/bus',
       meta: { name: 'EventBus', type: 'service' },
-      artifacts: [{ filename: 'responsibility.md', content: 'events' }],
       children: [],
       parent: null,
     };
@@ -309,7 +286,6 @@ describe('collectTrackedFiles', () => {
         type: 'service',
         relations: [{ target: 'events/bus', type: 'emits' }],
       },
-      artifacts: [{ filename: 'responsibility.md', content: 'x' }],
       children: [],
       parent: null,
     };
@@ -318,6 +294,7 @@ describe('collectTrackedFiles', () => {
         name: 'T',
         node_types: { service: { description: 'x' } },
       },
+      architecture: { node_types: {} },
       nodes: new Map([
         ['my/svc', node],
         ['events/bus', target],
@@ -331,18 +308,14 @@ describe('collectTrackedFiles', () => {
     const files = collectTrackedFiles(node, graph);
     const paths = files.map((f) => f.path);
 
-    // Event relations should now include target artifacts
-    expect(paths).toContain('.yggdrasil/model/events/bus/responsibility.md');
+    // Event relations should include target yg-node.yaml
+    expect(paths).toContain('.yggdrasil/model/events/bus/yg-node.yaml');
   });
 
   it('uses included_in_relations filter for event relation targets', () => {
     const target: GraphNode = {
       path: 'events/bus',
       meta: { name: 'EventBus', type: 'service' },
-      artifacts: [
-        { filename: 'responsibility.md', content: 'events' },
-        { filename: 'interface.md', content: 'api' },
-      ],
       children: [],
       parent: null,
     };
@@ -353,7 +326,6 @@ describe('collectTrackedFiles', () => {
         type: 'service',
         relations: [{ target: 'events/bus', type: 'emits' }],
       },
-      artifacts: [{ filename: 'responsibility.md', content: 'x' }],
       children: [],
       parent: null,
     };
@@ -362,6 +334,7 @@ describe('collectTrackedFiles', () => {
         name: 'T',
         node_types: { service: { description: 'x' } },
       },
+      architecture: { node_types: {} },
       nodes: new Map([
         ['my/svc', node],
         ['events/bus', target],
@@ -375,9 +348,8 @@ describe('collectTrackedFiles', () => {
     const files = collectTrackedFiles(node, graph);
     const paths = files.map((f) => f.path);
 
-    // With included_in_relations, event relation includes responsibility.md and interface.md
-    expect(paths).toContain('.yggdrasil/model/events/bus/responsibility.md');
-    expect(paths).toContain('.yggdrasil/model/events/bus/interface.md');
+    // Event relation includes target yg-node.yaml
+    expect(paths).toContain('.yggdrasil/model/events/bus/yg-node.yaml');
   });
 
   it('skips relations with missing targets', () => {
@@ -388,7 +360,6 @@ describe('collectTrackedFiles', () => {
         type: 'service',
         relations: [{ target: 'nonexistent/svc', type: 'calls' }],
       },
-      artifacts: [{ filename: 'responsibility.md', content: 'x' }],
       children: [],
       parent: null,
     };
@@ -397,6 +368,7 @@ describe('collectTrackedFiles', () => {
         name: 'T',
         node_types: { service: { description: 'x' } },
       },
+      architecture: { node_types: {} },
       nodes: new Map([['my/svc', node]]),
       aspects: [],
       flows: [],
@@ -417,10 +389,6 @@ describe('collectTrackedFiles', () => {
         type: 'service',
         ports: { charge: { description: 'Payment', aspects: ['correlation-id'] } },
       },
-      artifacts: [
-        { filename: 'responsibility.md', content: 'resp' },
-        { filename: 'interface.md', content: 'api' },
-      ],
       children: [],
       parent: null,
     };
@@ -431,7 +399,6 @@ describe('collectTrackedFiles', () => {
         type: 'service',
         relations: [{ target: 'dep/svc', type: 'calls' }],
       },
-      artifacts: [{ filename: 'responsibility.md', content: 'x' }],
       children: [],
       parent: null,
     };
@@ -440,6 +407,7 @@ describe('collectTrackedFiles', () => {
         name: 'T',
         node_types: { service: { description: 'x' } },
       },
+      architecture: { node_types: {} },
       nodes: new Map([
         ['my/svc', node],
         ['dep/svc', target],
@@ -455,7 +423,7 @@ describe('collectTrackedFiles', () => {
 
     // Target with ports should have a synthetic hash entry
     expect(paths).toContain('port-aspects:dep/svc');
-    expect(paths).not.toContain('.yggdrasil/model/dep/svc/yg-node.yaml');
+    expect(paths).toContain('.yggdrasil/model/dep/svc/yg-node.yaml');
     const tracked = files.find(f => f.path === 'port-aspects:dep/svc');
     expect(tracked?.layer).toBe('relational');
     expect(tracked?.syntheticHash).toBeDefined();
@@ -468,10 +436,6 @@ describe('collectTrackedFiles', () => {
         name: 'DepSvc',
         type: 'service',
       },
-      artifacts: [
-        { filename: 'responsibility.md', content: 'resp' },
-        { filename: 'interface.md', content: 'api' },
-      ],
       children: [],
       parent: null,
     };
@@ -482,7 +446,6 @@ describe('collectTrackedFiles', () => {
         type: 'service',
         relations: [{ target: 'dep/svc', type: 'calls' }],
       },
-      artifacts: [{ filename: 'responsibility.md', content: 'x' }],
       children: [],
       parent: null,
     };
@@ -491,6 +454,7 @@ describe('collectTrackedFiles', () => {
         name: 'T',
         node_types: { service: { description: 'x' } },
       },
+      architecture: { node_types: {} },
       nodes: new Map([
         ['my/svc', node],
         ['dep/svc', target],
@@ -505,7 +469,8 @@ describe('collectTrackedFiles', () => {
     const paths = files.map((f) => f.path);
 
     expect(paths).not.toContain('port-aspects:dep/svc');
-    expect(paths).not.toContain('.yggdrasil/model/dep/svc/yg-node.yaml');
+    // yg-node.yaml is still tracked for deps even without ports
+    expect(paths).toContain('.yggdrasil/model/dep/svc/yg-node.yaml');
   });
 
   // integration_anchors test removed — field no longer exists in v4
@@ -514,14 +479,12 @@ describe('collectTrackedFiles', () => {
     const parent: GraphNode = {
       path: 'orders',
       meta: { name: 'Orders', type: 'module', aspects: ['requires-audit'] },
-      artifacts: [],
       children: [],
       parent: null,
     };
     const child: GraphNode = {
       path: 'orders/order-service',
       meta: { name: 'OrderService', type: 'service', aspects: ['requires-audit'] },
-      artifacts: [{ filename: 'responsibility.md', content: 'x' }],
       children: [],
       parent,
     };
@@ -532,6 +495,7 @@ describe('collectTrackedFiles', () => {
         name: 'T',
         node_types: { module: { description: 'x' }, service: { description: 'x' } },
       },
+      architecture: { node_types: {} },
       nodes: new Map([
         ['orders', parent],
         ['orders/order-service', child],
@@ -596,16 +560,10 @@ describe('collectTrackedFiles', () => {
     node.meta.relations = originalRelations;
   });
 
-  it('falls back to config-allowed artifacts when no included_in_relations match', () => {
+  it('tracks only yg-node.yaml for dependency (no artifact .md files)', () => {
     const target: GraphNode = {
       path: 'dep/svc',
       meta: { name: 'DepSvc', type: 'service' },
-      artifacts: [
-        // Only internals.md which has included_in_relations=false
-        // So structuralArts will be empty, triggering the fallback
-        { filename: 'internals.md', content: 'impl' },
-        { filename: 'custom.md', content: 'custom' },
-      ],
       children: [],
       parent: null,
     };
@@ -616,16 +574,15 @@ describe('collectTrackedFiles', () => {
         type: 'service',
         relations: [{ target: 'dep/svc', type: 'uses' }],
       },
-      artifacts: [{ filename: 'responsibility.md', content: 'x' }],
       children: [],
       parent: null,
     };
-    const config: YggConfig = {
-      name: 'T',
-      node_types: { service: { description: 'x' } },
-    };
     const graph: Graph = {
-      config,
+      config: {
+        name: 'T',
+        node_types: { service: { description: 'x' } },
+      },
+      architecture: { node_types: {} },
       nodes: new Map([
         ['my/svc', node],
         ['dep/svc', target],
@@ -639,10 +596,9 @@ describe('collectTrackedFiles', () => {
     const files = collectTrackedFiles(node, graph);
     const paths = files.map((f) => f.path);
 
-    // When target has no included_in_relations artifacts, fallback to all config-allowed
-    // internals.md is in STANDARD_ARTIFACTS (config-allowed)
-    expect(paths).toContain('.yggdrasil/model/dep/svc/internals.md');
-    // custom.md is not in STANDARD_ARTIFACTS, so should not appear
-    expect(paths).not.toContain('.yggdrasil/model/dep/svc/custom.md');
+    // Only yg-node.yaml is tracked for deps — no .md artifact files
+    expect(paths).toContain('.yggdrasil/model/dep/svc/yg-node.yaml');
+    expect(paths).not.toContain('.yggdrasil/model/dep/svc/internals.md');
+    expect(paths).not.toContain('.yggdrasil/model/dep/svc/responsibility.md');
   });
 });

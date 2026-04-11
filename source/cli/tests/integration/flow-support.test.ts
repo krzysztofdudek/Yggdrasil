@@ -34,7 +34,7 @@ describe('flow-support integration (v2.2)', () => {
     // E036: users/missing-service maps src/users/missing.service.ts which doesn't exist on disk
     // (intentional fixture — used by drift tests to verify "missing" detection)
     const unexpectedErrors = errors.filter(
-      (i) => !(i.code === 'E036' && i.nodePath === 'users/missing-service'),
+      (i) => !(i.code === 'mapping-path-missing' && i.nodePath === 'users/missing-service'),
     );
     expect(unexpectedErrors).toHaveLength(0);
   });

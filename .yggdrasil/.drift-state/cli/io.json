@@ -1,10 +1,9 @@
 {
-  "hash": "43856afedae048d3eaa8d27a957c5a5ccc54cb32df854fb94bf6245b3ddee6db",
+  "hash": "75b170efd6b2d34102308c7062a827328040124d458d34fde77d988e2d090021",
   "files": {
     ".yggdrasil/model/cli/io/yg-node.yaml": "4e2611da4d88f700bddd4e0eea69e640194fcbcd75a1148ecae29661b1d46558",
-    ".yggdrasil/model/cli/io/interface.md": "bc7f250a251a6b5b442549c3d2cdd20ea3dbda75cbb11b52209db28eed995233",
-    ".yggdrasil/model/cli/io/internals.md": "01338bb327a924d1bae9c99b6143f9ad76caa3ba9171adbafe9541252353c9de",
-    ".yggdrasil/model/cli/io/responsibility.md": "c311c9990b76a3c3497a88107383e48032d23aa06a6a3e36d18b80bc1429b9a3",
+    ".yggdrasil/model/cli/io/internals.md": "4a942c382b9f2f51d3379e60d0a9c6eccb90879fa6d13fa6dbe626c24fef6a41",
+    ".yggdrasil/model/cli/io/responsibility.md": "fd9d8b8a981d3726a0432a28978b8aeceb8382e66e3b337a04aebc18e4bcc6db",
     ".yggdrasil/model/cli/yg-node.yaml": "41ddbf73fbc1ee27a28a5ea5ec7ad656ea34f5938284bd5ab4ea7c3afcbbd69b",
     ".yggdrasil/model/cli/internals.md": "6ed08e0ee1a22270af6dcb23306acae750c7e55744a43a17671c4713684f4b91",
     ".yggdrasil/model/cli/responsibility.md": "f35cbcee252f56323379f08b65c38989787e0758c94f5eee2a36188c0260d05d",
@@ -21,20 +20,21 @@
     ".yggdrasil/model/cli/model/drift/interface.md": "d71bbe1bb0645a6a624b10bcdc237925fc5fed9a9ff6971f6de221ffd862506e",
     "source/cli/src/io/architecture-parser.ts": "eab1e8c1677da7229541089265e43a1d839d95831042459eff126dbb34bf24a4",
     "source/cli/src/io/artifact-reader.ts": "88ceb67755c0725962910cf0bc31e756dd50ffa64127d09c47a79dc43935c5cc",
-    "source/cli/src/io/aspect-parser.ts": "88bf9a79604d066205a7aedc350843721821b5c06b7b2d1d70bcac087017698f",
+    "source/cli/src/io/aspect-parser.ts": "ceab1956b623d5207c77e5b59adc802fca30ad0ae63a9d920ee23fc9eab6624a",
     "source/cli/src/io/audit-log.ts": "e4542579392b09bbd8c90793562f796b109ac8133323cabde7ac6aa8b415b3ec",
-    "source/cli/src/io/config-parser.ts": "df3964e7c042fcb35bbd1247fe7884dea00c97169e15b62d01ae97ee88cc69d2",
+    "source/cli/src/io/config-parser.ts": "1665ee18b0a3534554efc3277189646e2e03bdd1a2e419e699f632d454309b86",
     "source/cli/src/io/drift-state-store.ts": "db1fee3d208fa5b3ce87c4cfa0e4645a7bf2c8a53130195d915f58dccbcc91cd",
     "source/cli/src/io/flow-parser.ts": "601fdf9f9eacda369a06111ac03f01e0f5f12ef1ece5c668c69980e947542c05",
     "source/cli/src/io/node-parser.ts": "47fca164bb6fe212fcd45cac15f87023f4ed983bae5cdcfffc9d88db6d6be7d4",
-    "source/cli/src/io/schema-parser.ts": "25b8c1a516ed78062938d543d6a7a873a8484d929717cc1d53634a6d0fca0e67",
-    "source/cli/src/io/secrets-parser.ts": "78bc665ded9fb84c66f945fcb205f55415db27b426f055acfbe9d84731b787bf"
+    "source/cli/src/io/secrets-parser.ts": "6bbf60637b1e89812fad69bd0fb6e019855f3494246e56b68c8272ccee0854bc",
+    ".yggdrasil/model/cli/io/interface.md": "7f1e3ddabb8907e6914f5645678f30837668d1509d2057a925fdf046cdd78ae2",
+    "source/cli/src/io/schema-parser.ts": "7a04832bf460fff9538f2037a9744b56ad1ec37e5565929b1b709cddc9202261"
   },
   "mtimes": {
     ".yggdrasil/model/cli/io/yg-node.yaml": 1775639659177.1155,
-    ".yggdrasil/model/cli/io/interface.md": 1775648355412.6597,
-    ".yggdrasil/model/cli/io/internals.md": 1775631478331.0522,
-    ".yggdrasil/model/cli/io/responsibility.md": 1775631455629.793,
+    ".yggdrasil/model/cli/io/interface.md": 1775719968932.9768,
+    ".yggdrasil/model/cli/io/internals.md": 1775714669158.6985,
+    ".yggdrasil/model/cli/io/responsibility.md": 1775712113262.003,
     ".yggdrasil/model/cli/yg-node.yaml": 1775639608581.9402,
     ".yggdrasil/model/cli/internals.md": 1775586290475.0237,
     ".yggdrasil/model/cli/responsibility.md": 1775586232234.4275,
@@ -51,14 +51,42 @@
     ".yggdrasil/model/cli/model/drift/interface.md": 1775657650100.3916,
     "source/cli/src/io/architecture-parser.ts": 1775638321167.5151,
     "source/cli/src/io/artifact-reader.ts": 1775656353840.3682,
-    "source/cli/src/io/aspect-parser.ts": 1775623060044.0742,
+    "source/cli/src/io/aspect-parser.ts": 1775712141257.661,
     "source/cli/src/io/audit-log.ts": 1775623059027.5708,
-    "source/cli/src/io/config-parser.ts": 1775640389631.7493,
+    "source/cli/src/io/config-parser.ts": 1775711262860.7976,
     "source/cli/src/io/drift-state-store.ts": 1775656390418.5447,
     "source/cli/src/io/flow-parser.ts": 1775623049492.9578,
     "source/cli/src/io/node-parser.ts": 1775625641483.8892,
-    "source/cli/src/io/schema-parser.ts": 1775623050515.737,
-    "source/cli/src/io/secrets-parser.ts": 1775656403182.6208
+    "source/cli/src/io/schema-parser.ts": 1775719956686.1511,
+    "source/cli/src/io/secrets-parser.ts": 1775717841206.8623
   },
-  "reviewedReason": "cascade, silent-missing-files timeout retry"
+  "reviewedReason": "schema-parser now follows identical pipeline with root-mapping guard, fixed parseConfig ollama field requirements in interface",
+  "aspectResults": {
+    "yaml-parser-contract": {
+      "satisfied": true,
+      "reason": "All YAML parsers follow the required pipeline. (1) readFile(filePath, 'utf-8') is used in every parser: architecture-parser.ts:8, aspect-parser.ts:15, config-parser.ts:18, flow-parser.ts:8, node-parser.ts:19, schema-parser.ts:8, secrets-parser.ts:16. (2) parseYaml(content) as Record<string, unknown> is used in all: architecture-parser.ts:9, aspect-parser.ts:16, config-parser.ts:19, flow-parser.ts:9, node-parser.ts:20, schema-parser.ts:9, secrets-parser.ts:22. (3) Manual type guards are used throughout — typeof x !== 'string', !Array.isArray(x), typeof x !== 'object', etc. (4) Descriptive errors include file path and field: e.g. aspect-parser.ts:13,23,33 uses 'yg-aspect.yaml at ${aspectYamlPath}: ...', node-parser.ts:27,29,54,98 uses 'yg-node.yaml at ${filePath}: ...', config-parser.ts:28 uses '${filename}: missing or invalid name field' (config-level format), architecture-parser.ts:12 uses 'yg-architecture.yaml: ...' (config-level). (5) All return typed domain objects. Invariants: no zod/joi/schema libraries imported anywhere; all required fields checked individually with clear messages; optional fields use fallback defaults (e.g. config-parser.ts:32-48 DEFAULT_QUALITY, secrets-parser.ts extractSecretFields returns partial); no parser writes to disk — artifact-reader.ts and drift-state-store.ts are not YAML parsers and are out of scope for this aspect."
+    },
+    "silent-missing-files": {
+      "satisfied": true,
+      "reason": "All io-layer functions that handle optional files/directories follow the silent-missing-files pattern. artifact-reader.ts:12-17 wraps readdir in try/catch and returns [] when the directory (aspects/, flows/, schemas/ artifact dirs) is absent. drift-state-store.ts:126-131 wraps stat(.drift-state) in try/catch and returns {} when the drift-state path doesn't exist; scanJsonFiles (lines 21-24) also returns [] on readdir failure. secrets-parser.ts:15-19 wraps readFile in try/catch and returns undefined when yg-secrets.yaml is missing. The individual YAML parsers (aspect-parser, flow-parser, node-parser, schema-parser, architecture-parser, config-parser) correctly throw on missing/invalid files because they are only called with paths that the caller has already resolved — their errors signal programmer bugs, not missing optional state."
+    },
+    "diagnostic-logging": {
+      "satisfied": true,
+      "reason": "All catch blocks that swallow errors (return fallback/default instead of re-throwing) call debugWrite() with the required format [module] operation: error.message. Specifically: artifact-reader.ts:14 (readdir fallback → []); drift-state-store.ts:24 (scanJsonFiles readdir), :57 (removeEmptyParents), :74 (readNodeDriftState → undefined), :129 (readDriftState stat → {}), :140 (readDriftState JSON parse, continues to yaml fallback); secrets-parser.ts:17 (readFile → undefined). Files with no catch blocks (architecture-parser.ts, aspect-parser.ts, audit-log.ts, config-parser.ts, flow-parser.ts, node-parser.ts, schema-parser.ts) all re-throw or propagate errors naturally. All messages include module identifier, operation name, and error message as required."
+    }
+  },
+  "artifactReview": {
+    "interface.md": {
+      "current": true,
+      "reason": "up to date"
+    },
+    "internals.md": {
+      "current": true,
+      "reason": "up to date"
+    },
+    "responsibility.md": {
+      "current": true,
+      "reason": "up to date"
+    }
+  }
 }

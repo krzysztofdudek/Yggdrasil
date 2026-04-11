@@ -1,17 +1,16 @@
 {
-  "hash": "c2af0e5add6d899f357a33f258eaf789761bfd676fe9e7f9c86b55853f897810",
+  "hash": "495f6396cda9d700051d744394e8b26869cd4b30a09b52bc9e27b9e94f77eab1",
   "files": {
+    ".yggdrasil/model/docs/site/yg-node.yaml": "1171e0ee5532db3d74aa6f9d639d1bdef6860b3f8f62853045f5704a3be176ef",
+    ".yggdrasil/model/docs/site/responsibility.md": "0a69e39f42395e19dc0b807a56a91ce32c2f7dac63a5c157a7543be95f7482cf",
     ".yggdrasil/model/docs/yg-node.yaml": "36ca70c4bea26714bb7450d306d1a898e70573151394eb8e0fb3a5cf588c84d4",
     ".yggdrasil/model/docs/responsibility.md": "070a2a6c6b29116ab18d2b824068d227cc4682f30fd5ef79b3cbe307dbe632fe",
     "docs/package.json": "e3c48dc4ed7f4a2fc56f5d8dec2cbf2a07ffcad6f566d41a206a88a68225d756",
     "docs/package-lock.json": "5de0744623b0f0d3ae0f73845845ae1d5c89623da74cf542447129cb159f167e",
-    "docs/public/2025-03-06-code-has-logic-it-does-not-have-meaning.jpg": "1074c4b739dc9f7f0c306dca9877800471c17a434959863192c0042fc62d9e16",
     "docs/public/logo.svg": "4ad480da8bdcbeff35b7e9d24893f42166d4edc973ca16b13a2157e34261059a",
     "docs/.vitepress/config.ts": "6b48c47ed3f09f1851d590ddfdf8287e68523e882820514761c60be1a0bcc0a4",
     "docs/.vitepress/theme/custom.css": "0f383338159534c8a78e76019cc3c28bb1cefcb9116b9da138f895061f6e264a",
-    "docs/.vitepress/theme/index.ts": "47a53a53574c3437c65aaf76b1c7e0e3c30db953df85f0c45af4e7e2ad249dc8",
-    ".yggdrasil/model/docs/site/yg-node.yaml": "1171e0ee5532db3d74aa6f9d639d1bdef6860b3f8f62853045f5704a3be176ef",
-    ".yggdrasil/model/docs/site/responsibility.md": "0a69e39f42395e19dc0b807a56a91ce32c2f7dac63a5c157a7543be95f7482cf"
+    "docs/.vitepress/theme/index.ts": "47a53a53574c3437c65aaf76b1c7e0e3c30db953df85f0c45af4e7e2ad249dc8"
   },
   "mtimes": {
     ".yggdrasil/model/docs/site/yg-node.yaml": 1775639496770.9426,
@@ -20,13 +19,12 @@
     ".yggdrasil/model/docs/responsibility.md": 1772828320283.2747,
     "docs/package.json": 1773085358086.3213,
     "docs/package-lock.json": 1772432507086.5698,
-    "docs/public/2025-03-06-code-has-logic-it-does-not-have-meaning.jpg": 1772831287355.6926,
     "docs/public/logo.svg": 1771968668987.6501,
     "docs/.vitepress/config.ts": 1773085351693.1133,
     "docs/.vitepress/theme/custom.css": 1774195609716.5776,
     "docs/.vitepress/theme/index.ts": 1773085352706.9504
   },
-  "reviewedReason": "responsibility rewritten with specifics and child distinction",
+  "reviewedReason": "cosmetic: deleted image file",
   "artifactReview": {
     "responsibility.md": {
       "current": true,

@@ -39,7 +39,7 @@ describe('build-context command (unit-like CLI contract)', () => {
 
       expect(result.status).toBe(0);
       expect(result.stdout).toContain('Source files');
-      expect(result.stdout).toContain('Token budget:');
+      expect(result.stdout).toContain('After modifying source files');
     });
   });
 
@@ -56,7 +56,7 @@ describe('build-context command (unit-like CLI contract)', () => {
 
       expect(result.status).toBe(0);
       expect(result.stdout).toContain('Source files');
-      expect(result.stdout).toContain('Token budget:');
+      expect(result.stdout).toContain('After modifying source files');
 
       const buildDir = path.join(cwd, '.yggdrasil', '_build');
       const exists = await access(buildDir).then(

@@ -12,14 +12,12 @@ import {
   collectAncestors,
   collectDependencyAncestors,
   collectEffectiveAspectIds,
-  computeBudgetBreakdown,
   toContextMapOutput,
   buildNodeContextData,
   buildFileContextData,
 } from '../../../src/core/context-builder.js';
 import { formatContextMarkdown } from '../../../src/formatters/markdown.js';
 import { loadGraph } from '../../../src/core/graph-loader.js';
-import { STANDARD_ARTIFACTS } from '../../../src/model/graph.js';
 import type {
   Graph,
   GraphNode,
@@ -34,22 +32,6 @@ import type {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE_PROJECT = path.join(__dirname, '../../fixtures/sample-project');
-
-describe('STANDARD_ARTIFACTS constant', () => {
-  it('defines three standard artifacts with correct properties', () => {
-    expect(Object.keys(STANDARD_ARTIFACTS)).toEqual([
-      'responsibility.md',
-      'interface.md',
-      'internals.md',
-    ]);
-    expect(STANDARD_ARTIFACTS['responsibility.md'].required).toBe('always');
-    expect(STANDARD_ARTIFACTS['responsibility.md'].included_in_relations).toBe(true);
-    expect(STANDARD_ARTIFACTS['interface.md'].required).toEqual({ when: 'has_incoming_relations' });
-    expect(STANDARD_ARTIFACTS['interface.md'].included_in_relations).toBe(true);
-    expect(STANDARD_ARTIFACTS['internals.md'].required).toBe('never');
-    expect(STANDARD_ARTIFACTS['internals.md'].included_in_relations).toBe(false);
-  });
-});
 
 describe('context-builder', () => {
   describe('buildGlobalLayer', () => {
@@ -73,7 +55,7 @@ describe('context-builder', () => {
       const layer = buildAspectLayer({
         name: 'Audit',
         id: 'requires-audit',
-        artifacts: [{ filename: 'rules.md', content: 'Log everything' }],
+        artifacts: [{ filename: 'rules.md', content: 'Log all mutations' }],
       });
       expect(layer.type).toBe('aspects');
       expect(layer.label).toContain('Audit');
@@ -86,7 +68,7 @@ describe('context-builder', () => {
       const layer = buildAspectLayer({
         name: 'PubSub Events',
         id: 'pubsub-events',
-        artifacts: [{ filename: 'rules.md', content: 'Fire and forget pattern' }],
+        artifacts: [],
       });
       expect(layer.content).not.toContain('Stability tier');
     });
@@ -95,7 +77,7 @@ describe('context-builder', () => {
       const layer = buildAspectLayer({
         name: 'PubSub Events',
         id: 'pubsub-events',
-        artifacts: [{ filename: 'rules.md', content: 'Fire and forget pattern' }],
+        artifacts: [],
       });
       expect(layer.content).not.toContain('Exception for this node');
     });
@@ -106,7 +88,7 @@ describe('context-builder', () => {
       const ancestor: GraphNode = {
         path: 'parent',
         meta: { name: 'Parent', type: 'module' },
-        artifacts: [{ filename: 'responsibility.md', content: 'Parent context' }],
+        nodeYamlRaw: 'name: Parent\ntype: module\n',
         children: [],
         parent: null,
       };
@@ -115,15 +97,18 @@ describe('context-builder', () => {
         node_types: { module: { description: 'x' } },
       };
       const graph: Graph = {
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         architecture: { node_types: {} },
         rootPath: '/tmp',
         config,
+        architecture: { node_types: {} },
         nodes: new Map(),
         aspects: [],
         flows: [],
+        schemas: [],
       };
       const layer = buildHierarchyLayer(ancestor, config, graph);
       expect(layer.attrs).toBeUndefined();
-      expect(layer.content).toContain('Parent context');
+      expect(layer.content).toContain('yg-node.yaml');
     });
   });
 
@@ -143,7 +128,6 @@ describe('context-builder', () => {
       const node: GraphNode = {
         path: 'nonexistent/node',
         meta: { name: 'Test', type: 'module' },
-        artifacts: [],
         children: [],
         parent: null,
         nodeYamlRaw: undefined,
@@ -153,9 +137,11 @@ describe('context-builder', () => {
         node_types: { module: { description: 'x' } },
       };
       const graph: Graph = {
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               architecture: { node_types: {} },
         rootPath: '/tmp/nonexistent',
         config,
-        nodes: new Map(),
+        architecture: { node_types: {} },
+      nodes: new Map(),
         aspects: [],
         flows: [],
       };
@@ -182,10 +168,6 @@ describe('context-builder', () => {
       const target: GraphNode = {
         path: 'dep/svc',
         meta: { name: 'DepSvc', type: 'service' },
-        artifacts: [
-          { filename: 'responsibility.md', content: 'resp' },
-          { filename: 'interface.md', content: 'api' },
-        ],
         children: [],
         parent: null,
       };
@@ -196,8 +178,6 @@ describe('context-builder', () => {
       };
       const layer = buildStructuralRelationLayer(target, rel);
       expect(layer.content).toContain('methodA');
-      expect(layer.content).toContain('### responsibility.md');
-      expect(layer.content).toContain('### interface.md');
       expect(layer.attrs!.consumes).toBe('methodA');
     });
 
@@ -205,67 +185,13 @@ describe('context-builder', () => {
       const target: GraphNode = {
         path: 'dep/svc',
         meta: { name: 'DepSvc', type: 'service' },
-        artifacts: [{ filename: 'interface.md', content: 'api' }],
         children: [],
         parent: null,
       };
       const rel: Relation = { target: 'dep/svc', type: 'uses' };
       const layer = buildStructuralRelationLayer(target, rel);
       expect(layer.content).not.toContain('Consumes:');
-      expect(layer.content).toContain('### interface.md');
       expect(layer.attrs!.consumes).toBeUndefined();
-    });
-
-    it('uses included_in_relations artifacts from STANDARD_ARTIFACTS', () => {
-      const target: GraphNode = {
-        path: 'dep/svc',
-        meta: { name: 'DepSvc', type: 'service' },
-        artifacts: [
-          { filename: 'responsibility.md', content: 'resp' },
-          { filename: 'interface.md', content: 'api' },
-          { filename: 'internals.md', content: 'internal' },
-        ],
-        children: [],
-        parent: null,
-      };
-      const rel: Relation = { target: 'dep/svc', type: 'uses' };
-      const layer = buildStructuralRelationLayer(target, rel);
-      // responsibility.md and interface.md have included_in_relations=true
-      expect(layer.content).toContain('### responsibility.md');
-      expect(layer.content).toContain('### interface.md');
-      expect(layer.content).toContain('resp');
-      expect(layer.content).toContain('api');
-      // internals.md has included_in_relations=false, should NOT appear
-      expect(layer.content).not.toContain('### internals.md');
-    });
-
-    it('falls back to standard artifacts when included_in_relations artifacts not in target', () => {
-      const target: GraphNode = {
-        path: 'dep/svc',
-        meta: { name: 'DepSvc', type: 'service' },
-        artifacts: [{ filename: 'internals.md', content: 'internal details' }],
-        children: [],
-        parent: null,
-      };
-      const rel: Relation = { target: 'dep/svc', type: 'uses' };
-      const layer = buildStructuralRelationLayer(target, rel);
-      // Falls back to all standard artifacts since target has none with included_in_relations
-      expect(layer.content).toContain('### internals.md');
-      expect(layer.content).toContain('internal details');
-    });
-
-    it('falls back to all standard artifacts when no included_in_relations artifacts on target', () => {
-      const target: GraphNode = {
-        path: 'dep/svc',
-        meta: { name: 'DepSvc', type: 'service' },
-        artifacts: [{ filename: 'internals.md', content: 'internal details' }],
-        children: [],
-        parent: null,
-      };
-      const rel: Relation = { target: 'dep/svc', type: 'uses' };
-      const layer = buildStructuralRelationLayer(target, rel);
-      expect(layer.content).toContain('### internals.md');
-      expect(layer.content).toContain('internal details');
     });
   });
 
@@ -274,7 +200,6 @@ describe('context-builder', () => {
       const target: GraphNode = {
         path: 'events/handler',
         meta: { name: 'Handler', type: 'service' },
-        artifacts: [],
         children: [],
         parent: null,
       };
@@ -288,7 +213,6 @@ describe('context-builder', () => {
       const target: GraphNode = {
         path: 'events/handler',
         meta: { name: 'Handler', type: 'service' },
-        artifacts: [],
         children: [],
         parent: null,
       };
@@ -302,7 +226,6 @@ describe('context-builder', () => {
       const target: GraphNode = {
         path: 'events/handler',
         meta: { name: 'Handler', type: 'service' },
-        artifacts: [],
         children: [],
         parent: null,
       };
@@ -316,7 +239,6 @@ describe('context-builder', () => {
       const target: GraphNode = {
         path: 'events/publisher',
         meta: { name: 'Publisher', type: 'service' },
-        artifacts: [],
         children: [],
         parent: null,
       };
@@ -359,18 +281,17 @@ describe('context-builder', () => {
       const auditAspect: AspectDef = {
         name: 'Audit',
         id: 'requires-audit',
-        artifacts: [{ filename: 'content.md', content: 'Audit rules' }],
+        artifacts: [],
       };
       const hipaaAspect: AspectDef = {
         name: 'HIPAA',
         id: 'requires-hipaa',
         implies: ['requires-audit'],
-        artifacts: [{ filename: 'content.md', content: 'HIPAA rules' }],
+        artifacts: [],
       };
       const node: GraphNode = {
         path: 'test/node',
         meta: { name: 'TestNode', type: 'service', aspects: ['requires-hipaa'] },
-        artifacts: [{ filename: 'responsibility.md', content: 'x' }],
         children: [],
         parent: null,
       };
@@ -378,8 +299,10 @@ describe('context-builder', () => {
         config: {
           name: 'T',
           node_types: { service: { description: 'x' } },
+            artifacts: [],
           },
-        nodes: new Map([['test/node', node]]),
+        architecture: { node_types: {} },
+      nodes: new Map([['test/node', node]]),
         aspects: [auditAspect, hipaaAspect],
         flows: [],
         schemas: [],
@@ -396,18 +319,15 @@ describe('context-builder', () => {
         name: 'A',
         id: 'tag-a',
         implies: ['tag-b'],
-        artifacts: [],
       };
       const b: AspectDef = {
         name: 'B',
         id: 'tag-b',
         implies: ['tag-a'],
-        artifacts: [],
       };
       const node: GraphNode = {
         path: 'test/node',
         meta: { name: 'TestNode', type: 'service', aspects: ['tag-a'] },
-        artifacts: [{ filename: 'responsibility.md', content: 'x' }],
         children: [],
         parent: null,
       };
@@ -415,8 +335,10 @@ describe('context-builder', () => {
         config: {
           name: 'T',
           node_types: { service: { description: 'x' } },
+            artifacts: [],
           },
-        nodes: new Map([['test/node', node]]),
+        architecture: { node_types: {} },
+      nodes: new Map([['test/node', node]]),
         aspects: [a, b],
         flows: [],
         schemas: [],
@@ -449,11 +371,8 @@ describe('context-builder', () => {
       const layerTypes = pkg.layers.map((l) => l.type);
       expect(layerTypes).toContain('global');
       expect(layerTypes).toContain('hierarchy');
-      expect(layerTypes).toContain('own');
       expect(layerTypes).toContain('relational');
       expect(layerTypes).toContain('aspects');
-
-      expect(pkg.tokenCount).toBeGreaterThan(0);
     });
 
     it('throws Node not found for missing node', async () => {
@@ -476,14 +395,6 @@ describe('context-builder', () => {
       await expect(buildContext(graph, 'orders/order-service')).rejects.toThrow('Broken relation');
     });
 
-    it('computes and returns token count', async () => {
-      const graph = await loadGraph(FIXTURE_PROJECT);
-      const pkg = await buildContext(graph, 'orders/order-service');
-
-      expect(typeof pkg.tokenCount).toBe('number');
-      expect(pkg.tokenCount).toBeGreaterThan(100);
-    });
-
     it('does NOT follow transitive relations', async () => {
       const graph = await loadGraph(FIXTURE_PROJECT);
       // order-service -> auth/auth-api, but auth/auth-api has no relations
@@ -499,14 +410,6 @@ describe('context-builder', () => {
       expect(relationalLabels.some((l) => l.includes('users/user-repo'))).toBe(true);
     });
 
-    it('builds context for root-level node (no hierarchy layers)', async () => {
-      const graph = await loadGraph(FIXTURE_PROJECT);
-      const pkg = await buildContext(graph, 'auth');
-
-      expect(pkg.nodePath).toBe('auth');
-      const hierarchyLayers = pkg.layers.filter((l) => l.type === 'hierarchy');
-      expect(hierarchyLayers).toHaveLength(0);
-    });
 
     it('node without relations has no relational layers', async () => {
       const graph = await loadGraph(FIXTURE_PROJECT);
@@ -539,14 +442,12 @@ describe('context-builder', () => {
       const parent: GraphNode = {
         path: 'orders',
         meta: { name: 'Orders', type: 'module', aspects: ['requires-audit'] },
-        artifacts: [],
         children: [],
         parent: null,
       };
       const child: GraphNode = {
         path: 'orders/order-service',
         meta: { name: 'OrderService', type: 'service' },
-        artifacts: [{ filename: 'responsibility.md', content: 'x' }],
         children: [],
         parent,
       };
@@ -557,7 +458,8 @@ describe('context-builder', () => {
           name: 'T',
           node_types: { module: { description: 'x' }, service: { description: 'x' } },
           },
-        nodes: new Map([
+        architecture: { node_types: {} },
+      nodes: new Map([
           ['orders', parent],
           ['orders/order-service', child],
         ]),
@@ -565,7 +467,7 @@ describe('context-builder', () => {
           {
             name: 'Audit',
             id: 'requires-audit',
-            artifacts: [{ filename: 'content.md', content: 'Audit rules' }],
+            artifacts: [],
           },
         ],
         flows: [],
@@ -586,14 +488,12 @@ describe('context-builder', () => {
       const parent: GraphNode = {
         path: 'orders',
         meta: { name: 'Orders', type: 'module', aspects: ['requires-audit'] },
-        artifacts: [],
         children: [],
         parent: null,
       };
       const child: GraphNode = {
         path: 'orders/order-service',
         meta: { name: 'OrderService', type: 'service', aspects: ['requires-audit'] },
-        artifacts: [{ filename: 'responsibility.md', content: 'x' }],
         children: [],
         parent,
       };
@@ -604,7 +504,8 @@ describe('context-builder', () => {
           name: 'T',
           node_types: { module: { description: 'x' }, service: { description: 'x' } },
           },
-        nodes: new Map([
+        architecture: { node_types: {} },
+      nodes: new Map([
           ['orders', parent],
           ['orders/order-service', child],
         ]),
@@ -612,7 +513,7 @@ describe('context-builder', () => {
           {
             name: 'Audit',
             id: 'requires-audit',
-            artifacts: [{ filename: 'content.md', content: 'Audit rules' }],
+            artifacts: [],
           },
         ],
         flows: [],
@@ -621,7 +522,7 @@ describe('context-builder', () => {
       };
 
       const pkg = await buildContext(graph, 'orders/order-service');
-      const ownLayer = pkg.layers.find((l) => l.type === 'own');
+      const ownLayer = pkg.layers.find((l) => l.label.startsWith('Node:'));
       expect(ownLayer).toBeDefined();
       expect(ownLayer?.attrs?.aspects).toBe('requires-audit');
       const aspectLayers = pkg.layers.filter((l) => l.type === 'aspects');
@@ -632,7 +533,6 @@ describe('context-builder', () => {
       const node: GraphNode = {
         path: 'orders/order-service',
         meta: { name: 'OrderService', type: 'service' },
-        artifacts: [{ filename: 'responsibility.md', content: 'x' }],
         children: [],
         parent: null,
       };
@@ -641,12 +541,13 @@ describe('context-builder', () => {
           name: 'T',
           node_types: { service: { description: 'x' } },
           },
-        nodes: new Map([['orders/order-service', node]]),
+        architecture: { node_types: {} },
+      nodes: new Map([['orders/order-service', node]]),
         aspects: [
           {
             name: 'Saga',
             id: 'requires-saga',
-            artifacts: [{ filename: 'content.md', content: 'Use saga pattern' }],
+            artifacts: [],
           },
         ],
         flows: [
@@ -654,7 +555,6 @@ describe('context-builder', () => {
             name: 'Checkout',
             nodes: ['orders/order-service'],
             aspects: ['requires-saga'],
-            artifacts: [{ filename: 'description.md', content: 'Flow desc' }],
           },
         ],
         schemas: [],
@@ -674,14 +574,12 @@ describe('context-builder', () => {
       const parent: GraphNode = {
         path: 'orders',
         meta: { name: 'Orders', type: 'module' },
-        artifacts: [{ filename: 'responsibility.md', content: 'x' }],
         children: [],
         parent: null,
       };
       const child: GraphNode = {
         path: 'orders/order-service',
         meta: { name: 'OrderService', type: 'service' },
-        artifacts: [{ filename: 'responsibility.md', content: 'x' }],
         children: [],
         parent,
       };
@@ -692,16 +590,18 @@ describe('context-builder', () => {
           name: 'T',
           node_types: { module: { description: 'x' }, service: { description: 'x' } },
           },
-        nodes: new Map([
+        architecture: { node_types: {} },
+      nodes: new Map([
           ['orders', parent],
           ['orders/order-service', child],
         ]),
         aspects: [],
         flows: [
           {
+            path: 'checkout-flow',
             name: 'Checkout Flow',
+            description: 'Parent-only flow propagates to children',
             nodes: ['orders'],
-            artifacts: [{ filename: 'description.md', content: 'Parent-only flow' }],
           },
         ],
         schemas: [],
@@ -723,14 +623,12 @@ describe('context-builder', () => {
           type: 'service',
           relations: [{ target: 'events/handler', type: 'emits', consumes: ['OrderCreated'] }],
         },
-        artifacts: [{ filename: 'responsibility.md', content: 'x' }],
         children: [],
         parent: null,
       };
       const handler: GraphNode = {
         path: 'events/handler',
         meta: { name: 'Handler', type: 'service' },
-        artifacts: [{ filename: 'responsibility.md', content: 'x' }],
         children: [],
         parent: null,
       };
@@ -739,7 +637,8 @@ describe('context-builder', () => {
           name: 'T',
           node_types: { service: { description: 'x' } },
           },
-        nodes: new Map([
+        architecture: { node_types: {} },
+      nodes: new Map([
           ['events/emitter', emitter],
           ['events/handler', handler],
         ]),
@@ -765,14 +664,12 @@ describe('context-builder', () => {
           type: 'service',
           relations: [{ target: 'events/publisher', type: 'listens' }],
         },
-        artifacts: [{ filename: 'responsibility.md', content: 'x' }],
         children: [],
         parent: null,
       };
       const publisher: GraphNode = {
         path: 'events/publisher',
         meta: { name: 'Publisher', type: 'service' },
-        artifacts: [{ filename: 'responsibility.md', content: 'x' }],
         children: [],
         parent: null,
       };
@@ -781,7 +678,8 @@ describe('context-builder', () => {
           name: 'T',
           node_types: { service: { description: 'x' } },
           },
-        nodes: new Map([
+        architecture: { node_types: {} },
+      nodes: new Map([
           ['events/listener', listener],
           ['events/publisher', publisher],
         ]),
@@ -799,72 +697,9 @@ describe('context-builder', () => {
       expect(eventLayer?.content).toContain('You listen');
     });
 
-    it('own layer includes yg-node.yaml and artifacts', async () => {
-      const graph = await loadGraph(FIXTURE_PROJECT);
-      const pkg = await buildContext(graph, 'orders/order-service');
 
-      const ownLayer = pkg.layers.find((l) => l.type === 'own');
-      expect(ownLayer).toBeDefined();
-      expect(ownLayer?.content).toContain('### yg-node.yaml');
-      expect(ownLayer?.content).toContain('name: OrderService');
-      expect(ownLayer?.content).toContain('type: service');
-      expect(ownLayer?.content).toContain('relations:');
-      expect(ownLayer?.content).toContain('### responsibility.md');
-    });
 
-    it('flow with empty artifacts produces no-artifacts placeholder', async () => {
-      const node: GraphNode = {
-        path: 'svc',
-        meta: { name: 'Svc', type: 'service' },
-        artifacts: [{ filename: 'responsibility.md', content: 'x' }],
-        children: [],
-        parent: null,
-      };
-      const graph: Graph = {
-        config: {
-          name: 'T',
-          node_types: { service: { description: 'x' } },
-          },
-        nodes: new Map([['svc', node]]),
-        aspects: [],
-        flows: [{ name: 'F1', nodes: ['svc'], artifacts: [] }],
-        schemas: [],
-        rootPath: '/tmp',
-      };
 
-      const pkg = await buildContext(graph, 'svc');
-      const flowLayer = pkg.layers.find((l) => l.type === 'flows');
-      expect(flowLayer?.content).toContain('no artifacts');
-    });
-
-    it('builds sections in canonical contract order', async () => {
-      const graph = await loadGraph(FIXTURE_PROJECT);
-      const pkg = await buildContext(graph, 'orders/order-service');
-
-      const sectionKeys = pkg.sections.map((s) => s.key);
-      expect(sectionKeys).toEqual([
-        'Global',
-        'Hierarchy',
-        'OwnArtifacts',
-        'Aspects',
-        'Relational',
-      ]);
-    });
-
-    it('node and relation artifacts include source filename headings', async () => {
-      const graph = await loadGraph(FIXTURE_PROJECT);
-      const pkg = await buildContext(graph, 'orders/order-service');
-
-      const ownLayer = pkg.layers.find((l) => l.type === 'own');
-      expect(ownLayer?.content).toContain('### yg-node.yaml');
-      expect(ownLayer?.content).toContain('### responsibility.md');
-
-      const relationLayer = pkg.layers.find((l) => l.type === 'relational');
-      expect(relationLayer?.content).toContain('### responsibility.md');
-
-      const flowLayer = pkg.layers.find((l) => l.type === 'flows');
-      expect(flowLayer?.content).toContain('description.md');
-    });
 
     it('returns mapping paths when node has mapping', async () => {
       const graph = await loadGraph(FIXTURE_PROJECT);
@@ -885,14 +720,12 @@ describe('context-builder', () => {
       const parent: GraphNode = {
         path: 'mod',
         meta: { name: 'Mod', type: 'module', aspects: ['tag-a'] },
-        artifacts: [],
         children: [],
         parent: null,
       };
       const child: GraphNode = {
         path: 'mod/svc',
         meta: { name: 'Svc', type: 'service', aspects: ['tag-a', 'tag-b'] },
-        artifacts: [{ filename: 'desc.md', content: 'service desc' }],
         children: [],
         parent,
       };
@@ -903,7 +736,8 @@ describe('context-builder', () => {
           name: 'MultiAspect',
           node_types: { module: { description: 'x' }, service: { description: 'x' } },
           },
-        nodes: new Map([
+        architecture: { node_types: {} },
+      nodes: new Map([
           ['mod', parent],
           ['mod/svc', child],
         ]),
@@ -911,12 +745,12 @@ describe('context-builder', () => {
           {
             name: 'Aspect A',
             id: 'tag-a',
-            artifacts: [{ filename: 'a.md', content: 'aspect-a-content' }],
+            artifacts: [],
           },
           {
             name: 'Aspect B',
             id: 'tag-b',
-            artifacts: [{ filename: 'b.md', content: 'aspect-b-content' }],
+            artifacts: [],
           },
         ],
         flows: [],
@@ -937,7 +771,6 @@ describe('context-builder', () => {
       const node: GraphNode = {
         path: 'test/node',
         meta: { name: 'TestNode', type: 'service' },
-        artifacts: [{ filename: 'responsibility.md', content: 'x' }],
         children: [],
         parent: null,
         nodeYamlRaw: 'name: TestNode\ntype: service\n',
@@ -947,14 +780,15 @@ describe('context-builder', () => {
           name: 'T',
           node_types: { service: { description: 'x' } },
           },
-        nodes: new Map([['test/node', node]]),
+        architecture: { node_types: {} },
+      nodes: new Map([['test/node', node]]),
         aspects: [],
         flows: [],
         schemas: [],
         rootPath: '/nonexistent/path',  // disk read will fail
       };
       const pkg = await buildContext(graph, 'test/node');
-      const ownLayer = pkg.layers.find((l) => l.type === 'own');
+      const ownLayer = pkg.layers.find((l) => l.label.startsWith('Node:'));
       expect(ownLayer?.content).toContain('name: TestNode');
       expect(ownLayer?.content).not.toContain('(not found)');
     });
@@ -962,7 +796,7 @@ describe('context-builder', () => {
     it('own layer includes raw yg-node.yaml from fixture', async () => {
       const graph = await loadGraph(FIXTURE_PROJECT);
       const pkg = await buildContext(graph, 'auth');
-      const ownLayer = pkg.layers.find((l) => l.type === 'own');
+      const ownLayer = pkg.layers.find((l) => l.label.startsWith('Node:'));
       expect(ownLayer).toBeDefined();
       expect(ownLayer?.content).toContain('### yg-node.yaml');
       expect(ownLayer?.content).toContain('name:');
@@ -983,7 +817,8 @@ describe('context-builder', () => {
           name: 'T',
           node_types: { module: { description: 'x' } },
           },
-        nodes: new Map([['bare', node]]),
+        architecture: { node_types: {} },
+      nodes: new Map([['bare', node]]),
         aspects: [],
         flows: [],
         schemas: [],
@@ -991,7 +826,7 @@ describe('context-builder', () => {
       };
 
       const pkg = await buildContext(graph, 'bare');
-      const ownLayer = pkg.layers.find((l) => l.type === 'own');
+      const ownLayer = pkg.layers.find((l) => l.label.startsWith('Node:'));
       expect(ownLayer).toBeDefined();
       expect(ownLayer?.content).toContain('### yg-node.yaml');
     });
@@ -1007,24 +842,7 @@ describe('context-builder', () => {
       vi.useRealTimers();
     });
 
-    it('produces correct markdown structure (snapshot)', async () => {
-      const graph = await loadGraph(FIXTURE_PROJECT);
-      const pkg = await buildContext(graph, 'orders/order-service');
-      const output = formatContextMarkdown(pkg);
 
-      expect(output).toMatchSnapshot();
-    });
-
-    it('contains required header fields', async () => {
-      const graph = await loadGraph(FIXTURE_PROJECT);
-      const pkg = await buildContext(graph, 'orders/order-service');
-      const output = formatContextMarkdown(pkg);
-
-      expect(output).toContain('# Context Package: OrderService');
-      expect(output).toContain('# Path: orders/order-service');
-      expect(output).toContain('## OwnArtifacts');
-      expect(output).toContain('### yg-node.yaml');
-    });
 
     it('contains Materialization Target when mapping exists', async () => {
       const graph = await loadGraph(FIXTURE_PROJECT);
@@ -1042,74 +860,8 @@ describe('context-builder', () => {
 
       expect(output).not.toContain('### Materialization Target');
     });
-
-    it('footer contains token count and layer types', async () => {
-      const graph = await loadGraph(FIXTURE_PROJECT);
-      const pkg = await buildContext(graph, 'orders/order-service');
-      const output = formatContextMarkdown(pkg);
-
-      expect(output).toContain('Context size:');
-      expect(output).toContain('tokens');
-      expect(output).toContain('Layers:');
-      expect(output).toContain('global');
-      expect(output).toContain('own');
-    });
   });
 
-});
-
-describe('collectDependencyAncestors', () => {
-  it('returns ancestor chain for a dependency target', async () => {
-    const graph = await loadGraph(FIXTURE_PROJECT);
-    const target = graph.nodes.get('auth/auth-api')!;
-    const ancestors = collectDependencyAncestors(target, graph.config, graph);
-
-    expect(ancestors).toHaveLength(1);
-    expect(ancestors[0].path).toBe('auth');
-    expect(ancestors[0].name).toBeDefined();
-    expect(ancestors[0].type).toBeDefined();
-    expect(Array.isArray(ancestors[0].aspects)).toBe(true);
-    expect(Array.isArray(ancestors[0].artifactFilenames)).toBe(true);
-  });
-
-  it('filters ancestor artifacts by included_in_relations from STANDARD_ARTIFACTS', () => {
-    const config: YggConfig = {
-      name: 'T',
-      node_types: { module: { description: 'x' }, service: { description: 'x' } },
-    };
-    const parent: GraphNode = {
-      path: 'auth',
-      meta: { name: 'Auth', type: 'module' },
-      artifacts: [
-        { filename: 'responsibility.md', content: 'x' },
-        { filename: 'interface.md', content: 'y' },
-        { filename: 'internals.md', content: 'z' },
-      ],
-      children: [],
-      parent: null,
-    };
-    const child: GraphNode = {
-      path: 'auth/auth-api',
-      meta: { name: 'AuthAPI', type: 'service' },
-      artifacts: [],
-      children: [],
-      parent,
-    };
-    parent.children = [child];
-    const graph: Graph = {
-      config,
-      nodes: new Map([['auth', parent], ['auth/auth-api', child]]),
-      aspects: [],
-      flows: [],
-      schemas: [],
-      rootPath: '/tmp',
-    };
-
-    const ancestors = collectDependencyAncestors(child, config, graph);
-    expect(ancestors).toHaveLength(1);
-    // responsibility.md and interface.md have included_in_relations=true in STANDARD_ARTIFACTS
-    expect(ancestors[0].artifactFilenames).toEqual(['responsibility.md', 'interface.md']);
-  });
 });
 
 describe('build-context CLI exit codes', () => {
@@ -1242,82 +994,6 @@ describe('toContextMapOutput', () => {
     expect(flow.aspects).toEqual(['requires-logging']);
   });
 
-  it('reports budget status warning when near threshold', async () => {
-    const graph = await loadGraph(FIXTURE_PROJECT);
-    // Override config to set a very low warning threshold
-    graph.config.quality = { context_budget: { warning: 1, error: 999999 } };
-    const pkg = await buildContext(graph, 'orders/order-service');
-    const output = toContextMapOutput(pkg, graph);
-
-    expect(output.meta.budgetStatus).toBe('warning');
-  });
-
-  it('reports budget status error when over error threshold', async () => {
-    const graph = await loadGraph(FIXTURE_PROJECT);
-    graph.config.quality = { context_budget: { warning: 1, error: 2 } };
-    const pkg = await buildContext(graph, 'orders/order-service');
-    const output = toContextMapOutput(pkg, graph);
-
-    expect(output.meta.budgetStatus).toBe('severe');
-  });
-
-  it('computeBudgetBreakdown categorizes layers correctly', async () => {
-    const graph = await loadGraph(FIXTURE_PROJECT);
-    const pkg: ContextPackage = {
-      nodePath: 'orders/order-service',
-      nodeName: 'OrderService',
-      layers: [
-        { type: 'global', label: 'Global', content: 'x'.repeat(400) },
-        { type: 'own', label: 'Own', content: 'x'.repeat(800) },
-        { type: 'hierarchy', label: 'Hierarchy', content: 'x'.repeat(1200) },
-        { type: 'aspects', label: 'Aspects', content: 'x'.repeat(600) },
-        { type: 'flows', label: 'Flows', content: 'x'.repeat(200) },
-        { type: 'relational', label: 'Deps', content: 'x'.repeat(1000) },
-      ],
-      sections: [],
-      mapping: null,
-      tokenCount: 0,
-    };
-
-    const breakdown = computeBudgetBreakdown(pkg, graph);
-    // global + own => own category: ceil(400/4) + ceil(800/4) = 100 + 200 = 300
-    expect(breakdown.own).toBe(300);
-    // hierarchy: ceil(1200/4) = 300
-    expect(breakdown.hierarchy).toBe(300);
-    // aspects: ceil(600/4) = 150
-    expect(breakdown.aspects).toBe(150);
-    // flows: ceil(200/4) = 50
-    expect(breakdown.flows).toBe(50);
-    // dependencies includes relational: ceil(1000/4) = 250 (+ any dep ancestor tokens)
-    expect(breakdown.dependencies).toBeGreaterThanOrEqual(250);
-    // total is sum of all
-    expect(breakdown.total).toBe(
-      breakdown.own + breakdown.hierarchy + breakdown.aspects + breakdown.flows + breakdown.dependencies,
-    );
-  });
-
-  it('toContextMapOutput returns meta.breakdown with expected structure', async () => {
-    const graph = await loadGraph(FIXTURE_PROJECT);
-    const pkg = await buildContext(graph, 'orders/order-service');
-    const output = toContextMapOutput(pkg, graph);
-
-    expect(output.meta.breakdown).toBeDefined();
-    expect(typeof output.meta.breakdown.own).toBe('number');
-    expect(typeof output.meta.breakdown.hierarchy).toBe('number');
-    expect(typeof output.meta.breakdown.aspects).toBe('number');
-    expect(typeof output.meta.breakdown.flows).toBe('number');
-    expect(typeof output.meta.breakdown.dependencies).toBe('number');
-    expect(typeof output.meta.breakdown.total).toBe('number');
-    expect(output.meta.breakdown.total).toBe(
-      output.meta.breakdown.own +
-      output.meta.breakdown.hierarchy +
-      output.meta.breakdown.aspects +
-      output.meta.breakdown.flows +
-      output.meta.breakdown.dependencies,
-    );
-    expect(output.meta.tokenCount).toBe(output.meta.breakdown.total);
-  });
-
   it('includes event-name on emits relation dependencies', async () => {
     const graph = await loadGraph(FIXTURE_PROJECT);
     const pkg = await buildContext(graph, 'orders/order-service');
@@ -1330,22 +1006,6 @@ describe('toContextMapOutput', () => {
     expect(emitsDep!['event-name']).toBe('order.created');
   });
 
-  it('filters dependency files by included_in_relations from STANDARD_ARTIFACTS', async () => {
-    const graph = await loadGraph(FIXTURE_PROJECT);
-    const pkg = await buildContext(graph, 'orders/order-service');
-    const output = toContextMapOutput(pkg, graph);
-
-    // Dependency files should be filtered by included_in_relations
-    // STANDARD_ARTIFACTS has responsibility.md and interface.md with included_in_relations=true
-    const authDep = output.dependencies.find((d) => d.path === 'auth/auth-api');
-    expect(authDep).toBeDefined();
-    const depFiles = authDep!.files ?? [];
-    for (const f of depFiles) {
-      const isStructural = f.includes('responsibility.md') || f.includes('interface.md');
-      expect(isStructural).toBe(true);
-    }
-  });
-
   it('includes flow without aspects in glossary', async () => {
     const graph = await loadGraph(FIXTURE_PROJECT);
     // Add a flow without aspects that includes order-service
@@ -1353,7 +1013,6 @@ describe('toContextMapOutput', () => {
       path: 'no-aspect-flow',
       name: 'No Aspect Flow',
       nodes: ['orders/order-service'],
-      artifacts: [{ filename: 'description.md', content: 'A flow without aspects' }],
     });
 
     const pkg = await buildContext(graph, 'orders/order-service');
@@ -1373,14 +1032,12 @@ describe('toContextMapOutput', () => {
     const parent: GraphNode = {
       path: 'payments',
       meta: { name: 'Payments', type: 'module', description: 'Payment domain module' },
-      artifacts: [],
       children: [],
       parent: null,
     };
     const child: GraphNode = {
       path: 'payments/payment-service',
       meta: { name: 'PaymentService', type: 'service', description: 'Handles payment processing' },
-      artifacts: [{ filename: 'responsibility.md', content: 'x' }],
       children: [],
       parent,
     };
@@ -1393,7 +1050,6 @@ describe('toContextMapOutput', () => {
         description: 'External payment gateway client',
         relations: undefined,
       },
-      artifacts: [{ filename: 'responsibility.md', content: 'gateway resp' }],
       children: [],
       parent,
     };
@@ -1407,6 +1063,7 @@ describe('toContextMapOutput', () => {
         name: 'T',
         node_types: { module: { description: 'x' }, service: { description: 'x' } },
       },
+      architecture: { node_types: {} },
       nodes: new Map([
         ['payments', parent],
         ['payments/payment-service', child],
@@ -1438,53 +1095,11 @@ describe('toContextMapOutput', () => {
     expect(gatewayDep!.hierarchy[0].description).toBe('Payment domain module');
   });
 
-  it('surfaces description on aspects and flows in glossary', async () => {
-    const node: GraphNode = {
-      path: 'svc',
-      meta: { name: 'Svc', type: 'service', aspects: ['my-aspect'] },
-      artifacts: [{ filename: 'responsibility.md', content: 'x' }],
-      children: [],
-      parent: null,
-    };
-    const graph: Graph = {
-      config: {
-        name: 'T',
-        node_types: { service: { description: 'x' } },
-      },
-      nodes: new Map([['svc', node]]),
-      aspects: [
-        {
-          name: 'My Aspect',
-          id: 'my-aspect',
-          description: 'Aspect description text',
-          artifacts: [{ filename: 'content.md', content: 'rules' }],
-        },
-      ],
-      flows: [
-        {
-          path: 'my-flow',
-          name: 'My Flow',
-          description: 'Flow description text',
-          nodes: ['svc'],
-          artifacts: [],
-        },
-      ],
-      schemas: [],
-      rootPath: '/tmp',
-    };
-
-    const pkg = await buildContext(graph, 'svc');
-    const output = toContextMapOutput(pkg, graph);
-
-    expect(output.glossary.aspects['my-aspect'].description).toBe('Aspect description text');
-    expect(output.glossary.flows['my-flow'].description).toBe('Flow description text');
-  });
 
   it('flow refs contain only id, not name or description', async () => {
     const node: GraphNode = {
       path: 'svc',
       meta: { name: 'Svc', type: 'service' },
-      artifacts: [{ filename: 'responsibility.md', content: 'x' }],
       children: [],
       parent: null,
     };
@@ -1493,6 +1108,7 @@ describe('toContextMapOutput', () => {
         name: 'T',
         node_types: { service: { description: 'x' } },
       },
+      architecture: { node_types: {} },
       nodes: new Map([['svc', node]]),
       aspects: [],
       flows: [
@@ -1501,7 +1117,6 @@ describe('toContextMapOutput', () => {
           name: 'My Flow',
           description: 'Flow description text',
           nodes: ['svc'],
-          artifacts: [],
         },
       ],
       schemas: [],
@@ -1525,7 +1140,6 @@ describe('toContextMapOutput', () => {
     const node: GraphNode = {
       path: 'svc',
       meta: { name: 'Svc', type: 'service' }, // no description
-      artifacts: [{ filename: 'responsibility.md', content: 'x' }],
       children: [],
       parent: null,
     };
@@ -1534,6 +1148,7 @@ describe('toContextMapOutput', () => {
         name: 'T',
         node_types: { service: { description: 'x' } },
       },
+      architecture: { node_types: {} },
       nodes: new Map([['svc', node]]),
       aspects: [],
       flows: [],
@@ -1547,45 +1162,11 @@ describe('toContextMapOutput', () => {
     expect(output.node.description).toBeUndefined();
   });
 
-  it('glossary.aspects does not include stability (removed in v4)', async () => {
-    const node: GraphNode = {
-      path: 'svc',
-      meta: { name: 'Svc', type: 'service', aspects: ['stable-aspect'] },
-      artifacts: [{ filename: 'responsibility.md', content: 'x' }],
-      children: [],
-      parent: null,
-    };
-    const graph: Graph = {
-      config: {
-        name: 'T',
-        node_types: { service: { description: 'x' } },
-      },
-      nodes: new Map([['svc', node]]),
-      aspects: [
-        {
-          name: 'Stable Aspect',
-          id: 'stable-aspect',
-
-          artifacts: [{ filename: 'content.md', content: 'rules' }],
-        },
-      ],
-      flows: [],
-      schemas: [],
-      rootPath: '/tmp',
-    };
-
-    const pkg = await buildContext(graph, 'svc');
-    const output = toContextMapOutput(pkg, graph);
-
-    expect(output.glossary.aspects['stable-aspect']).toBeDefined();
-    expect((output.glossary.aspects['stable-aspect'] as unknown as Record<string, unknown>).stability).toBeUndefined();
-  });
 
   it('glossary.flows includes participants list', async () => {
     const node: GraphNode = {
       path: 'svc',
       meta: { name: 'Svc', type: 'service' },
-      artifacts: [{ filename: 'responsibility.md', content: 'x' }],
       children: [],
       parent: null,
     };
@@ -1594,6 +1175,7 @@ describe('toContextMapOutput', () => {
         name: 'T',
         node_types: { service: { description: 'x' } },
       },
+      architecture: { node_types: {} },
       nodes: new Map([['svc', node]]),
       aspects: [],
       flows: [
@@ -1601,7 +1183,6 @@ describe('toContextMapOutput', () => {
           path: 'my-flow',
           name: 'My Flow',
           nodes: ['svc'],
-          artifacts: [{ filename: 'description.md', content: 'flow desc' }],
         },
       ],
       schemas: [],
@@ -1615,31 +1196,6 @@ describe('toContextMapOutput', () => {
     expect(output.glossary.flows['my-flow'].participants).toContain('svc');
   });
 
-  it('file lists exclude yg-node.yaml, yg-aspect.yaml, yg-flow.yaml', async () => {
-    const graph = await loadGraph(FIXTURE_PROJECT);
-    const pkg = await buildContext(graph, 'orders/order-service');
-    const output = toContextMapOutput(pkg, graph);
-
-    // Node files should not contain yg-node.yaml
-    for (const f of output.node.files) {
-      expect(f).not.toContain('yg-node.yaml');
-    }
-
-    // Aspect files should not contain yg-aspect.yaml
-    for (const [, aspect] of Object.entries(output.glossary.aspects)) {
-      for (const f of aspect.files) {
-        expect(f).not.toContain('yg-aspect.yaml');
-      }
-    }
-
-    // Flow files should not contain yg-flow.yaml
-    for (const [, flow] of Object.entries(output.glossary.flows)) {
-      for (const f of flow.files) {
-        expect(f).not.toContain('yg-flow.yaml');
-      }
-    }
-  });
-
   it('output.node.files exists and is an array', async () => {
     const graph = await loadGraph(FIXTURE_PROJECT);
     const pkg = await buildContext(graph, 'orders/order-service');
@@ -1649,60 +1205,6 @@ describe('toContextMapOutput', () => {
     expect(output.node.files.length).toBeGreaterThan(0);
   });
 
-  it('builds integration_aspects from consumed ports', async () => {
-    const targetNode: GraphNode = {
-      path: 'target',
-      meta: {
-        name: 'Target',
-        type: 'service',
-        ports: { charge: { description: 'Payment', aspects: ['correlation-id'] } },
-      },
-      artifacts: [{ filename: 'responsibility.md', content: 'x' }],
-      children: [],
-      parent: null,
-    };
-    const consumerNode: GraphNode = {
-      path: 'svc',
-      meta: {
-        name: 'Svc',
-        type: 'service',
-        relations: [{ target: 'target', type: 'calls', consumes: ['charge'] }],
-      },
-      artifacts: [{ filename: 'responsibility.md', content: 'x' }],
-      children: [],
-      parent: null,
-    };
-    const graph: Graph = {
-      config: {
-        name: 'T',
-        node_types: { service: { description: 'x' } },
-      },
-      architecture: {
-        node_types: { service: { description: 'x' } },
-      },
-      nodes: new Map([['svc', consumerNode], ['target', targetNode]]),
-      aspects: [
-        {
-          name: 'Correlation ID',
-          id: 'correlation-id',
-
-          artifacts: [{ filename: 'content.md', content: 'correlation rules' }],
-        },
-      ],
-      flows: [],
-      schemas: [],
-      rootPath: '/tmp',
-    };
-
-    const pkg = await buildContext(graph, 'svc');
-    const output = toContextMapOutput(pkg, graph);
-
-    expect(output.node).toBeDefined();
-    expect(output.node.integration_aspects).toBeDefined();
-    expect(output.node.integration_aspects!.length).toBeGreaterThan(0);
-    expect(output.node.integration_aspects![0].id).toBe('correlation-id');
-  });
-
   it('determines aspect source via implies chain when implier is in sources', async () => {
     // This test specifically exercises lines 520-525 in determineAspectSource
     // We need an aspect with implies, and the implier aspect must be found in sources
@@ -1710,14 +1212,12 @@ describe('toContextMapOutput', () => {
       name: 'Parent Aspect',
       id: 'parent-aspect',
       implies: ['child-aspect'],
-      anchors: [],
-      artifacts: [{ filename: 'content.md', content: 'parent rules' }],
+      artifacts: [],
     };
     const childAspect: AspectDef = {
       name: 'Child Aspect',
       id: 'child-aspect',
-      anchors: [],
-      artifacts: [{ filename: 'content.md', content: 'child rules' }],
+      artifacts: [],
     };
     const nodeType = {
       description: 'x',
@@ -1730,7 +1230,6 @@ describe('toContextMapOutput', () => {
         type: 'service',
         aspects: ['parent-aspect', 'child-aspect'],  // both aspects on the node
       },
-      artifacts: [{ filename: 'responsibility.md', content: 'x' }],
       children: [],
       parent: null,
     };
@@ -1739,6 +1238,7 @@ describe('toContextMapOutput', () => {
         name: 'T',
         node_types: { service: nodeType },
       },
+      architecture: { node_types: {} },
       nodes: new Map([['svc', node]]),
       aspects: [parentAspect, childAspect],
       flows: [],
@@ -1760,13 +1260,11 @@ describe('toContextMapOutput', () => {
     const archAspect: AspectDef = {
       name: 'Arch Aspect',
       id: 'arch-aspect',
-      anchors: [],
-      artifacts: [{ filename: 'content.md', content: 'arch rules' }],
+      artifacts: [],
     };
     const node: GraphNode = {
       path: 'svc',
       meta: { name: 'Svc', type: 'service' },
-      artifacts: [{ filename: 'responsibility.md', content: 'x' }],
       children: [],
       parent: null,
     };
@@ -1794,20 +1292,17 @@ describe('toContextMapOutput', () => {
     const inheritedAspect: AspectDef = {
       name: 'Inherited Aspect',
       id: 'inherited-aspect',
-      anchors: [],
-      artifacts: [{ filename: 'content.md', content: 'inherited rules' }],
+      artifacts: [],
     };
     const parentNode: GraphNode = {
       path: 'parent',
       meta: { name: 'Parent', type: 'module' },
-      artifacts: [{ filename: 'responsibility.md', content: 'x' }],
       children: [],
       parent: null,
     };
     const childNode: GraphNode = {
       path: 'parent/child',
       meta: { name: 'Child', type: 'service' },
-      artifacts: [{ filename: 'responsibility.md', content: 'x' }],
       children: [],
       parent: parentNode,
     };
@@ -1836,20 +1331,6 @@ describe('toContextMapOutput', () => {
 });
 
 describe('buildNodeContextData', () => {
-  it('returns node context data for a valid node using fixture', async () => {
-    const graph = await loadGraph(FIXTURE_PROJECT);
-    const data = buildNodeContextData(graph, 'orders/order-service');
-
-    expect(data.path).toBe('orders/order-service');
-    expect(data.type).toBe('service');
-    expect(data.sourceFiles).toBeDefined();
-    expect(Array.isArray(data.aspects)).toBe(true);
-    expect(Array.isArray(data.flows)).toBe(true);
-    expect(Array.isArray(data.dependencies)).toBe(true);
-    expect(typeof data.dependentCount).toBe('number');
-    expect(data.tokenBudget).toBeDefined();
-    expect(data.tokenBudget.status).toMatch(/^(ok|warning|severe)$/);
-  });
 
   it('throws when node not found', async () => {
     const graph = await loadGraph(FIXTURE_PROJECT);
@@ -1889,14 +1370,12 @@ describe('buildNodeContextData', () => {
       name: 'Parent Aspect',
       id: 'parent-aspect',
       implies: ['child-aspect'],
-      anchors: [],
-      artifacts: [{ filename: 'content.md', content: 'parent rules' }],
+      artifacts: [],
     };
     const childAspect: AspectDef = {
       name: 'Child Aspect',
       id: 'child-aspect',
-      anchors: [],
-      artifacts: [{ filename: 'content.md', content: 'child rules' }],
+      artifacts: [],
     };
     // Node declares only 'parent-aspect'; 'child-aspect' arrives via implies
     const node: GraphNode = {
@@ -1906,7 +1385,6 @@ describe('buildNodeContextData', () => {
         type: 'service',
         aspects: ['parent-aspect'],
       },
-      artifacts: [{ filename: 'responsibility.md', content: 'x' }],
       children: [],
       parent: null,
     };

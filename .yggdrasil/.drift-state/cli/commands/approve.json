@@ -1,14 +1,16 @@
 {
-  "hash": "e804d4cc3eba7441f3261fc9c34c0b295be57f3ec714caa230733339e37aea44",
+  "hash": "c957fb303d80b73d2298ebf4d9d265e63418a336d03e6f40889eed50e3397b2a",
   "files": {
     ".yggdrasil/model/cli/commands/approve/yg-node.yaml": "a59e36793f7d823fda52da6ec1510444a064cba0a53a3f7c9e4fbf27d5c85c74",
+    ".yggdrasil/model/cli/commands/approve/interface.md": "cc75dfd98e5b7c56905c8c939e0694e4468c9130ca29fd5b9ee83f4ae9921bb5",
+    ".yggdrasil/model/cli/commands/approve/internals.md": "bc3ab4c71f704b9dd2022fb12a7aa81e60fced3eb9376ca081c2cdec2ef2c9aa",
+    ".yggdrasil/model/cli/commands/approve/responsibility.md": "255a6cad7b7bee7e65cba981b99d1fab44524cfe8ee603961d69c85541f7009a",
     ".yggdrasil/model/cli/yg-node.yaml": "41ddbf73fbc1ee27a28a5ea5ec7ad656ea34f5938284bd5ab4ea7c3afcbbd69b",
     ".yggdrasil/model/cli/internals.md": "6ed08e0ee1a22270af6dcb23306acae750c7e55744a43a17671c4713684f4b91",
     ".yggdrasil/model/cli/responsibility.md": "f35cbcee252f56323379f08b65c38989787e0758c94f5eee2a36188c0260d05d",
     ".yggdrasil/model/cli/commands/yg-node.yaml": "4d929734cf56d8fbf3adfdbb908be64075a4a3322a892656ad00ea07bb026ab4",
     ".yggdrasil/model/cli/commands/internals.md": "5a3b679d5c2b9600c7fa3dc01b2f28661b7bfb11850a922ff885a7a583d455c7",
     ".yggdrasil/model/cli/commands/responsibility.md": "dd8146f9c54251a68f81f4036fdf931d526f3159707709b92a59493fe383a080",
-    ".yggdrasil/model/cli/core/loader/responsibility.md": "291579962b915a399167549cc72d570ef8b0b8f7a781ca854b7ffdb397837cd1",
     ".yggdrasil/model/cli/core/loader/interface.md": "ae4dd4d59bb6dbc4a83c0b80df4eb0236dab8564901fad0db89fc9d35dd9de29",
     ".yggdrasil/model/cli/core/responsibility.md": "2c8b1cbd14e89d129322002896ba5b6c6a37f86857e4e324e41141301a086a58",
     ".yggdrasil/model/cli/core/interface.md": "807008eb6f673273034d7d3325a36f37ea1c7a4e46df362e2a4fa9ccd9451de9",
@@ -16,14 +18,12 @@
     ".yggdrasil/model/cli/core/approve/interface.md": "6e6da4131cf77c38903610ca94138115193152789f79d08006072b5d22ecc201",
     ".yggdrasil/model/cli/llm/responsibility.md": "971dc5e1f854499755b7aa1bcb0c3f5adb7913928c85fb7bdfe6d9146b6d6f57",
     ".yggdrasil/model/cli/llm/interface.md": "2581c3613365f282256ebcbf66c65db21063be6ec6e62b2f155579a071346027",
-    "source/cli/src/cli/approve.ts": "50bfd99e6d0bd5875eba76e9ec1c31b1a32877bf1ff0d2b7adc32e792ba24905",
-    ".yggdrasil/model/cli/commands/approve/interface.md": "d34dea312a48e1f70cb6e53426122168e19a118ae8189529edc10995edf18d64",
-    ".yggdrasil/model/cli/commands/approve/internals.md": "bc3ab4c71f704b9dd2022fb12a7aa81e60fced3eb9376ca081c2cdec2ef2c9aa",
-    ".yggdrasil/model/cli/commands/approve/responsibility.md": "255a6cad7b7bee7e65cba981b99d1fab44524cfe8ee603961d69c85541f7009a"
+    "source/cli/src/cli/approve.ts": "b931fda618e5a707ef8670d7daaab7778d32007c59483ed7b131e23ca73c4dd2",
+    ".yggdrasil/model/cli/core/loader/responsibility.md": "57a7a0ab8e29257e3ce50b78965c91cff1d48598b6c8a7ad861bc75f60ae2c4a"
   },
   "mtimes": {
     ".yggdrasil/model/cli/commands/approve/yg-node.yaml": 1775650777146.792,
-    ".yggdrasil/model/cli/commands/approve/interface.md": 1775681065874.4634,
+    ".yggdrasil/model/cli/commands/approve/interface.md": 1775712083876.7031,
     ".yggdrasil/model/cli/commands/approve/internals.md": 1775681078704.9324,
     ".yggdrasil/model/cli/commands/approve/responsibility.md": 1775681070597.5872,
     ".yggdrasil/model/cli/yg-node.yaml": 1775639608581.9402,
@@ -32,7 +32,7 @@
     ".yggdrasil/model/cli/commands/yg-node.yaml": 1775639607526.398,
     ".yggdrasil/model/cli/commands/internals.md": 1775046923261.1494,
     ".yggdrasil/model/cli/commands/responsibility.md": 1775045632026.2983,
-    ".yggdrasil/model/cli/core/loader/responsibility.md": 1775631839971.4595,
+    ".yggdrasil/model/cli/core/loader/responsibility.md": 1775720730748.721,
     ".yggdrasil/model/cli/core/loader/interface.md": 1775678820374.2441,
     ".yggdrasil/model/cli/core/responsibility.md": 1775585790511.578,
     ".yggdrasil/model/cli/core/interface.md": 1772743197442.582,
@@ -40,27 +40,7 @@
     ".yggdrasil/model/cli/core/approve/interface.md": 1775678820372.4253,
     ".yggdrasil/model/cli/llm/responsibility.md": 1775648377795.186,
     ".yggdrasil/model/cli/llm/interface.md": 1775680788796.5767,
-    "source/cli/src/cli/approve.ts": 1775650645895.159
+    "source/cli/src/cli/approve.ts": 1775711273944.7778
   },
-  "reviewedReason": "Updated interface.md, responsibility.md, internals.md with multi-node batch trigger and parent-redirect decision",
-  "aspectResults": {
-    "cli-command-contract": {
-      "satisfied": true,
-      "reason": "All aspect rules are met. Output routing: results go to process.stdout.write() (lines 201, 210, 219, 224, 236, 241, 267, 275, 277, 279, 285, 288, 290, 292, 503, 510, 554, 567, 569) and errors exclusively to process.stderr.write() (lines 299, 303, 308, 314, 324, 328, 333, 337, 343, 347, 351, 364, 368, 373, 377, 380, 388, 392, 397, 399, 403, 407, 419, 423, 427, 431, 434, 441, 603, 606, 620, 633, 675, 739, 744, 757, 710, 714). No console.log usage found. Chalk color semantics: green=ok/success (lines 201, 219, 224, 236, 275), red=error/failure (lines 299, 324, 333, 364, 388, 419, 441, 603, 606, 620, 633, 675, 739, 744, 757, 710, 714), yellow=warning/notice (lines 560, 647, 689), dim=suppressed (lines 267, 692). Error handling: both action bodies (approve at line 597, drift-sync at line 736) are wrapped in try/catch. Catch blocks write to stderr and call process.exit(1) (lines 707-717, 782-793). ENOENT special message is handled (lines 709-711, 784-787). Exit codes: process.exit(1) on failure/refused (lines 603, 606, 620, 625, 632, 638, 665, 683, 705, 716, 739, 744, 757, 779, 793). Implicit exit 0 when no issues. Graph loading: both action bodies start with await loadGraph(process.cwd()) (lines 610, 762). Node path normalization: --node paths are trimmed and trailing slash removed (lines 644, 670, 764)."
-    }
-  },
-  "artifactReview": {
-    "interface.md": {
-      "current": true,
-      "reason": "up to date"
-    },
-    "internals.md": {
-      "current": true,
-      "reason": "up to date"
-    },
-    "responsibility.md": {
-      "current": true,
-      "reason": "up to date"
-    }
-  }
+  "reviewedReason": "cascade: upstream loader/drift-detector responsibility updated"
 }

@@ -1,0 +1,7 @@
+name: MyService
+type: service
+description: test
+aspects:
+  - deterministic
+mapping:
+  - src/svc/

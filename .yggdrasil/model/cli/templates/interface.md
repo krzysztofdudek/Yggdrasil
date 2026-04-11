@@ -1,30 +1,23 @@
 # Templates Interface
 
-## `AGENT_RULES_CONTENT: string`
+Adapter that transforms canonical rules content into platform-specific rules files. Three installation strategies:
 
-Canonical agent rules (operating manual). Hand-tuned; do not generate programmatically. Used internally by platform.ts.
+- **Import-by-reference**: claude-code (appends `@.yggdrasil/agent-rules.md` to CLAUDE.md), aider (appends to `.aider.conf.yml` read list), gemini (appends to GEMINI.md), amp (appends to AGENTS.md). Rules content lives in one place; platform file points to it.
+- **Inline embed**: cursor (MDC with frontmatter), copilot/codex (yggdrasil-fenced blocks supporting idempotent update). Rules content is embedded directly in platform-specific format.
+- **Direct write**: cline, roocode, windsurf, generic. Rules content written directly to platform-specific file path.
 
-## `DEFAULT_CONFIG: string`
+**Edge case:** codex and amp both target `AGENTS.md` but use incompatible strategies (codex: inline-embed via fenced block, amp: import-by-reference). Running both platforms on the same repo would produce an AGENTS.md with both an inline embed and an import line pointing to the same content.
 
-YAML string for default yg-config.yaml — node types (module, service, library, infrastructure), quality thresholds. No artifacts section (hardcoded as STANDARD_ARTIFACTS in cli/model).
+## Exports
 
-## `DEFAULT_ARCHITECTURE: string`
-
-YAML string for default yg-architecture.yaml — node types with descriptions, optional aspects/relations per type.
-
-## `resolveProjectName(projectRoot): Promise<string>`
-
-Infers project name for `yg init`. Reads `package.json` name, handles scoped packages (uses scope name if bare name is generic like "root" or "app"), falls back to directory basename.
-
-## `installRulesForPlatform(projectRoot, platform): Promise<string>`
-
-Writes rules to platform-specific location. Returns absolute path to rules file. Unknown platform falls through to generic.
-
-## `PLATFORMS: Platform[]`
-
-Supported platforms: cursor, claude-code, copilot, cline, roocode, codex, windsurf, aider, gemini, amp, generic.
+- `installRulesForPlatform` — writes rules to platform-specific location, returns absolute path to the rules file. Reference-based strategies (claude-code, aider, gemini, amp) are idempotent: they check for the import line first and skip the write if already present, returning the rules path rather than the platform file path. Unknown platform falls through to generic.
+- `resolveProjectName` — infers project name for `yg init` from package.json, handling scoped packages and generic bare names ("root", "app", "main", "monorepo", "workspace"), falls back to directory basename.
+- `AGENT_RULES_CONTENT` — canonical agent rules string. Public export from rules.ts.
+- `DEFAULT_CONFIG` — YAML string for default yg-config.yaml.
+- `DEFAULT_ARCHITECTURE` — YAML string for default yg-architecture.yaml.
+- `PLATFORMS` — supported platforms: cursor, claude-code, copilot, cline, roocode, codex, windsurf, aider, gemini, amp, generic.
 
 ## Failure Modes
 
-- `installRulesForPlatform`: may throw on mkdir/writeFile failures (ENOENT, EACCES).
-- `DEFAULT_CONFIG`, `AGENT_RULES_CONTENT`: pure strings, no runtime errors.
+- Platform installation may throw on mkdir/writeFile failures (ENOENT, EACCES).
+- Config and rules exports are pure strings — no runtime errors.

@@ -1,23 +1,4 @@
 name: 'Sample E-Commerce System'
 
-artifacts:
-  responsibility.md:
-    required: always
-    description: 'What this node is responsible for'
-  interface.md:
-    required:
-      when: has_incoming_relations
-    description: 'Public API'
-  constraints.md:
-    required: never
-    description: 'Validation rules'
-  description.md:
-    required: never
-    description: 'Node description'
-
 quality:
-  min_artifact_length: 50
   max_direct_relations: 10
-  context_budget:
-    warning: 8000
-    error: 16000

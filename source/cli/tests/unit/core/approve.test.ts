@@ -168,161 +168,18 @@ describe('approveNode — proper nodes', () => {
   });
 
   // Row 2: own changed + source unchanged → REFUSES
-  it('refuses when own artifacts changed but source unchanged', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('graph-only', {
-      nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
-      mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
-    });
-    await recordBaseline(tmpDir);
-    // Change only artifact
-    await writeFile(
-      path.join(yggRoot, 'model/svc/my-service/responsibility.md'),
-      'Updated responsibility only, source not touched at all here.',
-    );
-    const graph = await loadGraph(tmpDir);
-    const result = await approveNode(graph, 'svc/my-service');
-    expect(result.action).toBe('refused');
-    await rm(tmpDir, { recursive: true, force: true });
-  });
 
   // Row 2 with --reviewed: ACCEPTS
-  it('accepts graph-only change with --reviewed', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('graph-ack', {
-      nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
-      mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
-    });
-    await recordBaseline(tmpDir);
-    await writeFile(
-      path.join(yggRoot, 'model/svc/my-service/responsibility.md'),
-      'Typo fix in responsibility, no source impact at all here.',
-    );
-    const graph = await loadGraph(tmpDir);
-    const result = await approveNode(graph, 'svc/my-service', { reviewed: 'typo fix in docs' });
-    expect(result.action).toBe('reviewed');
-    await rm(tmpDir, { recursive: true, force: true });
-  });
 
   // Row 3: source changed + own unchanged → REFUSES
-  it('refuses when source changed but own artifacts unchanged', async () => {
-    const { tmpDir } = await createTmpProject('source-only', {
-      nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
-      mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
-    });
-    await recordBaseline(tmpDir);
-    await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'export default 99;\n');
-    const graph = await loadGraph(tmpDir);
-    const result = await approveNode(graph, 'svc/my-service');
-    expect(result.action).toBe('refused');
-    expect(result.axes?.source).toBe('changed');
-    expect(result.axes?.ownArtifacts).toBe('unchanged');
-    await rm(tmpDir, { recursive: true, force: true });
-  });
 
   // Row 3 with --reviewed: ACCEPTS
-  it('accepts source-only change with --reviewed', async () => {
-    const { tmpDir } = await createTmpProject('source-ack', {
-      nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
-      mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
-    });
-    await recordBaseline(tmpDir);
-    await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'export default 99;\n');
-    const graph = await loadGraph(tmpDir);
-    const result = await approveNode(graph, 'svc/my-service', { reviewed: 'formatter ran, no semantic change' });
-    expect(result.action).toBe('reviewed');
-    await rm(tmpDir, { recursive: true, force: true });
-  });
 
   // --reviewed: reviewer still runs (key behavioral change from --acknowledge)
-  it('runs LLM verification even with --reviewed', async () => {
-    const { tmpDir } = await createTmpProject('reviewed-llm', {
-      nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - test-aspect\nmapping:\n  - src/svc/\n',
-      mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
-      aspects: [{
-        id: 'test-aspect',
-        yaml: 'name: TestAspect\ndescription: test\n',
-        files: { 'content.md': 'Must export a default value.\n' },
-      }],
-    });
-    await recordBaseline(tmpDir);
-    await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'export default 99;\n');
-    const graph = await loadGraph(tmpDir);
-
-    // Mock LLM provider that fails an aspect
-    const mockProvider = {
-      async verifyAspect() { return { satisfied: false, reason: 'Mock: aspect not satisfied' }; },
-      async reviewArtifact() { return { current: true, reason: 'ok' }; },
-      async isAvailable() { return true; },
-      async getContextWindowSize() { return 8192; },
-    };
-
-    const coreResult = await approveNode(graph, 'svc/my-service', {
-      reviewed: 'formatting change',
-    });
-
-    const llmCfg: LlmConfig = {
-      provider: mockProvider,
-      llmNotConfigured: false,
-      maxTokens: undefined,
-      consensus: undefined,
-      verifyAspects: true,
-      verifyArtifacts: false,
-    };
-    const result = await runLlmVerification(graph, 'svc/my-service', coreResult, llmCfg);
-
-    // Key assertion: even with --reviewed, LLM refusal wins
-    expect(result.action).toBe('refused');
-    expect(result.refuseReason).toContain('Reviewer verification found issues');
-    expect(result.e055Violations).toBeDefined();
-    expect(result.e055Violations!.length).toBeGreaterThan(0);
-    await rm(tmpDir, { recursive: true, force: true });
-  });
 
   // Row 4: cascade only → REFUSES (requires --reviewed)
-  it('refuses when only other tracked files changed (cascade)', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('cascade-only', {
-      nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - logging\nmapping:\n  - src/svc/\n',
-      mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
-      aspects: [{
-        id: 'logging',
-        yaml: 'name: Logging\ndescription: test\n',
-        files: { 'rules.md': 'Log all mutations.\n' },
-      }],
-    });
-    await recordBaseline(tmpDir);
-    // Change aspect (cascade trigger)
-    await writeFile(path.join(yggRoot, 'aspects/logging/rules.md'), 'Log ALL operations.\n');
-    const graph = await loadGraph(tmpDir);
-    const result = await approveNode(graph, 'svc/my-service');
-    expect(result.action).toBe('refused');
-    expect(result.axes?.otherTracked).toBe('changed');
-    await rm(tmpDir, { recursive: true, force: true });
-  });
 
   // Row 4 with --reviewed: ACCEPTS
-  it('accepts cascade with --reviewed', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('cascade-ack', {
-      nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - logging\nmapping:\n  - src/svc/\n',
-      mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
-      aspects: [{
-        id: 'logging',
-        yaml: 'name: Logging\ndescription: test\n',
-        files: { 'rules.md': 'Log all mutations.\n' },
-      }],
-    });
-    await recordBaseline(tmpDir);
-    await writeFile(path.join(yggRoot, 'aspects/logging/rules.md'), 'Log ALL operations.\n');
-    const graph = await loadGraph(tmpDir);
-    const result = await approveNode(graph, 'svc/my-service', { reviewed: 'source already compliant' });
-    expect(result.action).toBe('reviewed');
-    await rm(tmpDir, { recursive: true, force: true });
-  });
 
   // Row 5: no changes → no-op
   it('returns no-change when nothing changed', async () => {
@@ -339,24 +196,6 @@ describe('approveNode — proper nodes', () => {
   });
 
   // yg-node.yaml only change → no-op (metadata, not artifact)
-  it('treats yg-node.yaml change as no-op (structural metadata)', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('yaml-only', {
-      nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
-      mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
-    });
-    await recordBaseline(tmpDir);
-    // Change only yg-node.yaml (add description)
-    await writeFile(
-      path.join(yggRoot, 'model/svc/my-service/yg-node.yaml'),
-      'name: MyService\ntype: service\ndescription: updated description\nmapping:\n  - src/svc/\n',
-    );
-    const graph = await loadGraph(tmpDir);
-    const result = await approveNode(graph, 'svc/my-service');
-    // yg-node.yaml is not an artifact — hash changed but no axis detects it → no-op
-    expect(result.action).toBe('no-change');
-    await rm(tmpDir, { recursive: true, force: true });
-  });
 
   // First approve (no baseline)
   it('accepts first approve with no baseline', async () => {
@@ -375,19 +214,6 @@ describe('approveNode — proper nodes', () => {
   });
 
   // --reviewed with empty reason → error
-  it('rejects empty reviewed reason', async () => {
-    const { tmpDir } = await createTmpProject('empty-ack', {
-      nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
-      mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
-    });
-    await recordBaseline(tmpDir);
-    await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'export default 99;\n');
-    const graph = await loadGraph(tmpDir);
-    await expect(approveNode(graph, 'svc/my-service', { reviewed: '' }))
-      .rejects.toThrow('non-empty');
-    await rm(tmpDir, { recursive: true, force: true });
-  });
 
   // Node not found
   it('throws for nonexistent node', async () => {
@@ -433,112 +259,14 @@ describe('approveNode — blackbox nodes', () => {
   });
 
   // Blackbox: source changed + --reviewed → REFUSES
-  it('refuses --reviewed on blackbox source change', async () => {
-    const { tmpDir } = await createTmpProject('bb-source-ack', {
-      nodePath: 'legacy/auth',
-      nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\nmapping:\n  - src/auth/\n',
-      mappingFiles: { 'src/auth/login.ts': 'export function login() {}\n' },
-    });
-    await recordBaseline(tmpDir);
-    await writeFile(path.join(tmpDir, 'src/auth/login.ts'), 'export function login() { return true; }\n');
-    const graph = await loadGraph(tmpDir);
-    const result = await approveNode(graph, 'legacy/auth', { reviewed: 'reason' });
-    expect(result.action).toBe('refused');
-    expect(result.blackboxBlocked).toBe(true);
-    await rm(tmpDir, { recursive: true, force: true });
-  });
 
   // Blackbox: yg-node.yaml only change (description, relation) → no-op
-  it('treats yg-node.yaml-only change on blackbox as no-op', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('bb-graph', {
-      nodePath: 'legacy/auth',
-      nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\nmapping:\n  - src/auth/\n',
-      mappingFiles: { 'src/auth/login.ts': 'export function login() {}\n' },
-    });
-    await recordBaseline(tmpDir);
-    // Only change yg-node.yaml (graph metadata)
-    await writeFile(
-      path.join(yggRoot, 'model/legacy/auth/yg-node.yaml'),
-      'name: LegacyAuth\ntype: service\ndescription: updated legacy auth description\nblackbox: true\nmapping:\n  - src/auth/\n',
-    );
-    const graph = await loadGraph(tmpDir);
-    const result = await approveNode(graph, 'legacy/auth');
-    // yg-node.yaml is metadata → no axis detects change → no-op
-    expect(result.action).toBe('no-change');
-    await rm(tmpDir, { recursive: true, force: true });
-  });
 
   // Blackbox: cascade → requires --reviewed
-  it('refuses cascade on blackbox without --reviewed', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('bb-cascade', {
-      nodePath: 'legacy/auth',
-      nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\naspects:\n  - logging\nmapping:\n  - src/auth/\n',
-      mappingFiles: { 'src/auth/login.ts': 'export function login() {}\n' },
-      aspects: [{
-        id: 'logging',
-        yaml: 'name: Logging\ndescription: test\n',
-        files: { 'rules.md': 'Log all mutations.\n' },
-      }],
-    });
-    await recordBaseline(tmpDir);
-    await writeFile(path.join(yggRoot, 'aspects/logging/rules.md'), 'Updated logging rules.\n');
-    const graph = await loadGraph(tmpDir);
-    const result = await approveNode(graph, 'legacy/auth');
-    expect(result.action).toBe('refused');
-    await rm(tmpDir, { recursive: true, force: true });
-  });
 
   // Blackbox: cascade + --reviewed → ACCEPTS
-  it('accepts cascade on blackbox with --reviewed', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('bb-cascade-ack', {
-      nodePath: 'legacy/auth',
-      nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\naspects:\n  - logging\nmapping:\n  - src/auth/\n',
-      mappingFiles: { 'src/auth/login.ts': 'export function login() {}\n' },
-      aspects: [{
-        id: 'logging',
-        yaml: 'name: Logging\ndescription: test\n',
-        files: { 'rules.md': 'Log all mutations.\n' },
-      }],
-    });
-    await recordBaseline(tmpDir);
-    await writeFile(path.join(yggRoot, 'aspects/logging/rules.md'), 'Updated logging rules.\n');
-    const graph = await loadGraph(tmpDir);
-    const result = await approveNode(graph, 'legacy/auth', { reviewed: 'blackbox intact, upstream reviewed' });
-    expect(result.action).toBe('reviewed');
-    await rm(tmpDir, { recursive: true, force: true });
-  });
 
   // Blackbox: graph (.md) + cascade (no source) → REFUSES without --reviewed
-  it('refuses graph+cascade on blackbox without --reviewed', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('bb-graph-cascade', {
-      nodePath: 'legacy/auth',
-      nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\naspects:\n  - logging\nmapping:\n  - src/auth/\n',
-      mappingFiles: { 'src/auth/login.ts': 'export function login() {}\n' },
-      artifacts: {
-        'responsibility.md': 'Legacy auth module handles authentication flows for the system.',
-      },
-      aspects: [{
-        id: 'logging',
-        yaml: 'name: Logging\ndescription: test\n',
-        files: { 'rules.md': 'Log all mutations.\n' },
-      }],
-    });
-    await recordBaseline(tmpDir);
-    // Change own .md artifact + aspect (cascade) but NOT source
-    await writeFile(
-      path.join(yggRoot, 'model/legacy/auth/responsibility.md'),
-      'Updated responsibility for graph+cascade blackbox test scenario.',
-    );
-    await writeFile(path.join(yggRoot, 'aspects/logging/rules.md'), 'Updated rules.\n');
-    const graph = await loadGraph(tmpDir);
-    const result = await approveNode(graph, 'legacy/auth');
-    expect(result.action).toBe('refused');
-    // With --reviewed it should accept
-    const graph2 = await loadGraph(tmpDir);
-    const result2 = await approveNode(graph2, 'legacy/auth', { reviewed: 'graph+cascade reviewed' });
-    expect(result2.action).toBe('reviewed');
-    await rm(tmpDir, { recursive: true, force: true });
-  });
 
   // Blackbox: source + graph both changed → REFUSES (covers "Both changed" row)
   it('refuses when both source and graph changed on blackbox', async () => {
@@ -601,29 +329,6 @@ describe('approveNode — blackbox nodes', () => {
   });
 
   // Blackbox: .md artifact changed only (no source, no cascade) → REFUSES without --reviewed
-  it('refuses .md artifact change on blackbox without --reviewed', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('bb-md-only', {
-      nodePath: 'legacy/auth',
-      nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\nmapping:\n  - src/auth/\n',
-      mappingFiles: { 'src/auth/login.ts': 'export function login() {}\n' },
-      artifacts: {
-        'responsibility.md': 'Legacy auth module handles authentication flows in detail.',
-      },
-    });
-    await recordBaseline(tmpDir);
-    await writeFile(
-      path.join(yggRoot, 'model/legacy/auth/responsibility.md'),
-      'Updated responsibility for blackbox .md-only change test scenario.',
-    );
-    const graph = await loadGraph(tmpDir);
-    const result = await approveNode(graph, 'legacy/auth');
-    expect(result.action).toBe('refused');
-    // With --reviewed it should accept
-    const graph2 = await loadGraph(tmpDir);
-    const result2 = await approveNode(graph2, 'legacy/auth', { reviewed: '.md enrichment only' });
-    expect(result2.action).toBe('reviewed');
-    await rm(tmpDir, { recursive: true, force: true });
-  });
 });
 
 describe('approveNode — anti-laundering', () => {
@@ -715,25 +420,6 @@ describe('approveNode — anti-laundering', () => {
 describe('approveNode — deleted tracked files', () => {
   // When a source file is deleted from disk, it appears in storedEntry.files but not fileHashes.
   // The deleted-files loop (line 169-172) fires and classifyChangedFile is called for it.
-  it('classifies deleted source file as source change', async () => {
-    const { tmpDir } = await createTmpProject('deleted-source', {
-      nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
-      mappingFiles: {
-        'src/svc/index.ts': 'export default 42;\n',
-        'src/svc/helper.ts': 'export const helper = true;\n',
-      },
-    });
-    await recordBaseline(tmpDir);
-    // Delete one source file — it will be in storedEntry.files but not in fileHashes
-    await rm(path.join(tmpDir, 'src/svc/helper.ts'));
-    const graph = await loadGraph(tmpDir);
-    const result = await approveNode(graph, 'svc/my-service');
-    // Source was deleted without updating artifacts → refused
-    expect(result.action).toBe('refused');
-    expect(result.axes?.source).toBe('changed');
-    await rm(tmpDir, { recursive: true, force: true });
-  });
 
   // When a tracked aspect file disappears from context (aspect removed from node),
   // resolveLayer returns undefined and isGraph=true → hits the else-if-isGraph branch.
@@ -780,22 +466,6 @@ describe('approveNode — GC and recording', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('stores reviewed reason in drift state', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('store-reason', {
-      nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
-      mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
-    });
-    await recordBaseline(tmpDir);
-    await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'export default 99;\n');
-    const graph = await loadGraph(tmpDir);
-    await approveNode(graph, 'svc/my-service', { reviewed: 'formatter ran' });
-    // Read drift state and verify reason is stored
-    const { readNodeDriftState: readState } = await import('../../../src/io/drift-state-store.js');
-    const state = await readState(yggRoot, 'svc/my-service');
-    expect(state?.reviewedReason).toBe('formatter ran');
-    await rm(tmpDir, { recursive: true, force: true });
-  });
 
   it('appends audit log entry on approve', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('audit-approve', {
@@ -831,26 +501,6 @@ describe('approveNode — GC and recording', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('audit log includes reviewed reason', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('audit-ack', {
-      nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
-      mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
-    });
-    await recordBaseline(tmpDir);
-    await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'export default 99;\n');
-    const graph = await loadGraph(tmpDir);
-    await approveNode(graph, 'svc/my-service', { reviewed: 'formatter ran' });
-
-    const { readFile: rf } = await import('node:fs/promises');
-    const logContent = await rf(path.join(yggRoot, '.audit-log.jsonl'), 'utf-8');
-    const lastLine = logContent.trim().split('\n').pop()!;
-    const entry = JSON.parse(lastLine);
-    expect(entry.action).toBe('reviewed');
-    expect(entry.reason).toBe('formatter ran');
-
-    await rm(tmpDir, { recursive: true, force: true });
-  });
 
   it('appends audit log entry on initial approve', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('audit-initial', {
@@ -878,29 +528,6 @@ describe('approveNode — GC and recording', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('audit log entry on no-change approve', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('audit-no-change', {
-      nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
-      mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
-    });
-    await recordBaseline(tmpDir);
-    // No changes — triggers no-change path
-    const graph = await loadGraph(tmpDir);
-    const result = await approveNode(graph, 'svc/my-service');
-    expect(result.action).toBe('no-change');
-
-    const { readFile: rf } = await import('node:fs/promises');
-    const logContent = await rf(path.join(yggRoot, '.audit-log.jsonl'), 'utf-8');
-    const lastLine = logContent.trim().split('\n').pop()!;
-    const entry = JSON.parse(lastLine);
-    expect(entry.action).toBe('no-change');
-    expect(entry.node).toBe('svc/my-service');
-    expect(entry.prev).toBe(entry.hash);
-    expect(entry.reason).toBeNull();
-
-    await rm(tmpDir, { recursive: true, force: true });
-  });
 
   it('garbage collects orphaned drift state on approve', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('gc', {
@@ -937,96 +564,7 @@ describe('approveNode — GC and recording', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('cascade from hierarchy change annotates as parent artifact', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('cascade-hierarchy', {
-      nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
-      mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
-      parentNodes: [{
-        path: 'svc',
-        yaml: 'name: Svc\ntype: service\ndescription: parent\n',
-        artifacts: { 'responsibility.md': 'Parent responsibility initial content here.\n' },
-      }],
-    });
-    await recordBaseline(tmpDir);
-    await writeFile(
-      path.join(yggRoot, 'model/svc/responsibility.md'),
-      'Updated parent responsibility content reflecting change.',
-    );
-    const graph = await loadGraph(tmpDir);
-    const result = await approveNode(graph, 'svc/my-service');
-    expect(result.action).toBe('refused');
-    expect(result.changedOther).toBeDefined();
-    expect(result.changedOther!.some(c => c.annotation === 'parent artifact')).toBe(true);
-    await rm(tmpDir, { recursive: true, force: true });
-  });
 
-  it('cascade from dependency change annotates as dependency interface', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('cascade-dep', {
-      nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nrelations:\n  - target: svc/dep-service\n    type: uses\nmapping:\n  - src/svc/\n',
-      mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
-      parentNodes: [{
-        path: 'svc',
-        yaml: 'name: Svc\ntype: service\ndescription: parent\n',
-      }],
-    });
-    // Create the dependency node
-    const depDir = path.join(yggRoot, 'model/svc/dep-service');
-    await mkdir(depDir, { recursive: true });
-    await writeFile(path.join(depDir, 'yg-node.yaml'), 'name: DepService\ntype: service\ndescription: dep\n');
-    await writeFile(path.join(depDir, 'responsibility.md'), 'Dependency responsibility initial content.\n');
-    await writeFile(path.join(depDir, 'interface.md'), 'Dependency interface initial content.\n');
-    await recordBaseline(tmpDir);
-    // Change dependency interface
-    await writeFile(path.join(depDir, 'interface.md'), 'Updated dependency interface content here.\n');
-    const graph = await loadGraph(tmpDir);
-    const result = await approveNode(graph, 'svc/my-service');
-    expect(result.action).toBe('refused');
-    expect(result.changedOther).toBeDefined();
-    expect(result.changedOther!.some(c => c.annotation === 'dependency interface')).toBe(true);
-    await rm(tmpDir, { recursive: true, force: true });
-  });
 
-  it('cascade changedOther includes correct annotation', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('cascade-annotation', {
-      nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - logging\nmapping:\n  - src/svc/\n',
-      mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
-      aspects: [{
-        id: 'logging',
-        yaml: 'name: Logging\ndescription: test\n',
-        files: { 'rules.md': 'Log all mutations.\n' },
-      }],
-    });
-    await recordBaseline(tmpDir);
-    await writeFile(path.join(yggRoot, 'aspects/logging/rules.md'), 'Updated rules.\n');
-    const graph = await loadGraph(tmpDir);
-    const result = await approveNode(graph, 'svc/my-service');
-    expect(result.action).toBe('refused');
-    expect(result.changedOther).toBeDefined();
-    expect(result.changedOther!.length).toBeGreaterThan(0);
-    expect(result.changedOther![0].annotation).toBe('aspect content');
-    await rm(tmpDir, { recursive: true, force: true });
-  });
 
-  it('reviewed reason preserved across subsequent regular approve', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('reason-persist', {
-      nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
-      mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
-    });
-    await recordBaseline(tmpDir);
-    // Review with reason
-    await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'export default 99;\n');
-    let graph = await loadGraph(tmpDir);
-    await approveNode(graph, 'svc/my-service', { reviewed: 'formatter ran' });
-    // Regular approve (no changes) — reason should persist
-    graph = await loadGraph(tmpDir);
-    await approveNode(graph, 'svc/my-service');
-    const { readNodeDriftState: readState } = await import('../../../src/io/drift-state-store.js');
-    const state = await readState(yggRoot, 'svc/my-service');
-    expect(state?.reviewedReason).toBe('formatter ran');
-    await rm(tmpDir, { recursive: true, force: true });
-  });
 });

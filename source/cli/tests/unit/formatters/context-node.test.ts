@@ -21,7 +21,7 @@ function makeNodeData(overrides: Partial<NodeContextData> = {}): NodeContextData
       id: 'validate',
       name: 'Validate',
       description: 'Runs all structural and completeness checks',
-      readPath: 'flows/validate/description.md',
+      readPath: 'flows/validate/yg-flow.yaml',
     }],
     dependencies: [{
       path: 'cli/core/context',
@@ -34,11 +34,6 @@ function makeNodeData(overrides: Partial<NodeContextData> = {}): NodeContextData
     parentPath: 'cli/core',
     parentType: 'module',
     parentReadPath: 'model/cli/core/responsibility.md',
-    artifactPaths: [
-      'model/cli/core/validator/responsibility.md',
-      'model/cli/core/validator/interface.md',
-    ],
-    tokenBudget: { current: 3137, limit: 10000, status: 'ok' },
     ...overrides,
   };
 }
@@ -61,7 +56,7 @@ describe('formatNodeContext', () => {
     // Flows
     expect(output).toContain('Participates in (1 flow):');
     expect(output).toContain('validate — Runs all structural');
-    expect(output).toContain('read: flows/validate/description.md');
+    expect(output).toContain('read: flows/validate/yg-flow.yaml');
     // Dependencies
     expect(output).toContain('Dependencies (1):');
     expect(output).toContain('cli/core/context (calls)');
@@ -70,10 +65,8 @@ describe('formatNodeContext', () => {
     expect(output).toContain('Dependents (3):');
     // Parent
     expect(output).toContain('Parent: cli/core (module)');
-    // Artifacts
-    expect(output).toContain('read: model/cli/core/validator/responsibility.md');
-    // Token budget
-    expect(output).toContain('Token budget: 3137 / 10000 (ok)');
+    // Workflow footer
+    expect(output).toContain('After modifying source files');
   });
 
   it('shows consequence framing for 6+ dependents', () => {
@@ -188,7 +181,7 @@ describe('formatNodeContext', () => {
         id: 'validate',
         name: 'Validate',
         description: 'Runs all structural and completeness checks',
-        readPath: 'flows/validate/description.md',
+        readPath: 'flows/validate/yg-flow.yaml',
       }],
     }));
     expect(output).toContain('Participates in (1 flow):');
@@ -206,11 +199,6 @@ describe('formatNodeContext', () => {
     const parentLineIdx = lines.findIndex(l => l.startsWith('Parent:'));
     expect(parentLineIdx).toBeGreaterThan(-1);
     expect(lines[parentLineIdx + 1]).not.toContain('read: model/cli/');
-  });
-
-  it('omits Artifacts section when artifactPaths is empty', () => {
-    const output = formatNodeContext(makeNodeData({ artifactPaths: [] }));
-    expect(output).not.toContain('Artifacts:');
   });
 
   it('uses plural form for 2+ aspects (line 61 plural branch)', () => {
@@ -243,13 +231,13 @@ describe('formatNodeContext', () => {
           id: 'flow-a',
           name: 'Flow A',
           description: 'First flow',
-          readPath: 'flows/flow-a/description.md',
+          readPath: 'flows/flow-a/yg-flow.yaml',
         },
         {
           id: 'flow-b',
           name: 'Flow B',
           description: 'Second flow',
-          readPath: 'flows/flow-b/description.md',
+          readPath: 'flows/flow-b/yg-flow.yaml',
         },
       ],
     }));

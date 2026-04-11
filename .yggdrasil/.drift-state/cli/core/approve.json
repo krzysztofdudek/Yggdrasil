@@ -1,5 +1,5 @@
 {
-  "hash": "abacf8a35ed850abe6b524f3d130173362bf0a534ff129df77cea43130d08674",
+  "hash": "63951ae36e4de092c412e652e91d4681d26661e1ac5a42057edf8587d117e389",
   "files": {
     ".yggdrasil/model/cli/core/approve/yg-node.yaml": "027f60f9197035c2acd5349fb9edb7e7e1a55cd74e1e6dde62b6ee5133b2d9c5",
     ".yggdrasil/model/cli/core/approve/interface.md": "6e6da4131cf77c38903610ca94138115193152789f79d08006072b5d22ecc201",
@@ -20,11 +20,11 @@
     ".yggdrasil/aspects/what-why-next/content.md": "d6895f344703a2712d6f6dabf4eaefd903cab07aa9c433581ab27f41ccc3ae06",
     ".yggdrasil/aspects/diagnostic-logging/yg-aspect.yaml": "d2f92251b7ac3da65b1e00800a1839a14f7508c11905dc9089bf0b62d310ee2b",
     ".yggdrasil/aspects/diagnostic-logging/content.md": "861da9ccecc91d8c08168ba10fb297a729158f272fe8da5c136fd6a7e997fb41",
-    ".yggdrasil/model/cli/io/responsibility.md": "c311c9990b76a3c3497a88107383e48032d23aa06a6a3e36d18b80bc1429b9a3",
-    ".yggdrasil/model/cli/io/interface.md": "bc7f250a251a6b5b442549c3d2cdd20ea3dbda75cbb11b52209db28eed995233",
+    ".yggdrasil/model/cli/io/responsibility.md": "fd9d8b8a981d3726a0432a28978b8aeceb8382e66e3b337a04aebc18e4bcc6db",
     ".yggdrasil/model/cli/utils/responsibility.md": "8bcb1c430f925368c68311e031344a6874362bbc32cc3ccf6ca904a00f0a92b6",
     ".yggdrasil/model/cli/utils/interface.md": "a6aba244e5d1b32e6c74c4422715fb3a973a80c2faacec6ae0c715dcb6127ba0",
-    "source/cli/src/core/approve.ts": "9dcd161784599d69da89d4f7b9bae80c4c0c9aa917f12737b0ee0a6e8b53247a"
+    "source/cli/src/core/approve.ts": "9dcd161784599d69da89d4f7b9bae80c4c0c9aa917f12737b0ee0a6e8b53247a",
+    ".yggdrasil/model/cli/io/interface.md": "7f1e3ddabb8907e6914f5645678f30837668d1509d2057a925fdf046cdd78ae2"
   },
   "mtimes": {
     ".yggdrasil/model/cli/core/approve/yg-node.yaml": 1775650755676.7822,
@@ -46,29 +46,29 @@
     ".yggdrasil/aspects/what-why-next/content.md": 1775647944300.92,
     ".yggdrasil/aspects/diagnostic-logging/yg-aspect.yaml": 1775639646041.8462,
     ".yggdrasil/aspects/diagnostic-logging/content.md": 1775639651576.1426,
-    ".yggdrasil/model/cli/io/responsibility.md": 1775631455629.793,
-    ".yggdrasil/model/cli/io/interface.md": 1775648355412.6597,
+    ".yggdrasil/model/cli/io/responsibility.md": 1775712113262.003,
+    ".yggdrasil/model/cli/io/interface.md": 1775719968932.9768,
     ".yggdrasil/model/cli/utils/responsibility.md": 1775678820377.3147,
     ".yggdrasil/model/cli/utils/interface.md": 1775678820376.8716,
     "source/cli/src/core/approve.ts": 1775654675622.2964
   },
-  "reviewedReason": "artifacts fixed per sonnet feedback",
+  "reviewedReason": "cascade: upstream cli/io artifacts updated",
   "aspectResults": {
     "deterministic": {
       "satisfied": true,
-      "reason": "The source file approve.ts is fully deterministic. It uses SHA-256 hashing (via hashTrackedFiles at lines 102-107, 143-148), no Math.random or Date.now in core logic. The two uses of new Date().toISOString() at lines 119 and 335 are audit log timestamps, which are explicitly excluded from the deterministic contract per the aspect content ('observability outputs (audit log timestamps, debug log timestamps) are not part of the deterministic contract'). There are no network calls anywhere in the file. All filesystem reads are for drift detection (file hashing, drift state reads/writes) and fallback reads (loadSourceFiles at line 417-431), both of which are explicitly allowed exceptions in the aspect. The debugWrite call in the catch block at line 427 is observability output. All logic is purely functional given its inputs (graph, nodePath, options, filesystem state)."
+      "reason": "The source file approve.ts satisfies the deterministic aspect. No Math.random or Date.now usage in core logic — timestamps appear only in audit log entries (lines 118, 335) which are explicitly exempted as observability outputs. No network calls anywhere. Hashing uses SHA-256 via hashTrackedFiles (line 102, 143). All operations are deterministic relative to their inputs (graph state + filesystem state). The loadSourceFiles function (line 417) performs filesystem reads that are defensive/fallback in nature (catching errors with debugWrite at line 427), consistent with the allowed exceptions. The resolveAspects function (line 434) is purely computational over graph data. No implicit system state dependencies beyond filesystem and graph state."
     },
     "posix-paths": {
       "satisfied": true,
-      "reason": "All path comparisons and storage operations apply the required normalization pattern. Line 69: `mp.trim().replace(/\\\\/g, '/').replace(/\\/+$/, '')` (anti-laundering check). Line 154: `tf.path.trim().replace(/\\\\/g, '/').replace(/\\/+$/, '')` (fileLayerMap key). Line 166: same pattern in `resolveLayer`. Line 202: same pattern in `annotateUpstreamChange`. Line 212: same pattern in `classifyChangedFile` for `isGraph` check. Lines 232-233: same pattern for node prefix check. Line 362: same pattern for `allSourceFiles` filter. Line 175-178: `path.relative(...).split(path.sep).join('/')` correctly converts platform separator to POSIX for `yggPrefix`. The one `path.join` at line 424 is used only for disk I/O to read file content — not for path comparison or storage — so it does not violate the aspect. All stored and compared paths use normalized POSIX form."
+      "reason": "All path handling in approve.ts consistently applies the normalization pattern `.trim().replace(/\\\\/g, '/').replace(/\\/+$/, '')` before any comparison or storage. Examples: line 69 (mapping paths), line 154/159 (trackedFiles tfKey), line 166 (resolveLayer), line 202 (annotateUpstreamChange), line 212 (classifyChangedFile isGraph check), line 233 (nodePrefix startsWith check), line 362 (allSourceFiles filter). The `path.relative(...).split(path.sep).join('/')` pattern at line 176-178 also correctly converts OS-native separators to forward slashes for the yggPrefix. No raw path comparisons occur without prior normalization."
     },
     "what-why-next": {
       "satisfied": true,
-      "reason": "approve.ts contains no process.stderr.write calls. All agent-visible error paths use either throw new Error() (lines 41, 46, 51-54) — which the aspect explicitly exempts — or return structured ApproveResult objects with refuseReason fields (lines 91, 259-262, 297, 302, 305, 314) that the command layer formats. The one catch block uses debugWrite() (line 427), not raw stderr output. The what/why/next formatting responsibility correctly belongs to the command handler, not this engine module."
+      "reason": "The what-why-next aspect applies to agent-visible diagnostic output via `process.stderr.write`, not to `throw new Error()` calls. `approve.ts` contains no `process.stderr.write` calls — all error paths use `throw new Error()` (lines 41, 46, 51-54), which the aspect explicitly exempts as acceptable for fatal/unexpected errors where there is no remediation path. The one `catch` block at line 426 uses `debugWrite()` (not stderr diagnostic output), which is also compliant. No `buildIssueMessage` is required here because this file contains no agent-visible diagnostic messages — it is a pure logic module whose errors are caught and formatted by the command layer."
     },
     "diagnostic-logging": {
       "satisfied": true,
-      "reason": "The only catch block in the file (approve.ts:426) swallows the error without re-throwing and calls `debugWrite(\\`[approve] skipped unreadable file ${filePath}: ${(err as Error).message}\\`)` at line 427, which satisfies all aspect rules: it includes module identifier ([approve]), operation name (skipped unreadable file), and the error message. No other catch blocks exist in this file."
+      "reason": "The only catch block in the file is in `loadSourceFiles` (approve.ts:426-428), which catches file read errors and calls `debugWrite` with module identifier `[approve]`, operation context (file path), and error message. This satisfies all rules: the catch swallows the error (returns fallback by continuing the loop), calls `debugWrite()`, and includes module identifier, operation name, and error message per the required pattern."
     }
   },
   "artifactReview": {

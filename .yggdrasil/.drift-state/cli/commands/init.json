@@ -1,5 +1,5 @@
 {
-  "hash": "b09efc612a78317617e70704f888386d46f35960ef87ed2f0260934ccf7bf603",
+  "hash": "2b00d7926a9de48b39ffc595333072859bfda77e2bc0d061bf7870cac8370677",
   "files": {
     ".yggdrasil/model/cli/commands/init/yg-node.yaml": "1ccbe358f753dd976758e3da060e7927f3531b5467894e55e11877f7538e2f15",
     ".yggdrasil/model/cli/commands/init/responsibility.md": "eb66abd04a148fa8e346e65d17343d32f958db6e3b615d1458ef2dbc7c458fc0",
@@ -10,15 +10,15 @@
     ".yggdrasil/model/cli/commands/internals.md": "5a3b679d5c2b9600c7fa3dc01b2f28661b7bfb11850a922ff885a7a583d455c7",
     ".yggdrasil/model/cli/commands/responsibility.md": "dd8146f9c54251a68f81f4036fdf931d526f3159707709b92a59493fe383a080",
     ".yggdrasil/model/cli/templates/responsibility.md": "8c033d78a7b5eed6c21eb69acd4c531e9ef40d5e11077317dda1f6b2ea9f9f60",
-    ".yggdrasil/model/cli/templates/interface.md": "6431a31783dd2cddde926df427822041dce7cdee36080e7d0a7fdacba588f938",
+    ".yggdrasil/model/cli/templates/interface.md": "d96c65ac6c6b198483d341179b8d4273e2eb5b7623a05eb61ae0eb20da56d575",
     ".yggdrasil/flows/init/yg-flow.yaml": "eb35f927c712f8bae38cb5c5fcd0193432aea2fb7adc5e75f777764300ce3177",
     ".yggdrasil/flows/init/description.md": "7ab06dca456fe57c748e343faba4dff4db88ef73792ab2eaf28298ff595adba0",
-    "source/cli/src/cli/init.ts": "69db0311194cafc7ba0a694a9073f4cf21b009b6b4d2ccab38ae5348a9d71903",
-    ".yggdrasil/model/cli/commands/init/interface.md": "e01bcbdcbad3012090058a2b67d057f6c4563a896c132f53072670f8f03a6200"
+    "source/cli/src/cli/init.ts": "1f3f09f47d2ace20a00102dd87d2396984785200721b9d46a090612dac7da0f1",
+    ".yggdrasil/model/cli/commands/init/interface.md": "12b9bbcfe1adad30d5fedff2d879ef9fe0ea02c281f2fabff449fd6e6515a7ee"
   },
   "mtimes": {
     ".yggdrasil/model/cli/commands/init/yg-node.yaml": 1775639590741.4688,
-    ".yggdrasil/model/cli/commands/init/interface.md": 1775665759279.0537,
+    ".yggdrasil/model/cli/commands/init/interface.md": 1775718838315.4568,
     ".yggdrasil/model/cli/commands/init/responsibility.md": 1775628310259.8274,
     ".yggdrasil/model/cli/yg-node.yaml": 1775639608581.9402,
     ".yggdrasil/model/cli/internals.md": 1775586290475.0237,
@@ -27,16 +27,16 @@
     ".yggdrasil/model/cli/commands/internals.md": 1775046923261.1494,
     ".yggdrasil/model/cli/commands/responsibility.md": 1775045632026.2983,
     ".yggdrasil/model/cli/templates/responsibility.md": 1775648413454.4307,
-    ".yggdrasil/model/cli/templates/interface.md": 1775648421240.1826,
+    ".yggdrasil/model/cli/templates/interface.md": 1775712655948.7615,
     ".yggdrasil/flows/init/yg-flow.yaml": 1774035679161.664,
     ".yggdrasil/flows/init/description.md": 1772743197468.9497,
-    "source/cli/src/cli/init.ts": 1775665529114.3691
+    "source/cli/src/cli/init.ts": 1775718499149.1355
   },
-  "reviewedReason": "artifact fixes per reviewer feedback",
+  "reviewedReason": "fixed chalk warning color, added --upgrade edge cases to interface",
   "aspectResults": {
     "cli-command-contract": {
       "satisfied": true,
-      "reason": "All applicable rules satisfied:\n\n1. Output routing: Uses process.stdout.write() for results (lines 121-152, 186-200), process.stderr.write() for errors (lines 79, 86, 97, 106, 115, 173, 202). Chalk semantics correct: green for success (lines 125, 151, 186), red for errors (lines 79, 86, 97, 106, 202), yellow for warnings (line 128).\n\n2. Error handling: Command action body wrapped in try/catch (lines 71-204). Catch block at lines 201-204 follows pattern: process.stderr.write(chalk.red(`Error: ${(err as Error).message}\\n`)) then process.exit(1).\n\n3. Exit codes: process.exit(1) called on failure states (lines 80, 88, 99, 107, 203). Success paths (lines 153, 186-200) return without explicit exit, yielding implicit exit 0. Warnings alone (line 115) do not trigger exit 1.\n\n4. Graph loading: Not applicable—init is a bootstrap command that creates the graph, not loads it.\n\n5. Node path normalization: Not applicable—init accepts --platform and --upgrade, not --node."
+      "reason": "All aspect rules are met. Output routing: all results use process.stdout.write() (lines 121, 125-129, 151-152, 186-200), all errors use process.stderr.write() (lines 79, 85-88, 96-99, 106-108, 114-116, 202); chalk colors are correct — green for success (lines 125, 151, 186), red for errors (lines 79, 85, 96, 106, 202), yellow for warnings (lines 115, 129, 173). Error handling: action body is wrapped in a single try/catch (lines 71–204); catch block at line 202–203 writes 'Error: ${(err as Error).message}\\n' to stderr then calls process.exit(1), matching the required format. Exit codes: process.exit(1) on thrown errors (line 203) and on actionable states (lines 80–81, 87–89, 98–100, 107–109); implicit exit 0 on success. Graph loading rule does not apply — init creates the graph rather than loading it. Node path normalization rule does not apply — init accepts no --node option."
     }
   },
   "artifactReview": {

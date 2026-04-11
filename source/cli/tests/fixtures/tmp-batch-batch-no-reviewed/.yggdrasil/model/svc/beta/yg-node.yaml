@@ -1,0 +1,7 @@
+name: beta
+type: service
+description: beta service
+aspects:
+  - audit
+mapping:
+  - src/beta/

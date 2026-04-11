@@ -1,28 +1,28 @@
 {
-  "hash": "89e0d62aa65c60a2fcbf3cd86a954a7ca432d62970ab2e0923f938ef9b47c44d",
+  "hash": "31b007db7c7891b106e836366e089e0d8ed6ac7d208cf9cd708c32672267e436",
   "files": {
-    ".yggdrasil/model/docs/guides/responsibility.md": "1c7f67efbff5b94d4fbe0aed176fa32247578383d05383e7b30ff95a6b50fac8",
+    ".yggdrasil/model/docs/guides/yg-node.yaml": "dbf263682b5c4883bc76e582dd8f6be17ec865497e76c428daf8148b40156f89",
     ".yggdrasil/model/docs/yg-node.yaml": "36ca70c4bea26714bb7450d306d1a898e70573151394eb8e0fb3a5cf588c84d4",
     ".yggdrasil/model/docs/responsibility.md": "070a2a6c6b29116ab18d2b824068d227cc4682f30fd5ef79b3cbe307dbe632fe",
     "docs/getting-started.md": "bd967ee1fb52aaca13ba218b44610b767c6bf276ab98e1d4dd637ab8955ccf3a",
     "docs/cli-reference.md": "af2c076a8c6d8961cdcfb277e90329059de17e4cf7cbe89a66c53ae704297854",
+    "docs/configuration.md": "34f62342c0b8272c51e0abe2901e5aab86788ca59830e8ca21c56bf38f6a1389",
     "docs/platforms.md": "20e2b9c50f75e37c47d6a796c25e68e77eb53ebf81e56f768300f09d62ee2338",
-    "docs/index.md": "183a218aecd393eb2867a03541ee5b125651e96a016d72c5037d73f61f617914",
-    ".yggdrasil/model/docs/guides/yg-node.yaml": "dbf263682b5c4883bc76e582dd8f6be17ec865497e76c428daf8148b40156f89",
-    "docs/configuration.md": "224cad13dcbb708ed561559f949d61f50badd4ada48ad354032d3921e5e5b549"
+    "docs/index.md": "600d2815a9c0d83c3b287861303d5004e1c1d616f92acc650ad349d43fef9618",
+    ".yggdrasil/model/docs/guides/responsibility.md": "a83578c540be26074ad43a897a1e4765ebf2151da830e2f05862dc99ac355883"
   },
   "mtimes": {
     ".yggdrasil/model/docs/guides/yg-node.yaml": 1775639495758.9084,
-    ".yggdrasil/model/docs/guides/responsibility.md": 1775052773803.7507,
+    ".yggdrasil/model/docs/guides/responsibility.md": 1775712076348.4695,
     ".yggdrasil/model/docs/yg-node.yaml": 1775243577367.4014,
     ".yggdrasil/model/docs/responsibility.md": 1772828320283.2747,
     "docs/getting-started.md": 1772829457957.486,
     "docs/cli-reference.md": 1775588200228.337,
-    "docs/configuration.md": 1775640692415.0933,
+    "docs/configuration.md": 1775711313610.8176,
     "docs/platforms.md": 1772485235626.6682,
-    "docs/index.md": 1775025289802.478
+    "docs/index.md": 1775708350327.3806
   },
-  "reviewedReason": "type changed to project, architecture redesign",
+  "reviewedReason": "updated responsibility: removed file inventory, added yg-architecture.yaml coverage",
   "artifactReview": {
     "responsibility.md": {
       "current": true,

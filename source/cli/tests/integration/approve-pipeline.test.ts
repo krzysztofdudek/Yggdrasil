@@ -40,7 +40,7 @@ describe('approve-pipeline', () => {
     }
   });
 
-  it('full lifecycle: initial → modify → refuse → fix → approve → no-change', async () => {
+  it('full lifecycle: initial → modify → approve → no-change', async () => {
     const root = await setupProject();
     cleanupPaths.push(root);
 
@@ -65,49 +65,27 @@ describe('approve-pipeline', () => {
     expect(noChange.previousHash).toBe(init.currentHash);
     expect(noChange.currentHash).toBe(init.currentHash);
 
-    // Step 3: Modify source only → refused (source changed, artifacts unchanged)
+    // Step 3: Modify source → approved (binary model: any change → approved)
     const srcFile = path.join(root, 'src', 'orders', 'order.service.ts');
     await touchFile(srcFile);
     const graph3 = await loadGraph(root);
-    const refused = await approveNode(graph3, nodePath);
-    expect(refused.action).toBe('refused');
-    expect(refused.axes?.source).toBe('changed');
-    expect(refused.axes?.ownArtifacts).toBe('unchanged');
-    expect(refused.refuseReason).toMatch(/Source changed but artifacts unchanged/);
-    expect(refused.changedSource).toBeDefined();
-    expect(refused.changedSource!.length).toBeGreaterThan(0);
-
-    // Hash should not have advanced — refused means no write
-    const graph4 = await loadGraph(root);
-    const afterRefuse = await approveNode(graph4, nodePath);
-    expect(afterRefuse.action).toBe('refused'); // still drifted
-
-    // Step 4: Fix — also update artifact to reflect changes
-    const artifactFile = path.join(
-      root,
-      '.yggdrasil',
-      'model',
-      'orders',
-      'order-service',
-      'responsibility.md',
-    );
-    await touchFile(artifactFile);
-    const graph5 = await loadGraph(root);
-    const approved = await approveNode(graph5, nodePath);
+    const approved = await approveNode(graph3, nodePath);
     expect(approved.action).toBe('approved');
-    expect(approved.axes?.source).toBe('changed');
-    expect(approved.axes?.ownArtifacts).toBe('changed');
+    expect(approved.changedSource).toBeDefined();
+    expect(approved.changedSource!.length).toBeGreaterThan(0);
     expect(approved.previousHash).toBe(init.currentHash);
     expect(approved.currentHash).not.toBe(init.currentHash);
 
-    // Step 5: No more changes → no-change
-    const graph6 = await loadGraph(root);
-    const stable = await approveNode(graph6, nodePath);
+    // Step 4: No more changes → no-change
+    const graph4 = await loadGraph(root);
+    const stable = await approveNode(graph4, nodePath);
     expect(stable.action).toBe('no-change');
     expect(stable.currentHash).toBe(approved.currentHash);
   });
 
-  it('--reviewed bypasses one-side-only check (source changed only)', async () => {
+  // Tests for --reviewed and three-axis gate removed — features deleted in v4
+
+  it('source-only change → approved in binary model', async () => {
     const root = await setupProject();
     cleanupPaths.push(root);
 
@@ -117,148 +95,46 @@ describe('approve-pipeline', () => {
     // Establish baseline
     await approveNode(graph, nodePath);
 
-    // Modify source only
+    // Modify source only → approved (binary model)
     const srcFile = path.join(root, 'src', 'orders', 'order.service.ts');
     await touchFile(srcFile);
 
-    // Without --reviewed → refused
-    const graph2 = await loadGraph(root);
-    const refused = await approveNode(graph2, nodePath);
-    expect(refused.action).toBe('refused');
-
-    // With --reviewed → reviewed
-    const graph3 = await loadGraph(root);
-    const acked = await approveNode(graph3, nodePath, {
-      reviewed: 'formatting only, no semantic change',
-    });
-    expect(acked.action).toBe('reviewed');
-    expect(acked.currentHash).not.toBe(acked.previousHash);
-
-    // After reviewed, next run → no-change
-    const graph4 = await loadGraph(root);
-    const noChange = await approveNode(graph4, nodePath);
-    expect(noChange.action).toBe('no-change');
-  });
-
-  it('--reviewed bypasses one-side-only check (artifact changed only)', async () => {
-    const root = await setupProject();
-    cleanupPaths.push(root);
-
-    const graph = await loadGraph(root);
-    const nodePath = 'orders/order-service';
-
-    // Establish baseline
-    await approveNode(graph, nodePath);
-
-    // Modify artifact only
-    const artifactFile = path.join(
-      root,
-      '.yggdrasil',
-      'model',
-      'orders',
-      'order-service',
-      'responsibility.md',
-    );
-    await touchFile(artifactFile);
-
-    // Without --reviewed → refused
-    const graph2 = await loadGraph(root);
-    const refused = await approveNode(graph2, nodePath);
-    expect(refused.action).toBe('refused');
-    expect(refused.axes?.ownArtifacts).toBe('changed');
-    expect(refused.axes?.source).toBe('unchanged');
-
-    // With --reviewed → reviewed
-    const graph3 = await loadGraph(root);
-    const acked = await approveNode(graph3, nodePath, { reviewed: 'typo fix in docs' });
-    expect(acked.action).toBe('reviewed');
-  });
-
-  it('compound drift: source + artifact + aspect → one approve clears all', async () => {
-    const root = await setupProject();
-    cleanupPaths.push(root);
-
-    const nodePath = 'orders/order-service';
-    // Clear existing fixture drift state so this starts as a fresh node
-    await clearNodeDriftState(root, nodePath);
-
-    const graph = await loadGraph(root);
-
-    // Establish baseline
-    const init = await approveNode(graph, nodePath);
-    expect(init.action).toBe('initial');
-
-    // Modify source + artifact simultaneously
-    const srcFile = path.join(root, 'src', 'orders', 'order.service.ts');
-    const artifactFile = path.join(
-      root,
-      '.yggdrasil',
-      'model',
-      'orders',
-      'order-service',
-      'responsibility.md',
-    );
-    await touchFile(srcFile);
-    await touchFile(artifactFile);
-
-    // Both changed → both sides updated → approved in one approve call
     const graph2 = await loadGraph(root);
     const approved = await approveNode(graph2, nodePath);
     expect(approved.action).toBe('approved');
-    expect(approved.axes?.source).toBe('changed');
-    expect(approved.axes?.ownArtifacts).toBe('changed');
+    expect(approved.changedSource!.length).toBeGreaterThan(0);
 
-    // Confirmed: all drift cleared after one approve
+    // After approve, next run → no-change
     const graph3 = await loadGraph(root);
     const noChange = await approveNode(graph3, nodePath);
     expect(noChange.action).toBe('no-change');
   });
 
-  it('compound drift: source + aspect cascade → --reviewed clears all', async () => {
+  it('compound drift: source + aspect cascade → one approve clears all', async () => {
     const root = await setupProject();
     cleanupPaths.push(root);
 
-    // Use auth/auth-api which tracks aspect files (checkout-flow, requires-logging)
     const nodePath = 'auth/auth-api';
-
-    // Clear existing drift state so this starts fresh (fixture may have state)
     await clearNodeDriftState(root, nodePath);
 
     const graph = await loadGraph(root);
-
-    // Establish baseline
     const init = await approveNode(graph, nodePath);
     expect(init.action).toBe('initial');
 
-    // Modify source only (no corresponding artifact update) + modify an aspect file
+    // Modify source + aspect file
     const srcFile = path.join(root, 'src', 'auth', 'auth.controller.ts');
-    const aspectFile = path.join(
-      root,
-      '.yggdrasil',
-      'aspects',
-      'requires-logging',
-      'content.md',
-    );
+    const aspectFile = path.join(root, '.yggdrasil', 'aspects', 'requires-logging', 'content.md');
     await touchFile(srcFile);
     await touchFile(aspectFile);
 
-    // Source changed + context changed (otherTracked) → refused without --reviewed
-    // (source changed, artifacts unchanged — that takes priority)
+    // Binary model: any change → approved
     const graph2 = await loadGraph(root);
-    const refused = await approveNode(graph2, nodePath);
-    expect(refused.action).toBe('refused');
-    expect(refused.axes?.source).toBe('changed');
-
-    // --reviewed clears everything
-    const graph3 = await loadGraph(root);
-    const acked = await approveNode(graph3, nodePath, {
-      reviewed: 'cosmetic change + aspect clarification reviewed',
-    });
-    expect(acked.action).toBe('reviewed');
+    const approved = await approveNode(graph2, nodePath);
+    expect(approved.action).toBe('approved');
 
     // All drift cleared
-    const graph4 = await loadGraph(root);
-    const noChange = await approveNode(graph4, nodePath);
+    const graph3 = await loadGraph(root);
+    const noChange = await approveNode(graph3, nodePath);
     expect(noChange.action).toBe('no-change');
   });
 
@@ -306,13 +182,5 @@ describe('approve-pipeline', () => {
     );
   });
 
-  it('--reviewed requires non-empty reason string', async () => {
-    const root = await setupProject();
-    cleanupPaths.push(root);
-
-    const graph = await loadGraph(root);
-    await expect(
-      approveNode(graph, 'orders/order-service', { reviewed: '   ' }),
-    ).rejects.toThrow(/non-empty reason/);
-  });
+  // --reviewed test removed — feature deleted in v4
 });

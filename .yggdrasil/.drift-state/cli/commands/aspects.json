@@ -1,5 +1,5 @@
 {
-  "hash": "210ac8d4f46e5b0d365f0109c911c8d7e5fa362cfe20e93cd9232a532e3dfeea",
+  "hash": "bf1d1a49b3de38c6ecfbfa30c08654dce02f5a37bb7ad98e9781c9fa2fd598a5",
   "files": {
     ".yggdrasil/model/cli/commands/aspects/yg-node.yaml": "cf87bdc86f785bbaccb347b4fffeb6922e92f16d412a46b265e7f76e79b32230",
     ".yggdrasil/model/cli/commands/aspects/interface.md": "c41057d78e0d98ec1faf33b3b26745aa864920b9b9ed6b8a6d5501bd4fb76bc7",
@@ -12,15 +12,15 @@
     ".yggdrasil/model/cli/commands/responsibility.md": "dd8146f9c54251a68f81f4036fdf931d526f3159707709b92a59493fe383a080",
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "20f321091b4f489efbf167feea9d42d73f7cffb21ea2e86958e565b550da164b",
     ".yggdrasil/aspects/deterministic/content.md": "82a5311abc13d6000f906bbdbd04399b233692256c49819a9cb15f95f988250a",
-    ".yggdrasil/model/cli/core/loader/responsibility.md": "291579962b915a399167549cc72d570ef8b0b8f7a781ca854b7ffdb397837cd1",
+    ".yggdrasil/model/cli/core/loader/interface.md": "ae4dd4d59bb6dbc4a83c0b80df4eb0236dab8564901fad0db89fc9d35dd9de29",
     ".yggdrasil/model/cli/core/responsibility.md": "2c8b1cbd14e89d129322002896ba5b6c6a37f86857e4e324e41141301a086a58",
     ".yggdrasil/model/cli/core/interface.md": "807008eb6f673273034d7d3325a36f37ea1c7a4e46df362e2a4fa9ccd9451de9",
+    ".yggdrasil/model/cli/core/context/responsibility.md": "8db25b19cd124a9b1d6e31255aaef25bc3c8d0b045d31026ee37f81d93d13eff",
+    ".yggdrasil/model/cli/core/context/interface.md": "1e4472f45588bab11c7f41a545e4390d11c82e9fe7febeabbf8b91461f21dc9c",
     ".yggdrasil/flows/graph-analysis/yg-flow.yaml": "6643c01963cfd3731ba76f0a34a34e7ce2ed09e2ae2da793734c59adc4f87624",
     ".yggdrasil/flows/graph-analysis/description.md": "aca097a8ecbf74d140e5deb9ad6113c752d49e193077b0e1d201b7f99da574f4",
     "source/cli/src/cli/aspects.ts": "fe630870b040926e7e179336f417fab50691f6aa1a1222c4c140df066eb99eed",
-    ".yggdrasil/model/cli/core/loader/interface.md": "ae4dd4d59bb6dbc4a83c0b80df4eb0236dab8564901fad0db89fc9d35dd9de29",
-    ".yggdrasil/model/cli/core/context/responsibility.md": "8db25b19cd124a9b1d6e31255aaef25bc3c8d0b045d31026ee37f81d93d13eff",
-    ".yggdrasil/model/cli/core/context/interface.md": "1e4472f45588bab11c7f41a545e4390d11c82e9fe7febeabbf8b91461f21dc9c"
+    ".yggdrasil/model/cli/core/loader/responsibility.md": "57a7a0ab8e29257e3ce50b78965c91cff1d48598b6c8a7ad861bc75f60ae2c4a"
   },
   "mtimes": {
     ".yggdrasil/model/cli/commands/aspects/yg-node.yaml": 1775639582524.2861,
@@ -34,7 +34,7 @@
     ".yggdrasil/model/cli/commands/responsibility.md": 1775045632026.2983,
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775580563004.8235,
     ".yggdrasil/aspects/deterministic/content.md": 1775655562335.338,
-    ".yggdrasil/model/cli/core/loader/responsibility.md": 1775631839971.4595,
+    ".yggdrasil/model/cli/core/loader/responsibility.md": 1775720730748.721,
     ".yggdrasil/model/cli/core/loader/interface.md": 1775678820374.2441,
     ".yggdrasil/model/cli/core/responsibility.md": 1775585790511.578,
     ".yggdrasil/model/cli/core/interface.md": 1772743197442.582,
@@ -44,15 +44,15 @@
     ".yggdrasil/flows/graph-analysis/description.md": 1775046980292.1602,
     "source/cli/src/cli/aspects.ts": 1775640487010.9683
   },
-  "reviewedReason": "cascade from impact internals + loader/approve fixes",
+  "reviewedReason": "cascade: upstream loader/drift-detector responsibility updated",
   "aspectResults": {
     "cli-command-contract": {
       "satisfied": true,
-      "reason": "All rules satisfied: (1) Output routing — results go to stdout via `process.stdout.write()` at line 90, errors to stderr via `process.stderr.write()` at lines 94-98, chalk.yellow used for orphaned warning at line 62 consistent with yellow=warning semantic; (2) Error handling — action body wrapped in try/catch at lines 87/91, catch block writes to stderr and calls `process.exit(1)` at lines 92-101, ENOENT handled with special message at lines 93-96; (3) Exit codes — `process.exit(1)` on error at line 100, implicit exit 0 on success; (4) Graph loading — starts with `await loadGraph(process.cwd())` at line 88; (5) Node path normalization — not applicable as this command takes no `--node` option."
+      "reason": "All cli-command-contract rules are satisfied: (1) stdout via process.stdout.write() at line 90, never console.log; (2) stderr via process.stderr.write() at lines 94-98; (3) try/catch wraps entire action body at lines 87-101; (4) ENOENT special message at lines 93-96 matches required text exactly; (5) generic catch falls back to error.message on stderr at line 98 then process.exit(1) at line 100; (6) graph loading starts with await loadGraph(process.cwd()) at line 88; (7) no --node option used so normalization rule is not applicable; (8) implicit exit 0 on success (no explicit exit call on happy path)."
     },
     "deterministic": {
       "satisfied": true,
-      "reason": "The file contains no Math.random, Date.now, network calls, or implicit system state. loadGraph reads from filesystem (deterministic relative to filesystem state — permitted by exception 3). computeAspectUsage (aspects.ts:16-50) and formatAspectsOutput (aspects.ts:52-80) are pure functions over the graph — same graph state produces identical output. The sort at aspects.ts:56 uses localeCompare which is deterministic for a given locale. No heuristics or randomness are introduced anywhere in the file."
+      "reason": "The file contains no Math.random, Date.now, network calls, or implicit system state. The loadGraph call (line 88) reads from filesystem using process.cwd() — deterministic relative to filesystem state, which is explicitly permitted. computeAspectUsage (lines 16-50) and formatAspectsOutput (lines 52-80) are pure functions over the graph: same graph input produces identical output. The sort at line 56 uses localeCompare which is deterministic for a given locale. chalk formatting is deterministic. No randomness or non-deterministic I/O in core logic."
     }
   },
   "artifactReview": {

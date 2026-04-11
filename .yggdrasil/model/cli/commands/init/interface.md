@@ -4,7 +4,7 @@
 
 **--platform:** Target agent platform for rules file placement. Defaults to `generic`. Supported: cursor, claude-code, copilot, cline, roocode, codex, windsurf, aider, gemini, amp, generic.
 
-**--upgrade:** When `.yggdrasil/` exists, refreshes rules and schemas without touching graph content. Runs version migrations if project version < CLI version. Without `--upgrade`, init refuses to overwrite an existing project.
+**--upgrade:** When `.yggdrasil/` exists, refreshes rules and schemas without touching graph content. Runs version migrations if project version < CLI version. Without `--upgrade`, init refuses to overwrite an existing project. When `.yggdrasil/` does not exist, `--upgrade` silently falls through to a full init. When `.yggdrasil/` exists but contains no detectable Yggdrasil version, exits 1 with "No Yggdrasil project found."
 
 ## Output Format
 

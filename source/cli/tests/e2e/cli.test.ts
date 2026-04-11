@@ -97,7 +97,7 @@ describe.skipIf(!distExists)('CLI E2E', () => {
     expect(status).toBe(0);
     expect(stdout).toContain('orders/order-service');
     expect(stdout).toContain('Source files');
-    expect(stdout).toContain('Token budget:');
+    expect(stdout).toContain('After modifying source files');
   });
 
   it('yg build-context nonexistent node', () => {
@@ -116,7 +116,7 @@ describe.skipIf(!distExists)('CLI E2E', () => {
     expect(status).toBe(0);
     expect(stdout).toContain('orders/order-service');
     expect(stdout).toContain('Source files');
-    expect(stdout).toContain('Token budget:');
+    expect(stdout).toContain('After modifying source files');
   });
 
   it('yg build-context still works as alias', () => {
@@ -228,41 +228,7 @@ describe.skipIf(!distExists)('CLI E2E', () => {
     expect(stderr).toContain("does not exist");
   });
 
-  // --- drift-sync (backward-compatible alias) ---
-
-  it('yg drift-sync --node records hash via alias', () => {
-    const tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-drift-sync-'));
-    try {
-      cpSync(FIXTURE, tmpDir, { recursive: true });
-      const { status: syncStatus, stdout } = run(
-        ['drift-sync', '--node', 'orders/order-service'],
-        tmpDir,
-      );
-      expect(syncStatus).toBe(0);
-      expect(stdout).toMatch(/Approved: orders\/order-service/);
-      expect(stdout).toMatch(/Hash:/);
-    } finally {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
-  });
-
-  it('yg drift-sync without --node returns exit 1', () => {
-    const { status, stderr } = run(['drift-sync']);
-    expect(status).toBe(1);
-    expect(stderr).toContain('--node <path> is required');
-  });
-
-  it('yg drift-sync --all returns exit 1 with removal message', () => {
-    const { status, stderr } = run(['drift-sync', '--all']);
-    expect(status).toBe(1);
-    expect(stderr).toContain('--all has been removed');
-  });
-
-  it('yg drift-sync --recursive --node x returns exit 1 with removal message', () => {
-    const { status, stderr } = run(['drift-sync', '--recursive', '--node', 'orders/order-service']);
-    expect(status).toBe(1);
-    expect(stderr).toContain('--recursive has been removed');
-  });
+  // drift-sync tests removed — command deleted in v4
 
   // --- impact edge cases ---
 

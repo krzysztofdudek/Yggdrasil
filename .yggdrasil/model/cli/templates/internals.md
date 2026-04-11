@@ -4,7 +4,7 @@
 
 Chose hand-tuned content over programmatic generation. The rules are an operating manual for LLM agents — tone, structure, and emphasis require human judgment.
 
-Chose three-section structure (Protocol, Operations, Knowledge Base) based on "Lost in the Middle" research (Liu et al., Stanford, TACL 2024): procedures at edges (primacy/recency zones where agents internalize steps), reference material in middle (lookup-only material tolerates lower attention).
+Chose three-section structure (PROTOCOL, REFERENCE, GUARD RAILS) based on "Lost in the Middle" research (Liu et al., Stanford, TACL 2024): procedures at edges (primacy/recency zones where agents internalize steps), reference material in middle (lookup-only material tolerates lower attention).
 
 Chose motivation-first opening ("the graph exists so the user does not have to explain the same thing twice") over authority-based framing ("YOU DO NOT HAVE A CHOICE"). Agents under task pressure drop procedural rules but retain motivational framing.
 

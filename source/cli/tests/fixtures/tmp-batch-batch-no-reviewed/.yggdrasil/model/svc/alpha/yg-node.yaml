@@ -1,0 +1,7 @@
+name: alpha
+type: service
+description: alpha service
+aspects:
+  - audit
+mapping:
+  - src/alpha/

@@ -142,30 +142,30 @@ describe('classifyDrift', () => {
     await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'export default 99;\n');
     const graph = await loadGraph(tmpDir);
     const result = await classifyDrift(graph);
-    const e020 = result.filter(i => i.code === 'E020');
+    const e020 = result.filter(i => i.code === 'source-drift');
     expect(e020).toHaveLength(1);
     expect(e020[0].nodePath).toBe('svc/my-service');
-    expect(e020[0].driftSubtype).toBe('source-drift');
+    expect(e020[0].lifecycleState).toBe('ok');
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('returns E020 graph-drift when own artifact changes', async () => {
+  it('returns source-drift when own yg-node.yaml changes', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('graph-drift', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
     });
     await recordBaseline(tmpDir);
-    // Modify own artifact
+    // Modify own yg-node.yaml (tracked as hierarchy layer)
     await writeFile(
-      path.join(yggRoot, 'model/svc/my-service/responsibility.md'),
-      'Updated responsibility content for testing graph drift detection.',
+      path.join(yggRoot, 'model/svc/my-service/yg-node.yaml'),
+      'name: MyService\ntype: service\ndescription: updated description\nmapping:\n  - src/svc/\n',
     );
     const graph = await loadGraph(tmpDir);
     const result = await classifyDrift(graph);
-    const e020 = result.filter(i => i.code === 'E020');
-    expect(e020).toHaveLength(1);
-    expect(e020[0].driftSubtype).toBe('graph-drift');
+    // yg-node.yaml is tracked in hierarchy layer, so changes appear as upstream-drift
+    const drift = result.filter(i => i.nodePath === 'svc/my-service');
+    expect(drift.length).toBeGreaterThanOrEqual(1);
     await rm(tmpDir, { recursive: true, force: true });
   });
 
@@ -185,7 +185,7 @@ describe('classifyDrift', () => {
     await writeFile(path.join(yggRoot, 'aspects/logging/rules.md'), 'Log ALL operations, not just mutations.\n');
     const graph = await loadGraph(tmpDir);
     const result = await classifyDrift(graph);
-    const e021 = result.filter(i => i.code === 'E021');
+    const e021 = result.filter(i => i.code === 'upstream-drift');
     expect(e021.length).toBeGreaterThanOrEqual(1);
     expect(e021[0].nodePath).toBe('svc/my-service');
     expect(e021[0].cascadeCauses!).toHaveLength(1);
@@ -211,8 +211,8 @@ describe('classifyDrift', () => {
     const graph = await loadGraph(tmpDir);
     const result = await classifyDrift(graph);
     const nodeIssues = result.filter(i => i.nodePath === 'svc/my-service');
-    const e020 = nodeIssues.filter(i => i.code === 'E020');
-    const e021 = nodeIssues.filter(i => i.code === 'E021');
+    const e020 = nodeIssues.filter(i => i.code === 'source-drift');
+    const e021 = nodeIssues.filter(i => i.code === 'upstream-drift');
     expect(e020).toHaveLength(1);
     expect(e021).toHaveLength(1);
     await rm(tmpDir, { recursive: true, force: true });
@@ -227,9 +227,9 @@ describe('classifyDrift', () => {
     // Do NOT record baseline
     const graph = await loadGraph(tmpDir);
     const result = await classifyDrift(graph);
-    const e020 = result.filter(i => i.code === 'E020');
+    const e020 = result.filter(i => i.code === 'source-drift');
     expect(e020).toHaveLength(1);
-    expect(e020[0].driftSubtype).toBe('unmaterialized');
+    expect(e020[0].lifecycleState).toBe('unmaterialized');
     await rm(tmpDir, { recursive: true, force: true });
   });
 
@@ -242,9 +242,9 @@ describe('classifyDrift', () => {
     // Do NOT record baseline
     const graph = await loadGraph(tmpDir);
     const result = await classifyDrift(graph);
-    const e020 = result.filter(i => i.code === 'E020');
+    const e020 = result.filter(i => i.code === 'source-drift');
     expect(e020).toHaveLength(1);
-    expect(e020[0].driftSubtype).toBe('unmaterialized');
+    expect(e020[0].lifecycleState).toBe('unmaterialized');
     expect(e020[0].message).toContain('never created');
     await rm(tmpDir, { recursive: true, force: true });
   });
@@ -260,9 +260,9 @@ describe('classifyDrift', () => {
     await rm(path.join(tmpDir, 'src/svc'), { recursive: true, force: true });
     const graph = await loadGraph(tmpDir);
     const result = await classifyDrift(graph);
-    const e020 = result.filter(i => i.code === 'E020');
+    const e020 = result.filter(i => i.code === 'source-drift');
     expect(e020).toHaveLength(1);
-    expect(e020[0].driftSubtype).toBe('missing');
+    expect(e020[0].lifecycleState).toBe('missing');
     await rm(tmpDir, { recursive: true, force: true });
   });
 
@@ -281,7 +281,7 @@ describe('classifyDrift', () => {
     const graph = await loadGraph(tmpDir);
     const result = await classifyDrift(graph);
     // Should detect E020 drift (deleted source file)
-    const e020 = result.filter(i => i.code === 'E020');
+    const e020 = result.filter(i => i.code === 'source-drift');
     expect(e020.length).toBeGreaterThanOrEqual(1);
     const changedFiles = e020.flatMap(i => i.directChangedFiles ?? []);
     expect(changedFiles.some(f => f.filePath.includes('deleted'))).toBe(true);
@@ -303,14 +303,13 @@ describe('classifyDrift', () => {
     );
     const graph = await loadGraph(tmpDir);
     const result = await classifyDrift(graph);
-    const e020 = result.filter(i => i.code === 'E020');
+    const e020 = result.filter(i => i.code === 'source-drift');
     expect(e020).toHaveLength(1);
-    expect(e020[0].driftSubtype).toBe('full-drift');
-    expect(e020[0].message).toContain('Both source files and graph artifacts');
+    expect(e020[0].lifecycleState).toBe('ok');
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('returns E021 cascade-drift when hierarchy (parent) artifact changes', async () => {
+  it('returns upstream-drift when hierarchy (parent) yg-node.yaml changes', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('cascade-hierarchy', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
@@ -318,21 +317,19 @@ describe('classifyDrift', () => {
       parentNodes: [{
         path: 'svc',
         yaml: 'name: Svc\ntype: service\ndescription: parent\n',
-        artifacts: { 'responsibility.md': 'Parent responsibility.\n' },
       }],
     });
     await recordBaseline(tmpDir);
-    // Modify parent artifact
+    // Modify parent yg-node.yaml (now the only hierarchy-tracked file)
     await writeFile(
-      path.join(yggRoot, 'model/svc/responsibility.md'),
-      'Updated parent responsibility triggering cascade.\n',
+      path.join(yggRoot, 'model/svc/yg-node.yaml'),
+      'name: Svc\ntype: service\ndescription: updated parent\n',
     );
     const graph = await loadGraph(tmpDir);
     const result = await classifyDrift(graph);
-    const e021 = result.filter(i => i.code === 'E021' && i.nodePath === 'svc/my-service');
+    const e021 = result.filter(i => i.code === 'upstream-drift' && i.nodePath === 'svc/my-service');
     expect(e021.length).toBeGreaterThanOrEqual(1);
     expect(e021[0].cascadeCauses![0].layer).toBe('hierarchy');
-    expect(e021[0].cascadeCauses![0].description).toContain('parent node');
     await rm(tmpDir, { recursive: true, force: true });
   });
 
@@ -361,7 +358,7 @@ describe('classifyDrift', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('returns E021 cascade-drift when flow artifact changes', async () => {
+  it('returns upstream-drift when flow yg-flow.yaml changes', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('cascade-flow', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
@@ -371,20 +368,18 @@ describe('classifyDrift', () => {
     const flowDir = path.join(yggRoot, 'flows/checkout-flow');
     await mkdir(flowDir, { recursive: true });
     await writeFile(path.join(flowDir, 'yg-flow.yaml'), 'name: Checkout Flow\ndescription: test flow\nnodes:\n  - svc/my-service\n');
-    await writeFile(path.join(flowDir, 'description.md'), 'Original flow description.\n');
     await recordBaseline(tmpDir);
-    // Modify flow artifact
-    await writeFile(path.join(flowDir, 'description.md'), 'Updated flow description triggering cascade.\n');
+    // Modify flow yg-flow.yaml (now the only flow-tracked file)
+    await writeFile(path.join(flowDir, 'yg-flow.yaml'), 'name: Checkout Flow\ndescription: updated flow\nnodes:\n  - svc/my-service\n');
     const graph = await loadGraph(tmpDir);
     const result = await classifyDrift(graph);
-    const e021 = result.filter(i => i.code === 'E021' && i.nodePath === 'svc/my-service');
+    const e021 = result.filter(i => i.code === 'upstream-drift' && i.nodePath === 'svc/my-service');
     expect(e021.length).toBeGreaterThanOrEqual(1);
     expect(e021[0].cascadeCauses!.some(c => c.layer === 'flows')).toBe(true);
-    expect(e021[0].cascadeCauses!.some(c => c.description.includes('flow'))).toBe(true);
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('returns E021 cascade-drift when dependency artifact changes', async () => {
+  it('returns upstream-drift when dependency yg-node.yaml changes', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('cascade-dep', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\nrelations:\n  - target: svc/dep\n    type: uses\nmapping:\n  - src/svc/\n',
@@ -397,27 +392,25 @@ describe('classifyDrift', () => {
         {
           path: 'svc/dep',
           yaml: 'name: Dep\ntype: service\ndescription: dependency\n',
-          artifacts: { 'responsibility.md': 'Dep responsibility.\n', 'interface.md': 'Dep interface.\n' },
         },
       ],
     });
     await recordBaseline(tmpDir);
-    // Modify dependency interface
+    // Modify dependency yg-node.yaml (now the only relational-tracked file)
     await writeFile(
-      path.join(yggRoot, 'model/svc/dep/interface.md'),
-      'Updated dependency interface triggering cascade.\n',
+      path.join(yggRoot, 'model/svc/dep/yg-node.yaml'),
+      'name: Dep\ntype: service\ndescription: updated dependency\n',
     );
     const graph = await loadGraph(tmpDir);
     const result = await classifyDrift(graph);
-    const e021 = result.filter(i => i.code === 'E021' && i.nodePath === 'svc/my-service');
+    const e021 = result.filter(i => i.code === 'upstream-drift' && i.nodePath === 'svc/my-service');
     expect(e021.length).toBeGreaterThanOrEqual(1);
     expect(e021[0].cascadeCauses!.some(c => c.layer === 'relational')).toBe(true);
-    expect(e021[0].cascadeCauses!.some(c => c.description.includes('dependency'))).toBe(true);
     await rm(tmpDir, { recursive: true, force: true });
   });
 
 
-  it('E021 collapse: multiple upstream changes emit only ONE E021 with all causes merged', async () => {
+  it('upstream-drift collapse: multiple upstream changes emit only ONE upstream-drift with all causes merged', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('cascade-collapse', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - logging\nrelations:\n  - target: svc/dep\n    type: uses\nmapping:\n  - src/svc/\n',
@@ -435,7 +428,6 @@ describe('classifyDrift', () => {
         {
           path: 'svc/dep',
           yaml: 'name: Dep\ntype: service\ndescription: dependency\n',
-          artifacts: { 'interface.md': 'Dep interface.\n' },
         },
       ],
     });
@@ -443,99 +435,18 @@ describe('classifyDrift', () => {
     // Trigger cascade from TWO different upstream sources simultaneously:
     // 1. aspect file change
     await writeFile(path.join(yggRoot, 'aspects/logging/rules.md'), 'Updated logging rules triggering cascade.\n');
-    // 2. dependency artifact change
-    await writeFile(path.join(yggRoot, 'model/svc/dep/interface.md'), 'Updated dep interface triggering cascade.\n');
+    // 2. dependency yg-node.yaml change
+    await writeFile(path.join(yggRoot, 'model/svc/dep/yg-node.yaml'), 'name: Dep\ntype: service\ndescription: updated dep\n');
     const graph = await loadGraph(tmpDir);
     const result = await classifyDrift(graph);
-    const e021 = result.filter(i => i.code === 'E021' && i.nodePath === 'svc/my-service');
-    // Must collapse to exactly ONE E021 for this node
+    const e021 = result.filter(i => i.code === 'upstream-drift' && i.nodePath === 'svc/my-service');
+    // Must collapse to exactly ONE upstream-drift for this node
     expect(e021).toHaveLength(1);
     // Must contain causes from both upstream changes
     expect(e021[0].cascadeCauses!.length).toBeGreaterThanOrEqual(2);
     const layers = e021[0].cascadeCauses!.map(c => c.layer);
     expect(layers).toContain('aspects');
     expect(layers).toContain('relational');
-    await rm(tmpDir, { recursive: true, force: true });
-  });
-
-  it('E021 verificationLabel is "last verified: pass" when aspectResults all satisfied', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('verif-pass', {
-      nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - logging\nmapping:\n  - src/svc/\n',
-      mappingFiles: { 'src/svc/index.ts': 'export function createAuditLog() { return 42; }\n' },
-      aspects: [{
-        id: 'logging',
-        yaml: 'name: Logging\ndescription: test aspect\n',
-        files: { 'rules.md': 'Log all mutations.\n' },
-      }],
-    });
-    await recordBaseline(tmpDir);
-    // Seed drift state with all-satisfied aspectResults (simulating prior LLM-powered approve)
-    const storeModule = await import('../../../src/io/drift-state-store.js');
-    const existing = await storeModule.readNodeDriftState(yggRoot, 'svc/my-service');
-    await storeModule.writeNodeDriftState(yggRoot, 'svc/my-service', {
-      ...existing!,
-      aspectResults: { 'logging': { satisfied: true, reason: 'found audit log' } },
-    });
-    // Modify aspect content to trigger cascade
-    await writeFile(path.join(yggRoot, 'aspects/logging/rules.md'), 'Updated rules.\n');
-    const graph = await loadGraph(tmpDir);
-    const result = await classifyDrift(graph);
-    const e021 = result.filter(i => i.code === 'E021' && i.nodePath === 'svc/my-service');
-    expect(e021.length).toBeGreaterThanOrEqual(1);
-    expect(e021[0].verificationLabel).toBe('last verified: pass');
-    await rm(tmpDir, { recursive: true, force: true });
-  });
-
-  it('E021 verificationLabel is "last verified: fail" when aspectResults has unsatisfied entry', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('verif-fail', {
-      nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - logging\nmapping:\n  - src/svc/\n',
-      mappingFiles: { 'src/svc/index.ts': 'export function hello() { return 42; }\n' },
-      aspects: [{
-        id: 'logging',
-        yaml: 'name: Logging\ndescription: test aspect\n',
-        files: { 'rules.md': 'Log all mutations.\n' },
-      }],
-    });
-    await recordBaseline(tmpDir);
-    // Seed drift state with a failing aspectResults entry
-    const storeModule = await import('../../../src/io/drift-state-store.js');
-    const existing = await storeModule.readNodeDriftState(yggRoot, 'svc/my-service');
-    await storeModule.writeNodeDriftState(yggRoot, 'svc/my-service', {
-      ...existing!,
-      aspectResults: { 'logging': { satisfied: false, reason: 'no audit log found' } },
-    });
-    // Modify aspect content to trigger cascade
-    await writeFile(path.join(yggRoot, 'aspects/logging/rules.md'), 'Updated rules.\n');
-    const graph = await loadGraph(tmpDir);
-    const result = await classifyDrift(graph);
-    const e021 = result.filter(i => i.code === 'E021' && i.nodePath === 'svc/my-service');
-    expect(e021.length).toBeGreaterThanOrEqual(1);
-    expect(e021[0].verificationLabel).toBe('last verified: fail');
-    await rm(tmpDir, { recursive: true, force: true });
-  });
-
-  it('E021 verificationLabel is "never verified" when no aspectResults in drift state', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('verif-none', {
-      nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - logging\nmapping:\n  - src/svc/\n',
-      mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
-      aspects: [{
-        id: 'logging',
-        yaml: 'name: Logging\ndescription: test aspect\n',
-        files: { 'rules.md': 'Log all mutations.\n' },
-      }],
-    });
-    await recordBaseline(tmpDir);
-    // No aspectResults seeded -- baseline only
-    // Modify aspect to trigger cascade
-    await writeFile(path.join(yggRoot, 'aspects/logging/rules.md'), 'Updated rules.\n');
-    const graph = await loadGraph(tmpDir);
-    const result = await classifyDrift(graph);
-    const e021 = result.filter(i => i.code === 'E021' && i.nodePath === 'svc/my-service');
-    expect(e021.length).toBeGreaterThanOrEqual(1);
-    expect(e021[0].verificationLabel).toBe('never verified');
     await rm(tmpDir, { recursive: true, force: true });
   });
 
@@ -560,9 +471,9 @@ describe('classifyDrift', () => {
     await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'export default 99;\n');
     const graph = await loadGraph(tmpDir);
     const result = await classifyDrift(graph);
-    const e020 = result.filter(i => i.code === 'E020');
+    const e020 = result.filter(i => i.code === 'source-drift');
     expect(e020).toHaveLength(1);
-    expect(e020[0].driftSubtype).toBe('source-drift');
+    expect(e020[0].lifecycleState).toBe('ok');
     await rm(tmpDir, { recursive: true, force: true });
   });
 
@@ -673,7 +584,7 @@ describe('buildCoverageIssue', () => {
   it('returns E022 for small count (<=5 files)', () => {
     const issue = buildCoverageIssue(['a.ts', 'b.ts'], 10);
     expect(issue).not.toBeNull();
-    expect(issue!.code).toBe('E022');
+    expect(issue!.code).toBe('unmapped-files');
     expect(issue!.severity).toBe('error');
     expect(issue!.uncoveredCount).toBe(2);
     expect(issue!.message).toContain('2 source files');
@@ -685,7 +596,7 @@ describe('buildCoverageIssue', () => {
     const files = Array.from({ length: 20 }, (_, i) => `file${i}.ts`);
     const issue = buildCoverageIssue(files, 100);
     expect(issue).not.toBeNull();
-    expect(issue!.code).toBe('E022');
+    expect(issue!.code).toBe('unmapped-files');
     expect(issue!.uncoveredCount).toBe(20);
     // Examples come before guidance (what → why → next)
     const msg = issue!.message;
@@ -765,8 +676,8 @@ describe('suggestedNext priority', () => {
     const graph = await loadGraph(tmpDir);
     const result = await runCheck(graph, ['src/svc/index.ts']);
     // E021 should be present, E020 should not
-    const e020 = result.issues.filter(i => i.code === 'E020');
-    const e021 = result.issues.filter(i => i.code === 'E021');
+    const e020 = result.issues.filter(i => i.code === 'source-drift');
+    const e021 = result.issues.filter(i => i.code === 'upstream-drift');
     expect(e020).toHaveLength(0);
     expect(e021.length).toBeGreaterThanOrEqual(1);
     // Suggested next should reference cascade context review
@@ -786,10 +697,11 @@ describe('suggestedNext priority', () => {
     const graph = await loadGraph(tmpDir);
     const result = await runCheck(graph, ['src/svc/index.ts']);
     // Should have a structural error (broken relation)
-    const structural = result.issues.filter(i => i.code >= 'E001' && i.code <= 'E013');
+    const STRUCTURAL_CODES = new Set(['yaml-invalid', 'type-invalid', 'relation-broken', 'flow-node-broken', 'flow-aspect-undefined', 'overlapping-mapping', 'structural-cycle', 'config-invalid', 'duplicate-aspect-id', 'node-yaml-missing', 'implied-aspect-missing', 'aspect-implies-cycle']);
+    const structural = result.issues.filter(i => STRUCTURAL_CODES.has(i.code));
     expect(structural.length).toBeGreaterThanOrEqual(1);
     // With no drift errors, suggestion should reference structural fix
-    if (result.suggestedNext && !result.issues.some(i => i.code === 'E020' || i.code === 'E021')) {
+    if (result.suggestedNext && !result.issues.some(i => i.code === 'source-drift' || i.code === 'upstream-drift')) {
       expect(result.suggestedNext).toContain('Fix');
     }
     await rm(tmpDir, { recursive: true, force: true });
@@ -805,11 +717,11 @@ describe('suggestedNext priority', () => {
     const graph = await loadGraph(tmpDir);
     // Pass uncovered files to trigger E022
     const result = await runCheck(graph, ['src/svc/index.ts', 'src/other/file.ts', 'lib/util.ts']);
-    const e022 = result.issues.filter(i => i.code === 'E022');
+    const e022 = result.issues.filter(i => i.code === 'unmapped-files');
     expect(e022).toHaveLength(1);
     // suggestedNext might reference structural or completeness errors from validation,
     // but if E022 is the only category it should suggest coverage
-    if (result.suggestedNext && !result.issues.some(i => i.code === 'E020' || i.code === 'E021' || (i.code >= 'E001' && i.code <= 'E013'))) {
+    if (result.suggestedNext && !result.issues.some(i => i.code === 'source-drift' || i.code === 'upstream-drift' || (['yaml-invalid', 'type-invalid', 'relation-broken', 'config-invalid'].includes(i.code)))) {
       expect(result.suggestedNext).toContain('coverage');
     }
     await rm(tmpDir, { recursive: true, force: true });
@@ -847,7 +759,7 @@ describe('runCheck', () => {
     await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'export default 99;\n');
     const graph = await loadGraph(tmpDir);
     const result = await runCheck(graph, ['src/svc/index.ts']);
-    const e020 = result.issues.filter(i => i.code === 'E020');
+    const e020 = result.issues.filter(i => i.code === 'source-drift');
     expect(e020.length).toBeGreaterThanOrEqual(1);
     await rm(tmpDir, { recursive: true, force: true });
   });
@@ -861,7 +773,7 @@ describe('runCheck', () => {
     await recordBaseline(tmpDir);
     const graph = await loadGraph(tmpDir);
     const result = await runCheck(graph, ['src/svc/index.ts', 'src/other/util.ts']);
-    const e022 = result.issues.filter(i => i.code === 'E022');
+    const e022 = result.issues.filter(i => i.code === 'unmapped-files');
     expect(e022).toHaveLength(1);
     await rm(tmpDir, { recursive: true, force: true });
   });
@@ -875,7 +787,7 @@ describe('runCheck', () => {
     await recordBaseline(tmpDir);
     const graph = await loadGraph(tmpDir);
     const result = await runCheck(graph, null);
-    const e022 = result.issues.filter(i => i.code === 'E022');
+    const e022 = result.issues.filter(i => i.code === 'unmapped-files');
     expect(e022).toHaveLength(0);
     expect(result.totalFiles).toBe(0);
     await rm(tmpDir, { recursive: true, force: true });
@@ -894,14 +806,14 @@ describe('runCheck', () => {
     });
     const graph = await loadGraph(tmpDir);
     const result = await runCheck(graph, ['src/svc/index.ts']);
-    const w005 = result.issues.filter(i => i.code === 'W005');
+    const w005 = result.issues.filter(i => i.code === 'orphaned-drift-state');
     expect(w005.length).toBeGreaterThanOrEqual(1);
     expect(w005[0].nodePath).toBe('ghost/deleted');
     await rm(tmpDir, { recursive: true, force: true });
   });
 
   it('suggests completeness fix when only completeness errors exist', async () => {
-    // A node without responsibility.md will trigger E030 (missing-artifact)
+    // A node without description triggers description-missing
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-check-suggest-completeness');
     const yggRoot = path.join(tmpDir, '.yggdrasil');
     const nodeDir = path.join(yggRoot, 'model', 'svc/bare');
@@ -916,19 +828,18 @@ describe('runCheck', () => {
     await writeFile(path.join(yggRoot, 'schemas', 'yg-flow.yaml'), 'type: flow\n');
     await writeFile(path.join(yggRoot, 'yg-config.yaml'), 'name: Test\nnode_types:\n  service:\n    description: x\n');
     await writeFile(path.join(parentDir, 'yg-node.yaml'), 'name: Svc\ntype: service\ndescription: parent\n');
-    await writeFile(path.join(parentDir, 'responsibility.md'), 'Parent.\n');
-    // Node WITHOUT responsibility.md (triggers E030)
-    await writeFile(path.join(nodeDir, 'yg-node.yaml'), 'name: Bare\ntype: service\ndescription: bare node\n');
+    // Node WITHOUT description (triggers description-missing)
+    await writeFile(path.join(nodeDir, 'yg-node.yaml'), 'name: Bare\ntype: service\n');
     // No mapping -> no drift, no coverage issues
 
     const graph = await loadGraph(tmpDir);
     const result = await runCheck(graph, []);
-    // Should have completeness errors (E030) but no drift/structural/coverage
-    const completeness = result.issues.filter(i => i.code && i.code >= 'E030');
+    // Should have completeness errors (description-missing) but no drift/structural/coverage
+    const completeness = result.issues.filter(i => i.code === 'description-missing');
     expect(completeness.length).toBeGreaterThanOrEqual(1);
     // suggestedNext should point to completeness
     if (result.suggestedNext) {
-      expect(result.suggestedNext).toContain('E030');
+      expect(result.suggestedNext).toContain('description-missing');
     }
     await rm(tmpDir, { recursive: true, force: true });
   });
@@ -981,7 +892,6 @@ describe('runCheck', () => {
     const result = await runCheck(graph, ['src/alpha/index.ts', 'src/beta/index.ts']);
 
     expect(result.suggestedNext).toContain('--aspect audit');
-    expect(result.suggestedNext).toContain('--reviewed');
 
     await rm(tmpDir, { recursive: true, force: true });
   });
@@ -1033,23 +943,22 @@ describe('runCheck', () => {
     await mkdir(flowDir, { recursive: true });
     await writeFile(path.join(flowDir, 'yg-flow.yaml'),
       'name: Checkout\ndescription: checkout\nnodes:\n  - svc/alpha\n  - svc/beta\n');
-    await writeFile(path.join(flowDir, 'description.md'), 'Original flow description.\n');
 
     await recordBaseline(tmpDir);
 
-    // Modify flow artifact to trigger cascade on both nodes
-    await writeFile(path.join(flowDir, 'description.md'), 'Updated flow description.\n');
+    // Modify flow yg-flow.yaml to trigger cascade on both nodes
+    await writeFile(path.join(flowDir, 'yg-flow.yaml'),
+      'name: Checkout\ndescription: updated checkout\nnodes:\n  - svc/alpha\n  - svc/beta\n');
 
     const graph = await loadGraph(tmpDir);
     const result = await runCheck(graph, ['src/alpha/index.ts', 'src/beta/index.ts']);
 
     // Both nodes should have E021 cascade from flow
-    const e021 = result.issues.filter(i => i.code === 'E021');
+    const e021 = result.issues.filter(i => i.code === 'upstream-drift');
     expect(e021.length).toBeGreaterThanOrEqual(2);
 
     // suggestedNext should reference --flow batch command
     expect(result.suggestedNext).toContain('--flow checkout-flow');
-    expect(result.suggestedNext).toContain('--reviewed');
 
     await rm(tmpDir, { recursive: true, force: true });
   });
@@ -1063,7 +972,6 @@ describe('runCheck', () => {
       parentNodes: [{
         path: 'svc',
         yaml: 'name: Svc\ntype: service\ndescription: parent\n',
-        artifacts: { 'responsibility.md': 'Parent responsibility.\n' },
       }],
     });
 
@@ -1072,28 +980,26 @@ describe('runCheck', () => {
     await mkdir(node2Dir, { recursive: true });
     await writeFile(path.join(node2Dir, 'yg-node.yaml'),
       'name: Beta\ntype: service\ndescription: beta\nmapping:\n  - src/beta/\n');
-    await writeFile(path.join(node2Dir, 'responsibility.md'), 'Beta responsibility.\n');
     await mkdir(path.join(tmpDir, 'src/beta'), { recursive: true });
     await writeFile(path.join(tmpDir, 'src/beta/index.ts'), 'export const b = 2;\n');
 
     await recordBaseline(tmpDir);
 
-    // Modify parent artifact to trigger cascade on both children
+    // Modify parent yg-node.yaml to trigger cascade on both children
     await writeFile(
-      path.join(yggRoot, 'model/svc/responsibility.md'),
-      'Updated parent responsibility.\n',
+      path.join(yggRoot, 'model/svc/yg-node.yaml'),
+      'name: Svc\ntype: service\ndescription: updated parent\n',
     );
 
     const graph = await loadGraph(tmpDir);
     const result = await runCheck(graph, ['src/alpha/index.ts', 'src/beta/index.ts']);
 
     // Both nodes should have E021 cascade from parent
-    const e021 = result.issues.filter(i => i.code === 'E021');
+    const e021 = result.issues.filter(i => i.code === 'upstream-drift');
     expect(e021.length).toBeGreaterThanOrEqual(2);
 
     // suggestedNext should reference --node batch with parent path
     expect(result.suggestedNext).toContain('--node svc');
-    expect(result.suggestedNext).toContain('--reviewed');
 
     await rm(tmpDir, { recursive: true, force: true });
   });

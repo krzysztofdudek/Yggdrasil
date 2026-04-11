@@ -1,7 +1,8 @@
 {
-  "hash": "6ed10989b41881eec454bf088054143f0830471049c3fa186d92a37662faee9a",
+  "hash": "876d4907a4ec1da21034502a7d90c7fd3da891cf508be51a03dcac5c74440cba",
   "files": {
     ".yggdrasil/model/cli/commands/build-context/yg-node.yaml": "1ab6cd516663fc16791767415d41c65d50940c88ac223ecda8a4118505c6246d",
+    ".yggdrasil/model/cli/commands/build-context/interface.md": "e7bd5cd47103398b12771d675c897a1ec248ce9e5afde79b8bd790bac63f664a",
     ".yggdrasil/model/cli/commands/build-context/responsibility.md": "2b8d6c010e3b6d48458d8125f5c46ac981ad94ce37dfd39ac3d4f659c59bcc6b",
     ".yggdrasil/model/cli/yg-node.yaml": "41ddbf73fbc1ee27a28a5ea5ec7ad656ea34f5938284bd5ab4ea7c3afcbbd69b",
     ".yggdrasil/model/cli/internals.md": "6ed08e0ee1a22270af6dcb23306acae750c7e55744a43a17671c4713684f4b91",
@@ -13,7 +14,6 @@
     ".yggdrasil/aspects/what-why-next/content.md": "d6895f344703a2712d6f6dabf4eaefd903cab07aa9c433581ab27f41ccc3ae06",
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "20f321091b4f489efbf167feea9d42d73f7cffb21ea2e86958e565b550da164b",
     ".yggdrasil/aspects/deterministic/content.md": "82a5311abc13d6000f906bbdbd04399b233692256c49819a9cb15f95f988250a",
-    ".yggdrasil/model/cli/core/loader/responsibility.md": "291579962b915a399167549cc72d570ef8b0b8f7a781ca854b7ffdb397837cd1",
     ".yggdrasil/model/cli/core/loader/interface.md": "ae4dd4d59bb6dbc4a83c0b80df4eb0236dab8564901fad0db89fc9d35dd9de29",
     ".yggdrasil/model/cli/core/responsibility.md": "2c8b1cbd14e89d129322002896ba5b6c6a37f86857e4e324e41141301a086a58",
     ".yggdrasil/model/cli/core/interface.md": "807008eb6f673273034d7d3325a36f37ea1c7a4e46df362e2a4fa9ccd9451de9",
@@ -32,7 +32,7 @@
     ".yggdrasil/flows/graph-analysis/yg-flow.yaml": "6643c01963cfd3731ba76f0a34a34e7ce2ed09e2ae2da793734c59adc4f87624",
     ".yggdrasil/flows/graph-analysis/description.md": "aca097a8ecbf74d140e5deb9ad6113c752d49e193077b0e1d201b7f99da574f4",
     "source/cli/src/cli/build-context.ts": "2fd7e05306210931711095e9bfd3bac3bce258863bd0e6b15839fec0a73cd421",
-    ".yggdrasil/model/cli/commands/build-context/interface.md": "e7bd5cd47103398b12771d675c897a1ec248ce9e5afde79b8bd790bac63f664a"
+    ".yggdrasil/model/cli/core/loader/responsibility.md": "57a7a0ab8e29257e3ce50b78965c91cff1d48598b6c8a7ad861bc75f60ae2c4a"
   },
   "mtimes": {
     ".yggdrasil/model/cli/commands/build-context/yg-node.yaml": 1775639638735.039,
@@ -48,7 +48,7 @@
     ".yggdrasil/aspects/what-why-next/content.md": 1775647944300.92,
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775580563004.8235,
     ".yggdrasil/aspects/deterministic/content.md": 1775655562335.338,
-    ".yggdrasil/model/cli/core/loader/responsibility.md": 1775631839971.4595,
+    ".yggdrasil/model/cli/core/loader/responsibility.md": 1775720730748.721,
     ".yggdrasil/model/cli/core/loader/interface.md": 1775678820374.2441,
     ".yggdrasil/model/cli/core/responsibility.md": 1775585790511.578,
     ".yggdrasil/model/cli/core/interface.md": 1772743197442.582,
@@ -68,29 +68,5 @@
     ".yggdrasil/flows/graph-analysis/description.md": 1775046980292.1602,
     "source/cli/src/cli/build-context.ts": 1775678820378.115
   },
-  "reviewedReason": "alias documented, both-flags failure added, event-connected format, count in headers",
-  "aspectResults": {
-    "cli-command-contract": {
-      "satisfied": true,
-      "reason": "{\"satisfied\": true, \"reason\": \"All rules from the cli-command-contract aspect are satisfied: (1) Output routing — results go to stdout via `process.stdout.write()` (lines 171, 174), errors go to stder"
-    },
-    "what-why-next": {
-      "satisfied": true,
-      "reason": "All agent-remediation error messages use buildIssueMessage with what/why/next fields: lines 72-77 (no target), 80-85 (conflicting options), 103-107 (unmapped file with candidates), 110-114 (unmapped file no candidates), 128-133 (blackbox owner), 160-165 (validation errors blocking context), 179-185 (ENOENT). Line 187 uses ad-hoc `Error: ${msg}` only for unexpected non-ENOENT exceptions with no specific remediation path, which is explicitly permitted by the aspect. Line 119 is a non-error informational status line (owner resolution trace) — not a diagnostic message requiring structure."
-    },
-    "deterministic": {
-      "satisfied": true,
-      "reason": "The file contains no Math.random, Date.now, network calls, or other non-deterministic operations. All outputs derive deterministically from graph state (loaded via loadGraph at line 88) and filesystem state (findOwner, normalizeMappingPaths). Validation at line 142 uses the loaded graph. The candidate node sorting at lines 37-39 sorts by fileCount (deterministic). No timestamps or randomness appear in core logic. All exceptions listed in the aspect (observability outputs, defensive filesystem reads, path existence checks) are either absent or not violated here."
-    }
-  },
-  "artifactReview": {
-    "interface.md": {
-      "current": true,
-      "reason": "up to date"
-    },
-    "responsibility.md": {
-      "current": true,
-      "reason": "up to date"
-    }
-  }
+  "reviewedReason": "cascade: upstream loader/drift-detector responsibility updated"
 }

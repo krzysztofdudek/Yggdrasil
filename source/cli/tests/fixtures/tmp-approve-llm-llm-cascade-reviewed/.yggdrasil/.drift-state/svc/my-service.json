@@ -1,0 +1,18 @@
+{
+  "hash": "c6857ae6f8c87086798021d54eea92320bd57019c30488fb7b6bc679ea43afaa",
+  "files": {
+    "own-subset:svc/my-service": "06bbd1179e5f897886ea78faa6c61983e4d5f176d084aa2987b0d845aa55eb59",
+    ".yggdrasil/model/svc/my-service/yg-node.yaml": "9156d18cd5579f2cb7800582a36082c125d0cc1179f4f53a470c2e3a4fdf9f99",
+    ".yggdrasil/model/svc/yg-node.yaml": "6e0fe2229c93e89c51f2b8a1fe96c79abeec4d86006edcdd395dbae4796f7176",
+    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "0757bce498d64bee7297f009bada13ae0ed0340c9c750ce7a25fd835d7c1f8bb",
+    "src/svc/index.ts": "95befdd6e691d4d89031a2a2901cc74fc6242109980b060e08ddf87829924483",
+    ".yggdrasil/aspects/deterministic/content.md": "0a6417e2825256e7309abd9e8b654576d4b09c07a6315a5f4f283a4989462f42"
+  },
+  "mtimes": {
+    ".yggdrasil/model/svc/my-service/yg-node.yaml": 1775886191904.582,
+    ".yggdrasil/model/svc/yg-node.yaml": 1775886191904.8108,
+    ".yggdrasil/aspects/deterministic/yg-aspect.yaml": 1775886191905.0645,
+    ".yggdrasil/aspects/deterministic/content.md": 1775886191907.7427,
+    "src/svc/index.ts": 1775886191905.3923
+  }
+}

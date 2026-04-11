@@ -32,7 +32,7 @@ describe('build-context pipeline integration', () => {
       expect(result.status).toBe(0);
       expect(result.stdout).toContain('Source files');
       expect(result.stdout).toContain('orders/order-service');
-      expect(result.stdout).toContain('Token budget:');
+      expect(result.stdout).toContain('After modifying source files');
     });
   });
 
@@ -60,7 +60,7 @@ describe('build-context pipeline integration', () => {
 
       const stripVariableParts = (content: string) =>
         content
-          .replace(/Token budget: [\d,]+ \/ [\d,]+ \(\w+\)/, 'Token budget: X');
+          .trim();
 
       expect(stripVariableParts(second.stdout)).toBe(stripVariableParts(first.stdout));
     });

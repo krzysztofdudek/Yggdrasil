@@ -9,8 +9,6 @@
     ".yggdrasil/aspects/requires-logging/yg-aspect.yaml": "08dd592c74f6889713e09c899e003badf00430c7d25a74768449eb0d7fb7beb0",
     ".yggdrasil/aspects/requires-logging/content.md": "13fff2681612d392624588850569f287bb450307e2ee9750987b281279dd64f3",
     ".yggdrasil/flows/checkout-flow/yg-flow.yaml": "6541aeb6cea1ad1047151018ce2869b4dcae297728573b9cc1bef76b50cb2c34",
-    ".yggdrasil/flows/checkout-flow/description.md": "84056fed046bd51b834af307ee1208c4617eca1df652773c84e4c18f96bcf0fa",
-    ".yggdrasil/flows/checkout-flow/sequence.md": "0d361f1ec1dcc665108a03c10286cbac679e52dba14b8ddaf3a48d31f7effbe8",
     "src/auth/auth.controller.ts": "5386573056ba5e059eb98f3615d57c3680dc888f003b197584805429d6df3521",
     "src/auth/login.service.ts": "5d5bbfd0dc749783000cff2f27ca31212044629a99746a8508d32b3f8ec7c344"
   }

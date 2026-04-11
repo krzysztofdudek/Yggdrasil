@@ -45,12 +45,11 @@ function makeCascadeIssue(nodePath: string, causeDescription: string): CheckIssu
   const message = `Context package changed due to 1 upstream modification:\n  Cause: ${causeDescription}\nSource may no longer satisfy updated claims.\nLoad context: yg context --node ${nodePath}\nVerify source compliance, update if needed, then: yg approve --node ${nodePath}\nIf source is already compliant: yg approve --node ${nodePath} --reviewed "compliance verified"`;
   return {
     severity: 'error',
-    code: 'E021',
+    code: 'upstream-drift',
     rule: 'cascade-drift',
     message,
     nodePath,
     cascadeCauses: causes,
-    verificationLabel: 'never verified',
   };
 }
 
@@ -65,7 +64,7 @@ function makeCoverageIssue(uncoveredCount: number): CheckIssue {
   }
   return {
     severity: 'error',
-    code: 'E022',
+    code: 'unmapped-files',
     rule: 'unmapped-file',
     message,
     uncoveredFiles: files,
@@ -88,7 +87,7 @@ describe('formatOutput', () => {
 
   it('shows warnings even when errors exist', () => {
     const output = formatOutput(makeCheckResult({
-      issues: [makeError('E020', 'drift'), makeWarning('W001', 'budget')],
+      issues: [makeError('source-drift', 'drift'), makeWarning('W001', 'budget')],
     }));
     expect(output).toContain('Warnings (1)');
     expect(output).toContain('1 warning');
@@ -103,13 +102,13 @@ describe('formatOutput', () => {
   });
 
   it('shows summary header when >10 E050 errors', () => {
-    const issues = Array.from({ length: 15 }, (_, i) => makeError('E050', `Aspect 'auth' referenced by node-${i}...`, `node-${i}`));
+    const issues = Array.from({ length: 15 }, (_, i) => makeError('aspect-undefined', `Aspect 'auth' referenced by node-${i}...`, `node-${i}`));
     const output = formatOutput(makeCheckResult({ issues }));
     expect(output).toContain('Architecture (15 errors)');
   });
 
   it('no summary header when <=10 E050 errors', () => {
-    const issues = Array.from({ length: 5 }, (_, i) => makeError('E050', `msg`, `node-${i}`));
+    const issues = Array.from({ length: 5 }, (_, i) => makeError('aspect-undefined', `msg`, `node-${i}`));
     const output = formatOutput(makeCheckResult({ issues }));
     expect(output).not.toContain('Architecture (5 errors)');
   });
@@ -139,7 +138,7 @@ describe('preserved check features', () => {
 
   it('Next: suggested command appears after result line', () => {
     const output = formatOutput(makeCheckResult({
-      issues: [makeError('E020', 'drift')],
+      issues: [makeError('source-drift', 'drift')],
       suggestedNext: 'yg context --node cli/core/validator\n  1 of 1 drifted node — post-modify workflow',
     }));
     expect(output).toContain('Next: yg context --node cli/core/validator');
@@ -149,8 +148,8 @@ describe('preserved check features', () => {
   it('errors sorted by node path (stable ordering)', () => {
     const output = formatOutput(makeCheckResult({
       issues: [
-        makeError('E020', 'drift', 'z-node'),
-        makeError('E020', 'drift', 'a-node'),
+        makeError('source-drift', 'drift', 'z-node'),
+        makeError('source-drift', 'drift', 'a-node'),
       ],
     }));
     const aPos = output.indexOf('a-node');

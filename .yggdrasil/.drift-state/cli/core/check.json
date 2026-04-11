@@ -1,7 +1,8 @@
 {
-  "hash": "321748e5aaff0dc198c53b4c498297a0f45526ece34de6589c2b1421eb521aca",
+  "hash": "f92f4965d6d68af99af7aef0b260baab223c4e77ff7ed7aedfdad9059e244019",
   "files": {
     ".yggdrasil/model/cli/core/check/yg-node.yaml": "fc4effdfea87042395be1ee73144cfdb86f665bf5e5eaa5b2caf231a9712ad02",
+    ".yggdrasil/model/cli/core/check/interface.md": "f90d29a908fab95cab167803459b979c50c73f9a647f6a37c8a0d3ec4a54a385",
     ".yggdrasil/model/cli/core/check/internals.md": "23ba6df62e2a0fe52150f1a2cae953d14a020e28d7a4850658eee02bf807ea0f",
     ".yggdrasil/model/cli/core/check/responsibility.md": "7bcdd28c9b76a1a35c1c963e2cb051703567015eb4b3bdeb39b5a1be5091bf85",
     ".yggdrasil/model/cli/yg-node.yaml": "41ddbf73fbc1ee27a28a5ea5ec7ad656ea34f5938284bd5ab4ea7c3afcbbd69b",
@@ -17,7 +18,6 @@
     ".yggdrasil/aspects/what-why-next/content.md": "d6895f344703a2712d6f6dabf4eaefd903cab07aa9c433581ab27f41ccc3ae06",
     ".yggdrasil/model/cli/core/validator/responsibility.md": "e9e468892fb7b1a874f393dc133a22d7c1a13ee74a5c1cd2a1c542063da3917d",
     ".yggdrasil/model/cli/core/validator/interface.md": "3ff821d6807f1f967eaa017e81635b27510226ed9a291454c8f18103f4830ee7",
-    ".yggdrasil/model/cli/core/drift-detector/responsibility.md": "5cf52dd0265d3c5b6141ff40e55345a4a6fd30cd64a668e1bd9e16eab1a2bd8f",
     ".yggdrasil/model/cli/core/drift-detector/interface.md": "d53a0750f4677d26e04b58da39194e0dbc2d9a89d9bc2e809aed7e39c5334c6e",
     ".yggdrasil/model/cli/core/context/responsibility.md": "8db25b19cd124a9b1d6e31255aaef25bc3c8d0b045d31026ee37f81d93d13eff",
     ".yggdrasil/model/cli/core/context/interface.md": "1e4472f45588bab11c7f41a545e4390d11c82e9fe7febeabbf8b91461f21dc9c",
@@ -29,7 +29,7 @@
     ".yggdrasil/model/cli/model/validation/responsibility.md": "d7eb400dc917816a1883aee81eb39f8ef4e7ce47238d862083ca54f64895bf77",
     ".yggdrasil/model/cli/model/validation/interface.md": "5eca76f14f76ec1ec4eb4fba0c9d156bca4e0521fcf1f64f36ca9c42ed5b1dee",
     "source/cli/src/core/check.ts": "c4c50406a86aa1d4c518a3a5c9e7b01b2dc05c6a14f779b9cff9072359f1401d",
-    ".yggdrasil/model/cli/core/check/interface.md": "f90d29a908fab95cab167803459b979c50c73f9a647f6a37c8a0d3ec4a54a385"
+    ".yggdrasil/model/cli/core/drift-detector/responsibility.md": "6c353411b9037511dbc64cada22a7d4172ef6815cbfe40d17330a5cdc131f230"
   },
   "mtimes": {
     ".yggdrasil/model/cli/core/check/yg-node.yaml": 1775639636634.4304,
@@ -49,7 +49,7 @@
     ".yggdrasil/aspects/what-why-next/content.md": 1775647944300.92,
     ".yggdrasil/model/cli/core/validator/responsibility.md": 1775678820375.688,
     ".yggdrasil/model/cli/core/validator/interface.md": 1775678820375.2551,
-    ".yggdrasil/model/cli/core/drift-detector/responsibility.md": 1775678820373.9912,
+    ".yggdrasil/model/cli/core/drift-detector/responsibility.md": 1775720723880.0442,
     ".yggdrasil/model/cli/core/drift-detector/interface.md": 1775678820373.53,
     ".yggdrasil/model/cli/core/context/responsibility.md": 1775678820373.2979,
     ".yggdrasil/model/cli/core/context/interface.md": 1775678820372.8782,
@@ -62,19 +62,19 @@
     ".yggdrasil/model/cli/model/validation/interface.md": 1775657653009.6482,
     "source/cli/src/core/check.ts": 1775654915615.1804
   },
-  "reviewedReason": "Updated interface.md with classifyDrift side effect and cascade batch suggestedNext nuance",
+  "reviewedReason": "cascade: upstream loader/drift-detector responsibility updated",
   "aspectResults": {
     "deterministic": {
       "satisfied": true,
-      "reason": "The file check.ts fully complies with the deterministic aspect. All functions produce identical outputs for identical inputs: classifyDrift (check.ts:67) reads drift state and hashes files deterministically using SHA-256 via hashTrackedFiles; scanUncoveredFiles (check.ts:339) is a pure function operating on graph data and a passed-in file list; buildCoverageIssue (check.ts:382) is a pure function; detectOrphanedDriftState (check.ts:430) reads drift state deterministically; runCheck (check.ts:444) orchestrates all of the above with no randomness. No Math.random or Date.now appears anywhere. No network calls exist. Filesystem reads (access at check.ts:612, hashTrackedFiles at check.ts:132) fall under the allowed exception for 'filesystem reads that verify graph-declared paths exist on disk'. The git-tracked file list is injected as a parameter (gitTrackedFiles at check.ts:444) rather than being called internally, making the function deterministic relative to its inputs. No implicit system state is read."
+      "reason": "check.ts satisfies all determinism rules. No Math.random or Date.now in core logic. No network calls. Hash algorithm uses SHA-256 via hashTrackedFiles (check.ts:132). Filesystem reads are all deterministic relative to filesystem/repo state — mapping validation (allPathsMissing at check.ts:609-618), file hashing for drift detection (hashTrackedFiles at check.ts:130-133), git-tracked file scanning (scanUncoveredFiles at check.ts:339-376) — all fall under the explicit exception for 'filesystem reads that verify graph-declared paths exist on disk'. readDriftState/readNodeDriftState/writeNodeDriftState are deterministic relative to filesystem state. The LLM availability check (check.ts:502) only reads config, not the network. No randomness, no implicit system state, no network calls anywhere in the file."
     },
     "posix-paths": {
       "satisfied": true,
-      "reason": "All path operations in check.ts consistently apply the POSIX normalization pattern `.replace(/\\\\/g, '/').replace(/\\/+$/, '')` before any comparison or storage. Examples: line 144 (fileLayerMap key), line 154 (resolveLayer), line 169 (filePath in drift loop), line 188 (normalizedFileHashes), line 349 (yggPrefix), line 354 (normalized in scanUncoveredFiles), line 363 (mp), line 473 (yggRelative), line 522-523 (categorizeFile), line 533-534 (describeCascadeCause), line 635 (groupCascadeByCause). Trailing slashes are stripped everywhere. No raw backslash paths are used in comparisons or storage."
+      "reason": "All path handling in check.ts consistently applies the POSIX normalization pattern `.replace(/\\\\/g, '/').replace(/\\/+$/, '')` before any comparison or storage. Specific locations: line 144 (fileLayerMap normalization), line 154 (resolveLayer), line 169 (rawFilePath normalization), line 188 (normalizedFileHashes), line 190 (normalizedStored), line 349 (yggPrefix in scanUncoveredFiles), line 354 (normalized in scanUncoveredFiles loop), line 363 (mp normalization), line 463 (yggPrefix in runCheck), line 473 (yggRelative in orphan warnings), line 522-523 (categorizeFile), line 533-534 (describeCascadeCause), line 629 (groupCascadeByCause). Trailing slashes are stripped and backslashes converted in all path operations. No raw path comparisons are performed without prior normalization."
     },
     "what-why-next": {
       "satisfied": true,
-      "reason": "All agent-visible diagnostic messages in check.ts use `buildIssueMessage` via the imported builder (line 16). Every message-producing site uses the structured format: E020 unmaterialized (line 85, 90), E020 missing (line 109), E020 source-drift (line 233), E020 graph-drift (line 239), E020 full-drift (line 245), E021 cascade (line 283), E022 small count (line 397), E022 large count (line 407), W005 orphaned drift state (line 478). No ad-hoc `Error: ${msg}` strings appear in agent-visible output paths. The file contains no `process.stderr.write` calls — message construction is delegated to `buildIssueMessage` and returned in `CheckIssue` objects for the command layer to present. All `what`, `why`, and `next` fields are populated with concrete runnable commands (e.g., `yg approve --node ${nodePath}`, `yg context --file <path>`)."
+      "reason": "All agent-visible diagnostic messages in check.ts use buildIssueMessage (imported at line 16). Every CheckIssue.message that guides agent remediation is built with buildIssueMessage: E020 unmaterialized (line 85/90), E020 missing (line 109), E020 source-drift (line 233), E020 graph-drift (line 239), E020 full-drift (line 245), E021 cascade (line 283), E022 small-count (line 397), E022 large-count (line 407), and W005 orphaned drift state (line 478). Each call includes a concrete runnable `next` command. No ad-hoc error strings are used for remediation-guiding messages; only throw/internal paths (none present here) would be exempt."
     }
   },
   "artifactReview": {

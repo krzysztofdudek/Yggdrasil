@@ -1,7 +1,8 @@
 {
-  "hash": "dfd856d99eba72656ba53d6dd866952cd141d7c46cfb4209cd19caf4cf3ddd89",
+  "hash": "3ed28673a97e3e6c054da8da05161e05260ddfb20a5b6478fbc98c63361f878b",
   "files": {
     ".yggdrasil/model/cli/commands/check/yg-node.yaml": "e1084e4cd511e6c2d725c8d7ad55f4618409aba521c52327763a8df0589e84e6",
+    ".yggdrasil/model/cli/commands/check/interface.md": "41085602c0401d6a81dcc900ccf145d35642fd5c421682cfdfeed01cd12dcc23",
     ".yggdrasil/model/cli/commands/check/responsibility.md": "c6bab2437356b4a335effc35e7b0614f18dc16e7699a9344021b99763f59b9ed",
     ".yggdrasil/model/cli/yg-node.yaml": "41ddbf73fbc1ee27a28a5ea5ec7ad656ea34f5938284bd5ab4ea7c3afcbbd69b",
     ".yggdrasil/model/cli/internals.md": "6ed08e0ee1a22270af6dcb23306acae750c7e55744a43a17671c4713684f4b91",
@@ -9,11 +10,11 @@
     ".yggdrasil/model/cli/commands/yg-node.yaml": "4d929734cf56d8fbf3adfdbb908be64075a4a3322a892656ad00ea07bb026ab4",
     ".yggdrasil/model/cli/commands/internals.md": "5a3b679d5c2b9600c7fa3dc01b2f28661b7bfb11850a922ff885a7a583d455c7",
     ".yggdrasil/model/cli/commands/responsibility.md": "dd8146f9c54251a68f81f4036fdf931d526f3159707709b92a59493fe383a080",
-    ".yggdrasil/model/cli/core/loader/responsibility.md": "291579962b915a399167549cc72d570ef8b0b8f7a781ca854b7ffdb397837cd1",
     ".yggdrasil/model/cli/core/loader/interface.md": "ae4dd4d59bb6dbc4a83c0b80df4eb0236dab8564901fad0db89fc9d35dd9de29",
     ".yggdrasil/model/cli/core/responsibility.md": "2c8b1cbd14e89d129322002896ba5b6c6a37f86857e4e324e41141301a086a58",
     ".yggdrasil/model/cli/core/interface.md": "807008eb6f673273034d7d3325a36f37ea1c7a4e46df362e2a4fa9ccd9451de9",
     ".yggdrasil/model/cli/core/check/responsibility.md": "7bcdd28c9b76a1a35c1c963e2cb051703567015eb4b3bdeb39b5a1be5091bf85",
+    ".yggdrasil/model/cli/core/check/interface.md": "f90d29a908fab95cab167803459b979c50c73f9a647f6a37c8a0d3ec4a54a385",
     ".yggdrasil/flows/drift/yg-flow.yaml": "da4da5c6f03dd0c258ec17f8eb23161ca54f0f3613bc2e238d46d5ad8786fb24",
     ".yggdrasil/flows/drift/description.md": "825eff309a04e3a98c703716eaf30fa579c278b192582da5599e7486427e4596",
     ".yggdrasil/flows/preflight/yg-flow.yaml": "c26dbdb9b515a781ed3318fbe5b23ff2257b8eda72b5540b0bcacbef0b976cf8",
@@ -21,8 +22,7 @@
     ".yggdrasil/flows/validate/yg-flow.yaml": "ac7d3e18c4d443b113e4883426d03a35af4f3d8a6f92e97803eb6b8ef8d3efb5",
     ".yggdrasil/flows/validate/description.md": "e361415e9567de84d0c121dc709aa7b4b13b1bc99725344bd50b67486267dcdb",
     "source/cli/src/cli/check.ts": "a4de6bb43d009cd9130a29dc14520429d61ee74fefe4cace282fa87cec467ac4",
-    ".yggdrasil/model/cli/commands/check/interface.md": "41085602c0401d6a81dcc900ccf145d35642fd5c421682cfdfeed01cd12dcc23",
-    ".yggdrasil/model/cli/core/check/interface.md": "f90d29a908fab95cab167803459b979c50c73f9a647f6a37c8a0d3ec4a54a385"
+    ".yggdrasil/model/cli/core/loader/responsibility.md": "57a7a0ab8e29257e3ce50b78965c91cff1d48598b6c8a7ad861bc75f60ae2c4a"
   },
   "mtimes": {
     ".yggdrasil/model/cli/commands/check/yg-node.yaml": 1775639584790.56,
@@ -34,7 +34,7 @@
     ".yggdrasil/model/cli/commands/yg-node.yaml": 1775639607526.398,
     ".yggdrasil/model/cli/commands/internals.md": 1775046923261.1494,
     ".yggdrasil/model/cli/commands/responsibility.md": 1775045632026.2983,
-    ".yggdrasil/model/cli/core/loader/responsibility.md": 1775631839971.4595,
+    ".yggdrasil/model/cli/core/loader/responsibility.md": 1775720730748.721,
     ".yggdrasil/model/cli/core/loader/interface.md": 1775678820374.2441,
     ".yggdrasil/model/cli/core/responsibility.md": 1775585790511.578,
     ".yggdrasil/model/cli/core/interface.md": 1772743197442.582,
@@ -48,11 +48,11 @@
     ".yggdrasil/flows/validate/description.md": 1775046942154.0942,
     "source/cli/src/cli/check.ts": 1775640470507.643
   },
-  "reviewedReason": "Updated interface.md with precise output order from source",
+  "reviewedReason": "cascade: upstream loader/drift-detector responsibility updated",
   "aspectResults": {
     "cli-command-contract": {
       "satisfied": true,
-      "reason": "All rules are met: (1) Output routing — results go to stdout via `process.stdout.write` (line 35), errors to stderr via `process.stderr.write` (lines 42, 44); chalk semantics correct: green=success (lines 231, 239), red=error/fail (lines 42, 44, 78, 255), yellow=warning (line 209). (2) Error handling — action body wrapped in try/catch (lines 15–47); catch writes `Error: ${msg}` to stderr then calls `process.exit(1)` (lines 40–47). (3) ENOENT special message — handled at lines 41–42 with correct message. (4) Exit codes — `process.exit(1)` on errors (line 38, 46); implicit exit 0 when no errors; warnings alone don't trigger exit 1 (line 38 only exits 1 if `hasErrors`). (5) Graph loading — starts with `await loadGraph(cwd)` (line 17). (6) Node path normalization — not applicable, this command takes no `--node` option."
+      "reason": "All rules are met: (1) Output routing — results go to stdout via `process.stdout.write(formatOutput(result))` (line 35), errors go to stderr via `process.stderr.write(chalk.red(...))` (lines 43-45), chalk semantics are correct (green=pass, red=error/fail, yellow=warning). (2) Error handling — action body is wrapped in try/catch (lines 15-47), catch writes `Error: ${msg}` to stderr and calls `process.exit(1)` (lines 40-46). (3) ENOENT special message — handled at lines 41-42 with exact message `Error: No .yggdrasil/ directory found. Run 'yg init' first.`. (4) Exit codes — `process.exit(1)` on errors (line 38 when `hasErrors`, line 46 in catch), implicit exit 0 (no explicit call) when no errors, warnings alone do not trigger exit 1 (line 37 only checks `severity === 'error'`). (5) Graph loading — starts with `await loadGraph(cwd)` (line 17). (6) Node path normalization — not applicable; this command accepts no `--node` option."
     }
   },
   "artifactReview": {

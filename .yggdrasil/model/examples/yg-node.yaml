@@ -1,8 +1,0 @@
-name: Examples
-type: project
-description: Self-contained example projects demonstrating Yggdrasil usage for adopters
-aspects: []
-blackbox: false
-relations: []
-mapping:
-  - examples

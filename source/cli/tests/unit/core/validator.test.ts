@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
@@ -6,20 +6,6 @@ import { writeFile, mkdir, rm } from 'node:fs/promises';
 import { validate } from '../../../src/core/validator.js';
 import { loadGraph } from '../../../src/core/graph-loader.js';
 import type { Graph, GraphNode } from '../../../src/model/graph.js';
-
-vi.mock('../../../src/core/context-builder.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../../src/core/context-builder.js')>();
-  return {
-    ...actual,
-    buildContext: vi.fn().mockResolvedValue({
-      nodePath: 'x',
-      nodeName: 'X',
-      layers: [],
-      mapping: null,
-      tokenCount: 100,
-    }),
-  };
-});
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE_PROJECT = path.join(__dirname, '../../fixtures/sample-project');
@@ -35,7 +21,6 @@ function createNode(nodePath: string, overrides: Partial<GraphNode['meta']> = {}
       type: 'service',
       ...overrides,
     },
-    artifacts: [{ filename: 'responsibility.md', content: 'x'.repeat(60) }],
     children: [],
     parent: null,
   };
@@ -47,6 +32,7 @@ function createGraph(overrides: Partial<Graph> = {}): Graph {
       name: 'Test',
       node_types: { service: { description: 'x' } },
     },
+    architecture: { node_types: {} },
     nodes: new Map(),
     aspects: [{ name: 'Valid', id: 'valid-tag', artifacts: [] }],
     flows: [],
@@ -87,7 +73,7 @@ describe('validator', () => {
     // E036: users/missing-service maps src/users/missing.service.ts which doesn't exist on disk
     // (intentional fixture — used by drift tests to verify "missing" detection)
     const unexpectedErrors = errors.filter(
-      (i) => !(i.code === 'E036' && i.nodePath === 'users/missing-service'),
+      (i) => !(i.code === 'mapping-path-missing' && i.nodePath === 'users/missing-service'),
     );
     expect(unexpectedErrors).toHaveLength(0);
     expect(result.nodesScanned).toBe(9);
@@ -113,7 +99,7 @@ describe('validator', () => {
     const result = await validate(graph);
     const issues = result.issues.filter((i) => i.rule === 'dangling-aspect-ref');
     expect(issues).toHaveLength(1);
-    expect(issues[0].code).toBe('E050');
+    expect(issues[0].code).toBe('aspect-undefined');
     expect(issues[0].message).toContain('not defined in aspects/');
   });
 
@@ -124,7 +110,7 @@ describe('validator', () => {
     }));
 
     const result = await validate(graph);
-    const issues = result.issues.filter((i) => i.code === 'E050' && i.nodePath === 'a');
+    const issues = result.issues.filter((i) => i.code === 'aspect-undefined' && i.nodePath === 'a');
     expect(issues).toHaveLength(1);
     expect(issues[0].rule).toBe('dangling-aspect-ref');
     expect(issues[0].message).toContain('missing-aspect');
@@ -143,7 +129,7 @@ describe('validator', () => {
     graph.nodes.set('a', createNode('a'));
 
     const result = await validate(graph);
-    const issues = result.issues.filter((i) => i.code === 'E050' && !i.nodePath);
+    const issues = result.issues.filter((i) => i.code === 'aspect-undefined' && !i.nodePath);
     expect(issues).toHaveLength(1);
     expect(issues[0].rule).toBe('dangling-aspect-ref');
     expect(issues[0].message).toContain('undefined-arch-aspect');
@@ -158,11 +144,10 @@ describe('validator', () => {
       name: 'Checkout',
       nodes: ['a'],
       aspects: ['missing-flow-aspect'],
-      artifacts: [{ filename: 'description.md', content: 'x'.repeat(60) }],
     });
 
     const result = await validate(graph);
-    const issues = result.issues.filter((i) => i.code === 'E050');
+    const issues = result.issues.filter((i) => i.code === 'aspect-undefined');
     expect(issues).toHaveLength(1);
     expect(issues[0].rule).toBe('dangling-aspect-ref');
     expect(issues[0].message).toContain('missing-flow-aspect');
@@ -181,7 +166,7 @@ describe('validator', () => {
     const result = await validate(graph);
     const issues = result.issues.filter((i) => i.rule === 'duplicate-aspect-binding');
     expect(issues).toHaveLength(1);
-    expect(issues[0].code).toBe('E010');
+    expect(issues[0].code).toBe('duplicate-aspect-id');
     expect(issues[0].message).toContain('audit');
     expect(issues[0].message).toContain('Aspect One');
     expect(issues[0].message).toContain('Aspect Two');
@@ -220,7 +205,7 @@ describe('validator', () => {
       const result = await validate(graph);
       const issues = result.issues.filter((i) => i.rule === 'invalid-node-yaml');
       expect(issues).toHaveLength(1);
-      expect(issues[0].code).toBe('E001');
+      expect(issues[0].code).toBe('yaml-invalid');
       expect(issues[0].nodePath).toBe('bad-node');
       expect(issues[0].message).toContain('name');
     } finally {
@@ -235,7 +220,7 @@ describe('validator', () => {
     expect(issues).toHaveLength(1);
     expect(issues[0].message).toContain('no yg-node.yaml');
     expect(issues[0].nodePath).toBe('orders/orphan-service');
-    expect(issues[0].code).toBe('E011');
+    expect(issues[0].code).toBe('node-yaml-missing');
   });
 
   it('directories-have-node-yaml catches orphan directory with content in model', async () => {
@@ -260,54 +245,13 @@ describe('validator', () => {
       const issues = result.issues.filter((i) => i.rule === 'missing-node-yaml');
       expect(issues).toHaveLength(1);
       expect(issues[0].nodePath).toBe('orphan-with-content');
-      expect(issues[0].code).toBe('E011');
+      expect(issues[0].code).toBe('node-yaml-missing');
     } finally {
       await rm(tmpDir, { recursive: true, force: true });
     }
   });
 
   // W013 (directory-without-node) removed — subsumed by E022
-
-  it('missing-artifact errors when non-blackbox node lacks required artifact', async () => {
-    const graph = createGraph();
-    graph.nodes.set('a/no-responsibility', {
-      ...createNode('a/no-responsibility', { blackbox: false }),
-      artifacts: [],
-    });
-
-    const result = await validate(graph);
-    const issues = result.issues.filter((i) => i.rule === 'missing-artifact');
-    expect(issues).toHaveLength(1);
-    expect(issues[0].severity).toBe('error');
-    expect(issues[0].message).toContain('responsibility');
-  });
-
-  it('missing-artifact does not warn when required is never (internals.md)', async () => {
-    const graph = createGraph();
-    graph.nodes.set('a', {
-      ...createNode('a'),
-      artifacts: [{ filename: 'responsibility.md', content: 'x'.repeat(60) }],
-    });
-
-    const result = await validate(graph);
-    // internals.md has required: 'never' in STANDARD_ARTIFACTS, so no warning for it
-    const issues = result.issues.filter(
-      (i) => i.rule === 'missing-artifact' && i.message.includes('internals.md'),
-    );
-    expect(issues).toHaveLength(0);
-  });
-
-  it('missing-artifact does not warn for blackbox nodes', async () => {
-    const graph = createGraph();
-    graph.nodes.set('a/blackbox-no-description', {
-      ...createNode('a/blackbox-no-description', { blackbox: true }),
-      artifacts: [],
-    });
-
-    const result = await validate(graph);
-    const issues = result.issues.filter((i) => i.rule === 'missing-artifact');
-    expect(issues).toHaveLength(0);
-  });
 
   it('overlapping-mapping errors for exact duplicate mapping paths', async () => {
     const graph = createGraph();
@@ -418,10 +362,7 @@ describe('validator', () => {
   it('non-regression: does not require interface.yaml by node type', async () => {
     const graph = createGraph();
     graph.config.node_types = { service: { description: 'x' }, api: { description: 'x' } };
-    graph.nodes.set('api/no-interface', {
-      ...createNode('api/no-interface', { type: 'api' }),
-      artifacts: [{ filename: 'responsibility.md', content: 'x' }],
-    });
+    graph.nodes.set('api/no-interface', createNode('api/no-interface', { type: 'api' }));
 
     const result = await validate(graph);
     const interfaceIssues = result.issues.filter((i) => i.message.includes('interface.yaml'));
@@ -459,150 +400,6 @@ describe('validator', () => {
     expect(flowRules).toHaveLength(0);
   });
 
-  it('budget-warning returns warning when over warning threshold with breakdown', async () => {
-    const { buildContext } = await import('../../../src/core/context-builder.js');
-    // 12000 tokens = 48000 chars of content in layers
-    vi.mocked(buildContext).mockResolvedValue({
-      nodePath: 'a',
-      nodeName: 'A',
-      layers: [
-        { type: 'own', label: 'Own', content: 'x'.repeat(20000) },
-        { type: 'hierarchy', label: 'Hierarchy', content: 'x'.repeat(12000) },
-        { type: 'aspects', label: 'Aspects', content: 'x'.repeat(8000) },
-        { type: 'flows', label: 'Flows', content: 'x'.repeat(4000) },
-        { type: 'relational', label: 'Deps', content: 'x'.repeat(4000) },
-      ],
-      mapping: null,
-      tokenCount: 12000,
-    } as Awaited<ReturnType<typeof buildContext>>);
-
-    const graph = createGraph();
-    graph.nodes.set('a', createNode('a'));
-
-    const result = await validate(graph);
-    const issues = result.issues.filter((i) => i.rule === 'budget-warning');
-    expect(issues).toHaveLength(1);
-    expect(issues[0].severity).toBe('warning');
-    expect(issues[0].code).toBe('W001');
-    // Verify breakdown components in message
-    expect(issues[0].message).toContain('own:');
-    expect(issues[0].message).toContain('hierarchy:');
-    expect(issues[0].message).toContain('aspects:');
-    expect(issues[0].message).toContain('flows:');
-    expect(issues[0].message).toContain('dependencies:');
-  });
-
-  it('budget-exceeded returns error when over error threshold with breakdown', async () => {
-    const { buildContext } = await import('../../../src/core/context-builder.js');
-    vi.mocked(buildContext).mockResolvedValue({
-      nodePath: 'a',
-      nodeName: 'A',
-      layers: [
-        { type: 'own', label: 'Own', content: 'x'.repeat(80000) },
-        { type: 'hierarchy', label: 'Hierarchy', content: 'x'.repeat(12000) },
-        { type: 'aspects', label: 'Aspects', content: 'x'.repeat(4000) },
-        { type: 'flows', label: 'Flows', content: 'x'.repeat(2000) },
-        { type: 'relational', label: 'Deps', content: 'x'.repeat(2000) },
-      ],
-      mapping: null,
-      tokenCount: 25000,
-    } as Awaited<ReturnType<typeof buildContext>>);
-
-    const graph = createGraph();
-    graph.nodes.set('a', createNode('a'));
-
-    const result = await validate(graph);
-    const issues = result.issues.filter((i) => i.rule === 'budget-exceeded');
-    expect(issues).toHaveLength(1);
-    expect(issues[0].code).toBe('E032');
-    expect(issues[0].severity).toBe('error');
-    // Verify breakdown components in message
-    expect(issues[0].message).toContain('own:');
-    expect(issues[0].message).toContain('hierarchy:');
-    expect(issues[0].message).toContain('aspects:');
-    expect(issues[0].message).toContain('flows:');
-    expect(issues[0].message).toContain('dependencies:');
-    // Should NOT contain "blocks materialization"
-    expect(issues[0].message).not.toContain('blocks materialization');
-  });
-
-  it('W002 own-budget-warning fires when own artifacts exceed own_warning threshold', async () => {
-    const { buildContext } = await import('../../../src/core/context-builder.js');
-    // own layer needs >= 5000 tokens => 20000 chars
-    vi.mocked(buildContext).mockResolvedValue({
-      nodePath: 'a',
-      nodeName: 'A',
-      layers: [
-        { type: 'own', label: 'Own', content: 'x'.repeat(24000) },
-      ],
-      mapping: null,
-      tokenCount: 6000,
-    } as Awaited<ReturnType<typeof buildContext>>);
-
-    const graph = createGraph();
-    graph.config.quality = {
-      min_artifact_length: 50,
-      max_direct_relations: 10,
-      context_budget: { warning: 10000, error: 20000, own_warning: 5000 },
-    };
-    graph.nodes.set('a', createNode('a'));
-
-    const result = await validate(graph);
-    const issues = result.issues.filter((i) => i.rule === 'own-budget-warning');
-    expect(issues).toHaveLength(1);
-    expect(issues[0].code).toBe('W002');
-    expect(issues[0].severity).toBe('warning');
-    expect(issues[0].nodePath).toBe('a');
-  });
-
-  it('W002 not emitted when own_warning absent from config', async () => {
-    const { buildContext } = await import('../../../src/core/context-builder.js');
-    vi.mocked(buildContext).mockResolvedValue({
-      nodePath: 'a',
-      nodeName: 'A',
-      layers: [
-        { type: 'own', label: 'Own', content: 'x'.repeat(24000) },
-      ],
-      mapping: null,
-      tokenCount: 6000,
-    } as Awaited<ReturnType<typeof buildContext>>);
-
-    const graph = createGraph();
-    graph.config.quality = {
-      min_artifact_length: 50,
-      max_direct_relations: 10,
-      context_budget: { warning: 10000, error: 20000 },
-    };
-    graph.nodes.set('a', createNode('a'));
-
-    const result = await validate(graph);
-    const issues = result.issues.filter((i) => i.rule === 'own-budget-warning');
-    expect(issues).toHaveLength(0);
-  });
-
-  it('context-budget catches buildContext errors and continues', async () => {
-    const { buildContext } = await import('../../../src/core/context-builder.js');
-    vi.mocked(buildContext).mockRejectedValueOnce(new Error('Context build failed'));
-
-    const graph = createGraph();
-    graph.nodes.set('a', createNode('a'));
-
-    const result = await validate(graph);
-    expect(result.issues.filter((i) => i.rule === 'budget-warning')).toHaveLength(0);
-    expect(result.issues.filter((i) => i.rule === 'budget-exceeded')).toHaveLength(0);
-  });
-
-  it('context-budget skips blackbox nodes', async () => {
-    const { buildContext } = await import('../../../src/core/context-builder.js');
-    vi.mocked(buildContext).mockClear();
-
-    const graph = createGraph();
-    graph.nodes.set('a', createNode('a', { blackbox: true }));
-
-    await validate(graph);
-    expect(buildContext).not.toHaveBeenCalled();
-  });
-
   it('relation-targets no suggestion when no similar candidates', async () => {
     const graph = createGraph();
     graph.nodes.set('a', createNode('a', { relations: [{ target: 'xyz/unknown', type: 'uses' }] }));
@@ -633,9 +430,9 @@ describe('validator', () => {
     const graph = createGraph();
     graph.nodes.set('a', createNode('a'));
     graph.flows.push({
+      path: 'f1',
       name: 'F1',
       nodes: ['a', 'nonexistent/node'],
-      artifacts: [{ filename: 'desc.md', content: 'x' }],
     });
 
     const result = await validate(graph);
@@ -647,10 +444,10 @@ describe('validator', () => {
     const graph = createGraph();
     graph.nodes.set('a', createNode('a'));
     graph.flows.push({
+      path: 'saga-flow',
       name: 'SagaFlow',
       nodes: ['a'],
       aspects: ['undefined-tag'],
-      artifacts: [{ filename: 'desc.md', content: 'x' }],
     });
 
     const result = await validate(graph);
@@ -664,10 +461,10 @@ describe('validator', () => {
     const graph = createGraph({ aspects: [] });
     graph.nodes.set('a', createNode('a'));
     graph.flows.push({
+      path: 'f2',
       name: 'F2',
       nodes: ['a'],
       aspects: ['valid-tag'],
-      artifacts: [{ filename: 'desc.md', content: 'x' }],
     });
     // aspects[] is empty — no aspect binds to valid-tag
 
@@ -677,30 +474,10 @@ describe('validator', () => {
     expect(issues[0].message).toContain("no aspect with that id exists");
   });
 
-  it('shallow-artifact errors when artifact below min_artifact_length', async () => {
-    const graph = createGraph();
-    graph.config.quality = {
-      min_artifact_length: 100,
-      max_direct_relations: 10,
-      context_budget: { warning: 5000, error: 10000 },
-    };
-    graph.nodes.set('a', {
-      ...createNode('a'),
-      artifacts: [{ filename: 'responsibility.md', content: 'short' }],
-    });
-
-    const result = await validate(graph);
-    const issues = result.issues.filter((i) => i.rule === 'shallow-artifact');
-    expect(issues).toHaveLength(1);
-    expect(issues[0].message).toContain('below minimum length');
-  });
-
   it('high-fan-out warns when node exceeds max_direct_relations', async () => {
     const graph = createGraph();
     graph.config.quality = {
-      min_artifact_length: 50,
       max_direct_relations: 2,
-      context_budget: { warning: 5000, error: 10000 },
     };
     const relations = Array.from({ length: 5 }, (_, i) => ({
       target: `target/${i}`,
@@ -767,22 +544,6 @@ describe('validator', () => {
     expect(issues).toHaveLength(0);
   });
 
-  it('missing-artifact errors for interface.md when node has incoming relations', async () => {
-    const graph = createGraph();
-    graph.nodes.set('dep', createNode('dep', { relations: [{ target: 'svc', type: 'uses' }] }));
-    graph.nodes.set('svc', {
-      ...createNode('svc'),
-      artifacts: [{ filename: 'responsibility.md', content: 'x' }],
-    });
-
-    const result = await validate(graph);
-    const issues = result.issues.filter(
-      (i) => i.rule === 'missing-artifact' && i.nodePath === 'svc',
-    );
-    // interface.md has required: { when: 'has_incoming_relations' } in STANDARD_ARTIFACTS
-    expect(issues.some((i) => i.message.includes('interface.md'))).toBe(true);
-  });
-
   it('validate with scope filters issues to that node only', async () => {
     const graph = createGraph();
     graph.nodes.set('a', createNode('a', { relations: [{ target: 'missing', type: 'uses' }] }));
@@ -821,7 +582,7 @@ describe('validator', () => {
     const result = await validate(graph);
     const issues = result.issues.filter((i) => i.rule === 'duplicate-aspect-binding');
     expect(issues).toHaveLength(1);
-    expect(issues[0].code).toBe('E010');
+    expect(issues[0].code).toBe('duplicate-aspect-id');
     expect(issues[0].message).toContain('multiple aspects');
   });
 
@@ -836,7 +597,7 @@ describe('validator', () => {
     const result = await validate(graph);
     const issues = result.issues.filter((i) => i.rule === 'implied-aspect-missing');
     expect(issues).toHaveLength(1);
-    expect(issues[0].code).toBe('E012');
+    expect(issues[0].code).toBe('implied-aspect-missing');
     expect(issues[0].message).toContain('HIPAA');
     expect(issues[0].message).toContain('requires-audit');
   });
@@ -853,7 +614,7 @@ describe('validator', () => {
     const result = await validate(graph);
     const issues = result.issues.filter((i) => i.rule === 'aspect-implies-cycle');
     expect(issues).toHaveLength(1);
-    expect(issues[0].code).toBe('E013');
+    expect(issues[0].code).toBe('aspect-implies-cycle');
     expect(issues[0].message).toContain('cycle');
     expect(issues[0].message).toContain('tag-a');
     expect(issues[0].message).toContain('tag-b');
@@ -878,7 +639,7 @@ describe('validator', () => {
     const result = await validate(graph);
     const issues = result.issues.filter((i) => i.rule === 'missing-schema');
     expect(issues).toHaveLength(1);
-    expect(issues[0].code).toBe('E034');
+    expect(issues[0].code).toBe('schema-missing');
     expect(issues[0].message).toContain('flow');
   });
 
@@ -904,7 +665,7 @@ describe('validator', () => {
     // The broken node is NOT in graph.nodes (it failed to parse)
     const result = await validate(graph, 'broken/node');
     expect(result.issues).toHaveLength(1);
-    expect(result.issues[0].code).toBe('E001');
+    expect(result.issues[0].code).toBe('yaml-invalid');
     expect(result.issues[0].rule).toBe('invalid-node-yaml');
     expect(result.issues[0].message).toContain('empty');
   });
@@ -917,7 +678,7 @@ describe('validator', () => {
     });
     const result = await validate(graph, 'broken/child');
     expect(result.issues).toHaveLength(1);
-    expect(result.issues[0].code).toBe('E001');
+    expect(result.issues[0].code).toBe('yaml-invalid');
   });
 
   it('wide-node warns when directory mapping resolves to many files', async () => {
@@ -950,7 +711,7 @@ describe('validator', () => {
       const result = await validate(graph);
       const issues = result.issues.filter((i) => i.rule === 'wide-node');
       expect(issues).toHaveLength(1);
-      expect(issues[0].code).toBe('W003');
+      expect(issues[0].code).toBe('wide-node');
       expect(issues[0].severity).toBe('warning');
       expect(issues[0].message).toContain('12 source files');
     } finally {
@@ -966,7 +727,7 @@ describe('validator', () => {
       const result = await validate(graph);
       const issues = result.issues.filter((i) => i.rule === 'missing-description' && i.nodePath === 'svc/no-desc');
       expect(issues).toHaveLength(1);
-      expect(issues[0].code).toBe('E038');
+      expect(issues[0].code).toBe('description-missing');
       expect(issues[0].severity).toBe('error');
       expect(issues[0].message).toContain('no description');
     });
@@ -991,7 +752,7 @@ describe('validator', () => {
         (i) => i.rule === 'missing-description' && i.message.includes("'no-desc-aspect'"),
       );
       expect(issues).toHaveLength(1);
-      expect(issues[0].code).toBe('E038');
+      expect(issues[0].code).toBe('description-missing');
       expect(issues[0].severity).toBe('error');
     });
 
@@ -999,9 +760,9 @@ describe('validator', () => {
       const graph = createGraph();
       graph.nodes.set('a', createNode('a'));
       graph.flows.push({
+        path: 'checkout-flow',
         name: 'checkout-flow',
         nodes: ['a'],
-        artifacts: [{ filename: 'description.md', content: 'x'.repeat(60) }],
       });
 
       const result = await validate(graph);
@@ -1009,7 +770,7 @@ describe('validator', () => {
         (i) => i.rule === 'missing-description' && i.message.includes("'checkout-flow'"),
       );
       expect(issues).toHaveLength(1);
-      expect(issues[0].code).toBe('E038');
+      expect(issues[0].code).toBe('description-missing');
       expect(issues[0].severity).toBe('error');
     });
   });
@@ -1039,7 +800,7 @@ describe('validator', () => {
       graph.nodes.set('b', createNode('b', { type: 'library' })); // library not in allowed list
 
       const result = await validate(graph);
-      const e051 = result.issues.find(i => i.code === 'E051' && i.nodePath === 'a');
+      const e051 = result.issues.find(i => i.code === 'relation-target-forbidden' && i.nodePath === 'a');
       expect(e051).toBeDefined();
       expect(e051!.message).toContain('calls');
       expect(e051!.message).toContain('library');
@@ -1064,7 +825,7 @@ describe('validator', () => {
       graph.nodes.set('b', createNode('b', { type: 'module' }));
 
       const result = await validate(graph);
-      const e051 = result.issues.find(i => i.code === 'E051' && i.nodePath === 'a');
+      const e051 = result.issues.find(i => i.code === 'relation-target-forbidden' && i.nodePath === 'a');
       expect(e051).toBeUndefined();
     });
 
@@ -1089,7 +850,7 @@ describe('validator', () => {
       graph.nodes.set('parent/child', childNode);
 
       const result = await validate(graph);
-      const e052 = result.issues.find(i => i.code === 'E052' && i.nodePath === 'parent/child');
+      const e052 = result.issues.find(i => i.code === 'parent-type-forbidden' && i.nodePath === 'parent/child');
       expect(e052).toBeDefined();
       expect(e052!.message).toContain('library');
       expect(e052!.message).toContain('service');
@@ -1115,7 +876,7 @@ describe('validator', () => {
       graph.nodes.set('parent/child', childNode);
 
       const result = await validate(graph);
-      const e052 = result.issues.find(i => i.code === 'E052' && i.nodePath === 'parent/child');
+      const e052 = result.issues.find(i => i.code === 'parent-type-forbidden' && i.nodePath === 'parent/child');
       expect(e052).toBeUndefined();
     });
 
@@ -1131,7 +892,7 @@ describe('validator', () => {
       }));
 
       const result = await validate(graph);
-      const e053 = result.issues.filter(i => i.code === 'E053' && i.nodePath === 'consumer');
+      const e053 = result.issues.filter(i => i.code === 'port-missing-aspect' && i.nodePath === 'consumer');
       expect(e053).toHaveLength(1);
       expect(e053[0].rule).toBe('integration-aspect-missing');
       expect(e053[0].message).toContain('audit-logging');
@@ -1150,7 +911,7 @@ describe('validator', () => {
       }));
 
       const result = await validate(graph);
-      const e053 = result.issues.filter(i => i.code === 'E053' && i.nodePath === 'consumer');
+      const e053 = result.issues.filter(i => i.code === 'port-missing-aspect' && i.nodePath === 'consumer');
       expect(e053).toHaveLength(0);
     });
 
@@ -1165,7 +926,7 @@ describe('validator', () => {
       }));
 
       const result = await validate(graph);
-      const e053 = result.issues.filter(i => i.code === 'E053' && i.nodePath === 'consumer');
+      const e053 = result.issues.filter(i => i.code === 'port-missing-aspect' && i.nodePath === 'consumer');
       expect(e053).toHaveLength(0);
     });
 
@@ -1179,7 +940,7 @@ describe('validator', () => {
       }));
 
       const result = await validate(graph);
-      const archErrors = result.issues.filter(i => ['E050', 'E051', 'E052', 'E053', 'E054'].includes(i.code));
+      const archErrors = result.issues.filter(i => ['aspect-undefined', 'relation-target-forbidden', 'parent-type-forbidden', 'port-missing-aspect'].includes(i.code));
       // Should skip architecture checks when architecture has no node_types (fallback case)
       expect(archErrors.length).toBe(0);
     });
@@ -1198,9 +959,9 @@ describe('validator', () => {
       }));
 
       const result = await validate(graph);
-      const e057 = result.issues.filter(i => i.code === 'E057');
+      const e057 = result.issues.filter(i => i.code === 'port-missing-consumes');
       expect(e057).toContainEqual(expect.objectContaining({
-        code: 'E057', rule: 'missing-consumes',
+        code: 'port-missing-consumes', rule: 'missing-consumes',
       }));
     });
 
@@ -1212,7 +973,7 @@ describe('validator', () => {
       }));
 
       const result = await validate(graph);
-      expect(result.issues.filter(i => i.code === 'E057')).toHaveLength(0);
+      expect(result.issues.filter(i => i.code === 'port-missing-consumes')).toHaveLength(0);
     });
 
     it('does not fire when target has no ports', async () => {
@@ -1223,7 +984,7 @@ describe('validator', () => {
       }));
 
       const result = await validate(graph);
-      expect(result.issues.filter(i => i.code === 'E057')).toHaveLength(0);
+      expect(result.issues.filter(i => i.code === 'port-missing-consumes')).toHaveLength(0);
     });
 
     it('does not fire when consumer has consumes field', async () => {
@@ -1238,7 +999,7 @@ describe('validator', () => {
       }));
 
       const result = await validate(graph);
-      expect(result.issues.filter(i => i.code === 'E057')).toHaveLength(0);
+      expect(result.issues.filter(i => i.code === 'port-missing-consumes')).toHaveLength(0);
     });
 
     it('does not fire for emits/listens relations even when target has ports', async () => {
@@ -1256,7 +1017,7 @@ describe('validator', () => {
       }));
 
       const result = await validate(graph);
-      expect(result.issues.filter(i => i.code === 'E057')).toHaveLength(0);
+      expect(result.issues.filter(i => i.code === 'port-missing-consumes')).toHaveLength(0);
     });
   });
 
@@ -1274,7 +1035,7 @@ describe('validator', () => {
 
       const result = await validate(graph);
       expect(result.issues).toContainEqual(expect.objectContaining({
-        code: 'E058', rule: 'unknown-port',
+        code: 'port-undefined', rule: 'unknown-port',
       }));
     });
 
@@ -1290,7 +1051,7 @@ describe('validator', () => {
       }));
 
       const result = await validate(graph);
-      expect(result.issues.filter(i => i.code === 'E058')).toHaveLength(0);
+      expect(result.issues.filter(i => i.code === 'port-undefined')).toHaveLength(0);
     });
   });
 
@@ -1305,7 +1066,7 @@ describe('validator', () => {
 
       const result = await validate(graph);
       expect(result.issues).toContainEqual(expect.objectContaining({
-        code: 'E059', rule: 'consumes-without-ports',
+        code: 'consumes-without-ports', rule: 'consumes-without-ports',
       }));
     });
 
@@ -1322,7 +1083,7 @@ describe('validator', () => {
       }));
 
       const result = await validate(graph);
-      expect(result.issues.filter(i => i.code === 'E059')).toHaveLength(0);
+      expect(result.issues.filter(i => i.code === 'consumes-without-ports')).toHaveLength(0);
     });
   });
 
@@ -1337,9 +1098,9 @@ describe('validator', () => {
       graph.nodes.set('a', createNode('a', { aspects: ['valid-tag'] }));
 
       const result = await validate(graph);
-      const w006 = result.issues.filter(i => i.code === 'W006');
+      const w006 = result.issues.filter(i => i.code === 'orphaned-aspect');
       expect(w006).toContainEqual(expect.objectContaining({
-        code: 'W006', rule: 'orphaned-aspect',
+        code: 'orphaned-aspect', rule: 'orphaned-aspect',
       }));
       // 'valid-tag' is referenced so should not appear
       expect(w006.every(i => !i.message.includes('valid-tag'))).toBe(true);
@@ -1352,7 +1113,7 @@ describe('validator', () => {
       graph.nodes.set('a', createNode('a', { aspects: ['valid-tag'] }));
 
       const result = await validate(graph);
-      expect(result.issues.filter(i => i.code === 'W006')).toHaveLength(0);
+      expect(result.issues.filter(i => i.code === 'orphaned-aspect')).toHaveLength(0);
     });
 
     it('does not fire when aspect is referenced by a port', async () => {
@@ -1364,7 +1125,7 @@ describe('validator', () => {
       }));
 
       const result = await validate(graph);
-      expect(result.issues.filter(i => i.code === 'W006')).toHaveLength(0);
+      expect(result.issues.filter(i => i.code === 'orphaned-aspect')).toHaveLength(0);
     });
 
     it('does not fire when aspect is referenced by a flow', async () => {
@@ -1377,11 +1138,10 @@ describe('validator', () => {
         name: 'Checkout',
         nodes: ['a'],
         aspects: ['valid-tag'],
-        artifacts: [{ filename: 'description.md', content: 'x'.repeat(60) }],
       });
 
       const result = await validate(graph);
-      expect(result.issues.filter(i => i.code === 'W006')).toHaveLength(0);
+      expect(result.issues.filter(i => i.code === 'orphaned-aspect')).toHaveLength(0);
     });
 
     it('does not fire for implied aspects when the implying aspect is referenced', async () => {
@@ -1394,7 +1154,7 @@ describe('validator', () => {
       graph.nodes.set('a', createNode('a', { aspects: ['hipaa'] }));
 
       const result = await validate(graph);
-      expect(result.issues.filter(i => i.code === 'W006')).toHaveLength(0);
+      expect(result.issues.filter(i => i.code === 'orphaned-aspect')).toHaveLength(0);
     });
   });
 

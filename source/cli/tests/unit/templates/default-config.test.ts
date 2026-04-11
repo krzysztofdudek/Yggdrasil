@@ -45,11 +45,10 @@ describe('default-config', () => {
     expect(names).toContain('infrastructure');
   });
 
-  it('DEFAULT_CONFIG quality.context_budget has warning and error', () => {
+  it('DEFAULT_CONFIG quality.max_direct_relations is 10', () => {
     const parsed = parseYaml(DEFAULT_CONFIG) as {
-      quality: { context_budget: { warning: number; error: number } };
+      quality: { max_direct_relations: number };
     };
-    expect(parsed.quality.context_budget.warning).toBe(10000);
-    expect(parsed.quality.context_budget.error).toBe(20000);
+    expect(parsed.quality.max_direct_relations).toBe(10);
   });
 });

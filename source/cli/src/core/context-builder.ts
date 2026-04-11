@@ -685,7 +685,7 @@ export function buildNodeContextData(graph: Graph, nodePath: string): NodeContex
     id: f.path,
     name: f.name,
     description: f.description ?? '',
-    readPath: `flows/${f.path}/description.md`,
+    readPath: `flows/${f.path}/yg-flow.yaml`,
   }));
 
   const ancestorPaths = new Set(ancestors.map(a => a.path));

@@ -19,7 +19,7 @@ export async function loadSecrets(rootPath: string, providerName?: string): Prom
     return undefined; // No secrets file — graceful
   }
 
-  const raw = parseYaml(content) as Record<string, unknown> | null;
+  const raw = parseYaml(content) as Record<string, unknown>;
   if (!raw) return undefined;
 
   // Try new reviewer: format first

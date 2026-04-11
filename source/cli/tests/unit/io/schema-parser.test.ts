@@ -53,6 +53,16 @@ describe('schema-parser', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
+  it('throws when YAML is not a mapping', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-schema-notobj');
+    await mkdir(tmpDir, { recursive: true });
+    await writeFile(path.join(tmpDir, 'yg-node.yaml'), '42\n', 'utf-8');
+
+    await expect(parseSchema(path.join(tmpDir, 'yg-node.yaml'))).rejects.toThrow('expected YAML mapping');
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
   it('infers schemaType from .yml extension', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-schema-yml');
     await mkdir(tmpDir, { recursive: true });

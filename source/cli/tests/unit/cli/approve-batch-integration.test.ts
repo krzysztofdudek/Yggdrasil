@@ -93,14 +93,14 @@ describe('Batch approve integration', () => {
     const { tmpDir, yggRoot } = await createBatchProject('parent-filter');
     await recordAllBaselines(tmpDir);
 
-    // Modify parent artifact to trigger cascade
-    await writeFile(path.join(yggRoot, 'model/svc/responsibility.md'), 'Updated parent responsibility.\n');
+    // Modify parent yg-node.yaml to trigger cascade
+    await writeFile(path.join(yggRoot, 'model/svc/yg-node.yaml'), 'name: Services\ntype: module\ndescription: updated parent\n');
 
     const graph = await loadGraph(tmpDir);
     const issues = await classifyDrift(graph);
 
     const yggPrefix = path.relative(tmpDir, yggRoot).split(path.sep).join('/');
-    const e021 = issues.filter(i => i.code === 'E021');
+    const e021 = issues.filter(i => i.code === 'upstream-drift');
     expect(e021.length).toBeGreaterThan(0);
 
     const matched = filterCascadeNodes(issues, `${yggPrefix}/model/svc/`);
@@ -108,8 +108,8 @@ describe('Batch approve integration', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('batch approveNode with --reviewed accepts cascade-only drift', async () => {
-    const { tmpDir, yggRoot } = await createBatchProject('batch-reviewed');
+  it('batch approveNode accepts cascade-only drift (binary model)', async () => {
+    const { tmpDir, yggRoot } = await createBatchProject('batch-approve');
     await recordAllBaselines(tmpDir);
 
     // Modify aspect to trigger cascade
@@ -121,34 +121,10 @@ describe('Batch approve integration', () => {
     const matched = filterCascadeNodes(issues, `${yggPrefix}/aspects/audit/`);
     expect(matched.length).toBeGreaterThan(0);
 
-    // Approve each with --reviewed
+    // Approve each — binary model accepts any change
     for (const nodePath of matched) {
-      const result = await approveNode(graph, nodePath, {
-        reviewed: 'aspect change reviewed',
-      });
-      expect(result.action).not.toBe('refused');
-    }
-
-    await rm(tmpDir, { recursive: true, force: true });
-  });
-
-  it('batch approveNode without --reviewed refuses cascade-only drift', async () => {
-    const { tmpDir, yggRoot } = await createBatchProject('batch-no-reviewed');
-    await recordAllBaselines(tmpDir);
-
-    // Modify aspect to trigger cascade
-    await writeFile(path.join(yggRoot, 'aspects/audit/rules.md'), 'Updated audit rules.\n');
-
-    const graph = await loadGraph(tmpDir);
-    const issues = await classifyDrift(graph);
-    const yggPrefix = path.relative(tmpDir, yggRoot).split(path.sep).join('/');
-    const matched = filterCascadeNodes(issues, `${yggPrefix}/aspects/audit/`);
-    expect(matched.length).toBeGreaterThan(0);
-
-    // Approve each WITHOUT --reviewed
-    for (const nodePath of matched) {
-      const result = await approveNode(graph, nodePath, {});
-      expect(result.action).toBe('refused');
+      const result = await approveNode(graph, nodePath);
+      expect(result.action).toBe('approved');
     }
 
     await rm(tmpDir, { recursive: true, force: true });

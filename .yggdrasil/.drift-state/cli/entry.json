@@ -1,14 +1,13 @@
 {
-  "hash": "d80b3505d873570657c99bbf2ccb0b57d5bf51cce69a4c305d3a449da38a82f2",
+  "hash": "11f4e3d7e1177812fb619d2b9a574f0bae8e438f5df3b156c96d668306e7e1fc",
   "files": {
     ".yggdrasil/model/cli/entry/yg-node.yaml": "824db216638447a18493bf81f18fa0ff4dcdde5e10e1aa2c479c96a3afa536e0",
     ".yggdrasil/model/cli/entry/internals.md": "26ff74fa94315722ae28d6f4255f489055407afbc84ebb0dbe4a12d2675f983a",
-    ".yggdrasil/model/cli/entry/responsibility.md": "137a9ff11bb7edf956abee22cfa3980b8bcf60e3ee3d839a7745b0edcb22ad4f",
     ".yggdrasil/model/cli/yg-node.yaml": "41ddbf73fbc1ee27a28a5ea5ec7ad656ea34f5938284bd5ab4ea7c3afcbbd69b",
     ".yggdrasil/model/cli/internals.md": "6ed08e0ee1a22270af6dcb23306acae750c7e55744a43a17671c4713684f4b91",
     ".yggdrasil/model/cli/responsibility.md": "f35cbcee252f56323379f08b65c38989787e0758c94f5eee2a36188c0260d05d",
     ".yggdrasil/model/cli/commands/init/responsibility.md": "eb66abd04a148fa8e346e65d17343d32f958db6e3b615d1458ef2dbc7c458fc0",
-    ".yggdrasil/model/cli/commands/init/interface.md": "e01bcbdcbad3012090058a2b67d057f6c4563a896c132f53072670f8f03a6200",
+    ".yggdrasil/model/cli/commands/init/interface.md": "12b9bbcfe1adad30d5fedff2d879ef9fe0ea02c281f2fabff449fd6e6515a7ee",
     ".yggdrasil/model/cli/commands/responsibility.md": "dd8146f9c54251a68f81f4036fdf931d526f3159707709b92a59493fe383a080",
     ".yggdrasil/model/cli/commands/build-context/responsibility.md": "2b8d6c010e3b6d48458d8125f5c46ac981ad94ce37dfd39ac3d4f659c59bcc6b",
     ".yggdrasil/model/cli/commands/build-context/interface.md": "e7bd5cd47103398b12771d675c897a1ec248ce9e5afde79b8bd790bac63f664a",
@@ -23,20 +22,21 @@
     ".yggdrasil/model/cli/commands/flows/responsibility.md": "80cff3a951c49fad8b606e984b02c114c9d49acadf39e3a7349ba6688bbc8b40",
     ".yggdrasil/model/cli/commands/flows/interface.md": "3379e1ff30801f80173df10e156c1a5ab5d243b0dc6d0036291062a6f0858b8c",
     ".yggdrasil/model/cli/commands/select/responsibility.md": "af947337761c30ce0d7a5d9fc64c4358618e037a22cce5f8013ea0e3a887dd34",
-    ".yggdrasil/model/cli/commands/check/responsibility.md": "c6bab2437356b4a335effc35e7b0614f18dc16e7699a9344021b99763f59b9ed",
-    "source/cli/src/bin.ts": "dd90e277e1cc2b547334553be15d035ccf5ab5ac27ae07fdd56dd8353e115294",
     ".yggdrasil/model/cli/commands/select/interface.md": "e3dd3e82ab58ef2e2bb9be9594f5caf4144fa12f20b1489e5c8c0a10a2680200",
-    ".yggdrasil/model/cli/commands/check/interface.md": "41085602c0401d6a81dcc900ccf145d35642fd5c421682cfdfeed01cd12dcc23"
+    ".yggdrasil/model/cli/commands/check/responsibility.md": "c6bab2437356b4a335effc35e7b0614f18dc16e7699a9344021b99763f59b9ed",
+    ".yggdrasil/model/cli/commands/check/interface.md": "41085602c0401d6a81dcc900ccf145d35642fd5c421682cfdfeed01cd12dcc23",
+    "source/cli/src/bin.ts": "dd90e277e1cc2b547334553be15d035ccf5ab5ac27ae07fdd56dd8353e115294",
+    ".yggdrasil/model/cli/entry/responsibility.md": "85f3bf07feda04752c9aab994920ce1d3a86aabc4d131a9990a2e9f7b9b89197"
   },
   "mtimes": {
     ".yggdrasil/model/cli/entry/yg-node.yaml": 1775639464419.5154,
     ".yggdrasil/model/cli/entry/internals.md": 1775678820375.9282,
-    ".yggdrasil/model/cli/entry/responsibility.md": 1775629157036.9392,
+    ".yggdrasil/model/cli/entry/responsibility.md": 1775718981133.1406,
     ".yggdrasil/model/cli/yg-node.yaml": 1775639608581.9402,
     ".yggdrasil/model/cli/internals.md": 1775586290475.0237,
     ".yggdrasil/model/cli/responsibility.md": 1775586232234.4275,
     ".yggdrasil/model/cli/commands/init/responsibility.md": 1775628310259.8274,
-    ".yggdrasil/model/cli/commands/init/interface.md": 1775678820372.1643,
+    ".yggdrasil/model/cli/commands/init/interface.md": 1775718838315.4568,
     ".yggdrasil/model/cli/commands/responsibility.md": 1775045632026.2983,
     ".yggdrasil/model/cli/commands/build-context/responsibility.md": 1775646852867.689,
     ".yggdrasil/model/cli/commands/build-context/interface.md": 1775679161950.2966,
@@ -56,7 +56,7 @@
     ".yggdrasil/model/cli/commands/check/interface.md": 1775681088410.1855,
     "source/cli/src/bin.ts": 1775023244445.4343
   },
-  "reviewedReason": "cascade from upstream approve/check artifact changes",
+  "reviewedReason": "updated responsibility with full command list and version-from-package.json bootstrapping",
   "artifactReview": {
     "internals.md": {
       "current": true,

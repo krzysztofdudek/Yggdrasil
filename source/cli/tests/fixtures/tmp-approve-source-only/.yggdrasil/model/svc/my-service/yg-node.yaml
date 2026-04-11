@@ -1,0 +1,5 @@
+name: MyService
+type: service
+description: test
+mapping:
+  - src/svc/

@@ -5,7 +5,7 @@ import type { CheckIssue } from '../../../src/core/check.js';
 describe('filterCascadeNodes', () => {
   const makeE021 = (nodePath: string, causeFiles: string[]): CheckIssue => ({
     severity: 'error',
-    code: 'E021',
+    code: 'upstream-drift',
     rule: 'cascade-drift',
     message: 'cascade',
     nodePath,
@@ -37,7 +37,7 @@ describe('filterCascadeNodes', () => {
   it('ignores non-E021 issues', () => {
     const issues: CheckIssue[] = [{
       severity: 'error',
-      code: 'E020',
+      code: 'source-drift',
       rule: 'direct-drift',
       message: 'direct drift',
       nodePath: 'cli/commands/approve',
@@ -48,7 +48,7 @@ describe('filterCascadeNodes', () => {
 
   it('matches flow cause prefix', () => {
     const issues: CheckIssue[] = [
-      makeE021('cli/commands/approve', ['.yggdrasil/flows/checkout/description.md']),
+      makeE021('cli/commands/approve', ['.yggdrasil/flows/checkout/yg-flow.yaml']),
     ];
     const result = filterCascadeNodes(issues, '.yggdrasil/flows/checkout/');
     expect(result).toEqual(['cli/commands/approve']);

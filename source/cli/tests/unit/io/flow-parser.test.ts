@@ -26,7 +26,6 @@ nodes:
 
     expect(flow.name).toBe('Checkout Flow');
     expect(flow.nodes).toEqual(['orders/order-service', 'auth/auth-api']);
-    expect(flow.artifacts).toBeDefined();
 
     await rm(tmpDir, { recursive: true, force: true });
   });

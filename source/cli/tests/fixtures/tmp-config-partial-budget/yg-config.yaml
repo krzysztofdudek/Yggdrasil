@@ -1,0 +1,5 @@
+
+name: "PartialBudget"
+quality:
+  context_budget:
+    warning: 5000

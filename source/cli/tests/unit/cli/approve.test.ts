@@ -9,7 +9,6 @@ function makeApproveResult(overrides: Partial<ApproveResult> = {}): ApproveResul
     previousHash: '12345678',
     blackboxBlocked: false,
     antiLaunderingBlocked: false,
-    reviewedAttempted: false,
     isBlackbox: false,
     ...overrides,
   };
@@ -41,23 +40,15 @@ describe('formatResult — LLM results', () => {
     const result = makeApproveResult({
       action: 'refused',
       refuseReason: 'Reviewer verification found issues',
-      axes: { ownArtifacts: 'unchanged', source: 'unchanged', otherTracked: 'unchanged' },
       aspectResults: {
         'deterministic': { satisfied: true, reason: 'ok' },
         'pure-transforms': { satisfied: false, reason: 'fs.readFileSync on line 89' },
-      },
-      artifactReviewResults: {
-        'responsibility.md': { current: false, reason: 'Missing new function' },
-        'interface.md': { current: true, reason: 'up to date' },
       },
     });
     const output = captureOutput(() => formatResult('cli/core/validator', result));
     expect(output).toContain('SATISFIED');
     expect(output).toContain('NOT SATISFIED');
     expect(output).toContain('fs.readFileSync');
-    expect(output).toContain('STALE');
-    expect(output).toContain('Missing new function');
-    expect(output).toContain('current');
   });
 
   it('shows LLM skipped notice when not configured', () => {
@@ -109,9 +100,6 @@ describe('formatBatchOutput', () => {
           aspectResults: {
             'posix-paths': { satisfied: false, reason: 'Missing normalization on line 42' },
           },
-          artifactReviewResults: {
-            'responsibility.md': { current: false, reason: 'Restates pseudocode' },
-          },
         }),
       },
     ];
@@ -128,8 +116,6 @@ describe('formatBatchOutput', () => {
     // Full output for refused node — not just "✗ E055"
     expect(output).toContain('NOT SATISFIED');
     expect(output).toContain('Missing normalization on line 42');
-    expect(output).toContain('STALE');
-    expect(output).toContain('Restates pseudocode');
 
     // Summary at end
     expect(output).toContain('1 approved, 1 failed.');
