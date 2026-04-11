@@ -1,6 +1,6 @@
 name: Approve Command
 type: command
-description: CLI command implementing yg approve — orchestrates three-axis detection (core) and LLM verification (llm), formats output
+description: CLI command implementing yg approve — orchestrates binary approve (core) and LLM verification (llm), formats output
 blackbox: false
 aspects: []
 relations:

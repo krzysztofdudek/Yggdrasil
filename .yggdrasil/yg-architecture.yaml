@@ -5,49 +5,19 @@ node_types:
   command:
     description: "CLI command handler — registers Commander subcommand and formats output"
     aspects: [cli-command-contract]
-    quality_profile: |
-      interface.md: Output format IS the contract — document command syntax,
-      output structure, flag semantics, exit codes. Agents parse this output.
-      responsibility.md: Role in agent workflow — why this command exists,
-      what decision it enables. Not algorithm steps.
 
   engine:
     description: "Core domain logic — algorithms, validation, assembly, detection"
     aspects: [deterministic]
-    quality_profile: |
-      interface.md: Group exports by consumer use case. Explain which function
-      to call for which scenario and what the return means in context.
-      Individual signatures are in source code — interface explains HOW TO USE
-      the module, not what exists.
-      responsibility.md: What invariant this module enforces and why.
-      Not algorithm walkthroughs.
-      internals.md: Design decisions with rejected alternatives only.
 
   adapter:
     description: "I/O boundary — parsers, persistence, LLM providers, formatters"
-    quality_profile: |
-      interface.md: Describe the transformation boundary — what format goes in,
-      what comes out, what edge cases exist. Group by consumer use case.
-      responsibility.md: What boundary this adapter guards and why
-      the boundary exists.
 
   types:
     description: "Pure type definitions — no runtime behavior, no executable code"
-    quality_profile: |
-      interface.md: Not required — TypeScript types ARE the interface.
-      Only document non-obvious constraints between types.
-      responsibility.md: Which domain this type group serves and why
-      it is separated from other type groups.
 
   test:
     description: "Test suite guarding system invariants"
-    quality_profile: |
-      responsibility.md: What invariant the tests guard and WHY it matters
-      if these tests are removed. Not what they test — that is visible
-      from test names and assertions.
 
   project:
-    description: "Top-level project infrastructure — CI, documentation, configuration, examples"
-    quality_profile: |
-      responsibility.md: Role in the project and implicit blast radius.
-      Changes here affect every contributor and CI run.
+    description: "Top-level project infrastructure — CI, documentation, configuration"

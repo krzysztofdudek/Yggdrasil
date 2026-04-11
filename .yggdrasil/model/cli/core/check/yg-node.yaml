@@ -1,13 +1,11 @@
 name: Check
 type: engine
-description: Unified check orchestrator — combines drift classification (E020/E021), coverage scan (E022), orphaned drift state (W005), validation issues, and suggested next command
+description: Unified check orchestrator — combines drift classification, coverage scan, orphaned drift state detection, validation issues, and suggested next command
 aspects:
   - posix-paths
   - what-why-next
 relations:
   - target: cli/core/validator
-    type: uses
-  - target: cli/core/drift-detector
     type: uses
   - target: cli/core/context
     type: uses

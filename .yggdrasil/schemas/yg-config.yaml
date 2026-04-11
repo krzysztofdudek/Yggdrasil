@@ -3,8 +3,7 @@
 # Edit this after running yg init to describe your project.
 
 version: "4.0.0"                  # managed by CLI — do not edit manually. Tracks the CLI version
-                                  # that created or last migrated this config. Used by the migration
-                                  # system to determine which migrations to run on upgrade.
+                                  # that last initialized or upgraded this config.
 
 name: "My Project"               # required — project display name
 

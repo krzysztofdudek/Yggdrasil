@@ -1,6 +1,6 @@
 name: Approve Core
 type: engine
-description: Core approve logic — records drift baseline, implements three-axis change detection and blackbox enforcement. Deterministic only — no LLM calls.
+description: Core approve logic — records drift baseline, implements binary change detection and blackbox enforcement. Deterministic only — no LLM calls.
 blackbox: false
 aspects:
   - deterministic

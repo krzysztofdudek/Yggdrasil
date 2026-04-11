@@ -1,18 +1,14 @@
 name: Operations Core Unit Tests
 type: test
-description: "Unit tests for core CLI operations: approve, check, dependency-resolver, drift-detector, impact, migrator, node-selector, validator"
+description: "Unit tests for core CLI operations: approve, check, impact, validator, effective-aspects, aspect-verifier, artifact-reviewer"
 blackbox: false
 aspects: []
 relations: []
 mapping:
   - source/cli/tests/unit/core/approve.test.ts
   - source/cli/tests/unit/core/check.test.ts
-  - source/cli/tests/unit/core/dependency-resolver.test.ts
-  - source/cli/tests/unit/core/drift-detector.test.ts
   - source/cli/tests/unit/core/effective-aspects.test.ts
   - source/cli/tests/unit/core/impact.test.ts
-  - source/cli/tests/unit/core/migrator.test.ts
-  - source/cli/tests/unit/core/node-selector.test.ts
   - source/cli/tests/unit/core/validator.test.ts
   - source/cli/tests/unit/core/artifact-reviewer.test.ts
   - source/cli/tests/unit/core/aspect-verifier.test.ts

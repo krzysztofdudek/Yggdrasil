@@ -7,8 +7,6 @@ relations:
     type: uses
   - target: cli/core/context
     type: uses
-  - target: cli/core/drift-detector
-    type: uses
   - target: cli/commands/owner
     type: uses
   - target: cli/utils

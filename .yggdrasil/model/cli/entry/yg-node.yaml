@@ -16,8 +16,6 @@ relations:
     type: uses
   - target: cli/commands/flows
     type: uses
-  - target: cli/commands/select
-    type: uses
   - target: cli/commands/check
     type: uses
 mapping:
