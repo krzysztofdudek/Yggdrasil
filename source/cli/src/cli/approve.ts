@@ -315,7 +315,7 @@ export function filterCascadeNodes(
 ): string[] {
   const matched: string[] = [];
   for (const issue of issues) {
-    if (issue.code !== 'E021' || !issue.nodePath || !issue.cascadeCauses) continue;
+    if (issue.code !== 'upstream-drift' || !issue.nodePath || !issue.cascadeCauses) continue;
     const hasMatchingCause = issue.cascadeCauses.some(
       (c: CascadeCause) => c.file.replace(/\\/g, '/').startsWith(causePrefix),
     );

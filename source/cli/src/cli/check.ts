@@ -17,7 +17,7 @@ export function registerCheckCommand(program: Command): void {
         const graph = await loadGraph(cwd, { tolerateInvalidConfig: true });
         initDebugLog(graph.rootPath, graph.config.debug ?? false);
 
-        // Get git-tracked files for E022
+        // Get git-tracked files for unmapped-files check
         let gitFiles: string[] | null = null;
         try {
           const projectRoot = path.dirname(graph.rootPath);
@@ -28,7 +28,7 @@ export function registerCheckCommand(program: Command): void {
           });
           gitFiles = output.trim().split('\n').filter(f => f.length > 0);
         } catch {
-          // Not a git repo or git not available — skip E022
+          // Not a git repo or git not available — skip unmapped-files check
         }
 
         const result = await runCheck(graph, gitFiles);
@@ -74,17 +74,22 @@ export function formatOutput(result: CheckResult): string {
   const errors = result.issues.filter(i => i.severity === 'error');
   const warnings = result.issues.filter(i => i.severity === 'warning');
 
+  // Code category sets for grouping
+  const STRUCTURAL_CODES = new Set(['yaml-invalid', 'type-invalid', 'relation-broken', 'flow-node-broken', 'flow-aspect-undefined', 'overlapping-mapping', 'structural-cycle', 'config-invalid', 'duplicate-aspect-id', 'node-yaml-missing', 'implied-aspect-missing', 'aspect-implies-cycle']);
+  const ARCHITECTURE_CODES = new Set(['aspect-undefined', 'relation-target-forbidden', 'parent-type-forbidden', 'port-missing-aspect', 'port-missing-consumes', 'port-undefined', 'consumes-without-ports']);
+  const COMPLETENESS_CODES = new Set(['description-missing', 'event-unpaired', 'schema-missing', 'mapping-path-missing']);
+
   if (errors.length > 0) {
     lines.push(chalk.red(`Errors (${errors.length}):`));
     lines.push('');
 
     // Group by category
-    const drift = errors.filter(i => i.code === 'E020');
-    const cascade = errors.filter(i => i.code === 'E021');
-    const structural = errors.filter(i => i.code >= 'E001' && i.code <= 'E013');
-    const architecture = errors.filter(i => (i.code >= 'E050' && i.code <= 'E054') || i.code === 'E057' || i.code === 'E058');
-    const coverage = errors.filter(i => i.code === 'E022');
-    const completeness = errors.filter(i => i.code >= 'E030' && i.code <= 'E041');
+    const drift = errors.filter(i => i.code === 'source-drift');
+    const cascade = errors.filter(i => i.code === 'upstream-drift');
+    const structural = errors.filter(i => STRUCTURAL_CODES.has(i.code));
+    const architecture = errors.filter(i => ARCHITECTURE_CODES.has(i.code));
+    const coverage = errors.filter(i => i.code === 'unmapped-files');
+    const completeness = errors.filter(i => COMPLETENESS_CODES.has(i.code));
 
     if (drift.length > 0) {
       lines.push('  Drift:');
@@ -203,11 +208,10 @@ export function formatOutput(result: CheckResult): string {
 
   if (warnings.length > 0) {
     lines.push(chalk.yellow(`Warnings (${warnings.length}):`));
-    // Group: Budget (W001, W002) then Structure (W003, W004) then Other (W005+)
-    const budgetWarnings = warnings.filter(i => i.code === 'W001' || i.code === 'W002');
-    const structureWarnings = warnings.filter(i => i.code === 'W003' || i.code === 'W004');
-    const otherWarnings = warnings.filter(i => i.code >= 'W005');
-    for (const group of [budgetWarnings, structureWarnings, otherWarnings]) {
+    // Group: Structure (wide-node, high-fan-out) then Other (orphaned-drift-state, orphaned-aspect)
+    const structureWarnings = warnings.filter(i => i.code === 'wide-node' || i.code === 'high-fan-out');
+    const otherWarnings = warnings.filter(i => i.code !== 'wide-node' && i.code !== 'high-fan-out');
+    for (const group of [structureWarnings, otherWarnings]) {
       for (const issue of sortByNodePath(group)) {
         lines.push(`  ${issue.code} ${issue.nodePath ?? ''} — ${issue.rule}`);
         for (const line of issue.message.split('\n')) {
@@ -236,12 +240,12 @@ export function formatOutput(result: CheckResult): string {
     }
   } else {
     const cats: string[] = [];
-    const driftCount = errors.filter(i => i.code === 'E020').length;
-    const cascadeCount = errors.filter(i => i.code === 'E021').length;
-    const structuralCount = errors.filter(i => i.code >= 'E001' && i.code <= 'E013').length;
-    const archCount = errors.filter(i => (i.code >= 'E050' && i.code <= 'E054') || i.code === 'E057' || i.code === 'E058').length;
-    const cov = errors.filter(i => i.code === 'E022').length;
-    const comp = errors.filter(i => i.code >= 'E030' && i.code <= 'E041').length;
+    const driftCount = errors.filter(i => i.code === 'source-drift').length;
+    const cascadeCount = errors.filter(i => i.code === 'upstream-drift').length;
+    const structuralCount = errors.filter(i => STRUCTURAL_CODES.has(i.code)).length;
+    const archCount = errors.filter(i => ARCHITECTURE_CODES.has(i.code)).length;
+    const cov = errors.filter(i => i.code === 'unmapped-files').length;
+    const comp = errors.filter(i => COMPLETENESS_CODES.has(i.code)).length;
     if (driftCount) cats.push(`${driftCount} drift`);
     if (cascadeCount) cats.push(`${cascadeCount} cascade`);
     if (structuralCount) cats.push(`${structuralCount} structural`);

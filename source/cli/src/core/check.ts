@@ -59,8 +59,8 @@ export interface CheckResult {
 // ── Drift classification ───────────────────────────────────
 
 /**
- * Classify drift for all mapped nodes as E020 (direct) and/or E021 (cascade).
- * A single node can produce BOTH an E020 and an E021 if it has direct and cascade changes.
+ * Classify drift for all mapped nodes as source-drift (direct) and/or upstream-drift (cascade).
+ * A single node can produce BOTH a source-drift and an upstream-drift if it has direct and cascade changes.
  */
 export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
   const projectRoot = path.dirname(graph.rootPath);
@@ -77,7 +77,7 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
       const allMissing = await allPathsMissing(projectRoot, mappingPaths);
       issues.push({
         severity: 'error',
-        code: 'E020',
+        code: 'source-drift',
         rule: 'source-drift',
         message: allMissing
           ? buildIssueMessage({
@@ -102,7 +102,7 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
     if (sourceGone) {
       issues.push({
         severity: 'error',
-        code: 'E020',
+        code: 'source-drift',
         rule: 'source-drift',
         message: buildIssueMessage({
           what: `Mapped source files not found on disk:\n${mappingPaths.map(p => '  ' + p).join('\n')}`,
@@ -214,7 +214,7 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
       }
     }
 
-    // Emit E020 for direct changes (source files changed)
+    // Emit source-drift for direct changes (source files changed)
     if (directChanges.length > 0) {
       const sourceFiles = directChanges.filter(f => f.category === 'source').map(f => f.filePath);
 
@@ -226,7 +226,7 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
 
       issues.push({
         severity: 'error',
-        code: 'E020',
+        code: 'source-drift',
         rule: 'source-drift',
         message,
         nodePath,
@@ -235,8 +235,8 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
       });
     }
 
-    // Collapse all cascade causes for this node into a single E021
-    const nodeE021Causes: CascadeCause[] = [];
+    // Collapse all cascade causes for this node into a single upstream-drift
+    const nodeUpstreamCauses: CascadeCause[] = [];
 
     // Group cascade causes by logical cause (aspect ID, dep path, flow name, parent path)
     const causeGroups = new Map<string, CascadeCause[]>();
@@ -248,13 +248,13 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
     }
 
     // Push all causes (causeGroups used for count accuracy via .size)
-    nodeE021Causes.push(...cascadeCauses);
+    nodeUpstreamCauses.push(...cascadeCauses);
 
-    if (nodeE021Causes.length > 0) {
-      // Build a single collapsed E021 for this node with all causes
+    if (nodeUpstreamCauses.length > 0) {
+      // Build a single collapsed upstream-drift for this node with all causes
       // Use causeGroups.size for the count -- reflects distinct logical upstream sources, not raw file count
       const causeCount = causeGroups.size;
-      const causeLines = nodeE021Causes.map((c: CascadeCause) => '  Cause: ' + c.description).join('\n');
+      const causeLines = nodeUpstreamCauses.map((c: CascadeCause) => '  Cause: ' + c.description).join('\n');
       const message = buildIssueMessage({
         what: `Context package changed due to ${causeCount} upstream modification${causeCount === 1 ? '' : 's'}:\n${causeLines}`,
         why: 'Source may no longer satisfy updated aspect requirements.',
@@ -263,11 +263,11 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
 
       issues.push({
         severity: 'error',
-        code: 'E021',
+        code: 'upstream-drift',
         rule: 'cascade-drift',
         message,
         nodePath,
-        cascadeCauses: nodeE021Causes,
+        cascadeCauses: nodeUpstreamCauses,
       });
     }
   }
@@ -275,7 +275,7 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
   return issues;
 }
 
-// ── Coverage scan (E022) ──────────────────────────────────
+// ── Coverage scan (unmapped-files) ────────────────────────
 
 /**
  * Find git-tracked files not covered by any node mapping.
@@ -322,7 +322,7 @@ export function scanUncoveredFiles(graph: Graph, gitTrackedFiles: string[]): str
 }
 
 /**
- * Build the E022 CheckIssue from uncovered files.
+ * Build the unmapped-files CheckIssue from uncovered files.
  * Aggregates into one error with count + sample.
  */
 export function buildCoverageIssue(uncoveredFiles: string[], totalGitFiles: number): CheckIssue | null {
@@ -359,7 +359,7 @@ export function buildCoverageIssue(uncoveredFiles: string[], totalGitFiles: numb
 
   return {
     severity: 'error',
-    code: 'E022',
+    code: 'unmapped-files',
     rule: 'unmapped-file',
     message,
     uncoveredFiles,
@@ -367,7 +367,7 @@ export function buildCoverageIssue(uncoveredFiles: string[], totalGitFiles: numb
   };
 }
 
-// ── Orphaned drift state (W005) ───────────────────────────
+// ── Orphaned drift state ──────────────────────────────────
 
 /**
  * Find drift state entries for nodes that no longer exist in the graph.
@@ -396,10 +396,10 @@ export async function runCheck(graph: Graph, gitTrackedFiles: string[] | null): 
     .filter(vi => vi.code)
     .map(vi => ({ ...vi, code: vi.code! }));
 
-  // 2. Drift classification (E020/E021)
+  // 2. Drift classification (source-drift/upstream-drift)
   const driftIssues = await classifyDrift(graph);
 
-  // 3. Coverage scan (E022)
+  // 3. Coverage scan (unmapped-files)
   let coverageIssue: CheckIssue | null = null;
   let coveredFiles = 0;
   let totalFiles = 0;
@@ -414,12 +414,12 @@ export async function runCheck(graph: Graph, gitTrackedFiles: string[] | null): 
     coverageIssue = buildCoverageIssue(uncovered, totalFiles);
   }
 
-  // 4. Orphaned drift state (W005)
+  // 4. Orphaned drift state
   const orphanedPaths = await detectOrphanedDriftState(graph);
   const yggRelative = path.relative(path.dirname(graph.rootPath), graph.rootPath).replace(/\\/g, '/').replace(/\/+$/, '');
   const orphanWarnings: CheckIssue[] = orphanedPaths.map(p => ({
     severity: 'warning' as const,
-    code: 'W005',
+    code: 'orphaned-drift-state',
     rule: 'orphaned-drift-state',
     message: buildIssueMessage({
       what: `Drift state file exists for '${p}' but node is no longer in the graph.`,
@@ -556,7 +556,7 @@ async function allPathsMissing(projectRoot: string, mappingPaths: string[]): Pro
 
 
 /**
- * Group E021 cascade issues by their upstream cause entity.
+ * Group upstream-drift cascade issues by their upstream cause entity.
  * Returns Map<"aspect:id"|"flow:name"|"parent:path", Set<nodePath>>.
  */
 function groupCascadeByCause(cascadeErrors: CheckIssue[], graph?: Graph): Map<string, Set<string>> {
@@ -611,13 +611,13 @@ function computeSuggestedNext(issues: CheckIssue[], graph?: Graph): string | nul
   /* v8 ignore next -- tested by clean-check test, but v8 sometimes marks it uncovered */
   if (errors.length === 0) return null;
 
-  const STRUCTURAL_CODES = new Set(['E001', 'E002', 'E004', 'E005', 'E006', 'E007', 'E008', 'E009', 'E010', 'E011', 'E012', 'E013']);
-  const COMPLETENESS_CODES = new Set(['E030', 'E031', 'E032', 'E038']);
+  const STRUCTURAL_CODES = new Set(['yaml-invalid', 'type-invalid', 'relation-broken', 'flow-node-broken', 'flow-aspect-undefined', 'overlapping-mapping', 'structural-cycle', 'config-invalid', 'duplicate-aspect-id', 'node-yaml-missing', 'implied-aspect-missing', 'aspect-implies-cycle']);
+  const COMPLETENESS_CODES = new Set(['description-missing']);
 
-  const driftErrors = errors.filter(i => i.code === 'E020');
-  const cascadeErrors = errors.filter(i => i.code === 'E021');
+  const driftErrors = errors.filter(i => i.code === 'source-drift');
+  const cascadeErrors = errors.filter(i => i.code === 'upstream-drift');
   const structuralErrors = errors.filter(i => STRUCTURAL_CODES.has(i.code));
-  const coverageErrors = errors.filter(i => i.code === 'E022');
+  const coverageErrors = errors.filter(i => i.code === 'unmapped-files');
   const completenessErrors = errors.filter(i => COMPLETENESS_CODES.has(i.code));
 
   const remaining: string[] = [];

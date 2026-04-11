@@ -171,7 +171,7 @@ function expandImpliesToGraphAspects(aspectIds: Set<string>, graph: Graph): Set<
 
 /**
  * Determine the source of a required aspect (architecture, flow, parent, or own).
- * Used for error messages in E050 validation.
+ * Used for error messages in aspect-undefined validation.
  */
 export function getAspectSource(aspectId: string, node: GraphNode, graph: Graph): string {
   const typeConfig = graph.architecture?.node_types[node.meta.type];
