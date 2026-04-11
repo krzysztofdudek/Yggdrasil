@@ -274,7 +274,7 @@ describe('context-builder', () => {
     });
   });
 
-  describe('node aspects (v2.2: no propagation)', () => {
+  describe('node aspects', () => {
     it('includes implied aspects in context package', async () => {
       const auditAspect: AspectDef = {
         name: 'Audit',
@@ -758,7 +758,7 @@ describe('context-builder', () => {
 
       const pkg = await buildContext(graph, 'mod/svc');
       const aspectLayers = pkg.layers.filter((l) => l.type === 'aspects');
-      // svc has both tag-a and tag-b (v2.2: no propagation)
+      // svc has both tag-a and tag-b
       expect(aspectLayers).toHaveLength(2);
       const aspectLabels = aspectLayers.map((l) => l.label);
       expect(aspectLabels).toContain('Aspect A (aspect: tag-a)');

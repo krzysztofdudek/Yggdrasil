@@ -1,6 +1,6 @@
 name: DriftTypes
 type: types
-description: Drift detection, approval, and audit types — DriftEntry, ApproveResult, DriftState
+description: Drift detection, approval, and audit types — ApproveResult, DriftNodeState, AuditEntry, NodeLifecycleState
 aspects: []
 relations: []
 mapping:

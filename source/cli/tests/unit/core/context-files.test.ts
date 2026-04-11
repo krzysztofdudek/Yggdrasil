@@ -313,7 +313,7 @@ describe('collectTrackedFiles', () => {
     expect(paths).toContain('.yggdrasil/model/events/bus/yg-node.yaml');
   });
 
-  it('uses included_in_relations filter for event relation targets', () => {
+  it('tracks event relation target yg-node.yaml', () => {
     const target: GraphNode = {
       path: 'events/bus',
       meta: { name: 'EventBus', type: 'service' },
@@ -521,14 +521,14 @@ describe('collectTrackedFiles', () => {
     expect(new Set(paths).size).toBe(paths.length);
   });
 
-  it('includes dependency ancestor files (included_in_relations artifacts)', async () => {
+  it('includes dependency ancestor yg-node.yaml files', async () => {
     const graph = await loadGraph(FIXTURE_PROJECT);
     const node = graph.nodes.get('orders/order-service')!;
     const files = collectTrackedFiles(node, graph);
     const paths = files.map((f) => f.path);
 
     // order-service depends on auth/auth-api. auth-api's parent is auth/.
-    // auth/ should have its included_in_relations artifacts tracked.
+    // auth/ should have its yg-node.yaml tracked as a dependency ancestor.
     const authParentFiles = paths.filter((p) => p.includes('model/auth/') && !p.includes('auth-api'));
     expect(authParentFiles.length).toBeGreaterThan(0);
   });

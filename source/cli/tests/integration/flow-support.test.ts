@@ -10,7 +10,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE_PROJECT = path.join(__dirname, '../fixtures/sample-project');
 const CLI_ROOT = path.join(__dirname, '../..');
 
-describe('flow-support integration (v2.2)', () => {
+describe('flow-support integration', () => {
   it('scenario 1: flows load from flows/ directory', async () => {
     const graph = await loadGraph(FIXTURE_PROJECT);
 

@@ -115,7 +115,6 @@ export async function garbageCollectDriftState(
 /**
  * Read full drift state.
  * - If .drift-state is a directory: scan for per-node .json files.
- * - If .drift-state is a file (legacy): parse it, migrate to per-node files, delete old file.
  * - If .drift-state doesn't exist: return {}.
  */
 export async function readDriftState(yggRoot: string): Promise<DriftState> {
