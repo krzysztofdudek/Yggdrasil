@@ -474,8 +474,6 @@ describe('collectTrackedFiles', () => {
     expect(paths).toContain('.yggdrasil/model/dep/svc/yg-node.yaml');
   });
 
-  // integration_anchors test removed — field no longer exists in v4
-
   it('deduplicates aspect files inherited from both own and ancestor', () => {
     const parent: GraphNode = {
       path: 'orders',

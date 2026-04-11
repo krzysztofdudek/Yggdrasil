@@ -1,6 +1,0 @@
-
-name: "Budget"
-quality:
-  context_budget:
-    warning: 10000
-    error: 5000

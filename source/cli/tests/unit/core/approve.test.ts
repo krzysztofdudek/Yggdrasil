@@ -167,21 +167,6 @@ describe('approveNode — proper nodes', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  // Row 2: own changed + source unchanged → REFUSES
-
-  // Row 2 with --reviewed: ACCEPTS
-
-  // Row 3: source changed + own unchanged → REFUSES
-
-  // Row 3 with --reviewed: ACCEPTS
-
-  // --reviewed: reviewer still runs (key behavioral change from --acknowledge)
-
-  // Row 4: cascade only → REFUSES (requires --reviewed)
-
-  // Row 4 with --reviewed: ACCEPTS
-
-  // Row 5: no changes → no-op
   it('returns no-change when nothing changed', async () => {
     const { tmpDir } = await createTmpProject('no-change', {
       nodePath: 'svc/my-service',
@@ -212,8 +197,6 @@ describe('approveNode — proper nodes', () => {
     expect(result.currentHash).toBeDefined();
     await rm(tmpDir, { recursive: true, force: true });
   });
-
-  // --reviewed with empty reason → error
 
   // Node not found
   it('throws for nonexistent node', async () => {
@@ -258,17 +241,7 @@ describe('approveNode — blackbox nodes', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  // Blackbox: source changed + --reviewed → REFUSES
-
-  // Blackbox: yg-node.yaml only change (description, relation) → no-op
-
-  // Blackbox: cascade → requires --reviewed
-
-  // Blackbox: cascade + --reviewed → ACCEPTS
-
-  // Blackbox: graph (.md) + cascade (no source) → REFUSES without --reviewed
-
-  // Blackbox: source + graph both changed → REFUSES (covers "Both changed" row)
+  // Blackbox: source + graph both changed → REFUSES
   it('refuses when both source and graph changed on blackbox', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('bb-both', {
       nodePath: 'legacy/auth',
@@ -328,7 +301,6 @@ describe('approveNode — blackbox nodes', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  // Blackbox: .md artifact changed only (no source, no cascade) → REFUSES without --reviewed
 });
 
 describe('approveNode — anti-laundering', () => {

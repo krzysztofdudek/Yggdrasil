@@ -62,9 +62,7 @@ describe('context-builder', () => {
       expect(layer.content).toContain('### rules.md');
     });
 
-    // Exception note test removed — aspects are now flat strings, no exceptions field
-
-    it('does not include stability tier (removed in v4)', () => {
+    it('does not include stability tier', () => {
       const layer = buildAspectLayer({
         name: 'PubSub Events',
         id: 'pubsub-events',

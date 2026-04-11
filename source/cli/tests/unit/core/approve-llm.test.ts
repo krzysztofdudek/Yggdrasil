@@ -133,7 +133,7 @@ describe('LLM verification (CLI layer)', () => {
       }],
     });
     await recordBaseline(tmpDir);
-    // Change both axes to pass three-axis check
+    // Change source + graph to trigger approval
     await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'const x = Date.now();\n');
     await writeFile(path.join(yggRoot, 'model/svc/my-service/responsibility.md'), 'Updated responsibility.\n');
 
@@ -211,5 +211,4 @@ describe('LLM verification (CLI layer)', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  // Tests for --reviewed and artifact review removed — features deleted in v4
 });

@@ -252,8 +252,6 @@ describe('validator', () => {
     }
   });
 
-  // W013 (directory-without-node) removed — subsumed by E022
-
   it('overlapping-mapping errors for exact duplicate mapping paths', async () => {
     const graph = createGraph();
     graph.nodes.set(
@@ -386,7 +384,7 @@ describe('validator', () => {
     expect(mappingExistenceIssues).toHaveLength(0);
   });
 
-  it('v2.2: flow rules removed (flows are FlowDef[], not nodes)', async () => {
+  it('flow validation uses FlowDef[] (not nodes)', async () => {
     const graph = createGraph();
     graph.nodes.set('svc/a', createNode('svc/a'));
     const result = await validate(graph);
@@ -620,8 +618,6 @@ describe('validator', () => {
     expect(issues[0].message).toContain('tag-b');
   });
 
-  // E035 tests removed — replaced by E051 in architecture enforcement
-
   it('unknown-node-type returns error for node type not in config', async () => {
     const graph = createGraph();
     graph.nodes.set('a', createNode('a', { type: 'unknown-type' }));
@@ -774,10 +770,6 @@ describe('validator', () => {
       expect(issues[0].severity).toBe('error');
     });
   });
-
-  // E039 removed — anchors/claims replaced by aspect-level verification
-
-  // E040, E041, E037 removed — anchor/claim checks replaced by aspect-level verification
 
   describe('Architecture Constraints (E050-E054)', () => {
     it('E051: invalid-relation-target when relation target type not allowed', async () => {

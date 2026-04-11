@@ -165,7 +165,7 @@ node_types:
     aspects: [requires-auth]
     integration_aspects: [correlation-tracking]
 `);
-      await expect(parseArchitecture(file)).rejects.toThrow(/integration_aspects.*removed|upgrade/i);
+      await expect(parseArchitecture(file)).rejects.toThrow(/unknown field.*integration_aspects/i);
       await cleanup(file);
     });
 

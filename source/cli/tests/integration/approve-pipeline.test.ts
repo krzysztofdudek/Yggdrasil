@@ -83,8 +83,6 @@ describe('approve-pipeline', () => {
     expect(stable.currentHash).toBe(approved.currentHash);
   });
 
-  // Tests for --reviewed and three-axis gate removed — features deleted in v4
-
   it('source-only change → approved in binary model', async () => {
     const root = await setupProject();
     cleanupPaths.push(root);
@@ -182,5 +180,4 @@ describe('approve-pipeline', () => {
     );
   });
 
-  // --reviewed test removed — feature deleted in v4
 });

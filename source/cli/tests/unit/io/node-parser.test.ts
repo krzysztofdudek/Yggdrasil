@@ -472,12 +472,6 @@ relations:
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  // Test removed: aspect exceptions no longer exist in node metadata
-  // New format has aspects as simple strings only
-
-
-  // Test removed: aspects are now strings only, no .aspect/.exceptions fields
-
   it('parses node with relations including consumes', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-rels');
     await mkdir(tmpDir, { recursive: true });
@@ -512,13 +506,7 @@ relations:
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  // Test removed: anchor realizations on aspect entries no longer exist
-  // Anchors are now only in mapping groups
-
-  // Old format tests removed: aspects are now string arrays only
-  // object formats (with aspect/anchors/exceptions) are rejected with migration message
-
-  it('parses flat string aspects array (new format)', async () => {
+  it('parses flat string aspects array', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-flat-aspects');
     await mkdir(tmpDir, { recursive: true });
     const nodePath = path.join(tmpDir, 'yg-node.yaml');

@@ -126,7 +126,7 @@ describe.skipIf(!distExists)('CLI E2E', () => {
     expect(stdout).toContain('Source files');
   });
 
-  it('yg deps returns non-zero (command removed)', () => {
+  it('yg deps returns non-zero (unknown command)', () => {
     const { status } = run(['deps', '--node', 'orders/order-service']);
     expect(status).not.toBe(0);
   });
@@ -227,8 +227,6 @@ describe.skipIf(!distExists)('CLI E2E', () => {
     expect(status).toBe(1);
     expect(stderr).toContain("does not exist");
   });
-
-  // drift-sync tests removed — command deleted in v4
 
   // --- impact edge cases ---
 
@@ -347,14 +345,14 @@ describe.skipIf(!distExists)('CLI E2E', () => {
     expect(stdout).toContain('Impact of changes in orders/order-service');
   });
 
-  it('yg impact --simulate is rejected (option removed)', () => {
+  it('yg impact --simulate is rejected (unknown option)', () => {
     const { status, stderr } = run(['impact', '--node', 'auth/auth-api', '--simulate']);
     // Commander treats unknown options as errors
     expect(status).not.toBe(0);
     expect(stderr).toContain('simulate');
   });
 
-  it('yg impact --method is rejected (option removed)', () => {
+  it('yg impact --method is rejected (unknown option)', () => {
     const { status, stderr } = run(['impact', '--node', 'auth/auth-api', '--method', 'verify']);
     expect(status).not.toBe(0);
     expect(stderr).toContain('method');
