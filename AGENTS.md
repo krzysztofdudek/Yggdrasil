@@ -30,11 +30,11 @@ To add a new platform (e.g. a new IDE or agent): add it to `source/cli/src/templ
 
 ## Version Bump & Changelog
 
-- **Changelog is always updated.** Every code or behavior change gets an entry under `## [Unreleased]` in `CHANGELOG.md`. This happens as part of normal work — do not wait for a release.
+- **Changelog is always updated.** Every code or behavior change gets an entry under `## [4.0.0]` in `CHANGELOG.md`. This happens as part of normal work — do not wait for a release.
 - **Version bumps only on explicit user request.** Never bump the version in `source/cli/package.json` unless the user explicitly asks for a release. When they do:
   1. Bump version (patch/minor/major per [semver](https://semver.org/)).
   2. Run `npm install` in `source/cli/` to update `package-lock.json`.
-  3. Move `[Unreleased]` entries to the new version section in `CHANGELOG.md`.
+  3. Move current version entries to a release section in `CHANGELOG.md`.
 
 ## CLI Message Design Principle
 

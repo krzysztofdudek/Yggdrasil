@@ -41,7 +41,7 @@ Agent writes code
   → Agent must update the graph to match what it did
   → yg check passes
   → yg approve runs reviewer: "do source files actually satisfy the aspects?"
-  → Reviewer says no: E055 — rate-limiting aspect not satisfied
+  → Reviewer says no: aspect-violation — rate-limiting aspect not satisfied
   → Agent fixes the code
   → yg approve passes
   → Commit allowed

@@ -1,6 +1,6 @@
 name: Validator
 type: engine
-description: Structural validation and completeness checks enforcing graph integrity (E001-E013/E030-E041, W001-W005)
+description: Structural validation and completeness checks enforcing graph integrity across structural, coverage, completeness, and architecture rules
 aspects:
   - posix-paths
   - what-why-next

@@ -277,8 +277,8 @@ direct edits, hotfixes, experiments, or work in sessions not using the graph. Th
 detects this and treats it as an error.
 
 **Drift** is divergence between the graph and outputs. `yg check` reports drift as errors:
-E020 (direct drift — node's own files changed) and E021 (cascade drift — upstream change
-propagated). Drift blocks commits — it must be resolved before work continues.
+source-drift (direct drift — node's own files changed) and upstream-drift (cascade drift —
+upstream change propagated). Drift blocks commits — it must be resolved before work continues.
 
 Resolution options remain the same:
 
@@ -336,19 +336,19 @@ and how to use the graph. The platform provides the mechanism, Yggdrasil provide
 
 ## Incremental Adoption: Blackbox-First
 
-Full coverage is required from the start — E022 enforces that every git-tracked file belongs
-to a node. But full coverage does not mean full detail.
+Full coverage is required from the start — unmapped-files enforces that every git-tracked file
+belongs to a node. But full coverage does not mean full detail.
 
 **Blackbox-first adoption:** On day one, the agent blackboxes the entire repository at coarse
-granularity (a few large directory mappings). This clears E022 immediately. Then, as work
-touches specific areas, blackbox nodes are decomposed into proper nodes with full metadata.
+granularity (a few large directory mappings). This clears unmapped-files immediately. Then, as
+work touches specific areas, blackbox nodes are decomposed into proper nodes with full metadata.
 The blackbox blocker enforces this: when source files change inside a blackbox, `yg approve`
 refuses until the agent decomposes the affected files into a proper node.
 
 **Condition:** When entering a blackboxed area, the agent must decompose it before editing
 code. If greenfield (new code to be created): create proper nodes from the start;
-blackbox is forbidden. The system mechanically enforces this through E020 on blackbox nodes
-plus the approve blackbox blocker.
+blackbox is forbidden. The system mechanically enforces this through source-drift on blackbox
+nodes plus the approve blackbox blocker.
 
 Value grows with proper node coverage, but blackbox coverage provides structural benefits
 immediately (ownership, drift detection, coverage tracking).

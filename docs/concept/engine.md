@@ -261,11 +261,12 @@ has no matching `listens`, or vice versa — event-based communication is declar
 Tools compare declarations on both sides and signal the missing complement.
 
 **Architecture constraint violations**: enforced per node and relation from
-`yg-architecture.yaml`. E050 fires when an aspect identifier referenced by a node, port,
-architecture type, or flow has no corresponding directory in `aspects/`. E051 fires when
-a relation target's type is not in the architecture allowed list. E052 fires when a parent
-type is not in the allowed `parents` list. E053 fires when a node consumes a port and that
-port's required aspect is not defined in `aspects/`.
+`yg-architecture.yaml`. aspect-undefined fires when an aspect identifier referenced by a node,
+port, architecture type, or flow has no corresponding directory in `aspects/`.
+relation-target-forbidden fires when a relation target's type is not in the architecture
+allowed list. parent-type-forbidden fires when a parent type is not in the allowed `parents`
+list. port-missing-aspect fires when a node consumes a port and that port's required aspect
+is not defined in `aspects/`.
 
 ### Role of Validation
 
@@ -283,29 +284,29 @@ before merge, ensuring structural integrity of the semantic memory base is maint
 
 ### Aspect reference integrity
 
-All aspect identifiers must resolve to an existing directory under `aspects/`. E050
-(dangling-aspect-ref) fires when any identifier — in a node's `aspects` list, a port's
-`aspects` list, an architecture type's `aspects` list, or a flow's `aspects` list — has
-no corresponding aspect directory.
+All aspect identifiers must resolve to an existing directory under `aspects/`. aspect-undefined
+fires when any identifier — in a node's `aspects` list, a port's `aspects` list, an
+architecture type's `aspects` list, or a flow's `aspects` list — has no corresponding aspect
+directory.
 
 ### Aspect implies
 
 The `implies` field on an aspect causes all nodes that carry the aspect to also carry the
-implied aspect. The implies graph must be acyclic (E013) and all implied identifiers must
-resolve (E012).
+implied aspect. The implies graph must be acyclic (aspect-implies-cycle) and all implied
+identifiers must resolve (implied-aspect-missing).
 
 ### Port-based aspect propagation
 
-Ports replace the previous `integration_aspects` mechanism. When node A relates to node B
-and consumes port X:
+Ports propagate aspect requirements to consumers. When node A relates to node B and consumes
+port X:
 
 1. Port X declares required `aspects` (a list of aspect identifiers).
 2. Node A must satisfy those aspects in its source code.
-3. `yg check` validates the structure: E057 fires when a relation target has ports but the
-   consumer relation has no `consumes` field. E058 fires when `consumes` names a port that
-   does not exist on the target. E059 fires when `consumes` is declared but the target has
-   no ports.
-4. E053 fires if any port aspect identifier is not defined in `aspects/`.
+3. `yg check` validates the structure: port-missing-consumes fires when a relation target has
+   ports but the consumer relation has no `consumes` field. port-undefined fires when `consumes`
+   names a port that does not exist on the target. consumes-without-ports fires when `consumes`
+   is declared but the target has no ports.
+4. port-missing-aspect fires if any port aspect identifier is not defined in `aspects/`.
 5. Semantic verification happens at approve time via the reviewer — aspect-violation fires
    when the reviewer determines a port's required aspect is not satisfied in the consumer's
    source code (see
@@ -319,8 +320,8 @@ confirm actual compliance when the agent records a baseline.
 
 Validated from `yg-architecture.yaml`:
 
-1. **Relation target types** — relation target type must be in the architecture allowed list → E051 if not
-2. **Parent types** — parent type must be in the architecture allowed `parents` list → E052 if not
+1. **Relation target types** — relation target type must be in the architecture allowed list → relation-target-forbidden if not
+2. **Parent types** — parent type must be in the architecture allowed `parents` list → parent-type-forbidden if not
 
 ### Context output
 

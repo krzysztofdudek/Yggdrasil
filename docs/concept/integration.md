@@ -102,20 +102,17 @@ format and conventions (described in detail in the Learning mechanisms section b
 
 ### Aspect verification and ports
 
-Two v4 mechanisms replace earlier regex-based approaches with agent-friendly alternatives:
+Two mechanisms enforce aspect compliance at different layers:
 
-**Aspect verification** replaces regex anchors as the primary way aspects constrain source
-files. Instead of writing regular expressions that must match in source code, the agent writes
-aspect content files (`content.md`) describing requirements in natural language. At approve
-time, the reviewer verifies each aspect's content against the actual source code. If an aspect is
-not satisfied, aspect-violation tells the agent exactly what failed.
+**Aspect verification** constrains source files through natural language. The agent writes
+aspect content files (`content.md`) describing requirements. At approve time, the reviewer
+verifies each aspect's content against the actual source code. If an aspect is not satisfied,
+aspect-violation tells the agent exactly what failed.
 
-Aspect content files are more expressive than regex (they can describe behavioral properties,
-not just textual patterns) and more natural for agents to author.
+Aspect content files describe behavioral properties and are natural for agents to author.
 
-**Ports** replace integration aspects as the way provider nodes declare typed contracts for
-their consumers. Instead of requiring consuming nodes to prove an aspect at the architecture
-level, the target (provider) node declares ports — typed contracts that consumers must satisfy
+**Ports** let provider nodes declare typed contracts for their consumers. The target (provider)
+node declares ports — typed contracts that consumers must satisfy
 (e.g., “caller must propagate a correlation ID”). Consumers reference ports via `consumes`
 on their relation entries. This makes integration requirements explicit and verifiable.
 
@@ -446,11 +443,12 @@ Initialization creates `.yggdrasil/yg-config.yaml` with sensible defaults and co
 with the agent platform. From that moment the agent has a “graph instinct” — it knows the repository
 uses Yggdrasil and follows behavioral directives.
 
-On first `yg check`, the agent sees E022 — all git-tracked source files have no graph coverage.
-The E022 message includes guidance: create proper nodes for the area you will work on, blackbox
-the rest. The agent starts by blackboxing everything at a coarse granularity (a few large directory
-mappings), then creates proper nodes for the area of immediate work. This achieves full coverage
-quickly — E022 clears — and proper nodes are created incrementally as work touches new areas.
+On first `yg check`, the agent sees unmapped-files — all git-tracked source files have no graph
+coverage. The message includes guidance: create proper nodes for the area you will work on,
+blackbox the rest. The agent starts by blackboxing everything at a coarse granularity (a few
+large directory mappings), then creates proper nodes for the area of immediate work. This
+achieves full coverage quickly — unmapped-files clears — and proper nodes are created
+incrementally as work touches new areas.
 
 Value appears from the first node — not from a complete graph.
 
@@ -486,7 +484,7 @@ With each session the graph grows, context packages become richer, and the agent
 
 Incremental adoption starts with blackbox-first coverage: blackbox the entire repository at coarse
 granularity, then decompose blackbox nodes into proper nodes as work touches those areas.
-E022 ensures full coverage from day one — no uncovered files allowed. Proper node coverage grows
+unmapped-files ensures full coverage from day one — no uncovered files allowed. Proper node coverage grows
 incrementally where the agent actually works; blackbox areas are decomposed on first touch.
 
 ---
@@ -660,7 +658,7 @@ The agent has access to semantic memory but returns to default behavior: reads t
 directly, ignores context packages, does not update the graph after changes.
 
 Defense: mechanical enforcement through two gates. `yg check` (structural) catches drift
-(E020/E021), coverage gaps (E022), and completeness issues. `yg approve` (semantic) catches
+(source-drift/upstream-drift), coverage gaps (unmapped-files), and completeness issues. `yg approve` (semantic) catches
 aspect violations (aspect-violation — an aspect is not satisfied by source code). The agent
 cannot commit without a clean `yg check`, and approve's self-teaching errors guide the agent
 to fix exactly what is wrong. The system enforces graph usage through its gates, not through

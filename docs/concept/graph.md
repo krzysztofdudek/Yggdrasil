@@ -210,7 +210,7 @@ mapping:
 | `type`        | Yes      | Node type from `config.node_types`                           |
 | `description` | No       | Short summary shown in context maps for quick orientation    |
 | `aspects`     | No       | Aspect entries (list of aspect identifiers)                  |
-| `ports`       | No       | Typed contracts consumers must satisfy (replaces integration_anchors) |
+| `ports`       | No       | Typed contracts consumers must satisfy                       |
 | `relations`   | No       | Outgoing dependencies to other nodes                         |
 | `mapping`     | No       | Flat list of source file/directory paths (see Mapping section) |
 | `blackbox`    | No       | If `true`, node describes something existing, not controlled |
@@ -469,10 +469,9 @@ node_types:
 | `parents`         | Optional. Whitelist of allowed parent node types                                       |
 | `relations`       | Optional. Allowed target types by relation type (calls, uses, etc.)                    |
 
-Integration contracts are no longer defined at the architecture level. Instead, each node
-declares its own `ports` — typed contracts that consumers must satisfy. This moves integration
-requirements closer to the nodes that define them. See the Node metadata section for the
-`ports` field.
+Each node declares its own `ports` — typed contracts that consumers must satisfy. This keeps
+integration requirements close to the nodes that define them. See the Node metadata section
+for the `ports` field.
 
 **Semantics:**
 
@@ -561,11 +560,9 @@ mapping:
 nodes, abstract concepts, and planning nodes may be unmapped. The `mapping` field is simply
 absent. Drift detection does not apply to unmapped nodes.
 
-The previous group-based mapping (with per-group aspects and regex anchors) has been replaced
-by this flat structure. Aspect compliance is no longer proven through regex patterns in mapping
-groups. Instead, aspect requirements are verified by the reviewer during `yg approve`, which reads the
-aspect content files and evaluates them against source code. This moves complexity from the mapping
-declaration to the verification layer.
+Aspect compliance is verified by the reviewer during `yg approve`, which reads the aspect
+content files and evaluates them against source code. This keeps the mapping declaration simple
+while moving verification to a semantic layer.
 
 ### Mapping constraints
 
