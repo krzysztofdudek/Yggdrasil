@@ -45,9 +45,9 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
     issues.push(...checkAspectIdUniqueness(graph));
     issues.push(...checkImpliedAspectsExist(graph));
     issues.push(...checkImpliesNoCycles(graph));
-    // E035 removed — replaced by E051 (architecture enforcement)
-    // E040, E041 removed — anchor realization checks will be replaced by LLM verification in Plan 2
-    // E037 removed — anchor pattern checks will be replaced by LLM verification in Plan 2
+    // required-aspects-coverage removed — replaced by invalid-relation-target (architecture enforcement)
+    // anchor realization checks removed — will be replaced by LLM verification in Plan 2
+    // anchor pattern checks removed — will be replaced by LLM verification in Plan 2
     issues.push(...checkHighFanOut(graph));
     issues.push(...checkMissingDescriptions(graph));
   }
@@ -191,7 +191,7 @@ function checkRelationTargets(graph: Graph): ValidationIssue[] {
   return issues;
 }
 
-// --- Rule 2: All aspect references must point to defined aspects (E050) ---
+// --- Rule 2: All aspect references must point to defined aspects (aspect-undefined) ---
 
 function checkDanglingAspectRefs(graph: Graph): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -388,7 +388,7 @@ function checkImpliesNoCycles(graph: Graph): ValidationIssue[] {
   return issues;
 }
 
-// E035 (checkRequiredAspectsCoverage) removed — replaced by E051 in checkArchitectureConstraints
+// checkRequiredAspectsCoverage removed — replaced by invalid-relation-target in checkArchitectureConstraints
 
 // --- Rule 4: No circular dependencies (cycles involving blackbox are tolerated) ---
 
@@ -507,7 +507,7 @@ function checkMappingOverlap(graph: Graph): ValidationIssue[] {
   return issues;
 }
 
-// --- Rule: Mapping paths should exist on disk (E036) ---
+// --- Rule: Mapping paths should exist on disk (mapping-path-missing) ---
 
 async function checkMappingPathsExist(graph: Graph): Promise<ValidationIssue[]> {
   const issues: ValidationIssue[] = [];
@@ -539,7 +539,7 @@ async function checkMappingPathsExist(graph: Graph): Promise<ValidationIssue[]> 
 }
 
 
-// --- E005: Broken flow refs (flow.nodes) ---
+// --- flow-node-broken: Broken flow refs (flow.nodes) ---
 
 function checkBrokenFlowRefs(graph: Graph): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -563,12 +563,12 @@ function checkBrokenFlowRefs(graph: Graph): ValidationIssue[] {
   return issues;
 }
 
-// --- E006: Flow aspect ids must have corresponding aspect ---
+// --- Flow aspect id validation (merged into aspect-undefined) ---
 
 // checkFlowAspectIds removed — flow aspects are covered by checkDanglingAspectRefs
 
 
-// --- W003: Wide node (maps too many source files) ---
+// --- wide-node: Maps too many source files ---
 
 async function checkWideNodes(graph: Graph): Promise<ValidationIssue[]> {
   const issues: ValidationIssue[] = [];
@@ -598,7 +598,7 @@ async function checkWideNodes(graph: Graph): Promise<ValidationIssue[]> {
   return issues;
 }
 
-// --- W004: High fan-out (exceeds max_direct_relations) ---
+// --- high-fan-out: Exceeds max_direct_relations ---
 
 function checkHighFanOut(graph: Graph): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -622,7 +622,7 @@ function checkHighFanOut(graph: Graph): ValidationIssue[] {
   return issues;
 }
 
-// --- E033: Unpaired event relations (emits without listens or vice versa) ---
+// --- unpaired-event: Unpaired event relations (emits without listens or vice versa) ---
 
 function checkUnpairedEvents(graph: Graph): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -737,7 +737,7 @@ async function checkDirectoriesHaveNodeYaml(graph: Graph): Promise<ValidationIss
           nodePath: graphPath,
         });
       }
-      // W013 (directory-without-node) covered by E022
+      // directory-without-node covered by unmapped-files check
     }
 
     for (const entry of entries) {
@@ -795,16 +795,16 @@ export async function expandMappingToFiles(projectRoot: string, mappingPaths: st
   return files;
 }
 
-// E039 removed — anchors/claims replaced by aspect-level verification
+// anchors/claims check removed — replaced by aspect-level verification
 
-// E040, E041 removed — anchor realization checks will be replaced by LLM verification in Plan 2
+// anchor realization checks removed — will be replaced by LLM verification in Plan 2
 // function checkAnchorRealizations(graph: Graph): ValidationIssue[] { ... }
 
-// E037 removed — anchor pattern checks will be replaced by LLM verification in Plan 2
+// anchor pattern checks removed — will be replaced by LLM verification in Plan 2
 // async function checkAnchorPatterns(graph: Graph): Promise<ValidationIssue[]> { ... }
 
 
-// --- E038: Missing description on nodes, aspects, and flows ---
+// --- missing-description: Missing description on nodes, aspects, and flows ---
 
 function checkMissingDescriptions(graph: Graph): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -861,29 +861,29 @@ function checkMissingDescriptions(graph: Graph): ValidationIssue[] {
   return issues;
 }
 
-// --- Architecture Constraints (E051-E052) ---
-// Note: E050 (dangling-aspect-ref) is generated by checkDanglingAspectRefs above (line ~184).
+// --- Architecture Constraints (invalid-relation-target, invalid-parent-type) ---
+// Note: aspect-undefined (dangling-aspect-ref) is generated by checkDanglingAspectRefs above (line ~184).
 
 function checkArchitectureConstraints(graph: Graph): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
-  // E051-E052 require architecture to be defined and loaded
+  // invalid-relation-target and invalid-parent-type require architecture to be defined and loaded
   // Only validate if architecture has node_types entries
   if (!graph.architecture || Object.keys(graph.architecture.node_types).length === 0) {
     return issues;
   }
 
-  // E051: invalid-relation-target (sync, no I/O)
+  // invalid-relation-target (sync, no I/O)
   issues.push(...checkArchitectureRelations(graph));
 
-  // E052: invalid-parent-type (sync, no I/O)
+  // invalid-parent-type (sync, no I/O)
   issues.push(...checkArchitectureParents(graph));
 
   return issues;
 }
 
 /**
- * E053 — integration-aspect-missing
+ * integration-aspect-missing
  * When a node consumes a port, that port's required aspects must be defined in aspects/.
  */
 function checkPortAspectsDefined(graph: Graph): ValidationIssue[] {
@@ -897,7 +897,7 @@ function checkPortAspectsDefined(graph: Graph): ValidationIssue[] {
 
       for (const portName of rel.consumes ?? []) {
         const port = target.meta.ports[portName];
-        if (!port) continue; // E058 catches this
+        if (!port) continue; // unknown-port catches this
         for (const aspectId of port.aspects) {
           if (!definedAspects.has(aspectId)) {
             issues.push({
@@ -921,7 +921,7 @@ function checkPortAspectsDefined(graph: Graph): ValidationIssue[] {
 }
 
 /**
- * E051 — invalid-relation-target
+ * invalid-relation-target
  * Relation target type must be in architecture's allowed list for the relation type.
  */
 function checkArchitectureRelations(graph: Graph): ValidationIssue[] {
@@ -938,7 +938,7 @@ function checkArchitectureRelations(graph: Graph): ValidationIssue[] {
       if (!allowedTypes) continue; // Unconstrained relation type
 
       const target = graph.nodes.get(rel.target);
-      if (!target) continue; // E004 catches missing target
+      if (!target) continue; // relation-target-missing catches this
 
       if (!allowedTypes.includes(target.meta.type)) {
         issues.push({
@@ -960,7 +960,7 @@ function checkArchitectureRelations(graph: Graph): ValidationIssue[] {
 }
 
 /**
- * E052 — invalid-parent-type
+ * invalid-parent-type
  * Parent type must be in architecture's allowed list for this node type.
  */
 function checkArchitectureParents(graph: Graph): ValidationIssue[] {
@@ -992,13 +992,13 @@ function checkArchitectureParents(graph: Graph): ValidationIssue[] {
 
 // getFlowAspects removed — was used by old mapping group aspect checking
 
-// getAspectSource removed — was used by old mapping group aspect checking (E050, E054)
+// getAspectSource removed — was used by old mapping group aspect checking (aspect-undefined, aspect-source-invalid)
 
 /**
- * E057 — missing-consumes
+ * missing-consumes
  * When a relation target has non-empty ports, the consumer must declare which port(s) it consumes.
  *
- * E058 — unknown-port
+ * unknown-port
  * When a consumer's consumes list references a port name that does not exist on the target.
  */
 function checkPortConsumes(graph: Graph): ValidationIssue[] {
@@ -1012,7 +1012,7 @@ function checkPortConsumes(graph: Graph): ValidationIssue[] {
       const target = graph.nodes.get(rel.target);
       const hasPorts = target?.meta.ports && Object.keys(target.meta.ports).length > 0;
 
-      // E059: consumes on a relation to a target without ports
+      // consumes-without-ports: consumes on a relation to a target without ports
       if (!hasPorts && rel.consumes && rel.consumes.length > 0) {
         issues.push({
           severity: 'error',
@@ -1031,7 +1031,7 @@ function checkPortConsumes(graph: Graph): ValidationIssue[] {
       if (!hasPorts) continue;
       const ports = target!.meta.ports!;
 
-      // E057: target has ports but consumer has no consumes
+      // missing-consumes: target has ports but consumer has no consumes
       if (!rel.consumes || rel.consumes.length === 0) {
         const portNames = Object.keys(ports);
         issues.push({
@@ -1048,7 +1048,7 @@ function checkPortConsumes(graph: Graph): ValidationIssue[] {
         continue;
       }
 
-      // E058: consumes references non-existent port
+      // unknown-port: consumes references non-existent port
       for (const portName of rel.consumes) {
         if (!(portName in ports)) {
           const available = Object.keys(ports);
@@ -1072,7 +1072,7 @@ function checkPortConsumes(graph: Graph): ValidationIssue[] {
 }
 
 /**
- * W006 — orphaned-aspect
+ * orphaned-aspect
  * An aspect defined in aspects/ is not referenced by any node, architecture type, or flow.
  * Implied aspects are exempt when the aspect that implies them is itself referenced.
  */

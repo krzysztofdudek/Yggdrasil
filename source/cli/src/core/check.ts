@@ -385,7 +385,7 @@ export async function detectOrphanedDriftState(graph: Graph): Promise<string[]> 
 
 /**
  * Run the full check: validation + drift + coverage + orphaned state.
- * @param gitTrackedFiles -- pass null to skip E022 (no git available).
+ * @param gitTrackedFiles -- pass null to skip unmapped-files check (no git available).
  */
 export async function runCheck(graph: Graph, gitTrackedFiles: string[] | null): Promise<CheckResult> {
   // 1. Validation (structural + completeness)
@@ -512,7 +512,7 @@ function describeCascadeCause(filePath: string, layer: TrackedFileLayer, graph: 
 
 /**
  * Extract a grouping key from a cascade cause so multiple changed files
- * from the same logical cause (e.g., same aspect) produce one E021.
+ * from the same logical cause (e.g., same aspect) produce one upstream-drift issue.
  */
 function extractCauseKey(cause: CascadeCause): string {
   // Group by layer + the entity identifier (aspect id, dep path, flow name, parent path)

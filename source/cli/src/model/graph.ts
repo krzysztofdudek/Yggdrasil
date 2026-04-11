@@ -150,7 +150,7 @@ export interface Graph {
   architectureError?: string;
   /** Present when yg-config.yaml could not be parsed and loader used fallback config */
   configError?: string;
-  /** Parse errors for yg-node.yaml files (path -> message); reported as E001 */
+  /** Parse errors for yg-node.yaml files (path -> message); reported as yaml-invalid */
   nodeParseErrors?: Array<{ nodePath: string; message: string }>;
   /** All nodes indexed by their path (e.g. "orders/order-service") */
   nodes: Map<string, GraphNode>;

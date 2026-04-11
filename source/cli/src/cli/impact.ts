@@ -247,7 +247,7 @@ async function handleAspectImpact(
   process.stdout.write(`Implied by: ${impliedBy.length > 0 ? impliedBy.join(', ') : '(none)'}\n`);
   process.stdout.write(`Implies: ${implies.length > 0 ? implies.join(', ') : '(none)'}\n`);
   process.stdout.write(`\nBlast radius: ${affected.length + indirectPaths.length} nodes, ${propagatingFlows.length} flows\n`);
-  process.stdout.write(`  All ${affected.length} directly affected nodes would show E021 if this aspect changes.\n`);
+  process.stdout.write(`  All ${affected.length} directly affected nodes would show upstream-drift if this aspect changes.\n`);
   const totalAffected = affected.length + indirectPaths.length;
   if (totalAffected >= 10) {
     process.stdout.write(`  High blast radius — review aspect requirements in affected nodes before modifying this aspect.\n`);
@@ -302,7 +302,7 @@ async function handleFlowImpact(
   );
   const declaredParticipants = flow.nodes.filter((n) => graph.nodes.has(n));
   process.stdout.write(`\nBlast radius: ${sorted.length + indirectPaths.length} nodes\n`);
-  process.stdout.write(`  All ${declaredParticipants.length} participants would show E021 if this flow changes.\n`);
+  process.stdout.write(`  All ${declaredParticipants.length} participants would show upstream-drift if this flow changes.\n`);
   const totalFlowAffected = sorted.length + indirectPaths.length;
   if (totalFlowAffected >= 10) {
     process.stdout.write(`  High blast radius — review flow compliance in participants before modifying.\n`);
@@ -520,7 +520,7 @@ export function registerImpactCommand(program: Command): void {
             `\nBlast radius: ${allAffected.size} nodes, ${flows.length} flows, ${aspectsInScope.length} aspects\n`,
           );
           process.stdout.write(
-            `  All ${allAffected.size} nodes would show E021 (cascade drift) if this node changes.\n`,
+            `  All ${allAffected.size} nodes would show upstream-drift (cascade drift) if this node changes.\n`,
           );
           if (allAffected.size >= 10) {
             process.stdout.write(`  High blast radius — review direct dependents before changing this node.\n`);

@@ -306,7 +306,7 @@ export async function runBatch(
 }
 
 /**
- * Filter E021 cascade issues by cause prefix.
+ * Filter upstream-drift cascade issues by cause prefix.
  * Returns node paths whose cascadeCauses include files under the given prefix.
  */
 export function filterCascadeNodes(

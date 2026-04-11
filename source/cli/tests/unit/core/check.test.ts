@@ -149,23 +149,41 @@ describe('classifyDrift', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('returns source-drift when own yg-node.yaml changes', async () => {
+  it('returns upstream-drift when own yg-node.yaml aspect-relevant fields change', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('graph-drift', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
     });
     await recordBaseline(tmpDir);
-    // Modify own yg-node.yaml (tracked as hierarchy layer)
+    // Modify aspect-relevant field (type change triggers upstream drift)
+    await writeFile(
+      path.join(yggRoot, 'model/svc/my-service/yg-node.yaml'),
+      'name: MyService\ntype: module\ndescription: test\nmapping:\n  - src/svc/\n',
+    );
+    const graph = await loadGraph(tmpDir);
+    const result = await classifyDrift(graph);
+    const drift = result.filter(i => i.nodePath === 'svc/my-service' && i.code === 'upstream-drift');
+    expect(drift.length).toBeGreaterThanOrEqual(1);
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('does NOT trigger drift when only description changes in yg-node.yaml', async () => {
+    const { tmpDir, yggRoot } = await createTmpProject('desc-only-drift', {
+      nodePath: 'svc/my-service',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
+      mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
+    });
+    await recordBaseline(tmpDir);
+    // Modify only description — should NOT trigger drift
     await writeFile(
       path.join(yggRoot, 'model/svc/my-service/yg-node.yaml'),
       'name: MyService\ntype: service\ndescription: updated description\nmapping:\n  - src/svc/\n',
     );
     const graph = await loadGraph(tmpDir);
     const result = await classifyDrift(graph);
-    // yg-node.yaml is tracked in hierarchy layer, so changes appear as upstream-drift
     const drift = result.filter(i => i.nodePath === 'svc/my-service');
-    expect(drift.length).toBeGreaterThanOrEqual(1);
+    expect(drift).toHaveLength(0);
     await rm(tmpDir, { recursive: true, force: true });
   });
 

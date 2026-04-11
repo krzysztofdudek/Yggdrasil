@@ -57,7 +57,7 @@ export function collectTrackedFiles(node: GraphNode, graph: Graph): TrackedFile[
   }
 
   // 1. OWN — synthetic hash of aspect-relevant yg-node.yaml subset (type, aspects, relations, ports)
-  addFile(graphPath('model', node.path, 'yg-node.yaml'), 'graph', 'hierarchy');
+  // Only the subset is tracked — description-only changes do NOT trigger upstream drift.
   const ownSubset = {
     type: node.meta.type,
     aspects: node.meta.aspects,

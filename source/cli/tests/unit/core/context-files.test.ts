@@ -15,7 +15,8 @@ describe('collectTrackedFiles', () => {
     const files = collectTrackedFiles(node, graph);
     const paths = files.map((f) => f.path);
 
-    expect(paths).toContain('.yggdrasil/model/orders/order-service/yg-node.yaml');
+    // Own yg-node.yaml is tracked as synthetic hash, not as file path
+    expect(paths).toContain('own-subset:orders/order-service');
   });
 
   it('includes parent yg-node.yaml', async () => {
@@ -84,10 +85,10 @@ describe('collectTrackedFiles', () => {
     const node = graph.nodes.get('orders/order-service')!;
     const files = collectTrackedFiles(node, graph);
 
-    // Hierarchy layer: the node's own yg-node.yaml
-    const ownNodeYaml = files.find((f) => f.path === '.yggdrasil/model/orders/order-service/yg-node.yaml');
-    expect(ownNodeYaml).toBeDefined();
-    expect(ownNodeYaml?.layer).toBe('hierarchy');
+    // Own yg-node.yaml tracked as synthetic hash (not file path)
+    const ownSubset = files.find((f) => f.path === 'own-subset:orders/order-service');
+    expect(ownSubset).toBeDefined();
+    expect(ownSubset?.layer).toBe('hierarchy');
 
     // Hierarchy layer: parent node files
     const hierarchyNodeYaml = files.find((f) => f.path === '.yggdrasil/model/orders/yg-node.yaml');
@@ -141,9 +142,9 @@ describe('collectTrackedFiles', () => {
     expect(sourceFiles).toHaveLength(0);
     expect(graphFiles.length).toBeGreaterThan(0);
 
-    // Should still have its own yg-node.yaml and artifacts
+    // Should still have its own yg-node.yaml (as synthetic hash)
     const paths = files.map((f) => f.path);
-    expect(paths).toContain('.yggdrasil/model/orders/yg-node.yaml');
+    expect(paths).toContain('own-subset:orders');
   });
 
   it('includes relational dependency yg-node.yaml', async () => {
@@ -250,7 +251,7 @@ describe('collectTrackedFiles', () => {
     const paths = files.map((f) => f.path);
 
     // Should still have node files
-    expect(paths).toContain('.yggdrasil/model/users/yg-node.yaml');
+    expect(paths).toContain('own-subset:users');
     // Should not have aspect files
     const aspectPaths = paths.filter((p) => p.includes('/aspects/'));
     expect(aspectPaths).toHaveLength(0);
@@ -264,7 +265,7 @@ describe('collectTrackedFiles', () => {
     const paths = files.map((f) => f.path);
 
     // Should have own files but no dep artifacts from other nodes
-    expect(paths).toContain('.yggdrasil/model/users/yg-node.yaml');
+    expect(paths).toContain('own-subset:users');
     // Should not have auth or order node files (those are only via relations)
     const otherModelPaths = paths.filter(
       (p) => p.startsWith('.yggdrasil/model/') && !p.startsWith('.yggdrasil/model/users'),
