@@ -21,8 +21,6 @@ import { debugWrite } from '../utils/debug-log.js';
 import path from 'node:path';
 
 export interface ApproveOptions {
-  /** Conscious exception — bypasses three-axis gate only. Reviewer still verifies aspects. */
-  reviewed?: string;
 }
 
 /**
@@ -32,15 +30,8 @@ export interface ApproveOptions {
 export async function approveNode(
   graph: Graph,
   nodePath: string,
-  options: ApproveOptions = {},
+  _options: ApproveOptions = {},
 ): Promise<ApproveResult> {
-  const { reviewed } = options;
-
-  // Validate reviewed reason if provided
-  if (reviewed !== undefined && reviewed.trim() === '') {
-    throw new Error('--reviewed requires a non-empty reason string.');
-  }
-
   // Validate node exists
   const node = graph.nodes.get(nodePath);
   if (!node) throw new Error(`Node '${nodePath}' does not exist.`);
@@ -134,7 +125,7 @@ export async function approveNode(
     };
   }
 
-  // ── Existing baseline — compute three axes ───────────────
+  // ── Existing baseline — compute changes ───────────────
   const trackedFiles = collectTrackedFiles(node, graph);
   const excludePrefixes = getChildMappingExclusions(graph, nodePath);
   const storedFileData = storedEntry.files
@@ -155,10 +146,9 @@ export async function approveNode(
     if (!fileLayerMap.has(tfKey)) {
       fileLayerMap.set(tfKey, tf.layer);
     }
-    const normalized = tfKey;
     const trimmedPath = tf.path.trim().replace(/\\/g, '/');
     if (trimmedPath.endsWith('/')) {
-      dirPrefixes.push({ prefix: normalized + '/', layer: tf.layer });
+      dirPrefixes.push({ prefix: tfKey + '/', layer: tf.layer });
     }
   }
 
@@ -177,10 +167,9 @@ export async function approveNode(
     .split(path.sep)
     .join('/');
 
-  // Classify changed files into three axes
-  const changedOwnArtifacts: string[] = [];
+  // Classify changed files into two categories
   const changedSource: string[] = [];
-  const changedOther: AnnotatedChange[] = [];
+  const changedUpstream: AnnotatedChange[] = [];
 
   // Check current vs stored
   for (const [filePath, hash] of Object.entries(fileHashes)) {
@@ -202,8 +191,8 @@ export async function approveNode(
     const normalized = filePath.trim().replace(/\\/g, '/').replace(/\/+$/, '');
     if (layer === 'aspects' || normalized.includes('/aspects/')) return 'aspect content';
     if (layer === 'flows' || normalized.includes('/flows/')) return 'flow description';
-    if (layer === 'hierarchy') return 'parent artifact';
-    if (layer === 'relational') return 'dependency interface';
+    if (layer === 'hierarchy') return 'parent metadata';
+    if (layer === 'relational') return 'dependency metadata';
     return 'upstream content';
   }
 
@@ -213,169 +202,101 @@ export async function approveNode(
 
     if (layer === 'source' || (!isGraph && !layer)) {
       changedSource.push(filePath);
-    } else if (layer === 'own') {
-      // yg-node.yaml is NOT an artifact — only .md files count
-      if (filePath.endsWith('.md')) {
-        changedOwnArtifacts.push(filePath);
-      }
-      // yg-node.yaml changes are ignored for three-axis check
     } else if (layer) {
-      // hierarchy, aspects, relational, flows = "other tracked"
-      changedOther.push({
+      // hierarchy, aspects, relational, flows = upstream
+      changedUpstream.push({
         filePath,
         annotation: annotateUpstreamChange(filePath, layer),
       });
     } else if (isGraph) {
-      /* v8 ignore start -- defensive: deleted file with unknown layer under .yggdrasil/ */
-      // check if it was an own artifact (.md in node dir) or upstream
-      const nodePrefix = `${yggPrefix}/model/${nodePath}/`;
-      if (
-        filePath.trim().replace(/\\/g, '/').replace(/\/+$/, '').startsWith(nodePrefix) &&
-        filePath.endsWith('.md')
-      ) {
-        changedOwnArtifacts.push(filePath);
-      } else {
-        changedOther.push({
-          filePath,
-          annotation: annotateUpstreamChange(filePath, undefined),
-        });
-      }
+      /* v8 ignore start -- defensive */
+      changedUpstream.push({
+        filePath,
+        annotation: annotateUpstreamChange(filePath, undefined),
+      });
       /* v8 ignore stop */
     }
   }
 
-  const ownChanged = changedOwnArtifacts.length > 0;
   const sourceChanged = changedSource.length > 0;
-  const otherChanged = changedOther.length > 0;
+  const upstreamChanged = changedUpstream.length > 0;
 
   // ── Blackbox enforcement ─────────────────────────────────
   if (isBlackbox && sourceChanged) {
-    // GC runs on every invocation per spec ("when approve runs")
     const gcPaths = await runGC(graph);
     return {
       action: 'refused',
       previousHash: storedEntry.hash,
       currentHash: canonicalHash,
-      refuseReason: reviewed
-        ? 'Cannot use --reviewed for source changes on a blackbox node.'
-        : 'Cannot approve source changes on a blackbox node.',
+      refuseReason: 'Cannot approve source changes on a blackbox node.',
       blackboxBlocked: true,
-      reviewedAttempted: !!reviewed,
       isBlackbox: true,
-      axes: {
-        ownArtifacts: ownChanged ? 'changed' : 'unchanged',
-        source: 'changed',
-        otherTracked: otherChanged ? 'changed' : 'unchanged',
-      },
       changedSource,
       gcPaths,
     };
   }
 
-  // ── Three-axis decision ──────────────────────────────────
-  const axes = {
-    ownArtifacts: (ownChanged ? 'changed' : 'unchanged') as 'changed' | 'unchanged',
-    source: (sourceChanged ? 'changed' : 'unchanged') as 'changed' | 'unchanged',
-    otherTracked: (otherChanged ? 'changed' : 'unchanged') as 'changed' | 'unchanged',
-  };
-
-  let action: ApproveResult['action'];
-  let refuseReason: string | undefined;
-
-  if (!ownChanged && !sourceChanged && !otherChanged) {
-    // Row 5: no changes → no-op (still records baseline)
-    action = 'no-change';
-  } else if (ownChanged && sourceChanged) {
-    // Row 1: both changed → accepts
-    action = 'approved';
-  } else if (ownChanged && !sourceChanged) {
-    // Row 2: artifacts changed, source unchanged
-    if (reviewed) {
-      action = 'reviewed';
-    } else {
-      action = 'refused';
-      refuseReason = 'Artifacts changed but source unchanged.';
-    }
-  } else if (!ownChanged && sourceChanged) {
-    // Row 3: source changed, artifacts unchanged
-    if (reviewed) {
-      action = 'reviewed';
-    } else {
-      action = 'refused';
-      refuseReason = 'Source changed but artifacts unchanged.';
-    }
-  } else {
-    // Row 4: only other tracked changed (cascade)
-    if (reviewed) {
-      action = 'reviewed';
-    } else {
-      action = 'refused';
-      refuseReason = 'Context changed but graph artifacts and source unchanged.';
-    }
-  }
-
-  // Record baseline if accepted — preserve previous reviewedReason for audit trail
-  if (action !== 'refused') {
-    const stateToWrite = {
+  // ── Blackbox + upstream only → auto-clear baseline ──────
+  if (isBlackbox && upstreamChanged && !sourceChanged) {
+    await writeNodeDriftState(graph.rootPath, nodePath, {
       hash: canonicalHash,
       files: fileHashes,
       mtimes: fileMtimes,
-      // New reviewed reason replaces old; regular approve preserves existing reason
-      reviewedReason: reviewed ?? storedEntry.reviewedReason,
+    });
+    const gcPaths = await runGC(graph);
+    return {
+      action: 'approved',
+      previousHash: storedEntry.hash,
+      currentHash: canonicalHash,
+      changedUpstream,
+      isBlackbox: true,
+      gcPaths,
     };
-    await writeNodeDriftState(graph.rootPath, nodePath, stateToWrite);
+  }
+
+  // ── Binary decision ─────────────────────────────────────
+  let action: ApproveResult['action'];
+
+  if (!sourceChanged && !upstreamChanged) {
+    action = 'no-change';
+  } else {
+    // Non-blackbox + any changes → approved (LLM verification in CLI layer)
+    action = 'approved';
+  }
+
+  // Record baseline if approved
+  if (action === 'approved') {
+    await writeNodeDriftState(graph.rootPath, nodePath, {
+      hash: canonicalHash,
+      files: fileHashes,
+      mtimes: fileMtimes,
+    });
 
     // Audit log — append-only, never read by CLI
     const changedFiles = [
-      ...changedOwnArtifacts,
       ...changedSource,
-      ...changedOther.map((c) => c.filePath),
+      ...changedUpstream.map((c) => c.filePath),
     ];
     await appendAuditEntry(graph.rootPath, {
       ts: new Date().toISOString(),
       node: nodePath,
-      action,
+      action: 'approved',
       prev: storedEntry.hash,
       hash: canonicalHash,
-      reason: reviewed ?? null,
+      reason: null,
       files: changedFiles,
     });
   }
 
-  // GC orphaned drift state — runs on every invocation per spec ("when approve runs")
+  // GC orphaned drift state
   const gcPaths = await runGC(graph);
-
-  // Collect unchanged file names for error messages
-  const allArtifactNames = node.artifacts
-    .map((a) => a.filename)
-    .filter((f) => f.endsWith('.md'));
-  const unchangedArtifactNames = ownChanged
-    ? allArtifactNames.filter((name) => {
-        const fullPath = `${yggPrefix}/model/${nodePath}/${name}`;
-        return !changedOwnArtifacts.includes(fullPath);
-      })
-    : allArtifactNames;
-
-  // Collect actual source file paths (expanded from directory mappings)
-  const allSourceFiles = Object.keys(fileHashes).filter((f) => {
-    const layer = resolveLayer(f);
-    return layer === 'source' || (!f.trim().replace(/\\/g, '/').replace(/\/+$/, '').startsWith(yggPrefix) && !layer);
-  });
 
   return {
     action,
     previousHash: storedEntry.hash,
     currentHash: canonicalHash,
-    refuseReason,
-    axes,
-    changedOwnArtifacts: ownChanged ? changedOwnArtifacts : undefined,
     changedSource: sourceChanged ? changedSource : undefined,
-    changedOther: otherChanged ? changedOther : undefined,
-    unchangedArtifactNames: !ownChanged && sourceChanged ? unchangedArtifactNames : undefined,
-    unchangedSourceFiles: ownChanged && !sourceChanged ? allSourceFiles : undefined,
-    blackboxBlocked: false,
-    antiLaunderingBlocked: false,
-    reviewedAttempted: !!reviewed,
+    changedUpstream: upstreamChanged ? changedUpstream : undefined,
     isBlackbox,
     gcPaths,
   };
