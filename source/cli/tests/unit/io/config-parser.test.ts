@@ -91,7 +91,7 @@ name: "Versioned"
     expect(config.version).toBeUndefined();
   });
 
-  it('ignores artifacts section in config (no longer parsed)', async () => {
+  it('ignores unknown config sections', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-ignores-artifacts');
     await mkdir(tmpDir, { recursive: true });
     await writeFile(

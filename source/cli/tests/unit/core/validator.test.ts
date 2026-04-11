@@ -771,7 +771,7 @@ describe('validator', () => {
     });
   });
 
-  describe('Architecture Constraints (E050-E054)', () => {
+  describe('Architecture Constraints', () => {
     it('invalid-relation-target when relation target type not allowed', async () => {
       const graph = createGraph({
         architecture: {
@@ -938,7 +938,7 @@ describe('validator', () => {
     });
   });
 
-  describe('E057 missing-consumes', () => {
+  describe('missing-consumes', () => {
     it('fires when relation target has ports but consumer has no consumes', async () => {
       const graph = createGraph({
         aspects: [{ name: 'Audit', id: 'valid-tag', artifacts: [] }],
@@ -1013,7 +1013,7 @@ describe('validator', () => {
     });
   });
 
-  describe('E058 unknown-port', () => {
+  describe('unknown-port', () => {
     it('fires when consumes references non-existent port', async () => {
       const graph = createGraph({
         aspects: [{ name: 'Audit', id: 'valid-tag', artifacts: [] }],
@@ -1047,7 +1047,7 @@ describe('validator', () => {
     });
   });
 
-  describe('E059 consumes-without-ports', () => {
+  describe('consumes-without-ports', () => {
     it('fires when relation has consumes but target has no ports', async () => {
       const graph = createGraph();
       // Provider has NO ports
@@ -1079,7 +1079,7 @@ describe('validator', () => {
     });
   });
 
-  describe('W006 orphaned-aspect', () => {
+  describe('orphaned-aspect', () => {
     it('fires when aspect is not used by any node, architecture, or flow', async () => {
       const graph = createGraph({
         aspects: [
