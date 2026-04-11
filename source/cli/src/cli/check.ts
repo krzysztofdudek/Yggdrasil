@@ -89,16 +89,13 @@ export function formatOutput(result: CheckResult): string {
     if (drift.length > 0) {
       lines.push('  Drift:');
       for (const issue of sortByNodePath(drift)) {
-        // Map DriftStatus to display label per CLI messages spec
-        const subtypeMap: Record<string, string> = {
-          'source-drift': 'source drift',
-          'graph-drift': 'graph drift',
-          'full-drift': 'full drift',
+        const stateMap: Record<string, string> = {
+          'ok': 'source drift',
           'missing': 'source missing',
           'unmaterialized': 'not yet materialized',
         };
-        const subtypeLabel = subtypeMap[issue.driftSubtype ?? ''] ?? issue.driftSubtype ?? '';
-        lines.push(`  ${issue.code} ${issue.nodePath ?? ''} — ${subtypeLabel}`);
+        const stateLabel = stateMap[issue.lifecycleState ?? ''] ?? 'source drift';
+        lines.push(`  ${issue.code} ${issue.nodePath ?? ''} — ${stateLabel}`);
         for (const line of issue.message.split('\n')) {
           lines.push(`       ${line}`);
         }
@@ -116,8 +113,7 @@ export function formatOutput(result: CheckResult): string {
         return (a.nodePath ?? '').localeCompare(b.nodePath ?? '');
       });
       for (const issue of sortedCascade) {
-        const verificationLabel = issue.verificationLabel ? ` (${issue.verificationLabel})` : '';
-        lines.push(`  ${issue.code} ${issue.nodePath ?? ''} — cascade drift${verificationLabel}`);
+        lines.push(`  ${issue.code} ${issue.nodePath ?? ''} — cascade drift`);
         for (const line of issue.message.split('\n')) {
           lines.push(`       ${line}`);
         }
