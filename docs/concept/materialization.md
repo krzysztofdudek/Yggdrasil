@@ -46,7 +46,7 @@ Situations leading to materialization:
 - **New node with a mapping.** The agent created a node describing a new component.
   The mapping points to a file that does not exist yet. Drift state is `unmaterialized`.
   The agent produces the output.
-- **Graph change.** The agent updated artifacts or relations of an existing node.
+- **Graph change.** The agent updated metadata or relations of an existing node.
   The output under the mapping does not reflect the changes. The agent produces a new output.
 - **Drift rejection.** The human decided that a manual change to a file was a mistake.
   The agent re-materializes from the graph.
@@ -114,13 +114,13 @@ In materialization, it looks like this:
 ```text
 Agent: materializes OrderService from its context package.
 Output: code creates orders, but validation is generic (the agent
-        invented the rules because constraints.md did not exist).
+        invented the rules because no validation aspect existed).
 
 Human: "validation is wrong — an order must have min 1 item,
         max 100 items, and the total must be > 0"
 
-Agent: adds constraints.md to the node with specific rules.
-       Runs validation — no errors.
+Agent: creates an order-validation aspect with specific rules,
+       attaches it to the node. Runs validation — no errors.
        Re-materializes from the improved context package.
 
 Output: validation is precise — exactly the rules the human described.
@@ -146,17 +146,14 @@ Over time, the graph converges to the level of detail that consistently produces
 ## Blackboxes and materialization
 
 Nodes with `blackbox: true` (see [Graph](graph) document) do not participate in materialization
-or topological ordering. They describe unexplored areas — their artifacts may be coarse
+or topological ordering. They describe unexplored areas — their metadata may be coarse
 or incomplete, but they still enter the context packages of dependent nodes.
 
 Consequence: a blackbox node is never materialized, but it **affects the materialization
-of others**. A new service depending on a blackbox legacy module gets its interface in
+of others**. A new service depending on a blackbox legacy module gets its description in
 its context package and implements integration based on available knowledge. If the
 integration output is bad, it is a signal that the blackbox node needs to be deepened —
-its artifacts need a more accurate description of the interface.
-
-Artifacts of blackbox nodes count towards the context budget of dependent nodes — they
-are not free for consumers.
+its metadata needs a more accurate description.
 
 ---
 
@@ -171,7 +168,7 @@ The agent, having the context package, knows what the node is and how to produce
 appropriate to its nature. A node with type `repository` mapped to a migration file
 produces a migration. A node with type `service` mapped to a TypeScript file produces
 a service implementation. Knowledge about the nature of the output is in the graph
-(type, artifacts, context), not in the materialization system.
+(type, description, context), not in the materialization system.
 
 ---
 

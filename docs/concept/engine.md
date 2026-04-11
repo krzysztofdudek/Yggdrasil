@@ -2,7 +2,7 @@
 
 The [Foundation](foundation) document defines the problem and invariants.
 The [Graph](graph) document defines graph structure.
-The [Integration](integration) document defines how agents use these mechanics.
+The [Integration](integration) document defines how agents interact with these mechanics.
 This document defines the deterministic mechanics — algorithms and tools that operate on the
 graph: context assembly, check (unified gate), and tool operations.
 
@@ -60,11 +60,9 @@ Each step is deterministic.
 1.  GLOBAL        yg-config.yaml: project name
 
 2.  HIERARCHICAL  for each ancestor from model/ root down to N's parent:
-                  include all configured artifacts of that ancestor (every artifact type from config
-                  that exists in the ancestor's directory)
+                  include yg-node.yaml of that ancestor
 
-3.  OWN           N's yg-node.yaml (raw) and N's content artifacts (all files matching configured
-                  artifact filenames)
+3.  OWN           N's yg-node.yaml (raw)
 
 4.  ASPECTS       Each block (hierarchy, own, flow) declares its own aspects. No inheritance —
                   each block has an `aspects` field (comma-separated aspect identifiers; omit if empty).
@@ -87,7 +85,7 @@ Each step is deterministic.
 
 5.  RELATIONAL
       for each structural relation of N (uses, calls, extends, implements):
-        - artifacts of target with included_in_relations (e.g. responsibility, interface)
+        - yg-node.yaml of target (description, type, ports)
         - dependency hierarchy: ancestors of the target (from model/ root to target's parent)
           with their metadata and aspects, providing domain context for the dependency
         - consumes annotation from the relation field (if declared)
@@ -95,7 +93,7 @@ Each step is deterministic.
         - event name and type
         - consumes annotation from the relation field (if declared)
       for each flow listing N or any of N's ancestors as a participant:
-        - flow content artifacts
+        - flow metadata from yg-flow.yaml
 ```
 
 The result is a single document — the context package. Its size is bounded regardless of
@@ -114,7 +112,7 @@ these to conceptual layers for understanding:
 | ---------------- | --------------------------------------- | ----------------- |
 | World Identity   | Step 1 (global config)                  | (header)          |
 | Domain Context   | Step 2 (hierarchical ancestors)         | Hierarchy         |
-| Unit Identity    | Step 3 (yg-node.yaml + own artifacts)   | Node              |
+| Unit Identity    | Step 3 (yg-node.yaml)                   | Node              |
 | Cross-cutting    | Step 4 (aspects from all blocks)        | Glossary/Aspects  |
 | Surroundings     | Step 5 (relations, events, flows)       | Dependencies      |
 
@@ -123,9 +121,8 @@ Steps are the mechanics — they describe _where_ content comes from.
 
 ### Relational Annotations
 
-Step 5 does **not** parse the content of Markdown artifacts. Tools copy the full content of
-each structural-context artifact of the target and then append annotations from the YAML
-relation fields.
+Step 5 does **not** parse aspect content. Tools copy the target node's metadata
+and then append annotations from the YAML relation fields.
 
 **Structural relations** (`uses`, `calls`, `extends`, `implements`):
 
@@ -133,11 +130,9 @@ relation fields.
 ── Dependency: PaymentService [calls]
 Consumes: charge, refund
 
-Responsibility (full content of responsibility.md / PaymentService)
-...
-
-Interface (full content of interface.md / PaymentService)
-...
+Description: Processes payments via Stripe gateway
+Type: service
+Ports: charge (requires-idempotency), refund
 ```
 
 **Event relations** (`emits`, `listens`):
@@ -154,9 +149,8 @@ You listen for PaymentCompleted.
 
 The `consumes` field comes from the YAML declaration — tools understand it.
 The `consumes` field is strictly for port references on the target — it is not used for
-annotating interface methods or event data. Artifact content is copied verbatim — tools
-treat it as text. The agent interprets which methods or events are relevant and focuses
-accordingly.
+annotating interface methods or event data. The agent interprets which methods or events
+are relevant and focuses accordingly.
 
 **Fundamental principle**: tools never interpret Markdown content. They copy content and
 annotate it with metadata from YAML. The agent interprets.
@@ -166,9 +160,7 @@ annotate it with metadata from YAML. The agent interprets.
 The context package uses **two-level progressive disclosure** in structured text format:
 
 - **Node overview (default):** a compact structural map showing node metadata, hierarchy,
-  dependencies, aspects, and flows — with artifact file paths but not their content. The
-  agent reads artifact files separately as needed. This is the primary mode — lightweight
-  and fast for orientation.
+  dependencies, aspects, and flows. The agent uses this for orientation.
 - **Per-file details (`--file`):** when the agent runs `yg context --file <path>`, it gets
   details scoped to that file — aspects to satisfy, consumed dependencies, and the owning
   node. The agent uses this before modifying a specific file.
@@ -194,27 +186,17 @@ Must satisfy (2 aspects):
 
 Participates in (1 flow):
   checkout — End-to-end purchase flow from cart to payment confirmation
-    read: .yggdrasil/flows/checkout/description.md
 
 Dependencies (2):
   auth/auth-api (uses) — Validates tokens and resolves caller identity
-    read: yg context --file .yggdrasil/model/auth/auth-api/interface.md
   payments/payment-service (calls) — consumes: charge, refund
     Required: requires-idempotency
-    read: yg context --file .yggdrasil/model/payments/payment-service/interface.md
 
 Dependents (1):
   notifications/email-service
   Run: yg impact --node orders/order-service
 
 Parent: orders (module)
-  read: .yggdrasil/model/orders/responsibility.md
-
-Artifacts:
-  read: .yggdrasil/model/orders/order-service/responsibility.md
-  read: .yggdrasil/model/orders/order-service/interface.md
-
-Token budget: 1,234 / 10,000 (ok)
 ```
 
 The format is fixed — the same structure regardless of project. Content within the
@@ -223,36 +205,15 @@ entry includes its own hierarchy summary, providing domain context for that depe
 without requiring the agent to traverse the graph manually.
 
 **The context package contains only graph content, not source code.** The agent fetches
-source files separately when it needs implementation details. If a person places code
-fragments inside Markdown artifacts (e.g., in `interface.md` as an API specification),
-that is their choice — tools treat artifacts as text and attach content without parsing it.
+source files separately when it needs implementation details.
 
-### Package Size and Budget
+### Package Size
 
 A typical context package is 5,000–10,000 tokens. Size is structurally bounded because each
 algorithm step attaches only directly relevant context. A node with 3 dependencies attaches
-3 interfaces, not 300.
+3 dependency summaries, not 300.
 
-Configuration defines budget thresholds:
-
-- **Warning threshold** (default 10,000 tokens) — package is growing; the node likely has too
-  many responsibilities or dependencies.
-- **Error threshold** (default 20,000 tokens) — package is large; the node should be split.
-  The error threshold no longer blocks — `budgetStatus` is `'severe'` instead of `'error'`,
-  and the context package is always output.
-- **Own-artifact warning** (`own_warning`, optional) — fires when the node's own artifacts
-  alone exceed this threshold (W002). This is the most actionable budget signal because own
-  artifacts are the only part the node author controls directly.
-
-Tools estimate tokens using the heuristic of 4 characters per token. This is accurate enough
-for budget monitoring, though not precise per-model. Token counting includes the full
-dependency hierarchy cost — each dependency's ancestor chain contributes to the total.
-
-The context package meta section includes a `budget-breakdown` with per-category token counts
-and percentages (own, hierarchy, aspects, flows, dependencies), giving agents diagnostic
-visibility into what drives package size.
-
-Context package size is a **measurable quality indicator**. A package exceeding the budget
+Context package size is a **measurable quality indicator**. A large package
 is the same signal as a class with 2,000 lines in traditional engineering: too many
 responsibilities in one place.
 
@@ -292,17 +253,6 @@ assembly or adoption of Yggdrasil to legacy codebases.
 
 Warnings flag quality issues that don't break the graph but reduce context package value.
 
-**Missing artifacts**: a non-blackbox node without required artifacts
-(e.g., a node with incoming relations but no `interface` artifact).
-
-**Shallow content**: artifacts that exist but are shorter than the configured minimum length.
-
-**Context budget**: a complex context package exceeding the configured warning threshold.
-W001 includes a diagnostic breakdown (own/hierarchy/aspects/flows/dependencies) with
-percentages. Exceeding the error threshold produces E032 (`budget-exceeded`) — the node
-must be split. W002 fires when own artifacts alone exceed the
-`own_warning` threshold — the most actionable budget signal.
-
 **High fan-out**: a node whose direct relation count exceeds the configured maximum — a signal
 of excessive coupling.
 
@@ -322,9 +272,7 @@ port's required aspect is not defined in `aspects/`.
 Validation serves two audiences:
 
 **For agents** — validation is a feedback mechanism. After modifying the graph, the agent runs
-validation and receives specific, actionable feedback about what needs attention. Not
-"interface is missing" but "this node has three inbound relations and no interface artifact —
-three other nodes depend on its public API."
+validation and receives specific, actionable feedback about what needs attention.
 
 **For CI pipelines** — validation is a quality gate. A project can enforce zero graph errors
 before merge, ensuring structural integrity of the semantic memory base is maintained over time.
@@ -358,9 +306,9 @@ and consumes port X:
    does not exist on the target. E059 fires when `consumes` is declared but the target has
    no ports.
 4. E053 fires if any port aspect identifier is not defined in `aspects/`.
-5. Semantic verification happens at approve time via the reviewer — E055 fires when the
-   reviewer determines a port's required aspect is not satisfied in the consumer's source code
-   (see
+5. Semantic verification happens at approve time via the reviewer — aspect-violation fires
+   when the reviewer determines a port's required aspect is not satisfied in the consumer's
+   source code (see
    [Reviewer-based verification](#reviewer-based-verification-approve-only)).
 
 This two-phase approach separates fast structural checks (check) from expensive semantic
@@ -398,14 +346,14 @@ introduced the requirement.
 
 Drift is divergence between graph and outputs. Drift detection runs as part of `yg check`
 and is **bidirectional** — it tracks both source files (code mapped via `yg-node.yaml`
-mappings) and graph artifacts (`.yggdrasil/` files that participate in a node's context
-package). A change on either side is drift (E020); a change triggered by upstream changes
-is cascade drift (E021).
+mappings) and graph files (`.yggdrasil/` files that participate in a node's context
+package). A change on either side is drift (source-drift / graph-drift); a change triggered
+by upstream changes is cascade drift (upstream-drift).
 
 ### Mechanism
 
 For each node with a mapping, tools collect all **tracked files** — both source files from
-the mapping and graph artifact files that contribute to the node's context package. Tools
+the mapping and graph files that contribute to the node's context package. Tools
 compute a SHA-256 hash of the tracked file set and compare it against the stored state.
 State is stored in `.yggdrasil/.drift-state/` as per-node JSON files (one file per node,
 e.g. `.drift-state/orders/order-service.json`).
@@ -420,15 +368,15 @@ The set of tracked files for a node mirrors the traversal of context assembly
 (`context`) but returns file paths instead of rendered content. Six layers are
 collected:
 
-1. **Own** — `yg-node.yaml` and config-filtered artifacts of the node itself.
-2. **Hierarchical** — `yg-node.yaml` and artifacts of all ancestor nodes from root to parent.
+1. **Own** — `yg-node.yaml` of the node itself.
+2. **Hierarchical** — `yg-node.yaml` of all ancestor nodes from root to parent.
 3. **Aspects** — `yg-aspect.yaml` and content files for all resolved aspects (own + ancestor +
    flow-propagated, with recursive `implies` expansion).
-4. **Relational dependencies** — structural-context artifacts of structural relation targets
+4. **Relational dependencies** — `yg-node.yaml` of structural relation targets
    (`uses`, `calls`, `extends`, `implements`). Also tracks a hash of the `ports` field from
    each target's `yg-node.yaml` (scoped — only changes to `ports` cascade, not other target
    metadata).
-5. **Relational flows** — `yg-flow.yaml` and content artifacts of all flows listing this node or
+5. **Relational flows** — `yg-flow.yaml` of all flows listing this node or
    an ancestor as a participant.
 6. **Source** — files from the node's `mapping`.
 
@@ -453,12 +401,12 @@ agent assesses the significance and decides on resolution.
 
 #### Reviewer result caching
 
-Reviewer verification results (aspect verification and artifact review — see
+Reviewer verification results (aspect verification — see
 [Reviewer-based verification](#reviewer-based-verification-approve-only)) are cached in the drift
-state alongside file hashes. When E020 (direct drift) or E021 (cascade drift) fires for a
-node, all cached reviewer results for that node are invalidated — the next approve re-runs
-verification from scratch. This ensures reviewer judgments are never stale: any change to source
-files, artifacts, or upstream dependencies forces re-evaluation.
+state alongside file hashes. When drift fires for a node, all cached reviewer results for
+that node are invalidated — the next approve re-runs verification from scratch. This ensures
+reviewer judgments are never stale: any change to source files or upstream dependencies forces
+re-evaluation.
 
 ### Drift States
 
@@ -467,8 +415,8 @@ Every mapped node has one of six states:
 | State            | Meaning                                                                              |
 | ---------------- | ------------------------------------------------------------------------------------ |
 | `ok`             | All tracked file hashes match — nothing changed since last synchronization           |
-| `source-drift`   | Source file(s) changed but graph artifacts unchanged                                 |
-| `graph-drift`    | Graph artifact(s) changed but source files unchanged                                 |
+| `source-drift`   | Source file(s) changed but graph files unchanged                                     |
+| `graph-drift`    | Graph file(s) changed but source files unchanged                                     |
 | `full-drift`     | Both source and graph files changed                                                  |
 | `missing`        | Mapped source files do not exist on disk                                             |
 | `unmaterialized` | Node has a mapping but files have never been created (no entry in `.drift-state/`)   |
@@ -478,11 +426,11 @@ Every mapped node has one of six states:
 Resolution depends on the type of drift detected:
 
 - **Source drift** — source files changed outside the semantic memory cycle. The agent
-  reviews the changes, updates graph artifacts to reflect the new source state, then runs
+  reviews the changes, updates graph metadata to reflect the new source state, then runs
   `approve` to record the new baseline.
-- **Graph drift** — graph artifacts changed (e.g., updated responsibility, added constraints)
-  but source code was not updated to match. The agent reviews the graph changes, updates
-  affected source files to align with the new specification, then runs `approve`.
+- **Graph drift** — graph metadata changed but source code was not updated to match. The
+  agent reviews the graph changes, updates affected source files to align with the new
+  specification, then runs `approve`.
 - **Full drift** — both sides changed independently. The agent must reconcile both: review
   source changes, review graph changes, resolve any conflicts, update both sides as needed,
   then run `approve`.
@@ -505,22 +453,21 @@ knowledge in the graph.
 
 ### Core Workflow (4)
 
-| Operation        | Command                                | Description                                              |
-| ---------------- | -------------------------------------- | -------------------------------------------------------- |
-| Context assembly | `yg context --file/--node`             | Assemble context package for a node                      |
-| Impact analysis  | `yg impact --file/--node/--aspect/--flow` | Blast radius analysis                                 |
-| Check            | `yg check`                             | Unified gate — structural integrity, drift, coverage, completeness |
-| Approve          | `yg approve --node/--aspect/--flow [--reviewed]` | Record baseline after review                   |
+| Operation        | Command                                   | Description                                          |
+| ---------------- | ----------------------------------------- | ---------------------------------------------------- |
+| Context assembly | `yg context --file/--node`                | Assemble context package for a node                  |
+| Impact analysis  | `yg impact --file/--node/--aspect/--flow` | Blast radius analysis                                |
+| Check            | `yg check`                                | Unified gate — structural integrity, drift, coverage |
+| Approve          | `yg approve --node/--aspect/--flow`       | Record baseline after review                         |
 
 Read operations (`context`, `impact`) modify nothing. `check` is read-only.
 `approve` updates synchronization metadata (`.drift-state/`) after an explicit review
 decision — tracking state, not semantic knowledge.
 
-### Navigation (5)
+### Navigation (4)
 
 | Operation            | Command                      | Description                            |
 | -------------------- | ---------------------------- | -------------------------------------- |
-| Node selection       | `yg select`                  | Find relevant nodes for a task         |
 | Tree view            | `yg tree [--root] [--depth]` | Graph structure visualization          |
 | Aspects              | `yg aspects`                 | List aspects with metadata             |
 | Flows                | `yg flows`                   | List flows with metadata               |
@@ -530,9 +477,9 @@ Navigation operations are read-only.
 
 ### Setup (1)
 
-| Operation  | Command                           | Description                                                       |
-| ---------- | --------------------------------- | ----------------------------------------------------------------- |
-| Initialize | `yg init [--platform] [--upgrade]` | Create `.yggdrasil/` structure or refresh rules file              |
+| Operation  | Command                            | Description                                          |
+| ---------- | ---------------------------------- | ---------------------------------------------------- |
+| Initialize | `yg init [--platform] [--upgrade]` | Create `.yggdrasil/` structure or refresh rules file |
 
 Initialization is the only operation that creates files in the graph structure — and it does
 so only once. It creates the `.yggdrasil/` directory with a default `yg-config.yaml` and
@@ -541,26 +488,26 @@ configures integration with the agent platform.
 ### Responsibility Boundary
 
 Tools do **not** write semantic content to the graph. They do not create nodes, add relations,
-write artifacts, or manage aspects and flows. That is creative work belonging to the agent.
+or manage aspects and flows. That is creative work belonging to the agent.
 
 Tools maintain only operational metadata:
 
 - Drift state (`.drift-state/`) — for tracking synchronization.
 
-The agent creates directories, writes `yg-node.yaml`, writes Markdown artifacts. Tools validate
-the result and give feedback.
+The agent creates directories, writes `yg-node.yaml`, writes aspect content files. Tools
+validate the result and give feedback.
 
 This model is analogous to the programmer–compiler relationship: the programmer writes code,
 the compiler checks correctness. Two exceptions exist: initialization (creates the starting
-structure and config) and reviewer-based verification at approve time (reads source and artifacts
-to verify semantic compliance). After initialization, all content changes in the graph are
-the work of the agent or human — tools only read and verify.
+structure and config) and reviewer-based verification at approve time (reads source and aspect
+content to verify semantic compliance). After initialization, all content changes in the graph
+are the work of the agent or human — tools only read and verify.
 
 ---
 
 ## Reviewer-Based Verification (Approve Only)
 
-Approve runs two reviewer checks on drifted nodes. Both use XML-structured prompts
+Approve runs aspect verification on drifted nodes using XML-structured prompts
 with clearly separated sections.
 
 **Context injection.** Before calling the reviewer, approve pre-computes
@@ -568,7 +515,8 @@ with clearly separated sections.
 understanding (aspects, dependencies, parent hierarchy) without requiring
 it to explore the graph itself.
 
-**Aspect verification (E055).** For each aspect on the node, the reviewer receives:
+**Aspect verification (aspect-violation).** For each aspect on the node, the reviewer
+receives:
 
 - `<role>` — what it is doing (verifying aspect compliance)
 - `<aspect>` — aspect id + content (path for CLI, inline for API)
@@ -576,22 +524,8 @@ it to explore the graph itself.
 - `<source-files>` — files to check (paths for CLI, inline for API)
 - `<task>` — explicit instruction to read files and respond with JSON
 
-The reviewer responds with `satisfied: true|false` and a reason. If unsatisfied, E055
-fires.
-
-**Artifact review (E056).** The reviewer receives:
-
-- `<role>` — what it is doing (reviewing artifact quality)
-- `<rules>` with sub-sections:
-  - `<general-rules>` — shared artifact quality guidelines (from `ARTIFACT_GUIDANCE`)
-  - `<type-rules>` — type-specific `quality_profile` from architecture (when available)
-  - `<rule-interaction>` — how type rules refine general rules
-- `<node>` — node path, type, and pre-computed context
-- `<review-target>` — the artifact being reviewed
-- `<source-files>` — files to compare against
-- `<task>` — explicit instruction to apply both rule layers
-
-The reviewer responds with `current: true|false` and a reason. If outdated, E056 fires.
+The reviewer responds with `satisfied: true|false` and a reason. If unsatisfied,
+aspect-violation fires.
 
 **CLI vs API providers.** Both use the same XML prompt structure. The difference
 is content delivery: CLI providers receive file paths (self-closing `<file />` tags)
@@ -602,11 +536,11 @@ in a single call.
 **Consensus.** Configurable via `reviewer.consensus` in yg-config.yaml (positive odd integer,
 default 1). When set to 3+, the reviewer runs multiple times and majority vote decides.
 
-**Caching.** Verification results are cached in drift state. When a node drifts (E020/E021),
+**Caching.** Verification results are cached in drift state. When a node drifts,
 cached results are invalidated and the next approve re-runs verification from scratch.
 
-**Graceful degradation.** When no reviewer is configured, approve works as before
-(three-axis detection only, no E055/E056). A notice informs the user.
+**Graceful degradation.** When no reviewer is configured, approve accepts any change
+(binary model — any change triggers approval). A notice informs the user.
 
 ---
 
@@ -635,13 +569,13 @@ Context package for `orders/order-service` contains:
 
 ```text
 Step 1.  yg-config.yaml: project name
-Step 2.  Domain context of orders/ module artifacts
-Step 3.  Own artifacts of OrderService: responsibility, interface, internals
+Step 2.  Domain context from orders/ module yg-node.yaml
+Step 3.  Own yg-node.yaml of OrderService (description, type, relations, aspects)
 Step 4.  Aspect: Audit logging  [aspect requires-audit]
          Aspect: Idempotency   [port: charge on payments/payment-service]
-Step 5.  Structural-context artifacts of PaymentService: responsibility, interface
+Step 5.  Dependency metadata of PaymentService (description, type, ports)
          + annotation: consumes charge, refund
-         Flow: Checkout flow  [description.md]
+         Flow: Checkout flow  [yg-flow.yaml metadata]
 ```
 
 ---
@@ -653,7 +587,7 @@ nodes can be unambiguously ordered such that each node follows all its dependenc
 
 This order has consequences for materialization mechanics.
 
-A context package for node A (which calls B) contains B's interface. The interface is described
+A context package for node A (which calls B) contains B's metadata. The metadata is described
 in the graph — so A's context package is complete regardless of whether B is already
 implemented. However, when the agent materializes A, A's output imports, calls, or extends B's
 output. If B's output doesn't exist, A's output cannot compile — even if A's context package
@@ -676,47 +610,16 @@ Event relations (`emits`, `listens`) do not participate in ordering — they do 
 implementation dependencies.
 
 Ordering concerns materialization of outputs. Context package assembly itself requires no order
-— it uses graph artifacts, not materialized outputs.
-
----
-
-## Task-Based Node Selection
-
-Context assembly requires a node path. But the agent's starting point is often a task
-description, not a node path — "fix the authentication bypass in token refresh" rather than
-"build context for `auth/token-service`."
-
-The bridge between task description and node selection is the graph's own content. Graph
-artifacts — responsibility, interface, aspect content — are written in the same natural-language
-vocabulary developers use in task descriptions. This makes simple keyword matching against
-artifact content an effective selection mechanism:
-
-1. Tokenize the task description and remove stop words
-2. Search all node artifacts with weights (responsibility highest, internals lowest)
-3. Score nodes by weighted keyword hit count
-4. Select top-K nodes above a score threshold
-
-This approach works because the graph is already optimized for intent matching — by design.
-Responsibility files describe what a node does in the same terms a developer would use to
-describe a task involving that node. No embeddings, no ML infrastructure, no semantic search
-engine required.
-
-When keyword signal is weak (ambiguous or indirect task descriptions), falling back to
-flow-based selection — matching against flow descriptions and selecting flow participants —
-provides broader coverage at the cost of precision.
-
-The selection output feeds directly into context assembly: for each selected node, build
-a context package using the standard algorithm. The agent receives pre-assembled context
-for all relevant areas without needing to know the graph structure.
+— it uses graph metadata, not materialized outputs.
 
 ---
 
 ## Generator Independence
 
-A context package is a Markdown document readable by any AI agent. Switching agents (Cursor →
-Claude Code → Copilot → any future agent) requires no changes to the graph or tools. The agent
-reads the same context package and produces output in the same format. Tools do not know and do
-not need to know which agent consumes the packages.
+A context package is a structured text document readable by any AI agent. Switching agents
+(Cursor → Claude Code → Copilot → any future agent) requires no changes to the graph or tools.
+The agent reads the same context package and produces output in the same format. Tools do not
+know and do not need to know which agent consumes the packages.
 
 ---
 

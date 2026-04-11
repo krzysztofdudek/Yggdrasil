@@ -36,7 +36,7 @@ Small, precise context always beats massive, noisy.
 
 The structural solution is an intermediate semantic memory layer — a formal graph that lies
 between human intent and generated output. The graph stores the repository's semantic memory:
-modules, their responsibilities, interfaces, constraints, dependencies, cross-cutting requirements.
+modules, their descriptions, dependencies, and cross-cutting requirements (aspects).
 From this graph, the system mechanically assembles a bounded context package for each
 implementation unit. The agent receives this package and produces output.
 
@@ -99,7 +99,7 @@ regardless of its nature.
 
 **CODE ↔ GRAPH ARE ONE.**
 
-- Code changed → graph artifacts MUST be updated in the same response. No exceptions.
+- Code changed → graph metadata MUST be updated in the same response. No exceptions.
 - Graph changed → source files MUST be verified or updated in the same response. No exceptions.
 - There is no "code-only" response. There is no "graph-only" response (unless explicitly a dry-run plan).
 - Completing a response with one side changed but the other not updated violates the core contract of Yggdrasil.
@@ -116,9 +116,10 @@ delivery format — is secondary.
 In the repository there are two distinct entities.
 
 The **graph** is the formal map of the system — its persistent semantic memory. It describes
-what the system _is_: modules, their responsibilities, interfaces, constraints, dependencies,
-cross-cutting requirements. The graph is structured knowledge stored as directories, metadata,
-and content artifacts. It is versionable, diffable, and readable by both humans and agents.
+what the system _is_: modules, their descriptions, dependencies, and cross-cutting requirements
+(aspects). The graph is structured knowledge stored as directories and YAML metadata, with
+aspect content files as the only Markdown. It is versionable, diffable, and readable by both
+humans and agents.
 
 **Outputs** are the materialization of the graph. The primary flow is Graph → Outputs: an agent
 reads a context package from the graph and produces an implementation. When graph and outputs
@@ -145,7 +146,7 @@ from most general to most specific:
 - **Long-term memory** — decisions, patterns, system invariants (changes rarely)
 - **Domain context** — hierarchy, context of parent modules, domain business rules
   (changes on reorganization)
-- **Unit identity** — the node's own artifacts: responsibility, interface, internals
+- **Unit identity** — the node's own metadata from yg-node.yaml: description, type, relations
   (changes on node evolution)
 - **Surroundings** — dependency interfaces, cross-cutting concerns, end-to-end flows
   (changes on neighbor evolution)
@@ -155,8 +156,7 @@ intensity. When implementing a method, it focuses on the surroundings layer (dep
 interface) and unit identity (own contract), while world identity (stack, standards) and
 long-term memory (patterns, decisions) inform _how_ to implement, not _what_.
 
-The result is typically 5,000–10,000 tokens (10,000 is the warning threshold — packages above
-that signal growing complexity). The size is bounded regardless of project size —
+The result is typically compact. The size is bounded regardless of project size —
 a node in a graph with 10 nodes and a node in a graph with 10,000 nodes produce packages
 of similar size. The assembly algorithm is defined in the [Engine](engine) document.
 
@@ -172,9 +172,9 @@ Intent → Graph → Outputs
 - **Intent**: what the user wants and why. Can be expressed through conversation,
   specifications, tickets, or any other form. Yggdrasil does not dictate how intent is
   captured — that is the domain of process tools, not semantic memory infrastructure.
-- **Graph**: complete semantic memory. Self-sufficient — an agent implementing a node should
-  need only the context package built from the graph. If it must reach back to the original
-  intent, the graph is incomplete.
+- **Graph**: complete semantic memory — node metadata and aspect content. Self-sufficient — an
+  agent implementing a node should need only the context package built from the graph. If it
+  must reach back to the original intent, the graph is incomplete.
 - **Outputs**: derivatives of the graph. Never a source of truth unless deliberately absorbed
   into the graph.
 
@@ -234,11 +234,11 @@ and reports errors.
 
 The agent has fundamentally broken Yggdrasil if it does any of the following:
 
-- Modified source code without updating graph artifacts in the same response.
+- Modified source code without updating graph metadata in the same response.
 - Modified graph files without verifying or updating source code alignment in the same response.
 - Resolved a code↔graph inconsistency without asking the user first.
 - Created or edited a graph element without reading its schema in `.yggdrasil/schemas/`.
-- Ran `yg approve` before updating graph artifacts.
+- Ran `yg approve` before updating graph metadata.
 - Ran `yg approve` after a graph-only change without verifying source files.
 - Used blackbox coverage for greenfield or new code.
 
@@ -250,7 +250,7 @@ The graph is not generated on demand. It is built incrementally through conversa
 sessions, and team members. Each interaction enriches it.
 
 After months of development, the graph contains the complete semantic memory of the project:
-module responsibilities, interfaces, constraints, dependencies, cross-cutting concerns, flows.
+module descriptions, dependencies, cross-cutting requirements (aspects), and flows.
 
 This knowledge:
 
@@ -341,7 +341,7 @@ to a node. But full coverage does not mean full detail.
 
 **Blackbox-first adoption:** On day one, the agent blackboxes the entire repository at coarse
 granularity (a few large directory mappings). This clears E022 immediately. Then, as work
-touches specific areas, blackbox nodes are decomposed into proper nodes with real artifacts.
+touches specific areas, blackbox nodes are decomposed into proper nodes with full metadata.
 The blackbox blocker enforces this: when source files change inside a blackbox, `yg approve`
 refuses until the agent decomposes the affected files into a proper node.
 
