@@ -26,7 +26,7 @@ export interface ApproveOptions {
 
 /**
  * Approve a node's current state, recording it as the new baseline.
- * Implements three-axis change detection with blackbox enforcement.
+ * Binary model: any source or upstream change triggers approval. Blackbox enforcement blocks source changes.
  */
 export async function approveNode(
   graph: Graph,
