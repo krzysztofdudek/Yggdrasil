@@ -126,11 +126,6 @@ export class ClaudeCodeProvider implements LlmProvider {
       const satisfied = lower.includes('satisfied') && !lower.includes('not satisfied');
       return { satisfied, reason: trimmed.slice(0, 200) } as unknown as T;
     }
-    if ('current' in (fallback as Record<string, unknown>)) {
-      const current = !lower.includes('stale') && !lower.includes('outdated');
-      return { current, reason: trimmed.slice(0, 200) } as unknown as T;
-    }
-
     return fallback;
   }
 }

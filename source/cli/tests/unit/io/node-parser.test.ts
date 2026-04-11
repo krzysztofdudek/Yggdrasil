@@ -104,7 +104,7 @@ mapping:
       'utf-8',
     );
 
-    await expect(parseNodeYaml(nodePath)).rejects.toThrow(/upgrade/i);
+    await expect(parseNodeYaml(nodePath)).rejects.toThrow(/v4 format/i);
 
     await rm(tmpDir, { recursive: true, force: true });
   });
@@ -553,7 +553,7 @@ relations:
     await writeFile(nodePath, `name: Bad\ntype: service\naspects:\n  - exceptions:\n      - "some note"\n`, 'utf-8');
 
     await expect(parseNodeYaml(nodePath)).rejects.toThrow(
-      "aspects must be an array of strings. Run 'yg init --upgrade' to migrate.",
+      "aspects must be an array of strings. Update the YAML to use the v4 format.",
     );
 
     await rm(tmpDir, { recursive: true, force: true });
@@ -566,7 +566,7 @@ relations:
     await writeFile(nodePath, `name: Bad\ntype: service\naspects:\n  - aspect: my-aspect\n    exceptions: "not-array"\n`, 'utf-8');
 
     await expect(parseNodeYaml(nodePath)).rejects.toThrow(
-      "aspects must be an array of strings. Run 'yg init --upgrade' to migrate.",
+      "aspects must be an array of strings. Update the YAML to use the v4 format.",
     );
 
     await rm(tmpDir, { recursive: true, force: true });
@@ -672,7 +672,7 @@ mapping:
         'utf-8',
       );
 
-      await expect(parseNodeYaml(nodePath)).rejects.toThrow(/upgrade/i);
+      await expect(parseNodeYaml(nodePath)).rejects.toThrow(/v4 format/i);
 
       await rm(tmpDir, { recursive: true, force: true });
     });

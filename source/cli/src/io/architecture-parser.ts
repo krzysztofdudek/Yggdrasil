@@ -36,7 +36,7 @@ export async function parseArchitecture(filePath: string): Promise<ArchitectureD
       throw new Error(
         `yg-architecture.yaml: node type '${typeName}' has 'integration_aspects'. ` +
         `This field is removed in v4. Use 'ports' on individual nodes instead. ` +
-        `Run 'yg init --upgrade' to migrate.`,
+        `Update the YAML to use the v4 format.`,
       );
     }
 

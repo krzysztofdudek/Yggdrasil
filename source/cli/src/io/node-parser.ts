@@ -74,7 +74,7 @@ function parseAspects(raw: unknown, filePath: string): string[] | undefined {
     } else if (typeof item === 'object' && item !== null) {
       // Old format (error): aspects must now be an array of strings
       throw new Error(
-        `yg-node.yaml at ${filePath}: aspects must be an array of strings. Run 'yg init --upgrade' to migrate.`,
+        `yg-node.yaml at ${filePath}: aspects must be an array of strings. Update the YAML to use the v4 format.`,
       );
     } else {
       throw new Error(`yg-node.yaml at ${filePath}: aspects[${i}] must be a string`);
@@ -150,7 +150,7 @@ function parseMapping(rawMapping: unknown, filePath: string): string[] | undefin
   if (!Array.isArray(rawMapping)) {
     throw new Error(
       `yg-node.yaml at ${filePath}: mapping must be an array of file/directory paths. ` +
-      `Run 'yg init --upgrade' to migrate.`,
+      `Update the YAML to use the v4 format.`,
     );
   }
 
@@ -165,7 +165,7 @@ function parseMapping(rawMapping: unknown, filePath: string): string[] | undefin
     if (typeof entry === 'object' && entry !== null) {
       throw new Error(
         `yg-node.yaml at ${filePath}: mapping[${i}] is an object. ` +
-        `Mapping must be a flat list of file/directory paths. Run 'yg init --upgrade' to migrate.`,
+        `Mapping must be a flat list of file/directory paths. Update the YAML to use the v4 format.`,
       );
     }
     if (typeof entry !== 'string' || entry.trim() === '') {

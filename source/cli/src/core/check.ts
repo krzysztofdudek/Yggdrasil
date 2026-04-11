@@ -489,7 +489,7 @@ function describeCascadeCause(filePath: string, layer: TrackedFileLayer, graph: 
   if (layer === 'hierarchy') {
     const match = normalized.match(new RegExp(`${escPrefix}/model/(.+)/[^/]+$`));
     const ancestorPath = match ? match[1] : 'unknown';
-    return `parent node '${ancestorPath}' artifacts changed\n       (${normalized})`;
+    return `parent node '${ancestorPath}' metadata changed\n       (${normalized})`;
   }
 
   if (layer === 'relational') {
