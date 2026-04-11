@@ -75,20 +75,21 @@ export function formatOutput(result: CheckResult): string {
   const warnings = result.issues.filter(i => i.severity === 'warning');
 
   // Code category sets for grouping
-  const STRUCTURAL_CODES = new Set(['yaml-invalid', 'type-invalid', 'relation-broken', 'flow-node-broken', 'aspect-undefined', 'overlapping-mapping', 'structural-cycle', 'config-invalid', 'duplicate-aspect-id', 'node-yaml-missing', 'implied-aspect-missing', 'aspect-implies-cycle']);
-  const ARCHITECTURE_CODES = new Set(['aspect-undefined', 'relation-target-forbidden', 'parent-type-forbidden', 'port-missing-aspect', 'port-missing-consumes', 'port-undefined', 'consumes-without-ports']);
-  const COMPLETENESS_CODES = new Set(['description-missing', 'event-unpaired', 'schema-missing', 'mapping-path-missing']);
+  const STRUCTURAL_CODES = new Set(['yaml-invalid', 'type-invalid', 'relation-broken', 'flow-node-broken', 'aspect-undefined', 'overlapping-mapping', 'structural-cycle', 'config-invalid', 'duplicate-aspect-id', 'node-yaml-missing', 'implied-aspect-missing', 'aspect-implies-cycle', 'event-unpaired', 'schema-missing']);
+  const ARCHITECTURE_CODES = new Set(['relation-target-forbidden', 'parent-type-forbidden', 'port-missing-aspect', 'port-missing-consumes', 'port-undefined', 'consumes-without-ports']);
+  const COVERAGE_CODES = new Set(['unmapped-files', 'mapping-path-missing']);
+  const COMPLETENESS_CODES = new Set(['description-missing']);
 
   if (errors.length > 0) {
     lines.push(chalk.red(`Errors (${errors.length}):`));
     lines.push('');
 
     // Group by category
-    const drift = errors.filter(i => i.code === 'source-drift');
+    const drift = errors.filter(i => i.code === 'source-drift' || i.code === 'unapproved');
     const cascade = errors.filter(i => i.code === 'upstream-drift');
     const structural = errors.filter(i => STRUCTURAL_CODES.has(i.code));
     const architecture = errors.filter(i => ARCHITECTURE_CODES.has(i.code));
-    const coverage = errors.filter(i => i.code === 'unmapped-files');
+    const coverage = errors.filter(i => COVERAGE_CODES.has(i.code));
     const completeness = errors.filter(i => COMPLETENESS_CODES.has(i.code));
 
     if (drift.length > 0) {

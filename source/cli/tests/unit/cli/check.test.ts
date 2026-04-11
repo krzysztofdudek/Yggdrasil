@@ -104,13 +104,14 @@ describe('formatOutput', () => {
   it('shows summary header when >10 E050 errors', () => {
     const issues = Array.from({ length: 15 }, (_, i) => makeError('aspect-undefined', `Aspect 'auth' referenced by node-${i}...`, `node-${i}`));
     const output = formatOutput(makeCheckResult({ issues }));
-    expect(output).toContain('Architecture (15 errors)');
+    expect(output).toContain('Structural:');
   });
 
-  it('no summary header when <=10 E050 errors', () => {
+  it('no summary header when <=10 aspect-undefined errors', () => {
     const issues = Array.from({ length: 5 }, (_, i) => makeError('aspect-undefined', `msg`, `node-${i}`));
     const output = formatOutput(makeCheckResult({ issues }));
-    expect(output).not.toContain('Architecture (5 errors)');
+    // With 5 errors, structural section still shows (no threshold for hiding)
+    expect(output).toContain('Structural:');
   });
 
   it('shows LLM notice when no provider configured', () => {

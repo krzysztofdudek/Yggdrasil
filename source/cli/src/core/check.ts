@@ -614,7 +614,7 @@ function computeSuggestedNext(issues: CheckIssue[], graph?: Graph): string | nul
   const STRUCTURAL_CODES = new Set(['yaml-invalid', 'type-invalid', 'relation-broken', 'flow-node-broken', 'aspect-undefined', 'overlapping-mapping', 'structural-cycle', 'config-invalid', 'duplicate-aspect-id', 'node-yaml-missing', 'implied-aspect-missing', 'aspect-implies-cycle']);
   const COMPLETENESS_CODES = new Set(['description-missing']);
 
-  const driftErrors = errors.filter(i => i.code === 'source-drift');
+  const driftErrors = errors.filter(i => i.code === 'source-drift' || i.code === 'unapproved');
   const cascadeErrors = errors.filter(i => i.code === 'upstream-drift');
   const structuralErrors = errors.filter(i => STRUCTURAL_CODES.has(i.code));
   const coverageErrors = errors.filter(i => i.code === 'unmapped-files');
