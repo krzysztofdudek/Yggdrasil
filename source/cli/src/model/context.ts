@@ -17,7 +17,7 @@ export interface ContextPackage {
 }
 
 export interface ContextLayer {
-  type: 'global' | 'hierarchy' | 'own' | 'relational' | 'aspects' | 'flows';
+  type: 'global' | 'hierarchy' | 'relational' | 'aspects' | 'flows';
   label: string;
   content: string;
   source?: string;

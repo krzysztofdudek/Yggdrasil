@@ -1,6 +1,5 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { STANDARD_ARTIFACTS } from '../model/graph.js';
 import type {
   Graph,
   GraphNode,
@@ -22,7 +21,6 @@ import type {
   FlowRef,
   AncestorRef,
   DependencyRef,
-  BudgetBreakdown,
 } from '../model/context.js';
 import type { NodeContextData } from '../formatters/context-node.js';
 import type { FileContextData } from '../formatters/context-file.js';
@@ -89,8 +87,6 @@ export async function buildContext(graph: Graph, nodePath: string): Promise<Cont
     layers.push(buildAspectLayer(aspect));
   }
 
-  const fullText = layers.map((l) => l.content).join('\n\n');
-  const tokenCount = 0;
   const mapping = normalizeMappingPaths(node.meta.mapping);
   const sections = buildSections(layers, mapping.length > 0 ? mapping : null);
 
@@ -100,7 +96,6 @@ export async function buildContext(graph: Graph, nodePath: string): Promise<Cont
     layers,
     sections,
     mapping: mapping.length > 0 ? mapping : null,
-    tokenCount,
   };
 }
 
@@ -168,20 +163,16 @@ export function buildGlobalLayer(config: YggConfig): ContextLayer {
   return { type: 'global', label: 'Global Context', content };
 }
 
-function filterByStandardArtifacts(
-  artifacts: Array<{ filename: string; content: string }>,
-): Array<{ filename: string; content: string }> {
-  const allowed = new Set(Object.keys(STANDARD_ARTIFACTS));
-  return artifacts.filter((a) => allowed.has(a.filename));
-}
-
 export function buildHierarchyLayer(
   ancestor: GraphNode,
-  config: YggConfig,
+  _config: YggConfig,
   graph: Graph,
 ): ContextLayer {
-  const filtered = filterByStandardArtifacts(ancestor.artifacts);
-  const content = filtered.map((a) => `### ${a.filename}\n${a.content}`).join('\n\n');
+  const parts: string[] = [];
+  if (ancestor.nodeYamlRaw) {
+    parts.push(`### yg-node.yaml\n${ancestor.nodeYamlRaw.trim()}`);
+  }
+  const content = parts.join('\n\n');
   const nodeAspects = ancestor.meta.aspects ?? [];
   const expanded = expandAspects(nodeAspects, graph.aspects);
   const attrs: Record<string, string> | undefined =
@@ -196,7 +187,7 @@ export function buildHierarchyLayer(
 
 export async function buildOwnLayer(
   node: GraphNode,
-  config: YggConfig,
+  _config: YggConfig,
   graphRootPath: string,
   graph: Graph,
 ): Promise<ContextLayer> {
@@ -214,18 +205,13 @@ export async function buildOwnLayer(
     }
   }
 
-  const filtered = filterByStandardArtifacts(node.artifacts);
-  for (const a of filtered) {
-    parts.push(`### ${a.filename}\n${a.content}`);
-  }
-
   const content = parts.join('\n\n');
   const nodeAspects = node.meta.aspects ?? [];
   const expanded = expandAspects(nodeAspects, graph.aspects);
   const attrs: Record<string, string> | undefined =
     expanded.length > 0 ? { aspects: expanded.join(',') } : undefined;
   return {
-    type: 'own',
+    type: 'hierarchy',
     label: `Node: ${node.meta.name}`,
     content,
     attrs,
@@ -241,22 +227,8 @@ export function buildStructuralRelationLayer(
     content += `Consumes: ${relation.consumes.join(', ')}\n\n`;
   }
 
-  const structuralArtifactFilenames = Object.entries(STANDARD_ARTIFACTS)
-    .filter(([, c]) => c.included_in_relations)
-    .map(([filename]) => filename);
-
-  const structuralArts = structuralArtifactFilenames
-    .map((filename) => {
-      const art = target.artifacts.find((a) => a.filename === filename);
-      return art ? { filename: art.filename, content: art.content } : null;
-    })
-    .filter((a): a is { filename: string; content: string } => a !== null);
-
-  if (structuralArts.length > 0) {
-    content += structuralArts.map((a) => `### ${a.filename}\n${a.content}`).join('\n\n');
-  } else {
-    const filtered = filterByStandardArtifacts(target.artifacts);
-    content += filtered.map((a) => `### ${a.filename}\n${a.content}`).join('\n\n');
+  if (target.meta.description) {
+    content += target.meta.description;
   }
 
   const attrs: Record<string, string> = {
@@ -307,7 +279,7 @@ export function buildAspectLayer(aspect: AspectDef): ContextLayer {
 }
 
 function buildFlowLayer(flow: FlowDef, graph: Graph): ContextLayer {
-  const content = flow.artifacts.map((a) => `### ${a.filename}\n${a.content}`).join('\n\n');
+  const content = flow.description ?? '';
   const flowAspects = flow.aspects ?? [];
   const expanded = expandAspects(flowAspects, graph.aspects);
   const attrs: Record<string, string> | undefined =
@@ -315,16 +287,16 @@ function buildFlowLayer(flow: FlowDef, graph: Graph): ContextLayer {
   return {
     type: 'flows',
     label: `Flow: ${flow.name}`,
-    content: content || '(no artifacts)',
+    content: content || '(no description)',
     attrs,
   };
 }
 
 function buildSections(layers: ContextLayer[], mapping: string[] | null): ContextSection[] {
-  const ownLayers = layers.filter((layer) => layer.type === 'own');
+  const hierarchyLayers = layers.filter((l) => l.type === 'hierarchy');
   if (mapping && mapping.length > 0) {
-    ownLayers.push({
-      type: 'own',
+    hierarchyLayers.push({
+      type: 'hierarchy',
       label: 'Materialization Target',
       content: mapping.join(', '),
     });
@@ -332,8 +304,7 @@ function buildSections(layers: ContextLayer[], mapping: string[] | null): Contex
 
   return [
     { key: 'Global', layers: layers.filter((l) => l.type === 'global') },
-    { key: 'Hierarchy', layers: layers.filter((l) => l.type === 'hierarchy') },
-    { key: 'OwnArtifacts', layers: ownLayers },
+    { key: 'Hierarchy', layers: hierarchyLayers },
     { key: 'Aspects', layers: layers.filter((l) => l.type === 'aspects') },
     {
       key: 'Relational',
@@ -362,98 +333,27 @@ export interface DependencyAncestorInfo {
   name: string;
   type: string;
   aspects: string[];
-  artifactFilenames: string[];
 }
 
 export function collectDependencyAncestors(
   target: GraphNode,
-  config: YggConfig,
+  _config: YggConfig,
   graph: Graph,
 ): DependencyAncestorInfo[] {
   const ancestors = collectAncestors(target);
-  const structuralFilenames = Object.entries(STANDARD_ARTIFACTS)
-    .filter(([, c]) => c.included_in_relations)
-    .map(([filename]) => filename);
-  const configArtifactKeys = [...Object.keys(STANDARD_ARTIFACTS)];
 
   return ancestors.map((ancestor) => {
     const nodeAspects = ancestor.meta.aspects ?? [];
     const expanded = expandAspects(nodeAspects, graph.aspects);
-
-    // Use included_in_relations artifacts if any exist, else fall back to all config artifacts
-    const filterFilenames = structuralFilenames.length > 0 ? structuralFilenames : configArtifactKeys;
-    const availableFiles = filterFilenames.filter((f) =>
-      ancestor.artifacts.some((a) => a.filename === f),
-    );
     return {
       path: ancestor.path,
       name: ancestor.meta.name,
       type: ancestor.meta.type,
       aspects: expanded,
-      artifactFilenames: availableFiles,
     };
   });
 }
 
-export function computeBudgetBreakdown(
-  pkg: ContextPackage,
-  graph: Graph,
-): BudgetBreakdown {
-  let own = 0;
-  let hierarchy = 0;
-  let aspects = 0;
-  let flows = 0;
-  let relational = 0;
-
-  for (const layer of pkg.layers) {
-    const tokens = 0;
-    switch (layer.type) {
-      case 'global':
-      case 'own':
-        own += tokens;
-        break;
-      case 'hierarchy':
-        hierarchy += tokens;
-        break;
-      case 'aspects':
-        aspects += tokens;
-        break;
-      case 'flows':
-        flows += tokens;
-        break;
-      case 'relational':
-        relational += tokens;
-        break;
-    }
-  }
-
-  // Add dependency ancestor artifact costs (not in raw layers)
-  let depAncestorTokens = 0;
-  const node = graph.nodes.get(pkg.nodePath);
-  if (node) {
-    const ancestorPaths = new Set(collectAncestors(node).map((a) => a.path));
-    for (const relation of node.meta.relations ?? []) {
-      const target = graph.nodes.get(relation.target);
-      if (!target || ancestorPaths.has(relation.target)) continue;
-      const depAncestors = collectDependencyAncestors(target, graph.config, graph);
-      for (const anc of depAncestors) {
-        const ancNode = graph.nodes.get(anc.path);
-        if (!ancNode) continue;
-        for (const filename of anc.artifactFilenames) {
-          const art = ancNode.artifacts.find((a) => a.filename === filename);
-          if (art) {
-            depAncestorTokens += 0;
-          }
-        }
-      }
-    }
-  }
-
-  const dependencies = relational + depAncestorTokens;
-  const total = own + hierarchy + aspects + flows + dependencies;
-
-  return { own, hierarchy, aspects, flows, dependencies, total };
-}
 
 /**
  * Determine the source(s) of an aspect for a node.
@@ -576,7 +476,6 @@ export function toContextMapOutput(
   graph: Graph,
 ): ContextMapOutput {
   const node = graph.nodes.get(pkg.nodePath)!;
-  const config = graph.config;
 
   // Node aspects
   const nodeAspects: NodeAspectRef[] = (node.meta.aspects ?? []).map((aspectId) => {
@@ -594,7 +493,7 @@ export function toContextMapOutput(
   const hierarchyRefs: AncestorRef[] = ancestors.map((a) => {
     const nodeAspectIds = a.meta.aspects ?? [];
     const expanded = expandAspects(nodeAspectIds, graph.aspects);
-    return { path: a.path, name: a.meta.name, type: a.meta.type, description: a.meta.description, aspects: expanded, files: buildNodeFiles(a, config, `model/${a.path}`) };
+    return { path: a.path, name: a.meta.name, type: a.meta.type, description: a.meta.description, aspects: expanded, files: [`model/${a.path}/yg-node.yaml`] };
   });
 
   // Dependencies — structural + event
@@ -609,8 +508,7 @@ export function toContextMapOutput(
     const depHierarchy: AncestorRef[] = depAncestors.map((a) => {
       const ids = a.meta.aspects ?? [];
       const expanded = expandAspects(ids, graph.aspects);
-      const ancestorNode = graph.nodes.get(a.path);
-      return { path: a.path, name: a.meta.name, type: a.meta.type, description: a.meta.description, aspects: expanded, files: ancestorNode ? buildDepNodeFiles(ancestorNode, config, `model/${a.path}`) : [] };
+      return { path: a.path, name: a.meta.name, type: a.meta.type, description: a.meta.description, aspects: expanded, files: [`model/${a.path}/yg-node.yaml`] };
     });
 
     const depEffectiveAspects = [...collectEffectiveAspectIds(graph, target.path)];
@@ -623,7 +521,7 @@ export function toContextMapOutput(
       relation: relation.type,
       aspects: depEffectiveAspects,
       hierarchy: depHierarchy,
-      files: buildDepNodeFiles(target, config, `model/${target.path}`),
+      files: [`model/${target.path}/yg-node.yaml`],
     };
     if (relation.consumes?.length) ref.consumes = relation.consumes;
     if (relation.event_name) ref['event-name'] = relation.event_name;
@@ -633,18 +531,8 @@ export function toContextMapOutput(
   // Glossary
   const glossary = buildGlossary(node, depRefs, graph);
 
-  // Budget
-  const breakdown = computeBudgetBreakdown(pkg, graph);
-  const warningThreshold = config.quality?.context_budget?.warning ?? 10000;
-  const errorThreshold = config.quality?.context_budget?.error ?? 20000;
-  const budgetStatus: 'ok' | 'warning' | 'severe' =
-    breakdown.total >= errorThreshold ? 'severe'
-      : breakdown.total >= warningThreshold ? 'warning'
-        : 'ok';
-
   // Compute effective aspects from architecture, hierarchy, own, and flows
   const requiredAspects: RequiredAspectRef[] = [];
-  let integrationAspects: RequiredAspectRef[] | undefined;
 
   if (graph.architecture) {
     const parentTypes = ancestors.map((a) => a.meta.type);
@@ -666,18 +554,8 @@ export function toContextMapOutput(
       const source = determineAspectSource(aspectId, node, graph, graph.flows, false);
       requiredAspects.push({ id: aspectId, source });
     }
-
-    // Build integration_aspects (from port consumption)
-    const integrationAspectIds = computeEffectiveAspectsForConsumer(node, graph);
-    if (integrationAspectIds.size > 0) {
-      integrationAspects = Array.from(integrationAspectIds).map((aspectId) => {
-        const source = determineAspectSource(aspectId, node, graph, graph.flows, true);
-        return { id: aspectId, source };
-      });
-    }
   } else {
     // Fallback: use simple approach when architecture is not available
-    // This maintains backward compatibility with tests that don't load full architecture
     const effectiveIds = collectEffectiveAspectIds(graph, node.path);
     for (const aspectId of effectiveIds) {
       requiredAspects.push({ id: aspectId, source: 'collected from node and flows' });
@@ -685,8 +563,7 @@ export function toContextMapOutput(
   }
 
   return {
-    meta: { tokenCount: breakdown.total, budgetStatus, breakdown },
-    project: config.name,
+    project: graph.config.name,
     node: {
       path: pkg.nodePath,
       name: pkg.nodeName,
@@ -695,9 +572,8 @@ export function toContextMapOutput(
       mappings: normalizeMappingPaths(node.meta.mapping),
       aspects: nodeAspects,
       required_aspects: requiredAspects,
-      integration_aspects: integrationAspects,
       flows: flowRefs,
-      files: buildNodeFiles(node, config, `model/${pkg.nodePath}`),
+      files: [`model/${pkg.nodePath}/yg-node.yaml`],
     },
     hierarchy: hierarchyRefs,
     dependencies: depRefs,
@@ -705,22 +581,6 @@ export function toContextMapOutput(
   };
 }
 
-function buildNodeFiles(node: GraphNode, _config: YggConfig, prefix: string): string[] {
-  const configKeys = Object.keys(STANDARD_ARTIFACTS);
-  return configKeys
-    .filter(f => !YG_YAML_FILES.has(f) && node.artifacts.some(a => a.filename === f))
-    .map(f => `${prefix}/${f}`);
-}
-
-function buildDepNodeFiles(node: GraphNode, _config: YggConfig, prefix: string): string[] {
-  const structural = Object.entries(STANDARD_ARTIFACTS)
-    .filter(([, c]) => c.included_in_relations)
-    .map(([f]) => f);
-  const filenames = structural.length > 0 ? structural : Object.keys(STANDARD_ARTIFACTS);
-  return filenames
-    .filter(f => !YG_YAML_FILES.has(f) && node.artifacts.some(a => a.filename === f))
-    .map(f => `${prefix}/${f}`);
-}
 
 function buildGlossary(
   node: GraphNode,
@@ -754,13 +614,9 @@ function buildGlossary(
   // Flows
   const participatingFlows = collectParticipatingFlows(graph, node);
   for (const flow of participatingFlows) {
-    const files = flow.artifacts
-      .filter(a => !YG_YAML_FILES.has(a.filename))
-      .map(a => `flows/${flow.path}/${a.filename}`);
     const entry: GlossaryFlowEntry = {
       name: flow.name,
       participants: flow.nodes,
-      files,
     };
     if (flow.description) entry.description = flow.description;
     if (flow.aspects?.length) entry.aspects = flow.aspects;
@@ -837,16 +693,11 @@ export function buildNodeContextData(graph: Graph, nodePath: string): NodeContex
     .filter(r => !ancestorPaths.has(r.target) && (STRUCTURAL_RELATION_TYPES.has(r.type) || EVENT_RELATION_TYPES.has(r.type)))
     .map(r => {
       const target = graph.nodes.get(r.target);
-      const structuralFilenames = Object.entries(STANDARD_ARTIFACTS)
-        .filter(([, c]) => c.included_in_relations)
-        .map(([f]) => f);
-      const hasInterface = target?.artifacts.some(a => structuralFilenames.includes(a.filename) || a.filename === 'interface.md');
-      const readPath = hasInterface ? `model/${r.target}/interface.md` : undefined;
       return {
         path: r.target,
         relation: r.type,
         description: target?.meta.description,
-        readPath,
+        readPath: `model/${r.target}/yg-node.yaml`,
         consumes: r.consumes,
       };
     });
@@ -855,18 +706,7 @@ export function buildNodeContextData(graph: Graph, nodePath: string): NodeContex
 
   const parent = ancestors.length > 0 ? ancestors[ancestors.length - 1] : undefined;
 
-  const artifactPaths = node.artifacts
-    .filter(a => !YG_YAML_FILES.has(a.filename))
-    .map(a => `model/${nodePath}/${a.filename}`);
-
   const sourceFiles = normalizeMappingPaths(node.meta.mapping);
-
-  // Token budget: estimate from own artifacts
-  const budgetWarning = graph.config.quality?.context_budget?.warning ?? 10000;
-  const budgetError = graph.config.quality?.context_budget?.error ?? 20000;
-  const ownText = node.artifacts.map(a => a.content).join(' ');
-  const tokenEstimate = 0;
-  const budgetStatus = tokenEstimate >= budgetError ? 'severe' : tokenEstimate >= budgetWarning ? 'warning' : 'ok';
 
   return {
     path: nodePath,
@@ -881,9 +721,7 @@ export function buildNodeContextData(graph: Graph, nodePath: string): NodeContex
     dependentPaths: dependentCount <= 5 ? dependentPaths : undefined,
     parentPath: parent?.path,
     parentType: parent?.meta.type,
-    parentReadPath: parent ? `model/${parent.path}/responsibility.md` : undefined,
-    artifactPaths,
-    tokenBudget: { current: tokenEstimate, limit: budgetWarning, status: budgetStatus },
+    parentReadPath: parent ? `model/${parent.path}/yg-node.yaml` : undefined,
   };
 }
 

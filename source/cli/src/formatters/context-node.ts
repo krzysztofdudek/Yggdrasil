@@ -12,8 +12,6 @@ export interface NodeContextData {
   parentPath?: string;
   parentType?: string;
   parentReadPath?: string;
-  artifactPaths: string[];
-  tokenBudget: { current: number; limit: number; status: string };
 }
 
 export interface NodeContextAspect {
@@ -128,21 +126,8 @@ export function formatNodeContext(data: NodeContextData): string {
     lines.push('');
   }
 
-  // Artifacts
-  if (data.artifactPaths.length > 0) {
-    lines.push('Artifacts:');
-    for (const p of data.artifactPaths) {
-      lines.push(`  read: ${p}`);
-    }
-    lines.push('');
-  }
-
-  // Token budget
-  lines.push(`Token budget: ${data.tokenBudget.current.toFixed(0)} / ${data.tokenBudget.limit.toFixed(0)} (${data.tokenBudget.status})`);
-  lines.push('');
-
   // Workflow footer
-  lines.push(`After modifying source files in this node: update artifacts, run yg check, then yg approve --node ${data.path}`);
+  lines.push(`After modifying source files in this node: run yg check, then yg approve --node ${data.path}`);
   lines.push('');
 
   return lines.join('\n');
