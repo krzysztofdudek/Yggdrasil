@@ -69,8 +69,6 @@ criteria. It is the **only** source of truth for what tools expect and enforce.
 name: my-project
 ```
 
-Technology stack and coding standards are described in node artifacts at the appropriate hierarchy level — not in yg-config.yaml.
-
 ### Node types
 
 Node types are defined in the **architecture file** (`.yggdrasil/yg-architecture.yaml`), not in
@@ -81,28 +79,11 @@ Node types are defined in the **architecture file** (`.yggdrasil/yg-architecture
 Tools validate that every node declares a type that is a key in the architecture file's
 `node_types` object.
 
-### Artifact types
-
-The three standard artifacts (`responsibility.md`, `interface.md`, `internals.md`) are built
-into the CLI. They are not configurable — the CLI defines their required conditions and
-descriptions internally.
-
-- **`responsibility.md`** — always required. Identity, boundaries, business rules and domain
-  constraints the code enforces but doesn't explain.
-- **`interface.md`** — required when the node has incoming relations. Contract: what consumers
-  call, what they get back, what can go wrong.
-- **`internals.md`** — always optional. Design decisions with rejected alternatives, non-obvious
-  constraints. Sections: ## Decisions, ## Constraints.
-
-Tools validate artifact presence based on these rules and attach artifact content to context
-packages.
-
 ### Reviewer configuration
 
 ```yaml
 reviewer:
   verify_aspects: true
-  verify_artifacts: true
   consensus: 1
   ollama:
     model: qwen3.5:9b
@@ -111,16 +92,15 @@ reviewer:
     max_tokens: auto
 ```
 
-The `reviewer` section configures the semantic verifier used for aspect verification and
-artifact review at approve time. General keys (`verify_aspects`, `verify_artifacts`, `consensus`) sit at the
-`reviewer:` level. Provider-specific keys sit under the provider name (`ollama:`, `claude-code:`).
+The `reviewer` section configures the semantic verifier used for aspect verification at
+approve time. General keys (`verify_aspects`, `consensus`) sit at the `reviewer:` level.
+Provider-specific keys sit under the provider name (`ollama:`, `claude-code:`).
 
-| Field              | Purpose                                                              |
-| ------------------ | -------------------------------------------------------------------- |
-| `verify_aspects`   | Run aspect verification (E055) — default true                        |
-| `verify_artifacts` | Run artifact freshness review (E056) — default true                  |
-| `consensus`        | Number of agreeing verification passes required (default 1)          |
-| `active`           | Required when multiple providers configured — selects the active one |
+| Field            | Purpose                                                              |
+| ---------------- | -------------------------------------------------------------------- |
+| `verify_aspects` | Run aspect verification — default true                               |
+| `consensus`      | Number of agreeing verification passes required (default 1)          |
+| `active`         | Required when multiple providers configured — selects the active one |
 
 Provider keys (`ollama:`, `claude-code:`) contain provider-specific settings (model, endpoint,
 temperature, max_tokens). See the [Configuration](../configuration.md) page for full details.
@@ -145,22 +125,13 @@ This separation keeps configuration declarative and committable while secrets st
 
 ```yaml
 quality:
-  min_artifact_length: 50
   max_direct_relations: 10
-  context_budget:
-    warning: 10000
-    error: 20000
 ```
 
 Quality thresholds are measurable limits enforced by tools:
 
-- **Minimum artifact length** — artifacts shorter than the threshold trigger a warning
-  (likely shallow content).
 - **Maximum direct relations** — nodes exceeding the threshold trigger a warning
   (likely too many responsibilities).
-- **Context budget** — token limits for context packages:
-  - `warning` signals growing complexity.
-  - `error` blocks materialization: the node must be split.
 
 Configuration controls **what** material the engine works with. The engine itself — the context
 assembly algorithm, referential integrity — is fixed. The system is predictable:
@@ -186,18 +157,15 @@ during context assembly.
 model/
   auth/                     # module node (parent)
     yg-node.yaml
-    responsibility.md
 
     login-service/          # service node (child of auth)
       yg-node.yaml
-      responsibility.md
 
   orders/                   # module node
     yg-node.yaml
 
     order-service/          # service node (child of orders)
       yg-node.yaml
-      responsibility.md
 ```
 
 A module node provides **domain context** — business domain, high-level rules — that all its
@@ -247,10 +215,6 @@ mapping:
 | `mapping`     | No       | Flat list of source file/directory paths (see Mapping section) |
 | `blackbox`    | No       | If `true`, node describes something existing, not controlled |
 
-Each block (hierarchy, own, flow) declares its own aspects. No inheritance — a node receives
-aspects only from blocks that explicitly list aspect identifiers. See the [Engine](engine) document for the
-assembly algorithm.
-
 #### Blackbox nodes
 
 ```yaml
@@ -264,32 +228,13 @@ blackbox node can be incomplete or coarse — this is expected, not an error.
 **Blackbox is for existing code only.** Do not use blackbox for greenfield (empty directory,
 new project, code not yet written). For new code, create proper nodes from the start.
 
-- Blackbox nodes do **not** participate in materialization — they are not generated from
-  the graph.
-- They are **not** checked for context budget — they do not produce a package for generation.
-- They **do** participate in the relation graph — other nodes can depend on them and will
-  receive their artifacts (those with `included_in_relations: true`) in their own context packages.
-- They are **excluded** from materialization ordering — their outputs (if mapped) are whatever
-  they are; the graph does not control them.
+- Blackbox nodes skip LLM aspect verification at approve time.
+- They **do** participate in the relation graph — other nodes can depend on them.
+- Source changes under a blackbox node cause approve to refuse — decompose to a proper node.
 
 Blackbox nodes are key for incremental adoption: describe an existing module as a blackbox,
 and new nodes immediately get the semantic context of its interface, even if that context
 is coarse.
-
-### Content artifacts
-
-Content artifacts are text files placed next to `yg-node.yaml`. The three standard artifacts
-are built into the CLI. Content must be UTF-8 encodable for context assembly.
-
-| File                | Purpose                                                                                                           | Requirement                                |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| `responsibility.md` | Identity, boundaries, business rules and domain constraints the code enforces but doesn't explain                 | Required always                            |
-| `interface.md`      | Contract: what consumers call, what they get back, what can go wrong                                              | Required when someone depends on this node |
-| `internals.md`      | Design decisions with rejected alternatives, non-obvious constraints. Sections: ## Decisions, ## Constraints      | Optional                                   |
-
-A simple utility node might have only `responsibility.md`. A complex service may have all three.
-The self-calibrating granularity principle from the [Foundation](foundation) document applies:
-add detail where the agent produces bad outputs without it.
 
 ### Relations
 
@@ -344,8 +289,8 @@ relations:
 | `consumes` | No       | Port names on the target (only valid when target has ports) |
 
 The `consumes` field references **port names** on the target node. It is only valid when the
-target declares ports — E059 fires if `consumes` is declared on a relation to a target
-without ports. The relation itself (`target` + `type`) is sufficient to express the
+target declares ports — `consumes-without-ports` fires if `consumes` is declared on a relation
+to a target without ports. The relation itself (`target` + `type`) is sufficient to express the
 dependency; `consumes` adds port-level specificity.
 
 When a port name appears in `consumes`, the caller declares that it uses that port's
@@ -443,14 +388,12 @@ across many unrelated identifiers.
 ## Flows: End-to-End Processes
 
 A **flow** describes a process spanning multiple nodes. Each flow is a directory containing
-`yg-flow.yaml` and content artifacts.
+`yg-flow.yaml`.
 
 ```text
 flows/
   checkout/
     yg-flow.yaml
-    description.md
-    sequence.md
 ```
 
 ```yaml
@@ -468,35 +411,14 @@ aspects:                    # optional — aspect ids propagated to all particip
   - requires-idempotency
 ```
 
-Content artifacts in the flow directory (`description.md`, `sequence.md`, etc.) describe
-flow behavior, sequence, error handling, and edge cases. One flow directory represents
-one business process with all its paths — happy path, exceptions, cancellations. The
-`description.md` describes the full scope of that process, not just the success path.
-
 - `nodes` lists flow participants — paths are relative to `model/`. `participants` is accepted as an alias.
 - `aspects` (optional) lists aspect identifiers; those aspects propagate to all participants.
   Every participant receives these aspects in its context package (with `source="flow:Name"`)
   even if the node itself does not carry the aspect.
 
-When assembling a context package for a node, tools attach the flow's content artifacts as
-context if the node or any of its ancestors is listed as a participant.
-
-Flows capture semantic content that belongs to **no single node**: orchestration logic,
-end-to-end sequences, what happens when one participant fails. This content is essential for
-implementation but lives above the component level.
-
-### Flow description.md format
-
-Every flow's `description.md` must include these sections:
-
-- `## Business context` — why this process exists
-- `## Trigger` — what initiates the process
-- `## Goal` — what success looks like
-- `## Participants` — nodes involved (align with `yg-flow.yaml` nodes)
-- `## Paths` — **required**; must contain at least `### Happy path`; each other business path (cancellation, payment failure, timeout, partial fulfillment) gets its own `### [name]` subsection
-- `## Invariants across all paths` — business rules and technical conditions that hold regardless of path
-
-Example variant names: `### Payment failed`, `### User cancellation`, `### Timeout`, `### Partial fulfillment`
+Flows capture process-level requirements that belong to **no single node**. Flow-level aspects
+propagate enforceable rules to all participants. The `description` field in `yg-flow.yaml`
+provides a brief summary of the business process for orientation.
 
 ---
 
@@ -532,9 +454,6 @@ node_types:
   library:
     description: "Shared utility with no domain knowledge"
     aspects: [deterministic]
-    quality_profile: |                               # guidance for artifact reviewer
-      interface.md: Function signatures, return types, failure modes.
-      responsibility.md: What this library provides and why it exists as a unit.
     parents: [module]
     relations:
       uses: [library]
@@ -547,7 +466,6 @@ node_types:
 | ----------------- | -------------------------------------------------------------------------------------- |
 | `description`     | Required. What this type of node is for (agent guidance)                               |
 | `aspects`         | Optional. Aspect IDs required on every node of this type                               |
-| `quality_profile` | Optional. Guidance for the LLM reviewer on how to evaluate artifacts of this node type |
 | `parents`         | Optional. Whitelist of allowed parent node types                                       |
 | `relations`       | Optional. Allowed target types by relation type (calls, uses, etc.)                    |
 
@@ -560,10 +478,6 @@ requirements closer to the nodes that define them. See the Node metadata section
 
 - When a node has `type: service` and the architecture declares `aspects: [requires-auth]`,
   the node must carry the `requires-auth` aspect.
-- When a node type has `quality_profile`, the LLM reviewer receives this text as guidance
-  when evaluating artifacts during `yg approve`. Different node types need different artifact
-  styles — e.g. a command node's interface is its output format, while a library's interface
-  is its function signatures.
 - Absence of any field means no constraint — e.g. no `parents` field means any node type can
   be a parent.
 
@@ -690,8 +604,7 @@ or editing that element.
 | `yg-secrets.yaml`  | Secrets        | Structure of the gitignored secrets override file            |
 
 These are generalized schemas, not type-specific examples. The agent consults the schema for the
-element type it is creating or editing. Artifact requirements and structure come from
-`yg-config.yaml`; the schema shows the YAML shape.
+element type it is creating or editing.
 
 ---
 
@@ -699,12 +612,12 @@ element type it is creating or editing. Artifact requirements and structure come
 
 The repository **must** be fully covered by the graph. Every git-tracked file (except
 `.yggdrasil/`) belongs to exactly one node — directly or via a higher-level blackbox node.
-`yg check` enforces this through E022 (`unmapped-file`) — any uncovered file is an error.
+`yg check` enforces this through `unmapped-files` — any uncovered file is an error.
 
 **Blackbox-first adoption:** On day one, the agent establishes full coverage by blackboxing the
-entire repository at coarse granularity (a few large directory mappings). This clears E022
-immediately. As work touches specific areas, blackbox nodes are decomposed into proper nodes
-with real artifacts. The blackbox blocker enforces decomposition: when source files change
+entire repository at coarse granularity (a few large directory mappings). This clears
+`unmapped-files` immediately. As work touches specific areas, blackbox nodes are decomposed
+into proper nodes. The blackbox blocker enforces decomposition: when source files change
 inside a blackbox, `yg approve` refuses until the agent creates proper nodes for those files.
 
 For greenfield (new code to be created), use proper nodes from the start; blackbox

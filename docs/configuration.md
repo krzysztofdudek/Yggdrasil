@@ -35,11 +35,12 @@ not in `yg-config.yaml`.
 - **Node types** — Defined in `yg-architecture.yaml` (not `yg-config.yaml`). The vocabulary of
   parts your repo uses (e.g. `module`, `service`, `library`), with optional `aspects`, `parents`,
   and `relations` constraints.
-- **Quality thresholds** — When to warn about shallow memory or large context
+- **Quality thresholds** — When to warn about structural issues
 - **Parallel** — Concurrency for batch approve operations
 - **Reviewer** — Semantic verification provider and settings
 
-The three standard artifacts (`responsibility.md`, `interface.md`, `internals.md`) are built into the CLI and cannot be configured. `responsibility.md` is always required, `interface.md` is required when a node has consumers, and `internals.md` is always optional.
+Nodes contain only `yg-node.yaml` — no `.md` artifact files. Enforceable rules are
+defined as aspects.
 
 ---
 
@@ -47,10 +48,7 @@ The three standard artifacts (`responsibility.md`, `interface.md`, `internals.md
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `min_artifact_length` | 50 | Minimum chars for artifact content (shallow warning) |
 | `max_direct_relations` | 10 | Max relations before high fan-out warning |
-| `context_budget.warning` | 10000 | Token count warning threshold |
-| `context_budget.error` | 20000 | Token count error threshold |
 
 ---
 
@@ -60,11 +58,7 @@ The three standard artifacts (`responsibility.md`, `interface.md`, `internals.md
 name: my-repo
 
 quality:
-  min_artifact_length: 50
   max_direct_relations: 10
-  context_budget:
-    warning: 10000
-    error: 20000
 
 parallel: 1
 debug: true                        # optional — append all CLI output to .yggdrasil/.debug.log
@@ -81,7 +75,7 @@ node_types:
     aspects: [requires-audit]
   library:
     description: "Shared utility code with no domain knowledge"
-  # Optional fields per type: quality_profile, parents, relations
+  # Optional fields per type: aspects, parents, relations
   # See docs/concept/graph.md for the full architecture file format.
 ```
 
@@ -89,15 +83,13 @@ node_types:
 
 ## Reviewer config
 
-Optional. Enables semantic verification during `yg approve` — aspect verification (E055)
-and optionally artifact review (E056). The `reviewer:` section in `yg-config.yaml` uses
-a nested provider structure.
+Optional. Enables semantic verification during `yg approve` — aspect verification.
+The `reviewer:` section in `yg-config.yaml` uses a nested provider structure.
 
 ```yaml
 reviewer:
   active: ollama                  # required when multiple providers listed
-  verify_aspects: true            # run aspect verification (E055) — default true
-  verify_artifacts: true          # run artifact review (E056) — default true
+  verify_aspects: true            # run aspect verification — default true
   consensus: 1                    # positive odd integer >= 1
   ollama:
     model: "qwen3.5:9b"
@@ -109,7 +101,7 @@ reviewer:
     model: haiku                  # haiku, sonnet, or opus
 ```
 
-General keys (`active`, `verify_aspects`, `verify_artifacts`, `consensus`) sit at the `reviewer:` level.
+General keys (`active`, `verify_aspects`, `consensus`) sit at the `reviewer:` level.
 Provider-specific keys sit under the provider name (`ollama:`, `claude-code:`).
 
 Credentials and endpoint overrides go in `.yggdrasil/yg-secrets.yaml` (gitignored):
@@ -125,5 +117,4 @@ reviewer:
 
 ## Notes
 
-- Artifact name `yg-node.yaml` is reserved.
-- `yg-config.yaml: quality.context_budget.error` must be >= `context_budget.warning`.
+- `yg-node.yaml` is a reserved filename in model directories.

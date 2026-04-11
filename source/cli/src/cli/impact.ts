@@ -523,9 +523,9 @@ export function registerImpactCommand(program: Command): void {
             `  All ${allAffected.size} nodes would show E021 (cascade drift) if this node changes.\n`,
           );
           if (allAffected.size >= 10) {
-            process.stdout.write(`  High blast radius — review interface.md of direct dependents before changing this node.\n`);
+            process.stdout.write(`  High blast radius — review direct dependents before changing this node.\n`);
           } else if (allAffected.size > 0) {
-            process.stdout.write(`  Review interface.md of direct dependents before changing this node.\n`);
+            process.stdout.write(`  Review direct dependents before changing this node.\n`);
           }
         } catch (error) {
           const err = error as NodeJS.ErrnoException;

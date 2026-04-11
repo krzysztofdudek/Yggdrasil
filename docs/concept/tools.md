@@ -27,12 +27,7 @@ name: my-project # string, required
 # node_types are defined in yg-architecture.yaml (not here)
 
 quality: # map, optional (has default values) — all keys snake_case
-  min_artifact_length: 50 # int, default 50
   max_direct_relations: 10 # int, default 10
-  context_budget:
-    warning: 10000 # int, default 10000 (tokens)
-    error: 20000 # int, default 20000 (tokens)
-    own_warning: 5000 # int, optional (tokens) — warn when own artifacts alone exceed this
 
 parallel: 1 # int, optional, default 1 — concurrency limit for batch approve
 
@@ -40,8 +35,7 @@ debug: false # bool, optional, default false — append all CLI output to .yggdr
 
 reviewer: # map, optional — reviewer configuration for semantic verification
   active: ollama # string, optional — which provider to use (required when multiple providers configured)
-  verify_aspects: true # bool, default true — run aspect verification (E055) during approve
-  verify_artifacts: true # bool, default true — run artifact review (E056) during approve
+  verify_aspects: true # bool, default true — run aspect verification during approve
   consensus: 1 # int, default 1 — number of agreeing responses required (must be odd)
   ollama: # map, optional — Ollama provider config
     model: "qwen3.5:9b" # string, required — model identifier
@@ -53,15 +47,10 @@ reviewer: # map, optional — reviewer configuration for semantic verification
     model: haiku # string, optional, default "haiku" — claude model shortname
 ```
 
-Artifacts (`responsibility.md`, `interface.md`, `internals.md`) are built into the
-CLI and are not configurable. See the [Graph](graph) document for artifact descriptions
-and required conditions.
-
 **Validation rules for yg-config.yaml:**
 
 - `name` must be non-empty.
-- Node types are defined in `yg-architecture.yaml` (not in `yg-config.yaml`). Each entry must have a `description` string. Optional fields: `aspects` (required on all nodes of this type), `quality_profile` (reviewer guidance for artifact evaluation), `parents`, `relations`. Node `type` must match a key in the architecture file's `node_types`.
-- `quality.context_budget.error` must be >= `quality.context_budget.warning`.
+- Node types are defined in `yg-architecture.yaml` (not in `yg-config.yaml`). Each entry must have a `description` string. Optional fields: `aspects` (required on all nodes of this type), `parents`, `relations`. Node `type` must match a key in the architecture file's `node_types`.
 - `reviewer` is optional. When not configured, semantic verification
   (`yg approve` aspect verification) is skipped with an informational notice.
 
@@ -126,7 +115,7 @@ mapping:                                    # optional — flat list of paths
 Mapping is a flat list of file paths and/or directories (relative to project root).
 Directories are expanded recursively at check time, respecting `.gitignore`. There are
 no aspect proofs in the mapping — aspect verification is performed by the reviewer at
-`yg approve` time (see E055 in the Approve section).
+`yg approve` time (see `aspect-violation` in the Approve section).
 
 **Aspect inheritance:**
 
@@ -144,13 +133,13 @@ Aspects on a node come from multiple sources:
 
 - `name` must be non-empty.
 - `type` must be a key in `architecture.node_types`.
-- Each aspect identifier must correspond to a directory under `aspects/` (E050 if missing).
-- Each port aspect identifier must correspond to a directory under `aspects/` (E050 if missing).
+- Each aspect identifier must correspond to a directory under `aspects/` (`aspect-undefined` if missing).
+- Each port aspect identifier must correspond to a directory under `aspects/` (`aspect-undefined` if missing).
 - Each `relations[].target` must resolve to an existing node.
 - Each `relations[].type` must be from the table above.
 - Paths in `mapping` must be relative to the repository root. Can be files or directories.
 - Mappings cannot overlap with mappings of other nodes.
-- When a relation has a `consumes` field, all referenced port aspects must be defined in `aspects/` (E053).
+- When a relation has a `consumes` field, all referenced port aspects must be defined in `aspects/` (`port-missing-aspect` if missing).
 
 ### yg-aspect.yaml
 
@@ -205,23 +194,6 @@ Aspects declared in `aspects` propagate to all participants.
 - Each element in `nodes[]` must resolve to an existing node.
 - Each aspect identifier in `aspects[]` (if present) must correspond to an aspect directory under `aspects/`.
 
-### description.md
-
-Primary flow content artifact — describes the business process. Required for every flow.
-
-**Required sections (H2):**
-
-- `## Business context` — why this process exists
-- `## Trigger` — what initiates the process
-- `## Goal` — what success looks like
-- `## Participants` — nodes involved (align with `yg-flow.yaml` nodes)
-- `## Paths` — must contain at least `### Happy path`; each additional business path (exception, cancellation, timeout) gets `### [name]`
-- `## Invariants across all paths` — business rules and technical conditions holding across all paths
-
-Note: section validation is not yet enforced by `yg check`.
-
-One flow directory = one business process with all its paths (happy path, exceptions, cancellations).
-
 ### schemas/
 
 The `schemas/` directory contains schema files — one per graph layer. Initialization copies
@@ -254,8 +226,7 @@ Each node gets its own file at `.drift-state/<node-path>.json`. For example, a n
     "src/modules/orders/order.service.ts": "1111...",
     "src/modules/orders/order.repository.ts": "2222...",
     ".yggdrasil/model/orders/order-service/yg-node.yaml": "3333...",
-    ".yggdrasil/model/orders/order-service/responsibility.md": "4444...",
-    ".yggdrasil/aspects/requires-audit/yg-aspect.yaml": "5555..."
+    ".yggdrasil/aspects/requires-audit/yg-aspect.yaml": "4444..."
   },
   "mtimes": {
     "src/modules/orders/order.service.ts": 1709731200000,
@@ -268,9 +239,9 @@ Each node gets its own file at `.drift-state/<node-path>.json`. For example, a n
 
 - `hash` (required) — canonical SHA-256 hash of all tracked files (source + graph).
 - `files` (required) — map `file_path -> file_hash` for all tracked files. Includes both
-  source paths (from `mapping.paths`) and `.yggdrasil/` graph paths (node artifacts,
-  ancestor artifacts, aspect files, flow files, relation target artifacts — mirroring the
-  context assembly traversal). Enables drift detection to report exactly which files changed
+  source paths (from `mapping.paths`) and `.yggdrasil/` upstream context paths (aspect
+  files, flow files, dependency metadata — mirroring the context assembly traversal).
+  Enables drift detection to report exactly which files changed
   and whether they are source or graph files.
 - `mtimes` (optional) — map `file_path -> timestamp` for mtime-based optimization. When
   present, drift detection can skip re-hashing files whose mtime has not changed.
@@ -309,11 +280,10 @@ Each line is a JSON object:
 | -------- | ---------------- | -------------------------------------------------------------- |
 | `ts`     | string           | ISO-8601 timestamp                                             |
 | `node`   | string           | Node path                                                      |
-| `action` | string           | `initial`, `approved`, `reviewed`, or `no-change`              |
+| `action` | string           | `initial` or `approved`                                        |
 | `prev`   | string or null   | Previous baseline hash (`null` on first approve)               |
 | `hash`   | string           | New baseline hash                                              |
-| `reason` | string or null   | `--reviewed` reason, `null` otherwise                          |
-| `files`  | string[]         | Changed files (own artifacts + source)                         |
+| `files`  | string[]         | Changed files (source + upstream)                              |
 
 Refused outcomes are not logged (no state mutation occurred).
 
@@ -335,7 +305,7 @@ yg init --platform cursor
 yg init --platform cursor --upgrade   # refreshes rules when .yggdrasil/ exists
 yg context --node orders/order-service       # structural overview
 yg context --file src/modules/orders/order.service.ts  # resolves owner + full details
-yg select "add payment retry logic"   # find relevant nodes for a task
+yg owner --file src/payments/retry.ts  # find owner node for a file
 yg tree
 yg aspects
 yg flows
@@ -420,12 +390,7 @@ Upgrade mode — refreshes only the rules file (when `.yggdrasil/` already exist
 name: ""
 
 quality:
-  min_artifact_length: 50
   max_direct_relations: 10
-  context_budget:
-    warning: 10000
-    error: 20000
-    # own_warning: 5000  # optional — warn when own artifacts alone exceed this
 ```
 
 `yg-architecture.yaml`:
@@ -445,8 +410,7 @@ node_types:
 The tool auto-detects the project name from `package.json` (if present) or the
 directory name. The agent can override by editing `yg-config.yaml`. Node types
 are defined in `yg-architecture.yaml` and can be customized with architectural
-constraints (`aspects`, `parents`, `relations`) and a `quality_profile` that guides
-the LLM reviewer on how to evaluate artifacts for each node type.
+constraints (`aspects`, `parents`, `relations`).
 
 ---
 
@@ -473,18 +437,13 @@ Exactly one of `file` or `node` must be provided.
 The 5-step algorithm defined in the [Engine](engine) document. Summary:
 
 1. **Global** — `yg-config.yaml` (project name).
-2. **Hierarchical** — ancestor artifacts (from `model/` root down to the node's parent).
-3. **Own** — the node's `yg-node.yaml` (raw) and content artifacts.
-4. **Aspects** — union of aspect identifiers from hierarchy blocks, own block, and flow blocks (each block
-   declares its own; no inheritance). Expand implies recursively. Render content of each
-   matching aspect. No source attribute on aspect output.
-5. **Relational** — for structural relations: artifacts with `included_in_relations: true`
-   (default: responsibility, interface) of the target with consumes
-   annotations. If the target has no artifacts with `included_in_relations: true`,
-   all configured artifacts are included as fallback. For each dependency, ancestors of the
-   target node are included (dependency hierarchy) to provide domain context. For event
-   relations: event name and type with consumes annotation. Flow artifacts for flows listing
-   this node or any ancestor as a participant.
+2. **Hierarchical** — ancestor node metadata (from `model/` root down to the node's parent).
+3. **Own** — the node's `yg-node.yaml` metadata.
+4. **Aspects** — effective aspects from all distribution channels (direct, type, hierarchy,
+   port, flow). Expand implies recursively. Render content of each matching aspect.
+5. **Relational** — dependency node metadata with port annotations. For event relations:
+   event name and type. Flow metadata for flows listing this node or any ancestor as a
+   participant.
 
 Token estimation: ~4 characters per token (heuristic from the [Engine](engine) document).
 
@@ -492,15 +451,14 @@ Token estimation: ~4 characters per token (heuristic from the [Engine](engine) d
 
 Structured text output with the context package. The two modes differ in detail level:
 
-- `--node` — overview with aspects (source attribution, verified-against
-  status), flows, dependencies with consumes/port aspects, dependents (consequence framing),
-  parent, artifact paths, and token budget. Suitable for orientation and navigation.
+- `--node` — overview with aspects (with paths to content.md), flows, dependencies with
+  port aspects, dependents (consequence framing), and parent. Suitable for orientation.
 - `--file` — per-file detail: resolves the owner node, then lists aspects to satisfy,
   consumed dependencies with port aspects, dependent count, and a
   back-pointer to the node context (`yg context --node`). Suitable for implementation work
   on the file.
 
-All artifact file paths are relative to `.yggdrasil/`.
+All aspect content file paths are relative to `.yggdrasil/`.
 
 **Errors:**
 
@@ -582,7 +540,8 @@ legacy-format — Legacy Format
   Used by: 0 nodes — orphaned
 ```
 
-Orphan detection surfaces aspects that are defined but unused (same condition as W006).
+Orphan detection surfaces aspects that are defined but unused (same condition as
+`orphaned-aspect`).
 The usage breakdown (`architecture`, `own`, `implied`, `flow`) and `orphaned` label help
 agents identify aspects that may need cleanup or broader adoption.
 
@@ -637,68 +596,6 @@ the agent to count the `nodes` list.
 
 - No `.yggdrasil/` directory — exit 1.
 - If no `flows/` directory exists, outputs an empty list.
-
----
-
-### Node selection
-
-Finds graph nodes, aspects, and flows relevant to a natural-language task description.
-Three-dimensional search: nodes (keyword matching against artifacts), aspects (matching
-against descriptions and content files), and flows (matching against descriptions and
-content). Additionally, aspects and flows assigned to returned nodes are surfaced with
-node counts.
-
-**Parameters:**
-
-| Parameter | Type   | Required | Description                                            |
-| --------- | ------ | -------- | ------------------------------------------------------ |
-| `query`   | string | Yes      | Natural-language task description (positional argument) |
-| `limit`   | number | No       | Maximum results per section. Default: `5`.             |
-
-**Behavior:**
-
-1. Tokenize the query: lowercase, split on non-alphanumeric, remove stop words.
-2. **Nodes:** Score keyword hits against node artifact content with weights:
-   `responsibility.md` x3, `interface.md` x2, aspect content x2, other artifacts x1.
-   Falls back to flow-based selection when no nodes match directly.
-3. **Aspects:** Semantic match of query against each aspect's `yg-aspect.yaml` description
-   and content `.md` files. Additionally, collect aspects from returned nodes (direct +
-   inherited). Annotate: `(matched)` for direct semantic match, `(N nodes)` for aspects
-   present on N returned nodes.
-4. **Flows:** Semantic match of query against each flow's `yg-flow.yaml` description and
-   `description.md`. Additionally, collect flows where returned nodes participate.
-   Same annotations as aspects.
-5. Deduplicate by ID. Apply `--limit` per section.
-
-**Result:**
-
-Structured text with three sections. Each aspect and flow entry includes a `read:` path
-to its content file. Sections are omitted when empty.
-
-```text
-Results for "add payment retry logic":
-
-Nodes:
-  orders/order-service     — Manages order lifecycle from placement to fulfilment
-
-Aspects:
-  requires-saga            — (matched)     read: .yggdrasil/aspects/requires-saga/content.md
-  requires-idempotency     — (2 nodes)     read: .yggdrasil/aspects/requires-idempotency/content.md
-
-Flows:
-  checkout                 — (matched)     read: .yggdrasil/flows/checkout/description.md
-```
-
-Annotations:
-
-- `(matched)` — found by direct semantic search; may not be assigned to any returned node
-- `(N nodes)` — present on N of the returned nodes; found via graph structure
-- An entry can show both: `(matched, N nodes)`
-
-**Errors:**
-
-- No `.yggdrasil/` — repository is not initialized.
-- Empty query — missing required argument.
 
 ---
 
@@ -884,145 +781,109 @@ for the entire graph.
 
 1. Load the graph and run all validation passes.
 2. Detect drift for all mapped nodes (compare tracked file hashes against baselines).
-3. Scan all git-tracked files for coverage (E022).
+3. Scan all git-tracked files for coverage (`unmapped-files`).
 4. Report all errors and warnings in a single output.
 
 **Errors (block commit):**
 
-**Structural integrity (E001-E013):**
+**Structural:**
 
-| Code   | Name                       | Description                                                         |
-| ------ | -------------------------- | ------------------------------------------------------------------- |
-| `E001` | `invalid-node-yaml`        | `yg-node.yaml` fails to parse or lacks required fields              |
-| `E002` | `unknown-node-type`        | Node type is not in `config.node_types`                             |
-| `E050` | `dangling-aspect-ref`      | Aspect identifier referenced by node, port, architecture type, or flow has no corresponding aspect directory |
-| `E004` | `broken-relation`          | Relation target does not resolve to an existing node                |
-| `E005` | `broken-flow-ref`          | Flow participant does not resolve                                   |
-| `E006` | `broken-aspect-ref`        | Flow aspect does not resolve                                        |
-| `E007` | `overlapping-mapping`      | Overlapping mappings between unrelated nodes                        |
-| `E008` | `structural-cycle`         | Cycle in structural relations (blackbox cycles tolerated)           |
-| `E009` | `invalid-config`           | `yg-config.yaml` fails to parse or is invalid                      |
-| `E010` | `duplicate-aspect-binding` | Aspect identifier is bound to multiple aspect directories           |
-| `E011` | `missing-node-yaml`        | Directory in `model/` has files but no `yg-node.yaml`              |
-| `E012` | `implied-aspect-missing`   | Identifier in aspect's `implies` has no corresponding aspect        |
-| `E013` | `aspect-implies-cycle`     | Cycle in aspect implies graph (A implies B implies A)               |
+| Code                     | Description                                                         |
+| ------------------------ | ------------------------------------------------------------------- |
+| `yaml-invalid`           | `yg-node.yaml` fails to parse or lacks required fields              |
+| `type-invalid`           | Node type is not in architecture `node_types`                       |
+| `config-invalid`         | `yg-config.yaml` fails to parse or is invalid                      |
+| `relation-broken`        | Relation target does not resolve to an existing node                |
+| `flow-node-broken`       | Flow participant does not resolve                                   |
+| `flow-aspect-undefined`  | Flow aspect does not resolve                                        |
+| `overlapping-mapping`    | Overlapping mappings between unrelated nodes                        |
+| `structural-cycle`       | Cycle in structural relations (blackbox cycles tolerated)           |
+| `duplicate-aspect-id`    | Aspect identifier is bound to multiple aspect directories           |
+| `node-yaml-missing`      | Directory in `model/` has files but no `yg-node.yaml`              |
+| `implied-aspect-missing` | Identifier in aspect's `implies` has no corresponding aspect        |
+| `aspect-implies-cycle`   | Cycle in aspect implies graph (A implies B implies A)               |
 
-**Drift (E020-E021):**
+**Drift:**
 
-| Code   | Name              | Description                                                                |
-| ------ | ----------------- | -------------------------------------------------------------------------- |
-| `E020` | `direct-drift`    | Node's own source or graph files changed since last approve                |
-| `E021` | `cascade-drift`   | Node affected by upstream change (dependency/aspect/flow)                  |
+| Code              | Description                                                                |
+| ----------------- | -------------------------------------------------------------------------- |
+| `source-drift`    | Node's source files changed since last approve                             |
+| `upstream-drift`  | Node affected by upstream change (aspect/flow/dependency)                  |
 
-**Coverage (E022):**
+**Coverage:**
 
-| Code   | Name              | Description                                                                |
-| ------ | ----------------- | -------------------------------------------------------------------------- |
-| `E022` | `unmapped-file`   | Git-tracked file not covered by any node (proper or blackbox)              |
+| Code                  | Description                                                           |
+| --------------------- | --------------------------------------------------------------------- |
+| `unmapped-files`      | Git-tracked file not covered by any node (proper or blackbox)         |
+| `mapping-path-missing`| Mapped path does not exist on disk (stale/broken mapping)             |
 
-E022 aggregates into a single error with a count, guidance text, and a sample of
-uncovered files — not one error per file.
+`unmapped-files` aggregates into a single error with a count, guidance text, and a sample
+of uncovered files — not one error per file.
 
-When graph coverage is below 50%, E022 includes additional guidance about blackboxing
-strategy. This guidance disappears as coverage grows.
+When graph coverage is below 50%, `unmapped-files` includes additional guidance about
+blackboxing strategy. This guidance disappears as coverage grows.
 
-In monorepos with multiple `.yggdrasil/` directories, E022 scopes to files under the
-nearest parent directory of `.yggdrasil/`, not the entire git repository.
+**Completeness:**
 
-**Completeness (E030-E039):**
+| Code                  | Description                                                            |
+| --------------------- | ---------------------------------------------------------------------- |
+| `description-missing` | Node, aspect, or flow has no `description` in YAML                     |
+| `event-unpaired`      | Event relation without complement (broken event contract)              |
+| `schema-missing`      | Schema file missing from `schemas/`                                    |
 
-| Code   | Name                        | Description                                                                     |
-| ------ | --------------------------- | ------------------------------------------------------------------------------- |
-| `E030` | `missing-artifact`          | Required artifact missing (blackbox nodes exempt — only `description` required) |
-| `E031` | `shallow-artifact`          | Artifact below minimum length (content too shallow to be useful)                |
-| `E032` | `budget-exceeded`           | Context package exceeds error threshold — node must be split                    |
-| `E033` | `unpaired-event`            | Event relation without complement (broken event contract)                       |
-| `E034` | `missing-schema`            | Schema file missing from `schemas/`                                             |
-| `E036` | `mapping-path-missing`      | Mapped path does not exist on disk (stale/broken mapping)                       |
-| `E038` | `missing-description`       | Node, aspect, or flow has no `description` in YAML                              |
+**Architecture:**
 
-**Architecture Enforcement (E051-E053):**
+| Code                       | Description                                                          |
+| -------------------------- | -------------------------------------------------------------------- |
+| `aspect-undefined`         | Aspect identifier referenced by node, port, architecture type, or flow has no corresponding aspect directory |
+| `relation-target-forbidden`| Relation target type not in architecture allowed list                |
+| `parent-type-forbidden`    | Parent type not in architecture allowed `parents` list               |
+| `port-missing-aspect`      | Consumer uses a port whose required aspect is not defined            |
+| `port-missing-consumes`    | Relation target has ports but the consumer relation has no `consumes`|
+| `port-undefined`           | `consumes` references a port name that does not exist on the target  |
+| `consumes-without-ports`   | `consumes` declared on a relation to a target that has no ports      |
 
-| Code   | Name                        | Description                                                               |
-| ------ | --------------------------- | ------------------------------------------------------------------------- |
-| `E051` | `invalid-relation-target`   | Relation target type not in architecture allowed list                     |
-| `E052` | `invalid-parent-type`       | Parent type not in architecture allowed `parents` list                    |
-| `E053` | `integration-aspect-missing`| Consumer uses a port whose required aspect is not defined in aspects/     |
+**Port consumption validation:** `port-missing-consumes` fires when a node has a relation
+to a target that exposes named ports but the relation declaration does not include a
+`consumes` field. `port-undefined` fires when `consumes` names a port that does not exist
+on the target. `consumes-without-ports` fires when `consumes` is declared on a relation
+whose target has no ports. All three checks are skipped for `emits` and `listens` event
+relations, which do not consume ports.
 
-**Architecture validation:** E050 (dangling-aspect-ref) fires when any aspect identifier
-referenced by a node, port, architecture type definition, or flow has no corresponding
-directory in `aspects/`. E051 and E052 validate structural constraints from
-`yg-architecture.yaml`: relation target types (E051) and parent types (E052). E053 fires
-when a node consumes a port and that port's required aspect is not defined in `aspects/`.
+**Semantic (approve only):**
 
-**Semantic (E055-E056) — approve only:**
-
-| Code   | Name                   | Description                                                              |
-| ------ | ---------------------- | ------------------------------------------------------------------------ |
-| `E055` | `aspect-not-satisfied` | Source file does not satisfy an aspect's requirements                    |
-| `E056` | `artifact-stale`       | Node artifact content does not reflect the current state of source files |
+| Code               | Description                                                          |
+| ------------------ | -------------------------------------------------------------------- |
+| `aspect-violation` | Source code does not satisfy an aspect's requirements                 |
 
 Semantic errors are produced by `yg approve` during its reviewer verification gate (see
-Approve section). They do not appear in `yg check` output — they are reported only
-when approve runs its verification pass. E055 fires when the reviewer determines that a
-aspect requirement is not actually satisfied by the source code. E056 fires when
-the reviewer determines that artifact content (responsibility, interface, or internals) is
-stale relative to the current source files.
-
-**Port consumption (E057-E059):**
-
-| Code   | Name                     | Description                                                             |
-| ------ | ------------------------ | ----------------------------------------------------------------------- |
-| `E057` | `missing-consumes`       | Relation target has ports but the consumer relation has no `consumes`   |
-| `E058` | `unknown-port`           | `consumes` references a port name that does not exist on the target     |
-| `E059` | `consumes-without-ports` | `consumes` declared on a relation to a target that has no ports         |
-
-**Port consumption validation:** E057 fires when a node has a relation to a target that
-exposes named ports but the relation declaration does not include a `consumes` field. This
-enforces explicit port selection — callers must declare which ports they use. E058 fires
-when `consumes` names a port that does not exist on the target. E059 fires when `consumes`
-is declared on a relation whose target has no ports — `consumes` is strictly for port
-references, not for annotating which functions or methods are used from a dependency. All
-three checks are skipped for `emits` and `listens` event relations, which do not consume
-ports.
-
-**Blackbox exemption:** Blackbox nodes are exempt from E030 (missing artifact) and
-E051-E053 (architecture enforcement).
+Approve section). They do not appear in `yg check` output. `aspect-violation` fires when
+the reviewer determines that an aspect requirement is not satisfied by the source code.
 
 **Warnings (informational, do not block):**
 
-| Code   | Name                   | Description                                                                  |
-| ------ | ---------------------- | ---------------------------------------------------------------------------- |
-| `W001` | `budget-warning`       | Context package exceeds warning threshold (getting big)                      |
-| `W002` | `own-budget-warning`   | Own artifacts exceed threshold (node might need splitting)                   |
-| `W003` | `wide-node`            | Too many source files mapped (node might need splitting)                     |
-| `W004` | `high-fan-out`         | Too many direct relations (design signal, not blocking)                      |
-| `W005` | `orphaned-drift-state` | Drift state file exists for a node that no longer exists in the graph        |
-| `W006` | `orphaned-aspect`      | Aspect is defined but not referenced by any node, architecture type, or flow |
+| Code                   | Description                                                                  |
+| ---------------------- | ---------------------------------------------------------------------------- |
+| `wide-node`            | Too many source files mapped (node might need splitting)                     |
+| `high-fan-out`         | Too many direct relations (design signal, not blocking)                      |
+| `orphaned-drift-state` | Drift state file exists for a node that no longer exists in the graph        |
+| `orphaned-aspect`      | Aspect is defined but not referenced by any node, architecture type, or flow |
 
 **Message format:**
 
 ```text
-E004 orders/order-service -> relation to 'payment/svc' does not resolve.
-     Existing nodes in payments/: payment-service
-     Did you mean 'payments/payment-service'?
+relation-broken orders/order-service — broken-relation
+     WHAT: Relation target 'payment/svc' does not exist.
+     WHY: This node declares a dependency that cannot be resolved.
+     NEXT: Fix the target path in yg-node.yaml relations.
+          Did you mean 'payments/payment-service'?
 
-E030 orders/order-service -> missing artifact 'interface'.
-     Node has 3 incoming relations: auth/login-service, checkout/controller,
-     subscriptions/billing-service. Define the public API in interface.md.
-
-W001 orders/order-service -> context: ~15,200 tokens (warning: 10,000)
-     own: 3,100 (20%) | hierarchy: 4,800 (32%) | aspects: 4,200 (28%) |
-     flows: 1,600 (10%) | dependencies: 1,500 (10%)
-
-E021 cli/commands/check — cascade drift (last verified: pass)
-     Context package changed due to 2 upstream modifications:
-          Cause: dependency 'cli/core/check' responsibility changed
-          Cause: dependency 'cli/core/check' interface changed
-
-  Cascade summary: 2 upstream changes → 3 cascaded nodes
-    dependency 'cli/core/check' responsibility changed → cli/commands/check
-    dependency 'cli/core/context' interface changed → cli/commands/build-context, cli/commands/impact
+upstream-drift cli/commands/check — cascade drift
+     WHAT: Context package changed due to 2 upstream modifications:
+          Cause: aspect 'error-format' content changed
+          Cause: dependency 'cli/core/check' metadata changed
+     WHY: Source may no longer satisfy updated aspect requirements.
+     NEXT: Load context: yg context --node cli/commands/check
 ```
 
 Messages are **contextual and actionable** — not just "error", but what is wrong,
@@ -1035,11 +896,11 @@ percentage), then errors grouped by category (drift, cascade, structural,
 coverage, completeness), then warnings grouped by category (budget, structure).
 Summary at the end: PASS or FAIL with category counts.
 
-**Grouping order:** Errors are grouped in this order: Drift (E020), Cascade (E021),
-Structural (E001-E013, E050), Coverage (E022), Completeness (E030-E039),
-Architecture (E051-E053), Port consumption (E057-E058). Semantic errors (E055-E056) are
-reported only by `yg approve`, not by `yg check`. Warnings are grouped:
-Budget (W001-W002), Structure (W003-W004), orphaned state (W005), orphaned aspects (W006).
+**Grouping order:** Errors are grouped in this order: Drift (`source-drift`), Cascade
+(`upstream-drift`), Structural, Architecture, Coverage, Completeness. Semantic errors
+(`aspect-violation`) are reported only by `yg approve`, not by `yg check`. Warnings are
+grouped: Structure (`wide-node`, `high-fan-out`), then other (`orphaned-drift-state`,
+`orphaned-aspect`).
 
 **Warnings hidden when errors exist:** When `yg check` reports any errors, warnings are
 suppressed from the output. This keeps the agent focused on blocking issues. Warnings
@@ -1052,14 +913,9 @@ This is not an error — it does not affect the exit code.
 **Stable ordering:** Errors within each category are sorted deterministically: first
 by cascade cause (grouping related cascades), then alphabetically by node path.
 
-**Cascade tree summary:** When multiple E021 errors share the same upstream cause,
-they are grouped into a cascade summary showing the number of upstream changes and
-affected nodes.
-
-**Verification label:** Each E021 error is annotated with the last known reviewer verification
-status: `(last verified: pass)` if aspects were satisfied at last approve,
-`(last verified: fail)` if not, or `(never verified)` if the node has not been through
-reviewer verification. This helps agents prioritize which cascaded nodes need attention.
+**Cascade tree summary:** When multiple `upstream-drift` errors share the same upstream
+cause, they are grouped into a cascade summary showing the number of upstream changes
+and affected nodes.
 
 **Category counts:** The Result line includes per-category counts:
 `FAIL (1 drift, 2 cascade, 1 completeness — 4 errors, 2 warnings)`
@@ -1071,24 +927,23 @@ highest-priority error to an actionable command.
 
 **Operation errors:**
 
-- `yg-config.yaml` fails to parse (reported as E009, not as an operation error — check
-  continues as much as it can).
+- `yg-config.yaml` fails to parse (reported as `config-invalid`, not as an operation
+  error — check continues as much as it can).
 
 ---
 
 ### Approve
 
 Record the current file state as the new baseline after the agent has reviewed and
-resolved drift. Alias: `drift-sync`.
+resolved drift.
 
 **Parameters:**
 
-| Parameter  | Type     | Required              | Description                                                                       |
-| ---------- | -------- | --------------------- | --------------------------------------------------------------------------------- |
-| `node`     | string[] | One of three required | One or more node paths relative to `model/`. Variadic.                            |
-| `aspect`   | string   | One of three required | Aspect id — batch approve all nodes with cascade drift from this aspect.          |
-| `flow`     | string   | One of three required | Flow name — batch approve all nodes with cascade drift from this flow.            |
-| `reviewed` | string   | No                    | Reason for bypassing the three-axis gate. Reviewer still runs. Audit trail.       |
+| Parameter | Type     | Required              | Description                                                              |
+| --------- | -------- | --------------------- | ------------------------------------------------------------------------ |
+| `node`    | string[] | One of three required | One or more node paths relative to `model/`. Variadic.                   |
+| `aspect`  | string   | One of three required | Aspect id — batch approve all nodes with cascade drift from this aspect. |
+| `flow`    | string   | One of three required | Flow name — batch approve all nodes with cascade drift from this flow.   |
 
 Exactly one of `node`, `aspect`, or `flow` is required. No `--all`, no `--recursive`.
 
@@ -1098,56 +953,38 @@ mapping, the CLI redirects to batch-approve its children with cascade drift. Mul
 node paths run standard approve on each.
 
 **`--aspect` / `--flow` behavior:** Inherently batch. Finds all nodes with cascade drift
-(E021) caused by the specified aspect or flow, then runs standard approve on each.
+(`upstream-drift`) caused by the specified aspect or flow, then runs standard approve on
+each.
 
 **Behavior:**
 
 1. Collect all tracked files for the node via `collectTrackedFiles` — this includes both
-   source files (from `mapping.paths`) and graph artifact files (from the context assembly
-   traversal: own node, ancestors, aspects, relational dependencies, flows).
-2. Perform three-axis change detection:
-   - **Own artifacts** (`.md` files in the node directory) — changed since last approve?
-   - **Source files** (`mapping.paths`) — changed since last approve?
-   - **Other tracked files** (aspects, deps, flows, ancestors) — changed since last approve?
-3. Apply enforcement rules (see table below).
-4. **Reviewer verification gate** (when a reviewer is configured):
+   source files (from `mapping.paths`) and upstream context files (aspects, dependencies,
+   flows, ancestors).
+2. Detect drift: source files changed? Upstream context changed?
+3. **Reviewer verification gate** (when a reviewer is configured and drift detected):
    - **Aspect verification** (on by default, `reviewer.verify_aspects: true`): For each aspect
      on the node, the reviewer checks whether the source files satisfy the aspect requirements
-     defined in content.md. Failures produce E055 (aspect-not-satisfied). Can be disabled with
+     defined in content.md. Failures produce `aspect-violation`. Can be disabled with
      `verify_aspects: false`.
-   - **Artifact review** (opt-in, `reviewer.verify_artifacts: true`): The reviewer compares
-     artifact content (responsibility, interface, internals) against current source files
-     to detect staleness. Failures produce E056 (artifact-stale). Disabled by default
-     because small models produce false positives on large artifacts.
-   - **Caching:** Verification results are cached per file hash. Unchanged files skip
-     re-verification on subsequent approvals.
-   - If E055 or E056 errors are found, approve refuses.
+   - If `aspect-violation` errors are found, approve refuses.
    - When reviewer verification is skipped, the reason is shown:
      `not-configured` (no `reviewer` section), `unavailable` (provider unreachable),
      or `blackbox` (blackbox node).
-5. If accepted: compute hashes for all tracked files and write to
+4. If accepted: compute hashes for all tracked files and write to
    `.yggdrasil/.drift-state/<node-path>.json`.
-6. Garbage collection: remove orphaned drift state files for nodes that no longer exist.
+5. Garbage collection: remove orphaned drift state files for nodes that no longer exist.
 
-**Three-axis enforcement:**
-
-| Own artifacts | Source | Other tracked | Result                                          |
-| ------------- | ------ | ------------- | ----------------------------------------------- |
-| changed       | changed | any          | ACCEPTS                                         |
-| changed       | unchanged | any        | REFUSES (or `--reviewed`)                       |
-| unchanged     | changed | any          | REFUSES (or `--reviewed`)                       |
-| unchanged     | unchanged | changed    | REFUSES — requires `--reviewed`                 |
-| unchanged     | unchanged | unchanged  | ACCEPTS (no-op, records baseline)               |
+**Binary enforcement:** Approve is binary — no flags, no negotiation. Source or upstream
+changed → run reviewer → pass or fail. No `--reviewed` bypass.
 
 **Blackbox blocker:** Approve always refuses when source files changed on blackbox nodes.
-No `--reviewed` for source changes on blackbox. The only path is to decompose the
-blackbox into a proper node for the modified files.
+The only path is to decompose the blackbox into a proper node for the modified files.
 
 **Anti-laundering:** A new blackbox node cannot inherit files that were previously
 tracked by any other node. Approve refuses first-approve on a blackbox node if any
-of its mapped files appear in the drift-state of any other node — regardless of
-whether that other node currently has pending E020. Decomposition must produce a
-proper node for files with prior tracking history. Output on refusal:
+of its mapped files appear in the drift-state of any other node. Decomposition must
+produce a proper node for files with prior tracking history. Output on refusal:
 
 ```text
 ERROR: Anti-laundering — cannot create blackbox over previously tracked files.
@@ -1159,17 +996,13 @@ ERROR: Anti-laundering — cannot create blackbox over previously tracked files.
 **First approve:** If node has no stored baseline (no drift state file), approve accepts
 and records the initial baseline.
 
-**Compound drift:** A node can have E020 (direct) and E021 (cascade) simultaneously.
+**Compound drift:** A node can have `source-drift` and `upstream-drift` simultaneously.
 A single approve recalculates the full hash across all tracked file layers and clears
 both.
 
 **Approve always records:** Approve always records the new baseline hash when it
-accepts, including on no-op. This ensures structural metadata changes (`yg-node.yaml`)
-are captured even when no axis registers them as a change. Every accepted approve
-appends an entry to `.yggdrasil/.audit-log.jsonl` (see [.audit-log.jsonl](#audit-logjsonl)).
-
-**Artifact scope:** `yg-node.yaml` is not counted as an artifact for the three-axis
-check — only `.md` content files count as own artifacts.
+accepts. Every accepted approve appends an entry to `.yggdrasil/.audit-log.jsonl`
+(see [.audit-log.jsonl](#audit-logjsonl)).
 
 **Result:**
 
@@ -1222,7 +1055,7 @@ documents the behavioral contract; the implementation provides the canonical tex
   *Exception:* Read-only requests skip check.
 - **User signals closing the topic** (e.g. "end", "wrap up", "that's enough", "done"):
   check, report exactly what nodes and files were changed.
-- **Execution checklists:** Code-first (read spec, modify code, sync artifacts, `yg approve`)
+- **Execution checklists:** Code-first (read context, modify code, `yg check`, `yg approve`)
   and graph-first (read schema, edit graph, verify source, `yg check`, `yg approve`).
   Agent must output and execute before finishing.
 

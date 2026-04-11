@@ -9,15 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- `yg select --task "query"` is now `yg select "query"` (positional argument).
-- `yg select` output is now structured text (not YAML) with three sections: Nodes, Aspects, Flows.
-  Aspects and flows show `(matched)` (directly relevant) and `(N nodes)` (present on returned nodes) annotations.
-  Each aspect and flow entry includes a `read:` path pointing to its content file.
-- Claims/anchors removed from aspects. Reviewer now verifies source code directly against aspect content.md files — one holistic evaluation per aspect instead of per-claim checks. `anchors` field removed from `yg-aspect.yaml`. E039 removed. E055 now means "aspect not satisfied" (was "claim not satisfied").
-- **E050 renamed** from missing-required-aspect to dangling-aspect-ref.
-- **E053 rewritten** for per-consumed-port validation (was global).
-- **E021 collapsed** per-node with cached verification label.
-- **W001 shows full breakdown** of token budget usage.
+- **Enforcement-only model.** Yggdrasil is now a continuous architecture
+  enforcement tool. Aspects (content.md) are the only Markdown in the graph.
+  Everything else is YAML metadata.
+- **Error codes renamed** from numeric (E001, W003) to descriptive
+  kebab-case identifiers (yaml-invalid, wide-node). All error codes are
+  now self-documenting.
+- **Binary approve model.** No `--reviewed` flag, no three-axis gate.
+  Source or upstream changed → run reviewer → pass or fail. The escape
+  hatch for false positives is improving the aspect content.md, not
+  bypassing enforcement.
 - **Anti-laundering** shows conflicting files and owning nodes.
 - **Context output** from YAML dump to structured text with progressive disclosure.
 - **Aspect Discovery During Implementation** applies to brownfield, not just
@@ -25,33 +26,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking Changes
 
-- **`--acknowledge` replaced with `--reviewed`.** `--reviewed` bypasses
-  the three-axis gate only — reviewer verification still runs. Agents can no
-  longer rubber-stamp aspect verification failures.
+- **Node artifacts removed.** `responsibility.md`, `interface.md`,
+  `internals.md` no longer exist. Node knowledge lives in `yg-node.yaml`
+  (description field) and aspect content.md files (enforceable rules).
+- **Flow `description.md` removed.** Flows are `yg-flow.yaml` only.
+  Flow `description` field provides brief summary. Enforceable flow
+  requirements become flow-level aspects.
+- **`yg select` removed.** Discovery via `yg context --file`, `yg owner`,
+  `yg tree`. Workflow starts from files, not goals.
+- **Token budget system removed.** `context_budget`, `min_artifact_length`,
+  `quality_profile` config fields removed. No W001/W002 budget warnings.
+- **`--reviewed` flag removed** from `yg approve`. Binary enforcement only.
+- **`drift-sync` alias removed.**
 - **Config key `llm:` renamed to `reviewer:`** with nested provider
-  structure. Internal TypeScript types remain `LlmConfig`/`LlmProvider`.
+  structure. `verify_artifacts` removed (no artifacts to review).
 - **`failure` field removed from relations.** Error handling strategy
   should be expressed via aspects, not unenforceable YAML annotations.
 - **`consumes` field restricted to port references only.** Using `consumes`
-  to annotate function/method names is no longer valid (E059).
+  to annotate function/method names is no longer valid (`consumes-without-ports`).
 - **`types.ts` split** into `graph.ts`, `context.ts`, `drift.ts`,
   `validation.ts` — all imports updated.
-- **Architecture redesigned** with 7 node types (module, command, engine,
-  adapter, types, test, project) replacing the previous 4 (module, service,
-  library, infrastructure).
 
 ### Added
 
-- **Artifact quality guidelines in agent rules.** Each artifact type
-  (responsibility, interface, internals) now has good/too-detailed examples,
-  a 3-rule quality test, parent-vs-child guidance, and decision recognition
-  guidance. Information routing expanded with per-type destinations and
-  explicit "no artifact needed" category.
 - **Claude Code provider (`claude-code`)** — spawns `claude` CLI for
   aspect verification. Configure via `reviewer: { claude-code: { model: haiku } }`.
-- **`yg approve --aspect <id>`** — batch approve all E021 cascade nodes
+- **`yg approve --aspect <id>`** — batch approve all cascade nodes
   from a specific aspect change.
-- **`yg approve --flow <name>`** — batch approve all E021 cascade nodes
+- **`yg approve --flow <name>`** — batch approve all cascade nodes
   from a specific flow change.
 - **`yg approve --node`** is now variadic — accepts multiple node paths
   for batch approval.
@@ -64,15 +66,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `.yggdrasil/.debug.log`. Captures all CLI stdout/stderr output and
   internal errors (LLM parse failures, HTTP errors). Off by default.
   Log is gitignored.
-- **`llm.verify_aspects`** config option (default: `true`) to control
-  aspect verification (E055) during approve.
-- **`llm.verify_artifacts`** config option (default: `true`) to control
-  artifact review (E056) during approve.
+- **`reviewer.verify_aspects`** config option (default: `true`) to control
+  aspect verification during approve.
 - **`llm.context_length_field`** config option for Ollama — specifies the
   model_info key for context window size.
-- **`quality_profile`** on architecture node types — guides the LLM reviewer
-  on how to evaluate artifacts for each node type (command vs library vs test).
-- **E059** (`consumes-without-ports`) — fires when `consumes` is declared
+- **`consumes-without-ports`** — fires when `consumes` is declared
   on a relation to a target that has no ports.
 - **`diagnostic-logging` aspect** — catch blocks that swallow errors must
   call `debugWrite()`.
@@ -84,10 +82,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`yg context --file`** shows blackbox decomposition guidance when file
   is inside a blackbox node.
 - **`yg approve`** success shows verification summary when LLM ran.
-- **`yg impact`** shows E021 prediction — lists nodes that will enter
+- **`yg impact`** shows cascade prediction — lists nodes that will enter
   cascade drift if the target is modified.
-- **`projectRoot` parameter** on artifact review functions — LLM providers
-  receive the absolute project root for accurate file path resolution.
 
 ### Improved
 
@@ -95,10 +91,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `buildIssueMessage` helper.
 - **`yg check` suggestedNext** shows one concrete step + remaining
   scale + workflow anchor name. Detects cascade patterns — suggests
-  `--aspect` or `--flow` batch commands when >=2 E021 share the same cause.
+  `--aspect` or `--flow` batch commands when >=2 cascades share the same cause.
 - **`yg check` warnings** now always visible, even when errors exist.
-- **`yg approve` vocabulary** — "bilateral" replaced with "conscious
-  exception", "own artifacts" with "graph artifacts".
 - **`yg approve` messaging** — no-change clarified, LLM skip messages
   include actionability context, distinct messages for not-configured vs
   unreachable vs blackbox.
@@ -108,21 +102,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`yg aspects`** usage breakdown — "own" replaced with "direct".
 - **Rules trimmed** — error code tables replaced with categories,
   approve matrix replaced with prose, CLI reference compacted.
-- **Rules expanded with knowledge-routing framework.** New sections:
-  "Working from External Specifications" (spec-first workflow),
-  "Information Routing" table (where to put each type of knowledge),
-  "Non-Code Knowledge" routing (business strategy, quality targets,
-  UX patterns that have no source file).
 - **Greenfield graph-first workflow** — mandatory ordering: aspects
-  first, then flows, then nodes with artifacts. Code comes last.
+  first, then flows, then nodes. Code comes last.
 - **Node sizing rule** — one node per cohesive feature area, split
   when >10 files or >3 distinct workflows.
 - **Flow identification heuristic** — guidance for recognizing flows
   in specs, conversations, and code (multi-actor AND single-actor).
 - **Subagent delegation protocol** — subagents must read agent-rules.md
   and deliver graph updates alongside code. Incomplete work rejected.
-- **Artifact review prompt** tuned to reduce false positives — reports
-  stale only for behavioral contradictions, not minor wording differences.
 
 ### Fixed
 
@@ -140,66 +127,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`--full` flag removed from `yg context`.** Replaced by two-level progressive
   disclosure: `--node` (overview) and `--file` (per-file details).
 - **Health score removed** from `yg check` output.
-- **Error codes removed:** E003 (subsumed by E050), E035 (subsumed by E050),
-  E037 (replaced by E055), E040 (removed — LLM verifies), E041 (removed —
-  regex anchors gone), E054 (removed — mapping groups gone).
-- **`yg approve` replaces `drift-sync`.** `drift-sync` is now a backward-compatible
-  alias. `--all` and `--recursive` flags removed — approve one node at a time.
+- **`yg approve` replaces `drift-sync`.** `--all` and `--recursive` flags removed.
 - **`yg context` replaces `build-context`.** `build-context` kept as alias.
   `--self` option removed — always returns full context package.
 - **`yg deps` command removed.** Use `yg impact --node <path>` instead.
 - **`yg impact` simplified.** `--simulate` and `--method` options removed.
 - **`yg check` replaces `validate`, `drift`, `status`, `preflight`.** Single
   unified gate command. All four old commands removed.
-- **Error codes renumbered to v4 scheme.** E001-E013 structural, E020-E022
-  drift/coverage, E030-E041 completeness, E050-E058 architecture, W001-W006.
 - **`stability` field removed** from aspects.
-- **LLM verification at approve time.** Two operations: aspect verification
-  (E055 if aspect not satisfied) and artifact review (E056 if artifact stale).
-  Configurable consensus voting, source chunking for large nodes, cached results.
+- **LLM aspect verification at approve time.** Reviewer checks each
+  aspect's content.md against source code. Configurable consensus voting.
 - **Typed ports on nodes.** Nodes declare named ports with required aspects.
   Consumers reference ports via `consumes` field on relations.
-- **E055 aspect-not-satisfied** — LLM evaluated aspect content.md against source
-  and found requirements not satisfied. Fires at approve time only.
-- **E056 artifact-stale** — LLM evaluated artifact and found it outdated.
-  Fires at approve time only.
-- **E057 missing-consumes** — relation target has ports but consumer has no
-  `consumes` field.
-- **E058 unknown-port** — `consumes` references a port name not defined on
-  the target node.
-- **W006 orphaned-aspect** — aspect defined but not referenced by any node,
-  architecture type, or flow.
 - **Progressive disclosure in context output.** `yg context --node` shows
-  overview (aspects, flows, dependents with consequence framing,
-  artifact pointers, token budget). `yg context --file` shows per-file details
-  (aspects to satisfy, dependencies consumed, back-pointer to node).
+  overview (aspects, flows, dependents with consequence framing).
+  `yg context --file` shows per-file details (aspects to satisfy,
+  dependencies consumed, back-pointer to node).
 - **Consequence framing for dependents.** 1-5: plain list, 6-15: cascade
   warning with count, 16+: HIGH blast radius warning.
 - **`yg aspects` enriched.** Usage stats per aspect (by source: architecture,
   direct, implied, flow), orphan detection.
 - **`yg flows` enriched.** Participant count with node names, flow aspects.
-- **LLM provider integration.** `llm` section in yg-config.yaml (provider,
-  model, endpoint, temperature, consensus, max_tokens). Supports Ollama
-  (default), OpenAI, Anthropic.
+- **Reviewer provider integration.** `reviewer` section in yg-config.yaml
+  (provider, model, endpoint, temperature, consensus, max_tokens). Supports
+  Ollama (default) and Claude Code.
 - **`yg-secrets.yaml`** — gitignored file for API keys and LLM config
   overrides. `yg-secrets.example.yaml` template created by init.
 - **Graceful LLM degradation.** No LLM configured → check/approve work
   without semantic verification. Notice shown to user.
 - **Append-only audit log** (`.yggdrasil/.audit-log.jsonl`) — every approve
   records timestamp, node, action, hashes, reason, changed files. Gitignored.
-- **`yg approve --node <path>`** — three-axis gate command.
-- **Three-axis drift detection in approve.** Own artifacts, source files,
-  other-tracked (aspects, flows, hierarchy). Precise diagnosis.
 - **Blackbox enforcement in approve.** Source changes always refused.
 - **Anti-laundering check in approve.** Shows conflicting files and owning nodes.
-- **E020 direct-drift** — source/graph/full drift with cause-specific messages.
-- **E021 cascade-drift** — upstream changes with cause identification. Collapsed
-  per-node, cached verification label.
-- **E022 unmapped-file** — full coverage enforcement with cold-start guidance.
-- **W005 orphaned-drift-state** — warns about drift state for deleted nodes.
-- **E050 dangling-aspect-ref** — aspect referenced but not defined in graph.
-  Subsumes E003 and E035.
-- **Cascade tree summary** — groups E021 errors by upstream cause.
+- **`source-drift`** — source files changed since last approve.
+- **`upstream-drift`** — upstream context changed (aspects, flows, dependencies).
+  Collapsed per-node with cause identification.
+- **`unmapped-files`** — full coverage enforcement with cold-start guidance.
+- **`orphaned-drift-state`** — warns about drift state for deleted nodes.
+- **`aspect-undefined`** — aspect referenced but not defined in graph.
+- **Cascade tree summary** — groups upstream-drift errors by upstream cause.
 - **Suggested next command** — actionable guidance after check result.
 - **E050 summary header** when >10 architecture errors.
 - **Warnings hidden** when errors exist (reduce noise).

@@ -42,11 +42,9 @@ Other tools stop at context delivery. Yggdrasil enforces it.
 
 ```
 Agent writes code
-  → yg check detects drift: "code changed, graph not updated"
-  → Agent must update graph artifacts to match what it did
-  → yg check passes
+  → yg check detects drift: "code changed since last approve"
   → yg approve runs reviewer: "do source files actually satisfy the aspects?"
-  → Reviewer says no: E055 — rate-limiting aspect not satisfied
+  → Reviewer says no: aspect-violation — rate-limiting aspect not satisfied
   → Agent fixes the code
   → yg approve passes
   → Commit allowed
@@ -58,10 +56,10 @@ This is the difference between giving an agent instructions and giving it walls.
 
 **What gets enforced:**
 
-- **Drift detection.** Code changed but graph wasn't updated? Error. Graph changed but code wasn't updated? Error. Both must move together.
+- **Drift detection.** Code changed since last approve? Error. Upstream context (aspects, flows) changed? Error. Must re-approve.
 - **Aspect verification.** The graph says this module requires audit logging. The reviewer checks whether the source code actually has audit logging. Not whether the agent said it added it. Whether it's there.
 - **Coverage.** Every git-tracked file must belong to a node. No orphan code. No dark corners where the agent can hide.
-- **Blackbox is hermetic.** You can blackbox legacy code you don't want to touch. But the moment the agent changes a file inside a blackbox, the system refuses to approve until you decompose it into a proper node with real artifacts. No shortcuts.
+- **Blackbox is hermetic.** You can blackbox legacy code you don't want to touch. But the moment the agent changes a file inside a blackbox, the system refuses to approve until you decompose it into a proper node. No shortcuts.
 
 ***
 
@@ -77,7 +75,7 @@ So the agent guesses. It breaks things you didn't know it could reach. Then it s
 
 ## How it works
 
-**1. You build the graph.** Tell the agent what matters. It creates nodes, writes responsibilities, declares relations. 10-15 minutes for a first useful graph. Plain Markdown and YAML. No database, no server, no lock-in.
+**1. You build the graph.** Tell the agent what matters. It creates nodes, declares aspects and relations. 10-15 minutes for a first useful graph. Plain YAML and Markdown (aspect rules). No database, no server, no lock-in.
 
 **2. The agent reads before it writes.** Before touching any source file, the agent runs `yg context` and gets a bounded context package. Architecture, constraints, aspects, dependencies, decisions. 5,000-10,000 tokens of exactly the right context, not 50,000 tokens of noise.
 
@@ -111,7 +109,7 @@ You:    "All payment operations must emit audit events."
 Agent:  Creates aspect requires-audit, applies it to payment-service.
 
 You:    "We chose sync retries over a queue because latency must stay under 500ms."
-Agent:  Records the decision — including the rejected alternative.
+Agent:  If enforceable, creates an aspect. Otherwise, notes in code comments.
 ```
 
 The agent maintains the graph as part of normal conversations. Knowledge accumulates as you work.
