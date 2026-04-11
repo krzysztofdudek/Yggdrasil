@@ -20,7 +20,6 @@ export function formatContextMarkdown(pkg: ContextPackage): string {
   }
 
   // Footer
-  md += `Context size: ${pkg.tokenCount.toFixed(0)} tokens\n`;
   md += `Layers: ${pkg.layers.map((l) => l.type).join(', ')}\n`;
 
   return md;
