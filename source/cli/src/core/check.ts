@@ -611,7 +611,7 @@ function computeSuggestedNext(issues: CheckIssue[], graph?: Graph): string | nul
   /* v8 ignore next -- tested by clean-check test, but v8 sometimes marks it uncovered */
   if (errors.length === 0) return null;
 
-  const STRUCTURAL_CODES = new Set(['yaml-invalid', 'type-invalid', 'relation-broken', 'flow-node-broken', 'aspect-undefined', 'overlapping-mapping', 'structural-cycle', 'config-invalid', 'duplicate-aspect-id', 'node-yaml-missing', 'implied-aspect-missing', 'aspect-implies-cycle']);
+  const STRUCTURAL_CODES = new Set(['yaml-invalid', 'type-invalid', 'relation-broken', 'flow-node-broken', 'aspect-undefined', 'overlapping-mapping', 'structural-cycle', 'config-invalid', 'duplicate-aspect-id', 'node-yaml-missing', 'implied-aspect-missing', 'aspect-implies-cycle', 'event-unpaired', 'schema-missing']);
   const COMPLETENESS_CODES = new Set(['description-missing']);
 
   const driftErrors = errors.filter(i => i.code === 'source-drift' || i.code === 'unapproved');

@@ -241,11 +241,11 @@ export function formatOutput(result: CheckResult): string {
     }
   } else {
     const cats: string[] = [];
-    const driftCount = errors.filter(i => i.code === 'source-drift').length;
+    const driftCount = errors.filter(i => i.code === 'source-drift' || i.code === 'unapproved').length;
     const cascadeCount = errors.filter(i => i.code === 'upstream-drift').length;
     const structuralCount = errors.filter(i => STRUCTURAL_CODES.has(i.code)).length;
     const archCount = errors.filter(i => ARCHITECTURE_CODES.has(i.code)).length;
-    const cov = errors.filter(i => i.code === 'unmapped-files').length;
+    const cov = errors.filter(i => COVERAGE_CODES.has(i.code)).length;
     const comp = errors.filter(i => COMPLETENESS_CODES.has(i.code)).length;
     if (driftCount) cats.push(`${driftCount} drift`);
     if (cascadeCount) cats.push(`${cascadeCount} cascade`);
