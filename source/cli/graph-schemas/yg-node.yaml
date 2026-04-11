@@ -1,6 +1,5 @@
 # yg-node.yaml — Schema for model nodes
-# Every node is a directory under .yggdrasil/model/ containing this file
-# plus artifact .md files (responsibility.md, interface.md, internals.md).
+# Every node is a directory under .yggdrasil/model/ containing this file.
 
 name: ComponentName           # required — display name
 type: service                 # required — must match a type from config.node_types
