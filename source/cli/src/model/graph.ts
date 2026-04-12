@@ -49,9 +49,15 @@ export interface PortDef {
   aspects: string[];
 }
 
+export type ReviewerProvider =
+  // API
+  | 'ollama' | 'openai' | 'anthropic' | 'google' | 'openai-compatible'
+  // CLI
+  | 'claude-code' | 'codex' | 'gemini-cli' | 'cline' | 'opencode' | 'aider';
+
 /** LLM configuration — merged from yg-config.yaml + yg-secrets.yaml */
 export interface LlmConfig {
-  provider: 'ollama' | 'claude-code';
+  provider: ReviewerProvider;
   model: string;
   endpoint?: string;
   api_key?: string;
@@ -62,6 +68,8 @@ export interface LlmConfig {
   verify_aspects: boolean;
   /** Ollama model_info key for context length (e.g. "qwen35.context_length"). Auto-detected if omitted. */
   context_length_field?: string;
+  /** CLI providers: subprocess timeout in ms. Default: 120_000. */
+  timeout?: number;
 }
 
 export interface NodeMeta {
