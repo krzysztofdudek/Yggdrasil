@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createLlmProvider } from '../../../src/llm/provider.js';
+import '../../../src/llm/ollama.js';
+import '../../../src/llm/claude-code.js';
 
 describe('LLM provider factory', () => {
   it('creates ollama provider', () => {

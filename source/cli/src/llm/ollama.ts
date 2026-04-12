@@ -2,6 +2,7 @@ import type { LlmProvider, AspectResponse } from './types.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { parseAspectResponse } from './cli-base.js';
 import type { LlmConfig } from '../model/graph.js';
+import { registerProvider } from './provider.js';
 
 export class OllamaProvider implements LlmProvider {
   private endpoint: string;
@@ -83,3 +84,5 @@ export class OllamaProvider implements LlmProvider {
     return fallback;
   }
 }
+
+registerProvider('ollama', (config) => new OllamaProvider(config));
