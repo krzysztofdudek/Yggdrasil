@@ -1,5 +1,5 @@
 {
-  "hash": "fb436a85ebd91455c1e3b46bcbbfb7271c3616396e8f2e18ab345dceda9ca998",
+  "hash": "a334b7c47e5b88beb59f01842291ccaabb25c361ee08b909e2436795e48725c1",
   "files": {
     "own-subset:root": "fd522550ee8337236d1728863133285d37650bc0ae3620c2cfd3ffd94c163026",
     ".claude/settings.local.json": "a12c71d91e7c3bb9cefb60afba8e7eb7478d091d41587e90c0c5c3c0c2f464b5",
@@ -19,7 +19,6 @@
     ".markdownlint-cli2.jsonc": "051243e9d6d45675192e2a3bebe37051af4986567817c0e2d1faeab0171c074f",
     ".nvmrc": "f14b4987904bcb5814e4459a057ed4d20f58a633152288a761214dcd28780b56",
     "AGENTS.md": "e9b1de7c5beebc390eea69366f3015a9bce786f7a998786e3c40bf5ecfc8cfc3",
-    "CHANGELOG.md": "f9f56604f9e09245b6142bd3df77451c058b00f43e7d3ee2e369293f27e061eb",
     "CLAUDE.md": "954c7d21d6d47c8ac66461d602a7afcc5ed790be941a43d922e51117199c3703",
     "CODE_OF_CONDUCT.md": "ca754dbf6be4f6aed4433f52942d0510b28ab77a56f95cfb1c77a18897683d29",
     "CONTRIBUTING.md": "f9849f24f17a8b4bf426398a704848d3d559aa618879f7336c7dd738a026d5e3",
@@ -27,7 +26,8 @@
     "README.md": "bdd0d458793a0adcb212dcea04c4a753e1d1b308a658d03099d74ad76e96e9a6",
     "SECURITY.md": "b0607f876a948dd944b20080c4e7f6833f1c0b0dac22586f09812383cd0ff2c5",
     "SUPPORT.md": "dbef1a996af0f3055484bef1e1fbc4f4fb1d5a0f92786a9f0c978cbff5bcdc7d",
-    "Yggdrasil.code-workspace": "65be70d7b4afc41959120df12b12d8649f503f6b75c67b4f7172eef9b53eb806"
+    "Yggdrasil.code-workspace": "65be70d7b4afc41959120df12b12d8649f503f6b75c67b4f7172eef9b53eb806",
+    "CHANGELOG.md": "b5419bf29d50700482a0a20c5c7de1378a31a671571d6f69b642f81c7f96de52"
   },
   "mtimes": {
     ".claude/settings.local.json": 1774962645148.887,
@@ -47,7 +47,7 @@
     ".markdownlint-cli2.jsonc": 1775708694106.861,
     ".nvmrc": 1771702275769.176,
     "AGENTS.md": 1775901514003.9707,
-    "CHANGELOG.md": 1775975898941.7683,
+    "CHANGELOG.md": 1775983890193.1057,
     "CLAUDE.md": 1775587784486.799,
     "CODE_OF_CONDUCT.md": 1771702275784.5166,
     "CONTRIBUTING.md": 1775029551569.4338,

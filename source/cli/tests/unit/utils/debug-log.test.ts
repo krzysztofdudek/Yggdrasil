@@ -116,6 +116,14 @@ describe('debug-log', () => {
     expect(content).toContain('[exit 1]');
   });
 
+  it('tee: Uint8Array chunk on stdout is converted and written', () => {
+    initDebugLog(tmpDir, true);
+    const chunk = Buffer.from('uint8-test\n', 'utf-8');
+    process.stdout.write(chunk);
+    const content = readFileSync(path.join(tmpDir, '.debug.log'), 'utf-8');
+    expect(content).toContain('uint8-test');
+  });
+
   it('exit handler does NOT write [exit N] for code 0', () => {
     initDebugLog(tmpDir, true);
     process.emit('exit', 0);

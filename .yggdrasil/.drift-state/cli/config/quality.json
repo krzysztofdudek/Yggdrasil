@@ -1,19 +1,19 @@
 {
-  "hash": "65f011719ac39d48f7910c15ca666b318a3ae22fbd73687577d2608d5da9d702",
+  "hash": "5e8b462e633825de774717046dbd21cd66ac9bf11a1994c8bd20b62e196f89c2",
   "files": {
     "own-subset:cli/config/quality": "fd522550ee8337236d1728863133285d37650bc0ae3620c2cfd3ffd94c163026",
     ".yggdrasil/model/cli/yg-node.yaml": "41ddbf73fbc1ee27a28a5ea5ec7ad656ea34f5938284bd5ab4ea7c3afcbbd69b",
     ".yggdrasil/model/cli/config/yg-node.yaml": "9cacb4bd841cdf0f78581c909468e1d5b8cfe1678a75e39821398c144f092302",
     "source/cli/eslint.config.js": "53f67dbd2f524cfecc0df0e84af9b56ace682ecb55156e925faa1aee1e89b01f",
-    "source/cli/vitest.config.ts": "faa3da3668d243e75d3fa397b0e1dad960906e597df249f0a37f577611326101",
     "source/cli/.prettierrc": "c043a3fc85f17fe1d1e4198de8387969cb1d2bc6dd921f3c16444579fc797aa4",
-    "source/cli/.prettierignore": "a7b3f5b54a4bf806eccd51313e8edcc81dc7e2f556361fc25163789d62a05627"
+    "source/cli/.prettierignore": "a7b3f5b54a4bf806eccd51313e8edcc81dc7e2f556361fc25163789d62a05627",
+    "source/cli/vitest.config.ts": "d505702e8adef1001c43497f5bfe5c42dba4b78f8bde8db1e1365a0372de4f07"
   },
   "mtimes": {
     ".yggdrasil/model/cli/yg-node.yaml": 1775639608581.9402,
     ".yggdrasil/model/cli/config/yg-node.yaml": 1775243577492.5159,
     "source/cli/eslint.config.js": 1771702275789.2537,
-    "source/cli/vitest.config.ts": 1775623435839.1042,
+    "source/cli/vitest.config.ts": 1775985303714.8513,
     "source/cli/.prettierrc": 1771702275789.0093,
     "source/cli/.prettierignore": 1771702275788.8928
   }
