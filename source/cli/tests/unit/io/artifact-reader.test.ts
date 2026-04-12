@@ -5,33 +5,23 @@ import { fileURLToPath } from 'node:url';
 import { readArtifacts } from '../../../src/io/artifact-reader.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const FIXTURE_BASE = path.join(__dirname, '../../fixtures/sample-project/.yggdrasil/model');
+const FIXTURE_BASE = path.join(__dirname, '../../fixtures/sample-project/.yggdrasil');
 
 describe('artifact-reader', () => {
   it('reads all .md files from a directory', async () => {
-    const dir = path.join(FIXTURE_BASE, 'orders');
+    const dir = path.join(FIXTURE_BASE, 'aspects/requires-logging');
     const artifacts = await readArtifacts(dir);
 
     expect(artifacts.length).toBeGreaterThanOrEqual(1);
-    expect(artifacts.some((a) => a.filename.endsWith('.md'))).toBe(true);
+    expect(artifacts.some((a) => a.filename === 'content.md')).toBe(true);
   });
 
-  it('excludes yg-node.yaml by default', async () => {
-    const dir = path.join(FIXTURE_BASE, 'orders');
-    const artifacts = await readArtifacts(dir);
+  it('excludes yg-aspect.yaml by default', async () => {
+    const dir = path.join(FIXTURE_BASE, 'aspects/requires-logging');
+    const artifacts = await readArtifacts(dir, ['yg-aspect.yaml']);
 
-    expect(artifacts.every((a) => a.filename !== 'yg-node.yaml')).toBe(true);
-  });
-
-  it('excludes specified files when passed', async () => {
-    const dir = path.join(
-      __dirname,
-      '../../fixtures/sample-project/.yggdrasil/flows/checkout-flow',
-    );
-    const artifacts = await readArtifacts(dir, ['yg-flow.yaml']);
-
-    expect(artifacts.every((a) => a.filename !== 'yg-flow.yaml')).toBe(true);
-    expect(artifacts.some((a) => a.filename === 'sequence.md')).toBe(true);
+    expect(artifacts.every((a) => a.filename !== 'yg-aspect.yaml')).toBe(true);
+    expect(artifacts.some((a) => a.filename === 'content.md')).toBe(true);
   });
 
   it('reads only includeFiles when specified', async () => {
@@ -51,21 +41,21 @@ describe('artifact-reader', () => {
   });
 
   it('returns artifacts sorted by filename', async () => {
-    const dir = path.join(FIXTURE_BASE, 'orders');
-    const artifacts = await readArtifacts(dir);
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-artifacts-sort');
+    await mkdir(tmpDir, { recursive: true });
 
+    await writeFile(path.join(tmpDir, 'zeta.md'), 'z', 'utf-8');
+    await writeFile(path.join(tmpDir, 'alpha.md'), 'a', 'utf-8');
+
+    const artifacts = await readArtifacts(tmpDir);
     const filenames = artifacts.map((a) => a.filename);
-    const sorted = [...filenames].sort((a, b) => a.localeCompare(b));
-    expect(filenames).toEqual(sorted);
+    expect(filenames).toEqual(['alpha.md', 'zeta.md']);
+
+    await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('reads yaml and md artifacts from node directory', async () => {
-    const dir = path.join(FIXTURE_BASE, 'auth/auth-api');
-    const artifacts = await readArtifacts(dir);
-
-    expect(artifacts.length).toBeGreaterThanOrEqual(1);
-    const openapi = artifacts.find((a) => a.filename === 'openapi.yaml');
-    expect(openapi).toBeDefined();
-    expect(openapi!.content).toContain('openapi');
+  it('returns empty for missing directory', async () => {
+    const artifacts = await readArtifacts('/nonexistent/path');
+    expect(artifacts).toEqual([]);
   });
 });

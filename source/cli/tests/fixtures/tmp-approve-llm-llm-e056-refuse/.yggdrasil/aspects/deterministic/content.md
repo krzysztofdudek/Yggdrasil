@@ -1,1 +1,0 @@
-Code must be deterministic.

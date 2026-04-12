@@ -1,5 +1,0 @@
-name: Logging
-description: test
-anchors:
-  - id: audit-entry
-    claim: TODO: Write claim for anchor 'audit-entry'

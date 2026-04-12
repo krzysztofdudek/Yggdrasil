@@ -21,7 +21,6 @@ function createGraph(nodes: Array<[string, GraphNode]>): Graph {
     config: {
       name: 'Test',
       node_types: { service: { description: 'x' } },
-      artifacts: { responsibility: { required: 'always', description: 'x' } },
     },
     nodes: new Map(nodes),
     aspects: [],
