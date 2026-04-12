@@ -18,8 +18,7 @@ async function createTmpProject(name: string, opts: {
   nodeYaml: string;
   configYaml?: string;
   mappingFiles?: Record<string, string>;
-  artifacts?: Record<string, string>;
-  parentNodes?: Array<{ path: string; yaml: string; artifacts?: Record<string, string> }>;
+  parentNodes?: Array<{ path: string; yaml: string }>;
   aspects?: Array<{ id: string; yaml: string; files?: Record<string, string> }>;
 }) {
   const tmpDir = path.join(__dirname, `../../fixtures/tmp-approve-${name}`);
@@ -39,29 +38,12 @@ async function createTmpProject(name: string, opts: {
   );
   await writeFile(path.join(nodeDir, 'yg-node.yaml'), opts.nodeYaml);
 
-  // Write artifacts
-  if (opts.artifacts) {
-    for (const [name, content] of Object.entries(opts.artifacts)) {
-      await writeFile(path.join(nodeDir, name), content);
-    }
-  } else {
-    await writeFile(
-      path.join(nodeDir, 'responsibility.md'),
-      'This node handles testing of the approve function in detail.',
-    );
-  }
-
   // Parent nodes
   if (opts.parentNodes) {
     for (const pn of opts.parentNodes) {
       const pDir = path.join(yggRoot, 'model', pn.path);
       await mkdir(pDir, { recursive: true });
       await writeFile(path.join(pDir, 'yg-node.yaml'), pn.yaml);
-      if (pn.artifacts) {
-        for (const [aName, content] of Object.entries(pn.artifacts)) {
-          await writeFile(path.join(pDir, aName), content);
-        }
-      }
     }
   } else {
     const parts = opts.nodePath.split('/');
@@ -134,12 +116,8 @@ describe('approveNode — proper nodes', () => {
       }],
     });
     await recordBaseline(tmpDir);
-    // Change all three: source + artifact + aspect
+    // Change source + aspect
     await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'export default 99;\n');
-    await writeFile(
-      path.join(yggRoot, 'model/svc/my-service/responsibility.md'),
-      'Updated responsibility reflecting all three axes changed here.',
-    );
     await writeFile(path.join(yggRoot, 'aspects/logging/rules.md'), 'Updated rules.\n');
     const graph = await loadGraph(tmpDir);
     const result = await approveNode(graph, 'svc/my-service');
@@ -147,20 +125,16 @@ describe('approveNode — proper nodes', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  // Row 1: own changed + source changed → ACCEPTS
-  it('accepts when both own artifacts and source changed', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('both-changed', {
+  // Source changed → ACCEPTS
+  it('accepts when source changed', async () => {
+    const { tmpDir } = await createTmpProject('both-changed', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
     });
     await recordBaseline(tmpDir);
-    // Change source + artifact
+    // Change source
     await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'export default 99;\n');
-    await writeFile(
-      path.join(yggRoot, 'model/svc/my-service/responsibility.md'),
-      'Updated responsibility reflecting the new default value of 99.',
-    );
     const graph = await loadGraph(tmpDir);
     const result = await approveNode(graph, 'svc/my-service');
     expect(result.action).toBe('approved');
@@ -241,23 +215,16 @@ describe('approveNode — blackbox nodes', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  // Blackbox: source + graph both changed → REFUSES
-  it('refuses when both source and graph changed on blackbox', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('bb-both', {
+  // Blackbox: source changed → REFUSES
+  it('refuses when source changed on blackbox', async () => {
+    const { tmpDir } = await createTmpProject('bb-both', {
       nodePath: 'legacy/auth',
       nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\nmapping:\n  - src/auth/\n',
       mappingFiles: { 'src/auth/login.ts': 'export function login() {}\n' },
-      artifacts: {
-        'responsibility.md': 'Legacy auth module handles authentication flows for the system.',
-      },
     });
     await recordBaseline(tmpDir);
-    // Change both source AND own artifact
+    // Change source
     await writeFile(path.join(tmpDir, 'src/auth/login.ts'), 'export function login() { return true; }\n');
-    await writeFile(
-      path.join(yggRoot, 'model/legacy/auth/responsibility.md'),
-      'Updated: Legacy auth now returns true for all login attempts.',
-    );
     const graph = await loadGraph(tmpDir);
     const result = await approveNode(graph, 'legacy/auth');
     expect(result.action).toBe('refused');
@@ -446,12 +413,8 @@ describe('approveNode — GC and recording', () => {
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
     });
     await recordBaseline(tmpDir);
-    // Change both source and artifact → both sides updated → approve
+    // Change source → approve
     await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'export default 99;\n');
-    await writeFile(
-      path.join(yggRoot, 'model/svc/my-service/responsibility.md'),
-      'Updated responsibility content for audit test.\n',
-    );
     const graph = await loadGraph(tmpDir);
     const result = await approveNode(graph, 'svc/my-service');
     expect(result.action).toBe('approved');

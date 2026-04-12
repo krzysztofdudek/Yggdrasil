@@ -597,7 +597,5 @@ describe('collectTrackedFiles', () => {
 
     // Only yg-node.yaml is tracked for deps — no .md artifact files
     expect(paths).toContain('.yggdrasil/model/dep/svc/yg-node.yaml');
-    expect(paths).not.toContain('.yggdrasil/model/dep/svc/internals.md');
-    expect(paths).not.toContain('.yggdrasil/model/dep/svc/responsibility.md');
   });
 });

@@ -97,19 +97,19 @@ name: "Versioned"
     await writeFile(
       path.join(tmpDir, 'yg-config.yaml'),
       `
-name: "WithArtifacts"
-artifacts:
-  responsibility.md:
-    required: always
-    description: "x"
+name: "WithUnknown"
+custom_section:
+  key: value
+  nested:
+    deep: true
 `,
       'utf-8',
     );
 
     const config = await parseConfig(path.join(tmpDir, 'yg-config.yaml'));
-    expect(config.name).toBe('WithArtifacts');
-    // artifacts field should not exist on returned config
-    expect((config as Record<string, unknown>).artifacts).toBeUndefined();
+    expect(config.name).toBe('WithUnknown');
+    // unknown fields should not exist on returned config
+    expect((config as Record<string, unknown>).custom_section).toBeUndefined();
 
     await rm(tmpDir, { recursive: true, force: true });
   });

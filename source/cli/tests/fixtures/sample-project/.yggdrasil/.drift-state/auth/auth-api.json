@@ -2,10 +2,7 @@
   "hash": "a2eb7b76ae118cbdc298b76bc3a9fdc1d3762a6eb91bfa9b2ebacc83dc5d3024",
   "files": {
     ".yggdrasil/model/auth/auth-api/yg-node.yaml": "3d098d77d943adbd7f5c4bc4e706fa1af240478000e134a9b2915bc90872b073",
-    ".yggdrasil/model/auth/auth-api/interface.md": "0f51ce7dfb041e50cce9724dad79a1d3f4f33cedff1cbbff711d9b8f3dacfa63",
-    ".yggdrasil/model/auth/auth-api/responsibility.md": "53a9a8691ed075666bd983cf1b9e65dd970a0b617f71a36dccce7923c6dd8e7c",
     ".yggdrasil/model/auth/yg-node.yaml": "014a364b08a9cb75f573fa0bf6dfbf81599bce937127bc3d1bd642950b4e26ce",
-    ".yggdrasil/model/auth/responsibility.md": "1b01b640496a7015c5351d9b0015789faad8ad44c7b0c14f8ef567227f64321a",
     ".yggdrasil/aspects/requires-logging/yg-aspect.yaml": "08dd592c74f6889713e09c899e003badf00430c7d25a74768449eb0d7fb7beb0",
     ".yggdrasil/aspects/requires-logging/content.md": "13fff2681612d392624588850569f287bb450307e2ee9750987b281279dd64f3",
     ".yggdrasil/flows/checkout-flow/yg-flow.yaml": "6541aeb6cea1ad1047151018ce2869b4dcae297728573b9cc1bef76b50cb2c34",

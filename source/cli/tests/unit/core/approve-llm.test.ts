@@ -20,7 +20,6 @@ async function createTmpProject(name: string, opts: {
   nodePath: string;
   nodeYaml: string;
   mappingFiles?: Record<string, string>;
-  artifacts?: Record<string, string>;
   aspects?: Array<{ id: string; yaml: string; files?: Record<string, string> }>;
 }) {
   const tmpDir = path.join(__dirname, `../../fixtures/tmp-approve-llm-${name}`);
@@ -36,14 +35,6 @@ async function createTmpProject(name: string, opts: {
   await writeFile(path.join(yggRoot, 'schemas', 'yg-flow.yaml'), 'type: flow\n');
   await writeFile(path.join(yggRoot, 'yg-config.yaml'), 'name: Test\nnode_types:\n  service:\n    description: x\n');
   await writeFile(path.join(nodeDir, 'yg-node.yaml'), opts.nodeYaml);
-
-  if (opts.artifacts) {
-    for (const [aName, content] of Object.entries(opts.artifacts)) {
-      await writeFile(path.join(nodeDir, aName), content);
-    }
-  } else {
-    await writeFile(path.join(nodeDir, 'responsibility.md'), 'This node handles testing.\n');
-  }
 
   // Create parent nodes for nested paths (e.g. 'svc/my-service' needs 'svc' parent)
   const parts = opts.nodePath.split('/');
@@ -133,9 +124,8 @@ describe('LLM verification (CLI layer)', () => {
       }],
     });
     await recordBaseline(tmpDir);
-    // Change source + graph to trigger approval
+    // Change source to trigger approval
     await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'const x = Date.now();\n');
-    await writeFile(path.join(yggRoot, 'model/svc/my-service/responsibility.md'), 'Updated responsibility.\n');
 
     const graph = await loadGraph(tmpDir);
     const provider = makeMockProvider({
@@ -163,7 +153,6 @@ describe('LLM verification (CLI layer)', () => {
     });
     await recordBaseline(tmpDir);
     await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'const x = 2;\n');
-    await writeFile(path.join(yggRoot, 'model/svc/my-service/responsibility.md'), 'Updated.\n');
 
     const graph = await loadGraph(tmpDir);
     const coreResult = await approveNode(graph, 'svc/my-service');
@@ -182,7 +171,6 @@ describe('LLM verification (CLI layer)', () => {
     });
     await recordBaseline(tmpDir);
     await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'const x = 2;\n');
-    await writeFile(path.join(yggRoot, 'model/svc/my-service/responsibility.md'), 'Updated.\n');
 
     const graph = await loadGraph(tmpDir);
     const coreResult = await approveNode(graph, 'svc/my-service');

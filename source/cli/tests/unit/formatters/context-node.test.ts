@@ -27,13 +27,13 @@ function makeNodeData(overrides: Partial<NodeContextData> = {}): NodeContextData
       path: 'cli/core/context',
       relation: 'calls',
       description: 'context assembly',
-      readPath: 'model/cli/core/context/interface.md',
+      readPath: 'model/cli/core/context/yg-node.yaml',
     }],
     dependentCount: 3,
     dependentPaths: ['cli/commands/check', 'cli/commands/approve', 'cli/commands/context'],
     parentPath: 'cli/core',
     parentType: 'module',
-    parentReadPath: 'model/cli/core/responsibility.md',
+    parentReadPath: 'model/cli/core/yg-node.yaml',
     ...overrides,
   };
 }
@@ -60,7 +60,7 @@ describe('formatNodeContext', () => {
     // Dependencies
     expect(output).toContain('Dependencies (1):');
     expect(output).toContain('cli/core/context (calls)');
-    expect(output).toContain('read: model/cli/core/context/interface.md');
+    expect(output).toContain('read: model/cli/core/context/yg-node.yaml');
     // Dependents with consequence framing
     expect(output).toContain('Dependents (3):');
     // Parent

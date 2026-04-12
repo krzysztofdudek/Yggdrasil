@@ -80,14 +80,14 @@ describe('formatOutput', () => {
 
   it('displays full completeness-warning message including breakdown', () => {
     const output = formatOutput(makeCheckResult({
-      issues: [makeWarning('W001', 'Context is 18,000 tokens...\n     own: 2,100 | hierarchy: 3,200 | ...')],
+      issues: [makeWarning('wide-node', 'Context is 18,000 tokens...\n     own: 2,100 | hierarchy: 3,200 | ...')],
     }));
     expect(output).toContain('own: 2,100');
   });
 
   it('shows warnings even when errors exist', () => {
     const output = formatOutput(makeCheckResult({
-      issues: [makeError('source-drift', 'drift'), makeWarning('W001', 'budget')],
+      issues: [makeError('source-drift', 'drift'), makeWarning('wide-node', 'budget')],
     }));
     expect(output).toContain('Warnings (1)');
     expect(output).toContain('1 warning');
@@ -95,7 +95,7 @@ describe('formatOutput', () => {
 
   it('shows full warnings when no errors', () => {
     const output = formatOutput(makeCheckResult({
-      issues: [makeWarning('W001', 'budget warning message')],
+      issues: [makeWarning('wide-node', 'budget warning message')],
     }));
     expect(output).toContain('Warnings (1)');
     expect(output).toContain('budget warning message');

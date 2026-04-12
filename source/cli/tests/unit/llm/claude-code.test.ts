@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { ClaudeCodeProvider } from '../../../src/llm/claude-code.js';
-import type { AspectResponse, ArtifactResponse } from '../../../src/llm/types.js';
+import type { AspectResponse } from '../../../src/llm/types.js';
 
 describe('ClaudeCodeProvider', () => {
   it('constructs with default model', () => {
@@ -71,13 +71,6 @@ describe('ClaudeCodeProvider.parseResponse', () => {
     expect(result.satisfied).toBe(true);
   });
 
-  it('falls back for artifact responses', () => {
-    const result = ClaudeCodeProvider.parseResponse<ArtifactResponse>(
-      'The documentation is stale and needs updating.',
-      { current: false, reason: 'fallback' },
-    );
-    expect(result.current).toBe(false);
-  });
 
   it('returns fallback on empty output', () => {
     const fallback = { satisfied: false, reason: 'fallback' };

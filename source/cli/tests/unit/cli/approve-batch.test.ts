@@ -56,8 +56,8 @@ describe('filterCascadeNodes', () => {
 
   it('matches parent model cause prefix', () => {
     const issues: CheckIssue[] = [
-      makeCascadeDrift('cli/commands/approve', ['.yggdrasil/model/cli/responsibility.md']),
-      makeCascadeDrift('cli/core/check', ['.yggdrasil/model/cli/core/responsibility.md']),
+      makeCascadeDrift('cli/commands/approve', ['.yggdrasil/model/cli/yg-node.yaml']),
+      makeCascadeDrift('cli/core/check', ['.yggdrasil/model/cli/core/yg-node.yaml']),
     ];
     const result = filterCascadeNodes(issues, '.yggdrasil/model/cli/');
     expect(result).toEqual(['cli/commands/approve', 'cli/core/check']);

@@ -44,8 +44,6 @@ async function createBatchProject(name: string) {
     await mkdir(nodeDir, { recursive: true });
     await writeFile(path.join(nodeDir, 'yg-node.yaml'),
       `name: ${child}\ntype: service\ndescription: ${child} service\naspects:\n  - audit\nmapping:\n  - src/${child}/\n`);
-    await writeFile(path.join(nodeDir, 'responsibility.md'), `${child} responsibility.\n`);
-
     const srcDir = path.join(tmpDir, 'src', child);
     await mkdir(srcDir, { recursive: true });
     await writeFile(path.join(srcDir, 'index.ts'), `export const ${child} = true;\n`);

@@ -10,7 +10,7 @@ function createNode(nodePath: string, mapping: { paths: string[] }): GraphNode {
       type: 'service',
       mapping: mapping.paths,
     },
-    artifacts: [{ filename: 'responsibility.md', content: 'x' }],
+    artifacts: [],
     children: [],
     parent: null,
   };

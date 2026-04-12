@@ -2,18 +2,14 @@
   "hash": "a534cae15c7e42dd3d707c680d31dda3c7ba36f1ad60aa3fe78b58947ff4351a",
   "files": {
     ".yggdrasil/model/svc/my-service/yg-node.yaml": "dc838602a20b9acca0a4dc2d9395eddcc22d822cc59b7f291742acb5bd201961",
-    ".yggdrasil/model/svc/my-service/responsibility.md": "bd305d47edf71e549f625692213864964163b152f1f57986d630983d3e1e5375",
     ".yggdrasil/model/svc/yg-node.yaml": "1574d2c21b3d47f9d21bb0690f68c68fc23f6ee003f0c3705159055afd9dc962",
-    ".yggdrasil/model/svc/responsibility.md": "0f2013cb68bd0895d5961badde3ff2cc2ff54538702c74464543426e2928decb",
-    ".yggdrasil/model/svc/dep/responsibility.md": "4f2ddb6bb72ed6701d46067c7d82a8910a0ac387d588a24ca51246fee1530cbf",
+    ".yggdrasil/model/svc/dep/yg-node.yaml": "4f2ddb6bb72ed6701d46067c7d82a8910a0ac387d588a24ca51246fee1530cbf",
     "src/svc/index.ts": "f1bd0fb785fb7f787a709e614a5344c08da23eae322a0396f54ef6c135c09c14"
   },
   "mtimes": {
     ".yggdrasil/model/svc/my-service/yg-node.yaml": 1775209630533.1702,
-    ".yggdrasil/model/svc/my-service/responsibility.md": 1775209630533.2805,
     ".yggdrasil/model/svc/yg-node.yaml": 1775209630533.415,
-    ".yggdrasil/model/svc/responsibility.md": 1775209630533.5273,
-    ".yggdrasil/model/svc/dep/responsibility.md": 1775209630533.8606,
+    ".yggdrasil/model/svc/dep/yg-node.yaml": 1775209630533.8606,
     "src/svc/index.ts": 1775209630534.5166
   }
 }

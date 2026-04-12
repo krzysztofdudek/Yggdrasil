@@ -2,12 +2,9 @@
   "hash": "639b718f19f9ab272143cd683ddf07f0093b76a98de70e3a4277707a19f449d3",
   "files": {
     ".yggdrasil/model/checkout/controller/yg-node.yaml": "127e73af825fe0d68fed5decaa26f5819d33c088d50337d65fae6e75695045f3",
-    ".yggdrasil/model/checkout/controller/responsibility.md": "07beae7d973176c05f73e6d339bf13a7af6dcd5dc74b16271bae6c0cc3092821",
     ".yggdrasil/model/checkout/yg-node.yaml": "ab4d287f04514fc159a00da1d59fe6d07f0a8af6a7184fb395e5808af7b23d7d",
-    ".yggdrasil/model/checkout/responsibility.md": "b7d53e06709df9b80ca37d9cc05fc47f4b548677bce34b044d6e7c3de6b5085d",
-    ".yggdrasil/model/orders/order-service/responsibility.md": "28042a4d0e246cf623b6df11c071f076a7893de0bde0c3973e7acebca1a63606",
-    ".yggdrasil/model/orders/order-service/interface.md": "9613d544051ef806a9eaea491c6920495d59a5da144b1be92e0fbf7a1241c8ea",
-    ".yggdrasil/model/orders/responsibility.md": "4b721e6125b45841470b77033e00dffc7cede8304bf2031159a08e6d6c1b68a7",
+    ".yggdrasil/model/orders/order-service/yg-node.yaml": "28042a4d0e246cf623b6df11c071f076a7893de0bde0c3973e7acebca1a63606",
+    ".yggdrasil/model/orders/yg-node.yaml": "4b721e6125b45841470b77033e00dffc7cede8304bf2031159a08e6d6c1b68a7",
     "src/checkout/checkout.controller.ts": "5be39a6393295c52edbdcc46a5b6b4b90b9ac7e14fa6891b15e2ff7b8b12e4a7"
   }
 }
