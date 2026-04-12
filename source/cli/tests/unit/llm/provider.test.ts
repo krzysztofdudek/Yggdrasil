@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { createLlmProvider } from '../../../src/llm/provider.js';
-import '../../../src/llm/ollama.js';
-import '../../../src/llm/claude-code.js';
+import { createLlmProvider } from '../../../src/llm/index.js';
+import type { ReviewerProvider } from '../../../src/model/graph.js';
 
 describe('LLM provider factory', () => {
   it('creates ollama provider', () => {
@@ -23,6 +22,23 @@ describe('LLM provider factory', () => {
       provider: 'unknown' as any, model: 'test', temperature: 0, consensus: 1, max_tokens: 'auto',
       verify_aspects: true,     })).toThrow(/unknown/i);
   });
+});
+
+describe('Registry — all 11 providers register via index.ts', () => {
+  const allProviders: ReviewerProvider[] = [
+    'ollama', 'openai', 'anthropic', 'google', 'openai-compatible',
+    'claude-code', 'codex', 'gemini-cli', 'cline', 'opencode', 'aider',
+  ];
+
+  for (const name of allProviders) {
+    it(`creates ${name} provider`, () => {
+      const provider = createLlmProvider({
+        provider: name, model: 'test', temperature: 0, consensus: 1,
+        max_tokens: 'auto', verify_aspects: true, api_key: 'test-key',
+      });
+      expect(provider).toBeDefined();
+    });
+  }
 });
 
 describe('OllamaProvider', () => {

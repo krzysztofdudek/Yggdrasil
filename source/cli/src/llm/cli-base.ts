@@ -83,11 +83,12 @@ export abstract class CliAgentProvider implements LlmProvider {
       child.stdout.on('data', (data: Buffer) => { stdout += data.toString(); });
       child.on('error', (err) => {
         clearTimeout(timer);
-        const msg = (err as NodeJS.ErrnoException).code === 'E2BIG'
+        const isE2BIG = (err as NodeJS.ErrnoException).code === 'E2BIG';
+        const msg = isE2BIG
           ? 'Prompt too large for CLI arg mode'
           : `spawn error — is '${this.binary}' installed and on PATH?`;
         debugWrite(`[${this.binary}] ${msg}`);
-        resolve(fallback);
+        resolve({ satisfied: false, reason: msg });
       });
       child.on('close', (code) => {
         clearTimeout(timer);
