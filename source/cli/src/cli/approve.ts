@@ -70,7 +70,8 @@ export async function runLlmVerification(
   }
 
   const projectRoot = path.dirname(graph.rootPath);
-  const resolvedMaxTokens = await resolveMaxTokens(graph.config.llm!, provider);
+  const llmCfg = graph.config.llm ?? { provider: 'ollama' as const, model: '', temperature: 0, consensus: 1, max_tokens: 'auto' as const, verify_aspects: true };
+  const resolvedMaxTokens = await resolveMaxTokens(llmCfg, provider);
 
   const aspects = resolveAspects(node, graph);
 
