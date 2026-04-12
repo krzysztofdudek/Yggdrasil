@@ -8,7 +8,7 @@ import { collectTrackedFiles } from '../core/context-files.js';
 import { hashTrackedFiles } from '../utils/hash.js';
 import { classifyDrift } from '../core/check.js';
 import type { CheckIssue, CascadeCause } from '../core/check.js';
-import { createLlmProvider } from '../llm/provider.js';
+import { createLlmProvider } from '../llm/index.js';
 import { verifyAspects } from '../llm/aspect-verifier.js';
 import { loadSecrets, mergeLlmConfig } from '../io/secrets-parser.js';
 import { normalizeMappingPaths } from '../utils/paths.js';

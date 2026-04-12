@@ -1,29 +1,35 @@
 {
-  "hash": "11ed14eb70b4224cfe4a54cf58c77a1b6f2a60dde31ba8406b184f25aed55d7a",
+  "hash": "2d7204e200bfd1434c125c47b4f89151cd939c046546e46ee03e7259dae19abf",
   "files": {
     "own-subset:cli/llm": "fb10c29ca46e0f7e1546f47f81be9a88f6c74ee2aee2f6d6cf2ae802504455ce",
     ".yggdrasil/model/cli/yg-node.yaml": "41ddbf73fbc1ee27a28a5ea5ec7ad656ea34f5938284bd5ab4ea7c3afcbbd69b",
     ".yggdrasil/aspects/diagnostic-logging/yg-aspect.yaml": "d2f92251b7ac3da65b1e00800a1839a14f7508c11905dc9089bf0b62d310ee2b",
     ".yggdrasil/aspects/diagnostic-logging/content.md": "861da9ccecc91d8c08168ba10fb297a729158f272fe8da5c136fd6a7e997fb41",
     "source/cli/src/llm/api-utils.ts": "83521e4ec05f235354f865e2ffdf4303e4c3df6bb5bc593903d015c6482483c3",
-    "source/cli/src/llm/cli-base.ts": "72af624ea5e2a21636040ae7df4cd5c6af6cd0a93732ff17efb26e7b8d2d993b",
-    "source/cli/src/llm/types.ts": "569c2289270032744b7d3c9a01033be10ffd845431c170134183bfc6320ed0a3",
     "source/cli/src/llm/aspect-verifier.ts": "6e00952266a0422c3809aee4868fafeb7b55239ac4073ab3a34b0a11037ac96a",
     "source/cli/src/llm/claude-code.ts": "b24985c1e0547e208d617e7894d036f5558895bf102fd73015206a415b8bcee1",
-    "source/cli/src/llm/index.ts": "21c18451aedf7d1e03a0a60c6f7fc53644b16ee3c1df93168b2bb5cc65385ee9",
+    "source/cli/src/llm/cli-base.ts": "72af624ea5e2a21636040ae7df4cd5c6af6cd0a93732ff17efb26e7b8d2d993b",
     "source/cli/src/llm/ollama.ts": "9bb9a1e9698c342454bb48b26db7fa9ed69204372dbe0ef8df0ac253a7e63559",
-    "source/cli/src/llm/provider.ts": "9639bef6c74ad697525f3b68b144c2a8864f03f5fd9715fe193eaab3809bb139"
+    "source/cli/src/llm/provider.ts": "9639bef6c74ad697525f3b68b144c2a8864f03f5fd9715fe193eaab3809bb139",
+    "source/cli/src/llm/types.ts": "569c2289270032744b7d3c9a01033be10ffd845431c170134183bfc6320ed0a3",
+    "source/cli/src/llm/anthropic.ts": "7d09d3005af51ee7cbd9cc87633d2b67c746d09e8bc155cf87721ecaafbb01b3",
+    "source/cli/src/llm/google.ts": "f044218ae2bb22fdcffb5c8168331b8fcafc8083baa7ab3ede8e5abc049ce9dc",
+    "source/cli/src/llm/index.ts": "10655298378ce4eff8b4f12c300382003d0cc701a8b1f592754947985cb86333",
+    "source/cli/src/llm/openai.ts": "0d9d0b8a73387b9cdd781b4f059d2db84aa8ce0054bdfea6c4b08daa2535a058"
   },
   "mtimes": {
     ".yggdrasil/model/cli/yg-node.yaml": 1775639608581.9402,
     ".yggdrasil/aspects/diagnostic-logging/yg-aspect.yaml": 1775639646041.8462,
     ".yggdrasil/aspects/diagnostic-logging/content.md": 1775639651576.1426,
+    "source/cli/src/llm/anthropic.ts": 1776020474214.6055,
     "source/cli/src/llm/api-utils.ts": 1776018699131.1387,
     "source/cli/src/llm/aspect-verifier.ts": 1776019654941.2122,
     "source/cli/src/llm/claude-code.ts": 1776019984333.2073,
     "source/cli/src/llm/cli-base.ts": 1776018748846.6516,
-    "source/cli/src/llm/index.ts": 1776019980256.4744,
+    "source/cli/src/llm/google.ts": 1776020479544.9614,
+    "source/cli/src/llm/index.ts": 1776020483785.4202,
     "source/cli/src/llm/ollama.ts": 1776019996516.6067,
+    "source/cli/src/llm/openai.ts": 1776020469600.6858,
     "source/cli/src/llm/provider.ts": 1776019976813.8625,
     "source/cli/src/llm/types.ts": 1776018522382.2556
   }
