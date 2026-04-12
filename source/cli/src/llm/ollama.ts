@@ -1,15 +1,9 @@
-import type { LlmProvider, AspectResponse, AspectVerifyParams } from './types.js';
+import type { LlmProvider, AspectResponse } from './types.js';
 import { debugWrite } from '../utils/debug-log.js';
+import { parseAspectResponse } from './cli-base.js';
 import type { LlmConfig } from '../model/graph.js';
 
-const ASPECT_SYSTEM_PROMPT = `<role>
-You verify whether source code satisfies an architectural aspect.
-Respond with EXACTLY this JSON format, nothing else:
-{"satisfied": true|false, "reason": "explanation with specific file references"}
-</role>`;
-
 export class OllamaProvider implements LlmProvider {
-  readonly needsChunking = true;
   private endpoint: string;
   private model: string;
   private temperature: number;
@@ -54,43 +48,12 @@ export class OllamaProvider implements LlmProvider {
     }
   }
 
-  static async resolveMaxTokens(config: LlmConfig, provider: LlmProvider): Promise<number> {
-    if (typeof config.max_tokens === 'number') return config.max_tokens;
-    const detected = await provider.getContextWindowSize();
-    return detected ?? 4096;
-  }
+  async verifyAspect(prompt: string): Promise<AspectResponse> {
+    const fallback: AspectResponse = { satisfied: false, reason: 'LLM response could not be parsed' };
 
-  async verifyAspect(params: AspectVerifyParams): Promise<AspectResponse> {
-    const contextSection = params.nodeContext
-      ? `  <context>\n${params.nodeContext}\n  </context>`
-      : '';
-
-    const userPrompt = `<aspect id="${params.aspectId}">
-  <content>
-${params.aspectContent}
-  </content>
-</aspect>
-
-<node path="${params.nodePath}" type="${params.nodeType ?? 'unknown'}">
-${contextSection}
-</node>
-
-<source-files>
-${params.sourceCode}
-</source-files>
-
-Does this code satisfy the aspect requirements?`;
-
-    return this.chat<AspectResponse>(ASPECT_SYSTEM_PROMPT, userPrompt, { satisfied: false, reason: 'LLM response could not be parsed' });
-  }
-
-  private async chat<T>(system: string, user: string, fallback: T): Promise<T> {
     const body = {
       model: this.model,
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: user },
-      ],
+      messages: [{ role: 'user', content: prompt }],
       stream: false,
       think: false,
       options: { temperature: this.temperature, num_predict: 500 },
@@ -111,8 +74,7 @@ Does this code satisfy the aspect requirements?`;
         }
         const data = await res.json() as { message?: { content?: string } };
         const content = data.message?.content ?? '';
-        const cleaned = content.replace(/^```(?:json)?\s*\n?/m, '').replace(/\n?```\s*$/m, '').trim();
-        return JSON.parse(cleaned) as T;
+        return parseAspectResponse(content) ?? fallback;
       } catch (err) {
         debugWrite(`[ollama] error attempt=${attempt}: ${(err as Error).message}`);
         if (attempt === 1) return fallback;

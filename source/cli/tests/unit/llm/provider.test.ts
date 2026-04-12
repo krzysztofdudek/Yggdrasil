@@ -36,9 +36,7 @@ describe('OllamaProvider', () => {
     const provider = createLlmProvider({
       provider: 'ollama', model: 'test', endpoint: 'http://localhost:99999',
       temperature: 0, consensus: 1, max_tokens: 'auto',     });
-    const result = await provider.verifyAspect({
-      aspectContent: 'test', sourceCode: 'test', sourceFiles: ['test.ts'],
-    });
+    const result = await provider.verifyAspect('test aspect prompt');
     expect(result.satisfied).toBe(false);
     expect(result.reason).toContain('could not be parsed');
   });
