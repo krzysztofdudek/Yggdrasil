@@ -25,7 +25,8 @@ export async function loadSecrets(rootPath: string, providerName?: string): Prom
   // Try new reviewer: format first
   if (raw.reviewer && typeof raw.reviewer === 'object') {
     const reviewerRaw = raw.reviewer as Record<string, unknown>;
-    const providerKey = providerName ?? 'ollama';
+    if (!providerName) return undefined;
+    const providerKey = providerName;
     const providerSection = reviewerRaw[providerKey] as Record<string, unknown> | undefined;
     if (!providerSection || typeof providerSection !== 'object') return undefined;
     return extractSecretFields(providerSection);

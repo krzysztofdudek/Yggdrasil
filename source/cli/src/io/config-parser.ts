@@ -11,6 +11,21 @@ const DEFAULT_QUALITY: QualityConfig = {
   max_direct_relations: 10,
 };
 
+const KNOWN_PROVIDERS = [
+  'ollama', 'openai', 'anthropic', 'google', 'openai-compatible',
+  'claude-code', 'codex', 'gemini-cli', 'cline', 'opencode', 'aider',
+] as const;
+
+const CLI_PROVIDERS = new Set(['claude-code', 'codex', 'gemini-cli', 'cline', 'opencode', 'aider']);
+
+const PROVIDER_DEFAULTS: Record<string, Partial<LlmConfig>> = {
+  'claude-code': { model: 'haiku' },
+  'codex': { model: 'o4-mini' },
+  'gemini-cli': { model: 'gemini-2.5-flash' },
+};
+
+const GENERAL_KEYS = new Set(['active', 'verify_aspects', 'consensus']);
+
 export async function parseConfig(filePath: string): Promise<YggConfig> {
   const filename = path.basename(filePath);
   const content = await readFile(filePath, 'utf-8');
@@ -37,11 +52,6 @@ export async function parseConfig(filePath: string): Promise<YggConfig> {
             : undefined,
       }
     : DEFAULT_QUALITY;
-
-  // Known provider names
-  const KNOWN_PROVIDERS = ['ollama', 'claude-code'] as const;
-  // Known general keys under reviewer:
-  const GENERAL_KEYS = new Set(['active', 'verify_aspects', 'consensus']);
 
   // Parse reviewer: section
   let llm: LlmConfig | undefined;
@@ -125,42 +135,39 @@ function parseReviewerSection(
   }
 
   // Normalize provider-specific config to flat LlmConfig
-  const pc = selectedProvider.config;
-
-  if (selectedProvider.name === 'ollama') {
-    const model = pc.model as string;
-    if (!model || typeof model !== 'string') {
-      throw new Error(`${filename}: reviewer.ollama.model must be a non-empty string`);
-    }
-    const maxTokens = pc.max_tokens ?? 'auto';
-    if (maxTokens !== 'auto' && (typeof maxTokens !== 'number' || maxTokens < 1)) {
-      throw new Error(`${filename}: reviewer.ollama.max_tokens must be 'auto' or a positive number`);
-    }
-    return {
-      provider: 'ollama',
-      model,
-      endpoint: typeof pc.endpoint === 'string' ? pc.endpoint : undefined,
-      temperature: typeof pc.temperature === 'number' ? pc.temperature : 0,
-      consensus,
-      max_tokens: maxTokens as LlmConfig['max_tokens'],
-      verify_aspects: verifyAspects,
-      context_length_field: typeof pc.context_length_field === 'string' ? pc.context_length_field : undefined,
-    };
-  }
-
-  if (selectedProvider.name === 'claude-code') {
-    const model = typeof pc.model === 'string' ? pc.model : 'haiku';
-    return {
-      provider: 'claude-code',
-      model,
-      endpoint: undefined,
-      temperature: 0,
-      consensus,
-      max_tokens: 'auto',
-      verify_aspects: verifyAspects,
-    };
-  }
-
-  throw new Error(`${filename}: unknown provider '${selectedProvider.name}'`);
+  return normalizeProviderConfig(selectedProvider.name, selectedProvider.config, { verify_aspects: verifyAspects, consensus }, filename);
 }
 
+function normalizeProviderConfig(
+  providerName: string,
+  pc: Record<string, unknown>,
+  generalConfig: { verify_aspects: boolean; consensus: number },
+  filename: string,
+): LlmConfig {
+  const defaults = PROVIDER_DEFAULTS[providerName] ?? {};
+
+  const model = (pc.model as string) ?? (defaults.model as string | undefined);
+  if (!model || typeof model !== 'string') {
+    throw new Error(`${filename}: reviewer.${providerName}.model must be a non-empty string`);
+  }
+
+  const maxTokens = pc.max_tokens ?? 'auto';
+  if (maxTokens !== 'auto' && (typeof maxTokens !== 'number' || maxTokens < 1)) {
+    throw new Error(`${filename}: reviewer.${providerName}.max_tokens must be 'auto' or positive number`);
+  }
+
+  const timeout = CLI_PROVIDERS.has(providerName) && typeof pc.timeout === 'number'
+    ? pc.timeout : undefined;
+
+  return {
+    provider: providerName as LlmConfig['provider'],
+    model,
+    endpoint: typeof pc.endpoint === 'string' ? pc.endpoint : undefined,
+    temperature: typeof pc.temperature === 'number' ? pc.temperature : 0,
+    consensus: generalConfig.consensus,
+    max_tokens: maxTokens as LlmConfig['max_tokens'],
+    verify_aspects: generalConfig.verify_aspects,
+    context_length_field: typeof pc.context_length_field === 'string' ? pc.context_length_field : undefined,
+    timeout,
+  };
+}

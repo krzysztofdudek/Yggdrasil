@@ -484,7 +484,109 @@ reviewer:
       );
 
       await expect(parseConfig(path.join(tmpDir, 'yg-config.yaml'))).rejects.toThrow(
-        /reviewer.ollama.max_tokens must be 'auto' or a positive number/,
+        /reviewer.ollama.max_tokens must be 'auto' or positive number/,
+      );
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('parses openai provider config', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-reviewer-openai');
+      await mkdir(tmpDir, { recursive: true });
+      await writeFile(
+        path.join(tmpDir, 'yg-config.yaml'),
+        `
+name: test-project
+reviewer:
+  openai:
+    model: gpt-4.1-mini
+`,
+        'utf-8',
+      );
+
+      const config = await parseConfig(path.join(tmpDir, 'yg-config.yaml'));
+      expect(config.llm?.provider).toBe('openai');
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('parses CLI provider with timeout', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-reviewer-codex-timeout');
+      await mkdir(tmpDir, { recursive: true });
+      await writeFile(
+        path.join(tmpDir, 'yg-config.yaml'),
+        `
+name: test-project
+reviewer:
+  codex:
+    model: o4-mini
+    timeout: 180000
+`,
+        'utf-8',
+      );
+
+      const config = await parseConfig(path.join(tmpDir, 'yg-config.yaml'));
+      expect(config.llm?.timeout).toBe(180000);
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('ignores timeout for API providers', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-reviewer-openai-timeout');
+      await mkdir(tmpDir, { recursive: true });
+      await writeFile(
+        path.join(tmpDir, 'yg-config.yaml'),
+        `
+name: test-project
+reviewer:
+  openai:
+    model: gpt-4.1-mini
+    timeout: 60000
+`,
+        'utf-8',
+      );
+
+      const config = await parseConfig(path.join(tmpDir, 'yg-config.yaml'));
+      expect(config.llm?.timeout).toBeUndefined();
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('uses default model for claude-code when not specified', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-reviewer-claude-default-model');
+      await mkdir(tmpDir, { recursive: true });
+      await writeFile(
+        path.join(tmpDir, 'yg-config.yaml'),
+        `
+name: test-project
+reviewer:
+  claude-code: {}
+`,
+        'utf-8',
+      );
+
+      const config = await parseConfig(path.join(tmpDir, 'yg-config.yaml'));
+      expect(config.llm?.model).toBe('haiku');
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('rejects unknown provider key', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-reviewer-unknown-provider');
+      await mkdir(tmpDir, { recursive: true });
+      await writeFile(
+        path.join(tmpDir, 'yg-config.yaml'),
+        `
+name: test-project
+reviewer:
+  unknown-provider:
+    model: test
+`,
+        'utf-8',
+      );
+
+      await expect(parseConfig(path.join(tmpDir, 'yg-config.yaml'))).rejects.toThrow(
+        /unknown key 'unknown-provider' under reviewer/,
       );
 
       await rm(tmpDir, { recursive: true, force: true });

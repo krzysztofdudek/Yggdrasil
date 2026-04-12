@@ -185,7 +185,7 @@ reviewer:
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('uses ollama as default provider when providerName is omitted', async () => {
+  it('returns undefined when providerName is omitted', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-secrets-default-provider');
     const yggDir = path.join(tmpDir, '.yggdrasil');
     await mkdir(yggDir, { recursive: true });
@@ -200,8 +200,8 @@ reviewer:
       'utf-8',
     );
 
-    const secrets = await loadSecrets(yggDir); // no providerName — defaults to ollama
-    expect(secrets?.api_key).toBe('sk-default-test');
+    const secrets = await loadSecrets(yggDir); // no providerName — returns undefined
+    expect(secrets).toBeUndefined();
 
     await rm(tmpDir, { recursive: true, force: true });
   });
