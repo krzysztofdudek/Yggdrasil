@@ -1,0 +1,28 @@
+{
+  "hash": "c2328bb51d201c50340b9e304fb12297f132060f837ef8601dad470202dfe71a",
+  "files": {
+    "own-subset:cli/commands/tree": "f0b49f4dee4f52adf5f8f5afa320f5f3b1b42c317a3d014a1de683b899f9e112",
+    ".yggdrasil/model/cli/yg-node.yaml": "41ddbf73fbc1ee27a28a5ea5ec7ad656ea34f5938284bd5ab4ea7c3afcbbd69b",
+    ".yggdrasil/model/cli/commands/yg-node.yaml": "4d929734cf56d8fbf3adfdbb908be64075a4a3322a892656ad00ea07bb026ab4",
+    ".yggdrasil/aspects/cli-command-contract/yg-aspect.yaml": "81ba5d9318ec49940495487c056356f9bd462d67ca4bb06d3fd954cf26945d01",
+    ".yggdrasil/aspects/cli-command-contract/content.md": "b1509ccd44cc91f1cff43926b69f16845407f518ecf4d448d24a0b4a4e2894c3",
+    ".yggdrasil/model/cli/core/loader/yg-node.yaml": "4ebc935b61c421bbf82d13e1ff9e8fa2c13966e40b58fcb4c68b1a8a9c411248",
+    ".yggdrasil/model/cli/core/yg-node.yaml": "b91232b50d88570fc1c6b0ddaed7f50936202fde075e4194e2f4f676ca6af391",
+    ".yggdrasil/model/cli/model/graph/yg-node.yaml": "59d6cc41f1da574213d95ab37d6992416e4a79131f57d440e50de0c91a3bf8a5",
+    ".yggdrasil/model/cli/model/yg-node.yaml": "786d7a0de56123efa1d46ee25813cdab19dffb17b614581d1c8e142d2f4ba939",
+    ".yggdrasil/flows/graph-navigation/yg-flow.yaml": "7a7f7ee56a6dc45cb3dce0ab9073b976d307f3b7c31bc6c23ca4317473ba2c5d",
+    "source/cli/src/cli/tree.ts": "4c51b19b3501b77780cba440c6695bb1776a6153ea85ad47dd9d17b822d97599"
+  },
+  "mtimes": {
+    ".yggdrasil/model/cli/yg-node.yaml": 1775639608581.9402,
+    ".yggdrasil/model/cli/commands/yg-node.yaml": 1775639607526.398,
+    ".yggdrasil/aspects/cli-command-contract/yg-aspect.yaml": 1775580555580.0303,
+    ".yggdrasil/aspects/cli-command-contract/content.md": 1772778786204.255,
+    ".yggdrasil/model/cli/core/loader/yg-node.yaml": 1775639601412.6663,
+    ".yggdrasil/model/cli/core/yg-node.yaml": 1775639609607.5476,
+    ".yggdrasil/model/cli/model/graph/yg-node.yaml": 1775639470346.3054,
+    ".yggdrasil/model/cli/model/yg-node.yaml": 1775623462286.4114,
+    ".yggdrasil/flows/graph-navigation/yg-flow.yaml": 1775046083604.8381,
+    "source/cli/src/cli/tree.ts": 1775972635688.953
+  }
+}
