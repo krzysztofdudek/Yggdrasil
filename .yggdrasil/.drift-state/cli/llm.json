@@ -10,17 +10,17 @@
     "source/cli/src/llm/api-utils.ts": "83521e4ec05f235354f865e2ffdf4303e4c3df6bb5bc593903d015c6482483c3",
     "source/cli/src/llm/aspect-verifier.ts": "6e00952266a0422c3809aee4868fafeb7b55239ac4073ab3a34b0a11037ac96a",
     "source/cli/src/llm/claude-code.ts": "b24985c1e0547e208d617e7894d036f5558895bf102fd73015206a415b8bcee1",
+    "source/cli/src/llm/cli-base.ts": "3141f868d5aab392409f9ebb6352ac1464adad69126d2027c9907c842b60a941",
     "source/cli/src/llm/cline.ts": "13f5b9497673531fc5c66320ec6d2840f8d20b69cdc64813e997e70ac37981b2",
     "source/cli/src/llm/codex.ts": "cdb8f0acf6f797c6efa5f69a659eed1830f9c35a128d75fa72d26c12e5cf9771",
     "source/cli/src/llm/gemini-cli.ts": "a13ad7858c81e040ab32a4a229e59c64e75cef38d9da600efd9ef95c931362b2",
     "source/cli/src/llm/google.ts": "f044218ae2bb22fdcffb5c8168331b8fcafc8083baa7ab3ede8e5abc049ce9dc",
     "source/cli/src/llm/index.ts": "9602cb819b36655f62e6be732eb6c9d4bd533c4f7e1ae9c7a6232a8f4a1d28ef",
-    "source/cli/src/llm/ollama.ts": "9bb9a1e9698c342454bb48b26db7fa9ed69204372dbe0ef8df0ac253a7e63559",
     "source/cli/src/llm/openai.ts": "0d9d0b8a73387b9cdd781b4f059d2db84aa8ce0054bdfea6c4b08daa2535a058",
     "source/cli/src/llm/opencode.ts": "ba59e4241c397f66bde68ac518fe57189640ed7cdea0f871336b4db0732753d1",
     "source/cli/src/llm/provider.ts": "9639bef6c74ad697525f3b68b144c2a8864f03f5fd9715fe193eaab3809bb139",
     "source/cli/src/llm/types.ts": "569c2289270032744b7d3c9a01033be10ffd845431c170134183bfc6320ed0a3",
-    "source/cli/src/llm/cli-base.ts": "3141f868d5aab392409f9ebb6352ac1464adad69126d2027c9907c842b60a941"
+    "source/cli/src/llm/ollama.ts": "9bb9a1e9698c342454bb48b26db7fa9ed69204372dbe0ef8df0ac253a7e63559"
   },
   "mtimes": {
     ".yggdrasil/model/cli/yg-node.yaml": 1775639608581.9402,
@@ -37,7 +37,7 @@
     "source/cli/src/llm/gemini-cli.ts": 1776020809550.4104,
     "source/cli/src/llm/google.ts": 1776020479544.9614,
     "source/cli/src/llm/index.ts": 1776020829459.9224,
-    "source/cli/src/llm/ollama.ts": 1776019996516.6067,
+    "source/cli/src/llm/ollama.ts": 1776024005206.9048,
     "source/cli/src/llm/openai.ts": 1776020469600.6858,
     "source/cli/src/llm/opencode.ts": 1776020818332.786,
     "source/cli/src/llm/provider.ts": 1776019976813.8625,
