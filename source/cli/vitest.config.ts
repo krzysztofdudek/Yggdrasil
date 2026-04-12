@@ -13,8 +13,8 @@ export default defineConfig({
         'src/cli/**', // thin Commander.js wrappers — tested via E2E subprocess
         'src/model/**', // type-only definitions — no runtime code
         'src/core/graph-from-git.ts', // git/archive — try/catch branches hard to cover
-        'src/core/graph-loader.ts', // loadAspects/Flows/Knowledge/Templates — catch on missing dirs
-        'src/llm/**', // LLM provider stubs — no runtime usage yet (Plan 3)
+        'src/core/graph-loader.ts', // loadAspects/Flows/Schemas — catch on missing dirs
+        'src/llm/**', // LLM providers — external API calls not covered in unit tests
       ],
       thresholds: {
         lines: 85,
