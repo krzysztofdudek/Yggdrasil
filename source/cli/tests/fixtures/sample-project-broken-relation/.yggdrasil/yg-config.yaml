@@ -1,5 +1,1 @@
 name: Broken Relation Test
-artifacts:
-  responsibility:
-    required: always
-    description: 'x'

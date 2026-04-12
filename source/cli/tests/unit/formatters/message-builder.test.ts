@@ -5,13 +5,13 @@ describe('buildIssueMessage', () => {
   it('joins what/why/next with single newlines', () => {
     const result = buildIssueMessage({
       what: 'Source files changed since last approve.',
-      why: 'Graph artifacts may no longer describe the actual behavior.',
-      next: 'Update artifacts, then: yg approve --node cli/core',
+      why: 'Graph metadata may no longer describe the actual behavior.',
+      next: 'Review changes, then: yg approve --node cli/core',
     });
     expect(result).toBe(
       'Source files changed since last approve.\n' +
-      'Graph artifacts may no longer describe the actual behavior.\n' +
-      'Update artifacts, then: yg approve --node cli/core',
+      'Graph metadata may no longer describe the actual behavior.\n' +
+      'Review changes, then: yg approve --node cli/core',
     );
   });
 

@@ -35,7 +35,7 @@ export interface DriftNodeState {
 /** Upstream change with type annotation for CLI messages */
 export interface AnnotatedChange {
   filePath: string;
-  /** Human-readable annotation, e.g. "aspect content", "dependency interface", "flow description", "parent artifact" */
+  /** Human-readable annotation, e.g. "aspect content", "dependency metadata", "flow description", "parent metadata" */
   annotation: string;
 }
 

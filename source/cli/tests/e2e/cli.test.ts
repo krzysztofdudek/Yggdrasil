@@ -163,7 +163,7 @@ describe.skipIf(!distExists)('CLI E2E', () => {
     expect(stdout).toContain('auth');
     expect(stdout).toContain('orders');
     // depth 1 means we see top-level modules but NOT their children names as tree nodes
-    // Children metadata (artifacts count) should still appear at depth 1
+    // Children metadata should still appear at depth 1
   });
 
   it('yg tree --root auth shows only auth subtree', () => {

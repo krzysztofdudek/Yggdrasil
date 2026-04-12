@@ -46,7 +46,7 @@ describe('audit-log', () => {
     await mkdir(tmpDir, { recursive: true });
 
     await appendAuditEntry(tmpDir, makeEntry({ node: 'svc/a' }));
-    await appendAuditEntry(tmpDir, makeEntry({ node: 'svc/b', action: 'reviewed', reason: 'formatter ran' }));
+    await appendAuditEntry(tmpDir, makeEntry({ node: 'svc/b', action: 'approved', reason: 'formatter ran' }));
 
     const content = await readFile(path.join(tmpDir, '.audit-log.jsonl'), 'utf-8');
     const lines = content.trim().split('\n');

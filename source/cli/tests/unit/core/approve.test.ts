@@ -154,7 +154,7 @@ describe('approveNode — proper nodes', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  // yg-node.yaml only change → no-op (metadata, not artifact)
+  // yg-node.yaml only change → no-op (metadata only, no source change)
 
   // First approve (no baseline)
   it('accepts first approve with no baseline', async () => {
@@ -327,7 +327,7 @@ describe('approveNode — anti-laundering', () => {
       files: { 'src/auth/controller.ts': 'fake-hash' },
     });
     const graph = await loadGraph(tmpDir);
-    const result = await approveNode(graph, 'new-blackbox', { reviewed: undefined });
+    const result = await approveNode(graph, 'new-blackbox', {});
     expect(result.action).toBe('refused');
     expect(result.antiLaunderingBlocked).toBe(true);
     expect(result.conflictingFiles).toContainEqual({

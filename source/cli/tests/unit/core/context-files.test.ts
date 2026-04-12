@@ -264,7 +264,7 @@ describe('collectTrackedFiles', () => {
     const files = collectTrackedFiles(node, graph);
     const paths = files.map((f) => f.path);
 
-    // Should have own files but no dep artifacts from other nodes
+    // Should have own files but no dep metadata from other nodes
     expect(paths).toContain('own-subset:users');
     // Should not have auth or order node files (those are only via relations)
     const otherModelPaths = paths.filter(
@@ -273,7 +273,7 @@ describe('collectTrackedFiles', () => {
     expect(otherModelPaths).toHaveLength(0);
   });
 
-  it('includes event relation target artifacts (emits/listens)', () => {
+  it('includes event relation target metadata (emits/listens)', () => {
     const target: GraphNode = {
       path: 'events/bus',
       meta: { name: 'EventBus', type: 'service' },
@@ -545,7 +545,7 @@ describe('collectTrackedFiles', () => {
     const files = collectTrackedFiles(node, graph);
     const paths = files.map((f) => f.path);
 
-    // auth/auth-api's artifacts should be tracked (event relation target)
+    // auth/auth-api's metadata should be tracked (event relation target)
     const authApiFiles = paths.filter(p => p.includes('model/auth/auth-api/'));
     expect(authApiFiles.length).toBeGreaterThan(0);
 
@@ -559,7 +559,7 @@ describe('collectTrackedFiles', () => {
     node.meta.relations = originalRelations;
   });
 
-  it('tracks only yg-node.yaml for dependency (no artifact .md files)', () => {
+  it('tracks only yg-node.yaml for dependency (no content .md files)', () => {
     const target: GraphNode = {
       path: 'dep/svc',
       meta: { name: 'DepSvc', type: 'service' },
@@ -595,7 +595,7 @@ describe('collectTrackedFiles', () => {
     const files = collectTrackedFiles(node, graph);
     const paths = files.map((f) => f.path);
 
-    // Only yg-node.yaml is tracked for deps — no .md artifact files
+    // Only yg-node.yaml is tracked for deps — no .md content files
     expect(paths).toContain('.yggdrasil/model/dep/svc/yg-node.yaml');
   });
 

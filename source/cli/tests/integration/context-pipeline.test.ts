@@ -55,7 +55,7 @@ describe('context-pipeline', () => {
     expect(ownLayer?.content).toContain('yg-node.yaml');
   });
 
-  it('relational includes auth-api artifacts (config-allowed only)', async () => {
+  it('relational includes auth-api metadata (config-allowed only)', async () => {
     const graph = await loadGraph(FIXTURE_PROJECT);
     const pkg = await buildContext(graph, 'orders/order-service');
 
@@ -81,7 +81,7 @@ describe('context-pipeline', () => {
     expect(auditLayer?.content).toContain('audit_log');
   });
 
-  it('checkout flow artifacts included', async () => {
+  it('checkout flow metadata included', async () => {
     const graph = await loadGraph(FIXTURE_PROJECT);
     const pkg = await buildContext(graph, 'orders/order-service');
 

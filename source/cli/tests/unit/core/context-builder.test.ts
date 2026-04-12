@@ -51,7 +51,7 @@ describe('context-builder', () => {
   });
 
   describe('buildAspectLayer', () => {
-    it('formats aspect artifacts', () => {
+    it('formats aspect content files', () => {
       const layer = buildAspectLayer({
         name: 'Audit',
         id: 'requires-audit',
@@ -427,7 +427,7 @@ describe('context-builder', () => {
       expect(aspectLayers).toHaveLength(0);
     });
 
-    it('node in flow gets flow artifacts through Flows layer', async () => {
+    it('node in flow gets flow data through Flows layer', async () => {
       const graph = await loadGraph(FIXTURE_PROJECT);
       const pkg = await buildContext(graph, 'orders/order-service');
 
@@ -482,7 +482,7 @@ describe('context-builder', () => {
       expect(aspectLayers[0].label).toContain('Audit');
     });
 
-    it('hierarchy aspects: node own aspects declared on own layer (aspects on own-artifacts)', async () => {
+    it('hierarchy aspects: node own aspects declared on own layer (aspects on own node)', async () => {
       const parent: GraphNode = {
         path: 'orders',
         meta: { name: 'Orders', type: 'module', aspects: ['requires-audit'] },
@@ -801,12 +801,11 @@ describe('context-builder', () => {
       expect(ownLayer?.content).toContain('type:');
     });
 
-    it('empty own artifacts produce own layer with empty content', async () => {
-      // Node with only yg-node.yaml, no other artifacts
+    it('empty own metadata produces own layer with empty content', async () => {
+      // Node with only yg-node.yaml, no other metadata
       const node: GraphNode = {
         path: 'bare',
         meta: { name: 'Bare', type: 'module' },
-        artifacts: [], // no artifacts
         children: [],
         parent: null,
       };
@@ -948,7 +947,7 @@ describe('toContextMapOutput', () => {
     expect(output.node.files).toEqual(uniqueFiles);
   });
 
-  it('uses model/ prefix for node artifact paths', async () => {
+  it('uses model/ prefix for node file paths', async () => {
     const graph = await loadGraph(FIXTURE_PROJECT);
     const pkg = await buildContext(graph, 'orders/order-service');
     const output = toContextMapOutput(pkg, graph);

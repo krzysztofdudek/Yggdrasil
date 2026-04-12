@@ -39,7 +39,7 @@ describe('flow-support integration', () => {
     expect(unexpectedErrors).toHaveLength(0);
   });
 
-  it('scenario 4: build-context includes flow artifacts through Flows layer', async () => {
+  it('scenario 4: build-context includes flow data through Flows layer', async () => {
     const graph = await loadGraph(FIXTURE_PROJECT);
     const pkg = await buildContext(graph, 'orders/order-service');
 

@@ -14,11 +14,5 @@
     ".yggdrasil/aspects/logging/yg-aspect.yaml": 1775884662929.379,
     ".yggdrasil/aspects/logging/rules.md": 1775884662929.5454,
     "src/svc/index.ts": 1775884662929.926
-  },
-  "aspectResults": {
-    "logging": {
-      "satisfied": false,
-      "reason": "no audit log found"
-    }
   }
 }

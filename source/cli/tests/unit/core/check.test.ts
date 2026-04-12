@@ -297,7 +297,7 @@ describe('classifyDrift', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('returns source-drift full-drift when both source and own graph artifacts change', async () => {
+  it('returns source-drift when both source and graph metadata change', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('full-drift', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
@@ -675,7 +675,7 @@ describe('suggestedNext priority', () => {
       }],
     });
     await recordBaseline(tmpDir);
-    // Only modify aspect (cascade) -- do NOT modify source or own artifacts
+    // Only modify aspect (cascade) -- do NOT modify source or own metadata
     await writeFile(path.join(yggRoot, 'aspects/logging/rules.md'), 'Updated rules for cascade suggestion test.\n');
     const graph = await loadGraph(tmpDir);
     const result = await runCheck(graph, ['src/svc/index.ts']);

@@ -42,13 +42,13 @@ export async function buildContext(graph: Graph, nodePath: string): Promise<Cont
   // 1. Global
   layers.push(buildGlobalLayer(graph.config));
 
-  // 2. Hierarchy (only configured artifacts that exist in ancestor's directory)
+  // 2. Hierarchy (ancestor yg-node.yaml metadata)
   const ancestors = collectAncestors(node);
   for (const ancestor of ancestors) {
     layers.push(buildHierarchyLayer(ancestor, graph.config, graph));
   }
 
-  // 3. Own (yg-node.yaml + configured artifacts)
+  // 3. Own (yg-node.yaml metadata)
   layers.push(await buildOwnLayer(node, graph.config, graph.rootPath, graph));
 
   // 4. Relational (structural + event, with consumes)
