@@ -198,11 +198,4 @@ export function registerBuildCommand(program: Command): void {
     .option('--file <file-path>', 'Source file path — resolves owner node automatically')
     .action(contextAction);
 
-  // Backward-compatible alias: `yg build-context`
-  program
-    .command('build-context')
-    .description('(alias for context) Assemble a context package for one node')
-    .option('--node <node-path>', 'Node path relative to .yggdrasil/model/')
-    .option('--file <file-path>', 'Source file path — resolves owner node automatically')
-    .action(contextAction);
 }

@@ -49,7 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Progressive disclosure in context output.** `yg context --node` shows
   overview (aspects, flows, dependents with consequence framing).
   `yg context --file` shows per-file details (aspects to satisfy,
-  dependencies consumed, back-pointer to node). Alias: `build-context`.
+  dependencies consumed, back-pointer to node).
 - **`yg context --file`** shows blackbox decomposition guidance when file
   is inside a blackbox node; unmapped output includes actionable next step
   with candidate node listing.

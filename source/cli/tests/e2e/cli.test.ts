@@ -119,12 +119,6 @@ describe.skipIf(!distExists)('CLI E2E', () => {
     expect(stdout).toContain('After modifying source files');
   });
 
-  it('yg build-context still works as alias', () => {
-    const { stdout, status } = run(['build-context', '--node', 'orders/order-service']);
-    expect(status).toBe(0);
-    expect(stdout).toContain('orders/order-service');
-    expect(stdout).toContain('Source files');
-  });
 
   it('yg deps returns non-zero (unknown command)', () => {
     const { status } = run(['deps', '--node', 'orders/order-service']);

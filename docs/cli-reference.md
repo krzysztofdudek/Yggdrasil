@@ -22,7 +22,7 @@ This page is for people who want to inspect or debug the repo's semantic memory.
 
 Shows the exact context package your agent reads before working on a node. Output is
 structured text with `read:` pointers to content files. Agents read files individually
-using their file-reading tool. Alias: `build-context`.
+using their file-reading tool.
 
 ```bash
 yg context --node <node-path>

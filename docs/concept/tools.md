@@ -397,7 +397,6 @@ constraints (`aspects`, `parents`, `relations`).
 ### Context
 
 Assemble a context package for the specified node. The main operation of the system.
-Alias: `build-context`.
 
 Two levels of context are available: `--node` for a structural overview (node metadata,
 hierarchy, dependency map) and `--file` for full file-level details (resolves owner,
