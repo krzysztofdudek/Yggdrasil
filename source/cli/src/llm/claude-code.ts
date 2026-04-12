@@ -83,7 +83,7 @@ export class ClaudeCodeProvider implements LlmProvider {
       }, 120_000);
 
       child.stdout.on('data', (data: Buffer) => { stdout += data.toString(); });
-      child.on('error', () => { clearTimeout(timer); debugWrite('[claude-code] spawn error'); resolve(fallback); });
+      child.on('error', (err) => { clearTimeout(timer); debugWrite(`[claude-code] spawn error: ${(err as Error).message}`); resolve(fallback); });
       child.on('close', (code) => {
         clearTimeout(timer);
         if (killed || code !== 0) {
