@@ -103,4 +103,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Ollama context window** auto-detection works with models that use
   architecture-prefixed keys (e.g. `qwen35.context_length`).
-
