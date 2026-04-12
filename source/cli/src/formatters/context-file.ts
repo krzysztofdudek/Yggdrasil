@@ -49,7 +49,7 @@ export function formatFileContext(data: FileContextData): string {
     lines.push('');
     for (const aspect of data.aspects) {
       lines.push(`  ${aspect.aspectId} — ${aspect.aspectDescription}`);
-      lines.push(`    Verified against: ${aspect.verifiedAgainst}`);
+      lines.push(`    read: ${aspect.verifiedAgainst}`);
       if (aspect.source) {
         lines.push(`    Source: ${aspect.source}`);
       }

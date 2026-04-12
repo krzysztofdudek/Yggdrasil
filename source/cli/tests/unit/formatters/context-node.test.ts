@@ -14,7 +14,7 @@ function makeNodeData(overrides: Partial<NodeContextData> = {}): NodeContextData
       name: 'Determinism',
       description: 'Same inputs produce identical outputs',
       source: 'architecture (type: library)',
-      verifiedAgainst: 'aspects/deterministic/content.md',
+      verifiedAgainst: '.yggdrasil/aspects/deterministic/content.md',
       implies: ['posix-paths'],
     }],
     flows: [{
@@ -51,7 +51,7 @@ describe('formatNodeContext', () => {
     expect(output).toContain('Must satisfy (1 aspect):');
     expect(output).toContain('deterministic — Same inputs produce identical outputs');
     expect(output).toContain('Source: architecture (type: library)');
-    expect(output).toContain('Verified against: aspects/deterministic/content.md');
+    expect(output).toContain('read: .yggdrasil/aspects/deterministic/content.md');
     expect(output).toContain('Implies: posix-paths');
     // Flows
     expect(output).toContain('Participates in (1 flow):');
@@ -123,7 +123,7 @@ describe('formatNodeContext', () => {
         path: 'payments/payment-service',
         relation: 'uses',
         consumes: ['charge'],
-        portAspects: [{ aspectId: 'idempotency', verifiedAgainst: 'aspects/idempotency/content.md' }],
+        portAspects: [{ aspectId: 'idempotency', verifiedAgainst: '.yggdrasil/aspects/idempotency/content.md' }],
       }],
     }));
     expect(output).toContain('Required: idempotency');
@@ -168,7 +168,7 @@ describe('formatNodeContext', () => {
         name: 'Determinism',
         description: 'Same inputs produce identical outputs',
         source: 'architecture',
-        verifiedAgainst: 'aspects/deterministic/content.md',
+        verifiedAgainst: '.yggdrasil/aspects/deterministic/content.md',
       }],
     }));
     expect(output).toContain('Must satisfy (1 aspect):');
@@ -209,14 +209,14 @@ describe('formatNodeContext', () => {
           name: 'Aspect A',
           description: 'First aspect',
           source: 'own declaration',
-          verifiedAgainst: 'aspects/aspect-a/content.md',
+          verifiedAgainst: '.yggdrasil/aspects/aspect-a/content.md',
         },
         {
           id: 'aspect-b',
           name: 'Aspect B',
           description: 'Second aspect',
           source: 'own declaration',
-          verifiedAgainst: 'aspects/aspect-b/content.md',
+          verifiedAgainst: '.yggdrasil/aspects/aspect-b/content.md',
         },
       ],
     }));

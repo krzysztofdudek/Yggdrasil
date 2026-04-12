@@ -10,7 +10,7 @@ describe('formatFileContext', () => {
       aspects: [{
         aspectId: 'deterministic',
         aspectDescription: 'Same inputs produce identical outputs',
-        verifiedAgainst: 'aspects/deterministic/content.md',
+        verifiedAgainst: '.yggdrasil/aspects/deterministic/content.md',
         source: 'required aspect for type \'library\'',
       }],
       dependencies: [
@@ -24,7 +24,7 @@ describe('formatFileContext', () => {
     expect(output).toContain('Owner: cli/core/validator (library)');
     expect(output).toContain('Must satisfy:');
     expect(output).toContain('deterministic — Same inputs produce identical outputs');
-    expect(output).toContain('Verified against: aspects/deterministic/content.md');
+    expect(output).toContain('read: .yggdrasil/aspects/deterministic/content.md');
     expect(output).toContain('Source: required aspect for type \'library\'');
     expect(output).toContain('Dependencies consumed:');
     expect(output).toContain('cli/core/context — buildContext()');
@@ -124,7 +124,7 @@ describe('formatFileContext', () => {
       aspects: [{
         aspectId: 'deterministic',
         aspectDescription: 'Same inputs produce identical outputs',
-        verifiedAgainst: 'aspects/deterministic/content.md',
+        verifiedAgainst: '.yggdrasil/aspects/deterministic/content.md',
       }],
       dependencies: [],
       dependentCount: 0,

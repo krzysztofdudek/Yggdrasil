@@ -61,7 +61,7 @@ export function formatNodeContext(data: NodeContextData): string {
     for (const aspect of data.aspects) {
       lines.push(`  ${aspect.id} — ${aspect.description}`);
       lines.push(`    Source: ${aspect.source}`);
-      lines.push(`    Verified against: ${aspect.verifiedAgainst}`);
+      lines.push(`    read: ${aspect.verifiedAgainst}`);
       if (aspect.implies && aspect.implies.length > 0) {
         lines.push(`    Implies: ${aspect.implies.join(', ')}`);
       }
