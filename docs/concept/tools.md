@@ -516,7 +516,7 @@ observability/logging — Audit Logging
   Used by: 7 nodes (architecture: 3, own: 2, implied: 1, flow: 1)
   Implies: observability/tracing
 
-legacy-format — Legacy Format
+data-validation — Data Validation
   Used by: 0 nodes — orphaned
 ```
 

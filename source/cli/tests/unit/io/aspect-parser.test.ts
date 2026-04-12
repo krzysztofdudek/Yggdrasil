@@ -131,7 +131,7 @@ implies:
     await writeFile(aspectPath, `name: Stable Aspect\nstability: protocol\n`, 'utf-8');
 
     const aspect = await parseAspect(tmpDir, aspectPath, 'stable');
-    // stability no longer exists on AspectDef — should not throw
+    // unknown field should not throw
     expect(aspect.name).toBe('Stable Aspect');
     expect((aspect as Record<string, unknown>).stability).toBeUndefined();
 

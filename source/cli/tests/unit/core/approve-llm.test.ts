@@ -106,7 +106,6 @@ function makeLlmConfig(provider: LlmProvider | undefined, overrides: Partial<Llm
     maxTokens: undefined,
     consensus: undefined,
     verifyAspects: true,
-    verifyArtifacts: false,
     ...overrides,
   };
 }

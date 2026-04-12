@@ -348,8 +348,8 @@ introduced the requirement.
 Drift is divergence between graph and outputs. Drift detection runs as part of `yg check`
 and is **bidirectional** — it tracks both source files (code mapped via `yg-node.yaml`
 mappings) and graph files (`.yggdrasil/` files that participate in a node's context
-package). A change on either side is drift (source-drift / graph-drift); a change triggered
-by upstream changes is cascade drift (upstream-drift).
+package). A change in source files is source-drift; a change triggered
+by upstream context changes (aspects, flows, dependencies) is upstream-drift.
 
 ### Mechanism
 
@@ -415,12 +415,11 @@ Every mapped node has one of six states:
 
 | State            | Meaning                                                                              |
 | ---------------- | ------------------------------------------------------------------------------------ |
-| `ok`             | All tracked file hashes match — nothing changed since last synchronization           |
-| `source-drift`   | Source file(s) changed but graph files unchanged                                     |
-| `graph-drift`    | Graph file(s) changed but source files unchanged                                     |
-| `full-drift`     | Both source and graph files changed                                                  |
+| `ok`             | All tracked file hashes match — nothing changed since last approve                   |
+| `source-drift`   | Source file(s) changed since last approve                                            |
+| `upstream-drift` | Upstream context changed (aspects, flows, dependencies, architecture defaults)       |
 | `missing`        | Mapped source files do not exist on disk                                             |
-| `unmaterialized` | Node has a mapping but files have never been created (no entry in `.drift-state/`)   |
+| `unmaterialized` | Node has never been approved (no entry in `.drift-state/`)                           |
 
 ### Drift Resolution
 

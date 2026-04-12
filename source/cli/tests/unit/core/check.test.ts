@@ -464,7 +464,7 @@ describe('classifyDrift', () => {
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
     });
     await recordBaseline(tmpDir);
-    // Overwrite drift state without mtimes (simulating legacy data)
+    // Overwrite drift state without mtimes (testing graceful handling)
     const storedState = await import('../../../src/io/drift-state-store.js');
     const existing = await storedState.readNodeDriftState(yggRoot, 'svc/my-service');
     await storedState.writeNodeDriftState(yggRoot, 'svc/my-service', {

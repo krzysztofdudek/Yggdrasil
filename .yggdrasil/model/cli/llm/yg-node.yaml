@@ -1,6 +1,6 @@
 name: LLM Provider
 type: adapter
-description: LLM integration layer — provider adapters, aspect verification, and artifact review
+description: LLM integration layer — provider adapters and aspect verification
 aspects:
   - diagnostic-logging
 

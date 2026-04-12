@@ -1,1 +1,0 @@
-Checkout flow description.
