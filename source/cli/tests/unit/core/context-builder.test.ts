@@ -11,6 +11,7 @@ import {
   buildEventRelationLayer,
   collectAncestors,
   collectDependencyAncestors,
+  determineAspectSource,
   collectEffectiveAspectIds,
   toContextMapOutput,
   buildNodeContextData,
@@ -1561,8 +1562,6 @@ describe('buildFileContextData', () => {
     expect(data.dependencies[0].consumed).toContain('api');
   });
 });
-
-import { determineAspectSource, collectDependencyAncestors } from '../../../src/core/context-builder.js';
 
 describe('collectDependencyAncestors', () => {
   it('returns ancestors with expanded aspects', () => {
