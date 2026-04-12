@@ -70,7 +70,7 @@ describe('validator', () => {
     const result = await validate(graph);
 
     const errors = result.issues.filter((i) => i.severity === 'error');
-    // E036: users/missing-service maps src/users/missing.service.ts which doesn't exist on disk
+    // mapping-path-missing: users/missing-service maps src/users/missing.service.ts which doesn't exist on disk
     // (intentional fixture — used by drift tests to verify "missing" detection)
     const unexpectedErrors = errors.filter(
       (i) => !(i.code === 'mapping-path-missing' && i.nodePath === 'users/missing-service'),
@@ -697,11 +697,6 @@ describe('validator', () => {
       path.join(modelDir, 'yg-node.yaml'),
       'name: Wide\ntype: service\ndescription: x\nmapping:\n  - src/wide',
     );
-    await writeFile(
-      path.join(modelDir, 'responsibility.md'),
-      'Wide node responsibility — maps many source files for testing purposes.',
-    );
-
     try {
       const graph = await loadGraph(tmpDir);
       const result = await validate(graph);

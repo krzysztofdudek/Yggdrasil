@@ -204,11 +204,11 @@ describe.skipIf(!distExists)('CLI E2E', () => {
       expect(stdout).toMatch(/Approved: orders\/order-service/);
       expect(stdout).toMatch(/Hash:/);
 
-      // After approving, check should not show E020 for this node
+      // After approving, check should not show source-drift for this node
       const { stdout: checkOut } = run(['check'], tmpDir);
       // The node was just approved — should not show drift for orders/order-service
       const driftLines = checkOut.split('\n').filter((l: string) =>
-        l.includes('E020') && l.includes('orders/order-service'),
+        l.includes('source-drift') && l.includes('orders/order-service'),
       );
       expect(driftLines.length).toBe(0);
     } finally {

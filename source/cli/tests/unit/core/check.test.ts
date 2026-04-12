@@ -25,7 +25,7 @@ async function createTmpProject(name: string, opts: {
   nodeYaml: string;
   configYaml?: string;
   mappingFiles?: Record<string, string>;
-  parentNodes?: Array<{ path: string; yaml: string; artifacts?: Record<string, string> }>;
+  parentNodes?: Array<{ path: string; yaml: string }>;
   aspects?: Array<{ id: string; yaml: string; files?: Record<string, string> }>;
 }) {
   const tmpDir = path.join(__dirname, `../../fixtures/tmp-check-${name}`);
@@ -45,21 +45,12 @@ async function createTmpProject(name: string, opts: {
     opts.configYaml ?? 'name: Test\nnode_types:\n  service:\n    description: x\n',
   );
   await writeFile(path.join(nodeDir, 'yg-node.yaml'), opts.nodeYaml);
-  await writeFile(
-    path.join(nodeDir, 'responsibility.md'),
-    'This node is responsible for testing drift classification scenarios.',
-  );
 
   if (opts.parentNodes) {
     for (const pn of opts.parentNodes) {
       const pDir = path.join(yggRoot, 'model', pn.path);
       await mkdir(pDir, { recursive: true });
       await writeFile(path.join(pDir, 'yg-node.yaml'), pn.yaml);
-      if (pn.artifacts) {
-        for (const [artName, content] of Object.entries(pn.artifacts)) {
-          await writeFile(path.join(pDir, artName), content);
-        }
-      }
     }
   } else {
     const parts = opts.nodePath.split('/');
@@ -298,7 +289,7 @@ describe('classifyDrift', () => {
     await rm(path.join(tmpDir, 'src/svc/helper.ts'), { force: true });
     const graph = await loadGraph(tmpDir);
     const result = await classifyDrift(graph);
-    // Should detect E020 drift (deleted source file)
+    // Should detect source-drift (deleted source file)
     const e020 = result.filter(i => i.code === 'source-drift');
     expect(e020.length).toBeGreaterThanOrEqual(1);
     const changedFiles = e020.flatMap(i => i.directChangedFiles ?? []);
@@ -313,12 +304,8 @@ describe('classifyDrift', () => {
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
     });
     await recordBaseline(tmpDir);
-    // Modify BOTH source file and own artifact
+    // Modify source file
     await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'export default 99;\n');
-    await writeFile(
-      path.join(yggRoot, 'model/svc/my-service/responsibility.md'),
-      'Updated responsibility for full-drift test.',
-    );
     const graph = await loadGraph(tmpDir);
     const result = await classifyDrift(graph);
     const e020 = result.filter(i => i.code === 'source-drift');
@@ -370,7 +357,7 @@ describe('classifyDrift', () => {
     );
     const graph = await loadGraph(tmpDir);
     const result = await classifyDrift(graph);
-    // Should detect some form of drift (E020 because own yg-node.yaml changed,
+    // Should detect some form of drift (source-drift or upstream-drift because own yg-node.yaml changed,
     // plus deleted aspect files from baseline)
     expect(result.length).toBeGreaterThanOrEqual(1);
     await rm(tmpDir, { recursive: true, force: true });
@@ -521,7 +508,6 @@ describe('classifyDrift', () => {
         {
           path: 'svc/my-service',
           yaml: 'name: MyService\ntype: service\ndescription: parent\nmapping:\n  - src/svc/\n',
-          artifacts: { 'responsibility.md': 'Parent service.\n' },
         },
       ],
     });
@@ -693,7 +679,7 @@ describe('suggestedNext priority', () => {
     await writeFile(path.join(yggRoot, 'aspects/logging/rules.md'), 'Updated rules for cascade suggestion test.\n');
     const graph = await loadGraph(tmpDir);
     const result = await runCheck(graph, ['src/svc/index.ts']);
-    // E021 should be present, E020 should not
+    // upstream-drift should be present, source-drift should not
     const e020 = result.issues.filter(i => i.code === 'source-drift');
     const e021 = result.issues.filter(i => i.code === 'upstream-drift');
     expect(e020).toHaveLength(0);
@@ -733,12 +719,12 @@ describe('suggestedNext priority', () => {
     });
     await recordBaseline(tmpDir);
     const graph = await loadGraph(tmpDir);
-    // Pass uncovered files to trigger E022
+    // Pass uncovered files to trigger unmapped-files
     const result = await runCheck(graph, ['src/svc/index.ts', 'src/other/file.ts', 'lib/util.ts']);
     const e022 = result.issues.filter(i => i.code === 'unmapped-files');
     expect(e022).toHaveLength(1);
     // suggestedNext might reference structural or completeness errors from validation,
-    // but if E022 is the only category it should suggest coverage
+    // but if unmapped-files is the only category it should suggest coverage
     if (result.suggestedNext && !result.issues.some(i => i.code === 'source-drift' || i.code === 'upstream-drift' || (['yaml-invalid', 'type-invalid', 'relation-broken', 'config-invalid'].includes(i.code)))) {
       expect(result.suggestedNext).toContain('coverage');
     }
@@ -897,7 +883,6 @@ describe('runCheck', () => {
     await mkdir(node2Dir, { recursive: true });
     await writeFile(path.join(node2Dir, 'yg-node.yaml'),
       'name: Beta\ntype: service\ndescription: beta\naspects:\n  - audit\nmapping:\n  - src/beta/\n');
-    await writeFile(path.join(node2Dir, 'responsibility.md'), 'Beta responsibility.\n');
     await mkdir(path.join(tmpDir, 'src/beta'), { recursive: true });
     await writeFile(path.join(tmpDir, 'src/beta/index.ts'), 'export const b = 2;\n');
 
@@ -952,7 +937,6 @@ describe('runCheck', () => {
     await mkdir(node2Dir, { recursive: true });
     await writeFile(path.join(node2Dir, 'yg-node.yaml'),
       'name: Beta\ntype: service\ndescription: beta\nmapping:\n  - src/beta/\n');
-    await writeFile(path.join(node2Dir, 'responsibility.md'), 'Beta responsibility.\n');
     await mkdir(path.join(tmpDir, 'src/beta'), { recursive: true });
     await writeFile(path.join(tmpDir, 'src/beta/index.ts'), 'export const b = 2;\n');
 
@@ -971,7 +955,7 @@ describe('runCheck', () => {
     const graph = await loadGraph(tmpDir);
     const result = await runCheck(graph, ['src/alpha/index.ts', 'src/beta/index.ts']);
 
-    // Both nodes should have E021 cascade from flow
+    // Both nodes should have upstream-drift cascade from flow
     const e021 = result.issues.filter(i => i.code === 'upstream-drift');
     expect(e021.length).toBeGreaterThanOrEqual(2);
 
@@ -1012,7 +996,7 @@ describe('runCheck', () => {
     const graph = await loadGraph(tmpDir);
     const result = await runCheck(graph, ['src/alpha/index.ts', 'src/beta/index.ts']);
 
-    // Both nodes should have E021 cascade from parent
+    // Both nodes should have upstream-drift cascade from parent
     const e021 = result.issues.filter(i => i.code === 'upstream-drift');
     expect(e021.length).toBeGreaterThanOrEqual(2);
 

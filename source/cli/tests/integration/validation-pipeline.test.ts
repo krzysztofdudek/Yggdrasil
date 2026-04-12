@@ -15,7 +15,7 @@ describe('validation-pipeline', () => {
 
     expect(result.nodesScanned).toBeGreaterThan(0);
     const errors = result.issues.filter((i) => i.severity === 'error');
-    // E036: users/missing-service maps src/users/missing.service.ts which doesn't exist on disk
+    // mapping-path-missing: users/missing-service maps src/users/missing.service.ts which doesn't exist on disk
     // (intentional fixture — used by drift tests to verify "missing" detection)
     const unexpectedErrors = errors.filter(
       (i) => !(i.code === 'mapping-path-missing' && i.nodePath === 'users/missing-service'),

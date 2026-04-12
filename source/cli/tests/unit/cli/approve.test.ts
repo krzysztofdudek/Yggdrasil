@@ -113,7 +113,7 @@ describe('formatBatchOutput', () => {
     expect(output).toContain('Approved: cli/core/loader');
     expect(output).toContain('aspects satisfied');
 
-    // Full output for refused node — not just "✗ E055"
+    // Full output for refused node — not just "✗ aspect-violation"
     expect(output).toContain('NOT SATISFIED');
     expect(output).toContain('Missing normalization on line 42');
 
