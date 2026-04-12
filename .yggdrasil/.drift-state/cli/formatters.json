@@ -1,5 +1,5 @@
 {
-  "hash": "607e6bbb3a1ab56df21e8ff1b43c0c1b47d79ff14ec050e44fe0d208464fe496",
+  "hash": "7bd1eb3c5ce1f0da5f18928cf2b910fd08ce16c03d2e960521675c043c883bf4",
   "files": {
     "own-subset:cli/formatters": "8122d2cba25a8531b287733ac66e353c3a4956d37d3d3a2bcb58e3ed88228f58",
     ".yggdrasil/model/cli/yg-node.yaml": "41ddbf73fbc1ee27a28a5ea5ec7ad656ea34f5938284bd5ab4ea7c3afcbbd69b",
@@ -9,10 +9,10 @@
     ".yggdrasil/model/cli/model/yg-node.yaml": "786d7a0de56123efa1d46ee25813cdab19dffb17b614581d1c8e142d2f4ba939",
     ".yggdrasil/flows/build-context/yg-flow.yaml": "ad7b1fd9f74aacd66fe207b87d611c0b39f13903cc2737f6b0a971c110e07359",
     ".yggdrasil/flows/graph-analysis/yg-flow.yaml": "ad33ff3a4f7de1f9f97d3a728660e6abbeeb47fa6f858c8949f25747535cca80",
-    "source/cli/src/formatters/context-file.ts": "6f327cd0cad480bbff840dd72803d660cbe021158a44583357473a93a3de6b3a",
-    "source/cli/src/formatters/context-node.ts": "0578126df120c7bce18400085afca88da232588888cea0eb91d9c5b80ecc3a7e",
     "source/cli/src/formatters/markdown.ts": "21789ef1f50d62e663d4b5ec14309a995c664dec2f2998d7bb3814881548e4b5",
-    "source/cli/src/formatters/message-builder.ts": "7d4064d1e5c9a62fa3d705d2cce645446462e7d69ecdcd0355d5a625307aea57"
+    "source/cli/src/formatters/message-builder.ts": "7d4064d1e5c9a62fa3d705d2cce645446462e7d69ecdcd0355d5a625307aea57",
+    "source/cli/src/formatters/context-file.ts": "7bf0ffe68adbdbef5e1882a0bffb3e079936e225cdea23d7e3d7b2d78bd66e0b",
+    "source/cli/src/formatters/context-node.ts": "725649fa8a61d8498a590d7328c7f404250b1413c604b2728c8b9743bfd5b63b"
   },
   "mtimes": {
     ".yggdrasil/model/cli/yg-node.yaml": 1775639608581.9402,
@@ -22,8 +22,8 @@
     ".yggdrasil/model/cli/model/yg-node.yaml": 1775623462286.4114,
     ".yggdrasil/flows/build-context/yg-flow.yaml": 1774035679160.1672,
     ".yggdrasil/flows/graph-analysis/yg-flow.yaml": 1775900709658.136,
-    "source/cli/src/formatters/context-file.ts": 1775580390844.4097,
-    "source/cli/src/formatters/context-node.ts": 1775866165978.5024,
+    "source/cli/src/formatters/context-file.ts": 1776019091687.5818,
+    "source/cli/src/formatters/context-node.ts": 1776019101306.1318,
     "source/cli/src/formatters/markdown.ts": 1775870170865.249,
     "source/cli/src/formatters/message-builder.ts": 1775545085536.1055
   }
