@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import path from 'node:path';
 import { loadGraph } from '../core/graph-loader.js';
-import { initDebugLog, debugWrite } from '../utils/debug-log.js';
+import { initDebugLog } from '../utils/debug-log.js';
 import { approveNode, resolveAspects, loadSourceFiles } from '../core/approve.js';
 import { collectTrackedFiles } from '../core/context-files.js';
 import { hashTrackedFiles } from '../utils/hash.js';
@@ -12,8 +12,7 @@ import { createLlmProvider } from '../llm/provider.js';
 import { verifyAspects } from '../llm/aspect-verifier.js';
 import { loadSecrets, mergeLlmConfig } from '../io/secrets-parser.js';
 import { normalizeMappingPaths } from '../utils/paths.js';
-import { buildNodeContextData } from '../core/context-builder.js';
-import { formatNodeContext } from '../formatters/context-node.js';
+import { resolveMaxTokens } from '../llm/api-utils.js';
 import type { LlmProvider } from '../llm/types.js';
 import type { ApproveResult, AspectVerificationResult } from '../model/drift.js';
 import type { Graph } from '../model/graph.js';
@@ -71,8 +70,7 @@ export async function runLlmVerification(
   }
 
   const projectRoot = path.dirname(graph.rootPath);
-  const resolvedMaxTokens = llmConfig.maxTokens
-    ?? (await provider.getContextWindowSize() ?? 8192);
+  const resolvedMaxTokens = await resolveMaxTokens(graph.config.llm!, provider);
 
   const aspects = resolveAspects(node, graph);
 
@@ -86,14 +84,7 @@ export async function runLlmVerification(
   });
   const sourceFiles = await loadSourceFiles(sourceFilePaths, projectRoot);
 
-  // Pre-compute node context for reviewer
-  let nodeContext: string | undefined;
-  try {
-    const contextData = buildNodeContextData(graph, nodePath);
-    nodeContext = formatNodeContext(contextData);
-  } catch (err) {
-    debugWrite(`[approve] context build failed for ${nodePath}: ${(err as Error).message}`);
-  }
+  const nodeDescription = node.meta.description ?? '';
 
   let aspectResults: Record<string, AspectVerificationResult> | undefined;
   const aspectViolations: Array<{ aspectId: string; reason: string }> = [];
@@ -104,11 +95,9 @@ export async function runLlmVerification(
       aspects,
       sourceFiles,
       nodePath,
-      nodeType: node.meta.type,
-      projectRoot,
+      nodeDescription,
       consensus: llmConfig.consensus ?? 1,
       maxTokens: resolvedMaxTokens,
-      nodeContext,
     });
     for (const [aspectId, res] of Object.entries(aspectResults)) {
       if (!res.satisfied) {

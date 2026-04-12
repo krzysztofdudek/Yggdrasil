@@ -352,11 +352,11 @@ export async function loadSourceFiles(
   return results;
 }
 
-/** Resolve aspects with content files for LLM verification */
+/** Resolve aspects with inline content for LLM verification */
 export function resolveAspects(
   node: GraphNode,
   graph: Graph,
-): Array<{ id: string; contentFile: string; contentPath: string }> {
+): Array<{ id: string; description: string; content: string }> {
   const ancestors = collectAncestors(node);
   const parentTypes = ancestors.map(a => a.meta.type);
   const flowAspects = graph.flows
@@ -377,16 +377,14 @@ export function resolveAspects(
   const portAspects = computeEffectiveAspectsForConsumer(node, graph);
   const allAspectIds = new Set([...effective.regular, ...portAspects]);
 
-  const yggDirName = path.basename(graph.rootPath);
-  const result: Array<{ id: string; contentFile: string; contentPath: string }> = [];
+  const result: Array<{ id: string; description: string; content: string }> = [];
   for (const aspectId of allAspectIds) {
     const aspectDef = graph.aspects.find(a => a.id === aspectId);
     if (!aspectDef) continue;
     const contentFiles = aspectDef.artifacts.filter(a => a.filename.endsWith('.md'));
     if (contentFiles.length === 0) continue;
-    const contentFile = contentFiles.map(a => a.content).join('\n\n');
-    const contentPath = `${yggDirName}/aspects/${aspectId}/${contentFiles[0].filename}`;
-    result.push({ id: aspectId, contentFile, contentPath });
+    const content = contentFiles.map(a => a.content).join('\n\n');
+    result.push({ id: aspectId, description: aspectDef.description ?? aspectDef.name, content });
   }
   return result;
 }
