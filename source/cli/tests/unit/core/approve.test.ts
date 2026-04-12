@@ -112,13 +112,13 @@ describe('approveNode — proper nodes', () => {
       aspects: [{
         id: 'logging',
         yaml: 'name: Logging\ndescription: test\n',
-        files: { 'rules.md': 'Log all mutations.\n' },
+        files: { 'content.md': 'Log all mutations.\n' },
       }],
     });
     await recordBaseline(tmpDir);
     // Change source + aspect
     await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'export default 99;\n');
-    await writeFile(path.join(yggRoot, 'aspects/logging/rules.md'), 'Updated rules.\n');
+    await writeFile(path.join(yggRoot, 'aspects/logging/content.md'), 'Updated rules.\n');
     const graph = await loadGraph(tmpDir);
     const result = await approveNode(graph, 'svc/my-service');
     expect(result.action).toBe('approved');
@@ -255,12 +255,12 @@ describe('approveNode — blackbox nodes', () => {
       aspects: [{
         id: 'logging',
         yaml: 'name: Logging\ndescription: test\n',
-        files: { 'rules.md': 'Log all.\n' },
+        files: { 'content.md': 'Log all.\n' },
       }],
     });
     await recordBaseline(tmpDir);
     await writeFile(path.join(tmpDir, 'src/auth/login.ts'), 'export function login() { return true; }\n');
-    await writeFile(path.join(yggRoot, 'aspects/logging/rules.md'), 'Updated.\n');
+    await writeFile(path.join(yggRoot, 'aspects/logging/content.md'), 'Updated.\n');
     const graph = await loadGraph(tmpDir);
     const result = await approveNode(graph, 'legacy/auth');
     expect(result.action).toBe('refused');
@@ -370,7 +370,7 @@ describe('approveNode — deleted tracked files', () => {
       aspects: [{
         id: 'logging',
         yaml: 'name: Logging\ndescription: test\n',
-        files: { 'rules.md': 'Log all mutations.\n' },
+        files: { 'content.md': 'Log all mutations.\n' },
       }],
     });
     await recordBaseline(tmpDir);
@@ -509,12 +509,12 @@ describe('approveNode — blackbox upstream-only auto-clear', () => {
       aspects: [{
         id: 'logging',
         yaml: 'name: Logging\ndescription: test\n',
-        files: { 'rules.md': 'Log all.\n' },
+        files: { 'content.md': 'Log all.\n' },
       }],
     });
     await recordBaseline(tmpDir);
     // Only modify aspect (upstream), NOT source — triggers auto-clear path (line 241-255)
-    await writeFile(path.join(yggRoot, 'aspects/logging/rules.md'), 'Updated upstream only.\n');
+    await writeFile(path.join(yggRoot, 'aspects/logging/content.md'), 'Updated upstream only.\n');
     const graph = await loadGraph(tmpDir);
     const result = await approveNode(graph, 'legacy/auth');
     expect(result.action).toBe('approved');

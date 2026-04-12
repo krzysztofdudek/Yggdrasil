@@ -22,7 +22,7 @@ describe('schema-parser', () => {
   it('infers schemaType for aspect', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-schema-aspect');
     await mkdir(tmpDir, { recursive: true });
-    await writeFile(path.join(tmpDir, 'yg-aspect.yaml'), 'name: X\ntag: requires-x\n', 'utf-8');
+    await writeFile(path.join(tmpDir, 'yg-aspect.yaml'), 'name: RequiresX\ndescription: x\n', 'utf-8');
 
     const s = await parseSchema(path.join(tmpDir, 'yg-aspect.yaml'));
 

@@ -98,7 +98,7 @@ export interface GraphNode {
 }
 
 export interface Artifact {
-  /** Filename, e.g. "rules.md" */
+  /** Filename, e.g. "content.md" */
   filename: string;
   /** Full text content of the file */
   content: string;

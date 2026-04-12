@@ -1,1 +1,0 @@
-const something = 42;

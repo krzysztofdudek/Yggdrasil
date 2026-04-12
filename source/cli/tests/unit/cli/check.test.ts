@@ -40,7 +40,7 @@ function makeWarning(code: string, message: string): CheckIssue {
 
 function makeCascadeIssue(nodePath: string, causeDescription: string): CheckIssue {
   const causes: CascadeCause[] = [
-    { file: `.yggdrasil/aspects/some-aspect/rules.md`, layer: 'aspects', description: causeDescription },
+    { file: `.yggdrasil/aspects/some-aspect/content.md`, layer: 'aspects', description: causeDescription },
   ];
   const message = `Context package changed due to 1 upstream modification:\n  Cause: ${causeDescription}\nSource may no longer satisfy updated aspect requirements.\nLoad context: yg context --node ${nodePath}\nVerify source compliance, update if needed, then: yg approve --node ${nodePath}`;
   return {

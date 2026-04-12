@@ -1,6 +1,0 @@
-name: Dep
-type: service
-description: dependency
-integration_anchors:
-  - correlation-id
-  - trace-id

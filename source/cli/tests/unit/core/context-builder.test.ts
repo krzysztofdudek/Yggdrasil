@@ -56,11 +56,11 @@ describe('context-builder', () => {
       const layer = buildAspectLayer({
         name: 'Audit',
         id: 'requires-audit',
-        artifacts: [{ filename: 'rules.md', content: 'Log all mutations' }],
+        artifacts: [{ filename: 'content.md', content: 'Log all mutations' }],
       });
       expect(layer.type).toBe('aspects');
       expect(layer.label).toContain('Audit');
-      expect(layer.content).toContain('### rules.md');
+      expect(layer.content).toContain('### content.md');
     });
 
     it('does not include stability tier', () => {

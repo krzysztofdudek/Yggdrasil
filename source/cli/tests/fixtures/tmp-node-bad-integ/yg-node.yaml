@@ -1,3 +1,0 @@
-name: Bad
-type: service
-integration_anchors: "not-array"

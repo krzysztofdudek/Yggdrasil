@@ -1,7 +1,0 @@
-name: Bad
-type: service
-relations:
-  - target: target-svc
-    type: calls
-    anchors:
-      my-anchor: "string-value"

@@ -1,6 +1,0 @@
-openapi: '3.0'
-paths:
-  /login:
-    post: {}
-  /logout:
-    post: {}

@@ -186,12 +186,12 @@ describe('classifyDrift', () => {
       aspects: [{
         id: 'logging',
         yaml: 'name: Logging\ndescription: test aspect\n',
-        files: { 'rules.md': 'Log all mutations.\n' },
+        files: { 'content.md': 'Log all mutations.\n' },
       }],
     });
     await recordBaseline(tmpDir);
     // Modify aspect content file
-    await writeFile(path.join(yggRoot, 'aspects/logging/rules.md'), 'Log ALL operations, not just mutations.\n');
+    await writeFile(path.join(yggRoot, 'aspects/logging/content.md'), 'Log ALL operations, not just mutations.\n');
     const graph = await loadGraph(tmpDir);
     const result = await classifyDrift(graph);
     const e021 = result.filter(i => i.code === 'upstream-drift');
@@ -210,13 +210,13 @@ describe('classifyDrift', () => {
       aspects: [{
         id: 'logging',
         yaml: 'name: Logging\ndescription: test aspect\n',
-        files: { 'rules.md': 'Log all mutations.\n' },
+        files: { 'content.md': 'Log all mutations.\n' },
       }],
     });
     await recordBaseline(tmpDir);
     // Modify BOTH source and aspect
     await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'export default 99;\n');
-    await writeFile(path.join(yggRoot, 'aspects/logging/rules.md'), 'Updated rules.\n');
+    await writeFile(path.join(yggRoot, 'aspects/logging/content.md'), 'Updated rules.\n');
     const graph = await loadGraph(tmpDir);
     const result = await classifyDrift(graph);
     const nodeIssues = result.filter(i => i.nodePath === 'svc/my-service');
@@ -346,7 +346,7 @@ describe('classifyDrift', () => {
       aspects: [{
         id: 'logging',
         yaml: 'name: Logging\ndescription: test aspect\n',
-        files: { 'rules.md': 'Log all mutations.\n' },
+        files: { 'content.md': 'Log all mutations.\n' },
       }],
     });
     await recordBaseline(tmpDir);
@@ -423,7 +423,7 @@ describe('classifyDrift', () => {
       aspects: [{
         id: 'logging',
         yaml: 'name: Logging\ndescription: test aspect\n',
-        files: { 'rules.md': 'Log all mutations.\n' },
+        files: { 'content.md': 'Log all mutations.\n' },
       }],
       parentNodes: [
         {
@@ -439,7 +439,7 @@ describe('classifyDrift', () => {
     await recordBaseline(tmpDir);
     // Trigger cascade from TWO different upstream sources simultaneously:
     // 1. aspect file change
-    await writeFile(path.join(yggRoot, 'aspects/logging/rules.md'), 'Updated logging rules triggering cascade.\n');
+    await writeFile(path.join(yggRoot, 'aspects/logging/content.md'), 'Updated logging rules triggering cascade.\n');
     // 2. dependency yg-node.yaml change
     await writeFile(path.join(yggRoot, 'model/svc/dep/yg-node.yaml'), 'name: Dep\ntype: service\ndescription: updated dep\n');
     const graph = await loadGraph(tmpDir);
@@ -671,12 +671,12 @@ describe('suggestedNext priority', () => {
       aspects: [{
         id: 'logging',
         yaml: 'name: Logging\ndescription: test aspect\n',
-        files: { 'rules.md': 'Log all mutations.\n' },
+        files: { 'content.md': 'Log all mutations.\n' },
       }],
     });
     await recordBaseline(tmpDir);
     // Only modify aspect (cascade) -- do NOT modify source or own metadata
-    await writeFile(path.join(yggRoot, 'aspects/logging/rules.md'), 'Updated rules for cascade suggestion test.\n');
+    await writeFile(path.join(yggRoot, 'aspects/logging/content.md'), 'Updated rules for cascade suggestion test.\n');
     const graph = await loadGraph(tmpDir);
     const result = await runCheck(graph, ['src/svc/index.ts']);
     // upstream-drift should be present, source-drift should not
@@ -874,7 +874,7 @@ describe('runCheck', () => {
       aspects: [{
         id: 'audit',
         yaml: 'name: Audit\ndescription: audit\n',
-        files: { 'rules.md': 'Log mutations.\n' },
+        files: { 'content.md': 'Log mutations.\n' },
       }],
     });
 
@@ -889,7 +889,7 @@ describe('runCheck', () => {
     await recordBaseline(tmpDir);
 
     // Modify aspect to trigger cascade on both nodes
-    await writeFile(path.join(yggRoot, 'aspects/audit/rules.md'), 'Updated audit rules.\n');
+    await writeFile(path.join(yggRoot, 'aspects/audit/content.md'), 'Updated audit rules.\n');
 
     const graph = await loadGraph(tmpDir);
     const result = await runCheck(graph, ['src/alpha/index.ts', 'src/beta/index.ts']);
@@ -907,12 +907,12 @@ describe('runCheck', () => {
       aspects: [{
         id: 'audit',
         yaml: 'name: Audit\ndescription: audit\n',
-        files: { 'rules.md': 'Log mutations.\n' },
+        files: { 'content.md': 'Log mutations.\n' },
       }],
     });
 
     await recordBaseline(tmpDir);
-    await writeFile(path.join(yggRoot, 'aspects/audit/rules.md'), 'Updated.\n');
+    await writeFile(path.join(yggRoot, 'aspects/audit/content.md'), 'Updated.\n');
 
     const graph = await loadGraph(tmpDir);
     const result = await runCheck(graph, ['src/alpha/index.ts']);
@@ -1016,12 +1016,12 @@ describe('runCheck', () => {
       aspects: [{
         id: 'logging',
         yaml: 'name: Logging\ndescription: test aspect\n',
-        files: { 'rules.md': 'Log all mutations.\n' },
+        files: { 'content.md': 'Log all mutations.\n' },
       }],
     });
     await recordBaseline(tmpDir);
     // Delete the aspect content file on disk (still in baseline)
-    await rm(path.join(yggRoot, 'aspects/logging/rules.md'), { force: true });
+    await rm(path.join(yggRoot, 'aspects/logging/content.md'), { force: true });
     const graph = await loadGraph(tmpDir);
     const result = await classifyDrift(graph);
     // Should detect upstream-drift from the deleted aspect file

@@ -2,6 +2,3 @@ name: Audit Logging
 description: x
 implies:
   - requires-logging
-anchors:
-  - id: audit-entry
-    claim: "All mutations produce audit log entries"
