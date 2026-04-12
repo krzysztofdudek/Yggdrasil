@@ -467,17 +467,16 @@ Displays the graph structure as a tree with node metadata.
 **Result:**
 
 ```text
-model/
-├── auth/ [module] -> 0 relations
-│   ├── login-service/ [service] aspects:requires-auth -> 1 relations
-│   └── token-service/ [service] -> 0 relations
-├── orders/ [module] -> 0 relations
-│   └── order-service/ [service] aspects:requires-audit,requires-auth -> 2 relations
-└── payments/ [module] ■ blackbox -> 0 relations
-    └── payment-service/ [service] ■ blackbox -> 0 relations
+auth [module] — Authentication module
+auth/login-service [service] — Handles user login and session creation
+auth/token-service [service] — JWT token generation and validation
+orders [module] — Order processing domain
+orders/order-service [service] — Manages order lifecycle
+payments [module] — Payment processing (blackbox)
+payments/payment-service [service] — Processes payments
 ```
 
-Format: path, type in brackets, aspects (if any), blackbox flag (if true), number of outgoing relations.
+Flat list sorted by path. Format: `path [type] — description`.
 
 **Errors:**
 

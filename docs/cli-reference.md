@@ -99,7 +99,7 @@ Exactly one of `--node`, `--aspect`, or `--flow` is required.
 
 ### `yg tree`
 
-Prints the full structure of the semantic memory.
+Prints a flat list of all nodes with path, type, and description.
 
 ```bash
 yg tree [--root <path>] [--depth <n>]

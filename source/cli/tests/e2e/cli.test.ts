@@ -164,18 +164,18 @@ describe.skipIf(!distExists)('CLI E2E', () => {
     const { stdout, status } = run(['tree', '--root', 'auth']);
     expect(status).toBe(0);
     expect(stdout).toContain('auth');
-    expect(stdout).toContain('auth-api');
-    expect(stdout).toContain('auth-api');
-    // Subtree mode: no project name as first line, auth is the root
-    expect(stdout).not.toContain('Sample E-Commerce');
+    expect(stdout).toContain('auth/auth-api');
+    // Subtree mode: only auth nodes
     expect(stdout).not.toContain('orders');
     expect(stdout).not.toContain('users');
   });
 
-  it('yg tree --compact hides metadata lines', () => {
+  it('yg tree shows flat list with type and description', () => {
     const { stdout, status } = run(['tree']);
     expect(status).toBe(0);
-    expect(stdout).toContain('auth');
+    // Flat format: path [type] — description
+    expect(stdout).toMatch(/auth \[/);
+    expect(stdout).toMatch(/\[module\]|\[service\]|\[project\]/);
   });
 
   it('yg tree --root nonexistent returns exit 1', () => {

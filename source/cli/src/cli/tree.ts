@@ -7,7 +7,7 @@ import type { GraphNode } from '../model/graph.js';
 export function registerTreeCommand(program: Command): void {
   program
     .command('tree')
-    .description('Display graph structure as a tree')
+    .description('Display graph structure as a flat list')
     .option('--root <path>', 'Show only subtree rooted at this path')
     .option('--depth <n>', 'Maximum depth', (v) => parseInt(v, 10))
     .action(async (options: { root?: string; depth?: number }) => {
@@ -16,7 +16,6 @@ export function registerTreeCommand(program: Command): void {
         initDebugLog(graph.rootPath, graph.config.debug ?? false);
 
         let roots: GraphNode[];
-        let showProjectName: boolean;
 
         if (options.root?.trim()) {
           const path = options.root.trim().replace(/\/$/, '');
@@ -26,21 +25,19 @@ export function registerTreeCommand(program: Command): void {
             process.exit(1);
           }
           roots = [node];
-          showProjectName = false;
         } else {
           roots = [...graph.nodes.values()]
             .filter((n) => n.parent === null)
             .sort((a, b) => a.path.localeCompare(b.path));
-          showProjectName = true;
         }
 
-        if (showProjectName) {
-          process.stdout.write('model/\n');
+        const lines: string[] = [];
+        for (const root of roots) {
+          collectNodes(root, lines, 0, options.depth);
         }
 
-        for (let i = 0; i < roots.length; i++) {
-          const isLast = i === roots.length - 1;
-          printNode(roots[i], '', isLast, 1, options.depth);
+        for (const line of lines) {
+          process.stdout.write(line + '\n');
         }
       } catch (error) {
         const err = error as NodeJS.ErrnoException;
@@ -56,31 +53,22 @@ export function registerTreeCommand(program: Command): void {
     });
 }
 
-function printNode(
+function collectNodes(
   node: GraphNode,
-  prefix: string,
-  isLast: boolean,
+  lines: string[],
   depth: number,
   maxDepth: number | undefined,
 ): void {
-  const connector = isLast ? '└── ' : '├── ';
-  const name = node.path.split('/').pop() ?? node.path;
-  const type = `[${node.meta.type}]`;
-  const tags = node.meta.aspects?.length ? ` aspects:${node.meta.aspects.join(',')}` : '';
-  const blackbox = node.meta.blackbox ? ' ■ blackbox' : '';
-  const relationCount = node.meta.relations?.length ?? 0;
+  const desc = node.meta.description?.trim();
+  const line = desc
+    ? `${node.path} [${node.meta.type}] — ${desc}`
+    : `${node.path} [${node.meta.type}]`;
+  lines.push(line);
 
-  process.stdout.write(
-    `${prefix}${connector}${name}/ ${type}${tags}${blackbox} -> ${relationCount} relations\n`,
-  );
-
-  const childPrefix = prefix + (isLast ? '    ' : '│   ');
-
-  // Recurse into children
   if (maxDepth !== undefined && depth >= maxDepth) return;
 
   const children = [...node.children].sort((a, b) => a.path.localeCompare(b.path));
-  for (let i = 0; i < children.length; i++) {
-    printNode(children[i], childPrefix, i === children.length - 1, depth + 1, maxDepth);
+  for (const child of children) {
+    collectNodes(child, lines, depth + 1, maxDepth);
   }
 }
