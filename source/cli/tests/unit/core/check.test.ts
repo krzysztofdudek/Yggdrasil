@@ -133,10 +133,10 @@ describe('classifyDrift', () => {
     await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'export default 99;\n');
     const graph = await loadGraph(tmpDir);
     const result = await classifyDrift(graph);
-    const e020 = result.filter(i => i.code === 'source-drift');
-    expect(e020).toHaveLength(1);
-    expect(e020[0].nodePath).toBe('svc/my-service');
-    expect(e020[0].lifecycleState).toBe('ok');
+    const sourceDrift = result.filter(i => i.code === 'source-drift');
+    expect(sourceDrift).toHaveLength(1);
+    expect(sourceDrift[0].nodePath).toBe('svc/my-service');
+    expect(sourceDrift[0].lifecycleState).toBe('ok');
     await rm(tmpDir, { recursive: true, force: true });
   });
 
@@ -194,11 +194,11 @@ describe('classifyDrift', () => {
     await writeFile(path.join(yggRoot, 'aspects/logging/content.md'), 'Log ALL operations, not just mutations.\n');
     const graph = await loadGraph(tmpDir);
     const result = await classifyDrift(graph);
-    const e021 = result.filter(i => i.code === 'upstream-drift');
-    expect(e021.length).toBeGreaterThanOrEqual(1);
-    expect(e021[0].nodePath).toBe('svc/my-service');
-    expect(e021[0].cascadeCauses!).toHaveLength(1);
-    expect(e021[0].cascadeCauses![0].description).toContain('logging');
+    const upstreamDrift = result.filter(i => i.code === 'upstream-drift');
+    expect(upstreamDrift.length).toBeGreaterThanOrEqual(1);
+    expect(upstreamDrift[0].nodePath).toBe('svc/my-service');
+    expect(upstreamDrift[0].cascadeCauses!).toHaveLength(1);
+    expect(upstreamDrift[0].cascadeCauses![0].description).toContain('logging');
     await rm(tmpDir, { recursive: true, force: true });
   });
 
@@ -220,10 +220,10 @@ describe('classifyDrift', () => {
     const graph = await loadGraph(tmpDir);
     const result = await classifyDrift(graph);
     const nodeIssues = result.filter(i => i.nodePath === 'svc/my-service');
-    const e020 = nodeIssues.filter(i => i.code === 'source-drift');
-    const e021 = nodeIssues.filter(i => i.code === 'upstream-drift');
-    expect(e020).toHaveLength(1);
-    expect(e021).toHaveLength(1);
+    const sourceDrift = nodeIssues.filter(i => i.code === 'source-drift');
+    const upstreamDrift = nodeIssues.filter(i => i.code === 'upstream-drift');
+    expect(sourceDrift).toHaveLength(1);
+    expect(upstreamDrift).toHaveLength(1);
     await rm(tmpDir, { recursive: true, force: true });
   });
 
@@ -251,10 +251,10 @@ describe('classifyDrift', () => {
     // Do NOT record baseline
     const graph = await loadGraph(tmpDir);
     const result = await classifyDrift(graph);
-    const e020 = result.filter(i => i.code === 'source-drift');
-    expect(e020).toHaveLength(1);
-    expect(e020[0].lifecycleState).toBe('unmaterialized');
-    expect(e020[0].message).toContain('never created');
+    const sourceDrift = result.filter(i => i.code === 'source-drift');
+    expect(sourceDrift).toHaveLength(1);
+    expect(sourceDrift[0].lifecycleState).toBe('unmaterialized');
+    expect(sourceDrift[0].message).toContain('never created');
     await rm(tmpDir, { recursive: true, force: true });
   });
 
@@ -269,9 +269,9 @@ describe('classifyDrift', () => {
     await rm(path.join(tmpDir, 'src/svc'), { recursive: true, force: true });
     const graph = await loadGraph(tmpDir);
     const result = await classifyDrift(graph);
-    const e020 = result.filter(i => i.code === 'source-drift');
-    expect(e020).toHaveLength(1);
-    expect(e020[0].lifecycleState).toBe('missing');
+    const sourceDrift = result.filter(i => i.code === 'source-drift');
+    expect(sourceDrift).toHaveLength(1);
+    expect(sourceDrift[0].lifecycleState).toBe('missing');
     await rm(tmpDir, { recursive: true, force: true });
   });
 
@@ -290,9 +290,9 @@ describe('classifyDrift', () => {
     const graph = await loadGraph(tmpDir);
     const result = await classifyDrift(graph);
     // Should detect source-drift (deleted source file)
-    const e020 = result.filter(i => i.code === 'source-drift');
-    expect(e020.length).toBeGreaterThanOrEqual(1);
-    const changedFiles = e020.flatMap(i => i.directChangedFiles ?? []);
+    const sourceDrift = result.filter(i => i.code === 'source-drift');
+    expect(sourceDrift.length).toBeGreaterThanOrEqual(1);
+    const changedFiles = sourceDrift.flatMap(i => i.directChangedFiles ?? []);
     expect(changedFiles.some(f => f.filePath.includes('deleted'))).toBe(true);
     await rm(tmpDir, { recursive: true, force: true });
   });
@@ -308,9 +308,9 @@ describe('classifyDrift', () => {
     await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'export default 99;\n');
     const graph = await loadGraph(tmpDir);
     const result = await classifyDrift(graph);
-    const e020 = result.filter(i => i.code === 'source-drift');
-    expect(e020).toHaveLength(1);
-    expect(e020[0].lifecycleState).toBe('ok');
+    const sourceDrift = result.filter(i => i.code === 'source-drift');
+    expect(sourceDrift).toHaveLength(1);
+    expect(sourceDrift[0].lifecycleState).toBe('ok');
     await rm(tmpDir, { recursive: true, force: true });
   });
 
@@ -332,9 +332,9 @@ describe('classifyDrift', () => {
     );
     const graph = await loadGraph(tmpDir);
     const result = await classifyDrift(graph);
-    const e021 = result.filter(i => i.code === 'upstream-drift' && i.nodePath === 'svc/my-service');
-    expect(e021.length).toBeGreaterThanOrEqual(1);
-    expect(e021[0].cascadeCauses![0].layer).toBe('hierarchy');
+    const upstreamDrift = result.filter(i => i.code === 'upstream-drift' && i.nodePath === 'svc/my-service');
+    expect(upstreamDrift.length).toBeGreaterThanOrEqual(1);
+    expect(upstreamDrift[0].cascadeCauses![0].layer).toBe('hierarchy');
     await rm(tmpDir, { recursive: true, force: true });
   });
 
@@ -378,9 +378,9 @@ describe('classifyDrift', () => {
     await writeFile(path.join(flowDir, 'yg-flow.yaml'), 'name: Checkout Flow\ndescription: updated flow\nnodes:\n  - svc/my-service\n');
     const graph = await loadGraph(tmpDir);
     const result = await classifyDrift(graph);
-    const e021 = result.filter(i => i.code === 'upstream-drift' && i.nodePath === 'svc/my-service');
-    expect(e021.length).toBeGreaterThanOrEqual(1);
-    expect(e021[0].cascadeCauses!.some(c => c.layer === 'flows')).toBe(true);
+    const upstreamDrift = result.filter(i => i.code === 'upstream-drift' && i.nodePath === 'svc/my-service');
+    expect(upstreamDrift.length).toBeGreaterThanOrEqual(1);
+    expect(upstreamDrift[0].cascadeCauses!.some(c => c.layer === 'flows')).toBe(true);
     await rm(tmpDir, { recursive: true, force: true });
   });
 
@@ -408,9 +408,9 @@ describe('classifyDrift', () => {
     );
     const graph = await loadGraph(tmpDir);
     const result = await classifyDrift(graph);
-    const e021 = result.filter(i => i.code === 'upstream-drift' && i.nodePath === 'svc/my-service');
-    expect(e021.length).toBeGreaterThanOrEqual(1);
-    expect(e021[0].cascadeCauses!.some(c => c.layer === 'relational')).toBe(true);
+    const upstreamDrift = result.filter(i => i.code === 'upstream-drift' && i.nodePath === 'svc/my-service');
+    expect(upstreamDrift.length).toBeGreaterThanOrEqual(1);
+    expect(upstreamDrift[0].cascadeCauses!.some(c => c.layer === 'relational')).toBe(true);
     await rm(tmpDir, { recursive: true, force: true });
   });
 
@@ -444,12 +444,12 @@ describe('classifyDrift', () => {
     await writeFile(path.join(yggRoot, 'model/svc/dep/yg-node.yaml'), 'name: Dep\ntype: service\ndescription: updated dep\n');
     const graph = await loadGraph(tmpDir);
     const result = await classifyDrift(graph);
-    const e021 = result.filter(i => i.code === 'upstream-drift' && i.nodePath === 'svc/my-service');
+    const upstreamDrift = result.filter(i => i.code === 'upstream-drift' && i.nodePath === 'svc/my-service');
     // Must collapse to exactly ONE upstream-drift for this node
-    expect(e021).toHaveLength(1);
+    expect(upstreamDrift).toHaveLength(1);
     // Must contain causes from both upstream changes
-    expect(e021[0].cascadeCauses!.length).toBeGreaterThanOrEqual(2);
-    const layers = e021[0].cascadeCauses!.map(c => c.layer);
+    expect(upstreamDrift[0].cascadeCauses!.length).toBeGreaterThanOrEqual(2);
+    const layers = upstreamDrift[0].cascadeCauses!.map(c => c.layer);
     expect(layers).toContain('aspects');
     expect(layers).toContain('relational');
     await rm(tmpDir, { recursive: true, force: true });
@@ -476,9 +476,9 @@ describe('classifyDrift', () => {
     await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'export default 99;\n');
     const graph = await loadGraph(tmpDir);
     const result = await classifyDrift(graph);
-    const e020 = result.filter(i => i.code === 'source-drift');
-    expect(e020).toHaveLength(1);
-    expect(e020[0].lifecycleState).toBe('ok');
+    const sourceDrift = result.filter(i => i.code === 'source-drift');
+    expect(sourceDrift).toHaveLength(1);
+    expect(sourceDrift[0].lifecycleState).toBe('ok');
     await rm(tmpDir, { recursive: true, force: true });
   });
 
@@ -680,12 +680,12 @@ describe('suggestedNext priority', () => {
     const graph = await loadGraph(tmpDir);
     const result = await runCheck(graph, ['src/svc/index.ts']);
     // upstream-drift should be present, source-drift should not
-    const e020 = result.issues.filter(i => i.code === 'source-drift');
-    const e021 = result.issues.filter(i => i.code === 'upstream-drift');
-    expect(e020).toHaveLength(0);
-    expect(e021.length).toBeGreaterThanOrEqual(1);
+    const sourceDrift = result.issues.filter(i => i.code === 'source-drift');
+    const upstreamDrift = result.issues.filter(i => i.code === 'upstream-drift');
+    expect(sourceDrift).toHaveLength(0);
+    expect(upstreamDrift.length).toBeGreaterThanOrEqual(1);
     // Suggested next should reference cascade context review
-    if (result.suggestedNext && e021.length > 0) {
+    if (result.suggestedNext && upstreamDrift.length > 0) {
       expect(result.suggestedNext).toContain('svc/my-service');
     }
     await rm(tmpDir, { recursive: true, force: true });
@@ -721,8 +721,8 @@ describe('suggestedNext priority', () => {
     const graph = await loadGraph(tmpDir);
     // Pass uncovered files to trigger unmapped-files
     const result = await runCheck(graph, ['src/svc/index.ts', 'src/other/file.ts', 'lib/util.ts']);
-    const e022 = result.issues.filter(i => i.code === 'unmapped-files');
-    expect(e022).toHaveLength(1);
+    const unmappedFiles = result.issues.filter(i => i.code === 'unmapped-files');
+    expect(unmappedFiles).toHaveLength(1);
     // suggestedNext might reference structural or completeness errors from validation,
     // but if unmapped-files is the only category it should suggest coverage
     if (result.suggestedNext && !result.issues.some(i => i.code === 'source-drift' || i.code === 'upstream-drift' || (['yaml-invalid', 'type-invalid', 'relation-broken', 'config-invalid'].includes(i.code)))) {
@@ -763,8 +763,8 @@ describe('runCheck', () => {
     await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'export default 99;\n');
     const graph = await loadGraph(tmpDir);
     const result = await runCheck(graph, ['src/svc/index.ts']);
-    const e020 = result.issues.filter(i => i.code === 'source-drift');
-    expect(e020.length).toBeGreaterThanOrEqual(1);
+    const sourceDrift = result.issues.filter(i => i.code === 'source-drift');
+    expect(sourceDrift.length).toBeGreaterThanOrEqual(1);
     await rm(tmpDir, { recursive: true, force: true });
   });
 
@@ -777,8 +777,8 @@ describe('runCheck', () => {
     await recordBaseline(tmpDir);
     const graph = await loadGraph(tmpDir);
     const result = await runCheck(graph, ['src/svc/index.ts', 'src/other/util.ts']);
-    const e022 = result.issues.filter(i => i.code === 'unmapped-files');
-    expect(e022).toHaveLength(1);
+    const unmappedFiles = result.issues.filter(i => i.code === 'unmapped-files');
+    expect(unmappedFiles).toHaveLength(1);
     await rm(tmpDir, { recursive: true, force: true });
   });
 
@@ -791,8 +791,8 @@ describe('runCheck', () => {
     await recordBaseline(tmpDir);
     const graph = await loadGraph(tmpDir);
     const result = await runCheck(graph, null);
-    const e022 = result.issues.filter(i => i.code === 'unmapped-files');
-    expect(e022).toHaveLength(0);
+    const unmappedFiles = result.issues.filter(i => i.code === 'unmapped-files');
+    expect(unmappedFiles).toHaveLength(0);
     expect(result.totalFiles).toBe(0);
     await rm(tmpDir, { recursive: true, force: true });
   });
@@ -956,8 +956,8 @@ describe('runCheck', () => {
     const result = await runCheck(graph, ['src/alpha/index.ts', 'src/beta/index.ts']);
 
     // Both nodes should have upstream-drift cascade from flow
-    const e021 = result.issues.filter(i => i.code === 'upstream-drift');
-    expect(e021.length).toBeGreaterThanOrEqual(2);
+    const upstreamDrift = result.issues.filter(i => i.code === 'upstream-drift');
+    expect(upstreamDrift.length).toBeGreaterThanOrEqual(2);
 
     // suggestedNext should reference --flow batch command
     expect(result.suggestedNext).toContain('--flow checkout-flow');
@@ -997,8 +997,8 @@ describe('runCheck', () => {
     const result = await runCheck(graph, ['src/alpha/index.ts', 'src/beta/index.ts']);
 
     // Both nodes should have upstream-drift cascade from parent
-    const e021 = result.issues.filter(i => i.code === 'upstream-drift');
-    expect(e021.length).toBeGreaterThanOrEqual(2);
+    const upstreamDrift = result.issues.filter(i => i.code === 'upstream-drift');
+    expect(upstreamDrift.length).toBeGreaterThanOrEqual(2);
 
     // suggestedNext should reference --node batch with parent path
     expect(result.suggestedNext).toContain('--node svc');

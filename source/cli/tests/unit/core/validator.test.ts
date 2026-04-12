@@ -787,10 +787,10 @@ describe('validator', () => {
       graph.nodes.set('b', createNode('b', { type: 'library' })); // library not in allowed list
 
       const result = await validate(graph);
-      const e051 = result.issues.find(i => i.code === 'relation-target-forbidden' && i.nodePath === 'a');
-      expect(e051).toBeDefined();
-      expect(e051!.message).toContain('calls');
-      expect(e051!.message).toContain('library');
+      const relationTargetForbidden = result.issues.find(i => i.code === 'relation-target-forbidden' && i.nodePath === 'a');
+      expect(relationTargetForbidden).toBeDefined();
+      expect(relationTargetForbidden!.message).toContain('calls');
+      expect(relationTargetForbidden!.message).toContain('library');
     });
 
     it('invalid-relation-target not fired when relation target type is allowed', async () => {
@@ -812,8 +812,8 @@ describe('validator', () => {
       graph.nodes.set('b', createNode('b', { type: 'module' }));
 
       const result = await validate(graph);
-      const e051 = result.issues.find(i => i.code === 'relation-target-forbidden' && i.nodePath === 'a');
-      expect(e051).toBeUndefined();
+      const relationTargetForbidden = result.issues.find(i => i.code === 'relation-target-forbidden' && i.nodePath === 'a');
+      expect(relationTargetForbidden).toBeUndefined();
     });
 
     it('invalid-parent-type when parent type not in allowed list', async () => {
@@ -837,10 +837,10 @@ describe('validator', () => {
       graph.nodes.set('parent/child', childNode);
 
       const result = await validate(graph);
-      const e052 = result.issues.find(i => i.code === 'parent-type-forbidden' && i.nodePath === 'parent/child');
-      expect(e052).toBeDefined();
-      expect(e052!.message).toContain('library');
-      expect(e052!.message).toContain('service');
+      const parentTypeForbidden = result.issues.find(i => i.code === 'parent-type-forbidden' && i.nodePath === 'parent/child');
+      expect(parentTypeForbidden).toBeDefined();
+      expect(parentTypeForbidden!.message).toContain('library');
+      expect(parentTypeForbidden!.message).toContain('service');
     });
 
     it('invalid-parent-type not fired when parent type is in allowed list', async () => {
@@ -863,8 +863,8 @@ describe('validator', () => {
       graph.nodes.set('parent/child', childNode);
 
       const result = await validate(graph);
-      const e052 = result.issues.find(i => i.code === 'parent-type-forbidden' && i.nodePath === 'parent/child');
-      expect(e052).toBeUndefined();
+      const parentTypeForbidden = result.issues.find(i => i.code === 'parent-type-forbidden' && i.nodePath === 'parent/child');
+      expect(parentTypeForbidden).toBeUndefined();
     });
 
     it('integration-aspect-missing when consumer uses a port whose required aspect is not defined', async () => {
@@ -879,11 +879,11 @@ describe('validator', () => {
       }));
 
       const result = await validate(graph);
-      const e053 = result.issues.filter(i => i.code === 'port-missing-aspect' && i.nodePath === 'consumer');
-      expect(e053).toHaveLength(1);
-      expect(e053[0].rule).toBe('integration-aspect-missing');
-      expect(e053[0].message).toContain('audit-logging');
-      expect(e053[0].message).toContain("port 'api'");
+      const portMissingAspect = result.issues.filter(i => i.code === 'port-missing-aspect' && i.nodePath === 'consumer');
+      expect(portMissingAspect).toHaveLength(1);
+      expect(portMissingAspect[0].rule).toBe('integration-aspect-missing');
+      expect(portMissingAspect[0].message).toContain('audit-logging');
+      expect(portMissingAspect[0].message).toContain("port 'api'");
     });
 
     it('integration-aspect-missing not fired when consumer uses a port whose required aspect exists', async () => {
@@ -898,8 +898,8 @@ describe('validator', () => {
       }));
 
       const result = await validate(graph);
-      const e053 = result.issues.filter(i => i.code === 'port-missing-aspect' && i.nodePath === 'consumer');
-      expect(e053).toHaveLength(0);
+      const portMissingAspect = result.issues.filter(i => i.code === 'port-missing-aspect' && i.nodePath === 'consumer');
+      expect(portMissingAspect).toHaveLength(0);
     });
 
     it('integration-aspect-missing not fired when relation has no consumes field (no port consumption)', async () => {
@@ -913,8 +913,8 @@ describe('validator', () => {
       }));
 
       const result = await validate(graph);
-      const e053 = result.issues.filter(i => i.code === 'port-missing-aspect' && i.nodePath === 'consumer');
-      expect(e053).toHaveLength(0);
+      const portMissingAspect = result.issues.filter(i => i.code === 'port-missing-aspect' && i.nodePath === 'consumer');
+      expect(portMissingAspect).toHaveLength(0);
     });
 
     it('skips architecture checks when architecture is empty', async () => {
@@ -946,8 +946,8 @@ describe('validator', () => {
       }));
 
       const result = await validate(graph);
-      const e057 = result.issues.filter(i => i.code === 'port-missing-consumes');
-      expect(e057).toContainEqual(expect.objectContaining({
+      const portMissingConsumes = result.issues.filter(i => i.code === 'port-missing-consumes');
+      expect(portMissingConsumes).toContainEqual(expect.objectContaining({
         code: 'port-missing-consumes', rule: 'missing-consumes',
       }));
     });

@@ -98,8 +98,8 @@ describe('Batch approve integration', () => {
     const issues = await classifyDrift(graph);
 
     const yggPrefix = path.relative(tmpDir, yggRoot).split(path.sep).join('/');
-    const e021 = issues.filter(i => i.code === 'upstream-drift');
-    expect(e021.length).toBeGreaterThan(0);
+    const upstreamDrift = issues.filter(i => i.code === 'upstream-drift');
+    expect(upstreamDrift.length).toBeGreaterThan(0);
 
     const matched = filterCascadeNodes(issues, `${yggPrefix}/model/svc/`);
     expect(matched.sort()).toEqual(['svc/alpha', 'svc/beta']);
