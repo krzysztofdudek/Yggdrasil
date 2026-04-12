@@ -17,12 +17,12 @@ async function withFixtureCopy<T>(fixture: string, fn: (cwd: string) => Promise<
   return fn(root);
 }
 
-describe('build-context pipeline integration', () => {
-  it('build-context --node writes context to stdout for valid node', async () => {
+describe('context pipeline integration', () => {
+  it('context --node writes context to stdout for valid node', async () => {
     await withFixtureCopy(FULL_FIXTURE, async (cwd) => {
       const result = spawnSync(
         'node',
-        [BIN_PATH, 'build-context', '--node', 'orders/order-service'],
+        [BIN_PATH, 'context', '--node', 'orders/order-service'],
         {
           cwd,
           encoding: 'utf-8',
@@ -36,11 +36,11 @@ describe('build-context pipeline integration', () => {
     });
   });
 
-  it('build-context --node is deterministic', async () => {
+  it('context --node is deterministic', async () => {
     await withFixtureCopy(FULL_FIXTURE, async (cwd) => {
       const first = spawnSync(
         'node',
-        [BIN_PATH, 'build-context', '--node', 'orders/order-service'],
+        [BIN_PATH, 'context', '--node', 'orders/order-service'],
         {
           cwd,
           encoding: 'utf-8',
@@ -50,7 +50,7 @@ describe('build-context pipeline integration', () => {
 
       const second = spawnSync(
         'node',
-        [BIN_PATH, 'build-context', '--node', 'orders/order-service'],
+        [BIN_PATH, 'context', '--node', 'orders/order-service'],
         {
           cwd,
           encoding: 'utf-8',
@@ -66,11 +66,11 @@ describe('build-context pipeline integration', () => {
     });
   });
 
-  it('build-context fails on broken relation with structural error message', async () => {
+  it('context fails on broken relation with structural error message', async () => {
     await withFixtureCopy(BROKEN_FIXTURE, async (cwd) => {
       const result = spawnSync(
         'node',
-        [BIN_PATH, 'build-context', '--node', 'orders/broken-service'],
+        [BIN_PATH, 'context', '--node', 'orders/broken-service'],
         {
           cwd,
           encoding: 'utf-8',

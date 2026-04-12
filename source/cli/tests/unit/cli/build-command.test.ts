@@ -16,10 +16,10 @@ async function withFixtureCopy<T>(fn: (cwd: string) => Promise<T>): Promise<T> {
   return fn(root);
 }
 
-describe('build-context command (unit-like CLI contract)', () => {
+describe('context command (unit-like CLI contract)', () => {
   it('requires --node or --file', async () => {
     await withFixtureCopy(async (cwd) => {
-      const result = spawnSync('node', [BIN_PATH, 'build-context'], {
+      const result = spawnSync('node', [BIN_PATH, 'context'], {
         cwd,
         encoding: 'utf-8',
       });
@@ -29,10 +29,10 @@ describe('build-context command (unit-like CLI contract)', () => {
     });
   });
 
-  it('build-context --node prints to stdout', async () => {
+  it('context --node prints to stdout', async () => {
     await withFixtureCopy(async (cwd) => {
       const nodePath = 'orders/order-service';
-      const result = spawnSync('node', [BIN_PATH, 'build-context', '--node', nodePath], {
+      const result = spawnSync('node', [BIN_PATH, 'context', '--node', nodePath], {
         cwd,
         encoding: 'utf-8',
       });
@@ -43,11 +43,11 @@ describe('build-context command (unit-like CLI contract)', () => {
     });
   });
 
-  it('build-context --node prints context package to stdout', async () => {
+  it('context --node prints context package to stdout', async () => {
     await withFixtureCopy(async (cwd) => {
       const result = spawnSync(
         'node',
-        [BIN_PATH, 'build-context', '--node', 'orders/order-service'],
+        [BIN_PATH, 'context', '--node', 'orders/order-service'],
         {
           cwd,
           encoding: 'utf-8',
@@ -67,9 +67,9 @@ describe('build-context command (unit-like CLI contract)', () => {
     });
   });
 
-  it('build-context --node <bad> returns missing-node error', async () => {
+  it('context --node <bad> returns missing-node error', async () => {
     await withFixtureCopy(async (cwd) => {
-      const result = spawnSync('node', [BIN_PATH, 'build-context', '--node', 'does/not/exist'], {
+      const result = spawnSync('node', [BIN_PATH, 'context', '--node', 'does/not/exist'], {
         cwd,
         encoding: 'utf-8',
       });
@@ -79,11 +79,11 @@ describe('build-context command (unit-like CLI contract)', () => {
     });
   });
 
-  it('build-context --file <unmapped> lists candidate nodes from same directory', async () => {
+  it('context --file <unmapped> lists candidate nodes from same directory', async () => {
     await withFixtureCopy(async (cwd) => {
       const result = spawnSync(
         'node',
-        [BIN_PATH, 'build-context', '--file', 'src/orders/new-feature.ts'],
+        [BIN_PATH, 'context', '--file', 'src/orders/new-feature.ts'],
         {
           cwd,
           encoding: 'utf-8',
@@ -102,7 +102,7 @@ describe('build-context command (unit-like CLI contract)', () => {
     await withFixtureCopy(async (cwd) => {
       const result = spawnSync(
         'node',
-        [BIN_PATH, 'build-context', '--node', 'orders/order-service', '--full'],
+        [BIN_PATH, 'context', '--node', 'orders/order-service', '--full'],
         {
           cwd,
           encoding: 'utf-8',
@@ -114,11 +114,11 @@ describe('build-context command (unit-like CLI contract)', () => {
     });
   });
 
-  it('build-context --file <unmapped-no-siblings> shows no candidates', async () => {
+  it('context --file <unmapped-no-siblings> shows no candidates', async () => {
     await withFixtureCopy(async (cwd) => {
       const result = spawnSync(
         'node',
-        [BIN_PATH, 'build-context', '--file', 'src/totally-new/module.ts'],
+        [BIN_PATH, 'context', '--file', 'src/totally-new/module.ts'],
         {
           cwd,
           encoding: 'utf-8',

@@ -92,21 +92,21 @@ describe.skipIf(!distExists)('CLI E2E', () => {
     expect(stdout).toContain('Result:');
   });
 
-  it('yg build-context', () => {
-    const { stdout, status } = run(['build-context', '--node', 'orders/order-service']);
+  it('yg context', () => {
+    const { stdout, status } = run(['context', '--node', 'orders/order-service']);
     expect(status).toBe(0);
     expect(stdout).toContain('orders/order-service');
     expect(stdout).toContain('Source files');
     expect(stdout).toContain('After modifying source files');
   });
 
-  it('yg build-context nonexistent node', () => {
-    const { status } = run(['build-context', '--node', 'does/not/exist']);
+  it('yg context nonexistent node', () => {
+    const { status } = run(['context', '--node', 'does/not/exist']);
     expect(status).toBe(1);
   });
 
-  it('yg build-context without --node or --file returns exit 1', () => {
-    const { status, stderr } = run(['build-context']);
+  it('yg context without --node or --file returns exit 1', () => {
+    const { status, stderr } = run(['context']);
     expect(status).toBe(1);
     expect(stderr).toContain("'--node <path>' or '--file <path>' is required");
   });

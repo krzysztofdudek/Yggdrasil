@@ -862,7 +862,7 @@ describe('context-builder', () => {
 
 });
 
-describe('build-context CLI exit codes', () => {
+describe('context CLI exit codes', () => {
   const BROKEN_RELATION_FIXTURE = path.join(
     __dirname,
     '../../fixtures/sample-project-broken-relation',
@@ -871,7 +871,7 @@ describe('build-context CLI exit codes', () => {
   it('exit code 1 for missing node', async () => {
     const { spawnSync } = await import('node:child_process');
     const distBin = path.join(__dirname, '../../../dist/bin.js');
-    const result = spawnSync('node', [distBin, 'build-context', '--node', 'nonexistent/node'], {
+    const result = spawnSync('node', [distBin, 'context', '--node', 'nonexistent/node'], {
       cwd: FIXTURE_PROJECT,
       encoding: 'utf-8',
     });
@@ -885,7 +885,7 @@ describe('build-context CLI exit codes', () => {
     const distBin = path.join(__dirname, '../../../dist/bin.js');
     const result = spawnSync(
       'node',
-      [distBin, 'build-context', '--node', 'orders/broken-service'],
+      [distBin, 'context', '--node', 'orders/broken-service'],
       {
         cwd: BROKEN_RELATION_FIXTURE,
         encoding: 'utf-8',
