@@ -44,8 +44,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   aspect verification during approve.
 - **`reviewer.context_length_field`** config option for Ollama — specifies
   the model_info key for context window size.
-- **`needsChunking`** on `LlmProvider` interface — CLI providers read
-  files themselves; API providers get content chunked into the prompt.
+- **10 new reviewer providers.** API: OpenAI, Anthropic, Google Gemini,
+  OpenAI-compatible. CLI: Codex, Gemini CLI, Cline, OpenCode, Aider.
+  Configure via `reviewer:` section in `yg-config.yaml`.
+- **Self-contained reviewer prompt.** All content (aspect rules, node
+  description, source files) inline. CLI and API providers receive
+  identical prompt — only transport differs.
+- **Provider registry.** Self-registering providers replace switch-based
+  factory.
 - **Progressive disclosure in context output.** `yg context --node` shows
   overview (aspects, flows, dependents with consequence framing).
   `yg context --file` shows per-file details (aspects to satisfy,
@@ -101,5 +107,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`needsChunking` removed from `LlmProvider` interface.** All providers
+  receive same self-contained prompt. Chunking is `aspect-verifier.ts`
+  responsibility.
+- **`verifyAspect()` simplified** from `verifyAspect(params: AspectVerifyParams)`
+  to `verifyAspect(prompt: string)`. Providers are dumb pipes.
+- **Reviewer prompt redesigned.** Node context replaced by one-line node
+  description. Aspect content inline instead of file path reference.
+- **Context output** uses `.yggdrasil/` prefix and `read:` label for aspect
+  paths — agents can use paths directly without guessing the prefix.
 - **Ollama context window** auto-detection works with models that use
   architecture-prefixed keys (e.g. `qwen35.context_length`).
