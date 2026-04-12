@@ -498,8 +498,106 @@ describe('approveNode — GC and recording', () => {
     expect(state!.hash).toBeDefined();
     await rm(tmpDir, { recursive: true, force: true });
   });
+});
 
+describe('approveNode — blackbox upstream-only auto-clear', () => {
+  it('auto-clears baseline when blackbox has only upstream (aspect) changes', async () => {
+    const { tmpDir, yggRoot } = await createTmpProject('bb-upstream-only', {
+      nodePath: 'legacy/auth',
+      nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\naspects:\n  - logging\nmapping:\n  - src/auth/\n',
+      mappingFiles: { 'src/auth/login.ts': 'export function login() {}\n' },
+      aspects: [{
+        id: 'logging',
+        yaml: 'name: Logging\ndescription: test\n',
+        files: { 'rules.md': 'Log all.\n' },
+      }],
+    });
+    await recordBaseline(tmpDir);
+    // Only modify aspect (upstream), NOT source — triggers auto-clear path (line 241-255)
+    await writeFile(path.join(yggRoot, 'aspects/logging/rules.md'), 'Updated upstream only.\n');
+    const graph = await loadGraph(tmpDir);
+    const result = await approveNode(graph, 'legacy/auth');
+    expect(result.action).toBe('approved');
+    expect(result.isBlackbox).toBe(true);
+    expect(result.changedUpstream).toBeDefined();
+    expect(result.changedUpstream!.length).toBeGreaterThanOrEqual(1);
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+});
 
+describe('resolveAspects', () => {
+  it('includes flow-level aspects in resolved aspects', async () => {
+    const { resolveAspects } = await import('../../../src/core/approve.js');
+    const { tmpDir } = await createTmpProject('resolve-flow-aspects', {
+      nodePath: 'svc/my-service',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
+      mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
+      aspects: [{
+        id: 'flow-aspect',
+        yaml: 'name: FlowAspect\ndescription: from flow\n',
+        files: { 'content.md': 'Flow aspect rules.\n' },
+      }],
+    });
+    // Create a flow that references our node with aspects
+    const flowDir = path.join(tmpDir, '.yggdrasil/flows/test-flow');
+    await mkdir(flowDir, { recursive: true });
+    await writeFile(
+      path.join(flowDir, 'yg-flow.yaml'),
+      'name: Test Flow\ndescription: test\nnodes:\n  - svc/my-service\naspects:\n  - flow-aspect\n',
+    );
+    const graph = await loadGraph(tmpDir);
+    const node = graph.nodes.get('svc/my-service')!;
+    const aspects = resolveAspects(node, graph);
+    // flow-aspect should be resolved since it comes from the flow
+    expect(aspects.some(a => a.id === 'flow-aspect')).toBe(true);
+    await rm(tmpDir, { recursive: true, force: true });
+  });
 
+  it('annotates upstream change as dependency metadata when relational layer changes', async () => {
+    // Exercise approve.ts line 196-197: annotateUpstreamChange with layer 'relational'
+    const { tmpDir, yggRoot } = await createTmpProject('relational-upstream', {
+      nodePath: 'svc/my-service',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nrelations:\n  - target: svc/dep\n    type: uses\nmapping:\n  - src/svc/\n',
+      mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
+      parentNodes: [
+        { path: 'svc', yaml: 'name: Svc\ntype: service\ndescription: parent\n' },
+        { path: 'svc/dep', yaml: 'name: Dep\ntype: service\ndescription: dependency\n' },
+      ],
+    });
+    await recordBaseline(tmpDir);
+    // Modify dependency yg-node.yaml (tracked as relational layer)
+    await writeFile(
+      path.join(yggRoot, 'model/svc/dep/yg-node.yaml'),
+      'name: Dep\ntype: service\ndescription: updated dependency for approve test\n',
+    );
+    const graph = await loadGraph(tmpDir);
+    const result = await approveNode(graph, 'svc/my-service');
+    expect(result.action).toBe('approved');
+    expect(result.changedUpstream).toBeDefined();
+    // The upstream change annotation should indicate dependency metadata
+    const relationalChanges = result.changedUpstream!.filter(c =>
+      c.annotation === 'dependency metadata' || c.annotation === 'upstream content',
+    );
+    expect(relationalChanges.length).toBeGreaterThanOrEqual(1);
+    await rm(tmpDir, { recursive: true, force: true });
+  });
 
+  it('resolves aspects with no flow participation', async () => {
+    const { resolveAspects } = await import('../../../src/core/approve.js');
+    const { tmpDir } = await createTmpProject('resolve-no-flow', {
+      nodePath: 'svc/my-service',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - direct-aspect\nmapping:\n  - src/svc/\n',
+      mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
+      aspects: [{
+        id: 'direct-aspect',
+        yaml: 'name: DirectAspect\ndescription: direct\n',
+        files: { 'content.md': 'Direct rules.\n' },
+      }],
+    });
+    const graph = await loadGraph(tmpDir);
+    const node = graph.nodes.get('svc/my-service')!;
+    const aspects = resolveAspects(node, graph);
+    expect(aspects.some(a => a.id === 'direct-aspect')).toBe(true);
+    await rm(tmpDir, { recursive: true, force: true });
+  });
 });

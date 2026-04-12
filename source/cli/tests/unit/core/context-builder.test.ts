@@ -1437,4 +1437,362 @@ describe('buildFileContextData', () => {
     // Aspects should still be populated from fallback collectEffectiveAspectIds
     expect(Array.isArray(data.aspects)).toBe(true);
   });
+
+  it('uses aspect name as fallback when description is missing', () => {
+    const node: GraphNode = {
+      path: 'svc',
+      meta: { name: 'Svc', type: 'service', aspects: ['name-only-aspect'] },
+      children: [],
+      parent: null,
+    };
+    const graph: Graph = {
+      config: { name: 'T', node_types: { service: { description: 'x' } } },
+      architecture: { node_types: {} },
+      nodes: new Map([['svc', node]]),
+      aspects: [{ name: 'NameOnlyAspect', id: 'name-only-aspect', artifacts: [] }],
+      flows: [],
+      schemas: [],
+      rootPath: '/tmp',
+    };
+
+    const data = buildFileContextData(graph, 'src/index.ts', 'svc');
+    const aspect = data.aspects.find(a => a.aspectId === 'name-only-aspect');
+    expect(aspect).toBeDefined();
+    // description is undefined, so falls back to name
+    expect(aspect!.aspectDescription).toBe('NameOnlyAspect');
+  });
+
+  it('uses aspect id as fallback when both description and name are missing', () => {
+    const node: GraphNode = {
+      path: 'svc',
+      meta: { name: 'Svc', type: 'service', aspects: ['orphan-aspect'] },
+      children: [],
+      parent: null,
+    };
+    const graph: Graph = {
+      config: { name: 'T', node_types: { service: { description: 'x' } } },
+      architecture: { node_types: {} },
+      nodes: new Map([['svc', node]]),
+      // Aspect not in graph.aspects — aspectDef will be undefined
+      aspects: [],
+      flows: [],
+      schemas: [],
+      rootPath: '/tmp',
+    };
+
+    const data = buildFileContextData(graph, 'src/index.ts', 'svc');
+    const aspect = data.aspects.find(a => a.aspectId === 'orphan-aspect');
+    expect(aspect).toBeDefined();
+    // aspectDef is undefined, so falls back to aspectId
+    expect(aspect!.aspectDescription).toBe('orphan-aspect');
+  });
+
+  it('handles node without aspects in buildFileContextData', () => {
+    const node: GraphNode = {
+      path: 'svc',
+      meta: { name: 'Svc', type: 'service' }, // no aspects field
+      children: [],
+      parent: null,
+    };
+    const graph: Graph = {
+      config: { name: 'T', node_types: { service: { description: 'x' } } },
+      architecture: { node_types: {} },
+      nodes: new Map([['svc', node]]),
+      aspects: [],
+      flows: [],
+      schemas: [],
+      rootPath: '/tmp',
+    };
+
+    const data = buildFileContextData(graph, 'src/index.ts', 'svc');
+    expect(data.aspects).toHaveLength(0);
+  });
+
+  it('handles flow without aspects in buildFileContextData', () => {
+    const node: GraphNode = {
+      path: 'svc',
+      meta: { name: 'Svc', type: 'service' },
+      children: [],
+      parent: null,
+    };
+    const graph: Graph = {
+      config: { name: 'T', node_types: { service: { description: 'x' } } },
+      architecture: { node_types: {} },
+      nodes: new Map([['svc', node]]),
+      aspects: [],
+      flows: [{ path: 'my-flow', name: 'My Flow', nodes: ['svc'] }], // no aspects on flow
+      schemas: [],
+      rootPath: '/tmp',
+    };
+
+    const data = buildFileContextData(graph, 'src/index.ts', 'svc');
+    expect(data.aspects).toHaveLength(0);
+  });
+
+  it('includes structural dependencies in file context', () => {
+    const dep: GraphNode = {
+      path: 'dep/svc',
+      meta: { name: 'DepSvc', type: 'service' },
+      children: [],
+      parent: null,
+    };
+    const node: GraphNode = {
+      path: 'my/svc',
+      meta: {
+        name: 'MySvc',
+        type: 'service',
+        relations: [{ target: 'dep/svc', type: 'uses', consumes: ['api'] }],
+      },
+      children: [],
+      parent: null,
+    };
+    const graph: Graph = {
+      config: { name: 'T', node_types: { service: { description: 'x' } } },
+      architecture: { node_types: {} },
+      nodes: new Map([['my/svc', node], ['dep/svc', dep]]),
+      aspects: [],
+      flows: [],
+      schemas: [],
+      rootPath: '/tmp',
+    };
+
+    const data = buildFileContextData(graph, 'src/index.ts', 'my/svc');
+    expect(data.dependencies).toHaveLength(1);
+    expect(data.dependencies[0].path).toBe('dep/svc');
+    expect(data.dependencies[0].consumed).toContain('api');
+  });
+});
+
+import { determineAspectSource, collectDependencyAncestors } from '../../../src/core/context-builder.js';
+
+describe('collectDependencyAncestors', () => {
+  it('returns ancestors with expanded aspects', () => {
+    const grandparent: GraphNode = {
+      path: 'root',
+      meta: { name: 'Root', type: 'module', aspects: ['audit'] },
+      children: [],
+      parent: null,
+    };
+    const parentNode: GraphNode = {
+      path: 'root/parent',
+      meta: { name: 'Parent', type: 'service', aspects: ['logging'] },
+      children: [],
+      parent: grandparent,
+    };
+    grandparent.children = [parentNode];
+    const target: GraphNode = {
+      path: 'root/parent/target',
+      meta: { name: 'Target', type: 'service' },
+      children: [],
+      parent: parentNode,
+    };
+    parentNode.children = [target];
+
+    const config: YggConfig = {
+      name: 'T',
+      node_types: { module: { description: 'x' }, service: { description: 'x' } },
+    };
+    const graph: Graph = {
+      config,
+      architecture: { node_types: {} },
+      nodes: new Map([
+        ['root', grandparent],
+        ['root/parent', parentNode],
+        ['root/parent/target', target],
+      ]),
+      aspects: [
+        { name: 'Audit', id: 'audit', artifacts: [] },
+        { name: 'Logging', id: 'logging', artifacts: [] },
+      ],
+      flows: [],
+      schemas: [],
+      rootPath: '/tmp',
+    };
+
+    const ancestors = collectDependencyAncestors(target, config, graph);
+    expect(ancestors).toHaveLength(2);
+    expect(ancestors[0].path).toBe('root');
+    expect(ancestors[0].aspects).toContain('audit');
+    expect(ancestors[1].path).toBe('root/parent');
+    expect(ancestors[1].aspects).toContain('logging');
+  });
+
+  it('returns empty array for root-level target', () => {
+    const target: GraphNode = {
+      path: 'svc',
+      meta: { name: 'Svc', type: 'service' },
+      children: [],
+      parent: null,
+    };
+    const config: YggConfig = {
+      name: 'T',
+      node_types: { service: { description: 'x' } },
+    };
+    const graph: Graph = {
+      config,
+      architecture: { node_types: {} },
+      nodes: new Map([['svc', target]]),
+      aspects: [],
+      flows: [],
+      schemas: [],
+      rootPath: '/tmp',
+    };
+
+    const ancestors = collectDependencyAncestors(target, config, graph);
+    expect(ancestors).toHaveLength(0);
+  });
+});
+
+describe('determineAspectSource — uncovered branches', () => {
+  it('detects port consumption as aspect source', () => {
+    // Exercise lines 383-394: aspect comes from consuming a port
+    const provider: GraphNode = {
+      path: 'payments/gateway',
+      meta: {
+        name: 'Gateway',
+        type: 'service',
+        ports: {
+          charge: { description: 'Payment', aspects: ['correlation-id'] },
+        },
+      },
+      children: [],
+      parent: null,
+    };
+    const consumer: GraphNode = {
+      path: 'orders/checkout',
+      meta: {
+        name: 'Checkout',
+        type: 'service',
+        relations: [{ target: 'payments/gateway', type: 'calls', consumes: ['charge'] }],
+      },
+      children: [],
+      parent: null,
+    };
+    const graph: Graph = {
+      config: { name: 'T', node_types: { service: { description: 'x' } } },
+      architecture: { node_types: {} },
+      nodes: new Map([
+        ['payments/gateway', provider],
+        ['orders/checkout', consumer],
+      ]),
+      aspects: [{ name: 'Correlation ID', id: 'correlation-id', artifacts: [] }],
+      flows: [],
+      schemas: [],
+      rootPath: '/tmp',
+    };
+
+    const source = determineAspectSource('correlation-id', consumer, graph, [], true);
+    expect(source).toContain("port 'charge'");
+    expect(source).toContain('payments/gateway');
+  });
+
+  it('detects flow participation as aspect source', () => {
+    // Exercise lines 409-414: aspect comes from flow participation
+    const node: GraphNode = {
+      path: 'orders/svc',
+      meta: { name: 'OrderSvc', type: 'service' },
+      children: [],
+      parent: null,
+    };
+    const graph: Graph = {
+      config: { name: 'T', node_types: { service: { description: 'x' } } },
+      architecture: { node_types: {} },
+      nodes: new Map([['orders/svc', node]]),
+      aspects: [{ name: 'Saga', id: 'requires-saga', artifacts: [] }],
+      flows: [
+        { path: 'checkout', name: 'Checkout', nodes: ['orders/svc'], aspects: ['requires-saga'] },
+      ],
+      schemas: [],
+      rootPath: '/tmp',
+    };
+
+    const source = determineAspectSource('requires-saga', node, graph, graph.flows, false);
+    expect(source).toContain("flow 'checkout'");
+  });
+
+  it('detects implies chain as aspect source when implier is in sources', () => {
+    // Exercise lines 416-431: the queried aspect must have `implies` (truthy guard on line 418)
+    // AND another aspect must imply it AND that implier's id must appear in already-collected sources.
+    // We use a flow to put 'parent-aspect' into sources as "flow 'my-flow'" which contains 'parent-aspect'
+    // in its text — no, the source string won't contain the aspect id.
+    // Instead, we put parent-aspect in ownAspects so sources has "own declaration",
+    // and then we need a source string that CONTAINS the parent-aspect id.
+    // The flow source format is "flow 'checkout'" — no aspect id there.
+    // The port source format is "port 'charge' on 'payments/gateway'" — no aspect id.
+    // The architecture source is "architecture (type: service)" — no aspect id.
+    // So the only way implierInSources is true: when a source string includes the OTHER aspect's ID.
+    // That only happens if parent-aspect is also itself the subject of a source that includes its id.
+    // Looking at the code more carefully: sources is the list for the QUERIED aspect (child-aspect).
+    // The implierInSources check looks if sources already contain text matching the IMPLIER aspect id.
+    // So we need child-aspect to already have a source that contains 'parent-aspect' text.
+    // This would happen if e.g. child-aspect is declared via flow that also mentions 'parent-aspect'.
+    // Actually the simplest: make child-aspect come from a flow named 'parent-aspect'.
+    const node: GraphNode = {
+      path: 'svc',
+      meta: { name: 'Svc', type: 'service' },
+      children: [],
+      parent: null,
+    };
+    const graph: Graph = {
+      config: { name: 'T', node_types: { service: { description: 'x' } } },
+      architecture: { node_types: {} },
+      nodes: new Map([['svc', node]]),
+      aspects: [
+        { name: 'Parent', id: 'parent-aspect', implies: ['child-aspect'], artifacts: [] },
+        // child-aspect has implies so the guard is truthy
+        { name: 'Child', id: 'child-aspect', implies: ['other'], artifacts: [] },
+      ],
+      flows: [
+        // Flow path contains 'parent-aspect' — so "flow 'parent-aspect'" includes the implier id
+        { path: 'parent-aspect', name: 'Parent Aspect Flow', nodes: ['svc'], aspects: ['child-aspect'] },
+      ],
+      schemas: [],
+      rootPath: '/tmp',
+    };
+
+    const source = determineAspectSource('child-aspect', node, graph, graph.flows, false);
+    // sources should have "flow 'parent-aspect'" which contains 'parent-aspect'
+    // then the implies check adds "implied by 'parent-aspect'"
+    expect(source).toContain("flow 'parent-aspect'");
+    expect(source).toContain("implied by 'parent-aspect'");
+  });
+
+  it('returns unknown source when aspect has no identifiable source', () => {
+    // Exercise the fallback at line 433
+    const node: GraphNode = {
+      path: 'svc',
+      meta: { name: 'Svc', type: 'service' },
+      children: [],
+      parent: null,
+    };
+    const graph: Graph = {
+      config: { name: 'T', node_types: { service: { description: 'x' } } },
+      architecture: { node_types: {} },
+      nodes: new Map([['svc', node]]),
+      aspects: [{ name: 'Mystery', id: 'mystery-aspect', artifacts: [] }],
+      flows: [],
+      schemas: [],
+      rootPath: '/tmp',
+    };
+
+    const source = determineAspectSource('mystery-aspect', node, graph, [], false);
+    expect(source).toBe('unknown source');
+  });
+});
+
+describe('toContextMapOutput — architecture fallback', () => {
+  it('uses fallback aspect collection when architecture is undefined', async () => {
+    // Exercise lines 554-558 in toContextMapOutput
+    const graph = await loadGraph(FIXTURE_PROJECT);
+    const pkg = await buildContext(graph, 'orders/order-service');
+    // Remove architecture to force fallback path
+    const graphNoArch = { ...graph, architecture: undefined } as unknown as Graph;
+    const output = toContextMapOutput(pkg, graphNoArch);
+    expect(output.project).toBe('Sample E-Commerce System');
+    expect(output.node.path).toBe('orders/order-service');
+    // Aspects should still be populated from fallback
+    for (const aspect of output.node.required_aspects) {
+      expect(aspect.source).toBe('collected from node and flows');
+    }
+  });
 });

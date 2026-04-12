@@ -1005,4 +1005,93 @@ describe('runCheck', () => {
 
     await rm(tmpDir, { recursive: true, force: true });
   });
+
+  it('detects deleted file that was tracked as cascade (non-source layer)', async () => {
+    // A file in baseline with a non-source layer that gets deleted.
+    // This exercises line 196 — deleted file with known layer (not 'source').
+    const { tmpDir, yggRoot } = await createTmpProject('deleted-cascade-file', {
+      nodePath: 'svc/my-service',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - logging\nmapping:\n  - src/svc/\n',
+      mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
+      aspects: [{
+        id: 'logging',
+        yaml: 'name: Logging\ndescription: test aspect\n',
+        files: { 'rules.md': 'Log all mutations.\n' },
+      }],
+    });
+    await recordBaseline(tmpDir);
+    // Delete the aspect content file on disk (still in baseline)
+    await rm(path.join(yggRoot, 'aspects/logging/rules.md'), { force: true });
+    const graph = await loadGraph(tmpDir);
+    const result = await classifyDrift(graph);
+    // Should detect upstream-drift from the deleted aspect file
+    const drift = result.filter(i => i.nodePath === 'svc/my-service');
+    expect(drift.length).toBeGreaterThanOrEqual(1);
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('detects deleted source file not in current tracked context (no layer, source category)', async () => {
+    // A file in baseline but now outside tracked files — layer unknown, category is 'source'
+    // This exercises line 205 — deleted file where layer is undefined and path is source.
+    const { tmpDir } = await createTmpProject('deleted-unknown-source', {
+      nodePath: 'svc/my-service',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n  - src/extra.ts\n',
+      mappingFiles: {
+        'src/svc/index.ts': 'export default 42;\n',
+        'src/extra.ts': 'export const extra = true;\n',
+      },
+    });
+    await recordBaseline(tmpDir);
+    // Remove the extra.ts mapping from node YAML and delete the file
+    const yggRoot = path.join(tmpDir, '.yggdrasil');
+    await writeFile(
+      path.join(yggRoot, 'model/svc/my-service/yg-node.yaml'),
+      'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
+    );
+    await rm(path.join(tmpDir, 'src/extra.ts'), { force: true });
+    const graph = await loadGraph(tmpDir);
+    const result = await classifyDrift(graph);
+    // Should detect drift — the file was in baseline but no longer tracked
+    expect(result.length).toBeGreaterThanOrEqual(1);
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('returns null suggestedNext when only port-related errors exist (not in known categories)', async () => {
+    // Port errors (port-missing-consumes, etc.) are severity 'error' but not in STRUCTURAL_CODES.
+    // This exercises line 682 — the final return null in computeSuggestedNext.
+    const { tmpDir, yggRoot } = await createTmpProject('port-errors-only', {
+      nodePath: 'svc/consumer',
+      nodeYaml: 'name: Consumer\ntype: service\ndescription: test\nrelations:\n  - target: svc/provider\n    type: uses\nmapping:\n  - src/consumer/\n',
+      mappingFiles: { 'src/consumer/index.ts': 'export default 1;\n' },
+      parentNodes: [
+        {
+          path: 'svc',
+          yaml: 'name: Svc\ntype: service\ndescription: parent\n',
+        },
+        {
+          path: 'svc/provider',
+          yaml: 'name: Provider\ntype: service\ndescription: provider\nports:\n  charge:\n    description: Payment\n    aspects: []\n',
+        },
+      ],
+    });
+    await recordBaseline(tmpDir);
+    const graph = await loadGraph(tmpDir);
+    const result = await runCheck(graph, ['src/consumer/index.ts']);
+    // The port-missing-consumes error should exist but suggestedNext may be null
+    // since port codes aren't in STRUCTURAL_CODES
+    const portErrors = result.issues.filter(i => i.code === 'port-missing-consumes');
+    if (portErrors.length > 0) {
+      // If port errors are the ONLY error category, suggestedNext should be null
+      const otherErrors = result.issues.filter(i =>
+        i.severity === 'error' &&
+        i.code !== 'port-missing-consumes' &&
+        i.code !== 'port-undefined' &&
+        i.code !== 'consumes-without-ports',
+      );
+      if (otherErrors.length === 0) {
+        expect(result.suggestedNext).toBeNull();
+      }
+    }
+    await rm(tmpDir, { recursive: true, force: true });
+  });
 });

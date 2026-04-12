@@ -598,4 +598,72 @@ describe('collectTrackedFiles', () => {
     // Only yg-node.yaml is tracked for deps — no .md artifact files
     expect(paths).toContain('.yggdrasil/model/dep/svc/yg-node.yaml');
   });
+
+  it('skips aspect that is not found in graph.aspects (line 106)', () => {
+    // Node references an aspect ID that doesn't exist in graph.aspects
+    const node: GraphNode = {
+      path: 'my/svc',
+      meta: {
+        name: 'MySvc',
+        type: 'service',
+        aspects: ['nonexistent-aspect'],
+      },
+      children: [],
+      parent: null,
+    };
+    const graph: Graph = {
+      config: {
+        name: 'T',
+        node_types: { service: { description: 'x' } },
+      },
+      architecture: { node_types: {} },
+      nodes: new Map([['my/svc', node]]),
+      aspects: [], // no aspects defined — the reference won't resolve
+      flows: [],
+      schemas: [],
+      rootPath: '/project/.yggdrasil',
+    };
+
+    // Should not throw; just skip the missing aspect
+    const files = collectTrackedFiles(node, graph);
+    const paths = files.map((f) => f.path);
+    // No aspect files should be present
+    const aspectPaths = paths.filter((p) => p.includes('/aspects/'));
+    expect(aspectPaths).toHaveLength(0);
+    // But own-subset should still be there
+    expect(paths).toContain('own-subset:my/svc');
+  });
+
+  it('skips event relation with missing target (line 146)', () => {
+    const node: GraphNode = {
+      path: 'my/svc',
+      meta: {
+        name: 'MySvc',
+        type: 'service',
+        relations: [{ target: 'nonexistent/bus', type: 'emits' }],
+      },
+      children: [],
+      parent: null,
+    };
+    const graph: Graph = {
+      config: {
+        name: 'T',
+        node_types: { service: { description: 'x' } },
+      },
+      architecture: { node_types: {} },
+      nodes: new Map([['my/svc', node]]),
+      aspects: [],
+      flows: [],
+      schemas: [],
+      rootPath: '/project/.yggdrasil',
+    };
+
+    // Should not throw; just skip the broken event relation
+    const files = collectTrackedFiles(node, graph);
+    const paths = files.map((f) => f.path);
+    // Should not include the nonexistent target
+    expect(paths).not.toContain('.yggdrasil/model/nonexistent/bus/yg-node.yaml');
+    // But own-subset should still be there
+    expect(paths).toContain('own-subset:my/svc');
+  });
 });
