@@ -251,6 +251,19 @@ aspects:
     await rm(tmpDir, { recursive: true, force: true });
   });
 
+  it('returns empty aspects when all entries are non-string', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-flow-nonstring-aspects');
+    await mkdir(tmpDir, { recursive: true });
+    const flowYaml = path.join(tmpDir, 'yg-flow.yaml');
+    await writeFile(flowYaml, 'name: Test\nnodes: [a/b]\naspects: [123, true]\n', 'utf-8');
+
+    const flow = await parseFlow(tmpDir, flowYaml);
+
+    expect(flow.aspects).toEqual([]);
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
   it('returns undefined when aspects absent', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-flow-no-aspects');
     await mkdir(tmpDir, { recursive: true });
