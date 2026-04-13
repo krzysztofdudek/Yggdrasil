@@ -102,10 +102,8 @@ function makeMockProvider(overrides: Partial<LlmProvider> = {}): LlmProvider {
 function makeLlmConfig(provider: LlmProvider | undefined, overrides: Partial<LlmConfig> = {}): LlmConfig {
   return {
     provider,
-    llmNotConfigured: !provider && !(overrides.llmNotConfigured === false),
     maxTokens: undefined,
     consensus: undefined,
-    verifyAspects: true,
     ...overrides,
   };
 }
@@ -143,8 +141,8 @@ describe('LLM verification (CLI layer)', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('skips LLM when no provider configured', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('llm-skip-no-provider', {
+  it('reports LLM unavailable when no provider given', async () => {
+    const { tmpDir } = await createTmpProject('llm-skip-unavailable', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - deterministic\nmapping:\n  - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'const x = 1;\n' },
@@ -155,26 +153,7 @@ describe('LLM verification (CLI layer)', () => {
 
     const graph = await loadGraph(tmpDir);
     const coreResult = await approveNode(graph, 'svc/my-service');
-    const result = await runLlmVerification(graph, 'svc/my-service', coreResult, makeLlmConfig(undefined, { llmNotConfigured: true }));
-    expect(result.llmSkipped).toBe('not-configured');
-    expect(result.action).toBe('approved');
-    await rm(tmpDir, { recursive: true, force: true });
-  });
-
-  it('reports LLM unavailable when provider configured but not reachable', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('llm-skip-unavailable', {
-      nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - deterministic\nmapping:\n  - src/svc/\n',
-      mappingFiles: { 'src/svc/index.ts': 'const x = 1;\n' },
-      aspects: [{ id: 'deterministic', yaml: ASPECT_YAML }],
-    });
-    await recordBaseline(tmpDir);
-    await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'const x = 2;\n');
-
-    const graph = await loadGraph(tmpDir);
-    const coreResult = await approveNode(graph, 'svc/my-service');
-    // No provider, llmNotConfigured false → 'unavailable'
-    const result = await runLlmVerification(graph, 'svc/my-service', coreResult, makeLlmConfig(undefined, { llmNotConfigured: false }));
+    const result = await runLlmVerification(graph, 'svc/my-service', coreResult, makeLlmConfig(undefined));
     expect(result.llmSkipped).toBe('unavailable');
     expect(result.action).toBe('approved');
     await rm(tmpDir, { recursive: true, force: true });

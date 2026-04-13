@@ -4,7 +4,7 @@ import type { LlmConfig } from '../../../src/model/graph.js';
 
 const baseCfg: LlmConfig = {
   provider: 'anthropic', model: 'claude-haiku-4-5-20251001', temperature: 0,
-  consensus: 1, max_tokens: 'auto', verify_aspects: true,
+  consensus: 1, max_tokens: 'auto',
 };
 
 describe('AnthropicProvider', () => {

@@ -6,21 +6,21 @@ describe('LLM provider factory', () => {
   it('creates ollama provider', () => {
     const provider = createLlmProvider({
       provider: 'ollama', model: 'test', temperature: 0, consensus: 1, max_tokens: 'auto',
-      verify_aspects: true,     });
+    });
     expect(provider).toBeDefined();
   });
 
   it('creates claude-code provider', () => {
     const provider = createLlmProvider({
       provider: 'claude-code', model: 'haiku', temperature: 0, consensus: 1, max_tokens: 'auto',
-      verify_aspects: true,     });
+    });
     expect(provider).toBeDefined();
   });
 
   it('throws on unknown provider', () => {
     expect(() => createLlmProvider({
       provider: 'unknown' as any, model: 'test', temperature: 0, consensus: 1, max_tokens: 'auto',
-      verify_aspects: true,     })).toThrow(/unknown/i);
+    })).toThrow(/unknown/i);
   });
 });
 
@@ -34,7 +34,7 @@ describe('Registry — all 8 providers register via index.ts', () => {
     it(`creates ${name} provider`, () => {
       const provider = createLlmProvider({
         provider: name, model: 'test', temperature: 0, consensus: 1,
-        max_tokens: 'auto', verify_aspects: true, api_key: 'test-key',
+        max_tokens: 'auto', api_key: 'test-key',
       });
       expect(provider).toBeDefined();
     });

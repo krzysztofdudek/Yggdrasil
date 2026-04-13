@@ -7,7 +7,6 @@ parallel: 10
 debug: true
 
 reviewer:
-  verify_aspects: true
   consensus: 1
   claude-code:
     model: sonnet

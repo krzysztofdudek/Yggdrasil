@@ -13,7 +13,6 @@ function makeCheckResult(overrides: Partial<CheckResult> = {}): CheckResult {
     totalFiles: 0,
     issues: [],
     suggestedNext: null,
-    llmAvailable: true,
     ...overrides,
   };
 }
@@ -114,15 +113,6 @@ describe('formatOutput', () => {
     expect(output).toContain('Structural:');
   });
 
-  it('shows LLM notice when no provider configured', () => {
-    const output = formatOutput(makeCheckResult({ llmAvailable: false }));
-    expect(output).toContain('Claim verification disabled');
-  });
-
-  it('does not show LLM notice when provider is available', () => {
-    const output = formatOutput(makeCheckResult({ llmAvailable: true }));
-    expect(output).not.toContain('Claim verification disabled');
-  });
 });
 
 describe('preserved check features', () => {

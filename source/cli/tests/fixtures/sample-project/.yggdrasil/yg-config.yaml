@@ -1,2 +1,7 @@
 quality:
   max_direct_relations: 10
+
+reviewer:
+  ollama:
+    model: test
+    endpoint: http://localhost:11434

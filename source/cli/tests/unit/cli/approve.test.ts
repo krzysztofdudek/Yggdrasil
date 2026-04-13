@@ -51,16 +51,6 @@ describe('formatResult — LLM results', () => {
     expect(output).toContain('fs.readFileSync');
   });
 
-  it('shows LLM skipped notice when not configured', () => {
-    const result = makeApproveResult({
-      action: 'approved',
-      llmSkipped: 'not-configured',
-    });
-    const output = captureOutput(() => formatResult('some/node', result));
-    expect(output).toContain('aspects not verified');
-    expect(output).toContain('Structural checks only');
-  });
-
   it('shows LLM unavailable notice', () => {
     const result = makeApproveResult({
       action: 'approved',

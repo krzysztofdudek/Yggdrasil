@@ -65,9 +65,6 @@ export function formatOutput(result: CheckResult): string {
     lines.push(`Coverage: ${result.coveredFiles}/${result.totalFiles} source files (${pct}%)`);
   }
 
-  if (!result.llmAvailable) {
-    lines.push('Claim verification disabled — no reviewer configured.');
-  }
   lines.push('');
 
   // Separate by severity

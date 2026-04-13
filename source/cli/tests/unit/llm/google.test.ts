@@ -4,7 +4,7 @@ import type { LlmConfig } from '../../../src/model/graph.js';
 
 const baseCfg: LlmConfig = {
   provider: 'google', model: 'gemini-2.5-flash', temperature: 0,
-  consensus: 1, max_tokens: 'auto', verify_aspects: true,
+  consensus: 1, max_tokens: 'auto',
 };
 
 describe('GoogleProvider', () => {

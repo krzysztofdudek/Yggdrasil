@@ -221,7 +221,6 @@ reviewer:
         temperature: 0.1,
         consensus: 3,
         max_tokens: 'auto',
-        verify_aspects: true,
         context_length_field: 'qwen35.context_length',
       });
 
@@ -250,7 +249,6 @@ reviewer:
         temperature: 0,
         consensus: 1,
         max_tokens: 'auto',
-        verify_aspects: true,
       });
 
       await rm(tmpDir, { recursive: true, force: true });
@@ -290,7 +288,7 @@ reviewer:
         `
 version: "4.0.0"
 reviewer:
-  verify_aspects: true
+  consensus: 1
 `,
         'utf-8',
       );

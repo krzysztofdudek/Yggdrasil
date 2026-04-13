@@ -57,8 +57,6 @@ export interface LlmConfig {
   temperature: number;
   consensus: number;
   max_tokens: number | 'auto';
-  /** Whether to run aspect verification during approve. Default: true. */
-  verify_aspects: boolean;
   /** Ollama model_info key for context length (e.g. "qwen35.context_length"). Auto-detected if omitted. */
   context_length_field?: string;
   /** CLI providers: subprocess timeout in ms. Default: 120_000. */

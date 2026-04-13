@@ -8,7 +8,7 @@ describe('Ollama integration (requires running Ollama)', () => {
   it('verifies a simple aspect against source code', async () => {
     const provider = new OllamaProvider({
       provider: 'ollama', model, endpoint, temperature: 0,
-      consensus: 1, max_tokens: 'auto', verify_aspects: true,
+      consensus: 1, max_tokens: 'auto',
     });
 
     const available = await provider.isAvailable();
@@ -47,7 +47,7 @@ let y = 2;
   it('detects aspect violation', async () => {
     const provider = new OllamaProvider({
       provider: 'ollama', model, endpoint, temperature: 0,
-      consensus: 1, max_tokens: 'auto', verify_aspects: true,
+      consensus: 1, max_tokens: 'auto',
     });
 
     const available = await provider.isAvailable();

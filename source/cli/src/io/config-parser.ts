@@ -24,7 +24,7 @@ const PROVIDER_DEFAULTS: Record<string, Partial<LlmConfig>> = {
   'gemini-cli': { model: 'gemini-2.5-flash' },
 };
 
-const GENERAL_KEYS = new Set(['active', 'verify_aspects', 'consensus']);
+const GENERAL_KEYS = new Set(['active', 'consensus']);
 
 export async function parseConfig(filePath: string): Promise<YggConfig> {
   const filename = path.basename(filePath);
@@ -123,20 +123,19 @@ function parseReviewerSection(
   }
 
   // Extract general params
-  const verifyAspects = generalConfig.verify_aspects !== false; // default true
   const consensus = (generalConfig.consensus as number) ?? 1;
   if (!Number.isInteger(consensus) || consensus < 1 || consensus % 2 === 0) {
     throw new Error(`${filename}: reviewer.consensus must be a positive odd integer >= 1, got ${consensus}`);
   }
 
   // Normalize provider-specific config to flat LlmConfig
-  return normalizeProviderConfig(selectedProvider.name, selectedProvider.config, { verify_aspects: verifyAspects, consensus }, filename);
+  return normalizeProviderConfig(selectedProvider.name, selectedProvider.config, { consensus }, filename);
 }
 
 function normalizeProviderConfig(
   providerName: string,
   pc: Record<string, unknown>,
-  generalConfig: { verify_aspects: boolean; consensus: number },
+  generalConfig: { consensus: number },
   filename: string,
 ): LlmConfig {
   const defaults = PROVIDER_DEFAULTS[providerName] ?? {};
@@ -161,7 +160,6 @@ function normalizeProviderConfig(
     temperature: typeof pc.temperature === 'number' ? pc.temperature : 0,
     consensus: generalConfig.consensus,
     max_tokens: maxTokens as LlmConfig['max_tokens'],
-    verify_aspects: generalConfig.verify_aspects,
     context_length_field: typeof pc.context_length_field === 'string' ? pc.context_length_field : undefined,
     timeout,
   };

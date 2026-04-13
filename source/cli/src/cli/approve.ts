@@ -25,7 +25,7 @@ export interface LlmApproveResult extends ApproveResult {
   /** LLM aspect verification results */
   aspectResults?: Record<string, AspectVerificationResult>;
   /** Why LLM verification was skipped, if it was */
-  llmSkipped?: 'not-configured' | 'unavailable' | 'blackbox';
+  llmSkipped?: 'unavailable' | 'blackbox';
   /** Aspect violations for programmatic consumption */
   aspectViolations?: Array<{ aspectId: string; reason: string }>;
 }
@@ -33,10 +33,8 @@ export interface LlmApproveResult extends ApproveResult {
 /** LLM configuration resolved from graph config */
 export interface LlmConfig {
   provider: LlmProvider | undefined;
-  llmNotConfigured: boolean;
   maxTokens: number | undefined;
   consensus: number | undefined;
-  verifyAspects: boolean;
 }
 
 /**
@@ -49,7 +47,7 @@ export async function runLlmVerification(
   result: ApproveResult,
   llmConfig: LlmConfig,
 ): Promise<LlmApproveResult> {
-  const { provider, llmNotConfigured } = llmConfig;
+  const { provider } = llmConfig;
   const node = graph.nodes.get(nodePath);
   const isBlackbox = node?.meta.blackbox === true;
 
@@ -57,7 +55,7 @@ export async function runLlmVerification(
   if (!provider) {
     return {
       ...result,
-      llmSkipped: llmNotConfigured ? 'not-configured' : 'unavailable',
+      llmSkipped: 'unavailable',
     };
   }
 
@@ -70,7 +68,7 @@ export async function runLlmVerification(
   }
 
   const projectRoot = path.dirname(graph.rootPath);
-  const llmCfg = graph.config.llm ?? { provider: 'ollama' as const, model: '', temperature: 0, consensus: 1, max_tokens: 'auto' as const, verify_aspects: true };
+  const llmCfg = graph.config.llm ?? { provider: 'ollama' as const, model: '', temperature: 0, consensus: 1, max_tokens: 'auto' as const };
   const resolvedMaxTokens = await resolveMaxTokens(llmCfg, provider);
 
   const aspects = resolveAspects(node, graph);
@@ -90,7 +88,7 @@ export async function runLlmVerification(
   let aspectResults: Record<string, AspectVerificationResult> | undefined;
   const aspectViolations: Array<{ aspectId: string; reason: string }> = [];
 
-  if ((llmConfig.verifyAspects) && aspects.length > 0) {
+  if (aspects.length > 0) {
     aspectResults = await verifyAspects({
       provider,
       aspects,
@@ -172,7 +170,6 @@ export function formatResult(nodePath: string, result: LlmApproveResult): void {
 function formatLlmResults(result: LlmApproveResult): void {
   if (result.llmSkipped) {
     const messages: Record<NonNullable<LlmApproveResult['llmSkipped']>, string> = {
-      'not-configured': 'Reviewer not configured — aspects not verified. Structural checks only.\n  To enable: add reviewer section to yg-config.yaml.',
       'unavailable': 'Reviewer configured but not reachable — aspects not verified. Structural checks only.',
       'blackbox': 'Reviewer skipped for blackbox node.',
     };
@@ -337,16 +334,18 @@ export function formatBatchOutput(results: BatchResult[]): void {
 
 async function loadLlmProvider(
   graph: { rootPath: string; config: { llm?: import('../model/graph.js').LlmConfig } },
-): Promise<{ provider: LlmProvider | undefined; llmNotConfigured: boolean; maxTokens: number | undefined; consensus: number | undefined; cloudNotice: string | undefined }> {
+): Promise<{ provider: LlmProvider | undefined; maxTokens: number | undefined; consensus: number | undefined; cloudNotice: string | undefined }> {
   const llmConfig = graph.config.llm;
-  if (!llmConfig) return { provider: undefined, llmNotConfigured: true, maxTokens: undefined, consensus: undefined, cloudNotice: undefined };
+  if (!llmConfig) {
+    throw new Error('No reviewer configured. Add a reviewer section to yg-config.yaml or run yg init to set one up.');
+  }
 
   const secrets = await loadSecrets(graph.rootPath, llmConfig.provider);
   const mergedConfig = secrets ? mergeLlmConfig(llmConfig, secrets) : llmConfig;
   const provider = createLlmProvider(mergedConfig);
 
   if (!(await provider.isAvailable())) {
-    return { provider: undefined, llmNotConfigured: false, maxTokens: undefined, consensus: undefined, cloudNotice: undefined };
+    return { provider: undefined, maxTokens: undefined, consensus: undefined, cloudNotice: undefined };
   }
 
   let cloudNotice: string | undefined;
@@ -359,7 +358,7 @@ async function loadLlmProvider(
     ? (await provider.getContextWindowSize() ?? 8192)
     : (mergedConfig.max_tokens as number);
 
-  return { provider, llmNotConfigured: false, maxTokens, consensus: mergedConfig.consensus, cloudNotice };
+  return { provider, maxTokens, consensus: mergedConfig.consensus, cloudNotice };
 }
 
 // ── Batch approve orchestrator ───────────────────────────────
@@ -377,7 +376,7 @@ async function runBatchApprove(
     return true;
   }
 
-  const { provider, llmNotConfigured, maxTokens, consensus, cloudNotice } = await loadLlmProvider(graph);
+  const { provider, maxTokens, consensus, cloudNotice } = await loadLlmProvider(graph);
   if (cloudNotice) {
     process.stdout.write(chalk.yellow(`Notice: ${cloudNotice}\n`));
   }
@@ -391,10 +390,7 @@ async function runBatchApprove(
     process.stdout.write(`Approving ${sorted.length} nodes cascaded from ${entityLabel}...\n`);
   }
 
-  const llmCfg: LlmConfig = {
-    provider, llmNotConfigured, maxTokens, consensus,
-    verifyAspects: graph.config.llm?.verify_aspects ?? true,
-  };
+  const llmCfg: LlmConfig = { provider, maxTokens, consensus };
   const results = await runBatch(sorted, parallel, async (nodePath) => {
     const result = await approveNode(graph, nodePath);
     return runLlmVerification(graph, nodePath, result, llmCfg);
@@ -462,7 +458,7 @@ export function registerApproveCommand(program: Command): void {
         if (options.node && options.node.length > 1) {
           const parallel = graph.config.parallel ?? 1;
           const nodePaths = options.node.map(n => n.trim().replace(/\/$/, ''));
-          const { provider, llmNotConfigured, maxTokens, consensus, cloudNotice } = await loadLlmProvider(graph);
+          const { provider, maxTokens, consensus, cloudNotice } = await loadLlmProvider(graph);
           if (cloudNotice) {
             process.stdout.write(chalk.yellow(`Notice: ${cloudNotice}\n`));
           }
@@ -471,10 +467,7 @@ export function registerApproveCommand(program: Command): void {
           } else {
             process.stdout.write(`Approving ${nodePaths.length} nodes...\n`);
           }
-          const llmCfg: LlmConfig = {
-            provider, llmNotConfigured, maxTokens, consensus,
-            verifyAspects: graph.config.llm?.verify_aspects ?? true,
-          };
+          const llmCfg: LlmConfig = { provider, maxTokens, consensus };
           const batchResults = await runBatch(nodePaths, parallel, async (nodePath) => {
             const result = await approveNode(graph, nodePath);
             return runLlmVerification(graph, nodePath, result, llmCfg);
@@ -503,7 +496,7 @@ export function registerApproveCommand(program: Command): void {
         }
 
         // Has mapping — single node approve
-        const { provider, llmNotConfigured, maxTokens, consensus, cloudNotice } = await loadLlmProvider(graph);
+        const { provider, maxTokens, consensus, cloudNotice } = await loadLlmProvider(graph);
         if (cloudNotice) {
           process.stdout.write(chalk.yellow(`Notice: ${cloudNotice}\n`));
         }
@@ -511,10 +504,7 @@ export function registerApproveCommand(program: Command): void {
           process.stdout.write(chalk.dim(`Verifying aspects with reviewer — this may take a while. Do not interrupt.\n`));
         }
         const coreResult = await approveNode(graph, nodePath);
-        const llmCfg: LlmConfig = {
-          provider, llmNotConfigured, maxTokens, consensus,
-          verifyAspects: graph.config.llm?.verify_aspects ?? true,
-        };
+        const llmCfg: LlmConfig = { provider, maxTokens, consensus };
         const result = await runLlmVerification(graph, nodePath, coreResult, llmCfg);
         formatResult(nodePath, result);
         if (result.action === 'refused') {

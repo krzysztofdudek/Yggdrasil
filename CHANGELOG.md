@@ -40,8 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   limit (default: 1 = sequential).
 - **`debug: true`** in `yg-config.yaml` enables structured append log at
   `.yggdrasil/.debug.log`.
-- **`reviewer.verify_aspects`** config option (default: `true`) to control
-  aspect verification during approve.
+- **Reviewer is required for approve.** `yg approve` errors if no reviewer
+  is configured. Aspects are always verified — no opt-out.
 - **`reviewer.context_length_field`** config option for Ollama — specifies
   the model_info key for context window size.
 - **10 new reviewer providers.** API: OpenAI, Anthropic, Google Gemini,
@@ -76,8 +76,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Supports Ollama (default) and Claude Code.
 - **`yg-secrets.yaml`** — gitignored file for API keys and LLM config
   overrides. Template created by init.
-- **Graceful LLM degradation.** No LLM configured → check/approve work
-  without semantic verification. Notice shown to user.
 - **Append-only audit log** (`.yggdrasil/.audit-log.jsonl`) — every
   approve records timestamp, node, action, hashes, changed files.
 - **Blackbox enforcement.** Source changes on blackbox nodes always

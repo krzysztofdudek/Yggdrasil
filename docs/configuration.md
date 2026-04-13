@@ -80,13 +80,12 @@ node_types:
 The reviewer verifies aspects against source code during `yg approve`.
 Configured during `yg init` or manually in the `reviewer:` section of `yg-config.yaml`.
 
-General keys (`active`, `verify_aspects`, `consensus`) sit at the `reviewer:` level.
+General keys (`active`, `consensus`) sit at the `reviewer:` level.
 Provider-specific keys sit under the provider name.
 
 ```yaml
 reviewer:
   active: anthropic               # required when multiple providers listed
-  verify_aspects: true            # run aspect verification — default true
   consensus: 1                    # positive odd integer >= 1
 ```
 
