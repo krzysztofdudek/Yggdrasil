@@ -2,7 +2,7 @@
 # Every node is a directory under .yggdrasil/model/ containing this file.
 
 name: ComponentName           # required — display name
-type: service                 # required — must match a type from config.node_types
+type: service                 # required — must match a type from yg-architecture.yaml
 description: "Short description of what this node does"  # optional
 blackbox: false               # optional, default false — if true, coarse-grained coverage without LLM verification
 

@@ -7,7 +7,8 @@
     "yg": "dist/bin.js"
   },
   "files": [
-    "dist/",
+    "dist/**/*.js",
+    "dist/**/*.d.ts",
     "graph-schemas/"
   ],
   "engines": {
@@ -26,13 +27,13 @@
   },
   "keywords": [
     "yggdrasil",
-    "graph",
-    "ai",
-    "specification",
-    "architecture",
+    "ai-agents",
+    "architecture-enforcement",
+    "code-review",
+    "ai-governance",
     "cli",
-    "agent-commands",
-    "code-generation"
+    "developer-tools",
+    "ai-coding"
   ],
   "author": "Krzysztof Dudek <me@chrisdudek.com>",
   "license": "MIT",

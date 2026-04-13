@@ -1,5 +1,5 @@
 name: Core Unit Tests
-type: library
+type: test
 description: "Parent node for core unit tests — children cover context assembly (context-builder, context-files, graph-loader) and operations (approve, check, drift, impact, validator, etc.)"
 blackbox: false
 

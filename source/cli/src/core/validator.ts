@@ -820,12 +820,37 @@ function checkArchitectureConstraints(graph: Graph): ValidationIssue[] {
     return issues;
   }
 
+  // type-undefined: node uses a type not defined in architecture
+  issues.push(...checkNodeTypesExist(graph));
+
   // invalid-relation-target (sync, no I/O)
   issues.push(...checkArchitectureRelations(graph));
 
   // invalid-parent-type (sync, no I/O)
   issues.push(...checkArchitectureParents(graph));
 
+  return issues;
+}
+
+function checkNodeTypesExist(graph: Graph): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const allowedTypes = new Set(Object.keys(graph.architecture!.node_types));
+
+  for (const [nodePath, node] of graph.nodes) {
+    if (!allowedTypes.has(node.meta.type)) {
+      issues.push({
+        severity: 'error',
+        code: 'type-undefined',
+        rule: 'unknown-node-type',
+        message: buildIssueMessage({
+          what: `Node type '${node.meta.type}' is not defined in yg-architecture.yaml.`,
+          why: `Allowed types: ${[...allowedTypes].join(', ')}.`,
+          next: `Add '${node.meta.type}' to yg-architecture.yaml or change the node type.`,
+        }),
+        nodePath,
+      });
+    }
+  }
   return issues;
 }
 

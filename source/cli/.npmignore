@@ -8,4 +8,5 @@ eslint.config.js
 .prettierrc
 .prettierignore
 *.log
+*.map
 .env*

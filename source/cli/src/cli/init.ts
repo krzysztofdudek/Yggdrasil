@@ -173,7 +173,7 @@ async function runReviewerConfigFlow(): Promise<{
   model: string;
   apiKey?: string;
   endpoint?: string;
-} | null> {
+}> {
   // 1. Provider selection
   const provider = await p.select<ReviewerProvider>({
     message: 'Which provider should verify your code?',
@@ -372,11 +372,9 @@ async function freshInit(projectRoot: string): Promise<void> {
   // 3. Create structure + write config
   await createYggdrasilStructure(projectRoot, yggRoot, platform);
 
-  if (reviewerConfig) {
-    await writeReviewerConfig(yggRoot, reviewerConfig);
-    if (reviewerConfig.apiKey) {
-      await writeSecretsFile(yggRoot, reviewerConfig.provider, reviewerConfig.apiKey);
-    }
+  await writeReviewerConfig(yggRoot, reviewerConfig);
+  if (reviewerConfig.apiKey) {
+    await writeSecretsFile(yggRoot, reviewerConfig.provider, reviewerConfig.apiKey);
   }
 
   p.outro(chalk.green('Yggdrasil initialized. Run yg check to get started.'));
@@ -458,13 +456,11 @@ async function existingInit(projectRoot: string): Promise<void> {
     }
     case 'reviewer': {
       const reviewerConfig = await runReviewerConfigFlow();
-      if (reviewerConfig) {
-        await writeReviewerConfig(yggRoot, reviewerConfig);
-        if (reviewerConfig.apiKey) {
-          await writeSecretsFile(yggRoot, reviewerConfig.provider, reviewerConfig.apiKey);
-        }
-        p.outro(chalk.green('Reviewer configured.'));
+      await writeReviewerConfig(yggRoot, reviewerConfig);
+      if (reviewerConfig.apiKey) {
+        await writeSecretsFile(yggRoot, reviewerConfig.provider, reviewerConfig.apiKey);
       }
+      p.outro(chalk.green('Reviewer configured.'));
       break;
     }
     case 'platform': {
