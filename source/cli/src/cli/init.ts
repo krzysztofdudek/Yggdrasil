@@ -3,7 +3,7 @@ import chalk from 'chalk';
 import { mkdir, writeFile, readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DEFAULT_CONFIG, DEFAULT_ARCHITECTURE, resolveProjectName } from '../templates/default-config.js';
+import { DEFAULT_CONFIG, DEFAULT_ARCHITECTURE } from '../templates/default-config.js';
 import { installRulesForPlatform, PLATFORMS, type Platform } from '../templates/platform.js';
 
 function getGraphSchemasDir(): string {
@@ -127,9 +127,7 @@ export function registerInitCommand(program: Command): void {
         );
       }
 
-      const projectName = await resolveProjectName(projectRoot);
-      const config = DEFAULT_CONFIG.replace('name: ""', `name: "${projectName}"`);
-      await writeFile(path.join(yggRoot, 'yg-config.yaml'), config, 'utf-8');
+      await writeFile(path.join(yggRoot, 'yg-config.yaml'), DEFAULT_CONFIG, 'utf-8');
       await writeFile(path.join(yggRoot, 'yg-architecture.yaml'), DEFAULT_ARCHITECTURE, 'utf-8');
       await writeFile(path.join(yggRoot, '.gitignore'), GITIGNORE_CONTENT, 'utf-8');
       await writeFile(path.join(yggRoot, 'yg-secrets.example.yaml'), SECRETS_EXAMPLE_CONTENT, 'utf-8');
@@ -148,7 +146,7 @@ export function registerInitCommand(program: Command): void {
       process.stdout.write('  .yggdrasil/schemas/ (yg-config, yg-node, yg-aspect, yg-flow)\n');
       process.stdout.write(`  ${path.relative(projectRoot, rulesPath)} (rules)\n\n`);
       process.stdout.write('Next steps:\n');
-      process.stdout.write('  1. Edit .yggdrasil/yg-config.yaml — set name and configure node types\n');
+      process.stdout.write('  1. Edit .yggdrasil/yg-config.yaml — configure node types\n');
       process.stdout.write('  2. Create nodes under .yggdrasil/model/\n');
       process.stdout.write('  3. Run: yg check\n');
       } catch (err) {

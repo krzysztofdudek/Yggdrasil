@@ -37,10 +37,6 @@ export async function parseConfig(filePath: string): Promise<YggConfig> {
 
   const version = typeof raw.version === 'string' ? raw.version.trim() : undefined;
 
-  if (!raw.name || typeof raw.name !== 'string' || raw.name.trim() === '') {
-    throw new Error(`${filename}: missing or invalid 'name' field`);
-  }
-
   const qualityRaw = raw.quality as Record<string, unknown> | undefined;
   const quality: QualityConfig = qualityRaw
     ? {
@@ -73,7 +69,6 @@ export async function parseConfig(filePath: string): Promise<YggConfig> {
 
   return {
     version,
-    name: (raw.name as string).trim(),
     quality,
     llm,
     parallel,

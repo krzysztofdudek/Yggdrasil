@@ -31,7 +31,7 @@ describe('context-pipeline', () => {
 
     const globalLayer = pkg.layers.find((l) => l.type === 'global');
     expect(globalLayer).toBeDefined();
-    expect(globalLayer?.content).toContain('**Project:** Sample E-Commerce System');
+    expect(globalLayer?.content).toContain('**Project:** sample-project');
     expect(globalLayer?.content).not.toContain('Stack');
     expect(globalLayer?.content).not.toContain('Standards');
   });

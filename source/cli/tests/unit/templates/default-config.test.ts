@@ -11,7 +11,6 @@ describe('default-config', () => {
 
   it('DEFAULT_CONFIG contains required keys', () => {
     const parsed = parseYaml(DEFAULT_CONFIG) as Record<string, unknown>;
-    expect(parsed.name).toBeDefined();
     expect(parsed.node_types).toBeDefined();
     expect(parsed.artifacts).toBeUndefined();
     expect(parsed.quality).toBeDefined();

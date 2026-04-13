@@ -11,7 +11,6 @@ describe('config-parser', () => {
   it('parses valid yg-config.yaml correctly', async () => {
     const config = await parseConfig(path.join(FIXTURE_DIR, 'yg-config.yaml'));
 
-    expect(config.name).toBe('Sample E-Commerce System');
     expect(config.quality?.max_direct_relations).toBeDefined();
   });
 
@@ -28,25 +27,6 @@ describe('config-parser', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('throws when name is missing', async () => {
-    const tmpDir = path.join(__dirname, '../../fixtures/tmp-config');
-    await mkdir(tmpDir, { recursive: true });
-    const badConfigPath = path.join(tmpDir, 'yg-config.yaml');
-    await writeFile(
-      badConfigPath,
-      `
-version: "1.0.0"
-`,
-      'utf-8',
-    );
-
-    await expect(parseConfig(badConfigPath)).rejects.toThrow(
-      "yg-config.yaml: missing or invalid 'name' field",
-    );
-
-    await rm(tmpDir, { recursive: true, force: true });
-  });
-
   it('parses minimal config', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-minimal');
     await mkdir(tmpDir, { recursive: true });
@@ -54,13 +34,13 @@ version: "1.0.0"
     await writeFile(
       minimalConfigPath,
       `
-name: "Minimal Config"
+version: "4.0.0"
 `,
       'utf-8',
     );
 
     const config = await parseConfig(minimalConfigPath);
-    expect(config.name).toBe('Minimal Config');
+    expect(config.version).toBe('4.0.0');
 
     await rm(tmpDir, { recursive: true, force: true });
   });
@@ -77,7 +57,6 @@ name: "Minimal Config"
     await writeFile(
       path.join(tmpDir, 'yg-config.yaml'),
       `version: "2.0.0"
-name: "Versioned"
 `,
       'utf-8',
     );
@@ -97,7 +76,7 @@ name: "Versioned"
     await writeFile(
       path.join(tmpDir, 'yg-config.yaml'),
       `
-name: "WithUnknown"
+version: "4.0.0"
 custom_section:
   key: value
   nested:
@@ -107,45 +86,9 @@ custom_section:
     );
 
     const config = await parseConfig(path.join(tmpDir, 'yg-config.yaml'));
-    expect(config.name).toBe('WithUnknown');
+    expect(config.version).toBe('4.0.0');
     // unknown fields should not exist on returned config
     expect((config as Record<string, unknown>).custom_section).toBeUndefined();
-
-    await rm(tmpDir, { recursive: true, force: true });
-  });
-
-  it('throws when name is empty string', async () => {
-    const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-empty-name');
-    await mkdir(tmpDir, { recursive: true });
-    await writeFile(
-      path.join(tmpDir, 'yg-config.yaml'),
-      `
-name: "   "
-`,
-      'utf-8',
-    );
-
-    await expect(parseConfig(path.join(tmpDir, 'yg-config.yaml'))).rejects.toThrow(
-      "missing or invalid 'name' field",
-    );
-
-    await rm(tmpDir, { recursive: true, force: true });
-  });
-
-  it('throws when name field is not a string', async () => {
-    const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-name-type');
-    await mkdir(tmpDir, { recursive: true });
-    await writeFile(
-      path.join(tmpDir, 'yg-config.yaml'),
-      `
-name: 123
-`,
-      'utf-8',
-    );
-
-    await expect(parseConfig(path.join(tmpDir, 'yg-config.yaml'))).rejects.toThrow(
-      "missing or invalid 'name' field",
-    );
 
     await rm(tmpDir, { recursive: true, force: true });
   });
@@ -156,7 +99,7 @@ name: 123
     await writeFile(
       path.join(tmpDir, 'yg-config.yaml'),
       `
-name: "NoQuality"
+version: "4.0.0"
 `,
       'utf-8',
     );
@@ -173,7 +116,7 @@ name: "NoQuality"
     await writeFile(
       path.join(tmpDir, 'yg-config.yaml'),
       `
-name: "PartialQuality"
+version: "4.0.0"
 quality:
   max_direct_relations: 15
 `,
@@ -189,7 +132,7 @@ quality:
   it('parses parallel: 5', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-parallel');
     await mkdir(tmpDir, { recursive: true });
-    await writeFile(path.join(tmpDir, 'yg-config.yaml'), 'name: "Test"\nparallel: 5\n', 'utf-8');
+    await writeFile(path.join(tmpDir, 'yg-config.yaml'), 'version: "4.0.0"\nparallel: 5\n', 'utf-8');
     const config = await parseConfig(path.join(tmpDir, 'yg-config.yaml'));
     expect(config.parallel).toBe(5);
     await rm(tmpDir, { recursive: true, force: true });
@@ -198,7 +141,7 @@ quality:
   it('parallel field absent → config.parallel is undefined', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-noparallel');
     await mkdir(tmpDir, { recursive: true });
-    await writeFile(path.join(tmpDir, 'yg-config.yaml'), 'name: "Test"\n', 'utf-8');
+    await writeFile(path.join(tmpDir, 'yg-config.yaml'), 'version: "4.0.0"\n', 'utf-8');
     const config = await parseConfig(path.join(tmpDir, 'yg-config.yaml'));
     expect(config.parallel).toBeUndefined();
     await rm(tmpDir, { recursive: true, force: true });
@@ -207,7 +150,7 @@ quality:
   it('throws when parallel is 0', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-parallel-zero');
     await mkdir(tmpDir, { recursive: true });
-    await writeFile(path.join(tmpDir, 'yg-config.yaml'), 'name: "Test"\nparallel: 0\n', 'utf-8');
+    await writeFile(path.join(tmpDir, 'yg-config.yaml'), 'version: "4.0.0"\nparallel: 0\n', 'utf-8');
     await expect(parseConfig(path.join(tmpDir, 'yg-config.yaml'))).rejects.toThrow(
       'parallel must be a positive integer',
     );
@@ -217,7 +160,7 @@ quality:
   it('parses debug: true', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-debug-true');
     await mkdir(tmpDir, { recursive: true });
-    await writeFile(path.join(tmpDir, 'yg-config.yaml'), 'name: "Test"\ndebug: true\n', 'utf-8');
+    await writeFile(path.join(tmpDir, 'yg-config.yaml'), 'version: "4.0.0"\ndebug: true\n', 'utf-8');
     const config = await parseConfig(path.join(tmpDir, 'yg-config.yaml'));
     expect(config.debug).toBe(true);
     await rm(tmpDir, { recursive: true, force: true });
@@ -226,7 +169,7 @@ quality:
   it('debug absent → config.debug is undefined', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-no-debug');
     await mkdir(tmpDir, { recursive: true });
-    await writeFile(path.join(tmpDir, 'yg-config.yaml'), 'name: "Test"\n', 'utf-8');
+    await writeFile(path.join(tmpDir, 'yg-config.yaml'), 'version: "4.0.0"\n', 'utf-8');
     const config = await parseConfig(path.join(tmpDir, 'yg-config.yaml'));
     expect(config.debug).toBeUndefined();
     await rm(tmpDir, { recursive: true, force: true });
@@ -239,7 +182,6 @@ quality:
       await writeFile(
         configPath,
         `
-name: test-project
 version: "4.0.0"
 `,
         'utf-8',
@@ -258,7 +200,7 @@ version: "4.0.0"
       await writeFile(
         path.join(tmpDir, 'yg-config.yaml'),
         `
-name: test-project
+version: "4.0.0"
 reviewer:
   consensus: 3
   ollama:
@@ -292,7 +234,7 @@ reviewer:
       await writeFile(
         path.join(tmpDir, 'yg-config.yaml'),
         `
-name: test-project
+version: "4.0.0"
 reviewer:
   claude-code:
     model: haiku
@@ -320,7 +262,7 @@ reviewer:
       await writeFile(
         path.join(tmpDir, 'yg-config.yaml'),
         `
-name: test-project
+version: "4.0.0"
 reviewer:
   active: claude-code
   consensus: 1
@@ -346,7 +288,7 @@ reviewer:
       await writeFile(
         path.join(tmpDir, 'yg-config.yaml'),
         `
-name: test-project
+version: "4.0.0"
 reviewer:
   verify_aspects: true
 `,
@@ -365,7 +307,7 @@ reviewer:
       await writeFile(
         path.join(tmpDir, 'yg-config.yaml'),
         `
-name: test-project
+version: "4.0.0"
 reviewer:
   ollama:
     model: qwen3
@@ -388,7 +330,7 @@ reviewer:
       await writeFile(
         path.join(tmpDir, 'yg-config.yaml'),
         `
-name: test-project
+version: "4.0.0"
 reviewer:
   active: claude-code
   ollama:
@@ -410,7 +352,7 @@ reviewer:
       await writeFile(
         path.join(tmpDir, 'yg-config.yaml'),
         `
-name: test-project
+version: "4.0.0"
 reviewer:
   foo:
     model: bar
@@ -431,7 +373,7 @@ reviewer:
       await writeFile(
         path.join(tmpDir, 'yg-config.yaml'),
         `
-name: test-project
+version: "4.0.0"
 reviewer:
   consensus: 2
   ollama:
@@ -453,7 +395,7 @@ reviewer:
       await writeFile(
         path.join(tmpDir, 'yg-config.yaml'),
         `
-name: test-project
+version: "4.0.0"
 reviewer:
   ollama:
     model: ""
@@ -474,7 +416,7 @@ reviewer:
       await writeFile(
         path.join(tmpDir, 'yg-config.yaml'),
         `
-name: test-project
+version: "4.0.0"
 reviewer:
   ollama:
     model: qwen3
@@ -496,7 +438,7 @@ reviewer:
       await writeFile(
         path.join(tmpDir, 'yg-config.yaml'),
         `
-name: test-project
+version: "4.0.0"
 reviewer:
   openai:
     model: gpt-4.1-mini
@@ -516,7 +458,7 @@ reviewer:
       await writeFile(
         path.join(tmpDir, 'yg-config.yaml'),
         `
-name: test-project
+version: "4.0.0"
 reviewer:
   codex:
     model: o4-mini
@@ -537,7 +479,7 @@ reviewer:
       await writeFile(
         path.join(tmpDir, 'yg-config.yaml'),
         `
-name: test-project
+version: "4.0.0"
 reviewer:
   openai:
     model: gpt-4.1-mini
@@ -558,7 +500,7 @@ reviewer:
       await writeFile(
         path.join(tmpDir, 'yg-config.yaml'),
         `
-name: test-project
+version: "4.0.0"
 reviewer:
   claude-code: {}
 `,
@@ -577,7 +519,7 @@ reviewer:
       await writeFile(
         path.join(tmpDir, 'yg-config.yaml'),
         `
-name: test-project
+version: "4.0.0"
 reviewer:
   unknown-provider:
     model: test

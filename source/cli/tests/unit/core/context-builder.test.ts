@@ -38,14 +38,13 @@ describe('context-builder', () => {
   describe('buildGlobalLayer', () => {
     it('produces correct markdown from config', () => {
       const config: YggConfig = {
-        name: 'Test Project',
         node_types: { service: { description: 'x' } },
       };
-      const layer = buildGlobalLayer(config);
+      const layer = buildGlobalLayer(config, '/fake/project/.yggdrasil');
 
       expect(layer.type).toBe('global');
       expect(layer.label).toBe('Global Context');
-      expect(layer.content).toContain('**Project:** Test Project');
+      expect(layer.content).toContain('**Project:** project');
       expect(layer.content).not.toContain('Stack');
       expect(layer.content).not.toContain('Standards');
     });
@@ -92,7 +91,6 @@ describe('context-builder', () => {
         parent: null,
       };
       const config: YggConfig = {
-        name: 'Test',
         node_types: { module: { description: 'x' } },
       };
       const graph: Graph = {
@@ -132,7 +130,6 @@ describe('context-builder', () => {
         nodeYamlRaw: undefined,
       };
       const config: YggConfig = {
-        name: 'Test',
         node_types: { module: { description: 'x' } },
       };
       const graph: Graph = {
@@ -159,7 +156,6 @@ describe('context-builder', () => {
 
   describe('buildStructuralRelationLayer', () => {
     const defaultConfig: YggConfig = {
-      name: '',
       node_types: { service: { description: 'x' } },
     };
 
@@ -904,7 +900,7 @@ describe('toContextMapOutput', () => {
     const pkg = await buildContext(graph, 'orders/order-service');
     const output: ContextMapOutput = toContextMapOutput(pkg, graph);
 
-    expect(output.project).toBe('Sample E-Commerce System');
+    expect(output.project).toBe('sample-project');
     expect(output.node.path).toBe('orders/order-service');
     expect(output.node.name).toBe('OrderService');
     expect(output.hierarchy.length).toBeGreaterThan(0);
@@ -1587,7 +1583,6 @@ describe('collectDependencyAncestors', () => {
     parentNode.children = [target];
 
     const config: YggConfig = {
-      name: 'T',
       node_types: { module: { description: 'x' }, service: { description: 'x' } },
     };
     const graph: Graph = {
@@ -1623,7 +1618,6 @@ describe('collectDependencyAncestors', () => {
       parent: null,
     };
     const config: YggConfig = {
-      name: 'T',
       node_types: { service: { description: 'x' } },
     };
     const graph: Graph = {
@@ -1786,7 +1780,7 @@ describe('toContextMapOutput — architecture fallback', () => {
     // Remove architecture to force fallback path
     const graphNoArch = { ...graph, architecture: undefined } as unknown as Graph;
     const output = toContextMapOutput(pkg, graphNoArch);
-    expect(output.project).toBe('Sample E-Commerce System');
+    expect(output.project).toBe('sample-project');
     expect(output.node.path).toBe('orders/order-service');
     // Aspects should still be populated from fallback
     for (const aspect of output.node.required_aspects) {

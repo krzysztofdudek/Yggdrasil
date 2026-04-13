@@ -448,7 +448,7 @@ export async function runCheck(graph: Graph, gitTrackedFiles: string[] | null): 
   const llmAvailable = graph.config.llm !== undefined;
 
   return {
-    projectName: graph.config.name || 'project',
+    projectName: path.basename(path.dirname(graph.rootPath)),
     nodeCount: graph.nodes.size,
     nodeTypeCounts,
     aspectCount: graph.aspects.length,

@@ -24,7 +24,7 @@ async function createBatchProject(name: string) {
   await writeFile(path.join(yggRoot, 'schemas', 'yg-flow.yaml'), 'type: flow\n');
   await writeFile(
     path.join(yggRoot, 'yg-config.yaml'),
-    'name: BatchTest\n',
+    'version: "4.0.0"\n',
   );
 
   // Create aspect

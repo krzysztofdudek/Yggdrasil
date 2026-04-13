@@ -40,7 +40,7 @@ export async function buildContext(graph: Graph, nodePath: string): Promise<Cont
   const layers: ContextLayer[] = [];
 
   // 1. Global
-  layers.push(buildGlobalLayer(graph.config));
+  layers.push(buildGlobalLayer(graph.config, graph.rootPath));
 
   // 2. Hierarchy (ancestor yg-node.yaml metadata)
   const ancestors = collectAncestors(node);
@@ -155,8 +155,9 @@ export function resolveAspects(
 
 // --- Layer builders (exported for testing) ---
 
-export function buildGlobalLayer(config: YggConfig): ContextLayer {
-  const content = `**Project:** ${config.name}\n`;
+export function buildGlobalLayer(config: YggConfig, rootPath: string): ContextLayer {
+  const projectName = path.basename(path.dirname(rootPath));
+  const content = `**Project:** ${projectName}\n`;
   return { type: 'global', label: 'Global Context', content };
 }
 
@@ -560,7 +561,7 @@ export function toContextMapOutput(
   }
 
   return {
-    project: graph.config.name,
+    project: path.basename(path.dirname(graph.rootPath)),
     node: {
       path: pkg.nodePath,
       name: pkg.nodeName,

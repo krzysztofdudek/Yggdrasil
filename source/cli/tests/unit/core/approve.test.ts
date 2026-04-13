@@ -34,7 +34,7 @@ async function createTmpProject(name: string, opts: {
   await writeFile(path.join(yggRoot, 'schemas', 'yg-flow.yaml'), 'type: flow\n');
   await writeFile(
     path.join(yggRoot, 'yg-config.yaml'),
-    opts.configYaml ?? 'name: Test\nnode_types:\n  service:\n    description: x\n',
+    opts.configYaml ?? 'version: "4.0.0"\nnode_types:\n  service:\n    description: x\n',
   );
   await writeFile(path.join(nodeDir, 'yg-node.yaml'), opts.nodeYaml);
 

@@ -1,30 +1,4 @@
-import { readFile } from 'node:fs/promises';
-import path from 'node:path';
-
-export async function resolveProjectName(projectRoot: string): Promise<string> {
-  // Try package.json name
-  try {
-    const pkg = JSON.parse(await readFile(path.join(projectRoot, 'package.json'), 'utf-8'));
-    if (typeof pkg.name === 'string' && pkg.name.trim()) {
-      const raw = pkg.name.trim();
-      // For scoped packages like @documenso/root: use scope name if bare name is generic
-      const scopeMatch = raw.match(/^@([^/]+)\/(.+)$/);
-      if (scopeMatch) {
-        const [, scope, bare] = scopeMatch;
-        const generic = ['root', 'app', 'main', 'monorepo', 'workspace'];
-        return generic.includes(bare) ? scope : bare;
-      }
-      return raw;
-    }
-  } catch { /* no package.json or invalid */ }
-
-  // Fall back to directory name
-  return path.basename(projectRoot);
-}
-
 export const DEFAULT_CONFIG = `version: "4.0.0"
-
-name: ""
 
 node_types:
   module:

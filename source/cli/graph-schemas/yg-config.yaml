@@ -5,8 +5,6 @@
 version: "4.0.0"                  # managed by CLI — do not edit manually. Tracks the CLI version
                                   # that last initialized or upgraded this config.
 
-name: "My Project"               # required — project display name
-
 # node_types are defined in yg-architecture.yaml (not here).
 
 quality:                          # optional — quality thresholds

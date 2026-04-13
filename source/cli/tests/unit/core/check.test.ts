@@ -42,7 +42,7 @@ async function createTmpProject(name: string, opts: {
 
   await writeFile(
     path.join(yggRoot, 'yg-config.yaml'),
-    opts.configYaml ?? 'name: Test\nnode_types:\n  service:\n    description: x\n',
+    opts.configYaml ?? 'version: "4.0.0"\nnode_types:\n  service:\n    description: x\n',
   );
   await writeFile(path.join(nodeDir, 'yg-node.yaml'), opts.nodeYaml);
 
@@ -746,7 +746,7 @@ describe('runCheck', () => {
     // Pass all git files as covered
     const result = await runCheck(graph, ['src/svc/index.ts']);
     expect(result.nodeCount).toBeGreaterThanOrEqual(1);
-    expect(result.projectName).toBe('Test');
+    expect(result.projectName).toBe('tmp-check-clean-check');
     expect(result.aspectCount).toBeGreaterThanOrEqual(0);
     expect(result.flowCount).toBeGreaterThanOrEqual(0);
     await rm(tmpDir, { recursive: true, force: true });
