@@ -33,7 +33,7 @@ const lines = t.lines.pct;
 const stmts = t.statements.pct;
 const funcs = t.functions.pct;
 const br = t.branches.pct;
-if (lines < 90 || stmts < 90 || funcs < 90 || br < 85) {
+if (lines < 90 || stmts < 90 || funcs < 90 || br < 90) {
   console.error('Coverage below 90%: lines=' + lines + '%, statements=' + stmts + '%, functions=' + funcs + '%, branches=' + br + '%');
   process.exit(1);
 }
