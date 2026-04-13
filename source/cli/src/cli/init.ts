@@ -88,8 +88,17 @@ function needsEndpoint(provider: ReviewerProvider): boolean {
 }
 
 async function promptApiKey(provider: ReviewerProvider): Promise<string> {
+  const envVars: Record<string, string> = {
+    anthropic: 'ANTHROPIC_API_KEY',
+    openai: 'OPENAI_API_KEY',
+    google: 'GOOGLE_API_KEY',
+    'openai-compatible': 'OPENAI_API_KEY',
+  };
+  const envVar = envVars[provider];
+  const hint = envVar ? ` (or set ${envVar} env var)` : '';
   const key = await p.text({
-    message: `Enter API key for ${provider}`,
+    message: `API key for ${provider}${hint}`,
+    placeholder: 'Stored in .yggdrasil/yg-secrets.yaml (gitignored)',
     validate: (v) => ((v ?? '').trim().length === 0 ? 'API key cannot be empty' : undefined),
   });
   assertNotCancelled(key);
@@ -99,7 +108,9 @@ async function promptApiKey(provider: ReviewerProvider): Promise<string> {
 async function promptEndpoint(provider: ReviewerProvider): Promise<string> {
   const defaultEndpoint = provider === 'ollama' ? 'http://localhost:11434' : undefined;
   const endpoint = await p.text({
-    message: `Enter endpoint URL for ${provider}`,
+    message: provider === 'ollama'
+      ? 'Ollama endpoint URL'
+      : 'Endpoint URL (OpenAI-compatible API)',
     placeholder: defaultEndpoint,
     defaultValue: defaultEndpoint,
     validate: (v) => ((v ?? '').trim().length === 0 ? 'Endpoint cannot be empty' : undefined),
@@ -167,8 +178,17 @@ async function runReviewerConfigFlow(): Promise<{
 } | null> {
   // 1. Provider selection
   const provider = await p.select<ReviewerProvider>({
-    message: 'Select reviewer provider',
-    options: ALL_PROVIDERS.map((pr) => ({ value: pr, label: pr })),
+    message: 'Which provider should verify your code?',
+    options: [
+      { value: 'anthropic' as ReviewerProvider, label: 'Anthropic', hint: 'API — Claude models' },
+      { value: 'openai' as ReviewerProvider, label: 'OpenAI', hint: 'API — GPT models' },
+      { value: 'google' as ReviewerProvider, label: 'Google', hint: 'API — Gemini models' },
+      { value: 'ollama' as ReviewerProvider, label: 'Ollama', hint: 'Local — no API costs' },
+      { value: 'openai-compatible' as ReviewerProvider, label: 'OpenAI-compatible', hint: 'API — custom endpoint' },
+      { value: 'claude-code' as ReviewerProvider, label: 'Claude Code', hint: 'CLI — uses installed claude' },
+      { value: 'codex' as ReviewerProvider, label: 'Codex', hint: 'CLI — uses installed codex' },
+      { value: 'gemini-cli' as ReviewerProvider, label: 'Gemini CLI', hint: 'CLI — uses installed gemini' },
+    ],
   });
   assertNotCancelled(provider);
 
@@ -329,32 +349,31 @@ async function freshInit(projectRoot: string): Promise<void> {
     process.exit(1);
   }
 
-  p.intro(chalk.bold('Initialize Yggdrasil'));
+  p.intro(chalk.bold('Yggdrasil Setup'));
 
-  // 1. Platform selection
+  p.log.info(
+    'Yggdrasil enforces architectural rules on AI-generated code.\n' +
+    '  You write rules (aspects), the agent manages the graph,\n' +
+    '  and a reviewer verifies compliance after every change.',
+  );
+
+  // 1. Platform — determines which rules file the agent reads
+  p.log.step('Step 1: AI coding platform');
+  p.log.info('This installs a rules file that teaches your agent the Yggdrasil protocol.');
   const platform = await promptPlatform();
 
-  // 2. Reviewer?
-  const configureReviewer = await p.confirm({
-    message: 'Configure a reviewer?',
-  });
-  assertNotCancelled(configureReviewer);
+  // 2. Reviewer — the LLM that verifies aspects against source code
+  p.log.step('Step 2: Reviewer provider');
+  p.log.info(
+    'The reviewer checks your source code against aspect rules during yg approve.\n' +
+    '  API providers make HTTP calls. CLI providers delegate to an installed agent.\n' +
+    '  For local review without API costs, use Ollama.',
+  );
+  const reviewerConfig = await runReviewerConfigFlow();
 
-  let reviewerConfig: {
-    provider: ReviewerProvider;
-    model: string;
-    apiKey?: string;
-    endpoint?: string;
-  } | null = null;
-
-  if (configureReviewer) {
-    reviewerConfig = await runReviewerConfigFlow();
-  }
-
-  // 3. Create structure
+  // 3. Create structure + write config
   await createYggdrasilStructure(projectRoot, yggRoot, platform);
 
-  // 4. Write reviewer config if selected
   if (reviewerConfig) {
     await writeReviewerConfig(yggRoot, reviewerConfig);
     if (reviewerConfig.apiKey) {
