@@ -6,6 +6,7 @@ aspects: []
 relations: []
 mapping:
   - docs/getting-started.md
+  - docs/core-concepts.md
   - docs/cli-reference.md
   - docs/configuration.md
   - docs/platforms.md

@@ -1,5 +1,5 @@
 {
-  "hash": "2fd8a82cc0801a398093409a94651c60f4510eaff3005ffee0e4d91fbbda16b6",
+  "hash": "4963adb41df6d5806bf9271e5f938641f3942ec950af1a8715845a15c340410e",
   "files": {
     "own-subset:docs/site": "fd522550ee8337236d1728863133285d37650bc0ae3620c2cfd3ffd94c163026",
     ".yggdrasil/model/docs/yg-node.yaml": "36ca70c4bea26714bb7450d306d1a898e70573151394eb8e0fb3a5cf588c84d4",
@@ -8,14 +8,14 @@
     "docs/public/logo.svg": "4ad480da8bdcbeff35b7e9d24893f42166d4edc973ca16b13a2157e34261059a",
     "docs/.vitepress/theme/custom.css": "0f383338159534c8a78e76019cc3c28bb1cefcb9116b9da138f895061f6e264a",
     "docs/.vitepress/theme/index.ts": "47a53a53574c3437c65aaf76b1c7e0e3c30db953df85f0c45af4e7e2ad249dc8",
-    "docs/.vitepress/config.ts": "6ff070c0e2d801180205fa431df01acf90878c6e2cfbd0304eb3f5e608aae7d9"
+    "docs/.vitepress/config.ts": "598afbd412a6a4f334497be483d139d60e617643e1754da292da6b4f3eeecd8e"
   },
   "mtimes": {
     ".yggdrasil/model/docs/yg-node.yaml": 1775243577367.4014,
     "docs/package.json": 1773085358086.3213,
     "docs/package-lock.json": 1772432507086.5698,
     "docs/public/logo.svg": 1771968668987.6501,
-    "docs/.vitepress/config.ts": 1776070383070.6597,
+    "docs/.vitepress/config.ts": 1776072054253.4495,
     "docs/.vitepress/theme/custom.css": 1774195609716.5776,
     "docs/.vitepress/theme/index.ts": 1773085352706.9504
   }

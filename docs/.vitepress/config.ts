@@ -14,6 +14,7 @@ export default defineConfig({
     sidebar: [
       { text: "Home", link: "/" },
       { text: "Getting Started", link: "/getting-started" },
+      { text: "Core Concepts", link: "/core-concepts" },
       { text: "Supported Platforms", link: "/platforms" },
       { text: "CLI Reference", link: "/cli-reference" },
       { text: "Configuration", link: "/configuration" },

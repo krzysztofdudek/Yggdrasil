@@ -3,7 +3,7 @@ title: Supported Platforms
 ---
 
 `yg init` integrates with your AI tool by creating or updating the right
-instruction file — so the agent knows how to use the repo's semantic memory.
+instruction file — so the agent knows how to work with Yggdrasil.
 
 | Platform | File created/updated by `yg init` | Touches user files? |
 |---|---|---|
