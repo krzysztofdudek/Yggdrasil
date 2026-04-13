@@ -42,9 +42,9 @@ defined as aspects.
 
 ## Quality config
 
-| Field | Default | Description |
-|-------|---------|-------------|
-| `max_direct_relations` | 10 | Max relations before high fan-out warning |
+| Field                  | Default | Description                               |
+|------------------------|---------|-------------------------------------------|
+| `max_direct_relations` | 10      | Max relations before high fan-out warning |
 
 ---
 
@@ -70,7 +70,7 @@ node_types:
   library:
     description: "Shared utility code with no domain knowledge"
   # Optional fields per type: aspects, parents, relations
-  # See docs/concept/graph.md for the full architecture file format.
+  # See yg-architecture.yaml schema for the full format.
 ```
 
 ---

@@ -46,9 +46,9 @@ yg check   →  "source files changed since last approve"
 
 Because a flat file with 200 rules dumps everything into every prompt. The agent filters what it thinks matters and skips the rest.
 
-Yggdrasil scopes rules to where they matter. `yg context --file <path>` shows only the aspects that apply to that specific file. Instead of 200 rules, the agent sees 3-5 that are actually relevant. Zero noise, zero excuses.
+Yggdrasil scopes rules to where they matter. `yg context --file <path>` shows only the aspects that apply to that specific file. Instead of 200 rules, the agent sees 3-5 that are actually relevant.
 
-And when you change a rule, every file that should satisfy it gets flagged for re-approval. Cascading review, not a hope that someone notices.
+And when you change a rule, every file that should satisfy it gets flagged for re-approval automatically. Aspects reach files through five channels: directly on a node, by node type, through hierarchy, via port contracts, and through business process flows. One rule can cover dozens of files, and changing it triggers cascading re-verification everywhere.
 
 ## Getting started
 
@@ -64,7 +64,7 @@ The wizard walks you through platform selection and reviewer setup. It fetches a
 
 If you prefer flags: `yg init --platform cursor` skips the platform prompt.
 
-**3. Start working.**
+**2. Start working.**
 
 The graph doesn't build itself automatically, and that's intentional. Architecture is coarse-grained, not a 1:1 mirror of your file tree. The agent builds it incrementally as you work.
 
@@ -81,13 +81,9 @@ Agent:  Creates node orders/order-service with mapping and aspects.
 
 On an existing codebase, the agent starts by mapping the areas you're actively working on. Parts you're not touching stay unmapped until you need them. Coverage grows organically as you work, not as a one-time setup cost.
 
-**4. Enforce.**
+**3. Enforce.**
 
 Run `yg check` in CI or as a pre-commit hook. If it fails, tell the agent to fix it.
-
-## How aspects propagate
-
-Aspects reach source files through five channels: directly on a node, by node type, through parent-child hierarchy, via port contracts, and through business process flows. One rule can cover dozens of files automatically, and changing that rule triggers cascading re-verification everywhere it applies.
 
 ## Supported platforms
 
@@ -106,7 +102,7 @@ Rules files are flat text dumped into every prompt. They don't scope rules to wh
 Those tools help agents find more code. Yggdrasil enforces constraints that don't exist in code and never will. "Rate limiting required" isn't in any AST. "No direct DB access from this layer" isn't in any embedding.
 
 **Does the agent actually follow the rules?**
-It doesn't need to. `yg check` runs in CI. The agent runs `yg approve` which triggers a reviewer against source code. If an aspect isn't satisfied, check fails. Enforcement is mechanical, not behavioral.
+It doesn't need to. `yg check` runs in CI. The agent runs `yg approve` which triggers a reviewer against source code. If an aspect isn't satisfied, check fails. The enforcement is mechanical, not based on the agent's good intentions.
 
 ## Documentation
 
