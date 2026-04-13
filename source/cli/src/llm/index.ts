@@ -6,9 +6,6 @@ import './anthropic.js';
 import './google.js';
 import './codex.js';
 import './gemini-cli.js';
-import './cline.js';
-import './opencode.js';
-import './aider.js';
 
 export { createLlmProvider, registerProvider } from './provider.js';
 export type { LlmProvider, AspectResponse } from './types.js';

@@ -53,7 +53,7 @@ export type ReviewerProvider =
   // API
   | 'ollama' | 'openai' | 'anthropic' | 'google' | 'openai-compatible'
   // CLI
-  | 'claude-code' | 'codex' | 'gemini-cli' | 'cline' | 'opencode' | 'aider';
+  | 'claude-code' | 'codex' | 'gemini-cli';
 
 /** LLM configuration — merged from yg-config.yaml + yg-secrets.yaml */
 export interface LlmConfig {

@@ -24,10 +24,10 @@ describe('LLM provider factory', () => {
   });
 });
 
-describe('Registry — all 11 providers register via index.ts', () => {
+describe('Registry — all 8 providers register via index.ts', () => {
   const allProviders: ReviewerProvider[] = [
     'ollama', 'openai', 'anthropic', 'google', 'openai-compatible',
-    'claude-code', 'codex', 'gemini-cli', 'cline', 'opencode', 'aider',
+    'claude-code', 'codex', 'gemini-cli',
   ];
 
   for (const name of allProviders) {

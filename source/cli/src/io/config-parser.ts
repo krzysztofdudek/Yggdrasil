@@ -13,10 +13,10 @@ const DEFAULT_QUALITY: QualityConfig = {
 
 const KNOWN_PROVIDERS = [
   'ollama', 'openai', 'anthropic', 'google', 'openai-compatible',
-  'claude-code', 'codex', 'gemini-cli', 'cline', 'opencode', 'aider',
+  'claude-code', 'codex', 'gemini-cli',
 ] as const;
 
-const CLI_PROVIDERS = new Set(['claude-code', 'codex', 'gemini-cli', 'cline', 'opencode', 'aider']);
+const CLI_PROVIDERS = new Set(['claude-code', 'codex', 'gemini-cli']);
 
 const PROVIDER_DEFAULTS: Record<string, Partial<LlmConfig>> = {
   'claude-code': { model: 'haiku' },

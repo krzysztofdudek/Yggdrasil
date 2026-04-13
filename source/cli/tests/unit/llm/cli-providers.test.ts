@@ -1,17 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { CodexProvider } from '../../../src/llm/codex.js';
 import { GeminiCliProvider } from '../../../src/llm/gemini-cli.js';
-import { ClineProvider } from '../../../src/llm/cline.js';
-import { OpenCodeProvider } from '../../../src/llm/opencode.js';
-import { AiderProvider } from '../../../src/llm/aider.js';
 
 describe('CLI providers', () => {
   const providers = [
     { name: 'codex', cls: CodexProvider, binary: 'codex', stdin: true },
     { name: 'gemini-cli', cls: GeminiCliProvider, binary: 'gemini', stdin: false },
-    { name: 'cline', cls: ClineProvider, binary: 'cline', stdin: false },
-    { name: 'opencode', cls: OpenCodeProvider, binary: 'opencode', stdin: false },
-    { name: 'aider', cls: AiderProvider, binary: 'aider', stdin: false },
   ];
 
   for (const { name, cls, binary, stdin } of providers) {
