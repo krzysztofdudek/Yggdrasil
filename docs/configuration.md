@@ -13,8 +13,7 @@ Config file: `.yggdrasil/yg-config.yaml`
 
 ### Optional fields
 
-- **version** — CLI version that last wrote this config. Set automatically by `yg init` and
-  `yg init --upgrade`.
+- **version** — CLI version that last wrote this config. Set automatically by `yg init`.
 - **quality** — Quality thresholds
 - **parallel** — Concurrency limit for batch approve (positive integer, default: 1). Higher
   values run multiple `approveNode()` calls concurrently during `--aspect`/`--flow`/multi-node

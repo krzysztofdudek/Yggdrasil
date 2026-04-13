@@ -66,8 +66,6 @@ yg init
 
 The wizard walks you through platform selection and reviewer setup. It fetches available models from your provider, validates the connection, and writes the config for you.
 
-If you prefer flags: `yg init --platform cursor` skips the platform prompt.
-
 **2. Start working.**
 
 The graph doesn't build itself automatically, and that's intentional. Architecture is coarse-grained, not a 1:1 mirror of your file tree. The agent builds it incrementally as you work.
@@ -91,7 +89,7 @@ Run `yg check` in CI or as a pre-commit hook. If it fails, tell the agent to fix
 
 ## Supported platforms
 
-Works with any AI coding agent. `yg init --platform <name>` generates the rules file your agent expects.
+Works with any AI coding agent. `yg init` sets up the rules file your agent expects.
 
 **Agent platforms:** Cursor · Claude Code · GitHub Copilot · Codex · Cline · RooCode · Windsurf · Aider · Gemini CLI · Amp · OpenCode
 

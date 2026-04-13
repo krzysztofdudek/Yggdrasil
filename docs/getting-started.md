@@ -25,10 +25,8 @@ Yggdrasil protocol: when to run `yg context` before reading code, when to run
 `yg approve` after writing, how to create nodes and aspects. You don't need to
 explain any of this to your agent — the rules file handles it.
 
-If you prefer flags: `yg init --platform cursor` skips the platform prompt.
-
-Supported platforms: `cursor`, `claude-code`, `copilot`, `cline`,
-`roocode`, `codex`, `windsurf`, `aider`, `gemini`, `amp`, `opencode`, `generic`
+Supported platforms: Cursor, Claude Code, GitHub Copilot, Codex, Cline,
+RooCode, Windsurf, Aider, Gemini CLI, Amp, OpenCode.
 
 ## 3) Your first aspect
 

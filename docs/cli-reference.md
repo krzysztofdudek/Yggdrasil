@@ -143,16 +143,12 @@ yg owner --file <path>
 
 | Command | Purpose |
 |---------|---------|
-| `yg init [--platform <name>] [--upgrade]` | Initialize or upgrade |
+| `yg init` | Initialize or reconfigure |
 
 ```bash
-yg init [--platform <name>] [--upgrade]
+yg init
 ```
 
-Creates `.yggdrasil/` and installs the platform instruction file.
-
-Without flags, `yg init` runs an interactive wizard that walks you through platform
-and reviewer setup.
-
-- `--platform <name>` — Skip platform prompt. Values: `cursor`, `claude-code`, `copilot`, `cline`, `roocode`, `codex`, `windsurf`, `aider`, `gemini`, `amp`, `opencode`, `generic`
-- `--upgrade` — Refresh schemas and rules (when `.yggdrasil/` already exists)
+Interactive wizard. On a new project: walks you through platform selection and
+reviewer setup. On an existing project: offers upgrade, reviewer reconfiguration,
+or platform change.
