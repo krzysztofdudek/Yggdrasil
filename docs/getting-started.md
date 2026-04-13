@@ -15,18 +15,16 @@ cd your-project
 yg init
 ```
 
-The wizard walks you through platform selection and reviewer setup.
-It fetches available models from your provider, validates the connection,
-and writes the config for you.
+The wizard asks two things:
 
-`yg init` also installs a **rules file** for your platform (e.g. `.cursor/rules/yggdrasil.mdc`
-for Cursor, a line in `CLAUDE.md` for Claude Code). This file teaches the agent the
-Yggdrasil protocol: when to run `yg context` before reading code, when to run
-`yg approve` after writing, how to create nodes and aspects. You don't need to
-explain any of this to your agent — the rules file handles it.
+1. **Which AI coding platform?** (Cursor, Claude Code, Copilot, etc.)
+   This installs a rules file that teaches your agent the Yggdrasil protocol.
+2. **Which reviewer provider?** (Anthropic, OpenAI, Google, Ollama, etc.)
+   The wizard fetches available models, lets you pick one, and validates
+   the connection.
 
-Supported platforms: Cursor, Claude Code, GitHub Copilot, Codex, Cline,
-RooCode, Windsurf, Aider, Gemini CLI, Amp, OpenCode.
+That's it. Takes about a minute. The wizard creates `.yggdrasil/` with
+config, schemas, architecture defaults, and the rules file for your platform.
 
 ## 3) Your first aspect
 
@@ -121,18 +119,12 @@ runs instantly. Exit code 1 means source files changed without being approved.
   run: npx @chrisdudek/yg check
 ```
 
-**Pre-commit hook (package.json):**
-
-```json
-{
-  "scripts": {
-    "precommit": "yg check"
-  }
-}
-```
-
 If check fails, it means source files changed without being approved.
-Tell the agent to fix it.
+Tell the agent: "resolve all yg check issues" and it will run approve,
+fix violations, and re-approve until check passes.
+
+Yggdrasil is zero lock-in. Delete `.yggdrasil/` and your project works
+exactly as before. No build dependencies, no runtime hooks.
 
 ---
 
