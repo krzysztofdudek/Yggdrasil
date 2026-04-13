@@ -186,7 +186,8 @@ const REFERENCE = `## REFERENCE
 
 \`\`\`
 .yggdrasil/
-  yg-config.yaml     ← version, vocabulary, node types
+  yg-config.yaml     ← project config: reviewer, quality thresholds, parallel
+  yg-architecture.yaml ← node type definitions, default aspects per type
   model/             ← what exists: nodes, hierarchy, relations, file mappings
   aspects/           ← what must: cross-cutting requirements — the ONLY enforcement rules
   flows/             ← why and in what process: business processes with node participation
@@ -201,7 +202,7 @@ Key facts:
 - **Flows = business processes.** A flow describes what happens in the world, not code sequences. Flow aspects propagate to all participants.
 - **Nodes = \`yg-node.yaml\` only.** Name, type, description, mapping, relations, aspects, ports. No \`.md\` files in nodes.
 
-**Node type guidance:** Each type in \`yg-config.yaml node_types\` has a \`description\` that tells you when to use it. Check the project's config for the full list and descriptions. Common types: \`module\` (business logic), \`service\` (providing functionality), \`library\` (shared utilities), \`infrastructure\` (guards, middleware, interceptors — invisible in call graphs but affect blast radius).
+**Node type guidance:** Each type in \`yg-architecture.yaml node_types\` has a \`description\` that tells you when to use it. Check the project's architecture file for the full list and descriptions. Common types: \`module\` (business logic), \`service\` (providing functionality), \`library\` (shared utilities), \`infrastructure\` (guards, middleware, interceptors — invisible in call graphs but affect blast radius).
 
 ### Aspect Distribution Channels
 

@@ -228,7 +228,7 @@ describe('classifyDrift', () => {
   });
 
   it('returns unapproved when no baseline exists', async () => {
-    const { tmpDir } = await createTmpProject('unmaterialized', {
+    const { tmpDir } = await createTmpProject('unapproved', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
@@ -243,7 +243,7 @@ describe('classifyDrift', () => {
   });
 
   it('returns source-drift unapproved with files-never-created message when source path absent', async () => {
-    const { tmpDir } = await createTmpProject('unmaterialized-absent', {
+    const { tmpDir } = await createTmpProject('unapproved-absent', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/absent/\n',
       // Do NOT create the mapping directory at all

@@ -28,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Features
 
 - **Claude Code provider (`claude-code`)** — spawns `claude` CLI for
-  aspect verification. Configure via `reviewer: { claude-code: { model: haiku } }`.
+  aspect verification. Configure via `reviewer:` section in `yg-config.yaml`.
 - **`yg approve --aspect <id>`** — batch approve all cascade nodes
   from a specific aspect change.
 - **`yg approve --flow <name>`** — batch approve all cascade nodes
@@ -85,6 +85,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   enforcement), `orphaned-drift-state` (warns about deleted nodes).
 - **CLI messages** follow consistent what/why/next structure via
   `buildIssueMessage` helper.
+- **`yg-architecture.yaml`** — separate file for node type definitions
+  with default aspects and relation constraints per type. Created by
+  `yg init` with 5 default types (module, service, library, infrastructure, data).
+- **`consensus: N`** reviewer config — runs N review passes per aspect
+  and requires majority agreement. Higher confidence, proportionally
+  higher cost.
+- **`name` field removed from `yg-config.yaml`.** Project name is
+  derived from the directory name at runtime.
 - **Consequence framing for dependents.** 1-5: plain list, 6-15: cascade
   warning with count, 16+: HIGH blast radius warning.
 
@@ -98,7 +106,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   in specs, conversations, and code (multi-actor AND single-actor).
 - **Subagent delegation protocol** — subagents must read agent-rules.md
   and deliver graph updates alongside code. Incomplete work rejected.
-- **Aspect check step (5b)** in Modify Source Code workflow.
+- **Aspect check step (5c)** in Modify Source Code workflow.
 - **Aspect discovery** applies to brownfield and greenfield.
 - **New file creation trigger** in agent rules.
 
