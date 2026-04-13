@@ -1,5 +1,5 @@
 {
-  "hash": "655aa475e1986a72562bffd03cca2674cce44f213f3f5b5c97058180a18d4988",
+  "hash": "4f910fa9c74ffa59651a0ac7f85ef6532f78b42d73da1709fec06f8669aa70d7",
   "files": {
     "own-subset:root": "fd522550ee8337236d1728863133285d37650bc0ae3620c2cfd3ffd94c163026",
     ".claude/settings.local.json": "a12c71d91e7c3bb9cefb60afba8e7eb7478d091d41587e90c0c5c3c0c2f464b5",
@@ -27,7 +27,7 @@
     "SECURITY.md": "b0607f876a948dd944b20080c4e7f6833f1c0b0dac22586f09812383cd0ff2c5",
     "SUPPORT.md": "dbef1a996af0f3055484bef1e1fbc4f4fb1d5a0f92786a9f0c978cbff5bcdc7d",
     "Yggdrasil.code-workspace": "feb93b6119b98d011040614dabf4fe68f24eccc8f5d32626d5e4bacf5cef16a8",
-    "README.md": "c6818dab8f701c5fb666c01463c3a6ac03bd2aef2df52abafab508e3f2197140"
+    "README.md": "3b584869656c49ee4e6a08889e3b225dd917b996a3c37449b7257d4f701c7b26"
   },
   "mtimes": {
     ".claude/settings.local.json": 1774962645148.887,
@@ -52,7 +52,7 @@
     "CODE_OF_CONDUCT.md": 1771702275784.5166,
     "CONTRIBUTING.md": 1775029551569.4338,
     "LICENSE": 1771411022613.348,
-    "README.md": 1776072654953.567,
+    "README.md": 1776072987231.1785,
     "SECURITY.md": 1775708185066.8264,
     "SUPPORT.md": 1771702372269.1838,
     "Yggdrasil.code-workspace": 1776060230239.2185

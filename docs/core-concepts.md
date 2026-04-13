@@ -243,13 +243,9 @@ The reviewer is an LLM that reads source code and checks it against aspect rules
 during `yg approve`. It's a separate call from your coding agent — one LLM
 verifying the work of another.
 
-**Without a reviewer configured:** `yg check` still catches drift (code changed
-without approval), coverage gaps (unmapped files), and structural issues. You get
-structural enforcement but no semantic verification of aspect compliance.
-
-**With a reviewer:** `yg approve` sends each aspect's `content.md` plus the
-relevant source files to the LLM. The reviewer responds with SATISFIED or
-NOT SATISFIED per aspect. One LLM call per aspect per node.
+`yg approve` sends each aspect's `content.md` plus the relevant source files
+to the reviewer. The reviewer responds with SATISFIED or NOT SATISFIED per
+aspect. One LLM call per aspect per node.
 
 **Cost:** A typical approve for a node with 3 aspects and 5 source files makes
 3 LLM calls. Using a fast model (Haiku, GPT-4o-mini, Gemini Flash) keeps

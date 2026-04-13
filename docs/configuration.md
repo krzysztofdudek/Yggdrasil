@@ -77,8 +77,8 @@ node_types:
 
 ## Reviewer config
 
-Optional. Enables semantic verification during `yg approve` — aspect verification.
-The `reviewer:` section in `yg-config.yaml` uses a nested provider structure.
+The reviewer verifies aspects against source code during `yg approve`.
+Configured during `yg init` or manually in the `reviewer:` section of `yg-config.yaml`.
 
 General keys (`active`, `verify_aspects`, `consensus`) sit at the `reviewer:` level.
 Provider-specific keys sit under the provider name.
