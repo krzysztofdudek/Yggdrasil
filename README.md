@@ -29,7 +29,9 @@ It turns suggestions into requirements that get mechanically verified.
 
 You write architectural rules as **aspects** in plain Markdown. Things like "every public endpoint must use rate limiting" or "no direct database access from this layer." The agent manages the graph structure, you control what's enforced.
 
-The agent runs `yg approve` after writing code, which triggers a reviewer that checks source files against every applicable aspect. Not whether the agent claims it followed the rules, but whether the code actually satisfies them. If it doesn't, the approval fails and the agent has to fix it.
+The agent runs `yg approve` after writing code, which triggers a reviewer (an LLM call) that reads source files and checks them against every applicable aspect. If the code doesn't satisfy a rule, the approval fails and the agent has to fix it.
+
+The reviewer requires an LLM provider (Anthropic, OpenAI, Google, Ollama, or others). Without a reviewer configured, `yg check` still detects drift and coverage gaps, but aspect verification is skipped.
 
 You run `yg check` to see if everything is clean. In CI, as a pre-commit hook, whenever you want. If check doesn't pass, you tell the agent to fix it.
 
@@ -102,7 +104,10 @@ Rules files are flat text dumped into every prompt. They don't scope rules to wh
 Those tools help agents find more code. Yggdrasil enforces constraints that don't exist in code and never will. "Rate limiting required" isn't in any AST. "No direct DB access from this layer" isn't in any embedding.
 
 **Does the agent actually follow the rules?**
-It doesn't need to. `yg check` runs in CI. The agent runs `yg approve` which triggers a reviewer against source code. If an aspect isn't satisfied, check fails. The enforcement is mechanical, not based on the agent's good intentions.
+It doesn't need to. `yg check` runs in CI. The agent runs `yg approve` which triggers a reviewer (a separate LLM call) that reads the source code and checks it against aspect rules. If an aspect isn't satisfied, check fails. The enforcement is structural (drift detection, coverage) plus semantic (LLM-based aspect review). You can use `consensus: 3` to run multiple review passes for higher confidence.
+
+**What if I don't configure a reviewer?**
+`yg check` still works. It catches drift (code changed without approval), coverage gaps (unmapped files), and structural issues. You just don't get aspect verification. It's useful on its own, but the full value comes with a reviewer.
 
 ## Documentation
 

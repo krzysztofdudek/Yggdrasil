@@ -19,6 +19,12 @@ The wizard walks you through platform selection and reviewer setup.
 It fetches available models from your provider, validates the connection,
 and writes the config for you.
 
+`yg init` also installs a **rules file** for your platform (e.g. `.cursor/rules/yggdrasil.mdc`
+for Cursor, a line in `CLAUDE.md` for Claude Code). This file teaches the agent the
+Yggdrasil protocol: when to run `yg context` before reading code, when to run
+`yg approve` after writing, how to create nodes and aspects. You don't need to
+explain any of this to your agent — the rules file handles it.
+
 If you prefer flags: `yg init --platform cursor` skips the platform prompt.
 
 Supported platforms: `cursor`, `claude-code`, `copilot`, `cline`,
@@ -47,19 +53,47 @@ The agent will create:
         yg-node.yaml        ← maps src/payments/, lists requires-audit aspect
 ```
 
-Now run:
+Now run `yg check`:
 
-```bash
-yg check
+```text
+$ yg check
+
+my-project — 1 nodes, 1 aspects, 0 flows
+Coverage: 1/1 source files (100%)
+
+Errors (1):
+  unapproved payments — not yet materialized
+       Node has never been approved (no baseline):
+         src/payments.ts
+       Verify source, then: yg approve --node payments
+
+Result: FAIL (1 drift — 1 errors, 0 warnings)
 ```
 
-If the agent mapped the files and created the aspect, check will show drift
-(source files exist but haven't been approved yet). Tell the agent to run
-`yg approve` — the reviewer will check whether `src/payments/` actually
-satisfies the rules in `content.md`.
+Check detected that `src/payments.ts` is mapped but was never approved.
+The agent runs `yg approve --node payments` and the reviewer reads the source
+code, checks it against the rules in `content.md`, and reports:
 
-If the code doesn't satisfy the aspect, the reviewer explains what's missing.
-The agent fixes it and re-runs approve.
+```text
+$ yg approve --node payments
+
+Approved: payments
+  Verified: 1 aspects satisfied.
+
+Aspect verification:
+  requires-audit — SATISFIED
+```
+
+If the code didn't satisfy the aspect, the output would show:
+
+```text
+ERROR: Reviewer found aspect violations.
+  requires-audit — chargeCard() does not emit an audit event.
+    No call to auditLog.emit() found in any mutation path.
+  Fix the violations and re-run: yg approve --node payments
+```
+
+The agent fixes the code and re-runs approve until all aspects pass.
 
 ## 4) Growing the graph
 

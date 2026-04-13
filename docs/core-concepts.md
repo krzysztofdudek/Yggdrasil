@@ -68,12 +68,54 @@ mapping:
 - **type** — must match a type defined in `yg-architecture.yaml` (e.g. `module`,
   `service`, `library`)
 - **aspects** — list of aspect IDs this node must satisfy
-- **relations** — outgoing dependencies to other nodes (`calls`, `uses`, `extends`,
-  `implements`, `emits`, `listens`)
+- **relations** — outgoing dependencies to other nodes (see [Relations](#relations)
+  below)
 - **mapping** — source files and directories this node owns (paths relative to
   repo root)
 
 Nodes can be nested. Children inherit parent aspects automatically.
+
+### Relations
+
+Relations declare dependencies between nodes. They serve two purposes:
+`yg impact` uses them to calculate blast radius, and `yg check` validates
+that targets exist and port contracts are satisfied.
+
+```yaml
+relations:
+  - target: payments/payment-service
+    type: calls
+  - target: shared/logger
+    type: uses
+```
+
+Available types: `calls`, `uses`, `extends`, `implements`, `emits`, `listens`.
+The type is descriptive — it documents the nature of the dependency.
+
+### Ports
+
+A node can declare **ports** — named entry points with required aspects.
+When another node consumes a port, it must satisfy the port's aspects.
+
+```yaml
+# payments/payment-service/yg-node.yaml
+ports:
+  charge:
+    description: "Charge a payment method"
+    aspects: [correlation-tracking]
+```
+
+```yaml
+# orders/order-service/yg-node.yaml
+relations:
+  - target: payments/payment-service
+    type: calls
+    consumes: [charge]
+```
+
+Now `orders/order-service` must satisfy the `correlation-tracking` aspect
+because it consumes the `charge` port. This is the "port contracts" channel
+in the aspect propagation table below.
 
 ### Blackbox nodes
 
@@ -192,3 +234,27 @@ node_types:
 
 Setting `aspects: [requires-audit]` on the `service` type means every
 service node automatically inherits that aspect without listing it explicitly.
+
+---
+
+## The reviewer
+
+The reviewer is an LLM that reads source code and checks it against aspect rules
+during `yg approve`. It's a separate call from your coding agent — one LLM
+verifying the work of another.
+
+**Without a reviewer configured:** `yg check` still catches drift (code changed
+without approval), coverage gaps (unmapped files), and structural issues. You get
+structural enforcement but no semantic verification of aspect compliance.
+
+**With a reviewer:** `yg approve` sends each aspect's `content.md` plus the
+relevant source files to the LLM. The reviewer responds with SATISFIED or
+NOT SATISFIED per aspect. One LLM call per aspect per node.
+
+**Cost:** A typical approve for a node with 3 aspects and 5 source files makes
+3 LLM calls. Using a fast model (Haiku, GPT-4o-mini, Gemini Flash) keeps
+cost under a few cents per approval. For local review, Ollama runs on your
+machine with no API cost.
+
+**Consensus:** Set `consensus: 3` (or any odd number) to run multiple review
+passes and take the majority vote. Higher confidence, proportionally higher cost.
