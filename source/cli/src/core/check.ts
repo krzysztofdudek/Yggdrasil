@@ -405,7 +405,10 @@ export async function runCheck(graph: Graph, gitTrackedFiles: string[] | null): 
     // Exclude .yggdrasil/ files from total count
     const projectRoot = path.dirname(graph.rootPath);
     const yggPrefix = path.relative(projectRoot, graph.rootPath).replace(/\\/g, '/').replace(/\/+$/, '');
-    const sourceFiles = gitTrackedFiles.filter(f => !f.startsWith(yggPrefix + '/') && f !== yggPrefix);
+    const sourceFiles = gitTrackedFiles.filter(f => {
+      const normalized = f.trim().replace(/\\/g, '/').replace(/\/+$/, '');
+      return !normalized.startsWith(yggPrefix + '/') && normalized !== yggPrefix;
+    });
     totalFiles = sourceFiles.length;
     const uncovered = scanUncoveredFiles(graph, gitTrackedFiles);
     coveredFiles = totalFiles - uncovered.length;

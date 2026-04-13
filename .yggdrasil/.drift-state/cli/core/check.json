@@ -1,5 +1,5 @@
 {
-  "hash": "4c412f8036da07e8efe3d38b6119348567c3df9c3d288d704fda8d1c74d57f0e",
+  "hash": "d0f551917c7e001e89224b5de86c4a31b0e49f9e5970e8ad0f9c892a5f0b9bfc",
   "files": {
     "own-subset:cli/core/check": "d33475726c83d775980e86051d94693068be8371bdff53886eb5c3fb23a2510d",
     ".yggdrasil/model/cli/yg-node.yaml": "41ddbf73fbc1ee27a28a5ea5ec7ad656ea34f5938284bd5ab4ea7c3afcbbd69b",
@@ -7,6 +7,7 @@
     ".yggdrasil/aspects/deterministic/yg-aspect.yaml": "20f321091b4f489efbf167feea9d42d73f7cffb21ea2e86958e565b550da164b",
     ".yggdrasil/aspects/deterministic/content.md": "82a5311abc13d6000f906bbdbd04399b233692256c49819a9cb15f95f988250a",
     ".yggdrasil/aspects/posix-paths/yg-aspect.yaml": "3f025d4986e5dceea0b8fec8695cf9224305ef75229632e7a21a78600b0da29b",
+    ".yggdrasil/aspects/posix-paths/content.md": "13a4fa1c6f05894679dcc51cf7e49bc3563558ecc75d7aefa25b72404fb25e92",
     ".yggdrasil/aspects/what-why-next/yg-aspect.yaml": "3dc44ca9f217265beaf528bbfd13720e77985be4ec8fae0ce1f2c044968c8faf",
     ".yggdrasil/aspects/what-why-next/content.md": "d6895f344703a2712d6f6dabf4eaefd903cab07aa9c433581ab27f41ccc3ae06",
     ".yggdrasil/model/cli/core/validator/yg-node.yaml": "f590ff8f39b54ccd848023a42a862867dec6221511d5f2a1cf5a4c622dd8a650",
@@ -18,8 +19,7 @@
     ".yggdrasil/flows/drift/yg-flow.yaml": "61579d606040dda58a7fc38612b95ce0a9d281aa637699d050d906930334d2e7",
     ".yggdrasil/flows/graph-analysis/yg-flow.yaml": "ad33ff3a4f7de1f9f97d3a728660e6abbeeb47fa6f858c8949f25747535cca80",
     ".yggdrasil/flows/preflight/yg-flow.yaml": "b9c35e5bac6b7096f0085041a808206cb1968ddc33e18a8b741557962d43a410",
-    "source/cli/src/core/check.ts": "a7f31bc97c0a3c2fb4e4b5241fe6c192a0b2495d952a34cd34a77e4ff761e9ef",
-    ".yggdrasil/aspects/posix-paths/content.md": "13a4fa1c6f05894679dcc51cf7e49bc3563558ecc75d7aefa25b72404fb25e92"
+    "source/cli/src/core/check.ts": "7abac4620b96c4b895a29ae19c4cc2d9bd5705e652cfea7e66e2350b62892298"
   },
   "mtimes": {
     ".yggdrasil/model/cli/yg-node.yaml": 1775639608581.9402,
@@ -39,6 +39,6 @@
     ".yggdrasil/flows/drift/yg-flow.yaml": 1775900707599.0637,
     ".yggdrasil/flows/graph-analysis/yg-flow.yaml": 1775900709658.136,
     ".yggdrasil/flows/preflight/yg-flow.yaml": 1775900708626.7056,
-    "source/cli/src/core/check.ts": 1776063117423.275
+    "source/cli/src/core/check.ts": 1776074187242.2158
   }
 }

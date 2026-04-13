@@ -1,5 +1,5 @@
 {
-  "hash": "f6d838e0d479e065adc8923c978be0d6a7ab44f9c7405c7e62dc4f97556741c5",
+  "hash": "b3353de217837c45be4b19584c96a7701d85b2bb7ce22563127819b283caeea5",
   "files": {
     "own-subset:cli/tests/unit/support/io": "ec3ac9679505be3bb8233c4ef0b39c8ee206d2c37fc8610edc19f41fbfb9661e",
     ".yggdrasil/model/cli/yg-node.yaml": "41ddbf73fbc1ee27a28a5ea5ec7ad656ea34f5938284bd5ab4ea7c3afcbbd69b",
@@ -12,10 +12,10 @@
     "source/cli/tests/unit/io/audit-log.test.ts": "89fc49dd657086beb7532abbdbd464685861547f4a6a6c9b14c05e006d6d5117",
     "source/cli/tests/unit/io/drift-state-store.test.ts": "c6cbfb60e79fd9a343b1381bc0f883bd4a0f247813cef7399e2d3c556086d585",
     "source/cli/tests/unit/io/flow-parser.test.ts": "46e1cad0c7d6d0ce17dda3176d90fc2427eb5e0f454a729e0385ba0b9bf3c250",
+    "source/cli/tests/unit/io/node-parser.test.ts": "48bc18f081de6925c7a6084cc59413fd4376b22d85a1455e9c12ad0eb790367f",
     "source/cli/tests/unit/io/schema-parser.test.ts": "7c5e0741a35e8baef026f66c5cbfe4c0784708f66d38a260b0854b5cd5e24535",
     "source/cli/tests/unit/io/secrets-parser.test.ts": "d9734bced1261837f6337130ce38fe35e8be20cf82899a8e6f71bae69727378c",
-    "source/cli/tests/unit/io/config-parser.test.ts": "1e799fb629b6cd04f5ee530025291573aedc995441cecf997b7c6f4df1a5a3b8",
-    "source/cli/tests/unit/io/node-parser.test.ts": "48bc18f081de6925c7a6084cc59413fd4376b22d85a1455e9c12ad0eb790367f"
+    "source/cli/tests/unit/io/config-parser.test.ts": "94ded8c41b75278ac95a26330ba43a6616d8fa7fc7510ec717392546bf8462d4"
   },
   "mtimes": {
     ".yggdrasil/model/cli/yg-node.yaml": 1775639608581.9402,
@@ -26,7 +26,7 @@
     "source/cli/tests/unit/io/artifact-reader.test.ts": 1775982991192.8218,
     "source/cli/tests/unit/io/aspect-parser.test.ts": 1775982351968.8948,
     "source/cli/tests/unit/io/audit-log.test.ts": 1775981766392.7297,
-    "source/cli/tests/unit/io/config-parser.test.ts": 1776063192917.1248,
+    "source/cli/tests/unit/io/config-parser.test.ts": 1776073611575.3474,
     "source/cli/tests/unit/io/drift-state-store.test.ts": 1775901977325.9397,
     "source/cli/tests/unit/io/flow-parser.test.ts": 1775986666296.2034,
     "source/cli/tests/unit/io/node-parser.test.ts": 1776058018221.2373,
