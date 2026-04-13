@@ -26,6 +26,13 @@ The wizard asks two things:
 That's it. Takes about a minute. The wizard creates `.yggdrasil/` with
 config, schemas, architecture defaults, and the rules file for your platform.
 
+The architecture file (`.yggdrasil/yg-architecture.yaml`) comes pre-configured
+with common node types: `module`, `service`, `library`, `infrastructure`, `data`.
+These work out of the box. You can customize them later — add new types, set
+default aspects per type, constrain relations. Tell the agent to do it:
+
+> "Add a node type 'api' with a default aspect 'requires-auth'."
+
 ## 3) Your first aspect
 
 After init, you have an empty graph. Tell your agent to create the first rule.

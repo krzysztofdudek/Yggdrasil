@@ -216,8 +216,10 @@ does the approve (with LLM review) locally, CI just verifies it happened.
 
 ## Architecture file
 
-Node types are defined in `.yggdrasil/yg-architecture.yaml`. This controls
-what types of nodes are allowed and can set default aspects per type.
+`yg init` creates `.yggdrasil/yg-architecture.yaml` with default node types.
+This file controls what types of nodes are allowed and can set default
+aspects per type. The defaults work out of the box — customize when you
+need to. The agent knows the schema and can modify this file on your behalf.
 
 ```yaml
 node_types:
