@@ -1,14 +1,13 @@
 # Agent Instructions — Yggdrasil Repository
 
-You work on the Yggdrasil repository: an open-source product (CLI + infrastructure) that gives repositories persistent semantic memory for AI agents. This repo both implements Yggdrasil and uses it on itself (dogfooding).
+You work on the Yggdrasil repository: an open-source CLI that provides continuous architecture enforcement for AI-assisted development. This repo both implements Yggdrasil and uses it on itself (dogfooding).
 
 ## Context — Where Things Live
 
 | Path                    | Role                                                                                |
 | ----------------------- | ----------------------------------------------------------------------------------- |
-| `docs/concept/`         | Spec — source of truth. tools.md = schemas, operations. engine.md = algorithms.     |
-| `source/cli/`           | Implementation — CLI code. Must match spec.                                         |
-| `.yggdrasil/model/cli/` | Semantic memory — describes intended CLI. Code materializes it.                       |
+| `source/cli/`           | Implementation — CLI code.                                                          |
+| `.yggdrasil/model/cli/` | Graph — describes intended CLI architecture. Aspects enforce rules on source code.  |
 | `docs/`                 | User docs — for adopters.                                                           |
 | `.plans/`               | Agent working dir — design docs and implementation plans. **Ignore skill paths** (e.g. `docs/plans/`) — always use `<root>/.plans/YYYY-MM-DD-<topic>-design.md` and `.plans/YYYY-MM-DD-<topic>-plan.md`. Gitignored; not committed. |
 
@@ -21,7 +20,7 @@ You work on the Yggdrasil repository: an open-source product (CLI + infrastructu
 - Never edit generated rules (platform-specific rules files, or the Yggdrasil section in `AGENTS.md`). To change the rules content: edit `source/cli/src/templates/rules.ts` (content) or `source/cli/src/templates/platform.ts` (frontmatter), then build and run `yg init` (select "Upgrade rules and schemas" when prompted).
 - **Ignore generated rules files** for understanding: `.yggdrasil/agent-rules.md`, `.cursor/rules/yggdrasil.mdc`, etc. are auto-generated output. Never read or search them. The source of truth for rules content is `source/cli/src/templates/rules.ts`.
 - When modifying `docs/` or any `*.md`, run `npx markdownlint-cli2 "**/*.md" ".markdownlint-cli2.jsonc"` and fix issues.
-- **Always reflect changes in corresponding documentation.** When modifying code behavior, algorithms, or data structures, identify and update all documentation that describes the changed behavior — `docs/concept/` (spec), `docs/` (user docs), and `.yggdrasil/` (graph metadata). Changes to the spec or engine behavior are not complete until every document describing that behavior is consistent.
+- **Always reflect changes in corresponding documentation.** When modifying code behavior, algorithms, or data structures, identify and update all documentation that describes the changed behavior — `docs/` (user docs) and `.yggdrasil/` (graph metadata). Changes to behavior are not complete until every document describing that behavior is consistent.
 - **NEVER run `yg init` from a subdirectory.** Always run from the repository root. Running from `source/cli/` or any subdirectory creates a new `.yggdrasil/` there or corrupts the project config. Use `node source/cli/dist/bin.js` for local builds, not `npx yg` (which may use a cached global version).
 
 ## Adding Support for a New Agent
@@ -57,4 +56,4 @@ This applies to CLI output only. Rules.ts (system prompt) provides the map — w
 Consider both:
 
 1. **Product** — Is the command correct and useful for adopters?
-2. **Dogfood** — Is this repo's semantic memory mature enough? Gaps are expected.
+2. **Dogfood** — Is this repo's graph coverage mature enough? Gaps are expected.

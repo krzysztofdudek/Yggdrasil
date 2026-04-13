@@ -73,10 +73,15 @@ node_types:
   service:
     description: "Component providing functionality to other nodes"
     aspects: [requires-audit]
+    relations:
+      calls: [service, library]
+      uses: [library]
   library:
     description: "Shared utility code with no domain knowledge"
-  # Optional fields per type: aspects, parents, relations
-  # See yg-architecture.yaml schema for the full format.
+  infrastructure:
+    description: "Guards, middleware, interceptors"
+  data:
+    description: "Database layer, persistence, and data access"
 ```
 
 ---

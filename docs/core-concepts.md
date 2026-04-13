@@ -226,14 +226,23 @@ node_types:
   service:
     description: "Component providing functionality to other nodes"
     aspects: [requires-audit]
+    relations:
+      calls: [service, library]
+      uses: [library]
   library:
     description: "Shared utility code with no domain knowledge"
   infrastructure:
     description: "Guards, middleware, interceptors"
+  data:
+    description: "Database layer, persistence, and data access"
 ```
 
 Setting `aspects: [requires-audit]` on the `service` type means every
 service node automatically inherits that aspect without listing it explicitly.
+The `relations` constraint limits which node types a service can depend on.
+
+This is one of the five aspect distribution channels ("by node type")
+and also how you enforce structural rules across your architecture.
 
 ---
 

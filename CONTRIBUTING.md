@@ -31,7 +31,7 @@ npm link    # makes `yg` available globally
 ## Development Workflow
 
 1. Create a feature branch: `git checkout -b feature/my-change`
-2. Make changes — update the semantic memory (`.yggdrasil/`) and/or code as needed
+2. Make changes — update the graph (`.yggdrasil/`) and/or code as needed
 3. Run tests: `cd source/cli && npm test`
 4. Run linter: `npm run lint`
 5. Build: `npm run build`
@@ -39,7 +39,7 @@ npm link    # makes `yg` available globally
 
 ### Updating rules or templates
 
-After modifying `source/cli/src/templates/` (rules, commands, adapters), run `yg init --platform <name> --upgrade` to refresh the rules file in this repo. The CLI is npm-linked, so it picks up local changes. Use the platform you develop with (e.g. `cursor`).
+After modifying `source/cli/src/templates/` (rules, commands, adapters), run `yg init` and select "Upgrade rules and schemas" to refresh the rules file in this repo. The CLI is npm-linked, so it picks up local changes.
 
 ## Repository Quality Check (recommended before PR)
 
@@ -80,4 +80,4 @@ See [source/cli/README.md](source/cli/README.md) for CLI architecture overview.
 
 ### Dogfooding
 
-Yggdrasil uses its own mechanism — the `.yggdrasil/` directory at the project root holds the repo's semantic memory, a structured record of the CLI's architecture. The agent rules file (`.cursor/rules/yggdrasil.mdc` for Cursor) instructs the agent how to use the semantic memory when working on this repository.
+Yggdrasil uses its own mechanism — the `.yggdrasil/` directory at the project root holds the architecture graph with aspects that enforce rules on the CLI's own source code. The agent rules file (installed by `yg init`) instructs the agent how to work with the graph.
