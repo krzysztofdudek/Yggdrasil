@@ -130,7 +130,7 @@ Output: YAML format with fields: `name`, `nodes` (participants), `aspects`.
 
 ### `yg owner`
 
-Finds which memory node owns a given file. Path is relative to repository root.
+Finds which node owns a given file. Path is relative to repository root.
 Quick ownership check — use `yg context --file` when you need the full context package.
 
 ```bash

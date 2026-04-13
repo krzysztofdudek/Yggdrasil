@@ -44,8 +44,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is configured. Aspects are always verified — no opt-out.
 - **`reviewer.context_length_field`** config option for Ollama — specifies
   the model_info key for context window size.
-- **10 new reviewer providers.** API: OpenAI, Anthropic, Google Gemini,
-  OpenAI-compatible. CLI: Codex, Gemini CLI, Cline, OpenCode, Aider.
+- **8 reviewer providers.** API: Anthropic, OpenAI, Google, OpenAI-compatible,
+  Ollama. CLI: Claude Code, Codex, Gemini CLI.
   Configure via `reviewer:` section in `yg-config.yaml`.
 - **Self-contained reviewer prompt.** All content (aspect rules, node
   description, source files) inline. CLI and API providers receive
@@ -71,9 +71,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`yg aspects`** — usage stats per aspect (by source: architecture,
   direct, implied, flow), orphan detection.
 - **`yg flows`** — participant count with node names, flow aspects.
-- **Reviewer provider integration.** `reviewer` section in yg-config.yaml
-  (provider, model, endpoint, temperature, consensus, max_tokens).
-  Supports Ollama (default) and Claude Code.
+- **Interactive `yg init` wizard.** Platform selection, reviewer setup
+  with model fetching from provider API, connection validation.
 - **`yg-secrets.yaml`** — gitignored file for API keys and LLM config
   overrides. Template created by init.
 - **Append-only audit log** (`.yggdrasil/.audit-log.jsonl`) — every

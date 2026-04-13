@@ -2,23 +2,26 @@
 title: Configuration
 ---
 
-Everything here is optional except the fields required by the schema.
-Yggdrasil works out of the box with sensible defaults.
-
 Config file: `.yggdrasil/yg-config.yaml`
+
+`yg init` creates this file and configures the reviewer interactively.
 
 ---
 
 ## Schema
 
-### Optional fields
+### Required
+
+- **reviewer** — Reviewer provider config (see [Reviewer config](#reviewer-config) below).
+  Configured during `yg init`.
+
+### Optional
 
 - **version** — CLI version that last wrote this config. Set automatically by `yg init`.
 - **quality** — Quality thresholds
 - **parallel** — Concurrency limit for batch approve (positive integer, default: 1). Higher
   values run multiple `approveNode()` calls concurrently during `--aspect`/`--flow`/multi-node
   approve.
-- **reviewer** — Semantic verification config (see [Reviewer config](#reviewer-config) below)
 
 Node types are defined in the separate **architecture file** (`.yggdrasil/yg-architecture.yaml`),
 not in `yg-config.yaml`.
@@ -55,6 +58,10 @@ quality:
 
 parallel: 1
 debug: true                        # optional — append all CLI output to .yggdrasil/.debug.log
+
+reviewer:
+  anthropic:
+    model: claude-sonnet-4-6
 ```
 
 Node types go in `yg-architecture.yaml`:
