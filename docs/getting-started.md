@@ -33,9 +33,27 @@ default aspects per type, constrain relations. Tell the agent to do it:
 
 > "Add a node type 'api' with a default aspect 'requires-auth'."
 
+If you selected an API provider, the wizard stores your API key in
+`.yggdrasil/yg-secrets.yaml` (automatically gitignored). You can also
+set keys via environment variables (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`,
+`GOOGLE_API_KEY`) instead.
+
 ## 3) Your first aspect
 
-After init, you have an empty graph. Tell your agent to create the first rule.
+After init, you have an empty graph. If you run `yg check` now, you'll see
+all your source files listed as unmapped:
+
+```text
+$ yg check
+
+my-project — 0 nodes, 0 aspects, 0 flows
+Coverage: 0/50 source files (0%)
+
+Errors (1):
+  unmapped-files — 50 source files have no graph coverage.
+```
+
+This is expected. Tell your agent to create the first rule.
 
 Example prompt:
 
@@ -52,8 +70,7 @@ The agent will create:
       content.md            ← the actual rule (plain Markdown)
   model/
     payments/
-      payment-service/
-        yg-node.yaml        ← maps src/payments/, lists requires-audit aspect
+      yg-node.yaml          ← maps src/payments/, lists requires-audit aspect
 ```
 
 Now run `yg check`:
@@ -67,7 +84,7 @@ Coverage: 1/1 source files (100%)
 Errors (1):
   unapproved payments — not yet approved
        Node has never been approved (no baseline):
-         src/payments.ts
+         src/payments/
        Verify source, then: yg approve --node payments
 
 Result: FAIL (1 drift — 1 errors, 0 warnings)
@@ -98,21 +115,34 @@ ERROR: Reviewer found aspect violations.
 
 The agent fixes the code and re-runs approve until all aspects pass.
 
-## 4) Growing the graph
+## 4) Existing codebase (brownfield)
 
-You don't need to map everything at once. Map what you're working on,
-leave the rest for later.
+`yg check` requires 100% file coverage. Every git-tracked source file must
+belong to some node. On a fresh repo with 200 files and 0 nodes, check fails
+immediately.
 
-On an existing codebase, a practical approach:
+The fast path: **blackbox everything you're not working on, proper nodes for
+what you are.**
 
-1. Map the area you're actively changing (1-2 nodes)
-2. Write aspects for the rules that matter most there
-3. Work normally, let the agent handle `yg context` and `yg approve`
-4. Expand coverage as you touch more of the codebase
+Tell your agent:
 
-Parts you don't want to manage at all can be blackboxed:
+> "Blackbox these directories: src/legacy/, lib/, scripts/. Then create a
+> proper node for src/payments/ with the requires-audit aspect."
 
-> "Create a blackbox node for src/legacy/ — we're not touching that code."
+Blackbox nodes are cheap — just a `yg-node.yaml` with `blackbox: true` and a
+directory mapping. No aspects, no LLM review. They count as covered.
+
+The key rule: if a file inside a blackbox changes, `yg approve` refuses.
+You have to create a proper node for those files first. This is how blackbox
+gradually decomposes into proper coverage as you work.
+
+Practical steps for a 200-file repo:
+
+1. Create 5-8 blackbox nodes with broad directory mappings
+2. Create 1-2 proper nodes for your active work area
+3. Run `yg approve` on all nodes (blackbox = instant, proper = reviewer)
+4. `yg check` passes — CI is green
+5. Expand proper coverage as you touch more code
 
 ## 5) CI integration
 

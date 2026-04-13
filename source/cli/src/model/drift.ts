@@ -6,6 +6,7 @@
 export interface AspectVerificationResult {
   satisfied: boolean;
   reason: string;
+  providerError?: boolean;
 }
 
 // ============================================================

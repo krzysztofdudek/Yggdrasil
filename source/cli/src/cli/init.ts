@@ -281,8 +281,11 @@ async function writeReviewerConfig(
   try {
     const content = await readFile(configPath, 'utf-8');
     raw = (yamlParse(content) as Record<string, unknown>) ?? {};
-  } catch {
-    // File doesn't exist yet
+  } catch (err) {
+    const e = err as NodeJS.ErrnoException;
+    if (e.code !== 'ENOENT') {
+      throw new Error(`Failed to parse ${configPath}: ${e.message}`);
+    }
   }
 
   // Build reviewer section with visible defaults
@@ -318,8 +321,11 @@ async function writeSecretsFile(
   try {
     const content = await readFile(secretsPath, 'utf-8');
     raw = (yamlParse(content) as Record<string, unknown>) ?? {};
-  } catch {
-    // File doesn't exist yet
+  } catch (err) {
+    const e = err as NodeJS.ErrnoException;
+    if (e.code !== 'ENOENT') {
+      throw new Error(`Failed to parse ${secretsPath}: ${e.message}`);
+    }
   }
 
   if (!raw.reviewer || typeof raw.reviewer !== 'object') {
@@ -332,7 +338,7 @@ async function writeSecretsFile(
   }
   (reviewerSection[provider] as Record<string, unknown>).api_key = apiKey;
 
-  await writeFile(secretsPath, yamlStringify(raw), 'utf-8');
+  await writeFile(secretsPath, yamlStringify(raw), { encoding: 'utf-8', mode: 0o600 });
 }
 
 // ---------------------------------------------------------------------------

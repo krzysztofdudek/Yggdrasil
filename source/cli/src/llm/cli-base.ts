@@ -61,7 +61,7 @@ export abstract class CliAgentProvider implements LlmProvider {
   }
 
   async verifyAspect(prompt: string): Promise<AspectResponse> {
-    const fallback: AspectResponse = { satisfied: false, reason: 'Reviewer unavailable' };
+    const fallback: AspectResponse = { satisfied: false, reason: 'Reviewer unavailable', providerError: true };
 
     return new Promise((resolve) => {
       const args = this.stdinMode ? this.buildArgs('') : this.buildArgs(prompt);

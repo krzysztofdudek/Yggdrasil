@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import path from 'node:path';
+import { readFile } from 'node:fs/promises';
 import { loadGraph } from '../core/graph-loader.js';
 import { initDebugLog } from '../utils/debug-log.js';
 import { approveNode, resolveAspects, loadSourceFiles } from '../core/approve.js';
@@ -27,7 +28,7 @@ export interface LlmApproveResult extends ApproveResult {
   /** Why LLM verification was skipped, if it was */
   llmSkipped?: 'unavailable' | 'blackbox';
   /** Aspect violations for programmatic consumption */
-  aspectViolations?: Array<{ aspectId: string; reason: string }>;
+  aspectViolations?: Array<{ aspectId: string; reason: string; providerError?: boolean }>;
 }
 
 /** LLM configuration resolved from graph config */
@@ -86,7 +87,7 @@ export async function runLlmVerification(
   const nodeDescription = node.meta.description ?? '';
 
   let aspectResults: Record<string, AspectVerificationResult> | undefined;
-  const aspectViolations: Array<{ aspectId: string; reason: string }> = [];
+  const aspectViolations: Array<{ aspectId: string; reason: string; providerError?: boolean }> = [];
 
   if (aspects.length > 0) {
     aspectResults = await verifyAspects({
@@ -100,17 +101,31 @@ export async function runLlmVerification(
     });
     for (const [aspectId, res] of Object.entries(aspectResults)) {
       if (!res.satisfied) {
-        aspectViolations.push({ aspectId, reason: res.reason });
+        aspectViolations.push({ aspectId, reason: res.reason, providerError: res.providerError });
       }
     }
   }
 
-  // If violations found, override to refused
+  // Separate provider errors from actual violations
+  const providerErrors = aspectViolations.filter(v => v.providerError);
+  const codeViolations = aspectViolations.filter(v => !v.providerError);
+
+  if (providerErrors.length > 0 && codeViolations.length === 0) {
+    // All failures are provider errors, not code issues
+    return {
+      ...result,
+      action: 'refused',
+      refuseReason: 'Reviewer provider failed — this is not a code issue. Check your API key and provider configuration.',
+      aspectResults,
+      aspectViolations,
+    };
+  }
+
   if (aspectViolations.length > 0) {
     return {
       ...result,
       action: 'refused',
-      refuseReason: 'Reviewer verification found issues',
+      refuseReason: 'Reviewer found aspect violations',
       aspectResults,
       aspectViolations,
     };
@@ -410,7 +425,8 @@ export function registerApproveCommand(program: Command): void {
     .option('--node <paths...>', 'One or more node paths to approve')
     .option('--aspect <id>', 'Batch approve all nodes with cascade drift from this aspect')
     .option('--flow <name>', 'Batch approve all nodes with cascade drift from this flow')
-    .action(async (options: { node?: string[]; aspect?: string; flow?: string }) => {
+    .option('--dry-run', 'Show what would be sent to the reviewer without sending it')
+    .action(async (options: { node?: string[]; aspect?: string; flow?: string; dryRun?: boolean }) => {
       try {
         // Validate: exactly one of --node, --aspect, --flow
         const targets = [options.node, options.aspect, options.flow].filter(Boolean);
@@ -427,6 +443,34 @@ export function registerApproveCommand(program: Command): void {
         initDebugLog(graph.rootPath, graph.config.debug ?? false);
         const yggPrefix = path.relative(path.dirname(graph.rootPath), graph.rootPath)
           .replace(/\\/g, '/').replace(/\/+$/, '');
+
+        // --dry-run: show what would be sent to the reviewer
+        if (options.dryRun && options.node) {
+          const { buildPrompt } = await import('../llm/aspect-verifier.js');
+          for (const rawPath of options.node) {
+            const nodePath = rawPath.trim().replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+$/, '');
+            const node = graph.nodes.get(nodePath);
+            if (!node) { process.stderr.write(chalk.red(`Node '${nodePath}' not found.\n`)); continue; }
+            const aspects = resolveAspects(node, graph);
+            const projectRoot = path.dirname(graph.rootPath);
+            const sourceFiles: Array<{ path: string; content: string }> = [];
+            for (const mp of node.meta.mapping ?? []) {
+              try {
+                const content = await readFile(path.join(projectRoot, mp), 'utf-8');
+                sourceFiles.push({ path: mp, content });
+              } catch { /* directory or missing */ }
+            }
+            process.stdout.write(chalk.bold(`\n--- Dry run: ${nodePath} ---\n\n`));
+            process.stdout.write(`Aspects (${aspects.length}): ${aspects.map(a => a.id).join(', ') || 'none'}\n`);
+            process.stdout.write(`Source files (${sourceFiles.length}): ${sourceFiles.map(f => f.path).join(', ') || 'none'}\n\n`);
+            if (aspects.length > 0 && sourceFiles.length > 0) {
+              const prompt = buildPrompt(aspects[0], node.meta.description ?? '', nodePath, sourceFiles);
+              process.stdout.write(chalk.dim('--- Prompt for first aspect ---\n'));
+              process.stdout.write(prompt + '\n');
+            }
+          }
+          process.exit(0);
+        }
 
         // --aspect: batch approve all nodes with cascade drift from this aspect
         if (options.aspect) {

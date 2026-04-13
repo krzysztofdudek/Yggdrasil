@@ -23,7 +23,7 @@ export class GoogleProvider implements LlmProvider {
   }
 
   async verifyAspect(prompt: string): Promise<AspectResponse> {
-    const fallback: AspectResponse = { satisfied: false, reason: 'Google request failed' };
+    const fallback: AspectResponse = { satisfied: false, reason: 'Google request failed', providerError: true };
     try {
       const res = await apiFetch(this.buildUrl(), {
         method: 'POST',

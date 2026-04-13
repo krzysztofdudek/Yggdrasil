@@ -12,4 +12,6 @@ export interface LlmProvider {
 export interface AspectResponse {
   satisfied: boolean;
   reason: string;
+  /** True when the result is due to a provider error, not a code issue */
+  providerError?: boolean;
 }
