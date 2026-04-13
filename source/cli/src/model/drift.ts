@@ -24,7 +24,7 @@ export interface DriftFileChange {
   category: DriftCategory;
 }
 
-export type NodeLifecycleState = 'ok' | 'missing' | 'unmaterialized';
+export type NodeLifecycleState = 'ok' | 'missing' | 'unapproved';
 
 export interface DriftNodeState {
   hash: string;

@@ -65,7 +65,7 @@ my-project — 1 nodes, 1 aspects, 0 flows
 Coverage: 1/1 source files (100%)
 
 Errors (1):
-  unapproved payments — not yet materialized
+  unapproved payments — not yet approved
        Node has never been approved (no baseline):
          src/payments.ts
        Verify source, then: yg approve --node payments

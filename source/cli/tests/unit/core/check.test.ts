@@ -238,11 +238,11 @@ describe('classifyDrift', () => {
     const result = await classifyDrift(graph);
     const unapproved = result.filter(i => i.code === 'unapproved');
     expect(unapproved).toHaveLength(1);
-    expect(unapproved[0].lifecycleState).toBe('unmaterialized');
+    expect(unapproved[0].lifecycleState).toBe('unapproved');
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('returns source-drift unmaterialized with files-never-created message when source path absent', async () => {
+  it('returns source-drift unapproved with files-never-created message when source path absent', async () => {
     const { tmpDir } = await createTmpProject('unmaterialized-absent', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/absent/\n',
@@ -253,7 +253,7 @@ describe('classifyDrift', () => {
     const result = await classifyDrift(graph);
     const sourceDrift = result.filter(i => i.code === 'source-drift');
     expect(sourceDrift).toHaveLength(1);
-    expect(sourceDrift[0].lifecycleState).toBe('unmaterialized');
+    expect(sourceDrift[0].lifecycleState).toBe('unapproved');
     expect(sourceDrift[0].message).toContain('never created');
     await rm(tmpDir, { recursive: true, force: true });
   });

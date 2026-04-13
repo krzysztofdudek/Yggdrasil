@@ -70,7 +70,7 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
 
     const storedEntry = await readNodeDriftState(graph.rootPath, nodePath);
 
-    // No baseline -> unmaterialized (spec: "mapping exists but files never created / no baseline")
+    // No baseline -> unapproved (node exists but was never approved)
     if (!storedEntry) {
       const allMissing = await allPathsMissing(projectRoot, mappingPaths);
       issues.push({
@@ -89,7 +89,7 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
               next: `Verify source, then: yg approve --node ${nodePath}`,
             }),
         nodePath,
-        lifecycleState: 'unmaterialized',
+        lifecycleState: 'unapproved',
         directChangedFiles: [],
       });
       continue;

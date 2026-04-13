@@ -95,7 +95,7 @@ export function formatOutput(result: CheckResult): string {
         const stateMap: Record<string, string> = {
           'ok': 'source drift',
           'missing': 'source missing',
-          'unmaterialized': 'not yet materialized',
+          'unapproved': 'not yet approved',
         };
         const stateLabel = stateMap[issue.lifecycleState ?? ''] ?? 'source drift';
         lines.push(`  ${issue.code} ${issue.nodePath ?? ''} — ${stateLabel}`);
