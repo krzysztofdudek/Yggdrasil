@@ -26,6 +26,7 @@ describe('installRulesForPlatform', () => {
     expect(PLATFORMS).toContain('aider');
     expect(PLATFORMS).toContain('gemini');
     expect(PLATFORMS).toContain('amp');
+    expect(PLATFORMS).toContain('opencode');
     expect(PLATFORMS).toContain('generic');
   });
 
@@ -36,7 +37,7 @@ describe('installRulesForPlatform', () => {
       expect(existsSync(out)).toBe(true);
       const content = readFileSync(out, 'utf-8');
       expect(content).toContain('---');
-      expect(content).toContain('description: Yggdrasil — semantic memory of the repository');
+      expect(content).toContain('description: Yggdrasil — continuous architecture enforcement');
       expect(content).toContain('alwaysApply: true');
       expect(content).toContain(AGENT_RULES_CONTENT);
     });
@@ -224,6 +225,18 @@ describe('installRulesForPlatform', () => {
       expect(content).toContain('# Agent rules');
       expect(content).toContain('Prefer functional style.');
       expect(content).toContain('<!-- yggdrasil:start -->');
+      expect(content).toContain(AGENT_RULES_CONTENT);
+    });
+  });
+
+  it('opencode when empty: creates AGENTS.md with markers (same as codex)', async () => {
+    await withTempDir(async (root) => {
+      const out = await installRulesForPlatform(root, 'opencode');
+      expect(out).toBe(path.join(root, 'AGENTS.md'));
+      expect(existsSync(out)).toBe(true);
+      const content = readFileSync(out, 'utf-8');
+      expect(content).toContain('<!-- yggdrasil:start -->');
+      expect(content).toContain('<!-- yggdrasil:end -->');
       expect(content).toContain(AGENT_RULES_CONTENT);
     });
   });

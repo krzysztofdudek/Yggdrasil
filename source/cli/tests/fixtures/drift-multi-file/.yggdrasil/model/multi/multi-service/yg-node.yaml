@@ -1,6 +1,0 @@
-name: MultiService
-type: service
-mapping:
-  paths:
-    - src/multi/file-a.ts
-    - src/multi/file-b.ts

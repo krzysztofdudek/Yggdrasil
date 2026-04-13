@@ -17,7 +17,7 @@ function makeFlow(id: string, overrides: Partial<FlowDef> = {}): FlowDef {
 function makeGraph(flows: FlowDef[]): Graph {
   return {
     rootPath: '/fake',
-    config: { name: 'test', version: '1' } as any,
+    config: { version: '4.0.0' } as any,
     architecture: null as any,
     nodes: new Map(),
     aspects: [],

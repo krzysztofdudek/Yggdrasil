@@ -1,7 +1,7 @@
 {
   "name": "@chrisdudek/yg",
   "version": "4.0.0",
-  "description": "Make your repository self-aware. Persistent semantic memory and deterministic context assembly for AI agents.",
+  "description": "Continuous architecture enforcement for AI-assisted development. Aspects, review, enforcement.",
   "type": "module",
   "bin": {
     "yg": "dist/bin.js"

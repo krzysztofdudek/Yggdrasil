@@ -1,5 +1,0 @@
-multi/multi-service:
-  hash: e4f719e767e24411c59c156c13bee9a10c0296ee7f83bf25d9336c08092aba53
-  files:
-    src/multi/file-a.ts: 479cbaf9c2d379dd36829acde3eb9d698f7a09f676cdc5dc89270c2366c41688
-    src/multi/file-b.ts: bbb9ecf7a77cc0d8215b276528ba18c484fcc494224421d4280b5cf4e9446bda

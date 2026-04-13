@@ -82,7 +82,7 @@ async function installForCursor(projectRoot: string): Promise<string> {
   await mkdir(dir, { recursive: true });
   const filePath = path.join(dir, 'yggdrasil.mdc');
   const content = `---
-description: Yggdrasil — semantic memory of the repository
+description: Yggdrasil — continuous architecture enforcement
 alwaysApply: true
 ---
 
