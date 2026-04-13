@@ -1,15 +1,5 @@
 export const DEFAULT_CONFIG = `version: "4.0.0"
 
-node_types:
-  module:
-    description: "Business logic unit with clear domain responsibility"
-  service:
-    description: "Component providing functionality to other nodes"
-  library:
-    description: "Shared utility code with no domain knowledge"
-  infrastructure:
-    description: "Guards, middleware, interceptors — invisible in call graphs but affect blast radius"
-
 quality:
   max_direct_relations: 10
 `;

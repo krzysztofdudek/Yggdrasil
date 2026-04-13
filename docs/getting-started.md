@@ -12,21 +12,24 @@ npm install -g @chrisdudek/yg
 
 ```bash
 cd your-project
-yg init --platform <platform>
+yg init
 ```
 
+The wizard walks you through platform selection and reviewer setup.
+It fetches available models from your provider, validates the connection,
+and writes the config for you.
+
+If you prefer flags: `yg init --platform cursor` skips the platform prompt.
+
 Supported platforms: `cursor`, `claude-code`, `copilot`, `cline`,
-`roocode`, `codex`, `windsurf`, `aider`, `gemini`, `amp`, `generic`
+`roocode`, `codex`, `windsurf`, `aider`, `gemini`, `amp`, `opencode`, `generic`
 
-## 3) Start coding
+## 3) Start working
 
-Your repository is now self-aware.
+Open your AI tool and work like you always do. New project or existing one.
 
-Open your AI tool and work like you always do. New project or existing one. It does not matter.
-
-As you work, your agent starts building the semantic memory of the repo in the background.
-
-You do not manage it. You do not think about it.
+The agent builds the graph incrementally as you work. You tell it what matters,
+it creates the structure and enforces the rules.
 
 ---
 

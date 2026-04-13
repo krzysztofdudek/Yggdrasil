@@ -2,7 +2,7 @@
 
 # Yggdrasil
 
-**Your AI agent writes code that compiles, passes tests, and breaks your architecture. Yggdrasil stops that.**
+**AI agents ignore your architecture rules. This enforces them.**
 
 [![CI](https://github.com/krzysztofdudek/Yggdrasil/actions/workflows/ci.yml/badge.svg)](https://github.com/krzysztofdudek/Yggdrasil/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/@chrisdudek/yg.svg)](https://www.npmjs.com/package/@chrisdudek/yg)
@@ -13,111 +13,100 @@
 
 ---
 
-## Vibecoding vs vericoding
+## The problem
 
-Vibecoding: agent writes code, you hope it respects your architecture. It doesn't. It adds `Date.now()` to a module that must be deterministic. It skips audit logging on payment mutations. It calls a service that shouldn't be called from this layer. Tests pass. Lint passes. Architecture is broken. You find out in code review. Or in production.
+You wrote 200 lines of rules in CLAUDE.md or .cursorrules. Your agent applies maybe 70% of them. The rest it "optimizes away" because it decided they're noise.
 
-Vericoding: you write architectural rules as **aspects**. The agent reads them before writing code. After writing, a reviewer checks whether the code actually satisfies the rules. Not whether the agent claimed it did — whether it's actually there in the source. If the code breaks an aspect, the agent can't ship.
+You tell it again. It does better for a while. Next session, same thing.
+
+Tests pass. Lint passes. The code compiles. But the agent skipped audit logging on a payment mutation, called a service it shouldn't call from that layer, and used `Date.now()` in a module that must be deterministic. You catch it in review. Or you don't.
+
+The real issue is simple: a rules file is a suggestion. There are no consequences for ignoring it.
+
+## What Yggdrasil does
+
+It turns suggestions into requirements that get mechanically verified.
+
+You write architectural rules as **aspects** in plain Markdown. Things like "every public endpoint must use rate limiting" or "no direct database access from this layer." The agent manages the graph structure, you control what's enforced.
+
+The agent runs `yg approve` after writing code, which triggers a reviewer that checks source files against every applicable aspect. Not whether the agent claims it followed the rules, but whether the code actually satisfies them. If it doesn't, the approval fails and the agent has to fix it.
+
+You run `yg check` to see if everything is clean. In CI, as a pre-commit hook, whenever you want. If check doesn't pass, you tell the agent to fix it.
 
 ```
 yg check   →  "source files changed since last approve"
-yg approve →  reviewer checks aspects vs source code
+           →  agent runs yg approve
+           →  reviewer checks aspects vs source code
            →  aspect-violation: rate-limiting not satisfied
-           →  agent fixes code
-           →  yg approve passes
-           →  commit allowed
+           →  agent fixes code, re-runs approve
+           →  yg check passes
 ```
 
-No `--force`. No "I'll fix it later." The wall is the wall.
+## Why not just a bigger rules file
 
----
+Because a flat file with 200 rules dumps everything into every prompt. The agent filters what it thinks matters and skips the rest.
 
-## What Yggdrasil enforces
+Yggdrasil scopes rules to where they matter. `yg context --file <path>` shows only the aspects that apply to that specific file. Instead of 200 rules, the agent sees 3-5 that are actually relevant. Zero noise, zero excuses.
 
-**Aspects** are cross-cutting architectural rules written in plain language:
+And when you change a rule, every file that should satisfy it gets flagged for re-approval. Cascading review, not a hope that someone notices.
 
-```markdown
-<!-- aspects/rate-limiting/content.md -->
-Every public endpoint must enforce rate limiting.
-Use the shared rateLimiter middleware. No manual implementation.
-```
+## Getting started
 
-Aspects propagate through the graph — apply to a node type, all nodes of that type inherit it. Apply to a flow, all participants inherit it. The reviewer checks every aspect against every source file at approve time.
-
-**What gets caught:**
-
-- **Drift.** Source files changed but aspects weren't re-verified? Blocked.
-- **Aspect violation.** Rule says "no Date.now()" — agent used Date.now()? Blocked.
-- **Coverage.** Unmapped source file? Blocked. No dark corners.
-- **Cascade.** Aspect content changed? Every node using that aspect needs re-approval.
-
----
-
-## How it works
-
-**1. Define rules.** Write aspects — what must be true about your code. Plain Markdown. Apply them to nodes (modules, services, libraries) via YAML.
-
-**2. Agent reads before writing.** `yg context --file <path>` shows which aspects apply. The agent knows the rules before touching code.
-
-**3. System verifies after writing.** `yg approve` runs a reviewer that checks source code against aspect rules. Binary: pass or fail. Blocks commits and CI.
+**1. Install and init.**
 
 ```bash
 npm install -g @chrisdudek/yg
 cd your-project
-yg init --platform cursor  # or: claude-code, copilot, codex, cline, windsurf, aider, gemini-cli, amp
+yg init
 ```
 
-Then define your architecture:
+The wizard walks you through platform selection and reviewer setup. It fetches available models from your provider, validates the connection, and writes the config for you.
+
+If you prefer flags: `yg init --platform cursor` skips the platform prompt.
+
+**3. Start working.**
+
+The graph doesn't build itself automatically, and that's intentional. Architecture is coarse-grained, not a 1:1 mirror of your file tree. The agent builds it incrementally as you work.
+
+You tell the agent what matters, and it creates the graph structure:
 
 ```
 You:    "All payment operations must emit audit events."
 Agent:  Creates aspect requires-audit with content.md rules,
         applies it to payment nodes.
 
-You:    "Map the orders module — it handles lifecycle states."
+You:    "Map the orders module."
 Agent:  Creates node orders/order-service with mapping and aspects.
 ```
 
-Run `yg check` in CI. Run `yg approve` before commits. The agent works within walls, not wishes.
+On an existing codebase, the agent starts by mapping the areas you're actively working on. Parts you're not touching stay unmapped until you need them. Coverage grows organically as you work, not as a one-time setup cost.
 
----
+**4. Enforce.**
 
-## Five distribution channels for aspects
+Run `yg check` in CI or as a pre-commit hook. If it fails, tell the agent to fix it.
 
-Every dimension of the graph is a way to distribute architectural rules to nodes:
+## How aspects propagate
 
-| Channel | How |
-|---------|-----|
-| Direct | `node.aspects` in yg-node.yaml |
-| Type | Architecture defines default aspects per node type |
-| Hierarchy | Parent aspects inherited by children |
-| Port | Consumer must satisfy port-required aspects |
-| Flow | Participants inherit flow-level aspects |
-
-One rule, multiple nodes, automatic propagation. Change the rule — all affected nodes cascade to re-approval.
-
----
+Aspects reach source files through five channels: directly on a node, by node type, through parent-child hierarchy, via port contracts, and through business process flows. One rule can cover dozens of files automatically, and changing that rule triggers cascading re-verification everywhere it applies.
 
 ## Supported platforms
 
-Cursor · Claude Code · GitHub Copilot · Codex · Cline / RooCode · Windsurf · Aider · Gemini CLI · Amp
+Works with any AI coding agent. `yg init --platform <name>` generates the rules file your agent expects.
 
-`yg init --platform <name>` generates platform-specific rules file. Adding a new platform is a single config file — PRs welcome.
+**Agent platforms:** Cursor · Claude Code · GitHub Copilot · Codex · Cline · RooCode · Windsurf · Aider · Gemini CLI · Amp · OpenCode
 
----
+**Reviewer providers:** The reviewer that verifies aspects can run through API (Anthropic, OpenAI, Google, OpenAI-compatible, Ollama) or through agent CLI (Claude Code, Codex, Gemini CLI).
 
 ## FAQ
 
-**How is this different from a rules file (CLAUDE.md, .cursorrules)?**
-Rules files are flat text dumped into every prompt. They don't know which rules apply where. Yggdrasil scopes rules per node — your agent gets only the aspects relevant to what it's touching. And then verifies compliance.
+**How is this different from CLAUDE.md or .cursorrules?**
+Rules files are flat text dumped into every prompt. They don't scope rules to where they matter and they don't verify anything. Yggdrasil delivers only relevant rules per file and then mechanically checks compliance.
 
-**How is this different from RAG / Tree-sitter tools?**
-Those tools find more code. Yggdrasil enforces architectural constraints that don't exist in code and never will. "Rate limiting required" isn't in any AST. "No direct DB access from this layer" isn't in any embedding. Yggdrasil captures what SHOULD BE and checks whether it IS.
+**How is this different from RAG or Tree-sitter tools?**
+Those tools help agents find more code. Yggdrasil enforces constraints that don't exist in code and never will. "Rate limiting required" isn't in any AST. "No direct DB access from this layer" isn't in any embedding.
 
 **Does the agent actually follow the rules?**
-The agent doesn't need to "follow" anything. `yg check` runs in CI. `yg approve` runs a reviewer against source code. If an aspect isn't satisfied, the build fails. Enforcement is mechanical, not behavioral. You don't ask the agent to be good. You make it impossible to ship bad work.
-
----
+It doesn't need to. `yg check` runs in CI. The agent runs `yg approve` which triggers a reviewer against source code. If an aspect isn't satisfied, check fails. Enforcement is mechanical, not behavioral.
 
 ## Documentation
 
@@ -125,7 +114,7 @@ Full specification: [https://krzysztofdudek.github.io/Yggdrasil/](https://krzysz
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT
 
 ---
 

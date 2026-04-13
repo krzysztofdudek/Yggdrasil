@@ -11,10 +11,6 @@ Config file: `.yggdrasil/yg-config.yaml`
 
 ## Schema
 
-### Required fields
-
-- **name** — Project identity (non-empty string)
-
 ### Optional fields
 
 - **version** — CLI version that last wrote this config. Set automatically by `yg init` and
@@ -55,8 +51,6 @@ defined as aspects.
 ## Example
 
 ```yaml
-name: my-repo
-
 quality:
   max_direct_relations: 10
 
@@ -86,32 +80,117 @@ node_types:
 Optional. Enables semantic verification during `yg approve` — aspect verification.
 The `reviewer:` section in `yg-config.yaml` uses a nested provider structure.
 
+General keys (`active`, `verify_aspects`, `consensus`) sit at the `reviewer:` level.
+Provider-specific keys sit under the provider name.
+
 ```yaml
 reviewer:
-  active: ollama                  # required when multiple providers listed
+  active: anthropic               # required when multiple providers listed
   verify_aspects: true            # run aspect verification — default true
   consensus: 1                    # positive odd integer >= 1
-  ollama:
-    model: "qwen3.5:9b"
-    endpoint: "http://localhost:11434"
-    temperature: 0
-    max_tokens: auto              # auto = query provider, or explicit number
-    context_length_field: ""      # ollama model_info key for context window size
-  claude-code:
-    model: haiku                  # haiku, sonnet, or opus
 ```
 
-General keys (`active`, `verify_aspects`, `consensus`) sit at the `reviewer:` level.
-Provider-specific keys sit under the provider name (`ollama:`, `claude-code:`).
+### API providers
 
-Credentials and endpoint overrides go in `.yggdrasil/yg-secrets.yaml` (gitignored):
+API providers make HTTP calls to an LLM endpoint. They accept `model`, `endpoint`,
+`temperature`, and `api_key`.
+
+#### Anthropic
+
+```yaml
+reviewer:
+  anthropic:
+    model: claude-sonnet-4-6
+    temperature: 0
+```
+
+#### OpenAI
+
+```yaml
+reviewer:
+  openai:
+    model: gpt-4o
+    temperature: 0
+```
+
+#### Google
+
+```yaml
+reviewer:
+  google:
+    model: gemini-2.5-flash
+    temperature: 0
+```
+
+#### OpenAI-compatible
+
+Any endpoint that implements the OpenAI API.
+
+```yaml
+reviewer:
+  openai-compatible:
+    model: your-model
+    endpoint: https://your-endpoint.com/v1
+    temperature: 0
+```
+
+#### Ollama (local)
 
 ```yaml
 reviewer:
   ollama:
-    endpoint: http://localhost:11434
-    model: qwen3.5:9b
+    model: qwen3:8b
+    endpoint: http://localhost:11434    # default
+    temperature: 0
+    max_tokens: auto                   # auto = query model for context window size
+    context_length_field: ""           # ollama model_info key override
 ```
+
+### CLI agent providers
+
+CLI providers delegate verification to an agent CLI installed on your machine.
+They accept `model` and `timeout` (in milliseconds).
+
+#### Claude Code
+
+```yaml
+reviewer:
+  claude-code:
+    model: sonnet                      # haiku, sonnet, or opus
+```
+
+#### Codex
+
+```yaml
+reviewer:
+  codex:
+    model: o4-mini
+```
+
+#### Gemini CLI
+
+```yaml
+reviewer:
+  gemini-cli:
+    model: gemini-2.5-flash
+```
+
+### API keys and secrets
+
+Credentials go in `.yggdrasil/yg-secrets.yaml` (gitignored, not committed):
+
+```yaml
+reviewer:
+  anthropic:
+    api_key: sk-ant-...
+  openai:
+    api_key: sk-...
+  google:
+    api_key: AI...
+```
+
+API providers also check environment variables: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`,
+`GOOGLE_API_KEY`. If the env var is set, you don't need `yg-secrets.yaml`.
 
 ---
 

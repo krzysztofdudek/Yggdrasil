@@ -102,7 +102,7 @@ function needsEndpoint(provider: ReviewerProvider): boolean {
 async function promptApiKey(provider: ReviewerProvider): Promise<string> {
   const key = await p.text({
     message: `Enter API key for ${provider}`,
-    validate: (v) => (v.trim().length === 0 ? 'API key cannot be empty' : undefined),
+    validate: (v) => ((v ?? '').trim().length === 0 ? 'API key cannot be empty' : undefined),
   });
   assertNotCancelled(key);
   return key.trim();
@@ -114,7 +114,7 @@ async function promptEndpoint(provider: ReviewerProvider): Promise<string> {
     message: `Enter endpoint URL for ${provider}`,
     placeholder: defaultEndpoint,
     defaultValue: defaultEndpoint,
-    validate: (v) => (v.trim().length === 0 ? 'Endpoint cannot be empty' : undefined),
+    validate: (v) => ((v ?? '').trim().length === 0 ? 'Endpoint cannot be empty' : undefined),
   });
   assertNotCancelled(endpoint);
   return endpoint.trim();
@@ -165,7 +165,7 @@ async function promptModelText(provider: ReviewerProvider): Promise<string> {
   }
   const model = await p.text({
     message: `Enter model name${hint}`,
-    validate: (v) => (v.trim().length === 0 ? 'Model name cannot be empty' : undefined),
+    validate: (v) => ((v ?? '').trim().length === 0 ? 'Model name cannot be empty' : undefined),
   });
   assertNotCancelled(model);
   return model.trim();

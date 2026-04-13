@@ -5,8 +5,6 @@
 version: "4.0.0"                  # managed by CLI — do not edit manually. Tracks the CLI version
                                   # that last initialized or upgraded this config.
 
-# node_types are defined in yg-architecture.yaml (not here).
-
 quality:                          # optional — quality thresholds
   max_direct_relations: 10        #   maximum outgoing relations per node (warning if above)
 

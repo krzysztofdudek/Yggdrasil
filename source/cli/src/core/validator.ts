@@ -39,7 +39,7 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
   }
 
   if (!graph.configError) {
-    issues.push(...checkNodeTypes(graph));
+    // Node type validation uses architecture file (yg-architecture.yaml), not config
     issues.push(...checkDanglingAspectRefs(graph));
     issues.push(...checkAspectIds(graph));
     issues.push(...checkAspectIdUniqueness(graph));
@@ -94,33 +94,6 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
   }
 
   return { issues: filtered, nodesScanned };
-}
-
-// --- Rule 0: Node types from config ---
-
-function checkNodeTypes(graph: Graph): ValidationIssue[] {
-  // Skipped when node_types are in yg-architecture.yaml instead of config
-  if (!graph.config.node_types) {
-    return [];
-  }
-  const issues: ValidationIssue[] = [];
-  const allowedTypes = new Set(Object.keys(graph.config.node_types));
-  for (const [nodePath, node] of graph.nodes) {
-    if (!allowedTypes.has(node.meta.type)) {
-      issues.push({
-        severity: 'error',
-        code: 'type-invalid',
-        rule: 'unknown-node-type',
-        message: buildIssueMessage({
-          what: `Node type '${node.meta.type}' is not defined.`,
-          why: `Allowed types: ${[...allowedTypes].join(', ')}.`,
-          next: `Change type in yg-node.yaml to one of the allowed types.`,
-        }),
-        nodePath,
-      });
-    }
-  }
-  return issues;
 }
 
 // --- Rule 1: Relation targets exist ---

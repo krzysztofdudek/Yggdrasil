@@ -2,14 +2,8 @@
 // Config
 // ============================================================
 
-export interface NodeTypeConfig {
-  description: string;
-  required_aspects?: string[];
-}
-
 export interface YggConfig {
   version?: string;
-  node_types?: Record<string, NodeTypeConfig>;
   quality?: QualityConfig;
   llm?: LlmConfig;
   parallel?: number;
