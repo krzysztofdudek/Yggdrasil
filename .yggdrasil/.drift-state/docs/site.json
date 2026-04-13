@@ -1,19 +1,21 @@
 {
-  "hash": "4963adb41df6d5806bf9271e5f938641f3942ec950af1a8715845a15c340410e",
+  "hash": "c69a3603c5c26381dcb887b96f165716f563a04fb7bc3b9bf5fc8342e88b4ab9",
   "files": {
     "own-subset:docs/site": "fd522550ee8337236d1728863133285d37650bc0ae3620c2cfd3ffd94c163026",
     ".yggdrasil/model/docs/yg-node.yaml": "36ca70c4bea26714bb7450d306d1a898e70573151394eb8e0fb3a5cf588c84d4",
     "docs/package.json": "e3c48dc4ed7f4a2fc56f5d8dec2cbf2a07ffcad6f566d41a206a88a68225d756",
     "docs/package-lock.json": "5de0744623b0f0d3ae0f73845845ae1d5c89623da74cf542447129cb159f167e",
     "docs/public/logo.svg": "4ad480da8bdcbeff35b7e9d24893f42166d4edc973ca16b13a2157e34261059a",
+    "docs/.vitepress/config.ts": "598afbd412a6a4f334497be483d139d60e617643e1754da292da6b4f3eeecd8e",
     "docs/.vitepress/theme/custom.css": "0f383338159534c8a78e76019cc3c28bb1cefcb9116b9da138f895061f6e264a",
     "docs/.vitepress/theme/index.ts": "47a53a53574c3437c65aaf76b1c7e0e3c30db953df85f0c45af4e7e2ad249dc8",
-    "docs/.vitepress/config.ts": "598afbd412a6a4f334497be483d139d60e617643e1754da292da6b4f3eeecd8e"
+    "docs/public/demo.gif": "fa3c159f8b480d7371f796e180f4cbde141b4248678c56d8dcf8abbc5e8b2de7"
   },
   "mtimes": {
     ".yggdrasil/model/docs/yg-node.yaml": 1775243577367.4014,
     "docs/package.json": 1773085358086.3213,
     "docs/package-lock.json": 1772432507086.5698,
+    "docs/public/demo.gif": 1776077351974.0198,
     "docs/public/logo.svg": 1771968668987.6501,
     "docs/.vitepress/config.ts": 1776072054253.4495,
     "docs/.vitepress/theme/custom.css": 1774195609716.5776,
