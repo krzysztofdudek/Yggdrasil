@@ -284,6 +284,41 @@ describe('drift-state-store', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
+  it('readDriftState ignores non-json files in drift-state directory', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-drift-non-json');
+    const driftDir = path.join(tmpDir, '.drift-state');
+    await rm(tmpDir, { recursive: true, force: true });
+    await mkdir(driftDir, { recursive: true });
+
+    // Write a .json file (should be read) and a non-.json file (should be skipped)
+    await writeFile(path.join(driftDir, 'valid-node.json'), '{"hash":"aaa","files":{}}', 'utf-8');
+    await writeFile(path.join(driftDir, 'readme.txt'), 'not a drift state file', 'utf-8');
+
+    const result = await readDriftState(tmpDir);
+    expect(Object.keys(result)).toEqual(['valid-node']);
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('readDriftState skips corrupt json files gracefully', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-drift-corrupt');
+    const driftDir = path.join(tmpDir, '.drift-state');
+    await rm(tmpDir, { recursive: true, force: true });
+    await mkdir(driftDir, { recursive: true });
+
+    // Write a corrupt JSON file
+    await writeFile(path.join(driftDir, 'corrupt-node.json'), 'not valid json{{{', 'utf-8');
+    // Write a valid JSON file
+    await writeFile(path.join(driftDir, 'good-node.json'), '{"hash":"bbb","files":{}}', 'utf-8');
+
+    const result = await readDriftState(tmpDir);
+    // Corrupt file should be skipped (readNodeDriftState returns undefined)
+    expect(result['corrupt-node']).toBeUndefined();
+    expect(result['good-node']).toEqual({ hash: 'bbb', files: {} });
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
   it('garbageCollectDriftState handles non-existent drift-state directory', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-drift-gc-nodir');
     await mkdir(tmpDir, { recursive: true });

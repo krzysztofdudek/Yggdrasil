@@ -278,6 +278,15 @@ describe('hash', () => {
 
       await rm(tmpDir, { recursive: true, force: true });
     });
+
+    it('throws when mapping has no paths property', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-hash-no-paths');
+      await mkdir(tmpDir, { recursive: true });
+
+      await expect(hashForMapping(tmpDir, {})).rejects.toThrow('Invalid mapping for hash: no paths');
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
   });
 
   describe('perFileHashes', () => {
@@ -303,6 +312,16 @@ describe('hash', () => {
       await mkdir(tmpDir, { recursive: true });
 
       const result = await perFileHashes(tmpDir, { paths: [] });
+      expect(result).toEqual([]);
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('returns empty array when mapping has no paths property', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-perfile-no-paths');
+      await mkdir(tmpDir, { recursive: true });
+
+      const result = await perFileHashes(tmpDir, {});
       expect(result).toEqual([]);
 
       await rm(tmpDir, { recursive: true, force: true });
