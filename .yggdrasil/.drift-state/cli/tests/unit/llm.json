@@ -1,5 +1,5 @@
 {
-  "hash": "6160d39727cb33b3c4aa30495fca7e0959768750e56b4d10e4391773f084c917",
+  "hash": "32fe9e6b43a828134a30e6c2b81fd98b1510a100e4cca53af061ed964a8c5409",
   "files": {
     "own-subset:cli/tests/unit/llm": "ec3ac9679505be3bb8233c4ef0b39c8ee206d2c37fc8610edc19f41fbfb9661e",
     ".yggdrasil/model/cli/yg-node.yaml": "41ddbf73fbc1ee27a28a5ea5ec7ad656ea34f5938284bd5ab4ea7c3afcbbd69b",
@@ -9,10 +9,12 @@
     "source/cli/tests/unit/llm/api-utils.test.ts": "6f644bd013fe8be2c448acf275721eaf846bb49fde7676bbf67d53fb026523cf",
     "source/cli/tests/unit/llm/claude-code.test.ts": "6dfb0b542d0bbb0079d64a3777a456172fd715e2f534304fd7e7ab653f9f9f46",
     "source/cli/tests/unit/llm/cli-base.test.ts": "16b56e1e5d0863458536f0c73b5c68d47d38a6465e39fcd2eff0fa4c6db6392d",
-    "source/cli/tests/unit/llm/cli-providers.test.ts": "8bbc357d224d6ea43c1d24cb5f80f4be4cfad43ccd9e1332da236d479b1c5612",
     "source/cli/tests/unit/llm/google.test.ts": "d466e8aa330518b4262b57a01bee8a866d7f8d14ad51f25147b0611f906a4b2f",
     "source/cli/tests/unit/llm/openai.test.ts": "a03c0de3b2adb658fc0fecd0c56f735823860a7df81c03841e0e4ca48eab2adb",
-    "source/cli/tests/unit/llm/provider.test.ts": "e0146235e50f64e33ef518e9f177dd27cfbe0d37ac1a1f07ad328e3a3e191a92"
+    "source/cli/tests/unit/llm/cli-providers.test.ts": "a57dd1c8dea3c3de2da6824f2e6d51ff93b788da6cf0987a259a95cc2c251529",
+    "source/cli/tests/unit/llm/model-fetcher.test.ts": "c70207f3ba9c768631573da5f92d562b4dd8d5d1d8492d79fdf7ecb350a14bda",
+    "source/cli/tests/unit/llm/provider.test.ts": "f42c32e4d46187f4ce9e3f771659e7fa94694e6c111ae9694112abe32fd3ffdb",
+    "source/cli/tests/unit/llm/reviewer-test.test.ts": "bc4368a17cf4ef187183f1b087b04585bf61a157b5d5f9f72dbdba304a50188a"
   },
   "mtimes": {
     ".yggdrasil/model/cli/yg-node.yaml": 1775639608581.9402,
@@ -22,9 +24,11 @@
     "source/cli/tests/unit/llm/api-utils.test.ts": 1776018659627.5557,
     "source/cli/tests/unit/llm/claude-code.test.ts": 1776019849190.8213,
     "source/cli/tests/unit/llm/cli-base.test.ts": 1776018644600.893,
-    "source/cli/tests/unit/llm/cli-providers.test.ts": 1776020796471.3135,
+    "source/cli/tests/unit/llm/cli-providers.test.ts": 1776062940961.3513,
     "source/cli/tests/unit/llm/google.test.ts": 1776020454546.0388,
+    "source/cli/tests/unit/llm/model-fetcher.test.ts": 1776064508074.486,
     "source/cli/tests/unit/llm/openai.test.ts": 1776020446732.1365,
-    "source/cli/tests/unit/llm/provider.test.ts": 1776022135378.5151
+    "source/cli/tests/unit/llm/provider.test.ts": 1776062942865.719,
+    "source/cli/tests/unit/llm/reviewer-test.test.ts": 1776064544762.9714
   }
 }

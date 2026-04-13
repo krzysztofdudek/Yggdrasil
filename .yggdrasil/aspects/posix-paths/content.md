@@ -8,6 +8,7 @@ All internal path handling normalizes to POSIX format for cross-platform consist
 - Trailing slashes are always stripped.
 - Input paths are trimmed of whitespace before processing.
 - Path comparisons use the normalized form, never raw input.
+- Graph-internal lookups (e.g. `graph.nodes.get()`, `flow.nodes?.includes()`) are exempt — graph data is normalized at load time by the graph loader.
 
 ## Implementation pattern
 

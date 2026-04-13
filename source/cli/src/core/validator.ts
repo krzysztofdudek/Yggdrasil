@@ -417,7 +417,7 @@ function checkNoCycles(graph: Graph): ValidationIssue[] {
 // --- Rule 5: Mapping ownership overlap ---
 
 function normalizePathForCompare(mappingPath: string): string {
-  return mappingPath.replace(/\\/g, '/').replace(/\/+$/, '');
+  return mappingPath.trim().replace(/\\/g, '/').replace(/\/+$/, '');
 }
 
 function arePathsOverlapping(pathA: string, pathB: string): boolean {

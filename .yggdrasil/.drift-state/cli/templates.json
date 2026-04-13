@@ -1,27 +1,27 @@
 {
-  "hash": "ce34ee6e15f474132470f453389b5ad6c8dcc1bee297e15d3e5378788e2d3997",
+  "hash": "83496187f4abac7daf5916425cc1a4ae85ea3413257824ddba03e84d43ffbebf",
   "files": {
     "own-subset:cli/templates": "b0d2a9fb759a053316b7dac2dc8c9b1aec3438703fdeaa58aebc9f4d4adf277b",
     ".yggdrasil/model/cli/yg-node.yaml": "41ddbf73fbc1ee27a28a5ea5ec7ad656ea34f5938284bd5ab4ea7c3afcbbd69b",
     ".yggdrasil/flows/init/yg-flow.yaml": "eb35f927c712f8bae38cb5c5fcd0193432aea2fb7adc5e75f777764300ce3177",
-    "source/cli/src/templates/default-config.ts": "c4239f14aa58ae56bf8926866e221e95208c88e02c57c71d35365bffec805296",
-    "source/cli/src/templates/platform.ts": "c92d31c3944cc6134759c877ad0b06fa1ca38f1294649af7ca39ab74460105e1",
     "source/cli/src/templates/rules.ts": "fd8e299c9057d5b4c3844fc05163b39faedf71186affbbafb2b5fbadac7134a1",
     "source/cli/graph-schemas/yg-architecture.yaml": "3b14ea1f258684426145732649688d2d72e3e872813da08cfadc488abb4d54a3",
     "source/cli/graph-schemas/yg-aspect.yaml": "b407c72497e96e40ee5a84e5c955909f0d9d14a7448833b3dbbd8e56e105ac02",
-    "source/cli/graph-schemas/yg-config.yaml": "d534f10b4c1d11aa0c405132855d33dae5a2c21c263e097416eb8dfb6d6794ce",
     "source/cli/graph-schemas/yg-flow.yaml": "e90a70c7b3c2b21bc81e4ac71a04e1912f0fff6b553c69e2f7b5417f069a6b24",
-    "source/cli/graph-schemas/yg-node.yaml": "8519c176a1430d2988f05d9d3d7fe75a8c5985cae790a76e931417d3ef0d9ae0"
+    "source/cli/graph-schemas/yg-node.yaml": "8519c176a1430d2988f05d9d3d7fe75a8c5985cae790a76e931417d3ef0d9ae0",
+    "source/cli/src/templates/default-config.ts": "92c8ceb9086059630f09acabcd990e6e24a7a3954117d62421024796d8f1fc1f",
+    "source/cli/src/templates/platform.ts": "b94ff589bdaf4e986f0daad9a5dbf837c4a4d373682f8d8b2ba116986a13bfab",
+    "source/cli/graph-schemas/yg-config.yaml": "177eedb639a530f8f584e68546be80f028630cccfab812be2973b885ef13b49a"
   },
   "mtimes": {
     ".yggdrasil/model/cli/yg-node.yaml": 1775639608581.9402,
     ".yggdrasil/flows/init/yg-flow.yaml": 1774035679161.664,
-    "source/cli/src/templates/default-config.ts": 1775880703209.3787,
-    "source/cli/src/templates/platform.ts": 1771702373192.354,
+    "source/cli/src/templates/default-config.ts": 1776063661549.0461,
+    "source/cli/src/templates/platform.ts": 1776060079227.405,
     "source/cli/src/templates/rules.ts": 1775881757435.4065,
     "source/cli/graph-schemas/yg-architecture.yaml": 1775331985667.792,
     "source/cli/graph-schemas/yg-aspect.yaml": 1775580545694.7327,
-    "source/cli/graph-schemas/yg-config.yaml": 1775900517778.6533,
+    "source/cli/graph-schemas/yg-config.yaml": 1776063736944.3293,
     "source/cli/graph-schemas/yg-flow.yaml": 1775881189871.8271,
     "source/cli/graph-schemas/yg-node.yaml": 1775891041609.948
   }
