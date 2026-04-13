@@ -358,59 +358,41 @@ describe.skipIf(!distExists)('CLI E2E', () => {
     expect(stdout).not.toContain('stability');
   });
 
-  // --- init creates structure ---
+  // --- platform installation (direct unit tests) ---
 
-  it('yg init creates .yggdrasil directory structure', () => {
-    const tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-init-'));
-
-    try {
-      const { status, stdout } = run(['init'], tmpDir);
-      expect(status).toBe(0);
-      expect(stdout).toContain('Yggdrasil initialized');
-      expect(existsSync(path.join(tmpDir, '.yggdrasil', 'yg-config.yaml'))).toBe(true);
-      expect(existsSync(path.join(tmpDir, '.yggdrasil', 'yg-architecture.yaml'))).toBe(true);
-      expect(existsSync(path.join(tmpDir, '.yggdrasil', 'aspects'))).toBe(true);
-      expect(existsSync(path.join(tmpDir, '.yggdrasil', 'flows'))).toBe(true);
-      expect(existsSync(path.join(tmpDir, '.yggdrasil', 'model'))).toBe(true);
-      expect(stdout).toContain('yg-architecture.yaml');
-    } finally {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
-  });
-
-  it('yg init --platform cursor creates .cursor/rules/yggdrasil.mdc', () => {
-    const tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-init-cursor-'));
+  it('installRulesForPlatform cursor creates .cursor/rules/yggdrasil.mdc', async () => {
+    const tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-platform-cursor-'));
+    mkdirSync(path.join(tmpDir, '.yggdrasil'), { recursive: true });
 
     try {
-      const { status, stdout } = run(['init', '--platform', 'cursor'], tmpDir);
-      expect(status).toBe(0);
-      expect(stdout).toContain('Yggdrasil initialized');
+      const { installRulesForPlatform } = await import('../../src/templates/platform.js');
+      await installRulesForPlatform(tmpDir, 'cursor');
       expect(existsSync(path.join(tmpDir, '.cursor', 'rules', 'yggdrasil.mdc'))).toBe(true);
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
     }
   });
 
-  it('yg init --platform cline creates .clinerules/yggdrasil.md', () => {
-    const tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-init-cline-'));
+  it('installRulesForPlatform cline creates .clinerules/yggdrasil.md', async () => {
+    const tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-platform-cline-'));
+    mkdirSync(path.join(tmpDir, '.yggdrasil'), { recursive: true });
 
     try {
-      const { status, stdout } = run(['init', '--platform', 'cline'], tmpDir);
-      expect(status).toBe(0);
-      expect(stdout).toContain('Yggdrasil initialized');
+      const { installRulesForPlatform } = await import('../../src/templates/platform.js');
+      await installRulesForPlatform(tmpDir, 'cline');
       expect(existsSync(path.join(tmpDir, '.clinerules', 'yggdrasil.md'))).toBe(true);
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
     }
   });
 
-  it('yg init --platform claude-code creates CLAUDE.md and agent-rules.md', () => {
-    const tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-init-claude-'));
+  it('installRulesForPlatform claude-code creates CLAUDE.md and agent-rules.md', async () => {
+    const tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-platform-claude-'));
+    mkdirSync(path.join(tmpDir, '.yggdrasil'), { recursive: true });
 
     try {
-      const { status, stdout } = run(['init', '--platform', 'claude-code'], tmpDir);
-      expect(status).toBe(0);
-      expect(stdout).toContain('Yggdrasil initialized');
+      const { installRulesForPlatform } = await import('../../src/templates/platform.js');
+      await installRulesForPlatform(tmpDir, 'claude-code');
       expect(existsSync(path.join(tmpDir, 'CLAUDE.md'))).toBe(true);
       expect(existsSync(path.join(tmpDir, '.yggdrasil', 'agent-rules.md'))).toBe(true);
     } finally {
@@ -418,51 +400,39 @@ describe.skipIf(!distExists)('CLI E2E', () => {
     }
   });
 
-  it('yg init --platform copilot creates .github/copilot-instructions.md', () => {
-    const tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-init-copilot-'));
+  it('installRulesForPlatform copilot creates .github/copilot-instructions.md', async () => {
+    const tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-platform-copilot-'));
+    mkdirSync(path.join(tmpDir, '.yggdrasil'), { recursive: true });
 
     try {
-      const { status, stdout } = run(['init', '--platform', 'copilot'], tmpDir);
-      expect(status).toBe(0);
-      expect(stdout).toContain('Yggdrasil initialized');
+      const { installRulesForPlatform } = await import('../../src/templates/platform.js');
+      await installRulesForPlatform(tmpDir, 'copilot');
       expect(existsSync(path.join(tmpDir, '.github', 'copilot-instructions.md'))).toBe(true);
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
     }
   });
 
-  it('yg init --platform invalid returns exit 1', () => {
-    const tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-init-invalid-'));
+  it('installRulesForPlatform windsurf creates .windsurf/rules/yggdrasil.md', async () => {
+    const tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-platform-windsurf-'));
+    mkdirSync(path.join(tmpDir, '.yggdrasil'), { recursive: true });
 
     try {
-      const { status, stderr } = run(['init', '--platform', 'invalid-platform'], tmpDir);
-      expect(status).toBe(1);
-      expect(stderr).toContain('Unknown platform');
-    } finally {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
-  });
-
-  it('yg init --platform windsurf creates .windsurf/rules/yggdrasil.md', () => {
-    const tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-init-windsurf-'));
-
-    try {
-      const { status, stdout } = run(['init', '--platform', 'windsurf'], tmpDir);
-      expect(status).toBe(0);
-      expect(stdout).toContain('Yggdrasil initialized');
+      const { installRulesForPlatform } = await import('../../src/templates/platform.js');
+      await installRulesForPlatform(tmpDir, 'windsurf');
       expect(existsSync(path.join(tmpDir, '.windsurf', 'rules', 'yggdrasil.md'))).toBe(true);
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
     }
   });
 
-  it('yg init --platform aider creates .aider.conf.yml and agent-rules.md', () => {
-    const tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-init-aider-'));
+  it('installRulesForPlatform aider creates .aider.conf.yml and agent-rules.md', async () => {
+    const tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-platform-aider-'));
+    mkdirSync(path.join(tmpDir, '.yggdrasil'), { recursive: true });
 
     try {
-      const { status, stdout } = run(['init', '--platform', 'aider'], tmpDir);
-      expect(status).toBe(0);
-      expect(stdout).toContain('Yggdrasil initialized');
+      const { installRulesForPlatform } = await import('../../src/templates/platform.js');
+      await installRulesForPlatform(tmpDir, 'aider');
       expect(existsSync(path.join(tmpDir, '.aider.conf.yml'))).toBe(true);
       expect(existsSync(path.join(tmpDir, '.yggdrasil', 'agent-rules.md'))).toBe(true);
     } finally {
@@ -470,13 +440,13 @@ describe.skipIf(!distExists)('CLI E2E', () => {
     }
   });
 
-  it('yg init --platform gemini creates GEMINI.md and agent-rules.md', () => {
-    const tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-init-gemini-'));
+  it('installRulesForPlatform gemini creates GEMINI.md and agent-rules.md', async () => {
+    const tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-platform-gemini-'));
+    mkdirSync(path.join(tmpDir, '.yggdrasil'), { recursive: true });
 
     try {
-      const { status, stdout } = run(['init', '--platform', 'gemini'], tmpDir);
-      expect(status).toBe(0);
-      expect(stdout).toContain('Yggdrasil initialized');
+      const { installRulesForPlatform } = await import('../../src/templates/platform.js');
+      await installRulesForPlatform(tmpDir, 'gemini');
       expect(existsSync(path.join(tmpDir, 'GEMINI.md'))).toBe(true);
       expect(existsSync(path.join(tmpDir, '.yggdrasil', 'agent-rules.md'))).toBe(true);
     } finally {
@@ -484,96 +454,39 @@ describe.skipIf(!distExists)('CLI E2E', () => {
     }
   });
 
-  it('yg init --platform roocode creates .roo/rules/yggdrasil.md', () => {
-    const tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-init-roocode-'));
+  it('installRulesForPlatform roocode creates .roo/rules/yggdrasil.md', async () => {
+    const tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-platform-roocode-'));
+    mkdirSync(path.join(tmpDir, '.yggdrasil'), { recursive: true });
 
     try {
-      const { status, stdout } = run(['init', '--platform', 'roocode'], tmpDir);
-      expect(status).toBe(0);
-      expect(stdout).toContain('Yggdrasil initialized');
+      const { installRulesForPlatform } = await import('../../src/templates/platform.js');
+      await installRulesForPlatform(tmpDir, 'roocode');
       expect(existsSync(path.join(tmpDir, '.roo', 'rules', 'yggdrasil.md'))).toBe(true);
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
     }
   });
 
-  it('yg init --platform generic creates agent-rules.md only', () => {
-    const tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-init-generic-'));
+  it('installRulesForPlatform codex creates AGENTS.md', async () => {
+    const tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-platform-codex-'));
+    mkdirSync(path.join(tmpDir, '.yggdrasil'), { recursive: true });
 
     try {
-      const { status, stdout } = run(['init', '--platform', 'generic'], tmpDir);
-      expect(status).toBe(0);
-      expect(stdout).toContain('Yggdrasil initialized');
-      expect(existsSync(path.join(tmpDir, '.yggdrasil', 'agent-rules.md'))).toBe(true);
-    } finally {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
-  });
-
-  it('yg init creates yg-architecture.yaml with node types', () => {
-    const tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-init-arch-'));
-
-    try {
-      const { status } = run(['init'], tmpDir);
-      expect(status).toBe(0);
-      const architecturePath = path.join(tmpDir, '.yggdrasil', 'yg-architecture.yaml');
-      expect(existsSync(architecturePath)).toBe(true);
-
-      const architectureContent = readFileSync(architecturePath, 'utf-8');
-      const architecture = parseYaml(architectureContent) as Record<string, unknown>;
-
-      expect(architecture.node_types).toBeDefined();
-      expect(architecture.node_types).toHaveProperty('module');
-      expect(architecture.node_types).toHaveProperty('service');
-      expect(architecture.node_types).toHaveProperty('library');
-      expect(architecture.node_types).toHaveProperty('infrastructure');
-      expect(architecture.node_types).toHaveProperty('data');
-    } finally {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
-  });
-
-  it('yg init --upgrade creates missing yg-architecture.yaml', () => {
-    const tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-init-arch-upgrade-'));
-
-    try {
-      // Initial init creates architecture file
-      const { status: initStatus } = run(['init', '--platform', 'generic'], tmpDir);
-      expect(initStatus).toBe(0);
-
-      // Remove the architecture file to simulate old project
-      const architecturePath = path.join(tmpDir, '.yggdrasil', 'yg-architecture.yaml');
-      rmSync(architecturePath);
-      expect(existsSync(architecturePath)).toBe(false);
-
-      // Run upgrade, should create the missing architecture file
-      const { status: upgradeStatus } = run(['init', '--upgrade', '--platform', 'generic'], tmpDir);
-      expect(upgradeStatus).toBe(0);
-
-      // Verify architecture file was created
-      expect(existsSync(architecturePath)).toBe(true);
-      const architectureContent = readFileSync(architecturePath, 'utf-8');
-      const architecture = parseYaml(architectureContent) as Record<string, unknown>;
-      expect(architecture.node_types).toBeDefined();
-    } finally {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
-  });
-
-  it('yg init --upgrade switches platform (codex -> amp)', () => {
-    const tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-init-upgrade-'));
-
-    try {
-      const { status: initStatus } = run(['init', '--platform', 'codex'], tmpDir);
-      expect(initStatus).toBe(0);
+      const { installRulesForPlatform } = await import('../../src/templates/platform.js');
+      await installRulesForPlatform(tmpDir, 'codex');
       expect(existsSync(path.join(tmpDir, 'AGENTS.md'))).toBe(true);
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
 
-      const { status: upgradeStatus, stdout } = run(
-        ['init', '--platform', 'amp', '--upgrade'],
-        tmpDir,
-      );
-      expect(upgradeStatus).toBe(0);
-      expect(stdout).toContain('Rules refreshed');
+  it('installRulesForPlatform generic creates agent-rules.md only', async () => {
+    const tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-platform-generic-'));
+    mkdirSync(path.join(tmpDir, '.yggdrasil'), { recursive: true });
+
+    try {
+      const { installRulesForPlatform } = await import('../../src/templates/platform.js');
+      await installRulesForPlatform(tmpDir, 'generic');
       expect(existsSync(path.join(tmpDir, '.yggdrasil', 'agent-rules.md'))).toBe(true);
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });

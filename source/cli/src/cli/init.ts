@@ -329,34 +329,18 @@ async function writeSecretsFile(
 // Fresh init
 // ---------------------------------------------------------------------------
 
-async function freshInit(projectRoot: string, platformFlag?: string): Promise<void> {
+async function freshInit(projectRoot: string): Promise<void> {
   const yggRoot = path.join(projectRoot, '.yggdrasil');
 
-  // Non-TTY: no prompts
   if (!isTTY()) {
-    const platform = (platformFlag ?? 'generic') as Platform;
-    await createYggdrasilStructure(projectRoot, yggRoot, platform);
-    process.stdout.write(chalk.green('✓ Yggdrasil initialized.') + '\n\n');
-    process.stdout.write('Created:\n');
-    process.stdout.write('  .yggdrasil/yg-config.yaml\n');
-    process.stdout.write('  .yggdrasil/yg-architecture.yaml\n');
-    process.stdout.write('  .yggdrasil/model/\n');
-    process.stdout.write('  .yggdrasil/aspects/\n');
-    process.stdout.write('  .yggdrasil/flows/\n');
-    process.stdout.write('  .yggdrasil/schemas/\n');
-    return;
+    process.stderr.write(chalk.red('Error: yg init requires an interactive terminal.\n'));
+    process.exit(1);
   }
 
   p.intro(chalk.bold('Initialize Yggdrasil'));
 
   // 1. Platform selection
-  let platform: Platform;
-  if (platformFlag !== undefined) {
-    platform = platformFlag as Platform;
-    p.log.info(`Platform: ${platform}`);
-  } else {
-    platform = await promptPlatform();
-  }
+  const platform = await promptPlatform();
 
   // 2. Reviewer?
   const configureReviewer = await p.confirm({
@@ -427,60 +411,14 @@ async function createYggdrasilStructure(
 // Existing repo menu
 // ---------------------------------------------------------------------------
 
-async function existingInit(
-  projectRoot: string,
-  platformFlag?: string,
-  upgradeFlag?: boolean,
-): Promise<void> {
+async function existingInit(projectRoot: string): Promise<void> {
   const yggRoot = path.join(projectRoot, '.yggdrasil');
 
-  // --upgrade flag
-  if (upgradeFlag) {
-    const platform = (platformFlag ?? 'generic') as Platform;
-    if (!PLATFORMS.includes(platform)) {
-      process.stderr.write(chalk.red(`Error: Unknown platform '${platform}'. Use: ${PLATFORMS.join(', ')}\n`));
-      process.exit(1);
-    }
-    await refreshSchemas(yggRoot);
-
-    // Ensure architecture file exists
-    const architecturePath = path.join(yggRoot, 'yg-architecture.yaml');
-    try {
-      await stat(architecturePath);
-    } catch {
-      await writeFile(architecturePath, DEFAULT_ARCHITECTURE, 'utf-8');
-    }
-
-    if (platformFlag !== undefined) {
-      const rulesPath = await installRulesForPlatform(projectRoot, platform);
-      process.stdout.write(chalk.green('✓ Rules refreshed.\n'));
-      process.stdout.write(`  ${path.relative(projectRoot, rulesPath)}\n`);
-    } else {
-      process.stdout.write(chalk.green('✓ Schemas refreshed.\n'));
-    }
-    return;
-  }
-
-  // --platform flag without --upgrade: change platform
-  if (platformFlag !== undefined) {
-    const platform = platformFlag as Platform;
-    if (!PLATFORMS.includes(platform)) {
-      process.stderr.write(chalk.red(`Error: Unknown platform '${platform}'. Use: ${PLATFORMS.join(', ')}\n`));
-      process.exit(1);
-    }
-    const rulesPath = await installRulesForPlatform(projectRoot, platform);
-    process.stdout.write(chalk.green('✓ Platform changed.\n'));
-    process.stdout.write(`  ${path.relative(projectRoot, rulesPath)}\n`);
-    return;
-  }
-
-  // Non-TTY: nothing to do
   if (!isTTY()) {
-    process.stderr.write(chalk.yellow('.yggdrasil/ already exists. Use --upgrade to refresh.\n'));
+    process.stderr.write(chalk.yellow('.yggdrasil/ already exists. Run yg init interactively to reconfigure.\n'));
     return;
   }
 
-  // Interactive menu
   p.intro(chalk.bold('Yggdrasil Configuration'));
 
   const action = await p.select<string>({
@@ -537,12 +475,7 @@ export function registerInitCommand(program: Command): void {
   program
     .command('init')
     .description('Initialize Yggdrasil graph in current project')
-    .option(
-      '--platform <name>',
-      'Agent platform: ' + PLATFORMS.join(', '),
-    )
-    .option('--upgrade', 'Refresh rules and schemas (when .yggdrasil/ already exists)')
-    .action(async (options: { platform?: string; upgrade?: boolean }) => {
+    .action(async () => {
       try {
         const projectRoot = process.cwd();
         const yggRoot = path.join(projectRoot, '.yggdrasil');
@@ -560,22 +493,10 @@ export function registerInitCommand(program: Command): void {
           // Directory does not exist
         }
 
-        // Validate platform if provided
-        if (options.platform !== undefined && !PLATFORMS.includes(options.platform as Platform)) {
-          process.stderr.write(
-            chalk.red(`Error: Unknown platform '${options.platform}'. Use: ${PLATFORMS.join(', ')}\n`),
-          );
-          process.exit(1);
-        }
-
         if (exists) {
-          await existingInit(projectRoot, options.platform, options.upgrade);
+          await existingInit(projectRoot);
         } else {
-          if (options.upgrade) {
-            process.stderr.write(chalk.red('Error: .yggdrasil/ does not exist. Run yg init first.\n'));
-            process.exit(1);
-          }
-          await freshInit(projectRoot, options.platform);
+          await freshInit(projectRoot);
         }
       } catch (err) {
         process.stderr.write(chalk.red(`Error: ${(err as Error).message}\n`));
