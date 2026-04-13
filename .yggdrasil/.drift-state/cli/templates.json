@@ -1,17 +1,17 @@
 {
-  "hash": "84355617e858e9f04c4917a6fc6c5b99ded1e4b73c90fc60a54e42a23e69b79b",
+  "hash": "0f5867023c3c33141b888573a0c8ab3be1b990bccf00579d4227c32a76d54337",
   "files": {
     "own-subset:cli/templates": "b0d2a9fb759a053316b7dac2dc8c9b1aec3438703fdeaa58aebc9f4d4adf277b",
     ".yggdrasil/model/cli/yg-node.yaml": "4b493e4905484f8d7ed4cbc576aede514269ba0d7367cf1a9577297d830ee611",
     ".yggdrasil/flows/init/yg-flow.yaml": "eb35f927c712f8bae38cb5c5fcd0193432aea2fb7adc5e75f777764300ce3177",
     "source/cli/src/templates/default-config.ts": "8588580e6743f4b1f244dee066b2dd9b616fc0c6e292f165839845a64413d812",
     "source/cli/src/templates/platform.ts": "5ce8e702ee3951067eb612b714af09a723d333c5b23f0788db9c12019900bcac",
+    "source/cli/src/templates/rules.ts": "8984c9dc00b055f7608770fb92ab603d667491fa9c2bdbae3310276da417a4e4",
     "source/cli/graph-schemas/yg-architecture.yaml": "3b14ea1f258684426145732649688d2d72e3e872813da08cfadc488abb4d54a3",
     "source/cli/graph-schemas/yg-aspect.yaml": "b407c72497e96e40ee5a84e5c955909f0d9d14a7448833b3dbbd8e56e105ac02",
     "source/cli/graph-schemas/yg-config.yaml": "62e204f6208492add79ba13e79eaeda07e6f4d24f570b606adf6a6963d680715",
     "source/cli/graph-schemas/yg-flow.yaml": "e90a70c7b3c2b21bc81e4ac71a04e1912f0fff6b553c69e2f7b5417f069a6b24",
-    "source/cli/graph-schemas/yg-node.yaml": "8519c176a1430d2988f05d9d3d7fe75a8c5985cae790a76e931417d3ef0d9ae0",
-    "source/cli/src/templates/rules.ts": "8984c9dc00b055f7608770fb92ab603d667491fa9c2bdbae3310276da417a4e4"
+    "source/cli/graph-schemas/yg-node.yaml": "dd19c3d96f34248f4fc9731c6ff8b9aaaec2af6bf9a3f26f4720932beb47e4c6"
   },
   "mtimes": {
     ".yggdrasil/model/cli/yg-node.yaml": 1776082060141.5686,
@@ -23,6 +23,6 @@
     "source/cli/graph-schemas/yg-aspect.yaml": 1775580545694.7327,
     "source/cli/graph-schemas/yg-config.yaml": 1776078792984.067,
     "source/cli/graph-schemas/yg-flow.yaml": 1775881189871.8271,
-    "source/cli/graph-schemas/yg-node.yaml": 1775891041609.948
+    "source/cli/graph-schemas/yg-node.yaml": 1776086054788.477
   }
 }
