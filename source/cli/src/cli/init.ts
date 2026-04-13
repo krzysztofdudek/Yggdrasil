@@ -54,8 +54,6 @@ const GITIGNORE_CONTENT = `yg-secrets.yaml
 
 const API_PROVIDERS: ReviewerProvider[] = ['anthropic', 'openai', 'google', 'openai-compatible', 'ollama'];
 const CLI_PROVIDERS: ReviewerProvider[] = ['claude-code', 'codex', 'gemini-cli'];
-const ALL_PROVIDERS: ReviewerProvider[] = [...API_PROVIDERS, ...CLI_PROVIDERS];
-
 const CLAUDE_CODE_ALIASES = [
   { value: 'haiku', label: 'haiku' },
   { value: 'sonnet', label: 'sonnet' },
