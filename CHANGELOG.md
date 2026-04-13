@@ -73,8 +73,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`yg flows`** — participant count with node names, flow aspects.
 - **Interactive `yg init` wizard.** Platform selection, reviewer setup
   with model fetching from provider API, connection validation.
-- **`yg-secrets.yaml`** — gitignored file for API keys and LLM config
-  overrides. Template created by init.
+- **`yg-secrets.yaml`** — gitignored file for API keys. Created by
+  `yg init` when an API provider is selected.
 - **Append-only audit log** (`.yggdrasil/.audit-log.jsonl`) — every
   approve records timestamp, node, action, hashes, changed files.
 - **Blackbox enforcement.** Source changes on blackbox nodes always

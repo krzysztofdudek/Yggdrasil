@@ -52,18 +52,6 @@ function assertNotCancelled<T>(value: T | symbol): asserts value is T {
 const GITIGNORE_CONTENT = `yg-secrets.yaml
 `;
 
-const SECRETS_EXAMPLE_CONTENT = `# Copy this to yg-secrets.yaml and fill in sensitive values (never commit yg-secrets.yaml)
-reviewer:
-  ollama:
-    endpoint: http://localhost:11434     # override endpoint
-    model: qwen3.5:9b                   # override model
-    temperature: 0                      # override temperature
-    max_tokens: auto                    # override max tokens (int or "auto")
-    context_length_field: ""            # ollama model_info key for context window size
-  claude-code:
-    model: haiku                        # override model (haiku, sonnet, opus)
-`;
-
 const API_PROVIDERS: ReviewerProvider[] = ['anthropic', 'openai', 'google', 'openai-compatible', 'ollama'];
 const CLI_PROVIDERS: ReviewerProvider[] = ['claude-code', 'codex', 'gemini-cli'];
 const ALL_PROVIDERS: ReviewerProvider[] = [...API_PROVIDERS, ...CLI_PROVIDERS];
@@ -279,13 +267,15 @@ async function writeReviewerConfig(
     // File doesn't exist yet
   }
 
-  // Build reviewer section
+  // Build reviewer section with visible defaults
   const providerConfig: Record<string, unknown> = { model: config.model };
   if (config.endpoint) {
     providerConfig.endpoint = config.endpoint;
   }
+  providerConfig.temperature = 0;
 
   const reviewer: Record<string, unknown> = {
+    consensus: 1,
     [config.provider]: providerConfig,
   };
 
@@ -402,7 +392,7 @@ async function createYggdrasilStructure(
   await writeFile(path.join(yggRoot, 'yg-config.yaml'), DEFAULT_CONFIG, 'utf-8');
   await writeFile(path.join(yggRoot, 'yg-architecture.yaml'), DEFAULT_ARCHITECTURE, 'utf-8');
   await writeFile(path.join(yggRoot, '.gitignore'), GITIGNORE_CONTENT, 'utf-8');
-  await writeFile(path.join(yggRoot, 'yg-secrets.example.yaml'), SECRETS_EXAMPLE_CONTENT, 'utf-8');
+  // yg-secrets.yaml is created by writeSecretsFile when user provides an API key
 
   await installRulesForPlatform(projectRoot, platform);
 }

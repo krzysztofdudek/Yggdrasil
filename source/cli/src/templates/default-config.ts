@@ -2,6 +2,8 @@ export const DEFAULT_CONFIG = `version: "4.0.0"
 
 quality:
   max_direct_relations: 10
+
+parallel: 1
 `;
 
 export const DEFAULT_ARCHITECTURE = `node_types:
