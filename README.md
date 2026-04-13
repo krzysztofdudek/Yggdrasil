@@ -1,4 +1,6 @@
-<video src="https://github.com/user-attachments/assets/49c8fe8f-c3b9-4202-b655-7f987dcab4cb" controls></video>
+<p align="center">
+  <img src="docs/public/demo.gif" alt="Yggdrasil enforcement loop" width="900" />
+</p>
 
 # Yggdrasil
 
