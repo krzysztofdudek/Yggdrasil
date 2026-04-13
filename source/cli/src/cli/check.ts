@@ -73,7 +73,7 @@ export function formatOutput(result: CheckResult): string {
 
   // Code category sets for grouping
   const STRUCTURAL_CODES = new Set(['yaml-invalid', 'type-invalid', 'relation-broken', 'flow-node-broken', 'aspect-undefined', 'overlapping-mapping', 'structural-cycle', 'config-invalid', 'duplicate-aspect-id', 'node-yaml-missing', 'implied-aspect-missing', 'aspect-implies-cycle', 'event-unpaired', 'schema-missing']);
-  const ARCHITECTURE_CODES = new Set(['relation-target-forbidden', 'parent-type-forbidden', 'port-missing-aspect', 'port-missing-consumes', 'port-undefined', 'consumes-without-ports']);
+  const ARCHITECTURE_CODES = new Set(['relation-target-forbidden', 'parent-type-forbidden', 'type-undefined', 'port-missing-aspect', 'port-missing-consumes', 'port-undefined', 'consumes-without-ports']);
   const COVERAGE_CODES = new Set(['unmapped-files', 'mapping-path-missing']);
   const COMPLETENESS_CODES = new Set(['description-missing']);
 
