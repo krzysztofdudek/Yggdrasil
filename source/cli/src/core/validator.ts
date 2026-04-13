@@ -5,9 +5,6 @@ import type { ValidationResult, ValidationIssue } from '../model/validation.js';
 import { normalizeMappingPaths } from '../utils/paths.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
 
-/** Reserved directories that are NOT nodes (within model/) */
-const RESERVED_DIRS = new Set<string>();
-
 export async function validate(graph: Graph, scope: string = 'all'): Promise<ValidationResult> {
   const issues: ValidationIssue[] = [];
 
@@ -679,9 +676,6 @@ async function checkDirectoriesHaveNodeYaml(graph: Graph): Promise<ValidationIss
   async function scanDir(dirPath: string, segments: string[]): Promise<void> {
     const entries = (await readdir(dirPath, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name));
     const hasNodeYaml = entries.some((e) => e.isFile() && e.name === 'yg-node.yaml');
-    const dirName = path.basename(dirPath);
-
-    if (RESERVED_DIRS.has(dirName)) return;
 
     const hasFiles = entries.some((e) => e.isFile());
     const graphPath = segments.join('/');
@@ -705,7 +699,6 @@ async function checkDirectoriesHaveNodeYaml(graph: Graph): Promise<ValidationIss
 
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
-      if (RESERVED_DIRS.has(entry.name)) continue;
       if (entry.name.startsWith('.')) continue;
       await scanDir(path.join(dirPath, entry.name), [...segments, entry.name]);
     }

@@ -9,18 +9,7 @@ import type {
   Relation,
 } from '../model/graph.js';
 import type {
-  ContextPackage,
   ContextLayer,
-  ContextSection,
-  ContextMapOutput,
-  Glossary,
-  GlossaryAspectEntry,
-  GlossaryFlowEntry,
-  NodeAspectRef,
-  RequiredAspectRef,
-  FlowRef,
-  AncestorRef,
-  DependencyRef,
 } from '../model/context.js';
 import type { NodeContextData } from '../formatters/context-node.js';
 import type { FileContextData } from '../formatters/context-file.js';
@@ -29,75 +18,6 @@ import { computeEffectiveAspects } from './effective-aspects.js';
 
 const STRUCTURAL_RELATION_TYPES = new Set(['uses', 'calls', 'extends', 'implements']);
 const EVENT_RELATION_TYPES = new Set(['emits', 'listens']);
-const YG_YAML_FILES = new Set(['yg-node.yaml', 'yg-aspect.yaml', 'yg-flow.yaml']);
-
-export async function buildContext(graph: Graph, nodePath: string): Promise<ContextPackage> {
-  const node = graph.nodes.get(nodePath);
-  if (!node) {
-    throw new Error(`Node not found: ${nodePath}`);
-  }
-
-  const layers: ContextLayer[] = [];
-
-  // 1. Global
-  layers.push(buildGlobalLayer(graph.config, graph.rootPath));
-
-  // 2. Hierarchy (ancestor yg-node.yaml metadata)
-  const ancestors = collectAncestors(node);
-  for (const ancestor of ancestors) {
-    layers.push(buildHierarchyLayer(ancestor, graph.config, graph));
-  }
-
-  // 3. Own (yg-node.yaml metadata)
-  layers.push(await buildOwnLayer(node, graph.config, graph.rootPath, graph));
-
-  // 4. Relational (structural + event, with consumes)
-  //    Skip relations targeting ancestors — their context is already in hierarchy layers.
-  const ancestorPaths = new Set(ancestors.map((a) => a.path));
-  for (const relation of node.meta.relations ?? []) {
-    const target = graph.nodes.get(relation.target);
-    if (!target) {
-      throw new Error(`Broken relation: ${nodePath} -> ${relation.target} (target not found)`);
-    }
-    if (ancestorPaths.has(relation.target)) continue;
-    if (STRUCTURAL_RELATION_TYPES.has(relation.type)) {
-      layers.push(buildStructuralRelationLayer(target, relation));
-    } else if (EVENT_RELATION_TYPES.has(relation.type)) {
-      layers.push(buildEventRelationLayer(target, relation));
-    }
-  }
-
-  // 5. Flows (node + all ancestors) — built before aspects so we can collect flow aspect ids
-  for (const flow of collectParticipatingFlows(graph, node)) {
-    layers.push(buildFlowLayer(flow, graph));
-  }
-
-  // 6. Aspects: union of aspect ids from hierarchy + own + flow layers
-  const allAspectIds = new Set<string>();
-  for (const l of layers) {
-    const aspects = l.attrs?.aspects;
-    if (aspects) {
-      for (const id of aspects.split(',').map((t) => t.trim()).filter(Boolean)) {
-        allAspectIds.add(id);
-      }
-    }
-  }
-  const aspectsToInclude = resolveAspects(allAspectIds, graph.aspects);
-  for (const aspect of aspectsToInclude) {
-    layers.push(buildAspectLayer(aspect));
-  }
-
-  const mapping = normalizeMappingPaths(node.meta.mapping);
-  const sections = buildSections(layers, mapping.length > 0 ? mapping : null);
-
-  return {
-    nodePath,
-    nodeName: node.meta.name,
-    layers,
-    sections,
-    mapping: mapping.length > 0 ? mapping : null,
-  };
-}
 
 function collectParticipatingFlows(graph: Graph, node: GraphNode): FlowDef[] {
   const paths = new Set<string>([node.path, ...collectAncestors(node).map((a) => a.path)]);
@@ -137,25 +57,11 @@ export function expandAspects(aspectIds: string[], aspects: AspectDef[]): string
   return result;
 }
 
-/** Expand aspect ids to AspectDefs including implied (recursive, with cycle detection). */
-export function resolveAspects(
-  aspectIds: Iterable<string>,
-  aspects: AspectDef[],
-): AspectDef[] {
-  const idToAspect = new Map<string, AspectDef>();
-  for (const a of aspects) {
-    idToAspect.set(a.id, a);
-  }
-  const expandedIds = expandAspects([...aspectIds], aspects);
-  return expandedIds
-    .map((id) => idToAspect.get(id))
-    .filter((a): a is AspectDef => a !== undefined);
-}
 
 
 // --- Layer builders (exported for testing) ---
 
-export function buildGlobalLayer(config: YggConfig, rootPath: string): ContextLayer {
+export function buildGlobalLayer(rootPath: string): ContextLayer {
   const projectName = path.basename(path.dirname(rootPath));
   const content = `**Project:** ${projectName}\n`;
   return { type: 'global', label: 'Global Context', content };
@@ -274,44 +180,6 @@ export function buildAspectLayer(aspect: AspectDef): ContextLayer {
     label: `${aspect.name} (aspect: ${aspect.id})`,
     content,
   };
-}
-
-function buildFlowLayer(flow: FlowDef, graph: Graph): ContextLayer {
-  const content = flow.description ?? '';
-  const flowAspects = flow.aspects ?? [];
-  const expanded = expandAspects(flowAspects, graph.aspects);
-  const attrs: Record<string, string> | undefined =
-    expanded.length > 0 ? { aspects: expanded.join(',') } : undefined;
-  return {
-    type: 'flows',
-    label: `Flow: ${flow.name}`,
-    content: content || '(no description)',
-    attrs,
-  };
-}
-
-function buildSections(layers: ContextLayer[], mapping: string[] | null): ContextSection[] {
-  const hierarchyLayers = layers.filter((l) => l.type === 'hierarchy');
-  if (mapping && mapping.length > 0) {
-    hierarchyLayers.push({
-      type: 'hierarchy',
-      label: 'Materialization Target',
-      content: mapping.join(', '),
-    });
-  }
-
-  return [
-    { key: 'Global', layers: layers.filter((l) => l.type === 'global') },
-    { key: 'Hierarchy', layers: hierarchyLayers },
-    { key: 'Aspects', layers: layers.filter((l) => l.type === 'aspects') },
-    {
-      key: 'Relational',
-      layers: [
-        ...layers.filter((l) => l.type === 'relational'),
-        ...layers.filter((l) => l.type === 'flows'),
-      ],
-    },
-  ];
 }
 
 // --- Helpers (exported for testing) ---
@@ -467,161 +335,6 @@ function determineFallbackAspectSource(aspectId: string, node: GraphNode, graph:
   }
 
   return sources.length > 0 ? sources.join('; ') : 'unknown source';
-}
-
-export function toContextMapOutput(
-  pkg: ContextPackage,
-  graph: Graph,
-): ContextMapOutput {
-  const node = graph.nodes.get(pkg.nodePath)!;
-
-  // Node aspects
-  const nodeAspects: NodeAspectRef[] = (node.meta.aspects ?? []).map((aspectId) => {
-    return { id: aspectId };
-  });
-
-  // Node flows
-  const participatingFlows = collectParticipatingFlows(graph, node);
-  const flowRefs: FlowRef[] = participatingFlows.map((f) => {
-    return { id: f.path };
-  });
-
-  // Hierarchy ancestors
-  const ancestors = collectAncestors(node);
-  const hierarchyRefs: AncestorRef[] = ancestors.map((a) => {
-    const nodeAspectIds = a.meta.aspects ?? [];
-    const expanded = expandAspects(nodeAspectIds, graph.aspects);
-    return { path: a.path, name: a.meta.name, type: a.meta.type, description: a.meta.description, aspects: expanded, files: [`model/${a.path}/yg-node.yaml`] };
-  });
-
-  // Dependencies — structural + event
-  const depRefs: DependencyRef[] = [];
-  const ancestorPaths = new Set(ancestors.map((a) => a.path));
-  for (const relation of node.meta.relations ?? []) {
-    const target = graph.nodes.get(relation.target);
-    if (!target) continue;
-    if (ancestorPaths.has(relation.target)) continue;
-
-    const depAncestors = collectAncestors(target);
-    const depHierarchy: AncestorRef[] = depAncestors.map((a) => {
-      const ids = a.meta.aspects ?? [];
-      const expanded = expandAspects(ids, graph.aspects);
-      return { path: a.path, name: a.meta.name, type: a.meta.type, description: a.meta.description, aspects: expanded, files: [`model/${a.path}/yg-node.yaml`] };
-    });
-
-    const depEffectiveAspects = [...collectEffectiveAspectIds(graph, target.path)];
-
-    const ref: DependencyRef = {
-      path: target.path,
-      name: target.meta.name,
-      type: target.meta.type,
-      description: target.meta.description,
-      relation: relation.type,
-      aspects: depEffectiveAspects,
-      hierarchy: depHierarchy,
-      files: [`model/${target.path}/yg-node.yaml`],
-    };
-    if (relation.consumes?.length) ref.consumes = relation.consumes;
-    if (relation.event_name) ref['event-name'] = relation.event_name;
-    depRefs.push(ref);
-  }
-
-  // Glossary
-  const glossary = buildGlossary(node, depRefs, graph);
-
-  // Compute effective aspects from architecture, hierarchy, own, and flows
-  const requiredAspects: RequiredAspectRef[] = [];
-
-  if (graph.architecture) {
-    const parentTypes = ancestors.map((a) => a.meta.type);
-    const ownAspectIds = node.meta.aspects ?? [];
-    const flowAspects = participatingFlows.flatMap((f) => f.aspects ?? []);
-
-    const effective = computeEffectiveAspects({
-      nodeType: node.meta.type,
-      architecture: graph.architecture,
-      parentTypes,
-      ownAspects: ownAspectIds,
-      flowAspects,
-      allAspects: graph.aspects,
-      allFlows: graph.flows,
-    });
-
-    // Build required_aspects with source information
-    for (const aspectId of effective.regular) {
-      const source = determineAspectSource(aspectId, node, graph, graph.flows, false);
-      requiredAspects.push({ id: aspectId, source });
-    }
-  } else {
-    // Fallback: use simple approach when architecture is not available
-    const effectiveIds = collectEffectiveAspectIds(graph, node.path);
-    for (const aspectId of effectiveIds) {
-      requiredAspects.push({ id: aspectId, source: 'collected from node and flows' });
-    }
-  }
-
-  return {
-    project: path.basename(path.dirname(graph.rootPath)),
-    node: {
-      path: pkg.nodePath,
-      name: pkg.nodeName,
-      type: node.meta.type,
-      description: node.meta.description,
-      mappings: normalizeMappingPaths(node.meta.mapping),
-      aspects: nodeAspects,
-      required_aspects: requiredAspects,
-      flows: flowRefs,
-      files: [`model/${pkg.nodePath}/yg-node.yaml`],
-    },
-    hierarchy: hierarchyRefs,
-    dependencies: depRefs,
-    glossary,
-  };
-}
-
-
-function buildGlossary(
-  node: GraphNode,
-  dependencies: DependencyRef[],
-  graph: Graph,
-): Glossary {
-  const aspects: Record<string, GlossaryAspectEntry> = {};
-  const flows: Record<string, GlossaryFlowEntry> = {};
-
-  // Aspects — collect all effective aspects + dependency aspects
-  const allAspectIds = collectEffectiveAspectIds(graph, node.path);
-  for (const dep of dependencies) {
-    for (const id of dep.aspects) {
-      allAspectIds.add(id);
-    }
-  }
-  const resolvedAspects = resolveAspects(allAspectIds, graph.aspects);
-  for (const aspect of resolvedAspects) {
-    const files = aspect.artifacts
-      .filter(a => !YG_YAML_FILES.has(a.filename))
-      .map(a => `aspects/${aspect.id}/${a.filename}`);
-    const entry: GlossaryAspectEntry = {
-      name: aspect.name,
-      files,
-    };
-    if (aspect.description) entry.description = aspect.description;
-    if (aspect.implies?.length) entry.implies = aspect.implies;
-    aspects[aspect.id] = entry;
-  }
-
-  // Flows
-  const participatingFlows = collectParticipatingFlows(graph, node);
-  for (const flow of participatingFlows) {
-    const entry: GlossaryFlowEntry = {
-      name: flow.name,
-      participants: flow.nodes,
-    };
-    if (flow.description) entry.description = flow.description;
-    if (flow.aspects?.length) entry.aspects = flow.aspects;
-    flows[flow.path] = entry;
-  }
-
-  return { aspects, flows };
 }
 
 /**
