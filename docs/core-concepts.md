@@ -203,14 +203,14 @@ to an entire business process.
 1. Agent reads context before writing code (`yg context --file <path>`)
    and sees which aspects apply
 2. Agent writes code
-3. `yg check` detects drift: source files changed since last approve
-4. Agent runs `yg approve` — reviewer checks each aspect's content.md
+3. Agent runs `yg approve` — reviewer (LLM) checks each aspect's content.md
    against the source code
-5. Reviewer says pass → approved, new baseline recorded
-6. Reviewer says fail → `aspect-violation`, agent must fix and re-approve
+4. Reviewer says pass → approved, new baseline hash recorded
+5. Reviewer says fail → `aspect-violation`, agent must fix and re-approve
 
-`yg check` is the gate. Run it in CI or as a pre-commit hook.
-If there's drift, the agent hasn't done its job yet.
+`yg check` is the CI gate. It compares file hashes — no LLM calls, runs
+instantly. If a file changed since its last approve, check fails. The agent
+does the approve (with LLM review) locally, CI just verifies it happened.
 
 ---
 

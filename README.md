@@ -104,7 +104,7 @@ Rules files are flat text dumped into every prompt. They don't scope rules to wh
 Those tools help agents find more code. Yggdrasil enforces constraints that don't exist in code and never will. "Rate limiting required" isn't in any AST. "No direct DB access from this layer" isn't in any embedding.
 
 **Does the agent actually follow the rules?**
-It doesn't need to. `yg check` runs in CI. The agent runs `yg approve` which triggers a reviewer (a separate LLM call) that reads the source code and checks it against aspect rules. If an aspect isn't satisfied, check fails. The enforcement is structural (drift detection, coverage) plus semantic (LLM-based aspect review). You can use `consensus: 3` to run multiple review passes for higher confidence.
+`yg check` runs in CI and compares file hashes. No LLM calls, pure hash comparison. If source files changed without being approved, check fails. Locally, the agent runs `yg approve` which triggers the reviewer (LLM) to verify aspects against source code. If a PR has unapproved changes, CI catches it. You tell the agent to fix it: "resolve all yg check issues" and it runs approve, fixes violations, re-approves until check passes.
 
 ## Documentation
 

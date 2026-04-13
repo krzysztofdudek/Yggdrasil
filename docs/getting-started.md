@@ -111,8 +111,8 @@ Parts you don't want to manage at all can be blackboxed:
 
 ## 5) CI integration
 
-Add `yg check` to your CI pipeline. It exits with code 1 if there's drift,
-which means the agent didn't approve its changes.
+Add `yg check` to your CI pipeline. It compares file hashes — no LLM calls,
+runs instantly. Exit code 1 means source files changed without being approved.
 
 **GitHub Actions:**
 
