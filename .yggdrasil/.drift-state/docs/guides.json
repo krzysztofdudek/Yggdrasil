@@ -1,20 +1,20 @@
 {
-  "hash": "4b0ef592ac16a903d0dd303f038a5ade5a06bfa2242767d85bff6c7766678461",
+  "hash": "19582df14909dfd76c4f649914199064c47ac0da4cb91a876f810dda6595cc28",
   "files": {
     "own-subset:docs/guides": "fd522550ee8337236d1728863133285d37650bc0ae3620c2cfd3ffd94c163026",
     ".yggdrasil/model/docs/yg-node.yaml": "36ca70c4bea26714bb7450d306d1a898e70573151394eb8e0fb3a5cf588c84d4",
     "docs/getting-started.md": "8e29e8dbbbd01cb1946482c974d4929cf4e8a2c5cad911fbb1f65d960ae425cd",
-    "docs/cli-reference.md": "9e17d67de6c53f3e07cfa33e5fbdbfeb69497ad1e9b3f183ef5e2aa1596296c3",
+    "docs/configuration.md": "c6a6c64ea14702abeeff30f9308f77fe54181024bef384817e42a7e319b5a49b",
     "docs/platforms.md": "7bf7e5e02b59b82ecff926d05d29d66f009615e71bf2fd10a724af1023dcf980",
-    "docs/index.md": "bb1b0f9e9e6a402c26c62c7d2c300a3cb3254e1ed2d77f684c5a02275c6e3f33",
-    "docs/configuration.md": "c6a6c64ea14702abeeff30f9308f77fe54181024bef384817e42a7e319b5a49b"
+    "docs/cli-reference.md": "a2eec0449d2cf5c9742a5027660cb2c4e4308af1360462b46679c58f2b9ddaab",
+    "docs/index.md": "63b04d1ce5d152cdf9cae6d2db197fbc4617ce4e3cff54f403add96d2bb16274"
   },
   "mtimes": {
     ".yggdrasil/model/docs/yg-node.yaml": 1775243577367.4014,
     "docs/getting-started.md": 1776064955214.9797,
-    "docs/cli-reference.md": 1776011598029.458,
+    "docs/cli-reference.md": 1776071364057.9167,
     "docs/configuration.md": 1776070366888.1997,
     "docs/platforms.md": 1776060091973.5908,
-    "docs/index.md": 1775883414256.237
+    "docs/index.md": 1776071404129.1287
   }
 }

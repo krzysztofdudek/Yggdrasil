@@ -5,7 +5,7 @@ title: CLI Reference
 You do not need to run these commands in day-to-day use.
 Your AI agent runs them automatically.
 
-This page is for people who want to inspect or debug the repo's semantic memory.
+This page is for inspecting or debugging your graph and enforcement state.
 
 ---
 
@@ -151,5 +151,8 @@ yg init [--platform <name>] [--upgrade]
 
 Creates `.yggdrasil/` and installs the platform instruction file.
 
-- `--platform <name>` — Agent platform (default: `generic`). Values: `cursor`, `claude-code`, `copilot`, `cline`, `roocode`, `codex`, `windsurf`, `aider`, `gemini`, `amp`, `generic`
-- `--upgrade` — Refresh rules only when `.yggdrasil/` already exists
+Without flags, `yg init` runs an interactive wizard that walks you through platform
+and reviewer setup.
+
+- `--platform <name>` — Skip platform prompt. Values: `cursor`, `claude-code`, `copilot`, `cline`, `roocode`, `codex`, `windsurf`, `aider`, `gemini`, `amp`, `opencode`, `generic`
+- `--upgrade` — Refresh schemas and rules (when `.yggdrasil/` already exists)
