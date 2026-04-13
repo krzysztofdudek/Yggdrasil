@@ -272,7 +272,9 @@ async function writeReviewerConfig(
   if (config.endpoint) {
     providerConfig.endpoint = config.endpoint;
   }
-  providerConfig.temperature = 0;
+  if (API_PROVIDERS.includes(config.provider)) {
+    providerConfig.temperature = 0;
+  }
 
   const reviewer: Record<string, unknown> = {
     consensus: 1,
