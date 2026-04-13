@@ -263,3 +263,7 @@ machine with no API cost.
 
 **Consensus:** Set `consensus: 3` (or any odd number) to run multiple review
 passes and take the majority vote. Higher confidence, proportionally higher cost.
+
+**False positives:** If the reviewer rejects compliant code, the fix is
+improving the aspect's `content.md` — make the rule clearer and more specific.
+The escape hatch is better rules, not bypassing enforcement.
