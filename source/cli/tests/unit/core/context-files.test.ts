@@ -177,10 +177,7 @@ describe('collectTrackedFiles', () => {
       parent: null,
     };
     const graph: Graph = {
-      config: {
-        name: 'T',
-        node_types: { service: { description: 'x' } },
-      },
+      config: {},
       architecture: { node_types: {} },
       nodes: new Map([
         ['my/svc', node],
@@ -215,10 +212,7 @@ describe('collectTrackedFiles', () => {
     parent.children = [child];
 
     const graph: Graph = {
-      config: {
-        name: 'T',
-        node_types: { module: { description: 'x' }, service: { description: 'x' } },
-      },
+      config: {},
       architecture: { node_types: {} },
       nodes: new Map([
         ['orders', parent],
@@ -291,10 +285,7 @@ describe('collectTrackedFiles', () => {
       parent: null,
     };
     const graph: Graph = {
-      config: {
-        name: 'T',
-        node_types: { service: { description: 'x' } },
-      },
+      config: {},
       architecture: { node_types: {} },
       nodes: new Map([
         ['my/svc', node],
@@ -331,10 +322,7 @@ describe('collectTrackedFiles', () => {
       parent: null,
     };
     const graph: Graph = {
-      config: {
-        name: 'T',
-        node_types: { service: { description: 'x' } },
-      },
+      config: {},
       architecture: { node_types: {} },
       nodes: new Map([
         ['my/svc', node],
@@ -365,10 +353,7 @@ describe('collectTrackedFiles', () => {
       parent: null,
     };
     const graph: Graph = {
-      config: {
-        name: 'T',
-        node_types: { service: { description: 'x' } },
-      },
+      config: {},
       architecture: { node_types: {} },
       nodes: new Map([['my/svc', node]]),
       aspects: [],
@@ -404,10 +389,7 @@ describe('collectTrackedFiles', () => {
       parent: null,
     };
     const graph: Graph = {
-      config: {
-        name: 'T',
-        node_types: { service: { description: 'x' } },
-      },
+      config: {},
       architecture: { node_types: {} },
       nodes: new Map([
         ['my/svc', node],
@@ -451,10 +433,7 @@ describe('collectTrackedFiles', () => {
       parent: null,
     };
     const graph: Graph = {
-      config: {
-        name: 'T',
-        node_types: { service: { description: 'x' } },
-      },
+      config: {},
       architecture: { node_types: {} },
       nodes: new Map([
         ['my/svc', node],
@@ -490,10 +469,7 @@ describe('collectTrackedFiles', () => {
     parent.children = [child];
 
     const graph: Graph = {
-      config: {
-        name: 'T',
-        node_types: { module: { description: 'x' }, service: { description: 'x' } },
-      },
+      config: {},
       architecture: { node_types: {} },
       nodes: new Map([
         ['orders', parent],
@@ -577,10 +553,7 @@ describe('collectTrackedFiles', () => {
       parent: null,
     };
     const graph: Graph = {
-      config: {
-        name: 'T',
-        node_types: { service: { description: 'x' } },
-      },
+      config: {},
       architecture: { node_types: {} },
       nodes: new Map([
         ['my/svc', node],
@@ -612,10 +585,7 @@ describe('collectTrackedFiles', () => {
       parent: null,
     };
     const graph: Graph = {
-      config: {
-        name: 'T',
-        node_types: { service: { description: 'x' } },
-      },
+      config: {},
       architecture: { node_types: {} },
       nodes: new Map([['my/svc', node]]),
       aspects: [], // no aspects defined — the reference won't resolve
@@ -646,10 +616,7 @@ describe('collectTrackedFiles', () => {
       parent: null,
     };
     const graph: Graph = {
-      config: {
-        name: 'T',
-        node_types: { service: { description: 'x' } },
-      },
+      config: {},
       architecture: { node_types: {} },
       nodes: new Map([['my/svc', node]]),
       aspects: [],

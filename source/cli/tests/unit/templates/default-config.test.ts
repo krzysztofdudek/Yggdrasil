@@ -11,7 +11,7 @@ describe('default-config', () => {
 
   it('DEFAULT_CONFIG contains required keys', () => {
     const parsed = parseYaml(DEFAULT_CONFIG) as Record<string, unknown>;
-    expect(parsed.node_types).toBeDefined();
+    expect(parsed.node_types).toBeUndefined();
     expect(parsed.artifacts).toBeUndefined();
     expect(parsed.quality).toBeDefined();
   });
@@ -19,24 +19,6 @@ describe('default-config', () => {
   it('DEFAULT_CONFIG contains version field equal to 4.0.0', () => {
     const parsed = parseYaml(DEFAULT_CONFIG) as Record<string, unknown>;
     expect(parsed.version).toBe('4.0.0');
-  });
-
-  it('DEFAULT_CONFIG node_types includes module, service, library', () => {
-    const parsed = parseYaml(DEFAULT_CONFIG) as {
-      node_types: Record<string, { description: string }>;
-    };
-    const names = Object.keys(parsed.node_types);
-    expect(names).toContain('module');
-    expect(names).toContain('service');
-    expect(names).toContain('library');
-  });
-
-  it('DEFAULT_CONFIG node_types includes infrastructure', () => {
-    const parsed = parseYaml(DEFAULT_CONFIG) as {
-      node_types: Record<string, { description: string }>;
-    };
-    const names = Object.keys(parsed.node_types);
-    expect(names).toContain('infrastructure');
   });
 
   it('DEFAULT_CONFIG quality.max_direct_relations is 10', () => {

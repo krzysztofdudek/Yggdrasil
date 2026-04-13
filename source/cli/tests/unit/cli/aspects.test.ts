@@ -38,7 +38,7 @@ function makeGraph(aspects: AspectDef[], nodes: GraphNode[] = []): Graph {
 
   return {
     rootPath: '/fake',
-    config: { name: 'test', version: '1' },
+    config: { version: '1' },
     architecture: {
       node_types: {
         module: { description: 'Module', aspects: [] },

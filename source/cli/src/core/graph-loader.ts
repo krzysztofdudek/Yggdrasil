@@ -21,10 +21,7 @@ function toModelPath(absolutePath: string, modelDir: string): string {
   return path.relative(modelDir, absolutePath).replace(/\\/g, '/').replace(/\/+$/, '');
 }
 
-const FALLBACK_CONFIG: YggConfig = {
-  name: '',
-  node_types: {},
-};
+const FALLBACK_CONFIG: YggConfig = {};
 
 export async function loadGraph(
   projectRoot: string,
@@ -42,7 +39,7 @@ export async function loadGraph(
     configError = (error as Error).message;
   }
 
-  const { architecture, error: architectureError } = await loadArchitecture(yggRoot, config);
+  const { architecture, error: architectureError } = await loadArchitecture(yggRoot);
 
   const modelDir = path.join(yggRoot, 'model');
   const nodes = new Map<string, GraphNode>();
@@ -78,35 +75,19 @@ export async function loadGraph(
 
 async function loadArchitecture(
   yggRoot: string,
-  config: YggConfig,
 ): Promise<{ architecture: ArchitectureDef; error?: string }> {
   const architectureFilePath = path.join(yggRoot, 'yg-architecture.yaml');
-  const nodeTypes = config.node_types ?? {};
-  const fallbackArch: ArchitectureDef = {
-    node_types: Object.fromEntries(
-      Object.entries(nodeTypes).map(([type, nt]) => [
-        type,
-        {
-          description: nt.description,
-          aspects: nt.required_aspects,
-        },
-      ]),
-    ),
-  };
+  const emptyArch: ArchitectureDef = { node_types: {} };
 
   try {
-    // Try to load yg-architecture.yaml
     const architecture = await parseArchitecture(architectureFilePath);
     return { architecture };
   } catch (error) {
-    // Check if this is a "file not found" error
     const err = error as NodeJS.ErrnoException;
     if (err.code === 'ENOENT') {
-      // File doesn't exist - this is normal, just use fallback
-      return { architecture: fallbackArch };
+      return { architecture: emptyArch };
     }
-    // File exists but parse failed - store error and use fallback
-    return { architecture: fallbackArch, error: (error as Error).message };
+    return { architecture: emptyArch, error: (error as Error).message };
   }
 }
 

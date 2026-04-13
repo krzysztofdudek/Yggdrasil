@@ -418,7 +418,7 @@ function makeNode(path: string, overrides: Partial<GraphNode> & { meta?: Partial
 
 function makeGraph(overrides: Partial<Graph> = {}): Graph {
   return {
-    config: { name: 'test' },
+    config: {},
     architecture: { node_types: {} },
     nodes: new Map(),
     aspects: [],

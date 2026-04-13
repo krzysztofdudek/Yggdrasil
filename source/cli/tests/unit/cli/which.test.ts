@@ -18,10 +18,7 @@ function createNode(nodePath: string, mapping: { paths: string[] }): GraphNode {
 
 function createGraph(nodes: Array<[string, GraphNode]>): Graph {
   return {
-    config: {
-      name: 'Test',
-      node_types: { service: { description: 'x' } },
-    },
+    config: {},
     nodes: new Map(nodes),
     aspects: [],
     flows: [],

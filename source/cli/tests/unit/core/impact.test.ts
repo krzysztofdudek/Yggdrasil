@@ -22,8 +22,6 @@ function makeNode(nodePath: string, overrides: Partial<GraphNode> = {}): GraphNo
 function makeGraph(nodes: GraphNode[]): Graph {
   return {
     config: {
-      name: 'Test',
-      node_types: { service: { description: 'x' } },
       artifacts: {},
     },
     nodes: new Map(nodes.map((n) => [n.path, n])),

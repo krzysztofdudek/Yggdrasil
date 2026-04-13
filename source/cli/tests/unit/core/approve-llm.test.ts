@@ -33,7 +33,7 @@ async function createTmpProject(name: string, opts: {
   await writeFile(path.join(yggRoot, 'schemas', 'yg-node.yaml'), 'type: node\n');
   await writeFile(path.join(yggRoot, 'schemas', 'yg-aspect.yaml'), 'type: aspect\n');
   await writeFile(path.join(yggRoot, 'schemas', 'yg-flow.yaml'), 'type: flow\n');
-  await writeFile(path.join(yggRoot, 'yg-config.yaml'), 'name: Test\nnode_types:\n  service:\n    description: x\n');
+  await writeFile(path.join(yggRoot, 'yg-config.yaml'), 'version: "4.0.0"\n');
   await writeFile(path.join(nodeDir, 'yg-node.yaml'), opts.nodeYaml);
 
   // Create parent nodes for nested paths (e.g. 'svc/my-service' needs 'svc' parent)

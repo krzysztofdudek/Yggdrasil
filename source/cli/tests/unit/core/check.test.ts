@@ -42,7 +42,7 @@ async function createTmpProject(name: string, opts: {
 
   await writeFile(
     path.join(yggRoot, 'yg-config.yaml'),
-    opts.configYaml ?? 'version: "4.0.0"\nnode_types:\n  service:\n    description: x\n',
+    opts.configYaml ?? 'version: "4.0.0"\n',
   );
   await writeFile(path.join(nodeDir, 'yg-node.yaml'), opts.nodeYaml);
 
@@ -830,7 +830,7 @@ describe('runCheck', () => {
     await writeFile(path.join(yggRoot, 'schemas', 'yg-node.yaml'), 'type: node\n');
     await writeFile(path.join(yggRoot, 'schemas', 'yg-aspect.yaml'), 'type: aspect\n');
     await writeFile(path.join(yggRoot, 'schemas', 'yg-flow.yaml'), 'type: flow\n');
-    await writeFile(path.join(yggRoot, 'yg-config.yaml'), 'name: Test\nnode_types:\n  service:\n    description: x\n');
+    await writeFile(path.join(yggRoot, 'yg-config.yaml'), 'version: "4.0.0"\n');
     await writeFile(path.join(parentDir, 'yg-node.yaml'), 'name: Svc\ntype: service\ndescription: parent\n');
     // Node WITHOUT description (triggers description-missing)
     await writeFile(path.join(nodeDir, 'yg-node.yaml'), 'name: Bare\ntype: service\n');

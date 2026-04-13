@@ -38,7 +38,6 @@ describe('context-builder', () => {
   describe('buildGlobalLayer', () => {
     it('produces correct markdown from config', () => {
       const config: YggConfig = {
-        node_types: { service: { description: 'x' } },
       };
       const layer = buildGlobalLayer(config, '/fake/project/.yggdrasil');
 
@@ -91,10 +90,8 @@ describe('context-builder', () => {
         parent: null,
       };
       const config: YggConfig = {
-        node_types: { module: { description: 'x' } },
       };
       const graph: Graph = {
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         architecture: { node_types: {} },
         rootPath: '/tmp',
         config,
         architecture: { node_types: {} },
@@ -130,10 +127,8 @@ describe('context-builder', () => {
         nodeYamlRaw: undefined,
       };
       const config: YggConfig = {
-        node_types: { module: { description: 'x' } },
       };
       const graph: Graph = {
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               architecture: { node_types: {} },
         rootPath: '/tmp/nonexistent',
         config,
         architecture: { node_types: {} },
@@ -156,7 +151,6 @@ describe('context-builder', () => {
 
   describe('buildStructuralRelationLayer', () => {
     const defaultConfig: YggConfig = {
-      node_types: { service: { description: 'x' } },
     };
 
     it('includes consumes when present', () => {
@@ -292,8 +286,6 @@ describe('context-builder', () => {
       };
       const graph: Graph = {
         config: {
-          name: 'T',
-          node_types: { service: { description: 'x' } },
             artifacts: [],
           },
         architecture: { node_types: {} },
@@ -328,8 +320,6 @@ describe('context-builder', () => {
       };
       const graph: Graph = {
         config: {
-          name: 'T',
-          node_types: { service: { description: 'x' } },
             artifacts: [],
           },
         architecture: { node_types: {} },
@@ -449,10 +439,7 @@ describe('context-builder', () => {
       parent.children = [child];
 
       const graph: Graph = {
-        config: {
-          name: 'T',
-          node_types: { module: { description: 'x' }, service: { description: 'x' } },
-          },
+        config: {},
         architecture: { node_types: {} },
       nodes: new Map([
           ['orders', parent],
@@ -495,10 +482,7 @@ describe('context-builder', () => {
       parent.children = [child];
 
       const graph: Graph = {
-        config: {
-          name: 'T',
-          node_types: { module: { description: 'x' }, service: { description: 'x' } },
-          },
+        config: {},
         architecture: { node_types: {} },
       nodes: new Map([
           ['orders', parent],
@@ -532,10 +516,7 @@ describe('context-builder', () => {
         parent: null,
       };
       const graph: Graph = {
-        config: {
-          name: 'T',
-          node_types: { service: { description: 'x' } },
-          },
+        config: {},
         architecture: { node_types: {} },
       nodes: new Map([['orders/order-service', node]]),
         aspects: [
@@ -581,10 +562,7 @@ describe('context-builder', () => {
       parent.children = [child];
 
       const graph: Graph = {
-        config: {
-          name: 'T',
-          node_types: { module: { description: 'x' }, service: { description: 'x' } },
-          },
+        config: {},
         architecture: { node_types: {} },
       nodes: new Map([
           ['orders', parent],
@@ -628,10 +606,7 @@ describe('context-builder', () => {
         parent: null,
       };
       const graph: Graph = {
-        config: {
-          name: 'T',
-          node_types: { service: { description: 'x' } },
-          },
+        config: {},
         architecture: { node_types: {} },
       nodes: new Map([
           ['events/emitter', emitter],
@@ -669,10 +644,7 @@ describe('context-builder', () => {
         parent: null,
       };
       const graph: Graph = {
-        config: {
-          name: 'T',
-          node_types: { service: { description: 'x' } },
-          },
+        config: {},
         architecture: { node_types: {} },
       nodes: new Map([
           ['events/listener', listener],
@@ -727,10 +699,7 @@ describe('context-builder', () => {
       parent.children.push(child);
 
       const graph: Graph = {
-        config: {
-          name: 'MultiAspect',
-          node_types: { module: { description: 'x' }, service: { description: 'x' } },
-          },
+        config: {},
         architecture: { node_types: {} },
       nodes: new Map([
           ['mod', parent],
@@ -771,10 +740,7 @@ describe('context-builder', () => {
         nodeYamlRaw: 'name: TestNode\ntype: service\n',
       };
       const graph: Graph = {
-        config: {
-          name: 'T',
-          node_types: { service: { description: 'x' } },
-          },
+        config: {},
         architecture: { node_types: {} },
       nodes: new Map([['test/node', node]]),
         aspects: [],
@@ -807,10 +773,7 @@ describe('context-builder', () => {
         parent: null,
       };
       const graph: Graph = {
-        config: {
-          name: 'T',
-          node_types: { module: { description: 'x' } },
-          },
+        config: {},
         architecture: { node_types: {} },
       nodes: new Map([['bare', node]]),
         aspects: [],
@@ -1053,10 +1016,7 @@ describe('toContextMapOutput', () => {
     child.meta.relations = [{ target: 'payments/gateway', type: 'uses' }];
 
     const graph: Graph = {
-      config: {
-        name: 'T',
-        node_types: { module: { description: 'x' }, service: { description: 'x' } },
-      },
+      config: {},
       architecture: { node_types: {} },
       nodes: new Map([
         ['payments', parent],
@@ -1098,10 +1058,7 @@ describe('toContextMapOutput', () => {
       parent: null,
     };
     const graph: Graph = {
-      config: {
-        name: 'T',
-        node_types: { service: { description: 'x' } },
-      },
+      config: {},
       architecture: { node_types: {} },
       nodes: new Map([['svc', node]]),
       aspects: [],
@@ -1138,10 +1095,7 @@ describe('toContextMapOutput', () => {
       parent: null,
     };
     const graph: Graph = {
-      config: {
-        name: 'T',
-        node_types: { service: { description: 'x' } },
-      },
+      config: {},
       architecture: { node_types: {} },
       nodes: new Map([['svc', node]]),
       aspects: [],
@@ -1165,10 +1119,7 @@ describe('toContextMapOutput', () => {
       parent: null,
     };
     const graph: Graph = {
-      config: {
-        name: 'T',
-        node_types: { service: { description: 'x' } },
-      },
+      config: {},
       architecture: { node_types: {} },
       nodes: new Map([['svc', node]]),
       aspects: [],
@@ -1228,10 +1179,7 @@ describe('toContextMapOutput', () => {
       parent: null,
     };
     const graph: Graph = {
-      config: {
-        name: 'T',
-        node_types: { service: nodeType },
-      },
+      config: {},
       architecture: { node_types: {} },
       nodes: new Map([['svc', node]]),
       aspects: [parentAspect, childAspect],
@@ -1263,7 +1211,7 @@ describe('toContextMapOutput', () => {
       parent: null,
     };
     const graph: Graph = {
-      config: { name: 'T', node_types: { service: { description: 'x' } } },
+      config: {},
       architecture: {
         node_types: { service: { description: 'x', aspects: ['arch-aspect'] } },
       },
@@ -1301,7 +1249,7 @@ describe('toContextMapOutput', () => {
       parent: parentNode,
     };
     const graph: Graph = {
-      config: { name: 'T', node_types: { module: { description: 'x' }, service: { description: 'x' } } },
+      config: {},
       architecture: {
         node_types: {
           module: { description: 'x', aspects: ['inherited-aspect'] },
@@ -1384,7 +1332,7 @@ describe('buildNodeContextData', () => {
     };
     // Graph has NO architecture — so determineFallbackAspectSource is used
     const graph: Graph = {
-      config: { name: 'T', node_types: { service: { description: 'x' } } },
+      config: {},
       nodes: new Map([['svc', node]]),
       aspects: [parentAspect, childAspect],
       flows: [],
@@ -1442,7 +1390,7 @@ describe('buildFileContextData', () => {
       parent: null,
     };
     const graph: Graph = {
-      config: { name: 'T', node_types: { service: { description: 'x' } } },
+      config: {},
       architecture: { node_types: {} },
       nodes: new Map([['svc', node]]),
       aspects: [{ name: 'NameOnlyAspect', id: 'name-only-aspect', artifacts: [] }],
@@ -1466,7 +1414,7 @@ describe('buildFileContextData', () => {
       parent: null,
     };
     const graph: Graph = {
-      config: { name: 'T', node_types: { service: { description: 'x' } } },
+      config: {},
       architecture: { node_types: {} },
       nodes: new Map([['svc', node]]),
       // Aspect not in graph.aspects — aspectDef will be undefined
@@ -1491,7 +1439,7 @@ describe('buildFileContextData', () => {
       parent: null,
     };
     const graph: Graph = {
-      config: { name: 'T', node_types: { service: { description: 'x' } } },
+      config: {},
       architecture: { node_types: {} },
       nodes: new Map([['svc', node]]),
       aspects: [],
@@ -1512,7 +1460,7 @@ describe('buildFileContextData', () => {
       parent: null,
     };
     const graph: Graph = {
-      config: { name: 'T', node_types: { service: { description: 'x' } } },
+      config: {},
       architecture: { node_types: {} },
       nodes: new Map([['svc', node]]),
       aspects: [],
@@ -1543,7 +1491,7 @@ describe('buildFileContextData', () => {
       parent: null,
     };
     const graph: Graph = {
-      config: { name: 'T', node_types: { service: { description: 'x' } } },
+      config: {},
       architecture: { node_types: {} },
       nodes: new Map([['my/svc', node], ['dep/svc', dep]]),
       aspects: [],
@@ -1583,7 +1531,6 @@ describe('collectDependencyAncestors', () => {
     parentNode.children = [target];
 
     const config: YggConfig = {
-      node_types: { module: { description: 'x' }, service: { description: 'x' } },
     };
     const graph: Graph = {
       config,
@@ -1618,7 +1565,6 @@ describe('collectDependencyAncestors', () => {
       parent: null,
     };
     const config: YggConfig = {
-      node_types: { service: { description: 'x' } },
     };
     const graph: Graph = {
       config,
@@ -1661,7 +1607,7 @@ describe('determineAspectSource — uncovered branches', () => {
       parent: null,
     };
     const graph: Graph = {
-      config: { name: 'T', node_types: { service: { description: 'x' } } },
+      config: {},
       architecture: { node_types: {} },
       nodes: new Map([
         ['payments/gateway', provider],
@@ -1687,7 +1633,7 @@ describe('determineAspectSource — uncovered branches', () => {
       parent: null,
     };
     const graph: Graph = {
-      config: { name: 'T', node_types: { service: { description: 'x' } } },
+      config: {},
       architecture: { node_types: {} },
       nodes: new Map([['orders/svc', node]]),
       aspects: [{ name: 'Saga', id: 'requires-saga', artifacts: [] }],
@@ -1726,7 +1672,7 @@ describe('determineAspectSource — uncovered branches', () => {
       parent: null,
     };
     const graph: Graph = {
-      config: { name: 'T', node_types: { service: { description: 'x' } } },
+      config: {},
       architecture: { node_types: {} },
       nodes: new Map([['svc', node]]),
       aspects: [
@@ -1758,7 +1704,7 @@ describe('determineAspectSource — uncovered branches', () => {
       parent: null,
     };
     const graph: Graph = {
-      config: { name: 'T', node_types: { service: { description: 'x' } } },
+      config: {},
       architecture: { node_types: {} },
       nodes: new Map([['svc', node]]),
       aspects: [{ name: 'Mystery', id: 'mystery-aspect', artifacts: [] }],

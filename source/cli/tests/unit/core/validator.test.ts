@@ -28,10 +28,7 @@ function createNode(nodePath: string, overrides: Partial<GraphNode['meta']> = {}
 
 function createGraph(overrides: Partial<Graph> = {}): Graph {
   return {
-    config: {
-      name: 'Test',
-      node_types: { service: { description: 'x' } },
-    },
+    config: {},
     architecture: { node_types: {} },
     nodes: new Map(),
     aspects: [{ name: 'Valid', id: 'valid-tag', artifacts: [] }],
@@ -174,20 +171,6 @@ describe('validator', () => {
   });
 
 
-  it('infrastructure is accepted as valid node type', async () => {
-    const graph = createGraph({
-      config: {
-        name: 'Test',
-        node_types: { service: { description: 'x' }, infrastructure: { description: 'x' } },
-      },
-    });
-    graph.nodes.set('guard', createNode('guard', { type: 'infrastructure' }));
-
-    const result = await validate(graph);
-    const typeErrors = result.issues.filter((i) => i.rule === 'unknown-node-type');
-    expect(typeErrors).toHaveLength(0);
-  });
-
   it('invalid-node-yaml reports parse errors from graph loader', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-validator-parse-error');
     const yggRoot = path.join(tmpDir, '.yggdrasil');
@@ -197,7 +180,7 @@ describe('validator', () => {
     await mkdir(badNodeDir, { recursive: true });
     await writeFile(
       path.join(yggRoot, 'yg-config.yaml'),
-      'name: V\nnode_types:\n  service:\n    description: x',
+      'version: "4.0.0"',
     );
     await writeFile(path.join(badNodeDir, 'yg-node.yaml'), 'type: service\n# missing name');
 
@@ -235,7 +218,7 @@ describe('validator', () => {
     await mkdir(serviceDir, { recursive: true });
     await writeFile(
       path.join(yggRoot, 'yg-config.yaml'),
-      'name: V\nnode_types:\n  service:\n    description: x',
+      'version: "4.0.0"',
     );
     await writeFile(path.join(serviceDir, 'yg-node.yaml'), 'name: Svc\ntype: service\n');
     await writeFile(path.join(orphanDir, 'readme.md'), '# orphan content');
@@ -320,12 +303,7 @@ describe('validator', () => {
   });
 
   it('config-populated returns no issues for valid config', async () => {
-    const graph = createGraph({
-      config: {
-        name: 'Test',
-        node_types: { service: { description: 'x' } },
-      },
-    });
+    const graph = createGraph();
     graph.nodes.set('a', createNode('a'));
 
     const result = await validate(graph);
@@ -335,10 +313,6 @@ describe('validator', () => {
 
   it('non-regression: does not enforce node/relation vocabulary', async () => {
     const graph = createGraph();
-    graph.config.node_types = {
-      'totally-custom-type': { description: 'x' },
-      'another-custom-type': { description: 'x' },
-    };
     graph.nodes.set(
       'strange/node',
       createNode('strange/node', {
@@ -360,7 +334,6 @@ describe('validator', () => {
 
   it('non-regression: does not require interface.yaml by node type', async () => {
     const graph = createGraph();
-    graph.config.node_types = { service: { description: 'x' }, api: { description: 'x' } };
     graph.nodes.set('api/no-interface', createNode('api/no-interface', { type: 'api' }));
 
     const result = await validate(graph);
@@ -618,15 +591,6 @@ describe('validator', () => {
     expect(issues[0].message).toContain('tag-b');
   });
 
-  it('unknown-node-type returns error for node type not in config', async () => {
-    const graph = createGraph();
-    graph.nodes.set('a', createNode('a', { type: 'unknown-type' }));
-
-    const result = await validate(graph);
-    const issues = result.issues.filter((i) => i.rule === 'unknown-node-type');
-    expect(issues).toHaveLength(1);
-  });
-
   it('checkSchemas: missing-schema when required schema is missing', async () => {
     const graph = createGraph();
     graph.schemas = [{ schemaType: 'node' }, { schemaType: 'aspect' }];
@@ -691,7 +655,7 @@ describe('validator', () => {
     }
     await writeFile(
       path.join(yggRoot, 'yg-config.yaml'),
-      'name: V\nnode_types:\n  service:\n    description: x',
+      'version: "4.0.0"',
     );
     await writeFile(
       path.join(modelDir, 'yg-node.yaml'),
