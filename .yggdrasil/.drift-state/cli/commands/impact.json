@@ -1,8 +1,7 @@
 {
-  "hash": "4d0bdf6970a1820577869890c19f5b128f0b2bb5e91c8e4837288397fc6b6f8d",
+  "hash": "376e7025323eff82c9a2df7bf4bc1d09197190b04de695d9b190151569119ab0",
   "files": {
     "own-subset:cli/commands/impact": "a4bb76dba7a6d1f2dde3b9885f3af2a0f9bfc141e4b5954e1dd689daec8e7103",
-    ".yggdrasil/model/cli/yg-node.yaml": "41ddbf73fbc1ee27a28a5ea5ec7ad656ea34f5938284bd5ab4ea7c3afcbbd69b",
     ".yggdrasil/model/cli/commands/yg-node.yaml": "4d929734cf56d8fbf3adfdbb908be64075a4a3322a892656ad00ea07bb026ab4",
     ".yggdrasil/aspects/cli-command-contract/yg-aspect.yaml": "81ba5d9318ec49940495487c056356f9bd462d67ca4bb06d3fd954cf26945d01",
     ".yggdrasil/aspects/cli-command-contract/content.md": "b1509ccd44cc91f1cff43926b69f16845407f518ecf4d448d24a0b4a4e2894c3",
@@ -14,10 +13,11 @@
     ".yggdrasil/model/cli/commands/owner/yg-node.yaml": "6ed5943b9a0d005bd118e4feec04318236480154275abe30b33c28cdecb10268",
     ".yggdrasil/model/cli/utils/yg-node.yaml": "acb4ea19cac9ad1811b281502e3d7bd6b6e2240dea1040c4a17127c7a0756dcb",
     ".yggdrasil/flows/graph-analysis/yg-flow.yaml": "ad33ff3a4f7de1f9f97d3a728660e6abbeeb47fa6f858c8949f25747535cca80",
+    ".yggdrasil/model/cli/yg-node.yaml": "4b493e4905484f8d7ed4cbc576aede514269ba0d7367cf1a9577297d830ee611",
     "source/cli/src/cli/impact.ts": "374dfdcec2e2bbb6b26709512797088f01f328bd370739ee9daeb1773a56978f"
   },
   "mtimes": {
-    ".yggdrasil/model/cli/yg-node.yaml": 1775639608581.9402,
+    ".yggdrasil/model/cli/yg-node.yaml": 1776082060141.5686,
     ".yggdrasil/model/cli/commands/yg-node.yaml": 1775639607526.398,
     ".yggdrasil/aspects/cli-command-contract/yg-aspect.yaml": 1775580555580.0303,
     ".yggdrasil/aspects/cli-command-contract/content.md": 1772778786204.255,
@@ -29,6 +29,6 @@
     ".yggdrasil/model/cli/commands/owner/yg-node.yaml": 1775639591786.9832,
     ".yggdrasil/model/cli/utils/yg-node.yaml": 1775639465443.8267,
     ".yggdrasil/flows/graph-analysis/yg-flow.yaml": 1775900709658.136,
-    "source/cli/src/cli/impact.ts": 1775972635688.9858
+    "source/cli/src/cli/impact.ts": 1776058018221.2546
   }
 }

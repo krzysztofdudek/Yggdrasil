@@ -1,7 +1,7 @@
 name: Scripts
 type: project
 description: "Repository automation scripts: repo health checks and CI tooling"
-blackbox: true
+blackbox: false
 aspects: []
 relations: []
 mapping:

@@ -1,8 +1,7 @@
 {
-  "hash": "f8828437b526f6d57bea6e615f37533afc292fd9a0d842fc5e32cd6b0a8cebd6",
+  "hash": "75b21a7b9c9b37f2d59a50af20459b9ab4b7877917770525dad113e708793388",
   "files": {
     "own-subset:cli/commands/tree": "f0b49f4dee4f52adf5f8f5afa320f5f3b1b42c317a3d014a1de683b899f9e112",
-    ".yggdrasil/model/cli/yg-node.yaml": "41ddbf73fbc1ee27a28a5ea5ec7ad656ea34f5938284bd5ab4ea7c3afcbbd69b",
     ".yggdrasil/model/cli/commands/yg-node.yaml": "4d929734cf56d8fbf3adfdbb908be64075a4a3322a892656ad00ea07bb026ab4",
     ".yggdrasil/aspects/cli-command-contract/yg-aspect.yaml": "81ba5d9318ec49940495487c056356f9bd462d67ca4bb06d3fd954cf26945d01",
     ".yggdrasil/aspects/cli-command-contract/content.md": "b1509ccd44cc91f1cff43926b69f16845407f518ecf4d448d24a0b4a4e2894c3",
@@ -11,10 +10,11 @@
     ".yggdrasil/model/cli/model/graph/yg-node.yaml": "59d6cc41f1da574213d95ab37d6992416e4a79131f57d440e50de0c91a3bf8a5",
     ".yggdrasil/model/cli/model/yg-node.yaml": "786d7a0de56123efa1d46ee25813cdab19dffb17b614581d1c8e142d2f4ba939",
     ".yggdrasil/flows/graph-navigation/yg-flow.yaml": "7a7f7ee56a6dc45cb3dce0ab9073b976d307f3b7c31bc6c23ca4317473ba2c5d",
+    ".yggdrasil/model/cli/yg-node.yaml": "4b493e4905484f8d7ed4cbc576aede514269ba0d7367cf1a9577297d830ee611",
     "source/cli/src/cli/tree.ts": "dec4fd069ebc2aa5eaa3a5852df83e49cf71dbf42bb7aa7534cfb6cc2d49cf58"
   },
   "mtimes": {
-    ".yggdrasil/model/cli/yg-node.yaml": 1775639608581.9402,
+    ".yggdrasil/model/cli/yg-node.yaml": 1776082060141.5686,
     ".yggdrasil/model/cli/commands/yg-node.yaml": 1775639607526.398,
     ".yggdrasil/aspects/cli-command-contract/yg-aspect.yaml": 1775580555580.0303,
     ".yggdrasil/aspects/cli-command-contract/content.md": 1772778786204.255,
@@ -23,6 +23,6 @@
     ".yggdrasil/model/cli/model/graph/yg-node.yaml": 1775639470346.3054,
     ".yggdrasil/model/cli/model/yg-node.yaml": 1775623462286.4114,
     ".yggdrasil/flows/graph-navigation/yg-flow.yaml": 1775046083604.8381,
-    "source/cli/src/cli/tree.ts": 1776011470989.386
+    "source/cli/src/cli/tree.ts": 1776058018221.184
   }
 }

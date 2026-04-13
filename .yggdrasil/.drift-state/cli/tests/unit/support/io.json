@@ -1,8 +1,7 @@
 {
-  "hash": "b3353de217837c45be4b19584c96a7701d85b2bb7ce22563127819b283caeea5",
+  "hash": "cb355c88a95ad67a9f3c936f0f4856219cfb72358088bda1bf9784bf74f08c52",
   "files": {
     "own-subset:cli/tests/unit/support/io": "ec3ac9679505be3bb8233c4ef0b39c8ee206d2c37fc8610edc19f41fbfb9661e",
-    ".yggdrasil/model/cli/yg-node.yaml": "41ddbf73fbc1ee27a28a5ea5ec7ad656ea34f5938284bd5ab4ea7c3afcbbd69b",
     ".yggdrasil/model/cli/tests/yg-node.yaml": "ac0fc246c01a04e62d43ef8abadb2f01551616ca7509c3b268995ef646279bc9",
     ".yggdrasil/model/cli/tests/unit/yg-node.yaml": "a0b1c1aa70527cce6cbb0e60d9408db63919d6b17a0ce51a3dd1cb0f531d38f6",
     ".yggdrasil/model/cli/tests/unit/support/yg-node.yaml": "f419c141544bb2fe7fd8b14ca4138fffb26fc3c54f0eaae6fde7408af433ba8e",
@@ -10,15 +9,16 @@
     "source/cli/tests/unit/io/artifact-reader.test.ts": "464bad0d6d807adf2efe6353a0b46c4a36035852a7aa175237f96f6f8a03768f",
     "source/cli/tests/unit/io/aspect-parser.test.ts": "94a92621de1288191af95bac83cf5f68a2eabd6817bcb2c6a0b928e3daf685b2",
     "source/cli/tests/unit/io/audit-log.test.ts": "89fc49dd657086beb7532abbdbd464685861547f4a6a6c9b14c05e006d6d5117",
+    "source/cli/tests/unit/io/config-parser.test.ts": "94ded8c41b75278ac95a26330ba43a6616d8fa7fc7510ec717392546bf8462d4",
     "source/cli/tests/unit/io/drift-state-store.test.ts": "c6cbfb60e79fd9a343b1381bc0f883bd4a0f247813cef7399e2d3c556086d585",
     "source/cli/tests/unit/io/flow-parser.test.ts": "46e1cad0c7d6d0ce17dda3176d90fc2427eb5e0f454a729e0385ba0b9bf3c250",
     "source/cli/tests/unit/io/node-parser.test.ts": "48bc18f081de6925c7a6084cc59413fd4376b22d85a1455e9c12ad0eb790367f",
     "source/cli/tests/unit/io/schema-parser.test.ts": "7c5e0741a35e8baef026f66c5cbfe4c0784708f66d38a260b0854b5cd5e24535",
     "source/cli/tests/unit/io/secrets-parser.test.ts": "d9734bced1261837f6337130ce38fe35e8be20cf82899a8e6f71bae69727378c",
-    "source/cli/tests/unit/io/config-parser.test.ts": "94ded8c41b75278ac95a26330ba43a6616d8fa7fc7510ec717392546bf8462d4"
+    ".yggdrasil/model/cli/yg-node.yaml": "4b493e4905484f8d7ed4cbc576aede514269ba0d7367cf1a9577297d830ee611"
   },
   "mtimes": {
-    ".yggdrasil/model/cli/yg-node.yaml": 1775639608581.9402,
+    ".yggdrasil/model/cli/yg-node.yaml": 1776082060141.5686,
     ".yggdrasil/model/cli/tests/yg-node.yaml": 1775243577592.7366,
     ".yggdrasil/model/cli/tests/unit/yg-node.yaml": 1775570526808.3728,
     ".yggdrasil/model/cli/tests/unit/support/yg-node.yaml": 1775900734089.2559,

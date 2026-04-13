@@ -1,24 +1,24 @@
 {
-  "hash": "5ea328cc4c289099e816dccfc9a5c757f0b0e9574f9785b2205a992cba17628c",
+  "hash": "00f124643e7d77ec025fa88c940cc65b452f6e0793878caf1704861297b6857b",
   "files": {
     "own-subset:cli/config/build": "fd522550ee8337236d1728863133285d37650bc0ae3620c2cfd3ffd94c163026",
-    ".yggdrasil/model/cli/yg-node.yaml": "41ddbf73fbc1ee27a28a5ea5ec7ad656ea34f5938284bd5ab4ea7c3afcbbd69b",
     ".yggdrasil/model/cli/config/yg-node.yaml": "9cacb4bd841cdf0f78581c909468e1d5b8cfe1678a75e39821398c144f092302",
     "source/cli/tsconfig.json": "4c663b14bb228d4986fc265f4753a19b8a844ee7cffd47dac7dc8c51d0690d02",
     "source/cli/tsup.config.ts": "65026ec8016f4048f41e11f11936ddd05b304d7de63fd47993f1a30758dd2a91",
     "source/cli/.npmignore": "6352e6067c91078366f5c1b29cb065af4818efc1aea31ac5d132898785d1ccf6",
     "source/cli/.npmrc": "de994f0b60a1afa80c0e821ff17a093bfe17acf8e2760f490433ab9a6891883b",
-    "source/cli/package.json": "fefbe2f482fc9969c0b09c3fa75849ab37b8e87952fd5abc86269a5e59668b69",
-    "source/cli/package-lock.json": "d50391e2db27ba8c8d02fc1243dd266b96e0ead2f7d6c8d72342492f1a56961f"
+    "source/cli/package-lock.json": "d50391e2db27ba8c8d02fc1243dd266b96e0ead2f7d6c8d72342492f1a56961f",
+    ".yggdrasil/model/cli/yg-node.yaml": "4b493e4905484f8d7ed4cbc576aede514269ba0d7367cf1a9577297d830ee611",
+    "source/cli/package.json": "aada4603e8f925ff72a8fd63f5125440179177c98c04c4b383c1bc0583b80a6b"
   },
   "mtimes": {
-    ".yggdrasil/model/cli/yg-node.yaml": 1775639608581.9402,
+    ".yggdrasil/model/cli/yg-node.yaml": 1776082060141.5686,
     ".yggdrasil/model/cli/config/yg-node.yaml": 1775243577492.5159,
     "source/cli/tsconfig.json": 1771702275811.786,
     "source/cli/tsup.config.ts": 1771702275811.8867,
     "source/cli/.npmignore": 1771702275788.6226,
     "source/cli/.npmrc": 1771702275788.78,
-    "source/cli/package.json": 1776065298726.5127,
+    "source/cli/package.json": 1776082047351.204,
     "source/cli/package-lock.json": 1776064386630.5352
   }
 }
