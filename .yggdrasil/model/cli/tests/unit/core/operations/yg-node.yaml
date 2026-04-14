@@ -11,3 +11,4 @@ mapping:
   - source/cli/tests/unit/core/validator.test.ts
   - source/cli/tests/unit/core/aspect-verifier.test.ts
   - source/cli/tests/unit/core/approve-llm.test.ts
+  - source/cli/tests/unit/core/migrator.test.ts

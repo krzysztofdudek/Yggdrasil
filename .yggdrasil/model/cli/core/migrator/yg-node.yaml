@@ -1,0 +1,10 @@
+name: Migrator
+type: engine
+description: "Migration framework — detects config version, runs sequential migrations, updates config version field"
+aspects:
+  - posix-paths
+relations:
+  - target: cli/model/graph
+    type: uses
+mapping:
+  - source/cli/src/core/migrator.ts
