@@ -114,6 +114,10 @@ Those tools help agents find more code. Yggdrasil enforces constraints that don'
 **Does the agent actually follow the rules?**
 `yg check` runs in CI and compares file hashes. No LLM calls, pure hash comparison. If source files changed without being approved, check fails. Locally, the agent runs `yg approve` which triggers the reviewer (LLM) to verify aspects against source code. If a PR has unapproved changes, CI catches it. You tell the agent to fix it: "resolve all yg check issues" and it runs approve, fixes violations, re-approves until check passes.
 
+## Real-world example
+
+This repository uses Yggdrasil on itself. Browse [`.yggdrasil/`](.yggdrasil/) to see a working graph on a real codebase — 54 nodes, 7 aspects, 7 flows, 100% file coverage.
+
 ## Documentation
 
 Full specification: [https://krzysztofdudek.github.io/Yggdrasil/](https://krzysztofdudek.github.io/Yggdrasil/)
