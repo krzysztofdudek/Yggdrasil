@@ -361,11 +361,11 @@ export function registerApproveCommand(program: Command): void {
         // Validate: exactly one of --node, --aspect, --flow
         const targets = [options.node, options.aspect, options.flow].filter(Boolean);
         if (targets.length === 0) {
-          process.stderr.write('ERROR: One of --node, --aspect, or --flow is required.\n');
+          process.stderr.write(chalk.red('ERROR: One of --node, --aspect, or --flow is required.\n'));
           process.exit(1);
         }
         if (targets.length > 1) {
-          process.stderr.write('ERROR: Only one of --node, --aspect, or --flow can be specified.\n');
+          process.stderr.write(chalk.red('ERROR: Only one of --node, --aspect, or --flow can be specified.\n'));
           process.exit(1);
         }
 

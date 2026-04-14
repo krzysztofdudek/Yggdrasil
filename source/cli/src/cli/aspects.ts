@@ -92,10 +92,10 @@ export function registerAspectsCommand(program: Command): void {
         const err = error as NodeJS.ErrnoException;
         if (err.code === 'ENOENT') {
           process.stderr.write(
-            `Error: No .yggdrasil/ directory found. Run 'yg init' first.\n`,
+            chalk.red(`Error: No .yggdrasil/ directory found. Run 'yg init' first.\n`),
           );
         } else {
-          process.stderr.write(`Error: ${(error as Error).message}\n`);
+          process.stderr.write(chalk.red(`Error: ${(error as Error).message}\n`));
         }
         process.exit(1);
       }

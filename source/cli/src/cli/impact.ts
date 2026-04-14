@@ -234,8 +234,8 @@ async function handleAspectImpact(
   }
   if (chains.length > 0) {
     process.stdout.write(`\nIndirectly affected (structural dependents):\n`);
-    for (let i = 0; i < indirectPaths.length; i++) {
-      process.stdout.write(`  ${indirectPaths[i]}  ${chains[i]}\n`);
+    for (const chain of chains) {
+      process.stdout.write(`  ${chain}\n`);
     }
   }
   process.stdout.write(
@@ -290,8 +290,8 @@ async function handleFlowImpact(
   }
   if (chains.length > 0) {
     process.stdout.write(`\nIndirectly affected (structural dependents):\n`);
-    for (let i = 0; i < indirectPaths.length; i++) {
-      process.stdout.write(`  ${indirectPaths[i]}  ${chains[i]}\n`);
+    for (const chain of chains) {
+      process.stdout.write(`  ${chain}\n`);
     }
   }
   process.stdout.write(
@@ -477,10 +477,10 @@ export function registerImpactCommand(program: Command): void {
               }
             }
             descIndirectPaths = filteredIndirect;
-            if (filteredIndirect.length > 0) {
+            if (filteredChains.length > 0) {
               process.stdout.write('\nIndirectly affected (structural dependents of descendants):\n');
-              for (let i = 0; i < filteredIndirect.length; i++) {
-                process.stdout.write(`  ${filteredIndirect[i]}  ${filteredChains[i]}\n`);
+              for (const chain of filteredChains) {
+                process.stdout.write(`  ${chain}\n`);
               }
             }
           }
