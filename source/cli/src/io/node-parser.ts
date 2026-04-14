@@ -41,7 +41,6 @@ export async function parseNodeYaml(filePath: string): Promise<NodeMeta> {
     type: (raw.type as string).trim(),
     description,
     aspects,
-    blackbox: (raw.blackbox as boolean) ?? false,
     relations: relations.length > 0 ? relations : undefined,
     mapping,
     ports,

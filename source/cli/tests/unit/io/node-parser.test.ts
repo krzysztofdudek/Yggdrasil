@@ -19,7 +19,6 @@ describe('node-parser', () => {
     expect(meta.relations).toContainEqual(
       expect.objectContaining({ target: 'users/user-repo', type: 'uses' }),
     );
-    expect(meta.blackbox).toBe(false);
     expect(meta.mapping).toEqual(['src/orders/order.service.ts']);
   });
 
@@ -171,11 +170,6 @@ mapping:
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('defaults blackbox to false', async () => {
-    const meta = await parseNodeYaml(path.join(FIXTURE_DIR, 'orders/order-service/yg-node.yaml'));
-    expect(meta.blackbox).toBe(false);
-  });
-
   it('defaults missing optional fields correctly', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-node');
     await mkdir(tmpDir, { recursive: true });
@@ -193,30 +187,7 @@ type: module
     expect(meta.aspects).toBeUndefined();
     expect(meta.relations).toBeUndefined();
     expect(meta.mapping).toBeUndefined();
-    expect(meta.blackbox).toBe(false);
     expect(meta.ports).toBeUndefined();
-
-    await rm(tmpDir, { recursive: true, force: true });
-  });
-
-  it('parses blackbox: true correctly', async () => {
-    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-bb');
-    await mkdir(tmpDir, { recursive: true });
-    const nodePath = path.join(tmpDir, 'yg-node.yaml');
-    await writeFile(
-      nodePath,
-      `
-name: ExternalService
-type: service
-blackbox: true
-`,
-      'utf-8',
-    );
-
-    const meta = await parseNodeYaml(nodePath);
-    expect(meta.blackbox).toBe(true);
-    expect(meta.name).toBe('ExternalService');
-    expect(meta.type).toBe('service');
 
     await rm(tmpDir, { recursive: true, force: true });
   });

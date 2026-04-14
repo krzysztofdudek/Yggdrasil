@@ -57,9 +57,9 @@ function makeCoverageIssue(uncoveredCount: number): CheckIssue {
   const remaining = uncoveredCount - files.length;
   let message: string;
   if (uncoveredCount <= 5) {
-    message = `${uncoveredCount} source file${uncoveredCount === 1 ? '' : 's'} not covered by any node.\n${files.map(f => '  ' + f).join('\n')}\nFiles without graph coverage cannot be modified under the protocol.\nCheck ownership candidates: yg context --file <path>\nThen: add to existing node mapping, create a new node, or blackbox.`;
+    message = `${uncoveredCount} source file${uncoveredCount === 1 ? '' : 's'} not covered by any node.\n${files.map(f => '  ' + f).join('\n')}\nFiles without graph coverage cannot be modified under the protocol.\nCheck ownership candidates: yg context --file <path>\nThen: add to existing node mapping, or create a new node.`;
   } else {
-    message = `${uncoveredCount.toLocaleString()} source files have no graph coverage.\nExamples:\n${files.map(f => '  ' + f).join('\n')}\n... and ${remaining.toLocaleString()} more\nFiles without graph coverage cannot be modified under the protocol.\nEstablish coverage: create proper nodes for areas you will work on, blackbox the rest.\nCheck ownership candidates: yg context --file <path>`;
+    message = `${uncoveredCount.toLocaleString()} source files have no graph coverage.\nExamples:\n${files.map(f => '  ' + f).join('\n')}\n... and ${remaining.toLocaleString()} more\nFiles without graph coverage cannot be modified under the protocol.\nEstablish coverage: create nodes for active areas first, expand coverage incrementally.\nCheck ownership candidates: yg context --file <path>`;
   }
   return {
     severity: 'error',
@@ -153,6 +153,6 @@ describe('preserved check features', () => {
       nodeCount: 0,
       issues: [makeCoverageIssue(100)],
     }));
-    expect(output).toMatch(/blackbox|coverage|node/i);
+    expect(output).toMatch(/coverage|node/i);
   });
 });

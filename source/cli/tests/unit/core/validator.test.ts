@@ -502,19 +502,6 @@ describe('validator', () => {
     expect(issues[0].message).toContain('Circular dependency');
   });
 
-  it('structural-cycle tolerates cycle when blackbox node is in cycle', async () => {
-    const graph = createGraph();
-    graph.nodes.set('a', createNode('a', { relations: [{ target: 'b', type: 'uses' }] }));
-    graph.nodes.set(
-      'b',
-      createNode('b', { blackbox: true, relations: [{ target: 'a', type: 'uses' }] }),
-    );
-
-    const result = await validate(graph);
-    const issues = result.issues.filter((i) => i.rule === 'structural-cycle');
-    expect(issues).toHaveLength(0);
-  });
-
   it('validate with scope filters issues to that node only', async () => {
     const graph = createGraph();
     graph.nodes.set('a', createNode('a', { relations: [{ target: 'missing', type: 'uses' }] }));
@@ -657,9 +644,14 @@ describe('validator', () => {
       path.join(yggRoot, 'yg-config.yaml'),
       'version: "4.0.0"',
     );
+    // Create an aspect so the node has effective aspects (nodes without aspects skip wide-node check)
+    const aspDir = path.join(yggRoot, 'aspects', 'testing');
+    await mkdir(aspDir, { recursive: true });
+    await writeFile(path.join(aspDir, 'yg-aspect.yaml'), 'name: Testing\ndescription: test\n');
+    await writeFile(path.join(aspDir, 'content.md'), 'Test rule.\n');
     await writeFile(
       path.join(modelDir, 'yg-node.yaml'),
-      'name: Wide\ntype: service\ndescription: x\nmapping:\n  - src/wide',
+      'name: Wide\ntype: service\ndescription: x\naspects:\n  - testing\nmapping:\n  - src/wide',
     );
     try {
       const graph = await loadGraph(tmpDir);

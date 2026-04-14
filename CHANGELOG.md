@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Architecture
 
+- **Removed blackbox nodes.** All nodes are proper nodes. Nodes without
+  aspects auto-approve without hashing or LLM verification — same coverage
+  benefit as blackbox, zero edge cases. Anti-laundering check removed.
 - **Enforcement-only model.** Aspects (content.md) are the only Markdown
   in the graph. Everything else is YAML metadata. Node knowledge lives
   in `yg-node.yaml` (description field) and aspect content.md files
@@ -56,8 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   overview (aspects, flows, dependents with consequence framing).
   `yg context --file` shows per-file details (aspects to satisfy,
   dependencies consumed, back-pointer to node).
-- **`yg context --file`** shows blackbox decomposition guidance when file
-  is inside a blackbox node; unmapped output includes actionable next step
+- **`yg context --file`** unmapped output includes actionable next step
   with candidate node listing.
 - **`yg approve`** success shows verification summary when LLM ran.
 - **`yg impact`** shows cascade prediction — lists nodes that will enter
@@ -77,8 +79,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `yg init` when an API provider is selected.
 - **Append-only audit log** (`.yggdrasil/.audit-log.jsonl`) — every
   approve records timestamp, node, action, hashes, changed files.
-- **Blackbox enforcement.** Source changes on blackbox nodes always
-  refused. Anti-laundering check shows conflicting files and owning nodes.
 - **Drift detection.** `source-drift` (source files changed),
   `upstream-drift` (aspects, flows, dependencies changed — collapsed
   per-node with cause identification), `unmapped-files` (coverage

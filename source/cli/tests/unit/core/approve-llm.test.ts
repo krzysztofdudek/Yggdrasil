@@ -159,22 +159,4 @@ describe('LLM verification (CLI layer)', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('skips LLM for blackbox nodes', async () => {
-    const { tmpDir } = await createTmpProject('llm-skip-blackbox', {
-      nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nblackbox: true\nmapping:\n  - src/svc/\n',
-      mappingFiles: { 'src/svc/index.ts': 'const x = 1;\n' },
-    });
-    await recordBaseline(tmpDir);
-    const graph = await loadGraph(tmpDir);
-    const provider = makeMockProvider({
-      async verifyAspect() { return { satisfied: false, reason: 'should not be called' }; },
-    });
-    const coreResult = await approveNode(graph, 'svc/my-service');
-    const result = await runLlmVerification(graph, 'svc/my-service', coreResult, makeLlmConfig(provider));
-    // No changes → no-change, but LLM is skipped because blackbox
-    expect(result.llmSkipped).toBe('blackbox');
-    await rm(tmpDir, { recursive: true, force: true });
-  });
-
 });

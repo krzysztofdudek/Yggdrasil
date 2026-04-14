@@ -78,10 +78,9 @@ You are not allowed to edit or create source code without establishing graph cov
 *Existing code:*
 
 - Option A \u2014 Proper node: create node(s), map files, write description in \`yg-node.yaml\`
-- Option B \u2014 Blackbox: create a blackbox node at agreed granularity
-- Option C \u2014 Abort
+- Option B \u2014 Abort
 
-*Greenfield (new code):* Only Option A. Blackbox is forbidden for new code. Follow the graph-first workflow:
+*Greenfield (new code):* Only Option A. Follow the graph-first workflow:
 
 1. Create aspects first (cross-cutting requirements the new code must satisfy)
 2. Create flows if the code participates in a business process (with flow-level aspects)
@@ -133,21 +132,6 @@ WRAP-UP (user signals "done", "wrap up", "that's enough"):
 - [ ] 4. Run \`yg check\` immediately \u2014 fix all errors
 - [ ] 5. Verify affected source files are consistent \u2014 update if needed
 - [ ] 6. Run \`yg approve\` for affected nodes
-
-### Blackbox Guidance
-
-**Blackbox-first adoption.** When adopting Yggdrasil on an existing codebase:
-1. Run \`yg check\` \u2014 \`unmapped-files\` shows all uncovered files
-2. Create blackbox nodes for areas you will NOT work on (cheap: just \`yg-node.yaml\` with description)
-3. Create proper nodes for areas you WILL work on
-4. Run \`yg check\` \u2014 unmapped-files should be 0
-
-**Blackbox decomposition (mechanically enforced).** Blackbox nodes track file hashes. When source files under a blackbox change, \`yg approve\` REFUSES. The only path:
-1. Create a proper node for the modified files
-2. Adjust the blackbox mapping to exclude them
-3. Approve the new proper node
-
-This is hermetic: blackbox = "I don't touch this." The moment you touch it, the system forces you out of blackbox into a proper node.
 
 ### Delegating to Subagents
 
@@ -403,8 +387,8 @@ Aspects emerge from patterns \u2014 in greenfield AND brownfield:
 Trigger: \`yg check\` shows \`unmapped-files\` with high uncovered file count, or 0 nodes.
 
 - [ ] 1. Identify the active work area (files the user wants to modify)
-- [ ] 2. Create blackbox nodes for areas you will NOT work on
-- [ ] 3. Create proper nodes for areas you WILL work on
+- [ ] 2. Create nodes for areas you will work on (with aspects for enforcement)
+- [ ] 3. Create minimal nodes (no aspects) for areas you will NOT work on \u2014 provides coverage without enforcement
 - [ ] 4. Scan for cross-cutting patterns \u2192 create aspects
 - [ ] 5. Ask user about business processes \u2192 create flows if applicable
 - [ ] 6. \`yg check\`, \`yg approve\` per node

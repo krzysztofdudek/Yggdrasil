@@ -117,21 +117,22 @@ Now `orders/order-service` must satisfy the `correlation-tracking` aspect
 because it consumes the `charge` port. This is the "port contracts" channel
 in the aspect propagation table below.
 
-### Blackbox nodes
+### Minimal nodes (coverage without enforcement)
 
-For parts of the codebase you don't want to manage, create a blackbox node:
+For parts of the codebase you don't need to enforce rules on, create a node
+without aspects:
 
 ```yaml
 name: LegacyAuth
 type: module
 description: "Legacy authentication system — do not modify"
-blackbox: true
 mapping:
   - src/legacy/auth/
 ```
 
-Blackbox nodes track file hashes. If a file inside a blackbox changes,
-`yg approve` refuses until you decompose it into a proper node.
+Nodes without aspects auto-approve instantly — no hashing, no LLM review.
+They satisfy the coverage requirement without adding enforcement overhead.
+When you're ready to enforce rules, add aspects to the node.
 
 ---
 

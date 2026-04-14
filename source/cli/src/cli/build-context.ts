@@ -119,20 +119,6 @@ export function registerBuildCommand(program: Command): void {
           process.stderr.write(`${result.file} -> ${result.nodePath}\n`);
           nodePath = result.nodePath;
           resolvedFilePath = result.file;
-
-          // Check if the owning node is a blackbox — show decomposition guidance
-          const ownerNode = graph.nodes.get(nodePath);
-          if (ownerNode && ownerNode.meta.blackbox) {
-            const mappingPaths = normalizeMappingPaths(ownerNode.meta.mapping);
-            const mappingDisplay = mappingPaths.join(', ');
-            const msg = buildIssueMessage({
-              what: `No detailed graph coverage for ${result.file}.`,
-              why: `File is inside blackbox node '${nodePath}' (mapping: ${mappingDisplay}). Blackbox nodes have minimal coverage by design.`,
-              next: 'To get full context: decompose the blackbox into a proper node.',
-            });
-            process.stderr.write(chalk.red(`${msg}\n`));
-            process.exit(1);
-          }
         } else {
           nodePath = options.node!.trim().replace(/^\.\//, '').replace(/\/$/, '');
         }

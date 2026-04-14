@@ -49,10 +49,6 @@ export interface ApproveResult {
   aspectViolations?: Array<{ aspectId: string; reason: string }>;
   changedSource?: string[];
   changedUpstream?: AnnotatedChange[];
-  blackboxBlocked?: boolean;
-  antiLaunderingBlocked?: boolean;
-  conflictingFiles?: Array<{ file: string; trackedBy: string }>;
-  isBlackbox?: boolean;
   gcPaths?: string[];
 }
 

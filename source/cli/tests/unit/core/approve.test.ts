@@ -12,6 +12,13 @@ import { collectTrackedFiles } from '../../../src/core/context-files.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+/** Default aspect for tests that need to exercise the full approve flow */
+const TEST_ASPECT = {
+  id: 'testing',
+  yaml: 'name: Testing\ndescription: test aspect\n',
+  files: { 'content.md': 'Test rule.\n' },
+};
+
 /** Helper: create temp project with a single mapped node */
 async function createTmpProject(name: string, opts: {
   nodePath: string;
@@ -129,8 +136,9 @@ describe('approveNode — proper nodes', () => {
   it('accepts when source changed', async () => {
     const { tmpDir } = await createTmpProject('both-changed', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - testing\nmapping:\n  - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
+      aspects: [TEST_ASPECT],
     });
     await recordBaseline(tmpDir);
     // Change source
@@ -144,8 +152,9 @@ describe('approveNode — proper nodes', () => {
   it('returns no-change when nothing changed', async () => {
     const { tmpDir } = await createTmpProject('no-change', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - testing\nmapping:\n  - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
+      aspects: [TEST_ASPECT],
     });
     await recordBaseline(tmpDir);
     const graph = await loadGraph(tmpDir);
@@ -160,8 +169,9 @@ describe('approveNode — proper nodes', () => {
   it('accepts first approve with no baseline', async () => {
     const { tmpDir } = await createTmpProject('first-approve', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - testing\nmapping:\n  - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
+      aspects: [TEST_ASPECT],
     });
     // NO baseline recorded
     const graph = await loadGraph(tmpDir);
@@ -198,160 +208,17 @@ describe('approveNode — proper nodes', () => {
   });
 });
 
-describe('approveNode — blackbox nodes', () => {
-  // Blackbox: source changed → REFUSES always
-  it('refuses source changes on blackbox node', async () => {
-    const { tmpDir } = await createTmpProject('bb-source', {
-      nodePath: 'legacy/auth',
-      nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\nmapping:\n  - src/auth/\n',
-      mappingFiles: { 'src/auth/login.ts': 'export function login() {}\n' },
-    });
-    await recordBaseline(tmpDir);
-    await writeFile(path.join(tmpDir, 'src/auth/login.ts'), 'export function login() { return true; }\n');
-    const graph = await loadGraph(tmpDir);
-    const result = await approveNode(graph, 'legacy/auth');
-    expect(result.action).toBe('refused');
-    expect(result.blackboxBlocked).toBe(true);
-    await rm(tmpDir, { recursive: true, force: true });
-  });
-
-  // Blackbox: source changed → REFUSES
-  it('refuses when source changed on blackbox', async () => {
-    const { tmpDir } = await createTmpProject('bb-both', {
-      nodePath: 'legacy/auth',
-      nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\nmapping:\n  - src/auth/\n',
-      mappingFiles: { 'src/auth/login.ts': 'export function login() {}\n' },
-    });
-    await recordBaseline(tmpDir);
-    // Change source
-    await writeFile(path.join(tmpDir, 'src/auth/login.ts'), 'export function login() { return true; }\n');
-    const graph = await loadGraph(tmpDir);
-    const result = await approveNode(graph, 'legacy/auth');
-    expect(result.action).toBe('refused');
-    expect(result.blackboxBlocked).toBe(true);
-    await rm(tmpDir, { recursive: true, force: true });
-  });
-
-  // Blackbox: no changes → no-op
-  it('returns no-change for blackbox with no changes', async () => {
-    const { tmpDir } = await createTmpProject('bb-no-change', {
-      nodePath: 'legacy/auth',
-      nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\nmapping:\n  - src/auth/\n',
-      mappingFiles: { 'src/auth/login.ts': 'export function login() {}\n' },
-    });
-    await recordBaseline(tmpDir);
-    const graph = await loadGraph(tmpDir);
-    const result = await approveNode(graph, 'legacy/auth');
-    expect(result.action).toBe('no-change');
-    await rm(tmpDir, { recursive: true, force: true });
-  });
-
-  // Blackbox: source + cascade (no graph) → REFUSES (source changed fires blocker)
-  it('refuses source+cascade on blackbox', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('bb-source-cascade', {
-      nodePath: 'legacy/auth',
-      nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\naspects:\n  - logging\nmapping:\n  - src/auth/\n',
-      mappingFiles: { 'src/auth/login.ts': 'export function login() {}\n' },
-      aspects: [{
-        id: 'logging',
-        yaml: 'name: Logging\ndescription: test\n',
-        files: { 'content.md': 'Log all.\n' },
-      }],
-    });
-    await recordBaseline(tmpDir);
-    await writeFile(path.join(tmpDir, 'src/auth/login.ts'), 'export function login() { return true; }\n');
-    await writeFile(path.join(yggRoot, 'aspects/logging/content.md'), 'Updated.\n');
-    const graph = await loadGraph(tmpDir);
-    const result = await approveNode(graph, 'legacy/auth');
-    expect(result.action).toBe('refused');
-    expect(result.blackboxBlocked).toBe(true);
-    await rm(tmpDir, { recursive: true, force: true });
-  });
-
-});
-
-describe('approveNode — anti-laundering', () => {
-  it('refuses first-approve on blackbox if files in other node drift-state', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('anti-launder', {
-      nodePath: 'legacy/auth',
-      nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\nmapping:\n  - src/auth/\n',
-      mappingFiles: { 'src/auth/login.ts': 'export function login() {}\n' },
-      parentNodes: [{
-        path: 'legacy',
-        yaml: 'name: Legacy\ntype: service\ndescription: legacy\n',
-      }],
-    });
-    // Write drift state for ANOTHER node that tracked one of the blackbox files
-    await writeNodeDriftState(yggRoot, 'other/service', {
-      hash: 'fake',
-      files: { 'src/auth/login.ts': 'fake-hash' },
-    });
-    const graph = await loadGraph(tmpDir);
-    const result = await approveNode(graph, 'legacy/auth');
-    expect(result.action).toBe('refused');
-    expect(result.antiLaunderingBlocked).toBe(true);
-    await rm(tmpDir, { recursive: true, force: true });
-  });
-
-  // Exploit 2: pre-emptive blackbox — other node has current hash (no drift), still blocked
-  it('refuses pre-emptive blackbox creation even when other node has no pending drift', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('anti-launder-preemptive', {
-      nodePath: 'legacy/auth',
-      nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\nmapping:\n  - src/auth/\n',
-      mappingFiles: { 'src/auth/login.ts': 'export function login() {}\n' },
-      parentNodes: [{
-        path: 'legacy',
-        yaml: 'name: Legacy\ntype: service\ndescription: legacy\n',
-      }],
-    });
-    // Other node has CURRENT hash (not drifted) — anti-laundering still blocks
-    await writeNodeDriftState(yggRoot, 'other/service', {
-      hash: 'current-baseline',
-      files: { 'src/auth/login.ts': 'current-hash-matching-disk' },
-    });
-    const graph = await loadGraph(tmpDir);
-    const result = await approveNode(graph, 'legacy/auth');
-    expect(result.action).toBe('refused');
-    expect(result.antiLaunderingBlocked).toBe(true);
-    await rm(tmpDir, { recursive: true, force: true });
-  });
-
-  it('anti-laundering result includes conflicting file details', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('anti-launder-details', {
-      nodePath: 'new-blackbox',
-      nodeYaml: 'name: NewBlackbox\ntype: service\ndescription: new blackbox\nblackbox: true\nmapping:\n  - src/auth/\n',
-      mappingFiles: { 'src/auth/controller.ts': 'export function ctrl() {}\n' },
-    });
-    await writeNodeDriftState(yggRoot, 'auth/auth-api', {
-      hash: 'fake',
-      files: { 'src/auth/controller.ts': 'fake-hash' },
-    });
-    const graph = await loadGraph(tmpDir);
-    const result = await approveNode(graph, 'new-blackbox', {});
-    expect(result.action).toBe('refused');
-    expect(result.antiLaunderingBlocked).toBe(true);
-    expect(result.conflictingFiles).toContainEqual({
-      file: 'src/auth/controller.ts',
-      trackedBy: 'auth/auth-api',
-    });
-    await rm(tmpDir, { recursive: true, force: true });
-  });
-
-  it('allows first-approve on proper node even with shared files', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('proper-first', {
+describe('approveNode — no-aspects auto-approve', () => {
+  it('auto-approves node with no effective aspects (skip hashing)', async () => {
+    const { tmpDir } = await createTmpProject('no-aspects', {
       nodePath: 'svc/my-service',
       nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
     });
-    // Another node's drift state has overlapping files
-    await writeNodeDriftState(yggRoot, 'other/service', {
-      hash: 'fake',
-      files: { 'src/svc/index.ts': 'fake-hash' },
-    });
     const graph = await loadGraph(tmpDir);
     const result = await approveNode(graph, 'svc/my-service');
-    // Anti-laundering only blocks blackbox — proper node first-approve is fine
-    expect(result.action).toBe('initial');
+    expect(result.action).toBe('approved');
+    expect(result.currentHash).toBe('');
     await rm(tmpDir, { recursive: true, force: true });
   });
 });
@@ -394,8 +261,9 @@ describe('approveNode — GC and recording', () => {
   it('always records baseline even on no-op', async () => {
     const { tmpDir } = await createTmpProject('record-noop', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - testing\nmapping:\n  - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
+      aspects: [TEST_ASPECT],
     });
     await recordBaseline(tmpDir);
     const graph = await loadGraph(tmpDir);
@@ -442,30 +310,6 @@ describe('approveNode — GC and recording', () => {
   });
 });
 
-describe('approveNode — blackbox upstream-only auto-clear', () => {
-  it('auto-clears baseline when blackbox has only upstream (aspect) changes', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('bb-upstream-only', {
-      nodePath: 'legacy/auth',
-      nodeYaml: 'name: LegacyAuth\ntype: service\ndescription: legacy auth\nblackbox: true\naspects:\n  - logging\nmapping:\n  - src/auth/\n',
-      mappingFiles: { 'src/auth/login.ts': 'export function login() {}\n' },
-      aspects: [{
-        id: 'logging',
-        yaml: 'name: Logging\ndescription: test\n',
-        files: { 'content.md': 'Log all.\n' },
-      }],
-    });
-    await recordBaseline(tmpDir);
-    // Only modify aspect (upstream), NOT source — triggers auto-clear path (line 241-255)
-    await writeFile(path.join(yggRoot, 'aspects/logging/content.md'), 'Updated upstream only.\n');
-    const graph = await loadGraph(tmpDir);
-    const result = await approveNode(graph, 'legacy/auth');
-    expect(result.action).toBe('approved');
-    expect(result.isBlackbox).toBe(true);
-    expect(result.changedUpstream).toBeDefined();
-    expect(result.changedUpstream!.length).toBeGreaterThanOrEqual(1);
-    await rm(tmpDir, { recursive: true, force: true });
-  });
-});
 
 describe('resolveAspects', () => {
   it('includes flow-level aspects in resolved aspects', async () => {
@@ -499,8 +343,9 @@ describe('resolveAspects', () => {
     // Exercise approve.ts line 196-197: annotateUpstreamChange with layer 'relational'
     const { tmpDir, yggRoot } = await createTmpProject('relational-upstream', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nrelations:\n  - target: svc/dep\n    type: uses\nmapping:\n  - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - testing\nrelations:\n  - target: svc/dep\n    type: uses\nmapping:\n  - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
+      aspects: [TEST_ASPECT],
       parentNodes: [
         { path: 'svc', yaml: 'name: Svc\ntype: service\ndescription: parent\n' },
         { path: 'svc/dep', yaml: 'name: Dep\ntype: service\ndescription: dependency\n' },

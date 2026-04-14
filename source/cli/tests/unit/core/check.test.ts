@@ -17,6 +17,13 @@ import { collectTrackedFiles } from '../../../src/core/context-files.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+/** Default aspect for tests that need nodes to participate in drift detection */
+const TEST_ASPECT = {
+  id: 'testing',
+  yaml: 'name: Testing\ndescription: test aspect\n',
+  files: { 'content.md': 'Test rule.\n' },
+};
+
 /**
  * Helper: create a minimal temp project for drift classification tests.
  */
@@ -112,7 +119,8 @@ describe('classifyDrift', () => {
   it('returns empty for node with no drift', async () => {
     const { tmpDir } = await createTmpProject('no-drift', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - testing\nmapping:\n  - src/svc/\n',
+      aspects: [TEST_ASPECT],
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
     });
     await recordBaseline(tmpDir);
@@ -125,7 +133,8 @@ describe('classifyDrift', () => {
   it('returns source-drift when source file changes', async () => {
     const { tmpDir } = await createTmpProject('source-drift', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - testing\nmapping:\n  - src/svc/\n',
+      aspects: [TEST_ASPECT],
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
     });
     await recordBaseline(tmpDir);
@@ -143,14 +152,15 @@ describe('classifyDrift', () => {
   it('returns upstream-drift when own yg-node.yaml aspect-relevant fields change', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('graph-drift', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - testing\nmapping:\n  - src/svc/\n',
+      aspects: [TEST_ASPECT],
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
     });
     await recordBaseline(tmpDir);
     // Modify aspect-relevant field (type change triggers upstream drift)
     await writeFile(
       path.join(yggRoot, 'model/svc/my-service/yg-node.yaml'),
-      'name: MyService\ntype: module\ndescription: test\nmapping:\n  - src/svc/\n',
+      'name: MyService\ntype: module\ndescription: test\naspects:\n  - testing\nmapping:\n  - src/svc/\n',
     );
     const graph = await loadGraph(tmpDir);
     const result = await classifyDrift(graph);
@@ -162,7 +172,8 @@ describe('classifyDrift', () => {
   it('does NOT trigger drift when only description changes in yg-node.yaml', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('desc-only-drift', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - testing\nmapping:\n  - src/svc/\n',
+      aspects: [TEST_ASPECT],
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
     });
     await recordBaseline(tmpDir);
@@ -230,7 +241,8 @@ describe('classifyDrift', () => {
   it('returns unapproved when no baseline exists', async () => {
     const { tmpDir } = await createTmpProject('unapproved', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - testing\nmapping:\n  - src/svc/\n',
+      aspects: [TEST_ASPECT],
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
     });
     // Do NOT record baseline
@@ -245,7 +257,8 @@ describe('classifyDrift', () => {
   it('returns source-drift unapproved with files-never-created message when source path absent', async () => {
     const { tmpDir } = await createTmpProject('unapproved-absent', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/absent/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - testing\nmapping:\n  - src/absent/\n',
+      aspects: [TEST_ASPECT],
       // Do NOT create the mapping directory at all
     });
     // Do NOT record baseline
@@ -261,7 +274,8 @@ describe('classifyDrift', () => {
   it('returns source-drift missing when source files are gone', async () => {
     const { tmpDir } = await createTmpProject('missing-src', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - testing\nmapping:\n  - src/svc/\n',
+      aspects: [TEST_ASPECT],
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
     });
     await recordBaseline(tmpDir);
@@ -278,7 +292,8 @@ describe('classifyDrift', () => {
   it('detects deleted source file in drift (partial deletion)', async () => {
     const { tmpDir } = await createTmpProject('partial-deleted', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/index.ts\n  - src/svc/helper.ts\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - testing\nmapping:\n  - src/svc/index.ts\n  - src/svc/helper.ts\n',
+      aspects: [TEST_ASPECT],
       mappingFiles: {
         'src/svc/index.ts': 'export default 42;\n',
         'src/svc/helper.ts': 'export const helper = () => {};\n',
@@ -300,7 +315,8 @@ describe('classifyDrift', () => {
   it('returns source-drift when both source and graph metadata change', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('full-drift', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - testing\nmapping:\n  - src/svc/\n',
+      aspects: [TEST_ASPECT],
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
     });
     await recordBaseline(tmpDir);
@@ -317,7 +333,8 @@ describe('classifyDrift', () => {
   it('returns upstream-drift when hierarchy (parent) yg-node.yaml changes', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('cascade-hierarchy', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - testing\nmapping:\n  - src/svc/\n',
+      aspects: [TEST_ASPECT],
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
       parentNodes: [{
         path: 'svc',
@@ -341,19 +358,22 @@ describe('classifyDrift', () => {
   it('detects drift when tracked file is removed from context (aspect removed)', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('deleted-aspect', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - logging\nmapping:\n  - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - logging\n  - testing\nmapping:\n  - src/svc/\n',
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
-      aspects: [{
-        id: 'logging',
-        yaml: 'name: Logging\ndescription: test aspect\n',
-        files: { 'content.md': 'Log all mutations.\n' },
-      }],
+      aspects: [
+        {
+          id: 'logging',
+          yaml: 'name: Logging\ndescription: test aspect\n',
+          files: { 'content.md': 'Log all mutations.\n' },
+        },
+        TEST_ASPECT,
+      ],
     });
     await recordBaseline(tmpDir);
-    // Remove aspect reference from node YAML — the aspect files will be in baseline but not in current context
+    // Remove logging aspect reference from node YAML (keep testing so node still has aspects)
     await writeFile(
       path.join(yggRoot, 'model/svc/my-service/yg-node.yaml'),
-      'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
+      'name: MyService\ntype: service\ndescription: test\naspects:\n  - testing\nmapping:\n  - src/svc/\n',
     );
     const graph = await loadGraph(tmpDir);
     const result = await classifyDrift(graph);
@@ -366,7 +386,8 @@ describe('classifyDrift', () => {
   it('returns upstream-drift when flow yg-flow.yaml changes', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('cascade-flow', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - testing\nmapping:\n  - src/svc/\n',
+      aspects: [TEST_ASPECT],
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
     });
     // Create a flow that references our node
@@ -387,7 +408,8 @@ describe('classifyDrift', () => {
   it('returns upstream-drift when dependency yg-node.yaml changes', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('cascade-dep', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nrelations:\n  - target: svc/dep\n    type: uses\nmapping:\n  - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - testing\nrelations:\n  - target: svc/dep\n    type: uses\nmapping:\n  - src/svc/\n',
+      aspects: [TEST_ASPECT],
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
       parentNodes: [
         {
@@ -460,7 +482,8 @@ describe('classifyDrift', () => {
   it('handles drift state without mtimes', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('no-mtimes', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - testing\nmapping:\n  - src/svc/\n',
+      aspects: [TEST_ASPECT],
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
     });
     await recordBaseline(tmpDir);
@@ -498,7 +521,8 @@ describe('classifyDrift', () => {
   it('handles child-wins model with overlapping parent-child mappings', async () => {
     const { tmpDir } = await createTmpProject('child-wins', {
       nodePath: 'svc/my-service/sub',
-      nodeYaml: 'name: Sub\ntype: service\ndescription: test\nmapping:\n  - src/svc/sub/\n',
+      nodeYaml: 'name: Sub\ntype: service\ndescription: test\naspects:\n  - testing\nmapping:\n  - src/svc/sub/\n',
+      aspects: [TEST_ASPECT],
       mappingFiles: { 'src/svc/index.ts': 'parent file\n', 'src/svc/sub/inner.ts': 'child file\n' },
       parentNodes: [
         {
@@ -507,7 +531,7 @@ describe('classifyDrift', () => {
         },
         {
           path: 'svc/my-service',
-          yaml: 'name: MyService\ntype: service\ndescription: parent\nmapping:\n  - src/svc/\n',
+          yaml: 'name: MyService\ntype: service\ndescription: parent\naspects:\n  - testing\nmapping:\n  - src/svc/\n',
         },
       ],
     });
@@ -539,7 +563,8 @@ describe('scanUncoveredFiles', () => {
   it('returns uncovered files', async () => {
     const { tmpDir } = await createTmpProject('uncovered', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - testing\nmapping:\n  - src/svc/\n',
+      aspects: [TEST_ASPECT],
       mappingFiles: { 'src/svc/index.ts': '', 'src/other/util.ts': '' },
     });
     const graph = await loadGraph(tmpDir);
@@ -632,7 +657,8 @@ describe('detectOrphanedDriftState', () => {
   it('returns orphaned node paths', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('orphan', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - testing\nmapping:\n  - src/svc/\n',
+      aspects: [TEST_ASPECT],
       mappingFiles: { 'src/svc/index.ts': '' },
     });
     // Write drift state for a node that doesn't exist
@@ -648,7 +674,8 @@ describe('detectOrphanedDriftState', () => {
   it('returns empty when no orphans', async () => {
     const { tmpDir } = await createTmpProject('no-orphan', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - testing\nmapping:\n  - src/svc/\n',
+      aspects: [TEST_ASPECT],
       mappingFiles: { 'src/svc/index.ts': '' },
     });
     await recordBaseline(tmpDir);
@@ -714,7 +741,8 @@ describe('suggestedNext priority', () => {
   it('suggests coverage when only unmapped-files errors exist', async () => {
     const { tmpDir } = await createTmpProject('suggest-coverage', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - testing\nmapping:\n  - src/svc/\n',
+      aspects: [TEST_ASPECT],
       mappingFiles: { 'src/svc/index.ts': '' },
     });
     await recordBaseline(tmpDir);
@@ -738,7 +766,8 @@ describe('runCheck', () => {
   it('returns clean result for well-formed project with baseline', async () => {
     const { tmpDir } = await createTmpProject('clean-check', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - testing\nmapping:\n  - src/svc/\n',
+      aspects: [TEST_ASPECT],
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
     });
     await recordBaseline(tmpDir);
@@ -755,7 +784,8 @@ describe('runCheck', () => {
   it('includes source-drift issues in orchestrated result', async () => {
     const { tmpDir } = await createTmpProject('check-drift', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - testing\nmapping:\n  - src/svc/\n',
+      aspects: [TEST_ASPECT],
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
     });
     await recordBaseline(tmpDir);
@@ -771,7 +801,8 @@ describe('runCheck', () => {
   it('includes unmapped-files coverage issues when uncovered files exist', async () => {
     const { tmpDir } = await createTmpProject('check-coverage', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - testing\nmapping:\n  - src/svc/\n',
+      aspects: [TEST_ASPECT],
       mappingFiles: { 'src/svc/index.ts': '' },
     });
     await recordBaseline(tmpDir);
@@ -785,7 +816,8 @@ describe('runCheck', () => {
   it('skips unmapped-files when gitTrackedFiles is null', async () => {
     const { tmpDir } = await createTmpProject('check-no-git', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - testing\nmapping:\n  - src/svc/\n',
+      aspects: [TEST_ASPECT],
       mappingFiles: { 'src/svc/index.ts': '' },
     });
     await recordBaseline(tmpDir);
@@ -800,7 +832,8 @@ describe('runCheck', () => {
   it('includes orphaned-drift-state warning when orphaned drift state exists', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('check-orphan', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - testing\nmapping:\n  - src/svc/\n',
+      aspects: [TEST_ASPECT],
       mappingFiles: { 'src/svc/index.ts': '' },
     });
     await recordBaseline(tmpDir);
@@ -851,7 +884,8 @@ describe('runCheck', () => {
   it('suggests next command based on priority', async () => {
     const { tmpDir } = await createTmpProject('check-suggest', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - testing\nmapping:\n  - src/svc/\n',
+      aspects: [TEST_ASPECT],
       mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
     });
     await recordBaseline(tmpDir);
@@ -928,7 +962,8 @@ describe('runCheck', () => {
     // Create two nodes that share a flow, then trigger cascade from flow artifact change
     const { tmpDir, yggRoot } = await createTmpProject('cascade-suggest-flow', {
       nodePath: 'svc/alpha',
-      nodeYaml: 'name: Alpha\ntype: service\ndescription: alpha\nmapping:\n  - src/alpha/\n',
+      nodeYaml: 'name: Alpha\ntype: service\ndescription: alpha\naspects:\n  - testing\nmapping:\n  - src/alpha/\n',
+      aspects: [TEST_ASPECT],
       mappingFiles: { 'src/alpha/index.ts': 'export const a = 1;\n' },
     });
 
@@ -936,7 +971,7 @@ describe('runCheck', () => {
     const node2Dir = path.join(yggRoot, 'model/svc/beta');
     await mkdir(node2Dir, { recursive: true });
     await writeFile(path.join(node2Dir, 'yg-node.yaml'),
-      'name: Beta\ntype: service\ndescription: beta\nmapping:\n  - src/beta/\n');
+      'name: Beta\ntype: service\ndescription: beta\naspects:\n  - testing\nmapping:\n  - src/beta/\n');
     await mkdir(path.join(tmpDir, 'src/beta'), { recursive: true });
     await writeFile(path.join(tmpDir, 'src/beta/index.ts'), 'export const b = 2;\n');
 
@@ -969,7 +1004,8 @@ describe('runCheck', () => {
     // Two sibling nodes sharing the same parent — parent artifact change triggers cascade on both
     const { tmpDir, yggRoot } = await createTmpProject('cascade-suggest-parent', {
       nodePath: 'svc/alpha',
-      nodeYaml: 'name: Alpha\ntype: service\ndescription: alpha\nmapping:\n  - src/alpha/\n',
+      nodeYaml: 'name: Alpha\ntype: service\ndescription: alpha\naspects:\n  - testing\nmapping:\n  - src/alpha/\n',
+      aspects: [TEST_ASPECT],
       mappingFiles: { 'src/alpha/index.ts': 'export const a = 1;\n' },
       parentNodes: [{
         path: 'svc',
@@ -981,7 +1017,7 @@ describe('runCheck', () => {
     const node2Dir = path.join(yggRoot, 'model/svc/beta');
     await mkdir(node2Dir, { recursive: true });
     await writeFile(path.join(node2Dir, 'yg-node.yaml'),
-      'name: Beta\ntype: service\ndescription: beta\nmapping:\n  - src/beta/\n');
+      'name: Beta\ntype: service\ndescription: beta\naspects:\n  - testing\nmapping:\n  - src/beta/\n');
     await mkdir(path.join(tmpDir, 'src/beta'), { recursive: true });
     await writeFile(path.join(tmpDir, 'src/beta/index.ts'), 'export const b = 2;\n');
 
@@ -1035,7 +1071,8 @@ describe('runCheck', () => {
     // This exercises line 205 — deleted file where layer is undefined and path is source.
     const { tmpDir } = await createTmpProject('deleted-unknown-source', {
       nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n  - src/extra.ts\n',
+      nodeYaml: 'name: MyService\ntype: service\ndescription: test\naspects:\n  - testing\nmapping:\n  - src/svc/\n  - src/extra.ts\n',
+      aspects: [TEST_ASPECT],
       mappingFiles: {
         'src/svc/index.ts': 'export default 42;\n',
         'src/extra.ts': 'export const extra = true;\n',
@@ -1046,7 +1083,7 @@ describe('runCheck', () => {
     const yggRoot = path.join(tmpDir, '.yggdrasil');
     await writeFile(
       path.join(yggRoot, 'model/svc/my-service/yg-node.yaml'),
-      'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
+      'name: MyService\ntype: service\ndescription: test\naspects:\n  - testing\nmapping:\n  - src/svc/\n',
     );
     await rm(path.join(tmpDir, 'src/extra.ts'), { force: true });
     const graph = await loadGraph(tmpDir);

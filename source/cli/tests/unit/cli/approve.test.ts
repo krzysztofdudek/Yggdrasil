@@ -7,9 +7,6 @@ function makeApproveResult(overrides: Partial<ApproveResult> = {}): ApproveResul
     action: 'approved',
     currentHash: 'abcdef01',
     previousHash: '12345678',
-    blackboxBlocked: false,
-    antiLaunderingBlocked: false,
-    isBlackbox: false,
     ...overrides,
   };
 }
@@ -60,14 +57,6 @@ describe('formatResult — LLM results', () => {
     expect(output).toContain('aspects not verified');
   });
 
-  it('shows LLM skipped for blackbox', () => {
-    const result = makeApproveResult({
-      action: 'approved',
-      llmSkipped: 'blackbox',
-    });
-    const output = captureOutput(() => formatResult('some/node', result));
-    expect(output).toContain('blackbox');
-  });
 });
 
 describe('formatBatchOutput', () => {

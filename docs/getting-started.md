@@ -121,28 +121,28 @@ The agent fixes the code and re-runs approve until all aspects pass.
 belong to some node. On a fresh repo with 200 files and 0 nodes, check fails
 immediately.
 
-The fast path: **blackbox everything you're not working on, proper nodes for
-what you are.**
+The fast path: **minimal nodes (no aspects) for everything you're not working
+on, proper nodes with aspects for what you are.**
 
 Tell your agent:
 
-> "Blackbox these directories: src/legacy/, lib/, scripts/. Then create a
-> proper node for src/payments/ with the requires-audit aspect."
+> "Create nodes without aspects for: src/legacy/, lib/, scripts/. Then create
+> a proper node for src/payments/ with the requires-audit aspect."
 
-Blackbox nodes are cheap — just a `yg-node.yaml` with `blackbox: true` and a
-directory mapping. No aspects, no LLM review. They count as covered.
+Nodes without aspects are cheap — just a `yg-node.yaml` with a directory
+mapping. No hashing, no LLM review. They auto-approve instantly and count
+as covered.
 
-The key rule: if a file inside a blackbox changes, `yg approve` refuses.
-You have to create a proper node for those files first. This is how blackbox
-gradually decomposes into proper coverage as you work.
+When you start working on a covered area, add aspects to enforce rules.
+This is how coverage naturally expands into enforcement as you work.
 
 Practical steps for a 200-file repo:
 
-1. Create 5-8 blackbox nodes with broad directory mappings
-2. Create 1-2 proper nodes for your active work area
-3. Run `yg approve` on all nodes (blackbox = instant, proper = reviewer)
+1. Create 5-8 nodes without aspects for broad directory mappings
+2. Create 1-2 nodes with aspects for your active work area
+3. Run `yg approve` on all nodes (no-aspect = instant, with-aspect = reviewer)
 4. `yg check` passes — CI is green
-5. Expand proper coverage as you touch more code
+5. Add aspects to more nodes as you touch more code
 
 ## 5) CI integration
 

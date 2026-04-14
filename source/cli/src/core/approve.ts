@@ -5,7 +5,6 @@ import type {
   TrackedFileLayer,
 } from '../model/drift.js';
 import {
-  readDriftState,
   readNodeDriftState,
   writeNodeDriftState,
   garbageCollectDriftState,
@@ -24,7 +23,7 @@ export interface ApproveOptions {
 
 /**
  * Approve a node's current state, recording it as the new baseline.
- * Binary model: any source or upstream change triggers approval. Blackbox enforcement blocks source changes.
+ * Binary model: any source or upstream change triggers approval.
  */
 export async function approveNode(
   graph: Graph,
@@ -43,49 +42,22 @@ export async function approveNode(
     );
   }
 
+  // Nodes without effective aspects auto-approve — nothing to verify
+  const effectiveAspects = computeEffectiveAspects(node, graph);
+  if (effectiveAspects.size === 0) {
+    const gcPaths = await runGC(graph);
+    return {
+      action: 'approved',
+      currentHash: '',
+      gcPaths,
+    };
+  }
+
   const projectRoot = path.dirname(graph.rootPath);
-  const isBlackbox = node.meta.blackbox === true;
   const storedEntry = await readNodeDriftState(graph.rootPath, nodePath);
 
   // ── First approve (no baseline) ──────────────────────────
   if (!storedEntry) {
-    // Anti-laundering check: blackbox first-approve blocked if files in other drift state
-    if (isBlackbox) {
-      const allDriftState = await readDriftState(graph.rootPath);
-      const conflictingFiles: Array<{ file: string; trackedBy: string }> = [];
-      const seen = new Set<string>();
-      // Expand mapping paths to check against other nodes' drift state files
-      for (const mp of mappingPaths) {
-        const normalized = mp.trim().replace(/\\/g, '/').replace(/\/+$/, '');
-        // Check each other node's tracked files
-        for (const [otherPath, otherState] of Object.entries(allDriftState)) {
-          if (otherPath === nodePath) continue;
-          for (const filePath of Object.keys(otherState.files)) {
-            if (filePath === normalized || filePath.startsWith(normalized + '/')) {
-              const key = `${filePath}::${otherPath}`;
-              if (!seen.has(key)) {
-                seen.add(key);
-                conflictingFiles.push({ file: filePath, trackedBy: otherPath });
-              }
-            }
-          }
-        }
-      }
-      if (conflictingFiles.length > 0) {
-        // GC runs on every invocation per spec ("when approve runs")
-        const gcPaths = await runGC(graph);
-        return {
-          action: 'refused',
-          currentHash: '',
-          refuseReason:
-            'Anti-laundering: files in this blackbox appear in drift state of other nodes.',
-          antiLaunderingBlocked: true,
-          conflictingFiles,
-          gcPaths,
-        };
-      }
-    }
-
     // First approve — record initial baseline
     const trackedFiles = collectTrackedFiles(node, graph);
     const excludePrefixes = getChildMappingExclusions(graph, nodePath);
@@ -209,46 +181,13 @@ export async function approveNode(
   const sourceChanged = changedSource.length > 0;
   const upstreamChanged = changedUpstream.length > 0;
 
-  // ── Blackbox enforcement ─────────────────────────────────
-  if (isBlackbox && sourceChanged) {
-    const gcPaths = await runGC(graph);
-    return {
-      action: 'refused',
-      previousHash: storedEntry.hash,
-      currentHash: canonicalHash,
-      refuseReason: 'Cannot approve source changes on a blackbox node.',
-      blackboxBlocked: true,
-      isBlackbox: true,
-      changedSource,
-      gcPaths,
-    };
-  }
-
-  // ── Blackbox + upstream only → auto-clear baseline ──────
-  if (isBlackbox && upstreamChanged && !sourceChanged) {
-    await writeNodeDriftState(graph.rootPath, nodePath, {
-      hash: canonicalHash,
-      files: fileHashes,
-      mtimes: fileMtimes,
-    });
-    const gcPaths = await runGC(graph);
-    return {
-      action: 'approved',
-      previousHash: storedEntry.hash,
-      currentHash: canonicalHash,
-      changedUpstream,
-      isBlackbox: true,
-      gcPaths,
-    };
-  }
-
   // ── Binary decision ─────────────────────────────────────
   let action: ApproveResult['action'];
 
   if (!sourceChanged && !upstreamChanged) {
     action = 'no-change';
   } else {
-    // Non-blackbox + any changes → approved (LLM verification in CLI layer)
+    // Any changes → approved (LLM verification in CLI layer)
     action = 'approved';
   }
 
@@ -271,7 +210,6 @@ export async function approveNode(
     currentHash: canonicalHash,
     changedSource: sourceChanged ? changedSource : undefined,
     changedUpstream: upstreamChanged ? changedUpstream : undefined,
-    isBlackbox,
     gcPaths,
   };
 }

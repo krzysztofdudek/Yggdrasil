@@ -4,6 +4,7 @@ import type { Graph } from '../model/graph.js';
 import type { ValidationResult, ValidationIssue } from '../model/validation.js';
 import { normalizeMappingPaths } from '../utils/paths.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
+import { computeEffectiveAspects } from './effective-aspects.js';
 
 export async function validate(graph: Graph, scope: string = 'all'): Promise<ValidationResult> {
   const issues: ValidationIssue[] = [];
@@ -355,7 +356,7 @@ function checkImpliesNoCycles(graph: Graph): ValidationIssue[] {
   return issues;
 }
 
-// --- Rule 4: No circular dependencies (cycles involving blackbox are tolerated) ---
+// --- Rule 4: No circular dependencies ---
 
 function checkNoCycles(graph: Graph): ValidationIssue[] {
   const WHITE = 0;
@@ -376,22 +377,16 @@ function checkNoCycles(graph: Graph): ValidationIssue[] {
       if (!structuralTypes.has(rel.type)) continue;
       if (color.get(rel.target) === GRAY) {
         const cyclePath = [...pathSegments, nodePath, rel.target];
-        const cycleNodes = pathSegments.slice(pathSegments.indexOf(rel.target)).concat(nodePath);
-        const hasBlackboxInCycle = cycleNodes.some(
-          (p) => graph.nodes.get(p)?.meta.blackbox === true,
-        );
-        if (!hasBlackboxInCycle) {
-          issues.push({
-            severity: 'error',
-            code: 'structural-cycle',
-            rule: 'structural-cycle',
-            message: buildIssueMessage({
-              what: `Circular dependency: ${cyclePath.join(' -> ')}.`,
-              why: `Cycles prevent deterministic context assembly and cascade tracking.`,
-              next: `Break the cycle: extract a shared interface, invert a dependency, or merge nodes.`,
-            }),
-          });
-        }
+        issues.push({
+          severity: 'error',
+          code: 'structural-cycle',
+          rule: 'structural-cycle',
+          message: buildIssueMessage({
+            what: `Circular dependency: ${cyclePath.join(' -> ')}.`,
+            why: `Cycles prevent deterministic context assembly and cascade tracking.`,
+            next: `Break the cycle: extract a shared interface, invert a dependency, or merge nodes.`,
+          }),
+        });
         return true;
       }
       if (color.get(rel.target) === WHITE) {
@@ -536,7 +531,8 @@ async function checkWideNodes(graph: Graph): Promise<ValidationIssue[]> {
   const projectRoot = path.dirname(graph.rootPath);
 
   for (const [nodePath, node] of graph.nodes) {
-    if (node.meta.blackbox) continue;
+    const effectiveAspects = computeEffectiveAspects(node, graph);
+    if (effectiveAspects.size === 0) continue;
     const mappingPaths = normalizeMappingPaths(node.meta.mapping);
     if (mappingPaths.length === 0) continue;
 

@@ -69,7 +69,6 @@ export interface NodeMeta {
   description?: string;
   aspects?: string[];
   ports?: Record<string, PortDef>;
-  blackbox?: boolean;
   relations?: Relation[];
   /** Flat list of file/directory paths relative to repo root */
   mapping?: string[];

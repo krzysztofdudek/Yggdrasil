@@ -26,7 +26,7 @@ export interface LlmApproveResult extends ApproveResult {
   /** LLM aspect verification results */
   aspectResults?: Record<string, AspectVerificationResult>;
   /** Why LLM verification was skipped, if it was */
-  llmSkipped?: 'unavailable' | 'blackbox';
+  llmSkipped?: 'unavailable';
   /** Aspect violations for programmatic consumption */
   aspectViolations?: Array<{ aspectId: string; reason: string; providerError?: boolean }>;
 }
@@ -50,7 +50,6 @@ export async function runLlmVerification(
 ): Promise<LlmApproveResult> {
   const { provider } = llmConfig;
   const node = graph.nodes.get(nodePath);
-  const isBlackbox = node?.meta.blackbox === true;
 
   // Determine if LLM should be skipped
   if (!provider) {
@@ -58,10 +57,6 @@ export async function runLlmVerification(
       ...result,
       llmSkipped: 'unavailable',
     };
-  }
-
-  if (isBlackbox) {
-    return { ...result, llmSkipped: 'blackbox' };
   }
 
   if (result.action === 'refused' || !node) {
@@ -186,7 +181,6 @@ function formatLlmResults(result: LlmApproveResult): void {
   if (result.llmSkipped) {
     const messages: Record<NonNullable<LlmApproveResult['llmSkipped']>, string> = {
       'unavailable': 'Reviewer configured but not reachable — aspects not verified. Structural checks only.',
-      'blackbox': 'Reviewer skipped for blackbox node.',
     };
     process.stdout.write(chalk.dim(`  ${messages[result.llmSkipped]}\n`));
     return;
@@ -207,56 +201,6 @@ function formatLlmResults(result: LlmApproveResult): void {
 }
 
 function formatRefused(nodePath: string, result: LlmApproveResult): void {
-  // Anti-laundering
-  if (result.antiLaunderingBlocked) {
-    process.stderr.write(
-      chalk.red(
-        'ERROR: Anti-laundering — cannot create blackbox over previously tracked files.\n',
-      ),
-    );
-    if (result.conflictingFiles && result.conflictingFiles.length > 0) {
-      process.stderr.write('  Conflicting files:\n');
-      for (const cf of result.conflictingFiles) {
-        process.stderr.write(`    ${cf.file} (tracked by ${cf.trackedBy})\n`);
-      }
-    } else {
-      process.stderr.write(
-        '  Some mapped files appear in drift state of other nodes.\n',
-      );
-    }
-    process.stderr.write(
-      '  Decompose: create a proper node (not blackbox) for these files.\n',
-    );
-    return;
-  }
-
-  // Blackbox source change
-  if (result.blackboxBlocked) {
-    process.stderr.write(
-      chalk.red(`ERROR: Cannot approve source changes on a blackbox node.\n`),
-    );
-    if (result.changedSource && result.changedSource.length > 0) {
-      process.stderr.write(`  Source changed:\n`);
-      for (const f of result.changedSource) {
-        process.stderr.write(`    ${f}\n`);
-      }
-    }
-    process.stderr.write(
-      `  Blackbox nodes are sealed — source modifications require decomposition.\n`,
-    );
-    process.stderr.write(`  To resolve:\n`);
-    process.stderr.write(
-      `    1. Create a proper node for the modified files.\n`,
-    );
-    process.stderr.write(
-      `    2. Adjust blackbox mapping to exclude those files.\n`,
-    );
-    process.stderr.write(
-      `    3. Approve the new proper node instead.\n`,
-    );
-    return;
-  }
-
   // LLM reviewer refused
   if (result.aspectViolations && result.aspectViolations.length > 0) {
     process.stderr.write(

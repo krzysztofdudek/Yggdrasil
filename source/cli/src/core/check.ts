@@ -11,6 +11,7 @@ import { hashTrackedFiles } from '../utils/hash.js';
 import { collectTrackedFiles } from './context-files.js';
 import { normalizeMappingPaths } from '../utils/paths.js';
 import { validate } from './validator.js';
+import { computeEffectiveAspects } from './effective-aspects.js';
 import { access } from 'node:fs/promises';
 import path from 'node:path';
 import { buildIssueMessage } from '../formatters/message-builder.js';
@@ -67,6 +68,10 @@ export async function classifyDrift(graph: Graph): Promise<CheckIssue[]> {
   for (const [nodePath, node] of graph.nodes) {
     const mappingPaths = normalizeMappingPaths(node.meta.mapping);
     if (mappingPaths.length === 0) continue;
+
+    // Nodes without effective aspects auto-approve — skip drift detection
+    const effectiveAspects = computeEffectiveAspects(node, graph);
+    if (effectiveAspects.size === 0) continue;
 
     const storedEntry = await readNodeDriftState(graph.rootPath, nodePath);
 
@@ -341,13 +346,13 @@ export function buildCoverageIssue(uncoveredFiles: string[], totalGitFiles: numb
     message = buildIssueMessage({
       what: `${uncoveredFiles.length.toLocaleString()} source file${uncoveredFiles.length === 1 ? '' : 's'} not covered by any node.\n${sample.map(f => '  ' + f).join('\n')}`,
       why: 'Files without graph coverage cannot be modified under the protocol.',
-      next: `Check ownership candidates: yg context --file <path>\nThen: add to existing node mapping, create a new node, or blackbox.`,
+      next: `Check ownership candidates: yg context --file <path>\nThen: add to existing node mapping, or create a new node.`,
     });
   } else {
     // Large count: guidance BEFORE examples (per CLI messages spec)
     const guidance = coveragePct < 50
-      ? 'Establish coverage: create proper nodes for areas you will work on, blackbox the rest.'
-      : 'Add to an existing node mapping, create a new node, or blackbox.';
+      ? 'Establish coverage: create nodes for active areas first, expand coverage incrementally.'
+      : 'Add to an existing node mapping, or create a new node.';
     message = buildIssueMessage({
       what: `${uncoveredFiles.length.toLocaleString()} source files have no graph coverage.\nExamples:\n${sample.map(f => '  ' + f).join('\n')}\n... and ${remaining.toLocaleString()} more`,
       why: 'Files without graph coverage cannot be modified under the protocol.',

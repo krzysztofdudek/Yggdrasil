@@ -1,6 +1,0 @@
-name: LegacyAuth
-type: service
-description: updated legacy auth description
-blackbox: true
-mapping:
-  - src/auth/
