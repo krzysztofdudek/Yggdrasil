@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Yggdrasil — Getting Started Demo</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Inter:wght@300;400;600;700;900&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#050508;overflow:hidden;width:100vw;height:100vh;font-family:'JetBrains Mono',monospace}
+
+#start{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;cursor:pointer;background:#050508;transition:opacity .4s}
+#start.gone{opacity:0;pointer-events:none}
+#start span{font:13px 'Inter',sans-serif;color:#444;letter-spacing:4px;text-transform:uppercase;animation:p 2s ease-in-out infinite}
+@keyframes p{0%,100%{opacity:.3}50%{opacity:.9}}
+
+#screen{position:fixed;inset:0;display:flex;align-items:stretch;justify-content:center;padding:24px;opacity:0;transition:opacity .4s}
+#screen.on{opacity:1}
+#term-wrap{width:100%;max-width:920px;max-height:520px;background:#0d1117;border:1px solid #1a1e26;border-radius:10px;display:flex;flex-direction:column;overflow:hidden;position:relative;box-shadow:0 20px 80px rgba(0,0,0,.6)}
+#term-head{padding:12px 16px;display:flex;gap:7px;align-items:center;border-bottom:1px solid #151920}
+#term-head .dot{width:10px;height:10px;border-radius:50%}
+#term-head .dot:nth-child(1){background:#ff5f57}
+#term-head .dot:nth-child(2){background:#febc2e}
+#term-head .dot:nth-child(3){background:#28c840}
+#term-head .title{flex:1;text-align:center;font-size:11px;color:#8b949e;letter-spacing:2px}
+#term-body{flex:1;overflow-y:auto;overflow-x:hidden;padding:16px 20px;scroll-behavior:auto}
+#term-body::-webkit-scrollbar{width:0}
+
+.ln{font-size:clamp(11px,1.2vw,14px);line-height:1.7;white-space:pre-wrap;word-break:break-all;min-height:1em;opacity:0;animation:fadeIn .15s ease forwards;color:#c9d1d9}
+@keyframes fadeIn{to{opacity:1}}
+
+.ln .pr{color:#7ee787}
+.ln .bl{color:#58a6ff}
+.ln .ye{color:#d29922}
+.ln .wh{color:#e6e6e6}
+.ln .cy{color:#79c0ff}
+.ln .pp{color:#bc8cff}
+.ln .dim{color:#768390}
+.ln .red{color:#f85149}
+.ln .green{color:#7ee787}
+.ln .bold{font-weight:700}
+
+.ln.cmd{color:#e6e6e6}
+.ln.output{color:#adbac7}
+.ln.success{color:#7ee787}
+.ln.error{color:#f85149}
+.ln.dim{color:#768390;font-style:italic}
+.ln.agent{color:#bc8cff;font-style:italic}
+.ln.heading{color:#58a6ff;font-weight:700;border-bottom:1px solid rgba(88,166,255,.15);padding-bottom:4px;margin-top:8px}
+.ln.separator{border-top:1px solid #1a1e26;margin:8px 0;min-height:0;height:1px}
+
+#big{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10;opacity:0;transition:opacity .5s;pointer-events:none;text-align:center;padding:20px}
+#big.on{opacity:1}
+#big .line{font-family:'Inter',sans-serif;font-size:clamp(18px,3.5vw,48px);font-weight:700;color:#fff;line-height:1.5}
+#big .line.sub{font-size:clamp(13px,2vw,24px);font-weight:400;color:#888}
+#big .line .g{color:#7ee787}
+#big .line .r{color:#f85149}
+#big .line .b{color:#58a6ff}
+
+#bar{position:fixed;bottom:0;left:0;height:2px;background:linear-gradient(90deg,#7ee787,#58a6ff);width:0;z-index:60}
+</style>
+</head>
+<body>
+<div id="start"><span>click to start</span></div>
+<div id="screen">
+  <div id="term-wrap">
+    <div id="term-head">
+      <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+      <div class="title" id="term-title">terminal</div>
+    </div>
+    <div id="term-body"></div>
+  </div>
+</div>
+<div id="big"></div>
+<div id="bar"></div>
+
+<script>
+const body=document.getElementById('term-body');
+const termTitle=document.getElementById('term-title');
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+
+function addLine(html,cls=''){
+  const el=document.createElement('div');
+  el.className='ln'+(cls?' '+cls:'');
+  el.innerHTML=html;
+  body.appendChild(el);
+  body.scrollTop=body.scrollHeight;
+  return el;
+}
+
+function clearTerm(){body.innerHTML=''}
+
+function showScreen(){document.getElementById('screen').classList.add('on')}
+function hideScreen(){document.getElementById('screen').classList.remove('on')}
+
+function showBig(html){
+  const b=document.getElementById('big');
+  b.innerHTML=html;
+  b.classList.add('on');
+}
+function hideBig(){document.getElementById('big').classList.remove('on')}
+
+// typing effect for commands
+async function typeCmd(text, prefix='<span class="pr">$</span> '){
+  const el=addLine(prefix,'cmd');
+  let buf=prefix;
+  for(const ch of text){
+    buf+=ch;
+    el.innerHTML=buf+'<span class="dim">_</span>';
+    await wait(25+Math.random()*35);
+  }
+  el.innerHTML=buf;
+  return el;
+}
+
+// ===== TIMELINE =====
+async function run(){
+  const bar=document.getElementById('bar');
+  const DUR=75000,t0=performance.now();
+  (function tick(){bar.style.width=Math.min(100,((performance.now()-t0)/DUR)*100)+'%';if(performance.now()-t0<DUR)requestAnimationFrame(tick)})();
+
+  // ========== SCENE 1: INIT (0-12s) ==========
+  termTitle.textContent='~/my-project';
+  showScreen();
+  await wait(600);
+
+  await typeCmd('npm install -g @chrisdudek/yg');
+  await wait(400);
+  addLine('added 6 packages in 2s','output');
+  await wait(600);
+
+  addLine('','');
+  await typeCmd('yg init');
+  await wait(500);
+
+  addLine('','');
+  addLine('<span class="bold wh">Yggdrasil Setup</span>','');
+  await wait(300);
+  addLine('','');
+  addLine('Step 1: AI coding platform','output');
+  await wait(400);
+
+  // platform selection
+  const platforms=['cursor','<span class="green bold">claude-code</span>','copilot','codex','cline','windsurf','aider','gemini-cli'];
+  for(const p of platforms){
+    addLine('  '+p,'output');
+    await wait(80);
+  }
+  await wait(400);
+  addLine('  <span class="dim">\u25b6</span> <span class="green">claude-code</span>','');
+  await wait(600);
+
+  addLine('','');
+  addLine('Step 2: Reviewer provider','output');
+  await wait(300);
+  addLine('  <span class="dim">\u25b6</span> <span class="green">Claude Code</span> <span class="dim">CLI \u2014 uses installed claude</span>','');
+  await wait(400);
+  addLine('  <span class="dim">\u25b6</span> <span class="green">sonnet</span>','');
+  await wait(400);
+  addLine('  <span class="green">\u2713</span> claude found.','success');
+  await wait(600);
+
+  addLine('','');
+  addLine('<span class="green">\u2713</span> Yggdrasil initialized. Run <span class="wh">yg check</span> to get started.','success');
+  await wait(1200);
+
+  // ========== SCENE 2: USER GIVES TASK (12-18s) ==========
+  clearTerm();
+  termTitle.textContent='claude code';
+  await wait(400);
+
+  addLine('<span class="bl bold">You:</span> Add a payment endpoint to the API. All payment','');
+  addLine('     operations must emit audit events and validate input','');
+  addLine('     with zod schemas.','');
+  await wait(1500);
+
+  addLine('','');
+  addLine('<span class="pp bold">Agent:</span> I\'ll set up the architecture rules first, then implement.','agent');
+  await wait(1000);
+
+  // ========== SCENE 3: AGENT BUILDS GRAPH (18-32s) ==========
+  addLine('','separator');
+  addLine('','');
+
+  // Agent creates aspect
+  addLine('<span class="pp">\u25b6</span> Creating aspect: <span class="wh">requires-audit</span>','');
+  await wait(400);
+  addLine('  <span class="dim">aspects/requires-audit/content.md</span>','');
+  addLine('  <span class="ye">"Every mutation must emit an audit event with</span>','');
+  addLine('  <span class="ye"> operation, timestamp, and entity ID"</span>','');
+  await wait(600);
+
+  addLine('','');
+  addLine('<span class="pp">\u25b6</span> Creating aspect: <span class="wh">zod-validation</span>','');
+  await wait(400);
+  addLine('  <span class="dim">aspects/zod-validation/content.md</span>','');
+  addLine('  <span class="ye">"All endpoint handlers must validate input</span>','');
+  addLine('  <span class="ye"> using zod schemas before processing"</span>','');
+  await wait(600);
+
+  addLine('','');
+  addLine('<span class="pp">\u25b6</span> Creating node: <span class="wh">payments/service</span>','');
+  await wait(300);
+  addLine('  type: service','output');
+  addLine('  aspects: [requires-audit, zod-validation]','output');
+  addLine('  mapping: [src/payments/]','output');
+  await wait(600);
+
+  addLine('','');
+  addLine('<span class="pp">\u25b6</span> Implementing payment endpoint...','');
+  await wait(400);
+  addLine('  <span class="dim">src/payments/payment.service.ts</span>  <span class="green">created</span>','');
+  await wait(200);
+  addLine('  <span class="dim">src/payments/payment.controller.ts</span>  <span class="green">created</span>','');
+  await wait(200);
+  addLine('  <span class="dim">src/payments/payment.schema.ts</span>  <span class="green">created</span>','');
+  await wait(800);
+
+  // ========== SCENE 4: FIRST APPROVE - FAILS (32-45s) ==========
+  addLine('','separator');
+  addLine('','');
+
+  addLine('<span class="pp">\u25b6</span> Running <span class="wh">yg approve --node payments/service</span>','');
+  await wait(400);
+  addLine('  <span class="dim">Verifying aspects with reviewer...</span>','');
+  await wait(1500);
+
+  addLine('','');
+  addLine('  <span class="red bold">ERROR: Reviewer found aspect violations.</span>','error');
+  await wait(300);
+  addLine('','');
+  addLine('  Aspect verification:','output');
+  addLine('  <span class="green">\u2713</span> zod-validation \u2014 SATISFIED','success');
+  await wait(300);
+  addLine('  <span class="red">\u2717</span> requires-audit \u2014 <span class="red bold">NOT SATISFIED</span>','error');
+  addLine('    <span class="output">charge() and refund() mutate state but do not call</span>','');
+  addLine('    <span class="output">emitAudit(). Must emit audit events with operation,</span>','');
+  addLine('    <span class="output">timestamp, and entityId before returning.</span>','');
+  await wait(2000);
+
+  // ========== SCENE 5: AGENT FIXES (45-55s) ==========
+  addLine('','separator');
+  addLine('','');
+
+  addLine('<span class="pp bold">Agent:</span> Audit logging missing from payment mutations. Fixing.','agent');
+  await wait(800);
+
+  addLine('','');
+  addLine('<span class="pp">\u25b6</span> Adding audit events to payment service...','');
+  await wait(400);
+  addLine('  <span class="dim">src/payments/payment.service.ts</span>  <span class="ye">modified</span>','');
+  await wait(200);
+  addLine('  <span class="dim">src/payments/audit.ts</span>  <span class="green">created</span>','');
+  await wait(800);
+
+  // ========== SCENE 6: SECOND APPROVE - PASSES (55-65s) ==========
+  addLine('','');
+  addLine('<span class="pp">\u25b6</span> Running <span class="wh">yg approve --node payments/service</span>','');
+  await wait(400);
+  addLine('  <span class="dim">Verifying aspects with reviewer...</span>','');
+  await wait(1200);
+
+  addLine('','');
+  addLine('  <span class="green bold">Approved: payments/service \u2014 2 aspects satisfied.</span>','success');
+  await wait(800);
+
+  addLine('','');
+  addLine('<span class="pp">\u25b6</span> Running <span class="wh">yg check</span>','');
+  await wait(400);
+  addLine('  <span class="green">PASS</span> <span class="output">(0 errors, 0 warnings)</span>','success');
+  await wait(1500);
+
+  // ========== SCENE 7: PUNCHLINE (65-75s) ==========
+  hideScreen();
+  await wait(800);
+
+  showBig('<div class="line">Rules defined <span class="g">once</span>.</div><div class="line sub" style="margin-top:12px">Enforced on <span class="b">every change</span>, automatically.</div>');
+  await wait(3000);
+  hideBig();
+  await wait(500);
+
+  showBig('<div class="line" style="font-size:clamp(14px,2vw,22px);font-weight:400;color:#888">The agent caught its own mistake and fixed it</div><div class="line" style="margin-top:12px">before it reached your PR.</div>');
+  await wait(3500);
+  hideBig();
+  await wait(500);
+
+  showBig('<div class="line" style="font-size:clamp(28px,5vw,64px);font-weight:900;letter-spacing:4px">YGGDRASIL</div><div class="line sub" style="margin-top:16px">Continuous architectural enforcement</div><div class="line sub" style="margin-top:24px;font-family:JetBrains Mono,monospace;font-size:clamp(12px,1.3vw,16px);color:#7ee787">npm install -g @chrisdudek/yg</div>');
+  await wait(5000);
+}
+
+document.getElementById('start').addEventListener('click',()=>{
+  document.getElementById('start').classList.add('gone');
+  setTimeout(run,400);
+});
+</script>
+</body>
+</html>
