@@ -1,0 +1,7 @@
+name: Examples
+type: project
+description: "Self-contained example projects demonstrating Yggdrasil usage"
+aspects: []
+relations: []
+mapping:
+  - examples/
