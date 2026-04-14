@@ -10,6 +10,8 @@ import { installRulesForPlatform, PLATFORMS, type Platform } from '../templates/
 import { fetchAnthropicModels, fetchOpenAIModels, fetchGoogleModels, fetchOllamaModels } from '../llm/model-fetcher.js';
 import { testApiProvider, testCliProvider } from '../llm/reviewer-test.js';
 import type { ReviewerProvider } from '../model/graph.js';
+import { detectVersion, runMigrations, updateConfigVersion } from '../core/migrator.js';
+import { MIGRATIONS } from '../migrations/index.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -433,6 +435,43 @@ async function existingInit(projectRoot: string): Promise<void> {
   }
 
   p.intro(chalk.bold('Yggdrasil Configuration'));
+
+  // Check for pending migrations
+  const currentVersion = await detectVersion(yggRoot);
+  const cliVersion = '4.0.0';
+
+  if (currentVersion && currentVersion !== cliVersion) {
+    const migrate = await p.confirm({
+      message: `Graph version ${currentVersion} detected — CLI is ${cliVersion}. Run migration?`,
+      initialValue: true,
+    });
+    assertNotCancelled(migrate);
+
+    if (migrate) {
+      const s = p.spinner();
+      s.start('Running migrations...');
+      const results = await runMigrations(currentVersion, MIGRATIONS, yggRoot);
+      await updateConfigVersion(yggRoot, cliVersion);
+      await refreshSchemas(yggRoot);
+      s.stop('Migration complete.');
+
+      for (const result of results) {
+        for (const action of result.actions) {
+          p.log.info(action);
+        }
+        for (const warning of result.warnings) {
+          p.log.warning(warning);
+        }
+      }
+
+      p.log.step('Next steps:');
+      p.log.info('1. Run yg init again to configure reviewer (if not set)');
+      p.log.info('2. Run yg check to verify graph integrity');
+      p.log.info('3. Run yg approve on all nodes to establish baselines');
+      p.outro(chalk.green(`Migrated from ${currentVersion} to ${cliVersion}.`));
+      return;
+    }
+  }
 
   const action = await p.select<string>({
     message: 'What would you like to do?',
