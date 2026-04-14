@@ -22,4 +22,5 @@ mapping:
   - README.md
   - SECURITY.md
   - SUPPORT.md
+  - .rtk/
   - Yggdrasil.code-workspace

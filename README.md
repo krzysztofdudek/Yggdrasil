@@ -46,6 +46,14 @@ yg check   →  "source files changed since last approve"
            →  yg check passes
 ```
 
+## How it works
+
+1. You define rules as Markdown files called **aspects** — "every mutation must emit audit events," "no direct DB calls from this layer."
+2. The agent maps them to parts of your codebase and manages the graph structure.
+3. After writing code, the agent runs `yg approve`, which sends source files + rules to a reviewer LLM.
+4. If the code violates a rule, approval fails and the agent must fix it before moving on.
+5. `yg check` in CI verifies everything was approved — pure hash comparison, no LLM calls, instant.
+
 ## Why not just a bigger rules file
 
 Because a flat file with 200 rules dumps everything into every prompt. The agent filters what it thinks matters and skips the rest.
@@ -56,7 +64,7 @@ And when you change a rule, every file that should satisfy it gets flagged for r
 
 ## Getting started
 
-**1. Install and init.**
+**1. Install and init.** Requires Node.js 22+.
 
 ```bash
 npm install -g @chrisdudek/yg
