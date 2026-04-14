@@ -1,0 +1,11 @@
+version: "4.0.0"
+
+quality:
+  max_direct_relations: 10
+
+parallel: 1
+
+reviewer:
+  consensus: 1
+  claude-code:
+    model: haiku

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { readFile } from 'node:fs/promises';
 import { loadGraph } from '../core/graph-loader.js';
 import { initDebugLog } from '../utils/debug-log.js';
-import { approveNode, resolveAspects, loadSourceFiles } from '../core/approve.js';
+import { approveNode, resolveAspects, loadSourceFiles, commitApproval } from '../core/approve.js';
 import { collectTrackedFiles } from '../core/context-files.js';
 import { hashTrackedFiles } from '../utils/hash.js';
 import { classifyDrift } from '../core/check.js';
@@ -50,6 +50,8 @@ export async function runLlmVerification(
 
   // Determine if LLM should be skipped
   if (!provider) {
+    // Reviewer unreachable — commit hash (structural approve) but flag as unverified
+    await commitApproval(graph.rootPath, result);
     return {
       ...result,
       llmSkipped: 'unavailable',
@@ -123,6 +125,9 @@ export async function runLlmVerification(
     };
   }
 
+  // LLM passed — commit drift state
+  await commitApproval(graph.rootPath, result);
+
   return {
     ...result,
     aspectResults,
@@ -131,32 +136,22 @@ export async function runLlmVerification(
 
 // ── Output formatting ────────────────────────────────────────
 
-function shortHash(h: string): string {
-  return h.slice(0, 8);
-}
 
 export function formatResult(nodePath: string, result: LlmApproveResult): void {
-  const prev = result.previousHash ? shortHash(result.previousHash) : '(none)';
-  const curr = result.currentHash ? shortHash(result.currentHash) : '(none)';
-
   switch (result.action) {
-    case 'approved':
-      process.stdout.write(chalk.green(`Approved: ${nodePath}\n`));
-      process.stdout.write(`  Hash: ${prev} -> ${curr}\n`);
-      if (result.aspectResults) {
-        const aspectCount = Object.keys(result.aspectResults).length;
-        process.stdout.write(`  Verified: ${aspectCount} aspects satisfied.\n`);
-      }
+    case 'approved': {
+      const aspectCount = result.aspectResults ? Object.keys(result.aspectResults).length : 0;
+      const suffix = aspectCount > 0 ? ` — ${aspectCount} aspects satisfied.` : '';
+      process.stdout.write(chalk.green(`Approved: ${nodePath}${suffix}\n`));
       break;
+    }
 
     case 'initial':
       process.stdout.write(chalk.green(`Approved: ${nodePath} (initial)\n`));
-      process.stdout.write(`  Hash: (none) -> ${curr}\n`);
       break;
 
     case 'no-change':
       process.stdout.write(`No changes: ${nodePath}\n`);
-      process.stdout.write(`  Hash: ${curr} — baseline already current. No approval needed.\n`);
       break;
 
     case 'refused':
@@ -184,8 +179,14 @@ function formatLlmResults(result: LlmApproveResult): void {
   }
 
   if (result.aspectResults) {
+    const entries = Object.entries(result.aspectResults);
+    const unsatisfied = entries.filter(([, r]) => !r.satisfied);
+    if (unsatisfied.length === 0) {
+      // All satisfied — summary already printed by formatResult
+      return;
+    }
     process.stdout.write('\nAspect verification:\n');
-    for (const [aspectId, aspectResult] of Object.entries(result.aspectResults)) {
+    for (const [aspectId, aspectResult] of entries) {
       if (aspectResult.satisfied) {
         process.stdout.write(chalk.green(`  ${aspectId} — SATISFIED\n`));
       } else {
@@ -198,14 +199,11 @@ function formatLlmResults(result: LlmApproveResult): void {
 }
 
 function formatRefused(nodePath: string, result: LlmApproveResult): void {
-  // LLM reviewer refused
+  // LLM reviewer refused — details printed by formatLlmResults
   if (result.aspectViolations && result.aspectViolations.length > 0) {
     process.stderr.write(
       chalk.red(`ERROR: Reviewer found aspect violations.\n`),
     );
-    for (const v of result.aspectViolations) {
-      process.stderr.write(`  ${v.aspectId}: ${v.reason}\n`);
-    }
     process.stderr.write(
       `  Fix the violations and re-run: yg approve --node ${nodePath}\n`,
     );

@@ -1,0 +1,9 @@
+name: API
+type: service
+description: "HTTP endpoint handling incoming order requests"
+aspects: []
+relations:
+  - target: payments
+    type: calls
+mapping:
+  - src/api.ts

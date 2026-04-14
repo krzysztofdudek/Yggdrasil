@@ -1,0 +1,16 @@
+{
+  "hash": "5d3daea9530796be3df3e07a7da42a3390cad871b7fa0b2d25c10dec219f39df",
+  "files": {
+    "own-subset:payments": "71bb8989027816e44f27f641238826dfff2f9209e95323f5fe567360ba0f2317",
+    ".yggdrasil/aspects/requires-audit/yg-aspect.yaml": "e6b98357ce5df688dcc4f7679125b36e37cf0a14ed49bfd20ab4d6680ee6a807",
+    ".yggdrasil/aspects/requires-audit/content.md": "365d3b07531dc6ca31bdbf832743c5b48e1cd47a85fbe167f4967b0b9982c3ed",
+    "src/payments.ts": "b06d60ef769ee357b3337ddb26fab2924460224c5e4785fbfa3a7e3d10856038",
+    "src/audit.ts": "150f7f8a73a427a97b0011d6261f0afe7c6d83cc2f626133cb858d16830860c8"
+  },
+  "mtimes": {
+    ".yggdrasil/aspects/requires-audit/yg-aspect.yaml": 1776165713082.442,
+    ".yggdrasil/aspects/requires-audit/content.md": 1776165716764.1453,
+    "src/payments.ts": 1776165732814.4453,
+    "src/audit.ts": 1776165734371.8335
+  }
+}

@@ -60,7 +60,7 @@ Because a flat file with 200 rules dumps everything into every prompt. The agent
 
 Yggdrasil scopes rules to where they matter. `yg context --file <path>` shows only the aspects that apply to that specific file. Instead of 200 rules, the agent sees 3-5 that are actually relevant.
 
-And when you change a rule, every file that should satisfy it gets flagged for re-approval automatically. Aspects reach files through five channels: directly on a node, by node type, through hierarchy, via port contracts, and through business process flows. One rule can cover dozens of files, and changing it triggers cascading re-verification everywhere.
+And when you change a rule, every file that should satisfy it gets flagged for re-approval automatically. One rule can cover dozens of files, and changing it triggers re-verification everywhere it applies.
 
 ## Getting started
 
@@ -114,9 +114,18 @@ Those tools help agents find more code. Yggdrasil enforces constraints that don'
 **Does the agent actually follow the rules?**
 `yg check` runs in CI and compares file hashes. No LLM calls, pure hash comparison. If source files changed without being approved, check fails. Locally, the agent runs `yg approve` which triggers the reviewer (LLM) to verify aspects against source code. If a PR has unapproved changes, CI catches it. You tell the agent to fix it: "resolve all yg check issues" and it runs approve, fixes violations, re-approves until check passes.
 
-## Real-world example
+**What if I want to stop using it?**
+Delete the `.yggdrasil/` directory and the rules file. Your project works exactly as before — no runtime dependencies, no build hooks, nothing left behind.
 
-This repository uses Yggdrasil on itself. Browse [`.yggdrasil/`](.yggdrasil/) to see a working graph on a real codebase — 54 nodes, 7 aspects, 7 flows, 100% file coverage.
+## Examples
+
+The [`examples/`](examples/) directory has two self-contained projects you can run
+immediately — one that passes and one with a deliberate violation for the reviewer
+to catch.
+
+This repository also uses Yggdrasil on itself. Browse [`.yggdrasil/`](.yggdrasil/)
+to see a working graph on a real codebase — 54 nodes, 7 aspects, 7 flows, 100%
+file coverage.
 
 ## Documentation
 

@@ -1,0 +1,9 @@
+name: Payments
+type: service
+description: "Processes charges and refunds"
+aspects:
+  - requires-audit
+relations: []
+mapping:
+  - src/payments.ts
+  - src/audit.ts

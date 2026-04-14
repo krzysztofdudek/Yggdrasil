@@ -196,7 +196,6 @@ describe.skipIf(!distExists)('CLI E2E', () => {
       );
       expect(approveStatus).toBe(0);
       expect(stdout).toMatch(/Approved: orders\/order-service/);
-      expect(stdout).toMatch(/Hash:/);
 
       // After approving, check should not show source-drift for this node
       const { stdout: checkOut } = run(['check'], tmpDir);

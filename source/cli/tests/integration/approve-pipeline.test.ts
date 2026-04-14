@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { cp, mkdtemp, rm, writeFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { loadGraph } from '../../src/core/graph-loader.js';
-import { approveNode } from '../../src/core/approve.js';
+import { approveNode, commitApproval } from '../../src/core/approve.js';
 import { writeNodeDriftState } from '../../src/io/drift-state-store.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -51,12 +51,15 @@ describe('approve-pipeline', () => {
 
     const graph = await loadGraph(root);
 
+    const yggRoot = path.join(root, '.yggdrasil');
+
     // Step 1: First approve — no baseline yet → initial
     const init = await approveNode(graph, nodePath);
     expect(init.action).toBe('initial');
     expect(init.previousHash).toBeUndefined();
     expect(init.currentHash).toBeTruthy();
     expect(init.currentHash.length).toBeGreaterThan(8);
+    await commitApproval(yggRoot, init);
 
     // Step 2: No changes → no-change
     const graph2 = await loadGraph(root);
@@ -75,6 +78,7 @@ describe('approve-pipeline', () => {
     expect(approved.changedSource!.length).toBeGreaterThan(0);
     expect(approved.previousHash).toBe(init.currentHash);
     expect(approved.currentHash).not.toBe(init.currentHash);
+    await commitApproval(yggRoot, approved);
 
     // Step 4: No more changes → no-change
     const graph4 = await loadGraph(root);
@@ -90,8 +94,11 @@ describe('approve-pipeline', () => {
     const graph = await loadGraph(root);
     const nodePath = 'orders/order-service';
 
+    const yggRoot = path.join(root, '.yggdrasil');
+
     // Establish baseline
-    await approveNode(graph, nodePath);
+    const baseline = await approveNode(graph, nodePath);
+    await commitApproval(yggRoot, baseline);
 
     // Modify source only → approved (binary model)
     const srcFile = path.join(root, 'src', 'orders', 'order.service.ts');
@@ -101,6 +108,7 @@ describe('approve-pipeline', () => {
     const approved = await approveNode(graph2, nodePath);
     expect(approved.action).toBe('approved');
     expect(approved.changedSource!.length).toBeGreaterThan(0);
+    await commitApproval(yggRoot, approved);
 
     // After approve, next run → no-change
     const graph3 = await loadGraph(root);
@@ -115,9 +123,11 @@ describe('approve-pipeline', () => {
     const nodePath = 'auth/auth-api';
     await clearNodeDriftState(root, nodePath);
 
+    const yggRoot = path.join(root, '.yggdrasil');
     const graph = await loadGraph(root);
     const init = await approveNode(graph, nodePath);
     expect(init.action).toBe('initial');
+    await commitApproval(yggRoot, init);
 
     // Modify source + aspect file
     const srcFile = path.join(root, 'src', 'auth', 'auth.controller.ts');
@@ -129,6 +139,7 @@ describe('approve-pipeline', () => {
     const graph2 = await loadGraph(root);
     const approved = await approveNode(graph2, nodePath);
     expect(approved.action).toBe('approved');
+    await commitApproval(yggRoot, approved);
 
     // All drift cleared
     const graph3 = await loadGraph(root);
@@ -155,6 +166,18 @@ describe('approve-pipeline', () => {
     await expect(approveNode(graph, 'does/not/exist')).rejects.toThrow(
       /does not exist/,
     );
+  });
+
+  it('commitApproval is no-op when no pending drift state', async () => {
+    const root = await setupProject();
+    cleanupPaths.push(root);
+    const yggRoot = path.join(root, '.yggdrasil');
+
+    // No pendingDriftState — should be a no-op
+    await commitApproval(yggRoot, {
+      action: 'no-change',
+      currentHash: 'abc',
+    });
   });
 
   it('GC removes orphaned drift state entries during approve', async () => {

@@ -50,6 +50,8 @@ export interface ApproveResult {
   changedSource?: string[];
   changedUpstream?: AnnotatedChange[];
   gcPaths?: string[];
+  /** Drift state to persist — caller writes after LLM verification passes */
+  pendingDriftState?: { nodePath: string; state: DriftNodeState };
 }
 
 /** Map: node-path → DriftNodeState. */

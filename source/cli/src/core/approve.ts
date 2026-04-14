@@ -58,7 +58,7 @@ export async function approveNode(
 
   // ── First approve (no baseline) ──────────────────────────
   if (!storedEntry) {
-    // First approve — record initial baseline
+    // First approve — compute hash, defer writing until LLM passes
     const trackedFiles = collectTrackedFiles(node, graph);
     const excludePrefixes = getChildMappingExclusions(graph, nodePath);
     const { canonicalHash, fileHashes, fileMtimes } = await hashTrackedFiles(
@@ -68,12 +68,6 @@ export async function approveNode(
       excludePrefixes,
     );
 
-    await writeNodeDriftState(graph.rootPath, nodePath, {
-      hash: canonicalHash,
-      files: fileHashes,
-      mtimes: fileMtimes,
-    });
-
     // GC orphaned drift state
     const gcPaths = await runGC(graph);
 
@@ -82,6 +76,10 @@ export async function approveNode(
       previousHash: undefined,
       currentHash: canonicalHash,
       gcPaths,
+      pendingDriftState: {
+        nodePath,
+        state: { hash: canonicalHash, files: fileHashes, mtimes: fileMtimes },
+      },
     };
   }
 
@@ -191,18 +189,12 @@ export async function approveNode(
     action = 'approved';
   }
 
-  // Record baseline if approved
-  if (action === 'approved') {
-    await writeNodeDriftState(graph.rootPath, nodePath, {
-      hash: canonicalHash,
-      files: fileHashes,
-      mtimes: fileMtimes,
-    });
-
-  }
-
   // GC orphaned drift state
   const gcPaths = await runGC(graph);
+
+  const pending = action === 'approved'
+    ? { nodePath, state: { hash: canonicalHash, files: fileHashes, mtimes: fileMtimes } }
+    : undefined;
 
   return {
     action,
@@ -211,6 +203,7 @@ export async function approveNode(
     changedSource: sourceChanged ? changedSource : undefined,
     changedUpstream: upstreamChanged ? changedUpstream : undefined,
     gcPaths,
+    pendingDriftState: pending,
   };
 }
 
@@ -244,6 +237,13 @@ function getChildMappingExclusions(graph: Graph, nodePath: string): string[] {
 async function runGC(graph: Graph): Promise<string[]> {
   const validPaths = new Set(graph.nodes.keys());
   return garbageCollectDriftState(graph.rootPath, validPaths);
+}
+
+/** Persist drift state after LLM verification passes */
+export async function commitApproval(yggRoot: string, result: ApproveResult): Promise<void> {
+  if (result.pendingDriftState) {
+    await writeNodeDriftState(yggRoot, result.pendingDriftState.nodePath, result.pendingDriftState.state);
+  }
 }
 
 /** Load source file contents from disk */
