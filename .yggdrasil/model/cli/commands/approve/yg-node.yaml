@@ -1,7 +1,6 @@
 name: Approve Command
 type: command
 description: CLI command implementing yg approve — orchestrates binary approve (core) and LLM verification (llm), formats output
-blackbox: false
 aspects: []
 relations:
   - target: cli/core/loader

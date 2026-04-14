@@ -1,7 +1,6 @@
 name: I/O Unit Tests
 type: test
 description: "Unit tests for I/O parsers: artifact-reader, aspect-parser, config-parser, drift-state-store, flow-parser, node-parser, schema-parser"
-blackbox: false
 aspects: []
 relations: []
 mapping:

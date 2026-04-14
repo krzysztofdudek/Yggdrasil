@@ -2,6 +2,5 @@ name: Docs
 type: module
 description: "Parent node for all Yggdrasil documentation: concept specs, adopter guides, and site infrastructure — children own all source mappings"
 aspects: []
-blackbox: false
 
 relations: []

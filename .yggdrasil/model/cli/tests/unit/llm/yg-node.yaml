@@ -1,7 +1,6 @@
 name: LLM Unit Tests
 type: test
 description: Unit tests for LLM provider factory and provider implementations
-blackbox: false
 aspects: []
 relations: []
 mapping:

@@ -1,7 +1,6 @@
 name: CLI Command Unit Tests
 type: test
 description: "Unit tests for thin CLI command wrappers: build-command, impact, owner, which"
-blackbox: false
 aspects: []
 relations: []
 mapping:

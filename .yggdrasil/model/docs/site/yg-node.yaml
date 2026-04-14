@@ -1,7 +1,6 @@
 name: Docs Site Config
 type: project
 description: "VitePress documentation site infrastructure: package manifests, static assets (logo, og-image), and public directory"
-blackbox: false
 aspects: []
 relations: []
 mapping:

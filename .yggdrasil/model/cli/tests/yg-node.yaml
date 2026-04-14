@@ -1,7 +1,6 @@
 name: CLI Tests
 type: module
 description: "Parent node for CLI test suites: unit, integration, e2e, and fixtures — children own all source mappings"
-blackbox: false
 
 aspects: []
 relations: []

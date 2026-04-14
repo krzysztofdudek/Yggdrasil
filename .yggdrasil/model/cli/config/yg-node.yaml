@@ -1,7 +1,6 @@
 name: CLI Config
 type: module
 description: "Parent node for CLI package configuration: build tooling, quality tooling, and package documentation — children own all source mappings"
-blackbox: false
 
 aspects: []
 relations: []

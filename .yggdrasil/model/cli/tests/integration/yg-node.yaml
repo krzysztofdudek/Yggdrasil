@@ -1,7 +1,6 @@
 name: Integration Tests
 type: test
 description: Pipeline integration tests that exercise multiple CLI layers together using real temp-copy fixture projects
-blackbox: false
 aspects: []
 relations: []
 mapping:

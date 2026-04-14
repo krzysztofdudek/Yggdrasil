@@ -1,7 +1,6 @@
 name: Operations Core Unit Tests
 type: test
 description: "Unit tests for core CLI operations: approve, check, impact, validator, effective-aspects, aspect-verifier, artifact-reviewer"
-blackbox: false
 aspects: []
 relations: []
 mapping:
