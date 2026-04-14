@@ -545,8 +545,8 @@ async function checkWideNodes(graph: Graph): Promise<ValidationIssue[]> {
       rule: 'wide-node',
       message: buildIssueMessage({
         what: `Node maps ${sourceFiles.length} source files (max: ${maxFiles}).`,
-        why: `Wide nodes are hard for agents to reason about and produce oversized context packages.`,
-        next: `Consider splitting into child nodes with focused responsibilities.`,
+        why: `Wide nodes degrade reviewer accuracy — the reviewer verifies aspects against all source files at once. Too many files dilute focus and cause false rejections.`,
+        next: `Split into child nodes with 2-5 source files each. Each child should map only the files relevant to its aspects.`,
       }),
       nodePath,
     });

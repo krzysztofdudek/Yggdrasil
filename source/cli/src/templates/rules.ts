@@ -102,6 +102,10 @@ You are not allowed to edit or create source code without establishing graph cov
 
 **Node sizing rule:** One node per cohesive feature area, NOT per directory. If a node would map >10 source files or cover >3 distinct user workflows, split it into child nodes.
 
+**Why sizing matters for enforcement:** The reviewer verifies aspects against ALL source files in a node. A node with too many files forces the reviewer to evaluate aspects across too much code — it may reject compliant code because it lacks focused context. Smaller nodes (2-5 source files) give the reviewer enough context to verify accurately. Design nodes so that every mapped file is relevant to every aspect on that node.
+
+**\`wide-node\` warning:** \`yg check\` emits a \`wide-node\` warning when a node with aspects maps more source files than \`quality.max_mapping_source_files\` (default: 10). This warning means: the reviewer WILL struggle with this node. Split it before running \`yg approve\` — otherwise expect false rejections.
+
 After the user chooses, return to Step 1 and follow Step 2a.
 
 ### Working from External Specifications
@@ -144,6 +148,19 @@ WRAP-UP (user signals "done", "wrap up", "that's enough"):
 - [ ] 5. Verify affected source files are consistent — update if needed
 - [ ] 6. Run \`yg approve\` for affected nodes
 
+### Architecture Ownership
+
+\`yg-architecture.yaml\` defines which node types exist, what each type means, and which relations are allowed between types. **Every change to this file requires user confirmation** — it defines the vocabulary and constraints for the entire graph.
+
+**On a new or empty repo:** Do NOT accept the defaults silently. Read \`yg-architecture.yaml\`, present the current types and relation rules to the user, and ask: "Does this type system fit your project, or should we adjust it?" The default types are starting points, not answers.
+
+**Before creating nodes with relations:** Read \`yg-architecture.yaml\` to check which relation types are allowed between the source and target node types. Do not guess — if the architecture does not allow \`service\` to call \`data\`, you cannot create that relation. The options are:
+1. Use an allowed relation type
+2. Ask the user whether to update the architecture (explain the constraint)
+3. Change the node type to one that allows the needed relation
+
+**Never silently modify \`yg-architecture.yaml\`.** If a relation is forbidden, do NOT add the target type to the allowed list without asking the user first. Present the constraint, explain the options, let the user decide.
+
 ### Delegating to Subagents
 
 When you delegate work to a subagent (any subprocess, tool agent, or spawned assistant), the subagent does NOT inherit your Yggdrasil knowledge. Before any other instruction, the subagent MUST:
@@ -181,7 +198,7 @@ const REFERENCE = `## REFERENCE
 
 Key facts:
 
-- **Hierarchy:** nodes nest in \`model/\`. Children inherit parent aspects. Parent aspects flow to children automatically.
+- **Hierarchy:** nodes nest in \`model/\`. Children inherit parent aspects. Parent aspects flow to children automatically. **Consequence:** before nesting nodes under a parent, check which aspects the parent has — every child must satisfy ALL of them. If an aspect applies to the parent but not to a specific child, either move the aspect to the children that need it, or make the child a top-level node instead.
 - **Aspect id = directory path** under \`aspects/\`. Each aspect has \`yg-aspect.yaml\` + content \`.md\` files. Content files contain enforcement rules checked by the reviewer. No automatic parent-child — use \`implies\` explicitly.
 - **Flows = business processes.** A flow describes what happens in the world, not code sequences. Flow aspects propagate to all participants.
 - **Nodes = \`yg-node.yaml\` only.** Name, type, description, mapping, relations, aspects, ports. No \`.md\` files in nodes.
@@ -337,7 +354,14 @@ Always run the command without \`| grep\`, \`| head\`, \`| tail\`, or any filter
 
 Always batch at most 3-5 nodes per approve invocation. This is a maximum, not a suggestion.
 
-**False positives:** If reviewer rejects compliant code, fix the aspect content.md (make the rule clearer). The escape hatch is improving the rule, not bypassing enforcement.`;
+**When reviewer rejects — decision tree:**
+
+1. **Code violates aspect** → fix the code. This is the common case.
+2. **Code is compliant but aspect wording is ambiguous** → fix the aspect content.md to be clearer. The escape hatch is improving the rule, not bypassing enforcement.
+3. **Reviewer cannot verify because node has too many files** → the reviewer sees all source files in the node. If the node is too large, the reviewer lacks focused context. Split the node into smaller nodes so each has 2-5 source files with the relevant aspects. Never remove aspects to make approve pass — that disables enforcement.
+4. **Aspect applies to this node but not to all its files** → the aspect may be too broad for this node. Either split the node (files that need the aspect vs. files that don't), or refine the aspect content.md to scope which files it applies to.
+
+**Never remove an aspect from a node to bypass a rejection.** If approve fails, the fix is in the code, the aspect wording, or the node structure — not in removing enforcement.`;
 
 // prettier-ignore
 const GUARD_RAILS = `## GUARD RAILS
@@ -381,6 +405,7 @@ What matters is the ACTION you are performing, not what instructed it. If the ac
 - **Read schemas before creating** any \`yg-node.yaml\`, \`yg-aspect.yaml\`, or \`yg-flow.yaml\`.
 - **Tools read, you write.** The \`yg\` CLI only reads, validates, and manages metadata. You create and edit files manually.
 - **Incremental approval.** Run \`yg approve\` per node after every 3-5 source file changes. Do not defer to end of task.
+- **Never defer approval.** When you finish modifying code, approve immediately. Do not say "I'll approve later" or leave drift for the next session. Approval is part of the change — the change is not done until approve passes.
 - **Description maintenance.** Every \`yg-node.yaml\`, \`yg-aspect.yaml\`, and \`yg-flow.yaml\` has a \`description\` field. Write it when creating new elements. Update it when the element's identity or purpose changes.
 
 ### Aspect Discovery During Implementation

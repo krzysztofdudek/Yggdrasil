@@ -18,9 +18,6 @@ import type { LlmProvider } from '../llm/types.js';
 import type { ApproveResult, AspectVerificationResult } from '../model/drift.js';
 import type { Graph } from '../model/graph.js';
 
-// Track cloud provider notice per process session
-let sessionNoticeShown = false;
-
 /** Extended result that includes LLM verification data (tracked in CLI layer, not in core) */
 export interface LlmApproveResult extends ApproveResult {
   /** LLM aspect verification results */
@@ -293,7 +290,7 @@ export function formatBatchOutput(results: BatchResult[]): void {
 
 async function loadLlmProvider(
   graph: { rootPath: string; config: { llm?: import('../model/graph.js').LlmConfig } },
-): Promise<{ provider: LlmProvider | undefined; maxTokens: number | undefined; consensus: number | undefined; cloudNotice: string | undefined }> {
+): Promise<{ provider: LlmProvider | undefined; maxTokens: number | undefined; consensus: number | undefined }> {
   const llmConfig = graph.config.llm;
   if (!llmConfig) {
     throw new Error('No reviewer configured. Add a reviewer section to yg-config.yaml or run yg init to set one up.');
@@ -304,20 +301,14 @@ async function loadLlmProvider(
   const provider = createLlmProvider(mergedConfig);
 
   if (!(await provider.isAvailable())) {
-    return { provider: undefined, maxTokens: undefined, consensus: undefined, cloudNotice: undefined };
-  }
-
-  let cloudNotice: string | undefined;
-  if (mergedConfig.provider !== 'ollama' && !sessionNoticeShown) {
-    cloudNotice = `Source files will be sent to ${mergedConfig.provider} for verification. Use a local provider (ollama) to keep code private.`;
-    sessionNoticeShown = true;
+    return { provider: undefined, maxTokens: undefined, consensus: undefined };
   }
 
   const maxTokens = mergedConfig.max_tokens === 'auto'
     ? (await provider.getContextWindowSize() ?? 8192)
     : (mergedConfig.max_tokens as number);
 
-  return { provider, maxTokens, consensus: mergedConfig.consensus, cloudNotice };
+  return { provider, maxTokens, consensus: mergedConfig.consensus };
 }
 
 // ── Batch approve orchestrator ───────────────────────────────
@@ -335,10 +326,7 @@ async function runBatchApprove(
     return true;
   }
 
-  const { provider, maxTokens, consensus, cloudNotice } = await loadLlmProvider(graph);
-  if (cloudNotice) {
-    process.stdout.write(chalk.yellow(`Notice: ${cloudNotice}\n`));
-  }
+  const { provider, maxTokens, consensus } = await loadLlmProvider(graph);
 
   const parallel = graph.config.parallel ?? 1;
   const sorted = matchedNodes.sort();
@@ -446,10 +434,7 @@ export function registerApproveCommand(program: Command): void {
         if (options.node && options.node.length > 1) {
           const parallel = graph.config.parallel ?? 1;
           const nodePaths = options.node.map(n => n.trim().replace(/\/$/, ''));
-          const { provider, maxTokens, consensus, cloudNotice } = await loadLlmProvider(graph);
-          if (cloudNotice) {
-            process.stdout.write(chalk.yellow(`Notice: ${cloudNotice}\n`));
-          }
+          const { provider, maxTokens, consensus } = await loadLlmProvider(graph);
           if (parallel > 1) {
             process.stdout.write(`Approving ${nodePaths.length} nodes (parallel: ${parallel})...\n\n`);
           } else {
@@ -484,10 +469,7 @@ export function registerApproveCommand(program: Command): void {
         }
 
         // Has mapping — single node approve
-        const { provider, maxTokens, consensus, cloudNotice } = await loadLlmProvider(graph);
-        if (cloudNotice) {
-          process.stdout.write(chalk.yellow(`Notice: ${cloudNotice}\n`));
-        }
+        const { provider, maxTokens, consensus } = await loadLlmProvider(graph);
         if (provider) {
           process.stdout.write(chalk.dim(`Verifying aspects with reviewer — this may take a while. Do not interrupt.\n`));
         }

@@ -7,6 +7,7 @@ version: "4.0.0"                  # managed by CLI — do not edit manually. Tra
 
 quality:                          # optional — quality thresholds
   max_direct_relations: 10        #   maximum outgoing relations per node (warning if above)
+  max_mapping_source_files: 10    #   maximum source files per node (warning if above, for nodes with aspects)
 
 parallel: 1                       # optional — concurrency limit for batch approve (positive integer, default: 1)
 

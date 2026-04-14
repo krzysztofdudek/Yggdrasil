@@ -2,27 +2,26 @@
 # Located at .yggdrasil/yg-config.yaml — one per project.
 # Edit this after running yg init to describe your project.
 
-version:
-  "4.0.0" # managed by CLI — do not edit manually. Tracks the CLI version
-  # that last initialized or upgraded this config.
+version: "4.0.0"                  # managed by CLI — do not edit manually. Tracks the CLI version
+                                  # that last initialized or upgraded this config.
 
-quality: # optional — quality thresholds
-  max_direct_relations: 10 #   maximum outgoing relations per node (warning if above)
+quality:                          # optional — quality thresholds
+  max_direct_relations: 10        #   maximum outgoing relations per node (warning if above)
+  max_mapping_source_files: 10    #   maximum source files per node (warning if above, for nodes with aspects)
 
-parallel: 1 # optional — concurrency limit for batch approve (positive integer, default: 1)
+parallel: 1                       # optional — concurrency limit for batch approve (positive integer, default: 1)
 
-debug:
-  false # optional — when true, appends all command output to .yggdrasil/.debug.log
-  # Default: false (off). Log is append-only; rotate or delete manually.
+debug: false                      # optional — when true, appends all command output to .yggdrasil/.debug.log
+                                  # Default: false (off). Log is append-only; rotate or delete manually.
 
-reviewer: # optional — semantic verification during yg approve
-  active: ollama #   required when multiple providers configured
-  consensus: 1 #   positive odd integer >= 1 (3+ for majority vote)
-  ollama: #   provider-specific config
-    model: "qwen3.5:9b" #     model ID
-    endpoint: "http://localhost:11434" #   custom endpoint
-    temperature: 0 #     reduces variability — keep at 0
-    max_tokens: auto #     auto = query provider, or explicit number
-    context_length_field: "" #     ollama model_info key for context window size
-  claude-code: #   alternative provider — uses claude CLI subprocess
-    model: haiku #     haiku, sonnet, or opus
+reviewer:                         # required — aspect verification during yg approve
+  active: ollama                  #   required when multiple providers configured
+  consensus: 1                    #   positive odd integer >= 1 (3+ for majority vote)
+  ollama:                         #   provider-specific config
+    model: "qwen3.5:9b"          #     model ID
+    endpoint: "http://localhost:11434"  #   custom endpoint
+    temperature: 0                #     reduces variability — keep at 0
+    max_tokens: auto              #     auto = query provider, or explicit number
+    context_length_field: ""      #     ollama model_info key for context window size
+  claude-code:                    #   alternative provider — uses claude CLI subprocess
+    model: haiku                  #     haiku, sonnet, or opus
