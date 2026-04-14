@@ -4,7 +4,7 @@
 
 # Yggdrasil
 
-**AI agents ignore your architecture rules. This enforces them.**
+**Continuous verification for AI-generated code.**
 
 [![CI](https://github.com/krzysztofdudek/Yggdrasil/actions/workflows/ci.yml/badge.svg)](https://github.com/krzysztofdudek/Yggdrasil/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/@chrisdudek/yg.svg)](https://www.npmjs.com/package/@chrisdudek/yg)
@@ -17,50 +17,36 @@
 
 ## The problem
 
-You wrote 200 lines of rules in CLAUDE.md or .cursorrules. Your agent applies maybe 70% of them. The rest it "optimizes away" because it decided they're noise.
+You wrote 200 lines of rules in CLAUDE.md or .cursorrules. Your agent applies maybe 70% of them. The rest it "optimizes away" because it decided they're noise. You tell it again, it does better for a while. Next session, same thing.
 
-You tell it again. It does better for a while. Next session, same thing.
+Tests pass. Lint passes. The code compiles. But the agent skipped audit logging on a payment mutation, called a service it shouldn't from that layer, used `Date.now()` in a module that must be deterministic.
 
-Tests pass. Lint passes. The code compiles. But the agent skipped audit logging on a payment mutation, called a service it shouldn't call from that layer, and used `Date.now()` in a module that must be deterministic. You catch it in review. Or you don't.
+You find out when you review a PR with 50 changed files. Or you don't.
 
-The real issue is simple: a rules file is a suggestion. There are no consequences for ignoring it.
+A rules file is a suggestion. There are no consequences for ignoring it, and no feedback until it's too late.
 
 ## What Yggdrasil does
 
-It turns suggestions into requirements that get mechanically verified.
+You write rules in plain Markdown. "Every public endpoint must use rate limiting." "All command handlers must validate input with zod." "No direct database access from this layer." These are called **aspects**.
 
-You write architectural rules as **aspects** in plain Markdown. Things like "every public endpoint must use rate limiting" or "no direct database access from this layer." The agent manages the graph structure, you control what's enforced.
-
-The agent runs `yg approve` after writing code, which triggers a reviewer (an LLM call) that reads source files and checks them against every applicable aspect. If the code doesn't satisfy a rule, the approval fails and the agent has to fix it.
-
-The reviewer is configured during `yg init` — the wizard sets up the LLM provider (Anthropic, OpenAI, Google, Ollama, or others) and validates the connection.
-
-You run `yg check` to see if everything is clean. In CI, as a pre-commit hook, whenever you want. If check doesn't pass, you tell the agent to fix it.
+Every time the agent writes code, it runs `yg approve`. A reviewer LLM reads the source files and checks them against every rule that applies. If something doesn't pass, the agent gets specific feedback, fixes it, and re-verifies. This happens while the agent is working, not when you're reviewing a PR.
 
 ```
-yg check   →  "source files changed since last approve"
-           →  agent runs yg approve
-           →  reviewer checks aspects vs source code
-           →  aspect-violation: rate-limiting not satisfied
-           →  agent fixes code, re-runs approve
-           →  yg check passes
+agent writes code
+  → yg approve sends code + rules to reviewer
+  → reviewer: "audit logging missing in charge()"
+  → agent fixes, re-runs approve
+  → all rules satisfied
+  → yg check in CI: PASS
 ```
 
-## How it works
+Rules are scoped. The agent sees only the 3-5 rules relevant to the file it's working on, not all 200. One rule can cover dozens of files. Change a rule, every file that should satisfy it gets flagged for re-verification.
 
-1. You define rules as Markdown files called **aspects** — "every mutation must emit audit events," "no direct DB calls from this layer."
-2. The agent maps them to parts of your codebase and manages the graph structure.
-3. After writing code, the agent runs `yg approve`, which sends source files + rules to a reviewer LLM.
-4. If the code violates a rule, approval fails and the agent must fix it before moving on.
-5. `yg check` in CI verifies everything was approved — pure hash comparison, no LLM calls, instant.
+## Works on any codebase
 
-## Why not just a bigger rules file
+**New project:** define rules before writing code. The agent builds the graph structure as it implements features. Every new file is verified from the start.
 
-Because a flat file with 200 rules dumps everything into every prompt. The agent filters what it thinks matters and skips the rest.
-
-Yggdrasil scopes rules to where they matter. `yg context --file <path>` shows only the aspects that apply to that specific file. Instead of 200 rules, the agent sees 3-5 that are actually relevant.
-
-And when you change a rule, every file that should satisfy it gets flagged for re-approval automatically. One rule can cover dozens of files, and changing it triggers re-verification everywhere it applies.
+**Existing project:** map the areas you're actively working on. Everything else stays unmapped until you need it. Coverage grows as you work, not as a day-one setup cost.
 
 ## Getting started
 
@@ -72,64 +58,63 @@ cd your-project
 yg init
 ```
 
-The wizard walks you through platform selection and reviewer setup. It fetches available models from your provider, validates the connection, and writes the config for you.
+The wizard walks you through platform selection and reviewer setup.
 
-**2. Start working.**
-
-The graph doesn't build itself automatically, and that's intentional. Architecture is coarse-grained, not a 1:1 mirror of your file tree. The agent builds it incrementally as you work.
-
-You tell the agent what matters, and it creates the graph structure:
+**2. Tell the agent what matters.**
 
 ```
 You:    "All payment operations must emit audit events."
-Agent:  Creates aspect requires-audit with content.md rules,
-        applies it to payment nodes.
+Agent:  Creates rule, applies it to payment code.
 
-You:    "Map the orders module."
-Agent:  Creates node orders/order-service with mapping and aspects.
+You:    "All API endpoints must validate input with zod."
+Agent:  Creates rule, applies it to endpoint handlers.
 ```
 
-On an existing codebase, the agent starts by mapping the areas you're actively working on. Parts you're not touching stay unmapped until you need them. Coverage grows organically as you work, not as a one-time setup cost.
+The agent manages the structure. Which rules apply where, which files are mapped, how components relate. You say what should be enforced.
 
-**3. Enforce.**
+**3. Work normally.**
 
-Run `yg check` in CI or as a pre-commit hook. If it fails, tell the agent to fix it.
+The agent verifies its own code as it works. When it violates a rule, it gets feedback and fixes it.
+
+**4. Enforce in CI.**
+
+```yaml
+- run: npx @chrisdudek/yg check
+```
+
+No LLM calls in CI. Pure hash comparison. If code changed without being verified, it fails.
 
 ## Supported platforms
 
 Works with any AI coding agent. `yg init` sets up the rules file your agent expects.
 
-**Agent platforms:** Cursor · Claude Code · GitHub Copilot · Codex · Cline · RooCode · Windsurf · Aider · Gemini CLI · Amp · OpenCode
+**Agent platforms:** Cursor, Claude Code, GitHub Copilot, Codex, Cline, RooCode, Windsurf, Aider, Gemini CLI, Amp, OpenCode
 
-**Reviewer providers:** The reviewer that verifies aspects can run through API (Anthropic, OpenAI, Google, OpenAI-compatible, Ollama) or through agent CLI (Claude Code, Codex, Gemini CLI).
+**Reviewer providers:** API (Anthropic, OpenAI, Google, OpenAI-compatible, Ollama) or agent CLI (Claude Code, Codex, Gemini CLI).
 
 ## FAQ
 
 **How is this different from CLAUDE.md or .cursorrules?**
-Rules files are flat text dumped into every prompt. They don't scope rules to where they matter and they don't verify anything. Yggdrasil delivers only relevant rules per file and then mechanically checks compliance.
+Rules files are flat text dumped into every prompt. No scoping, no verification. Yggdrasil delivers only the rules relevant to each file and checks compliance after every change.
 
-**How is this different from RAG or Tree-sitter tools?**
-Those tools help agents find more code. Yggdrasil enforces constraints that don't exist in code and never will. "Rate limiting required" isn't in any AST. "No direct DB access from this layer" isn't in any embedding.
+**How is this different from linters?**
+Linters check syntax and patterns. "Rate limiting required" isn't a lint rule. "No direct DB access from this layer" isn't in any AST. "All mutations must emit audit events" can't be checked with regex. Yggdrasil enforces rules that only exist in your head until you write them down.
 
-**Does the agent actually follow the rules?**
-`yg check` runs in CI and compares file hashes. No LLM calls, pure hash comparison. If source files changed without being approved, check fails. Locally, the agent runs `yg approve` which triggers the reviewer (LLM) to verify aspects against source code. If a PR has unapproved changes, CI catches it. You tell the agent to fix it: "resolve all yg check issues" and it runs approve, fixes violations, re-approves until check passes.
+**Does it work?**
+`yg check` in CI compares file hashes. No LLM calls, pure hash comparison. If source files changed without being verified, check fails. Locally, `yg approve` sends code to the reviewer LLM. If a PR has unverified changes, CI catches it.
 
-**What if I want to stop using it?**
-Delete the `.yggdrasil/` directory and the rules file. Your project works exactly as before — no runtime dependencies, no build hooks, nothing left behind.
+**What if I want to stop?**
+Delete `.yggdrasil/` and the rules file. No runtime dependencies, no build hooks, nothing left behind.
 
 ## Examples
 
-The [`examples/`](examples/) directory has two self-contained projects you can run
-immediately — one that passes and one with a deliberate violation for the reviewer
-to catch.
+[`examples/`](examples/) has two projects you can run. One passes, one has a deliberate violation for the reviewer to catch.
 
-This repository also uses Yggdrasil on itself. Browse [`.yggdrasil/`](.yggdrasil/)
-to see a working graph on a real codebase — 54 nodes, 7 aspects, 7 flows, 100%
-file coverage.
+This repo uses Yggdrasil on itself. Browse [`.yggdrasil/`](.yggdrasil/) for a real graph with 55 nodes, 7 aspects, 7 flows, 100% coverage.
 
-## Documentation
+## Docs
 
-Full specification: [https://krzysztofdudek.github.io/Yggdrasil/](https://krzysztofdudek.github.io/Yggdrasil/)
+[krzysztofdudek.github.io/Yggdrasil](https://krzysztofdudek.github.io/Yggdrasil/)
 
 ## License
 
@@ -144,5 +129,5 @@ MIT
     <img src="https://img.shields.io/badge/Discord-Join%20Community-5865F2?logo=discord&logoColor=white" alt="Discord" />
   </a>
   <br/>
-  <sub>Building something similar or have questions? Join the Discord.</sub>
+  <sub>Questions? Join the Discord.</sub>
 </div>
