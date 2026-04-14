@@ -88,6 +88,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`yg-architecture.yaml`** — separate file for node type definitions
   with default aspects and relation constraints per type. Created by
   `yg init` with 5 default types (module, service, library, infrastructure, data).
+- **v3→v4 migration.** `migrateTo4` transforms a v3 `.yggdrasil/`
+  directory: splits `node_types` to `yg-architecture.yaml`, flattens
+  node aspects and mapping, removes node/flow artifacts, strips aspect
+  `stability`, resets drift state. Warns about dropped aspect exceptions
+  and anchors.
 - **`consensus: N`** reviewer config — runs N review passes per aspect
   and requires majority agreement. Higher confidence, proportionally
   higher cost.

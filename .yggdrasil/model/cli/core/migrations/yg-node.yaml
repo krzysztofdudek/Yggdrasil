@@ -1,0 +1,11 @@
+name: Migrations
+type: engine
+description: "Version-specific migration implementations — transforms .yggdrasil/ directory structure between major versions"
+aspects:
+  - posix-paths
+relations:
+  - target: cli/core/migrator
+    type: uses
+mapping:
+  - source/cli/src/migrations/to-4.0.0.ts
+  - source/cli/src/migrations/index.ts
