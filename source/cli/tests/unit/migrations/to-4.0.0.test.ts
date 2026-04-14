@@ -236,6 +236,38 @@ aspects:
     expect(result.warnings.some((w) => w.includes('anchors') && w.includes('posix-paths'))).toBe(true);
   });
 
+  it('strips consumes, failure, and event_name from relations', async () => {
+    const root = await createV3Root();
+    await writeYaml(path.join(root, 'yg-config.yaml'), 'version: "3.0.0"\n');
+    const nodeDir = path.join(root, 'model', 'entry');
+    await makeDir(nodeDir);
+    await writeYaml(path.join(nodeDir, 'yg-node.yaml'), `
+name: Entry
+type: service
+relations:
+  - target: cli/commands/init
+    type: uses
+    consumes: [registerInitCommand]
+    failure: "retry 3x"
+  - target: events/bus
+    type: emits
+    event_name: OrderPlaced
+mapping:
+  paths:
+    - src/entry.ts
+`);
+
+    await migrateTo4(root);
+
+    const node = await readYaml(path.join(nodeDir, 'yg-node.yaml'));
+    const relations = node.relations as Array<Record<string, unknown>>;
+    expect(relations[0].consumes).toBeUndefined();
+    expect(relations[0].failure).toBeUndefined();
+    expect(relations[0].target).toBe('cli/commands/init');
+    expect(relations[0].type).toBe('uses');
+    expect(relations[1].event_name).toBeUndefined();
+  });
+
   it('preserves parallel if already set', async () => {
     const root = await createV3Root();
     await writeYaml(path.join(root, 'yg-config.yaml'), `

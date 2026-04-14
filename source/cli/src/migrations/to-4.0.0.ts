@@ -5,6 +5,10 @@ import type { MigrationResult } from '../core/migrator.js';
 
 const NODE_ARTIFACTS = ['responsibility.md', 'interface.md', 'internals.md'];
 
+function posix(p: string): string {
+  return p.trim().replace(/\\/g, '/').replace(/\/+$/, '');
+}
+
 export async function migrateTo4(yggRoot: string): Promise<MigrationResult> {
   const actions: string[] = [];
   const warnings: string[] = [];
@@ -113,7 +117,7 @@ async function processNodesRecursive(
 
     if (NODE_ARTIFACTS.includes(entry.name)) {
       await rm(fullPath);
-      actions.push(`Deleted node artifact: ${fullPath}`);
+      actions.push(`Deleted node artifact: ${posix(fullPath)}`);
     }
   }
 }
@@ -132,10 +136,10 @@ function flattenAspects(
       if (typeof obj.aspect === 'string') {
         result.push(obj.aspect);
         if (Array.isArray(obj.exceptions) && obj.exceptions.length > 0) {
-          warnings.push(`Dropped aspect exceptions for "${obj.aspect}" in ${nodePath}`);
+          warnings.push(`Dropped aspect exceptions for "${obj.aspect}" in ${posix(nodePath)}`);
         }
         if (Array.isArray(obj.anchors) && obj.anchors.length > 0) {
-          warnings.push(`Dropped aspect anchors for "${obj.aspect}" in ${nodePath}`);
+          warnings.push(`Dropped aspect anchors for "${obj.aspect}" in ${posix(nodePath)}`);
         }
       }
     }
@@ -176,9 +180,21 @@ async function rewriteNodeYaml(
     changed = true;
   }
 
+  // Strip v3 relation fields: consumes (now port-based) and failure
+  if (Array.isArray(node.relations)) {
+    for (const rel of node.relations) {
+      if (rel && typeof rel === 'object') {
+        const r = rel as Record<string, unknown>;
+        if ('consumes' in r) { delete r.consumes; changed = true; }
+        if ('failure' in r) { delete r.failure; changed = true; }
+        if ('event_name' in r) { delete r.event_name; changed = true; }
+      }
+    }
+  }
+
   if (changed) {
     await writeFile(filePath, stringifyYaml(node, { lineWidth: 0 }), 'utf-8');
-    actions.push(`Rewrote node: ${filePath}`);
+    actions.push(`Rewrote node: ${posix(filePath)}`);
   }
 }
 
@@ -193,7 +209,7 @@ async function processFlows(
     const descPath = path.join(dir, entry.name, 'description.md');
     try {
       await rm(descPath);
-      actions.push(`Deleted flow artifact: ${descPath}`);
+      actions.push(`Deleted flow artifact: ${posix(descPath)}`);
     } catch {
       // file doesn't exist, skip
     }
@@ -215,7 +231,7 @@ async function processAspects(
       if ('stability' in aspect) {
         delete aspect.stability;
         await writeFile(aspectPath, stringifyYaml(aspect, { lineWidth: 0 }), 'utf-8');
-        actions.push(`Removed stability from aspect: ${aspectPath}`);
+        actions.push(`Removed stability from aspect: ${posix(aspectPath)}`);
       }
     } catch {
       // file doesn't exist, skip
@@ -242,7 +258,7 @@ async function resetDriftStateRecursive(
       await resetDriftStateRecursive(fullPath, actions);
     } else if (entry.isFile() && entry.name.endsWith('.json')) {
       await rm(fullPath);
-      actions.push(`Deleted drift state: ${fullPath}`);
+      actions.push(`Deleted drift state: ${posix(fullPath)}`);
     }
   }
 }
