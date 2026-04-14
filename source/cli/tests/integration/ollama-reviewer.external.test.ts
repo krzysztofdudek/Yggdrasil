@@ -11,12 +11,6 @@ describe('Ollama integration (requires running Ollama)', () => {
       consensus: 1, max_tokens: 'auto',
     });
 
-    const available = await provider.isAvailable();
-    if (!available) {
-      console.log('Ollama not available, skipping integration test');
-      return;
-    }
-
     const prompt = `<task>
 You verify whether source code satisfies a requirement.
 
@@ -49,12 +43,6 @@ let y = 2;
       provider: 'ollama', model, endpoint, temperature: 0,
       consensus: 1, max_tokens: 'auto',
     });
-
-    const available = await provider.isAvailable();
-    if (!available) {
-      console.log('Ollama not available, skipping integration test');
-      return;
-    }
 
     const prompt = `<task>
 You verify whether source code satisfies a requirement.

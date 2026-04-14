@@ -227,12 +227,6 @@ export function formatOutput(result: CheckResult): string {
   if (errorCount === 0) {
     if (warningCount > 0) {
       lines.push(chalk.green(`Result: PASS`) + ` (0 errors, ${warningCount} warning${warningCount === 1 ? '' : 's'})`);
-      for (const w of warnings.slice(0, 3)) {
-        // Compact summary: first line of message truncated to 60 chars
-        const firstLine = w.message.split('\n')[0];
-        const summary = firstLine.length > 60 ? firstLine.slice(0, 57) + '...' : firstLine;
-        lines.push(`  ${w.code} ${w.nodePath ?? ''} — ${summary}`);
-      }
     } else {
       lines.push(chalk.green('Result: PASS') + ' (0 errors, 0 warnings)');
     }

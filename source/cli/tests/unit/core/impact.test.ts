@@ -5,7 +5,7 @@ import {
   collectDescendants,
   collectIndirectDependents,
 } from '../../../src/cli/impact.js';
-import { collectEffectiveAspectIds } from '../../../src/core/context-builder.js';
+import { computeEffectiveAspects } from '../../../src/core/effective-aspects.js';
 import type { Graph, GraphNode } from '../../../src/model/graph.js';
 
 function makeNode(nodePath: string, overrides: Partial<GraphNode> = {}): GraphNode {
@@ -187,7 +187,7 @@ describe('collectEffectiveAspectIds', () => {
     });
     const graph = makeGraph([node]);
     graph.aspects = [{ name: 'A', id: 'tag-a', artifacts: [] }];
-    const result = collectEffectiveAspectIds(graph, 'a');
+    const result = computeEffectiveAspects(graph.nodes.get('a')!, graph);
     expect([...result]).toEqual(['tag-a']);
   });
 
@@ -199,7 +199,7 @@ describe('collectEffectiveAspectIds', () => {
     parent.children = [child];
     const graph = makeGraph([parent, child]);
     graph.aspects = [{ name: 'P', id: 'tag-parent', artifacts: [] }];
-    const result = collectEffectiveAspectIds(graph, 'mod/svc');
+    const result = computeEffectiveAspects(graph.nodes.get('mod/svc')!, graph);
     expect([...result]).toContain('tag-parent');
   });
 
@@ -211,7 +211,7 @@ describe('collectEffectiveAspectIds', () => {
       name: 'F', path: 'f', nodes: ['a'],
       aspects: ['requires-saga'], artifacts: [],
     }];
-    const result = collectEffectiveAspectIds(graph, 'a');
+    const result = computeEffectiveAspects(graph.nodes.get('a')!, graph);
     expect([...result]).toContain('requires-saga');
   });
 
@@ -224,7 +224,7 @@ describe('collectEffectiveAspectIds', () => {
       { name: 'A', id: 'tag-a', implies: ['tag-b'], artifacts: [] },
       { name: 'B', id: 'tag-b', artifacts: [] },
     ];
-    const result = collectEffectiveAspectIds(graph, 'a');
+    const result = computeEffectiveAspects(graph.nodes.get('a')!, graph);
     expect([...result]).toContain('tag-a');
     expect([...result]).toContain('tag-b');
   });
@@ -239,7 +239,7 @@ describe('collectEffectiveAspectIds', () => {
       name: 'F', path: 'f', nodes: ['mod'],
       aspects: ['requires-saga'], artifacts: [],
     }];
-    const result = collectEffectiveAspectIds(graph, 'mod/svc');
+    const result = computeEffectiveAspects(graph.nodes.get('mod/svc')!, graph);
     expect([...result]).toContain('requires-saga');
   });
 
@@ -253,7 +253,7 @@ describe('collectEffectiveAspectIds', () => {
       { name: 'Audit', id: 'audit', implies: ['logging'], artifacts: [] },
       { name: 'Logging', id: 'logging', artifacts: [] },
     ];
-    const result = collectEffectiveAspectIds(graph, 'a');
+    const result = computeEffectiveAspects(graph.nodes.get('a')!, graph);
     expect([...result]).toContain('hipaa');
     expect([...result]).toContain('audit');
     expect([...result]).toContain('logging');
@@ -279,7 +279,7 @@ describe('collectEffectiveAspectIds', () => {
       name: 'F', path: 'f', nodes: ['mod/svc'],
       aspects: ['flow-aspect'], artifacts: [],
     }];
-    const result = collectEffectiveAspectIds(graph, 'mod/svc');
+    const result = computeEffectiveAspects(graph.nodes.get('mod/svc')!, graph);
     expect([...result]).toContain('own-aspect');
     expect([...result]).toContain('parent-aspect');
     expect([...result]).toContain('flow-aspect');
@@ -290,7 +290,7 @@ describe('collectEffectiveAspectIds', () => {
   it('returns empty set for node with no aspects, no hierarchy aspects, no flows', () => {
     const node = makeNode('isolated');
     const graph = makeGraph([node]);
-    const result = collectEffectiveAspectIds(graph, 'isolated');
+    const result = computeEffectiveAspects(graph.nodes.get('isolated')!, graph);
     expect(result.size).toBe(0);
   });
 
@@ -309,7 +309,7 @@ describe('collectEffectiveAspectIds', () => {
       name: 'F', path: 'f', nodes: ['mod/svc'],
       aspects: ['shared'], artifacts: [],
     }];
-    const result = collectEffectiveAspectIds(graph, 'mod/svc');
+    const result = computeEffectiveAspects(graph.nodes.get('mod/svc')!, graph);
     expect([...result]).toEqual(['shared']);
   });
 });
@@ -328,11 +328,11 @@ describe('co-aspect nodes detection', () => {
     const graph = makeGraph([a, b, c]);
     graph.aspects = [{ name: 'Audit', id: 'audit', artifacts: [] }];
 
-    const targetEffective = collectEffectiveAspectIds(graph, 'svc-a');
+    const targetEffective = computeEffectiveAspects(graph.nodes.get('svc-a')!, graph);
     const coAspectNodes: Array<{ path: string; shared: string[] }> = [];
     for (const [p] of graph.nodes) {
       if (p === 'svc-a') continue;
-      const nodeEffective = collectEffectiveAspectIds(graph, p);
+      const nodeEffective = computeEffectiveAspects(graph.nodes.get(p)!, graph);
       const shared = [...targetEffective].filter((id) => nodeEffective.has(id));
       if (shared.length > 0) {
         coAspectNodes.push({ path: p, shared });
@@ -356,10 +356,10 @@ describe('co-aspect nodes detection', () => {
       { name: 'Audit', id: 'audit', artifacts: [] },
     ];
 
-    const targetEffective = collectEffectiveAspectIds(graph, 'svc-a');
+    const targetEffective = computeEffectiveAspects(graph.nodes.get('svc-a')!, graph);
     expect(targetEffective.has('audit')).toBe(true);
 
-    const bEffective = collectEffectiveAspectIds(graph, 'svc-b');
+    const bEffective = computeEffectiveAspects(graph.nodes.get('svc-b')!, graph);
     const shared = [...targetEffective].filter((id) => bEffective.has(id));
     expect(shared).toContain('audit');
   });
@@ -376,8 +376,8 @@ describe('co-aspect nodes detection', () => {
       aspects: ['logging'], artifacts: [],
     }];
 
-    const aEffective = collectEffectiveAspectIds(graph, 'svc-a');
-    const bEffective = collectEffectiveAspectIds(graph, 'svc-b');
+    const aEffective = computeEffectiveAspects(graph.nodes.get('svc-a')!, graph);
+    const bEffective = computeEffectiveAspects(graph.nodes.get('svc-b')!, graph);
     const shared = [...aEffective].filter((id) => bEffective.has(id));
     expect(shared).toContain('logging');
   });

@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import { loadGraph } from '../core/graph-loader.js';
 import { initDebugLog } from '../utils/debug-log.js';
-import { collectEffectiveAspectIds } from '../core/context-builder.js';
+import { computeEffectiveAspects } from '../core/effective-aspects.js';
 import type { Graph } from '../model/graph.js';
 
 interface AspectUsage {
@@ -20,7 +20,7 @@ export function computeAspectUsage(graph: Graph): Map<string, AspectUsage> {
   }
 
   for (const [, node] of graph.nodes) {
-    const effective = collectEffectiveAspectIds(graph, node.path);
+    const effective = computeEffectiveAspects(node, graph);
     const ownAspects = new Set(node.meta.aspects ?? []);
     const flowAspects = new Set<string>();
     for (const flow of graph.flows) {

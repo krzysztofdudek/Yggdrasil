@@ -1,0 +1,17 @@
+name: LLM Providers
+type: adapter
+description: API and CLI provider implementations — each adapter translates a specific LLM backend into the common LlmProvider interface
+
+relations:
+  - target: cli/llm
+    type: uses
+
+mapping:
+  - source/cli/src/llm/anthropic.ts
+  - source/cli/src/llm/openai.ts
+  - source/cli/src/llm/google.ts
+  - source/cli/src/llm/ollama.ts
+  - source/cli/src/llm/cli-base.ts
+  - source/cli/src/llm/claude-code.ts
+  - source/cli/src/llm/codex.ts
+  - source/cli/src/llm/gemini-cli.ts

@@ -1,0 +1,32 @@
+{
+  "hash": "5032c5e0a936bcbb4cb4ae209cb6ca8e4d69ebb401de8a4b1c9cb5ec557b40d5",
+  "files": {
+    "own-subset:cli/llm/providers": "18c0b20426d190c95543ff8a5efc9221bca30865d81824cdf9582ec3e588e994",
+    ".yggdrasil/model/cli/yg-node.yaml": "4b493e4905484f8d7ed4cbc576aede514269ba0d7367cf1a9577297d830ee611",
+    ".yggdrasil/model/cli/llm/yg-node.yaml": "8e4fc1fbb1c68835ad685818543b322904254d5161e267b88e9e55ca37f4791e",
+    ".yggdrasil/aspects/diagnostic-logging/yg-aspect.yaml": "d2f92251b7ac3da65b1e00800a1839a14f7508c11905dc9089bf0b62d310ee2b",
+    ".yggdrasil/aspects/diagnostic-logging/content.md": "861da9ccecc91d8c08168ba10fb297a729158f272fe8da5c136fd6a7e997fb41",
+    "source/cli/src/llm/anthropic.ts": "8af1fb4fa1bc9292ff6d3c375715f19d45db81666b65704fa34407d578c36343",
+    "source/cli/src/llm/openai.ts": "9f37ca5ee9c288663a7e055ae93e6b158114961945ce720978b7ff333104ba30",
+    "source/cli/src/llm/google.ts": "b3787bfcf730515f8aa7fa679aa814054fe833b31e8a340ba0a6e545c72ea939",
+    "source/cli/src/llm/ollama.ts": "26a9e4ef9604aaee01b315209f17fd460c625a420fb0332b1e31c35cd5508fde",
+    "source/cli/src/llm/cli-base.ts": "59642aa60e80ce3f010f6bc9216a210f0ccf0127033a77a8ba19fba75ecb0ce7",
+    "source/cli/src/llm/claude-code.ts": "b24985c1e0547e208d617e7894d036f5558895bf102fd73015206a415b8bcee1",
+    "source/cli/src/llm/codex.ts": "cdb8f0acf6f797c6efa5f69a659eed1830f9c35a128d75fa72d26c12e5cf9771",
+    "source/cli/src/llm/gemini-cli.ts": "a13ad7858c81e040ab32a4a229e59c64e75cef38d9da600efd9ef95c931362b2"
+  },
+  "mtimes": {
+    ".yggdrasil/model/cli/yg-node.yaml": 1776082060141.5686,
+    ".yggdrasil/model/cli/llm/yg-node.yaml": 1776141039622.7668,
+    ".yggdrasil/aspects/diagnostic-logging/yg-aspect.yaml": 1775639646041.8462,
+    ".yggdrasil/aspects/diagnostic-logging/content.md": 1775639651576.1426,
+    "source/cli/src/llm/anthropic.ts": 1776087894764.2917,
+    "source/cli/src/llm/openai.ts": 1776087894766.434,
+    "source/cli/src/llm/google.ts": 1776087894767.4143,
+    "source/cli/src/llm/ollama.ts": 1776087927543.454,
+    "source/cli/src/llm/cli-base.ts": 1776087938764.5325,
+    "source/cli/src/llm/claude-code.ts": 1776019984333.2073,
+    "source/cli/src/llm/codex.ts": 1776020805244.191,
+    "source/cli/src/llm/gemini-cli.ts": 1776020809550.4104
+  }
+}

@@ -406,64 +406,6 @@ describe('approveNode — GC and recording', () => {
   });
 
 
-  it('appends audit log entry on approve', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('audit-approve', {
-      nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
-      mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
-    });
-    await recordBaseline(tmpDir);
-    // Change source → approve
-    await writeFile(path.join(tmpDir, 'src/svc/index.ts'), 'export default 99;\n');
-    const graph = await loadGraph(tmpDir);
-    const result = await approveNode(graph, 'svc/my-service');
-    expect(result.action).toBe('approved');
-
-    const { readFile: rf } = await import('node:fs/promises');
-    const logContent = await rf(path.join(yggRoot, '.audit-log.jsonl'), 'utf-8');
-    const lines = logContent.trim().split('\n');
-    // First entry = initial (from recordBaseline), second = this approve
-    const entry = JSON.parse(lines[lines.length - 1]);
-    expect(entry.node).toBe('svc/my-service');
-    expect(entry.action).toBe('approved');
-    expect(entry.prev).toBeDefined();
-    expect(entry.hash).toBeDefined();
-    expect(entry.prev).not.toBe(entry.hash);
-    expect(entry.reason).toBeNull();
-    expect(entry.files.length).toBeGreaterThan(0);
-    expect(entry.ts).toMatch(/^\d{4}-\d{2}-\d{2}T/);
-
-    await rm(tmpDir, { recursive: true, force: true });
-  });
-
-
-  it('appends audit log entry on initial approve', async () => {
-    const { tmpDir, yggRoot } = await createTmpProject('audit-initial', {
-      nodePath: 'svc/my-service',
-      nodeYaml: 'name: MyService\ntype: service\ndescription: test\nmapping:\n  - src/svc/\n',
-      mappingFiles: { 'src/svc/index.ts': 'export default 42;\n' },
-    });
-    // Don't call recordBaseline — first approve triggers initial path
-    const graph = await loadGraph(tmpDir);
-    const result = await approveNode(graph, 'svc/my-service');
-    expect(result.action).toBe('initial');
-
-    const { readFile: rf } = await import('node:fs/promises');
-    const logContent = await rf(path.join(yggRoot, '.audit-log.jsonl'), 'utf-8');
-    const lines = logContent.trim().split('\n');
-    expect(lines).toHaveLength(1);
-    const entry = JSON.parse(lines[0]);
-    expect(entry.node).toBe('svc/my-service');
-    expect(entry.action).toBe('initial');
-    expect(entry.prev).toBeNull();
-    expect(entry.hash).toBeDefined();
-    expect(entry.reason).toBeNull();
-    expect(entry.files).toEqual([]);
-
-    await rm(tmpDir, { recursive: true, force: true });
-  });
-
-
   it('garbage collects orphaned drift state on approve', async () => {
     const { tmpDir, yggRoot } = await createTmpProject('gc', {
       nodePath: 'svc/my-service',

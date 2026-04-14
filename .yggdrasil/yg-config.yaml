@@ -1,1 +1,12 @@
 version: "4.0.0"
+
+quality:
+  max_direct_relations: 10
+
+parallel: 10
+debug: true
+
+reviewer:
+  consensus: 1
+  claude-code:
+    model: sonnet

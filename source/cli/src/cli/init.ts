@@ -284,7 +284,7 @@ async function writeReviewerConfig(
   } catch (err) {
     const e = err as NodeJS.ErrnoException;
     if (e.code !== 'ENOENT') {
-      throw new Error(`Failed to parse ${configPath}: ${e.message}`);
+      throw new Error(`Failed to parse ${configPath}: ${e.message}`, { cause: err });
     }
   }
 
@@ -324,7 +324,7 @@ async function writeSecretsFile(
   } catch (err) {
     const e = err as NodeJS.ErrnoException;
     if (e.code !== 'ENOENT') {
-      throw new Error(`Failed to parse ${secretsPath}: ${e.message}`);
+      throw new Error(`Failed to parse ${secretsPath}: ${e.message}`, { cause: err });
     }
   }
 

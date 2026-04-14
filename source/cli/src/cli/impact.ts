@@ -2,10 +2,8 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import { loadGraph } from '../core/graph-loader.js';
 import { initDebugLog } from '../utils/debug-log.js';
-import {
-  collectAncestors,
-  collectEffectiveAspectIds,
-} from '../core/context-builder.js';
+import { collectAncestors } from '../core/context-builder.js';
+import { computeEffectiveAspects } from '../core/effective-aspects.js';
 import { findOwner } from './owner.js';
 import { projectRootFromGraph } from '../utils/paths.js';
 import type { Graph } from '../model/graph.js';
@@ -178,10 +176,9 @@ async function handleAspectImpact(
   }
 
   const affected: Array<{ path: string; source: string }> = [];
-  for (const [nodePath] of graph.nodes) {
-    const effective = collectEffectiveAspectIds(graph, nodePath);
+  for (const [nodePath, node] of graph.nodes) {
+    const effective = computeEffectiveAspects(node, graph);
     if (effective.has(aspectId)) {
-      const node = graph.nodes.get(nodePath)!;
       const ownAspectIds = new Set(node.meta.aspects ?? []);
       if (ownAspectIds.has(aspectId)) {
         affected.push({ path: nodePath, source: 'own' });
@@ -419,7 +416,7 @@ export function registerImpactCommand(program: Command): void {
             }
           }
 
-          const targetEffective = collectEffectiveAspectIds(graph, nodePath);
+          const targetEffective = computeEffectiveAspects(graph.nodes.get(nodePath)!, graph);
           const aspectsInScope: string[] = [];
           for (const aspect of graph.aspects) {
             if (targetEffective.has(aspect.id)) {
@@ -499,7 +496,7 @@ export function registerImpactCommand(program: Command): void {
           if (targetEffective.size > 0) {
             for (const [p] of graph.nodes) {
               if (p === nodePath) continue;
-              const nodeEffective = collectEffectiveAspectIds(graph, p);
+              const nodeEffective = computeEffectiveAspects(graph.nodes.get(p)!, graph);
               const shared = [...targetEffective].filter((id) => nodeEffective.has(id));
               if (shared.length > 0) {
                 coAspectNodes.push({ path: p, shared });

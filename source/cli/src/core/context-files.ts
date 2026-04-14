@@ -4,7 +4,7 @@ import type { Graph, GraphNode, FlowDef } from '../model/graph.js';
 import type { DriftCategory, TrackedFileLayer } from '../model/drift.js';
 import { normalizeMappingPaths } from '../utils/paths.js';
 import { collectAncestors } from './context-builder.js';
-import { computeEffectiveAspects, computeEffectiveAspectsForConsumer } from './effective-aspects.js';
+import { computeEffectiveAspects } from './effective-aspects.js';
 
 export interface TrackedFile {
   path: string;           // relative to project root
@@ -77,29 +77,9 @@ export function collectTrackedFiles(node: GraphNode, graph: Graph): TrackedFile[
     addFile(graphPath('model', ancestor.path, 'yg-node.yaml'), 'graph', 'hierarchy');
   }
 
-  // 3. ASPECTS — use computeEffectiveAspects for ALL aspects including architecture defaults
-  const ancestorTypes = ancestors.map(a => a.meta.type);
+  // 3. ASPECTS — use computeEffectiveAspects for ALL aspects from all 7 channels
   const participatingFlows = collectParticipatingFlows(graph, node, ancestors);
-  const flowAspects: string[] = [];
-  for (const flow of participatingFlows) {
-    for (const id of flow.aspects ?? []) {
-      flowAspects.push(id);
-    }
-  }
-
-  const effective = computeEffectiveAspects({
-    nodeType: node.meta.type,
-    architecture: graph.architecture,
-    parentTypes: ancestorTypes,
-    ownAspects: node.meta.aspects ?? [],
-    flowAspects,
-    allAspects: graph.aspects,
-    allFlows: graph.flows,
-  });
-
-  // Track aspect files for all effective aspects (including port-consumed)
-  const portAspectIds = computeEffectiveAspectsForConsumer(node, graph);
-  const allAspectIds = new Set([...effective.regular, ...portAspectIds]);
+  const allAspectIds = computeEffectiveAspects(node, graph);
 
   for (const aspectId of allAspectIds) {
     const aspect = graph.aspects.find(a => a.id === aspectId);

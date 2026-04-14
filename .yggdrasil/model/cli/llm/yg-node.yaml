@@ -1,10 +1,13 @@
-name: LLM Provider
+name: LLM Core
 type: adapter
-description: LLM integration layer — provider adapters and aspect verification
+description: LLM types, provider registry, and shared utilities
 aspects:
   - diagnostic-logging
 
 relations: []
 
 mapping:
-  - source/cli/src/llm/
+  - source/cli/src/llm/types.ts
+  - source/cli/src/llm/provider.ts
+  - source/cli/src/llm/index.ts
+  - source/cli/src/llm/api-utils.ts

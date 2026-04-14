@@ -14,7 +14,7 @@ import type {
 import type { NodeContextData } from '../formatters/context-node.js';
 import type { FileContextData } from '../formatters/context-file.js';
 import { normalizeMappingPaths } from '../utils/paths.js';
-import { computeEffectiveAspects } from './effective-aspects.js';
+import { computeEffectiveAspects, getAspectSource } from './effective-aspects.js';
 
 const STRUCTURAL_RELATION_TYPES = new Set(['uses', 'calls', 'extends', 'implements']);
 const EVENT_RELATION_TYPES = new Set(['emits', 'listens']);
@@ -23,40 +23,6 @@ function collectParticipatingFlows(graph: Graph, node: GraphNode): FlowDef[] {
   const paths = new Set<string>([node.path, ...collectAncestors(node).map((a) => a.path)]);
   return graph.flows.filter((f) => f.nodes.some((n) => paths.has(n)));
 }
-
-/** Expand aspect ids to include implied ids recursively. Returns unique list. */
-export function expandAspects(aspectIds: string[], aspects: AspectDef[]): string[] {
-  const idToAspect = new Map<string, AspectDef>();
-  for (const a of aspects) {
-    idToAspect.set(a.id, a);
-  }
-  const result: string[] = [];
-  const visited = new Set<string>();
-  const stack = new Set<string>();
-
-  function collect(id: string): void {
-    if (stack.has(id)) {
-      throw new Error(`Aspect implies cycle detected involving aspect '${id}'`);
-    }
-    if (visited.has(id)) return;
-    stack.add(id);
-    visited.add(id);
-    result.push(id);
-    const aspect = idToAspect.get(id);
-    if (aspect) {
-      for (const implied of aspect.implies ?? []) {
-        collect(implied);
-      }
-    }
-    stack.delete(id);
-  }
-
-  for (const id of aspectIds) {
-    collect(id);
-  }
-  return result;
-}
-
 
 
 // --- Layer builders (exported for testing) ---
@@ -77,10 +43,9 @@ export function buildHierarchyLayer(
     parts.push(`### yg-node.yaml\n${ancestor.nodeYamlRaw.trim()}`);
   }
   const content = parts.join('\n\n');
-  const nodeAspects = ancestor.meta.aspects ?? [];
-  const expanded = expandAspects(nodeAspects, graph.aspects);
+  const effectiveIds = computeEffectiveAspects(ancestor, graph);
   const attrs: Record<string, string> | undefined =
-    expanded.length > 0 ? { aspects: expanded.join(',') } : undefined;
+    effectiveIds.size > 0 ? { aspects: [...effectiveIds].join(',') } : undefined;
   return {
     type: 'hierarchy',
     label: `Module Context (${ancestor.path}/)`,
@@ -110,10 +75,9 @@ export async function buildOwnLayer(
   }
 
   const content = parts.join('\n\n');
-  const nodeAspects = node.meta.aspects ?? [];
-  const expanded = expandAspects(nodeAspects, graph.aspects);
+  const effectiveIds = computeEffectiveAspects(node, graph);
   const attrs: Record<string, string> | undefined =
-    expanded.length > 0 ? { aspects: expanded.join(',') } : undefined;
+    effectiveIds.size > 0 ? { aspects: [...effectiveIds].join(',') } : undefined;
   return {
     type: 'hierarchy',
     label: `Node: ${node.meta.name}`,
@@ -209,133 +173,16 @@ export function collectDependencyAncestors(
   const ancestors = collectAncestors(target);
 
   return ancestors.map((ancestor) => {
-    const nodeAspects = ancestor.meta.aspects ?? [];
-    const expanded = expandAspects(nodeAspects, graph.aspects);
+    const effectiveIds = computeEffectiveAspects(ancestor, graph);
     return {
       path: ancestor.path,
       name: ancestor.meta.name,
       type: ancestor.meta.type,
-      aspects: expanded,
+      aspects: [...effectiveIds],
     };
   });
 }
 
-
-/**
- * Determine the source(s) of an aspect for a node.
- * Returns a descriptive source string indicating where the aspect comes from.
- */
-export function determineAspectSource(
-  aspectId: string,
-  node: GraphNode,
-  graph: Graph,
-  allFlows: FlowDef[],
-  isIntegration: boolean,
-): string {
-  const sources: string[] = [];
-  const architecture = graph.architecture;
-
-  // Check if from architecture (node type constraints)
-  const nodeType = architecture.node_types[node.meta.type];
-  const architectureAspects = nodeType?.aspects ?? [];
-  if (architectureAspects.includes(aspectId)) {
-    sources.push(`architecture (type: ${node.meta.type})`);
-  }
-
-  // Check if from own declaration
-  const ownAspectIds = node.meta.aspects ?? [];
-  if (ownAspectIds.includes(aspectId)) {
-    sources.push('own declaration');
-  }
-
-  // Check if from port consumption
-  if (isIntegration && node.meta.relations) {
-    for (const relation of node.meta.relations) {
-      const target = graph.nodes.get(relation.target);
-      if (!target?.meta.ports || !relation.consumes) continue;
-      for (const portName of relation.consumes) {
-        const port = target.meta.ports[portName];
-        if (port?.aspects?.includes(aspectId)) {
-          sources.push(`port '${portName}' on '${relation.target}'`);
-        }
-      }
-    }
-  }
-
-  // Check if from parent inheritance
-  let ancestor = node.parent;
-  while (ancestor) {
-    const ancestorType = architecture.node_types[ancestor.meta.type];
-    const ancestorAspects = ancestorType?.aspects ?? [];
-    if (ancestorAspects.includes(aspectId)) {
-      sources.push(`inherited from parent (type: ${ancestor.meta.type})`);
-      break;
-    }
-    ancestor = ancestor.parent;
-  }
-
-  // Check if from flow participation
-  const ancestorPaths = new Set([node.path, ...collectAncestors(node).map((a) => a.path)]);
-  for (const flow of allFlows) {
-    if (flow.nodes.some((n) => ancestorPaths.has(n)) && flow.aspects?.includes(aspectId)) {
-      sources.push(`flow '${flow.path}'`);
-    }
-  }
-
-  // Check if from aspect implies chain
-  const aspect = graph.aspects.find((a) => a.id === aspectId);
-  if (aspect?.implies) {
-    // Try to find which aspect implies this one
-    for (const otherAspect of graph.aspects) {
-      if (otherAspect.implies?.includes(aspectId)) {
-        const implierInSources = sources.some((s) =>
-          s.includes(otherAspect.id) || s.includes(`'${otherAspect.id}'`),
-        );
-        if (implierInSources) {
-          sources.push(`implied by '${otherAspect.id}'`);
-          break;
-        }
-      }
-    }
-  }
-
-  return sources.length > 0 ? sources.join('; ') : 'unknown source';
-}
-
-function determineFallbackAspectSource(aspectId: string, node: GraphNode, graph: Graph): string {
-  const sources: string[] = [];
-
-  if ((node.meta.aspects ?? []).includes(aspectId)) {
-    sources.push('own declaration');
-  }
-
-  let ancestor = node.parent;
-  while (ancestor) {
-    if ((ancestor.meta.aspects ?? []).includes(aspectId)) {
-      sources.push(`inherited from parent (${ancestor.path})`);
-      break;
-    }
-    ancestor = ancestor.parent;
-  }
-
-  const ancestorPaths = new Set([node.path, ...collectAncestors(node).map((a) => a.path)]);
-  for (const flow of graph.flows) {
-    if (flow.nodes.some((n) => ancestorPaths.has(n)) && flow.aspects?.includes(aspectId)) {
-      sources.push(`flow '${flow.path}'`);
-    }
-  }
-
-  if (sources.length === 0) {
-    for (const otherAspect of graph.aspects) {
-      if (otherAspect.implies?.includes(aspectId)) {
-        sources.push(`implied by '${otherAspect.id}'`);
-        break;
-      }
-    }
-  }
-
-  return sources.length > 0 ? sources.join('; ') : 'unknown source';
-}
 
 /**
  * Compute how many nodes have a structural relation targeting nodePath.
@@ -356,32 +203,13 @@ export function buildNodeContextData(graph: Graph, nodePath: string): NodeContex
   if (!node) throw new Error(`Node not found: ${nodePath}`);
 
   const ancestors = collectAncestors(node);
-  const parentTypes = ancestors.map(a => a.meta.type);
-  const ownAspectIds = node.meta.aspects ?? [];
   const participatingFlows = collectParticipatingFlows(graph, node);
-  const flowAspects = participatingFlows.flatMap(f => f.aspects ?? []);
 
-  // Compute effective aspects
-  let effective: { regular: Set<string> };
-  if (graph.architecture) {
-    effective = computeEffectiveAspects({
-      nodeType: node.meta.type,
-      architecture: graph.architecture,
-      parentTypes,
-      ownAspects: ownAspectIds,
-      flowAspects,
-      allAspects: graph.aspects,
-      allFlows: graph.flows,
-    });
-  } else {
-    effective = { regular: collectEffectiveAspectIds(graph, nodePath) };
-  }
+  const effectiveAspectIds = computeEffectiveAspects(node, graph);
 
-  const aspects = Array.from(effective.regular).map(aspectId => {
+  const aspects = Array.from(effectiveAspectIds).map(aspectId => {
     const aspectDef = graph.aspects.find(a => a.id === aspectId);
-    const source = graph.architecture
-      ? determineAspectSource(aspectId, node, graph, graph.flows, false)
-      : determineFallbackAspectSource(aspectId, node, graph);
+    const source = getAspectSource(aspectId, node, graph);
     return {
       id: aspectId,
       name: aspectDef?.name ?? aspectId,
@@ -441,27 +269,10 @@ export function buildFileContextData(graph: Graph, filePath: string, ownerPath: 
   if (!node) throw new Error(`Node not found: ${ownerPath}`);
 
   const ancestors = collectAncestors(node);
-  const parentTypes = ancestors.map(a => a.meta.type);
-  const ownAspectIds = node.meta.aspects ?? [];
-  const participatingFlows = collectParticipatingFlows(graph, node);
-  const flowAspects = participatingFlows.flatMap(f => f.aspects ?? []);
 
-  let effective: { regular: Set<string> };
-  if (graph.architecture) {
-    effective = computeEffectiveAspects({
-      nodeType: node.meta.type,
-      architecture: graph.architecture,
-      parentTypes,
-      ownAspects: ownAspectIds,
-      flowAspects,
-      allAspects: graph.aspects,
-      allFlows: graph.flows,
-    });
-  } else {
-    effective = { regular: collectEffectiveAspectIds(graph, ownerPath) };
-  }
+  const effectiveAspectIds = computeEffectiveAspects(node, graph);
 
-  const aspects = Array.from(effective.regular).map(aspectId => {
+  const aspects = Array.from(effectiveAspectIds).map(aspectId => {
     const aspectDef = graph.aspects.find(a => a.id === aspectId);
     return {
       aspectId,
@@ -488,36 +299,4 @@ export function buildFileContextData(graph: Graph, filePath: string, ownerPath: 
     dependencies,
     dependentCount,
   };
-}
-
-/** Compute effective aspect ids for a node: own + hierarchy + flow + implies expanded. */
-export function collectEffectiveAspectIds(graph: Graph, nodePath: string): Set<string> {
-  const node = graph.nodes.get(nodePath);
-  if (!node) return new Set();
-
-  const raw = new Set<string>(node.meta.aspects ?? []);
-
-  // Hierarchy aspects
-  let ancestor = node.parent;
-  while (ancestor) {
-    for (const aspectId of ancestor.meta.aspects ?? []) raw.add(aspectId);
-    ancestor = ancestor.parent;
-  }
-
-  // Flow aspects (flows where node or ancestor participates)
-  const ancestorPaths = new Set([nodePath, ...collectAncestors(node).map((a) => a.path)]);
-  for (const flow of graph.flows) {
-    if (flow.nodes.some((n) => ancestorPaths.has(n))) {
-      for (const id of flow.aspects ?? []) raw.add(id);
-    }
-  }
-
-  // Architecture type aspects
-  if (graph.architecture) {
-    const typeDef = graph.architecture.node_types[node.meta.type];
-    for (const id of typeDef?.aspects ?? []) raw.add(id);
-  }
-
-  // Expand implies
-  return new Set(expandAspects([...raw], graph.aspects));
 }

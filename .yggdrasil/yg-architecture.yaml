@@ -1,3 +1,23 @@
 node_types:
   module:
-    description: "Business logic module"
+    description: "Grouping node — organizes children under shared domain responsibility"
+
+  command:
+    description: "CLI command handler — registers Commander subcommand and formats output"
+    aspects: [cli-command-contract]
+
+  engine:
+    description: "Core domain logic — algorithms, validation, assembly, detection"
+    aspects: [deterministic]
+
+  adapter:
+    description: "I/O boundary — parsers, persistence, LLM providers, formatters"
+
+  types:
+    description: "Pure type definitions — no runtime behavior, no executable code"
+
+  test:
+    description: "Test suite guarding system invariants"
+
+  project:
+    description: "Top-level project infrastructure — CI, documentation, configuration"

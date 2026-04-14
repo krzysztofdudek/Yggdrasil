@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { loadGraph } from '../../src/core/graph-loader.js';
 import { validate } from '../../src/core/validator.js';
-import { collectEffectiveAspectIds } from '../../src/core/context-builder.js';
+import { computeEffectiveAspects } from '../../src/core/effective-aspects.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE_PROJECT = path.join(__dirname, '../fixtures/sample-project');
@@ -76,14 +76,14 @@ describe('flow-support integration', () => {
     const graph = await loadGraph(FIXTURE_PROJECT);
     // checkout-flow has aspects: [requires-logging]
     // auth/auth-api is a participant → should get requires-logging
-    const effective = collectEffectiveAspectIds(graph, 'auth/auth-api');
+    const effective = computeEffectiveAspects(graph.nodes.get('auth/auth-api')!, graph);
     expect(effective.has('requires-logging')).toBe(true);
   });
 
   it('aspect implies chain resolves in fixture (requires-audit implies requires-logging)', async () => {
     const graph = await loadGraph(FIXTURE_PROJECT);
     // orders has aspect requires-audit which implies requires-logging
-    const effective = collectEffectiveAspectIds(graph, 'orders');
+    const effective = computeEffectiveAspects(graph.nodes.get('orders')!, graph);
     expect(effective.has('requires-audit')).toBe(true);
     expect(effective.has('requires-logging')).toBe(true);
   });
@@ -94,7 +94,7 @@ describe('flow-support integration', () => {
     // checkout-flow has aspects: [requires-logging]
     // order-service also has requires-audit (own) which implies requires-logging
     // Both paths should produce requires-logging in effective set
-    const effective = collectEffectiveAspectIds(graph, 'orders/order-service');
+    const effective = computeEffectiveAspects(graph.nodes.get('orders/order-service')!, graph);
     expect(effective.has('requires-logging')).toBe(true);
     expect(effective.has('requires-audit')).toBe(true);
   });
@@ -102,7 +102,7 @@ describe('flow-support integration', () => {
   it('non-participant node without aspects has no effective aspects', async () => {
     const graph = await loadGraph(FIXTURE_PROJECT);
     // users module has no own aspects and is not in any flow
-    const effective = collectEffectiveAspectIds(graph, 'users');
+    const effective = computeEffectiveAspects(graph.nodes.get('users')!, graph);
     expect(effective.size).toBe(0);
   });
 

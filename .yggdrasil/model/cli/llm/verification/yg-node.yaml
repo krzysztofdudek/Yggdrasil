@@ -1,0 +1,12 @@
+name: Aspect Verification
+type: adapter
+description: Orchestrates LLM-based aspect verification — consensus logic, model discovery, reviewer connectivity test
+
+relations:
+  - target: cli/llm
+    type: uses
+
+mapping:
+  - source/cli/src/llm/aspect-verifier.ts
+  - source/cli/src/llm/reviewer-test.ts
+  - source/cli/src/llm/model-fetcher.ts

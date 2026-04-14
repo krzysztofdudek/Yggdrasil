@@ -10,9 +10,6 @@ import {
   buildEventRelationLayer,
   collectAncestors,
   collectDependencyAncestors,
-  collectEffectiveAspectIds,
-  expandAspects,
-  determineAspectSource,
   buildNodeContextData,
   buildFileContextData,
 } from '../../../src/core/context-builder.js';
@@ -133,14 +130,6 @@ describe('context-builder', () => {
     });
   });
 
-  describe('collectEffectiveAspectIds', () => {
-    it('returns empty set for nonexistent node', async () => {
-      const graph = await loadGraph(FIXTURE_PROJECT);
-      const result = collectEffectiveAspectIds(graph, 'does/not/exist');
-      expect(result.size).toBe(0);
-    });
-  });
-
   describe('buildStructuralRelationLayer', () => {
     const defaultConfig: YggConfig = {
     };
@@ -257,23 +246,6 @@ describe('context-builder', () => {
     });
   });
 
-  describe('node aspects (expandAspects)', () => {
-    it('throws when aspect implies cycle detected', () => {
-      const a: AspectDef = {
-        name: 'A',
-        id: 'tag-a',
-        implies: ['tag-b'],
-      };
-      const b: AspectDef = {
-        name: 'B',
-        id: 'tag-b',
-        implies: ['tag-a'],
-      };
-      expect(() => expandAspects(['tag-a'], [a, b])).toThrow(
-        "Aspect implies cycle detected involving aspect 'tag-a'",
-      );
-    });
-  });
 });
 
 // Dead buildContext / toContextMapOutput / formatContextMarkdown tests removed.
@@ -342,11 +314,11 @@ describe('buildNodeContextData', () => {
     expect(data.path).toBe('orders/order-service');
     // In fallback mode, aspect source reflects actual origin (own, parent, flow, implied)
     for (const aspect of data.aspects) {
-      expect(aspect.source).toMatch(/own declaration|inherited from parent|flow '|implied by '|unknown source/);
+      expect(aspect.source).toMatch(/own declaration|inherited from parent|architecture|flow '|port '|implied by '|unknown source/);
     }
   });
 
-  it('determineFallbackAspectSource: implies branch when sources empty but implier aspect exists', () => {
+  it('getAspectSource: implies branch when aspect arrives via implies chain', () => {
     // Exercise lines 563-570 in context-builder.ts:
     // A node has 'child-aspect' via the implies chain of 'parent-aspect',
     // but the node does NOT directly declare 'parent-aspect', has no parent ancestor
@@ -625,140 +597,4 @@ describe('collectDependencyAncestors', () => {
   });
 });
 
-describe('determineAspectSource — uncovered branches', () => {
-  it('detects port consumption as aspect source', () => {
-    // Exercise lines 383-394: aspect comes from consuming a port
-    const provider: GraphNode = {
-      path: 'payments/gateway',
-      meta: {
-        name: 'Gateway',
-        type: 'service',
-        ports: {
-          charge: { description: 'Payment', aspects: ['correlation-id'] },
-        },
-      },
-      children: [],
-      parent: null,
-    };
-    const consumer: GraphNode = {
-      path: 'orders/checkout',
-      meta: {
-        name: 'Checkout',
-        type: 'service',
-        relations: [{ target: 'payments/gateway', type: 'calls', consumes: ['charge'] }],
-      },
-      children: [],
-      parent: null,
-    };
-    const graph: Graph = {
-      config: {},
-      architecture: { node_types: {} },
-      nodes: new Map([
-        ['payments/gateway', provider],
-        ['orders/checkout', consumer],
-      ]),
-      aspects: [{ name: 'Correlation ID', id: 'correlation-id', artifacts: [] }],
-      flows: [],
-      schemas: [],
-      rootPath: '/tmp',
-    };
-
-    const source = determineAspectSource('correlation-id', consumer, graph, [], true);
-    expect(source).toContain("port 'charge'");
-    expect(source).toContain('payments/gateway');
-  });
-
-  it('detects flow participation as aspect source', () => {
-    // Exercise lines 409-414: aspect comes from flow participation
-    const node: GraphNode = {
-      path: 'orders/svc',
-      meta: { name: 'OrderSvc', type: 'service' },
-      children: [],
-      parent: null,
-    };
-    const graph: Graph = {
-      config: {},
-      architecture: { node_types: {} },
-      nodes: new Map([['orders/svc', node]]),
-      aspects: [{ name: 'Saga', id: 'requires-saga', artifacts: [] }],
-      flows: [
-        { path: 'checkout', name: 'Checkout', nodes: ['orders/svc'], aspects: ['requires-saga'] },
-      ],
-      schemas: [],
-      rootPath: '/tmp',
-    };
-
-    const source = determineAspectSource('requires-saga', node, graph, graph.flows, false);
-    expect(source).toContain("flow 'checkout'");
-  });
-
-  it('detects implies chain as aspect source when implier is in sources', () => {
-    // Exercise lines 416-431: the queried aspect must have `implies` (truthy guard on line 418)
-    // AND another aspect must imply it AND that implier's id must appear in already-collected sources.
-    // We use a flow to put 'parent-aspect' into sources as "flow 'my-flow'" which contains 'parent-aspect'
-    // in its text — no, the source string won't contain the aspect id.
-    // Instead, we put parent-aspect in ownAspects so sources has "own declaration",
-    // and then we need a source string that CONTAINS the parent-aspect id.
-    // The flow source format is "flow 'checkout'" — no aspect id there.
-    // The port source format is "port 'charge' on 'payments/gateway'" — no aspect id.
-    // The architecture source is "architecture (type: service)" — no aspect id.
-    // So the only way implierInSources is true: when a source string includes the OTHER aspect's ID.
-    // That only happens if parent-aspect is also itself the subject of a source that includes its id.
-    // Looking at the code more carefully: sources is the list for the QUERIED aspect (child-aspect).
-    // The implierInSources check looks if sources already contain text matching the IMPLIER aspect id.
-    // So we need child-aspect to already have a source that contains 'parent-aspect' text.
-    // This would happen if e.g. child-aspect is declared via flow that also mentions 'parent-aspect'.
-    // Actually the simplest: make child-aspect come from a flow named 'parent-aspect'.
-    const node: GraphNode = {
-      path: 'svc',
-      meta: { name: 'Svc', type: 'service' },
-      children: [],
-      parent: null,
-    };
-    const graph: Graph = {
-      config: {},
-      architecture: { node_types: {} },
-      nodes: new Map([['svc', node]]),
-      aspects: [
-        { name: 'Parent', id: 'parent-aspect', implies: ['child-aspect'], artifacts: [] },
-        // child-aspect has implies so the guard is truthy
-        { name: 'Child', id: 'child-aspect', implies: ['other'], artifacts: [] },
-      ],
-      flows: [
-        // Flow path contains 'parent-aspect' — so "flow 'parent-aspect'" includes the implier id
-        { path: 'parent-aspect', name: 'Parent Aspect Flow', nodes: ['svc'], aspects: ['child-aspect'] },
-      ],
-      schemas: [],
-      rootPath: '/tmp',
-    };
-
-    const source = determineAspectSource('child-aspect', node, graph, graph.flows, false);
-    // sources should have "flow 'parent-aspect'" which contains 'parent-aspect'
-    // then the implies check adds "implied by 'parent-aspect'"
-    expect(source).toContain("flow 'parent-aspect'");
-    expect(source).toContain("implied by 'parent-aspect'");
-  });
-
-  it('returns unknown source when aspect has no identifiable source', () => {
-    // Exercise the fallback at line 433
-    const node: GraphNode = {
-      path: 'svc',
-      meta: { name: 'Svc', type: 'service' },
-      children: [],
-      parent: null,
-    };
-    const graph: Graph = {
-      config: {},
-      architecture: { node_types: {} },
-      nodes: new Map([['svc', node]]),
-      aspects: [{ name: 'Mystery', id: 'mystery-aspect', artifacts: [] }],
-      flows: [],
-      schemas: [],
-      rootPath: '/tmp',
-    };
-
-    const source = determineAspectSource('mystery-aspect', node, graph, [], false);
-    expect(source).toBe('unknown source');
-  });
-});
 

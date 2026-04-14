@@ -13,9 +13,7 @@ import {
 import { hashTrackedFiles } from '../utils/hash.js';
 import { collectTrackedFiles } from './context-files.js';
 import { normalizeMappingPaths } from '../utils/paths.js';
-import { appendAuditEntry } from '../io/audit-log.js';
-import { computeEffectiveAspects, computeEffectiveAspectsForConsumer } from './effective-aspects.js';
-import { collectAncestors } from './context-builder.js';
+import { computeEffectiveAspects } from './effective-aspects.js';
 import { readFile } from 'node:fs/promises';
 import { debugWrite } from '../utils/debug-log.js';
 import path from 'node:path';
@@ -102,17 +100,6 @@ export async function approveNode(
       hash: canonicalHash,
       files: fileHashes,
       mtimes: fileMtimes,
-    });
-
-    // Audit log — initial baseline
-    await appendAuditEntry(graph.rootPath, {
-      ts: new Date().toISOString(),
-      node: nodePath,
-      action: 'initial',
-      prev: null,
-      hash: canonicalHash,
-      reason: null,
-      files: [],
     });
 
     // GC orphaned drift state
@@ -273,20 +260,6 @@ export async function approveNode(
       mtimes: fileMtimes,
     });
 
-    // Audit log — append-only, never read by CLI
-    const changedFiles = [
-      ...changedSource,
-      ...changedUpstream.map((c) => c.filePath),
-    ];
-    await appendAuditEntry(graph.rootPath, {
-      ts: new Date().toISOString(),
-      node: nodePath,
-      action: 'approved',
-      prev: storedEntry.hash,
-      hash: canonicalHash,
-      reason: null,
-      files: changedFiles,
-    });
   }
 
   // GC orphaned drift state
@@ -357,25 +330,7 @@ export function resolveAspects(
   node: GraphNode,
   graph: Graph,
 ): Array<{ id: string; description: string; content: string }> {
-  const ancestors = collectAncestors(node);
-  const parentTypes = ancestors.map(a => a.meta.type);
-  const flowAspects = graph.flows
-    .filter(f => f.nodes?.includes(node.path))
-    .flatMap(f => f.aspects ?? []);
-
-  const effective = computeEffectiveAspects({
-    nodeType: node.meta.type,
-    architecture: graph.architecture,
-    parentTypes,
-    ownAspects: node.meta.aspects ?? [],
-    flowAspects,
-    allAspects: graph.aspects,
-    allFlows: graph.flows,
-  });
-
-  // Add port-consumed aspects
-  const portAspects = computeEffectiveAspectsForConsumer(node, graph);
-  const allAspectIds = new Set([...effective.regular, ...portAspects]);
+  const allAspectIds = computeEffectiveAspects(node, graph);
 
   const result: Array<{ id: string; description: string; content: string }> = [];
   for (const aspectId of allAspectIds) {

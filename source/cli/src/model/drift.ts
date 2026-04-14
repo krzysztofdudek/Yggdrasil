@@ -59,14 +59,4 @@ export interface ApproveResult {
 /** Map: node-path → DriftNodeState. */
 export type DriftState = Record<string, DriftNodeState>;
 
-/** Append-only audit log entry — written by approve, never read by CLI */
-export interface AuditEntry {
-  ts: string;
-  node: string;
-  action: 'approved' | 'initial';
-  prev: string | null;
-  hash: string;
-  reason: string | null;
-  files: string[];
-}
 
