@@ -46,6 +46,26 @@ describe('runMigrations', () => {
     const results = await runMigrations('4.0.0', migrations, dir);
     expect(results).toHaveLength(0);
   });
+
+  it('returns empty for invalid current version', async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'yg-mig-'));
+    const migrations: Migration[] = [
+      { to: '4.0.0', description: 'v4', run: async () => ({ actions: ['4'], warnings: [] }) },
+    ];
+    const results = await runMigrations('not-a-version', migrations, dir);
+    expect(results).toHaveLength(0);
+  });
+
+  it('skips migrations with invalid target version', async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'yg-mig-'));
+    const migrations: Migration[] = [
+      { to: 'bad', description: 'invalid', run: async () => ({ actions: ['bad'], warnings: [] }) },
+      { to: '4.0.0', description: 'v4', run: async () => ({ actions: ['4'], warnings: [] }) },
+    ];
+    const results = await runMigrations('3.0.0', migrations, dir);
+    expect(results).toHaveLength(1);
+    expect(results[0].actions).toEqual(['4']);
+  });
 });
 
 describe('updateConfigVersion', () => {
@@ -53,6 +73,16 @@ describe('updateConfigVersion', () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'yg-mig-'));
     const configPath = path.join(dir, 'yg-config.yaml');
     await writeFile(configPath, 'version: "3.0.0"\nquality:\n  max_direct_relations: 10\n');
+    await updateConfigVersion(dir, '4.0.0');
+    const content = await readFile(configPath, 'utf-8');
+    expect(content).toContain('version: "4.0.0"');
+    expect(content).toContain('quality:');
+  });
+
+  it('prepends version when field is missing', async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'yg-mig-'));
+    const configPath = path.join(dir, 'yg-config.yaml');
+    await writeFile(configPath, 'quality:\n  max_direct_relations: 10\n');
     await updateConfigVersion(dir, '4.0.0');
     const content = await readFile(configPath, 'utf-8');
     expect(content).toContain('version: "4.0.0"');

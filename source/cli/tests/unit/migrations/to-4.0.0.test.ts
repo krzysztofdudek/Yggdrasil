@@ -250,6 +250,79 @@ parallel: 4
     expect(config.parallel).toBe(4);
   });
 
+  it('handles nested drift state directories', async () => {
+    const root = await createV3Root();
+    await writeYaml(path.join(root, 'yg-config.yaml'), 'version: "3.0.0"\n');
+    const nestedDir = path.join(root, '.drift-state', 'cli', 'commands');
+    await makeDir(nestedDir);
+    await writeFile(path.join(nestedDir, 'init.json'), '{}', 'utf-8');
+
+    await migrateTo4(root);
+
+    expect(await fileExists(path.join(nestedDir, 'init.json'))).toBe(false);
+  });
+
+  it('handles node with already-flat string aspects (no rewrite needed)', async () => {
+    const root = await createV3Root();
+    await writeYaml(path.join(root, 'yg-config.yaml'), 'version: "3.0.0"\n');
+    const nodeDir = path.join(root, 'model', 'svc');
+    await makeDir(nodeDir);
+    await writeYaml(path.join(nodeDir, 'yg-node.yaml'), `
+name: Svc
+type: service
+aspects:
+  - deterministic
+  - posix-paths
+`);
+
+    const result = await migrateTo4(root);
+
+    const node = await readYaml(path.join(nodeDir, 'yg-node.yaml'));
+    expect(node.aspects).toEqual(['deterministic', 'posix-paths']);
+    // Should NOT rewrite since aspects are already flat strings
+    expect(result.actions.some(a => a.includes('Rewrote node'))).toBe(false);
+  });
+
+  it('handles config without node_types', async () => {
+    const root = await createV3Root();
+    await writeYaml(path.join(root, 'yg-config.yaml'), `
+version: "3.0.0"
+name: "test"
+quality:
+  max_direct_relations: 5
+`);
+
+    await migrateTo4(root);
+
+    expect(await fileExists(path.join(root, 'yg-architecture.yaml'))).toBe(false);
+    const config = await readYaml(path.join(root, 'yg-config.yaml'));
+    expect(config.name).toBeUndefined();
+  });
+
+  it('handles flow without description.md', async () => {
+    const root = await createV3Root();
+    await writeYaml(path.join(root, 'yg-config.yaml'), 'version: "3.0.0"\n');
+    const flowDir = path.join(root, 'flows', 'checkout');
+    await makeDir(flowDir);
+    await writeYaml(path.join(flowDir, 'yg-flow.yaml'), 'name: Checkout\n');
+
+    const result = await migrateTo4(root);
+
+    expect(result.actions.filter(a => a.includes('flow'))).toHaveLength(0);
+  });
+
+  it('handles aspect without stability field', async () => {
+    const root = await createV3Root();
+    await writeYaml(path.join(root, 'yg-config.yaml'), 'version: "3.0.0"\n');
+    const aspectDir = path.join(root, 'aspects', 'auth');
+    await makeDir(aspectDir);
+    await writeYaml(path.join(aspectDir, 'yg-aspect.yaml'), 'name: Auth\ndescription: "Auth rules"\n');
+
+    const result = await migrateTo4(root);
+
+    expect(result.actions.filter(a => a.includes('stability'))).toHaveLength(0);
+  });
+
   it('removes quality entirely when only obsolete fields remain', async () => {
     const root = await createV3Root();
     await writeYaml(path.join(root, 'yg-config.yaml'), `
