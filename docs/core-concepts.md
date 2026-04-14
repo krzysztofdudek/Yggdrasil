@@ -2,7 +2,7 @@
 title: Core Concepts
 ---
 
-Yggdrasil stores architectural knowledge in a graph under `.yggdrasil/`
+Yggdrasil stores verification rules in a graph under `.yggdrasil/`
 in your repository. The graph has three main elements: nodes, aspects, and flows.
 
 The agent creates and maintains these. You tell the agent what matters,

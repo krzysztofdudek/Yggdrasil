@@ -3,7 +3,7 @@ layout: home
 title: Yggdrasil
 hero:
   name: Yggdrasil
-  text: AI agents ignore your architecture rules. This enforces them.
+  text: Continuous verification for AI-generated code.
   image:
     src: /logo.svg
     alt: Yggdrasil
