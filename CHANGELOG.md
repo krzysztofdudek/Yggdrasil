@@ -75,6 +75,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`yg flows`** — participant count with node names, flow aspects.
 - **Interactive `yg init` wizard.** Platform selection, reviewer setup
   with model fetching from provider API, connection validation.
+- **`yg init --upgrade --platform <name>`** — non-interactive rules and
+  schemas refresh. Skips interactive prompts for CI and scripting use.
 - **`yg-secrets.yaml`** — gitignored file for API keys. Created by
   `yg init` when an API provider is selected.
 - **Append-only audit log** (`.yggdrasil/.audit-log.jsonl`) — every

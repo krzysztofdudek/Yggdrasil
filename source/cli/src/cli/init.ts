@@ -525,10 +525,41 @@ export function registerInitCommand(program: Command): void {
   program
     .command('init')
     .description('Initialize Yggdrasil graph in current project')
-    .action(async () => {
+    .option('--upgrade', 'Non-interactive: refresh rules and schemas')
+    .option('--platform <name>', `Platform for rules file (${PLATFORMS.join(', ')})`)
+    .action(async (options: { upgrade?: boolean; platform?: string }) => {
       try {
         const projectRoot = process.cwd();
         const yggRoot = path.join(projectRoot, '.yggdrasil');
+
+        // Non-interactive upgrade: --upgrade --platform <name>
+        if (options.upgrade) {
+          if (!options.platform) {
+            process.stderr.write(chalk.red('Error: --upgrade requires --platform.\n'));
+            process.exit(1);
+          }
+          if (!PLATFORMS.includes(options.platform as Platform)) {
+            process.stderr.write(chalk.red(`Error: Unknown platform '${options.platform}'. Valid: ${PLATFORMS.join(', ')}\n`));
+            process.exit(1);
+          }
+          try {
+            await stat(yggRoot);
+          } catch {
+            process.stderr.write(chalk.red('Error: No .yggdrasil/ directory found. Run \'yg init\' first.\n'));
+            process.exit(1);
+          }
+
+          await refreshSchemas(yggRoot);
+          const architecturePath = path.join(yggRoot, 'yg-architecture.yaml');
+          try {
+            await stat(architecturePath);
+          } catch {
+            await writeFile(architecturePath, DEFAULT_ARCHITECTURE, 'utf-8');
+          }
+          const rulesPath = await installRulesForPlatform(projectRoot, options.platform as Platform);
+          process.stdout.write(`Rules and schemas refreshed: ${path.relative(projectRoot, rulesPath)}\n`);
+          return;
+        }
 
         // Check if .yggdrasil/ already exists
         let exists = false;

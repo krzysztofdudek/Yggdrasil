@@ -69,14 +69,14 @@ Exit code 0 if fully clean, 1 if any errors found.
 
 ### `yg approve`
 
-Records the current file state as the new baseline after review. Binary — no flags,
-no negotiation.
+Records the current file state as the new baseline after review.
 
 ```bash
 yg approve --node <path>
 yg approve --node <path1> <path2> <path3>
 yg approve --aspect <id>
 yg approve --flow <name>
+yg approve --dry-run --node <path>
 ```
 
 Exactly one of `--node`, `--aspect`, or `--flow` is required.
@@ -85,6 +85,8 @@ Exactly one of `--node`, `--aspect`, or `--flow` is required.
   CLI redirects to batch-approve its children with cascade drift.
 - `--aspect <id>` — Batch approve all nodes with cascade drift from this aspect.
 - `--flow <name>` — Batch approve all nodes with cascade drift from this flow.
+- `--dry-run` — Show what would be sent to the reviewer (aspects, source files, prompt)
+  without making the LLM call. Only works with `--node`.
 
 ---
 
@@ -147,8 +149,12 @@ yg owner --file <path>
 
 ```bash
 yg init
+yg init --upgrade --platform claude-code
 ```
 
 Interactive wizard. On a new project: walks you through platform selection and
 reviewer setup. On an existing project: offers upgrade, reviewer reconfiguration,
 or platform change.
+
+Non-interactive mode: `--upgrade --platform <name>` refreshes rules and schemas
+without prompts. Useful in scripts and CI.

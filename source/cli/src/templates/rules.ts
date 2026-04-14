@@ -312,8 +312,9 @@ At approve time: Reviewer verifies consumer satisfies port-required aspects.
 ### CLI Commands
 
 Core: \`yg check\`, \`yg context --node/--file\`, \`yg impact --node/--file/--aspect/--flow\`, \`yg approve --node/--aspect/--flow\`
-Navigation: \`yg tree\`, \`yg aspects\`, \`yg flows\`, \`yg owner --file\`
+Navigation: \`yg tree [--root <path>] [--depth <n>]\`, \`yg aspects\`, \`yg flows\`, \`yg owner --file\`
 Setup: \`yg init\`
+Debug: \`yg approve --dry-run --node <path>\` — preview reviewer prompt without LLM call
 
 ### Error Categories
 
