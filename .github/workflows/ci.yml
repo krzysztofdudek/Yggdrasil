@@ -26,7 +26,7 @@ jobs:
       - run: npm ci
         working-directory: docs
       - run: scripts/repo-check.sh
-      - uses: codecov/codecov-action@v6
+      - uses: codecov/codecov-action@v7
         # Upload coverage from a single matrix leg to avoid duplicate reports.
         #
         # Codecov is ADVISORY here, by design (fail_ci_if_error: false). The
