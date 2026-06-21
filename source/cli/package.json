@@ -85,7 +85,7 @@
     "@tree-sitter-grammars/tree-sitter-kotlin": "^1.1.0",
     "@tree-sitter-grammars/tree-sitter-toml": "^0.7.0",
     "@tree-sitter-grammars/tree-sitter-yaml": "^0.7.1",
-    "@types/node": "^25.9.1",
+    "@types/node": "^26.0.0",
     "@types/semver": "^7.7.1",
     "@vitest/coverage-v8": "^4.1.8",
     "eslint": "^10.4.1",
