@@ -35,6 +35,14 @@ run_step "CLI: build" "$REPO_ROOT/source/cli" "npm run build"
 # run would go green over zero E2E coverage. Fail loudly here instead.
 run_step "CLI: built binary present (E2E guard)" "$REPO_ROOT/source/cli" "test -f dist/bin.js || { echo 'dist/bin.js missing after build — E2E suites would silently skip'; exit 1; }"
 run_step "CLI: pack-smoke (A2)" "$REPO_ROOT/source/cli" "node scripts/pack-smoke.mjs"
+# Build the deterministic-verdict cache BEFORE the test run. The portal integration
+# tests assert count-parity against the real repo's filled lock (e.g. an advisory
+# deterministic refusal must tally as a warning). Those deterministic verdicts live in
+# the gitignored .yg-lock.deterministic.json, which is absent in a fresh checkout (CI or
+# a clean clone) — so without this the portal pairs read `unverified` and the parity
+# assertions fail. This is the free, keyless rebuild (no reviewer, writes only the
+# gitignored cache); the final "Graph: check" step below re-hashes it as the closing gate.
+run_step "Graph: deterministic cache (test prerequisite)" "$REPO_ROOT" "node source/cli/dist/bin.js check --approve --only-deterministic"
 run_step "CLI: test (with coverage)" "$REPO_ROOT/source/cli" "npm run test:coverage"
 run_step "CLI: coverage >= 90%" "$REPO_ROOT/source/cli" "node -e \"
 const j = require('./coverage/coverage-summary.json');

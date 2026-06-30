@@ -113,6 +113,10 @@ describe('portal catalogue derivation (aspects / flows / types) — real repo', 
     });
   });
 
+  // Re-loads the whole real graph and re-hashes the lock (loadGraph + verifyLock over
+  // every node), the same heavy whole-repo work the beforeAll budgets 180s for. On a
+  // slow CI runner this exceeds vitest's 5s default, so it carries the same explicit
+  // budget — the work is bounded, the timeout only guards against a slow runner.
   it('flow count is derived and every real flow expands descendants', async () => {
     const graph = await loadGraph(REPO_ROOT);
     const lock = readLock(graph.rootPath);
@@ -132,7 +136,7 @@ describe('portal catalogue derivation (aspects / flows / types) — real repo', 
         expect(f.participants).toContain(declaredNode);
       }
     }
-  });
+  }, 180_000);
 });
 
 // ── Honest-rendering branch coverage over the builder functions directly ──────

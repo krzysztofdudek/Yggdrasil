@@ -25,6 +25,13 @@ jobs:
         working-directory: source/cli
       - run: npm ci
         working-directory: docs
+      # The portal e2e gate inside repo-check.sh drives a REAL Chromium through
+      # Playwright. Chromium is rebuildable, not committed, so CI must install it
+      # before the gate runs — otherwise repo-check.sh's Chromium-present guard
+      # fails closed (a missing browser must never be a silent green). This is the
+      # exact command that guard prints.
+      - run: npx playwright install --with-deps chromium
+        working-directory: source/cli
       - run: scripts/repo-check.sh
       - uses: codecov/codecov-action@v7
         # Upload coverage from a single matrix leg to avoid duplicate reports.

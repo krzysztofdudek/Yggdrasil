@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **CI now passes the portal quality gate it introduced in 5.4.0 (dev-infra only; no change to the published CLI).** The 5.4.0 portal work added a Playwright + Chromium e2e gate and deterministic-cache-backed portal integration tests to `repo-check.sh`, but the CI workflow was never taught to satisfy them in a fresh checkout: Chromium is rebuildable (not committed) and was never installed, and the gitignored deterministic-verdict cache (`.yg-lock.deterministic.json`) was rebuilt only at the very end of `repo-check.sh` — after the tests that read it — so the portal count-parity assertions saw `unverified` pairs and failed. CI now installs Chromium before the gate, `repo-check.sh` rebuilds the deterministic cache before the test run (so a clean clone passes the same as a warm working tree), and the one heavy whole-repo catalogue test carries the same explicit timeout budget as its sibling heavy work so a slow runner no longer trips vitest's 5s default. No source or graph behavior changed.
+
 ## [5.4.0] - 2026-06-30
 
 ### Added
