@@ -54,7 +54,7 @@
     "cli/formatters": {"log":{"last_entry_datetime":"2026-05-31T16:03:34.603Z","prefix_hash":"8712a6d98df4f5f4e0332ce8a580dc61a18e330f870ffa177ea420291c4c75f0"}},
     "cli/impact-handlers": {"log":{"last_entry_datetime":"2026-06-26T19:06:30.762Z","prefix_hash":"b80eeb3901267f64e85db337d461b087d809d30631ad6a8a51244cb60a4ec61f"}},
     "cli/io": {"log":{"last_entry_datetime":"2026-05-15T12:47:31.361Z","prefix_hash":"38bf5cdff7ff07668925997ec13c9d20c181db85820df8732dafc2ec2e05a985"}},
-    "cli/io/atomic-write": {"log":{"last_entry_datetime":"2026-05-15T17:44:22.955Z","prefix_hash":"089b0de107a7d911330b7c365bdba6063c5dc5a13d2b1ad09d40c41a166756ab"},"source":"f1471727596ae580145010038731e885c60f0197265cf7af8912220ff3ae4f5a"},
+    "cli/io/atomic-write": {"log":{"last_entry_datetime":"2026-07-03T13:26:51.001Z","prefix_hash":"f52187795bdb771c1b5b78c946b27adcaafe1ef1d2cb3586f0e4eeb0af2da792"},"source":"13a1c4646467033610481c78e34f7cfb3f4e197c79d285ae2fdf420f84e0d768"},
     "cli/io/file-content-cache": {"log":{"last_entry_datetime":"2026-05-15T17:44:23.069Z","prefix_hash":"451dca12e98c91099d8bbc20367bf876ae357d71b6534ce940d136d561a8ad47"},"source":"00449a70e1d46282347580ad4c5b5f6fbf8afe35756769b2508d63224eee5c85"},
     "cli/io/lock-store": {"log":{"last_entry_datetime":"2026-06-29T12:52:51.370Z","prefix_hash":"24452814611d8c88ca2ee3cde36b5de62b988e480fccdbba8dff1a42a7567bbc"},"source":"565642592d5dc2e8037affd4bd020503eed3bb4d923a0b0e7f79756ddb363bd7"},
     "cli/io/parsers": {"log":{"last_entry_datetime":"2026-05-28T07:05:20.439Z","prefix_hash":"37f42209106cd013687ba25b3ed69aa0d8e956cd9e93c096dc77f236dfa28aae"}},

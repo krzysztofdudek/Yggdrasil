@@ -39,15 +39,32 @@ describe('atomicWriteFile', () => {
     expect(entries.filter((e) => e.endsWith('.tmp'))).toEqual([]);
   });
 
-  it('removes stale .tmp before write (orphan cleanup)', async () => {
+  it('uses a unique temp per write and cleans it up (no fixed-name collision)', async () => {
     const dir = await tempDir();
     const target = path.join(dir, 'a.txt');
-    const tmpPath = target + '.tmp';
-    await writeFile(tmpPath, 'orphan');
     await atomicWriteFile(target, 'hello');
     const entries = await readdir(dir);
-    expect(entries.filter((e) => e.endsWith('.tmp'))).toEqual([]);
+    // Exactly the target remains; the private temp was renamed away, and no
+    // fixed `a.txt.tmp` is created (the old behaviour that raced under concurrency).
+    expect(entries).toEqual(['a.txt']);
     expect(await readFile(target, 'utf-8')).toBe('hello');
+  });
+
+  it('50 concurrent writers to the SAME target never ENOENT and leave a complete file', async () => {
+    // Regression for the shared-cache/lock race: a fixed `<target>.tmp` collided
+    // when parallel writers hit one file — one writer's rm/rename pulled the temp
+    // out from under another, surfacing as ENOENT on rename. Unique temps fix it.
+    const dir = await tempDir();
+    const target = path.join(dir, 'shard.json');
+    const payloads = Array.from({ length: 50 }, (_, i) =>
+      JSON.stringify({ n: i, pad: 'x'.repeat(2000) }),
+    );
+    await Promise.all(payloads.map((p) => atomicWriteFile(target, p)));
+    const final = await readFile(target, 'utf-8');
+    expect(() => JSON.parse(final)).not.toThrow(); // complete, never a partial write
+    expect(payloads).toContain(final); // exactly one writer's content won
+    const entries = await readdir(dir);
+    expect(entries).toEqual(['shard.json']); // no leftover temps from any writer
   });
 
   it('creates parent directory if missing', async () => {
