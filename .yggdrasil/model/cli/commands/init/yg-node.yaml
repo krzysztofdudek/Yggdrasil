@@ -18,7 +18,9 @@ relations:
     type: calls
   - target: cli/formatters
     type: calls
-  - target: cli/llm/shared
+  - target: cli/init-reviewer-setup
+    type: calls
+  - target: cli/init-scaffold
     type: calls
   - target: cli/preamble
     type: calls

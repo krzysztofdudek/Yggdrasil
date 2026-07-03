@@ -13,3 +13,4 @@ relations:
   ]
 mapping:
   - source/cli/tests/unit/core/validator-architecture.test.ts
+  - source/cli/tests/unit/core/checks-architecture-branch-coverage.test.ts

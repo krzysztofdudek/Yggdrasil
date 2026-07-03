@@ -219,7 +219,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check output survives pipe (flush r
       //    self-contained nodes have no cross-node dependency, so the live relation
       //    pass adds no relation-undeclared block. The flush invariant: EVERY pair
       //    the header declares is rendered as a bullet.
-      const nodeLineCount = (stripped.match(/^ {12}- svc\d{3}  aspect '[^']+'$/gm) ?? []).length;
+      const nodeLineCount = (stripped.match(/^ {12}- svc\d{3} {2}aspect '[^']+'$/gm) ?? []).length;
       // 75 nodes × 3 LLM aspects = 225 affected-node lines, each unverified cold.
       expect(nodeLineCount).toBe(225);
       // No relation-undeclared block (no cross-node dependency in the fixture).

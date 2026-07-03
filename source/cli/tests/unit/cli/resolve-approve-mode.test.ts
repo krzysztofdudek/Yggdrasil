@@ -4,8 +4,6 @@ import type { YggConfig } from '../../../src/model/graph.js';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-type Config = YggConfig | undefined;
-
 /** Build a minimal YggConfig with only auto_approve set. */
 function cfg(auto_approve: YggConfig['auto_approve']): YggConfig {
   return { auto_approve } as YggConfig;

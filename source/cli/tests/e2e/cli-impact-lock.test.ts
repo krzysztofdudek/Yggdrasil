@@ -256,9 +256,11 @@ describe.skipIf(!distExists)('CLI E2E — yg impact re-sourced from the lock', (
       'utf-8',
     );
 
-    // obs-rule deterministic aspect: lists src/services, reads payments via
-    // ctx.graph.node (folds read:src/services/payments.ts + graph:services/payments),
-    // and negatively probes src/extras/secret.ts.
+    // obs-rule deterministic aspect: lists src/services, reaches payments via
+    // ctx.graph.node AND reads its file content (folds read:src/services/payments.ts
+    // + graph:services/payments — reading `.content` is what folds a read:
+    // observation, so the check genuinely OBSERVES payments.ts content), and
+    // negatively probes src/extras/secret.ts.
     const obs = aspectDir(dir, 'obs-rule');
     mkdirSync(obs, { recursive: true });
     writeFileSync(
@@ -273,7 +275,11 @@ describe.skipIf(!distExists)('CLI E2E — yg impact re-sourced from the lock', (
         "  ctx.fs.list('src/services');",
         "  const secret = ctx.fs.exists('src/extras/secret.ts');",
         "  let payType = 'none';",
-        "  try { payType = ctx.graph.node('services/payments').type; } catch (e) { payType = 'ERR'; }",
+        "  try {",
+        "    const pay = ctx.graph.node('services/payments');",
+        "    payType = pay.type;",
+        "    for (const f of pay.files) void f.content;",  // read content → folds read:src/services/payments.ts
+        "  } catch (e) { payType = 'ERR'; }",
         '  const v = [];',
         "  if (secret !== false) v.push({ message: 'secret.ts must not exist' });",
         "  if (payType !== 'service') v.push({ message: 'payments must be a service' });",
@@ -307,7 +313,7 @@ describe.skipIf(!distExists)('CLI E2E — yg impact re-sourced from the lock', (
     );
 
     if (approve) {
-      const fill = run(['check', '--approve'], dir);
+      run(['check', '--approve'], dir);
       // Deterministic-only fill — no reviewer, must succeed and record obs-rule.
       // Sanity: the touched map really references payments.ts cross-node. obs-rule
       // is deterministic → its verdict lands in the gitignored deterministic file;

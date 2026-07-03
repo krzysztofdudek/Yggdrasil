@@ -1,12 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import {
-  computeEffectiveAspects,
-  computeEffectiveAspectStatuses,
-  getAspectStatusSources,
-  getAspectSource,
-} from '../../../src/core/graph/aspects.js';
-import { evaluateWhen } from '../../../src/core/when-evaluator.js';
-import type { Graph, GraphNode, AspectDef, AspectStatus } from '../../../src/model/graph.js';
+import { computeEffectiveAspects } from '../../../src/core/graph/aspects.js';
+import type { Graph, GraphNode, AspectDef } from '../../../src/model/graph.js';
 import type { WhenPredicate } from '../../../src/model/when.js';
 
 // ----------------------------------------------------------------------------
@@ -64,7 +58,6 @@ function aspect(id: string, extra: Partial<AspectDef> = {}): AspectDef {
   } as AspectDef;
 }
 
-const TRUE_WHEN: WhenPredicate = { node: { type: 'service' } };
 const FALSE_WHEN: WhenPredicate = { node: { type: 'no-such-type' } };
 
 // ============================================================================

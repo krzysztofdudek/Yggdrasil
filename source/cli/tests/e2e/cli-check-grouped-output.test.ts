@@ -195,7 +195,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check grouped default output (Phase
       for (const n of nodes) {
         expect(out).toMatch(new RegExp(`^ {12}- ${n}  aspect 'shared'$`, 'm'));
       }
-      const nodeBullets = (out.match(/^ {12}- \w+  aspect 'shared'$/gm) ?? []).length;
+      const nodeBullets = (out.match(/^ {12}- \w+ {2}aspect 'shared'$/gm) ?? []).length;
       expect(nodeBullets).toBe(nodes.length);
 
       // A clean Next (no residual) — the only errors are unverified, which
@@ -252,7 +252,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check grouped default output (Phase
       }
       // 'importer' appears in the relation group with perMemberReason detail;
       // it also has an unverified pair — assert the unverified bullet is there.
-      expect(out).toMatch(/^ {12}- importer  aspect 'shared'$/m);
+      expect(out).toMatch(/^ {12}- importer {2}aspect 'shared'$/m);
 
       // The partial Next residual: --approve fills the 4 unverified pairs but the
       // 1 relation error remains (needs a code/graph fix). N = 4 filled, K = 1
@@ -355,8 +355,8 @@ describe.skipIf(!distExists)('CLI E2E — yg check grouped default output (Phase
       expect(out).not.toMatch(/^ {2}unverified \(not yet reviewed\).*aspect '/m);
 
       // Body: two lines, one per (node, aspect) pair.
-      expect(out).toMatch(/^ {12}- mynode  aspect 'aspect-alpha'$/m);
-      expect(out).toMatch(/^ {12}- mynode  aspect 'aspect-beta'$/m);
+      expect(out).toMatch(/^ {12}- mynode {2}aspect 'aspect-alpha'$/m);
+      expect(out).toMatch(/^ {12}- mynode {2}aspect 'aspect-beta'$/m);
 
       // Shared why+fix rendered ONCE.
       expect(out).toContain('The lock holds no entry for this pair');

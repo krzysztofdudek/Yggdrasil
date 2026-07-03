@@ -51,12 +51,12 @@ aspects:
 
     // docs/codes.md is referenced by aspect A on node svc, but not mapped to any node.
     // After fix, impact --file should show svc as a cascade-via-reference node.
-    let stdout = '', stderr = '', code = 0;
+    let stdout: string, stderr = '';
     try {
       stdout = execFileSync('node', [CLI, 'impact', '--file', 'docs/codes.md'], {
         cwd: repo, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'],
       });
-    } catch (e: any) { stdout = e.stdout ?? ''; stderr = e.stderr ?? ''; code = e.status; }
+    } catch (e: any) { stdout = e.stdout ?? ''; stderr = e.stderr ?? ''; }
 
     // Either exit 0 with svc listed in stdout/stderr, or print svc in the summary.
     const all = stdout + stderr;
@@ -111,7 +111,7 @@ aspects: [a]
     writeFileSync(join(ygg, 'model', 'consumer', 'log.md'), '# log\n', 'utf-8');
 
     // shared/codes.ts is owned by svc AND referenced by aspect A on consumer
-    let stdout = '', stderr = '';
+    let stdout: string, stderr = '';
     try {
       stdout = execFileSync('node', [CLI, 'impact', '--file', 'shared/codes.ts'], {
         cwd: repo, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'],

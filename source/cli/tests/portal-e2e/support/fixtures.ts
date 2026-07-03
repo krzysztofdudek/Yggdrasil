@@ -27,7 +27,6 @@ export const test = base.extend<
   Record<never, never>,
   { t: Teardown; basicPage: string; repoPage: string }
 >({
-  // eslint-disable-next-line no-empty-pattern
   t: [
     async ({}, use) => {
       const reg = newTeardown();

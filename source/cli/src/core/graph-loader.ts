@@ -66,6 +66,30 @@ export class OutdatedSchemaVersionError extends Error {
   }
 }
 
+/**
+ * Thrown when a `flows/<x>/yg-flow.yaml` cannot be loaded — the file is missing
+ * (ENOENT), is a directory (EISDIR), is unparseable YAML, or fails flow-shape
+ * validation. This is an expected USER condition on an ALREADY-INITIALIZED graph
+ * (the fault is one flow file, not a missing `.yggdrasil/`), NOT an internal bug:
+ * callers recognize it and emit a flow-specific what/why/next message instead of
+ * the misleading "run yg init" (ENOENT) or "please file an issue" (YAML/EISDIR)
+ * wrappers. `flowYamlPath` names the offending file; `detail` carries the
+ * underlying reason (e.g. the parser's shape message or the raw fs error text).
+ */
+export class FlowLoadError extends Error {
+  readonly flowYamlPath: string;
+  readonly detail: string;
+
+  constructor(flowYamlPath: string, cause: unknown) {
+    const detail = cause instanceof Error ? cause.message : String(cause);
+    super(`Failed to load flow file ${flowYamlPath}: ${detail}`);
+    this.name = 'FlowLoadError';
+    this.flowYamlPath = flowYamlPath;
+    this.detail = detail;
+    if (cause !== undefined) (this as { cause?: unknown }).cause = cause;
+  }
+}
+
 function toModelPath(absolutePath: string, modelDir: string): string {
   return toPosixPath(path.relative(modelDir, absolutePath));
 }
@@ -301,7 +325,17 @@ async function loadFlows(flowsDir: string): Promise<FlowDef[]> {
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
     const flowYamlPath = path.join(flowsDir, entry.name, 'yg-flow.yaml');
-    const flow = await parseFlow(path.join(flowsDir, entry.name), flowYamlPath);
+    let flow: FlowDef;
+    try {
+      flow = await parseFlow(path.join(flowsDir, entry.name), flowYamlPath);
+    } catch (err) {
+      // The graph IS initialized — a flow file that is missing (ENOENT), is a
+      // directory (EISDIR), is unparseable YAML, or fails shape validation must
+      // NOT surface as "no .yggdrasil/" or an unclassified "file an issue" bug.
+      // Tag it with the offending file so the preamble renders a flow-specific
+      // what/why/next.
+      throw new FlowLoadError(flowYamlPath, err);
+    }
     flows.push(flow);
   }
   return flows;

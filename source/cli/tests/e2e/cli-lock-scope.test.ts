@@ -221,7 +221,7 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: per-file scope / observat
       );
 
       // BASELINE: fill → green. obs-rule on orders carries the three observations.
-      const fill = run(['check', '--approve'], dir);
+      run(['check', '--approve'], dir);
       const touched = readLock(dir).verdicts['obs-rule']['node:services/orders'].touched as Array<[string, string]>;
       const keys = touched.map((t) => t[0]);
       expect(keys).toContain('list:src/services');

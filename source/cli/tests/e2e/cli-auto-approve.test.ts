@@ -114,7 +114,7 @@ describe.skipIf(!distExists)('CLI E2E — auto_approve config feature', () => {
         setAutoApprove(dir, 'deterministic');
 
         // Bare `yg check` with auto_approve: deterministic → acts like --approve --only-deterministic.
-        const filled = runSync(['check'], dir);
+        runSync(['check'], dir);
         // The fill writes the deterministic lock.
         expect(existsSync(detLockFile(dir))).toBe(true);
 

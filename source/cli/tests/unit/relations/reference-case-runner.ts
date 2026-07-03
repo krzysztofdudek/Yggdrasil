@@ -260,7 +260,6 @@ export async function runCase(id: string): Promise<void> {
     }
     entry.meta.mapping.push(f.path);
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const ownerIndex = buildOwnerIndex(nodes as any);
 
   // 5. Real resolver. Symbol-axis languages (C#, Kotlin) resolve through the SymbolTable;

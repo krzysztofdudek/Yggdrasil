@@ -1,9 +1,9 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { writeFile, mkdir, rm, readdir } from 'node:fs/promises';
+import { rm, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validate } from '../../../src/core/validator.js';
-import type { Graph, GraphNode, AspectDef } from '../../../src/model/graph.js';
+import type { Graph, AspectDef } from '../../../src/model/graph.js';
 import { buildIssueMessage } from '../../../src/formatters/message-builder.js';
 const msgOf = (i: { messageData: Parameters<typeof buildIssueMessage>[0] }) => buildIssueMessage(i.messageData);
 

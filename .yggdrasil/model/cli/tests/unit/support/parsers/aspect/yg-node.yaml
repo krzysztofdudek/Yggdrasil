@@ -10,3 +10,4 @@ mapping:
   - source/cli/tests/unit/io/aspect-status-parsing.test.ts
   - source/cli/tests/unit/io/aspect-parser-deterministic.test.ts
   - source/cli/tests/unit/io/aspect-parser-aggregate.test.ts
+  - source/cli/tests/unit/io/aspect-parser-branch-coverage.test.ts

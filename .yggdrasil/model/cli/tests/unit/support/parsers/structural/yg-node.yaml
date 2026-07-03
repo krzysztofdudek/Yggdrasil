@@ -9,3 +9,4 @@ mapping:
   - source/cli/tests/unit/io/architecture-parser-status.test.ts
   - source/cli/tests/unit/io/flow-parser.test.ts
   - source/cli/tests/unit/io/flow-parser-status.test.ts
+  - source/cli/tests/unit/io/architecture-parser-branch-coverage.test.ts

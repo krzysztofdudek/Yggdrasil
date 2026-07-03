@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mkdir, rm, writeFile, stat, readdir } from 'node:fs/promises';
+import { mkdir, rm, writeFile, readdir } from 'node:fs/promises';
 import { readFileSync, existsSync } from 'node:fs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

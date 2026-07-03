@@ -327,4 +327,80 @@ describe('ctx.graph', () => {
     const consumers = ctxGraph.nodesByType('consumer');
     expect(consumers.map(n => n.id)).toEqual(['A']);
   });
+
+  // ── Lazy read-observation fold (invalidation-width fix). ───────────────────
+  // A graph-reachable node's file exposes its `content`, but the read:
+  // observation — which is what widens a deterministic verdict's invalidation —
+  // must fold ONLY when the check actually reads that `.content`. A check that
+  // inspects only `.path` (e.g. enumerating sibling files by name) must NOT fold
+  // every sibling's bytes, so an edit to a never-read sibling does not re-verify.
+
+  it('reading only .path of a graph node file records NO content (read:) observation', () => {
+    const g = buildTestGraphForStructure({
+      nodes: [
+        { path: 'A', type: 'consumer', mapping: ['src/a.ts'], relations: [{ type: 'uses', target: 'B' }] },
+        { path: 'B', type: 'provider', mapping: ['src/b.ts'] },
+      ],
+    });
+    const recorder = new ObservationRecorder();
+    const touched: string[] = [];
+    // subjectFiles is A's own mapping — B's file is a NON-subject sibling, so a
+    // content read of it WOULD fold a read: observation. Here we read only .path.
+    const ctxGraph = createCtxGraph({
+      currentNodePath: 'A', graph: g, projectRoot, touchedFiles: touched,
+      recorder, subjectFiles: new Set(['src/a.ts']),
+    });
+    const b = ctxGraph.node('B')!;
+    const file = b.files.find(f => f.path === 'src/b.ts')!;
+    // Access ONLY the path.
+    expect(file.path).toBe('src/b.ts');
+    const keys = recorder.snapshot().map(([k]) => k);
+    expect(keys).not.toContain(observationKey('read', 'src/b.ts'));
+    // touchedFiles still lists the handed file (violation-emit permission is
+    // eager and node-scoped; it is not part of the verdict hash).
+    expect(touched).toContain('src/b.ts');
+  });
+
+  it('reading .content of a graph node file DOES record the content (read:) observation', () => {
+    const g = buildTestGraphForStructure({
+      nodes: [
+        { path: 'A', type: 'consumer', mapping: ['src/a.ts'], relations: [{ type: 'uses', target: 'B' }] },
+        { path: 'B', type: 'provider', mapping: ['src/b.ts'] },
+      ],
+    });
+    const recorder = new ObservationRecorder();
+    const ctxGraph = createCtxGraph({
+      currentNodePath: 'A', graph: g, projectRoot, touchedFiles: [],
+      recorder, subjectFiles: new Set(['src/a.ts']),
+    });
+    const b = ctxGraph.node('B')!;
+    const file = b.files.find(f => f.path === 'src/b.ts')!;
+    // Reading content returns the real bytes AND folds the observation.
+    expect(file.content).toBe('b');
+    const keys = recorder.snapshot().map(([k]) => k);
+    expect(keys).toContain(observationKey('read', 'src/b.ts'));
+    // Idempotent — re-reading content does not add a second observation.
+    const before = recorder.snapshot().length;
+    void file.content;
+    expect(recorder.snapshot().length).toBe(before);
+  });
+
+  it('a SUBJECT file reached via the graph folds NO read: observation even when its content is read', () => {
+    // The current node A reaches itself (always allowed). Its own file is a
+    // subject input (hashed separately), so reading its content through the graph
+    // surface must NOT double-record a read: observation.
+    const g = buildTestGraphForStructure({
+      nodes: [{ path: 'A', type: 'consumer', mapping: ['src/a.ts'] }],
+    });
+    const recorder = new ObservationRecorder();
+    const ctxGraph = createCtxGraph({
+      currentNodePath: 'A', graph: g, projectRoot, touchedFiles: [],
+      recorder, subjectFiles: new Set(['src/a.ts']),
+    });
+    const a = ctxGraph.node('A')!;
+    const file = a.files.find(f => f.path === 'src/a.ts')!;
+    expect(file.content).toBe('a');
+    const keys = recorder.snapshot().map(([k]) => k);
+    expect(keys).not.toContain(observationKey('read', 'src/a.ts'));
+  });
 });

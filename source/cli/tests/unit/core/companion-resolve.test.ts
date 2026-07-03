@@ -8,7 +8,7 @@
  *      (contains the relation source node path and, when mapped, the owner node path)
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';

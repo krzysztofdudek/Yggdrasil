@@ -76,7 +76,7 @@ node_types:
       - command-error-via-buildissuemessage
     parents: [module]
     relations:
-      calls: [engine, parser-adapter, persistence-adapter, formatter, utility]
+      calls: [engine, parser-adapter, persistence-adapter, formatter, utility, llm-shared, template]
       uses: [types]
       default: deny
 

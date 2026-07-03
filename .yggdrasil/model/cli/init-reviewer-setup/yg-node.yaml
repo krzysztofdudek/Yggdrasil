@@ -1,0 +1,16 @@
+name: Init Reviewer Setup
+type: command-support
+description: "Reviewer-provider configuration for yg init — the interactive
+  provider/model wizard (provider selection, model fetch via the LLM model
+  fetcher, connection test via the reviewer connectivity check) plus the
+  helpers that persist the chosen tier into yg-config.yaml and the API key
+  into the yg-secrets.yaml overlay. Extracted from the init command handler so
+  the large command file carries only orchestration; registers no Commander
+  subcommand."
+relations:
+  - target: cli/llm/shared
+    type: calls
+  - target: cli/utils
+    type: calls
+mapping:
+  - source/cli/src/cli/init-reviewer-setup.ts

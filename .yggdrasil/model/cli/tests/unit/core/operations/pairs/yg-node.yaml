@@ -14,3 +14,4 @@ relations:
   ]
 mapping:
   - source/cli/tests/unit/core/pairs.test.ts
+  - source/cli/tests/unit/core/pairs-helpers-branch-coverage.test.ts

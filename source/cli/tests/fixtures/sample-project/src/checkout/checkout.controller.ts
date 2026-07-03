@@ -1,5 +1,5 @@
 export class CheckoutController {
-  async checkout(cartId: string): Promise<void> {
+  async checkout(_cartId: string): Promise<void> {
     // delegates to order service
   }
 }

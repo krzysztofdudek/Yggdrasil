@@ -10,3 +10,4 @@ relations:
   ]
 mapping:
   - source/cli/tests/unit/bounty/path-validation.test.ts
+  - source/cli/tests/unit/bounty/checks-mapping-branch-coverage.test.ts

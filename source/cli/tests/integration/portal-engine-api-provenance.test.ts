@@ -4,7 +4,6 @@ import { fileURLToPath } from 'node:url';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, cpSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { loadGraph } from '../../src/core/graph-loader.js';
-import { readLock } from '../../src/io/lock-store.js';
 import {
   readGitCommitRef,
   computePortalLockHash,

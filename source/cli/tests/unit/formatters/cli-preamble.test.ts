@@ -48,6 +48,27 @@ describe('loadGraphOrAbort', () => {
     expect(written).toContain("'yg init'");
   });
 
+  it('classifies a malformed flow file as a flow-specific finding, NOT "run yg init" (graph IS initialized)', async () => {
+    const ygg = join(dir, '.yggdrasil');
+    mkdirSync(join(ygg, 'model'), { recursive: true });
+    writeFileSync(join(ygg, 'yg-config.yaml'), `schemaVersion: "4.3.0"\nproject:\n  name: t\n`);
+    writeFileSync(join(ygg, 'yg-architecture.yaml'), 'node_types: {}\n');
+    // A flow directory whose yg-flow.yaml is absent → ENOENT during load. The
+    // graph IS initialized, so this must NOT surface as the not-initialized
+    // message and must NOT read as an internal "file an issue" bug.
+    mkdirSync(join(ygg, 'flows', 'broken'), { recursive: true });
+
+    await expect(loadGraphOrAbort(dir, { tolerateInvalidConfig: true })).rejects.toThrow('__exit__');
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    const written = errSpy.mock.calls.map((c: unknown[]) => String(c[0])).join('');
+    expect(written).toContain('could not be loaded');
+    expect(written).toContain('yg-flow.yaml');
+    expect(written).toContain('missing, unreadable, or malformed');
+    expect(written).not.toContain('No .yggdrasil/ directory found');
+    expect(written).not.toContain("Run 'yg init'");
+    expect(written).not.toContain('file an issue');
+  });
+
   it('abortOnUnexpectedError writes structured message and exits 1', () => {
     expect(() => abortOnUnexpectedError(new Error('boom'), 'doing stuff')).toThrow('__exit__');
     expect(exitSpy).toHaveBeenCalledWith(1);

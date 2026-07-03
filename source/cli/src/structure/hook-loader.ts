@@ -244,8 +244,9 @@ export async function buildUnitCtx(params: BuildUnitCtxParams): Promise<BuildUni
   const ctxFs = createCtxFs({ allowedSet, projectRoot, touchedFiles, recorder, subjectFiles });
   // Pre-expand each graph-readable node's mapping to concrete files (directory
   // and glob entries resolved here in the async layer) so ctx.graph.node().files
-  // sees a glob-mapped node's real files. Content is read lazily inside ctx.graph
-  // so touchedFiles still reflects only what the check actually accessed.
+  // sees a glob-mapped node's real files. Each graph file's read: observation
+  // folds lazily inside ctx.graph (only when the check reads its `.content`), so
+  // a path-only check does not widen its verdict to every sibling's bytes.
   const expandedFilesByNode = new Map<string, string[]>();
   for (const id of computeAllowedNodePaths(nodePath, graph)) {
     const m = graph.nodes.get(id);

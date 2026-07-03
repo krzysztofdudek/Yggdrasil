@@ -5,3 +5,4 @@ aspects: []
 relations: [ { target: cli/io/parsers/graph, type: uses } ]
 mapping:
   - source/cli/tests/unit/io/node-parser.test.ts
+  - source/cli/tests/unit/io/node-parser-branch-coverage.test.ts

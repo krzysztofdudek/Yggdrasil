@@ -1,8 +1,8 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { runMigrations, detectVersion, updateConfigVersion } from '../../../src/core/migrator.js';
-import type { Migration, MigrationResult } from '../../../src/core/migrator.js';
+import type { Migration } from '../../../src/core/migrator.js';
 import { runVersionUpgrade } from '../../../src/core/migrator-runner.js';
-import { mkdtemp, writeFile, readFile, mkdir, rm } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 

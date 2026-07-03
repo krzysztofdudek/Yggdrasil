@@ -2,11 +2,8 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { fileURLToPath } from 'node:url';
 import { loadGraph } from '../../src/core/graph-loader.js';
 import { validate } from '../../src/core/validator.js';
-
-const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
 const YG_CONFIG = `
 version: "5.1.0"

@@ -16,7 +16,7 @@
 import { test, expect } from './support/fixtures';
 import { BIN_PATH, fixtureRoot } from './support/harness';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, cpSync, appendFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, cpSync, appendFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 

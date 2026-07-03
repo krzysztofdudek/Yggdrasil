@@ -53,9 +53,11 @@ function run(
  *   - B: owns src/b.ts (no aspects).
  *   - N: owns src/a.ts, declares `uses -> B`, carries an ENFORCED deterministic
  *     aspect `reads-b` that reaches B cross-node via ctx.graph.node('B') and
- *     touches B's mapped file. The cross-node observation records src/b.ts in
- *     the (reads-b, node:N) lock entry's `touched` map — so editing src/b.ts
- *     invalidates N's verdict (it becomes unverified).
+ *     READS B's mapped file content. The cross-node content read records src/b.ts
+ *     in the (reads-b, node:N) lock entry's `touched` map — so editing src/b.ts
+ *     invalidates N's verdict (it becomes unverified). (Reading a graph file's
+ *     `.content` folds a read: observation; merely listing `.files`/`.path` does
+ *     not — that is the invalidation-width contract.)
  */
 function layout(root: string): void {
   const ygg = path.join(root, '.yggdrasil');
@@ -81,13 +83,13 @@ function layout(root: string): void {
     path.join(ygg, 'aspects', 'reads-b', 'yg-aspect.yaml'),
     `name: ReadsB\ndescription: reads node B's file cross-node\nreviewer:\n  type: deterministic\nstatus: enforced\n`,
   );
-  // Reaching B via ctx.graph.node('B') and accessing its files records both a
-  // graph:B observation (B's yg-node.yaml) and a read:src/b.ts observation
-  // (B's mapped file content) in N's lock entry's `touched` map — this is the
-  // cross-node observation under test.
+  // Reaching B via ctx.graph.node('B') records a graph:B observation (B's
+  // yg-node.yaml); READING each of B's files' `.content` additionally records a
+  // read:src/b.ts observation (B's mapped file content) in N's lock entry's
+  // `touched` map — this is the cross-node content observation under test.
   writeFileSync(
     path.join(ygg, 'aspects', 'reads-b', 'check.mjs'),
-    `export function check(ctx) {\n  const b = ctx.graph.node('B');\n  if (b) { void b.files; }\n  return [];\n}\n`,
+    `export function check(ctx) {\n  const b = ctx.graph.node('B');\n  if (b) { for (const f of b.files) void f.content; }\n  return [];\n}\n`,
   );
 }
 

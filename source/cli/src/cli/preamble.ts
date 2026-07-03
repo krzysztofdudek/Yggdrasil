@@ -1,6 +1,7 @@
+import path from 'node:path';
 import chalk from 'chalk';
 import { buildIssueMessage } from '../formatters/message-builder.js';
-import { loadGraph, UnsupportedSchemaVersionError, OutdatedSchemaVersionError } from '../core/graph-loader.js';
+import { loadGraph, UnsupportedSchemaVersionError, OutdatedSchemaVersionError, FlowLoadError } from '../core/graph-loader.js';
 import { LockInvalidError } from '../io/lock-store.js';
 import type { Graph } from '../model/graph.js';
 
@@ -65,10 +66,33 @@ export async function loadGraphOrAbort(
       process.stderr.write(chalk.red(`Error: ${formatted}\n`));
       process.exit(1);
     }
+    // A flow file that is missing / a directory / unparseable / mis-shaped is a
+    // fault in ONE flow file on an ALREADY-INITIALIZED graph — never "run yg init"
+    // and never an unclassified "file an issue" bug. Classify BEFORE the graph-root
+    // ENOENT branch (an absent yg-flow.yaml is ENOENT, but the graph exists).
+    if (err instanceof FlowLoadError) {
+      const formatted = buildIssueMessage({
+        what: `Flow file ${err.flowYamlPath} could not be loaded: ${err.detail}`,
+        why: 'The graph is initialized, but this flow file is missing, unreadable, or malformed — the graph cannot load until every flow file under .yggdrasil/flows/ is a valid yg-flow.yaml.',
+        next: 'Fix the flow file (a valid yg-flow.yaml with a name and a non-empty nodes list), or remove its directory under .yggdrasil/flows/ if the flow is no longer needed.',
+      });
+      process.stderr.write(chalk.red(`Error: ${formatted}\n`));
+      process.exit(1);
+    }
     const msg = (err as Error).message ?? '';
     const code = (err as NodeJS.ErrnoException).code;
+    // Only the graph-root/.yggdrasil probe means "not initialized". `findYggRoot`
+    // and the model/ check convert a genuinely-missing graph into the descriptive
+    // messages matched below; a RAW ENOENT is limited to the `.yggdrasil` probe
+    // itself (matched by path basename) so a downstream stray ENOENT no longer
+    // masquerades as "run yg init".
+    const enoentPath = (err as NodeJS.ErrnoException).path;
+    const isGraphRootProbe =
+      code === 'ENOENT' &&
+      typeof enoentPath === 'string' &&
+      path.basename(enoentPath) === '.yggdrasil';
     if (
-      code === 'ENOENT' ||
+      isGraphRootProbe ||
       msg.includes('No .yggdrasil/ directory found') ||
       msg.includes('does not exist')
     ) {

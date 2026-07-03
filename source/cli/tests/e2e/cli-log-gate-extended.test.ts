@@ -330,7 +330,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
 
       // Source change, no log entry at all, no prior baseline.
       writeFileSync(ordersFile(dir), readFileSync(ordersFile(dir), 'utf-8') + '\nexport const d = 4;\n', 'utf-8');
-      const { status, stdout, stderr, all } = run(['check', '--approve'], dir);
+      const { status, stderr, all } = run(['check', '--approve'], dir);
 
       // Zero pairs to fill, yet the requirement still bites: the live check demands
       // an entry regardless of aspect/pair state, and the run ends red. In the
@@ -386,7 +386,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
 
       // Source change, still no log entry.
       writeFileSync(ordersFile(dir), readFileSync(ordersFile(dir), 'utf-8') + '\nexport const e = 5;\n', 'utf-8');
-      const { status, stdout, stderr, all } = run(['check', '--approve'], dir);
+      const { status, all } = run(['check', '--approve'], dir);
       expect(status).toBe(0);
       // Fill-time progress ([det] line) goes to STDERR; final report to STDOUT.
       expect(all).not.toContain(GATE_FIRED);

@@ -25,8 +25,8 @@
     "test:external": "vitest run --config vitest.external.config.ts",
     "test:coverage": "vitest run --coverage",
     "test:e2e:portal": "playwright test",
-    "lint": "eslint src/",
-    "lint:fix": "eslint src/ --fix",
+    "lint": "eslint src/ tests/",
+    "lint:fix": "eslint src/ tests/ --fix",
     "format": "prettier --write \"src/**/*.ts\"",
     "typecheck": "tsc -p tsconfig.check.json",
     "typecheck:e2e": "tsc -p tests/portal-e2e/tsconfig.json"

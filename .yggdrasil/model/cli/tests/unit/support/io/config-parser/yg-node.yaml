@@ -7,3 +7,4 @@ relations: [ { target: cli/io/parsers/config, type: uses } ]
 mapping:
   - source/cli/tests/unit/io/config-parser.test.ts
   - source/cli/tests/unit/io/config-parser-prompt-chars.test.ts
+  - source/cli/tests/unit/io/config-parser-branch-coverage.test.ts

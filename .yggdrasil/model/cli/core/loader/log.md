@@ -48,3 +48,19 @@ The graph schema version the loader accepts advanced one minor step. The committ
 The diagnostic shown when an architecture predicate is malformed now points the reader at the built-in schemas command for the allowed shape, instead of a per-project schema file path. Reason: that file no longer exists in a project; the field reference moved into the tool and is reached through a command.
 ## [2026-06-28T18:13:50.473Z]
 Graph loading now threads a committed-only read preference down to the configuration parser. A new loader option, when set, instructs the config read to skip the local secrets overlay so the loaded configuration reflects only committed material. Default behavior is unchanged — absent the option, the loader reads configuration exactly as before, secrets overlay included. This exists so a read-only consumer can load the graph with a provable guarantee that no developer-local secret file was opened or merged during the load.
+## [2026-07-03T10:55:59.713Z]
+Distinguish a failed business-process flow definition from an uninitialized project.
+
+When a flow definition fails to load on an already-initialized graph — its file
+absent, a directory instead of a file, unreadable, or syntactically malformed —
+the failure was previously indistinguishable from having no graph at all. The
+operator was told to re-initialize the project, or the failure surfaced as an
+internal defect to report. Both are misleading: the graph exists and the fault
+is one specific flow definition.
+
+A flow-load failure is now raised as its own typed condition that carries the
+offending flow file's location, so the command layer can tell the operator
+exactly which flow definition is at fault and that the remedy is to correct or
+remove that one file — never to re-initialize. The genuinely-uninitialized case
+(no graph directory at all) keeps its own separate "initialize the project
+first" guidance; the two are deliberately kept apart so neither masks the other.

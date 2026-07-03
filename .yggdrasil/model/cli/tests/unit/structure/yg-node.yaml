@@ -16,3 +16,4 @@ mapping:
   - source/cli/tests/unit/structure/ctx-graph.test.ts
   - source/cli/tests/unit/structure/ctx-parsers.test.ts
   - source/cli/tests/unit/structure/suppress-ranges.test.ts
+  - source/cli/tests/unit/structure/ctx-fs-branch-coverage.test.ts

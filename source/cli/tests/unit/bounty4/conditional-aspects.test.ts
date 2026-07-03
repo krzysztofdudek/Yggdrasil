@@ -12,7 +12,6 @@ import { checkWhenReferences } from '../../../src/core/checks/aspects.js';
 import { FileContentCache } from '../../../src/io/file-content-cache.js';
 import type { Graph, GraphNode } from '../../../src/model/graph.js';
 import type { WhenPredicate } from '../../../src/model/when.js';
-import type { FileWhenPredicate } from '../../../src/model/file-when.js';
 
 // ---------------------------------------------------------------------------
 // SPEC = `yg knowledge read conditional-aspects`

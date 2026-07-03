@@ -26,3 +26,4 @@ mapping:
   - source/cli/tests/unit/relations/facts-cache.test.ts
   - source/cli/tests/unit/relations/csharp-parity.test.ts
   - source/cli/tests/unit/relations/ast-cache-audit.test.ts
+  - source/cli/tests/unit/relations/facts-cache-branch-coverage.test.ts

@@ -44,13 +44,17 @@ import { fileURLToPath } from 'node:url';
 //       the cascaded aspect catches one drifted node; this pins isolation across
 //       a 2-node fill: one PASS + one FAIL in the same invocation).
 //
-// Two BUG findings are pinned to ACTUAL behavior (see the `BUG:` comments):
-//   * A flow directory with a MISSING yg-flow.yaml is mis-reported as
-//     "No .yggdrasil/ directory found" — the graph IS initialized; the ENOENT
-//     from the absent flow file is misclassified by the loader preamble.
-//   * yg-flow.yaml being a DIRECTORY / unparseable / a non-mapping surfaces as
-//     an UNCLASSIFIED "Unexpected error ... This is a bug" abort rather than a
-//     structured flow finding.
+// Flow-load FILESYSTEM/parse failures are classified as a flow-specific
+// what/why/next by the loader preamble (they name the offending yg-flow.yaml and
+// say it is missing/malformed on an ALREADY-INITIALIZED graph):
+//   * A flow directory with a MISSING yg-flow.yaml (ENOENT) is NOT mis-reported
+//     as "No .yggdrasil/ directory found" — the graph IS initialized; the error
+//     names the absent flow file instead.
+//   * yg-flow.yaml being a DIRECTORY (EISDIR) / unparseable YAML surfaces as the
+//     SAME structured flow finding, not an unclassified "Unexpected error ...
+//     This is a bug" abort.
+// A genuinely-missing `.yggdrasil/` still yields the "run yg init" message
+// (G1) — the narrowing preserves that path.
 //
 // Verdict-lock model: `yg approve` is gone — verification happens via
 // `yg check --approve` (repo-wide fill), state lives in
@@ -158,7 +162,7 @@ describe.skipIf(!distExists)('CLI E2E — flow definition + filesystem error pat
     }
   });
 
-  it('N2: the same name parse throw surfaces via `yg flows`, attributed to listing flows (exit 1)', () => {
+  it('N2: the same name parse throw surfaces via `yg flows` as a flow-specific finding (exit 1)', () => {
     const dir = deterministicFixture('n2');
     try {
       writeFlowYaml(dir, [
@@ -169,8 +173,13 @@ describe.skipIf(!distExists)('CLI E2E — flow definition + filesystem error pat
       const flows = run(['flows'], dir);
       expect(flows.status).toBe(1);
       expect(flows.all).toContain("missing or empty 'name'");
-      // The error is attributed to the flows command, not check.
-      expect(flows.all).toContain('Unexpected error while listing flows');
+      // A malformed flow file is a USER graph error, not an internal bug — it is
+      // classified as a flow-specific finding naming the file, NOT the generic
+      // "Unexpected error ... file an issue" abort.
+      expect(flows.all).toContain('could not be loaded');
+      expect(flows.all).toContain('yg-flow.yaml');
+      expect(flows.all).not.toContain('Unexpected error while listing flows');
+      expect(flows.all).not.toContain('file an issue');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -302,64 +311,74 @@ describe.skipIf(!distExists)('CLI E2E — flow definition + filesystem error pat
   // F. flow FILESYSTEM errors.
   // =========================================================================
 
-  it('F1: a flow directory whose yg-flow.yaml is MISSING blocks check (exit 1)', () => {
+  it('F1: a flow directory whose yg-flow.yaml is MISSING blocks check with a flow-specific finding, NOT "run yg init" (exit 1)', () => {
     const dir = deterministicFixture('f1');
     try {
       rmSync(flowYaml(dir), { force: true });
       const check = run(['check'], dir);
       expect(check.status).toBe(1);
-      // BUG: the absent flow file raises ENOENT, which the loader preamble
-      // misclassifies as "No .yggdrasil/ directory found" even though the graph
-      // IS initialized (the .yggdrasil/ tree and the flow directory both exist).
-      // Pin ACTUAL behavior; the message is misleading for this case.
-      expect(check.all).toContain('No .yggdrasil/ directory found');
+      // The graph IS initialized (the .yggdrasil/ tree and the flow directory
+      // both exist); the absent yg-flow.yaml raises ENOENT but is classified as a
+      // flow-load fault naming the file — NOT the misleading not-initialized
+      // message that would send the user to `yg init`.
+      expect(check.all).toContain('could not be loaded');
+      expect(check.all).toContain('order-processing/yg-flow.yaml');
+      expect(check.all).toContain('missing, unreadable, or malformed');
+      expect(check.all).not.toContain('No .yggdrasil/ directory found');
+      expect(check.all).not.toContain("Run 'yg init'");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });
 
-  it('F2: a flow directory with a MISSING yg-flow.yaml also breaks `yg check --approve` the same way (exit 1)', () => {
+  it('F2: a flow directory with a MISSING yg-flow.yaml breaks `yg check --approve` with the same flow-specific finding (exit 1)', () => {
     const dir = deterministicFixture('f2');
     try {
       rmSync(flowYaml(dir), { force: true });
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(1);
-      // BUG (same ENOENT misclassification): the graph cannot load at all, so an
-      // unrelated fill fails with the misleading not-initialized message.
-      expect(fill.all).toContain('No .yggdrasil/ directory found');
+      // The graph cannot load, so the fill aborts up front — but with the
+      // flow-specific message, never the not-initialized misclassification.
+      expect(fill.all).toContain('could not be loaded');
+      expect(fill.all).toContain('order-processing/yg-flow.yaml');
+      expect(fill.all).not.toContain('No .yggdrasil/ directory found');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });
 
-  it('F3: a yg-flow.yaml that is a DIRECTORY surfaces as an unclassified EISDIR abort (exit 1)', () => {
+  it('F3: a yg-flow.yaml that is a DIRECTORY (EISDIR) surfaces as a structured flow finding, NOT an unclassified abort (exit 1)', () => {
     const dir = deterministicFixture('f3');
     try {
       rmSync(flowYaml(dir), { force: true });
       mkdirSync(flowYaml(dir), { recursive: true });
       const check = run(['check'], dir);
       expect(check.status).toBe(1);
-      // BUG: a flow YAML that is a directory raises EISDIR on read; the loader
-      // does not classify it, so it aborts as a generic "Unexpected error ...
-      // This is a bug" rather than a structured flow finding. Pin actual.
-      expect(check.all).toContain('Unexpected error while running check');
+      // A flow YAML that is a directory raises EISDIR on read; it is classified
+      // as a flow-load fault (naming the file + the EISDIR detail), NOT a generic
+      // "Unexpected error ... file an issue" abort.
+      expect(check.all).toContain('could not be loaded');
       expect(check.all).toContain('EISDIR');
+      expect(check.all).not.toContain('Unexpected error while running check');
+      expect(check.all).not.toContain('file an issue');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });
 
-  it('F4: an UNPARSEABLE yg-flow.yaml (tab indentation) surfaces as an unclassified YAML-parse abort (exit 1)', () => {
+  it('F4: an UNPARSEABLE yg-flow.yaml (tab indentation) surfaces as a structured flow finding, NOT an unclassified abort (exit 1)', () => {
     const dir = deterministicFixture('f4');
     try {
       // A tab as indentation is a hard YAML syntax error.
       writeFileSync(flowYaml(dir), 'name: X\n\tnodes: [a]\n', 'utf-8');
       const check = run(['check'], dir);
       expect(check.status).toBe(1);
-      // BUG: a YAML syntax error in a flow file aborts the whole loader as a
-      // generic unclassified error rather than a structured flow/yaml finding.
-      expect(check.all).toContain('Unexpected error while running check');
+      // A YAML syntax error in a flow file is classified as a flow-load fault
+      // (naming the file + the parser detail), NOT a generic unclassified abort.
+      expect(check.all).toContain('could not be loaded');
       expect(check.all).toContain('Tabs are not allowed as indentation');
+      expect(check.all).not.toContain('Unexpected error while running check');
+      expect(check.all).not.toContain('file an issue');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -406,6 +425,25 @@ describe.skipIf(!distExists)('CLI E2E — flow definition + filesystem error pat
         .split('\n')
         .filter((l) => l.includes('Participants:'));
       expect(participantLines.length).toBe(1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // =========================================================================
+  // G. genuine no-graph — the narrowing preserves the "run yg init" message.
+  // =========================================================================
+
+  it('G1: a directory with NO .yggdrasil/ still yields the "run yg init" message, not a flow finding (exit 1)', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-flowerr-g1-'));
+    try {
+      // A bare directory: no graph at all. The flow-error narrowing must not
+      // swallow the genuine not-initialized case.
+      const check = run(['check'], dir);
+      expect(check.status).toBe(1);
+      expect(check.all).toContain('No .yggdrasil/ directory found');
+      expect(check.all).toContain("Run 'yg init'");
+      expect(check.all).not.toContain('could not be loaded');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

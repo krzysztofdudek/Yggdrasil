@@ -1,0 +1,15 @@
+name: Init Scaffold
+type: command-support
+description: "Filesystem scaffolding for yg init — creates the .yggdrasil/
+  directory structure, writes the default config and architecture templates,
+  installs the platform rules file, and maintains the repo-root .gitattributes
+  and the .yggdrasil/.gitignore (both idempotent, run on fresh init and every
+  --upgrade). Extracted from the init command handler so the large command file
+  carries only orchestration; registers no Commander subcommand."
+relations:
+  - target: cli/templates-platform
+    type: calls
+  - target: cli/utils
+    type: calls
+mapping:
+  - source/cli/src/cli/init-scaffold.ts

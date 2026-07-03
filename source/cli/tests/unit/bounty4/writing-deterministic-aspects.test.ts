@@ -20,19 +20,15 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import { runStructureAspect, StructureRunnerError } from '../../../src/structure/runner.js';
-import { runAstAspect, AstRunnerError } from '../../../src/ast/runner.js';
+import { runAstAspect } from '../../../src/ast/runner.js';
 import { buildTestGraphForStructure } from '../helpers/build-test-graph-structure.js';
 import { walk, closest } from '../../../src/ast/walk.js';
 import { report } from '../../../src/ast/report.js';
 import { inFile } from '../../../src/ast/file-path.js';
 import { findComments } from '../../../src/ast/find-comments.js';
 import { parseFile } from '../../../src/ast/parser.js';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const CWD = path.resolve(__dirname, '../../..'); // source/cli/
 
 let projectRoot: string;
 let cbCounter = 0;

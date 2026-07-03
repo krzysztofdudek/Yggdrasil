@@ -6,7 +6,7 @@ import {
   getAspectSource,
 } from '../../../src/core/graph/aspects.js';
 import { evaluateWhen } from '../../../src/core/when-evaluator.js';
-import type { Graph, GraphNode, AspectDef, AspectStatus } from '../../../src/model/graph.js';
+import type { Graph, GraphNode, AspectDef } from '../../../src/model/graph.js';
 import type { WhenPredicate } from '../../../src/model/when.js';
 
 // ----------------------------------------------------------------------------

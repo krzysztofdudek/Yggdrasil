@@ -382,6 +382,7 @@ describe('runCheck — recovery strings only name git-tracked lock files', () =>
       } catch (err) {
         throw new Error(
           `Could not run \`git ls-files ${token}\` (is git available in PATH?): ${String(err)}`,
+          { cause: err },
         );
       }
       expect(

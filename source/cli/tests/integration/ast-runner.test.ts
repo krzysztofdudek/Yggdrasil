@@ -35,7 +35,7 @@ describe('ast runner', () => {
 
   it('AST_CHECK_WRONG_ARITY for check(a, b)', async () => {
     // Create a temp fixture inline
-    const { mkdtempSync, writeFileSync, mkdirSync } = await import('node:fs');
+    const { mkdtempSync, writeFileSync } = await import('node:fs');
     const { tmpdir } = await import('node:os');
     const dir = mkdtempSync(path.join(tmpdir(), 'yg-test-')); tmpDirs.push(dir);
     writeFileSync(path.join(dir, 'check.mjs'), 'export function check(a, b) { return []; }');

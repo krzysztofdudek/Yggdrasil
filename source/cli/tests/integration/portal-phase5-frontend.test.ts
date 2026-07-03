@@ -216,16 +216,6 @@ function classesIn(root: FakeNode): Set<string> {
   }
   return set;
 }
-function clickFirst(root: FakeNode, predicate: (n: FakeNode) => boolean): boolean {
-  for (const n of walk(root)) {
-    if (predicate(n) && n._listeners && n._listeners.click && n._listeners.click.length) {
-      n._listeners.click[0]();
-      return true;
-    }
-  }
-  return false;
-}
-
 /** Every interactive element (button / a / input) under a subtree. */
 function interactives(root: FakeNode): FakeNode[] {
   return walk(root).filter((n) => ['BUTTON', 'A', 'INPUT'].includes(n.tagName));

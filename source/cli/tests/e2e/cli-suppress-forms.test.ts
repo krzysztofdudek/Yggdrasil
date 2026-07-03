@@ -913,7 +913,7 @@ describe.skipIf(!distExists)('CLI E2E — yg-suppress LLM/deterministic parity (
         'utf-8',
       );
 
-      const res = await runAsync(['check', '--approve'], dir);
+      await runAsync(['check', '--approve'], dir);
 
       // Deterministic ban-foo was waived over the wildcard range — it approves.
       // The wildcard span reached the LLM reviewer too (proving cross-kind parity).

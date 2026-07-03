@@ -22,6 +22,25 @@ export default tseslint.config(
     },
   },
   {
+    // The test tree (unit / integration / e2e specs + Playwright portal specs and
+    // the sample-project fixtures) is linted by the same gate as src, but two rules
+    // are legitimately relaxed here — nowhere else:
+    //   - no-explicit-any: tests use `any` freely for mock shapes, error-object casts
+    //     in catch clauses, and reaching into internals; forcing precise types on those
+    //     sites is high-churn, low-value, and standard practice for a test suite.
+    //   - no-empty-pattern: Playwright/vitest worker fixtures take an empty
+    //     object-destructure first parameter (`async ({}, use) => …`) — the runner
+    //     introspects that pattern to build its fixture dependency graph, so the empty
+    //     `{}` is required, not accidental.
+    // Every other rule (unused vars, useless assignments, regex clarity, cause-on-rethrow)
+    // stays fully enforced across tests.
+    files: ['tests/**/*.ts', 'tests/**/*.tsx', 'tests/**/*.js', 'tests/**/*.mjs', 'tests/**/*.cjs'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+      'no-empty-pattern': 'off',
+    },
+  },
+  {
     // The portal frontend assets (templates/portal/js + vendor) are committed BROWSER
     // code, not Node/TS source: they legitimately use browser globals (document, window)
     // and, for the vendored layout library, are taken as-shipped. They are enforced by the

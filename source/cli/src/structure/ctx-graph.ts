@@ -12,6 +12,46 @@ export class UndeclaredGraphReadError extends Error {
   }
 }
 
+/**
+ * Build a File view of a graph-reachable node's mapped file whose `content` is
+ * available immediately but whose read: OBSERVATION is folded LAZILY — recorded
+ * only the first time the check reads `.content`. This is the invalidation-width
+ * fix: a check that inspects only `.path` (e.g. enumerating sibling files by
+ * name) must not fold every sibling's bytes into its deterministic verdict, so a
+ * later edit to a never-read sibling does not needlessly re-verify it. A check
+ * that DOES read `.content` still folds it byte-symmetrically (`bytes` is the raw
+ * disk content the verifier re-observes), so no content-dependent verdict can go
+ * stale-green. Subject files (already hashed as subject inputs) and the no-
+ * recorder case get a plain content property — nothing to defer. Mirrors
+ * wrapNonSubjectFile in structure/hook-loader.ts.
+ */
+function makeGraphFile(
+  repoRelPosixPath: string,
+  content: string,
+  bytes: Buffer,
+  recorder: ObservationRecorder | undefined,
+  subjectFiles: Set<string> | undefined,
+): File {
+  if (!recorder || subjectFiles?.has(repoRelPosixPath)) {
+    return { path: repoRelPosixPath, content };
+  }
+  const rec = recorder;
+  let recorded = false;
+  const file = { path: repoRelPosixPath } as File;
+  Object.defineProperty(file, 'content', {
+    enumerable: true,
+    configurable: true,
+    get(): string {
+      if (!recorded) {
+        rec.recordRead(repoRelPosixPath, bytes);
+        recorded = true;
+      }
+      return content;
+    },
+  });
+  return file;
+}
+
 export interface CtxGraphParams {
   currentNodePath: string;
   graph: Graph;
@@ -22,8 +62,9 @@ export interface CtxGraphParams {
    * Per-node concrete file paths (repo-relative, POSIX), pre-expanded by the
    * async runner so directory and glob mapping entries resolve to real files.
    * Keyed by node path. When absent for a node, toPublicNode falls back to the
-   * raw mapping entries (file-only, no glob/dir expansion). Content is still
-   * read lazily per node so touchedFiles reflects only what the check accessed.
+   * raw mapping entries (file-only, no glob/dir expansion). Each file's read:
+   * observation folds LAZILY (only when the check reads `.content`), so a check
+   * that inspects only `.path` does not widen its verdict's invalidation.
    */
   expandedFilesByNode?: Map<string, string[]>;
   /**
@@ -126,12 +167,17 @@ export function createCtxGraph(params: CtxGraphParams): CtxGraph {
         if (stat.isFile()) {
           const bytes = fs.readFileSync(abs);
           const content = bytes.toString('utf8');
-          files.push({ path: p, content });
+          // touchedFiles reflects the files HANDED to the check (violation-emit
+          // permission), so it stays eager and node-scoped. The read: OBSERVATION
+          // — which is what widens the verdict's invalidation — folds LAZILY: only
+          // when the check actually reads this file's `.content`. A check that
+          // inspects only `.path` (e.g. listing sibling test files by name) must
+          // NOT fold every sibling's bytes into its verdict. Subject files are
+          // already hashed as subject inputs, so they are never double-recorded
+          // and get a plain content property. (Mirrors wrapNonSubjectFile in
+          // hook-loader.ts.)
           touchedFiles.push(p);
-          // Record a read: observation for non-subject files handed to the check.
-          if (recorder && !(subjectFiles?.has(p))) {
-            recorder.recordRead(p, bytes);
-          }
+          files.push(makeGraphFile(p, content, bytes, recorder, subjectFiles));
         }
       } catch {
         // missing path — skip silently
