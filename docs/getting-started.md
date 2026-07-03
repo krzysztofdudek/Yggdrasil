@@ -51,6 +51,14 @@ yg init --platform claude-code --provider claude-code --model haiku
 an OpenAI-compatible provider. API keys are read from the provider's env var.
 :::
 
+::: tip Prefer to be taught?
+Tell your agent: **"onboard me into Yggdrasil"**. Agents in an adopted repo
+know the tutor playbook (`yg knowledge read onboarding`) and will teach you
+on your own repository, in your own language. Repo not adopted yet? Tell
+the agent: _"Install @chrisdudek/yg, then run `yg knowledge read
+onboarding` and follow it."_
+:::
+
 The architecture file (`.yggdrasil/yg-architecture.yaml`) ships with an empty
 architecture (`node_types: {}`) and commented examples — node types are defined
 per project, not pre-configured. You add the types your project needs: define

@@ -24,10 +24,13 @@ same way; the level only changes severity. Severity follows status uniformly:
 
 - **`draft`** — content.md / check.mjs is still being authored, or the
   rule is unclear. Zero cost, zero expected pairs. Use this while iterating
-  on the rule text before any node has a real verdict. `draft` is also the
-  only way to park an aspect without a provider key — it removes the pairs
-  rather than leaving them red. For LLM aspects with a `companion.mjs` hook:
-  when the aspect is `draft`, the hook never runs.
+  on the rule text before any node has a real verdict. A draft aspect is
+  still runnable via `yg aspect-test` (status never gates that diagnostic;
+  `--dry-run` previews the prompt for free, a live run calls the reviewer).
+  `draft` is also the only way to park an aspect without a provider key —
+  it removes the pairs rather than leaving them red. For LLM aspects with a
+  `companion.mjs` hook: when the aspect is `draft`, the hook never runs
+  during `yg check --approve`; `yg aspect-test` still runs it live.
 - **`advisory`** — rule is complete; gather signal across the repo
   without blocking CI. Pairs are verified and cached normally; refusals and
   unverified pairs surface as warnings. Use this to measure how often a rule

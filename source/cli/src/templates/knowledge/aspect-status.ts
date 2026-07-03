@@ -23,6 +23,10 @@ Status colors verdicts that exist; it never substitutes for verification.
 - Only **\`draft\`** removes a pair from the expected set entirely — it is the only
   keyless way to stop a pair from blocking CI (relevant in a keyless-CI
   emergency).
+- Draft dormancy applies to \`yg check\` / \`--approve\` only. Status never gates
+  \`yg aspect-test\`: a draft aspect still runs there live (diagnostic only, the
+  lock is never written) — the authoring ladder "start at draft, iterate with
+  aspect-test" holds for both reviewer kinds.
 
 ## Verdict reuse across status flips
 

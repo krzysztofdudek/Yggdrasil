@@ -77,7 +77,7 @@ describe('resolveSuppressedRangesForPrompt', () => {
   });
 
   it('honors a wildcard marker in a non-grammar file', async () => {
-    // yg-suppress(*) waives every aspect on the next line — resolving for an
+    // A `yg-suppress(*)` waives every aspect on the next line — resolving for an
     // arbitrary aspect id must include it.
     const sql = [
       '-- yg-suppress(*) blanket waiver',

@@ -60,3 +60,4 @@ mapping:
   - source/cli/src/portal/engine-api.ts
   - source/cli/src/portal/api/boundary.ts
   - source/cli/src/portal/api/suppress-scan.ts
+  - source/cli/src/portal/api/suppress-eligibility.ts

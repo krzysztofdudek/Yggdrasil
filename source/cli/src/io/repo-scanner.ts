@@ -100,6 +100,27 @@ export function excludeNestedGraphSubtrees(relPaths: string[]): string[] {
 }
 
 /**
+ * True if a repo-relative POSIX path is UNCONDITIONALLY skipped by the coverage
+ * walk (`walkRepoFiles`) for STRUCTURAL reasons — independent of .gitignore and
+ * of nested-graph detection. Two cases, mirroring `collectFiles`:
+ *   - any path segment is `.git` — the git directory OR the worktree/submodule
+ *     pointer FILE, skipped at every recursion level; and
+ *   - the path is the top-level `.yggdrasil/` graph directory itself, or lives
+ *     inside it (the graph's own internal state — locks, caches, definitions).
+ * A path matching this is never enumerated by the coverage scan, so it cannot
+ * gain coverage and needs no node mapping. Used by `yg context --file` to answer
+ * "excluded by design" instead of the misleading "add it to a node mapping".
+ */
+export function isCoverageExcludedPath(relPath: string): boolean {
+  const norm = relPath.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+$/, '');
+  if (norm === '' || norm === '.') return false;
+  const segments = norm.split('/');
+  if (segments.includes('.git')) return true;
+  if (norm === YGGDRASIL_DIRNAME || norm.startsWith(YGGDRASIL_DIRNAME + '/')) return true;
+  return false;
+}
+
+/**
  * Walk all files in the repo, returning repo-relative POSIX paths.
  * Excludes `.yggdrasil/`, `.git` (directory or worktree/submodule pointer file),
  * symlinks, and gitignore-matched files.

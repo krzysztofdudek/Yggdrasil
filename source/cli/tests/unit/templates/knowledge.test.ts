@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { KNOWLEDGE_TOPICS } from '../../../src/templates/knowledge/index.js';
 
 describe('KNOWLEDGE_TOPICS', () => {
-  it('exports exactly 14 topics', () => {
-    expect(Object.keys(KNOWLEDGE_TOPICS).length).toBe(14);
+  it('exports exactly 15 topics', () => {
+    expect(Object.keys(KNOWLEDGE_TOPICS).length).toBe(15);
   });
 
   it('has expected topic names', () => {
@@ -17,6 +17,7 @@ describe('KNOWLEDGE_TOPICS', () => {
       'flows',
       'log-management',
       'meta-modeling',
+      'onboarding',
       'ports-and-relations',
       'suppress-syntax',
       'verification-and-lock',
@@ -36,6 +37,14 @@ describe('KNOWLEDGE_TOPICS', () => {
   });
 
   const REQUIRED_HEADINGS: Record<string, string[]> = {
+    onboarding: [
+      '## Activation',
+      '## The experience contract',
+      '## Three contexts',
+      '## Lesson menu — YOU hold the menu',
+      '## Zero-trace demo recipes',
+      '## Closing every session',
+    ],
     'working-with-architecture': [
       '## Type kinds',
       '## Predicate grammar',

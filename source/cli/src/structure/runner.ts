@@ -2,7 +2,7 @@ import { UndeclaredFsReadError } from './ctx-fs.js';
 import { UndeclaredGraphReadError } from './ctx-graph.js';
 import { ParseAstNotPrewarmedError } from './ctx-parsers.js';
 import { normalizeMappingPath } from './expand-mapping-sync.js';
-import { collectSuppressions, isLineSuppressed } from '../ast/suppress.js';
+import { collectSuppressions, isLineSuppressed, SuppressMarkerError } from '../ast/suppress.js';
 import type { SuppressedRange } from '../ast/suppress.js';
 import { validateCheckModuleExport } from '../utils/validate-check-module.js';
 import type { Graph } from '../model/graph.js';
@@ -15,6 +15,12 @@ import { StructureRunnerError, loadHookModule, buildUnitCtx } from './hook-loade
 // this runner without a circular import); re-export it here so existing importers
 // (structure/index.ts, callers keying off the runner module) are unaffected.
 export { StructureRunnerError } from './hook-loader.js';
+
+// Distinct code stamped when a `yg-suppress` marker in a mapped source file is
+// malformed (reasonless). The filler keys on this to surface a "malformed suppress
+// marker" diagnostic instead of blaming the aspect's check.mjs — a marker-parse
+// failure is a fault in the source file, not in check.mjs.
+export const SUPPRESS_MARKER_MALFORMED_CODE = 'STRUCTURE_SUPPRESS_MARKER_MALFORMED';
 
 export interface RunStructureAspectParams {
   aspectDir: string;
@@ -184,13 +190,24 @@ export async function runStructureAspect(
     if (existing !== undefined) return existing;
     const cached = astCache.get(filePath);
     let ranges: SuppressedRange[] | null;
-    if (cached) {
-      ranges = collectSuppressions(cached.ast, filePath, cached.content.split('\n').length, cached.content);
-    } else {
-      const content = contentByPath.get(filePath);
-      ranges = content !== undefined
-        ? collectSuppressions(undefined, filePath, content.split('\n').length, content)
-        : null;
+    try {
+      if (cached) {
+        ranges = collectSuppressions(cached.ast, filePath, cached.content.split('\n').length, cached.content);
+      } else {
+        const content = contentByPath.get(filePath);
+        ranges = content !== undefined
+          ? collectSuppressions(undefined, filePath, content.split('\n').length, content)
+          : null;
+      }
+    } catch (err) {
+      // A malformed suppress marker is a fault in the SOURCE file's marker, not in
+      // check.mjs. Re-raise it as a runner error with a DISTINCT code so the
+      // filler surfaces its own "malformed suppress marker" diagnostic instead of
+      // an aspect-check-runtime-error that blames the (correct) check.
+      if (err instanceof SuppressMarkerError) {
+        throw new StructureRunnerError(SUPPRESS_MARKER_MALFORMED_CODE, err.messageData);
+      }
+      throw err;
     }
     rangesByFile.set(filePath, ranges);
     return ranges;

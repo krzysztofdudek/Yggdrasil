@@ -173,6 +173,31 @@ describe('runSuppressionsScan: comment-only scoping for AST languages', () => {
     expect(report.warnings).toHaveLength(0);
   });
 
+  it('a file whose comments only MENTION the syntax mid-prose yields zero markers and zero warnings', async () => {
+    const root = freshDir('prose-mentions');
+    // Real comments, but every occurrence of the token is prose: mid-sentence
+    // mentions, backtick-quoted examples, quotation-style leaders, junk ids.
+    // Under the anchored grammar none of these is a marker — no phantom rows,
+    // no bogus unknown-id / wildcard warnings.
+    write(
+      root,
+      'prose.ts',
+      [
+        '// Note: never use yg-suppress(*) here because wildcards mask real problems',
+        '// a `yg-suppress(some-aspect)` that merely appears inside a doc sentence',
+        '// // yg-suppress(some-aspect) quoted example from a code review',
+        '// yg-suppress(...) truncated prose placeholder',
+        '// yg-suppress(<aspect-id>) documentation placeholder',
+        'const y = 2;',
+        '',
+      ].join('\n'),
+    );
+    const report = await runSuppressionsScan(root, ['prose.ts'], new Set(['some-aspect']));
+    expect(report.fileEntries).toHaveLength(0);
+    expect(report.totalMarkers).toBe(0);
+    expect(report.warnings).toHaveLength(0);
+  });
+
   it('a genuine comment marker in a TS file IS still inventoried (no regression)', async () => {
     const root = freshDir('real-comment');
     write(root, 'real.ts', '// yg-suppress(some-aspect) genuine waiver, debt tracked\nx();\n');

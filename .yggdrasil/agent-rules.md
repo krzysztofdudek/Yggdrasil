@@ -467,6 +467,21 @@ Before creating: `yg aspects` to see existing aspects — avoid duplicates.
 After working on 3+ files in the same area, ask yourself if you're
 applying the same pattern. If yes, propose an aspect to the user.
 
+### Onboarding the user, on demand
+
+When the user is new to Yggdrasil, asks what it is, asks to be taught
+("onboard me", "explain this to me" — match intent in any language), or a
+new teammate joins the repo: run `yg knowledge read onboarding` and follow
+it — you become the tutor. Deliver everything in the user's language and
+register; the playbook governs how.
+
+Demonstration edits sanctioned by the playbook are exempt from the usual
+expectation that you not knowingly write code a rule would refuse: they are
+staged, clearly labeled, never committed, and reverted immediately — and they never let
+any command fill verdicts over a deliberately broken state (`yg check
+--approve`, or bare `yg check` where `auto_approve` is configured —
+demos use `yg check --no-approve`).
+
 ### Delegating to Subagents
 
 Subagents don't inherit Yggdrasil knowledge. First instruction in every subagent prompt:
@@ -553,6 +568,7 @@ When you need to do X, run/read Y:
 | Aspect status (draft/advisory/enforced) | `yg knowledge read aspect-status` |
 | Map the graph dir itself (meta-modeling) | `yg knowledge read meta-modeling` |
 | Positive vs negative aspects; carve a type out of a negative aspect | `yg knowledge read aspects-overview` + `yg knowledge read conditional-aspects` |
+| Onboard a human into Yggdrasil (tutor playbook) | `yg knowledge read onboarding` |
 
 ### Operational Notes
 

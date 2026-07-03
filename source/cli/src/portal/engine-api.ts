@@ -24,6 +24,7 @@ import { groupIssues, type IssueGroup } from '../cli/group-issues.js';
 import type { BoundaryInput, SuppressionMarkerInput, FreshnessMarkerInput } from './contract.js';
 import { computePortalBoundary as computeBoundaryImpl } from './api/boundary.js';
 import { runSuppressionsScan, scanPortalSuppressions as adaptSuppressions } from './api/suppress-scan.js';
+import { collectMappingEntries } from './api/suppress-eligibility.js';
 
 /**
  * engine-api — the portal's SOLE gateway to engine internals.
@@ -155,7 +156,7 @@ export async function scanPortalSuppressions(
   const draftAspectIds = new Set(
     graph.aspects.filter((a) => (a.status ?? 'enforced') === 'draft').map((a) => a.id),
   );
-  const report = await runSuppressionsScan(projectRoot, gitFiles, knownAspectIds);
+  const report = await runSuppressionsScan(projectRoot, gitFiles, knownAspectIds, collectMappingEntries(graph));
   return adaptSuppressions(report, knownAspectIds, draftAspectIds);
 }
 

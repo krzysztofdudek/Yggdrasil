@@ -46,6 +46,9 @@ describe('yg suppressions uses disk scan (walkRepoFiles), not git ls-files', () 
       rootPath: path.join(tmpDir, '.yggdrasil'),
       aspects: [],
       config: {},
+      // `yg suppressions` now derives mapped-source eligibility from the graph so a
+      // honored marker in a mapped prose file is inventoried (parity with honoring).
+      nodes: new Map(),
     } as never);
   });
 

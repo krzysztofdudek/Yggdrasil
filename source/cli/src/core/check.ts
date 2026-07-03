@@ -664,7 +664,7 @@ function countDraftAspectsAcrossGraph(graph: Graph): number {
  * an advisory aspect-violation warning's `next` so a warnings-only run still
  * points somewhere.
  */
-function computeSuggestedNext(issues: CheckIssue[]): string | null {
+export function computeSuggestedNext(issues: CheckIssue[]): string | null {
   const errors = issues.filter(i => i.severity === 'error');
   const ASPECT_WARNING_CODES = new Set(['aspect-violation-advisory']);
   if (errors.length === 0) {
@@ -728,11 +728,17 @@ function computeSuggestedNext(issues: CheckIssue[]): string | null {
   const gitignoredCovered = errors.find(i => i.code === 'mapped-file-gitignored');
   if (gitignoredCovered) return gitignoredCovered.messageData.next;
 
-  // 7. structural.
+  // 7. structural. Pick the alphabetically-first structural CODE (then node),
+  //    the SAME within-category tie-break groupIssues uses (label = code) — NOT
+  //    validator emission order — so the group bare `yg check --top` renders is
+  //    exactly the rule this line names. Emission order let the two surfaces
+  //    drift (e.g. `event-unpaired` shown by --top but `yaml-invalid` named here).
   const structuralErrors = errors.filter(i => STRUCTURAL_CODES.has(i.code));
   const coverageErrors = errors.filter(i => i.code === 'unmapped-files');
   if (structuralErrors.length > 0) {
-    const first = structuralErrors[0];
+    const first = [...structuralErrors].sort((a, b) =>
+      a.code.localeCompare(b.code, 'en') ||
+      (a.nodePath ?? '').localeCompare(b.nodePath ?? '', 'en'))[0];
     const then = coverageErrors.length > 0
       ? `\n  Then: ${coverageErrors[0].uncoveredCount ?? 0} files need coverage`
       : '';
@@ -751,6 +757,18 @@ function computeSuggestedNext(issues: CheckIssue[]): string | null {
     const first = completenessErrors[0];
     return `Fix ${first.code} for ${first.nodePath}\n  1 of ${completenessErrors.length} completeness error${completenessErrors.length === 1 ? '' : 's'} — post-modify workflow`;
   }
+
+  // 10. Any remaining error — architecture/strict codes outside the categories
+  //     above (e.g. type-undefined, parent-type-forbidden, mapping-path-missing,
+  //     type-strict-*). Each carries its own actionable `next`. Pick the
+  //     alphabetically-first by code then node — the SAME tie-break groupIssues
+  //     uses — so the group bare `yg check --top` renders is the group this line
+  //     names even here. Without this the line would be null while `--top` still
+  //     rendered that group, breaking the bare-`--top` == `Next:` invariant.
+  const otherErrors = [...errors].sort((a, b) =>
+    a.code.localeCompare(b.code, 'en') ||
+    (a.nodePath ?? '').localeCompare(b.nodePath ?? '', 'en'));
+  if (otherErrors.length > 0) return otherErrors[0].messageData.next;
 
   return null;
 }

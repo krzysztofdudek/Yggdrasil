@@ -61,6 +61,26 @@ function countBlocks(stdout: string): number {
 }
 
 /**
+ * Assert no Errors(N):/Warnings(N): subheader dangles empty — every rendered
+ * subheader must be followed (skipping blank lines) by CONTENT: a group block,
+ * a summary row, or the 4-space-indented "(no ... groups within --top N ...)"
+ * annotation. A subheader followed directly by another subheader, the Next:
+ * line, or end of output is the dangling-header defect this pins against.
+ */
+function expectNoDanglingSectionHeader(stdout: string): void {
+  const lines = strip(stdout).split('\n');
+  lines.forEach((line, i) => {
+    if (/^(Errors|Warnings) \(\d+\):/.test(line)) {
+      const following = lines.slice(i + 1).find((l) => l.trim() !== '') ?? '';
+      expect(
+        /^(Errors|Warnings) \(\d+\):|^Next:|^$/.test(following),
+        `subheader "${line}" must not dangle empty (followed by "${following}")`,
+      ).toBe(false);
+    }
+  });
+}
+
+/**
  * Build a hermetic project with TWO enforced LLM aspects and THREE nodes, so
  * `yg check` (cold lock) produces multiple unverified pairs across two different
  * aspects — a realistic multi-group scenario.
@@ -315,6 +335,38 @@ describe.skipIf(!distExists)('CLI E2E — yg check Phase-2 view flags', () => {
 
     // The Next: line is still present (--top is a narrowed view, not silent).
     expect(out).toMatch(/^Next:/m);
+
+    // No section header is left dangling with nothing beneath it.
+    expectNoDanglingSectionHeader(stdout);
+  });
+
+  it.sequential('bare --top: exactly ONE group block — the suggested-next group — true total visible, exit 1', () => {
+    const { stdout, status } = run(['check', '--top'], dir);
+    const out = strip(stdout);
+
+    expect(status).toBe(1);
+
+    // GUARDRAIL: the narrowed view never hides the true aggregate counts.
+    expect(out).toMatch(/Errors \(5\)/);
+    expect(out).toMatch(/yg check: FAIL/);
+
+    // Bare --top = --top 1: exactly ONE group block renders.
+    expect(countBlocks(out)).toBe(1);
+
+    // The rendered group is the one the Next: line draws from — unverified
+    // outranks the mapping-path-missing structural group in the priority cascade.
+    expect(out).toContain('unverified');
+    expect(out).not.toContain('mapping-path-missing');
+
+    // The Next: line still prints — bare --top is a narrowed view, not silence.
+    expect(out).toMatch(/^Next:/m);
+
+    // Bare --top and --top 1 are the SAME view (n=1 semantics).
+    const explicit = run(['check', '--top', '1'], dir);
+    expect(strip(explicit.stdout)).toBe(out);
+
+    // No section header is left dangling with nothing beneath it.
+    expectNoDanglingSectionHeader(stdout);
   });
 
   it.sequential('--top 2: both groups rendered (all groups shown when N groups <= top), exit 1', () => {
@@ -329,6 +381,9 @@ describe.skipIf(!distExists)('CLI E2E — yg check Phase-2 view flags', () => {
     // Both groups (unverified + mapping-path-missing) should render.
     const blockCount = countBlocks(out);
     expect(blockCount).toBe(2);
+
+    // No section header is left dangling with nothing beneath it.
+    expectNoDanglingSectionHeader(stdout);
   });
 
   it.sequential('--details --approve: mutual-exclusion error to stderr, exit 1', () => {
@@ -382,4 +437,282 @@ describe.skipIf(!distExists)('CLI E2E — yg check Phase-2 view flags', () => {
     expect(out).not.toContain("aspect 'totally-bogus-aspect'");
   });
 
+});
+
+/**
+ * Build a hermetic project whose cold-lock `yg check` produces BOTH an error
+ * and a warning: one node with an ENFORCED aspect (unverified pair → error)
+ * and an ADVISORY aspect (unverified pair → warning). The --top slice orders
+ * error groups before warning groups, so `--top 1` chooses only the error
+ * group — leaving the Warnings section with a true count > 0 but no chosen
+ * groups. This is the empty-subheader annotation scenario.
+ */
+function buildAnnotationFixture(): string {
+  const dir = mkdtempSync(path.join(tmpdir(), 'yg-check-top-annotation-'));
+  const ygRoot = path.join(dir, '.yggdrasil');
+  const srcDir = path.join(dir, 'src');
+
+  mkdirSync(path.join(ygRoot, 'model'), { recursive: true });
+  mkdirSync(path.join(ygRoot, 'aspects'), { recursive: true });
+  mkdirSync(path.join(ygRoot, 'flows'), { recursive: true });
+  mkdirSync(srcDir, { recursive: true });
+
+  // One enforced aspect (→ unverified ERROR) and one advisory aspect (→ unverified WARNING).
+  for (const [id, status] of [['aspect-hard', 'enforced'], ['aspect-soft', 'advisory']] as const) {
+    const aDir = path.join(ygRoot, 'aspects', id);
+    mkdirSync(aDir, { recursive: true });
+    writeFileSync(
+      path.join(aDir, 'yg-aspect.yaml'),
+      `name: ${id}\ndescription: top-annotation test aspect ${id}\nstatus: ${status}\n`,
+      'utf-8',
+    );
+    writeFileSync(path.join(aDir, 'content.md'), `# ${id}\n\nAll files must satisfy ${id}.\n`, 'utf-8');
+  }
+
+  writeFileSync(
+    path.join(ygRoot, 'yg-architecture.yaml'),
+    [
+      'node_types:',
+      '  svc:',
+      "    description: 'Service node for --top annotation coverage'",
+      '    log_required: false',
+      '    when:',
+      '      path: "src/**"',
+      '',
+    ].join('\n'),
+    'utf-8',
+  );
+
+  writeFileSync(
+    path.join(ygRoot, 'yg-config.yaml'),
+    [
+      'quality:',
+      '  max_direct_relations: 10',
+      'reviewer:',
+      '  tiers:',
+      '    standard:',
+      '      provider: ollama',
+      '      consensus: 1',
+      '      config:',
+      '        model: test',
+      `        endpoint: ${LOOPBACK_ENDPOINT}`,
+      '',
+    ].join('\n'),
+    'utf-8',
+  );
+
+  // solo: carries BOTH aspects → 1 unverified error + 1 unverified warning.
+  const soloDir = path.join(ygRoot, 'model', 'solo');
+  mkdirSync(soloDir, { recursive: true });
+  writeFileSync(
+    path.join(soloDir, 'yg-node.yaml'),
+    [
+      'name: solo',
+      'type: svc',
+      'description: solo',
+      'aspects:',
+      '  - aspect-hard',
+      '  - aspect-soft',
+      'relations: []',
+      'mapping:',
+      '  - src/solo.ts',
+      '',
+    ].join('\n'),
+    'utf-8',
+  );
+  writeFileSync(path.join(srcDir, 'solo.ts'), "export const solo = 'solo';\n", 'utf-8');
+
+  return dir;
+}
+
+describe.skipIf(!distExists)('CLI E2E — yg check --top empty-section annotation', () => {
+  let dir: string;
+
+  it.sequential('setup: build annotation fixture', () => {
+    dir = buildAnnotationFixture();
+    expect(existsSync(dir)).toBe(true);
+  });
+
+  afterAll(() => {
+    if (dir) rmSync(dir, { recursive: true, force: true });
+  });
+
+  it.sequential('--top 1 with errors AND warnings: warning subheader annotated, never dangling, exit 1', () => {
+    const { stdout, status } = run(['check', '--top', '1'], dir);
+    const out = strip(stdout);
+
+    expect(status).toBe(1);
+
+    // GUARDRAIL: true aggregate counts for BOTH severities stay visible even
+    // though the slice renders no warning group.
+    expect(out).toMatch(/Errors \(1\)/);
+    expect(out).toMatch(/Warnings \(1\)/);
+
+    // Exactly ONE group block (the suggested-next error group).
+    expect(countBlocks(out)).toBe(1);
+
+    // The Warnings section carries the annotation instead of a dangling header.
+    expect(out).toContain('    (no warning groups within --top 1 — run yg check for the full list)');
+    // The Errors section has a body, so it is NOT annotated.
+    expect(out).not.toContain('(no error groups within --top 1');
+
+    expect(out).toMatch(/^Next:/m);
+    expectNoDanglingSectionHeader(stdout);
+  });
+
+  it.sequential('bare --top behaves as --top 1: one group + annotated warning subheader, exit 1', () => {
+    const { stdout, status } = run(['check', '--top'], dir);
+    const out = strip(stdout);
+
+    expect(status).toBe(1);
+    expect(out).toMatch(/Errors \(1\)/);
+    expect(out).toMatch(/Warnings \(1\)/);
+    expect(countBlocks(out)).toBe(1);
+    expect(out).toContain('    (no warning groups within --top 1 — run yg check for the full list)');
+    expectNoDanglingSectionHeader(stdout);
+
+    // Bare --top and --top 1 are the SAME view (n=1 semantics).
+    const explicit = run(['check', '--top', '1'], dir);
+    expect(strip(explicit.stdout)).toBe(out);
+  });
+});
+
+// =============================================================================
+// F3 regression: bare `--top`'s single group must be exactly the group the
+// `Next:` line names — on a repo whose top errors are UNRANKED structural codes.
+//
+// Fixture (no aspects → no unverified pairs; the top errors are structural):
+//   - node `alpha` declares a relation to a non-existent target → relation-broken
+//   - flow `broken-flow` references a non-existent node          → flow-node-broken
+//   - `src/orphan.ts` is mapped to no node                       → unmapped-files
+//
+// Both structural codes are UNRANKED (not in ERROR_CODE_PRIORITY). The validators
+// emit them relation-broken-FIRST, flow-node-broken-second, but groupIssues
+// tie-breaks alphabetically (flow-node-broken < relation-broken). Under the OLD
+// comparators the two surfaces DIVERGED: bare `--top` rendered the flow-node-broken
+// group (alphabetical) while `Next:` named relation-broken (emission-order pick) —
+// and coverage (`unmapped-files`) could jump ahead of structural in `--top`. Both
+// surfaces now share ONE ordering (structural < coverage, alphabetical within), so
+// the group `--top` renders is exactly the rule `Next:` names.
+// =============================================================================
+
+function buildStructuralCoverageFixture(): string {
+  const dir = mkdtempSync(path.join(tmpdir(), 'yg-f3-invariant-'));
+  const ygRoot = path.join(dir, '.yggdrasil');
+  const srcDir = path.join(dir, 'src');
+  mkdirSync(path.join(ygRoot, 'model', 'alpha'), { recursive: true });
+  mkdirSync(path.join(ygRoot, 'aspects'), { recursive: true });
+  mkdirSync(path.join(ygRoot, 'flows', 'broken-flow'), { recursive: true });
+  mkdirSync(srcDir, { recursive: true });
+
+  writeFileSync(
+    path.join(ygRoot, 'yg-architecture.yaml'),
+    [
+      'node_types:',
+      '  svc:',
+      "    description: 'Service node for F3 invariant coverage'",
+      '    log_required: false',
+      '    when:',
+      '      path: "src/**"',
+      '    relations:',
+      '      uses: [svc]',
+      '',
+    ].join('\n'),
+    'utf-8',
+  );
+  writeFileSync(
+    path.join(ygRoot, 'yg-config.yaml'),
+    [
+      'quality:',
+      '  max_direct_relations: 10',
+      'reviewer:',
+      '  tiers:',
+      '    standard:',
+      '      provider: ollama',
+      '      consensus: 1',
+      '      config:',
+      '        model: test',
+      `        endpoint: ${LOOPBACK_ENDPOINT}`,
+      '',
+    ].join('\n'),
+    'utf-8',
+  );
+  // alpha declares a relation to a non-existent target → relation-broken.
+  writeFileSync(
+    path.join(ygRoot, 'model', 'alpha', 'yg-node.yaml'),
+    [
+      'name: alpha',
+      'type: svc',
+      'description: alpha',
+      'aspects: []',
+      'relations:',
+      '  - type: uses',
+      '    target: ghost',
+      'mapping:',
+      '  - src/alpha.ts',
+      '',
+    ].join('\n'),
+    'utf-8',
+  );
+  // A flow referencing a non-existent node → flow-node-broken.
+  writeFileSync(
+    path.join(ygRoot, 'flows', 'broken-flow', 'yg-flow.yaml'),
+    ['name: broken-flow', 'description: references a non-existent node', 'nodes:', '  - phantom', 'aspects: []', ''].join('\n'),
+    'utf-8',
+  );
+  writeFileSync(path.join(srcDir, 'alpha.ts'), "export const alpha = 'a';\n", 'utf-8');
+  // Mapped to no node → unmapped-files (coverage error).
+  writeFileSync(path.join(srcDir, 'orphan.ts'), "export const orphan = 'o';\n", 'utf-8');
+  return dir;
+}
+
+describe.skipIf(!distExists)('CLI E2E — F3: bare --top group === the rule Next names', () => {
+  let dir: string;
+
+  it.sequential('setup: build structural+coverage fixture', () => {
+    dir = buildStructuralCoverageFixture();
+    expect(existsSync(dir)).toBe(true);
+  });
+
+  afterAll(() => {
+    if (dir) rmSync(dir, { recursive: true, force: true });
+  });
+
+  it.sequential('the group bare --top renders is exactly the rule the Next: line names (structural + coverage mix)', () => {
+    const top = run(['check', '--top'], dir);
+    const full = run(['check'], dir);
+    // Red repo — both exit 1, TRUE aggregate preserved.
+    expect(top.status).toBe(1);
+    expect(full.status).toBe(1);
+
+    const topOut = strip(top.stdout);
+    const fullOut = strip(full.stdout);
+
+    // Sanity: BOTH structural codes AND coverage are present in the full wall.
+    expect(fullOut).toMatch(/^ {2}flow-node-broken {2}\d+ pairs/m);
+    expect(fullOut).toMatch(/^ {2}relation-broken {2}\d+ pairs/m);
+    expect(fullOut).toMatch(/^ {2}unmapped \(/m);
+
+    // The rule bare --top renders: the FIRST group header line's label token.
+    const topGroupMatch = topOut.match(/^ {2}(\S+) {2}\d+ pairs {2}\d+ nodes/m);
+    expect(topGroupMatch).not.toBeNull();
+    const topGroupRule = topGroupMatch![1];
+
+    // The rule the Next: line names: `Next: Fix <code> in <node>`.
+    const nextMatch = fullOut.match(/^Next: Fix (\S+) /m);
+    expect(nextMatch).not.toBeNull();
+    const nextRule = nextMatch![1];
+
+    // THE INVARIANT: the two surfaces name the SAME rule.
+    expect(topGroupRule).toBe(nextRule);
+    // And concretely: the alphabetically-first structural code wins BOTH — NOT
+    // relation-broken (the OLD emission-order pick) and NOT unmapped-files (the
+    // OLD alphabetical-across-all coverage pick).
+    expect(topGroupRule).toBe('flow-node-broken');
+    expect(nextRule).not.toBe('relation-broken');
+    expect(topGroupRule).not.toBe('unmapped-files');
+
+    // Bare --top renders exactly ONE group.
+    expect(countBlocks(topOut)).toBe(1);
+  });
 });

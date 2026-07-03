@@ -358,10 +358,16 @@ describe('check render — --top view', () => {
     expect(out).toMatch(/\nNext: /);
   });
 
-  it('{kind:top,n:0} renders the true header, zero blocks, and still the single Next line', () => {
+  it('{kind:top,n:0} (defensive — unreachable via CLI) renders zero blocks plus the empty-section annotation', () => {
+    // The CLI never produces n:0 (bare --top maps to 1; explicit "0" is a guided
+    // error) — this pins the DEFENSIVE rendering: no group blocks, and the
+    // Errors subheader is annotated instead of dangling empty.
     const out = stripAnsi(formatOutput(fourErrorResult(), { kind: 'top', n: 0 }));
     expect(out).toContain('Errors (4):');
     expect(countBlocks(out)).toBe(0);
+    // Annotation beneath the group-less subheader — 4-space indented so
+    // block-counting parsers never mistake it for a group block.
+    expect(out).toContain('    (no error groups within --top 0 — run yg check for the full list)');
     expect(out).toMatch(/\nNext: /);
     // Exactly one Next line, nothing more.
     expect((out.match(/\nNext: /g) ?? []).length).toBe(1);
@@ -672,11 +678,11 @@ describe('check render — --details view (task 2.1)', () => {
 describe('resolveTopValue', () => {
   const cases: Array<[boolean | string | undefined, number | null]> = [
     [undefined, 0],
-    [true, 0],        // bare --top → suggestedNext-only
+    [true, 1],        // bare --top → the single suggested-next group
     ['1', 1],
     ['5', 5],
     ['99', 99],
-    ['0', null],      // explicit "0" is garbage — bare --top is the zero path
+    ['0', null],      // explicit "0" is garbage — bare --top (→ 1) is the single-group path
     ['-2', null],
     ['abc', null],
     ['1.5', null],
@@ -889,17 +895,49 @@ describe('check render — --top GROUP view (task 2.3)', () => {
     expect(out).not.toContain('relation-undeclared-dependency');
   });
 
-  it('{kind:top,n:0} bare-top renders zero group blocks; subheaders and Next still print', () => {
+  it('{kind:top,n:0} (defensive) renders zero group blocks, the annotated subheader, and Next', () => {
+    // n:0 is unreachable via the CLI (bare --top → 1, explicit "0" → guided
+    // error); pins the defensive path: annotated subheader, no dangling header.
     const result = fourGroupErrorResult();
     const out = stripAnsi(formatOutput(result, { kind: 'top', n: 0 }));
     // TRUE header present.
     expect(out).toContain('Errors (4):');
-    // Zero group blocks.
+    // Zero group blocks — the annotation must NOT register as a block.
     expect(countBlocks(out)).toBe(0);
+    expect(out).toContain('    (no error groups within --top 0 — run yg check for the full list)');
     // Next line still present.
     expect(out).toMatch(/\nNext: /);
     // Exactly one Next line.
     expect((out.match(/\nNext: /g) ?? []).length).toBe(1);
+  });
+
+  it('{kind:top,n:1} with errors AND warnings: warning subheader is annotated, not left dangling', () => {
+    // Add an advisory (warning) unverified pair on top of the 4 error groups.
+    // --top 1 slices [error groups..., warning groups...] at 1 → only the top
+    // ERROR group renders; the Warnings section keeps its TRUE count but has
+    // no chosen group, so it must carry the annotation instead of a bare header.
+    const base = fourGroupErrorResult();
+    const warning: CheckIssue = {
+      severity: 'warning',
+      code: 'unverified',
+      rule: 'unverified',
+      nodePath: 'notify/mailer',
+      aspectId: 'aspect-adv',
+      pairKind: 'llm',
+      messageData: unverifiedMessage({ aspectId: 'aspect-adv', unitKey: 'notify/mailer#aspect-adv' }),
+    } as CheckIssue;
+    const result: CheckResult = { ...base, issues: [...base.issues, warning] };
+    const out = stripAnsi(formatOutput(result, { kind: 'top', n: 1 }));
+    // TRUE aggregate counts for BOTH severities stay visible.
+    expect(out).toContain('Errors (4):');
+    expect(out).toContain('Warnings (1):');
+    // Exactly ONE group block rendered (the suggested-next error group).
+    expect(countBlocks(out)).toBe(1);
+    // The Errors section has a body, so it is NOT annotated.
+    expect(out).not.toContain('(no error groups within --top 1');
+    // The Warnings section is annotated instead of dangling empty.
+    expect(out).toContain('    (no warning groups within --top 1 — run yg check for the full list)');
+    expect(out).toMatch(/\nNext: /);
   });
 
   it('{kind:top,n:4} renders all 4 groups when n equals group count', () => {

@@ -565,6 +565,232 @@ describe.skipIf(!distExists)('CLI E2E — yg-suppress syntactic forms + aspect-p
 });
 
 // ---------------------------------------------------------------------------
+// ANCHORED MARKER GRAMMAR — a marker counts only when the yg-suppress token
+// begins its comment line (at most ONE leading comment delimiter). Prose that
+// merely MENTIONS the syntax is invisible to the reviewer AND to the
+// `yg suppressions` inventory. Pins the closed enforcement hole: a mid-sentence
+// wildcard mention above a violating line used to silently waive an enforced
+// violation.
+// ---------------------------------------------------------------------------
+
+describe.skipIf(!distExists)('CLI E2E — anchored marker grammar (prose mentions are not markers)', () => {
+  it('7: a prose comment mentioning yg-suppress(*) above a violating line does NOT waive the enforced violation; --only-deterministic still refuses (exit 1)', () => {
+    const dir = hermeticFixture('prose-wildcard-hole');
+    try {
+      expect(run(['check', '--approve', '--only-deterministic'], dir).status).toBe(0);
+
+      // The repro of the enforcement hole: a mid-sentence wildcard mention in a
+      // real comment, directly above a real violation. Under the anchored
+      // grammar the mention is prose, not a marker — nothing is waived.
+      appendFileSync(
+        ordersFile(dir),
+        [
+          '',
+          '// Note: never use yg-suppress(*) here because wildcards mask real problems',
+          '// TODO: real debt that must stay visible',
+          '',
+        ].join('\n'),
+        'utf-8',
+      );
+
+      const fill = run(['check', '--approve', '--only-deterministic'], dir);
+      expect(fill.status).toBe(1);
+      // Fill-time progress ([det] line) goes to STDERR.
+      expect(fill.stderr).toContain('[det] no-todo-comments on node:services/orders — refused');
+
+      // Plain check stays red too — the prose mention waives nothing.
+      expect(run(['check'], dir).status).toBe(1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('8: a legit anchored single-line marker still waives the violation, and yg suppressions lists ONLY that marker (no phantoms, exit 0)', () => {
+    const dir = hermeticFixture('anchored-marker-inventory');
+    try {
+      expect(run(['check', '--approve', '--only-deterministic'], dir).status).toBe(0);
+
+      // One prose mention AND one genuine anchored marker in the same file. The
+      // marker waives the violation on the line below it; the prose line is
+      // invisible to both the reviewer and the inventory.
+      appendFileSync(
+        ordersFile(dir),
+        [
+          '',
+          '// Remember: yg-suppress(no-todo-comments) mentioned mid-sentence is only prose',
+          '// yg-suppress(no-todo-comments) known debt, tracked in the issue tracker',
+          '// TODO: waived by the anchored marker directly above',
+          '',
+        ].join('\n'),
+        'utf-8',
+      );
+
+      const fill = run(['check', '--approve', '--only-deterministic'], dir);
+      expect(fill.status).toBe(0);
+      expect(fill.all).not.toContain('refused');
+
+      // The inventory lists exactly the ONE anchored marker: no phantom rows for
+      // the prose mention, no warnings, exit 0.
+      const inv = run(['suppressions'], dir);
+      expect(inv.status).toBe(0);
+      expect(inv.stdout).toContain('single(no-todo-comments)');
+      expect(inv.stdout).toContain('known debt, tracked in the issue tracker');
+      expect(inv.stdout).toContain('Total: 1 marker across 1 file.');
+      expect(inv.stdout).not.toContain('mentioned mid-sentence');
+      expect(inv.stdout).not.toContain('Warnings');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// RAW-SCAN SECURITY (F5) + INVENTORY PARITY (F4) + MALFORMED MARKER (F6)
+//
+// A mapped non-grammar file (`.md`/`.sql`) is raw-scanned by the honoring path.
+// The comment delimiter is MANDATORY there: a bare prose line that merely begins
+// with the token must NOT waive (F5). The SAME mapped file must be visible to the
+// `yg suppressions` audit (F4). A reasonless marker surfaces its own diagnostic,
+// never a check.mjs-crash (F6). Fully hermetic (deterministic checks only).
+// ---------------------------------------------------------------------------
+
+const ordersDocFile = (dir: string, name: string) => path.join(dir, 'src', 'services', name);
+
+/** Re-author the orders node to map orders.ts + an extra mapped doc, own aspects. */
+function mapDocToOrders(dir: string, docName: string, ownAspects: string[]): void {
+  const lines = ['name: OrdersService', 'description: Creates and retrieves customer orders.', 'type: service'];
+  if (ownAspects.length > 0) {
+    lines.push('aspects:');
+    for (const a of ownAspects) lines.push(`  - ${a}`);
+  }
+  lines.push('mapping:', '  - src/services/orders.ts', `  - src/services/${docName}`, '');
+  writeFileSync(ordersNodeYaml(dir), lines.join('\n'), 'utf-8');
+}
+
+describe.skipIf(!distExists)('CLI E2E — raw-scan mandatory delimiter (F5) + inventory parity (F4) + malformed marker (F6)', () => {
+  it('F5: a mapped .md line beginning with a BARE yg-suppress(...) (no delimiter) does NOT waive an enforced violation', () => {
+    const dir = hermeticFixture('raw-scan-bare-nowaive');
+    try {
+      writeTokenAspect(dir, 'ban-secret', 'SECRETTOKEN');
+      mapDocToOrders(dir, 'orders-notes.md', ['ban-secret']);
+      writeFileSync(
+        ordersDocFile(dir, 'orders-notes.md'),
+        [
+          '# Orders migration notes (keeps an export reference for the module rule)',
+          '',
+          'When migrating legacy config you might be tempted to write a',
+          'yg-suppress(ban-secret) marker, but prefer fixing the value instead:',
+          'SECRETTOKEN lives here for legacy reasons.',
+          '',
+        ].join('\n'),
+        'utf-8',
+      );
+      const fill = run(['check', '--approve', '--only-deterministic'], dir);
+      // The bare (delimiter-less) line is NOT a marker → the secret line refuses.
+      expect(fill.status).toBe(1);
+      expect(fill.stderr).toContain('[det] ban-secret on node:services/orders — refused');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('F5: a mapped .sql line with a REAL -- delimiter DOES waive the enforced violation', () => {
+    const dir = hermeticFixture('raw-scan-sql-waive');
+    try {
+      writeTokenAspect(dir, 'ban-secret', 'SECRETTOKEN');
+      mapDocToOrders(dir, 'orders-recon.sql', ['ban-secret']);
+      writeFileSync(
+        ordersDocFile(dir, 'orders-recon.sql'),
+        [
+          '-- Orders reconciliation (keeps an export reference for the module rule)',
+          '-- yg-suppress(ban-secret) known debt, tracked in the issue tracker',
+          'SELECT val FROM orders WHERE token = SECRETTOKEN;',
+          '',
+        ].join('\n'),
+        'utf-8',
+      );
+      const fill = run(['check', '--approve', '--only-deterministic'], dir);
+      expect(fill.status).toBe(0);
+      expect(fill.all).not.toContain('refused');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('F5: a mapped .md line with a REAL # delimiter DOES waive the enforced violation', () => {
+    const dir = hermeticFixture('raw-scan-md-hash-waive');
+    try {
+      writeTokenAspect(dir, 'ban-secret', 'SECRETTOKEN');
+      mapDocToOrders(dir, 'orders-notes.md', ['ban-secret']);
+      writeFileSync(
+        ordersDocFile(dir, 'orders-notes.md'),
+        [
+          'Orders notes that keep an export reference for the module rule.',
+          '# yg-suppress(ban-secret) known debt, tracked in the issue tracker',
+          'SECRETTOKEN lives here for legacy reasons.',
+          '',
+        ].join('\n'),
+        'utf-8',
+      );
+      const fill = run(['check', '--approve', '--only-deterministic'], dir);
+      expect(fill.status).toBe(0);
+      expect(fill.all).not.toContain('refused');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('F4: a honored marker in a mapped .md is visible to `yg suppressions` (audit parity)', () => {
+    const dir = hermeticFixture('inventory-mapped-md');
+    try {
+      writeTokenAspect(dir, 'ban-secret', 'SECRETTOKEN');
+      mapDocToOrders(dir, 'orders-notes.md', ['ban-secret']);
+      writeFileSync(
+        ordersDocFile(dir, 'orders-notes.md'),
+        [
+          'Orders notes that keep an export reference for the module rule.',
+          '# yg-suppress(ban-secret) known debt, tracked in the issue tracker',
+          'SECRETTOKEN lives here for legacy reasons.',
+          '',
+        ].join('\n'),
+        'utf-8',
+      );
+      // The waiver above is HONORED (F5 positive). The audit must not be blind to it.
+      const inv = run(['suppressions'], dir);
+      expect(inv.status).toBe(0);
+      expect(inv.stdout).toContain('src/services/orders-notes.md');
+      expect(inv.stdout).toContain('single(ban-secret)');
+      expect(inv.stdout).toContain('known debt, tracked in the issue tracker');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('F6: a reasonless marker in a mapped file surfaces a MALFORMED-MARKER diagnostic, never a check.mjs crash', () => {
+    const dir = hermeticFixture('malformed-marker-diag');
+    try {
+      // A reasonless marker directly above a real violation: collectSuppressions
+      // throws, but the fault is the SOURCE marker, not the (correct) check.
+      appendFileSync(
+        ordersFile(dir),
+        ['', '// yg-suppress(no-todo-comments)', '// TODO: real debt below a reasonless marker', ''].join('\n'),
+        'utf-8',
+      );
+      const fill = run(['check', '--approve', '--only-deterministic'], dir);
+      expect(fill.status).toBe(1);
+      // Its OWN diagnostic names the malformed marker + file:line.
+      expect(fill.all).toContain('Malformed yg-suppress marker');
+      expect(fill.all).toContain('src/services/orders.ts:');
+      // NEVER misattributed to the aspect's check.
+      expect(fill.all).not.toContain('aspect-check-runtime-error');
+      expect(fill.all).not.toContain('check.mjs');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // LLM / deterministic PARITY — the LLM reviewer prompt receives the SAME
 // resolved <suppressed-ranges> spans the deterministic matcher computes (Task
 // #18). Driven by an in-process mock reviewer (the dead-endpoint suite above can

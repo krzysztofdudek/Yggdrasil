@@ -197,6 +197,11 @@ describe('GUARD: dogfood false-green invariant — no readable mapped file silen
               offenders.join('\n'),
       ).toEqual([]);
     },
+    // Integration-scale guard: a full loadGraph + computeExpectedPairs over the
+    // whole repo graph (300+ nodes, 1000+ files) plus a per-file scan. It is fast
+    // in isolation but legitimately exceeds the 5s default under full-suite CPU
+    // contention — give it headroom so a saturated run does not flake the gate.
+    60_000,
   );
 
   it.skipIf(!existsSync(DOGFOOD_GRAPH))(
@@ -211,5 +216,6 @@ describe('GUARD: dogfood false-green invariant — no readable mapped file silen
       expect(covered.length).toBeGreaterThan(100);
       expect(pairs.length).toBeGreaterThan(50);
     },
+    60_000,
   );
 });

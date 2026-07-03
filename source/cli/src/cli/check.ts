@@ -66,7 +66,7 @@ export function registerCheckCommand(program: Command): void {
     .option('--no-approve', 'Force read-only mode even when auto_approve is configured (overrides config)')
     .option('--only-deterministic', 'With --approve: fill ONLY deterministic pairs (keyless, free); committed locks stay untouched. For CI and pre-commit.')
     .option('--dry-run', 'With --approve: free cost preview — print the budget + per-node/per-aspect breakdown, then exit 0 WITHOUT writing anything or calling the reviewer.')
-    .option('--top [n]', 'Read-only triage: print only the N highest-priority issue blocks (bare --top = just the single suggestedNext block). Header counts + exit code stay TRUE.')
+    .option('--top [n]', 'Read-only triage: print only the N highest-priority issue blocks (bare --top = just the single suggested-next group). Header counts + exit code stay TRUE.')
     .option('--summary', 'Read-only triage: print per-node counts only (no per-issue blocks). Header counts + exit code stay TRUE.')
     .option('--details', 'Read-only: ungrouped, one block per issue (full per-pair detail). Opposite of the default grouped view.')
     .option('--aspect <id>', "Read-only: drill into one rule — show only that aspect's issues, grouped, with the full per-node detail.")
@@ -208,7 +208,7 @@ export function registerCheckCommand(program: Command): void {
             process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
               what: `--top expects a non-negative whole number; got "${String(opts.top)}".`,
               why: '--top N prints the N highest-priority issue blocks. A negative, fractional, or non-numeric value is meaningless, and printing the full wall instead would silently hide that the flag was ignored — masking the very output you tried to narrow.',
-              next: 'Run: yg check --top 5 (top 5 blocks), yg check --top (just the suggestedNext block), or yg check (full output).',
+              next: 'Run: yg check --top 5 (top 5 blocks), yg check --top (the single suggested-next group), or yg check (full output).',
             })}`) + '\n');
             await exitAfterFlush(1);
             return;
@@ -362,35 +362,36 @@ const COVERAGE_CODES = new Set(['unmapped-files']);
  *   - details : header + every error/warning block ungrouped (one block per
  *               issue, old per-pair style) + Next. Opposite of full.
  *   - top  n  : header + at most n highest-priority GROUPS in suggestedNext
- *               priority order + Next. n === 0 (bare --top) renders zero
- *               groups, Next only.
+ *               priority order + Next. Bare --top maps to n = 1 (the single
+ *               suggested-next group); a subheader with TRUE count > 0 but no
+ *               chosen groups is annotated, never left dangling.
  *   - summary : header + per-node aggregate counts + Next (no per-issue blocks).
  *   - aspect  : header + issue group for the named aspect only + Next.
  */
 export type CheckView = { kind: 'full' } | { kind: 'top'; n: number } | { kind: 'summary' } | { kind: 'details' } | { kind: 'aspect'; id: string };
 
 /**
- * Parse a raw --top value into a non-negative block count, or null on garbage.
+ * Parse a raw --top value into a block count, or null on garbage.
  *   - undefined  → caller treats as absent (full view); tolerated → 0.
  *   - true       → bare `--top` (commander gives boolean true for an optional
- *                  arg supplied with no value) → 0 (suggestedNext-only).
- *   - "<int≥1>"  → that integer (the number of blocks to render).
+ *                  arg supplied with no value) → 1 (the single suggested-next
+ *                  group — the same group the `Next:` line draws from).
+ *   - "<int≥1>"  → that integer (the number of GROUPS to render).
  *   - "0"        → null (guided error): an EXPLICIT `--top 0` is meaningless
- *                  garbage — to get the suggestedNext-only view, pass bare
- *                  `--top` (which maps to 0 internally). The bare-flag path and
- *                  the explicit-"0" path are deliberately distinct.
+ *                  garbage — it would render zero groups. For the single
+ *                  suggested-next group, pass bare `--top` (which maps to 1).
  *   - NaN / negative / fractional / non-numeric → null (guided error).
  * NOTE: commander 15 yields boolean `true` (not a registered default) for a bare
  * `--top`, so the caller branches on `typeof opts.top`; this mirrors that here.
  */
 export function resolveTopValue(raw: boolean | string | undefined): number | null {
   if (raw === undefined) return 0;
-  if (raw === true) return 0; // bare --top → suggestedNext-only
+  if (raw === true) return 1; // bare --top → the single suggested-next group
   if (raw === false) return null; // not a shape commander produces here, but be explicit
   const trimmed = raw.trim();
   if (!/^\d+$/.test(trimmed)) return null; // rejects negatives, decimals, "abc", ""
   const n = parseInt(trimmed, 10);
-  if (Number.isNaN(n) || n < 1) return null; // explicit "0" is garbage; bare --top is the zero-block path
+  if (Number.isNaN(n) || n < 1) return null; // explicit "0" is garbage; bare --top (→ 1) is the single-group path
   return n;
 }
 
@@ -445,17 +446,28 @@ export function formatOutput(result: CheckResult, view: CheckView = { kind: 'ful
     const body = view.kind === 'summary'
       ? renderSummaryBody(errors, warnings)
       : renderTopBody(errors, warnings, view.n, opts);
+    // A top-view section can carry a TRUE count > 0 while the slice chose none
+    // of its groups; annotate it rather than leave the subheader dangling.
+    // (Summary bodies are never empty when their count is > 0.)
     if (errors.length > 0) {
       sections.push('');
       const errPrefix = emoji ? '❌ ' : '';
       sections.push(chalk.red(`${errPrefix}Errors (${errors.length}):`));
-      if (body.errorLines) sections.push(body.errorLines);
+      if (body.errorLines) {
+        sections.push(body.errorLines);
+      } else if (view.kind === 'top') {
+        sections.push(topEmptySectionNote('error', view.n));
+      }
     }
     if (warnings.length > 0) {
       sections.push('');
       const warnPrefix = emoji ? '⚠️ ' : '';
       sections.push(chalk.yellow(`${warnPrefix}Warnings (${warnings.length}):`));
-      if (body.warningLines) sections.push(body.warningLines);
+      if (body.warningLines) {
+        sections.push(body.warningLines);
+      } else if (view.kind === 'top') {
+        sections.push(topEmptySectionNote('warning', view.n));
+      }
     }
   } else if (view.kind === 'aspect') {
     // --aspect <id>: drill-in view — show ONLY issues for the named aspect,
@@ -580,7 +592,9 @@ interface ViewBody { errorLines: string; warningLines: string }
  * warnings), splitting the chosen groups by severity so each lands under its
  * aggregate Errors(N)/Warnings(N) subheader. Each group is rendered via
  * renderGroup so the node list, shared why/fix, and per-member detail all appear.
- * n === 0 renders nothing — the aggregate subheaders and Next line still print.
+ * n <= 0 renders no groups (defensive — the CLI never produces n < 1: bare
+ * --top maps to 1, explicit "0" is a guided error); formatOutput then
+ * annotates each non-empty section via topEmptySectionNote.
  *
  * Priority is taken from the group's representative member (groupIssues already
  * sorts by representative priority). The combined list of error groups followed
@@ -612,6 +626,17 @@ function renderTopBody(errors: CheckIssue[], warnings: CheckIssue[], n: number, 
   // and from the preceding block), matching the full-view spacing.
   const lead = (groups: IssueGroup[]): string => groups.map(g => `\n${renderOneGroup(g)}`).join('\n');
   return { errorLines: lead(chosenErrors), warningLines: lead(chosenWarnings) };
+}
+
+/**
+ * Annotation beneath a --top subheader whose TRUE count is > 0 but whose slice
+ * chose no groups of that severity (e.g. --top 1 where the top group is an
+ * error, so no warning group made the slice). Indented FOUR spaces on purpose:
+ * group blocks start at a two-space indent and block-counting parsers key on
+ * that — the annotation must never register as a group block.
+ */
+function topEmptySectionNote(kind: 'error' | 'warning', n: number): string {
+  return chalk.dim(`    (no ${kind} groups within --top ${n} — run yg check for the full list)`);
 }
 
 // ── Summary view: per-node aggregate counts ────────────────

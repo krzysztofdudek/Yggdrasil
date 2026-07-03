@@ -284,6 +284,23 @@ describe.skipIf(!distExists)('CLI E2E — query and navigation', () => {
     expect(stderr).toContain('nonexistent-topic-xyz');
   });
 
+  it('knowledge list includes the onboarding topic with its summary', () => {
+    const { stdout, status } = run(['knowledge', 'list']);
+    expect(status).toBe(0);
+    expect(stdout).toContain('onboarding');
+    expect(stdout).toContain('Tutor playbook');
+  });
+
+  it('knowledge read onboarding prints the tutor contract', () => {
+    const { stdout, status } = run(['knowledge', 'read', 'onboarding']);
+    expect(status).toBe(0);
+    expect(stdout).toContain('# Onboarding — the agent as tutor, on demand');
+    expect(stdout).toContain('zero-trace');
+    expect(stdout).toContain('yg aspect-test: refused');
+    expect(stdout).toContain('judges the lock against your files');
+    expect(stdout).not.toContain('\\`');
+  });
+
   // --- check - no .yggdrasil ---
 
   it('yg check without .yggdrasil returns exit 1', () => {
@@ -335,6 +352,32 @@ describe.skipIf(!distExists)('CLI E2E — query and navigation', () => {
     const { status, stderr } = run(['context', '--file', 'src/unmapped-file.ts']);
     expect(status).toBe(1);
     expect(stderr).toContain('no graph coverage');
+  });
+
+  it('yg context --file .git is excluded from coverage by design (exit 0, no mapping suggestion)', () => {
+    // .git is UNCONDITIONALLY skipped by the coverage scan, so mapping it would
+    // create a node yg check never enumerates. The command must say so, and must
+    // NOT emit the "add it to a node mapping" advice used for a real coverage gap.
+    const { status, stderr } = run(['context', '--file', '.git']);
+    expect(status).toBe(0);
+    expect(stderr).toContain('excluded from graph coverage by design');
+    expect(stderr).not.toContain('Add the file to an existing node mapping');
+    expect(stderr).not.toContain('no graph coverage');
+  });
+
+  it('yg context --file on a .yggdrasil-internal path is excluded by design (exit 0)', () => {
+    const { status, stderr } = run(['context', '--file', '.yggdrasil/yg-lock.logs.json']);
+    expect(status).toBe(0);
+    expect(stderr).toContain('excluded from graph coverage by design');
+    expect(stderr).not.toContain('Add the file to an existing node mapping');
+  });
+
+  it('yg context --file on a genuinely-unmapped normal file is NOT treated as excluded', () => {
+    // Discrimination guard: an ordinary uncovered source file still gets the
+    // mapping-suggestion path (a real coverage gap), never the excluded message.
+    const { stderr } = run(['context', '--file', 'src/unmapped-file.ts']);
+    expect(stderr).toContain('no graph coverage');
+    expect(stderr).not.toContain('excluded from graph coverage by design');
   });
 
   it('yg context without .yggdrasil returns exit 1', () => {

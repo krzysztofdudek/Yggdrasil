@@ -327,4 +327,151 @@ describe.skipIf(!distExists)('CLI E2E — LLM reviewer mechanics via in-process 
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it('14: a live aspect-test LLM refusal streams the per-pair line, stamps the summary, and exits 1', async () => {
+    const dir = fixture('at-live-refuse');
+    const mock = await startMockReviewer({ respond: ALWAYS_REFUSE });
+    try {
+      pointReviewer(dir, mock.endpoint);
+      const r = await runAsync(['aspect-test', '--aspect', 'has-doc-comment', '--node', 'services/orders'], dir);
+      // The documented exit contract: 1 when refusals are found (LLM included).
+      expect(r.status).toBe(1);
+      expect(mock.chatCount()).toBe(1); // one unit, consensus 1
+      // Per-pair verdict line streams first; the one-line summary stamp follows.
+      expect(r.all).toContain('node:services/orders: refused — the file has no leading comment');
+      expect(r.all).toContain('yg aspect-test: refused — 1 of 1 units refused');
+      // The stamp precedes the footer.
+      expect(r.stdout.indexOf('yg aspect-test: refused')).toBeLessThan(r.stdout.indexOf('diagnostic only'));
+      // Diagnostic only: no verdict recorded.
+      expect(existsSync(nondetLockPath(dir))).toBe(false);
+    } finally {
+      await mock.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('15: aspect-test --dry-run on a DRAFT LLM aspect prints the prompt — zero reviewer calls, no lock write', async () => {
+    const dir = fixture('at-draft-dry');
+    const mock = await startMockReviewer({ respond: ALWAYS_OK });
+    try {
+      pointReviewer(dir, mock.endpoint);
+      setAspectStatus(dir, 'draft');
+      const r = await runAsync(['aspect-test', '--aspect', 'has-doc-comment', '--node', 'services/orders', '--dry-run'], dir);
+      expect(r.status).toBe(0);
+      expect(mock.chatCount()).toBe(0);
+      // Status never gates aspect-test: the draft pair assembles a full prompt.
+      // Stamp and prompt are pinned to STDOUT — a stderr-routed stamp must fail.
+      expect(r.stdout).toContain('yg aspect-test: dry-run — prompt preview only, no verdict');
+      expect(r.stdout).toContain('=== prompt for node:services/orders ===');
+      expect(r.all).not.toContain('No pairs for aspect');
+      expect(existsSync(nondetLockPath(dir))).toBe(false);
+    } finally {
+      await mock.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('16: a LIVE aspect-test on a DRAFT LLM aspect calls the reviewer, never writes the lock, and leaves fill dormancy intact', async () => {
+    const dir = fixture('at-draft-live');
+    const mock = await startMockReviewer({ respond: ALWAYS_OK });
+    try {
+      pointReviewer(dir, mock.endpoint);
+      setAspectStatus(dir, 'draft');
+      const live = await runAsync(['aspect-test', '--aspect', 'has-doc-comment', '--node', 'services/orders'], dir);
+      expect(live.status).toBe(0);
+      expect(mock.chatCount()).toBe(1); // the diagnostic DID call the reviewer
+      // Verdict line and stamp are pinned to STDOUT — a stderr-routed stamp must fail.
+      expect(live.stdout).toContain('node:services/orders: satisfied');
+      expect(live.stdout).toContain('yg aspect-test: satisfied — 1 unit satisfied');
+      expect(existsSync(nondetLockPath(dir))).toBe(false); // lock never written
+
+      // Draft dormancy in the fill is untouched: --approve makes ZERO new calls.
+      const before = mock.chatCount();
+      const fill = await runAsync(['check', '--approve'], dir);
+      expect(fill.status).toBe(0);
+      expect(mock.chatCount()).toBe(before);
+    } finally {
+      await mock.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("17: a live aspect-test unit that cannot be verified fails closed: 'incomplete' stamp, exit 1, no verdict, no lock write", async () => {
+    // The 'incomplete' accounting is the fail-closed exit of a live aspect-test
+    // run: a unit that CANNOT be verified must never render as satisfied or
+    // refused, must exit nonzero, and must leave the lock untouched. Reached
+    // here end-to-end through the spawned binary via a reasonless yg-suppress
+    // marker on the subject file — a documented fail-closed infrastructure
+    // condition that skips the pair BEFORE any reviewer call, with the mock
+    // reviewer live and answering availability probes throughout.
+    //
+    // A DIFFERENT fail-closed trigger — a reviewer provider error / unparseable
+    // response ({httpStatus:500} / {rawContent:...}) — is covered by test 18: the
+    // provider folds those into satisfied:false / errorSource:'provider', which
+    // aspect-test now also stamps 'incomplete' (never 'refused'), matching the
+    // fill path (tests 7/8).
+    const dir = fixture('at-incomplete');
+    const mock = await startMockReviewer({ respond: ALWAYS_OK });
+    try {
+      pointReviewer(dir, mock.endpoint);
+      const src = readFileSync(ordersFile(dir), 'utf-8');
+      writeFileSync(ordersFile(dir), src + '\n// yg-suppress(has-doc-comment)\nexport const suppressed = 1;\n', 'utf-8');
+      const r = await runAsync(['aspect-test', '--aspect', 'has-doc-comment', '--node', 'services/orders'], dir);
+      expect(r.status).toBe(1);
+      // The incomplete stamp on stdout — and NO per-unit verdict line: a
+      // skipped unit is neither satisfied nor refused.
+      expect(r.stdout).toContain('yg aspect-test: incomplete — 1 of 1 units could not be verified');
+      expect(r.stdout).not.toContain('refused');
+      expect(r.stdout).not.toContain('satisfied');
+      // The infra cause is a bespoke what/why/next on stderr with the pinned prefix.
+      expect(r.stderr).toMatch(/^Error: /);
+      expect(r.stderr).toContain('missing its required reason');
+      // Fail closed: the pair never reached the reviewer, nothing was recorded.
+      expect(mock.chatCount()).toBe(0);
+      expect(existsSync(nondetLockPath(dir))).toBe(false);
+    } finally {
+      await mock.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // A provider-sourced reviewer failure (HTTP non-200 / unparseable body) is
+  // infrastructure, not a code violation: the provider folds it into
+  // satisfied:false / errorSource:'provider'. A live aspect-test must fail CLOSED
+  // on it exactly as `yg check --approve` does (tests 7/8) — stamp 'incomplete',
+  // print no per-unit verdict, exit nonzero, write no lock — NOT render a
+  // 'refused' verdict that would send an agent editing code the reviewer never saw.
+  for (const variant of [
+    { label: 'HTTP 500', reply: (): ChatReply => ({ httpStatus: 500 }) },
+    { label: 'unparseable body', reply: (): ChatReply => ({ rawContent: 'not json at all {{{' }) },
+  ]) {
+    it(`18: a live aspect-test reviewer provider error (${variant.label}) stamps 'incomplete', exits 1, writes no lock, prints no verdict`, async () => {
+      const dir = fixture(`at-provider-err-${variant.label.replace(/\s+/g, '-')}`);
+      const mock = await startMockReviewer({ respond: variant.reply });
+      try {
+        pointReviewer(dir, mock.endpoint);
+        const r = await runAsync(['aspect-test', '--aspect', 'has-doc-comment', '--node', 'services/orders'], dir);
+        // The reviewer WAS reached (availability probe + the /api/chat call that
+        // errored) — this is an infra failure of a real call, not a pre-reviewer skip.
+        expect(mock.chatCount()).toBeGreaterThanOrEqual(1);
+        // Fail-closed exit.
+        expect(r.status).toBe(1);
+        // Stamped incomplete on stdout — and NO satisfied/refused verdict line: a
+        // skipped unit is neither satisfied nor refused.
+        expect(r.stdout).toContain('yg aspect-test: incomplete — 1 of 1 units could not be verified');
+        expect(r.stdout).not.toContain('refused');
+        expect(r.stdout).not.toContain('satisfied');
+        // The infra cause is a bespoke what/why/next on stderr, with the pinned
+        // Error: prefix and provider-error language (never code-refusal language).
+        expect(r.stderr).toMatch(/^Error: /);
+        expect(r.stderr).toContain('provider error');
+        // Diagnostic only: nothing recorded.
+        expect(existsSync(nondetLockPath(dir))).toBe(false);
+      } finally {
+        await mock.close();
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+  }
+
 });

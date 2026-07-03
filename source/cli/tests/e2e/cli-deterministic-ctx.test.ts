@@ -352,7 +352,7 @@ describe.skipIf(!distExists)('CLI E2E — graph-aware deterministic ctx surface 
       expect(test.status).toBe(0);
       expect(test.all).toContain('No violations.');
       // aspect-test is diagnostic only — it never writes the lock.
-      expect(test.all).toContain('diagnostic only — lock unchanged; yg check still reports the stored verdict');
+      expect(test.all).toContain('diagnostic only — lock unchanged; yg check judges the lock against your files, not this run');
 
       // The fill evaluates the same graph-aware aspect and records an approved
       // verdict in the lock, with the node's graph observation in `touched`.
@@ -778,6 +778,108 @@ describe.skipIf(!distExists)('CLI E2E — graph-aware deterministic ctx surface 
       // The generic unclassified-error wrapper must NOT appear.
       expect(res.all).not.toContain('does not classify');
       expect(res.all).not.toContain('please file an issue');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  // Verdict stamp: every deterministic aspect-test run LEADS with one grep-able
+  // 'yg aspect-test: <verdict>' line — satisfied/refused vocabulary, never the
+  // 'yg check: PASS/FAIL' build stamp.
+  // -------------------------------------------------------------------------
+
+  it('G1: a deterministic refusal leads with the verdict stamp as the FIRST stdout line, exit 1', () => {
+    const dir = deterministicFixture('stamp-refused');
+    try {
+      // The fixture's no-todo-comments aspect (architecture default on services)
+      // refuses on a TODO line.
+      const src = readFileSync(ordersFile(dir), 'utf-8');
+      writeFileSync(ordersFile(dir), src + '// TODO: remove this later\n', 'utf-8');
+
+      const res = run(['aspect-test', '--aspect', 'no-todo-comments', '--node', 'services/orders'], dir);
+      expect(res.status).toBe(1);
+      // Stamp first (spawned process, no TTY → no color codes), then the file list.
+      expect(res.stdout.split('\n')[0]).toBe('yg aspect-test: refused — 1 violation');
+      expect(res.stdout.indexOf('yg aspect-test: refused')).toBeLessThan(res.stdout.indexOf('src/services/orders.ts'));
+      expect(res.all).toContain('diagnostic only — lock unchanged; yg check judges the lock against your files, not this run');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('G2: a clean deterministic run leads with the satisfied stamp (substring "No violations." preserved), exit 0', () => {
+    const dir = deterministicFixture('stamp-satisfied');
+    try {
+      const res = run(['aspect-test', '--aspect', 'no-todo-comments', '--node', 'services/payments'], dir);
+      expect(res.status).toBe(0);
+      expect(res.stdout.split('\n')[0]).toBe('yg aspect-test: satisfied — No violations.');
+      expect(res.all).toContain('diagnostic only — lock unchanged; yg check judges the lock against your files, not this run');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  // Line-less violations: a check.mjs may return { file, message } with no
+  // line — both render surfaces omit the line segment (no ':?:' / 'L?:').
+  // -------------------------------------------------------------------------
+
+  it('H: a line-less violation renders without placeholder on both surfaces (aspect-test and grouped check)', () => {
+    const dir = deterministicFixture('no-line-render');
+    try {
+      writeAspect(
+        dir,
+        'no-line-e2e',
+        'Flags the orders file as a whole (no line number).',
+        `export function check(ctx) {
+  return [{ file: 'src/services/orders.ts', message: 'file-scoped issue without a line' }];
+}
+`,
+      );
+      attachAspectToNode(dir, 'services/orders', 'no-line-e2e');
+
+      // aspect-test surface: bare indented message under the file header.
+      const test = run(['aspect-test', '--aspect', 'no-line-e2e', '--node', 'services/orders'], dir);
+      expect(test.status).toBe(1);
+      expect(test.stdout).toContain('src/services/orders.ts');
+      expect(test.stdout).toContain('  file-scoped issue without a line');
+      expect(test.stdout).not.toContain('L?');
+
+      // Fill + grouped check surface: 'file: message' with no ':?:' placeholder.
+      const fill = run(['check', '--approve', '--only-deterministic'], dir);
+      expect(fill.status).toBe(1);
+      expect(fill.all).toContain('src/services/orders.ts: file-scoped issue without a line');
+      expect(fill.all).not.toContain(':?:');
+      // The stored verdict reason carries the same placeholder-free rendering.
+      expect(lockVerdict(dir, 'no-line-e2e', 'services/orders')?.reason).toContain(
+        'src/services/orders.ts: file-scoped issue without a line',
+      );
+      expect(lockVerdict(dir, 'no-line-e2e', 'services/orders')?.reason).not.toContain(':?:');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  // Draft aspects and aspect-test: status never gates the diagnostic. The
+  // fixture's wip-rule is a DRAFT deterministic aspect attached to
+  // services/orders — it must still run live via --node.
+  // -------------------------------------------------------------------------
+
+  it('I: a DRAFT deterministic aspect still runs live via --node and exits 1 on violations', () => {
+    const dir = deterministicFixture('draft-det-runs');
+    try {
+      const src = readFileSync(ordersFile(dir), 'utf-8');
+      writeFileSync(ordersFile(dir), src + '// WIP marker here\n', 'utf-8');
+
+      const res = run(['aspect-test', '--aspect', 'wip-rule', '--node', 'services/orders'], dir);
+      expect(res.status).toBe(1);
+      expect(res.stdout.split('\n')[0]).toBe('yg aspect-test: refused — 1 violation');
+      expect(res.stdout).toContain('WIP marker found.');
+      // Dormancy in the fill is untouched: the draft aspect never blocks check.
+      const check = run(['check', '--approve', '--only-deterministic'], dir);
+      expect(check.all).not.toContain('wip-rule');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -100,7 +100,8 @@ Each effective non-draft LLM pair = at least one reviewer call during
 \`yg check --approve\`, multiplied by the tier's consensus count. With \`per: file\`,
 multiply again by the subject-file count, and references are loaded into every
 per-file prompt. Deterministic aspects cost ZERO LLM calls. Draft aspects produce
-no pairs (zero cost, no verdict).
+no pairs (zero cost, no verdict) — but remain testable with \`yg aspect-test\`
+(\`--dry-run\` is free; a live run makes a real reviewer call).
 
 Before creating a new LLM aspect:
 1. Check if an existing aspect covers the rule (\`yg aspects\`)
@@ -409,5 +410,8 @@ reference byte cap; the prompt limit bounds the whole payload.
 LLM aspects declare \`status: draft | advisory | enforced\` (default \`enforced\`).
 Status is rendering only. Draft produces no pairs (zero cost). Advisory and
 enforced both verify; they differ only in how a refused or unverified pair
-renders. See: \`yg knowledge read aspect-status\`.
+renders. The authoring ladder mirrors deterministic aspects: start at \`draft\`,
+iterate with \`yg aspect-test\` (\`--dry-run\` previews the prompt for free; a
+live run calls the reviewer), promote when the rule is stable.
+See: \`yg knowledge read aspect-status\`.
 `;

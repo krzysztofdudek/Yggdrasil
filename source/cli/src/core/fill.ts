@@ -80,13 +80,14 @@ import { ProgressTracker } from './fill-progress.js';
  * form lists up to `cap` unit keys and appends " … and N more" for the rest.
  *
  * `kind` controls the summary tokens injected into the grouped `what:`:
- *   'det'         → aspect-check-runtime-error token
- *   'companion'   → aspect-companion-runtime-error token
- *   'pool-infra'  → generic unverified summary
+ *   'det'                → aspect-check-runtime-error token
+ *   'companion'          → aspect-companion-runtime-error token
+ *   'malformed-suppress' → malformed-suppress-marker token (NOT a check fault)
+ *   'pool-infra'         → generic unverified summary
  */
 function emitGroupedDiagnostics(
   items: Array<{ aspectId: string; unitKey: string; messageData: IssueMessage }>,
-  kind: 'det' | 'companion' | 'pool-infra',
+  kind: 'det' | 'companion' | 'malformed-suppress' | 'pool-infra',
   emitIssue: (msg: IssueMessage) => void,
 ): void {
   if (items.length === 0) return;
@@ -123,6 +124,8 @@ function emitGroupedDiagnostics(
         what = `Deterministic check '${aspectId}' failed to run on ${unitKeys.length} units — left unverified (aspect-check-runtime-error): ${listed}${overflow}`;
       } else if (kind === 'companion') {
         what = `Companion resolution for '${aspectId}' failed to run on ${unitKeys.length} units — left unverified (aspect-companion-runtime-error): ${listed}${overflow}`;
+      } else if (kind === 'malformed-suppress') {
+        what = `A malformed yg-suppress marker left aspect '${aspectId}' unverified on ${unitKeys.length} units (malformed-suppress-marker): ${listed}${overflow}`;
       } else {
         what = `Reviewer could not verify aspect '${aspectId}' on ${unitKeys.length} units — left unverified: ${listed}${overflow}`;
       }
@@ -181,6 +184,8 @@ export interface RunFillResult {
   runtimeErrors: number;
   /** LLM pairs whose companion.mjs failed to resolve/run (no write). */
   companionRuntimeErrors: number;
+  /** Deterministic pairs left unverified by a malformed yg-suppress marker (no write). */
+  malformedSuppressErrors: number;
 }
 
 /** Abort sentinel — the structural gate failed; no fills ran. */
@@ -319,7 +324,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
         `infra disposition can leave a pair unfilled. Nothing was written; run yg check --approve to fill.\n`,
     );
     const checkResult = await runCheck(graph, opts.gitTrackedFiles);
-    return { checkResult, reviewerCallsMade: 0, infraFailures: 0, runtimeErrors: 0, companionRuntimeErrors: 0 };
+    return { checkResult, reviewerCallsMade: 0, infraFailures: 0, runtimeErrors: 0, companionRuntimeErrors: 0, malformedSuppressErrors: 0 };
   }
 
   // ── Serialized lock writer (interruption-safe, §7). ───────────────────────
@@ -364,10 +369,12 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   let infraFailures = 0;
   let runtimeErrors = 0;
   let companionRuntimeErrors = 0;
+  let malformedSuppressErrors = 0;
 
   // Collectors for grouped infra diagnostics (emitted AFTER each phase loop so
   // multiple units of the same aspect produce ONE message instead of N near-identical ones).
   const detRuntimeItems: Array<{ aspectId: string; unitKey: string; messageData: IssueMessage }> = [];
+  const malformedSuppressItems: Array<{ aspectId: string; unitKey: string; messageData: IssueMessage }> = [];
   const companionRuntimeItems: Array<{ aspectId: string; unitKey: string; messageData: IssueMessage }> = [];
   const poolInfraItems: Array<{ aspectId: string; unitKey: string; messageData: IssueMessage }> = [];
 
@@ -420,6 +427,15 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
       tracker.onPairComplete('det', pair.aspectId, toPosixPath(pair.unitKey), 'infra', write);
       continue;
     }
+    if (outcome.kind === 'malformed-suppress') {
+      malformedSuppressErrors += 1;
+      // No write — pair stays unverified. A DISTINCT disposition from a check
+      // runtime error: the fault is the source file's marker, not check.mjs, so it
+      // is never reported as aspect-check-runtime-error.
+      malformedSuppressItems.push({ aspectId: pair.aspectId, unitKey: pair.unitKey, messageData: outcome.messageData });
+      tracker.onPairComplete('det', pair.aspectId, toPosixPath(pair.unitKey), 'infra', write);
+      continue;
+    }
     // Real verdict — write the entry.
     await setEntry(pair.aspectId, pair.unitKey, outcome.entry);
     tracker.onPairComplete('det', pair.aspectId, toPosixPath(pair.unitKey), outcome.entry.verdict, write);
@@ -430,6 +446,9 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
 
   // ── Emit grouped det runtime-error diagnostics (one message per aspect). ────
   emitGroupedDiagnostics(detRuntimeItems, 'det', emitIssue);
+  // ── Emit grouped malformed-suppress-marker diagnostics — distinct from a check
+  //    runtime error so a marker-parse fault is never blamed on check.mjs. ──────
+  emitGroupedDiagnostics(malformedSuppressItems, 'malformed-suppress', emitIssue);
 
   // ── Deterministic gate: report nodes whose LLM fills are skipped. ──────────
   const llmSkippedByDetGate = new Set<string>();
@@ -584,7 +603,13 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   await garbageCollectAndRewrite(graph, lock, persistLock);
 
   // ── Step 9: Summaries + re-run the read. ──────────────────────────────────
-  if (reviewerCallsMade === 0 && infraFailures === 0 && runtimeErrors === 0 && companionRuntimeErrors === 0) {
+  if (
+    reviewerCallsMade === 0 &&
+    infraFailures === 0 &&
+    runtimeErrors === 0 &&
+    companionRuntimeErrors === 0 &&
+    malformedSuppressErrors === 0
+  ) {
     if (skippedLlmPairs > 0) {
       // --only-deterministic made no reviewer calls BY DESIGN, but LLM pairs were
       // left unverified — do NOT claim every pair holds a valid verdict.
@@ -613,6 +638,13 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
       next: 'Fix the failing check.mjs, then re-run: yg check --approve.',
     });
   }
+  if (malformedSuppressErrors > 0) {
+    emitIssue({
+      what: `${malformedSuppressErrors} pair(s) left unverified by a malformed yg-suppress marker (malformed-suppress-marker).`,
+      why: 'A yg-suppress marker in a mapped source file is missing its required reason. This is a fault in the marker itself, not in the aspect being checked; no verdict was written.',
+      next: 'Add a reason to the marker (or remove it), then re-run: yg check --approve.',
+    });
+  }
   if (companionRuntimeErrors > 0) {
     emitIssue({
       what: `${companionRuntimeErrors} companion resolution(s) failed to run at fill time — left unverified (aspect-companion-runtime-error).`,
@@ -628,5 +660,5 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
 
   // The `yg check --approve` combiner prints this report after filling.
   const checkResult = await runCheck(graph, opts.gitTrackedFiles);
-  return { checkResult, reviewerCallsMade, infraFailures, runtimeErrors, companionRuntimeErrors };
+  return { checkResult, reviewerCallsMade, infraFailures, runtimeErrors, companionRuntimeErrors, malformedSuppressErrors };
 }

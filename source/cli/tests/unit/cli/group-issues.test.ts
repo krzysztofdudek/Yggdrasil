@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { groupIssues, CODE_ONLY_GROUP_CODES } from '../../../src/cli/group-issues.js';
+import { computeSuggestedNext } from '../../../src/core/check.js';
 import type { CheckIssue } from '../../../src/core/check.js';
 
 function iss(p: Partial<CheckIssue>): CheckIssue {
@@ -129,5 +130,82 @@ describe('groupIssues', () => {
     ]);
     expect(g.divergentNext).toBe(false);
     expect(g.divergentWhy).toBe(false);
+  });
+});
+
+// ── F3: bare `--top` group === the rule `Next:` names (single ordering) ───────
+// issuePriorityRank (drives which group bare `--top` renders, via groupIssues)
+// and computeSuggestedNext (drives the `Next:` line) must order UNRANKED errors
+// identically. Before the fix, groupIssues sorted every unranked error
+// alphabetically by code — so `unmapped-files` (coverage) could take the top slot
+// over a structural code, and within structural the alphabetical pick differed
+// from computeSuggestedNext's emission-order pick — letting bare `--top` render a
+// different rule than `Next:` pointed at. Both surfaces now share ONE ordering:
+// structural < coverage < completeness < other, alphabetical-by-code within a
+// category. These pin the invariant on the exact issue sets the review flagged.
+function structuralIssue(code: string, nodePath: string): CheckIssue {
+  return {
+    severity: 'error', code, rule: code, nodePath,
+    messageData: { what: `${code} on ${nodePath}`, why: 'structural graph defect', next: `Fix ${code}` },
+  } as CheckIssue;
+}
+function unmappedIssue(): CheckIssue {
+  return {
+    severity: 'error', code: 'unmapped-files', rule: 'unmapped-files',
+    uncoveredCount: 2, uncoveredFiles: ['src/a.ts', 'src/b.ts'],
+    messageData: { what: '2 files not covered', why: 'coverage gap', next: 'yg context --file <uncovered-path>' },
+  } as unknown as CheckIssue;
+}
+
+describe('bare --top group === the rule Next names (F3 invariant)', () => {
+  it('within-structural: the alphabetically-first structural code wins BOTH surfaces (event-unpaired < yaml-invalid); coverage never jumps ahead', () => {
+    const errors: CheckIssue[] = [
+      structuralIssue('yaml-invalid', 'nodeB'),    // 'y'
+      unmappedIssue(),                              // 'unmapped-files' — coverage
+      structuralIssue('event-unpaired', 'nodeA'),  // 'e' — alphabetically first
+    ];
+    // Bare `--top` renders groupIssues(errors)[0] (errors first, sliced at n=1).
+    const topGroup = groupIssues(errors)[0];
+    const next = computeSuggestedNext(errors);
+    expect(next).not.toBeNull();
+    // Structural beats coverage; the alphabetically-first structural wins the slot.
+    expect(topGroup.code).toBe('event-unpaired');
+    // The `Next:` line names EXACTLY that rule.
+    expect(next!.startsWith('Fix event-unpaired ')).toBe(true);
+    // Invariant: the group bare `--top` renders is the group `Next:` names.
+    expect(next!.includes(topGroup.code)).toBe(true);
+    // Coverage did NOT win the top slot (the old alphabetical-across-all bug).
+    expect(topGroup.code).not.toBe('unmapped-files');
+  });
+
+  it('structural-vs-coverage: a structural code that sorts AFTER unmapped-files still wins over coverage (when-predicate-invalid > unmapped-files)', () => {
+    const errors: CheckIssue[] = [
+      unmappedIssue(),                                     // 'unmapped-files' (u)
+      structuralIssue('when-predicate-invalid', 'nodeC'), // 'w' — sorts after 'u'
+    ];
+    const topGroup = groupIssues(errors)[0];
+    const next = computeSuggestedNext(errors);
+    // OLD: alphabetical-across-all put unmapped-files first (u<w) → `--top` showed
+    // coverage while `Next:` pointed at the structural error. NEW: structural < coverage.
+    expect(topGroup.code).toBe('when-predicate-invalid');
+    expect(next!.startsWith('Fix when-predicate-invalid ')).toBe(true);
+    expect(next!.includes(topGroup.code)).toBe(true);
+  });
+
+  it('other-error only (mapping-path-missing): Next is no longer null and names the group bare --top renders', () => {
+    // mapping-path-missing is an "other" error (not structural/coverage/
+    // completeness). Previously computeSuggestedNext returned null here while
+    // `--top` still rendered its group — no `Next:` to agree with. Now `Next:`
+    // names it, holding the invariant even on an other-error-only red repo.
+    const errors: CheckIssue[] = [
+      iss({
+        code: 'mapping-path-missing', rule: 'mapping-path-missing', aspectId: undefined, nodePath: 'broken',
+        messageData: { what: 'mapping path missing on broken', why: 'x', next: 'yg fix mapping on broken' },
+      }),
+    ];
+    const topGroup = groupIssues(errors)[0];
+    const next = computeSuggestedNext(errors);
+    expect(topGroup.code).toBe('mapping-path-missing');
+    expect(next).toBe('yg fix mapping on broken'); // the issue's own next, alphabetically-first
   });
 });

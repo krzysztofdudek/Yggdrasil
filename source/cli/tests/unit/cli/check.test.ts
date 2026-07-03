@@ -350,13 +350,19 @@ describe('check command', () => {
       });
     });
 
-    it('bare --top → only the suggestedNext block (zero issue blocks), exit 1', async () => {
+    it('bare --top → exactly ONE group block (the single suggested-next group), exit 1', async () => {
       await withFixtureCopy(async (cwd) => {
         const result = spawnSync('node', [BIN_PATH, 'check', '--top'], { cwd, encoding: 'utf-8' });
         expect(result.status).toBe(1);
         const out = stripAnsi(result.stdout);
+        // TRUE aggregate header always shown.
         expect(out).toContain('Errors (4):');
-        expect(countBlocks(out)).toBe(0);
+        // Bare --top = --top 1: the single suggested-next group renders.
+        expect(countBlocks(out)).toBe(1);
+        // The rendered group is the one the Next: line draws from (unverified
+        // outranks mapping-path-missing in the priority cascade).
+        expect(out).toContain('unverified');
+        expect(out).not.toContain('mapping-path-missing');
         expect(out).toMatch(/\nNext: /);
       });
     });

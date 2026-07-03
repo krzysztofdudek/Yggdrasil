@@ -10,6 +10,7 @@ describe('AGENT_RULES_CONTENT — required sections', () => {
     '### Log management',
     '### Finding entry points',
     '### Coordinated changes across multiple nodes',
+    '### Onboarding the user, on demand',
   ];
 
   for (const h of REQUIRED_HEADINGS) {
@@ -68,6 +69,7 @@ describe('AGENT_RULES_CONTENT — required sections', () => {
     'yg knowledge read log-management',
     'yg knowledge read ports-and-relations',
     'yg knowledge read flows',
+    'yg knowledge read onboarding',
   ];
 
   for (const route of REQUIRED_KNOWLEDGE_ROUTES) {

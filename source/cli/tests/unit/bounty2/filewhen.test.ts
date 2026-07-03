@@ -709,16 +709,13 @@ describe.skipIf(!distExists)('file-when E2E — evaluator + parser through yg ch
     }
   });
 
-  // --- EVALUATOR file-unreadable path: a mapped file that cannot be read ---
-  it('E7: a content when over a mapped directory (unreadable as a file) surfaces file-unreadable', () => {
-    const dir = copyFixture('unreadable');
+  // --- EVALUATOR over a mapped DIRECTORY: classify by the files INSIDE it ---
+  it('E7: a content when over a mapped directory reads the files INSIDE it (not the directory as a file)', () => {
+    const dir = copyFixture('dir-content-when');
     try {
-      // Map the orders node to a DIRECTORY entry, then require content. The
-      // content read of a directory fails (EISDIR), which the evaluator reports
-      // as unreadable → file-unreadable. We require content so the path-only
-      // shortcut does not bypass the read.
+      // Require content, so the path-only shortcut does not bypass the read.
       replaceServiceWhen(dir, '    when:\n      content: "export"');
-      // Create a subdirectory inside src/services and add it to orders mapping.
+      // Map the orders node to a DIRECTORY whose only file satisfies the content.
       const subdir = join(dir, 'src', 'services', 'orderdir');
       mkdirSync(subdir, { recursive: true });
       writeFileSync(join(subdir, 'inner.ts'), 'export const x = 1;\n');
@@ -729,8 +726,13 @@ describe.skipIf(!distExists)('file-when E2E — evaluator + parser through yg ch
       );
       writeFileSync(ordersNode, y, 'utf-8');
       const { all } = run(['check'], dir);
-      // A directory cannot be read as content → file-unreadable surfaces.
-      expect(all).toContain('file-unreadable');
+      // A directory mapping is classified by the files it owns: the entry expands
+      // to inner.ts, whose content matches — so the directory is NEVER read as a
+      // file (no file-unreadable) and there is no type-when mismatch. (Before the
+      // directory-expansion fix, the literal directory string was read as content,
+      // failed with EISDIR, and surfaced a spurious file-unreadable.)
+      expect(all).not.toContain('file-unreadable');
+      expect(all).not.toContain('type-when-mismatch');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

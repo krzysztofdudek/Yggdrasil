@@ -632,6 +632,27 @@ describe('fill — fail-closed edge branches', () => {
     expect(entry?.reason).toContain('src/svc.ts:1: bad');
   });
 
+  it('a det refusal reason omits the line segment when a violation has no line (no ":?:")', async () => {
+    // Three legal Violation shapes: file without line, file+column without line
+    // (column-without-line renders identically to no-line), and message-only.
+    const rule =
+      'export function check(ctx) { void ctx; return [' +
+      '{ message: "no line", file: "src/svc.ts" }, ' +
+      '{ message: "col only", file: "src/svc.ts", column: 2 }, ' +
+      '{ message: "graph-level" }]; }\n';
+    const { projectRoot } = await setupProject({
+      aspects: [{ id: 'det-a', kind: 'deterministic', status: 'enforced', rule }],
+    });
+    const graph = await loadGraph(projectRoot);
+    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    const entry = readLock(graph.rootPath).verdicts['det-a']?.['node:svc'];
+    expect(entry?.verdict).toBe('refused');
+    expect(entry?.reason).toContain('src/svc.ts: no line');
+    expect(entry?.reason).toContain('src/svc.ts: col only');
+    expect(entry?.reason).toContain('graph-level');
+    expect(entry?.reason).not.toContain(':?:');
+  });
+
   it('the infra summary names the provider and tier when an LLM pair fails on infra', async () => {
     const { projectRoot } = await setupProject({
       aspects: [{ id: 'llm-a', kind: 'llm', status: 'enforced', rule: 'rule a' }],

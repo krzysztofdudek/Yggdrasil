@@ -56,8 +56,8 @@ yg check --details         # ungrouped per-issue view (one block per pair, old s
 \`\`\`
 
 \`--top N\` renders the N highest-priority GROUPS (in the same priority order the
-\`Next:\` line draws from); a bare \`--top\` (no value) renders zero groups and
-keeps only the single \`Next:\` line. \`--summary\` prints one line per node —
+\`Next:\` line draws from); a bare \`--top\` (no value) renders exactly one group —
+the suggested-next one. \`--summary\` prints one line per node —
 \`K unverified (J deterministic-free, L LLM), M refused\` — plus a named bucket
 for non-pair errors (coverage / log / relation / structural) so per-node totals
 reconcile with the header. \`--aspect <id>\` shows the single group for that rule
@@ -67,9 +67,12 @@ you need every individual reviewer reason visible at once.
 
 Guardrail: EVERY view always prints the true aggregate \`Errors (N)\`/\`Warnings (N)\`
 header and preserves the real exit code, so a narrowed view can never read as a
-clean build. An invalid \`--top\` value (negative, fractional, non-numeric, or an
-explicit \`0\`) is a guided error, never a silent full dump — use bare \`--top\` for
-the zero-block view. Read the raw output — never pipe it through \`| grep\`,
+clean build. When a \`--top\` slice leaves a section (Errors or Warnings) with a
+true count > 0 but no chosen groups, a parenthetical note is printed beneath
+that subheader instead of leaving it dangling empty. An invalid \`--top\` value
+(negative, fractional, non-numeric, or an explicit \`0\`) is a guided error,
+never a silent full dump — for the single suggested-next group use bare
+\`--top\`. Read the raw output — never pipe it through \`| grep\`,
 \`| head\`, or \`| tail\`: those silently drop lines and the count you act on stops
 matching the count the build enforces. Orient with \`--summary\`/\`--top\`, drill
 with \`--aspect\` or plain \`yg check\`.
@@ -177,10 +180,19 @@ yg aspect-test --aspect test-quality --node orders/handler
 yg aspect-test --aspect test-quality --node orders/handler --dry-run
 \`\`\`
 
-Every run that produces a result ends with the footer \`diagnostic only — lock
-unchanged; yg check still reports the stored verdict\`. \`--dry-run\` prints the
-assembled prompt(s) including resolved companions, runs the companion hook live
-(if present), but makes no reviewer or LLM calls and does not write the lock.
+Every run carries a one-line verdict stamp \`yg aspect-test:
+satisfied|refused|incomplete|dry-run\` — leading on deterministic runs, as a
+trailing summary after the per-unit lines on LLM runs (\`incomplete\` means some
+unit could not be verified — fail closed, exit 1). Every run that produces a
+result ends with the footer \`diagnostic only — lock unchanged; yg check judges
+the lock against your files, not this run\`. Exits 0 when clean, 1 on violations,
+refusals, or an incomplete run. Aspect status never gates aspect-test: a draft
+aspect runs here exactly like an enforced one (drafts stay dormant only in
+\`yg check\` / \`--approve\`). Use \`--dry-run\` for a zero-cost prompt preview
+while authoring; a run without \`--dry-run\` makes a real reviewer call.
+\`--dry-run\` prints the assembled prompt(s) including resolved companions, runs
+the companion hook live (if present), but makes no reviewer or LLM calls and
+does not write the lock.
 \`--check-determinism\` runs a deterministic check twice and fails if the
 violation sets differ. If aspect-test repeatedly approves what the lock refuses,
 the rule text is ambiguous — sharpen \`content.md\` (cascades; check

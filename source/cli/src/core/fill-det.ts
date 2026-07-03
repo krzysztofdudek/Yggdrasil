@@ -15,7 +15,7 @@ import { computeNodeMappedFiles } from './pairs.js';
 import { computeDetInputHash } from './pair-hash.js';
 import { ruleHashFor } from './pair-inputs.js';
 import { hashBytes } from '../io/hash.js';
-import { runStructureAspect, StructureRunnerError } from '../structure/runner.js';
+import { runStructureAspect, StructureRunnerError, SUPPRESS_MARKER_MALFORMED_CODE } from '../structure/runner.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { toPosixPath } from '../utils/posix.js';
 import { readBytesOrEmpty, type DetFillOutcome } from './fill-shared.js';
@@ -78,17 +78,23 @@ export async function fillDetPair(
       }) };
     } catch (e) {
       debugWrite(`[fill] det runtime error for ${aspect.id} on ${pair.nodePath}: ${e instanceof Error ? e.message : String(e)}`);
+      // A malformed suppress marker is a fault in the SOURCE file's marker, not in
+      // check.mjs — surface it as its OWN disposition (its self-describing
+      // messageData), never as aspect-check-runtime-error.
+      if (e instanceof StructureRunnerError && e.code === SUPPRESS_MARKER_MALFORMED_CODE) {
+        return { ok: false as const, failure: { kind: 'malformed-suppress' as const, messageData: e.messageData } };
+      }
       const rendered = e instanceof StructureRunnerError
         ? `${e.messageData.what} — ${e.messageData.why}`
         : (e instanceof Error ? e.message : String(e));
-      return { ok: false as const, rendered };
+      return { ok: false as const, failure: { kind: 'runtime-error' as const, messageData: detRuntimeNotice(aspect.id, pair.unitKey, rendered) } };
     }
   };
 
   let run = await runOnce();
   // A6 carry-over (1): a result with succeeded === false is an infra disposition.
   if (!run.ok) {
-    return { kind: 'runtime-error', messageData: detRuntimeNotice(aspect.id, pair.unitKey, run.rendered) };
+    return run.failure;
   }
   if (run.result.succeeded === false) {
     const reason = run.result.violations.map((v) => v.message).join('\n') || 'check runtime error';
@@ -99,7 +105,7 @@ export async function fillDetPair(
   if (run.result.observationsTainted) {
     run = await runOnce();
     if (!run.ok) {
-      return { kind: 'runtime-error', messageData: detRuntimeNotice(aspect.id, pair.unitKey, run.rendered) };
+      return run.failure;
     }
     if (run.result.succeeded === false || run.result.observationsTainted) {
       return { kind: 'runtime-error', messageData: detRuntimeNotice(aspect.id, pair.unitKey, 'observations remained inconsistent across two runs (a file changed mid-check)') };
@@ -133,7 +139,9 @@ export async function fillDetPair(
     entry.reason = violations
       .map((v) => {
         const file = v.file ? toPosixPath(v.file) : v.file;
-        const loc = file ? `${file}:${v.line ?? '?'}: ` : '';
+        // Location renders as 'file:line: ' with a line, 'file: ' without one
+        // (no placeholder), and '' when the violation has no file.
+        const loc = file ? (typeof v.line === 'number' ? `${file}:${v.line}: ` : `${file}: `) : '';
         return `${loc}${v.message}`;
       })
       .join('\n');

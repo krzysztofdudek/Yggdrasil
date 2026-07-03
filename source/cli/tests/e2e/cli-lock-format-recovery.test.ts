@@ -257,7 +257,7 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: prompt-too-large / merge 
       const test = run(['aspect-test', '--aspect', 'no-todo-comments', '--node', 'services/orders'], dir);
       expect(test.status).toBe(0);
       expect(test.all).toContain('No violations.');
-      expect(test.all).toContain('diagnostic only — lock unchanged; yg check still reports the stored verdict');
+      expect(test.all).toContain('diagnostic only — lock unchanged; yg check judges the lock against your files, not this run');
       // Byte-identical: aspect-test NEVER writes the lock.
       expect(readFileSync(detPath(dir), 'utf-8')).toBe(before);
     } finally {
@@ -281,7 +281,7 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: prompt-too-large / merge 
       const dry = await runAsync(['aspect-test', '--aspect', 'has-doc-comment', '--node', 'services/orders', '--dry-run'], dir);
       expect(dry.status).toBe(0);
       expect(dry.all).toContain('=== prompt for node:services/orders ===');
-      expect(dry.all).toContain('diagnostic only — lock unchanged; yg check still reports the stored verdict');
+      expect(dry.all).toContain('diagnostic only — lock unchanged; yg check judges the lock against your files, not this run');
       expect(mock.chatCount()).toBe(callsBefore); // ZERO new calls
       // Byte-identical lock.
       expect(readFileSync(nondetPath(dir), 'utf-8')).toBe(before);
@@ -289,7 +289,7 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: prompt-too-large / merge 
       // A LIVE aspect-test (no --dry-run) DOES call the reviewer but STILL never
       // writes the lock — it is a sanctioned diagnostic re-roll.
       const live = await runAsync(['aspect-test', '--aspect', 'has-doc-comment', '--node', 'services/orders'], dir);
-      expect(live.all).toContain('diagnostic only — lock unchanged; yg check still reports the stored verdict');
+      expect(live.all).toContain('diagnostic only — lock unchanged; yg check judges the lock against your files, not this run');
       expect(mock.chatCount()).toBeGreaterThan(callsBefore); // it did call the reviewer
       expect(readFileSync(nondetPath(dir), 'utf-8')).toBe(before); // but the lock is unchanged
     } finally {

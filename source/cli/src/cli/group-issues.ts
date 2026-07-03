@@ -90,11 +90,23 @@ const ERROR_CODE_PRIORITY: string[] = [
 export function issuePriorityRank(issue: CheckIssue): number {
   const idx = ERROR_CODE_PRIORITY.indexOf(issue.code);
   if (idx >= 0) return idx;
-  // Unranked errors (structural / architecture / coverage / completeness /
-  // strict) sort after the explicitly-ranked ones but before warnings.
-  if (issue.severity === 'error') return ERROR_CODE_PRIORITY.length;
+  // Unranked errors sub-rank by the SAME category cascade computeSuggestedNext
+  // uses (core/check.ts §6 steps 7→9): structural → coverage → completeness →
+  // any other error, so the group bare `--top` renders is the group the `Next:`
+  // line names. Within a category, groupIssues tie-breaks alphabetically by
+  // label (= code); computeSuggestedNext mirrors that same tie-break, so the two
+  // surfaces cannot drift. (lock-invalid / mapped-file-gitignored are structural
+  // AND explicitly ranked above — the idx>=0 branch already caught them, so they
+  // never fall into the structural bucket here.)
+  const base = ERROR_CODE_PRIORITY.length;
+  if (issue.severity === 'error') {
+    if (STRUCTURAL_CODES.has(issue.code)) return base;       // structural
+    if (issue.code === 'unmapped-files') return base + 1;    // coverage
+    if (COMPLETENESS_CODES.has(issue.code)) return base + 2; // completeness
+    return base + 3;                                          // any other error
+  }
   // Warnings always last.
-  return ERROR_CODE_PRIORITY.length + 1;
+  return base + 4;
 }
 
 export function getIssueLabel(issue: CheckIssue): string {

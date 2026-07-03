@@ -179,9 +179,9 @@ function setNodeAspects(
 //
 // Verdict-lock model: `yg approve` is gone — verification happens via
 // `yg check --approve` (repo-wide fill). A deterministic verdict renders per
-// pair. A check.mjs that
-// THROWS (e.g. on an empty-reason suppress marker) leaves the pair UNVERIFIED
-// with an `aspect-check-runtime-error` line — it is not a refusal.
+// pair. An empty-reason suppress marker leaves the pair UNVERIFIED with a
+// `malformed-suppress-marker` diagnostic — a fault in the SOURCE marker, not the
+// check, so it is never an `aspect-check-runtime-error` refusal (F6).
 //
 // Fully hermetic: each test builds its own graph in a fresh temp dir, uses only
 // deterministic check.mjs aspects, and makes no network/clock/random reads.
@@ -275,9 +275,11 @@ describe.skipIf(!distExists)('CLI E2E — deterministic suppress: hierarchy / em
   // violation's file (ranges are collected lazily for files carrying a
   // violation), so the marker must sit on a file that ALSO violates the aspect.
   // In the verdict-lock model the throw is caught at fill time and the pair is
-  // left UNVERIFIED with an `aspect-check-runtime-error` line (not a refusal).
+  // left UNVERIFIED. A malformed marker is a fault in the SOURCE marker, not the
+  // check, so it surfaces its OWN `malformed-suppress-marker` diagnostic — never
+  // an `aspect-check-runtime-error` that blames the (correct) check (F6).
 
-  it('2: a single-line yg-suppress(no-todo-comments) with NO reason fails the check at fill (aspect-check-runtime-error, exit 1)', () => {
+  it('2: a single-line yg-suppress(no-todo-comments) with NO reason surfaces a malformed-marker diagnostic (exit 1, never aspect-check-runtime-error)', () => {
     const dir = hermeticFixture('empty-reason-single');
     try {
       expect(run(['check', '--approve'], dir).status).toBe(0);
@@ -298,9 +300,12 @@ describe.skipIf(!distExists)('CLI E2E — deterministic suppress: hierarchy / em
 
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(1);
-      // Runtime-error diagnostics (emitIssue) go to STDERR; final report to STDOUT.
-      expect(fill.stderr).toContain('aspect-check-runtime-error');
-      expect(fill.stderr).toContain('yg-suppress(no-todo-comments) missing reason');
+      // Its OWN diagnostic (emitIssue → STDERR): names the malformed marker, never
+      // the check. The final report (STDOUT) leaves the pair unverified.
+      expect(fill.stderr).toContain('Malformed yg-suppress marker');
+      expect(fill.stderr).toContain('malformed-suppress-marker');
+      expect(fill.all).not.toContain('aspect-check-runtime-error');
+      expect(fill.all).not.toContain('check.mjs');
       // The throw leaves the pair unverified (no verdict written), not refused.
       expect(fill.stdout).toContain('unverified');
     } finally {
@@ -310,7 +315,7 @@ describe.skipIf(!distExists)('CLI E2E — deterministic suppress: hierarchy / em
 
   // --- 3. EMPTY-REASON bracket disable marker is rejected too ---
 
-  it('3: a bracket yg-suppress-disable(no-todo-comments) with NO reason fails the check at fill (aspect-check-runtime-error, exit 1)', () => {
+  it('3: a bracket yg-suppress-disable(no-todo-comments) with NO reason surfaces a malformed-marker diagnostic (exit 1, never aspect-check-runtime-error)', () => {
     const dir = hermeticFixture('empty-reason-bracket');
     try {
       expect(run(['check', '--approve'], dir).status).toBe(0);
@@ -331,9 +336,12 @@ describe.skipIf(!distExists)('CLI E2E — deterministic suppress: hierarchy / em
 
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(1);
-      // Runtime-error diagnostics (emitIssue) go to STDERR; final report to STDOUT.
-      expect(fill.stderr).toContain('aspect-check-runtime-error');
-      expect(fill.stderr).toContain('yg-suppress-disable(no-todo-comments) missing reason');
+      // Its OWN diagnostic (emitIssue → STDERR): names the malformed marker, never
+      // the check.
+      expect(fill.stderr).toContain('Malformed yg-suppress marker');
+      expect(fill.stderr).toContain('malformed-suppress-marker');
+      expect(fill.all).not.toContain('aspect-check-runtime-error');
+      expect(fill.all).not.toContain('check.mjs');
       expect(fill.stdout).toContain('unverified');
     } finally {
       rmSync(dir, { recursive: true, force: true });

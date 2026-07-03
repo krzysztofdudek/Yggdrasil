@@ -1,4 +1,5 @@
 import { Command } from 'commander';
+import chalk from 'chalk';
 import path from 'node:path';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { exitAfterFlush } from './exit-after-flush.js';
@@ -25,7 +26,19 @@ import type { AspectDef } from '../model/graph.js';
 
 /** Footer printed after every run (det, LLM, and --dry-run). */
 const DIAGNOSTIC_FOOTER =
-  'diagnostic only — lock unchanged; yg check still reports the stored verdict\n';
+  'diagnostic only — lock unchanged; yg check judges the lock against your files, not this run\n';
+
+/**
+ * One-line verdict stamps ('yg aspect-test: <verdict>'). satisfied/refused is
+ * the reviewer/lock vocabulary — deliberately NOT the 'yg check: PASS/FAIL'
+ * build stamp, so a diagnostic never reads as the build going green.
+ * Deterministic runs print the stamp LEADING (results complete before print);
+ * LLM runs stream per-pair lines and print a trailing summary stamp.
+ */
+const DET_SATISFIED_STAMP = `yg aspect-test: ${chalk.green('satisfied')} — No violations.\n`;
+function detRefusedStamp(count: number): string {
+  return `yg aspect-test: ${chalk.red('refused')} — ${count} violation${count === 1 ? '' : 's'}\n`;
+}
 
 export function registerAspectTestCommand(program: Command): void {
   program
@@ -47,13 +60,11 @@ export function registerAspectTestCommand(program: Command): void {
 
         const aspect = graph.aspects.find((a) => a.id === opts.aspect);
         if (!aspect) {
-          process.stderr.write(
-            buildIssueMessage({
+          process.stderr.write(`Error: ${buildIssueMessage({
               what: `Aspect '${opts.aspect}' not found.`,
               why: `yg aspect-test requires an aspect declared in .yggdrasil/aspects/.`,
               next: `Run 'yg aspects' to list available aspects, or check the spelling of '${opts.aspect}'.`,
-            }) + '\n',
-          );
+            })}\n`);
           process.exit(1);
           return;
         }
@@ -65,24 +76,20 @@ export function registerAspectTestCommand(program: Command): void {
         if (aspect.reviewer.type === 'llm') {
           // --files is not supported for LLM aspects: they need graph context.
           if (hasFiles) {
-            process.stderr.write(
-              buildIssueMessage({
+            process.stderr.write(`Error: ${buildIssueMessage({
                 what: `--files cannot be used with LLM aspect '${opts.aspect}'.`,
                 why: `LLM reviews require graph context (node mapping, effective aspects, tier config). Ad-hoc file lists have none of these.`,
                 next: `Use --node <node-path> instead, or switch to a deterministic aspect for --files mode.`,
-              }) + '\n',
-            );
+              })}\n`);
             process.exit(1);
             return;
           }
           if (!hasNode) {
-            process.stderr.write(
-              buildIssueMessage({
+            process.stderr.write(`Error: ${buildIssueMessage({
                 what: `Neither --node nor --files was provided for LLM aspect '${opts.aspect}'.`,
                 why: `yg aspect-test runs in exactly one mode: --node (graph-scoped) or --files (ad-hoc, deterministic only).`,
                 next: `Pass --node <node-path> to run an LLM aspect.`,
-              }) + '\n',
-            );
+              })}\n`);
             process.exit(1);
             return;
           }
@@ -90,58 +97,53 @@ export function registerAspectTestCommand(program: Command): void {
           const nodePath = (opts.node as string).trim().replace(/\/$/, '');
           const node = graph.nodes.get(nodePath);
           if (!node) {
-            process.stderr.write(
-              buildIssueMessage({
+            process.stderr.write(`Error: ${buildIssueMessage({
                 what: `Node '${nodePath}' not found.`,
                 why: `--node requires an existing node path in the graph.`,
                 next: `Run 'yg tree' to list nodes.`,
-              }) + '\n',
-            );
+              })}\n`);
             process.exit(1);
             return;
           }
 
-          await runLlmAspectTest(graph, projectRoot, aspect, nodePath, opts.dryRun ?? false);
+          const llmExit = await runLlmAspectTest(graph, projectRoot, aspect, nodePath, opts.dryRun ?? false);
           process.stdout.write(DIAGNOSTIC_FOOTER);
+          // Refused or incomplete (fail-closed) units exit 1, per the documented
+          // 'exit 1 on violations or refusals' contract.
+          if (llmExit !== 0) await exitAfterFlush(llmExit);
           return;
         }
 
         // ── Deterministic aspect path ────────────────────────────────────────
         if (aspect.reviewer.type !== 'deterministic') {
-          process.stderr.write(
-            buildIssueMessage({
+          process.stderr.write(`Error: ${buildIssueMessage({
               what: `Aspect '${opts.aspect}' has reviewer '${aspect.reviewer.type}', not 'deterministic' or 'llm'.`,
               why: `yg aspect-test supports deterministic aspects (check.mjs) and LLM aspects (content.md).`,
               next: `Pick an aspect with a supported reviewer type, or run 'yg aspects' to list available aspects.`,
-            }) + '\n',
-          );
+            })}\n`);
           process.exit(1);
           return;
         }
 
         // --dry-run on a deterministic aspect is not meaningful.
         if (opts.dryRun) {
-          process.stderr.write(
-            buildIssueMessage({
+          process.stderr.write(`Error: ${buildIssueMessage({
               what: `--dry-run is not supported for deterministic aspect '${opts.aspect}'.`,
               why: `Deterministic checks run locally without any provider calls — there is no prompt to print.`,
               next: `Remove --dry-run to run the deterministic check, or use --node / --files as normal.`,
-            }) + '\n',
-          );
+            })}\n`);
           process.exit(1);
           return;
         }
 
         if (hasNode === hasFiles) {
-          process.stderr.write(
-            buildIssueMessage({
+          process.stderr.write(`Error: ${buildIssueMessage({
               what: hasNode
                 ? `Both --node and --files were provided.`
                 : `Neither --node nor --files was provided.`,
               why: `yg aspect-test runs in exactly one mode: --node (graph-scoped) or --files (ad-hoc).`,
               next: `Pass --node <node-path> to use the node's mapping, or --files <path...> for ad-hoc files — not both.`,
-            }) + '\n',
-          );
+            })}\n`);
           process.exit(1);
           return;
         }
@@ -154,15 +156,34 @@ export function registerAspectTestCommand(program: Command): void {
           const nodePath = (opts.node as string).trim().replace(/\/$/, '');
           const node = graph.nodes.get(nodePath);
           if (!node) {
-            process.stderr.write(
-              buildIssueMessage({
+            process.stderr.write(`Error: ${buildIssueMessage({
                 what: `Node '${nodePath}' not found.`,
                 why: `--node requires an existing node path in the graph.`,
                 next: `Run 'yg tree' to list nodes.`,
-              }) + '\n',
-            );
+              })}\n`);
             process.exit(1);
             return;
+          }
+          // The ad-hoc run below is legitimately useful (test-before-attach), but
+          // it runs against the node's files even when the aspect is NOT effective
+          // on the node through any channel — silently printing a verdict yg check
+          // will never produce (the LLM path says "No pairs" in the same case).
+          // Restore the symmetry: if no expected pair exists for this aspect+node,
+          // print a one-line NOTE to stderr first. Effectiveness comes from the
+          // SAME computeExpectedPairs source the LLM path uses (includeDraft: true).
+          // Exit code and verdict output are unchanged; if classification fails
+          // (e.g. an incomplete graph in a unit harness), skip the NOTE rather than
+          // block the diagnostic.
+          try {
+            const { pairs: expected } = await computeExpectedPairs(graph, { includeDraft: true });
+            const attached = expected.some((p) => p.aspectId === aspect.id && p.nodePath === nodePath);
+            if (!attached) {
+              process.stderr.write(
+                `Note: aspect '${aspect.id}' is not attached to node '${nodePath}' — running the check ad-hoc against its files; yg check will not produce a verdict for this pair.\n`,
+              );
+            }
+          } catch (e) {
+            debugWrite(`[aspect-test] effectiveness precheck failed for ${aspect.id} on ${nodePath}: ${e instanceof Error ? e.message : String(e)}`);
           }
           // Return type is inferred from the runner (RunStructureAspectResult);
           // do not re-annotate it, so the shape stays in sync with the runner.
@@ -178,10 +199,11 @@ export function registerAspectTestCommand(program: Command): void {
             }
           }
           if (result.violations.length === 0) {
-            process.stdout.write('No violations.\n');
+            process.stdout.write(DET_SATISFIED_STAMP);
             process.stdout.write(DIAGNOSTIC_FOOTER);
             return;
           }
+          process.stdout.write(detRefusedStamp(result.violations.length));
           printStructureViolations(result.violations);
           process.stdout.write(DIAGNOSTIC_FOOTER);
           await exitAfterFlush(1);
@@ -208,10 +230,11 @@ export function registerAspectTestCommand(program: Command): void {
           }
         }
         if (result.violations.length === 0) {
-          process.stdout.write('No violations.\n');
+          process.stdout.write(DET_SATISFIED_STAMP);
           process.stdout.write(DIAGNOSTIC_FOOTER);
           return;
         }
+        process.stdout.write(detRefusedStamp(result.violations.length));
         printAstViolations(result.violations);
         process.stdout.write(DIAGNOSTIC_FOOTER);
         await exitAfterFlush(1);
@@ -228,7 +251,7 @@ export function registerAspectTestCommand(program: Command): void {
         // throws a runner error, the user sees the real cause, not a CLI-bug
         // message.
         if (e instanceof StructureRunnerError || e instanceof AstRunnerError) {
-          process.stderr.write(buildIssueMessage(e.messageData) + '\n');
+          process.stderr.write(`Error: ${buildIssueMessage(e.messageData)}\n`);
           await exitAfterFlush(1);
           return;
         }
@@ -318,13 +341,11 @@ async function resolveSuppressedRangesForTest(
     if (e instanceof SuppressMarkerError) {
       const where = `${toPosixPath(e.file)}:${e.line}`;
       debugWrite(`[aspect-test] suppress marker missing reason for ${aspectId} at ${where}`);
-      process.stderr.write(
-        buildIssueMessage({
+      process.stderr.write(`Error: ${buildIssueMessage({
           what: `A yg-suppress marker at ${where} (subject of aspect '${aspectId}') is missing its required reason.`,
           why: `A reasonless suppress marker cannot be resolved into a line range, so the prompt's suppressed-line set is undefined. The live yg check --approve path treats this as a fail-closed infrastructure error.`,
           next: `Add a reason after the marker's closing parenthesis at ${where}, then retry.`,
-        }) + '\n',
-      );
+        })}\n`);
       return null;
     }
     throw e;
@@ -334,7 +355,9 @@ async function resolveSuppressedRangesForTest(
 /**
  * Run (or dry-run) an LLM aspect against a graph node. Builds pair prompts via
  * computeExpectedPairs filtered to the given aspect+node, runs verifyWithConsensus
- * per prompt, and prints results. The lock is NEVER written.
+ * per prompt, and prints results. The lock is NEVER written. Returns the exit
+ * code the caller should use: 1 when any unit is refused or could not be
+ * verified (fail-closed), 0 otherwise.
  */
 async function runLlmAspectTest(
   graph: import('../model/graph.js').Graph,
@@ -342,41 +365,39 @@ async function runLlmAspectTest(
   aspect: import('../model/graph.js').AspectDef,
   nodePath: string,
   dryRun: boolean,
-): Promise<void> {
+): Promise<0 | 1> {
   // Resolve the tier for this aspect.
   const reviewer = graph.config.reviewer;
   if (!reviewer) {
-    process.stderr.write(
-      buildIssueMessage({
+    process.stderr.write(`Error: ${buildIssueMessage({
         what: `No reviewer is configured for aspect '${aspect.id}'.`,
         why: `LLM aspects need a reviewer tier in .yggdrasil/yg-config.yaml.`,
         next: `Add a reviewer tier, then retry.`,
-      }) + '\n',
-    );
+      })}\n`);
     process.exit(1);
-    return;
+    return 1;
   }
   const tierResult = selectTierForAspect(aspect, reviewer);
   if (!tierResult.ok) {
-    process.stderr.write(
-      buildIssueMessage(tierResult.error) + '\n',
-    );
+    process.stderr.write(`Error: ${buildIssueMessage(tierResult.error)}\n`);
     process.exit(1);
-    return;
+    return 1;
   }
   const { tier, tierName } = tierResult;
 
-  // Compute the expected pairs filtered to this aspect+node.
-  const { pairs } = await computeExpectedPairs(graph);
+  // Compute the expected pairs filtered to this aspect+node. Drafts are
+  // included: status gates the lock/fill, never this diagnostic — a draft
+  // aspect runs here exactly like an enforced one.
+  const { pairs } = await computeExpectedPairs(graph, { includeDraft: true });
   const myPairs = pairs.filter(
     (p) => p.aspectId === aspect.id && p.nodePath === nodePath && p.kind === 'llm',
   );
 
   if (myPairs.length === 0) {
     process.stdout.write(
-      `No pairs for aspect '${aspect.id}' on node '${nodePath}' — the aspect may be draft, have an empty subject set, or not apply to this node.\n`,
+      `No pairs for aspect '${aspect.id}' on node '${nodePath}' — the aspect has an empty subject set or does not apply to this node.\n`,
     );
-    return;
+    return 0;
   }
 
   // Load references once.
@@ -389,15 +410,13 @@ async function runLlmAspectTest(
       content = await readTextFile(absRef);
     } catch (e) {
       debugWrite(`[aspect-test] reference file read failed for ${absRef}: ${e instanceof Error ? e.message : String(e)}`);
-      process.stderr.write(
-        buildIssueMessage({
+      process.stderr.write(`Error: ${buildIssueMessage({
           what: `Reference '${toPosixPath(ref.path)}' for aspect '${aspect.id}' could not be read.`,
           why: `The file does not exist or is not readable.`,
           next: `Check the reference path in yg-aspect.yaml.`,
-        }) + '\n',
-      );
+        })}\n`);
       process.exit(1);
-      return;
+      return 1;
     }
     referencesForPrompt.push({ path: ref.path, description: ref.description, content });
   }
@@ -419,17 +438,20 @@ async function runLlmAspectTest(
       available = false;
     }
     if (!available) {
-      process.stderr.write(
-        buildIssueMessage({
+      process.stderr.write(`Error: ${buildIssueMessage({
           what: `Reviewer provider '${mergedTier.provider}' (tier '${tierName}') is unreachable.`,
           why: `The configured reviewer endpoint did not respond. No provider calls were made.`,
           next: `Check the provider endpoint, network, and credentials, then retry.`,
-        }) + '\n',
-      );
+        })}\n`);
       process.exit(1);
-      return;
+      return 1;
     }
 
+    // Per-pair verdict lines stream as results arrive; a one-line summary stamp
+    // follows the loop. Skipped pairs (companion/suppress/reviewer infra) make
+    // the run incomplete — fail closed.
+    let refusedCount = 0;
+    let skippedCount = 0;
     for (const pair of myPairs) {
       // Load subject files for this pair.
       const files: PromptFileInput[] = [];
@@ -451,16 +473,18 @@ async function runLlmAspectTest(
         const resolved = await resolveCompanionsForTest(graph, projectRoot, pair, aspect);
         if (resolved.kind === 'infra') {
           debugWrite(`[aspect-test] companion resolution failed for ${aspect.id} on ${pair.unitKey}: ${resolved.messageData.what}`);
-          process.stderr.write(
-            buildIssueMessage(resolved.messageData) + '\n',
-          );
+          process.stderr.write(`Error: ${buildIssueMessage(resolved.messageData)}\n`);
+          skippedCount++;
           continue;
         }
         companions = resolved.companions;
       }
 
       const suppressedRanges = await resolveSuppressedRangesForTest(files, aspect.id);
-      if (suppressedRanges === null) continue;
+      if (suppressedRanges === null) {
+        skippedCount++;
+        continue;
+      }
 
       const prompt = buildPairPrompt({
         aspect: { id: aspect.id, description: aspect.description ?? '', content: aspectContent },
@@ -478,23 +502,54 @@ async function runLlmAspectTest(
         response = await verifyWithConsensus(provider, prompt, mergedTier.consensus ?? 1);
       } catch (e) {
         debugWrite(`[aspect-test] reviewer threw for ${aspect.id} on ${pair.unitKey}: ${e instanceof Error ? e.message : String(e)}`);
-        process.stderr.write(
-          buildIssueMessage({
+        process.stderr.write(`Error: ${buildIssueMessage({
             what: `Reviewer threw an error for aspect '${aspect.id}' on ${pair.unitKey}.`,
             why: `The reviewer returned an unparseable or errored response: ${e instanceof Error ? e.message : String(e)}`,
             next: `Check the reviewer configuration and retry.`,
-          }) + '\n',
-        );
+          })}\n`);
+        skippedCount++;
         continue;
       }
 
+      // A provider-sourced failure (HTTP non-200 / unparseable body) is
+      // infrastructure, NOT a code violation — every provider folds it into
+      // { satisfied:false, errorSource:'provider' }. Mirror fill-llm.ts: treat it
+      // as an UNVERIFIED unit (skipped → the 'incomplete' stamp + exit 1), never as
+      // a code refusal. Rendering it as a 'refused' verdict would send an agent
+      // editing code for a violation the reviewer never actually found.
+      if (!response.satisfied && response.errorSource === 'provider') {
+        debugWrite(`[aspect-test] provider error for ${aspect.id} on ${pair.unitKey}: ${response.reason}`);
+        process.stderr.write(`Error: ${buildIssueMessage({
+            what: `Reviewer for aspect '${aspect.id}' on ${pair.unitKey} returned a provider error: ${response.reason}`,
+            why: `A provider-sourced failure is infrastructure, not a code violation — the unit was not verified.`,
+            next: `Check the provider endpoint, network, and credentials, then retry.`,
+          })}\n`);
+        skippedCount++;
+        continue;
+      }
+
+      if (!response.satisfied) refusedCount++;
       const verdict = response.satisfied ? 'satisfied' : 'refused';
       process.stdout.write(`${pair.unitKey}: ${verdict} — ${response.reason}\n`);
     }
+
+    // Summary stamp — the caller prints the footer directly after it.
+    const total = myPairs.length;
+    if (skippedCount > 0) {
+      process.stdout.write(`yg aspect-test: ${chalk.red('incomplete')} — ${skippedCount} of ${total} units could not be verified\n`);
+      return 1;
+    }
+    if (refusedCount > 0) {
+      process.stdout.write(`yg aspect-test: ${chalk.red('refused')} — ${refusedCount} of ${total} units refused\n`);
+      return 1;
+    }
+    process.stdout.write(`yg aspect-test: ${chalk.green('satisfied')} — ${total} unit${total === 1 ? '' : 's'} satisfied\n`);
+    return 0;
   } else {
     // --dry-run: print assembled prompt(s), no reviewer/LLM calls.
     // For companion aspects: runs the companion hook live (same resolution as --approve),
     // prints resolved companion paths/labels, then includes them in the prompt.
+    process.stdout.write('yg aspect-test: dry-run — prompt preview only, no verdict\n');
     for (const pair of myPairs) {
       const files: PromptFileInput[] = [];
       for (const rel of pair.subjectFiles) {
@@ -516,9 +571,7 @@ async function runLlmAspectTest(
         const resolved = await resolveCompanionsForTest(graph, projectRoot, pair, aspect);
         if (resolved.kind === 'infra') {
           debugWrite(`[aspect-test] companion resolution failed for ${aspect.id} on ${pair.unitKey}: ${resolved.messageData.what}`);
-          process.stderr.write(
-            buildIssueMessage(resolved.messageData) + '\n',
-          );
+          process.stderr.write(`Error: ${buildIssueMessage(resolved.messageData)}\n`);
           // Continue so the user sees the rest of the dry-run output (no reviewer calls made).
           continue;
         }
@@ -553,6 +606,7 @@ async function runLlmAspectTest(
       process.stdout.write(prompt + '\n');
     }
   }
+  return 0;
 }
 
 // ============================================================
@@ -574,13 +628,11 @@ function determinismMatches(a: AnyViolation[], b: AnyViolation[]): boolean {
 function writeNonDeterministicError(aspectId: string, run1: AnyViolation[], run2: AnyViolation[]): void {
   const sorted1 = [...run1].sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
   const sorted2 = [...run2].sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
-  process.stderr.write(
-    buildIssueMessage({
+  process.stderr.write(`Error: ${buildIssueMessage({
       what: `Deterministic aspect '${aspectId}' produced non-deterministic results.`,
       why: `Two consecutive runs returned different violations. This indicates the check.mjs has side effects or depends on non-deterministic state.`,
       next: `Review check.mjs to ensure it depends only on its inputs and produces stable output.`,
-    }) + '\n',
-  );
+    })}\n`);
   process.stderr.write('Run 1:\n');
   process.stderr.write(JSON.stringify(sorted1, null, 2) + '\n');
   process.stderr.write('Run 2:\n');
@@ -624,8 +676,10 @@ function printStructureViolations(violations: StructureViolation[]): void {
   const entries = [...byFile.entries()].sort(([a], [b]) => a.localeCompare(b));
   for (const [file, vs] of entries) {
     process.stdout.write(file + '\n');
+    // Line-less violations sort as 0 (first) and render as a bare indented
+    // message — no placeholder line number.
     for (const v of vs.sort((a, b) => (a.line ?? 0) - (b.line ?? 0))) {
-      process.stdout.write(`  L${v.line ?? '?'}: ${v.message}\n`);
+      process.stdout.write(typeof v.line === 'number' ? `  L${v.line}: ${v.message}\n` : `  ${v.message}\n`);
     }
   }
 }

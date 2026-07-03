@@ -15,7 +15,12 @@ import { debugWrite } from '../utils/debug-log.js';
  *  emitting (one message per aspect instead of one per pair). */
 export type DetFillOutcome =
   | { kind: 'verdict'; entry: VerdictEntry }
-  | { kind: 'runtime-error'; messageData: IssueMessage };
+  | { kind: 'runtime-error'; messageData: IssueMessage }
+  // A malformed (reasonless) `yg-suppress` marker in a mapped source file. This is
+  // a fault in the marker, NOT in check.mjs, so it is a DISTINCT disposition (no
+  // write) that must never be reported as aspect-check-runtime-error / "check.mjs
+  // crashed" — the exact mirror of how companion-runtime-error stays distinct.
+  | { kind: 'malformed-suppress'; messageData: IssueMessage };
 
 /** Outcome of filling one LLM pair. A real verdict carries an entry to write; an
  *  infra disposition writes NOTHING (spec §3.2) and carries a reason + `callsMade`

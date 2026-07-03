@@ -172,6 +172,8 @@ yg init
 
 The wizard walks you through platform selection and reviewer setup (provider, model, and where keys live in `yg-config.yaml` / `yg-secrets.yaml`).
 
+Prefer to be taught? Tell your agent **"onboard me into Yggdrasil"** — agents in an adopted repo know the tutor playbook (`yg knowledge read onboarding`) and will teach you on your own repository, in your own language. Repo not adopted yet? Tell the agent: *"Install @chrisdudek/yg, then run `yg knowledge read onboarding` and follow it."*
+
 **2. Tell the agent what matters.**
 
 ```

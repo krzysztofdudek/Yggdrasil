@@ -545,6 +545,231 @@ describe('aspect-test command behavior (mocked runners)', () => {
     expect(mockRunCompanionHook).not.toHaveBeenCalled();
   });
 
+  // ── Verdict stamp (fix7): uniform 'yg aspect-test:' line on every run ───────
+  function stripAnsi(s: string): string {
+    // eslint-disable-next-line no-control-regex
+    return s.replace(/\x1b\[[0-9;]*m/g, '');
+  }
+
+  it('det --node refusal: stamp is the FIRST stdout line, singular pluralization, exit 1', async () => {
+    mockLoadGraph.mockResolvedValue(
+      makeGraph({
+        aspects: [{ id: 'a', reviewer: { type: 'deterministic' } }],
+        nodes: [['N', { path: 'N', meta: {} }]],
+      }) as never,
+    );
+    mockRunStructure.mockResolvedValue({
+      violations: [{ message: 'file problem', file: 'src/a.ts', line: 3 }],
+      touchedFiles: [],
+      observations: [],
+    } as never);
+    await runCommand(['--aspect', 'a', '--node', 'N']);
+    expect(exitCode).toBe(1);
+    expect(stripAnsi(stdout).split('\n')[0]).toBe('yg aspect-test: refused — 1 violation');
+  });
+
+  it('det --files refusal: leading stamp pluralizes (2 violations), exit 1', async () => {
+    mockLoadGraph.mockResolvedValue(
+      makeGraph({ aspects: [{ id: 'a', reviewer: { type: 'deterministic' } }] }) as never,
+    );
+    mockRunAst.mockResolvedValue({
+      violations: [
+        { file: 'src/a.ts', line: 1, message: 'x' },
+        { file: 'src/a.ts', line: 2, message: 'y' },
+      ],
+    } as never);
+    await runCommand(['--aspect', 'a', '--files', 'src/a.ts']);
+    expect(exitCode).toBe(1);
+    expect(stripAnsi(stdout).split('\n')[0]).toBe('yg aspect-test: refused — 2 violations');
+  });
+
+  it('det clean: leading stamp merges the satisfied verdict with "No violations."', async () => {
+    mockLoadGraph.mockResolvedValue(
+      makeGraph({
+        aspects: [{ id: 'a', reviewer: { type: 'deterministic' } }],
+        nodes: [['N', { path: 'N', meta: {} }]],
+      }) as never,
+    );
+    mockRunStructure.mockResolvedValue({ violations: [], touchedFiles: [], observations: [] } as never);
+    await runCommand(['--aspect', 'a', '--node', 'N']);
+    expect(exitCode).toBeUndefined();
+    expect(stripAnsi(stdout).split('\n')[0]).toBe('yg aspect-test: satisfied — No violations.');
+  });
+
+  it('det --check-determinism (matched): stamp is the FIRST stdout line on the clean run', async () => {
+    mockLoadGraph.mockResolvedValue(
+      makeGraph({
+        aspects: [{ id: 'a', reviewer: { type: 'deterministic' } }],
+        nodes: [['N', { path: 'N', meta: {} }]],
+      }) as never,
+    );
+    mockRunStructure.mockResolvedValue({ violations: [], touchedFiles: [], observations: [] } as never);
+    await runCommand(['--aspect', 'a', '--node', 'N', '--check-determinism']);
+    expect(stripAnsi(stdout).split('\n')[0]).toBe('yg aspect-test: satisfied — No violations.');
+  });
+
+  it('LLM refused: per-pair line streams, trailing summary stamp, exit 1 (documented contract)', async () => {
+    const nodeEntry = { path: 'N', meta: { type: 'service', description: 'node desc' } };
+    mockLoadGraph.mockResolvedValue(
+      makeGraph({
+        aspects: [{ id: 'llm-a', reviewer: { type: 'llm' } }],
+        nodes: [['N', nodeEntry]],
+      }) as never,
+    );
+    mockComputeExpectedPairs.mockResolvedValue({
+      pairs: [{ aspectId: 'llm-a', kind: 'llm' as const, unitKey: 'node:N', nodePath: 'N', status: 'enforced' as const, subjectFiles: [] }],
+      unreadable: [],
+    });
+    mockCreateLlmProvider.mockReturnValue(makeMockProvider({
+      async verifyAspect() { return { satisfied: false, reason: 'nope', errorSource: 'codeViolation' as const }; },
+    }));
+    await runCommand(['--aspect', 'llm-a', '--node', 'N']);
+    expect(exitCode).toBe(1);
+    const clean = stripAnsi(stdout);
+    expect(clean).toContain('node:N: refused — nope');
+    expect(clean).toContain('yg aspect-test: refused — 1 of 1 units refused');
+    // Stamp precedes the footer.
+    expect(clean.indexOf('yg aspect-test: refused')).toBeLessThan(clean.indexOf('diagnostic only'));
+  });
+
+  it('LLM satisfied: trailing summary stamp, exit 0', async () => {
+    const nodeEntry = { path: 'N', meta: { type: 'service', description: 'node desc' } };
+    mockLoadGraph.mockResolvedValue(
+      makeGraph({
+        aspects: [{ id: 'llm-a', reviewer: { type: 'llm' } }],
+        nodes: [['N', nodeEntry]],
+      }) as never,
+    );
+    mockComputeExpectedPairs.mockResolvedValue({
+      pairs: [{ aspectId: 'llm-a', kind: 'llm' as const, unitKey: 'node:N', nodePath: 'N', status: 'enforced' as const, subjectFiles: [] }],
+      unreadable: [],
+    });
+    mockCreateLlmProvider.mockReturnValue(makeMockProvider());
+    await runCommand(['--aspect', 'llm-a', '--node', 'N']);
+    expect(exitCode).toBeUndefined();
+    expect(stripAnsi(stdout)).toContain('yg aspect-test: satisfied — 1 unit satisfied');
+  });
+
+  it('LLM infra-skip (reviewer threw): incomplete stamp, exit 1 (fail closed)', async () => {
+    const nodeEntry = { path: 'N', meta: { type: 'service', description: 'node desc' } };
+    mockLoadGraph.mockResolvedValue(
+      makeGraph({
+        aspects: [{ id: 'llm-a', reviewer: { type: 'llm' } }],
+        nodes: [['N', nodeEntry]],
+      }) as never,
+    );
+    mockComputeExpectedPairs.mockResolvedValue({
+      pairs: [{ aspectId: 'llm-a', kind: 'llm' as const, unitKey: 'node:N', nodePath: 'N', status: 'enforced' as const, subjectFiles: [] }],
+      unreadable: [],
+    });
+    mockCreateLlmProvider.mockReturnValue(makeMockProvider({
+      async verifyAspect() { throw new Error('boom'); },
+    }));
+    await runCommand(['--aspect', 'llm-a', '--node', 'N']);
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain('Reviewer threw an error');
+    expect(stripAnsi(stdout)).toContain('yg aspect-test: incomplete — 1 of 1 units could not be verified');
+  });
+
+  it('LLM --dry-run: leading dry-run stamp before the prompt', async () => {
+    const nodeEntry = { path: 'N', meta: { type: 'service', description: 'node desc' } };
+    mockLoadGraph.mockResolvedValue(
+      makeGraph({
+        aspects: [{ id: 'llm-a', reviewer: { type: 'llm' } }],
+        nodes: [['N', nodeEntry]],
+      }) as never,
+    );
+    mockComputeExpectedPairs.mockResolvedValue({
+      pairs: [{ aspectId: 'llm-a', kind: 'llm' as const, unitKey: 'node:N', nodePath: 'N', status: 'enforced' as const, subjectFiles: [] }],
+      unreadable: [],
+    });
+    mockCreateLlmProvider.mockReturnValue(makeMockProvider());
+    await runCommand(['--aspect', 'llm-a', '--node', 'N', '--dry-run']);
+    expect(exitCode).toBeUndefined();
+    const clean = stripAnsi(stdout);
+    expect(clean.split('\n')[0]).toBe('yg aspect-test: dry-run — prompt preview only, no verdict');
+    expect(clean.indexOf('yg aspect-test: dry-run')).toBeLessThan(clean.indexOf('=== prompt for node:N ==='));
+  });
+
+  // ── Line-less violations (fix8): no 'L?:' placeholder ───────────────────────
+  it('det --node line-less violation renders a bare indented message (no L?:) and sorts first', async () => {
+    mockLoadGraph.mockResolvedValue(
+      makeGraph({
+        aspects: [{ id: 'a', reviewer: { type: 'deterministic' } }],
+        nodes: [['N', { path: 'N', meta: {} }]],
+      }) as never,
+    );
+    mockRunStructure.mockResolvedValue({
+      violations: [
+        { message: 'with line', file: 'src/a.ts', line: 3 },
+        { message: 'no line at all', file: 'src/a.ts' },
+        { message: 'column but no line', file: 'src/a.ts', column: 2 },
+      ],
+      touchedFiles: [],
+      observations: [],
+    } as never);
+    await runCommand(['--aspect', 'a', '--node', 'N']);
+    expect(exitCode).toBe(1);
+    const clean = stripAnsi(stdout);
+    expect(clean).toContain('  no line at all');
+    expect(clean).toContain('  column but no line');
+    expect(clean).toContain('  L3: with line');
+    expect(clean).not.toContain('L?');
+    // Line-less violations sort as line 0 — they render BEFORE the L3 entry.
+    expect(clean.indexOf('no line at all')).toBeLessThan(clean.indexOf('L3: with line'));
+    expect(clean.indexOf('column but no line')).toBeLessThan(clean.indexOf('L3: with line'));
+  });
+
+  // ── Draft aspects (fix3): status never gates aspect-test ────────────────────
+  it('LLM path computes pairs with includeDraft: true', async () => {
+    const nodeEntry = { path: 'N', meta: { type: 'service', description: 'node desc' } };
+    mockLoadGraph.mockResolvedValue(
+      makeGraph({
+        aspects: [{ id: 'llm-a', reviewer: { type: 'llm' } }],
+        nodes: [['N', nodeEntry]],
+      }) as never,
+    );
+    mockComputeExpectedPairs.mockResolvedValue({ pairs: [], unreadable: [] });
+    await runCommand(['--aspect', 'llm-a', '--node', 'N']);
+    expect(mockComputeExpectedPairs).toHaveBeenCalledWith(expect.anything(), { includeDraft: true });
+  });
+
+  it('a draft-only LLM pair set produces prompt output on --dry-run instead of "No pairs"', async () => {
+    const nodeEntry = { path: 'N', meta: { type: 'service', description: 'node desc' } };
+    mockLoadGraph.mockResolvedValue(
+      makeGraph({
+        aspects: [{ id: 'llm-a', reviewer: { type: 'llm' } }],
+        nodes: [['N', nodeEntry]],
+      }) as never,
+    );
+    mockComputeExpectedPairs.mockResolvedValue({
+      pairs: [{ aspectId: 'llm-a', kind: 'llm' as const, unitKey: 'node:N', nodePath: 'N', status: 'draft' as const, subjectFiles: [] }],
+      unreadable: [],
+    });
+    mockCreateLlmProvider.mockReturnValue(makeMockProvider());
+    await runCommand(['--aspect', 'llm-a', '--node', 'N', '--dry-run']);
+    expect(stdout).toContain('=== prompt for node:N ===');
+    expect(stdout).not.toContain('No pairs for aspect');
+    expect(exitCode).toBeUndefined();
+  });
+
+  it('the "No pairs" message no longer blames draft status', async () => {
+    const nodeEntry = { path: 'N', meta: { type: 'service', description: 'node desc' } };
+    mockLoadGraph.mockResolvedValue(
+      makeGraph({
+        aspects: [{ id: 'llm-a', reviewer: { type: 'llm' } }],
+        nodes: [['N', nodeEntry]],
+      }) as never,
+    );
+    mockComputeExpectedPairs.mockResolvedValue({ pairs: [], unreadable: [] });
+    await runCommand(['--aspect', 'llm-a', '--node', 'N']);
+    expect(stdout).toContain(
+      "No pairs for aspect 'llm-a' on node 'N' — the aspect has an empty subject set or does not apply to this node.",
+    );
+    expect(stdout).not.toContain('may be draft');
+    expect(exitCode).toBeUndefined();
+  });
+
   // ── Non-companion LLM: behavior unchanged ───────────────────────────────────
   it('non-companion LLM --dry-run: hook not called, prompt has no <companions> block', async () => {
     const nodeEntry = { path: 'N', meta: { type: 'service', description: 'node desc' } };

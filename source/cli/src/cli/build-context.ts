@@ -10,6 +10,7 @@ import { validate } from '../core/validator.js';
 import { findOwner } from './owner.js';
 import { normalizeMappingPaths, projectRootFromGraph, resolveFileArg } from '../io/paths.js';
 import { expandMappingPaths } from '../io/hash.js';
+import { isCoverageExcludedPath } from '../io/repo-scanner.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
 import { computeExpectedPairs, computeSourceFingerprint, FileUnreadableError } from '../core/pairs.js';
 import { readLock } from '../io/lock-store.js';
@@ -149,7 +150,7 @@ export function registerBuildCommand(program: Command): void {
   const contextAction = async (options: { node?: string; file?: string }) => {
       try {
         if (!options.node && !options.file) {
-          process.stderr.write(chalk.red(buildIssueMessage({
+          process.stderr.write(chalk.red('Error: ' + buildIssueMessage({
             what: "No target specified.",
             why: "Either '--node <path>' or '--file <path>' is required.",
             next: "Run: yg context --node <path> or yg context --file <path>",
@@ -157,7 +158,7 @@ export function registerBuildCommand(program: Command): void {
           process.exit(1);
         }
         if (options.node && options.file) {
-          process.stderr.write(chalk.red(buildIssueMessage({
+          process.stderr.write(chalk.red('Error: ' + buildIssueMessage({
             what: "Conflicting options.",
             why: "'--node' and '--file' are mutually exclusive.",
             next: "Use one or the other, not both.",
@@ -176,6 +177,20 @@ export function registerBuildCommand(program: Command): void {
           const result = findOwner(graph, repoRoot, repoRelative);
           const displayFile = toPosixPath(result.file);
           if (!result.nodePath) {
+            // A path the coverage scan UNCONDITIONALLY skips (git internals, or
+            // the graph's own .yggdrasil/ tree) can never be enumerated for
+            // coverage — suggesting "add it to a node mapping" would map a file
+            // yg check will never see. Answer "excluded by design" and exit 0:
+            // this is not a coverage gap, so there is genuinely nothing to fix.
+            if (isCoverageExcludedPath(result.file)) {
+              const excludedMsg = buildIssueMessage({
+                what: `${displayFile} is excluded from graph coverage by design.`,
+                why: 'This path is never scanned for coverage (git internals / the graph directory itself), so it cannot and need not be mapped to a node.',
+                next: 'No action needed.',
+              });
+              process.stderr.write(`${excludedMsg}\n`);
+              process.exit(0);
+            }
             const candidates = findCandidateNodes(graph, result.file);
             if (candidates.length > 0) {
               let candidatesList = '';
@@ -187,14 +202,14 @@ export function registerBuildCommand(program: Command): void {
                 why: `File is not mapped to any node. Other files in the same directory are mapped to these nodes:\n${candidatesList}This suggests the file should be added to one of them.`,
                 next: 'Use: yg context --node <node-path>',
               });
-              process.stderr.write(chalk.red(`${msg}\n`));
+              process.stderr.write(chalk.red(`Error: ${msg}\n`));
             } else {
               const noGraphMsg = buildIssueMessage({
                 what: `${displayFile} has no graph coverage.`,
                 why: 'File is not mapped to any node and no candidate nodes found in the same directory.',
                 next: 'Add the file to an existing node mapping, or create a new node.',
               });
-              process.stderr.write(chalk.red(`${noGraphMsg}\n`));
+              process.stderr.write(chalk.red(`Error: ${noGraphMsg}\n`));
             }
             process.exit(1);
           }
@@ -202,10 +217,7 @@ export function registerBuildCommand(program: Command): void {
           nodePath = result.nodePath;
           resolvedFilePath = toPosixPath(result.file);
         } else {
-          // cli-command-contract verifies the --node path normalization by reading
-          // the explicit separator-conversion + trailing-slash strip in source, so
-          // this one site keeps the inlined idiom rather than the toPosixPath helper.
-          nodePath = options.node!.trim().replace(/\\/g, '/').replace(/\/+$/, '');
+          nodePath = options.node!.trim().replace(/\/$/, '');
         }
 
         const relevantNodes = collectRelevantNodePaths(graph, nodePath);
@@ -254,7 +266,7 @@ export function registerBuildCommand(program: Command): void {
         const msg = error instanceof Error ? error.message : String(error);
         const notFound = msg.match(/^Node not found: (.+)$/);
         if (notFound) {
-          process.stderr.write(chalk.red(buildIssueMessage({
+          process.stderr.write(chalk.red('Error: ' + buildIssueMessage({
             what: `Node '${notFound[1]}' does not exist in the graph.`,
             why: `The --node path must name an existing node — a directory under .yggdrasil/model/, written without the model/ prefix.`,
             next: `Browse the graph with 'yg tree', or locate one with 'yg find "<keywords>"', then retry with a valid --node path.`,
@@ -265,7 +277,7 @@ export function registerBuildCommand(program: Command): void {
         // internal bug — classify it rather than routing to the crash handler.
         const outsideRoot = msg.match(/^Path is outside project root: (.+)$/);
         if (outsideRoot) {
-          process.stderr.write(chalk.red(buildIssueMessage({
+          process.stderr.write(chalk.red('Error: ' + buildIssueMessage({
             what: `The path '${toPosixPath(outsideRoot[1])}' is outside the project root.`,
             why: `Context can only be built for files tracked inside the project.`,
             next: `Pass a path inside the project root (relative to the repo).`,

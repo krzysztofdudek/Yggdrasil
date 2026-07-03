@@ -27,7 +27,7 @@ The `reviewer:` block is **optional** — reviewer kind is inferred from rule-fi
 
 The LLM reviewer is a separate LLM call from the coding agent — one LLM verifying the work of another. `yg check --approve` assembles each unverified LLM pair into one prompt — the aspect's `content.md` plus the subject files for that pair (the whole node under `per: node`, a single file under `per: file`). The reviewer also receives any reference files declared on the aspect, presented as authoritative context (not under review). It responds with SATISFIED or NOT SATISFIED, and the verdict is recorded in the lock. Each unverified LLM pair costs one reviewer call, multiplied by the tier's consensus count.
 
-**Draft aspects produce no pairs.** When an aspect's effective status on a node is `draft`, no pair is expected for it — there is nothing to verify and nothing to record. Aspects with effective status `advisory` or `enforced` are verified normally; the level only changes how a refused or unverified pair renders in `yg check` (warning vs. error). Verdicts survive status flips, including a `draft` round-trip — returning an aspect to enforced re-uses the recorded verdict for unchanged inputs. See [Aspect Status](/aspect-status) for the lifecycle.
+**Draft aspects produce no pairs.** When an aspect's effective status on a node is `draft`, no pair is expected for it — there is nothing to verify and nothing to record (`yg aspect-test` can still run a draft aspect live — diagnostic only, the lock is never written). Aspects with effective status `advisory` or `enforced` are verified normally; the level only changes how a refused or unverified pair renders in `yg check` (warning vs. error). Verdicts survive status flips, including a `draft` round-trip — returning an aspect to enforced re-uses the recorded verdict for unchanged inputs. See [Aspect Status](/aspect-status) for the lifecycle.
 
 **LLM verdicts are not deterministic.** The same code against the same rule can come back SATISFIED on one run and NOT SATISFIED on another — most often on borderline rules. To avoid laundering a refusal into an approval, a recorded refusal is final for unchanged inputs: re-running `yg check --approve` does not re-roll it. The three honest ways out are fix the code, sharpen the rule (which re-verifies every pair of the aspect — check `yg impact --aspect` first), or add a `yg-suppress` marker with your sign-off. Manage variance up front by writing rules that are concrete and decidable rather than vague, by preferring a `deterministic` `check.mjs` whenever a rule is programmatically checkable (zero LLM cost, identical result every run), and by raising `consensus` on high-stakes or noisy aspects so a majority vote smooths out single-call variance. To explore whether the rule text is the problem, use `yg aspect-test` — a diagnostic re-run that never writes the lock.
 
@@ -398,6 +398,7 @@ yg aspect-test --aspect async-fs --node orders/order-service
 `yg aspect-test` exits 0 for clean, 1 for violations, and never writes the lock. Output:
 
 ```text
+yg aspect-test: refused — 1 violation
 src/utils/config.ts
   L12: fs.readFileSync is synchronous — use async equivalent
 ```
@@ -500,6 +501,7 @@ Source code comments can carry a `yg-suppress` marker to waive a specific aspect
 - `<aspect-path>` — full aspect path (e.g., `cqrs/single-responsibility`)
 - `<reason>` — required free-text explanation. Empty or whitespace-only reasons fail with `SUPPRESS_MARKER_MISSING_REASON`.
 - Markers must live inside **comment nodes** — string literals are not matched.
+- The marker must begin its comment line (after the comment delimiter). A mid-sentence mention of `yg-suppress(...)` in a comment is not a marker.
 
 ### Single-line suppress
 

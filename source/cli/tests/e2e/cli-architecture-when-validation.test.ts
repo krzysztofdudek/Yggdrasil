@@ -970,6 +970,78 @@ describe.skipIf(!distExists)(
     });
 
     // -----------------------------------------------------------------------
+    // Finding H2 — a DIRECTORY mapping entry must be classified by the FILES it
+    // owns, exactly like a glob — not by the literal directory string. Both the
+    // directory form (node schema) and extension globs in `when` (architecture
+    // schema) are documented-valid, so they must be compatible: a directory
+    // mapping under an extension-glob type must PASS when its files satisfy the
+    // when, and still FLAG the individual file that genuinely violates it.
+    // -----------------------------------------------------------------------
+
+    it('H2: a directory mapping whose files satisfy when does NOT raise type-when-mismatch', () => {
+      const dir = copyFixture('dir-when-ok');
+      try {
+        // Tighten the service when to require a .ts extension — so the literal
+        // directory string (no extension) could not satisfy it; only its files.
+        replaceServiceWhen(dir, '    when:\n      path: "src/services/**/*.ts"');
+        // orders owns its existing .ts file PLUS a DIRECTORY containing only .ts.
+        mkdirSync(path.join(dir, 'src', 'services', 'orders_pkg'), { recursive: true });
+        writeFileSync(
+          path.join(dir, 'src', 'services', 'orders_pkg', 'handler.ts'),
+          'export const handle = () => 1;\n',
+          'utf-8',
+        );
+        const y = readFileSync(ordersNodePath(dir), 'utf-8').replace(
+          '  - src/services/orders.ts',
+          '  - src/services/orders.ts\n  - src/services/orders_pkg/',
+        );
+        writeFileSync(ordersNodePath(dir), y, 'utf-8');
+
+        const { stdout } = run(['check'], dir);
+        // Every file the directory owns is .ts, so the directory satisfies the
+        // .ts when — no mismatch (before the fix, the literal 'src/services/
+        // orders_pkg' string failed the .ts when and false-errored).
+        expect(stdout).not.toContain('type-when-mismatch');
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('H2b: a directory mapping with a file that violates when flags THAT file', () => {
+      const dir = copyFixture('dir-when-bad');
+      try {
+        replaceServiceWhen(dir, '    when:\n      path: "src/services/**/*.ts"');
+        // The directory owns a valid .ts AND a .md that genuinely violates the
+        // .ts when. Expanding the directory to its files surfaces the .md.
+        mkdirSync(path.join(dir, 'src', 'services', 'orders_pkg'), { recursive: true });
+        writeFileSync(
+          path.join(dir, 'src', 'services', 'orders_pkg', 'handler.ts'),
+          'export const handle = () => 1;\n',
+          'utf-8',
+        );
+        writeFileSync(
+          path.join(dir, 'src', 'services', 'orders_pkg', 'README.md'),
+          '# notes\n',
+          'utf-8',
+        );
+        const y = readFileSync(ordersNodePath(dir), 'utf-8').replace(
+          '  - src/services/orders.ts',
+          '  - src/services/orders.ts\n  - src/services/orders_pkg/',
+        );
+        writeFileSync(ordersNodePath(dir), y, 'utf-8');
+
+        const { all } = run(['check'], dir);
+        // The mismatch fires, and names the OFFENDING FILE (README.md), not the
+        // directory string — proving the entry was expanded to its files (before
+        // the fix, the message named the bare 'src/services/orders_pkg' entry).
+        expect(all).toContain('type-when-mismatch');
+        expect(all).toContain('src/services/orders_pkg/README.md');
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    // -----------------------------------------------------------------------
     // Finding I — source-existence (drift) must expand a glob mapping. A node
     // mapped only by a glob whose files exist must NOT report "source files
     // never created" (the literal pattern string never exists on disk).

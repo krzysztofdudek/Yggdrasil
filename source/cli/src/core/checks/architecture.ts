@@ -163,20 +163,27 @@ export async function checkTypeWhenMismatch(
   for (const [nodePath, node] of graph.nodes) {
     const typeDef = graph.architecture.node_types[node.meta.type];
     if (typeDef === undefined || typeDef.when === undefined) continue;
-    // A glob mapping entry is satisfied by the FILES it matches, not by the
-    // literal pattern string — expand globs to their matched files before the
-    // when-check (a glob matching nothing yields no files here; the empty match
-    // is reported by checkMappingPathsExist). Non-glob entries (exact file or
-    // directory) are checked as-is, exactly as before.
+    // A mapping entry is satisfied by the FILES it owns, not by the literal
+    // entry STRING. Expand each entry through the SAME canonical helper the
+    // mapping/coverage layer uses (expandMappingPaths), so type-when
+    // classification matches ownership byte-for-byte: a glob yields its matches,
+    // a DIRECTORY (e.g. src/emails/) yields the files inside it, and an existing
+    // exact file resolves to just that file. expandMappingPaths returns POSIX
+    // paths; the extra toPosixPath is a belt-and-suspenders forward-slash
+    // guarantee for every relPath written into a diagnostic below.
     const mapping = node.meta.mapping ?? [];
     const pathsToCheck: string[] = [];
     for (const entry of mapping) {
-      if (isGlobPattern(entry)) {
-        // expandMappingPaths returns filesystem-derived paths; normalize to
-        // POSIX at this boundary so every relPath written into a diagnostic
-        // below is provably forward-slash with no trailing slash.
-        pathsToCheck.push(...(await expandMappingPaths(projectRoot, [entry])).map(toPosixPath));
-      } else {
+      const expanded = (await expandMappingPaths(projectRoot, [entry])).map(toPosixPath);
+      if (expanded.length > 0) {
+        pathsToCheck.push(...expanded);
+      } else if (!isGlobPattern(entry)) {
+        // A non-glob entry that resolves to nothing on disk is a MISSING exact
+        // file. Check it as-is so a content-predicate `when` still reports
+        // file-unreadable on a file it cannot open (expandMappingPaths silently
+        // drops missing paths, which would otherwise swallow that diagnostic).
+        // An empty GLOB, by contrast, legitimately matches no files here — its
+        // empty match is reported by checkMappingPathsExist, so push nothing.
         pathsToCheck.push(entry);
       }
     }

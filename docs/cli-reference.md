@@ -143,8 +143,8 @@ yg check --approve --quiet  # suppress progress output during --approve (stderr)
 ```
 
 `--top N` renders the N highest-priority **rule groups**, in the same priority
-order the `Next:` line draws from. A bare `--top` (no value) renders zero groups
-and keeps only the single `Next:` line — the one concrete step to take.
+order the `Next:` line draws from. A bare `--top` (no value) renders exactly
+one group — the suggested-next one, the one concrete thing to fix next.
 `--summary` prints one line per node — `K unverified (J deterministic-free, L
 LLM), M refused` — plus an `other` bucket for non-pair errors (coverage, log,
 relation, structural) so the per-node totals reconcile with the header.
@@ -166,11 +166,13 @@ setting affects bare `yg check` only; CI scripts should always use explicit flag
 
 **Guardrail:** every view always prints the true aggregate `Errors (N)` /
 `Warnings (N)` header and preserves the real exit code, so a narrowed view can
-never read as a clean build. An invalid `--top` value — negative, fractional,
-non-numeric, or an explicit `0` — is a guided error, not a silent full dump; use
-bare `--top` for the zero-group view. Use `--summary` and `--top` to orient, then
-drill into a specific rule group with `--aspect <id>` or the full view with plain
-`yg check`.
+never read as a clean build. When a `--top` slice leaves a section (Errors or
+Warnings) with a true count > 0 but no chosen groups, a parenthetical note is
+printed beneath that subheader instead of leaving it dangling empty. An invalid
+`--top` value — negative, fractional, non-numeric, or an explicit `0` — is a
+guided error, never a silent full dump; for the single suggested-next group use
+bare `--top`. Use `--summary` and `--top` to orient, then drill into a specific
+rule group with `--aspect <id>` or the full view with plain `yg check`.
 
 #### `--approve` — fill unverified pairs
 
@@ -405,9 +407,17 @@ Run `yg knowledge list` to see the current list with one-line descriptions.
 
 Runs a single aspect — deterministic or LLM — against a node or an explicit file
 list, and prints the result. It is a **diagnostic**: it always runs live and never
-writes the lock, so use it freely while authoring a rule. Every run that produces a
-result ends with `diagnostic only — lock unchanged; yg check still reports the
-stored verdict`.
+writes the lock, so use it freely while authoring a rule. Every run carries a
+one-line verdict stamp `yg aspect-test: satisfied|refused|incomplete|dry-run` —
+leading on deterministic runs, as a trailing summary after the per-unit verdict
+lines on LLM runs (`incomplete` means some unit could not be verified — fail
+closed, exit 1). Every run that produces a result ends with `diagnostic only —
+lock unchanged; yg check judges the lock against your files, not this run`.
+
+Aspect status never gates `aspect-test`: a `draft` aspect runs here exactly like
+an enforced one (drafts stay dormant only in `yg check` / `--approve`). Use
+`--dry-run` for a zero-cost prompt preview while authoring; a run without
+`--dry-run` makes a real reviewer call.
 
 ```bash
 yg aspect-test --aspect <id> --node <node-path>
@@ -433,7 +443,8 @@ yg aspect-test --aspect <id> --node <node-path> --dry-run
 
 For a deterministic aspect it runs `check.mjs` and prints violations. For an LLM
 aspect it runs the reviewer (or just prints the prompt under `--dry-run`). Exits 0
-when clean, 1 when violations or refusals are found.
+when clean, 1 when violations or refusals are found — or when a unit could not be
+verified at all (fail closed, stamped `incomplete`).
 
 When `yg aspect-test` repeatedly approves what the lock has refused, the rule text
 is ambiguous — sharpen `content.md` (which re-verifies every pair of the aspect; check

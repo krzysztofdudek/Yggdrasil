@@ -126,9 +126,19 @@ export async function runAstAspect(params: RunAstAspectParams): Promise<RunAstAs
   // comments; non-parseable files (ast undefined) fall back to a raw-line scan
   // of their content, so a yg-suppress marker is honored in any language.
   const rangesPerFile = new Map<string, ReturnType<typeof collectSuppressions>>();
-  for (const f of sourceFiles) {
-    const totalLines = f.content.split('\n').length;
-    rangesPerFile.set(f.path, collectSuppressions(f.ast, f.path, totalLines, f.content));
+  try {
+    for (const f of sourceFiles) {
+      const totalLines = f.content.split('\n').length;
+      rangesPerFile.set(f.path, collectSuppressions(f.ast, f.path, totalLines, f.content));
+    }
+  } catch (e: unknown) {
+    // A malformed suppress marker is a fault in the subject file's marker, not in
+    // check.mjs — surface it as its own diagnostic so the failure is never
+    // misattributed to the aspect's check.
+    if (e instanceof SuppressMarkerError) {
+      throw new AstRunnerError('AST_SUPPRESS_MARKER_MALFORMED', e.messageData);
+    }
+    throw e;
   }
 
   const ctx: CheckContext = { files: sourceFiles };

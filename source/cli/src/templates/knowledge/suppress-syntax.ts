@@ -120,15 +120,27 @@ deterministic one. To waive a whole file, use the \`disable\`/\`enable\` bracket
 Markers are recognized in any source language, using whichever comment syntax
 the language provides — \`//\` and \`/* */\` (C-family), \`#\` (shell, Python),
 \`--\` (SQL), and so on. The marker token \`yg-suppress(...)\` is what is matched,
-not a specific comment style.
+not a specific comment style — but only in the anchored position described below.
+
+A marker must be anchored: the \`yg-suppress...\` token must be the first thing
+on its comment line — only whitespace and a single leading comment delimiter
+(\`//\`, \`/*\`, \`*\`, \`#\`, \`--\`, \`;\`, \`<!--\`, ...) may precede it. Prose
+that merely mentions the syntax mid-sentence, a backtick-quoted
+\`yg-suppress(...)\`, or a marker-shaped token following code on the same line
+is NOT a marker — it is neither honored by any reviewer nor listed by
+\`yg suppressions\`.
 
 For a file whose extension has a registered grammar, markers are read from the
 file's comments, so a \`yg-suppress(...)\` that merely appears inside a string
 literal is NOT treated as a marker. For a file whose extension has no registered
 grammar (e.g. \`.sql\`, \`.md\`, \`.sh\`), there is no parse tree, so markers are
 found by scanning the raw lines — which is what lets a content-only deterministic
-check waive a violation in such a file. (In that raw-scan mode a marker token
-sitting inside a string literal would also match, so keep markers in comments.)
+check waive a violation in such a file. In this raw-scan mode the marker line
+must still BEGIN with a comment delimiter (\`#\`, \`--\`, \`<!--\`, \`;\`, ...):
+a bare line that merely starts with the token — a wrapped prose sentence or a
+string-literal line with no delimiter — is NOT a marker. A real
+\`# yg-suppress(...)\` / \`-- yg-suppress(...)\` / \`<!-- yg-suppress(...) -->\`
+still works.
 
 ## Reason text
 

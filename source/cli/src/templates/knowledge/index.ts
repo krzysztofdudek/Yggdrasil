@@ -12,6 +12,7 @@ import * as portsAndRelations from './ports-and-relations.js';
 import * as flows from './flows.js';
 import * as aspectStatus from './aspect-status.js';
 import * as metaModeling from './meta-modeling.js';
+import * as onboarding from './onboarding.js';
 
 export type KnowledgeTopic = {
   summary: string;
@@ -30,6 +31,10 @@ export const KNOWLEDGE_TOPICS: Record<string, KnowledgeTopic> = {
   'meta-modeling': {
     summary: metaModeling.summary,
     content: metaModeling.content,
+  },
+  onboarding: {
+    summary: onboarding.summary,
+    content: onboarding.content,
   },
   'aspect-status': {
     summary: aspectStatus.summary,

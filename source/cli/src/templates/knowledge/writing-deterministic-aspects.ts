@@ -497,8 +497,10 @@ yg aspect-test --aspect no-sync-fs --files src/orders/handler.ts src/other.ts
 yg aspect-test --aspect sibling-test-file --node orders/handler --check-determinism
 \`\`\`
 
-Every run ends with the footer \`diagnostic only — lock unchanged; yg check still
-reports the stored verdict\`. Exits 1 if violations exist. Use during \`check.mjs\`
+Every run leads with a one-line verdict stamp (\`yg aspect-test: satisfied — No
+violations.\` or \`yg aspect-test: refused — N violation(s)\`) and ends with the
+footer \`diagnostic only — lock unchanged; yg check judges the lock against your
+files, not this run\`. Exits 1 if violations exist. Use during \`check.mjs\`
 development, against both compliant and non-compliant inputs, to confirm no false
 positives and no false negatives. \`--check-determinism\` runs the check twice and
 fails if the violation sets differ, catching side effects.

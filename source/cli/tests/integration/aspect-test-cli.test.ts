@@ -187,6 +187,55 @@ describe.skipIf(!distExists)('yg aspect-test', () => {
     expect(stderr).toContain('--dry-run is not supported for deterministic aspect');
   });
 
+  // --- stderr contract: bespoke errors carry the 'Error: ' prefix ----------
+
+  // Every bespoke aspect-test error path writes `Error: <what/why/next>` to
+  // stderr. Pin the prefix at POSITION 0 (regex ^Error: , not a substring
+  // match) on three representative paths, so stripping the prefix from the
+  // stderr writes is a test failure — a bare toContain('Error') would still
+  // pass on wording that merely mentions the word.
+
+  it("stderr starts with 'Error: ' when the aspect is not found", () => {
+    const { stderr, status } = run(
+      ['aspect-test', '--aspect', 'nonexistent', '--node', 'N'],
+      projectRoot,
+    );
+    expect(status).toBe(1);
+    expect(stderr).toMatch(/^Error: /);
+  });
+
+  it("stderr starts with 'Error: ' when --files is used with an LLM aspect", () => {
+    const aspectDir = path.join(projectRoot, '.yggdrasil', 'aspects', 'llm-aspect');
+    mkdirSync(aspectDir, { recursive: true });
+    writeFileSync(
+      path.join(aspectDir, 'yg-aspect.yaml'),
+      `name: LlmAspect\ndescription: llm aspect\nreviewer:\n  type: llm\n`,
+    );
+    writeFileSync(path.join(aspectDir, 'content.md'), `Code must be tidy.\n`);
+
+    const { stderr, status } = run(
+      ['aspect-test', '--aspect', 'llm-aspect', '--files', 'src/a.ts'],
+      projectRoot,
+    );
+    expect(status).toBe(1);
+    expect(stderr).toMatch(/^Error: /);
+  });
+
+  it("stderr starts with 'Error: ' when the node is not found", () => {
+    writeAspect(
+      projectRoot,
+      'det-prefix',
+      `name: DetPrefix\ndescription: det prefix\nreviewer:\n  type: deterministic\n`,
+      `export function check(ctx) { return []; }\n`,
+    );
+    const { stderr, status } = run(
+      ['aspect-test', '--aspect', 'det-prefix', '--node', 'missing/node'],
+      projectRoot,
+    );
+    expect(status).toBe(1);
+    expect(stderr).toMatch(/^Error: /);
+  });
+
   // --- --node mode (graph-aware ctx) ---------------------------------------
 
   it('--node runs deterministic aspect against named node and prints violations', () => {
@@ -253,6 +302,77 @@ describe.skipIf(!distExists)('yg aspect-test', () => {
     expect(status).toBe(1);
     expect(stdout).toContain('src/a.ts');
     expect(stdout).toContain('L1: found issue');
+  });
+
+  it('--node refusal: the verdict stamp is the first line, before any file path', () => {
+    writeAspect(
+      projectRoot,
+      'stamped',
+      `name: Stamped\ndescription: stamped\nreviewer:\n  type: deterministic\n`,
+      `export function check(ctx) {
+  return [{ message: 'found issue', file: 'src/a.ts', line: 1 }];
+}\n`,
+    );
+    const { stdout, status } = run(
+      ['aspect-test', '--aspect', 'stamped', '--node', 'N'],
+      projectRoot,
+    );
+    expect(status).toBe(1);
+    expect(stdout.split('\n')[0]).toBe('yg aspect-test: refused — 1 violation');
+    expect(stdout.indexOf('yg aspect-test: refused')).toBeLessThan(stdout.indexOf('src/a.ts'));
+  });
+
+  it('--node clean run pins the full satisfied stamp and the full diagnostic footer', () => {
+    writeAspect(
+      projectRoot,
+      'clean',
+      `name: Clean\ndescription: clean aspect\nreviewer:\n  type: deterministic\n`,
+      `export function check(ctx) { return []; }\n`,
+    );
+    const { stdout, status } = run(
+      ['aspect-test', '--aspect', 'clean', '--node', 'N'],
+      projectRoot,
+    );
+    expect(status).toBe(0);
+    expect(stdout).toContain('yg aspect-test: satisfied — No violations.');
+    // Full footer wording, pinned once against a real fixture.
+    expect(stdout).toContain(
+      'diagnostic only — lock unchanged; yg check judges the lock against your files, not this run',
+    );
+  });
+
+  it('--node renders a line-less file violation as a bare message (no L?: placeholder)', () => {
+    writeAspect(
+      projectRoot,
+      'no-line',
+      `name: NoLine\ndescription: no line\nreviewer:\n  type: deterministic\n`,
+      `export function check(ctx) {
+  return [{ message: 'file-level issue', file: 'src/a.ts' }];
+}\n`,
+    );
+    const { stdout, status } = run(
+      ['aspect-test', '--aspect', 'no-line', '--node', 'N'],
+      projectRoot,
+    );
+    expect(status).toBe(1);
+    expect(stdout).toContain('src/a.ts');
+    expect(stdout).toContain('  file-level issue');
+    expect(stdout).not.toContain('L?');
+  });
+
+  it('--node runs a DRAFT deterministic aspect live and exits 1 on violations (status never gates aspect-test)', () => {
+    writeAspect(
+      projectRoot,
+      'draft-det',
+      `name: DraftDet\ndescription: draft det\nreviewer:\n  type: deterministic\nstatus: draft\n`,
+      `export function check(ctx) { return [{ message: 'draft still runs' }]; }\n`,
+    );
+    const { stdout, status } = run(
+      ['aspect-test', '--aspect', 'draft-det', '--node', 'N'],
+      projectRoot,
+    );
+    expect(status).toBe(1);
+    expect(stdout).toContain('draft still runs');
   });
 
   it('--node renders graph-level violations (no file) as <graph>:', () => {
@@ -329,6 +449,55 @@ export function check(ctx) {
     expect(stderr).toContain('non-deterministic');
     expect(stderr).toContain('Run 1:');
     expect(stderr).toContain('Run 2:');
+  });
+
+  // --- --node effectiveness NOTE (deterministic, ad-hoc test-before-attach) --
+
+  it('--node deterministic: prints a NOTE to stderr when the aspect is not attached to the node', () => {
+    // Node N (module) declares no aspects, so this aspect is not effective on it
+    // through any channel. The ad-hoc run still executes (test-before-attach),
+    // but a NOTE now warns that yg check produces no verdict for this pair —
+    // restoring symmetry with the LLM path's "No pairs".
+    writeAspect(
+      projectRoot,
+      'unattached',
+      `name: Unattached\ndescription: unattached\nreviewer:\n  type: deterministic\n`,
+      `export function check(ctx) { return []; }\n`,
+    );
+    const { stdout, stderr, status } = run(
+      ['aspect-test', '--aspect', 'unattached', '--node', 'N'],
+      projectRoot,
+    );
+    // The ad-hoc run itself is unchanged: clean check, exit 0, verdict on stdout.
+    expect(status).toBe(0);
+    expect(stdout).toContain('No violations.');
+    // The NOTE lands on stderr, naming the aspect and node.
+    expect(stderr).toContain("Note: aspect 'unattached' is not attached to node 'N'");
+    expect(stderr).toContain('yg check will not produce a verdict for this pair');
+    // It is a stderr NOTE, not mixed into the verdict output.
+    expect(stdout).not.toContain('is not attached to node');
+  });
+
+  it('--node deterministic: prints NO note when the aspect IS attached to the node', () => {
+    writeAspect(
+      projectRoot,
+      'attached',
+      `name: Attached\ndescription: attached\nreviewer:\n  type: deterministic\n`,
+      `export function check(ctx) { return []; }\n`,
+    );
+    // Attach the aspect to node N (channel 1 — own) so it is effective there.
+    writeFileSync(
+      path.join(projectRoot, '.yggdrasil', 'model', 'N', 'yg-node.yaml'),
+      `name: NodeN\ntype: module\naspects:\n  - attached\nmapping:\n  - src/a.ts\n`,
+    );
+    const { stdout, stderr, status } = run(
+      ['aspect-test', '--aspect', 'attached', '--node', 'N'],
+      projectRoot,
+    );
+    expect(status).toBe(0);
+    expect(stdout).toContain('No violations.');
+    // Effective on N → the pair exists → no note.
+    expect(stderr).not.toContain('is not attached to node');
   });
 
   // --- --files mode (AST runner + AST renderer) ----------------------------
