@@ -7,6 +7,7 @@
 
 import type { VerdictEntry } from '../model/lock.js';
 import type { IssueMessage } from '../model/validation.js';
+import type { AspectResponse } from '../llm/types.js';
 import { debugWrite } from '../utils/debug-log.js';
 
 /** Outcome of filling one deterministic pair. A real verdict carries an entry to
@@ -38,7 +39,7 @@ export type DetFillOutcome =
  *  failure is self-describing at the point it is produced. The bare `why` stays for
  *  callers that fold it into their own surrounding message. */
 export type LlmFillOutcome =
-  | { kind: 'verdict'; entry: VerdictEntry; callsMade: number }
+  | { kind: 'verdict'; entry: VerdictEntry; callsMade: number; votes: AspectResponse[] }
   | { kind: 'infra'; why: string; messageData?: IssueMessage; callsMade: number }
   | { kind: 'companion-runtime-error'; why: string; messageData: IssueMessage; callsMade: 0 };
 

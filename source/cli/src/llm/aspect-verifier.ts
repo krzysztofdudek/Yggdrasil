@@ -36,13 +36,24 @@ export function buildPrompt(
 }
 
 
+/** Result of a (possibly multi-vote) consensus verification: the aggregate
+ *  verdict plus every individual vote that produced it, so a caller can
+ *  surface the split (diagnostics, telemetry) without re-deriving it. */
+export interface ConsensusResult {
+  /** The aggregate — byte-equivalent semantics to the single-response contract. */
+  response: AspectResponse;
+  /** Every vote cast. Length 1 on the consensus<=1 path. */
+  votes: AspectResponse[];
+}
+
 export async function verifyWithConsensus(
   provider: LlmProvider,
   prompt: string,
   consensus: number,
-): Promise<AspectResponse> {
+): Promise<ConsensusResult> {
   if (consensus <= 1) {
-    return provider.verifyAspect(prompt);
+    const response = await provider.verifyAspect(prompt); // a throw propagates — fail-closed unchanged
+    return { response, votes: [response] };
   }
 
   const votes: AspectResponse[] = [];
@@ -54,14 +65,17 @@ export async function verifyWithConsensus(
   const notSatisfied = votes.filter(v => !v.satisfied).length;
 
   if (satisfied > notSatisfied) {
-    return { satisfied: true, reason: votes.find(v => v.satisfied)!.reason, errorSource: 'codeViolation' };
+    return { response: { satisfied: true, reason: votes.find(v => v.satisfied)!.reason, errorSource: 'codeViolation' }, votes };
   }
   const losingVotes = votes.filter(v => !v.satisfied);
   const allProvider = losingVotes.every(v => v.errorSource === 'provider');
   return {
-    satisfied: false,
-    reason: losingVotes[0]!.reason,
-    errorSource: allProvider ? 'provider' : 'codeViolation',
+    response: {
+      satisfied: false,
+      reason: losingVotes[0]!.reason,
+      errorSource: allProvider ? 'provider' : 'codeViolation',
+    },
+    votes,
   };
 }
 
@@ -72,7 +86,7 @@ export async function verifyAspects(
   const results: Record<string, AspectVerificationResult> = {};
   for (const aspect of aspects) {
     const prompt = buildPrompt(aspect, nodeDescription, nodePath, sourceFiles, aspect.references ?? []);
-    const r = await verifyWithConsensus(provider, prompt, consensus);
+    const r = (await verifyWithConsensus(provider, prompt, consensus)).response;
     results[aspect.id] = { satisfied: r.satisfied, reason: r.reason, errorSource: r.errorSource };
   }
   return results;

@@ -1,3 +1,4 @@
+// yg-suppress-disable(deterministic) the fill stage exists to invoke the configured LLM reviewer; non-determinism is inherent to its purpose, and every verdict it records is content-addressed so reproducibility is enforced at the lock layer instead
 /**
  * source/cli/src/core/fill-llm.ts — the LLM-pair filler for the fill stage (spec
  * §7 step 6). Loads subject + reference bytes byte-identically to the verifier,
@@ -5,8 +6,6 @@
  * produces the content-addressed entry. Every infra disposition (reference
  * unreadable, provider error/unparseable) returns { kind: 'infra' } so the caller
  * writes NOTHING (spec §3.2).
- *
- * yg-suppress(deterministic) the fill stage exists to invoke the configured LLM reviewer; non-determinism is inherent to its purpose, and every verdict it records is content-addressed so reproducibility is enforced at the lock layer instead
  */
 
 import path from 'node:path';
@@ -109,7 +108,7 @@ export async function fillLlmPair(
       // Pass the original messageData so its why:/next: (e.g. the relation-source/
       // target guidance from companionOutsideAllowedReads) is preserved in the
       // per-pair message while the token-bearing what: is injected.
-      debugWrite(`[fill] companion resolution failed for ${aspect.id} on ${pair.unitKey}: ${resolved.messageData.what}`);
+      debugWrite(`[fill] companion resolution failed for ${aspect.id} on ${toPosixPath(pair.unitKey)}: ${resolved.messageData.what}`);
       return { kind: 'companion-runtime-error', why: resolved.why, messageData: companionRuntimeNotice(aspect.id, pair.unitKey, resolved.why, resolved.messageData), callsMade: 0 };
     }
     companions = resolved.companions.promptCompanions;
@@ -129,7 +128,7 @@ export async function fillLlmPair(
   } catch (e) {
     if (e instanceof SuppressMarkerError) {
       const where = `${toPosixPath(e.file)}:${e.line}`;
-      debugWrite(`[fill] suppress marker missing reason for ${aspect.id} on ${pair.unitKey}: ${where}`);
+      debugWrite(`[fill] suppress marker missing reason for ${aspect.id} on ${toPosixPath(pair.unitKey)}: ${where}`);
       return {
         kind: 'infra',
         why: `a yg-suppress marker at ${where} is missing its required reason`,
@@ -197,11 +196,12 @@ export async function fillLlmPair(
 
   const consensus = mergedTier.consensus;
   let response;
+  let votes;
   try {
-    response = await verifyWithConsensus(provider, prompt, consensus);
+    ({ response, votes } = await verifyWithConsensus(provider, prompt, consensus));
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e);
-    debugWrite(`[fill] reviewer threw for ${aspect.id} on ${pair.unitKey}: ${detail}`);
+    debugWrite(`[fill] reviewer threw for ${aspect.id} on ${toPosixPath(pair.unitKey)}: ${detail}`);
     return {
       kind: 'infra',
       why: `the reviewer threw or returned an unparseable response: ${detail}`,
@@ -217,6 +217,7 @@ export async function fillLlmPair(
   // A provider-sourced failure is infra (no write). Only a codeViolation maps to
   // a real verdict token.
   if (!response.satisfied && response.errorSource === 'provider') {
+    debugWrite(`[fill] provider error for ${aspect.id} on ${toPosixPath(pair.unitKey)}: ${response.reason}`);
     return {
       kind: 'infra',
       why: `the reviewer returned a provider error: ${response.reason}`,
@@ -252,7 +253,7 @@ export async function fillLlmPair(
   // a []-resolving companion writes NO touched but still folded companionHash.
   if (observations.length > 0) entry.touched = observations;
   if (verdict === 'refused') entry.reason = response.reason;
-  return { kind: 'verdict', entry, callsMade: consensus };
+  return { kind: 'verdict', entry, callsMade: consensus, votes };
 }
 
 /**

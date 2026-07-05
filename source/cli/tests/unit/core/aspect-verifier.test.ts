@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { verifyAspects, buildPrompt } from '../../../src/llm/aspect-verifier.js';
+import { verifyAspects, buildPrompt, verifyWithConsensus } from '../../../src/llm/aspect-verifier.js';
 import type { LlmProvider, AspectResponse } from '../../../src/llm/types.js';
 
 function mockProvider(responses: Array<{ satisfied: boolean; reason: string }>): LlmProvider {
@@ -176,5 +176,63 @@ describe('verifyAspects', () => {
     expect(provider.verifyAspect).toHaveBeenCalledTimes(2);
     expect(results['aspect1'].satisfied).toBe(true);
     expect(results['aspect2'].satisfied).toBe(true);
+  });
+});
+
+describe('verifyWithConsensus', () => {
+  it('(a) consensus=1 wraps the single response — votes.length===1, response deep-equals it', async () => {
+    const single: AspectResponse = { satisfied: true, reason: 'ok', errorSource: 'codeViolation' };
+    const provider: LlmProvider = {
+      verifyAspect: vi.fn(async () => single),
+      isAvailable: vi.fn(async () => true),
+    };
+    const result = await verifyWithConsensus(provider, 'prompt', 1);
+    expect(result.votes).toHaveLength(1);
+    expect(result.response).toEqual(single);
+    expect(provider.verifyAspect).toHaveBeenCalledTimes(1);
+  });
+
+  it('(b) consensus=1 with a THROWING provider still rejects — the throw propagates unchanged (fail-closed)', async () => {
+    const boom = new Error('provider exploded');
+    const provider: LlmProvider = {
+      verifyAspect: vi.fn(async () => { throw boom; }),
+      isAvailable: vi.fn(async () => true),
+    };
+    await expect(verifyWithConsensus(provider, 'prompt', 1)).rejects.toThrow('provider exploded');
+  });
+
+  it('(c) consensus=3 [sat, unsat(codeViolation), sat] aggregates satisfied, votes.length===3', async () => {
+    const responses: AspectResponse[] = [
+      { satisfied: true, reason: 'yes1', errorSource: 'codeViolation' },
+      { satisfied: false, reason: 'no', errorSource: 'codeViolation' },
+      { satisfied: true, reason: 'yes2', errorSource: 'codeViolation' },
+    ];
+    let i = 0;
+    const provider: LlmProvider = {
+      verifyAspect: vi.fn(async () => responses[i++]),
+      isAvailable: vi.fn(async () => true),
+    };
+    const result = await verifyWithConsensus(provider, 'prompt', 3);
+    expect(result.response.satisfied).toBe(true);
+    expect(result.response.errorSource).toBe('codeViolation');
+    expect(result.votes).toHaveLength(3);
+    expect(result.votes).toEqual(responses);
+  });
+
+  it('(d) consensus=3 all-losing provider-error votes aggregate errorSource: provider (byte-equivalence guard)', async () => {
+    const responses: AspectResponse[] = [
+      { satisfied: false, reason: 'provider down', errorSource: 'provider' },
+      { satisfied: false, reason: 'provider down', errorSource: 'provider' },
+      { satisfied: false, reason: 'provider down', errorSource: 'provider' },
+    ];
+    let i = 0;
+    const provider: LlmProvider = {
+      verifyAspect: vi.fn(async () => responses[i++]),
+      isAvailable: vi.fn(async () => true),
+    };
+    const result = await verifyWithConsensus(provider, 'prompt', 3);
+    expect(result.response.satisfied).toBe(false);
+    expect(result.response.errorSource).toBe('provider');
+    expect(result.votes).toHaveLength(3);
   });
 });

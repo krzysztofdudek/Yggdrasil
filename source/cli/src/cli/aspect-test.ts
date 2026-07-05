@@ -498,8 +498,9 @@ async function runLlmAspectTest(
       });
 
       let response;
+      let votes;
       try {
-        response = await verifyWithConsensus(provider, prompt, mergedTier.consensus ?? 1);
+        ({ response, votes } = await verifyWithConsensus(provider, prompt, mergedTier.consensus ?? 1));
       } catch (e) {
         debugWrite(`[aspect-test] reviewer threw for ${aspect.id} on ${pair.unitKey}: ${e instanceof Error ? e.message : String(e)}`);
         process.stderr.write(`Error: ${buildIssueMessage({
@@ -530,7 +531,12 @@ async function runLlmAspectTest(
 
       if (!response.satisfied) refusedCount++;
       const verdict = response.satisfied ? 'satisfied' : 'refused';
-      process.stdout.write(`${pair.unitKey}: ${verdict} — ${response.reason}\n`);
+      // Vote-split suffix — only when consensus > 1 actually cast multiple votes;
+      // a consensus=1 aspect always wraps a single vote, so the line stays as-is.
+      const voteSuffix = votes.length > 1
+        ? ` [votes ${votes.filter((v) => v.satisfied).length}/${votes.length}]`
+        : '';
+      process.stdout.write(`${pair.unitKey}: ${verdict} — ${response.reason}${voteSuffix}\n`);
     }
 
     // Summary stamp — the caller prints the footer directly after it.

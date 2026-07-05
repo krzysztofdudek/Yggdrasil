@@ -228,7 +228,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
     unitKey: string,
     kind: 'llm' | 'deterministic',
     disposition: VerdictEvent['disposition'],
-    extra?: { hash?: string; reason?: string; tier?: string },
+    extra?: { hash?: string; reason?: string; tier?: string; votes?: { satisfied: number; total: number } },
   ): void => {
     const event: VerdictEvent = {
       v: 1,
@@ -245,6 +245,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
       event.tier = extra.tier;
       event.promptRev = PROMPT_FORMAT_REV;
     }
+    if (extra?.votes !== undefined) event.votes = extra.votes;
     appendVerdictEvent(graph.rootPath, event);
   };
 
@@ -374,7 +375,12 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
     writeChain = writeChain.then(() => writeLock(graph.rootPath, lock, { scope: writeScope, deterministicAspectIds }));
     return writeChain;
   };
-  const setEntry = async (pair: ExpectedPair, entry: VerdictEntry, tierName?: string): Promise<void> => {
+  const setEntry = async (
+    pair: ExpectedPair,
+    entry: VerdictEntry,
+    tierName?: string,
+    votes?: { satisfied: number; total: number },
+  ): Promise<void> => {
     // Normalize the storage key to POSIX — the committed lock is shared across
     // platforms, and every read/compare/display of a unitKey already normalizes,
     // so a raw OS-native key (backslashes on Windows) would be stored under a key
@@ -388,6 +394,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
       hash: entry.hash,
       reason: entry.reason,
       tier: tierName,
+      votes,
     });
   };
 
@@ -597,7 +604,11 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
       // setEntry's mutation is synchronous and persistLock serializes the disk
       // writes, so concurrent pool workers cannot corrupt the lock.
       if (outcome.kind === 'verdict') {
-        await setEntry(item.pair, outcome.entry, item.tierName);
+        const votes = {
+          satisfied: outcome.votes.filter((v) => v.satisfied).length,
+          total: outcome.votes.length,
+        };
+        await setEntry(item.pair, outcome.entry, item.tierName, votes);
         tracker.onPairComplete('llm', item.pair.aspectId, toPosixPath(item.pair.unitKey), outcome.entry.verdict, write);
       } else if (outcome.kind === 'infra' || outcome.kind === 'companion-runtime-error') {
         tracker.onPairComplete('llm', item.pair.aspectId, toPosixPath(item.pair.unitKey), 'infra', write);
