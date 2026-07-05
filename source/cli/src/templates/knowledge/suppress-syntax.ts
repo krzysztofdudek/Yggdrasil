@@ -142,6 +142,30 @@ string-literal line with no delimiter — is NOT a marker. A real
 \`# yg-suppress(...)\` / \`-- yg-suppress(...)\` / \`<!-- yg-suppress(...) -->\`
 still works.
 
+## Markdown
+
+A Markdown file (\`.md\` / \`.markdown\`) has no code grammar, so its markers come
+from the raw-line scan. A marker written INSIDE a fenced code block — between
+\`\`\` … \`\`\` or ~~~ … ~~~ delimiters — is a documented EXAMPLE, not a live
+waiver: it is NOT honored by any reviewer and NOT listed by \`yg suppressions\`.
+This lets a page SHOW the suppress syntax without silently waiving a real rule.
+An unclosed fence is treated as running to the end of the file, so a marker after
+it is inert too — any fence ambiguity fails toward enforcement, so a fenced
+example is only ever skipped, never honored.
+
+To place a GENUINE, honored suppress marker in a Markdown file, use an HTML
+comment OUTSIDE any fence — it waives the line that follows it, exactly like a
+single-line marker in code:
+
+\`\`\`markdown
+<!-- yg-suppress(<aspect-id>) <reason> -->
+the line this waives
+\`\`\`
+
+Out of scope (no special handling): a 4-space-indented code block is NOT masked,
+and a marker on a bare prose line is already inert (the raw-line scan requires a
+leading comment delimiter). Only fenced blocks are recognized as inert examples.
+
 ## Reason text
 
 The reason text after the aspect-id is permanent. Future maintainers and

@@ -506,6 +506,7 @@ Source code comments can carry a `yg-suppress` marker to waive a specific aspect
 - `<reason>` — required free-text explanation. Empty or whitespace-only reasons fail with `SUPPRESS_MARKER_MISSING_REASON`.
 - Markers must live inside **comment nodes** — string literals are not matched.
 - The marker must begin its comment line (after the comment delimiter). A mid-sentence mention of `yg-suppress(...)` in a comment is not a marker.
+- In a **Markdown** file, a marker inside a fenced code block (like the examples below) is documentation, not a live waiver — it is not honored and not listed by `yg suppressions`. To place a genuine waiver in Markdown, use an HTML comment **outside** any fence: `<!-- yg-suppress(<aspect-path>) <reason> -->`.
 
 ### Single-line suppress
 

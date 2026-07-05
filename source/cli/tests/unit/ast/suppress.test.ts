@@ -1,8 +1,11 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   collectSuppressions,
   isLineSuppressed,
   formatSuppressedRangesForAspect,
+  markdownFencedLines,
   SuppressMarkerError,
   scanSuppressionMarkers,
   scanSuppressionMarkersInComments,
@@ -587,5 +590,121 @@ describe('formatSuppressedRangesForAspect', () => {
       { startLine: 3, endLine: 3 },
       { startLine: 6, endLine: 6 },
     ]);
+  });
+});
+
+describe('markdownFencedLines: the shared fence mask', () => {
+  // 1-based line numbers INSIDE a fenced code block, delimiters included. The
+  // helper is the single source of truth both raw-scan consumers share.
+  const sorted = (s: Set<number>) => [...s].sort((a, b) => a - b);
+
+  it('backtick fence: opener, interior, and closer are all masked', () => {
+    const text = ['before', '```', 'inside', '```', 'after'].join('\n');
+    expect(sorted(markdownFencedLines(text))).toEqual([2, 3, 4]);
+  });
+
+  it('tilde fence masks like a backtick fence', () => {
+    const text = ['before', '~~~', 'inside', '~~~', 'after'].join('\n');
+    expect(sorted(markdownFencedLines(text))).toEqual([2, 3, 4]);
+  });
+
+  it('an info string after the opener (```ts) still opens a fence', () => {
+    const text = ['```ts', 'inside', '```'].join('\n');
+    expect(sorted(markdownFencedLines(text))).toEqual([1, 2, 3]);
+  });
+
+  it('an unclosed fence extends through EOF (fail toward enforcement)', () => {
+    const text = ['before', '```', 'a', 'b'].join('\n');
+    expect(sorted(markdownFencedLines(text))).toEqual([2, 3, 4]);
+  });
+
+  it('an up-to-3-space-indented fence opens; a 4-space-indented line does not', () => {
+    const opens = ['x', '   ```', 'in', '   ```', 'y'].join('\n');
+    expect(sorted(markdownFencedLines(opens))).toEqual([2, 3, 4]);
+    // 4 leading spaces is an indented code block, not a fence opener — no mask.
+    const noOpen = ['x', '    ```', 'in', '    ```', 'y'].join('\n');
+    expect(markdownFencedLines(noOpen).size).toBe(0);
+  });
+
+  it('a ~~~ line does NOT close a ``` fence (the fence char must match)', () => {
+    const text = ['```', 'inside', '~~~', 'still inside', '```', 'after'].join('\n');
+    // ``` opens at 1; ~~~ at 3 is interior, not a close; ``` at 5 closes.
+    expect(sorted(markdownFencedLines(text))).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it('no fences → empty set (plain prose is never masked)', () => {
+    expect(markdownFencedLines('a\nb\nc').size).toBe(0);
+  });
+});
+
+describe('suppress: Markdown fenced examples are inert (A4 — the docs suppress hole)', () => {
+  // A `yg-suppress(...)` inside a fenced code block of a Markdown file is a
+  // documented EXAMPLE, not a live waiver. Both raw-scan paths — the reviewer
+  // honoring path (collectSuppressions) and the `yg suppressions` inventory
+  // (scanSuppressionMarkers) — mask fenced lines out. A plain-prose mention is
+  // already inert via anchoring. Backed by a real .md fixture with ```, ~~~, and
+  // an unclosed fence. (The fixture carries NO live out-of-fence marker: it lives
+  // under the mapped `tests/fixtures/` node, where a real marker would pollute the
+  // `yg suppressions` audit — the honored-out-of-fence case is asserted below on an
+  // inline `.md` string instead.)
+  const MD_FIXTURE = join(import.meta.dirname, '../../fixtures/suppress-markdown.md');
+  const text = readFileSync(MD_FIXTURE, 'utf-8');
+  const mdPath = 'docs/example.md';
+  const totalLines = text.split('\n').length;
+
+  it('the fixture masks every fenced line and leaves the prose line unmasked', () => {
+    const fenced = markdownFencedLines(text);
+    // backtick block (5–7), tilde block (9–11), unclosed block (15→EOF).
+    for (const l of [5, 6, 7, 9, 10, 11, 15, 16, 17]) expect(fenced.has(l)).toBe(true);
+    // the plain-prose mention on line 3 is never fenced.
+    expect(fenced.has(3)).toBe(false);
+  });
+
+  it('honoring path: every fenced example is inert and the prose mention is inert', () => {
+    const ranges = collectSuppressions(undefined, mdPath, totalLines, text);
+    expect(ranges).toEqual([]);
+    // Each fenced marker would waive the line below it (6→7, 10→11, 16→17) if honored.
+    expect(isLineSuppressed(ranges, 'fenced-backtick', 7)).toBe(false);
+    expect(isLineSuppressed(ranges, 'fenced-tilde', 11)).toBe(false);
+    expect(isLineSuppressed(ranges, 'fenced-unclosed', 17)).toBe(false);
+    // The plain-prose mention contributes nothing (anchoring).
+    expect(isLineSuppressed(ranges, 'prose-aspect', 4)).toBe(false);
+  });
+
+  it('inventory path mirrors the honoring path exactly — nothing inventoried', () => {
+    expect(scanSuppressionMarkers(text, mdPath)).toEqual([]);
+  });
+
+  it('the mask is Markdown-gated: the SAME text without a .md path honors the fenced markers', () => {
+    // No filePath ⇒ no masking; the three delimiter-led fenced markers are all
+    // seen. This is exactly the pre-fix behavior the mask removes for Markdown.
+    const unmasked = scanSuppressionMarkers(text);
+    expect(unmasked.map((m) => m.aspectId).sort()).toEqual(
+      ['fenced-backtick', 'fenced-tilde', 'fenced-unclosed'].sort(),
+    );
+    // A non-Markdown extension likewise gets no masking (raw scan honors all three).
+    const asTxt = collectSuppressions(undefined, 'notes.txt', totalLines, text);
+    expect(asTxt).toHaveLength(3);
+  });
+
+  it('an HTML-comment marker OUTSIDE a fence is still honored; one INSIDE a fence is inert', () => {
+    // The sanctioned Markdown suppress form is an HTML comment outside any fence.
+    const md = [
+      '<!-- yg-suppress(outside-fence) sanctioned markdown waiver -->', // 1 — honored
+      'this target line is waived',                                     // 2 — waived
+      '',                                                               // 3
+      '```',                                                            // 4 — fence open
+      '<!-- yg-suppress(inside-fence) documented example, inert -->',   // 5 — masked
+      '```',                                                            // 6 — fence close
+    ].join('\n');
+    // Honoring path: exactly the out-of-fence marker waives its line.
+    const ranges = collectSuppressions(undefined, 'docs/x.md', md.split('\n').length, md);
+    expect(ranges).toHaveLength(1);
+    expect(isLineSuppressed(ranges, 'outside-fence', 2)).toBe(true);
+    expect(isLineSuppressed(ranges, 'inside-fence', 6)).toBe(false);
+    // Inventory path mirrors: one marker, the out-of-fence HTML comment.
+    const markers = scanSuppressionMarkers(md, 'docs/x.md');
+    expect(markers).toHaveLength(1);
+    expect(markers[0]).toMatchObject({ line: 1, aspectId: 'outside-fence', kind: 'single' });
   });
 });

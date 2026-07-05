@@ -176,6 +176,59 @@ function parseMarker(lineText: string, line: number, file: string, requireDelimi
   return { kind: m.kind, aspectIds: m.aspectIds, reason: m.reason, line };
 }
 
+// ── Markdown fenced-code mask (shared by BOTH raw-scan paths) ────────────────
+//
+// A `.md`/`.markdown` file has no registered grammar, so its markers are found by
+// the raw-line scan — which would otherwise honor a `yg-suppress(...)` written
+// inside a fenced code block (``` … ``` or ~~~ … ~~~) as a LIVE waiver. But a
+// fenced example is DOCUMENTATION, not a marker: a docs page that SHOWS the
+// suppress syntax must not silently waive a real aspect. So both raw-scan
+// consumers mask out fenced lines before matching.
+//
+// FAIL TOWARD ENFORCEMENT: any fence-parsing ambiguity (an unclosed fence, a
+// ~~~ fence, an up-to-3-space-indented fence) may at worst SKIP a marker
+// (stricter — the marker is simply not honored), and can NEVER honor a fenced
+// example as a waiver. An unclosed fence therefore extends through EOF.
+//
+// This is the SINGLE shared helper: the reviewer-honoring path (collectSuppressions)
+// and the `yg suppressions` inventory (scanSuppressionMarkers) both call it, so the
+// audit can never diverge from what the reviewer actually waives.
+const RE_FENCE = /^ {0,3}(`{3,}|~{3,})/;
+const MARKDOWN_EXTS = new Set(['.md', '.markdown']);
+
+/** True when the path's extension is Markdown (the only class that gets fence masking). */
+function isMarkdownExt(file: string): boolean {
+  return MARKDOWN_EXTS.has(extname(file).toLowerCase());
+}
+
+/**
+ * 1-based line numbers that fall inside a Markdown fenced code block — the fence
+ * delimiter lines themselves INCLUDED. A fence opens on the first ``` / ~~~ line
+ * (run of 3+, indented at most 3 spaces) and closes on the next line whose fence
+ * uses the SAME character; a fence left open runs through EOF (fail toward
+ * enforcement). A ~~~ line never closes a ``` fence and vice-versa.
+ */
+export function markdownFencedLines(text: string): Set<number> {
+  const fenced = new Set<number>();
+  const lines = text.split('\n');
+  let open: string | null = null; // the fence character (backtick or tilde) currently open
+  for (let i = 0; i < lines.length; i++) {
+    const m = RE_FENCE.exec(lines[i]);
+    if (open === null) {
+      // Outside a fence: a matching line OPENS one (and is itself fenced).
+      if (m) {
+        open = m[1][0];
+        fenced.add(i + 1);
+      }
+      continue;
+    }
+    // Inside a fence: every line is fenced; a same-character fence line closes it.
+    fenced.add(i + 1);
+    if (m && m[1][0] === open) open = null;
+  }
+  return fenced;
+}
+
 /**
  * Build the suppressed-line ranges for a file.
  *
@@ -225,8 +278,14 @@ export function collectSuppressions(
     // comment syntax (`--`, `#`, `<!--` …) is recognized, but a marker-shaped
     // token following code on the same line, buried mid-sentence, or beginning a
     // bare (delimiter-less) prose/string line is not.
+    //
+    // For Markdown, a marker inside a fenced code block is a documented EXAMPLE,
+    // not a live waiver — mask those lines out (shared helper, same as the
+    // inventory path) so a fenced `yg-suppress(...)` never silently waives a rule.
     const lines = content.split('\n');
+    const fenced = isMarkdownExt(file) ? markdownFencedLines(content) : null;
     for (let i = 0; i < lines.length; i++) {
+      if (fenced && fenced.has(i + 1)) continue;
       const m = parseMarker(lines[i], i + 1, file, true);
       if (m) markers.push(m);
     }
@@ -357,11 +416,21 @@ function scanLineInto(raw: string, lineNum: number, out: SuppressionMarkerInfo[]
  * mistaken for a waiver. For a parseable language, use
  * `scanSuppressionMarkersInComments` so a marker inside a string literal is not
  * mistaken for a real waiver.
+ *
+ * `filePath` supplies the extension context: for a `.md`/`.markdown` file, a
+ * marker inside a fenced code block is a documented EXAMPLE, not a live waiver,
+ * so those lines are masked out via the SAME shared helper the honoring path uses
+ * (`markdownFencedLines`). This keeps the inventory aligned with what the reviewer
+ * actually waives. When `filePath` is omitted (a bare-text scan), no masking is
+ * applied — the historical behavior is preserved for non-Markdown callers.
  */
-export function scanSuppressionMarkers(text: string): SuppressionMarkerInfo[] {
+export function scanSuppressionMarkers(text: string, filePath?: string): SuppressionMarkerInfo[] {
   const lines = text.split('\n');
   const result: SuppressionMarkerInfo[] = [];
+  const fenced = filePath && isMarkdownExt(filePath) ? markdownFencedLines(text) : null;
   for (let i = 0; i < lines.length; i++) {
+    // Markdown fenced-code lines are documentation, not markers — skip them.
+    if (fenced && fenced.has(i + 1)) continue;
     // Raw (non-comment-isolated) scan: the comment delimiter is MANDATORY, so a
     // bare prose/string line that merely begins with the token is not a marker.
     scanLineInto(lines[i], i + 1, result, true);

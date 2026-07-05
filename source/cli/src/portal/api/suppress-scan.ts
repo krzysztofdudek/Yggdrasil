@@ -78,8 +78,9 @@ async function scanMarkersForFile(relFile: string, text: string): Promise<Suppre
   const ext = path.extname(relFile).toLowerCase();
   if (getLanguageForExtension(ext) === null) {
     // No registered grammar — raw-line scan (parity with the honoring path's
-    // text fallback for non-AST languages).
-    return scanSuppressionMarkers(text);
+    // text fallback for non-AST languages). Pass relFile so the scan can mask
+    // Markdown fenced-code examples out (same shared helper the honoring path uses).
+    return scanSuppressionMarkers(text, relFile);
   }
   try {
     return await withParsedFile(relFile, text, (tree) =>
@@ -87,7 +88,7 @@ async function scanMarkersForFile(relFile: string, text: string): Promise<Suppre
     );
   } catch (error) {
     debugWrite(`[suppressions] parse fallback (raw scan): ${relFile}: ${error instanceof Error ? error.message : String(error)}`);
-    return scanSuppressionMarkers(text);
+    return scanSuppressionMarkers(text, relFile);
   }
 }
 
