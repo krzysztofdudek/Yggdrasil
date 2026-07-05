@@ -404,6 +404,14 @@ reconfiguration menu opens (upgrade / configure reviewer / change platform);
 with neither flag and no TTY, the command reports that there is nothing to do
 and lists the available flags rather than guessing.
 
+\`--provider\` on an existing repo REPLACES the entire \`reviewer:\` section — it
+writes a single \`standard\` tier from the given flags, it does not merge into
+or preserve an existing hand-authored multi-tier config. If the repo already
+has more than one named tier (e.g. a cheaper tier for bulk checks alongside a
+stronger one for hard aspects), running \`yg init --provider ...\` discards
+that setup; edit \`yg-config.yaml\`'s \`reviewer.tiers\` by hand instead to keep
+multiple tiers.
+
 **Model and endpoint defaults:** \`--model\` defaults to \`sonnet\` only for
 provider \`claude-code\`; every other provider (\`codex\`, \`gemini-cli\`,
 \`ollama\`, \`anthropic\`, \`openai\`, \`google\`, \`openai-compatible\`) requires

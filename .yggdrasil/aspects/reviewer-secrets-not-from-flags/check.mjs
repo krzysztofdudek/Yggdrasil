@@ -77,6 +77,16 @@ export function check(ctx) {
                   `credential '${keyText}' read from CLI options via destructuring — reviewer keys must come from process.env (API_KEY_ENV), never the parsed flags`));
               }
             }
+            // default-valued shorthand: `{ apiKey = '' }` → object_assignment_pattern whose
+            // `left` field is the shorthand_property_identifier_pattern credential name
+            // (the `right` field is the default-value expression, irrelevant here).
+            if (child.type === 'object_assignment_pattern') {
+              const left = child.childForFieldName('left');
+              if (left && left.type === 'shorthand_property_identifier_pattern' && CREDENTIAL_RE.test(left.text)) {
+                violations.push(report(file, child,
+                  `credential '${left.text}' read from CLI options via default-valued destructuring — reviewer keys must come from process.env (API_KEY_ENV), never the parsed flags`));
+              }
+            }
           }
         }
       }
@@ -94,3 +104,16 @@ export function check(ctx) {
 // out of scope for a deterministic, single-pass AST check. This is an accepted bound, not
 // a bug — widen it only if a real regression demonstrates the alias pattern is common
 // enough to be worth the added complexity (and false-positive risk).
+//
+// Two further accepted bounds, so the documented limit matches the true limit:
+//   (i)  Rule (a) only classifies a LITERAL long-flag option spec passed directly to
+//        `.option(...)` — e.g. `.option('--api-key <x>', ...)`. A short-flag-only spec
+//        (`.option('-k <key>', ...)`) or a dynamically built spec (a template/variable
+//        assembled at runtime rather than a literal string/template_string) is not
+//        classified — longFlagName() only matches a literal `--word` substring.
+//   (ii) Rules (b)/(d) match a DIRECT `options` identifier — plain member access,
+//        bracket access, or one-hop destructuring (including the default-valued form).
+//        Arbitrary aliasing of the options object across statements (`const o = options;
+//        o.apiKey`) and a rest-pattern capture (`const { ...rest } = options; rest.apiKey`)
+//        are both out of scope for this single-pass, non-data-flow check — the same
+//        accepted bound as the alias case above, just restated for the rest-pattern shape.

@@ -383,6 +383,18 @@ export function registerInitCommand(program: Command): void {
 
         // Non-interactive upgrade: --upgrade --platform <name>
         if (options.upgrade) {
+          if (options.provider || options.model || options.endpoint) {
+            process.stderr.write(
+              chalk.red(
+                `Error: ${buildIssueMessage({
+                  what: '--upgrade was combined with reviewer flags (--provider / --model / --endpoint).',
+                  why: '--upgrade only refreshes the rules file for a platform; it does not configure a reviewer, so those flags would be silently ignored.',
+                  next: 'Run the upgrade alone (yg init --upgrade --platform <name>), then configure the reviewer separately: yg init --provider <name> [--model <m>].',
+                })}\n`,
+              ),
+            );
+            process.exit(1);
+          }
           if (!options.platform) {
             process.stderr.write(
               chalk.red(

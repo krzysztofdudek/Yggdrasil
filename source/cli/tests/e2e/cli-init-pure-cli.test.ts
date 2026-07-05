@@ -106,4 +106,14 @@ describe.skipIf(!distExists)('E2E — pure-CLI init', () => {
       expect(existsSync(path.join(dir, '.cursor', 'rules', 'yggdrasil.mdc'))).toBe(true);
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
+
+  it('--upgrade combined with reviewer flags exits 1 rather than silently dropping them', () => {
+    const dir = freshDir('upgrade-plus-reviewer');
+    try {
+      expect(run(['init', '--platform', 'claude-code'], dir).status).toBe(0);
+      const upgrade = run(['init', '--upgrade', '--platform', 'claude-code', '--provider', 'anthropic'], dir);
+      expect(upgrade.status).toBe(1);
+      expect(upgrade.stderr).toContain('--upgrade was combined with reviewer flags');
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
 });
