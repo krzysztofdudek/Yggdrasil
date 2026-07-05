@@ -44,11 +44,13 @@ rules file for your platform.
 Bootstrap a fresh graph non-interactively with flags instead of prompts:
 
 ```bash
-yg init --platform claude-code --provider claude-code --model haiku
+yg init --platform claude-code --provider claude-code
 ```
 
-`--model` is required (init applies no default). Pass `--endpoint` for Ollama or
-an OpenAI-compatible provider. API keys are read from the provider's env var.
+`--model` defaults to `sonnet` for the `claude-code` provider; every other
+provider requires `--model` explicitly. Pass `--endpoint` for Ollama (defaults
+to `http://localhost:11434`) or an OpenAI-compatible provider (required, no
+default). API keys are read from the provider's env var, never a flag.
 :::
 
 ::: tip Prefer to be taught?

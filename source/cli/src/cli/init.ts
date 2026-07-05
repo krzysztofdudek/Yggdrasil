@@ -17,9 +17,7 @@ import { toPosixPath } from '../utils/posix.js';
 import {
   assertNotCancelled,
   ALL_PROVIDERS,
-  API_KEY_ENV,
-  needsApiKey,
-  needsEndpoint,
+  resolveReviewerConfigFromFlags,
   runReviewerConfigFlow,
   writeReviewerConfig,
   writeSecretsFile,
@@ -132,53 +130,24 @@ export async function freshInitNonInteractive(
   yggRoot: string,
   opts: { platform: Platform; provider: ReviewerProvider; model?: string; endpoint?: string },
 ): Promise<void> {
-  const { platform, provider } = opts;
-
-  const model = opts.model?.trim();
-  if (!model) {
-    process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
-      what: '--model is required for non-interactive init.',
-      why: 'Non-interactive init records the reviewer model verbatim and applies no default — the model must be named explicitly.',
-      next: `Re-run naming a model: yg init --platform ${platform} --provider ${provider} --model <name>.`,
-    })}\n`));
+  const resolved = resolveReviewerConfigFromFlags(opts);
+  if (!resolved.ok) {
+    process.stderr.write(chalk.red(`Error: ${buildIssueMessage(resolved.issue)}\n`));
     process.exit(1);
   }
+  const { provider, model, endpoint, apiKey } = resolved.config;
 
-  let endpoint = opts.endpoint?.trim() || undefined;
-  if (needsEndpoint(provider) && !endpoint) {
-    if (provider === 'ollama') {
-      endpoint = 'http://localhost:11434';
-    } else {
-      process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
-        what: `--endpoint is required for provider '${provider}'.`,
-        why: 'An OpenAI-compatible provider has no default base URL — the reviewer needs an endpoint to call.',
-        next: `Re-run naming an endpoint: yg init --platform ${platform} --provider ${provider} --model ${model} --endpoint <url>.`,
-      })}\n`));
-      process.exit(1);
-    }
-  }
-
-  await createYggdrasilStructure(projectRoot, yggRoot, platform);
+  await createYggdrasilStructure(projectRoot, yggRoot, opts.platform);
   await writeReviewerConfig(yggRoot, { provider, model, endpoint });
-
-  if (needsApiKey(provider)) {
-    const envVar = API_KEY_ENV[provider];
-    const apiKey = (envVar ? process.env[envVar] : undefined)?.trim();
-    if (apiKey) {
-      await writeSecretsFile(yggRoot, apiKey);
-    } else {
-      process.stdout.write(chalk.yellow(`${buildIssueMessage({
-        what: `No API key found${envVar ? ` in $${envVar}` : ''}; wrote the config without one.`,
-        why: 'An API provider needs a key before the reviewer can run; init records the config anyway so setup is not blocked.',
-        next: `Set ${envVar ?? 'the provider API key environment variable'} (or add the key to .yggdrasil/yg-secrets.yaml) before running yg check --approve.`,
-      })}\n`));
-    }
+  if (apiKey) {
+    await writeSecretsFile(yggRoot, apiKey);
+  } else if (resolved.keyWarning) {
+    process.stdout.write(chalk.yellow(`${buildIssueMessage(resolved.keyWarning)}\n`));
   }
-
   await ensureGitattributes(projectRoot);
 
   process.stdout.write(chalk.green(
-    `Yggdrasil initialized (platform: ${platform}, provider: ${provider}, model: ${model}). Run yg check to get started.\n`,
+    `Yggdrasil initialized (platform: ${opts.platform}, provider: ${provider}, model: ${model}). Run yg check to get started.\n`,
   ));
 }
 
@@ -325,7 +294,7 @@ export function registerInitCommand(program: Command): void {
     .option('--upgrade', 'Non-interactive: refresh rules')
     .option('--platform <name>', `Platform for rules file (${PLATFORMS.join(', ')})`)
     .option('--provider <name>', `Non-interactive fresh init: reviewer provider (${ALL_PROVIDERS.join(', ')})`)
-    .option('--model <name>', 'Non-interactive fresh init: reviewer model (required)')
+    .option('--model <name>', 'Non-interactive fresh init: reviewer model (required; defaults to sonnet for claude-code)')
     .option('--endpoint <url>', 'Non-interactive fresh init: reviewer endpoint (ollama / openai-compatible)')
     .action(async (options: { upgrade?: boolean; platform?: string; provider?: string; model?: string; endpoint?: string }) => {
       try {

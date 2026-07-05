@@ -5,6 +5,7 @@ import { parse as yamlParse, stringify as yamlStringify } from 'yaml';
 import { fetchAnthropicModels, fetchOpenAIModels, fetchGoogleModels, fetchOllamaModels } from '../llm/model-fetcher.js';
 import { testApiProvider, testCliProvider } from '../llm/reviewer-test.js';
 import type { ReviewerProvider } from '../model/graph.js';
+import type { IssueMessage } from '../model/validation.js';
 import { debugWrite } from '../utils/debug-log.js';
 
 // ---------------------------------------------------------------------------
@@ -336,4 +337,78 @@ export async function writeSecretsFile(
   (tier.config as Record<string, unknown>).api_key = apiKey;
 
   await writeFile(secretsPath, yamlStringify(raw), { encoding: 'utf-8', mode: 0o600 });
+}
+
+// ---------------------------------------------------------------------------
+// Shared flag+env → reviewer config resolver (non-interactive init paths)
+// ---------------------------------------------------------------------------
+
+export interface ResolvedReviewerConfig {
+  provider: ReviewerProvider;
+  model: string;
+  endpoint?: string;
+  apiKey?: string;
+}
+
+export type ResolveReviewerResult =
+  | { ok: true; config: ResolvedReviewerConfig; keyWarning?: IssueMessage }
+  | { ok: false; issue: IssueMessage };
+
+/**
+ * Resolve a reviewer config from flags + env for the non-interactive (pure-CLI)
+ * init paths. Applies the model/endpoint defaults and reads the API key ONLY
+ * from the provider's env var (never a flag). Returns structured data — it
+ * NEVER writes to stderr or exits; the command layer (init.ts) renders the
+ * result via buildIssueMessage so error emission stays in the `command` node.
+ */
+export function resolveReviewerConfigFromFlags(opts: {
+  platform?: string;
+  provider: ReviewerProvider;
+  model?: string;
+  endpoint?: string;
+}): ResolveReviewerResult {
+  const { provider } = opts;
+  const platHint = opts.platform ? ` --platform ${opts.platform}` : ' --platform <name>';
+
+  let model = opts.model?.trim();
+  if (!model) {
+    if (provider === 'claude-code') {
+      model = 'sonnet';
+    } else {
+      return { ok: false, issue: {
+        what: `--model is required for provider '${provider}'.`,
+        why: 'Only claude-code has a built-in default model (sonnet); other providers must name the model explicitly.',
+        next: `Re-run naming a model: yg init --provider ${provider} --model <name>${platHint}.`,
+      } };
+    }
+  }
+
+  let endpoint = opts.endpoint?.trim() || undefined;
+  if (needsEndpoint(provider) && !endpoint) {
+    if (provider === 'ollama') {
+      endpoint = 'http://localhost:11434';
+    } else {
+      return { ok: false, issue: {
+        what: `--endpoint is required for provider '${provider}'.`,
+        why: 'An OpenAI-compatible provider has no default base URL — the reviewer needs an endpoint to call.',
+        next: `Re-run naming an endpoint: yg init --provider ${provider} --model ${model} --endpoint <url>.`,
+      } };
+    }
+  }
+
+  let apiKey: string | undefined;
+  let keyWarning: IssueMessage | undefined;
+  if (needsApiKey(provider)) {
+    const envVar = API_KEY_ENV[provider];
+    apiKey = (envVar ? process.env[envVar] : undefined)?.trim() || undefined;
+    if (!apiKey) {
+      keyWarning = {
+        what: `No API key found${envVar ? ` in $${envVar}` : ''}; wrote the config without one.`,
+        why: 'An API provider needs a key before the reviewer can run; init records the config anyway so setup is not blocked.',
+        next: `Set ${envVar ?? 'the provider API key environment variable'} (or add the key to .yggdrasil/yg-secrets.yaml) before running yg check --approve.`,
+      };
+    }
+  }
+
+  return { ok: true, config: { provider, model, endpoint, apiKey }, keyWarning };
 }

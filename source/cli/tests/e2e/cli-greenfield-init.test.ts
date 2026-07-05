@@ -451,10 +451,24 @@ describe.skipIf(!distExists)('CLI E2E — greenfield / init / platform-install',
     }
   });
 
-  it('G13: non-interactive init without --model is rejected — no default model is applied (exit 1)', () => {
+  it('G13: non-interactive init for claude-code without --model defaults the model to sonnet', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-noninteractive-defaultmodel-'));
+    try {
+      const init = run(['init', '--platform', 'claude-code', '--provider', 'claude-code'], dir);
+      expect(init.status).toBe(0);
+      expect(init.stdout).toContain('Yggdrasil initialized');
+      const cfg = readFileSync(path.join(dir, '.yggdrasil', 'yg-config.yaml'), 'utf-8');
+      expect(cfg).toContain('provider: claude-code');
+      expect(cfg).toContain('model: sonnet');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('G13b: non-interactive init for a provider with no built-in default model without --model is rejected (exit 1)', () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'yg-noninteractive-nomodel-'));
     try {
-      const { status, stderr } = run(['init', '--platform', 'claude-code', '--provider', 'claude-code'], dir);
+      const { status, stderr } = run(['init', '--platform', 'claude-code', '--provider', 'codex'], dir);
       expect(status).toBe(1);
       expect(stderr).toContain('--model is required');
       // Nothing was written — the guard fires before any structure is created.

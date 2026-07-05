@@ -4,6 +4,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { registerInitCommand, freshInitNonInteractive } from '../../../src/cli/init.js';
+import { resolveReviewerConfigFromFlags } from '../../../src/cli/init-reviewer-setup.js';
 
 describe('init command', () => {
   it('registers init command', () => {
@@ -61,13 +62,18 @@ describe('freshInitNonInteractive', () => {
     expect(cfg).toContain('endpoint: http://localhost:11434');
   });
 
-  it('exits 1 when --model is missing (no default model is applied)', async () => {
-    const { root, ygg } = await freshDir('nomodel');
+  it('claude-code without --model defaults to sonnet and writes the tier', async () => {
+    const { root, ygg } = await freshDir('default-model');
+    await freshInitNonInteractive(root, ygg, { platform: 'claude-code', provider: 'claude-code' });
+    const cfg = await readFile(path.join(ygg, 'yg-config.yaml'), 'utf-8');
+    expect(cfg).toContain('model: sonnet');
+  });
+
+  it('codex without --model exits 1 with a model-required message', async () => {
+    const { root, ygg } = await freshDir('nomodel-codex');
     const exit = vi.spyOn(process, 'exit').mockImplementation((() => { throw new Error('exit'); }) as never);
     const err = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
-    await expect(
-      freshInitNonInteractive(root, ygg, { platform: 'claude-code', provider: 'claude-code' }),
-    ).rejects.toThrow('exit');
+    await expect(freshInitNonInteractive(root, ygg, { platform: 'claude-code', provider: 'codex' })).rejects.toThrow('exit');
     expect(exit).toHaveBeenCalledWith(1);
     expect(err.mock.calls.map(c => String(c[0])).join('')).toContain('--model is required');
   });
@@ -81,5 +87,43 @@ describe('freshInitNonInteractive', () => {
     ).rejects.toThrow('exit');
     expect(exit).toHaveBeenCalledWith(1);
     expect(err.mock.calls.map(c => String(c[0])).join('')).toContain('--endpoint is required');
+  });
+});
+
+describe('resolveReviewerConfigFromFlags', () => {
+  it('defaults the model to sonnet for claude-code when --model is omitted', () => {
+    const r = resolveReviewerConfigFromFlags({ provider: 'claude-code' });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.config.model).toBe('sonnet');
+  });
+
+  it('requires --model for codex and gemini-cli', () => {
+    for (const provider of ['codex', 'gemini-cli'] as const) {
+      const r = resolveReviewerConfigFromFlags({ provider });
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.issue.what).toContain('--model is required');
+    }
+  });
+
+  it('defaults the ollama endpoint and requires an endpoint for openai-compatible', () => {
+    const ok = resolveReviewerConfigFromFlags({ provider: 'ollama', model: 'llama3' });
+    expect(ok.ok).toBe(true);
+    if (ok.ok) expect(ok.config.endpoint).toBe('http://localhost:11434');
+    const bad = resolveReviewerConfigFromFlags({ provider: 'openai-compatible', model: 'gpt-4o' });
+    expect(bad.ok).toBe(false);
+    if (!bad.ok) expect(bad.issue.what).toContain('--endpoint is required');
+  });
+
+  it('surfaces a keyWarning (not an error) when an API provider has no env key', () => {
+    const hadKey = Object.prototype.hasOwnProperty.call(process.env, 'ANTHROPIC_API_KEY');
+    const savedKey = process.env.ANTHROPIC_API_KEY;
+    delete process.env.ANTHROPIC_API_KEY;
+    try {
+      const r = resolveReviewerConfigFromFlags({ provider: 'anthropic', model: 'claude-sonnet-5' });
+      expect(r.ok).toBe(true);
+      if (r.ok) { expect(r.config.apiKey).toBeUndefined(); expect(r.keyWarning?.what).toContain('No API key'); }
+    } finally {
+      if (hadKey) process.env.ANTHROPIC_API_KEY = savedKey; else delete process.env.ANTHROPIC_API_KEY;
+    }
   });
 });

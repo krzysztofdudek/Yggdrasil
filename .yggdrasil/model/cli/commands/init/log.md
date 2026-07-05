@@ -64,3 +64,7 @@ The extraction is a pure move — no behavior changed. Each extracted unit takes
 
 ### Architecture consequence
 Making this split possible required widening the shared command-layer support tier so a support helper may depend on the reviewer-configuration infrastructure (model fetching and connection testing) and the template-generation layer (default config/architecture text and the platform rules installer). Previously only a full command handler could reach those layers, which is exactly why this split had been deferred. The support tier remains a deny-by-default sink; only those two additional dependency directions were opened, both of which a command's own setup already legitimately uses.
+## [2026-07-05T21:32:07.040Z]
+Non-interactive init now derives the reviewer configuration from flags and the environment through one shared resolver that applies a built-in default model for the installed-agent CLI, so that path no longer forces the model to be named explicitly; the key is still read only from the environment, never a flag. This removes a mismatch where the installed-agent path was rejected without a model even though a sensible default exists.
+## [2026-07-05T21:35:18.208Z]
+The command's non-interactive --model flag description was updated to state the default-model behavior explicitly, so an agent or operator reading yg init --help sees the same rule documented in the getting-started guide: only the installed-agent (claude-code) provider has a built-in default model, every other provider still requires the model to be named.

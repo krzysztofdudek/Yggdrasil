@@ -10,6 +10,7 @@ relations:
     { target: cli/commands/check, type: uses },
     { target: cli/group-issues, type: uses },
     { target: cli/commands/init, type: uses },
+    { target: cli/init-reviewer-setup, type: uses },
     { target: cli/core/context, type: uses },
     { target: cli/core/loader, type: uses },
     { target: cli/core/fill, type: uses },
