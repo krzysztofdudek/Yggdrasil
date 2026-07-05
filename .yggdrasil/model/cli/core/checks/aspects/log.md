@@ -22,3 +22,5 @@ A reviewer-configuration error called a project with only mechanical checks an '
 Reject companion misuse at validation time before any review runs: a companion resolver only makes sense for an LLM reviewer, so an aspect that ships one without review content, or alongside a deterministic check, is a configuration error.
 ## [2026-07-05T20:58:33.243Z]
 Missing-reviewer detection now consults the effective, non-draft judgment pairs through the canonical pair computation and stays silent when none exist, so a keyless project is a legal green state rather than a blocking error.
+## [2026-07-05T21:17:23.050Z]
+The conditional missing-reviewer detection now short-circuits before the full pair enumeration when the graph defines no judgment (LLM) rule at all, so a script-only project never pays the per-component file walk on a routine check; the accurate effectiveness decision still runs when a judgment rule is present.

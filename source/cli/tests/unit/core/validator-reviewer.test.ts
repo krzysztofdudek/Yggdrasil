@@ -123,6 +123,48 @@ describe('config-reviewer-missing (Task 36b)', () => {
     expect(msgOf(issues[0])).toContain('reviewer');
   });
 
+  it('does not emit config-reviewer-missing when a deterministic pair is effective but no LLM pair is (discriminates from an all-empty graph)', async () => {
+    // Regression guard: an implementation that short-circuits on `pairs.length === 0`
+    // (instead of `!pairs.some(p => p.kind === 'llm')`) would wrongly fire here. This
+    // graph defines an LLM aspect (so the cheap "no LLM aspect at all" guard added in
+    // aspect-contracts.ts does NOT short-circuit before computeExpectedPairs runs),
+    // but attaches it to a node whose mapping resolves to no real file, so it
+    // contributes zero pairs. A second, deterministic aspect on a node mapped to a
+    // real fixture file DOES produce one pair — so the graph has ≥1 pair overall,
+    // none of which is 'llm'.
+    const detAspect = createAspect('det-aspect', 'deterministic');
+    const llmAspect = createAspect('unreachable-llm-aspect', 'llm');
+    const detNode: GraphNode = {
+      path: 'checkout',
+      meta: { name: 'checkout', type: 'module', aspects: ['det-aspect'], mapping: ['src/checkout/checkout.controller.ts'] },
+      children: [],
+      parent: null,
+    };
+    const llmNode: GraphNode = {
+      path: 'ghost',
+      meta: { name: 'ghost', type: 'module', aspects: ['unreachable-llm-aspect'], mapping: ['src/does-not-exist.ts'] },
+      children: [],
+      parent: null,
+    };
+    const graph = createGraph({
+      config: {},
+      aspects: [detAspect, llmAspect],
+      nodes: new Map([['checkout', detNode], ['ghost', llmNode]]),
+    });
+
+    // Sanity-check the fixture's premise directly against the pair engine before
+    // asserting on the validator: at least one deterministic pair, zero LLM pairs.
+    const { computeExpectedPairs } = await import('../../../src/core/pairs.js');
+    const { pairs } = await computeExpectedPairs(graph);
+    expect(pairs.some((p) => p.kind === 'deterministic')).toBe(true);
+    expect(pairs.some((p) => p.kind === 'llm')).toBe(false);
+
+    const result = await validate(graph);
+    const issues = result.issues.filter((i) => i.code === 'config-reviewer-missing');
+
+    expect(issues).toHaveLength(0);
+  });
+
   it('does not emit config-reviewer-missing when reviewer section is present', async () => {
     const graph = createGraph({
       config: {

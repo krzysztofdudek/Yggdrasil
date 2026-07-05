@@ -210,6 +210,13 @@ export function checkAspectRuleSources(graph: Graph): ValidationIssue[] {
 export async function checkReviewerPresence(graph: Graph): Promise<ValidationIssue[]> {
   if (graph.configError) return [];
   if (graph.config.reviewer) return [];
+  // Cheap necessary-condition guard: with no LLM aspect defined at all there can
+  // be no LLM pair, so skip the O(nodes²) pair walk. This is the steady state for
+  // a script-only / keyless project (the CI hot path), which must not pay the full
+  // enumeration on every check. Status is intentionally NOT considered here — the
+  // guard must stay sound (never skip when an LLM pair could exist); the accurate
+  // draft/effectiveness decision happens in computeExpectedPairs below.
+  if (!graph.aspects.some((a) => a.reviewer.type === 'llm')) return [];
   // A reviewer tier is required only once a judgment (LLM) rule is actually
   // effective. Compute effective, non-draft pairs through the canonical
   // single-source query (draft is excluded by default) and stay silent when no
