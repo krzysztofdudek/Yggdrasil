@@ -3,9 +3,9 @@ import { runExtractor } from './_harness.js';
 import { rubyExtractor } from '../../../../src/relations/extractors/ruby.js';
 import { SymbolTable } from '../../../../src/relations/symbol-table.js';
 import { makeResolver } from '../../../../src/relations/resolver.js';
-import type { ParsedFile, DetectedDep } from '../../../../src/relations/extractors/types.js';
+import type { DetectedDep } from '../../../../src/relations/extractors/types.js';
 import { ensureLoaderRegistered } from '../../../../src/ast/loader-hook.js';
-import { parseFile } from '../../../../src/ast/parser.js';
+import { withParsedFiles, type ParseSpec } from '../../helpers/with-parsed-files.js';
 
 const run = (code: string) => runExtractor(rubyExtractor, 'ruby', '.rb', code);
 
@@ -14,11 +14,8 @@ const symbolKeys = (uses: DetectedDep[]): string[] =>
 const pathSpecs = (uses: DetectedDep[]): string[] =>
   uses.flatMap((u) => (u.candidates[0].kind === 'path' ? [u.candidates[0].specifier] : []));
 
-async function parse(repoRel: string, code: string): Promise<ParsedFile> {
-  ensureLoaderRegistered();
-  const tree = await parseFile(repoRel, code);
-  return { path: repoRel, content: code, tree, language: 'ruby' };
-}
+/** A Ruby (path, code) pair as a withParsedFiles spec. */
+const rb = (path: string, code: string): ParseSpec => ({ path, code, language: 'ruby' });
 
 describe('ruby extractor — uses() emits PATH hints (require_relative)', () => {
   it('emits a path hint with the literal string for require_relative', async () => {
@@ -227,50 +224,62 @@ describe('ruby extractor — declarations() build FQNs from nesting', () => {
 
 describe('ruby SYMBOL-TABLE resolution — unique resolves, reopened silences', () => {
   it('a UNIQUE constant resolves through the table to its defining file', async () => {
-    const fileA = await parse('src/a/base_service.rb', 'class BaseService\nend\n');
-    const consumer = await parse('src/b/order_service.rb', 'class OrderService < BaseService\nend\n');
+    ensureLoaderRegistered();
+    await withParsedFiles(
+      [
+        rb('src/a/base_service.rb', 'class BaseService\nend\n'),
+        rb('src/b/order_service.rb', 'class OrderService < BaseService\nend\n'),
+      ],
+      ([fileA, consumer]) => {
+        const st = new SymbolTable();
+        for (const d of rubyExtractor.declarations(fileA)) st.declare('ruby', d.symbolKey, fileA.path);
 
-    const st = new SymbolTable();
-    for (const d of rubyExtractor.declarations(fileA)) st.declare('ruby', d.symbolKey, fileA.path);
+        expect(st.resolveUnique('ruby', 'BaseService')).toBe('src/a/base_service.rb');
 
-    expect(st.resolveUnique('ruby', 'BaseService')).toBe('src/a/base_service.rb');
+        const importHint = rubyExtractor.uses(consumer).find((u) => u.candidates[0].kind === 'symbol')!;
+        expect(importHint.candidates[0]).toEqual({ kind: 'symbol', symbolKey: 'BaseService' });
 
-    const importHint = rubyExtractor.uses(consumer).find((u) => u.candidates[0].kind === 'symbol')!;
-    expect(importHint.candidates[0]).toEqual({ kind: 'symbol', symbolKey: 'BaseService' });
-
-    const ownerIndex = { ownerOf: (f: string) => (f === 'src/a/base_service.rb' ? 'a' : undefined) };
-    const resolver = makeResolver({
-      ownerIndex: ownerIndex as never,
-      symbolTable: st,
-      resolvePathToFile: () => undefined,
-    });
-    expect(resolver.resolve(importHint.candidates[0], consumer.path, 'ruby')).toEqual({
-      ownerNode: 'a',
-      resolvedFile: 'src/a/base_service.rb',
-    });
+        const ownerIndex = { ownerOf: (f: string) => (f === 'src/a/base_service.rb' ? 'a' : undefined) };
+        const resolver = makeResolver({
+          ownerIndex: ownerIndex as never,
+          symbolTable: st,
+          resolvePathToFile: () => undefined,
+        });
+        expect(resolver.resolve(importHint.candidates[0], consumer.path, 'ruby')).toEqual({
+          ownerNode: 'a',
+          resolvedFile: 'src/a/base_service.rb',
+        });
+      },
+    );
   });
 
   it('a REOPENED (ambiguous) constant silences — resolveUnique undefined, no flag', async () => {
+    ensureLoaderRegistered();
     // Two files each define `Widget` (reopening / same name across nodes) → ambiguous.
-    const fileX = await parse('src/x/widget.rb', 'class Widget\nend\n');
-    const fileY = await parse('src/y/widget.rb', 'class Widget\nend\n');
-    const consumer = await parse('src/z/use.rb', 'x = Widget\n');
+    await withParsedFiles(
+      [
+        rb('src/x/widget.rb', 'class Widget\nend\n'),
+        rb('src/y/widget.rb', 'class Widget\nend\n'),
+        rb('src/z/use.rb', 'x = Widget\n'),
+      ],
+      ([fileX, fileY, consumer]) => {
+        const st = new SymbolTable();
+        for (const f of [fileX, fileY]) {
+          for (const d of rubyExtractor.declarations(f)) st.declare('ruby', d.symbolKey, f.path);
+        }
 
-    const st = new SymbolTable();
-    for (const f of [fileX, fileY]) {
-      for (const d of rubyExtractor.declarations(f)) st.declare('ruby', d.symbolKey, f.path);
-    }
+        expect(st.resolveUnique('ruby', 'Widget')).toBeUndefined();
 
-    expect(st.resolveUnique('ruby', 'Widget')).toBeUndefined();
-
-    const ownerIndex = { ownerOf: () => 'someNode' };
-    const resolver = makeResolver({
-      ownerIndex: ownerIndex as never,
-      symbolTable: st,
-      resolvePathToFile: () => undefined,
-    });
-    const hint = rubyExtractor.uses(consumer).find((u) => u.candidates[0].kind === 'symbol')!;
-    expect(resolver.resolve(hint.candidates[0], consumer.path, 'ruby')).toBeUndefined();
+        const ownerIndex = { ownerOf: () => 'someNode' };
+        const resolver = makeResolver({
+          ownerIndex: ownerIndex as never,
+          symbolTable: st,
+          resolvePathToFile: () => undefined,
+        });
+        const hint = rubyExtractor.uses(consumer).find((u) => u.candidates[0].kind === 'symbol')!;
+        expect(resolver.resolve(hint.candidates[0], consumer.path, 'ruby')).toBeUndefined();
+      },
+    );
   });
 });
 

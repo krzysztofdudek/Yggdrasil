@@ -308,7 +308,11 @@ Five exports are available from `@chrisdudek/yg/ast` — no installation require
 ```javascript
 import { walk, report, inFile, findComments, closest } from '@chrisdudek/yg/ast';
 
-walk(node, visitor)           // DFS traversal; visitor returning false skips subtree
+walk(node, visitor)           // DFS traversal; visitor returning false skips subtree.
+                              // Warning: returning false on EVERY non-matching node stops
+                              // the walk at the root and silently visits nothing — use a
+                              // bare `return` to continue descent, and return false only
+                              // where you deliberately prune that subtree
 report(file, node, message)   // create a Violation — line 1-based, column 0-based
 inFile(file, { glob })        // path filter: { glob }, { regex }, or { contains }
 inFile(file, { regex })

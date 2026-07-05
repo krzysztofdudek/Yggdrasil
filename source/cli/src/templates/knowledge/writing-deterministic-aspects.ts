@@ -107,7 +107,7 @@ If a rule should apply only to a subset of files, filter on \`file.path\`
 
 | Export | Signature | Purpose |
 |---|---|---|
-| \`walk(node, visitor)\` | \`(node, (n) => boolean|void) => void\` | DFS traversal; visitor returning \`false\` skips descent into that subtree |
+| \`walk(node, visitor)\` | \`(node, (n) => boolean|void) => void\` | DFS traversal; visitor returning \`false\` skips descent into that subtree. Warning: a visitor that returns \`false\` for every non-matching node (not just the ones it means to prune) stops at the very first node — including the root — and silently visits nothing below it; return a bare \`return;\` (undefined) to continue descent, and only return \`false\` where you deliberately want to skip that subtree |
 | \`report(file, node, message)\` | \`(file, TreeNode, string) => Violation\` | Build a \`{ file, line, column, message }\` — \`line\` 1-based, \`column\` 0-based |
 | \`inFile(file, pattern)\` | \`(file, { glob } | { regex } | { contains }) => boolean\` | Path filter (discriminated object form) |
 | \`findComments(target)\` | \`(file) => TreeNode[]\` | Returns comment nodes within a file (language derived from its path) |
@@ -357,7 +357,7 @@ useful when your check also inspects parsed AST trees via \`ctx.parseAst\`:
 
 | Export | Signature | Purpose |
 |---|---|---|
-| \`walk(node, visitor)\` | \`(node, (n) => boolean|void) => void\` | DFS traversal; visitor returning \`false\` skips subtree |
+| \`walk(node, visitor)\` | \`(node, (n) => boolean|void) => void\` | DFS traversal; visitor returning \`false\` skips subtree. Warning: returning \`false\` for every non-matching node (rather than just the ones you mean to prune) stops the walk at the root; use a bare \`return;\` to continue descent |
 | \`closest(node, types)\` | \`(TreeNode, string[]) => TreeNode | null\` | Nearest ancestor of one of the given types |
 | \`report(file, node, message)\` | \`(file, TreeNode, string) => Violation\` | Build \`{ file, line, column, message }\` — line 1-based, column 0-based |
 | \`inFile(file, pattern)\` | \`(file, { glob } | { regex } | { contains }) => boolean\` | Path filter |

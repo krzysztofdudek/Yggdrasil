@@ -23,7 +23,7 @@ export function check(ctx) {
     if (APPROVED_FILES.has(file.path)) continue;
 
     walk(file.ast.rootNode, (node) => {
-      if (node.type !== 'import_statement') return false;
+      if (node.type !== 'import_statement') return;
 
       const source = node.childForFieldName('source');
       if (!source) return false;

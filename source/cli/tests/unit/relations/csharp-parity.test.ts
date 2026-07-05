@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { ensureLoaderRegistered } from '../../../src/ast/loader-hook.js';
-import { parseFile } from '../../../src/ast/parser.js';
+import { withParsedFiles } from '../helpers/with-parsed-files.js';
 import {
   csharpUses,
   collectGlobalUsings,
@@ -82,11 +82,6 @@ function groupByCase(snippets: CsharpSnippet[]): Map<string, CsharpSnippet[]> {
   return byCase;
 }
 
-async function parse(snippet: CsharpSnippet): Promise<ParsedFile> {
-  const tree = await parseFile(snippet.filePath, snippet.code);
-  return { path: snippet.filePath, content: snippet.code, tree, language: 'csharp' };
-}
-
 describe('C# extract/assemble parity', () => {
   it('assemble(extract(pf), opts) equals csharpUses(pf, opts) for every catalogue snippet', async () => {
     ensureLoaderRegistered();
@@ -97,41 +92,48 @@ describe('C# extract/assemble parity', () => {
     let assertions = 0;
 
     for (const [, caseSnippets] of byCase) {
-      // Parse every file in the case.
-      const parsed = new Map<string, ParsedFile>();
-      for (const s of caseSnippets) parsed.set(s.filePath, await parse(s));
+      // Parse every file in the case — all trees kept alive simultaneously for the
+      // duration of this case (cross-file resolution needs them together), and every
+      // one guaranteed deleted (LIFO) once the case's assertions below finish.
+      await withParsedFiles(
+        caseSnippets.map((s) => ({ path: s.filePath, code: s.code, language: 'csharp' })),
+        (files) => {
+          const parsed = new Map<string, ParsedFile>();
+          caseSnippets.forEach((s, i) => parsed.set(s.filePath, files[i]));
 
-      // Build the cross-file project-global using scope exactly as the pre-pass does.
-      const globalUsings = new Set<string>();
-      const globalAliasMap = new Map<string, string>();
-      for (const s of caseSnippets) {
-        const pf = parsed.get(s.filePath)!;
-        for (const prefix of collectGlobalUsings(pf)) globalUsings.add(prefix);
-        for (const [name, fqn] of collectGlobalUsingAliases(pf)) globalAliasMap.set(name, fqn);
-      }
-      const projectGlobalUsings = [...globalUsings];
-      const projectGlobalUsingAliases = [...globalAliasMap.entries()];
+          // Build the cross-file project-global using scope exactly as the pre-pass does.
+          const globalUsings = new Set<string>();
+          const globalAliasMap = new Map<string, string>();
+          for (const s of caseSnippets) {
+            const pf = parsed.get(s.filePath)!;
+            for (const prefix of collectGlobalUsings(pf)) globalUsings.add(prefix);
+            for (const [name, fqn] of collectGlobalUsingAliases(pf)) globalAliasMap.set(name, fqn);
+          }
+          const projectGlobalUsings = [...globalUsings];
+          const projectGlobalUsingAliases = [...globalAliasMap.entries()];
 
-      // Representative option sets: the empty default AND the cross-file aggregated scope.
-      const optionVariants = [
-        {},
-        { projectGlobalUsings, projectGlobalUsingAliases },
-        { projectGlobalUsings },
-        { projectGlobalUsingAliases },
-      ];
+          // Representative option sets: the empty default AND the cross-file aggregated scope.
+          const optionVariants = [
+            {},
+            { projectGlobalUsings, projectGlobalUsingAliases },
+            { projectGlobalUsings },
+            { projectGlobalUsingAliases },
+          ];
 
-      for (const s of caseSnippets) {
-        const pf = parsed.get(s.filePath)!;
-        for (const options of optionVariants) {
-          const viaSplit = assembleCsharpCandidates(extractCsharpRefs(pf), options);
-          const viaDirect = csharpUses(pf, options);
-          expect(
-            viaSplit,
-            `parity mismatch for ${s.caseId} / ${s.filePath} with options ${JSON.stringify(options)}`,
-          ).toEqual(viaDirect);
-          assertions++;
-        }
-      }
+          for (const s of caseSnippets) {
+            const pf = parsed.get(s.filePath)!;
+            for (const options of optionVariants) {
+              const viaSplit = assembleCsharpCandidates(extractCsharpRefs(pf), options);
+              const viaDirect = csharpUses(pf, options);
+              expect(
+                viaSplit,
+                `parity mismatch for ${s.caseId} / ${s.filePath} with options ${JSON.stringify(options)}`,
+              ).toEqual(viaDirect);
+              assertions++;
+            }
+          }
+        },
+      );
     }
 
     expect(assertions).toBeGreaterThan(0);

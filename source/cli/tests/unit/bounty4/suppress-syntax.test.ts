@@ -34,7 +34,7 @@ import {
   scanSuppressionMarkers,
   SuppressMarkerError,
 } from '../../../src/ast/suppress.js';
-import { parseFile } from '../../../src/ast/parser.js';
+import { withParsedFile } from '../../../src/ast/parser.js';
 import {
   runSuppressionsScan,
   formatSuppressionsOutput,
@@ -60,10 +60,12 @@ function freshDir(label: string): string {
   return d;
 }
 
-/** Parse a snippet and collect reviewer-honored ranges. */
+/** Parse a snippet and collect reviewer-honored ranges.
+ *  The WASM tree lives only inside the withParsedFile callback. */
 async function rangesOf(file: string, code: string) {
-  const tree = await parseFile(file, code);
-  return collectSuppressions(tree, file, code.split('\n').length);
+  return withParsedFile(file, code, (tree) =>
+    collectSuppressions(tree, file, code.split('\n').length),
+  );
 }
 
 function write(root: string, rel: string, content: string | Buffer): void {
@@ -142,22 +144,25 @@ describe('spec: aspect id may be hierarchical (parent/child)', () => {
 
 describe('spec: a missing reason is rejected with a clear error (single + disable)', () => {
   it('single-line with NO reason throws SuppressMarkerError (code SUPPRESS_MARKER_MISSING_REASON)', async () => {
-    const tree = await parseFile('x.ts', '// yg-suppress(some-aspect)\ncode();');
-    let thrown: unknown;
-    try { collectSuppressions(tree, 'x.ts', 2); } catch (e) { thrown = e; }
-    expect(thrown).toBeInstanceOf(SuppressMarkerError);
-    expect((thrown as SuppressMarkerError).code).toBe('SUPPRESS_MARKER_MISSING_REASON');
-    expect((thrown as SuppressMarkerError).line).toBe(1);
+    await withParsedFile('x.ts', '// yg-suppress(some-aspect)\ncode();', (tree) => {
+      let thrown: unknown;
+      try { collectSuppressions(tree, 'x.ts', 2); } catch (e) { thrown = e; }
+      expect(thrown).toBeInstanceOf(SuppressMarkerError);
+      expect((thrown as SuppressMarkerError).code).toBe('SUPPRESS_MARKER_MISSING_REASON');
+      expect((thrown as SuppressMarkerError).line).toBe(1);
+    });
   });
 
   it('disable with NO reason throws SuppressMarkerError', async () => {
-    const tree = await parseFile('x.ts', '// yg-suppress-disable(some-aspect)\ncode();');
-    expect(() => collectSuppressions(tree, 'x.ts', 2)).toThrow(SuppressMarkerError);
+    await withParsedFile('x.ts', '// yg-suppress-disable(some-aspect)\ncode();', (tree) => {
+      expect(() => collectSuppressions(tree, 'x.ts', 2)).toThrow(SuppressMarkerError);
+    });
   });
 
   it('a whitespace-only reason is treated as empty and rejected', async () => {
-    const tree = await parseFile('x.ts', '// yg-suppress(some-aspect)    \ncode();');
-    expect(() => collectSuppressions(tree, 'x.ts', 2)).toThrow(SuppressMarkerError);
+    await withParsedFile('x.ts', '// yg-suppress(some-aspect)    \ncode();', (tree) => {
+      expect(() => collectSuppressions(tree, 'x.ts', 2)).toThrow(SuppressMarkerError);
+    });
   });
 
   it('the ENABLE form is reason-free by design and never throws', async () => {
@@ -271,12 +276,14 @@ describe('spec: a disable with no matching enable suppresses through to end of f
 
 describe('spec: the matcher does not raise an error for an unmatched marker', () => {
   it('an open disable (no enable) does NOT throw — it silently extends to EOF', async () => {
-    const tree = await parseFile('x.ts', '// yg-suppress-disable(rule-a) tracked\na();\nb();');
-    expect(() => collectSuppressions(tree, 'x.ts', 3)).not.toThrow();
+    await withParsedFile('x.ts', '// yg-suppress-disable(rule-a) tracked\na();\nb();', (tree) => {
+      expect(() => collectSuppressions(tree, 'x.ts', 3)).not.toThrow();
+    });
   });
   it('a stray enable (no disable) does NOT throw', async () => {
-    const tree = await parseFile('x.ts', '// yg-suppress-enable(rule-a)\na();');
-    expect(() => collectSuppressions(tree, 'x.ts', 2)).not.toThrow();
+    await withParsedFile('x.ts', '// yg-suppress-enable(rule-a)\na();', (tree) => {
+      expect(() => collectSuppressions(tree, 'x.ts', 2)).not.toThrow();
+    });
   });
 });
 
@@ -373,8 +380,10 @@ describe('spec: per-language comment-syntax detection (collectSuppressions)', ()
   it('an unknown file extension yields no suppressions (the engine cannot resolve comment types)', async () => {
     // Parse as TS but present an unknown extension; collectSuppressions guards
     // and returns [] rather than throwing.
-    const tree = await parseFile('x.ts', 'const x = 1;\n// yg-suppress(rule-a) r\nconst y = 2;');
-    expect(collectSuppressions(tree, 'file.unknownextxyz', 3)).toEqual([]);
+    const ranges = await withParsedFile('x.ts', 'const x = 1;\n// yg-suppress(rule-a) r\nconst y = 2;', (tree) =>
+      collectSuppressions(tree, 'file.unknownextxyz', 3),
+    );
+    expect(ranges).toEqual([]);
   });
 });
 

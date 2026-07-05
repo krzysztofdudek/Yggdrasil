@@ -1,5 +1,5 @@
 import { ensureLoaderRegistered } from '../../../../src/ast/loader-hook.js';
-import { parseFile } from '../../../../src/ast/parser.js';
+import { withParsedFile } from '../../../../src/ast/parser.js';
 import type { DependencyExtractor, ParsedFile } from '../../../../src/relations/extractors/types.js';
 
 export async function runExtractor(
@@ -13,7 +13,8 @@ export async function runExtractor(
 }> {
   ensureLoaderRegistered();
   const p = `x${ext}`;
-  const tree = await parseFile(p, code);
-  const file: ParsedFile = { path: p, content: code, tree, language };
-  return { declarations: ex.declarations(file), uses: ex.uses(file) };
+  return withParsedFile(p, code, (tree) => {
+    const file: ParsedFile = { path: p, content: code, tree, language };
+    return { declarations: ex.declarations(file), uses: ex.uses(file) };
+  });
 }

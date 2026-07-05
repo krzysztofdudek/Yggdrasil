@@ -28,7 +28,7 @@ import { walk, closest } from '../../../src/ast/walk.js';
 import { report } from '../../../src/ast/report.js';
 import { inFile } from '../../../src/ast/file-path.js';
 import { findComments } from '../../../src/ast/find-comments.js';
-import { parseFile } from '../../../src/ast/parser.js';
+import { withParsedFile } from '../../../src/ast/parser.js';
 
 let projectRoot: string;
 let cbCounter = 0;
@@ -500,97 +500,105 @@ describe('reserved kinds: runtime emits the documented structure-aspect-* kinds'
 describe('helper: report() — line 1-based, column 0-based', () => {
   it('maps node.startPosition (row 0-based) to line+1 and column unchanged', async () => {
     // Parse a real TS file; pick a node at a known position. Row 0 col 0 root.
-    const tree = await parseFile('x.ts', '  const y = 1;\n');
-    const root = tree.rootNode;
-    const v = report({ path: 'x.ts', content: '', ast: tree }, root, 'msg');
-    expect(v.file).toBe('x.ts');
-    expect(v.message).toBe('msg');
-    // root starts at row 0; report() must report line 1.
-    expect(v.line).toBe(root.startPosition.row + 1);
-    expect(v.line).toBe(1);
-    // column passes through 0-based.
-    expect(v.column).toBe(root.startPosition.column);
+    await withParsedFile('x.ts', '  const y = 1;\n', (tree) => {
+      const root = tree.rootNode;
+      const v = report({ path: 'x.ts', content: '', ast: tree }, root, 'msg');
+      expect(v.file).toBe('x.ts');
+      expect(v.message).toBe('msg');
+      // root starts at row 0; report() must report line 1.
+      expect(v.line).toBe(root.startPosition.row + 1);
+      expect(v.line).toBe(1);
+      // column passes through 0-based.
+      expect(v.column).toBe(root.startPosition.column);
+    });
   });
 
   it('a node indented from column 0 reports its 0-based column verbatim', async () => {
     const src = 'const a = 1;\n    const b = 2;\n';
-    const tree = await parseFile('y.ts', src);
-    // Find the second statement (the indented one) via walk.
-    let indented: import('web-tree-sitter').Node | null = null;
-    walk(tree.rootNode, (n) => {
-      if (n.type === 'lexical_declaration' && n.startPosition.row === 1) indented = n;
+    await withParsedFile('y.ts', src, (tree) => {
+      // Find the second statement (the indented one) via walk.
+      let indented: import('web-tree-sitter').Node | null = null;
+      walk(tree.rootNode, (n) => {
+        if (n.type === 'lexical_declaration' && n.startPosition.row === 1) indented = n;
+      });
+      expect(indented).not.toBeNull();
+      const node = indented as unknown as import('web-tree-sitter').Node;
+      const v = report({ path: 'y.ts', content: src, ast: tree }, node, 'm');
+      expect(v.line).toBe(2); // row 1 -> line 2
+      expect(v.column).toBe(4); // 4 spaces of indent, 0-based
     });
-    expect(indented).not.toBeNull();
-    const node = indented as unknown as import('web-tree-sitter').Node;
-    const v = report({ path: 'y.ts', content: src, ast: tree }, node, 'm');
-    expect(v.line).toBe(2); // row 1 -> line 2
-    expect(v.column).toBe(4); // 4 spaces of indent, 0-based
   });
 });
 
 describe('helper: walk() — DFS; returning false prunes the subtree', () => {
   it('visits every node when the visitor never returns false', async () => {
-    const tree = await parseFile('w.ts', 'const a = 1;\n');
-    let count = 0;
-    walk(tree.rootNode, () => {
-      count += 1;
+    await withParsedFile('w.ts', 'const a = 1;\n', (tree) => {
+      let count = 0;
+      walk(tree.rootNode, () => {
+        count += 1;
+      });
+      expect(count).toBeGreaterThan(1); // program + descendants
     });
-    expect(count).toBeGreaterThan(1); // program + descendants
   });
 
   it('returning false from the visitor skips descent into that subtree', async () => {
-    const tree = await parseFile('w2.ts', 'function f() { const inner = 1; }\n');
-    const visitedTypes: string[] = [];
-    walk(tree.rootNode, (n) => {
-      visitedTypes.push(n.type);
-      // Prune the function body — its descendants must NOT be visited.
-      if (n.type === 'statement_block') return false;
+    await withParsedFile('w2.ts', 'function f() { const inner = 1; }\n', (tree) => {
+      const visitedTypes: string[] = [];
+      walk(tree.rootNode, (n) => {
+        visitedTypes.push(n.type);
+        // Prune the function body — its descendants must NOT be visited.
+        if (n.type === 'statement_block') return false;
+      });
+      expect(visitedTypes).toContain('statement_block');
+      // The lexical_declaration inside the pruned statement_block must be absent.
+      expect(visitedTypes).not.toContain('lexical_declaration');
     });
-    expect(visitedTypes).toContain('statement_block');
-    // The lexical_declaration inside the pruned statement_block must be absent.
-    expect(visitedTypes).not.toContain('lexical_declaration');
   });
 
   it('the root node itself is always visited (visited first)', async () => {
-    const tree = await parseFile('w3.ts', 'const z = 9;\n');
-    const order: string[] = [];
-    walk(tree.rootNode, (n) => {
-      order.push(n.type);
+    await withParsedFile('w3.ts', 'const z = 9;\n', (tree) => {
+      const order: string[] = [];
+      walk(tree.rootNode, (n) => {
+        order.push(n.type);
+      });
+      expect(order[0]).toBe('program');
     });
-    expect(order[0]).toBe('program');
   });
 });
 
 describe('helper: closest() — nearest ancestor of a given type, else null', () => {
   it('finds the nearest enclosing ancestor matching one of the requested types', async () => {
     const src = 'function f() { const x = 1; }\n';
-    const tree = await parseFile('c.ts', src);
-    // Locate the identifier `x` deep inside, then climb to the function.
-    let id: import('web-tree-sitter').Node | null = null;
-    walk(tree.rootNode, (n) => {
-      if (n.type === 'identifier' && n.text === 'x') id = n;
+    await withParsedFile('c.ts', src, (tree) => {
+      // Locate the identifier `x` deep inside, then climb to the function.
+      let id: import('web-tree-sitter').Node | null = null;
+      walk(tree.rootNode, (n) => {
+        if (n.type === 'identifier' && n.text === 'x') id = n;
+      });
+      expect(id).not.toBeNull();
+      const found = closest(id as unknown as import('web-tree-sitter').Node, ['function_declaration']);
+      expect(found).not.toBeNull();
+      expect(found?.type).toBe('function_declaration');
     });
-    expect(id).not.toBeNull();
-    const found = closest(id as unknown as import('web-tree-sitter').Node, ['function_declaration']);
-    expect(found).not.toBeNull();
-    expect(found?.type).toBe('function_declaration');
   });
 
   it('returns null when no ancestor matches', async () => {
-    const tree = await parseFile('c2.ts', 'const q = 1;\n');
-    let id: import('web-tree-sitter').Node | null = null;
-    walk(tree.rootNode, (n) => {
-      if (n.type === 'identifier' && n.text === 'q') id = n;
+    await withParsedFile('c2.ts', 'const q = 1;\n', (tree) => {
+      let id: import('web-tree-sitter').Node | null = null;
+      walk(tree.rootNode, (n) => {
+        if (n.type === 'identifier' && n.text === 'q') id = n;
+      });
+      const found = closest(id as unknown as import('web-tree-sitter').Node, ['class_declaration']);
+      expect(found).toBeNull();
     });
-    const found = closest(id as unknown as import('web-tree-sitter').Node, ['class_declaration']);
-    expect(found).toBeNull();
   });
 
   it('does NOT match the node itself — only proper ancestors', async () => {
-    const tree = await parseFile('c3.ts', 'const r = 1;\n');
-    // The root `program` node: asking for its own type must climb past it (no parent matches).
-    const found = closest(tree.rootNode, ['program']);
-    expect(found).toBeNull();
+    await withParsedFile('c3.ts', 'const r = 1;\n', (tree) => {
+      // The root `program` node: asking for its own type must climb past it (no parent matches).
+      const found = closest(tree.rootNode, ['program']);
+      expect(found).toBeNull();
+    });
   });
 });
 
@@ -619,17 +627,19 @@ describe('helper: inFile() — discriminated path filter', () => {
 describe('helper: findComments() — comment nodes within a file/subtree', () => {
   it('finds line and block comments in a SourceFile (language derived from path)', async () => {
     const src = '// hi\nconst a = 1; /* blk */\n';
-    const tree = await parseFile('cm.ts', src);
-    const comments = findComments({ path: 'cm.ts', ast: tree });
-    const texts = comments.map((c) => c.text).sort();
-    expect(texts).toContain('// hi');
-    expect(texts).toContain('/* blk */');
+    await withParsedFile('cm.ts', src, (tree) => {
+      const comments = findComments({ path: 'cm.ts', ast: tree });
+      const texts = comments.map((c) => c.text).sort();
+      expect(texts).toContain('// hi');
+      expect(texts).toContain('/* blk */');
+    });
   });
 
   it('explicit { ast, language } form works without a path', async () => {
-    const tree = await parseFile('cm2.ts', '// only\nconst b = 2;\n');
-    const comments = findComments({ ast: tree, language: 'typescript' });
-    expect(comments.map((c) => c.text)).toContain('// only');
+    await withParsedFile('cm2.ts', '// only\nconst b = 2;\n', (tree) => {
+      const comments = findComments({ ast: tree, language: 'typescript' });
+      expect(comments.map((c) => c.text)).toContain('// only');
+    });
   });
 });
 
@@ -781,16 +791,17 @@ describe('error conditions: graph-aware runner', () => {
 describe('helper: findComments() subtree via { rootNode, language }', () => {
   it('returns only comments inside the given subtree, not the whole file', async () => {
     const src = '// outside\nfunction f() { /* inside */ const a = 1; }\n';
-    const tree = await parseFile('sub.ts', src);
-    // Locate the function's statement_block subtree.
-    let block: import('web-tree-sitter').Node | null = null;
-    walk(tree.rootNode, (n) => {
-      if (n.type === 'statement_block') block = n;
+    await withParsedFile('sub.ts', src, (tree) => {
+      // Locate the function's statement_block subtree.
+      let block: import('web-tree-sitter').Node | null = null;
+      walk(tree.rootNode, (n) => {
+        if (n.type === 'statement_block') block = n;
+      });
+      expect(block).not.toBeNull();
+      const comments = findComments({ rootNode: block as unknown as import('web-tree-sitter').Node, language: 'typescript' });
+      const texts = comments.map((c) => c.text);
+      expect(texts).toContain('/* inside */');
+      expect(texts).not.toContain('// outside');
     });
-    expect(block).not.toBeNull();
-    const comments = findComments({ rootNode: block as unknown as import('web-tree-sitter').Node, language: 'typescript' });
-    const texts = comments.map((c) => c.text);
-    expect(texts).toContain('/* inside */');
-    expect(texts).not.toContain('// outside');
   });
 });

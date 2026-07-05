@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { astCacheDir, factsKey, loadFacts, writeFacts } from '../../../src/relations/facts-cache.js';
 import { ensureLoaderRegistered } from '../../../src/ast/loader-hook.js';
-import { parseFile } from '../../../src/ast/parser.js';
+import { withParsedFile } from '../../../src/ast/parser.js';
 import {
   extractCsharpRefs,
   assembleCsharpCandidates,
@@ -60,14 +60,12 @@ describe('facts-cache', () => {
       'namespace App;',
       'class C { Loc a; Glob b; }',
     ].join('\n');
-    const tree = await parseFile('src/x/C.cs', code);
-    const pf: ParsedFile = { path: 'src/x/C.cs', content: code, tree, language: 'csharp' };
-    let extract;
-    try {
-      extract = extractCsharpRefs(pf);
-    } finally {
-      tree.delete();
-    }
+    // withParsedFile guarantees the WASM tree is deleted once the extract
+    // (plain data) has been pulled out of it.
+    const extract = await withParsedFile('src/x/C.cs', code, (tree) => {
+      const pf: ParsedFile = { path: 'src/x/C.cs', content: code, tree, language: 'csharp' };
+      return extractCsharpRefs(pf);
+    });
     // Sanity: the extract really carries non-empty alias Maps (else the test proves nothing).
     expect(extract.scope.aliases.size).toBeGreaterThan(0);
     expect(extract.scope.globalAliases.size).toBeGreaterThan(0);

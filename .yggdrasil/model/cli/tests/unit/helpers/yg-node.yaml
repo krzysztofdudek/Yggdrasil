@@ -6,6 +6,7 @@ description: "Shared test-fixture builders used across unit test suites (e.g.
 aspects: []
 relations:
   [
+    { target: cli/ast/runtime, type: uses },
     { target: cli/core/log, type: uses },
     { target: cli/core/pair-hash, type: uses },
     { target: cli/core/pair-inputs, type: uses },
@@ -13,10 +14,12 @@ relations:
     { target: cli/core/reviewer-tiers, type: uses },
     { target: cli/io/lock-store, type: uses },
     { target: cli/io/stores, type: uses },
-    { target: cli/model/lock, type: uses }
+    { target: cli/model/lock, type: uses },
+    { target: cli/relations/extractors, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/helpers/build-test-graph.ts
   - source/cli/tests/unit/helpers/build-test-graph-structure.ts
   - source/cli/tests/unit/helpers/build-test-graph-structure.test.ts
   - source/cli/tests/unit/helpers/seed-lock.ts
+  - source/cli/tests/unit/helpers/with-parsed-files.ts

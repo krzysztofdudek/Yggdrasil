@@ -5,7 +5,8 @@ import { resolveJavaFqn, type JavaResolveDeps } from '../../../../src/relations/
 import { SymbolTable } from '../../../../src/relations/symbol-table.js';
 import { makeResolver } from '../../../../src/relations/resolver.js';
 import { ensureLoaderRegistered } from '../../../../src/ast/loader-hook.js';
-import { parseFile } from '../../../../src/ast/parser.js';
+import { withParsedFile } from '../../../../src/ast/parser.js';
+import type { ParsedFile } from '../../../../src/relations/extractors/types.js';
 
 /**
  * JAVA NAME-RESOLUTION IDENTIFICATION MATRIX — one runCase-backed test per
@@ -167,11 +168,11 @@ describe('MATRIX — newer forms (Java 17→25: module import, module-info uses/
 // cannot express (no cross-node EDGE to observe). Kept as direct extractor/resolver tests
 // so the Java-specific behavior is still pinned and nothing is dropped.
 describe('MATRIX — declaration-key shape & resolver invariants (not expressible in runCase)', () => {
-  /** Parse a Java source string into a ParsedFile under a chosen repo-rel path. */
-  async function parse(repoRel: string, code: string) {
+  /** Parse a Java source string under a chosen repo-rel path, run `fn` with the resulting
+   *  ParsedFile, and guarantee the WASM tree is deleted once `fn` returns (withParsedFile). */
+  function parse<T>(repoRel: string, code: string, fn: (file: ParsedFile) => T): Promise<T> {
     ensureLoaderRegistered();
-    const tree = await parseFile(repoRel, code);
-    return { path: repoRel, content: code, tree, language: 'java' as const };
+    return withParsedFile(repoRel, code, (tree) => fn({ path: repoRel, content: code, tree, language: 'java' }));
   }
 
   /** A JavaResolveDeps over a fixed in-memory `.java` file universe (repo-rel POSIX). */
@@ -197,42 +198,46 @@ describe('MATRIX — declaration-key shape & resolver invariants (not expressibl
     // the nested chain and package-qualifying the key: the `+` namespace is disjoint from
     // the dotted FQN namespace a `scoped_type_identifier` hint carries, so a nested type is
     // reachable only via its enclosing-file fallback, never as a flat phantom.
-    const nestedFile = await parse(`${ROOT}/com/acme/Outer.java`, 'package com.acme;\nclass Outer {\n  class Inner {}\n}\n');
-    expect(javaExtractor.declarations(nestedFile).map((d) => d.symbolKey)).toEqual([
-      'com.acme.Outer',
-      'com.acme.Outer+Inner', // NOT the phantom flat `Inner` / `com.acme.Inner`
-    ]);
-    // Defense-in-depth: a top-level `import com.acme.Inner` (symbol key `com.acme.Inner`)
-    // finds nothing in the table → SILENCE (the `+` key is disjoint from the dot namespace).
-    const st = new SymbolTable();
-    for (const d of javaExtractor.declarations(nestedFile)) st.declare('java', d.symbolKey, nestedFile.path);
-    expect(st.has('java', 'com.acme.Inner')).toBe(false);
-    expect(st.has('java', 'com.acme.Outer+Inner')).toBe(true);
-    const r = makeResolver({
-      ownerIndex: { ownerOf: (f: string) => ({ [nestedFile.path]: 'a' } as Record<string, string>)[f] } as never,
-      symbolTable: st,
-      resolvePathToFile: () => undefined,
+    await parse(`${ROOT}/com/acme/Outer.java`, 'package com.acme;\nclass Outer {\n  class Inner {}\n}\n', (nestedFile) => {
+      expect(javaExtractor.declarations(nestedFile).map((d) => d.symbolKey)).toEqual([
+        'com.acme.Outer',
+        'com.acme.Outer+Inner', // NOT the phantom flat `Inner` / `com.acme.Inner`
+      ]);
+      // Defense-in-depth: a top-level `import com.acme.Inner` (symbol key `com.acme.Inner`)
+      // finds nothing in the table → SILENCE (the `+` key is disjoint from the dot namespace).
+      const st = new SymbolTable();
+      for (const d of javaExtractor.declarations(nestedFile)) st.declare('java', d.symbolKey, nestedFile.path);
+      expect(st.has('java', 'com.acme.Inner')).toBe(false);
+      expect(st.has('java', 'com.acme.Outer+Inner')).toBe(true);
+      const r = makeResolver({
+        ownerIndex: { ownerOf: (f: string) => ({ [nestedFile.path]: 'a' } as Record<string, string>)[f] } as never,
+        symbolTable: st,
+        resolvePathToFile: () => undefined,
+      });
+      expect(r.classify({ kind: 'symbol', symbolKey: 'com.acme.Inner' }, `${ROOT}/com/x/Use.java`, 'java')).toEqual({ kind: 'absent' });
     });
-    expect(r.classify({ kind: 'symbol', symbolKey: 'com.acme.Inner' }, `${ROOT}/com/x/Use.java`, 'java')).toEqual({ kind: 'absent' });
   });
 
   it('SEALED (latent): deeper nesting is `+`-chained and package-qualified, never flat', async () => {
-    const deepFile = await parse(
+    await parse(
       `${ROOT}/com/acme/Outer.java`,
       'package com.acme;\nclass Outer {\n  static class Mid {\n    interface Deep {}\n  }\n}\n',
+      (deepFile) => {
+        expect(deepFile && javaExtractor.declarations(deepFile).map((d) => d.symbolKey)).toEqual([
+          'com.acme.Outer',
+          'com.acme.Outer+Mid',
+          'com.acme.Outer+Mid+Deep',
+        ]);
+      },
     );
-    expect(deepFile && javaExtractor.declarations(deepFile).map((d) => d.symbolKey)).toEqual([
-      'com.acme.Outer',
-      'com.acme.Outer+Mid',
-      'com.acme.Outer+Mid+Deep',
-    ]);
   });
 
   it('unnamed/default-package nested decls key bare `Outer` / `Outer+Inner`, never a leading dot', async () => {
-    const noPkg = await parse(`${ROOT}/Top.java`, 'class Outer {\n  class Inner {}\n}\n');
-    const keys = javaExtractor.declarations(noPkg).map((d) => d.symbolKey);
-    expect(keys).toEqual(['Outer', 'Outer+Inner']);
-    expect(keys.every((k) => !k.startsWith('.'))).toBe(true);
+    await parse(`${ROOT}/Top.java`, 'class Outer {\n  class Inner {}\n}\n', (noPkg) => {
+      const keys = javaExtractor.declarations(noPkg).map((d) => d.symbolKey);
+      expect(keys).toEqual(['Outer', 'Outer+Inner']);
+      expect(keys.every((k) => !k.startsWith('.'))).toBe(true);
+    });
   });
 
   it('a single-type-import whose FQN is a package DIRECTORY (not a type file) → undefined (no package fall-through)', () => {

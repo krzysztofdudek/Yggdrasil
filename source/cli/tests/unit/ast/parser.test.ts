@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { parseFile, getParser } from '../../../src/ast/parser.js';
+import { withParsedFile, getParser } from '../../../src/ast/parser.js';
 import { findComments } from '../../../src/ast/find-comments.js';
 
 describe('ast/parser', () => {
@@ -8,21 +8,24 @@ describe('ast/parser', () => {
   });
 
   it('parses .ts files with tree-sitter-typescript', async () => {
-    const tree = await parseFile('foo.ts', 'const x = 1;');
-    expect(tree).toBeDefined();
-    expect(tree.rootNode.type).toBe('program');
+    await withParsedFile('foo.ts', 'const x = 1;', (tree) => {
+      expect(tree).toBeDefined();
+      expect(tree.rootNode.type).toBe('program');
+    });
   });
 
   it('parses .tsx files', async () => {
-    const tree = await parseFile('foo.tsx', 'const X = () => <div />;');
-    expect(tree).toBeDefined();
-    expect(tree.rootNode.type).toBe('program');
+    await withParsedFile('foo.tsx', 'const X = () => <div />;', (tree) => {
+      expect(tree).toBeDefined();
+      expect(tree.rootNode.type).toBe('program');
+    });
   });
 
   it('parses .js files', async () => {
-    const tree = await parseFile('foo.js', 'const x = 1;');
-    expect(tree).toBeDefined();
-    expect(tree.rootNode.type).toBe('program');
+    await withParsedFile('foo.js', 'const x = 1;', (tree) => {
+      expect(tree).toBeDefined();
+      expect(tree.rootNode.type).toBe('program');
+    });
   });
 
   // Tier-1 languages + JSON. Each grammar must load and parse a clean sample, and
@@ -47,18 +50,19 @@ describe('ast/parser', () => {
 
   for (const { ext, lang, src, comments } of CASES) {
     it(`parses ${ext} (${lang}) and locates ${comments} comment(s)`, async () => {
-      const tree = await parseFile(`foo${ext}`, src);
-      expect(tree).toBeDefined();
-      // A clean sample parses into a non-empty tree (not just a bare ERROR node).
-      expect(tree.rootNode.childCount).toBeGreaterThan(0);
-      // commentTypes validation: findComments resolves the registry's node-type
-      // names for this language and must find exactly the planted comments.
-      const found = findComments({ ast: tree, language: lang });
-      expect(found.length).toBe(comments);
+      await withParsedFile(`foo${ext}`, src, (tree) => {
+        expect(tree).toBeDefined();
+        // A clean sample parses into a non-empty tree (not just a bare ERROR node).
+        expect(tree.rootNode.childCount).toBeGreaterThan(0);
+        // commentTypes validation: findComments resolves the registry's node-type
+        // names for this language and must find exactly the planted comments.
+        const found = findComments({ ast: tree, language: lang });
+        expect(found.length).toBe(comments);
+      });
     });
   }
 
   it('throws on a still-unsupported extension', async () => {
-    await expect(parseFile('foo.swift', 'let x = 1')).rejects.toThrow(/no parser for extension/);
+    await expect(withParsedFile('foo.swift', 'let x = 1', () => {})).rejects.toThrow(/no parser for extension/);
   });
 });

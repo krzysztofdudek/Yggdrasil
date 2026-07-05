@@ -9,7 +9,8 @@ relations:
     { target: cli/ast/runtime, type: uses },
     { target: cli/relations/core, type: uses },
     { target: cli/relations/extractors, type: uses },
-    { target: cli/tests/unit/relations/extractors-c-family, type: uses }
+    { target: cli/tests/unit/relations/extractors-c-family, type: uses },
+    { target: cli/tests/unit/helpers, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/relations/extractors/ruby.test.ts

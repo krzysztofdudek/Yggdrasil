@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { Parser, Language } from 'web-tree-sitter';
-import { getParser, parseFile } from '../../../src/ast/parser.js';
+import { getParser, withParsedFile } from '../../../src/ast/parser.js';
 
 // Regression guard for the parallel-approve grammar-load race.
 //
@@ -47,14 +47,17 @@ describe('ast/parser — concurrent load is memoized (parallel-approve race)', (
       ['e.java', 'class A {}\n'],
     ];
     // Mix grammars the way the batch prewarm does — every call must succeed.
-    const trees = await Promise.all(
+    // withParsedFile drives the identical parseFile entry point (and deletes each
+    // WASM tree as soon as its child count is read), so the race is exercised
+    // exactly as before without leaking 40 trees.
+    const childCounts = await Promise.all(
       Array.from({ length: 40 }, (_, i) => {
         const [file, src] = samples[i % samples.length];
-        return parseFile(`${i}-${file}`, src);
+        return withParsedFile(`${i}-${file}`, src, (tree) => tree.rootNode.childCount);
       }),
     );
-    expect(trees).toHaveLength(40);
-    for (const t of trees) expect(t.rootNode.childCount).toBeGreaterThan(0);
+    expect(childCounts).toHaveLength(40);
+    for (const c of childCounts) expect(c).toBeGreaterThan(0);
   });
 
   it('a failed grammar load is evicted so a later call can retry', async () => {
@@ -68,7 +71,7 @@ describe('ast/parser — concurrent load is memoized (parallel-approve race)', (
     // not left poisoning the cache.
     const parser = await getParser('.rb');
     expect(parser).toBeDefined();
-    const tree = await parseFile('x.rb', 'x = 1\n');
-    expect(tree.rootNode.childCount).toBeGreaterThan(0);
+    const childCount = await withParsedFile('x.rb', 'x = 1\n', (tree) => tree.rootNode.childCount);
+    expect(childCount).toBeGreaterThan(0);
   });
 });

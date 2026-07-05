@@ -4,7 +4,7 @@ import { kotlinExtractor } from '../../../../src/relations/extractors/kotlin.js'
 import { SymbolTable } from '../../../../src/relations/symbol-table.js';
 import { makeResolver } from '../../../../src/relations/resolver.js';
 import { ensureLoaderRegistered } from '../../../../src/ast/loader-hook.js';
-import { parseFile } from '../../../../src/ast/parser.js';
+import { withParsedFile } from '../../../../src/ast/parser.js';
 
 /**
  * KOTLIN NAME-RESOLUTION IDENTIFICATION MATRIX — one runCase-backed test per
@@ -152,10 +152,13 @@ describe('MATRIX — ambiguity collapses to SILENCE (never an arbitrary edge)', 
   // catalogue .md) so the Kotlin-specific path is still pinned and nothing is dropped.
   it('UNMAPPED in-graph file → absent (coverage matter, never a violation; not expressible in runCase)', async () => {
     ensureLoaderRegistered();
-    const tree = await parseFile('src/a/Order.kt', 'package com.acme\nclass Order\n');
-    const declFile = { path: 'src/a/Order.kt', content: 'package com.acme\nclass Order\n', tree, language: 'kotlin' as const };
+    const code = 'package com.acme\nclass Order\n';
+    // The declarations are plain data — the WASM tree lives only inside this call.
+    const decls = await withParsedFile('src/a/Order.kt', code, (tree) =>
+      kotlinExtractor.declarations({ path: 'src/a/Order.kt', content: code, tree, language: 'kotlin' as const }),
+    );
     const st = new SymbolTable();
-    for (const d of kotlinExtractor.declarations(declFile)) st.declare('kotlin', d.symbolKey, declFile.path);
+    for (const d of decls) st.declare('kotlin', d.symbolKey, 'src/a/Order.kt');
     // ownerOf returns undefined → the mapped file has no owning node → absent (silence).
     const r = makeResolver({
       ownerIndex: { ownerOf: () => undefined } as never,

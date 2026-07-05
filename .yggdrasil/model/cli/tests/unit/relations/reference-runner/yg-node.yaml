@@ -17,5 +17,7 @@ relations:
     type: uses
   - target: cli/relations/extractors
     type: uses
+  - target: cli/tests/unit/helpers
+    type: uses
 mapping:
   - source/cli/tests/unit/relations/reference-case-runner.ts

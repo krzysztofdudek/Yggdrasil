@@ -3,21 +3,16 @@ import { runExtractor } from './_harness.js';
 import { kotlinExtractor } from '../../../../src/relations/extractors/kotlin.js';
 import { SymbolTable } from '../../../../src/relations/symbol-table.js';
 import { makeResolver } from '../../../../src/relations/resolver.js';
-import type { ParsedFile } from '../../../../src/relations/extractors/types.js';
 import { ensureLoaderRegistered } from '../../../../src/ast/loader-hook.js';
-import { parseFile } from '../../../../src/ast/parser.js';
+import { withParsedFiles, type ParseSpec } from '../../helpers/with-parsed-files.js';
 
 const run = (code: string) => runExtractor(kotlinExtractor, 'kotlin', '.kt', code);
 
 const symbolKeys = (uses: Awaited<ReturnType<typeof run>>['uses']): string[] =>
   uses.flatMap((u) => (u.candidates[0].kind === 'symbol' ? [u.candidates[0].symbolKey] : []));
 
-/** Parse a Kotlin source string into a ParsedFile under a chosen repo-rel path. */
-async function parse(repoRel: string, code: string): Promise<ParsedFile> {
-  ensureLoaderRegistered();
-  const tree = await parseFile(repoRel, code);
-  return { path: repoRel, content: code, tree, language: 'kotlin' };
-}
+/** A Kotlin (path, code) pair as a withParsedFiles spec. */
+const kt = (path: string, code: string): ParseSpec => ({ path, code, language: 'kotlin' });
 
 describe('kotlin extractor — uses() emits SYMBOL hints (not path hints)', () => {
   it('emits the imported FQN as a symbol hint for a single-type import', async () => {
@@ -175,51 +170,63 @@ describe('kotlin extractor — declarations() produce <package>.<Name> FQN keys'
 
 describe('kotlin SYMBOL-TABLE resolution — the half this language validates', () => {
   it("builds a SymbolTable from two files' declarations() and resolves a third file's import hint to the right file", async () => {
+    ensureLoaderRegistered();
     // Two declaring files in different packages, plus a consumer that imports one of them.
-    const fileA = await parse('src/a/PaymentService.kt', 'package com.acme.payments\nclass PaymentService\n');
-    const fileB = await parse('src/b/AuditLog.kt', 'package com.acme.audit\nobject AuditLog\n');
-    const consumer = await parse('src/c/Order.kt', 'package com.acme.orders\nimport com.acme.payments.PaymentService\nclass Order\n');
+    await withParsedFiles(
+      [
+        kt('src/a/PaymentService.kt', 'package com.acme.payments\nclass PaymentService\n'),
+        kt('src/b/AuditLog.kt', 'package com.acme.audit\nobject AuditLog\n'),
+        kt('src/c/Order.kt', 'package com.acme.orders\nimport com.acme.payments.PaymentService\nclass Order\n'),
+      ],
+      ([fileA, fileB, consumer]) => {
+        // Build the shared SymbolTable exactly as pass.ts step 4 does.
+        const st = new SymbolTable();
+        for (const f of [fileA, fileB]) {
+          for (const d of kotlinExtractor.declarations(f)) st.declare('kotlin', d.symbolKey, f.path);
+        }
 
-    // Build the shared SymbolTable exactly as pass.ts step 4 does.
-    const st = new SymbolTable();
-    for (const f of [fileA, fileB]) {
-      for (const d of kotlinExtractor.declarations(f)) st.declare('kotlin', d.symbolKey, f.path);
-    }
+        // The consumer's import hint must resolve to fileA via resolveUnique.
+        const uses = kotlinExtractor.uses(consumer);
+        const importHint = uses.find((u) => u.candidates[0].kind === 'symbol');
+        expect(importHint?.candidates[0]).toEqual({ kind: 'symbol', symbolKey: 'com.acme.payments.PaymentService' });
+        expect(st.resolveUnique('kotlin', 'com.acme.payments.PaymentService')).toBe('src/a/PaymentService.kt');
 
-    // The consumer's import hint must resolve to fileA via resolveUnique.
-    const uses = kotlinExtractor.uses(consumer);
-    const importHint = uses.find((u) => u.candidates[0].kind === 'symbol');
-    expect(importHint?.candidates[0]).toEqual({ kind: 'symbol', symbolKey: 'com.acme.payments.PaymentService' });
-    expect(st.resolveUnique('kotlin', 'com.acme.payments.PaymentService')).toBe('src/a/PaymentService.kt');
-
-    // And the full resolver wires symbol → owner node (mirrors resolver.ts).
-    const ownerIndex = { ownerOf: (f: string) => (f === 'src/a/PaymentService.kt' ? 'a' : f === 'src/b/AuditLog.kt' ? 'b' : undefined) };
-    const resolver = makeResolver({ ownerIndex: ownerIndex as never, symbolTable: st, resolvePathToFile: () => undefined });
-    expect(resolver.resolve(importHint!.candidates[0], consumer.path, 'kotlin')).toEqual({
-      ownerNode: 'a',
-      resolvedFile: 'src/a/PaymentService.kt',
-    });
+        // And the full resolver wires symbol → owner node (mirrors resolver.ts).
+        const ownerIndex = { ownerOf: (f: string) => (f === 'src/a/PaymentService.kt' ? 'a' : f === 'src/b/AuditLog.kt' ? 'b' : undefined) };
+        const resolver = makeResolver({ ownerIndex: ownerIndex as never, symbolTable: st, resolvePathToFile: () => undefined });
+        expect(resolver.resolve(importHint!.candidates[0], consumer.path, 'kotlin')).toEqual({
+          ownerNode: 'a',
+          resolvedFile: 'src/a/PaymentService.kt',
+        });
+      },
+    );
   });
 
   it('AMBIGUITY: two files declaring the SAME FQN → a use of it resolves to undefined (silence, no flag)', async () => {
+    ensureLoaderRegistered();
     // Two files both declare com.acme.dup.Thing — the FQN is ambiguous.
-    const fileX = await parse('src/x/Thing.kt', 'package com.acme.dup\nclass Thing\n');
-    const fileY = await parse('src/y/Thing.kt', 'package com.acme.dup\nclass Thing\n');
-    const consumer = await parse('src/z/Use.kt', 'package com.acme.z\nimport com.acme.dup.Thing\nclass Use\n');
+    await withParsedFiles(
+      [
+        kt('src/x/Thing.kt', 'package com.acme.dup\nclass Thing\n'),
+        kt('src/y/Thing.kt', 'package com.acme.dup\nclass Thing\n'),
+        kt('src/z/Use.kt', 'package com.acme.z\nimport com.acme.dup.Thing\nclass Use\n'),
+      ],
+      ([fileX, fileY, consumer]) => {
+        const st = new SymbolTable();
+        for (const f of [fileX, fileY]) {
+          for (const d of kotlinExtractor.declarations(f)) st.declare('kotlin', d.symbolKey, f.path);
+        }
 
-    const st = new SymbolTable();
-    for (const f of [fileX, fileY]) {
-      for (const d of kotlinExtractor.declarations(f)) st.declare('kotlin', d.symbolKey, f.path);
-    }
+        // resolveUnique returns undefined for the ambiguous FQN.
+        expect(st.resolveUnique('kotlin', 'com.acme.dup.Thing')).toBeUndefined();
 
-    // resolveUnique returns undefined for the ambiguous FQN.
-    expect(st.resolveUnique('kotlin', 'com.acme.dup.Thing')).toBeUndefined();
-
-    // Through the resolver the use also resolves to undefined — silence, never a flag.
-    const ownerIndex = { ownerOf: () => 'someNode' };
-    const resolver = makeResolver({ ownerIndex: ownerIndex as never, symbolTable: st, resolvePathToFile: () => undefined });
-    const importHint = kotlinExtractor.uses(consumer).find((u) => u.candidates[0].kind === 'symbol')!;
-    expect(resolver.resolve(importHint.candidates[0], consumer.path, 'kotlin')).toBeUndefined();
+        // Through the resolver the use also resolves to undefined — silence, never a flag.
+        const ownerIndex = { ownerOf: () => 'someNode' };
+        const resolver = makeResolver({ ownerIndex: ownerIndex as never, symbolTable: st, resolvePathToFile: () => undefined });
+        const importHint = kotlinExtractor.uses(consumer).find((u) => u.candidates[0].kind === 'symbol')!;
+        expect(resolver.resolve(importHint.candidates[0], consumer.path, 'kotlin')).toBeUndefined();
+      },
+    );
   });
 });
 

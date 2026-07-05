@@ -11,7 +11,8 @@ relations:
     { target: cli/relations/extractors, type: uses },
     { target: cli/io/parsers/graph, type: uses },
     { target: cli/ast/runtime, type: uses },
-    { target: cli/core/loader, type: uses }
+    { target: cli/core/loader, type: uses },
+    { target: cli/tests/unit/helpers, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/relations/symbol-table.test.ts

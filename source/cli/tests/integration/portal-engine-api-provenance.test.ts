@@ -84,6 +84,42 @@ describe('readGitCommitRef — every .git resolution path (real on-disk layouts)
     writeFileSync(path.join(root, '.git', 'packed-refs'), `${SHA} refs/heads/elsewhere\n`);
     expect(readGitCommitRef(root)).toBeNull();
   });
+
+  it('resolves a LINKED WORKTREE — `.git` is a `gitdir:` pointer FILE, HEAD is private, refs are shared via `commondir`', () => {
+    // Real git worktree layout: <mainRepo>/.git is the real dir; the worktree's own <root>/.git
+    // is a one-line pointer file to <mainRepo>/.git/worktrees/<name>/, which holds its OWN HEAD
+    // (can differ from the main checkout's branch) plus a `commondir` pointing back to
+    // <mainRepo>/.git for the refs/heads and packed-refs the worktree shares with the main repo.
+    const mainRepo = tmp('yg-git-wt-main-');
+    const worktreeRoot = tmp('yg-git-wt-linked-');
+    const privateGitDir = path.join(mainRepo, '.git', 'worktrees', 'feature-x');
+    mkdirSync(path.join(mainRepo, '.git', 'refs', 'heads'), { recursive: true });
+    mkdirSync(privateGitDir, { recursive: true });
+    writeFileSync(path.join(mainRepo, '.git', 'refs', 'heads', 'feature-x'), SHA + '\n');
+    writeFileSync(path.join(privateGitDir, 'HEAD'), 'ref: refs/heads/feature-x\n');
+    writeFileSync(path.join(privateGitDir, 'commondir'), '../..\n');
+    writeFileSync(path.join(worktreeRoot, '.git'), `gitdir: ${privateGitDir}\n`);
+    expect(readGitCommitRef(worktreeRoot)).toBe(SHA);
+  });
+
+  it('a linked worktree falls back to the main repo\'s packed-refs via `commondir`', () => {
+    const mainRepo = tmp('yg-git-wt-main-packed-');
+    const worktreeRoot = tmp('yg-git-wt-linked-packed-');
+    const privateGitDir = path.join(mainRepo, '.git', 'worktrees', 'feature-y');
+    mkdirSync(path.join(mainRepo, '.git'), { recursive: true });
+    mkdirSync(privateGitDir, { recursive: true });
+    writeFileSync(path.join(mainRepo, '.git', 'packed-refs'), `${SHA2} refs/heads/feature-y\n`);
+    writeFileSync(path.join(privateGitDir, 'HEAD'), 'ref: refs/heads/feature-y\n');
+    writeFileSync(path.join(privateGitDir, 'commondir'), '../..\n');
+    writeFileSync(path.join(worktreeRoot, '.git'), `gitdir: ${privateGitDir}\n`);
+    expect(readGitCommitRef(worktreeRoot)).toBe(SHA2);
+  });
+
+  it('returns null for a malformed `.git` pointer file (no `gitdir:` line)', () => {
+    const root = tmp('yg-git-bad-pointer-');
+    writeFileSync(path.join(root, '.git'), 'not a gitdir pointer\n');
+    expect(readGitCommitRef(root)).toBeNull();
+  });
 });
 
 describe('computePortalLockHash — committed-lock content fold', () => {

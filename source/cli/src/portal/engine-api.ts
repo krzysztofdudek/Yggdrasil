@@ -1,4 +1,4 @@
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, statSync } from 'node:fs';
 import path from 'node:path';
 import type { Graph, GraphNode, AspectStatus } from '../model/graph.js';
 import type { LockFile } from '../model/lock.js';
@@ -183,10 +183,38 @@ export function computePortalLockHash(graph: Graph): string {
  * malformed HEAD — the digest then states "no commit ref" rather than inventing one. Never
  * spawns a process and never writes; a bounded set of direct file reads under `.git/`.
  *
+ * A LINKED WORKTREE's `.git` is not a directory but a pointer FILE (`gitdir: <path>`) to a
+ * private per-worktree git-dir under the main repo's `.git/worktrees/<name>/` — that private
+ * dir holds this worktree's own `HEAD` (a worktree can be on a different branch than the main
+ * checkout), but `refs/heads/*` and `packed-refs` are SHARED and live in the main repo's git-dir,
+ * reachable from the private dir's `commondir` file. Both forms are resolved here so the digest
+ * reports the real commit whether `yg` runs from the main checkout or a linked worktree.
+ *
  * `projectRoot` is the repo root (the parent of `.yggdrasil/`).
  */
 export function readGitCommitRef(projectRoot: string): string | null {
-  const gitDir = path.join(projectRoot, '.git');
+  const dotGit = path.join(projectRoot, '.git');
+  let dotGitStat;
+  try {
+    dotGitStat = statSync(dotGit);
+  } catch {
+    return null;
+  }
+  let gitDir: string;
+  if (dotGitStat.isDirectory()) {
+    gitDir = dotGit;
+  } else {
+    // Linked worktree / submodule: `.git` is a pointer FILE (`gitdir: <path>`).
+    let dotGitContent: string;
+    try {
+      dotGitContent = readFileSync(dotGit, 'utf-8');
+    } catch {
+      return null;
+    }
+    const pointerMatch = dotGitContent.match(/^gitdir:\s*(.+?)\s*$/);
+    if (!pointerMatch) return null;
+    gitDir = resolveRelative(projectRoot, pointerMatch[1]);
+  }
   const headFile = path.join(gitDir, 'HEAD');
   if (!existsSync(headFile)) return null;
   let head: string;
@@ -200,8 +228,22 @@ export function readGitCommitRef(projectRoot: string): string | null {
   const refMatch = head.match(/^ref:\s*(.+)$/);
   if (!refMatch) return null;
   const refName = refMatch[1].trim();
-  // Loose ref: .git/<refName> holds the sha.
-  const looseRef = path.join(gitDir, refName);
+
+  // Refs are shared across worktrees in the COMMON dir. A linked worktree's private git-dir
+  // carries a `commondir` file (relative path to the shared main git-dir); a normal checkout
+  // has no such file, so refs live directly under `gitDir` (commonDir === gitDir).
+  let commonDir = gitDir;
+  const commondirFile = path.join(gitDir, 'commondir');
+  if (existsSync(commondirFile)) {
+    try {
+      commonDir = resolveRelative(gitDir, readFileSync(commondirFile, 'utf-8').trim());
+    } catch {
+      /* fall back to gitDir itself */
+    }
+  }
+
+  // Loose ref: <commonDir>/<refName> holds the sha.
+  const looseRef = path.join(commonDir, refName);
   if (existsSync(looseRef)) {
     try {
       const sha = readFileSync(looseRef, 'utf-8').trim();
@@ -210,8 +252,8 @@ export function readGitCommitRef(projectRoot: string): string | null {
       /* fall through to packed-refs */
     }
   }
-  // Packed ref fallback: .git/packed-refs maps `<sha> <refName>`.
-  const packed = path.join(gitDir, 'packed-refs');
+  // Packed ref fallback: <commonDir>/packed-refs maps `<sha> <refName>`.
+  const packed = path.join(commonDir, 'packed-refs');
   if (existsSync(packed)) {
     try {
       const lines = readFileSync(packed, 'utf-8').split('\n');
@@ -224,6 +266,12 @@ export function readGitCommitRef(projectRoot: string): string | null {
     }
   }
   return null;
+}
+
+/** Resolve `target` against `base` unless already absolute — shared by the `gitdir`/`commondir`
+ *  pointer-file resolution above (both may hold a POSIX-relative or an absolute path). */
+function resolveRelative(base: string, target: string): string {
+  return path.isAbsolute(target) ? target : path.resolve(base, target);
 }
 
 // ── File-aware loop: per-node source freshness (the honesty heartbeat) ─────────

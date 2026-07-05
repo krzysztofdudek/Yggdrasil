@@ -19,7 +19,7 @@ import {
   scanSuppressionMarkers,
   SuppressMarkerError,
 } from '../../../src/ast/suppress.js';
-import { parseFile } from '../../../src/ast/parser.js';
+import { withParsedFile } from '../../../src/ast/parser.js';
 import {
   runSuppressionsScan,
   formatSuppressionsOutput,
@@ -65,11 +65,11 @@ function freshDir(label: string): string {
   return d;
 }
 
-/** Parse + collect ranges for a snippet and return the SuppressedRange[]. */
+/** Parse + collect ranges for a snippet and return the SuppressedRange[].
+ *  The WASM tree lives only inside the withParsedFile callback. */
 async function rangesOf(file: string, code: string) {
-  const tree = await parseFile(file, code);
   const total = code.split('\n').length;
-  return collectSuppressions(tree, file, total);
+  return withParsedFile(file, code, (tree) => collectSuppressions(tree, file, total));
 }
 
 // ===========================================================================
@@ -210,24 +210,26 @@ describe('bounty3: single-line form scopes EXACTLY the line below the marker', (
 describe('bounty3: empty-reason rejection covers BOTH single-line and disable forms', () => {
   it('single-line with no reason throws SuppressMarkerError with file + line populated', async () => {
     const code = '// yg-suppress(async-fs)\nfs.readFileSync("a");';
-    const tree = await parseFile('x.ts', code);
-    let thrown: unknown;
-    try {
-      collectSuppressions(tree, 'x.ts', 2);
-    } catch (e) {
-      thrown = e;
-    }
-    expect(thrown).toBeInstanceOf(SuppressMarkerError);
-    const err = thrown as SuppressMarkerError;
-    expect(err.code).toBe('SUPPRESS_MARKER_MISSING_REASON');
-    expect(err.file).toBe('x.ts');
-    expect(err.line).toBe(1); // marker is on line 1
+    await withParsedFile('x.ts', code, (tree) => {
+      let thrown: unknown;
+      try {
+        collectSuppressions(tree, 'x.ts', 2);
+      } catch (e) {
+        thrown = e;
+      }
+      expect(thrown).toBeInstanceOf(SuppressMarkerError);
+      const err = thrown as SuppressMarkerError;
+      expect(err.code).toBe('SUPPRESS_MARKER_MISSING_REASON');
+      expect(err.file).toBe('x.ts');
+      expect(err.line).toBe(1); // marker is on line 1
+    });
   });
 
   it('disable with no reason throws; enable with no reason is VALID (never throws)', async () => {
     const bad = '// yg-suppress-disable(async-fs)\ncode();';
-    const badTree = await parseFile('bad.ts', bad);
-    expect(() => collectSuppressions(badTree, 'bad.ts', 2)).toThrow(SuppressMarkerError);
+    await withParsedFile('bad.ts', bad, (badTree) => {
+      expect(() => collectSuppressions(badTree, 'bad.ts', 2)).toThrow(SuppressMarkerError);
+    });
 
     // A reasoned disable closed by a bare (reasonless) enable must NOT throw —
     // RE_ENABLE captures only the id; the enable form is reason-free by design.
@@ -237,8 +239,7 @@ describe('bounty3: empty-reason rejection covers BOTH single-line and disable fo
       '// yg-suppress-enable(async-fs)',
       'after();',
     ].join('\n');
-    const goodTree = await parseFile('good.ts', good);
-    const ranges = collectSuppressions(goodTree, 'good.ts', 4);
+    const ranges = await rangesOf('good.ts', good);
     expect(isLineSuppressed(ranges, 'async-fs', 2)).toBe(true);
     expect(isLineSuppressed(ranges, 'async-fs', 4)).toBe(false);
   });
@@ -305,8 +306,9 @@ describe('bounty3: collectSuppressions guards on unknown extension', () => {
     // Parse as TS but pass a path whose extension is unknown — getLanguage
     // ForExtension returns null and the function short-circuits to [].
     const code = 'const x = 1;\n// yg-suppress(my-aspect) reason\nconst y = 2;';
-    const tree = await parseFile('x.ts', code);
-    const ranges = collectSuppressions(tree, 'file.unknownextxyz', 3);
+    const ranges = await withParsedFile('x.ts', code, (tree) =>
+      collectSuppressions(tree, 'file.unknownextxyz', 3),
+    );
     expect(ranges).toEqual([]);
   });
 });

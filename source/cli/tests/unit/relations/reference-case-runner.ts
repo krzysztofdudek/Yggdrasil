@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { expect } from 'vitest';
 
 import { ensureLoaderRegistered } from '../../../src/ast/loader-hook.js';
-import { parseFile } from '../../../src/ast/parser.js';
+import { withParsedFiles } from '../helpers/with-parsed-files.js';
 import { getLanguageForExtension } from '../../../src/core/graph/language-registry.js';
 import { extractorForLanguage } from '../../../src/relations/extractors/registry.js';
 import {
@@ -202,11 +202,6 @@ function sectionBody(body: string, name: string): string {
   return next ? rest.slice(0, next.index) : rest;
 }
 
-async function parse(file: CaseFile): Promise<ParsedFile> {
-  const tree = await parseFile(file.path, file.code);
-  return { path: file.path, content: file.code, tree, language: file.language };
-}
-
 /**
  * Run one reference case end-to-end through the real relation pass. Throws/fails the
  * assertion if the documented `## Expect` is not met or an unexpected edge appears.
@@ -220,108 +215,116 @@ export async function runCase(id: string): Promise<void> {
   const mdPath = locateCaseMd(id);
   const doc = loadCaseDoc(id, mdPath);
 
-  // 1. Parse every embedded file with the real parser.
-  const parsedByPath = new Map<string, ParsedFile>();
-  for (const f of doc.files) parsedByPath.set(f.path, await parse(f));
+  // 1. Parse every embedded file with the real parser — every tree is kept alive
+  //    simultaneously for the rest of this case (steps 2-7 all cross-reference files),
+  //    and every one is guaranteed deleted (LIFO) once the case finishes below, success
+  //    or failure (withParsedFiles nests ast/parser.ts's withParsedFile per file).
+  await withParsedFiles(
+    doc.files.map((f) => ({ path: f.path, code: f.code, language: f.language })),
+    async (parsedFiles) => {
+      const parsedByPath = new Map<string, ParsedFile>();
+      doc.files.forEach((f, i) => parsedByPath.set(f.path, parsedFiles[i]));
 
-  // 2. Universe SymbolTable — real extractor.declarations() over EVERY file of the
-  //    case's language (pass.ts step 4: broad universe so ambiguity is detected).
-  const symbolTable = new SymbolTable();
-  for (const f of doc.files) {
-    const extractor = extractorForLanguage(f.language);
-    if (!extractor) continue;
-    const parsed = parsedByPath.get(f.path)!;
-    for (const decl of extractor.declarations(parsed)) {
-      symbolTable.declare(f.language, decl.symbolKey, f.path);
-    }
-  }
-
-  // 3. C# global-using pre-pass (pass.ts step 4.5): namespace prefixes AND project-wide aliases.
-  const csharpGlobalUsings = new Set<string>();
-  const csharpGlobalUsingAliasMap = new Map<string, string>();
-  for (const f of doc.files) {
-    if (f.language !== 'csharp') continue;
-    for (const prefix of collectGlobalUsings(parsedByPath.get(f.path)!)) csharpGlobalUsings.add(prefix);
-    for (const [name, fqn] of collectGlobalUsingAliases(parsedByPath.get(f.path)!)) {
-      csharpGlobalUsingAliasMap.set(name, fqn);
-    }
-  }
-  const csharpGlobalUsingsList = [...csharpGlobalUsings];
-  const csharpGlobalUsingAliasesList = [...csharpGlobalUsingAliasMap.entries()];
-
-  // 4. Owner index over the in-memory graph (one node per file's parent dir).
-  const nodes = new Map<string, { path: string; meta: { mapping: string[] } }>();
-  for (const f of doc.files) {
-    const nodeId = nodeOf(f.path);
-    let entry = nodes.get(nodeId);
-    if (!entry) {
-      entry = { path: nodeId, meta: { mapping: [] } };
-      nodes.set(nodeId, entry);
-    }
-    entry.meta.mapping.push(f.path);
-  }
-  const ownerIndex = buildOwnerIndex(nodes as any);
-
-  // 5. Real resolver. Symbol-axis languages (C#, Kotlin) resolve through the SymbolTable;
-  //    path-axis languages (Java, Go, PHP, TS/JS, Python, Rust, C/C++, Ruby) resolve by the
-  //    package/module = file/directory convention through `makeResolvePathToFile`, which is
-  //    pure filesystem access. To drive the IDENTICAL production path resolver (never a copy),
-  //    materialize the embedded `## Files` into a throwaway project root and point the real
-  //    `makeResolvePathToFile` at it. The whole pipeline — extractor.uses(), the path resolver,
-  //    the owner-set-collapse for a wildcard package import — is then byte-identical to pass.ts.
-  const projectRoot = materializeProject(doc.files, doc.configFiles);
-  try {
-    const resolver = makeResolver({
-      ownerIndex,
-      symbolTable,
-      resolvePathToFile: makeResolvePathToFile(projectRoot, ownerIndex.ownerOf),
-    });
-
-    // 6. Per file: real extractor.uses() (C# injects the global-using tier), then the
-    //    EXACT pass.ts ordered-candidate walk → resolved cross-node edges.
-    const edges: ExpectEdge[] = [];
-    for (const f of doc.files) {
-      const extractor = extractorForLanguage(f.language);
-      if (!extractor) continue;
-      const parsed = parsedByPath.get(f.path)!;
-      const fromNode = nodeOf(f.path);
-      const detected =
-        f.language === 'csharp'
-          ? csharpUses(parsed, {
-              projectGlobalUsings: csharpGlobalUsingsList,
-              projectGlobalUsingAliases: csharpGlobalUsingAliasesList,
-            })
-          : extractor.uses(parsed);
-      for (const dep of detected) {
-        // The SAME candidate walk the live pass runs (resolveCandidateGroup) — never a copy, so
-        // a catalogue case can never pass on resolution logic that diverges from `yg check`.
-        const ownerNode = resolveCandidateGroup(dep.candidates, resolver, f.path, f.language);
-        if (ownerNode !== undefined && ownerNode !== fromNode) {
-          edges.push({ fromFile: f.path, line: dep.line, node: ownerNode });
+      // 2. Universe SymbolTable — real extractor.declarations() over EVERY file of the
+      //    case's language (pass.ts step 4: broad universe so ambiguity is detected).
+      const symbolTable = new SymbolTable();
+      for (const f of doc.files) {
+        const extractor = extractorForLanguage(f.language);
+        if (!extractor) continue;
+        const parsed = parsedByPath.get(f.path)!;
+        for (const decl of extractor.declarations(parsed)) {
+          symbolTable.declare(f.language, decl.symbolKey, f.path);
         }
       }
-    }
 
-    // 7. Assertions.
-    const edgeKey = (e: ExpectEdge): string => `${e.fromFile}:${e.line}->${e.node}`;
-    const actual = new Set(edges.map(edgeKey));
-    const expected = new Set(doc.expectEdges.map(edgeKey));
+      // 3. C# global-using pre-pass (pass.ts step 4.5): namespace prefixes AND project-wide aliases.
+      const csharpGlobalUsings = new Set<string>();
+      const csharpGlobalUsingAliasMap = new Map<string, string>();
+      for (const f of doc.files) {
+        if (f.language !== 'csharp') continue;
+        for (const prefix of collectGlobalUsings(parsedByPath.get(f.path)!)) csharpGlobalUsings.add(prefix);
+        for (const [name, fqn] of collectGlobalUsingAliases(parsedByPath.get(f.path)!)) {
+          csharpGlobalUsingAliasMap.set(name, fqn);
+        }
+      }
+      const csharpGlobalUsingsList = [...csharpGlobalUsings];
+      const csharpGlobalUsingAliasesList = [...csharpGlobalUsingAliasMap.entries()];
 
-    // every expected edge present
-    for (const e of doc.expectEdges) {
-      expect(actual, `case ${id}: expected edge ${edgeKey(e)} not emitted (got ${[...actual].join(', ') || 'none'})`).toContain(edgeKey(e));
-    }
-    // no unexpected cross-node edge (covers silence cases and edge cases alike)
-    for (const a of actual) {
-      expect(expected, `case ${id}: unexpected cross-node edge ${a}`).toContain(a);
-    }
-    // a `silence` expectation must yield zero edges
-    if (doc.expectSilence && doc.expectEdges.length === 0) {
-      expect(edges, `case ${id}: expected silence but emitted ${edges.map(edgeKey).join(', ')}`).toHaveLength(0);
-    }
-  } finally {
-    rmSync(projectRoot, { recursive: true, force: true });
-  }
+      // 4. Owner index over the in-memory graph (one node per file's parent dir).
+      const nodes = new Map<string, { path: string; meta: { mapping: string[] } }>();
+      for (const f of doc.files) {
+        const nodeId = nodeOf(f.path);
+        let entry = nodes.get(nodeId);
+        if (!entry) {
+          entry = { path: nodeId, meta: { mapping: [] } };
+          nodes.set(nodeId, entry);
+        }
+        entry.meta.mapping.push(f.path);
+      }
+      const ownerIndex = buildOwnerIndex(nodes as any);
+
+      // 5. Real resolver. Symbol-axis languages (C#, Kotlin) resolve through the SymbolTable;
+      //    path-axis languages (Java, Go, PHP, TS/JS, Python, Rust, C/C++, Ruby) resolve by the
+      //    package/module = file/directory convention through `makeResolvePathToFile`, which is
+      //    pure filesystem access. To drive the IDENTICAL production path resolver (never a copy),
+      //    materialize the embedded `## Files` into a throwaway project root and point the real
+      //    `makeResolvePathToFile` at it. The whole pipeline — extractor.uses(), the path resolver,
+      //    the owner-set-collapse for a wildcard package import — is then byte-identical to pass.ts.
+      const projectRoot = materializeProject(doc.files, doc.configFiles);
+      try {
+        const resolver = makeResolver({
+          ownerIndex,
+          symbolTable,
+          resolvePathToFile: makeResolvePathToFile(projectRoot, ownerIndex.ownerOf),
+        });
+
+        // 6. Per file: real extractor.uses() (C# injects the global-using tier), then the
+        //    EXACT pass.ts ordered-candidate walk → resolved cross-node edges.
+        const edges: ExpectEdge[] = [];
+        for (const f of doc.files) {
+          const extractor = extractorForLanguage(f.language);
+          if (!extractor) continue;
+          const parsed = parsedByPath.get(f.path)!;
+          const fromNode = nodeOf(f.path);
+          const detected =
+            f.language === 'csharp'
+              ? csharpUses(parsed, {
+                  projectGlobalUsings: csharpGlobalUsingsList,
+                  projectGlobalUsingAliases: csharpGlobalUsingAliasesList,
+                })
+              : extractor.uses(parsed);
+          for (const dep of detected) {
+            // The SAME candidate walk the live pass runs (resolveCandidateGroup) — never a copy, so
+            // a catalogue case can never pass on resolution logic that diverges from `yg check`.
+            const ownerNode = resolveCandidateGroup(dep.candidates, resolver, f.path, f.language);
+            if (ownerNode !== undefined && ownerNode !== fromNode) {
+              edges.push({ fromFile: f.path, line: dep.line, node: ownerNode });
+            }
+          }
+        }
+
+        // 7. Assertions.
+        const edgeKey = (e: ExpectEdge): string => `${e.fromFile}:${e.line}->${e.node}`;
+        const actual = new Set(edges.map(edgeKey));
+        const expected = new Set(doc.expectEdges.map(edgeKey));
+
+        // every expected edge present
+        for (const e of doc.expectEdges) {
+          expect(actual, `case ${id}: expected edge ${edgeKey(e)} not emitted (got ${[...actual].join(', ') || 'none'})`).toContain(edgeKey(e));
+        }
+        // no unexpected cross-node edge (covers silence cases and edge cases alike)
+        for (const a of actual) {
+          expect(expected, `case ${id}: unexpected cross-node edge ${a}`).toContain(a);
+        }
+        // a `silence` expectation must yield zero edges
+        if (doc.expectSilence && doc.expectEdges.length === 0) {
+          expect(edges, `case ${id}: expected silence but emitted ${edges.map(edgeKey).join(', ')}`).toHaveLength(0);
+        }
+      } finally {
+        rmSync(projectRoot, { recursive: true, force: true });
+      }
+    },
+  );
 }
 
 /**

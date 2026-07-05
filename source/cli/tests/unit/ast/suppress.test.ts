@@ -7,32 +7,31 @@ import {
   scanSuppressionMarkers,
   scanSuppressionMarkersInComments,
 } from '../../../src/ast/suppress.js';
-import { parseFile } from '../../../src/ast/parser.js';
+import { withParsedFile } from '../../../src/ast/parser.js';
+
+/** Parse code and collect reviewer-honored ranges; the WASM tree lives only inside this call. */
+async function collectFromSource(file: string, code: string, totalLines: number) {
+  return withParsedFile(file, code, (tree) => collectSuppressions(tree, file, totalLines));
+}
 
 describe('suppress: language-aware comment resolution', () => {
   it('Rust: yg-suppress on line_comment is detected', async () => {
     const code = `fn foo() {}\n// yg-suppress(my-aspect) reason here\nfn bar() {}`;
-    const tree = await parseFile('a.rs', code);
-    const n = code.split('\n').length;
-    const ranges = collectSuppressions(tree, 'a.rs', n);
+    const ranges = await collectFromSource('a.rs', code, code.split('\n').length);
     expect(isLineSuppressed(ranges, 'my-aspect', 3)).toBe(true);
     expect(isLineSuppressed(ranges, 'my-aspect', 1)).toBe(false);
   });
 
   it('Java: yg-suppress on line_comment is detected', async () => {
     const code = `class A {}\n// yg-suppress(my-aspect) reason here\nclass B {}`;
-    const tree = await parseFile('A.java', code);
-    const n = code.split('\n').length;
-    const ranges = collectSuppressions(tree, 'A.java', n);
+    const ranges = await collectFromSource('A.java', code, code.split('\n').length);
     expect(isLineSuppressed(ranges, 'my-aspect', 3)).toBe(true);
     expect(isLineSuppressed(ranges, 'my-aspect', 1)).toBe(false);
   });
 
   it('Kotlin: yg-suppress on line_comment is detected', async () => {
     const code = `fun foo() {}\n// yg-suppress(my-aspect) reason here\nfun bar() {}`;
-    const tree = await parseFile('a.kt', code);
-    const n = code.split('\n').length;
-    const ranges = collectSuppressions(tree, 'a.kt', n);
+    const ranges = await collectFromSource('a.kt', code, code.split('\n').length);
     expect(isLineSuppressed(ranges, 'my-aspect', 3)).toBe(true);
     expect(isLineSuppressed(ranges, 'my-aspect', 1)).toBe(false);
   });
@@ -42,9 +41,10 @@ describe('suppress: language-aware comment resolution', () => {
     // walk. With no `content` supplied there is nothing to scan either, so the
     // result is empty (rather than throwing).
     const code = `const x = 1;\n// yg-suppress(my-aspect) reason\nconst y = 2;`;
-    const tree = await parseFile('x.ts', code);
     // Pass a file path with an unknown extension and omit content.
-    const ranges = collectSuppressions(tree, 'file.unknownext', 3);
+    const ranges = await withParsedFile('x.ts', code, (tree) =>
+      collectSuppressions(tree, 'file.unknownext', 3),
+    );
     expect(ranges).toEqual([]);
   });
 });
@@ -98,30 +98,27 @@ describe('suppress: non-AST languages (raw-line text scan)', () => {
 describe('suppress: single-line form', () => {
   it('yg-suppress applies to immediately following line', async () => {
     const code = `const x = 1;\n// yg-suppress(async-fs) refactor planned\nfs.readFileSync('a');\nfs.readFileSync('b');`;
-    const tree = await parseFile('x.ts', code);
-    const n = code.split('\n').length;
-    const ranges = collectSuppressions(tree, 'x.ts', n);
+    const ranges = await collectFromSource('x.ts', code, code.split('\n').length);
     expect(isLineSuppressed(ranges, 'async-fs', 3)).toBe(true);
     expect(isLineSuppressed(ranges, 'async-fs', 4)).toBe(false);
   });
 
   it('rejects empty reason', async () => {
     const code = `// yg-suppress(async-fs)\nfs.readFileSync('a');`;
-    const tree = await parseFile('x.ts', code);
-    expect(() => collectSuppressions(tree, 'x.ts', 2)).toThrow(SuppressMarkerError);
+    await withParsedFile('x.ts', code, (tree) => {
+      expect(() => collectSuppressions(tree, 'x.ts', 2)).toThrow(SuppressMarkerError);
+    });
   });
 
   it('does NOT match yg-suppress in string literal', async () => {
     const code = `const banner = "yg-suppress(async-fs) this is just a string";\nfs.readFileSync('a');`;
-    const tree = await parseFile('x.ts', code);
-    const ranges = collectSuppressions(tree, 'x.ts', 2);
+    const ranges = await collectFromSource('x.ts', code, 2);
     expect(isLineSuppressed(ranges, 'async-fs', 2)).toBe(false);
   });
 
   it('multi-aspect: yg-suppress(a, b) applies both', async () => {
     const code = `// yg-suppress(async-fs, posix-paths) cleanup\nfs.readFileSync('x');`;
-    const tree = await parseFile('x.ts', code);
-    const ranges = collectSuppressions(tree, 'x.ts', 2);
+    const ranges = await collectFromSource('x.ts', code, 2);
     expect(isLineSuppressed(ranges, 'async-fs', 2)).toBe(true);
     expect(isLineSuppressed(ranges, 'posix-paths', 2)).toBe(true);
     expect(isLineSuppressed(ranges, 'unrelated', 2)).toBe(false);
@@ -131,8 +128,7 @@ describe('suppress: single-line form', () => {
 describe('suppress: bracket form', () => {
   it('single disable/enable cycle', async () => {
     const code = `// yg-suppress-disable(async-fs) refactor planned\nfs.readFileSync('a');\nfs.readFileSync('b');\n// yg-suppress-enable(async-fs)\nfs.readFileSync('c');`;
-    const tree = await parseFile('x.ts', code);
-    const ranges = collectSuppressions(tree, 'x.ts', 5);
+    const ranges = await collectFromSource('x.ts', code, 5);
     expect(isLineSuppressed(ranges, 'async-fs', 2)).toBe(true);
     expect(isLineSuppressed(ranges, 'async-fs', 3)).toBe(true);
     expect(isLineSuppressed(ranges, 'async-fs', 5)).toBe(false);
@@ -140,8 +136,7 @@ describe('suppress: bracket form', () => {
 
   it('disable without enable extends to EOF', async () => {
     const code = `// yg-suppress-disable(async-fs) until ticket-X\na(); b(); c();`;
-    const tree = await parseFile('x.ts', code);
-    const ranges = collectSuppressions(tree, 'x.ts', 2);
+    const ranges = await collectFromSource('x.ts', code, 2);
     expect(isLineSuppressed(ranges, 'async-fs', 2)).toBe(true);
   });
 
@@ -154,8 +149,7 @@ describe('suppress: bracket form', () => {
       `// yg-suppress-enable(posix-paths)`,
       `c();`,
     ].join('\n');
-    const tree = await parseFile('x.ts', code);
-    const ranges = collectSuppressions(tree, 'x.ts', 6);
+    const ranges = await collectFromSource('x.ts', code, 6);
     expect(isLineSuppressed(ranges, 'async-fs', 2)).toBe(true);
     expect(isLineSuppressed(ranges, 'async-fs', 4)).toBe(false);
     expect(isLineSuppressed(ranges, 'posix-paths', 4)).toBe(true);
@@ -164,14 +158,14 @@ describe('suppress: bracket form', () => {
 
   it('empty reason on disable rejected', async () => {
     const code = `// yg-suppress-disable(async-fs)\nfs.readFileSync('a');`;
-    const tree = await parseFile('x.ts', code);
-    expect(() => collectSuppressions(tree, 'x.ts', 2)).toThrow(SuppressMarkerError);
+    await withParsedFile('x.ts', code, (tree) => {
+      expect(() => collectSuppressions(tree, 'x.ts', 2)).toThrow(SuppressMarkerError);
+    });
   });
 
   it('block comment disable/enable', async () => {
     const code = `/* yg-suppress-disable(async-fs) refactor planned */\nfs.readFileSync('a');\n/* yg-suppress-enable(async-fs) */\nfs.readFileSync('b');`;
-    const tree = await parseFile('x.ts', code);
-    const ranges = collectSuppressions(tree, 'x.ts', 4);
+    const ranges = await collectFromSource('x.ts', code, 4);
     expect(isLineSuppressed(ranges, 'async-fs', 2)).toBe(true);
     expect(isLineSuppressed(ranges, 'async-fs', 4)).toBe(false);
   });
@@ -180,8 +174,7 @@ describe('suppress: bracket form', () => {
 describe('suppress: wildcard semantics', () => {
   it('disable(*) suppresses all aspects', async () => {
     const code = `// yg-suppress-disable(*) cleanup\nfs.readFileSync('x');\nconsole.log('x');\n// yg-suppress-enable(*)\nconsole.log('y');`;
-    const tree = await parseFile('x.ts', code);
-    const ranges = collectSuppressions(tree, 'x.ts', 5);
+    const ranges = await collectFromSource('x.ts', code, 5);
     expect(isLineSuppressed(ranges, 'async-fs', 2)).toBe(true);
     expect(isLineSuppressed(ranges, 'no-console', 2)).toBe(true);
     expect(isLineSuppressed(ranges, 'async-fs', 5)).toBe(false);
@@ -189,8 +182,7 @@ describe('suppress: wildcard semantics', () => {
 
   it('specific enable does NOT punch through wildcard disable', async () => {
     const code = `// yg-suppress-disable(*) cleanup\nfs.readFileSync('x');\n// yg-suppress-enable(async-fs)\nfs.readFileSync('y');\nconsole.log('z');`;
-    const tree = await parseFile('x.ts', code);
-    const ranges = collectSuppressions(tree, 'x.ts', 5);
+    const ranges = await collectFromSource('x.ts', code, 5);
     expect(isLineSuppressed(ranges, 'async-fs', 4)).toBe(true);
     expect(isLineSuppressed(ranges, 'no-console', 5)).toBe(true);
   });
@@ -203,8 +195,7 @@ describe('suppress: wildcard semantics', () => {
       `// yg-suppress-enable(*)`,
       `b();`,
     ].join('\n');
-    const tree = await parseFile('x.ts', code);
-    const ranges = collectSuppressions(tree, 'x.ts', 5);
+    const ranges = await collectFromSource('x.ts', code, 5);
     expect(isLineSuppressed(ranges, 'async-fs', 5)).toBe(true);
     expect(isLineSuppressed(ranges, 'no-console', 5)).toBe(false);
   });
@@ -223,19 +214,20 @@ describe('suppress: anchored grammar (prose mentions are not markers)', () => {
       '// Note: never use yg-suppress(*) here because wildcards mask real problems',
       'b();',
     ].join('\n');
-    const tree = await parseFile('x.ts', code);
-    const ranges = collectSuppressions(tree, 'x.ts', 3);
-    expect(ranges).toEqual([]);
-    expect(isLineSuppressed(ranges, 'any-aspect', 3)).toBe(false);
-    // Inventory paths see nothing either — same matcher.
-    expect(scanSuppressionMarkersInComments(tree, 'x.ts')).toHaveLength(0);
+    await withParsedFile('x.ts', code, (tree) => {
+      const ranges = collectSuppressions(tree, 'x.ts', 3);
+      expect(ranges).toEqual([]);
+      expect(isLineSuppressed(ranges, 'any-aspect', 3)).toBe(false);
+      // Inventory paths see nothing either — same matcher.
+      expect(scanSuppressionMarkersInComments(tree, 'x.ts')).toHaveLength(0);
+    });
     expect(scanSuppressionMarkers(code)).toHaveLength(0);
   });
 
   it('a reasonless prose mention does NOT throw SuppressMarkerError (it is not a marker at all)', async () => {
     const code = ['// See the docs about yg-suppress(no-forbidden)', 'b();'].join('\n');
-    const tree = await parseFile('x.ts', code);
-    expect(collectSuppressions(tree, 'x.ts', 2)).toEqual([]);
+    const ranges = await collectFromSource('x.ts', code, 2);
+    expect(ranges).toEqual([]);
   });
 
   it('id charset: anchored tokens with junk ids — (...) and (<aspect-id>) — are prose, not markers', async () => {
@@ -244,22 +236,22 @@ describe('suppress: anchored grammar (prose mentions are not markers)', () => {
       '// yg-suppress(<aspect-id>) placeholder from documentation',
       'b();',
     ].join('\n');
-    const tree = await parseFile('x.ts', code);
-    expect(collectSuppressions(tree, 'x.ts', 3)).toEqual([]);
+    const ranges = await collectFromSource('x.ts', code, 3);
+    expect(ranges).toEqual([]);
     expect(scanSuppressionMarkers(code)).toHaveLength(0);
   });
 
   it('quotation-style `// // yg-suppress(x) r` is not a marker (at most ONE comment delimiter may precede the token)', async () => {
     const code = ['// // yg-suppress(x) quoted example from a code review', 'b();'].join('\n');
-    const tree = await parseFile('x.ts', code);
-    expect(collectSuppressions(tree, 'x.ts', 2)).toEqual([]);
+    const ranges = await collectFromSource('x.ts', code, 2);
+    expect(ranges).toEqual([]);
     expect(scanSuppressionMarkers(code)).toHaveLength(0);
   });
 
   it('a backtick-quoted `yg-suppress(*)` at comment start is not a marker', async () => {
     const code = ['// `yg-suppress(*)` waives every aspect on the next line', 'b();'].join('\n');
-    const tree = await parseFile('x.ts', code);
-    expect(collectSuppressions(tree, 'x.ts', 2)).toEqual([]);
+    const ranges = await collectFromSource('x.ts', code, 2);
+    expect(ranges).toEqual([]);
     expect(scanSuppressionMarkers(code)).toHaveLength(0);
   });
 
@@ -277,8 +269,7 @@ describe('suppress: anchored grammar (prose mentions are not markers)', () => {
       ' * end of comment */',                  // 3 — the one line the marker waives
       'const x = 1;',                          // 4
     ].join('\n');
-    const tree = await parseFile('x.ts', code);
-    const ranges = collectSuppressions(tree, 'x.ts', 4);
+    const ranges = await collectFromSource('x.ts', code, 4);
     expect(isLineSuppressed(ranges, 'my-aspect', 3)).toBe(true);
     // The old whole-comment match stamped the marker at the COMMENT's start row,
     // waiving line 2 — that divergence from the inventory scanner is fixed.
@@ -294,23 +285,23 @@ describe('suppress: anchored grammar (prose mentions are not markers)', () => {
       ' */',                                                                // 4 — the one line the marker waives
       'const x = 1;',                                                       // 5
     ].join('\n');
-    const tree = await parseFile('x.ts', code);
+    await withParsedFile('x.ts', code, (tree) => {
+      // Exactly ONE marker is collected, stamped at the marker's OWN row (3).
+      const markers = scanSuppressionMarkersInComments(tree, 'x.ts');
+      expect(markers).toHaveLength(1);
+      expect(markers[0]).toMatchObject({ line: 3, aspectId: 'my-aspect', kind: 'single', wildcard: false, reason: 'known debt' });
 
-    // Exactly ONE marker is collected, stamped at the marker's OWN row (3).
-    const markers = scanSuppressionMarkersInComments(tree, 'x.ts');
-    expect(markers).toHaveLength(1);
-    expect(markers[0]).toMatchObject({ line: 3, aspectId: 'my-aspect', kind: 'single', wildcard: false, reason: 'known debt' });
-
-    // Honoring path: exactly one 1-line range at marker-row + 1 (line 4).
-    const ranges = collectSuppressions(tree, 'x.ts', 5);
-    expect(ranges).toHaveLength(1);
-    expect(isLineSuppressed(ranges, 'my-aspect', 4)).toBe(true);
-    expect(isLineSuppressed(ranges, 'my-aspect', 3)).toBe(false);
-    expect(isLineSuppressed(ranges, 'my-aspect', 5)).toBe(false);
-    // The prose wildcard mention contributed NOTHING: no other aspect is waived anywhere.
-    for (let line = 1; line <= 5; line++) {
-      expect(isLineSuppressed(ranges, 'other-aspect', line)).toBe(false);
-    }
+      // Honoring path: exactly one 1-line range at marker-row + 1 (line 4).
+      const ranges = collectSuppressions(tree, 'x.ts', 5);
+      expect(ranges).toHaveLength(1);
+      expect(isLineSuppressed(ranges, 'my-aspect', 4)).toBe(true);
+      expect(isLineSuppressed(ranges, 'my-aspect', 3)).toBe(false);
+      expect(isLineSuppressed(ranges, 'my-aspect', 5)).toBe(false);
+      // The prose wildcard mention contributed NOTHING: no other aspect is waived anywhere.
+      for (let line = 1; line <= 5; line++) {
+        expect(isLineSuppressed(ranges, 'other-aspect', line)).toBe(false);
+      }
+    });
   });
 });
 
@@ -322,14 +313,15 @@ describe('suppress: trailing block-comment closers are comment syntax, not reaso
 
   it("'/* yg-suppress(my-aspect) legacy path */' → reason is exactly 'legacy path' (no trailing '*/')", async () => {
     const code = `/* yg-suppress(my-aspect) legacy path */\nconst x = 1;`;
-    const tree = await parseFile('x.ts', code);
-    // The honoring path accepts the marker (reason survives closer-stripping)…
-    const ranges = collectSuppressions(tree, 'x.ts', 2);
-    expect(isLineSuppressed(ranges, 'my-aspect', 2)).toBe(true);
-    // …and the parsed reason excludes the closer, exactly.
-    const markers = scanSuppressionMarkersInComments(tree, 'x.ts');
-    expect(markers).toHaveLength(1);
-    expect(markers[0].reason).toBe('legacy path');
+    await withParsedFile('x.ts', code, (tree) => {
+      // The honoring path accepts the marker (reason survives closer-stripping)…
+      const ranges = collectSuppressions(tree, 'x.ts', 2);
+      expect(isLineSuppressed(ranges, 'my-aspect', 2)).toBe(true);
+      // …and the parsed reason excludes the closer, exactly.
+      const markers = scanSuppressionMarkersInComments(tree, 'x.ts');
+      expect(markers).toHaveLength(1);
+      expect(markers[0].reason).toBe('legacy path');
+    });
   });
 
   it("'<!-- yg-suppress(my-aspect) generated -->' → reason is exactly 'generated' (no trailing '-->')", () => {
@@ -341,14 +333,16 @@ describe('suppress: trailing block-comment closers are comment syntax, not reaso
 
   it("'/* yg-suppress(my-aspect) */' → reason is EMPTY after closer-stripping → SuppressMarkerError", async () => {
     const code = `/* yg-suppress(my-aspect) */\nconst x = 1;`;
-    const tree = await parseFile('x.ts', code);
-    expect(() => collectSuppressions(tree, 'x.ts', 2)).toThrow(SuppressMarkerError);
+    await withParsedFile('x.ts', code, (tree) => {
+      expect(() => collectSuppressions(tree, 'x.ts', 2)).toThrow(SuppressMarkerError);
+    });
   });
 
   it("disable form: '/* yg-suppress-disable(my-aspect) migration debt */' → kind disable, reason 'migration debt'", async () => {
     const code = `/* yg-suppress-disable(my-aspect) migration debt */\nconst x = 1;`;
-    const tree = await parseFile('x.ts', code);
-    const markers = scanSuppressionMarkersInComments(tree, 'x.ts');
+    const markers = await withParsedFile('x.ts', code, (tree) =>
+      scanSuppressionMarkersInComments(tree, 'x.ts'),
+    );
     expect(markers).toHaveLength(1);
     expect(markers[0].kind).toBe('disable');
     expect(markers[0].reason).toBe('migration debt');
@@ -356,8 +350,9 @@ describe('suppress: trailing block-comment closers are comment syntax, not reaso
 
   it("disable form: '/* yg-suppress-disable(my-aspect) */' → reason empty after closer-stripping → SuppressMarkerError", async () => {
     const code = `/* yg-suppress-disable(my-aspect) */\nconst x = 1;`;
-    const tree = await parseFile('x.ts', code);
-    expect(() => collectSuppressions(tree, 'x.ts', 2)).toThrow(SuppressMarkerError);
+    await withParsedFile('x.ts', code, (tree) => {
+      expect(() => collectSuppressions(tree, 'x.ts', 2)).toThrow(SuppressMarkerError);
+    });
   });
 });
 
@@ -468,8 +463,7 @@ describe('suppress: CRLF files (trailing \\r is stripped before matching)', () =
     // (unlike line comments, whose '\r' tree-sitter leaves outside the token) — so
     // this is the case the CRLF regression silently broke.
     const code = ['/*', ' * yg-suppress(my-aspect) known debt', ' */', 'const x = 1;'].join('\r\n');
-    const tree = await parseFile('x.ts', code);
-    const ranges = collectSuppressions(tree, 'x.ts', code.split('\n').length);
+    const ranges = await collectFromSource('x.ts', code, code.split('\n').length);
     expect(isLineSuppressed(ranges, 'my-aspect', 3)).toBe(true);
     expect(isLineSuppressed(ranges, 'my-aspect', 2)).toBe(false);
   });
@@ -508,15 +502,16 @@ describe('suppress: delimiter-aware closer stripping (a line comment has no clos
 describe('suppress: comment-isolated bare token still matches (F5 does not break block comments)', () => {
   it('a delimiter-less interior line of a block comment is honored via the comment path', async () => {
     const code = ['/*', 'yg-suppress(my-aspect) known debt', '*/', 'const x = 1;'].join('\n');
-    const tree = await parseFile('x.ts', code);
-    // Honoring path (comment-isolated → optional delimiter): the interior line
-    // with NO leading delimiter is still a marker.
-    const ranges = collectSuppressions(tree, 'x.ts', 4);
-    expect(isLineSuppressed(ranges, 'my-aspect', 3)).toBe(true);
-    // Inventory comment scan agrees.
-    const markers = scanSuppressionMarkersInComments(tree, 'x.ts');
-    expect(markers).toHaveLength(1);
-    expect(markers[0]).toMatchObject({ line: 2, aspectId: 'my-aspect', reason: 'known debt' });
+    await withParsedFile('x.ts', code, (tree) => {
+      // Honoring path (comment-isolated → optional delimiter): the interior line
+      // with NO leading delimiter is still a marker.
+      const ranges = collectSuppressions(tree, 'x.ts', 4);
+      expect(isLineSuppressed(ranges, 'my-aspect', 3)).toBe(true);
+      // Inventory comment scan agrees.
+      const markers = scanSuppressionMarkersInComments(tree, 'x.ts');
+      expect(markers).toHaveLength(1);
+      expect(markers[0]).toMatchObject({ line: 2, aspectId: 'my-aspect', reason: 'known debt' });
+    });
     // But the SAME bare line raw-scanned (no comment isolation) is NOT a marker.
     expect(scanSuppressionMarkers('yg-suppress(my-aspect) known debt')).toHaveLength(0);
   });
@@ -526,16 +521,14 @@ describe('suppress: degenerate inverted ranges are never emitted (NOTE 6)', () =
   it('a bare disable on the last line of the file emits no span', async () => {
     // start = totalLines + 1, end = totalLines → inverted → dropped.
     const code = ['const x = 1;', '// yg-suppress-disable(my-aspect) trailing'].join('\n');
-    const tree = await parseFile('x.ts', code);
-    const ranges = collectSuppressions(tree, 'x.ts', 2);
+    const ranges = await collectFromSource('x.ts', code, 2);
     expect(ranges).toEqual([]);
     expect(formatSuppressedRangesForAspect(ranges, 'my-aspect')).toEqual([]);
   });
 
   it('an enable directly following its disable emits no span', async () => {
     const code = ['// yg-suppress-disable(my-aspect) a', '// yg-suppress-enable(my-aspect)', 'const x = 1;'].join('\n');
-    const tree = await parseFile('x.ts', code);
-    const ranges = collectSuppressions(tree, 'x.ts', 3);
+    const ranges = await collectFromSource('x.ts', code, 3);
     // disable opens at line 2, enable closes at line 1 → inverted → dropped.
     expect(formatSuppressedRangesForAspect(ranges, 'my-aspect')).toEqual([]);
   });
@@ -544,8 +537,7 @@ describe('suppress: degenerate inverted ranges are never emitted (NOTE 6)', () =
 describe('formatSuppressedRangesForAspect', () => {
   it('single-line marker → one 1-line span on the line below the marker', async () => {
     const code = [`a();`, `// yg-suppress(my-aspect) reason`, `b();`].join('\n');
-    const tree = await parseFile('x.ts', code);
-    const ranges = collectSuppressions(tree, 'x.ts', 3);
+    const ranges = await collectFromSource('x.ts', code, 3);
     expect(formatSuppressedRangesForAspect(ranges, 'my-aspect')).toEqual([{ startLine: 3, endLine: 3 }]);
   });
 
@@ -557,31 +549,27 @@ describe('formatSuppressedRangesForAspect', () => {
       `// yg-suppress-enable(my-aspect)`,
       `c();`,
     ].join('\n');
-    const tree = await parseFile('x.ts', code);
-    const ranges = collectSuppressions(tree, 'x.ts', 5);
+    const ranges = await collectFromSource('x.ts', code, 5);
     // disable on line 1 opens at line 2; enable on line 4 closes at line 3.
     expect(formatSuppressedRangesForAspect(ranges, 'my-aspect')).toEqual([{ startLine: 2, endLine: 3 }]);
   });
 
   it('lone disable (no enable) → span runs to EOF (totalLines)', async () => {
     const code = [`// yg-suppress-disable(my-aspect) reason`, `a();`, `b();`].join('\n');
-    const tree = await parseFile('x.ts', code);
-    const ranges = collectSuppressions(tree, 'x.ts', 3);
+    const ranges = await collectFromSource('x.ts', code, 3);
     expect(formatSuppressedRangesForAspect(ranges, 'my-aspect')).toEqual([{ startLine: 2, endLine: 3 }]);
   });
 
   it('wildcard marker applies to ANY aspect id', async () => {
     const code = [`a();`, `// yg-suppress(*) reason`, `b();`].join('\n');
-    const tree = await parseFile('x.ts', code);
-    const ranges = collectSuppressions(tree, 'x.ts', 3);
+    const ranges = await collectFromSource('x.ts', code, 3);
     expect(formatSuppressedRangesForAspect(ranges, 'whatever-id')).toEqual([{ startLine: 3, endLine: 3 }]);
     expect(formatSuppressedRangesForAspect(ranges, 'another-id')).toEqual([{ startLine: 3, endLine: 3 }]);
   });
 
   it('returns [] when no range applies to the aspect', async () => {
     const code = [`a();`, `// yg-suppress(other-aspect) reason`, `b();`].join('\n');
-    const tree = await parseFile('x.ts', code);
-    const ranges = collectSuppressions(tree, 'x.ts', 3);
+    const ranges = await collectFromSource('x.ts', code, 3);
     expect(formatSuppressedRangesForAspect(ranges, 'my-aspect')).toEqual([]);
   });
 
@@ -594,8 +582,7 @@ describe('formatSuppressedRangesForAspect', () => {
       `// yg-suppress(my-aspect) reason B`,
       `d();`,
     ].join('\n');
-    const tree = await parseFile('x.ts', code);
-    const ranges = collectSuppressions(tree, 'x.ts', 6);
+    const ranges = await collectFromSource('x.ts', code, 6);
     expect(formatSuppressedRangesForAspect(ranges, 'my-aspect')).toEqual([
       { startLine: 3, endLine: 3 },
       { startLine: 6, endLine: 6 },
