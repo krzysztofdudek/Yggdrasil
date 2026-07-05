@@ -121,7 +121,7 @@ Full lock format, hash ingredients, caching policy, merge procedure, garbage-col
 | `yg check --quiet` / `-q` | With `--approve`: silence progress output on stderr. |
 | `yg context --file <path>` | Show owning node, effective aspects (`read:` paths), dependencies |
 | `yg context --node <path>` | Show node overview — aspects (with subject-file counts), flows, dependents, log state, source files |
-| `yg aspect-test --aspect <id> --node <path>` | Diagnostic — run a check/reviewer live without touching the lock (`--dry-run` previews an LLM prompt; `--files` for ad-hoc and `--check-determinism`, both deterministic aspects only) |
+| `yg aspect-test --aspect <id> --node <path>` | Diagnostic — run a check/reviewer live without touching the lock (`--dry-run` previews an LLM prompt; `--files` for ad-hoc and `--check-determinism`, both deterministic aspects only; `--repeat N` re-runs an LLM aspect N times to measure reviewer self-consistency, not correctness) |
 | `yg impact --node\|--file\|--aspect\|--flow\|--type <x>` | Blast radius — which pairs an edit would invalidate, before a change |
 | `yg tree [--root <path>] [--depth <n>]` | Browse graph structure |
 | `yg find "<query>"` | Locate entry-point nodes/aspects by natural-language query |

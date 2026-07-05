@@ -53,6 +53,7 @@ export function registerAspectTestCommand(program: Command): void {
     .option('--files <paths...>', 'ad-hoc source files to check (deterministic aspects only; no graph attachment)')
     .option('--check-determinism', 'run the check twice and fail if results differ (deterministic aspects only)')
     .option('--dry-run', 'for LLM aspects: print the assembled prompt(s) to stdout, make no reviewer/LLM call (companion hook runs live)')
+    .option('--repeat <n>', 'for LLM aspects: re-run each unit N times (N >= 2) to measure how consistently the reviewer judges the same prompt (self-consistency, not correctness); not valid with --dry-run, --files, or deterministic aspects')
     .action(async (opts) => {
       const projectRoot = process.cwd();
       try {
@@ -71,6 +72,55 @@ export function registerAspectTestCommand(program: Command): void {
 
         const hasNode = typeof opts.node === 'string';
         const hasFiles = Array.isArray(opts.files) && opts.files.length > 0;
+
+        // ── --repeat validation (LLM stability measurement) ──────────────────
+        // --repeat re-runs each unit N times with consensus FORCED to 1 per run,
+        // measuring how consistently the reviewer judges the SAME prompt. It is
+        // meaningless for deterministic checks (exactly reproducible), for
+        // --dry-run (no reviewer call to repeat), and for --files (deterministic
+        // only). Requires an integer of at least 2.
+        let repeatN = 1;
+        if (opts.repeat !== undefined) {
+          const raw = String(opts.repeat).trim();
+          const parsed = /^[0-9]+$/.test(raw) ? Number.parseInt(raw, 10) : NaN;
+          if (!Number.isInteger(parsed) || parsed < 2) {
+            process.stderr.write(`Error: ${buildIssueMessage({
+                what: `--repeat must be an integer of at least 2 (got '${opts.repeat}').`,
+                why: `--repeat re-runs each unit N times to measure how consistently the reviewer judges the same prompt; a value below 2 measures nothing.`,
+                next: `Pass --repeat 2 (or higher) with an LLM aspect and --node.`,
+              })}\n`);
+            process.exit(1);
+            return;
+          }
+          if (opts.dryRun) {
+            process.stderr.write(`Error: ${buildIssueMessage({
+                what: `--repeat cannot be combined with --dry-run.`,
+                why: `--dry-run makes no reviewer call, so there is nothing to repeat — the two flags are mutually exclusive.`,
+                next: `Drop --dry-run to run the reviewer N times, or drop --repeat to preview the prompt once.`,
+              })}\n`);
+            process.exit(1);
+            return;
+          }
+          if (hasFiles) {
+            process.stderr.write(`Error: ${buildIssueMessage({
+                what: `--repeat cannot be combined with --files.`,
+                why: `--repeat measures reviewer self-consistency, which applies only to LLM aspects; --files runs a deterministic check that returns the same result every time.`,
+                next: `Use --repeat with an LLM aspect and --node <node-path>.`,
+              })}\n`);
+            process.exit(1);
+            return;
+          }
+          if (aspect.reviewer.type !== 'llm') {
+            process.stderr.write(`Error: ${buildIssueMessage({
+                what: `--repeat is not supported for ${aspect.reviewer.type} aspect '${opts.aspect}'.`,
+                why: `A deterministic check is exactly reproducible — repeating it measures nothing. --repeat measures how consistently an LLM reviewer judges the same prompt.`,
+                next: `Run --repeat against an LLM aspect (content.md), or use --check-determinism to re-run a deterministic aspect.`,
+              })}\n`);
+            process.exit(1);
+            return;
+          }
+          repeatN = parsed;
+        }
 
         // ── LLM aspect path ──────────────────────────────────────────────────
         if (aspect.reviewer.type === 'llm') {
@@ -106,7 +156,7 @@ export function registerAspectTestCommand(program: Command): void {
             return;
           }
 
-          const llmExit = await runLlmAspectTest(graph, projectRoot, aspect, nodePath, opts.dryRun ?? false);
+          const llmExit = await runLlmAspectTest(graph, projectRoot, aspect, nodePath, opts.dryRun ?? false, repeatN);
           process.stdout.write(DIAGNOSTIC_FOOTER);
           // Refused or incomplete (fail-closed) units exit 1, per the documented
           // 'exit 1 on violations or refusals' contract.
@@ -358,6 +408,15 @@ async function resolveSuppressedRangesForTest(
  * per prompt, and prints results. The lock is NEVER written. Returns the exit
  * code the caller should use: 1 when any unit is refused or could not be
  * verified (fail-closed), 0 otherwise.
+ *
+ * When `repeat >= 2` the run enters STABILITY mode: the prompt (and companions)
+ * are built ONCE per unit, then the reviewer is called `repeat` times with
+ * consensus FORCED to 1 per run. Each run is its own verdict (no aggregation, so
+ * no losing-vote mislabeling); the per-unit `stability: k/N satisfied` line
+ * reports how consistently the reviewer judged the same prompt — a variance
+ * measure, NOT a correctness claim. Provider-error runs are excluded from the
+ * k/N denominator and reported separately; a unit with any valid refused run is
+ * refused, and a unit whose runs ALL erred is incomplete (fail closed).
  */
 async function runLlmAspectTest(
   graph: import('../model/graph.js').Graph,
@@ -365,6 +424,7 @@ async function runLlmAspectTest(
   aspect: import('../model/graph.js').AspectDef,
   nodePath: string,
   dryRun: boolean,
+  repeat: number,
 ): Promise<0 | 1> {
   // Resolve the tier for this aspect.
   const reviewer = graph.config.reviewer;
@@ -447,6 +507,15 @@ async function runLlmAspectTest(
       return 1;
     }
 
+    // Stability mode prints the total reviewer-call budget BEFORE the first
+    // call (repeat N × units), so the cost is visible up front.
+    if (repeat >= 2) {
+      const units = myPairs.length;
+      process.stdout.write(
+        `repeat ${repeat} × ${units} unit${units === 1 ? '' : 's'} = ${repeat * units} reviewer calls\n`,
+      );
+    }
+
     // Per-pair verdict lines stream as results arrive; a one-line summary stamp
     // follows the loop. Skipped pairs (companion/suppress/reviewer infra) make
     // the run incomplete — fail closed.
@@ -496,6 +565,54 @@ async function runLlmAspectTest(
         suppressedRanges,
         scope: aspect.scope,
       });
+
+      if (repeat >= 2) {
+        // ── Stability mode: N runs of the SAME prompt, consensus forced to 1 ──
+        // Each run is its own verdict (no aggregation → no losing-vote
+        // mislabeling). Provider-error runs are excluded from the k/N
+        // denominator and reported separately; any valid refused run makes the
+        // unit refused; a unit whose runs ALL erred is incomplete (fail closed).
+        let satisfiedRuns = 0;
+        let refusedRuns = 0;
+        let providerErrorRuns = 0;
+        for (let i = 1; i <= repeat; i++) {
+          let response;
+          try {
+            ({ response } = await verifyWithConsensus(provider, prompt, 1));
+          } catch (e) {
+            debugWrite(`[aspect-test] reviewer threw for ${aspect.id} on ${pair.unitKey} run ${i}/${repeat}: ${e instanceof Error ? e.message : String(e)}`);
+            providerErrorRuns++;
+            process.stdout.write(`${pair.unitKey} run ${i}/${repeat}: provider-error — reviewer threw: ${e instanceof Error ? e.message : String(e)}\n`);
+            continue;
+          }
+          if (!response.satisfied && response.errorSource === 'provider') {
+            debugWrite(`[aspect-test] provider error for ${aspect.id} on ${pair.unitKey} run ${i}/${repeat}: ${response.reason}`);
+            providerErrorRuns++;
+            process.stdout.write(`${pair.unitKey} run ${i}/${repeat}: provider-error — ${response.reason}\n`);
+            continue;
+          }
+          if (response.satisfied) satisfiedRuns++;
+          else refusedRuns++;
+          const verdict = response.satisfied ? 'satisfied' : 'refused';
+          process.stdout.write(`${pair.unitKey} run ${i}/${repeat}: ${verdict} — ${response.reason}\n`);
+        }
+
+        const validRuns = satisfiedRuns + refusedRuns;
+        if (validRuns === 0) {
+          // Every run erred — the unit was never actually judged. Fail closed.
+          process.stdout.write(`  stability: not measured — all ${repeat} runs returned provider errors\n`);
+          skippedCount++;
+          continue;
+        }
+        // k/N is a self-CONSISTENCY figure (how often the same prompt drew a
+        // 'satisfied' verdict), never a correctness score.
+        const excludedNote = providerErrorRuns > 0
+          ? ` (${providerErrorRuns} provider-error run${providerErrorRuns === 1 ? '' : 's'} excluded)`
+          : '';
+        process.stdout.write(`  stability: ${satisfiedRuns}/${validRuns} satisfied${excludedNote}\n`);
+        if (refusedRuns > 0) refusedCount++;
+        continue;
+      }
 
       let response;
       let votes;

@@ -183,6 +183,9 @@ yg aspect-test --aspect sibling-test-file --node orders/handler --check-determin
 # LLM: run the reviewer, or preview the assembled prompt
 yg aspect-test --aspect test-quality --node orders/handler
 yg aspect-test --aspect test-quality --node orders/handler --dry-run
+
+# LLM: measure how consistently the reviewer judges the SAME prompt
+yg aspect-test --aspect test-quality --node orders/handler --repeat 5
 \`\`\`
 
 Every run carries a one-line verdict stamp \`yg aspect-test:
@@ -203,6 +206,20 @@ violation sets differ. If aspect-test repeatedly approves what the lock refuses,
 the rule text is ambiguous — sharpen \`content.md\` (cascades; check
 \`yg impact\`) or propose a \`yg-suppress\`; there is deliberately no
 verdict-drop.
+\`--repeat <N>\` (LLM aspects only, N >= 2) re-runs each unit N times against the
+SAME prompt and reports a per-unit \`stability: k/N satisfied\` line — how often
+the reviewer returned the same verdict. Each run is forced to consensus 1 (one
+vote, no aggregation), so the figure measures the judge's raw self-consistency,
+NOT correctness: a rule can be consistently wrong, and \`3/3 satisfied\` says
+only that the reviewer agreed with itself, not that the code is right. The total
+reviewer-call budget (\`repeat N × units\`) prints before the first call.
+Provider-error runs are excluded from the k/N denominator and reported
+separately; any single refused run marks the unit refused (exit 1), and a unit
+whose runs ALL erred is incomplete (fail closed). \`--repeat\` is rejected with
+\`--dry-run\` (no call to repeat), with \`--files\`, and for deterministic aspects
+(a local check is already exactly reproducible — use \`--check-determinism\`
+there). Use it while authoring an LLM rule to catch a prompt so ambiguous the
+reviewer flips its own verdict run to run.
 
 ## yg impact
 

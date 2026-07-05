@@ -138,7 +138,7 @@ describe('registerAspectTestCommand', () => {
     expect(findCommand(program, 'deterministic-test')).toBeUndefined();
   });
 
-  it('exposes --aspect, --node, --files, --check-determinism, and --dry-run options', () => {
+  it('exposes --aspect, --node, --files, --check-determinism, --dry-run, and --repeat options', () => {
     const program = new Command();
     registerAspectTestCommand(program);
     const cmd = findCommand(program, 'aspect-test')!;
@@ -148,6 +148,7 @@ describe('registerAspectTestCommand', () => {
     expect(flags).toContain('--files');
     expect(flags).toContain('--check-determinism');
     expect(flags).toContain('--dry-run');
+    expect(flags).toContain('--repeat');
   });
 
   it('requires the --aspect option', () => {
@@ -790,6 +791,147 @@ describe('aspect-test command behavior (mocked runners)', () => {
     expect(stdout).not.toContain('<companions>');
     expect(stdout).toContain('=== prompt for node:N ===');
     expect(exitCode).toBeUndefined();
+  });
+
+  // ── --repeat: LLM stability measurement ─────────────────────────────────────
+
+  // A provider whose verdict sequence is scripted per call; the last entry
+  // repeats if the run asks for more calls than the sequence supplies.
+  type ScriptedResponse = { satisfied: boolean; reason: string; errorSource: 'codeViolation' | 'provider' };
+  function seqProvider(responses: ScriptedResponse[]): { provider: LlmProvider; calls: () => number } {
+    let i = 0;
+    const provider = makeMockProvider({
+      async verifyAspect() {
+        const r = responses[Math.min(i, responses.length - 1)]!;
+        i++;
+        return r;
+      },
+    });
+    return { provider, calls: () => i };
+  }
+
+  function stageLlmOnePair(configConsensus?: number): void {
+    const nodeEntry = { path: 'N', meta: { type: 'service', description: 'node desc' } };
+    mockLoadGraph.mockResolvedValue(
+      makeGraph({
+        aspects: [{ id: 'llm-a', reviewer: { type: 'llm' } }],
+        nodes: [['N', nodeEntry]],
+        config: configConsensus === undefined
+          ? undefined
+          : { reviewer: { tiers: { standard: { provider: 'ollama', consensus: configConsensus, config: { model: 'llama3', temperature: 0 } } } } },
+      }) as never,
+    );
+    mockComputeExpectedPairs.mockResolvedValue({
+      pairs: [{ aspectId: 'llm-a', kind: 'llm' as const, unitKey: 'node:N', nodePath: 'N', status: 'enforced' as const, subjectFiles: [] }],
+      unreadable: [],
+    });
+  }
+
+  it('--repeat 3 mixed verdicts: prints budget, per-run lines, stability 2/3, exit 1 (any refused run)', async () => {
+    stageLlmOnePair();
+    mockCreateLlmProvider.mockReturnValue(seqProvider([
+      { satisfied: true, reason: 'ok', errorSource: 'codeViolation' },
+      { satisfied: false, reason: 'nope', errorSource: 'codeViolation' },
+      { satisfied: true, reason: 'ok', errorSource: 'codeViolation' },
+    ]).provider);
+    await runCommand(['--aspect', 'llm-a', '--node', 'N', '--repeat', '3']);
+    const clean = stripAnsi(stdout);
+    expect(clean).toContain('repeat 3 × 1 unit = 3 reviewer calls');
+    expect(clean).toContain('node:N run 1/3: satisfied — ok');
+    expect(clean).toContain('node:N run 2/3: refused — nope');
+    expect(clean).toContain('stability: 2/3 satisfied');
+    expect(clean).toContain('yg aspect-test: refused — 1 of 1 units refused');
+    expect(exitCode).toBe(1);
+  });
+
+  it('--repeat 3 all satisfied: stability 3/3, exit 0', async () => {
+    stageLlmOnePair();
+    mockCreateLlmProvider.mockReturnValue(seqProvider([
+      { satisfied: true, reason: 'ok', errorSource: 'codeViolation' },
+    ]).provider);
+    await runCommand(['--aspect', 'llm-a', '--node', 'N', '--repeat', '3']);
+    const clean = stripAnsi(stdout);
+    expect(clean).toContain('stability: 3/3 satisfied');
+    expect(clean).toContain('yg aspect-test: satisfied — 1 unit satisfied');
+    expect(exitCode).toBeUndefined();
+  });
+
+  it('--repeat 3 all provider-error: stability not measured, incomplete stamp, exit 1 (fail closed)', async () => {
+    stageLlmOnePair();
+    mockCreateLlmProvider.mockReturnValue(seqProvider([
+      { satisfied: false, reason: 'HTTP 500', errorSource: 'provider' },
+    ]).provider);
+    await runCommand(['--aspect', 'llm-a', '--node', 'N', '--repeat', '3']);
+    const clean = stripAnsi(stdout);
+    expect(clean).toContain('stability: not measured — all 3 runs returned provider errors');
+    expect(clean).toContain('yg aspect-test: incomplete — 1 of 1 units could not be verified');
+    expect(exitCode).toBe(1);
+  });
+
+  it('--repeat 3 with one provider-error run: excluded from denominator, reported separately, exit 0', async () => {
+    stageLlmOnePair();
+    mockCreateLlmProvider.mockReturnValue(seqProvider([
+      { satisfied: true, reason: 'ok', errorSource: 'codeViolation' },
+      { satisfied: false, reason: 'HTTP 500', errorSource: 'provider' },
+      { satisfied: true, reason: 'ok', errorSource: 'codeViolation' },
+    ]).provider);
+    await runCommand(['--aspect', 'llm-a', '--node', 'N', '--repeat', '3']);
+    const clean = stripAnsi(stdout);
+    expect(clean).toContain('node:N run 2/3: provider-error — HTTP 500');
+    expect(clean).toContain('stability: 2/2 satisfied (1 provider-error run excluded)');
+    expect(clean).toContain('yg aspect-test: satisfied — 1 unit satisfied');
+    expect(exitCode).toBeUndefined();
+  });
+
+  it('--repeat forces consensus to 1 per run: bills exactly repeat calls even when the tier consensus is higher', async () => {
+    stageLlmOnePair(5); // tier consensus 5 — must be IGNORED in stability mode
+    const scripted = seqProvider([{ satisfied: true, reason: 'ok', errorSource: 'codeViolation' }]);
+    mockCreateLlmProvider.mockReturnValue(scripted.provider);
+    await runCommand(['--aspect', 'llm-a', '--node', 'N', '--repeat', '2']);
+    // 2 runs × consensus-1 = 2 provider calls, NOT 2 × 5.
+    expect(scripted.calls()).toBe(2);
+    expect(stripAnsi(stdout)).toContain('repeat 2 × 1 unit = 2 reviewer calls');
+    expect(exitCode).toBeUndefined();
+  });
+
+  it('--repeat 1 is rejected (needs an integer of at least 2), exit 1', async () => {
+    stageLlmOnePair();
+    await runCommand(['--aspect', 'llm-a', '--node', 'N', '--repeat', '1']);
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain('--repeat must be an integer of at least 2');
+  });
+
+  it('--repeat with a non-integer value is rejected, exit 1', async () => {
+    stageLlmOnePair();
+    await runCommand(['--aspect', 'llm-a', '--node', 'N', '--repeat', 'abc']);
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain('--repeat must be an integer of at least 2');
+  });
+
+  it('--repeat is rejected with --dry-run, exit 1', async () => {
+    stageLlmOnePair();
+    await runCommand(['--aspect', 'llm-a', '--node', 'N', '--repeat', '3', '--dry-run']);
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain('--repeat cannot be combined with --dry-run');
+  });
+
+  it('--repeat is rejected with --files, exit 1', async () => {
+    stageLlmOnePair();
+    await runCommand(['--aspect', 'llm-a', '--files', 'src/a.ts', '--repeat', '3']);
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain('--repeat cannot be combined with --files');
+  });
+
+  it('--repeat is rejected for a deterministic aspect, exit 1', async () => {
+    mockLoadGraph.mockResolvedValue(
+      makeGraph({
+        aspects: [{ id: 'det-a', reviewer: { type: 'deterministic' } }],
+        nodes: [['N', { path: 'N', meta: {} }]],
+      }) as never,
+    );
+    await runCommand(['--aspect', 'det-a', '--node', 'N', '--repeat', '3']);
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain("--repeat is not supported for deterministic aspect 'det-a'");
   });
 });
 
