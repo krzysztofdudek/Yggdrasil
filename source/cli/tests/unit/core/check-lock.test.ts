@@ -392,3 +392,48 @@ describe('runCheck — recovery strings only name git-tracked lock files', () =>
     }
   });
 });
+
+// ── Verified-pair tally split (deterministic vs LLM) ──────────────────────────
+
+/** A graph with node `svc` carrying both an LLM aspect and a deterministic aspect. */
+function buildMixedGraph(): Graph {
+  const rootPath = path.join(tmpDir, '.yggdrasil');
+  mkdirSync(rootPath, { recursive: true });
+  const llmAspect: AspectDef = {
+    id: 'llm-asp', name: 'llm-asp', reviewer: { type: 'llm' }, status: 'enforced',
+    artifacts: [{ filename: 'content.md', content: 'rule' }],
+  } as AspectDef;
+  const detAspect = {
+    id: 'det-asp', name: 'det-asp', reviewer: { type: 'deterministic' }, status: 'enforced',
+    artifacts: [{ filename: 'check.mjs', content: 'export function check(){return [];}\n' }],
+  } as unknown as AspectDef;
+  const node: GraphNode = {
+    path: 'svc',
+    meta: { name: 'svc', type: 'service', aspects: ['llm-asp', 'det-asp'], mapping: ['src/a.ts'] },
+    children: [], parent: null,
+  } as GraphNode;
+  return {
+    config: { version: '5.0.0', reviewer: { tiers: { default: TIER }, default: 'default' } },
+    architecture: { node_types: { service: { description: 'test' } } },
+    nodes: new Map([['svc', node]]),
+    aspects: [llmAspect, detAspect],
+    flows: [], schemas: [], rootPath,
+  } as unknown as Graph;
+}
+
+describe('runCheck — verified pair tally split (deterministic vs LLM)', () => {
+  it('verifiedDet + verifiedLlm sum to the total verified pairs, split by reviewer kind', async () => {
+    writeFile('src/a.ts', 'code');
+    const graph = buildMixedGraph();
+    await writeSeededLock(graph, {
+      verdicts: [
+        { aspectId: 'llm-asp', unitKey: nodeUnit('svc'), verdict: 'approved' },
+        { aspectId: 'det-asp', unitKey: nodeUnit('svc'), verdict: 'approved' },
+      ],
+    });
+    const result = await runCheck(graph, null);
+    expect(result.verifiedLlm).toBe(1);
+    expect(result.verifiedDet).toBe(1);
+    expect(result.verifiedDet + result.verifiedLlm).toBe(2);
+  });
+});

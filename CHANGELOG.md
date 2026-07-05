@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Agents can now onboard a human on demand.** A new knowledge topic — `yg knowledge read onboarding` — is a full tutor playbook: the agent calibrates once, detects the context (a repo the team already governs, a repo without a graph, or no repo at all), teaches through live, zero-trace demonstrations on the user's own code (`yg aspect-test` never writes the lock; a reverted scratch edit leaves the repo byte-identical), and closes with the user's own words, not applause. The agent rules advertise it, so "onboard me into Yggdrasil" works in any adopted repo, in any language.
+- **The `yg check` header and the portal's counts panel now split the verified-pair count into deterministic vs LLM-reviewed.** Both previously reported one combined "verified" number, so a fully green build read the same whether every pair was checked for free by a local rule or actually reviewed by an LLM. The PASS/FAIL header now appends `N verified (D deterministic, L LLM)` whenever at least one pair is verified, and the portal's coverage panel shows the identical split next to its existing expected-pair breakdown — both read off the same per-pair tally `yg check` already computes, so the two can never disagree. On a fresh checkout with no local deterministic cache yet, the deterministic count honestly reads 0 until `yg check --approve --only-deterministic` rebuilds it — this is not a bug, those pairs are genuinely unverified.
 
 ### Changed
 

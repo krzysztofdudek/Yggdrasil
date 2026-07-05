@@ -29,6 +29,11 @@ coverage gaps (\`unmapped-files\` errors under required roots,
 orphans/misplaced files, \`prompt-too-large\`, \`lock-invalid\`. Severity of a pair
 follows its effective status: enforced → error (blocks), advisory → warning.
 
+When at least one pair is verified, the PASS/FAIL header shows how many green
+pairs are deterministic (machine-checked locally, zero LLM cost) vs LLM-reviewed
+— e.g. \`12 verified (9 deterministic, 3 LLM)\` — so a clean run never hides how
+much of it was actually reviewed by an LLM versus checked for free.
+
 Exit 0 = clean. Exit 1 = errors found. CI runs it cheap and keyless.
 
 ### Default grouped output

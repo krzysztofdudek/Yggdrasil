@@ -63,6 +63,8 @@ function makeCheckResult(issues: CheckIssue[]): CheckResult {
     suggestedNext: null,
     advisoryWarnings: 0,
     draftSkipped: 0,
+    verifiedDet: 0,
+    verifiedLlm: 0,
   };
 }
 

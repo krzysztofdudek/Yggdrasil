@@ -62,7 +62,7 @@
     var rows = [['metric', 'value']];
     var keys = [
       'nodes', 'aspects', 'flows', 'pairsTotal', 'pairsLLM', 'pairsDet',
-      'verified', 'refused', 'advisoryRefused', 'unverified', 'noRule', 'draft', 'notApplicable',
+      'verified', 'verifiedDet', 'verifiedLlm', 'refused', 'advisoryRefused', 'unverified', 'noRule', 'draft', 'notApplicable',
       'suppressed', 'coveredFiles', 'uncoveredFiles', 'totalFiles', 'errors', 'warnings',
     ];
     for (var i = 0; i < keys.length; i += 1) rows.push([keys[i], c[keys[i]]]);

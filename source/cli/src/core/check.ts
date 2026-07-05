@@ -69,6 +69,15 @@ export interface CheckResult {
   advisoryWarnings: number;
   /** Count of (node, aspect) pairs where the aspect resolves to effective status 'draft'. */
   draftSkipped: number;
+  /**
+   * Count of VERIFIED pairs whose reviewer kind is deterministic (`pair.kind === 'deterministic'`).
+   * Tallied from the same `verification.pairs` loop that emits per-pair issues — `emitPairIssue`
+   * emits nothing for a verified pair, so this is the only place the datum exists. Read-side only:
+   * does not fold into any lock hash (frozen contract — `core/pair-hash.ts` is untouched).
+   */
+  verifiedDet: number;
+  /** Count of VERIFIED pairs whose reviewer kind is LLM (`pair.kind === 'llm'`). See `verifiedDet`. */
+  verifiedLlm: number;
 }
 
 // ── Lock verification → issue emission (live path, spec §6) ──
@@ -507,6 +516,12 @@ export async function runCheck(graph: Graph, gitTrackedFiles: string[] | null): 
   // lock-invalid issue and SKIP lock verification + log integrity (the baseline
   // home is untrustworthy). The prompt-size gate is folded into verifyLock.
   const lockIssues: CheckIssue[] = [];
+  // Verified-pair tally, split by reviewer kind (read-side projection — see
+  // CheckResult.verifiedDet/verifiedLlm). Declared outside the try so a
+  // lock-invalid failure (which skips verification entirely) legitimately
+  // reports 0/0 rather than leaving the fields undefined.
+  let verifiedDet = 0;
+  let verifiedLlm = 0;
   try {
     const lock = readLock(graph.rootPath);
     const verification = await verifyLock(graph, lock);
@@ -525,8 +540,14 @@ export async function runCheck(graph: Graph, gitTrackedFiles: string[] | null): 
     }
 
     // Per-pair issues (verified → none; refused / unverified / prompt-too-large).
+    // `emitPairIssue` emits nothing for a verified pair, so this is the only place
+    // the verified/deterministic-vs-LLM split can be tallied.
     for (const vp of verification.pairs) {
       lockIssues.push(...emitPairIssue(vp));
+      if (vp.state.kind === 'verified') {
+        if (vp.pair.kind === 'llm') verifiedLlm++;
+        else verifiedDet++;
+      }
     }
 
     // Relation-conformance, computed LIVE (parse + resolve + verify every run).
@@ -631,6 +652,8 @@ export async function runCheck(graph: Graph, gitTrackedFiles: string[] | null): 
     suggestedNext,
     advisoryWarnings,
     draftSkipped,
+    verifiedDet,
+    verifiedLlm,
   };
 }
 

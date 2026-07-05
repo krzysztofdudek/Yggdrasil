@@ -92,6 +92,13 @@ describe('portal extraction — count parity with yg check (the trust core)', ()
     expect(data.meta.counts.pairsLLM + data.meta.counts.pairsDet).toBe(expectedPairCount);
   });
 
+  it('verifiedDet + verifiedLlm split sums back to verified — the deterministic-vs-LLM tally never drifts', () => {
+    // Same identity CheckResult.verifiedDet/verifiedLlm must hold: both are read off the
+    // identical pairs loop that produces `verified` here, so the split can never diverge
+    // from the total it splits.
+    expect(data.meta.counts.verifiedDet + data.meta.counts.verifiedLlm).toBe(data.meta.counts.verified);
+  });
+
   it('the blocking refused count is ENFORCED refusals only (this repo: 0); advisory refusals never block', () => {
     // Blocking `refused` counts ENFORCED refusals only. This repo has none, so it is exactly 0,
     // matching `yg check` (0 errors). The honesty invariant: an ADVISORY aspect's refusal renders
@@ -308,6 +315,13 @@ describe('buildCounts — pair-state bucketing over every kind (the honesty swit
     ).toBe(expected.length);
     expect(counts.pairsTotal).toBe(expected.length);
     expect(counts.pairsLLM + counts.pairsDet).toBe(expected.length);
+  });
+
+  it('verifiedDet + verifiedLlm === verified (the split never over/under-counts the total)', () => {
+    // Case 0 is the sole verified pair and is `llm` (i % 2 === 0), so the split is 0 det / 1 llm.
+    expect(counts.verifiedDet).toBe(0);
+    expect(counts.verifiedLlm).toBe(1);
+    expect(counts.verifiedDet + counts.verifiedLlm).toBe(counts.verified);
   });
 
   it('the two fail-closed gate states land in UNVERIFIED — not refused, not dropped', () => {

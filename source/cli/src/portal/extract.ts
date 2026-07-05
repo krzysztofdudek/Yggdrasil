@@ -211,6 +211,8 @@ export function buildCounts(
   expectedPairs: PairComputation['pairs'],
 ): PortalCounts {
   let verified = 0;
+  let verifiedDet = 0;
+  let verifiedLlm = 0;
   let refused = 0;
   let unverified = 0;
   let advisoryRefused = 0;
@@ -220,6 +222,10 @@ export function buildCounts(
     switch (displayPairState(vp.state.kind, vp.pair.status)) {
       case 'verified':
         verified += 1;
+        // Split by reviewer kind — the same split CheckResult.verifiedDet/verifiedLlm tallies
+        // off the identical pairs loop in runCheck, so the two stay in lockstep.
+        if (vp.pair.kind === 'llm') verifiedLlm += 1;
+        else verifiedDet += 1;
         break;
       case 'refused':
         // ENFORCED refusal — a real, blocking "no".
@@ -254,6 +260,8 @@ export function buildCounts(
     pairsLLM,
     pairsDet,
     verified,
+    verifiedDet,
+    verifiedLlm,
     refused,
     unverified,
     advisoryRefused,

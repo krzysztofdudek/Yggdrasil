@@ -49,6 +49,14 @@ export interface PortalCounts {
   pairsDet: number;
   // Pair states (a reviewer or check produced them).
   verified: number;
+  /**
+   * Split of `verified` by reviewer kind: pairs whose verdict came from a local, free
+   * `check.mjs` (verifiedDet) vs an LLM reviewer call (verifiedLlm). Additive — mirrors
+   * `CheckResult.verifiedDet`/`verifiedLlm` (the same tally, read off the same pairs loop),
+   * so `verifiedDet + verifiedLlm === verified` always holds.
+   */
+  verifiedDet: number;
+  verifiedLlm: number;
   // ENFORCED refusals only — a real, blocking "no" that equals what `yg check` blocks on.
   refused: number;
   unverified: number;

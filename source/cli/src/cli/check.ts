@@ -754,6 +754,11 @@ function renderHeader(result: CheckResult, errorCount: number, warningCount: num
   metrics.push(`${result.aspectCount} aspects`);
   metrics.push(`${result.flowCount} flows`);
 
+  const verifiedTotal = result.verifiedDet + result.verifiedLlm;
+  if (verifiedTotal > 0) {
+    metrics.push(`${verifiedTotal} verified (${result.verifiedDet} deterministic, ${result.verifiedLlm} LLM)`);
+  }
+
   if (result.draftSkipped > 0) {
     metrics.push(`${result.draftSkipped} draft`);
   }

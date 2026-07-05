@@ -51,6 +51,8 @@ function baseResult(issues: CheckIssue[]): CheckResult {
     suggestedNext: hasError ? 'yg check --approve' : null,
     advisoryWarnings: issues.filter((i) => i.code === 'aspect-violation-advisory').length,
     draftSkipped: 0,
+    verifiedDet: 0,
+    verifiedLlm: 0,
   };
 }
 
@@ -240,6 +242,8 @@ describe('check render — Next line surfacing', () => {
       suggestedNext: advWarning.messageData.next,
       advisoryWarnings: 1,
       draftSkipped: 0,
+      verifiedDet: 0,
+      verifiedLlm: 0,
     };
   }
 
@@ -626,6 +630,8 @@ describe('check render — Next: residual annotation (task 1.4)', () => {
       suggestedNext: null,
       advisoryWarnings: 0,
       draftSkipped: 0,
+      verifiedDet: 0,
+      verifiedLlm: 0,
     };
     const out = stripAnsi(formatOutput(green));
     expect(out).not.toContain('Next:');
@@ -969,6 +975,8 @@ describe('check render — PASS (auto-filled) header marker (task 3.4)', () => {
       suggestedNext: null,
       advisoryWarnings: 0,
       draftSkipped: 0,
+      verifiedDet: 0,
+      verifiedLlm: 0,
     };
   }
   function warningsOnlyGreenResult(): CheckResult {
@@ -992,6 +1000,8 @@ describe('check render — PASS (auto-filled) header marker (task 3.4)', () => {
       suggestedNext: 'fix it',
       advisoryWarnings: 1,
       draftSkipped: 0,
+      verifiedDet: 0,
+      verifiedLlm: 0,
     };
   }
 
