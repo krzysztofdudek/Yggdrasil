@@ -240,12 +240,37 @@ describe.skipIf(!distExists)('CLI E2E — lifecycle (log, aspect-test, platform,
     }
   });
 
-  it('yg init fresh in non-TTY returns exit 1', () => {
+  it('yg init fresh in non-TTY with no flags returns exit 1 asking for --platform', () => {
     const emptyDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-init-fresh-'));
     try {
       const { status, stderr } = run(['init'], emptyDir);
       expect(status).toBe(1);
-      expect(stderr).toContain('interactive terminal');
+      expect(stderr).toContain('no TTY');
+      expect(stderr).toContain('--platform');
+    } finally {
+      rmSync(emptyDir, { recursive: true, force: true });
+    }
+  });
+
+  it('yg init fresh in non-TTY with --platform (no --provider) bootstraps keyless', () => {
+    const emptyDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-init-keyless-'));
+    try {
+      const { status, stdout } = run(['init', '--platform', 'generic'], emptyDir);
+      expect(status).toBe(0);
+      expect(stdout).toContain('keyless');
+      const cfg = readFileSync(path.join(emptyDir, '.yggdrasil', 'yg-config.yaml'), 'utf-8');
+      expect(cfg).not.toContain('reviewer:');
+    } finally {
+      rmSync(emptyDir, { recursive: true, force: true });
+    }
+  });
+
+  it('yg init fresh in non-TTY with --model but no --provider returns exit 1', () => {
+    const emptyDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-init-model-noprovider-'));
+    try {
+      const { status, stderr } = run(['init', '--platform', 'generic', '--model', 'sonnet'], emptyDir);
+      expect(status).toBe(1);
+      expect(stderr).toContain('--provider');
     } finally {
       rmSync(emptyDir, { recursive: true, force: true });
     }

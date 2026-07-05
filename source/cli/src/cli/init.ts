@@ -41,6 +41,40 @@ function isTTY(): boolean {
   return process.stdout.isTTY === true && process.stdin.isTTY === true;
 }
 
+/**
+ * Validate a `--platform` flag value, exiting 1 with a buildIssueMessage error
+ * if it does not match a supported platform. Defined once and called from
+ * every dispatch branch that needs the check, instead of repeating the
+ * "Unknown platform" block inline at each call site.
+ */
+function ensureKnownPlatform(platform: string): asserts platform is Platform {
+  if (!PLATFORMS.includes(platform as Platform)) {
+    process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
+      what: `Unknown platform '${platform}'.`,
+      why: 'The --platform value must match one of the supported agent platforms.',
+      next: `Use one of: ${PLATFORMS.join(', ')}`,
+    })}\n`));
+    process.exit(1);
+  }
+}
+
+/**
+ * Validate a `--provider` flag value, exiting 1 with a buildIssueMessage error
+ * if it does not match a supported reviewer provider. Defined once and called
+ * from every dispatch branch that needs the check, instead of repeating the
+ * "Unknown provider" block inline at each call site.
+ */
+function ensureKnownProvider(provider: string): asserts provider is ReviewerProvider {
+  if (!ALL_PROVIDERS.includes(provider as ReviewerProvider)) {
+    process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
+      what: `Unknown provider '${provider}'.`,
+      why: 'The --provider value must match one of the supported reviewer providers.',
+      next: `Use one of: ${ALL_PROVIDERS.join(', ')}`,
+    })}\n`));
+    process.exit(1);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Platform prompt
 // ---------------------------------------------------------------------------
@@ -60,15 +94,6 @@ async function promptPlatform(): Promise<Platform> {
 
 async function freshInit(projectRoot: string): Promise<void> {
   const yggRoot = path.join(projectRoot, '.yggdrasil');
-
-  if (!isTTY()) {
-    process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
-      what: 'yg init requires an interactive terminal (no --provider given).',
-      why: 'The interactive wizard needs prompts to configure platform and reviewer. Docker, devcontainer, and CI runs have no TTY.',
-      next: `Run yg init in an interactive terminal, OR bootstrap non-interactively: yg init --platform <name> --provider <name> [--model <m>] [--endpoint <url>]. Supported providers: ${ALL_PROVIDERS.join(', ')}.`,
-    })}\n`));
-    process.exit(1);
-  }
 
   p.intro(chalk.bold('Yggdrasil Setup'));
 
@@ -148,6 +173,31 @@ export async function freshInitNonInteractive(
 
   process.stdout.write(chalk.green(
     `Yggdrasil initialized (platform: ${opts.platform}, provider: ${provider}, model: ${model}). Run yg check to get started.\n`,
+  ));
+}
+
+// ---------------------------------------------------------------------------
+// Non-interactive keyless fresh init (no reviewer configured)
+// ---------------------------------------------------------------------------
+
+/**
+ * Keyless non-interactive bootstrap: scaffold + rules for one platform, writing
+ * NO reviewer section. Script rules, dependency control and the CI gate work
+ * immediately with no key; a judge can be added later (yg init --provider …).
+ * Legal only because checkReviewerPresence is conditional (Task 1).
+ */
+export async function freshInitKeyless(
+  projectRoot: string,
+  yggRoot: string,
+  platform: Platform,
+): Promise<void> {
+  await createYggdrasilStructure(projectRoot, yggRoot, platform);
+  await ensureGitattributes(projectRoot);
+  process.stdout.write(chalk.green(
+    `Yggdrasil initialized keyless (platform: ${platform}) — no keys, nothing to pay.\n` +
+    `  Working now, free: script rules, dependency control, yg check in CI.\n` +
+    `  Add a judge for judgment rules any time: yg init --provider <name> [--model <m>].\n` +
+    `  Run yg check to get started.\n`,
   ));
 }
 
@@ -292,10 +342,10 @@ export function registerInitCommand(program: Command): void {
     .command('init')
     .description('Initialize Yggdrasil graph in current project')
     .option('--upgrade', 'Non-interactive: refresh rules')
-    .option('--platform <name>', `Platform for rules file (${PLATFORMS.join(', ')})`)
-    .option('--provider <name>', `Non-interactive fresh init: reviewer provider (${ALL_PROVIDERS.join(', ')})`)
-    .option('--model <name>', 'Non-interactive fresh init: reviewer model (required; defaults to sonnet for claude-code)')
-    .option('--endpoint <url>', 'Non-interactive fresh init: reviewer endpoint (ollama / openai-compatible)')
+    .option('--platform <name>', `Platform for rules file — alone = keyless bootstrap / switch platform (${PLATFORMS.join(', ')})`)
+    .option('--provider <name>', `Configure a reviewer non-interactively — fresh or existing repo (${ALL_PROVIDERS.join(', ')})`)
+    .option('--model <name>', 'Reviewer model (defaults to sonnet for claude-code; required otherwise)')
+    .option('--endpoint <url>', 'Reviewer endpoint (ollama defaults localhost; required for openai-compatible)')
     .action(async (options: { upgrade?: boolean; platform?: string; provider?: string; model?: string; endpoint?: string }) => {
       try {
         const projectRoot = process.cwd();
@@ -417,11 +467,20 @@ export function registerInitCommand(program: Command): void {
           // Directory does not exist
         }
 
+        // --model / --endpoint only configure a judge; meaningless without --provider.
+        if ((options.model || options.endpoint) && !options.provider) {
+          process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
+            what: '--model/--endpoint given without --provider.',
+            why: 'A model or endpoint only configures a judge; without --provider there is no judge to configure.',
+            next: 'Add --provider <name>, or drop --model/--endpoint to start keyless.',
+          })}\n`));
+          process.exit(1);
+        }
+
         if (exists) {
-          await existingInit(projectRoot);
+          await existingInit(projectRoot); // replaced in Task 4
         } else if (options.provider) {
-          // Non-interactive fresh bootstrap (Docker / devcontainer / CI). Validate
-          // platform + provider up front, then run the prompt-free write-path.
+          // Non-interactive fresh bootstrap WITH a judge (Docker / devcontainer / CI).
           if (!options.platform) {
             process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
               what: '--provider requires --platform for non-interactive init.',
@@ -430,30 +489,27 @@ export function registerInitCommand(program: Command): void {
             })}\n`));
             process.exit(1);
           }
-          if (!PLATFORMS.includes(options.platform as Platform)) {
-            process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
-              what: `Unknown platform '${options.platform}'.`,
-              why: 'The --platform value must match one of the supported agent platforms.',
-              next: `Use one of: ${PLATFORMS.join(', ')}`,
-            })}\n`));
-            process.exit(1);
-          }
-          if (!ALL_PROVIDERS.includes(options.provider as ReviewerProvider)) {
-            process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
-              what: `Unknown provider '${options.provider}'.`,
-              why: 'The --provider value must match one of the supported reviewer providers.',
-              next: `Use one of: ${ALL_PROVIDERS.join(', ')}`,
-            })}\n`));
-            process.exit(1);
-          }
+          ensureKnownPlatform(options.platform);
+          ensureKnownProvider(options.provider);
           await freshInitNonInteractive(projectRoot, yggRoot, {
             platform: options.platform as Platform,
             provider: options.provider as ReviewerProvider,
             model: options.model,
             endpoint: options.endpoint,
           });
-        } else {
+        } else if (options.platform) {
+          // Non-interactive KEYLESS bootstrap (flags authoritative — no wizard even in a TTY).
+          ensureKnownPlatform(options.platform);
+          await freshInitKeyless(projectRoot, yggRoot, options.platform as Platform);
+        } else if (isTTY()) {
           await freshInit(projectRoot);
+        } else {
+          process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
+            what: 'yg init has no platform to install and cannot prompt for one (no TTY).',
+            why: 'A fresh graph installs a rules file for one agent platform; without a terminal there is no way to ask, and yg does not guess.',
+            next: `Re-run naming the platform: yg init --platform <name>. Supported: ${PLATFORMS.join(', ')}. Add --provider <name> [--model <m>] to also configure a judge; omit it to start keyless.`,
+          })}\n`));
+          process.exit(1);
         }
       } catch (err) {
         debugWrite(`[init] command failed: ${err instanceof Error ? err.message : String(err)}`);

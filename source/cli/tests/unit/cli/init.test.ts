@@ -3,8 +3,22 @@ import { Command } from 'commander';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { registerInitCommand, freshInitNonInteractive } from '../../../src/cli/init.js';
+import { registerInitCommand, freshInitNonInteractive, freshInitKeyless } from '../../../src/cli/init.js';
 import { resolveReviewerConfigFromFlags } from '../../../src/cli/init-reviewer-setup.js';
+
+// Shared temp-dir helper for every describe block below that exercises a
+// non-interactive bootstrap path against a real on-disk fixture project.
+const dirs: string[] = [];
+afterEach(async () => {
+  vi.restoreAllMocks();
+  for (const d of dirs.splice(0)) await rm(d, { recursive: true, force: true });
+});
+
+async function freshDir(label: string): Promise<{ root: string; ygg: string }> {
+  const root = await mkdtemp(path.join(tmpdir(), `yg-noninteractive-${label}-`));
+  dirs.push(root);
+  return { root, ygg: path.join(root, '.yggdrasil') };
+}
 
 describe('init command', () => {
   it('registers init command', () => {
@@ -28,21 +42,27 @@ describe('init command', () => {
     const options = cmd.options.map(o => o.long);
     expect(options).toEqual(expect.arrayContaining(['--provider', '--model', '--endpoint']));
   });
+
+  it('init command still exposes --platform/--provider/--model/--endpoint', () => {
+    const program = new Command();
+    registerInitCommand(program);
+    const cmd = program.commands.find(c => c.name() === 'init')!;
+    const longs = cmd.options.map(o => o.long);
+    for (const f of ['--platform', '--provider', '--model', '--endpoint', '--upgrade']) expect(longs).toContain(f);
+  });
+});
+
+describe('freshInitKeyless', () => {
+  it('scaffolds a keyless graph with NO reviewer section', async () => {
+    const { root, ygg } = await freshDir('keyless');
+    await freshInitKeyless(root, ygg, 'claude-code');
+    const cfg = await readFile(path.join(ygg, 'yg-config.yaml'), 'utf-8');
+    expect(cfg).toContain('coverage:');
+    expect(cfg).not.toContain('reviewer:');
+  });
 });
 
 describe('freshInitNonInteractive', () => {
-  const dirs: string[] = [];
-  afterEach(async () => {
-    vi.restoreAllMocks();
-    for (const d of dirs.splice(0)) await rm(d, { recursive: true, force: true });
-  });
-
-  async function freshDir(label: string): Promise<{ root: string; ygg: string }> {
-    const root = await mkdtemp(path.join(tmpdir(), `yg-noninteractive-${label}-`));
-    dirs.push(root);
-    return { root, ygg: path.join(root, '.yggdrasil') };
-  }
-
   it('writes a require-nothing coverage baseline and the named reviewer tier (claude-code needs no key)', async () => {
     const { root, ygg } = await freshDir('happy');
     await freshInitNonInteractive(root, ygg, { platform: 'claude-code', provider: 'claude-code', model: 'haiku' });

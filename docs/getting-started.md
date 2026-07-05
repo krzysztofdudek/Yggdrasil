@@ -41,7 +41,11 @@ The wizard creates `.yggdrasil/` with config, architecture defaults, and the
 rules file for your platform.
 
 ::: tip No terminal? (Docker, devcontainer, CI)
-Bootstrap a fresh graph non-interactively with flags instead of prompts:
+Bootstrap a fresh graph non-interactively with flags instead of prompts.
+Flags are authoritative — a fully-specified command never opens the wizard,
+even from a terminal.
+
+Name a provider to configure a reviewer too:
 
 ```bash
 yg init --platform claude-code --provider claude-code
@@ -51,6 +55,18 @@ yg init --platform claude-code --provider claude-code
 provider requires `--model` explicitly. Pass `--endpoint` for Ollama (defaults
 to `http://localhost:11434`) or an OpenAI-compatible provider (required, no
 default). API keys are read from the provider's env var, never a flag.
+
+Or name just a platform to start **keyless** — no reviewer configured at all:
+
+```bash
+yg init --platform claude-code
+```
+
+This scaffolds the graph and installs the rules file with no `reviewer:`
+section. Script rules, dependency checks, and the CI gate all work
+immediately at zero cost; add a judge later with `yg init --provider <name>
+[--model <m>]`. A non-interactive run naming no platform fails with guidance
+instead of guessing which agent platform to install.
 :::
 
 ::: tip Prefer to be taught?
