@@ -314,6 +314,12 @@ async function scanAspectsDirectory(
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
     if (entry.name.startsWith('.')) continue;
+    // A directory named `drills` holds an aspect's hand-authored regression
+    // fixtures (synthetic sources run manually via `yg aspect-test`), NOT nested
+    // aspects. Hard-skip it so a fixture that happens to contain a `yg-aspect.yaml`
+    // — or any file the parser could mistake for one — can never register a
+    // phantom aspect. `drills` is a reserved directory name inside an aspect dir.
+    if (entry.name === 'drills') continue;
     await scanAspectsDirectory(path.join(dirPath, entry.name), aspectsRoot, aspects, parseErrors);
   }
 }

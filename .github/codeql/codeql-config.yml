@@ -6,6 +6,10 @@ name: 'Yggdrasil CodeQL config'
 #     a CodeQL finding in test-only helper code is noise, not a product risk.
 #   - **/vendor/**: vendored third-party bundles (e.g. the d3 hierarchy layout) are
 #     upstream code, not ours to modify.
+#   - .yggdrasil/aspects/**/drills/**: hand-authored deterministic-aspect regression
+#     fixtures — tiny synthetic sources, half of them deliberately containing the exact
+#     pattern a check exists to refuse. They are never shipped, never executed, and never
+#     compiled; a CodeQL finding on an intentionally-"bad" fixture is noise, not a risk.
 #
 # Deliberately NOT excluded: the committed portal frontend under
 # source/cli/src/templates/portal/**. That JavaScript ships to adopters and runs in
@@ -15,3 +19,4 @@ name: 'Yggdrasil CodeQL config'
 paths-ignore:
   - source/cli/tests
   - '**/vendor/**'
+  - '.yggdrasil/aspects/**/drills/**'

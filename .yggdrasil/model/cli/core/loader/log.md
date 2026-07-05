@@ -64,3 +64,5 @@ exactly which flow definition is at fault and that the remedy is to correct or
 remove that one file — never to re-initialize. The genuinely-uninitialized case
 (no graph directory at all) keeps its own separate "initialize the project
 first" guidance; the two are deliberately kept apart so neither masks the other.
+## [2026-07-05T17:52:05.311Z]
+Aspect discovery now hard-skips any directory named `drills` inside an aspect folder, treating that name as reserved. Such a directory holds hand-authored regression fixtures — small synthetic sources a maintainer runs by hand to confirm a deterministic check still refuses what it should and still passes what it should. Before this guard, a fixture that happened to contain a file shaped like an aspect manifest would be discovered during the recursive aspect scan and registered as a spurious nested aspect, silently adding a rule nobody declared. Skipping the reserved directory outright closes that footgun at the source, so fixtures can live beside the check they exercise without any risk of becoming phantom rules.

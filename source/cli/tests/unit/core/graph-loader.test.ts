@@ -259,6 +259,44 @@ describe('graph-loader', () => {
     }
   });
 
+  it('hard-skips a "drills" directory inside an aspect dir (no phantom aspect registers)', async () => {
+    const { mkdir, writeFile, rm } = await import('node:fs/promises');
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-graph-drills-skip');
+    const yggRoot = path.join(tmpDir, '.yggdrasil');
+    const modelDir = path.join(yggRoot, 'model', 'svc');
+    const aspectDir = path.join(yggRoot, 'aspects', 'real-aspect');
+    const drillDir = path.join(aspectDir, 'drills', 'violates-x');
+    await mkdir(modelDir, { recursive: true });
+    await mkdir(drillDir, { recursive: true });
+    await writeFile(path.join(yggRoot, 'yg-config.yaml'), 'version: "5.1.0"');
+    await writeFile(path.join(modelDir, 'yg-node.yaml'), 'name: S\ntype: service\n');
+    // A real, fully-valid deterministic aspect — this one MUST register.
+    await writeFile(
+      path.join(aspectDir, 'yg-aspect.yaml'),
+      'name: Real\ndescription: real aspect\nreviewer:\n  type: deterministic\n',
+    );
+    await writeFile(path.join(aspectDir, 'check.mjs'), 'export function check() { return []; }\n');
+    // A stray aspect BENEATH drills/ — identically valid in shape, so only the
+    // drills-dir skip (never a parse failure) can keep it out of the registry.
+    // Old released CLIs without the guard would register this as a phantom aspect.
+    await writeFile(
+      path.join(drillDir, 'yg-aspect.yaml'),
+      'name: Phantom\ndescription: stray drill aspect\nreviewer:\n  type: deterministic\n',
+    );
+    await writeFile(path.join(drillDir, 'check.mjs'), 'export function check() { return []; }\n');
+
+    try {
+      const graph = await loadGraph(tmpDir);
+      // The real sibling aspect still loads — scanning is unaffected outside drills/.
+      expect(graph.aspects.some((a) => a.id === 'real-aspect')).toBe(true);
+      // Nothing beneath drills/ registers, by exact id or by any id containing "drills".
+      expect(graph.aspects.some((a) => a.id === 'real-aspect/drills/violates-x')).toBe(false);
+      expect(graph.aspects.some((a) => a.id.includes('drills'))).toBe(false);
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
   it('tolerateInvalidConfig returns graph with configError when config is invalid', async () => {
     const { mkdir, writeFile, rm } = await import('node:fs/promises');
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-graph-invalid-config');
