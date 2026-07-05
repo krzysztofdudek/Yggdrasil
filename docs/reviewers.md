@@ -561,6 +561,10 @@ Both reviewer types record their results the same way: one content-addressed ent
 
 `yg check` by default recomputes each pair's input hash and compares it to the lock — no LLM calls, no provider keys, runs instantly. If `auto_approve` is set to `deterministic` or `full` in `yg-config.yaml`, bare `yg check` may fill pairs automatically (see [Configuration](/configuration#auto-approve-config)); explicit CLI flags always override the config. A source edit and an aspect-content edit both surface the same way: the affected pairs no longer match their recorded hash, so check reports them as unverified until `yg check --approve` fills them again.
 
+### Verdict-events sidecar
+
+Alongside the lock, every `yg check --approve` fill appends a one-line record of each verdict — and each failed attempt — to a local `.yg-events.jsonl` file under `.yggdrasil/`. Each line is a single JSON object describing one filled pair: the aspect, the unit, the reviewer kind, the disposition (approved, refused, or a specific no-write outcome such as an unreachable reviewer, a crashed check, or a malformed suppress marker), and a UTC timestamp; a refusal also carries its reason, and a consensus review carries its vote tally (satisfied of total). The file is **local-only telemetry**: it is gitignored, never committed, and **never read back by any check, verification, or render path** — it exists only to make fill outcomes observable across runs (which rules refuse often, which infrastructure paths fail repeatedly), motivating future rule-health reporting. A failed append is swallowed and can never change a fill's outcome.
+
 ---
 
 ## Edge cases

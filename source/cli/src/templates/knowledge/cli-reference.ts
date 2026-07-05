@@ -193,7 +193,10 @@ satisfied|refused|incomplete|dry-run\` — leading on deterministic runs, as a
 trailing summary after the per-unit lines on LLM runs (\`incomplete\` means some
 unit could not be verified — fail closed, exit 1). Every run that produces a
 result ends with the footer \`diagnostic only — lock unchanged; yg check judges
-the lock against your files, not this run\`. Exits 0 when clean, 1 on violations,
+the lock against your files, not this run\`. On an LLM run against a tier with
+consensus > 1, each per-unit line also carries the vote split \`[votes 2/3]\` —
+how many of the passes were satisfied — so a bare-majority verdict is visible as
+such. Exits 0 when clean, 1 on violations,
 refusals, or an incomplete run. Aspect status never gates aspect-test: a draft
 aspect runs here exactly like an enforced one (drafts stay dormant only in
 \`yg check\` / \`--approve\`). Use \`--dry-run\` for a zero-cost prompt preview

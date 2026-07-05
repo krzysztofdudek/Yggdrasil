@@ -116,6 +116,14 @@ result (PASS/FAIL with group counts), and suggested next command. On color-capab
 terminals, verdict and error/warning headers include emoji decoration (stripped
 under `NO_COLOR` and in CI).
 
+When at least one pair is verified, the header appends `N verified (D
+deterministic, L LLM)` — splitting the green count into pairs machine-checked
+locally for free versus pairs an LLM actually reviewed, so a clean run never
+hides how much of it was reviewed by an LLM. On a fresh checkout with no local
+deterministic cache the deterministic figure honestly reads 0 until `yg check
+--approve --only-deterministic` rebuilds it — those pairs are genuinely
+unverified, not a display glitch.
+
 Exit code 0 if fully clean, 1 if any errors found.
 
 #### `--top [N]`, `--summary`, `--details`, `--aspect <id>`, and `--quiet` — output control
@@ -412,7 +420,11 @@ one-line verdict stamp `yg aspect-test: satisfied|refused|incomplete|dry-run` �
 leading on deterministic runs, as a trailing summary after the per-unit verdict
 lines on LLM runs (`incomplete` means some unit could not be verified — fail
 closed, exit 1). Every run that produces a result ends with `diagnostic only —
-lock unchanged; yg check judges the lock against your files, not this run`.
+lock unchanged; yg check judges the lock against your files, not this run`. On an
+LLM run against a tier with `consensus` greater than 1, each per-unit line also
+carries the vote split — `[votes 2/3]` — how many of the review passes were
+satisfied, so a bare-majority verdict is visible as such rather than hidden
+behind the aggregate.
 
 Aspect status never gates `aspect-test`: a `draft` aspect runs here exactly like
 an enforced one (drafts stay dormant only in `yg check` / `--approve`). Use
@@ -424,6 +436,7 @@ yg aspect-test --aspect <id> --node <node-path>
 yg aspect-test --aspect <id> --files <path> [<path2> ...]
 yg aspect-test --aspect <id> --node <node-path> --check-determinism
 yg aspect-test --aspect <id> --node <node-path> --dry-run
+yg aspect-test --aspect <id> --node <node-path> --repeat <N>
 ```
 
 - `--aspect <id>` — Required. The aspect's kind is inferred from its rule source.
@@ -440,6 +453,16 @@ yg aspect-test --aspect <id> --node <node-path> --dry-run
   not touch the lock. The sanctioned way to inspect a prompt — including which companion files
   resolved — before switching an aspect to `per: file`. Not available for companion aspects with
   `--files` (an explicit file list provides no node context for the hook's allowed-reads boundary).
+- `--repeat <N>` — (LLM only, N ≥ 2) Re-runs each unit N times against the identical prompt and
+  prints a per-unit `stability: k/N satisfied` line — how often the reviewer returned the same
+  verdict. Each run is forced to a single vote, so the figure measures the reviewer's raw
+  self-consistency, **not** correctness: a rule can be consistently wrong, and `3/3 satisfied` says
+  only that the reviewer agreed with itself. Use it while authoring to catch a prompt so ambiguous
+  the reviewer flips its own verdict run to run. The total reviewer-call budget (`repeat N × units`)
+  prints before the first call; provider-error runs are excluded from the ratio and reported
+  separately; any single refused run marks the unit refused, and a unit whose runs all erred is
+  stamped `incomplete`. Rejected with `--dry-run`, with `--files`, and for deterministic aspects
+  (already exactly reproducible — use `--check-determinism` there).
 
 For a deterministic aspect it runs `check.mjs` and prints violations. For an LLM
 aspect it runs the reviewer (or just prints the prompt under `--dry-run`). Exits 0
