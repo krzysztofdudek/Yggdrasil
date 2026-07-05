@@ -1,0 +1,7 @@
+name: E2E Pure-CLI Init
+type: test-suite
+description: "End-to-end coverage of the flag-driven (pure-CLI) init surface — keyless fresh bootstrap, model-default, error paths, and existing-repo reconfigure — all via the built bin.js."
+aspects:
+  - e2e-public-surface
+mapping:
+  - source/cli/tests/e2e/cli-init-pure-cli.test.ts

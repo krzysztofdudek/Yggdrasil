@@ -451,32 +451,11 @@ describe.skipIf(!distExists)('CLI E2E — greenfield / init / platform-install',
     }
   });
 
-  it('G13: non-interactive init for claude-code without --model defaults the model to sonnet', () => {
-    const dir = mkdtempSync(path.join(tmpdir(), 'yg-noninteractive-defaultmodel-'));
-    try {
-      const init = run(['init', '--platform', 'claude-code', '--provider', 'claude-code'], dir);
-      expect(init.status).toBe(0);
-      expect(init.stdout).toContain('Yggdrasil initialized');
-      const cfg = readFileSync(path.join(dir, '.yggdrasil', 'yg-config.yaml'), 'utf-8');
-      expect(cfg).toContain('provider: claude-code');
-      expect(cfg).toContain('model: sonnet');
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  it('G13b: non-interactive init for a provider with no built-in default model without --model is rejected (exit 1)', () => {
-    const dir = mkdtempSync(path.join(tmpdir(), 'yg-noninteractive-nomodel-'));
-    try {
-      const { status, stderr } = run(['init', '--platform', 'claude-code', '--provider', 'codex'], dir);
-      expect(status).toBe(1);
-      expect(stderr).toContain('--model is required');
-      // Nothing was written — the guard fires before any structure is created.
-      expect(existsSync(path.join(dir, '.yggdrasil'))).toBe(false);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
+  // G13 ("claude-code without --model defaults to sonnet") and G13b ("codex
+  // without --model is rejected") moved to the dedicated pure-CLI init e2e
+  // suite (cli-init-pure-cli.test.ts), which is now their canonical home —
+  // every assertion from both cases (stdout message, provider/model written,
+  // and the "nothing written on rejection" check) is preserved there.
 
   it('G14: non-interactive init with --provider but no --platform is rejected (exit 1)', () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'yg-noninteractive-noplatform-'));
