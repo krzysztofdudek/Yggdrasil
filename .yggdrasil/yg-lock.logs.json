@@ -5,7 +5,7 @@
   "nodes": {
     "cli/ast": {"log":{"last_entry_datetime":"2026-05-26T10:52:08.726Z","prefix_hash":"9fbde98b0c903f19473c74f077b29fc098aef162424f6cf383c8fcfcaf361ea1"}},
     "cli/ast/report": {"log":{"last_entry_datetime":"2026-06-08T19:56:29.501Z","prefix_hash":"6726dc32495c3e8d7b8f7d37de0904430161168455bdc3f4e8f4941352072f11"},"source":"8378c30eb8ec3d04a205b24994876c0d7c9e0a634ace5a926d8d6a27d6e78d90"},
-    "cli/ast/runtime": {"log":{"last_entry_datetime":"2026-07-05T18:15:43.801Z","prefix_hash":"336e90b53444a8aef2fdd97afdb96533925240fffe73ee8649075b148af3c8cd"},"source":"84a1bbbe306c86b3f566da9b2e19a11e4234e836adc6fb478f7b01c4c7f72fa2"},
+    "cli/ast/runtime": {"log":{"last_entry_datetime":"2026-07-05T19:17:32.430Z","prefix_hash":"23ece1e387376f150c1e6f29b6a73d3e9e48349c2702cb710eec8c3d9af8fd28"},"source":"4b41534354691f173f7a035d283c0f4944a8b61bf8b66fb535d3746e561b84d3"},
     "cli/commands/aspect-test": {"log":{"last_entry_datetime":"2026-07-05T17:32:08.674Z","prefix_hash":"bf273a28b64c2fe86a8d99e1eec84f0d35e74eae632cce37d2fd1aeb6624f4d3"},"source":"a829f0099f556509c3e9415ef684e3ade329e110addc236fa0d0ccb75da3c8c2"},
     "cli/commands/aspects": {"log":{"last_entry_datetime":"2026-05-31T17:27:15.949Z","prefix_hash":"eb88d9827cf230f04f65b161facdeee1c01119fbd69aff063e3a23dd284816f8"},"source":"43f944f02e07d12073270bc7170e4d2223f75503b489a0d93bd45037a1f1c82f"},
     "cli/commands/build-context": {"log":{"last_entry_datetime":"2026-07-03T08:34:29.911Z","prefix_hash":"d207fbbffdda6391dfb01515a6bbd42bc0a277497d52e5a472c58a440b6af97b"},"source":"d55cba29b2fc99137ffaab86ec5d85fec80551a909a2f6accd689771b1565a59"},
@@ -61,7 +61,7 @@
     "cli/io/parsers/aspect": {"log":{"last_entry_datetime":"2026-06-19T19:19:17.923Z","prefix_hash":"c1bb1745b5dfd7e31a58598b8008d01ec34acb72341ce1e2c4ef4f02afb4cf41"},"source":"cdb5547c5e1d283968112801d4cfc32da71cd40630ec4651010fee3c70ebcfd7"},
     "cli/io/parsers/config": {"log":{"last_entry_datetime":"2026-06-28T18:13:50.224Z","prefix_hash":"2e6bcc2c30112db15f235ce7df8e6f22557545896bbd7e66fb8807f41dc4d38f"},"source":"e9af040f4b0d3f2358163b53608a091c6d5562e93d17c8ab185dc53a9eade68c"},
     "cli/io/parsers/graph": {"log":{"last_entry_datetime":"2026-06-27T07:38:28.049Z","prefix_hash":"0ee620319e474e8a4e41ab9c9a5a7881c6b09f8772489bd3dde8ef3661344b07"},"source":"a012444efa0040571f309dcb66d72a32852537104a374f921e9d6d4a7e6700f1"},
-    "cli/io/stores": {"log":{"last_entry_datetime":"2026-07-05T13:25:20.496Z","prefix_hash":"acede7a7435e1494b4b237618a10254ab139c6b77c7fa4b0a27159d5765d153c"},"source":"0dc08d5e47773118a32b604fe0220587083a499252059d28754eaf0202b34750"},
+    "cli/io/stores": {"log":{"last_entry_datetime":"2026-07-05T19:17:40.520Z","prefix_hash":"0d5b95b991778a24e0b8a72b4ae8c13be116e4734a0dce797620d9b4ea53ca87"},"source":"ed492a9bfb7c4ec3f1dc276d8d5526a3ce3575d59e8dd228106786227fd285c3"},
     "cli/knowledge": {"log":{"last_entry_datetime":"2026-05-29T08:33:39.060Z","prefix_hash":"3552dea263b549d286032427d5bcdb04868b462ef253508b34411990fc432a73"}},
     "cli/knowledge-concepts": {"log":{"last_entry_datetime":"2026-06-13T05:34:22.962Z","prefix_hash":"3b0c73d2106fb0660438da59ceaf03d23ba5ca976e352d9874f912e4dbb510f7"}},
     "cli/llm/providers": {"log":{"last_entry_datetime":"2026-06-03T07:05:36.038Z","prefix_hash":"11e5274c532b98adcc63daf62edbceb9052b9b9473f2e7daba875d5832bcd2ab"}},

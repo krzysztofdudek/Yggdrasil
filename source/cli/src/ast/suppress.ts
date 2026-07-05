@@ -186,14 +186,21 @@ function parseMarker(lineText: string, line: number, file: string, requireDelimi
 // consumers mask out fenced lines before matching.
 //
 // FAIL TOWARD ENFORCEMENT: any fence-parsing ambiguity (an unclosed fence, a
-// ~~~ fence, an up-to-3-space-indented fence) may at worst SKIP a marker
-// (stricter — the marker is simply not honored), and can NEVER honor a fenced
-// example as a waiver. An unclosed fence therefore extends through EOF.
+// ~~~ fence, an up-to-3-space-indented fence, a nested fence, an info-string
+// close) may at worst SKIP a marker (stricter — the marker is simply not
+// honored), and can NEVER honor a fenced example as a waiver. An unclosed fence
+// therefore extends through EOF. Close detection follows CommonMark: a closing
+// fence must use the SAME character, run AT LEAST as long as the opener, and
+// carry NO info string — so a shorter inner run (a ``` inside a ```` block) or a
+// ```lang line never closes the fence, only ever keeping it open LONGER (safe).
 //
 // This is the SINGLE shared helper: the reviewer-honoring path (collectSuppressions)
 // and the `yg suppressions` inventory (scanSuppressionMarkers) both call it, so the
 // audit can never diverge from what the reviewer actually waives.
-const RE_FENCE = /^ {0,3}(`{3,}|~{3,})/;
+//
+// Group 1 captures the full delimiter RUN (so its length is comparable); group 2
+// captures the trailing text (so an info string on a would-be close is detected).
+const RE_FENCE = /^ {0,3}((?:`{3,})|(?:~{3,}))[ \t]*(.*)$/;
 const MARKDOWN_EXTS = new Set(['.md', '.markdown']);
 
 /** True when the path's extension is Markdown (the only class that gets fence masking). */
@@ -204,27 +211,42 @@ function isMarkdownExt(file: string): boolean {
 /**
  * 1-based line numbers that fall inside a Markdown fenced code block — the fence
  * delimiter lines themselves INCLUDED. A fence opens on the first ``` / ~~~ line
- * (run of 3+, indented at most 3 spaces) and closes on the next line whose fence
- * uses the SAME character; a fence left open runs through EOF (fail toward
- * enforcement). A ~~~ line never closes a ``` fence and vice-versa.
+ * (run of 3+, indented at most 3 spaces); an info string ON THE OPENER is allowed
+ * (```ts still opens). It closes only on a later line that (per CommonMark) uses
+ * the SAME character, runs AT LEAST as long as the opener, and carries NO info
+ * string (trailing text whitespace-only). A shorter same-character run, a
+ * different character, or a run bearing an info string is INTERIOR content that
+ * keeps the fence open — so a ``` inside a ```` block, or a ```lang line inside an
+ * open fence, does not close it. A fence left open runs through EOF. Every one of
+ * these rules only makes a fence stay open LONGER, so it stays fail-toward-
+ * enforcement: a marker inside a fence can never leak out to be honored.
  */
 export function markdownFencedLines(text: string): Set<number> {
   const fenced = new Set<number>();
   const lines = text.split('\n');
-  let open: string | null = null; // the fence character (backtick or tilde) currently open
+  // The fence currently open: its delimiter CHARACTER and the opener's run LENGTH
+  // (both needed to apply CommonMark's close rules).
+  let open: { char: string; len: number } | null = null;
   for (let i = 0; i < lines.length; i++) {
     const m = RE_FENCE.exec(lines[i]);
     if (open === null) {
-      // Outside a fence: a matching line OPENS one (and is itself fenced).
+      // Outside a fence: a matching line OPENS one (and is itself fenced). An info
+      // string on the opener is allowed — the fence opens even when group 2 is
+      // non-empty.
       if (m) {
-        open = m[1][0];
+        open = { char: m[1][0], len: m[1].length };
         fenced.add(i + 1);
       }
       continue;
     }
-    // Inside a fence: every line is fenced; a same-character fence line closes it.
+    // Inside a fence: every line is fenced. The fence CLOSES only when this line is
+    // a fence of the SAME character, a run at LEAST as long as the opener, and with
+    // NO info string (trailing text is whitespace-only). Anything else is interior
+    // content that keeps the fence open.
     fenced.add(i + 1);
-    if (m && m[1][0] === open) open = null;
+    if (m && m[1][0] === open.char && m[1].length >= open.len && m[2].trim() === '') {
+      open = null;
+    }
   }
   return fenced;
 }

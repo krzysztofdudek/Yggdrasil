@@ -44,7 +44,13 @@ export interface VerdictEvent {
   tier?: string;
   /** LLM only — PROMPT_FORMAT_REV at emission time. */
   promptRev?: number;
-  /** Filled by a future consensus-detail task. */
+  /**
+   * LLM verdicts only — the consensus vote split for this pair: how many of the
+   * tier's independent review passes were satisfied (`satisfied`) out of the total
+   * passes cast (`total`). A single-vote tier (consensus <= 1) records the
+   * length-1 case, `total: 1`. Absent on deterministic verdicts and on every
+   * no-write disposition.
+   */
   votes?: { satisfied: number; total: number };
 }
 

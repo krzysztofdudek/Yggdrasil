@@ -28,8 +28,28 @@ const REVIEWER_CONFIG =
 
 const DET_PASS = 'export function check(ctx) { void ctx; return []; }\n';
 const DET_FAIL = 'export function check(ctx) { void ctx; return [{ message: "bad", file: "src/svc.ts", line: 1 }]; }\n';
+// A check that THROWS at runtime — the fill fails closed (no write) and emits a
+// `runtime-error` disposition event for the pair.
+const DET_THROW = 'export function check(ctx) { void ctx; throw new Error("boom in check.mjs"); }\n';
 
-async function setupProject(): Promise<{ projectRoot: string; yggRoot: string }> {
+const SVC_SOURCE_DEFAULT = 'export const x = 1;\n';
+// A source file carrying a MALFORMED yg-suppress marker (no reason). When a check
+// returns a violation against this file, the runner collects its suppress ranges
+// while filtering and throws — surfacing the fault as its own `malformed-suppress`
+// disposition (NOT an aspect-check-runtime-error), which the fill emits as an event.
+const SVC_SOURCE_MALFORMED_SUPPRESS =
+  'export const x = 1;\n// yg-suppress(some-rule)\nexport const y = 2;\n';
+
+/**
+ * Build a minimal, self-contained project with one `svc` node mapping `src/svc.ts`
+ * and one deterministic aspect per entry. Parametrized on the aspect rule sources
+ * and the node's source file so a single harness covers the real-verdict happy path
+ * AND the no-write infra dispositions (a crashing check, a malformed suppress marker).
+ */
+async function setupProjectWith(
+  aspects: Array<{ id: string; rule: string }>,
+  svcSource: string = SVC_SOURCE_DEFAULT,
+): Promise<{ projectRoot: string; yggRoot: string }> {
   const root = await mkdtemp(path.join(tmpdir(), 'yg-fill-events-'));
   const yggRoot = path.join(root, '.yggdrasil');
   const nodeDir = path.join(yggRoot, 'model', 'svc');
@@ -40,13 +60,14 @@ async function setupProject(): Promise<{ projectRoot: string; yggRoot: string }>
     path.join(yggRoot, 'yg-architecture.yaml'),
     'node_types:\n  service:\n    description: s\n    log_required: false\n',
   );
+  const aspectList = aspects.map((a) => `  - ${a.id}`).join('\n');
   await writeFile(
     path.join(nodeDir, 'yg-node.yaml'),
-    'name: svc\ntype: service\ndescription: x\nmapping:\n  - src/svc.ts\naspects:\n  - det-pass\n  - det-fail\n',
+    `name: svc\ntype: service\ndescription: x\nmapping:\n  - src/svc.ts\naspects:\n${aspectList}\n`,
   );
-  await writeFile(path.join(root, 'src', 'svc.ts'), 'export const x = 1;\n');
+  await writeFile(path.join(root, 'src', 'svc.ts'), svcSource);
 
-  for (const [id, rule] of [['det-pass', DET_PASS], ['det-fail', DET_FAIL]] as const) {
+  for (const { id, rule } of aspects) {
     const aspDir = path.join(yggRoot, 'aspects', id);
     await mkdir(aspDir, { recursive: true });
     await writeFile(
@@ -56,6 +77,16 @@ async function setupProject(): Promise<{ projectRoot: string; yggRoot: string }>
     await writeFile(path.join(aspDir, 'check.mjs'), rule);
   }
   return { projectRoot: root, yggRoot };
+}
+
+async function setupProject(): Promise<{ projectRoot: string; yggRoot: string }> {
+  return setupProjectWith([{ id: 'det-pass', rule: DET_PASS }, { id: 'det-fail', rule: DET_FAIL }]);
+}
+
+/** Read and parse the sidecar's JSONL lines for a project's `.yggdrasil/` root. */
+async function readEvents(yggRootPath: string): Promise<Array<Record<string, unknown>>> {
+  const raw = await readFile(path.join(yggRootPath, EVENTS_FILENAME), 'utf-8');
+  return raw.split('\n').filter((l) => l.length > 0).map((l) => JSON.parse(l) as Record<string, unknown>);
 }
 
 describe('verdict-events telemetry sidecar (integration)', () => {
@@ -133,5 +164,64 @@ describe('verdict-events telemetry sidecar (integration)', () => {
       try { await readFile(path.join(graph.rootPath, committed), 'utf-8'); } catch { exists = false; }
       expect(exists).toBe(false);
     }
+  });
+
+  // ── No-write infra dispositions (fail-closed). These emit sites in fill.ts were
+  //    previously unasserted: a real verdict was covered above, but a crashing check
+  //    and a malformed suppress marker each write NOTHING to the lock yet still emit
+  //    exactly one telemetry event carrying their distinct disposition. The
+  //    deterministic paths need no LLM mock. ──────────────────────────────────────
+
+  it('a crashing check.mjs writes NO verdict but emits exactly one runtime-error event', async () => {
+    const { projectRoot } = await setupProjectWith([{ id: 'det-throw', rule: DET_THROW }]);
+    dirs.push(projectRoot);
+    const graph = await loadGraph(projectRoot);
+    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+
+    const events = await readEvents(graph.rootPath);
+    const throwEvents = events.filter((e) => e.aspectId === 'det-throw');
+    // Exactly ONE event for the pair, carrying the runtime-error disposition.
+    expect(throwEvents).toHaveLength(1);
+    expect(throwEvents[0]).toMatchObject({
+      v: 1,
+      source: 'fill',
+      kind: 'deterministic',
+      unitKey: 'node:svc',
+      disposition: 'runtime-error',
+    });
+    // Fail-closed: NO verdict was written, so the event carries no inputHash/reason.
+    expect(throwEvents[0].hash).toBeUndefined();
+    expect(throwEvents[0].reason).toBeUndefined();
+    // No approved/refused event was ever emitted for this pair.
+    expect(events.some((e) => e.aspectId === 'det-throw' && (e.disposition === 'approved' || e.disposition === 'refused'))).toBe(false);
+  });
+
+  it('a violation against a file bearing a malformed suppress marker emits exactly one malformed-suppress event (not runtime-error)', async () => {
+    // The check flags src/svc.ts:1; while filtering suppressions the runner parses
+    // that file's markers, hits the reasonless yg-suppress marker, and fails closed
+    // with a DISTINCT disposition — the fault is the source marker, not the check.
+    const { projectRoot } = await setupProjectWith(
+      [{ id: 'det-flag', rule: DET_FAIL }],
+      SVC_SOURCE_MALFORMED_SUPPRESS,
+    );
+    dirs.push(projectRoot);
+    const graph = await loadGraph(projectRoot);
+    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+
+    const events = await readEvents(graph.rootPath);
+    const flagEvents = events.filter((e) => e.aspectId === 'det-flag');
+    // Exactly ONE event, carrying the malformed-suppress disposition — NOT the
+    // runtime-error disposition (that would wrongly blame the check).
+    expect(flagEvents).toHaveLength(1);
+    expect(flagEvents[0]).toMatchObject({
+      v: 1,
+      source: 'fill',
+      kind: 'deterministic',
+      unitKey: 'node:svc',
+      disposition: 'malformed-suppress',
+    });
+    expect(flagEvents[0].disposition).not.toBe('runtime-error');
+    // Fail-closed: no verdict, so no inputHash.
+    expect(flagEvents[0].hash).toBeUndefined();
   });
 });

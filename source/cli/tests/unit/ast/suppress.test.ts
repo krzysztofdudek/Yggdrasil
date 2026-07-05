@@ -632,6 +632,21 @@ describe('markdownFencedLines: the shared fence mask', () => {
     expect(sorted(markdownFencedLines(text))).toEqual([1, 2, 3, 4, 5]);
   });
 
+  it('a shorter same-character run does NOT close a longer opener (CommonMark run length)', () => {
+    // ```` opens (run 4); the inner ``` (run 3 < 4) is interior; the ```` closes.
+    const text = ['````', '```', 'in', '```', '````', 'after'].join('\n');
+    expect(sorted(markdownFencedLines(text))).toEqual([1, 2, 3, 4, 5]);
+    // A LONGER run does close a shorter opener (run 4 ≥ 3, no info string).
+    const longerCloses = ['```', 'in', '````', 'after'].join('\n');
+    expect(sorted(markdownFencedLines(longerCloses))).toEqual([1, 2, 3]);
+  });
+
+  it('a run bearing an info string does NOT close an open fence (only the opener may have one)', () => {
+    // ```lang while a fence is open is interior; the bare ``` closes.
+    const text = ['```', '```lang', 'in', '```', 'after'].join('\n');
+    expect(sorted(markdownFencedLines(text))).toEqual([1, 2, 3, 4]);
+  });
+
   it('no fences → empty set (plain prose is never masked)', () => {
     expect(markdownFencedLines('a\nb\nc').size).toBe(0);
   });
@@ -706,5 +721,74 @@ describe('suppress: Markdown fenced examples are inert (A4 — the docs suppress
     const markers = scanSuppressionMarkers(md, 'docs/x.md');
     expect(markers).toHaveLength(1);
     expect(markers[0]).toMatchObject({ line: 1, aspectId: 'outside-fence', kind: 'single' });
+  });
+
+  // REGRESSION (post-review): CommonMark-correct fence CLOSING. The pre-fix mask
+  // compared only the fence CHARACTER, ignoring run length and info strings, so a
+  // shorter inner run — or a ```lang line — inside an open fence was mistaken for a
+  // CLOSE, ending the mask early and letting a `yg-suppress(...)` written between
+  // the inner delimiters be honored as a LIVE waiver: the exact laundering hole the
+  // fenced-block masking was meant to close. These two cases pin that the marker
+  // now stays MASKED (inert) on BOTH the honoring path (collectSuppressions → no
+  // live range) and the inventory path (scanSuppressionMarkers → nothing). Each
+  // also proves the marker is a REAL, otherwise-honored marker by scanning the same
+  // text with NO Markdown path (no masking) — so the fence mask is what makes it
+  // inert, not anchoring.
+
+  it('nested fences: a 4-backtick outer fence keeps a 3-backtick inner run (and a marker between it) MASKED', () => {
+    const md = [
+      '````',                                                       // 1 — outer opener (run length 4)
+      '```',                                                        // 2 — inner run of 3 < 4 ⇒ NOT a close, interior
+      '<!-- yg-suppress(nested-inert) documented example, inert -->', // 3 — interior, masked
+      '```',                                                        // 4 — inner run of 3 < 4 ⇒ still interior
+      '````',                                                       // 5 — outer close (run length 4 ≥ 4, no info string)
+      'after the fenced block',                                     // 6
+    ].join('\n');
+    const mdPath = 'docs/nested.md';
+
+    // The mask covers the whole nested block (1–5); line 6 is outside.
+    const fenced = markdownFencedLines(md);
+    for (const l of [1, 2, 3, 4, 5]) expect(fenced.has(l)).toBe(true);
+    expect(fenced.has(6)).toBe(false);
+
+    // Honoring path: the marker between the inner delimiters is inert — no range,
+    // and it does not waive the line below it (4).
+    const ranges = collectSuppressions(undefined, mdPath, md.split('\n').length, md);
+    expect(ranges).toEqual([]);
+    expect(isLineSuppressed(ranges, 'nested-inert', 4)).toBe(false);
+
+    // Inventory path mirrors the honoring path exactly — nothing inventoried.
+    expect(scanSuppressionMarkers(md, mdPath)).toEqual([]);
+
+    // Load-bearing mask: the SAME text with NO Markdown path honors the marker,
+    // proving it is a real marker and only the fence mask makes it inert.
+    expect(scanSuppressionMarkers(md).map((m) => m.aspectId)).toEqual(['nested-inert']);
+  });
+
+  it('info-string close: a ```lang line inside an open fence is interior, not a close, so a marker after it stays MASKED', () => {
+    const md = [
+      '```',                                                          // 1 — opener (no info string)
+      '```lang',                                                      // 2 — same run length but carries an info string ⇒ NOT a close, interior
+      '<!-- yg-suppress(after-info-inert) documented example, inert -->', // 3 — interior, masked
+      '```',                                                          // 4 — real close (no info string)
+      'after the fenced block',                                       // 5
+    ].join('\n');
+    const mdPath = 'docs/info.md';
+
+    // The mask stays open across the ```lang line: lines 1–4 are all fenced.
+    const fenced = markdownFencedLines(md);
+    for (const l of [1, 2, 3, 4]) expect(fenced.has(l)).toBe(true);
+    expect(fenced.has(5)).toBe(false);
+
+    // Honoring path: the marker after the info-string line is inert.
+    const ranges = collectSuppressions(undefined, mdPath, md.split('\n').length, md);
+    expect(ranges).toEqual([]);
+    expect(isLineSuppressed(ranges, 'after-info-inert', 4)).toBe(false);
+
+    // Inventory path mirrors — nothing inventoried.
+    expect(scanSuppressionMarkers(md, mdPath)).toEqual([]);
+
+    // Load-bearing mask: without a Markdown path the marker is honored.
+    expect(scanSuppressionMarkers(md).map((m) => m.aspectId)).toEqual(['after-info-inert']);
   });
 });

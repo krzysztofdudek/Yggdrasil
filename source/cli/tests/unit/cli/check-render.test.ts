@@ -1044,6 +1044,26 @@ describe('check render — PASS (auto-filled) header marker (task 3.4)', () => {
   });
 });
 
+// ── Header: verified-pair split (deterministic vs LLM) ───────────────────────
+
+describe('check render — header verified-pair split', () => {
+  // Every other render test leaves verifiedDet/verifiedLlm at 0, so the header's
+  // `verifiedTotal > 0` branch (which appends `N verified (X deterministic, Y LLM)`)
+  // was never exercised. This pins that split, and that a zero total omits it.
+  it('appends "N verified (X deterministic, Y LLM)" when at least one pair is verified', () => {
+    const result: CheckResult = { ...baseResult([]), verifiedDet: 5, verifiedLlm: 3 };
+    const out = stripAnsi(formatOutput(result, { kind: 'full' }));
+    // Total (5 + 3 = 8) and the deterministic/LLM split all appear in the header.
+    expect(out).toContain('8 verified (5 deterministic, 3 LLM)');
+  });
+
+  it('omits the verified metric entirely when the total is zero', () => {
+    const result: CheckResult = { ...baseResult([]), verifiedDet: 0, verifiedLlm: 0 };
+    const out = stripAnsi(formatOutput(result, { kind: 'full' }));
+    expect(out).not.toContain('verified (');
+  });
+});
+
 // ── --top coverage issue dispatch (task 2.3 fix) ─────────────────────────────
 
 describe('check render — --top view: coverage issues (task 2.3 fix)', () => {

@@ -505,6 +505,12 @@ development, against both compliant and non-compliant inputs, to confirm no fals
 positives and no false negatives. \`--check-determinism\` runs the check twice and
 fails if the violation sets differ, catching side effects.
 
+To keep such synthetic test inputs beside the aspect, put them in a \`drills/\`
+subdirectory of the aspect folder: that directory name is reserved for
+hand-authored check fixtures and is never scanned as an aspect, so a fixture that
+happens to contain a \`yg-aspect.yaml\` (or anything the loader could mistake for
+one) can never register a phantom aspect.
+
 ## Purity rule
 
 The check function is deterministic and synchronous:
