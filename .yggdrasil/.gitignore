@@ -3,3 +3,4 @@ yg-secrets.yaml
 .debug.log
 .yg-lock.deterministic.json
 .ast-cache/
+.yg-events.jsonl

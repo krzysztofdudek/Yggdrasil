@@ -3,6 +3,16 @@ import type { ScopeDef } from '../model/graph.js';
 import { escapeXmlText } from './xml-escape.js';
 
 /**
+ * The reviewer-prompt template regime marker. Recorded on each LLM verdict
+ * event emitted by the fill's telemetry sidecar (io/events-store.ts) so a
+ * future rule-health report can tell which prompt scaffold produced a given
+ * verdict. Bump on any future change to the prompt-scaffold shape (section
+ * order, framing sentences, XML structure) — NOT on aspect content changes,
+ * which already invalidate verdicts through the lock's own hash.
+ */
+export const PROMPT_FORMAT_REV = 1;
+
+/**
  * Default prompt-size limit applied when a tier OMITS `max_prompt_chars`.
  * A hand-authored tier that leaves the key out is gated at this cap (the §4
  * size gate is always active); only an explicit positive integer overrides it.

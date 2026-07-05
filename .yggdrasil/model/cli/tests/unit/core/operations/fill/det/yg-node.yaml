@@ -2,7 +2,8 @@ name: Fill Deterministic Unit Tests
 type: test-suite
 description: "Unit tests for deterministic fills — det-first ordering, det gate
   skipping LLM, positive closure, log gate, GC, incremental writeLock,
-  taint/re-run-once, and per-file pair contract."
+  taint/re-run-once, per-file pair contract, and the append-only verdict-events
+  telemetry sidecar."
 aspects: []
 relations:
   [
@@ -11,13 +12,16 @@ relations:
     { target: cli/core/verify-lock, type: uses },
     { target: cli/formatters, type: uses },
     { target: cli/io/lock-store, type: uses },
+    { target: cli/io/stores, type: uses },
     { target: cli/llm/shared, type: uses },
     { target: cli/llm/registry, type: uses },
     { target: cli/structure, type: uses },
-    { target: cli/core/reviewer-tiers, type: uses }
+    { target: cli/core/reviewer-tiers, type: uses },
+    { target: cli/commands/init, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/core/fill-det.test.ts
   - source/cli/tests/unit/core/fill-closure.test.ts
   - source/cli/tests/unit/core/fill-infra-grouping.test.ts
   - source/cli/tests/unit/core/fill-progress.test.ts
+  - source/cli/tests/unit/core/fill-events.test.ts

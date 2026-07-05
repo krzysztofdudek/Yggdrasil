@@ -67,6 +67,8 @@ import { logGateBlocks } from './fill-log-gate.js';
 import { applyPositiveClosure } from './fill-closure.js';
 import { garbageCollectAndRewrite } from './fill-gc.js';
 import { ProgressTracker } from './fill-progress.js';
+import { appendVerdictEvent, type VerdictEvent } from '../io/events-store.js';
+import { PROMPT_FORMAT_REV } from '../llm/prompt.js';
 
 // ============================================================
 // Internal helpers
@@ -209,6 +211,43 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   const isTTY = opts.isTTY ?? (process.stderr.isTTY ?? false);
   const now = opts.now ?? Date.now.bind(Date);
 
+  // ── Verdict-events telemetry sidecar (write-only; nothing in the engine ever
+  // reads it back). One line per (aspect, unit) disposition — a real verdict
+  // (approved/refused) or a no-write infra/runtime outcome — appended to a local,
+  // gitignored file under .yggdrasil/. `now` is the SAME injected clock the rest
+  // of the fill uses (never Date.now() directly — engine files must not touch
+  // runtime state directly, see no-nondeterminism-direct); the `Date` constructor
+  // called WITH an argument is deterministic (it only formats a value someone
+  // else produced), so this does not trip that rule. Closes over graph.rootPath
+  // (the sidecar's location), now (the clock), and onlyDeterministic (this run's
+  // scope — under --only-deterministic, llmPairs is empty so no LLM disposition
+  // is ever emitted here, but the flag is part of the fill's identity this
+  // closure is built for).
+  const emitEvent = (
+    aspectId: string,
+    unitKey: string,
+    kind: 'llm' | 'deterministic',
+    disposition: VerdictEvent['disposition'],
+    extra?: { hash?: string; reason?: string; tier?: string },
+  ): void => {
+    const event: VerdictEvent = {
+      v: 1,
+      ts: new Date(now()).toISOString(),
+      source: 'fill',
+      aspectId,
+      unitKey: toPosixPath(unitKey),
+      kind,
+      disposition,
+    };
+    if (extra?.hash !== undefined) event.hash = extra.hash;
+    if (extra?.reason !== undefined) event.reason = extra.reason;
+    if (extra?.tier !== undefined) {
+      event.tier = extra.tier;
+      event.promptRev = PROMPT_FORMAT_REV;
+    }
+    appendVerdictEvent(graph.rootPath, event);
+  };
+
   // ── Step 1: Structural gate. A gating code aborts the whole fill. ──────────
   const validation = await validate(graph);
   const gating = validation.issues.filter(
@@ -335,13 +374,21 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
     writeChain = writeChain.then(() => writeLock(graph.rootPath, lock, { scope: writeScope, deterministicAspectIds }));
     return writeChain;
   };
-  const setEntry = async (aspectId: string, unitKey: string, entry: VerdictEntry): Promise<void> => {
+  const setEntry = async (pair: ExpectedPair, entry: VerdictEntry, tierName?: string): Promise<void> => {
     // Normalize the storage key to POSIX — the committed lock is shared across
     // platforms, and every read/compare/display of a unitKey already normalizes,
     // so a raw OS-native key (backslashes on Windows) would be stored under a key
     // no normalized lookup could find. A no-op on POSIX.
-    (lock.verdicts[aspectId] ??= {})[toPosixPath(unitKey)] = entry;
+    (lock.verdicts[pair.aspectId] ??= {})[toPosixPath(pair.unitKey)] = entry;
     await persistLock();
+    // Verdict-persisted-BEFORE-event: the lock write above is the source of truth
+    // and has already resolved; the telemetry event below is a strictly-AFTER
+    // side effect on the write-only sidecar (never read back by any engine path).
+    emitEvent(pair.aspectId, pair.unitKey, pair.kind, entry.verdict, {
+      hash: entry.hash,
+      reason: entry.reason,
+      tier: tierName,
+    });
   };
 
   // ── Step 4: Log gate per node (§9). A node owning unverified pairs whose
@@ -424,6 +471,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
       // No write — pair stays unverified, reported as aspect-check-runtime-error.
       // Collect for grouped emission after the loop (one message per aspect, not per pair).
       detRuntimeItems.push({ aspectId: pair.aspectId, unitKey: pair.unitKey, messageData: outcome.messageData });
+      emitEvent(pair.aspectId, pair.unitKey, 'deterministic', 'runtime-error');
       tracker.onPairComplete('det', pair.aspectId, toPosixPath(pair.unitKey), 'infra', write);
       continue;
     }
@@ -433,11 +481,12 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
       // runtime error: the fault is the source file's marker, not check.mjs, so it
       // is never reported as aspect-check-runtime-error.
       malformedSuppressItems.push({ aspectId: pair.aspectId, unitKey: pair.unitKey, messageData: outcome.messageData });
+      emitEvent(pair.aspectId, pair.unitKey, 'deterministic', 'malformed-suppress');
       tracker.onPairComplete('det', pair.aspectId, toPosixPath(pair.unitKey), 'infra', write);
       continue;
     }
     // Real verdict — write the entry.
-    await setEntry(pair.aspectId, pair.unitKey, outcome.entry);
+    await setEntry(pair, outcome.entry);
     tracker.onPairComplete('det', pair.aspectId, toPosixPath(pair.unitKey), outcome.entry.verdict, write);
     if (outcome.entry.verdict === 'refused' && pair.status === 'enforced') {
       detEnforcedRefusedNodes.add(pair.nodePath);
@@ -500,6 +549,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
           next: tierResult && !tierResult.ok ? tierResult.error.next : 'Add a reviewer tier in .yggdrasil/yg-config.yaml, or set the aspect to status: draft.',
         },
       });
+      emitEvent(pair.aspectId, pair.unitKey, 'llm', 'infra', { tier: aspect.reviewer.tier });
       continue;
     }
     const list = byTier.get(tierResult.tierName) ?? [];
@@ -526,6 +576,9 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
     if (!available) {
       infraFailures += group.length;
       infraReport.push({ provider: baseTier.provider, tier: tierName });
+      for (const item of group) {
+        emitEvent(item.pair.aspectId, item.pair.unitKey, 'llm', 'infra', { tier: tierName });
+      }
       emitIssue({
         what: `Reviewer provider '${baseTier.provider}' (tier '${tierName}') is unreachable — ${group.length} pair(s) left unverified.`,
         why: 'The configured reviewer endpoint did not respond (availability check failed) — an infrastructure problem, not a code violation. No verdict was written.',
@@ -544,7 +597,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
       // setEntry's mutation is synchronous and persistLock serializes the disk
       // writes, so concurrent pool workers cannot corrupt the lock.
       if (outcome.kind === 'verdict') {
-        await setEntry(item.pair.aspectId, item.pair.unitKey, outcome.entry);
+        await setEntry(item.pair, outcome.entry, item.tierName);
         tracker.onPairComplete('llm', item.pair.aspectId, toPosixPath(item.pair.unitKey), outcome.entry.verdict, write);
       } else if (outcome.kind === 'infra' || outcome.kind === 'companion-runtime-error') {
         tracker.onPairComplete('llm', item.pair.aspectId, toPosixPath(item.pair.unitKey), 'infra', write);
@@ -564,6 +617,11 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
         // these are NOT provider/config failures.
         companionRuntimeErrors += 1;
         companionRuntimeItems.push({ aspectId: item.pair.aspectId, unitKey: item.pair.unitKey, messageData: outcome.messageData });
+        // Emitted here (not inside the pool callback above) so this single site
+        // covers BOTH a normal companion-runtime-error outcome AND the pool's own
+        // synthetic infra conversion of a worker throw (fill-pool.ts) — every
+        // no-write disposition for this tier group passes through this loop.
+        emitEvent(item.pair.aspectId, item.pair.unitKey, 'llm', 'companion-runtime-error', { tier: item.tierName });
       } else if (outcome.kind === 'infra') {
         infraFailures += 1;
         infraReport.push({ provider: baseTier.provider, tier: tierName });
@@ -575,6 +633,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
           next: `Resolve the provider/config problem, then re-run: yg check --approve`,
         };
         poolInfraItems.push({ aspectId: item.pair.aspectId, unitKey: item.pair.unitKey, messageData });
+        emitEvent(item.pair.aspectId, item.pair.unitKey, 'llm', 'infra', { tier: item.tierName });
       }
     }
   }

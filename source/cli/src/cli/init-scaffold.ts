@@ -62,6 +62,7 @@ export async function ensureGitattributes(repoRoot: string): Promise<void> {
  *    - `.symbols-cache/`  — the relation pass's legacy per-language symbol-index cache
  *    - `.ast-cache/`      — the relation pass's content-addressed per-file AST fact cache
  *    - `.debug.log`       — the opt-in command debug log
+ *    - `.yg-events.jsonl` — the fill stage's append-only verdict-events telemetry sidecar
  *  This is the single source of truth for what init writes into the local
  *  gitignore (both fresh init and every --upgrade). Paths are relative to the
  *  `.yggdrasil/` directory the file lives in. */
@@ -75,6 +76,9 @@ const YGGDRASIL_GITIGNORE_LINES = [
   // Deterministic-verdict lock: a local cache rebuilt for free by
   // `yg check --approve --only-deterministic`; never committed.
   '.yg-lock.deterministic.json',
+  // Append-only verdict-events telemetry sidecar: local, write-only, never read by
+  // any check/verify/render path; never committed.
+  '.yg-events.jsonl',
 ] as const;
 
 /**
