@@ -246,20 +246,50 @@ export async function runVersionUpgrade(
 }
 
 // ---------------------------------------------------------------------------
+// Non-interactive reconfigure of an existing repo (flags authoritative)
+// ---------------------------------------------------------------------------
+
+/**
+ * Apply the union of the operations named by flags to an existing .yggdrasil/:
+ * --provider [+ --model/--endpoint] (re)writes the reviewer tier; --platform
+ * reinstalls the rules file. Prompt-free; mirrors freshInitNonInteractive's
+ * resolver + write-path. Platform/provider values are validated by the caller.
+ */
+export async function existingInitNonInteractive(
+  projectRoot: string,
+  yggRoot: string,
+  opts: { platform?: Platform; provider?: ReviewerProvider; model?: string; endpoint?: string },
+): Promise<void> {
+  if (opts.provider) {
+    const resolved = resolveReviewerConfigFromFlags({
+      platform: opts.platform, provider: opts.provider, model: opts.model, endpoint: opts.endpoint,
+    });
+    if (!resolved.ok) {
+      process.stderr.write(chalk.red(`Error: ${buildIssueMessage(resolved.issue)}\n`));
+      process.exit(1);
+    }
+    const { provider, model, endpoint, apiKey } = resolved.config;
+    await writeReviewerConfig(yggRoot, { provider, model, endpoint });
+    if (apiKey) {
+      await writeSecretsFile(yggRoot, apiKey);
+    } else if (resolved.keyWarning) {
+      process.stdout.write(chalk.yellow(`${buildIssueMessage(resolved.keyWarning)}\n`));
+    }
+    process.stdout.write(chalk.green(`Reviewer configured (provider: ${provider}, model: ${model}).\n`));
+  }
+
+  if (opts.platform) {
+    const rulesPath = await installRulesForPlatform(projectRoot, opts.platform);
+    process.stdout.write(chalk.green(`Platform rules installed: ${toPosixPath(path.relative(projectRoot, rulesPath))}\n`));
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Existing repo menu
 // ---------------------------------------------------------------------------
 
 async function existingInit(projectRoot: string): Promise<void> {
   const yggRoot = path.join(projectRoot, '.yggdrasil');
-
-  if (!isTTY()) {
-    process.stdout.write(chalk.yellow(buildIssueMessage({
-      what: '.yggdrasil/ already exists.',
-      why: 'Re-configuration requires interactive prompts which are not available in non-TTY mode.',
-      next: 'Run yg init interactively in a terminal to reconfigure.',
-    }) + '\n'));
-    return;
-  }
 
   p.intro(chalk.bold('Yggdrasil Configuration'));
 
@@ -365,18 +395,7 @@ export function registerInitCommand(program: Command): void {
             );
             process.exit(1);
           }
-          if (!PLATFORMS.includes(options.platform as Platform)) {
-            process.stderr.write(
-              chalk.red(
-                `Error: ${buildIssueMessage({
-                  what: `Unknown platform '${options.platform}'.`,
-                  why: 'The --platform value must match one of the supported agent platforms.',
-                  next: `Use one of: ${PLATFORMS.join(', ')}`,
-                })}\n`,
-              ),
-            );
-            process.exit(1);
-          }
+          ensureKnownPlatform(options.platform);
           try {
             await stat(yggRoot);
           } catch (e: unknown) {
@@ -478,7 +497,24 @@ export function registerInitCommand(program: Command): void {
         }
 
         if (exists) {
-          await existingInit(projectRoot); // replaced in Task 4
+          if (options.provider || options.platform) {
+            if (options.provider) ensureKnownProvider(options.provider);
+            if (options.platform) ensureKnownPlatform(options.platform);
+            await existingInitNonInteractive(projectRoot, yggRoot, {
+              platform: options.platform as Platform | undefined,
+              provider: options.provider as ReviewerProvider | undefined,
+              model: options.model,
+              endpoint: options.endpoint,
+            });
+          } else if (isTTY()) {
+            await existingInit(projectRoot);
+          } else {
+            process.stdout.write(chalk.yellow(`${buildIssueMessage({
+              what: '.yggdrasil/ already exists and no reconfiguration flag was given (no TTY to open the menu).',
+              why: 'Reconfiguration needs either the interactive menu or an explicit flag; a bare non-interactive run has nothing to do.',
+              next: 'Pass one: --provider <name> [--model <m>] to set the judge, --platform <name> to switch platform, or --upgrade --platform <name> to refresh rules.',
+            })}\n`));
+          }
         } else if (options.provider) {
           // Non-interactive fresh bootstrap WITH a judge (Docker / devcontainer / CI).
           if (!options.platform) {

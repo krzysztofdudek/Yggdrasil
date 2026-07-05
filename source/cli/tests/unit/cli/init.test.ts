@@ -3,7 +3,12 @@ import { Command } from 'commander';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { registerInitCommand, freshInitNonInteractive, freshInitKeyless } from '../../../src/cli/init.js';
+import {
+  registerInitCommand,
+  freshInitNonInteractive,
+  freshInitKeyless,
+  existingInitNonInteractive,
+} from '../../../src/cli/init.js';
 import { resolveReviewerConfigFromFlags } from '../../../src/cli/init-reviewer-setup.js';
 
 // Shared temp-dir helper for every describe block below that exercises a
@@ -107,6 +112,26 @@ describe('freshInitNonInteractive', () => {
     ).rejects.toThrow('exit');
     expect(exit).toHaveBeenCalledWith(1);
     expect(err.mock.calls.map(c => String(c[0])).join('')).toContain('--endpoint is required');
+  });
+});
+
+describe('existingInitNonInteractive', () => {
+  it('adds a reviewer to a keyless repo via flags', async () => {
+    const { root, ygg } = await freshDir('add-reviewer');
+    await freshInitKeyless(root, ygg, 'claude-code');
+    await existingInitNonInteractive(root, ygg, { provider: 'claude-code' }); // model defaults sonnet
+    const cfg = await readFile(path.join(ygg, 'yg-config.yaml'), 'utf-8');
+    expect(cfg).toContain('provider: claude-code');
+    expect(cfg).toContain('model: sonnet');
+  });
+
+  it('changes the platform rules file via --platform', async () => {
+    const { root, ygg } = await freshDir('change-platform');
+    await freshInitKeyless(root, ygg, 'claude-code');
+    await existingInitNonInteractive(root, ygg, { platform: 'cursor' });
+    // cursor writes .cursor/rules/yggdrasil.mdc — assert it now exists.
+    const { existsSync } = await import('node:fs');
+    expect(existsSync(path.join(root, '.cursor', 'rules', 'yggdrasil.mdc'))).toBe(true);
   });
 });
 
