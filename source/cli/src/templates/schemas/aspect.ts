@@ -192,8 +192,10 @@ status: enforced                   # optional — aspect-level default. enum: dr
                                    # aspect is effective — same as changes to content.md. Run \`yg impact --file <ref>\`
                                    # before editing a widely-referenced file.
                                    #
-                                   # Size limits: per-tier caps via reviewer.tiers.<tier>.references.* in yg-config.yaml.
-                                   # Defaults: 64 KiB per file, 256 KiB total per aspect.
+                                   # Size limits: there is NO per-tier reference byte cap. Reference bytes count
+                                   # toward the assembled reviewer prompt, bounded by reviewer.tiers.<name>.max_prompt_chars
+                                   # (default 50000) in yg-config.yaml; an over-limit pair is a blocking prompt-too-large
+                                   # error with remedies (see yg knowledge read writing-llm-aspects).
 
 # companion.mjs                   # OPTIONAL — per-unit companion file resolver. LLM aspects ONLY.
                                    # Requires content.md (validator error aspect-companion-without-content
