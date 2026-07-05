@@ -39,8 +39,10 @@ coverage:                         # optional — scopes the unmapped-files gate.
                                   # Files outside required and excluded are a non-blocking WARNING.
                                   # Subtrees containing their own nested .yggdrasil/ are auto-skipped by every check.
 
-reviewer:                         # required — aspect verification used during yg check --approve
-                                  # or when auto_approve triggers a fill.
+reviewer:                         # required only once a judgment (LLM) rule is actually effective —
+                                  # used during yg check --approve or when auto_approve triggers a fill.
+                                  # A script-only / keyless project (deterministic aspects only, or none)
+                                  # needs no reviewer: section at all.
   default: standard               # required when more than one tier is configured; optional with exactly one tier.
                                   #   Must reference one of the keys under reviewer.tiers.
   tiers:                          # required — named tier configurations, minimum one entry.

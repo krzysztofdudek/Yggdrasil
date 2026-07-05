@@ -365,13 +365,61 @@ yg schemas read <name>         # print one schema's field reference
 
 ## yg init
 
-Bootstrap or refresh \`.yggdrasil/\` setup.
+Bootstrap or refresh \`.yggdrasil/\` setup. In a terminal with no flags it opens
+an interactive wizard; every flag combination below also runs non-interactively
+(Docker, devcontainer, CI) — flags are authoritative, so a fully-specified
+command never opens the wizard, even from a terminal.
 
 \`\`\`bash
-yg init                        # initial setup — writes config (incl. max_prompt_chars) + .gitattributes
-yg init --upgrade              # refresh rules/platform files + .gitattributes; lift version bookkeeping
-yg init --upgrade --platform claude-code   # regenerate for specific platform
+yg init                        # interactive wizard (TTY only)
 \`\`\`
+
+**Fresh repo (no \`.yggdrasil/\` yet):**
+
+\`\`\`bash
+yg init --platform <name>                              # keyless bootstrap — no judge configured
+yg init --platform <name> --provider <name> [--model <m>] [--endpoint <url>]   # bootstrap with a judge
+\`\`\`
+
+\`--platform <name>\` alone scaffolds the graph and installs that platform's
+rules file with no \`reviewer:\` section at all. Script rules, dependency
+control, and the CI gate all work immediately, at zero cost and with no API
+key. Add \`--provider\` (same command, or a later \`yg init --provider ...\` on
+the now-existing repo) to configure a judge once a judgment (LLM) rule exists.
+A non-interactive run naming no \`--platform\` errors with guidance rather than
+guessing which agent platform to install.
+
+**Existing repo (\`.yggdrasil/\` already present):**
+
+\`\`\`bash
+yg init --provider <name> [--model <m>] [--endpoint <url>]   # configure/replace the judge
+yg init --platform <name>                                    # switch the platform rules file
+yg init --upgrade --platform <name>                          # refresh rules/platform files + .gitattributes; lift version bookkeeping
+\`\`\`
+
+Any combination of \`--provider\` and \`--platform\` may be given together; each
+flag applies its own operation independently (configure the judge, switch the
+platform, or both). With neither flag and a TTY, the interactive
+reconfiguration menu opens (upgrade / configure reviewer / change platform);
+with neither flag and no TTY, the command reports that there is nothing to do
+and lists the available flags rather than guessing.
+
+**Model and endpoint defaults:** \`--model\` defaults to \`sonnet\` only for
+provider \`claude-code\`; every other provider (\`codex\`, \`gemini-cli\`,
+\`ollama\`, \`anthropic\`, \`openai\`, \`google\`, \`openai-compatible\`) requires
+\`--model\` explicitly — there is no universal default. \`--endpoint\` defaults to
+\`http://localhost:11434\` for \`ollama\` only; \`openai-compatible\` has no default
+endpoint and requires \`--endpoint\`. \`--model\`/\`--endpoint\` without
+\`--provider\` is an error (nothing to configure).
+
+**Credentials are env-only, never a flag.** There is no \`--api-key\` (or
+similarly-named) flag. An API provider's key is read only from its own
+environment variable (\`ANTHROPIC_API_KEY\`, \`OPENAI_API_KEY\`,
+\`GOOGLE_API_KEY\` — \`openai-compatible\` also reads \`OPENAI_API_KEY\`) at
+init time. A missing key is non-fatal: the config is written anyway and can be
+fixed later by exporting the variable (or editing \`yg-secrets.yaml\`) before
+\`yg check --approve\`. This keeps API keys out of shell history — there is no
+flag-based alternative to set a credential, by design.
 
 \`yg init\` maintains \`.gitattributes\` so the committed lock files
 (\`yg-lock.*.json\`) are marked \`linguist-generated\`. Run from repository root only.

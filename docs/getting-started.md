@@ -2,7 +2,7 @@
 title: Getting Started
 ---
 
-Install, point Yggdrasil at one file, and watch the reviewer enforce a rule you wrote. About five minutes.
+Install, bootstrap a graph that works keyless from the first command, then add a judge and watch it enforce a rule you wrote. About five minutes.
 
 ::: tip New here?
 Read [How it works](/how-it-works) first for the mental model. This page is the hands-on version.
@@ -18,55 +18,52 @@ npm install -g @chrisdudek/yg
 
 ## 2) Init
 
+Start **keyless** — no reviewer, no API key. Name your agent platform and go:
+
 ```bash
 cd your-project
-yg init
-```
-
-The wizard asks two things:
-
-1. **Which AI coding platform?** (Cursor, Claude Code, Copilot, etc.)
-   This installs a rules file that teaches your agent the Yggdrasil protocol.
-2. **Which reviewer provider?** The reviewer verifies your code against your
-   rules. If you already run an agent CLI — **Claude Code, Codex, or Gemini
-   CLI** — pick it: it needs **no API key** and adds no separate API bill, and
-   the wizard just checks the tool is on your PATH. That is the default, and the
-   fastest way to start. Ollama runs locally with no API cost. The API providers
-   (Anthropic, OpenAI, Google) need a key — for those, the wizard fetches the
-   available models, lets you pick one, validates the connection, and stores the
-   key in `.yggdrasil/yg-secrets.yaml` (automatically gitignored; you can set it
-   via `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GOOGLE_API_KEY` instead).
-
-The wizard creates `.yggdrasil/` with config, architecture defaults, and the
-rules file for your platform.
-
-::: tip No terminal? (Docker, devcontainer, CI)
-Bootstrap a fresh graph non-interactively with flags instead of prompts.
-Flags are authoritative — a fully-specified command never opens the wizard,
-even from a terminal.
-
-Name a provider to configure a reviewer too:
-
-```bash
-yg init --platform claude-code --provider claude-code
-```
-
-`--model` defaults to `sonnet` for the `claude-code` provider; every other
-provider requires `--model` explicitly. Pass `--endpoint` for Ollama (defaults
-to `http://localhost:11434`) or an OpenAI-compatible provider (required, no
-default). API keys are read from the provider's env var, never a flag.
-
-Or name just a platform to start **keyless** — no reviewer configured at all:
-
-```bash
 yg init --platform claude-code
 ```
 
-This scaffolds the graph and installs the rules file with no `reviewer:`
-section. Script rules, dependency checks, and the CI gate all work
-immediately at zero cost; add a judge later with `yg init --provider <name>
-[--model <m>]`. A non-interactive run naming no platform fails with guidance
-instead of guessing which agent platform to install.
+(Swap `claude-code` for whichever platform you use: Cursor, Copilot, Codex,
+Gemini CLI, etc.) This scaffolds `.yggdrasil/` — config, architecture
+defaults, and the rules file for your platform — with no `reviewer:` section
+at all. Script rules (`check.mjs`), dependency control (the built-in
+relation-conformance check), and the `yg check` CI gate all work immediately,
+for free, with nothing to configure. Nothing is judged by an LLM yet, because
+nothing you've written needs judgment yet.
+
+Add a **judge** later, whenever you write your first judgment rule — an
+aspect whose rule is a `content.md` an LLM reads and decides against, as
+opposed to a `check.mjs` script:
+
+```bash
+yg init --provider claude-code
+```
+
+If you already run an agent CLI — **Claude Code, Codex, or Gemini CLI** —
+pick it: it needs **no API key** and adds no separate API bill, only a check
+that the tool is on your PATH. Ollama runs locally with no API cost either.
+The API providers (Anthropic, OpenAI, Google) need a key, read only from an
+environment variable (`ANTHROPIC_API_KEY` / `OPENAI_API_KEY` /
+`GOOGLE_API_KEY` — never a flag, so it never lands in shell history) and
+stored in `.yggdrasil/yg-secrets.yaml` (automatically gitignored).
+
+Both commands above are flags, not prompts — they run identically whether or
+not you have a terminal, which is what makes them the right form for Docker,
+a devcontainer, or CI. `--model` defaults to `sonnet` for the `claude-code`
+provider only; every other provider requires `--model` explicitly.
+`--endpoint` defaults to `http://localhost:11434` for `ollama`; an
+OpenAI-compatible provider requires it (no default). A run naming no
+`--platform` fails with guidance instead of guessing which agent platform to
+install.
+
+::: tip Prefer to be walked through it?
+Run bare `yg init` in a terminal for an interactive wizard that asks both
+questions — platform, then reviewer — in one pass, fetching and validating
+models for API providers as you go. Flags are authoritative: a
+fully-specified command (as above) never opens the wizard, even from a
+terminal.
 :::
 
 ::: tip Prefer to be taught?

@@ -4,7 +4,10 @@ title: Configuration
 
 Config file: `.yggdrasil/yg-config.yaml`
 
-`yg init` creates this file and configures the reviewer interactively.
+`yg init` creates this file. `yg init --platform <name>` (with no `--provider`)
+writes it with no `reviewer:` section at all — a keyless, script-only start.
+A reviewer is configured separately, interactively or via `--provider [--model]
+[--endpoint]`, whenever the graph gains its first judgment (LLM) rule.
 `yg init --upgrade` lifts the graph's config version to the current one and
 refreshes the rules and platform files.
 
@@ -15,11 +18,14 @@ refreshes the rules and platform files.
 ### Required
 
 - **version** — Schema version managed by the CLI. Do not edit manually. Run `yg init --upgrade` to upgrade.
-- **reviewer** — Reviewer configuration; must contain `tiers` with at least one entry. Configured during `yg init`; see [Reviewer tiers](#reviewer-tiers) below.
+
+### Conditionally required
+
+- **reviewer** — Reviewer configuration; when present, must contain `tiers` with at least one entry. Required only once a judgment (LLM) rule is actually effective in the graph — a script-only / keyless project (deterministic aspects only, or none) needs no `reviewer:` section, and `yg check` does not ask for one until an LLM aspect exists. Configured via `yg init` (interactively, or non-interactively with `--provider`); see [Reviewer tiers](#reviewer-tiers) below.
+- **reviewer.default** — Tier name aspects fall back to when they don't declare one. Required when `reviewer.tiers` has more than one entry; optional with exactly one tier.
 
 ### Optional
 
-- **reviewer.default** — Tier name aspects fall back to when they don't declare one. Required when `reviewer.tiers` has more than one entry; optional with exactly one tier.
 - **coverage** — Controls which files must be mapped to a node (see [Coverage config](#coverage-config) below).
 - **quality** — Quality thresholds (see [Quality config](#quality-config) below).
 - **parallel** — Concurrent aspect verifications across nodes (positive integer).

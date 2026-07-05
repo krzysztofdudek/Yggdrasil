@@ -484,21 +484,60 @@ to drop or re-roll a recorded verdict.
 
 ```bash
 yg init
-yg init --upgrade --platform claude-code
 ```
 
-Interactive wizard. On a new project: walks you through platform selection and
-reviewer setup. On an existing project: offers upgrade, reviewer reconfiguration,
-or platform change.
+With no flags in a terminal, an interactive wizard: on a new project it walks
+you through platform selection and reviewer setup; on an existing project it
+offers upgrade, reviewer reconfiguration, or platform change. Every flag
+combination below also runs non-interactively (Docker, devcontainer, CI) —
+flags are authoritative, so a fully-specified command never opens the wizard,
+even from a terminal.
+
+**Fresh repo (no `.yggdrasil/` yet):**
+
+```bash
+yg init --platform <name>                              # keyless bootstrap — no judge configured
+yg init --platform <name> --provider <name> [--model <m>] [--endpoint <url>]   # bootstrap with a judge
+```
+
+`--platform <name>` alone scaffolds the graph and installs that platform's
+rules file with no `reviewer:` section at all — script rules, dependency
+control, and the CI gate work immediately at zero cost, no API key needed. Add
+`--provider` (same command, or later against the now-existing repo) once the
+graph gains its first judgment (LLM) rule. A non-interactive run naming no
+`--platform` errors with guidance rather than guessing which agent platform to
+install.
+
+**Existing repo:**
+
+```bash
+yg init --provider <name> [--model <m>] [--endpoint <url>]   # configure/replace the judge
+yg init --platform <name>                                    # switch the platform rules file
+yg init --upgrade --platform <name>                          # refresh rules/platform files
+```
+
+`--provider` and `--platform` can be combined in one command; each applies its
+own operation. With neither flag and a TTY, the interactive reconfiguration
+menu opens; with neither flag and no TTY, the command reports there is
+nothing to do rather than guessing.
+
+**Defaults:** `--model` defaults to `sonnet` only for `claude-code`; every
+other provider requires `--model` explicitly. `--endpoint` defaults to
+`http://localhost:11434` for `ollama` only; `openai-compatible` has no default
+and requires `--endpoint`. Credentials are never a flag — an API provider's
+key is read only from its own environment variable
+(`ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GOOGLE_API_KEY`) at init time,
+keeping keys out of shell history; a missing key is non-fatal and can be set
+later before `yg check --approve`.
 
 `yg init` also maintains a `.gitattributes` entry marking the committed lock files
 as generated (`linguist-generated=true`), adds the gitignored deterministic cache
 (`.yg-lock.deterministic.json`) to `.yggdrasil/.gitignore`, and writes
 `max_prompt_chars: 50000` into the generated reviewer tier.
 
-Non-interactive mode: `--upgrade --platform <name>` lifts the config version to the
-current one and refreshes rules and platform files — without prompts.
-Useful in scripts and CI. On a project still using the older single-file
-`yg-lock.json`, `--upgrade` also splits it into the triad in place — relocating
-every verdict verbatim, with no re-verification — and gitignores the deterministic
-cache. See [The lock](/the-lock) for the file layout.
+`--upgrade --platform <name>` lifts the config version to the current one and
+refreshes rules and platform files — without prompts. Useful in scripts and CI.
+On a project still using the older single-file `yg-lock.json`, `--upgrade` also
+splits it into the triad in place — relocating every verdict verbatim, with no
+re-verification — and gitignores the deterministic cache. See
+[The lock](/the-lock) for the file layout.
