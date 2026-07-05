@@ -95,6 +95,17 @@ node source/cli/dist/bin.js aspect-test --aspect wasm-tree-lifecycle \
   --files .yggdrasil/aspects/wasm-tree-lifecycle/drills/satisfies-unrelated-parser/*.ts
 # -> yg aspect-test: satisfied — No violations.
 
+# reviewer-secrets-not-from-flags
+node source/cli/dist/bin.js aspect-test --aspect reviewer-secrets-not-from-flags \
+  --files .yggdrasil/aspects/reviewer-secrets-not-from-flags/drills/violates-api-key-option/*.ts
+# -> yg aspect-test: refused — 1 violation
+node source/cli/dist/bin.js aspect-test --aspect reviewer-secrets-not-from-flags \
+  --files .yggdrasil/aspects/reviewer-secrets-not-from-flags/drills/violates-options-credential-read/*.ts
+# -> yg aspect-test: refused — 1 violation
+node source/cli/dist/bin.js aspect-test --aspect reviewer-secrets-not-from-flags \
+  --files .yggdrasil/aspects/reviewer-secrets-not-from-flags/drills/satisfies-env-only/*.ts
+# -> yg aspect-test: satisfied — No violations.
+
 # e2e-public-surface  (repo-relative --files required)
 node source/cli/dist/bin.js aspect-test --aspect e2e-public-surface \
   --files .yggdrasil/aspects/e2e-public-surface/drills/violates-static-import/*.ts

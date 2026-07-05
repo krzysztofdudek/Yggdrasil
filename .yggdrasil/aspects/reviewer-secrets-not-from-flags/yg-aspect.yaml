@@ -1,0 +1,5 @@
+name: ReviewerSecretsNotFromFlags
+description: "Reviewer credentials must never be sourced from a CLI flag — only from the provider's environment variable (via API_KEY_ENV). The init command must NOT register any option whose flag name looks like a credential (api-key, key, secret, token, password, credential), and no credential value may be read off the parsed Commander `options` object. Keeps API keys out of shell history and process listings; the sanctioned path is process.env only."
+reviewer:
+  type: deterministic
+status: enforced

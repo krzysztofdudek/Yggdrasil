@@ -2,7 +2,8 @@ name: InitCommand
 type: command
 description: Bootstraps Yggdrasil graph structure in a project or refreshes
   platform rules via yg init
-aspects: []
+aspects:
+  - reviewer-secrets-not-from-flags
 relations:
   - target: cli/templates
     type: calls

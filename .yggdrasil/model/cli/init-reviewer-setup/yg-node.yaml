@@ -7,6 +7,8 @@ description: "Reviewer-provider configuration for yg init — the interactive
   into the yg-secrets.yaml overlay. Extracted from the init command handler so
   the large command file carries only orchestration; registers no Commander
   subcommand."
+aspects:
+  - reviewer-secrets-not-from-flags
 relations:
   - target: cli/llm/shared
     type: calls
