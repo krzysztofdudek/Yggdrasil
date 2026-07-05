@@ -391,7 +391,7 @@ export function resolveReviewerConfigFromFlags(opts: {
       return { ok: false, issue: {
         what: `--endpoint is required for provider '${provider}'.`,
         why: 'An OpenAI-compatible provider has no default base URL — the reviewer needs an endpoint to call.',
-        next: `Re-run naming an endpoint: yg init --provider ${provider} --model ${model} --endpoint <url>.`,
+        next: `Re-run naming an endpoint: yg init --provider ${provider} --model ${model} --endpoint <url>${platHint}.`,
       } };
     }
   }

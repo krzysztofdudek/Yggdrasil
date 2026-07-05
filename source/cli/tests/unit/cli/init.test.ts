@@ -111,7 +111,13 @@ describe('resolveReviewerConfigFromFlags', () => {
     if (ok.ok) expect(ok.config.endpoint).toBe('http://localhost:11434');
     const bad = resolveReviewerConfigFromFlags({ provider: 'openai-compatible', model: 'gpt-4o' });
     expect(bad.ok).toBe(false);
-    if (!bad.ok) expect(bad.issue.what).toContain('--endpoint is required');
+    if (!bad.ok) {
+      expect(bad.issue.what).toContain('--endpoint is required');
+      // The suggested retry command must be immediately runnable — it must include
+      // --platform, not just --endpoint, or the user hits the separate
+      // "no --platform" guard on the very next retry.
+      expect(bad.issue.next).toContain('--platform <name>');
+    }
   });
 
   it('surfaces a keyWarning (not an error) when an API provider has no env key', () => {

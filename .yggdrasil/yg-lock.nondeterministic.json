@@ -500,7 +500,7 @@
       "file:source/cli/tests/unit/cli/group-issues.test.ts": {"hash":"b521e846f41fbf933cf08fc96f82ac1887f4b849e3773c143134cb3d961a13fa","verdict":"approved"},
       "file:source/cli/tests/unit/cli/impact.test.ts": {"hash":"112a52380e94fff1c93171f61501e3bd08a35043b4ed2304d3d97d6e55d76fff","verdict":"approved"},
       "file:source/cli/tests/unit/cli/init-upgrade.test.ts": {"hash":"16582319482a045766a8be0ee2d34f0498feb39991aeae4d3f08a55b85d78f6d","verdict":"approved"},
-      "file:source/cli/tests/unit/cli/init.test.ts": {"hash":"e212069bb4cb11cce7311923e9bcacc6633a86e31cfbcc47c35462152f4fdd0c","verdict":"approved"},
+      "file:source/cli/tests/unit/cli/init.test.ts": {"hash":"0eab7905705ae1fee56b9538ae1da8f595fa0d34a29e5a12a2c0f9c88f96639b","verdict":"approved"},
       "file:source/cli/tests/unit/cli/knowledge.test.ts": {"hash":"7557f94d8ab81a2dfed0ccdeda57bffce488f0774099be5d1e39ea8d507bd97a","verdict":"approved"},
       "file:source/cli/tests/unit/cli/log-add.test.ts": {"hash":"001575e75429f4cf7647ae1603f063955e9bbe88b86138e860386cabfb111e38","verdict":"approved"},
       "file:source/cli/tests/unit/cli/log-read.test.ts": {"hash":"f710a3ddd151868c79ef1bad90a6705a39e4e30e6b2fc769cbb3bb6c6dbac8ef","verdict":"approved"},
