@@ -3,7 +3,7 @@ import { rm, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validate } from '../../../src/core/validator.js';
-import type { Graph, AspectDef } from '../../../src/model/graph.js';
+import type { Graph, AspectDef, GraphNode } from '../../../src/model/graph.js';
 import { buildIssueMessage } from '../../../src/formatters/message-builder.js';
 const msgOf = (i: { messageData: Parameters<typeof buildIssueMessage>[0] }) => buildIssueMessage(i.messageData);
 
@@ -90,8 +90,30 @@ describe('aspect parse errors (Task 36)', () => {
 });
 
 describe('config-reviewer-missing (Task 36b)', () => {
-  it('emits config-reviewer-missing when config has no reviewer section', async () => {
+  it('does not emit config-reviewer-missing when config has no reviewer section but no LLM pair is effective', async () => {
+    // Empty nodes/aspects → computeExpectedPairs yields no LLM pair, so a
+    // script-only / empty graph is a legal keyless state.
     const graph = createGraph({ config: {} });
+
+    const result = await validate(graph);
+    const issues = result.issues.filter((i) => i.code === 'config-reviewer-missing');
+
+    expect(issues).toHaveLength(0);
+  });
+
+  it('emits config-reviewer-missing when an LLM aspect is effective but reviewer is absent', async () => {
+    const aspect = createAspect('my-aspect', 'llm');
+    const node: GraphNode = {
+      path: 'auth',
+      meta: { name: 'auth', type: 'module', aspects: ['my-aspect'], mapping: ['src/auth/auth.controller.ts'] },
+      children: [],
+      parent: null,
+    };
+    const graph = createGraph({
+      config: {},
+      aspects: [aspect],
+      nodes: new Map([['auth', node]]),
+    });
 
     const result = await validate(graph);
     const issues = result.issues.filter((i) => i.code === 'config-reviewer-missing');

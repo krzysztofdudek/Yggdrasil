@@ -20,3 +20,5 @@ Separately, a conditional applicability predicate may key off a consumed port, a
 A reviewer-configuration error called a project with only mechanical checks an 'AST-only' project. The system's vocabulary for mechanical check.mjs aspects is 'deterministic', never 'AST', so the wording was aligned to avoid an undefined term an agent has to guess at.
 ## [2026-06-19T19:18:52.818Z]
 Reject companion misuse at validation time before any review runs: a companion resolver only makes sense for an LLM reviewer, so an aspect that ships one without review content, or alongside a deterministic check, is a configuration error.
+## [2026-07-05T20:58:33.243Z]
+Missing-reviewer detection now consults the effective, non-draft judgment pairs through the canonical pair computation and stays silent when none exist, so a keyless project is a legal green state rather than a blocking error.

@@ -82,3 +82,5 @@ The mapping-overlap validation step became asynchronous because it now resolves 
 Dropped the secrets-non-credential check registration: yg-secrets is now a general deep-merge overlay over yg-config, so non-credential fields in it are valid and must not be flagged.
 ## [2026-06-19T05:55:06.181Z]
 Stops enforcing that schema files are present. The presence requirement is gone because schema references are now embedded in the tool and reached through a command rather than copied into each project, so validation no longer wires in that check.
+## [2026-07-05T20:58:29.353Z]
+The reviewer-section requirement is now conditional: the missing-reviewer error is raised only when a judgment rule is actually effective on some component, so a script-only project verifies clean without configuring a model to judge code.

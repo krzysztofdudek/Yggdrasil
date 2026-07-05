@@ -184,13 +184,14 @@ describe('checkOrphanedAspects', () => {
 });
 
 describe('aspect-contract validators', () => {
-  it('checkReviewerPresence short-circuits when the config failed to parse', () => {
-    expect(checkReviewerPresence(mkGraph({ configError: 'boom' } as Partial<Graph>))).toEqual([]);
+  it('checkReviewerPresence short-circuits when the config failed to parse', async () => {
+    expect(await checkReviewerPresence(mkGraph({ configError: 'boom' } as Partial<Graph>))).toEqual([]);
   });
 
-  it('checkReviewerPresence flags a config with no reviewer section', () => {
-    const issues = checkReviewerPresence(mkGraph({ config: {} as Graph['config'] }));
-    expect(issues.some((i) => i.code === 'config-reviewer-missing')).toBe(true);
+  it('checkReviewerPresence is silent when no LLM pair is effective (deterministic-only / empty graph)', async () => {
+    // mkGraph builds an empty node/aspect set → computeExpectedPairs yields no LLM pair.
+    const issues = await checkReviewerPresence(mkGraph({ config: {} as Graph['config'] }));
+    expect(issues).toEqual([]);
   });
 
   it('checkAspectTierReferences short-circuits on a config error', () => {

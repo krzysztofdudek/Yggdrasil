@@ -95,6 +95,14 @@ function scaffold(
     aspectYaml?: string;
     aspectRule?: { file: 'content.md' | 'check.mjs'; body: string };
     referenceAspect?: boolean;
+    /**
+     * Repo-relative mapping entries for the widget node. Only needed by
+     * scenarios that require an effective (non-draft) pair to exist —
+     * `computeExpectedPairs` skips any node with an empty mapping, so most
+     * scenarios in this file (structural config validation) leave this unset.
+     * When set, the caller is responsible for writing the mapped file(s).
+     */
+    mapping?: string[];
   },
 ): string {
   const dir = mkdtempSync(path.join(tmpdir(), `yg-cfgtier-${label}-`));
@@ -125,6 +133,7 @@ function scaffold(
       'description: A widget node',
       'type: service',
       ...(referenceAspect ? ['aspects:', '  - det'] : []),
+      ...(opts.mapping && opts.mapping.length > 0 ? ['mapping:', ...opts.mapping.map((m) => `  - ${m}`)] : []),
       '',
     ].join('\n'),
     'utf-8',
@@ -427,21 +436,48 @@ describe.skipIf(!distExists)('CLI E2E — yg-config.yaml reviewer/tier + global-
   // GROUP F — reviewer-section shape (missing, unknown key)
   // =========================================================================
 
-  it('F1: a config with no reviewer: block yields config-reviewer-missing (exit 1)', () => {
+  it('F1: a config with no reviewer: block yields config-reviewer-missing when an LLM pair is effective (exit 1)', () => {
     // A valid YAML mapping (quality only) but no reviewer section. This is a
     // validator-level check (checkReviewerPresence), not a parser throw, so it
     // is distinct from the empty-file config-invalid case (G2).
+    //
+    // checkReviewerPresence now fires only once a judgment (LLM) pair is
+    // actually effective, so — unlike the rest of this file's deterministic-only
+    // scenarios — this one needs the widget node mapped to a real source file
+    // and the 'det' aspect reassigned to an LLM reviewer with content.md.
     const dir = scaffold('reviewer-missing', {
       configYaml: ['quality:', '  max_direct_relations: 10', ''].join('\n'),
+      aspectYaml: ['name: Det', 'description: A judgment aspect', 'reviewer:', '  type: llm', ''].join('\n'),
+      aspectRule: { file: 'content.md', body: '# Rule\n\nAlways pass.\n' },
+      mapping: ['src/widget.ts'],
     });
+    mkdirSync(path.join(dir, 'src'), { recursive: true });
+    writeFileSync(path.join(dir, 'src', 'widget.ts'), 'export const widget = 1;\n', 'utf-8');
     try {
       const { status, stdout } = run(['check'], dir);
       expect(status).toBe(1);
       expect(stdout).toContain('config-reviewer-missing');
       // The per-issue `what` ("yg-config.yaml has no reviewer: section") is gone from the
       // grouped view; assert the now-visible shared why + Fix.
-      expect(stdout).toContain('Every project must declare at least one reviewer tier');
-      expect(stdout).toContain('Fix: Add `reviewer: { tiers:');
+      expect(stdout).toContain('Script rules run locally for free');
+      expect(stdout).toContain("Fix: Run yg init and pick 'Configure reviewer'");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('F1b: a config with no reviewer: block is silent when no LLM pair is effective (exit 0)', () => {
+    // Same missing reviewer: section, but the default scaffold's single
+    // aspect is deterministic and unmapped-file-free scenarios in this suite
+    // never produce a pair — no judgment rule is effective, so a script-only
+    // graph is a legal keyless state and config-reviewer-missing stays silent.
+    const dir = scaffold('reviewer-missing-silent', {
+      configYaml: ['quality:', '  max_direct_relations: 10', ''].join('\n'),
+    });
+    try {
+      const { status, stdout } = run(['check'], dir);
+      expect(stdout).not.toContain('config-reviewer-missing');
+      expect(status).toBe(0);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

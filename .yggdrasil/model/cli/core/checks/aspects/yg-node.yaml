@@ -11,6 +11,7 @@ relations:
   [
     { target: cli/core/checks/architecture, type: calls },
     { target: cli/core/graph, type: calls },
+    { target: cli/core/pairs, type: calls },
     { target: cli/formatters, type: calls },
     { target: cli/io/stores, type: calls },
     { target: cli/model/graph, type: uses },

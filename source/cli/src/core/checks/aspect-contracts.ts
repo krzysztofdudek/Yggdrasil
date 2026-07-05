@@ -7,6 +7,7 @@ import { computeEffectiveAspectStatuses, getAspectStatusSources, type AttachSour
 import { aspectStatusDowngradeMessage } from '../../formatters/aspect-status-messages.js';
 import { issueMsg } from './shared.js';
 import { toPosixPath } from '../../utils/posix.js';
+import { computeExpectedPairs } from '../pairs.js';
 
 // --- aspect-rule-sources: content.md vs check.mjs mutual exclusion ---
 
@@ -206,13 +207,19 @@ export function checkAspectRuleSources(graph: Graph): ValidationIssue[] {
 
 // --- config-reviewer-missing: reviewer section must exist in yg-config.yaml ---
 
-export function checkReviewerPresence(graph: Graph): ValidationIssue[] {
+export async function checkReviewerPresence(graph: Graph): Promise<ValidationIssue[]> {
   if (graph.configError) return [];
   if (graph.config.reviewer) return [];
+  // A reviewer tier is required only once a judgment (LLM) rule is actually
+  // effective. Compute effective, non-draft pairs through the canonical
+  // single-source query (draft is excluded by default) and stay silent when no
+  // LLM pair exists — a script-only / empty graph is a legal keyless state.
+  const { pairs } = await computeExpectedPairs(graph);
+  if (!pairs.some((p) => p.kind === 'llm')) return [];
   const msgData: IssueMessage = {
-    what: 'yg-config.yaml has no reviewer: section.',
-    why: 'Every project must declare at least one reviewer tier — even a deterministic-only project needs the section for future LLM aspects.',
-    next: 'Add `reviewer: { tiers: { default-tier: { provider: ..., consensus: 1, config: { model: ... } } } }` to .yggdrasil/yg-config.yaml.',
+    what: 'A judgment rule has no judge: yg-config.yaml has no reviewer: section.',
+    why: 'Script rules run locally for free, but a judgment rule (content.md) needs a configured model to read it — until then its pairs stay unverified.',
+    next: "Run yg init and pick 'Configure reviewer' (an installed agent CLI needs no API key), or add reviewer.tiers to .yggdrasil/yg-config.yaml — see yg knowledge read configuration.",
   };
   return [{ code: 'config-reviewer-missing', severity: 'error', rule: 'config-reviewer-missing', ...issueMsg(msgData), messageData: msgData }];
 }

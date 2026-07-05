@@ -131,7 +131,7 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
     issues.push(...checkImpliesNoCycles(graph));
     issues.push(...checkHighFanOut(graph));
     issues.push(...checkMissingDescriptions(graph));
-    issues.push(...checkReviewerPresence(graph));
+    issues.push(...(await checkReviewerPresence(graph)));
     issues.push(...checkAspectTierReferences(graph));
   }
 
