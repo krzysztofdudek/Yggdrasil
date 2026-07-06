@@ -107,6 +107,22 @@ describe.skipIf(!distExists)('E2E — pure-CLI init', () => {
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 
+  it('existing repo: --provider and --platform together apply BOTH in one call', () => {
+    const dir = freshDir('union');
+    try {
+      // Start keyless with claude-code, then in ONE call add a reviewer AND switch platform.
+      expect(run(['init', '--platform', 'claude-code'], dir).status).toBe(0);
+      const both = run(['init', '--provider', 'claude-code', '--platform', 'cursor'], dir);
+      expect(both.status).toBe(0);
+      const cfg = readFileSync(path.join(dir, '.yggdrasil', 'yg-config.yaml'), 'utf-8');
+      expect(cfg).toContain('provider: claude-code'); // reviewer leg applied
+      expect(cfg).toContain('model: sonnet');
+      expect(existsSync(path.join(dir, '.cursor', 'rules', 'yggdrasil.mdc'))).toBe(true); // platform leg applied
+      // And the merged graph still verifies clean.
+      expect(run(['check'], dir).status).toBe(0);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+
   it('--upgrade combined with reviewer flags exits 1 rather than silently dropping them', () => {
     const dir = freshDir('upgrade-plus-reviewer');
     try {

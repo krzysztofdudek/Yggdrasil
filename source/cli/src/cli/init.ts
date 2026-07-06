@@ -6,6 +6,7 @@ import * as p from '@clack/prompts';
 import { DEFAULT_ARCHITECTURE } from '../templates/default-config.js';
 import { installRulesForPlatform, PLATFORMS, type Platform } from '../templates/platform.js';
 import type { ReviewerProvider } from '../model/graph.js';
+import type { IssueMessage } from '../model/validation.js';
 import { detectVersion } from '../core/migrator.js';
 import { runVersionUpgrade as coreRunVersionUpgrade } from '../core/migrator-runner.js';
 import { CLI_SUPPORTED_SCHEMA } from '../core/graph-loader.js';
@@ -18,6 +19,7 @@ import {
   assertNotCancelled,
   ALL_PROVIDERS,
   resolveReviewerConfigFromFlags,
+  type ResolvedReviewerConfig,
   runReviewerConfigFlow,
   writeReviewerConfig,
   writeSecretsFile,
@@ -132,6 +134,52 @@ async function freshInit(projectRoot: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Shared reviewer resolve + persist (used by both non-interactive init paths)
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve a reviewer config from flags/env and validate it. On a resolution
+ * error, render it via buildIssueMessage and exit(1); otherwise return the
+ * validated config plus any key-missing warning. Kept SEPARATE from the write
+ * step so the fresh path can fail-fast BEFORE scaffolding — a resolution error
+ * must never leave a partial .yggdrasil/ behind (which would flip the next run
+ * onto the existing-repo path).
+ */
+function resolveReviewerOrExit(opts: {
+  platform?: string;
+  provider: ReviewerProvider;
+  model?: string;
+  endpoint?: string;
+}): { config: ResolvedReviewerConfig; keyWarning?: IssueMessage } {
+  const resolved = resolveReviewerConfigFromFlags(opts);
+  if (!resolved.ok) {
+    process.stderr.write(chalk.red(`Error: ${buildIssueMessage(resolved.issue)}\n`));
+    process.exit(1);
+  }
+  return { config: resolved.config, keyWarning: resolved.keyWarning };
+}
+
+/**
+ * Persist a validated reviewer config: write the tier into yg-config.yaml and,
+ * when the environment supplied a key, the secret overlay — otherwise surface
+ * the key-missing warning. Callers scaffold (fresh) or not (existing) before
+ * calling this; here we only write the reviewer section, which must already
+ * have a yg-config.yaml to merge into.
+ */
+async function persistReviewerConfig(
+  yggRoot: string,
+  resolved: { config: ResolvedReviewerConfig; keyWarning?: IssueMessage },
+): Promise<void> {
+  const { provider, model, endpoint, apiKey } = resolved.config;
+  await writeReviewerConfig(yggRoot, { provider, model, endpoint });
+  if (apiKey) {
+    await writeSecretsFile(yggRoot, apiKey);
+  } else if (resolved.keyWarning) {
+    process.stdout.write(chalk.yellow(`${buildIssueMessage(resolved.keyWarning)}\n`));
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Non-interactive fresh init (Docker / devcontainer / CI bootstrap)
 // ---------------------------------------------------------------------------
 
@@ -155,24 +203,16 @@ export async function freshInitNonInteractive(
   yggRoot: string,
   opts: { platform: Platform; provider: ReviewerProvider; model?: string; endpoint?: string },
 ): Promise<void> {
-  const resolved = resolveReviewerConfigFromFlags(opts);
-  if (!resolved.ok) {
-    process.stderr.write(chalk.red(`Error: ${buildIssueMessage(resolved.issue)}\n`));
-    process.exit(1);
-  }
-  const { provider, model, endpoint, apiKey } = resolved.config;
-
+  // Validate the reviewer flags BEFORE scaffolding, so a bad flag combo exits
+  // without leaving a partial .yggdrasil/ behind; scaffold, then write the tier
+  // (writeReviewerConfig merges into the yg-config.yaml the scaffold just wrote).
+  const resolved = resolveReviewerOrExit(opts);
   await createYggdrasilStructure(projectRoot, yggRoot, opts.platform);
-  await writeReviewerConfig(yggRoot, { provider, model, endpoint });
-  if (apiKey) {
-    await writeSecretsFile(yggRoot, apiKey);
-  } else if (resolved.keyWarning) {
-    process.stdout.write(chalk.yellow(`${buildIssueMessage(resolved.keyWarning)}\n`));
-  }
+  await persistReviewerConfig(yggRoot, resolved);
   await ensureGitattributes(projectRoot);
 
   process.stdout.write(chalk.green(
-    `Yggdrasil initialized (platform: ${opts.platform}, provider: ${provider}, model: ${model}). Run yg check to get started.\n`,
+    `Yggdrasil initialized (platform: ${opts.platform}, provider: ${resolved.config.provider}, model: ${resolved.config.model}). Run yg check to get started.\n`,
   ));
 }
 
@@ -261,21 +301,13 @@ export async function existingInitNonInteractive(
   opts: { platform?: Platform; provider?: ReviewerProvider; model?: string; endpoint?: string },
 ): Promise<void> {
   if (opts.provider) {
-    const resolved = resolveReviewerConfigFromFlags({
+    const resolved = resolveReviewerOrExit({
       platform: opts.platform, provider: opts.provider, model: opts.model, endpoint: opts.endpoint,
     });
-    if (!resolved.ok) {
-      process.stderr.write(chalk.red(`Error: ${buildIssueMessage(resolved.issue)}\n`));
-      process.exit(1);
-    }
-    const { provider, model, endpoint, apiKey } = resolved.config;
-    await writeReviewerConfig(yggRoot, { provider, model, endpoint });
-    if (apiKey) {
-      await writeSecretsFile(yggRoot, apiKey);
-    } else if (resolved.keyWarning) {
-      process.stdout.write(chalk.yellow(`${buildIssueMessage(resolved.keyWarning)}\n`));
-    }
-    process.stdout.write(chalk.green(`Reviewer configured (provider: ${provider}, model: ${model}).\n`));
+    await persistReviewerConfig(yggRoot, resolved);
+    process.stdout.write(
+      chalk.green(`Reviewer configured (provider: ${resolved.config.provider}, model: ${resolved.config.model}).\n`),
+    );
   }
 
   if (opts.platform) {
