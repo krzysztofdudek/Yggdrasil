@@ -88,6 +88,9 @@ export default defineConfig({
     ast: 'src/ast/index.ts',
     structure: 'src/structure/index.ts',
     'loader-hook-impl': 'src/ast/loader-hook-impl.ts',
+    // Standalone worker entry spawned by the deterministic worker pool. Emitted
+    // flat as dist/det-worker.js so the pool resolves it beside its own bundle.
+    'det-worker': 'src/structure/det-worker.ts',
   },
   format: ['esm'],
   target: 'node22',

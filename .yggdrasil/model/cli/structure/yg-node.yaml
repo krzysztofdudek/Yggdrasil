@@ -16,6 +16,9 @@ mapping:
   - source/cli/src/structure/observations.ts
   - source/cli/src/structure/hook-loader.ts
   - source/cli/src/structure/suppress-ranges.ts
+  - source/cli/src/structure/det-worker-core.ts
+  - source/cli/src/structure/det-worker.ts
+  - source/cli/src/structure/det-worker-pool.ts
 relations:
   - target: cli/ast/report
     type: calls

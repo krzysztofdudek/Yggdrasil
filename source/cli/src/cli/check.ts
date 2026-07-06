@@ -10,6 +10,7 @@ import type { CheckIssue, CheckResult } from '../core/check.js';
 import { runFill, FillGatingError } from '../core/fill.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
 import path from 'node:path';
+import { availableParallelism } from 'node:os';
 import { walkRepoFiles } from '../io/repo-scanner.js';
 import { groupIssues, type IssueGroup, getIssueLabel, FULL_WHAT_CODES } from './group-issues.js';
 import type { YggConfig } from '../model/graph.js';
@@ -284,6 +285,9 @@ export function registerCheckCommand(program: Command): void {
               gitTrackedFiles: gitFiles,
               onlyDeterministic: mode.onlyDeterministic,
               dryRun: isDryRun,
+              // Core count resolved in the CLI layer (engine stays deterministic);
+              // deterministic checks run across this many worker threads.
+              detConcurrency: Math.max(1, availableParallelism() - 1),
               write: isDryRun
                 ? (s: string) => { process.stdout.write(s); }
                 : isQuiet

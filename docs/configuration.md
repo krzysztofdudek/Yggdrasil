@@ -28,7 +28,7 @@ refreshes the rules and platform files.
 
 - **coverage** — Controls which files must be mapped to a node (see [Coverage config](#coverage-config) below).
 - **quality** — Quality thresholds (see [Quality config](#quality-config) below).
-- **parallel** — Concurrent aspect verifications across nodes (positive integer).
+- **parallel** — How many **LLM (reviewer) verifications** run concurrently (positive integer, default `1`). Governs only the reviewer fill phase, where the cost is network latency. Deterministic checks ignore it — they are CPU-bound and run across a worker-thread pool sized automatically from your machine's cores (no configuration; never affects verdicts, only speed).
 - **debug** — Set `true` to append all CLI output to `.yggdrasil/.debug.log`.
 - **auto_approve** — Auto-fill mode for bare `yg check` (default `false`; see [Auto-approve config](#auto-approve-config) below).
 
@@ -62,7 +62,7 @@ coverage:                             # Optional — controls which files must b
 quality:
   max_direct_relations: 10
 
-parallel: 10
+parallel: 10                          # Concurrent LLM verifications (reviewer phase only)
 debug: false
 auto_approve: false   # false (default) | deterministic | full
 ```

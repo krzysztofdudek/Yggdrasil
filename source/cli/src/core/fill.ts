@@ -63,6 +63,9 @@ import { toPosixPath } from '../utils/posix.js';
 import { fillDetPair } from './fill-det.js';
 import { fillLlmPair } from './fill-llm.js';
 import { runPairPool } from './fill-pool.js';
+import { DetWorkerPool } from '../structure/det-worker-pool.js';
+import { StructureRunnerError } from '../structure/runner.js';
+import type { RunStructureAspectParams, RunStructureAspectResult } from '../structure/runner.js';
 import { logGateBlocks } from './fill-log-gate.js';
 import { applyPositiveClosure } from './fill-closure.js';
 import { garbageCollectAndRewrite } from './fill-gc.js';
@@ -172,6 +175,14 @@ export interface RunFillOptions {
   milestoneInterval?: number;
   /** Still-working interval in ms for non-TTY (emit if no completion for this long). Default: 30000. */
   stillWorkingIntervalMs?: number;
+  /** Max deterministic checks to run concurrently across worker threads. The
+   *  deterministic phase is CPU-bound (tree-sitter parsing), so it parallelizes
+   *  over real threads (NOT the `parallel` config, which governs only the LLM
+   *  fill phase). Injected from the CLI layer (os.availableParallelism) so the
+   *  engine reads no system state; defaults to 1 (in-process, sequential) — the
+   *  degenerate case that keeps every existing verdict path byte-identical.
+   *  Never affects verdicts, only speed. */
+  detConcurrency?: number;
 }
 
 export interface RunFillResult {
@@ -210,6 +221,9 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   const dryRun = opts.dryRun ?? false;
   const isTTY = opts.isTTY ?? (process.stderr.isTTY ?? false);
   const now = opts.now ?? Date.now.bind(Date);
+  // Deterministic-phase thread budget (injected; engine reads no system state).
+  // 1 → sequential in-process; >1 → a worker-thread pool bounded by this value.
+  const detConcurrency = Math.max(1, Math.floor(opts.detConcurrency ?? 1));
 
   // ── Verdict-events telemetry sidecar (write-only; nothing in the engine ever
   // reads it back). One line per (aspect, unit) disposition — a real verdict
@@ -467,36 +481,99 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
     }
   }
 
+  // Active deterministic pairs this run: NOT log-gate-blocked and with a known
+  // aspect def — the exact set the sequential loop's inline skips produced.
+  const activeDetPairs: Array<{ pair: ExpectedPair; aspect: AspectDef }> = [];
   for (const pair of detPairs) {
     if (blockedNodes.has(pair.nodePath)) continue;
     const aspect = aspectById.get(pair.aspectId);
     if (!aspect) continue;
-    tracker.onPairStart('det', pair.aspectId, toPosixPath(pair.unitKey), write);
-    const outcome = await fillDetPair(graph, projectRoot, pair, aspect);
+    activeDetPairs.push({ pair, aspect });
+  }
+
+  // Per-pair outcome handling — identical for the sequential and parallel paths.
+  // Applies the LIVE side effects (setEntry, counters, tracker) and RETURNS a
+  // diagnostic to collect (or null). The caller owns collection order, so grouped
+  // output stays deterministic regardless of completion order.
+  type DetDiagItem = { aspectId: string; unitKey: string; messageData: IssueMessage };
+  type DetDiag = { kind: 'runtime' | 'suppress'; item: DetDiagItem } | null;
+  const applyDetOutcome = async (
+    pair: ExpectedPair,
+    outcome: Awaited<ReturnType<typeof fillDetPair>>,
+  ): Promise<DetDiag> => {
     if (outcome.kind === 'runtime-error') {
       runtimeErrors += 1;
       // No write — pair stays unverified, reported as aspect-check-runtime-error.
-      // Collect for grouped emission after the loop (one message per aspect, not per pair).
-      detRuntimeItems.push({ aspectId: pair.aspectId, unitKey: pair.unitKey, messageData: outcome.messageData });
       emitEvent(pair.aspectId, pair.unitKey, 'deterministic', 'runtime-error');
       tracker.onPairComplete('det', pair.aspectId, toPosixPath(pair.unitKey), 'infra', write);
-      continue;
+      return { kind: 'runtime', item: { aspectId: pair.aspectId, unitKey: pair.unitKey, messageData: outcome.messageData } };
     }
     if (outcome.kind === 'malformed-suppress') {
       malformedSuppressErrors += 1;
-      // No write — pair stays unverified. A DISTINCT disposition from a check
-      // runtime error: the fault is the source file's marker, not check.mjs, so it
-      // is never reported as aspect-check-runtime-error.
-      malformedSuppressItems.push({ aspectId: pair.aspectId, unitKey: pair.unitKey, messageData: outcome.messageData });
+      // No write — a fault in the source file's marker, not check.mjs; a DISTINCT
+      // disposition never reported as aspect-check-runtime-error.
       emitEvent(pair.aspectId, pair.unitKey, 'deterministic', 'malformed-suppress');
       tracker.onPairComplete('det', pair.aspectId, toPosixPath(pair.unitKey), 'infra', write);
-      continue;
+      return { kind: 'suppress', item: { aspectId: pair.aspectId, unitKey: pair.unitKey, messageData: outcome.messageData } };
     }
-    // Real verdict — write the entry.
+    // Real verdict — write the entry (setEntry emits the verdict telemetry event).
     await setEntry(pair, outcome.entry);
     tracker.onPairComplete('det', pair.aspectId, toPosixPath(pair.unitKey), outcome.entry.verdict, write);
     if (outcome.entry.verdict === 'refused' && pair.status === 'enforced') {
       detEnforcedRefusedNodes.add(pair.nodePath);
+    }
+    return null;
+  };
+  const collectDetDiag = (diag: DetDiag): void => {
+    if (!diag) return;
+    if (diag.kind === 'runtime') detRuntimeItems.push(diag.item);
+    else malformedSuppressItems.push(diag.item);
+  };
+
+  // The deterministic phase is CPU-bound (tree-sitter parsing). With more than one
+  // active pair AND a thread budget > 1, run it across a persistent worker-thread
+  // pool; otherwise run in-process (the default, byte-identical path). Pool size
+  // never enters a verdict — it changes only wall-clock.
+  const detPoolSize = Math.min(detConcurrency, activeDetPairs.length);
+  if (detPoolSize > 1) {
+    const pool = new DetWorkerPool(graph, projectRoot, detPoolSize);
+    // A pool-backed structure runner: execute the check on a worker and
+    // RECONSTRUCT StructureRunnerError on this thread so fillDetPair's catch (its
+    // malformed-suppress branch + taint re-run) behaves exactly as in-process.
+    const runViaPool = async (params: RunStructureAspectParams): Promise<RunStructureAspectResult> => {
+      const reply = await pool.run({
+        aspectDir: params.aspectDir,
+        aspectId: params.aspectId,
+        nodePath: params.nodePath,
+        subjectScope: params.subjectScope,
+      });
+      if (reply.ok) return reply.result;
+      if (reply.error.code !== undefined && reply.error.messageData !== undefined) {
+        throw new StructureRunnerError(reply.error.code, reply.error.messageData);
+      }
+      throw new Error(reply.error.message);
+    };
+    try {
+      // Dispatch every pair; the pool bounds concurrency to its worker count. Live
+      // side effects apply as each completes; diagnostics land in index-keyed slots
+      // flattened in pair order below, so grouped output is completion-order-independent.
+      const diagSlots: DetDiag[] = new Array<DetDiag>(activeDetPairs.length);
+      await Promise.all(
+        activeDetPairs.map(async ({ pair, aspect }, i) => {
+          tracker.onPairStart('det', pair.aspectId, toPosixPath(pair.unitKey), write);
+          const outcome = await fillDetPair(graph, projectRoot, pair, aspect, runViaPool);
+          diagSlots[i] = await applyDetOutcome(pair, outcome);
+        }),
+      );
+      for (const diag of diagSlots) collectDetDiag(diag);
+    } finally {
+      await pool.destroy();
+    }
+  } else {
+    for (const { pair, aspect } of activeDetPairs) {
+      tracker.onPairStart('det', pair.aspectId, toPosixPath(pair.unitKey), write);
+      const outcome = await fillDetPair(graph, projectRoot, pair, aspect);
+      collectDetDiag(await applyDetOutcome(pair, outcome));
     }
   }
 

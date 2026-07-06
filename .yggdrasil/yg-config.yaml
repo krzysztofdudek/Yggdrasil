@@ -15,7 +15,10 @@ reviewer:
       # Raised from 50000: this repo's canonical agent-rules template (rules.ts) is
       # ~46 KB, leaving almost no headroom under 50000. sonnet's 200K context handles
       # 60K comfortably, and max_prompt_chars is excluded from the verdict hash, so
-      # raising it invalidates no recorded baseline.
-      max_prompt_chars: 60000
+      # raising it invalidates no recorded baseline. Raised again to 64000: the
+      # check command file (cli/commands/check) sits right at the cap, so its
+      # per-node reviewer prompts (cli-command-contract, what-why-next) had no room
+      # for even a one-line edit. 64K stays comfortable under sonnet's context.
+      max_prompt_chars: 64000
       config:
         model: sonnet

@@ -55,6 +55,12 @@ export async function fillDetPair(
   projectRoot: string,
   pair: ExpectedPair,
   aspect: AspectDef,
+  // The structure runner is injected so the parallel fill path can route the
+  // actual check.mjs execution through a worker-thread pool. The default runs it
+  // in-process (identical behavior); a pooled runner reconstructs
+  // StructureRunnerError on the parent so the catch below is byte-for-byte
+  // unchanged. Only SPEED differs — the verdict is identical either way.
+  runStructure: typeof runStructureAspect = runStructureAspect,
 ): Promise<DetFillOutcome> {
   const aspectDirAbs = path.join(projectRoot, '.yggdrasil', 'aspects', aspect.id);
   // The subject is narrowed iff it covers FEWER files than the node's full
@@ -68,7 +74,7 @@ export async function fillDetPair(
 
   const runOnce = async () => {
     try {
-      return { ok: true as const, result: await runStructureAspect({
+      return { ok: true as const, result: await runStructure({
         aspectDir: aspectDirAbs,
         aspectId: aspect.id,
         nodePath: pair.nodePath,

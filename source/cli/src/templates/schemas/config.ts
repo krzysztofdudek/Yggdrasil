@@ -10,8 +10,10 @@ version: "5.1.0"                  # managed by CLI — do not edit manually. Tra
 quality:                          # optional — quality thresholds
   max_direct_relations: 10        #   maximum outgoing relations per node (warning if above)
 
-parallel: 1                       # optional — concurrency limit for the fill pass (positive integer, default: 1).
-                                  # Applies to yg check --approve or to bare yg check when auto_approve is enabled.
+parallel: 1                       # optional — concurrency limit for the LLM (reviewer) fill phase only
+                                  # (positive integer, default: 1). Applies to yg check --approve or to bare
+                                  # yg check when auto_approve is enabled. Deterministic checks ignore it —
+                                  # they run across an auto-sized worker-thread pool (CPU cores).
 
 debug: false                      # optional — when true, appends all command output to .yggdrasil/.debug.log
                                   # Default: false (off). Log is append-only; rotate or delete manually.

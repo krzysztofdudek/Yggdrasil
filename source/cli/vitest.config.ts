@@ -29,6 +29,11 @@ export default defineConfig({
         'src/core/graph-from-git.ts', // git/archive — try/catch branches hard to cover
         'src/core/graph-loader.ts', // loadAspects/Flows/Schemas — catch on missing dirs
         'src/llm/**', // LLM providers — external API calls not covered in unit tests
+        // Thin worker_threads entry: runs only inside a spawned thread executing the
+        // built dist bundle, never the src module in-process, so v8 cannot attribute
+        // its lines. Its logic lives in det-worker-core.ts (unit-tested in-process)
+        // and det-worker-pool.ts (integration-tested with real workers).
+        'src/structure/det-worker.ts',
       ],
       // Aligned with the repo-check.sh coverage gate (>= 90% on every metric).
       // The previous values (85/90/69/82) sat far below the real gate, so a

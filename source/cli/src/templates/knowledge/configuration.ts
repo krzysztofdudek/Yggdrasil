@@ -37,8 +37,10 @@ coverage:                           # Optional — controls which files must be 
 quality:
   max_direct_relations: 10        # Max out-edges per node before high-fan-out warning
 
-parallel: 1                       # Concurrent pair verifications (default: 1)
-                                  # Applies during yg check --approve or when auto_approve triggers a fill.
+parallel: 1                       # Concurrent LLM pair verifications (default: 1)
+                                  # Applies to the reviewer (LLM) fill phase during yg check --approve
+                                  # (or an auto_approve fill). Deterministic checks ignore it — they
+                                  # run across an auto-sized worker-thread pool (see "Parallel vs consensus").
 
 auto_approve: false               # Controls the behavior of bare yg check (with no explicit flags).
                                   #   false (default): read-only — no writes, no LLM calls, no API keys.
@@ -234,12 +236,20 @@ per-node size exemption.
 
 ## Parallel vs consensus
 
-\`parallel\` (top-level) controls how many pair verifications run concurrently
-during \`yg check --approve\`. It defaults to \`1\`; raise it (for example to 10) to
-verify pairs in parallel. Each verification runs its tier's \`consensus\` calls
-sequentially in a single slot, and lock writes are serialized in-process.
-Cross-tier traffic shares one queue: an expensive tier saturating the queue
-starves a cheap tier. Tune \`parallel\` conservatively when mixing tier costs.
+\`parallel\` (top-level) controls how many **LLM** pair verifications run
+concurrently during \`yg check --approve\`. It governs ONLY the reviewer (LLM)
+fill phase — the phase whose cost is network latency, where overlapping requests
+is the win. It defaults to \`1\`; raise it (for example to 10) to verify LLM pairs
+in parallel. Each verification runs its tier's \`consensus\` calls sequentially in
+a single slot, and lock writes are serialized in-process. Cross-tier traffic
+shares one queue: an expensive tier saturating the queue starves a cheap tier.
+Tune \`parallel\` conservatively when mixing tier costs.
+
+Deterministic checks do NOT use \`parallel\`. They are CPU-bound (source parsing),
+so they run across a worker-thread pool sized automatically from the machine's
+available cores — no configuration, and it never affects verdicts, only speed.
+This is why the free, keyless \`yg check --approve --only-deterministic\` gate
+parallelizes with no \`parallel\` setting at all.
 
 ## Debug logging
 
