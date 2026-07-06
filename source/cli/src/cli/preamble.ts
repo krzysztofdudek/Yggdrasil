@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { stat } from 'node:fs/promises';
 import chalk from 'chalk';
 import { buildIssueMessage } from '../formatters/message-builder.js';
 import { loadGraph, UnsupportedSchemaVersionError, OutdatedSchemaVersionError, FlowLoadError } from '../core/graph-loader.js';
@@ -105,5 +106,28 @@ export async function loadGraphOrAbort(
       process.exit(1);
     }
     throw err;
+  }
+}
+
+/**
+ * Guard for `yg init --upgrade`: exit with bootstrap guidance when no
+ * `.yggdrasil/` exists. `init` is the one command that legitimately runs
+ * before a graph exists, so its --upgrade path cannot use `loadGraphOrAbort`
+ * (which loads the graph — the graph may need the very migration --upgrade is
+ * about to run — and emits a generic message). Centralizing the missing-graph
+ * guard here keeps the command handler from inlining an ENOENT branch or the
+ * missing-graph string itself.
+ */
+export async function abortUnlessYggdrasilExists(yggRoot: string): Promise<void> {
+  try {
+    await stat(yggRoot);
+  } catch {
+    const formatted = buildIssueMessage({
+      what: 'No .yggdrasil/ directory found in the current project.',
+      why: '`yg init --upgrade` operates on an existing graph; the bootstrap form (without --upgrade) creates one.',
+      next: "Run 'yg init' to bootstrap a fresh graph, then re-run --upgrade.",
+    });
+    process.stderr.write(chalk.red(`Error: ${formatted}\n`));
+    process.exit(1);
   }
 }

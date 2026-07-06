@@ -6,11 +6,10 @@ import * as p from '@clack/prompts';
 import { DEFAULT_ARCHITECTURE } from '../templates/default-config.js';
 import { installRulesForPlatform, PLATFORMS, type Platform } from '../templates/platform.js';
 import type { ReviewerProvider } from '../model/graph.js';
-import type { IssueMessage } from '../model/validation.js';
 import { detectVersion } from '../core/migrator.js';
 import { runVersionUpgrade as coreRunVersionUpgrade } from '../core/migrator-runner.js';
 import { CLI_SUPPORTED_SCHEMA } from '../core/graph-loader.js';
-import { abortOnUnexpectedError } from './preamble.js';
+import { abortOnUnexpectedError, abortUnlessYggdrasilExists } from './preamble.js';
 import { MIGRATIONS } from '../migrations/index.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
 import { debugWrite } from '../utils/debug-log.js';
@@ -19,7 +18,7 @@ import {
   assertNotCancelled,
   ALL_PROVIDERS,
   resolveReviewerConfigFromFlags,
-  type ResolvedReviewerConfig,
+  type ResolveReviewerResult,
   runReviewerConfigFlow,
   writeReviewerConfig,
   writeSecretsFile,
@@ -137,26 +136,30 @@ async function freshInit(projectRoot: string): Promise<void> {
 // Shared reviewer resolve + persist (used by both non-interactive init paths)
 // ---------------------------------------------------------------------------
 
+/** The success branch of the resolver's result — the validated config plus any
+ *  key-missing warning. Derived from the single source of truth so a new field
+ *  on the resolver flows here without a parallel hand-written shape to sync. */
+type ResolvedReviewerOk = Extract<ResolveReviewerResult, { ok: true }>;
+
 /**
  * Resolve a reviewer config from flags/env and validate it. On a resolution
  * error, render it via buildIssueMessage and exit(1); otherwise return the
- * validated config plus any key-missing warning. Kept SEPARATE from the write
- * step so the fresh path can fail-fast BEFORE scaffolding — a resolution error
- * must never leave a partial .yggdrasil/ behind (which would flip the next run
- * onto the existing-repo path).
+ * validated result. Kept SEPARATE from the write step so the fresh path can
+ * fail-fast BEFORE scaffolding — a resolution error must never leave a partial
+ * .yggdrasil/ behind (which would flip the next run onto the existing-repo path).
  */
 function resolveReviewerOrExit(opts: {
   platform?: string;
   provider: ReviewerProvider;
   model?: string;
   endpoint?: string;
-}): { config: ResolvedReviewerConfig; keyWarning?: IssueMessage } {
+}): ResolvedReviewerOk {
   const resolved = resolveReviewerConfigFromFlags(opts);
   if (!resolved.ok) {
     process.stderr.write(chalk.red(`Error: ${buildIssueMessage(resolved.issue)}\n`));
     process.exit(1);
   }
-  return { config: resolved.config, keyWarning: resolved.keyWarning };
+  return resolved;
 }
 
 /**
@@ -168,7 +171,7 @@ function resolveReviewerOrExit(opts: {
  */
 async function persistReviewerConfig(
   yggRoot: string,
-  resolved: { config: ResolvedReviewerConfig; keyWarning?: IssueMessage },
+  resolved: ResolvedReviewerOk,
 ): Promise<void> {
   const { provider, model, endpoint, apiKey } = resolved.config;
   await writeReviewerConfig(yggRoot, { provider, model, endpoint });
@@ -440,21 +443,10 @@ export function registerInitCommand(program: Command): void {
             process.exit(1);
           }
           ensureKnownPlatform(options.platform);
-          try {
-            await stat(yggRoot);
-          } catch (e: unknown) {
-            debugWrite(`[init] upgrade: .yggdrasil not found: ${e instanceof Error ? e.message : String(e)}`);
-            process.stderr.write(
-              chalk.red(
-                `Error: ${buildIssueMessage({
-                  what: 'No .yggdrasil/ directory found in the current project.',
-                  why: '`yg init --upgrade` operates on an existing graph; the bootstrap form (without --upgrade) creates one.',
-                  next: "Run 'yg init' to bootstrap a fresh graph, then re-run --upgrade.",
-                })}\n`,
-              ),
-            );
-            process.exit(1);
-          }
+          // init is the one command that runs before a graph exists; delegate the
+          // missing-graph guard to a shared helper rather than inlining an ENOENT
+          // branch or the missing-graph string here (cli-command-contract).
+          await abortUnlessYggdrasilExists(yggRoot);
 
           const currentVersion = await detectVersion(yggRoot);
           if (currentVersion === null) {
