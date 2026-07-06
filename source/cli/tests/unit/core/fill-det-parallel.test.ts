@@ -48,7 +48,14 @@ const PER_FILE_THROW =
   `  return [];\n` +
   `}\n`;
 
-const FILES = ['src/a.ts', 'src/b.ts', 'src/bad1.ts', 'src/bad2.ts', 'src/c.ts', 'src/bad3.ts'];
+// Enough files that the pool actually engages: the fill pool needs
+// floor(activePairs / MIN_DET_PAIRS_PER_WORKER=8) >= 2, i.e. >= 16 pairs, before
+// it spawns workers (a small fill stays in-process — that guard is what this
+// suite must run ON THE FAR SIDE of, so it exercises the real worker path). 14
+// clean + 6 "bad" = 20 per-file pairs.
+const CLEAN_FILES = Array.from({ length: 14 }, (_, i) => `src/ok${i}.ts`);
+const BAD_FILES = Array.from({ length: 6 }, (_, i) => `src/bad${i}.ts`);
+const FILES = [...CLEAN_FILES, ...BAD_FILES];
 
 async function buildProject(checkBody: string = PER_FILE_CHECK): Promise<string> {
   const root = await mkdtemp(path.join(tmpdir(), 'yg-det-parallel-'));
@@ -104,18 +111,18 @@ describe('deterministic fill parity: sequential vs worker pool', () => {
     const verdictsSeq = readLock(graphSeq.rootPath).verdicts;
     const verdictsPar = readLock(graphPar.rootPath).verdicts;
 
-    // Sanity: the fill actually produced the expected mix (3 refused, 3 approved).
+    // Sanity: the fill produced the expected mix (BAD_FILES refused, CLEAN_FILES approved).
     const entries = Object.values(verdictsPar['per-file-rule'] ?? {});
-    expect(entries).toHaveLength(6);
-    expect(entries.filter((e) => e.verdict === 'refused')).toHaveLength(3);
-    expect(entries.filter((e) => e.verdict === 'approved')).toHaveLength(3);
+    expect(entries).toHaveLength(FILES.length);
+    expect(entries.filter((e) => e.verdict === 'refused')).toHaveLength(BAD_FILES.length);
+    expect(entries.filter((e) => e.verdict === 'approved')).toHaveLength(CLEAN_FILES.length);
 
     // Parity: identical verdicts (verdict + content hash + reason), diagnostics, counts.
     expect(verdictsPar).toEqual(verdictsSeq);
     expect(sinkPar.text()).toBe(sinkSeq.text());
     expect(resPar.runtimeErrors).toBe(resSeq.runtimeErrors);
     expect(resPar.malformedSuppressErrors).toBe(resSeq.malformedSuppressErrors);
-  });
+  }, 30000);
 
   it('runtime-error dispositions group identically in the parallel path (order-independent)', async () => {
     // The parallel path collects runtime-error dispositions into index-keyed slots
@@ -140,10 +147,10 @@ describe('deterministic fill parity: sequential vs worker pool', () => {
       write: () => {}, emitIssue: sinkPar.emit,
     });
 
-    // Sanity: the throwing path was actually exercised (3 runtime-errors), and the
-    // three clean files still recorded approved verdicts.
-    expect(resSeq.runtimeErrors).toBe(3);
-    expect(Object.values(readLock(graphPar.rootPath).verdicts['per-file-rule'] ?? {})).toHaveLength(3);
+    // Sanity: the throwing path was exercised (one runtime-error per BAD file), and
+    // the clean files still recorded approved verdicts.
+    expect(resSeq.runtimeErrors).toBe(BAD_FILES.length);
+    expect(Object.values(readLock(graphPar.rootPath).verdicts['per-file-rule'] ?? {})).toHaveLength(CLEAN_FILES.length);
 
     // Parity of counts and clean verdicts.
     expect(resPar.runtimeErrors).toBe(resSeq.runtimeErrors);
@@ -157,6 +164,7 @@ describe('deterministic fill parity: sequential vs worker pool', () => {
     const failedUnits = (text: string): string[] =>
       [...text.matchAll(/failed to run on (file:\S+)/g)].map((m) => m[1]);
     expect(failedUnits(sinkPar.text())).toEqual(failedUnits(sinkSeq.text()));
-    expect(failedUnits(sinkSeq.text())).toEqual(['file:src/bad1.ts', 'file:src/bad2.ts', 'file:src/bad3.ts']);
-  });
+    // Every BAD file failed, exactly once (order-independent set check).
+    expect([...failedUnits(sinkSeq.text())].sort()).toEqual(BAD_FILES.map((f) => `file:${f}`).sort());
+  }, 30000);
 });

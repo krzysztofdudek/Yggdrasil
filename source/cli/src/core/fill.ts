@@ -73,6 +73,13 @@ import { ProgressTracker } from './fill-progress.js';
 import { appendVerdictEvent, type VerdictEvent } from '../io/events-store.js';
 import { PROMPT_FORMAT_REV } from '../llm/prompt.js';
 
+// Minimum deterministic pairs a worker must handle before parallelizing is worth
+// its one-time tree-sitter/WASM warmup. Below this many pairs per worker, a
+// single in-process (warmed) parser beats spawning threads — spawning a pool for
+// a 2-pair fill is strictly slower AND can blow a tight subprocess test budget.
+// The pool engages only when floor(activePairs / this) >= 2.
+const MIN_DET_PAIRS_PER_WORKER = 8;
+
 // ============================================================
 // Internal helpers
 // ============================================================
@@ -530,11 +537,18 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
     else malformedSuppressItems.push(diag.item);
   };
 
-  // The deterministic phase is CPU-bound (tree-sitter parsing). With more than one
-  // active pair AND a thread budget > 1, run it across a persistent worker-thread
-  // pool; otherwise run in-process (the default, byte-identical path). Pool size
-  // never enters a verdict — it changes only wall-clock.
-  const detPoolSize = Math.min(detConcurrency, activeDetPairs.length);
+  // The deterministic phase is CPU-bound (tree-sitter parsing), so it CAN run
+  // across a persistent worker-thread pool — but each worker pays a one-time
+  // tree-sitter/WASM warmup, so parallelism only wins once there is enough work
+  // to amortize it. Size the pool so every worker gets at least
+  // MIN_DET_PAIRS_PER_WORKER pairs: a small fill set (the common case — most
+  // repos, and every fixture) stays in-process, where a single warmed parser is
+  // strictly faster than spawning threads. Pool size never enters a verdict — it
+  // changes only wall-clock.
+  const detPoolSize = Math.min(
+    detConcurrency,
+    Math.floor(activeDetPairs.length / MIN_DET_PAIRS_PER_WORKER),
+  );
   if (detPoolSize > 1) {
     const pool = new DetWorkerPool(graph, projectRoot, detPoolSize);
     // A pool-backed structure runner: execute the check on a worker and
