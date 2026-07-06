@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.5.1] - 2026-07-06
+
 ### Fixed
 
 - **The deterministic worker-thread pool (5.5.0) no longer spawns threads for tiny fill sets.** Each worker pays a one-time parser warmup, so parallelizing a handful of deterministic checks is strictly slower than one warmed in-process parser — and on a constrained or contended machine (e.g. CI running two jobs at once) the repeated warmup could push a small `yg check --approve` past a tight time budget. The pool now engages only when there is enough work to give every worker a meaningful share (at least 8 pairs each); below that it runs in-process, exactly as before the pool existed. Verdicts are unaffected — this only changes when the pool turns on.
