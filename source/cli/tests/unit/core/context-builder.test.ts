@@ -359,6 +359,53 @@ describe('buildNodeContextData', () => {
     expect(childAspectEntry!.source).toContain("implied by 'parent-aspect'");
   });
 
+  it('carries a declared reviewed-seam max_direct_relations override into the context data', () => {
+    const seam: GraphNode = {
+      path: 'seam',
+      meta: {
+        name: 'Seam',
+        type: 'service',
+        maxDirectRelations: { limit: 21, reason: 'Single auditable gateway; splitting defeats the seam.' },
+      },
+      children: [],
+      parent: null,
+    };
+    const graph: Graph = {
+      config: {},
+      architecture: { node_types: {} },
+      nodes: new Map([['seam', seam]]),
+      aspects: [],
+      flows: [],
+      rootPath: '/tmp',
+    };
+
+    const data = buildNodeContextData(graph, 'seam');
+    expect(data.maxDirectRelations).toEqual({
+      limit: 21,
+      reason: 'Single auditable gateway; splitting defeats the seam.',
+    });
+  });
+
+  it('omits max_direct_relations from context data when the node declares none', () => {
+    const plain: GraphNode = {
+      path: 'plain',
+      meta: { name: 'Plain', type: 'service' },
+      children: [],
+      parent: null,
+    };
+    const graph: Graph = {
+      config: {},
+      architecture: { node_types: {} },
+      nodes: new Map([['plain', plain]]),
+      aspects: [],
+      flows: [],
+      rootPath: '/tmp',
+    };
+
+    const data = buildNodeContextData(graph, 'plain');
+    expect(data.maxDirectRelations).toBeUndefined();
+  });
+
 });
 
 describe('buildFileContextData', () => {

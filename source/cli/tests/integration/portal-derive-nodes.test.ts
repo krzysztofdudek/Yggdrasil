@@ -43,12 +43,15 @@ describe('portal per-node derivation (honest state, effective aspects, relations
     byPath = new Map(nodes.map((n) => [n.path, n]));
   }, 180_000);
 
-  it('cli/core/fill is checked, carries the advisory high-fan-out warning state', () => {
+  it('cli/core/fill is checked and fully verified (its reviewed-seam allowance clears the fan-out warning)', () => {
     const fill = byPath.get('cli/core/fill');
     expect(fill).toBeDefined();
     expect(fill!.checked).toBe(true);
-    // The high-fan-out advisory issue promotes an otherwise-verified node to `warning`.
-    expect(fill!.state).toBe('warning');
+    // cli/core/fill declares a reviewed-seam max_direct_relations ceiling equal to its
+    // exact relation count, so the built-in high-fan-out check no longer warns on it.
+    // With an all-green lock and no warning, the node reads `verified`, not `warning`.
+    // (The verified→warning promotion path itself is covered on synthetic inputs below.)
+    expect(fill!.state).toBe('verified');
   });
 
   it('cli/core/fill effective aspects include a deterministic row with channel + origin + pairState', () => {
@@ -117,13 +120,17 @@ describe('portal per-node derivation (honest state, effective aspects, relations
     expect(inbound!.type).toBe('uses');
   });
 
-  it('rollupState bubbles a child warning up to an ancestor without mutating own state', () => {
-    // cli/core is the parent of cli/core/fill (which is `warning`). cli/core's OWN state
-    // need not be warning, but its rollup must be at least `warning`.
+  it('the real repo rolls up clean — no warning bubbles to an ancestor now that both seams are allowed', () => {
+    // The two reviewed architectural seams (cli/core/fill, cli/portal/engine-api) each declare
+    // a max_direct_relations allowance, so the repo is warning-free. cli/core (parent of
+    // cli/core/fill) must therefore roll up no worse than `verified` — nothing reddens or warns
+    // it via a descendant. This guards the seam allowance at the rollup level: if a fan-out (or
+    // any other) warning reappeared under cli/core, this would catch the unexpected bubble.
+    // (The child→ancestor rollup MECHANIC is covered on synthetic inputs below.)
     const core = byPath.get('cli/core');
     if (core) {
       const rank: Record<string, number> = { 'no-rule': 0, verified: 1, warning: 2, unverified: 3, refused: 4 };
-      expect(rank[core.rollupState]).toBeGreaterThanOrEqual(rank['warning']);
+      expect(rank[core.rollupState]).toBeLessThanOrEqual(rank['verified']);
     }
   });
 });

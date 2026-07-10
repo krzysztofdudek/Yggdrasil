@@ -70,6 +70,19 @@ describe('formatNodeContext', () => {
     expect(output).not.toContain('yg approve');
   });
 
+  it('surfaces a reviewed-seam direct-relation ceiling override with its justification', () => {
+    const output = formatNodeContext(makeNodeData({
+      maxDirectRelations: { limit: 21, reason: 'Single auditable gateway; splitting defeats the seam.' },
+    }));
+    expect(output).toContain('Direct-relation ceiling: 21 (reviewed-seam override; the global default applies to every other node)');
+    expect(output).toContain('Justification: Single auditable gateway; splitting defeats the seam.');
+  });
+
+  it('omits the direct-relation ceiling line when no override is declared', () => {
+    const output = formatNodeContext(makeNodeData());
+    expect(output).not.toContain('Direct-relation ceiling:');
+  });
+
   it('renders per-aspect subject counts (N files / vacuous / per-file units)', () => {
     const output = formatNodeContext(makeNodeData({
       aspects: [

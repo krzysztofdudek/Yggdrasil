@@ -32,6 +32,53 @@ describe('node-parser', () => {
     expect(meta.mapping).toEqual(['src/orders/order.service.ts']);
   });
 
+  // --- Reviewed-seam per-node max_direct_relations override ---
+  // Parser-tolerant by contract: a well-formed override (integer limit >= 1 AND a
+  // non-empty justification) is honoured; absent OR malformed → undefined, so the
+  // strict global default applies and a partial/typo'd override never loosens it.
+
+  async function parseWithMaxRel(body: string): Promise<Awaited<ReturnType<typeof parseNodeYaml>>> {
+    const tmpDir = path.join(FIXTURES_DIR, 'tmp-node-maxrel');
+    await mkdir(tmpDir, { recursive: true });
+    const p = path.join(tmpDir, 'yg-node.yaml');
+    await writeFile(p, `name: Seam\ntype: service\ndescription: "A reviewed seam."\n${body}`, 'utf-8');
+    const meta = await parseNodeYaml(p);
+    await rm(tmpDir, { recursive: true, force: true });
+    return meta;
+  }
+
+  it('parses a well-formed max_direct_relations override (limit + reason)', async () => {
+    const meta = await parseWithMaxRel(
+      'max_direct_relations:\n  limit: 21\n  reason: "Single auditable gateway; splitting defeats the seam."\n',
+    );
+    expect(meta.maxDirectRelations).toEqual({
+      limit: 21,
+      reason: 'Single auditable gateway; splitting defeats the seam.',
+    });
+  });
+
+  it('treats an absent max_direct_relations as undefined (global default applies)', async () => {
+    const meta = await parseWithMaxRel('');
+    expect(meta.maxDirectRelations).toBeUndefined();
+  });
+
+  it('tolerates a malformed max_direct_relations (scalar) — undefined, no throw', async () => {
+    const meta = await parseWithMaxRel('max_direct_relations: 21\n');
+    expect(meta.maxDirectRelations).toBeUndefined();
+  });
+
+  it('tolerates a partial max_direct_relations missing its justification — undefined', async () => {
+    const meta = await parseWithMaxRel('max_direct_relations:\n  limit: 21\n');
+    expect(meta.maxDirectRelations).toBeUndefined();
+  });
+
+  it('rejects a non-integer or empty-reason override as malformed — undefined', async () => {
+    const nonInt = await parseWithMaxRel('max_direct_relations:\n  limit: 21.5\n  reason: "x"\n');
+    expect(nonInt.maxDirectRelations).toBeUndefined();
+    const emptyReason = await parseWithMaxRel('max_direct_relations:\n  limit: 21\n  reason: "   "\n');
+    expect(emptyReason.maxDirectRelations).toBeUndefined();
+  });
+
   it('throws on empty YAML file', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-empty');
     await mkdir(tmpDir, { recursive: true });

@@ -49,4 +49,21 @@ mapping:                      # optional — source files and directories owned 
   - src/modules/component.ts  # file — exact match
                               # paths are relative to repository root
                               # each source file must have exactly one owner node
+
+max_direct_relations:         # optional — reviewed-seam override of the built-in
+                              # high-fan-out warning FOR THIS NODE ONLY. A node that is a
+                              # DELIBERATE single-responsibility seam (one auditable
+                              # gateway or orchestrator that concentrates coupling by
+                              # design) may raise its own direct-relation ceiling above the
+                              # global default (quality.max_direct_relations). The global
+                              # default stays strict for every other node, and this node
+                              # still warns if it exceeds the number declared here — the
+                              # allowance sanctions a specific, reviewed count, it does not
+                              # silence genuine over-connection. Both fields are required;
+                              # a partial or malformed override is ignored (the global
+                              # default applies). It is a check parameter only — never a
+                              # verdict input, so declaring it re-verifies nothing.
+  limit: 25                   #   required — this node's own ceiling (integer >= 1)
+  reason: "Single gateway that concentrates coupling by design; splitting defeats the seam."
+                              #   required — human justification, recorded in the graph
 `;

@@ -249,6 +249,7 @@ export function buildNodeContextData(graph: Graph, nodePath: string): NodeContex
     parentPath: parent ? normPath(parent.path) : undefined,
     parentType: parent?.meta.type,
     parentReadPath: parent ? `model/${normPath(parent.path)}/yg-node.yaml` : undefined,
+    ...(node.meta.maxDirectRelations && { maxDirectRelations: node.meta.maxDirectRelations }),
   };
 }
 

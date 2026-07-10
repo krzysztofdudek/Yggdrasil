@@ -13,6 +13,18 @@ description: >-
   writer is imported and the graph is loaded committed-only. The boundary join changes no
   engine logic; it reuses an additive read-only detected-edge accessor on the relation
   pass.
+max_direct_relations:
+  limit: 21
+  reason: >-
+    Reviewed architectural seam. This node is the portal's SINGLE auditable
+    read-only gateway to the engine — its whole purpose is to concentrate the
+    entire portal→engine coupling in ONE facade so the extraction pipeline never
+    reaches an engine subsystem directly. The high direct-relation count is the
+    design: every engine call the portal needs is wrapped here, so all coupling is
+    visible and reviewable in one place. Splitting this node would scatter the
+    coupling into a spider of relations and defeat the single-seam guarantee. The
+    ceiling is set to the exact reviewed count (21), so any NEW engine dependency
+    beyond this pushes the node over its own ceiling and re-raises the warning.
 relations:
   - target: cli/preamble
     type: calls

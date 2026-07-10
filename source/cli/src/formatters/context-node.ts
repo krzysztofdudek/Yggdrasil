@@ -16,6 +16,12 @@ export interface NodeContextData {
   aspectSubjects?: Record<string, NodeAspectSubjects>;
   /** Read-only log-gate state (spec §8/§9). */
   logState?: NodeLogState;
+  /**
+   * Reviewed-seam override of the built-in high-fan-out ceiling, when declared on
+   * this node. Surfaces both the raised number and its recorded justification so
+   * the exception stays explicit and auditable in every context view.
+   */
+  maxDirectRelations?: { limit: number; reason: string };
 }
 
 /** Subject-file count for one aspect on this node (spec §1 vacuous-pass observability). */
@@ -164,6 +170,15 @@ export function formatNodeContext(data: NodeContextData): string {
         lines.push(`    read: ${posixPath(dep.readPath)}`);
       }
     }
+    lines.push('');
+  }
+
+  // Reviewed-seam fan-out override — explicit + justified, so it stays auditable.
+  if (data.maxDirectRelations) {
+    lines.push(
+      `Direct-relation ceiling: ${data.maxDirectRelations.limit} (reviewed-seam override; the global default applies to every other node)`,
+    );
+    lines.push(`  Justification: ${data.maxDirectRelations.reason}`);
     lines.push('');
   }
 

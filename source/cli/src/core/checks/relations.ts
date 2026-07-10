@@ -146,9 +146,15 @@ export function checkBrokenFlowRefs(graph: Graph): ValidationIssue[] {
 
 export function checkHighFanOut(graph: Graph): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
-  const maxRel = graph.config.quality?.max_direct_relations ?? 10;
+  const globalMax = graph.config.quality?.max_direct_relations ?? 10;
   for (const [nodePath, node] of graph.nodes) {
     const count = node.meta.relations?.length ?? 0;
+    // A node that is a DELIBERATE single-responsibility seam may declare its OWN
+    // higher ceiling (with a recorded justification) in its yg-node.yaml. The
+    // global default governs every node WITHOUT an override, and a node still
+    // warns when it exceeds its OWN declared ceiling — the allowance sanctions a
+    // specific, reviewed count, it does not silence genuine over-connection.
+    const maxRel = node.meta.maxDirectRelations?.limit ?? globalMax;
     if (count > maxRel) {
       issues.push({
         severity: 'warning',

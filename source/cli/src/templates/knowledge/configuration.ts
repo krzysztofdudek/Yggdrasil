@@ -234,6 +234,24 @@ Node size is bounded by the LLM prompt-size gate (\`max_prompt_chars\` per tier)
 not by a per-node character budget — there is no node-level size limit and no
 per-node size exemption.
 
+The global default is deliberately strict. A node that is a genuine
+single-responsibility seam — one auditable gateway or orchestrator that
+concentrates coupling by design — may declare its OWN, higher, justified ceiling
+in its \`yg-node.yaml\`:
+
+\`\`\`yaml
+max_direct_relations:
+  limit: 21
+  reason: "Single auditable gateway that concentrates this coupling by design."
+\`\`\`
+
+This raises the ceiling for that node ONLY; the global default still governs
+every other node, and the node still warns if it exceeds the number it declares.
+Both fields are required; a partial or malformed override is ignored (the global
+default applies). It is a check parameter only — never a verdict input, so
+declaring it re-verifies nothing. \`yg context --node\` and \`yg schemas read node\`
+surface the number and its justification, keeping the exception auditable.
+
 ## Parallel vs consensus
 
 \`parallel\` (top-level) controls how many **LLM** pair verifications run

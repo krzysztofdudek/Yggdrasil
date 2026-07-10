@@ -46,11 +46,12 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     }
   });
 
-  it('the worklist contains the advisory high-fan-out group for cli/core/fill', () => {
+  it('the worklist carries no high-fan-out group — both reviewed seams declare an allowance', () => {
+    // cli/core/fill and cli/portal/engine-api each declare a reviewed-seam max_direct_relations
+    // ceiling equal to their exact relation count, so the built-in high-fan-out check no longer
+    // warns on either. The real repo is warning-free, so the worklist has no high-fan-out group.
     const hfo = data.worklist.find((w) => w.rule === 'high-fan-out');
-    expect(hfo).toBeDefined();
-    expect(hfo!.severity).toBe('warning');
-    expect(hfo!.nodes).toContain('cli/core/fill');
+    expect(hfo).toBeUndefined();
   });
 
   it('the boundary is LIVE (computed, never UNKNOWN) on the real parseable repo', () => {

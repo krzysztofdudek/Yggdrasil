@@ -38,6 +38,7 @@ export async function parseNodeYaml(filePath: string): Promise<NodeMeta> {
   const mapping = parseMapping(raw.mapping, filePath);
   const aspectsResult = parseAspects(raw.aspects, filePath);
   const ports = parsePorts(raw.ports, filePath);
+  const maxDirectRelations = parseMaxDirectRelations(raw.max_direct_relations);
   return {
     name: (raw.name as string).trim(),
     type: (raw.type as string).trim(),
@@ -48,7 +49,32 @@ export async function parseNodeYaml(filePath: string): Promise<NodeMeta> {
     relations: relations.length > 0 ? relations : undefined,
     mapping,
     ports,
+    ...(maxDirectRelations && { maxDirectRelations }),
   };
+}
+
+/**
+ * Parse the optional per-node reviewed-seam override of the high-fan-out ceiling.
+ *
+ * Parser-tolerant by contract: absent OR malformed → undefined, so every existing
+ * graph and adopter is unaffected and the strict global default applies. The
+ * override is honoured ONLY when BOTH fields are present and well-formed — an
+ * integer limit >= 1 AND a non-empty justification string. This is the
+ * anti-Goodhart property: a node's ceiling cannot be raised without recording
+ * WHY, and a partial/typo'd override never silently loosens the check (it falls
+ * back to the strict global, and the node keeps warning if it is genuinely over).
+ */
+function parseMaxDirectRelations(
+  raw: unknown,
+): { limit: number; reason: string } | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  if (typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const obj = raw as Record<string, unknown>;
+  const limit = obj.limit;
+  const reason = obj.reason;
+  if (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 1) return undefined;
+  if (typeof reason !== 'string' || reason.trim() === '') return undefined;
+  return { limit, reason: reason.trim() };
 }
 
 function parseAspects(

@@ -465,6 +465,56 @@ describe('validator', () => {
     expect(msgOf(issues[0])).toContain('5 direct relations');
   });
 
+  // --- Reviewed-seam per-node max_direct_relations override ---
+  // A node that is a deliberate single-responsibility seam may declare its OWN,
+  // higher, justified ceiling. The global default stays strict for every other
+  // node, and the override never silences a node that exceeds its OWN ceiling.
+
+  function fanOutGraph(
+    relationCount: number,
+    globalMax: number,
+    override?: { limit: number; reason: string },
+  ): Graph {
+    const graph = createGraph();
+    graph.config.quality = { max_direct_relations: globalMax };
+    const relations = Array.from({ length: relationCount }, (_, i) => ({
+      target: `target/${i}`,
+      type: 'uses' as const,
+    }));
+    graph.nodes.set('seam', createNode('seam', { relations, ...(override && { maxDirectRelations: override }) }));
+    for (let i = 0; i < relationCount; i++) {
+      graph.nodes.set(`target/${i}`, createNode(`target/${i}`));
+    }
+    return graph;
+  }
+
+  it('high-fan-out: a node WITHOUT an override warns above the strict global default', async () => {
+    // 21 relations, global 20, no override → warns (unchanged behavior).
+    const result = await validate(fanOutGraph(21, 20));
+    const issues = result.issues.filter((i) => i.rule === 'high-fan-out');
+    expect(issues).toHaveLength(1);
+    expect(msgOf(issues[0])).toContain('21 direct relations (max: 20)');
+  });
+
+  it('high-fan-out: a declared override raises ONLY that node\'s ceiling (no warning at the sanctioned count)', async () => {
+    // 21 relations, global 20, override limit 21 → no warning.
+    const result = await validate(
+      fanOutGraph(21, 20, { limit: 21, reason: 'Single reviewed seam.' }),
+    );
+    const issues = result.issues.filter((i) => i.rule === 'high-fan-out');
+    expect(issues).toHaveLength(0);
+  });
+
+  it('high-fan-out: an override does NOT silence a node that exceeds its OWN declared ceiling', async () => {
+    // 22 relations, global 20, override limit 21 → still warns, against the node's own ceiling.
+    const result = await validate(
+      fanOutGraph(22, 20, { limit: 21, reason: 'Single reviewed seam.' }),
+    );
+    const issues = result.issues.filter((i) => i.rule === 'high-fan-out');
+    expect(issues).toHaveLength(1);
+    expect(msgOf(issues[0])).toContain('22 direct relations (max: 21)');
+  });
+
   it('unpaired-event warns when emits without listens', async () => {
     const graph = createGraph();
     graph.nodes.set(

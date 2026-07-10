@@ -150,6 +150,20 @@ export interface NodeMeta {
   relations?: Relation[];
   /** Flat list of file/directory paths relative to repo root */
   mapping?: string[];
+  /**
+   * Optional per-node override of the built-in high-fan-out ceiling. A node that
+   * is a DELIBERATE single-responsibility seam (a single auditable gateway or
+   * orchestrator that concentrates coupling by design) may raise ITS OWN
+   * direct-relation ceiling above the global default
+   * (config.quality.max_direct_relations) by declaring both the number and a
+   * human justification. The global default still governs every node without an
+   * override, and a node still warns when it exceeds its OWN declared ceiling —
+   * the allowance sanctions a specific, reviewed count, it never silences genuine
+   * over-connection. CHECK PARAMETER ONLY — like status, it never folds into any
+   * verdict hash (pair-hash builds from explicit inputs, never NodeMeta). Absent
+   * or malformed → undefined (the strict global applies).
+   */
+  maxDirectRelations?: { limit: number; reason: string };
 }
 
 export interface Relation {
