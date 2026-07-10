@@ -1,0 +1,27 @@
+name: StructureCommand
+type: command
+description: >-
+  Registers `yg structure` — a read-only structural dashboard over the graph. It
+  loads the graph, obtains the statically-detected cross-node dependency edges
+  through the read-only portal engine-api facade (the command layer may not reach
+  the relations layer directly), unions them with the declared structural
+  relations, and renders three sections computed by the pure metrics core
+  (core/graph-metrics): dependency tunnels, per-depth module groups, and change
+  reach. Never reads or writes the lock and never calls a reviewer — it exits 0
+  whenever the graph loads, so it never gates.
+aspects: []
+relations:
+  - target: cli/preamble
+    type: calls
+  - target: cli/utils
+    type: calls
+  - target: cli/io/stores
+    type: calls
+  - target: cli/core/graph
+    type: calls
+  - target: cli/portal/engine-api
+    type: calls
+  - target: cli/tests/unit/cli
+    type: uses
+mapping:
+  - source/cli/src/cli/structure.ts

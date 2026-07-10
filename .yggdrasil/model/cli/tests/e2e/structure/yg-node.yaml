@@ -1,0 +1,13 @@
+name: E2E Tests — Structure
+type: test-suite
+description: >-
+  Subprocess E2E pinning `yg structure` — the read-only structural dashboard.
+  Spawns the compiled dist/bin.js and asserts the verbatim edge-universe legend,
+  a Tunnels section naming a known cross-tree edge with its span in words, a
+  depth-1 Modules section, and the change-reach line; asserts exit 0 even when
+  `yg check` is red (lock-blind), and the standard loader error with a non-zero
+  exit when no .yggdrasil/ graph is present.
+aspects: []
+relations: []
+mapping:
+  - source/cli/tests/e2e/cli-structure.test.ts

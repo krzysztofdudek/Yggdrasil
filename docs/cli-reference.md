@@ -299,6 +299,7 @@ yg log merge-resolve --node <path>
 | Command | Purpose |
 |---------|---------|
 | `yg tree [--root <path>] [--depth <n>]` | Graph structure |
+| `yg structure` | Read-only structural dashboard: tunnels, module groups, change reach |
 | `yg find "<query>"` | Natural-language graph search |
 | `yg aspects` | List aspects |
 | `yg flows` | List flows |
@@ -316,6 +317,31 @@ yg tree [--root <path>] [--depth <n>]
 
 - `--root <path>` — Show only subtree rooted at this path
 - `--depth <n>` — Maximum depth
+
+### `yg structure`
+
+A read-only structural dashboard over the graph. It reports the shape of your
+dependencies in three sections:
+
+- **Tunnels** — the dependencies that reach farthest across the hierarchy, each
+  named with how many levels of the tree it jumps and whether it crosses through
+  a declared contract.
+- **Modules** — at each level of the tree, how component groups depend on one
+  another: how many groups, how many dependencies between them, and whether those
+  dependencies all flow one way or some form a cycle.
+- **Change reach** — from an average component, how much of the system is
+  reachable by following dependencies.
+
+```bash
+yg structure
+```
+
+The edges it reports are the union of your declared structural relations (`calls`
+/ `uses` / `extends` / `implements`) and the dependencies detected statically in
+the source; event relations (`emits` / `listens`) are excluded. It is an
+instrument, not a gate: it never reads or writes the lock, never calls a
+reviewer, and always exits `0` as long as the graph loads — even when `yg check`
+is red. It fails only when there is no graph to load.
 
 ### `yg find`
 

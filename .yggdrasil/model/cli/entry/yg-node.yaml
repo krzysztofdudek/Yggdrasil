@@ -34,5 +34,7 @@ relations:
     type: uses
   - target: cli/commands/portal
     type: calls
+  - target: cli/commands/structure
+    type: calls
 mapping:
   - source/cli/src/bin.ts

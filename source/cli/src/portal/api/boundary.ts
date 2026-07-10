@@ -130,3 +130,35 @@ export async function computePortalBoundary(
 
   return { phantom, declaredOnly, forbiddenType };
 }
+
+/**
+ * Additive, READ-ONLY accessor over the relation pass: run it ONCE (parse +
+ * resolve, no verdict written, no lock touched) and return the FULL set of
+ * statically-detected cross-node code edges — `detectedEdgesByNode` verbatim,
+ * keyed by source nodeId → the set of resolved target nodeIds. This is the same
+ * call path `computePortalBoundary` uses; it changes no engine logic and writes
+ * nothing.
+ *
+ * Exposed so a command that cannot legally reach the relations layer directly
+ * (the architecture denies `command → relations-adapter`) can still obtain the
+ * detected-edge half of the structural universe through this facade node.
+ *
+ * Returns `null` ONLY when the relation parse genuinely throws — the caller may
+ * then fall back to the declared-relations-only view rather than fabricate
+ * detected edges.
+ */
+export async function computeDetectedEdges(
+  graph: Graph,
+  projectRoot: string,
+): Promise<Map<string, Set<string>> | null> {
+  try {
+    const pass = await runRelationPass(graph, projectRoot, {
+      extractorFor: extractorForLanguage,
+      resolvePathToFile: makeResolvePathToFile(projectRoot, buildOwnerIndex(graph.nodes).ownerOf),
+      symbolIndexDir: astCacheDir(graph.rootPath),
+    });
+    return pass.detectedEdgesByNode;
+  } catch {
+    return null;
+  }
+}

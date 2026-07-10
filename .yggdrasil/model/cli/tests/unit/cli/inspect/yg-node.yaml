@@ -18,6 +18,7 @@ relations:
     { target: cli/llm/registry, type: uses },
     { target: cli/preamble, type: uses },
     { target: cli/structure, type: uses },
+    { target: cli/commands/structure, type: uses },
     { target: cli/io/stores, type: uses }
   ]
 mapping:
@@ -30,3 +31,4 @@ mapping:
   - source/cli/tests/unit/cli/suppressions.test.ts
   - source/cli/tests/unit/cli/suppressions-disk-scan.test.ts
   - source/cli/tests/unit/cli/suppress-file-level.test.ts
+  - source/cli/tests/unit/cli/structure.test.ts

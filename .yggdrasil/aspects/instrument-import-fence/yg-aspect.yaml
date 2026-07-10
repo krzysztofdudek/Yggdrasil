@@ -1,0 +1,18 @@
+name: InstrumentImportFence
+description: >-
+  Keeps the read-only structural instrument (yg structure) off the gating path
+  and keeps the read-only presentation commands read-only (G2/G6). Two AST-based,
+  alias-proof bans, both fired only on a provable static import- or export-from:
+  (a) the modules that shape the build's exit code, issue emission, and
+  suggestedNext — cli/check.ts, core/check.ts, and cli/group-issues.ts — must NOT
+  import the structural-metrics core (core/graph-metrics) or the verdict-events
+  reader (io/events-reader); pulling ranking or telemetry into the gate would let
+  an instrument influence whether the build passes. (b) The read-only presentation
+  commands — cli/structure.ts, cli/aspects.ts, cli/log.ts — must NOT import a
+  YAML serializer; the codebase has no dedicated YAML-writer io helper, so the
+  only YAML-write capability is the `yaml` package's serializer (stringify /
+  stringifyDocument / Document, or a namespace/default import of `yaml`). These
+  commands report on the graph; they never rewrite it. errs: under — it fires
+  only on a provable static import.
+errs: under
+status: enforced

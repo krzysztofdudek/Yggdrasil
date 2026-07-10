@@ -259,6 +259,31 @@ yg tree --root orders          # subtree from orders/
 yg tree --depth 2              # limit depth
 \`\`\`
 
+## yg structure
+
+Read-only structural dashboard over the graph. It reports the shape of your
+dependencies in three sections:
+
+- **Tunnels** — the dependencies that reach farthest across the hierarchy, each
+  named with how many levels of the tree it jumps and whether it crosses through
+  a declared contract.
+- **Modules** — at each level of the tree, how the component groups depend on one
+  another: how many groups, how many dependencies between them, and whether those
+  dependencies all flow one way or some form a cycle.
+- **Change reach** — from an average component, how much of the system is
+  reachable by following dependencies.
+
+The edges it reports are the union of your declared structural relations (calls /
+uses / extends / implements) and the dependencies detected statically in the
+source; event relations (emits / listens) are excluded. This is an instrument,
+not a gate: it never reads or writes the lock, never calls a reviewer, and always
+exits 0 as long as the graph loads — even when \`yg check\` is red. It only fails
+to run when there is no graph to load.
+
+\`\`\`bash
+yg structure
+\`\`\`
+
 ## yg aspects
 
 List all aspects with usage counts and reviewer type. Output is a custom

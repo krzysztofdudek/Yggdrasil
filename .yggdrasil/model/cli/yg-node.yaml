@@ -4,4 +4,5 @@ description: "CLI tool implementing continuous architecture enforcement for AI-a
 aspects:
   - wasm-tree-lifecycle
   - events-reader-boundary
+  - instrument-import-fence
 relations: []
