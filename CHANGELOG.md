@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The deterministic-aspect cookbook's quick-reference table no longer models the traversal bug it warns about.** `yg knowledge read writing-deterministic-aspects` warns that a `walk` visitor must `return` (not `return false`) on a non-matching node, or the walk stops at the root and inspects nothing — but its own quick-reference table still showed `walk(rootNode, n => n.type === 'call_expression')` one-liners, whose arrow visitor returns a boolean `false` for every non-matching node: exactly that bug. Those rows are now written as node-type matches to test inside a visitor, so an adopter copying the table can no longer reproduce the vacuous-check trap; the worked example and the function-boundary row (the one intended full `walk(...)` call) are unchanged.
+
 ## [5.5.1] - 2026-07-06
 
 ### Fixed

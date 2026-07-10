@@ -169,16 +169,19 @@ export function check(ctx) {
 
 ## Quick reference — raw tree-sitter API
 
-Common patterns using the direct tree-sitter API:
+Common patterns using the direct tree-sitter API. Each node-type row below is a
+match to test inside a \`walk\` visitor — the visitor must \`return\` (not
+\`return false\`) on non-matching nodes so the walk keeps descending (see the
+worked example above); the function-boundary row is the one full \`walk(...)\` call:
 
 | Pattern | Code |
 |---|---|
-| Call expression | \`walk(rootNode, n => n.type === 'call_expression')\` + \`n.childForFieldName('function')\` |
-| Import statements | \`walk(rootNode, n => n.type === 'import_statement')\` |
-| Export statements | \`walk(rootNode, n => n.type === 'export_statement')\` |
+| Call expression | match \`n.type === 'call_expression'\`; callee via \`n.childForFieldName('function')\` |
+| Import statements | match \`n.type === 'import_statement'\` |
+| Export statements | match \`n.type === 'export_statement'\` |
 | Decorators on node | \`node.childForFieldName('decorators')?.namedChildren ?? []\` |
 | Modifier keywords | inspect leading children for modifier keyword nodes |
-| JSX elements | \`walk(rootNode, n => n.type === 'jsx_element' \\|\\| n.type === 'jsx_self_closing_element')\` |
+| JSX elements | match \`n.type === 'jsx_element' \\|\\| n.type === 'jsx_self_closing_element'\` |
 | PascalCase check | \`/^[A-Z][a-zA-Z0-9]*$/.test(name)\` |
 | Node name | \`node.childForFieldName('name')?.text\` |
 | Walk with function boundary | \`walk(parent, n => { if (n.type === type) ...; if (isFunction(n)) return false; })\` |
