@@ -398,6 +398,39 @@ export function formatSuppressedRangesForAspect(
     .sort((a, b) => (a.startLine - b.startLine) || (a.endLine - b.endLine));
 }
 
+// ── File-head window (file-level suppress taxonomy) ──────────────────────────
+//
+// An unclosed `yg-suppress-disable(<id>)` whose marker sits within the first
+// FILE_HEAD_NONEMPTY_LINES *non-empty* lines of the file is the sanctioned
+// whole-file waiver form; the inventory classifies it `file-level` and does NOT
+// warn "Unbounded range". An unclosed disable anywhere later keeps that warning.
+// This is a CLASSIFICATION/rendering fact only — it never changes the resolved
+// waiver line ranges (built by collectSuppressions, untouched here).
+//
+// A "non-empty" line is one with any non-whitespace character; a blank or
+// whitespace-only line does not count and does not consume the window (so a
+// marker after a shebang or a blank preamble still reads as file-head). This is
+// the SINGLE definition both scanner entry points use, so the AST comment scan
+// and the raw-line scan (and any future consumer) classify a marker's position
+// identically — no fork.
+const FILE_HEAD_NONEMPTY_LINES = 5;
+
+/**
+ * The 1-based line numbers of the first `count` non-empty lines of `text`. A
+ * marker line is "at the file head" iff it is a member of this set. Because a
+ * marker line is itself always non-empty, membership is exactly the "within the
+ * first N non-empty lines" test. Returns fewer than `count` entries for a short
+ * or mostly-blank file.
+ */
+function fileHeadLines(text: string, count = FILE_HEAD_NONEMPTY_LINES): Set<number> {
+  const head = new Set<number>();
+  const lines = text.split('\n');
+  for (let i = 0; i < lines.length && head.size < count; i++) {
+    if (lines[i].trim() !== '') head.add(i + 1);
+  }
+  return head;
+}
+
 // ── Line scanner (no tree-sitter) ────────────────────────────
 
 export interface SuppressionMarkerInfo {
@@ -406,6 +439,19 @@ export interface SuppressionMarkerInfo {
   kind: 'single' | 'disable' | 'enable';
   wildcard: boolean;
   reason: string;
+  /**
+   * True iff this marker sits within the first FILE_HEAD_NONEMPTY_LINES non-empty
+   * lines of the file — the POSITIONAL half of the `file-level` classification. It
+   * is a pure position fact from the SHARED scanner; whether an (unclosed) disable
+   * is actually the sanctioned file-level waiver is decided by combining this with
+   * the range-pairing the inventory consumer already performs. Meaningful only for
+   * `disable` markers (single/enable never form a file-level waiver).
+   *
+   * Optional only so hand-built marker literals (test fixtures) keep compiling;
+   * BOTH real scanner entry points always set it. A consumer reads it truthily, so
+   * an absent flag correctly reads as "not at the file head".
+   */
+  atFileHead?: boolean;
 }
 
 /**
@@ -415,11 +461,12 @@ export interface SuppressionMarkerInfo {
  * `parseMarker` uses, so the inventory and the honoring path cannot diverge on
  * which token counts as a marker.
  */
-function scanLineInto(raw: string, lineNum: number, out: SuppressionMarkerInfo[], requireDelimiter: boolean): void {
+function scanLineInto(raw: string, lineNum: number, out: SuppressionMarkerInfo[], requireDelimiter: boolean, headLines: Set<number>): void {
   const m = matchMarkerLine(raw, requireDelimiter);
   if (m === null) return;
+  const atFileHead = headLines.has(lineNum);
   for (const id of m.aspectIds) {
-    out.push({ line: lineNum, aspectId: id, kind: m.kind, wildcard: id === '*', reason: m.reason });
+    out.push({ line: lineNum, aspectId: id, kind: m.kind, wildcard: id === '*', reason: m.reason, atFileHead });
   }
 }
 
@@ -450,12 +497,13 @@ export function scanSuppressionMarkers(text: string, filePath?: string): Suppres
   const lines = text.split('\n');
   const result: SuppressionMarkerInfo[] = [];
   const fenced = filePath && isMarkdownExt(filePath) ? markdownFencedLines(text) : null;
+  const headLines = fileHeadLines(text);
   for (let i = 0; i < lines.length; i++) {
     // Markdown fenced-code lines are documentation, not markers — skip them.
     if (fenced && fenced.has(i + 1)) continue;
     // Raw (non-comment-isolated) scan: the comment delimiter is MANDATORY, so a
     // bare prose/string line that merely begins with the token is not a marker.
-    scanLineInto(lines[i], i + 1, result, true);
+    scanLineInto(lines[i], i + 1, result, true, headLines);
   }
   return result;
 }
@@ -473,9 +521,17 @@ export function scanSuppressionMarkers(text: string, filePath?: string): Suppres
  * Line numbers are mapped back to absolute, 1-based file lines using each
  * comment node's start row, so a marker on the Nth line of a multi-line block
  * comment is reported at the correct file line.
+ *
+ * `text` is the FULL file source — passed so the file-head window (the
+ * `atFileHead` positional flag) is computed over the real file lines, blank
+ * lines and all, identically to the raw-line scan. It is optional only so the
+ * historical two-arg call sites keep compiling; when omitted, no marker is
+ * flagged `atFileHead` (safe default). The real inventory caller always supplies
+ * it, so the AST and raw paths classify a marker's position identically.
  */
-export function scanSuppressionMarkersInComments(tree: Tree, file: string): SuppressionMarkerInfo[] {
+export function scanSuppressionMarkersInComments(tree: Tree, file: string, text?: string): SuppressionMarkerInfo[] {
   const result: SuppressionMarkerInfo[] = [];
+  const headLines = text !== undefined ? fileHeadLines(text) : new Set<number>();
   const comments = findComments({ path: file, ast: tree });
   for (const c of comments) {
     const startRow = c.startPosition.row; // 0-based
@@ -483,7 +539,7 @@ export function scanSuppressionMarkersInComments(tree: Tree, file: string): Supp
     for (let i = 0; i < commentLines.length; i++) {
       // Comment-isolated text: the delimiter is OPTIONAL (a block-comment
       // interior line may carry none).
-      scanLineInto(commentLines[i], startRow + i + 1, result, false);
+      scanLineInto(commentLines[i], startRow + i + 1, result, false, headLines);
     }
   }
   // A file may contain several comment nodes; emit markers in file order so the

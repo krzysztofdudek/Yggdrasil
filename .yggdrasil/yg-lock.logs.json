@@ -5,7 +5,7 @@
   "nodes": {
     "cli/ast": {"log":{"last_entry_datetime":"2026-05-26T10:52:08.726Z","prefix_hash":"9fbde98b0c903f19473c74f077b29fc098aef162424f6cf383c8fcfcaf361ea1"}},
     "cli/ast/report": {"log":{"last_entry_datetime":"2026-06-08T19:56:29.501Z","prefix_hash":"6726dc32495c3e8d7b8f7d37de0904430161168455bdc3f4e8f4941352072f11"},"source":"8378c30eb8ec3d04a205b24994876c0d7c9e0a634ace5a926d8d6a27d6e78d90"},
-    "cli/ast/runtime": {"log":{"last_entry_datetime":"2026-07-05T19:17:32.430Z","prefix_hash":"23ece1e387376f150c1e6f29b6a73d3e9e48349c2702cb710eec8c3d9af8fd28"},"source":"4b41534354691f173f7a035d283c0f4944a8b61bf8b66fb535d3746e561b84d3"},
+    "cli/ast/runtime": {"log":{"last_entry_datetime":"2026-07-10T12:40:49.557Z","prefix_hash":"813566db341bffee268a04501ea702173c855cffb638e3a218fbbb1fac1e4f9f"},"source":"28c9a877da5d7904b330bfdb8505935acdd436d60ba45656c318f08e04940032"},
     "cli/commands/aspect-test": {"log":{"last_entry_datetime":"2026-07-05T17:32:08.674Z","prefix_hash":"bf273a28b64c2fe86a8d99e1eec84f0d35e74eae632cce37d2fd1aeb6624f4d3"},"source":"a829f0099f556509c3e9415ef684e3ade329e110addc236fa0d0ccb75da3c8c2"},
     "cli/commands/aspects": {"log":{"last_entry_datetime":"2026-07-10T09:59:33.876Z","prefix_hash":"9767af7b005f6125ad2b09e5dcbfa1a8e8f126a21b10954fcefc26deda2801ea"},"source":"9090587354f47099c9f2f424256b4dff3697539a3a8b4f176e86c5232eec548e"},
     "cli/commands/build-context": {"log":{"last_entry_datetime":"2026-07-03T08:34:29.911Z","prefix_hash":"d207fbbffdda6391dfb01515a6bbd42bc0a277497d52e5a472c58a440b6af97b"},"source":"d55cba29b2fc99137ffaab86ec5d85fec80551a909a2f6accd689771b1565a59"},
@@ -70,7 +70,7 @@
     "cli/model/file-when": {"log":{"last_entry_datetime":"2026-05-13T05:28:56.718Z","prefix_hash":"906822f33b392ecac5be7cc549e1580939b18068fd72c4c2cd0c0aa50f4823e3"}},
     "cli/model/graph": {"log":{"last_entry_datetime":"2026-06-12T14:17:35.026Z","prefix_hash":"3aa682544c082b133a9e2148dc08d8088ef240ef92274620d0dc44384f7cf0e6"}},
     "cli/model/lock": {"log":{"last_entry_datetime":"2026-06-12T11:33:00.973Z","prefix_hash":"6c694550e0ebfdd290a0aca8439a9b4fc456a64e410fa638387df6d7fb6e03e8"}},
-    "cli/portal/engine-api": {"log":{"last_entry_datetime":"2026-07-10T08:10:35.938Z","prefix_hash":"4ae162e5aaa60ecf5814fd28d7de9af8214561ead7efe142b786d9091c5b9681"},"source":"86ea0ce6ca9dd08e097a26119dc9416360fbbdc3ba35ce67015468a144008597"},
+    "cli/portal/engine-api": {"log":{"last_entry_datetime":"2026-07-10T12:40:56.304Z","prefix_hash":"05059df60e4194fb628daaae2dd03a3a4f256c752f7778c363252f4a6524cb97"},"source":"39e831108882f0a2f088364ddbb9faaf2c6456c812f8239744a0361eb2097347"},
     "cli/portal/pipeline": {"log":{"last_entry_datetime":"2026-07-05T12:27:17.029Z","prefix_hash":"d90c848549ba8868fa318a8eba356cdba84744b16751b4c003ad2743628504c8"},"source":"bf7f0e753e38a0dd38f2d3f340bc7b9f265b6af88bd97327c45492e54d2a45f5"},
     "cli/portal/serializer": {"log":{"last_entry_datetime":"2026-07-02T08:05:18.070Z","prefix_hash":"9d3f34a031299ae40d105c861b14702c9cdff6339c7555c732dd9f79b70ea7f0"},"source":"55e0a8495a1ca4230732f84c3bfdeabe05cb78e0f387f704f3519cdc2ccff4cb"},
     "cli/portal/server": {"log":{"last_entry_datetime":"2026-07-02T13:09:57.722Z","prefix_hash":"6ba7257982bf7fed4d32687d0c495437c062083150b096c18a1137655151748a"},"source":"37b364d60c0b644b12ba922f17d0588b563819b982822b856d71c9d23347763e"},

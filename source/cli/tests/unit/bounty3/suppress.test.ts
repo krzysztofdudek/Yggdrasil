@@ -428,7 +428,10 @@ describe('bounty3: runSuppressionsScan warning generation (all three kinds, real
     const root = freshDir('warns');
     write(root, 'unknown.ts', '// yg-suppress(ghost-typo) renamed away\nx();\n');
     write(root, 'wild.ts', '// yg-suppress(*) emergency bypass\nx();\n');
-    write(root, 'open.ts', '// yg-suppress-disable(known) legacy, never closed\nx();\nmore();\n');
+    // The disable sits BELOW the file-head window (6th non-empty line), so it is a
+    // genuinely-unbounded disable — not the sanctioned file-level whole-file form
+    // (RZ-12), which would not warn.
+    write(root, 'open.ts', 'a1();\na2();\na3();\na4();\na5();\n// yg-suppress-disable(known) legacy, never closed\nmore();\n');
 
     const report = await runSuppressionsScan(
       root,
@@ -439,7 +442,7 @@ describe('bounty3: runSuppressionsScan warning generation (all three kinds, real
     const heads = report.warnings.map(w => w.split('\n')[0]);
     expect(heads).toContain('Unknown aspect id "ghost-typo" in suppress marker at unknown.ts:1.');
     expect(heads.some(h => h.startsWith('Wildcard suppression "*" at wild.ts:1'))).toBe(true);
-    expect(heads.some(h => h.startsWith('Unbounded yg-suppress-disable("known") at open.ts:1'))).toBe(true);
+    expect(heads.some(h => h.startsWith('Unbounded yg-suppress-disable("known") at open.ts:6'))).toBe(true);
 
     // The wildcard marker must NOT also be reported as an unknown aspect id.
     expect(report.warnings.some(w => w.includes('Unknown aspect id "*"'))).toBe(false);
@@ -508,6 +511,14 @@ describe('bounty3: nested-disable divergence — reviewer closes, inventory over
       root,
       'd.ts',
       [
+        // Five non-empty lines push the nested block BELOW the file-head window, so
+        // the still-open first disable is genuinely unbounded — not the sanctioned
+        // file-level whole-file form (RZ-12), which would not warn.
+        'pre1();',
+        'pre2();',
+        'pre3();',
+        'pre4();',
+        'pre5();',
         '// yg-suppress-disable(a) first, debt tracked',
         'one();',
         '// yg-suppress-disable(a) nested, debt tracked',

@@ -29,3 +29,4 @@ mapping:
   - source/cli/tests/unit/cli/type-suggest.test.ts
   - source/cli/tests/unit/cli/suppressions.test.ts
   - source/cli/tests/unit/cli/suppressions-disk-scan.test.ts
+  - source/cli/tests/unit/cli/suppress-file-level.test.ts

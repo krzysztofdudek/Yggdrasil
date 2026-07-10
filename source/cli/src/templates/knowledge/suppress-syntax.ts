@@ -77,10 +77,12 @@ SELECT * FROM orders;
 The enable marker must repeat the same aspect id as the disable marker —
 only a matching enable closes the range. An enable with no open disable is
 ignored, and a disable with no matching enable suppresses through to the end
-of the file (this unbounded-to-EOF range is what \`yg suppressions\` flags as an
-"Unbounded range" warning). The matcher does not raise an error for an
-unmatched marker, so keep pairs explicit and review the resulting range
-yourself. The resolved range is the same for every reviewer kind.
+of the file. Whether \`yg suppressions\` flags that unbounded-to-EOF range as an
+"Unbounded range" warning depends on WHERE the disable sits: a bare disable at
+the very top of the file is the sanctioned whole-file form and is NOT warned;
+one placed lower IS (see "File-level placement" below). The matcher does not
+raise an error for an unmatched marker, so keep pairs explicit and review the
+resulting range yourself. The resolved range is the same for every reviewer kind.
 
 ## Wildcard
 
@@ -98,11 +100,24 @@ within it.
 
 ## File-level placement
 
-When the entire file is exempt, use the bracket form at the file level
-(outside any function or class): a \`yg-suppress-disable(<id>)\` near the top
-and a matching \`yg-suppress-enable(<id>)\` at the end. A bare
-\`yg-suppress-disable(<id>)\` with no enable also covers through to the end of
-the file, but the explicit pair is preferred so the range is unambiguous.
+When the ENTIRE file is exempt, there are two spellings, both honored
+identically (everything below the disable is waived):
+
+- A bare \`yg-suppress-disable(<id>) <reason>\` placed at the TOP of the file —
+  within the first five lines that contain any non-whitespace text (blank lines
+  do not count, but a shebang and each line of a header comment DO, so keep any
+  preamble above the marker to a few lines). With no matching
+  \`yg-suppress-enable\`, it covers through to the end of the file. This is the
+  sanctioned whole-file form: \`yg suppressions\` lists it as \`file-level\` and
+  does NOT warn about it.
+- An explicit pair — \`yg-suppress-disable(<id>)\` near the top and a matching
+  \`yg-suppress-enable(<id>)\` at the end — which makes the range unambiguous.
+
+A bare \`yg-suppress-disable(<id>)\` placed LOWER in the file (past the first
+five non-empty lines) also runs to end-of-file, but there \`yg suppressions\`
+flags it as an "Unbounded range" — a bare disable buried mid-file usually means
+the closing \`yg-suppress-enable\` was forgotten. Move it to the top for a
+deliberate whole-file waiver, or add the closing marker to bound the range.
 
 Do NOT reach for the single-line \`yg-suppress(<id>)\` to waive a whole file —
 it covers only the one line that follows it. This is true for EVERY aspect kind:

@@ -33,6 +33,15 @@ export interface SuppressionsReport {
   fileEntries: FileMarkers[];
   totalMarkers: number;
   warnings: string[];
+  /**
+   * `"file:line"` keys of markers classified `file-level` — an UNCLOSED
+   * `yg-suppress-disable` whose marker sits at the file head (first N non-empty
+   * lines). This is the sanctioned whole-file waiver form: it is rendered
+   * `file-level(<id>)` and does NOT get the "Unbounded range" warning. Optional so
+   * legacy literal report constructions (tests) keep compiling; the real scan
+   * always populates it (possibly empty).
+   */
+  fileLevelKeys?: Set<string>;
 }
 
 // ── Binary detection ───────────────────────────────────────
@@ -84,7 +93,9 @@ async function scanMarkersForFile(relFile: string, text: string): Promise<Suppre
   }
   try {
     return await withParsedFile(relFile, text, (tree) =>
-      scanSuppressionMarkersInComments(tree, relFile)
+      // Pass the full source so the file-head window (atFileHead) is computed over
+      // the real file lines — identically to the non-AST raw-line scan.
+      scanSuppressionMarkersInComments(tree, relFile, text)
     );
   } catch (error) {
     debugWrite(`[suppressions] parse fallback (raw scan): ${relFile}: ${error instanceof Error ? error.message : String(error)}`);
@@ -158,6 +169,24 @@ export async function runSuppressionsScan(
     }
   }
 
+  // ── File-level classification (RZ-12) ──────────────────
+  //
+  // An UNCLOSED disable whose marker sits at the file head (first N non-empty
+  // lines, per the shared scanner's `atFileHead`) is the sanctioned whole-file
+  // waiver: classify it `file-level` — rendered as such and NOT warned
+  // "Unbounded". Reuse the open-disable set built above so the disable/enable
+  // pairing stays in exactly one place; a later unclosed disable stays unbounded.
+  const fileLevelKeys = new Set<string>();
+  for (const { file, markers } of fileEntries) {
+    const openForFile = openDisables.get(file);
+    if (openForFile === undefined) continue;
+    for (const m of markers) {
+      if (m.kind === 'disable' && m.atFileHead && openForFile.get(m.aspectId)?.includes(m.line)) {
+        fileLevelKeys.add(`${file}:${m.line}`);
+      }
+    }
+  }
+
   // ── Generate warnings ──────────────────────────────────
 
   // Collect all unique (file, aspectId) combos for cross-checks
@@ -201,10 +230,13 @@ export async function runSuppressionsScan(
     }
   }
 
-  // (c) Unbounded disable (no matching enable in same file)
+  // (c) Unbounded disable (no matching enable in same file). A file-head unclosed
+  // disable is the sanctioned whole-file waiver (`file-level`) — classified, not
+  // warned; only a LATER unclosed disable keeps the unbounded warning.
   for (const [file, disableMap] of openDisables) {
     for (const [aspectId, lines] of disableMap) {
       for (const lineNum of lines) {
+        if (fileLevelKeys.has(`${file}:${lineNum}`)) continue;
         const msg = buildIssueMessage({
           what: `Unbounded yg-suppress-disable("${aspectId}") at ${file}:${lineNum} has no matching yg-suppress-enable.`,
           why: 'Without a closing enable marker the suppression covers the rest of the file, which is almost always broader than intended and hides future violations added below this line.',
@@ -215,7 +247,7 @@ export async function runSuppressionsScan(
     }
   }
 
-  return { fileEntries, totalMarkers, warnings };
+  return { fileEntries, totalMarkers, warnings, fileLevelKeys };
 }
 
 // ── Output formatting ─────────────────────────────────────
@@ -236,7 +268,9 @@ export function formatSuppressionsOutput(report: SuppressionsReport): string {
     lines.push(`  ${file}`);
     for (const m of markers) {
       const wildcardTag = m.wildcard ? chalk.yellow(' [wildcard]') : '';
-      const kindTag = m.kind === 'single' ? 'single' : m.kind === 'disable' ? 'disable' : 'enable';
+      // A file-head unclosed disable renders as the sanctioned whole-file form.
+      const isFileLevel = report.fileLevelKeys?.has(`${file}:${m.line}`) ?? false;
+      const kindTag = isFileLevel ? 'file-level' : m.kind === 'single' ? 'single' : m.kind === 'disable' ? 'disable' : 'enable';
       const reasonPart = m.reason ? `  — ${m.reason}` : '';
       lines.push(`    line ${m.line}: ${kindTag}(${m.aspectId})${wildcardTag}${reasonPart}`);
     }
