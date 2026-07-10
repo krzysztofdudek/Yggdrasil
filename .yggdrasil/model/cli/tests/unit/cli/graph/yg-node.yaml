@@ -9,7 +9,8 @@ relations:
     { target: cli/commands/find, type: uses },
     { target: cli/commands/flows, type: uses },
     { target: cli/commands/owner, type: uses },
-    { target: cli/impact-handlers, type: uses }
+    { target: cli/impact-handlers, type: uses },
+    { target: cli/model/lock, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/cli/aspects.test.ts

@@ -1,0 +1,9 @@
+name: E2E Tests — Aspects Health
+type: test-suite
+description: "Subprocess E2E for `yg aspects --health` — the per-aspect health table (kind/status, node and unit counts, hash-valid refusals rendered against the `unverified` word, live suppress-marker counts, error-direction label), plus the byte-identical guard proving the default `yg aspects` output is unchanged."
+aspects: []
+relations:
+  - target: cli/tests/e2e/support
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-aspects-health.test.ts

@@ -17,5 +17,11 @@ relations:
     type: calls
   - target: cli/utils
     type: calls
+  - target: cli/io/lock-store
+    type: calls
+  - target: cli/core/verify-lock
+    type: calls
+  - target: cli/portal/engine-api
+    type: calls
 mapping:
   - source/cli/src/cli/aspects.ts

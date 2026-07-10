@@ -266,7 +266,19 @@ human-readable line format, not YAML.
 
 \`\`\`bash
 yg aspects
+yg aspects --health
 \`\`\`
+
+\`--health\` prints one row per aspect: **aspect** (id), **kind** (llm /
+deterministic / aggregate), **status**, **nodes** and **pairs** (the review
+surface — distinct nodes and total review units), **refused** (refusals whose
+recorded result still matches the current code — a stale or never-checked unit is
+excluded here), **suppresses** (live \`yg-suppress\` markers targeting this aspect;
+wildcard markers are summarized on their own line, not attributed per-aspect), and
+**errs** (a deterministic check's error-direction label). Honesty rule: when units
+have no valid result on record the **refused** cell reads \`unverified\`, NEVER
+\`0\` — an unchecked unit is not a clean one. Read-only: it makes no changes and
+never calls a reviewer.
 
 ## yg flows
 
