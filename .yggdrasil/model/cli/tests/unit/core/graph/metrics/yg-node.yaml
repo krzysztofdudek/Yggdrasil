@@ -1,0 +1,12 @@
+name: Core Graph Metrics Unit Tests
+type: test-suite
+description: "Unit tests for the pure graph-metrics core — the structural edge
+  universe (structural declared ∪ statically-detected edges, event types
+  excluded, deduped per node pair with viaContract/origin), hierarchy tunnel
+  spans, depth quotients with SCC-outside share, and forward-closure change
+  reach — all verified against a hand-built 4-node fixture with pre-computed
+  values."
+aspects: []
+relations: [ { target: cli/core/graph, type: uses } ]
+mapping:
+  - source/cli/tests/unit/core/graph-metrics.test.ts

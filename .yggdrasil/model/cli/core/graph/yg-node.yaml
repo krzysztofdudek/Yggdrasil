@@ -25,4 +25,5 @@ mapping:
   - source/cli/src/core/graph/impact-graph.ts
   - source/cli/src/core/graph/index.ts
   - source/cli/src/core/graph/traversal.ts
+  - source/cli/src/core/graph-metrics.ts
   - source/cli/src/core/when-evaluator.ts
