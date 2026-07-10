@@ -6,6 +6,7 @@ import {
   runSuppressionsScan,
   formatSuppressionsOutput,
 } from '../../../src/cli/suppressions.js';
+import { scanPortalSuppressions as adaptPortalSuppressions } from '../../../src/portal/api/suppress-scan.js';
 import { collectSuppressions } from '../../../src/ast/suppress.js';
 import { resolveSuppressedRangesForPrompt } from '../../../src/structure/suppress-ranges.js';
 
@@ -152,6 +153,70 @@ describe('RZ-12: a mid-file bare disable keeps the Unbounded warning (regression
     expect(out).not.toContain('file-level(rz12-rule)');
     // Marker sits on line 21 (the 21st non-empty line) → unbounded warning as today.
     expect(report.warnings.some(w => w.startsWith('Unbounded yg-suppress-disable("rz12-rule") at mid.ts:21'))).toBe(true);
+  });
+});
+
+describe('RZ-12: the portal inventory and `yg suppressions` agree on a file-head unclosed disable (surface parity)', () => {
+  // The CLI (`formatSuppressionsOutput`) renders a file-head unclosed disable as
+  // `file-level` with NO Unbounded warning; the portal adapter must reach the SAME
+  // verdict off the SAME report — never tagging it `unbounded` — so the two surfaces
+  // can't disagree on the same marker (the divergence this fix closes).
+
+  it('(parity) a file-head bare disable is `file-level` in the CLI and carries NO risk in the portal', async () => {
+    const root = freshDir('parity-head');
+    write(
+      root,
+      'whole.ts',
+      [
+        '// yg-suppress-disable(rz12-rule) whole file generated, do not edit',
+        'export const a = 1;',
+        'export const b = 2;',
+        '',
+      ].join('\n'),
+    );
+    const report = await runSuppressionsScan(root, ['whole.ts'], new Set(['rz12-rule']));
+
+    // CLI surface: classified file-level, no Unbounded warning.
+    expect(formatSuppressionsOutput(report)).toContain('file-level(rz12-rule)');
+    expect(report.warnings).toHaveLength(0);
+
+    // Portal surface: the SAME report, adapted → the file-head disable must NOT be
+    // tagged `unbounded`; it honors the same `fileLevelKeys` the CLI renders from.
+    const portalMarkers = adaptPortalSuppressions(report, new Set(['rz12-rule']), new Set());
+    const marker = portalMarkers.find((m) => m.line === 1 && m.aspectId === 'rz12-rule');
+    expect(marker).toBeDefined();
+    expect(marker!.risk).toBeUndefined();
+  });
+
+  it('(parity-negative) a genuinely mid-file unbounded disable stays `unbounded` on BOTH surfaces', async () => {
+    const root = freshDir('parity-mid');
+    // 6 code lines then the disable → marker on the 7th non-empty line → beyond the
+    // 5-line file head → genuinely unbounded on both surfaces (guards against the fix
+    // over-reaching and silencing a real open range).
+    const codeLines = Array.from({ length: 6 }, (_, i) => `export const l${i + 1} = ${i + 1};`);
+    write(
+      root,
+      'mid.ts',
+      [
+        ...codeLines,
+        '// yg-suppress-disable(rz12-rule) mid file, genuinely unbounded',
+        'export const tail = 99;',
+        '',
+      ].join('\n'),
+    );
+    const report = await runSuppressionsScan(root, ['mid.ts'], new Set(['rz12-rule']));
+
+    // CLI surface: still the Unbounded warning, not file-level.
+    expect(formatSuppressionsOutput(report)).not.toContain('file-level(rz12-rule)');
+    expect(
+      report.warnings.some((w) => w.startsWith('Unbounded yg-suppress-disable("rz12-rule") at mid.ts:7')),
+    ).toBe(true);
+
+    // Portal surface agrees: the mid-file disable IS tagged `unbounded`.
+    const portalMarkers = adaptPortalSuppressions(report, new Set(['rz12-rule']), new Set());
+    const marker = portalMarkers.find((m) => m.line === 7 && m.aspectId === 'rz12-rule');
+    expect(marker).toBeDefined();
+    expect(marker!.risk).toBe('unbounded');
   });
 });
 

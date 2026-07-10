@@ -307,7 +307,10 @@ export function formatSuppressionsOutput(report: SuppressionsReport): string {
  *   - wildcard  — a `*` marker (silences every aspect, present and future).
  *   - typo      — names an aspect id absent from the graph (no effect; likely a rename).
  *   - inert     — names a DRAFT aspect (the reviewer never runs there, so the waiver is a no-op).
- *   - unbounded — a `disable` with no matching `enable` in the same file (open range).
+ *   - unbounded — a `disable` with no matching `enable` in the same file (open range),
+ *                 EXCEPT a file-head unclosed disable, which `yg suppressions` classifies
+ *                 `file-level` (the sanctioned whole-file waiver): it is no-risk here too,
+ *                 so the portal inventory and `yg suppressions` never disagree on it.
  */
 export function scanPortalSuppressions(
   report: SuppressionsReport,
@@ -341,7 +344,7 @@ export function scanPortalSuppressions(
     const open = unboundedByFile.get(file);
     for (const m of markers) {
       if (m.kind === 'enable') continue; // range terminator, not a waiver entry
-      const risk = resolveRisk(m, file, open, knownAspectIds, draftAspectIds);
+      const risk = resolveRisk(m, file, open, knownAspectIds, draftAspectIds, report.fileLevelKeys);
       out.push({
         file,
         line: m.line,
@@ -360,10 +363,18 @@ function resolveRisk(
   openLines: Set<number> | undefined,
   knownAspectIds: Set<string>,
   draftAspectIds: Set<string>,
+  fileLevelKeys: Set<string> | undefined,
 ): SuppressionMarkerInput['risk'] | undefined {
   if (m.wildcard) return 'wildcard';
   if (!knownAspectIds.has(m.aspectId)) return 'typo';
   if (draftAspectIds.has(m.aspectId)) return 'inert';
-  if (m.kind === 'disable' && openLines?.has(m.line)) return 'unbounded';
+  if (m.kind === 'disable' && openLines?.has(m.line)) {
+    // A file-head unclosed disable is the sanctioned whole-file waiver: `yg suppressions`
+    // classifies it `file-level` and does NOT warn "Unbounded". Honor the SAME signal
+    // (the scan's `fileLevelKeys`, computed once from each marker's `atFileHead`) so the
+    // portal inventory agrees with the CLI — such a marker is no-risk, never 'unbounded'.
+    if (fileLevelKeys?.has(`${file}:${m.line}`)) return undefined;
+    return 'unbounded';
+  }
   return undefined;
 }

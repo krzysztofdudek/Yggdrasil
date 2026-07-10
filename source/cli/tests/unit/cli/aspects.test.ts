@@ -339,7 +339,7 @@ describe('formatAspectsHealthOutput', () => {
     ]);
   });
 
-  it('adds a wildcard summary line when wildcard markers exist', () => {
+  it('adds a wildcard summary line when wildcard markers exist (singular conjugation)', () => {
     const graph = makeGraph([makeAspect('a1')]);
     const rep = report([
       {
@@ -350,6 +350,26 @@ describe('formatAspectsHealthOutput', () => {
     const out = formatAspectsHealthOutput(computeAspectHealth(graph, [], rep));
     expect(out).toContain('1 wildcard suppress marker');
     expect(out).toContain('not counted per-aspect');
+    // Singular: noun, verb, and copula all agree — "1 marker applies … and is not counted".
+    expect(out).toContain('1 wildcard suppress marker applies to every aspect and is not counted');
+    expect(out).not.toContain('marker apply'); // guard against the un-conjugated verb regressing
+  });
+
+  it('pluralizes the wildcard summary line when multiple wildcard markers exist', () => {
+    const graph = makeGraph([makeAspect('a1')]);
+    const rep = report([
+      {
+        file: 'src/x.ts',
+        markers: [{ line: 1, aspectId: '*', kind: 'single', wildcard: true, reason: '' }],
+      },
+      {
+        file: 'src/y.ts',
+        markers: [{ line: 2, aspectId: '*', kind: 'single', wildcard: true, reason: '' }],
+      },
+    ]);
+    const out = formatAspectsHealthOutput(computeAspectHealth(graph, [], rep));
+    // Plural: noun, verb, and copula all agree — "2 markers apply … and are not counted".
+    expect(out).toContain('2 wildcard suppress markers apply to every aspect and are not counted');
   });
 
   it('omits the wildcard line and the unverified note when neither applies', () => {

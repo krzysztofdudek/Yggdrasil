@@ -12,6 +12,7 @@ relations:
     { target: cli/commands/suppressions, type: uses },
     { target: cli/commands/tree, type: uses },
     { target: cli/commands/portal, type: uses },
+    { target: cli/portal/engine-api, type: uses },
     { target: cli/commands/type-suggest, type: uses },
     { target: cli/core/pairs, type: uses },
     { target: cli/llm/shared, type: uses },
