@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The local fill event log now records which judge produced each LLM verdict.** Each event line the fill appends for an LLM-reviewed pair now carries the provider and model that judged it, so a later analysis of that local telemetry can separate one judge regime from another — which model refused often, or whether a verdict came from a reviewer that has since been swapped out. A rule can be silently re-pointed to a different reviewer tier without changing anything the lock records, so without this identity the telemetry would mix judge regimes with no way to tell them apart. The provider and model are written only on LLM lines — a deterministic check has no judge — and lines written before this change carry no judge and read as "regime unknown". As before, this is local-only telemetry: gitignored, never committed, and never read back by any check/verify/render path — and the judge identity is pure verdict metadata, never part of any content hash.
+
 ### Fixed
 
 - **The deterministic-aspect cookbook's quick-reference table no longer models the traversal bug it warns about.** `yg knowledge read writing-deterministic-aspects` warns that a `walk` visitor must `return` (not `return false`) on a non-matching node, or the walk stops at the root and inspects nothing — but its own quick-reference table still showed `walk(rootNode, n => n.type === 'call_expression')` one-liners, whose arrow visitor returns a boolean `false` for every non-matching node: exactly that bug. Those rows are now written as node-type matches to test inside a visitor, so an adopter copying the table can no longer reproduce the vacuous-check trap; the worked example and the function-boundary row (the one intended full `walk(...)` call) are unchanged.

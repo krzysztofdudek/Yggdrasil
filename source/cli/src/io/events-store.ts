@@ -52,6 +52,11 @@ export interface VerdictEvent {
    * no-write disposition.
    */
   votes?: { satisfied: number; total: number };
+  /** LLM only — identity of the resolved judge at call time. Tier re-pointing is
+   *  deliberately invisible to the lock, so without this field a quarter of
+   *  telemetry mixes judge regimes undetectably. Absent ⇒ regime unknown
+   *  (all pre-wave-2 lines). NEVER a hash ingredient. */
+  judge?: { provider: string; model: string };
 }
 
 /**

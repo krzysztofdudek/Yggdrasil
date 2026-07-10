@@ -21,6 +21,7 @@ import { runFill, FillGatingError } from '../../../src/core/fill.js';
 import { buildIssueMessage } from '../../../src/formatters/message-builder.js';
 import type { IssueMessage } from '../../../src/model/validation.js';
 import { readLock } from '../../../src/io/lock-store.js';
+import { EVENTS_FILENAME } from '../../../src/io/events-store.js';
 import { verifyLock } from '../../../src/core/verify-lock.js';
 import type { LlmProvider } from '../../../src/llm/types.js';
 import type { RunStructureAspectResult } from '../../../src/structure/runner.js';
@@ -894,6 +895,82 @@ describe('per-pair durability under mid-pool failure (item #10)', () => {
       );
       expect(vp?.state.kind).toBe('verified');
     }
+  });
+});
+
+// =============================================================================
+// 17. RZ-2: judge identity (provider + model) on LLM event lines.
+//
+// The verdict-events sidecar records WHICH judge produced each LLM verdict, so a
+// later analysis can separate judge regimes. Tier re-pointing is invisible to
+// the lock, so without this field telemetry mixes regimes undetectably. Judge is
+// telemetry ONLY (never a hash ingredient) and is recorded on LLM lines at every
+// site where the tier resolved — the verdict site AND the LLM infra sites.
+// Deterministic lines never carry it.
+// =============================================================================
+
+/** Read and parse the sidecar's JSONL lines for a project's `.yggdrasil/` root. */
+async function readEventsFor(rootPath: string): Promise<Array<Record<string, unknown>>> {
+  const raw = await readFile(path.join(rootPath, EVENTS_FILENAME), 'utf-8');
+  return raw.split('\n').filter((l) => l.length > 0).map((l) => JSON.parse(l) as Record<string, unknown>);
+}
+
+describe('judge identity on LLM event lines (RZ-2)', () => {
+  it('an approved LLM line records judge {provider, model} from the resolved tier; a deterministic line omits judge', async () => {
+    const { projectRoot } = await setupProject({
+      aspects: [
+        { id: 'det-a', kind: 'deterministic', status: 'enforced', rule: DET_PASS },
+        { id: 'llm-a', kind: 'llm', status: 'enforced', rule: 'rule a' },
+      ],
+    });
+    const graph = await loadGraph(projectRoot);
+    mockCreateLlmProvider.mockReturnValue(makeMockProvider()); // approves
+    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+
+    const events = await readEventsFor(graph.rootPath);
+    const llmEvent = events.find((e) => e.aspectId === 'llm-a' && e.disposition === 'approved');
+    const detEvent = events.find((e) => e.aspectId === 'det-a' && e.disposition === 'approved');
+    expect(llmEvent).toBeDefined();
+    expect(detEvent).toBeDefined();
+    // The tier config (V5_REVIEWER_CONFIG) is provider ollama, model llama3.
+    expect(llmEvent!.judge).toEqual({ provider: 'ollama', model: 'llama3' });
+    // Deterministic verdicts never carry a judge (LLM-only telemetry).
+    expect('judge' in detEvent!).toBe(false);
+  });
+
+  it('an LLM infra line (provider unreachable) still records the resolved judge', async () => {
+    const { projectRoot } = await setupProject({
+      aspects: [{ id: 'llm-a', kind: 'llm', status: 'enforced', rule: 'rule a' }],
+    });
+    const graph = await loadGraph(projectRoot);
+    mockCreateLlmProvider.mockReturnValue(makeMockProvider({ isAvailable: async () => false }));
+    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+
+    const events = await readEventsFor(graph.rootPath);
+    const infraEvent = events.find((e) => e.aspectId === 'llm-a' && e.disposition === 'infra');
+    expect(infraEvent).toBeDefined();
+    // The tier resolved (provider is only found unreachable afterwards), so the
+    // judge identity is known and recorded even though no verdict was written.
+    expect(infraEvent!.judge).toEqual({ provider: 'ollama', model: 'llama3' });
+  });
+
+  it('a tier that never resolves records NO judge (regime unknown)', async () => {
+    const { projectRoot } = await setupProject({
+      aspects: [{ id: 'llm-a', kind: 'llm', status: 'enforced', rule: 'rule a' }],
+    });
+    const graph = await loadGraph(projectRoot);
+    // Force tier resolution to fail for the pair — no resolved judge exists.
+    mockSelectTierForAspect.mockReturnValue({
+      ok: false,
+      error: { what: 'tier unresolvable (test)', why: 'forced', next: 'fix the tier' },
+    });
+    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+
+    const events = await readEventsFor(graph.rootPath);
+    const infraEvent = events.find((e) => e.aspectId === 'llm-a' && e.disposition === 'infra');
+    expect(infraEvent).toBeDefined();
+    // No tier resolved → no judge identity to record → the key is absent.
+    expect('judge' in infraEvent!).toBe(false);
   });
 });
 

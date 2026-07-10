@@ -85,6 +85,19 @@ const MIN_DET_PAIRS_PER_WORKER = 8;
 // ============================================================
 
 /**
+ * The resolved LLM judge's identity (provider + model) for a tier config, as
+ * recorded on an LLM verdict-events line (io/events-store.ts, `judge`).
+ * Telemetry ONLY — NEVER a hash ingredient (pair-hash.ts is deliberately
+ * untouched). `model` is stringified defensively: a tier's model is already a
+ * string, but the sidecar contract pins the field's type. Only ever passed on
+ * LLM event sites where the tier actually resolved; deterministic lines and
+ * unresolved-tier LLM lines carry no judge (regime unknown).
+ */
+function judgeIdentity(tier: LlmConfig): { provider: string; model: string } {
+  return { provider: tier.provider, model: String(tier.model) };
+}
+
+/**
  * Emit infrastructure diagnostics grouped by aspectId — one message per aspect
  * instead of one per pair.  When only one unit is affected the original per-pair
  * messageData is emitted unchanged (preserving the existing message text and
@@ -249,7 +262,13 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
     unitKey: string,
     kind: 'llm' | 'deterministic',
     disposition: VerdictEvent['disposition'],
-    extra?: { hash?: string; reason?: string; tier?: string; votes?: { satisfied: number; total: number } },
+    extra?: {
+      hash?: string;
+      reason?: string;
+      tier?: string;
+      votes?: { satisfied: number; total: number };
+      judge?: { provider: string; model: string };
+    },
   ): void => {
     const event: VerdictEvent = {
       v: 1,
@@ -267,6 +286,10 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
       event.promptRev = PROMPT_FORMAT_REV;
     }
     if (extra?.votes !== undefined) event.votes = extra.votes;
+    // LLM only — the resolved judge identity, recorded wherever a tier resolved
+    // (verdict site + LLM infra sites). Absent on deterministic lines and on the
+    // no-reviewer / tier-unresolvable site (no judge ever resolved there).
+    if (extra?.judge !== undefined) event.judge = extra.judge;
     appendVerdictEvent(graph.rootPath, event);
   };
 
@@ -401,6 +424,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
     entry: VerdictEntry,
     tierName?: string,
     votes?: { satisfied: number; total: number },
+    judge?: { provider: string; model: string },
   ): Promise<void> => {
     // Normalize the storage key to POSIX — the committed lock is shared across
     // platforms, and every read/compare/display of a unitKey already normalizes,
@@ -416,6 +440,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
       reason: entry.reason,
       tier: tierName,
       votes,
+      judge,
     });
   };
 
@@ -675,7 +700,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
       infraFailures += group.length;
       infraReport.push({ provider: baseTier.provider, tier: tierName });
       for (const item of group) {
-        emitEvent(item.pair.aspectId, item.pair.unitKey, 'llm', 'infra', { tier: tierName });
+        emitEvent(item.pair.aspectId, item.pair.unitKey, 'llm', 'infra', { tier: tierName, judge: judgeIdentity(baseTier) });
       }
       emitIssue({
         what: `Reviewer provider '${baseTier.provider}' (tier '${tierName}') is unreachable — ${group.length} pair(s) left unverified.`,
@@ -699,7 +724,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
           satisfied: outcome.votes.filter((v) => v.satisfied).length,
           total: outcome.votes.length,
         };
-        await setEntry(item.pair, outcome.entry, item.tierName, votes);
+        await setEntry(item.pair, outcome.entry, item.tierName, votes, judgeIdentity(item.tier));
         tracker.onPairComplete('llm', item.pair.aspectId, toPosixPath(item.pair.unitKey), outcome.entry.verdict, write);
       } else if (outcome.kind === 'infra' || outcome.kind === 'companion-runtime-error') {
         tracker.onPairComplete('llm', item.pair.aspectId, toPosixPath(item.pair.unitKey), 'infra', write);
@@ -723,7 +748,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
         // covers BOTH a normal companion-runtime-error outcome AND the pool's own
         // synthetic infra conversion of a worker throw (fill-pool.ts) — every
         // no-write disposition for this tier group passes through this loop.
-        emitEvent(item.pair.aspectId, item.pair.unitKey, 'llm', 'companion-runtime-error', { tier: item.tierName });
+        emitEvent(item.pair.aspectId, item.pair.unitKey, 'llm', 'companion-runtime-error', { tier: item.tierName, judge: judgeIdentity(baseTier) });
       } else if (outcome.kind === 'infra') {
         infraFailures += 1;
         infraReport.push({ provider: baseTier.provider, tier: tierName });
@@ -735,7 +760,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
           next: `Resolve the provider/config problem, then re-run: yg check --approve`,
         };
         poolInfraItems.push({ aspectId: item.pair.aspectId, unitKey: item.pair.unitKey, messageData });
-        emitEvent(item.pair.aspectId, item.pair.unitKey, 'llm', 'infra', { tier: item.tierName });
+        emitEvent(item.pair.aspectId, item.pair.unitKey, 'llm', 'infra', { tier: item.tierName, judge: judgeIdentity(baseTier) });
       }
     }
   }

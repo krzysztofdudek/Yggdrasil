@@ -135,6 +135,10 @@ describe('verdict-events telemetry sidecar (integration)', () => {
       hash: failEntry?.hash,
       reason: failEntry?.reason,
     });
+    // Deterministic lines never carry a judge identity — that telemetry is LLM-only
+    // (a deterministic check has no provider/model regime). The KEY must be absent.
+    expect('judge' in passEvent!).toBe(false);
+    expect('judge' in failEvent!).toBe(false);
     // ts round-trips as a real ISO-8601 UTC string from the fill's own clock.
     expect(new Date(passEvent!.ts as string).toISOString()).toBe(passEvent!.ts);
   });
