@@ -369,6 +369,7 @@ Lists all defined aspects with metadata.
 
 ```bash
 yg aspects
+yg aspects --health   # per-aspect health table
 ```
 
 Output: a custom human-readable line format (not YAML). Each aspect renders as a header line
@@ -377,6 +378,15 @@ description is set — there is no separate `name` field), followed by a `Review
 `llm` reviewers it also shows the tier), a usage line `Used by: N nodes
 (architecture/direct/implied/flow)` — or `Used by: 0 nodes — orphaned` when nothing references
 it — and an `Implies:` line when the aspect implies others.
+
+`--health` switches to a per-aspect health table: one row per aspect showing its kind
+(`llm` / `deterministic` / `aggregate`), status, review surface (`nodes` and `pairs`),
+`refused` (refusals whose recorded result still matches the current code — stale or
+never-checked units are excluded), `suppresses` (live `yg-suppress` markers targeting it;
+wildcard markers are summarized separately, not attributed per-aspect), and `errs` (a
+deterministic check's error-direction label). When units have no valid result on record the
+`refused` cell reads `unverified`, never `0`, so an unchecked aspect is never shown as clean.
+The view is read-only and never calls a reviewer.
 
 ### `yg flows`
 

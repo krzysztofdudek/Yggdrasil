@@ -348,6 +348,7 @@ yg log add --node orders/handler --reason-file entry.md   # multi-line reason fr
 yg log read --node orders/handler              # top 10 entries, newest first
 yg log read --node orders/handler --top 5
 yg log read --node orders/handler --all
+yg log read --node orders/handler --with-verdicts   # interleave verification outcomes
 yg log merge-resolve --node orders/handler     # after git merge with conflicting logs
 \`\`\`
 
@@ -355,12 +356,24 @@ Use \`--reason-file <path>\` instead of \`--reason\` to supply multi-line entry
 content from a file. On \`yg log read\`, \`--top\` and \`--all\` are mutually
 exclusive — you cannot combine them.
 
+\`--with-verdicts\` interleaves the node's recent verification outcomes with its
+log entries into one newest-first timeline. The outcomes come from the local,
+git-ignored telemetry \`yg check --approve\` records for every verdict; only this
+node's own outcomes are shown (a verdict keyed by the node itself or by one of its
+mapped files), under a \`local telemetry since <timestamp>\` header. The reader is
+deliberately forgiving of that append-only telemetry — unknown line versions,
+unfamiliar entry kinds, and malformed lines are skipped, not errored — so an older
+or partially written file still reads. If the telemetry file has been committed
+(git-tracked) the header drops the "local" wording and says so, since a tracked
+file is shared history rather than local-only telemetry. Plain \`yg log read\` is
+unchanged.
+
 ## yg suppressions
 
 Read-only inventory of all active \`yg-suppress\` markers in the repository's
 source files. Lists each marker's aspect path, location, reason, and kind
-(single-line, bracket, or wildcard). Exits 0 always — it is a read-only
-inspection tool.
+(single-line, bracket, wildcard, or **file-level**). Exits 0 always — it is a
+read-only inspection tool.
 
 \`\`\`bash
 yg suppressions
@@ -369,7 +382,17 @@ yg suppressions
 Emits non-blocking warnings for:
 - **Unknown aspect-id** — the aspect path in the marker does not match any known aspect.
 - **Wildcard suppress** (\`*\`) — suppresses all aspects in range; any aspect added later is also silently waived.
-- **Unbounded range** — a \`yg-suppress-disable\` marker with no matching \`yg-suppress-enable\`; the suppression extends to end of file.
+- **Unbounded range** — a \`yg-suppress-disable\` marker with no matching \`yg-suppress-enable\`, placed below the file head; usually a forgotten closing \`yg-suppress-enable\`, so the suppression runs to end of file by accident.
+
+A bare \`yg-suppress-disable\` with no matching \`yg-suppress-enable\` is the
+sanctioned way to waive an entire file — but only when it sits at the top. When
+the marker is within the first five lines of the file that carry any
+non-whitespace text (blank lines do not count; a shebang and each header-comment
+line do), the inventory classifies it \`file-level\`, lists it under that label,
+and does **not** warn. Placed lower, the same unclosed marker reads as an
+**Unbounded range** warning, since there it is usually an accidental omission.
+This is a classification-and-reporting distinction only — what each reviewer
+actually waives (the resolved suppressed line ranges) is identical either way.
 
 Use \`yg suppressions\` to audit accumulated waivers before a release or a new aspect rollout. It does not affect \`yg check\` or the lock.
 

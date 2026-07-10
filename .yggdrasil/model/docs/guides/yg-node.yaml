@@ -1,6 +1,6 @@
 name: Adopter Guides — Fundamentals
 type: doc-page
-description: "Task-oriented adopter documentation: the home page, getting started, the how-it-works model, the core concept pages (aspects, nodes, relations/flows/ports), the lock, the portal, and the CLI reference."
+description: "Task-oriented adopter documentation: the home page, getting started, the how-it-works model, the core concept pages (aspects, nodes, relations/flows/ports), the lock, the portal, the CLI reference, and the concurrency (running-in-parallel) doctrine."
 aspects: []
 relations: []
 mapping:
@@ -13,3 +13,4 @@ mapping:
   - docs/the-lock.md
   - docs/portal.md
   - docs/cli-reference.md
+  - docs/concurrency.md

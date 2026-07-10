@@ -156,7 +156,7 @@ inherit its implier's level.
 
 ### `when:` on aspect definitions
 
-**Used as:** Six aspects carry `when:` filters that limit which nodes the aspect checks: `silent-missing-files` fires only on `parser-adapter`, `persistence-adapter`, and `engine` nodes; `atomic-write-contract` fires only on `persistence-adapter`; `test-deterministic` fires only on `test-suite` nodes.
+**Used as:** Ten aspects carry `when:` filters that limit which nodes the aspect checks: `silent-missing-files` fires only on `parser-adapter`, `persistence-adapter`, and `engine` nodes; `atomic-write-contract` fires only on `persistence-adapter`; `test-deterministic` fires only on `test-suite` nodes.
 
 **Earn-rate: high.** Without these filters, attaching an aspect to a flow or type default would fire the reviewer on every node in the graph. Filters eliminate false positives without suppression markers.
 
@@ -186,7 +186,7 @@ inherit its implier's level.
 
 ### Flow-level aspects (channel 5)
 
-**Used as:** Nine flows carry aspects. `validate` flow applies `deterministic` and `what-why-next` to its three participant nodes. `verification` flow applies `provider-redaction` and `what-why-next`. Flow-level aspects propagate to all participant nodes automatically.
+**Used as:** Nine flows carry aspects. `validate` flow applies `deterministic`, `what-why-next`, and `silent-missing-files` to its four participant nodes. `verification` flow applies `provider-redaction` and `what-why-next`. Flow-level aspects propagate to all participant nodes automatically.
 
 **Earn-rate: high.** Flows are the right place for cross-cutting process requirements. The `what-why-next` aspect was attached to eight flows covering 30+ nodes — a single flow-level declaration instead of 30 node-level ones.
 

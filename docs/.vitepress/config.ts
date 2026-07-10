@@ -47,6 +47,7 @@ export default defineConfig({
           { text: "Conditional Aspects", link: "/conditional-aspects" },
           { text: "Configuration", link: "/configuration" },
           { text: "CLI Reference", link: "/cli-reference" },
+          { text: "Running in Parallel", link: "/concurrency" },
           { text: "Supported Platforms", link: "/platforms" },
         ],
       },
