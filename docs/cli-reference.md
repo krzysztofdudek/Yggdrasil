@@ -268,6 +268,7 @@ yg log add --node <path> --reason "<text>"
 yg log add --node <path> --reason-file <file>
 yg log read --node <path> [--top N]
 yg log read --node <path> --all
+yg log read --node <path> --with-verdicts
 yg log merge-resolve --node <path>
 ```
 
@@ -279,6 +280,14 @@ yg log merge-resolve --node <path>
 - `read` — Print entries newest-first. Default: top 10. `--top N` shows N entries.
   `--all` shows the full history. `--top` and `--all` are mutually exclusive. Use this
   before editing a node to understand past decisions.
+  - `--with-verdicts` — Interleave the node's own recent verification events with its
+    log entries, newest first, under a `local telemetry since <timestamp>` header.
+    The events come from a local, gitignored telemetry sidecar written during
+    `yg check --approve`; only the node's own fill outcomes are shown (keyed by the
+    node itself or by one of its mapped files). Unknown or malformed lines are
+    tolerated and skipped. If the sidecar is unexpectedly committed (git-tracked),
+    the header says so and drops the "local" label — a tracked sidecar is shared
+    history, not local-only telemetry.
 - `merge-resolve` — Reconcile `log.md` after a git merge. Must be run from a merge commit.
   Validates byte-exact ancestor portion and unions new entries from both branches.
   Never manually concatenate log files — integrity hashes will break.

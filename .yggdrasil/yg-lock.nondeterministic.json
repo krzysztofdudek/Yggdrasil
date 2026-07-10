@@ -11,7 +11,7 @@
       "file:source/cli/src/cli/impact.ts": {"hash":"b4afca2d6c2dbee24080835183e86eedc452da56ef40d20c6ec0e1ef37c31cf6","verdict":"approved"},
       "file:source/cli/src/cli/init.ts": {"hash":"53d00f5418798d64b3daefcb525bfb396caa279ed4848e22addf2edbe466615f","verdict":"approved"},
       "file:source/cli/src/cli/knowledge.ts": {"hash":"7eea66beefad77576473b8f61bea2d972b7984d9820d073966f49bea87902574","verdict":"approved"},
-      "file:source/cli/src/cli/log.ts": {"hash":"66a4d89edcb7d9047889edffe3547c5bd8b7489f5ddf650879544715b1b01065","verdict":"approved"},
+      "file:source/cli/src/cli/log.ts": {"hash":"c8cac85ce43fb76428881baeb48971aeb93a00b11d27101edfcbce620bb74187","verdict":"approved"},
       "file:source/cli/src/cli/owner.ts": {"hash":"7104c2f706a20b20369c83e7b5dbf9bc3227e363e2433266e52a89ace2fddc70","verdict":"approved"},
       "file:source/cli/src/cli/portal.ts": {"hash":"125a4a06cee041ec574111cb620d070d691f4b66eef8320b5662eb223d7095fd","verdict":"approved"},
       "file:source/cli/src/cli/schemas.ts": {"hash":"7a7fafebc35991022e266edf9b488b581b7ee0801a013aa474d2627089e956ff","verdict":"approved"},
@@ -147,7 +147,7 @@
       "file:source/cli/src/cli/impact.ts": {"hash":"4cf0a59021dd5fe339724786137491dbe2970bdefba2ef4a86c70c041465e110","verdict":"approved"},
       "file:source/cli/src/cli/init.ts": {"hash":"62ad42e3c2275b307612b56c3cdf36ae761624a2ac1fc18699a3c71f1b699956","verdict":"approved"},
       "file:source/cli/src/cli/knowledge.ts": {"hash":"d460d4df5d58042f89dfd724f300a905cd018acd26e6670da661b1ad93ecb5ec","verdict":"approved"},
-      "file:source/cli/src/cli/log.ts": {"hash":"37e5ac5d6821cab97cd9a2f57cc07416face523d65dbc9ffb82b69127173da34","verdict":"approved"},
+      "file:source/cli/src/cli/log.ts": {"hash":"8bf6cc60c33ba1d5dd8187ea4d9a8f95455b61934069c32939a0afedf52ec5cd","verdict":"approved"},
       "file:source/cli/src/cli/owner.ts": {"hash":"7ea00bef52327c521bf42acd6706b6c18173b7816ecfbd0019014f75f4ec0ab9","verdict":"approved"},
       "file:source/cli/src/cli/portal.ts": {"hash":"0ad4e7fdc84dbfc0a610f9a80d4dd2596c6c631859458353fa28aa4393686e41","verdict":"approved"},
       "file:source/cli/src/cli/schemas.ts": {"hash":"645f029e1f2d542da26455096c9a510421cba38425c4765d0c9a565c5e84ad21","verdict":"approved"},
@@ -297,7 +297,7 @@
       "node:cli/io/parsers/aspect": {"hash":"f2d707c34f55c42d10ca219bf4ce30ccf804d84f22013bec88d517f5663a7c88","verdict":"approved"},
       "node:cli/io/parsers/config": {"hash":"ab9e72155bda2d6212231f4fd8bc31886de7a4629afc0b60e68aa85e2bee8395","verdict":"approved"},
       "node:cli/io/parsers/graph": {"hash":"a31851295a6bf47fd3d9f12569f9a6477b7f40d263e4de60b03908c3bce8f5a6","verdict":"approved"},
-      "node:cli/io/stores": {"hash":"8ec777d4110e891d0d62ed6475ab87ceea7ef24141606088c82d52f3c0963f87","verdict":"approved"}
+      "node:cli/io/stores": {"hash":"88a6860f7991ede7ad3deae1d4022008d483f4f6024e17561e337a9a53060d79","verdict":"approved"}
     },
     "test-deterministic": {
       "file:source/cli/tests/e2e/cli-architecture-classification.test.ts": {"hash":"505c48f4801a1f0ef45c6dd303e174dcdb081a271272f00fd01af54c300ee8d9","verdict":"approved"},
@@ -359,6 +359,7 @@
       "file:source/cli/tests/e2e/cli-log-integrity-extended.test.ts": {"hash":"a737ea370b7fb1475bc601d236f103fc2db960bab285dee0eeedd86c674e27c9","verdict":"approved"},
       "file:source/cli/tests/e2e/cli-log-integrity.test.ts": {"hash":"103c465329bd585a78b319f208961a61d8b346e3d75d1bce69c33c989edfd702","verdict":"approved"},
       "file:source/cli/tests/e2e/cli-log-remaining.test.ts": {"hash":"f6289f0140104c067f563a55a7e05f841f91f601445d7e99a7538da34b3ffd5e","verdict":"approved"},
+      "file:source/cli/tests/e2e/cli-log-with-verdicts.test.ts": {"hash":"4b57e22f8ab16805585811188fe0cf7d9bc5d450014805511b1396634277793c","verdict":"approved"},
       "file:source/cli/tests/e2e/cli-mapped-file-gitignored.test.ts": {"hash":"b844b016b5b37efc8f0ee6714fcaed6ea37d3d50f67557857222f829d1b34cd7","verdict":"approved"},
       "file:source/cli/tests/e2e/cli-meta-modeling-integration.test.ts": {"hash":"9bcdcb159a7f922dbbee8459987930c17ca4b5a02cd02d03970c9d5fe7926f6b","verdict":"approved"},
       "file:source/cli/tests/e2e/cli-migrations-config-extended.test.ts": {"hash":"fc54ef1fb12b688b61051589612809d8231b6203bbc38edb992742e2d56f4b7a","verdict":"approved"},
@@ -610,6 +611,7 @@
       "file:source/cli/tests/unit/io/config-parser-branch-coverage.test.ts": {"hash":"961b2f6484335e59de26dd3a9e6bf814794d748b55167c2075b4a88f1678d2df","verdict":"approved"},
       "file:source/cli/tests/unit/io/config-parser-prompt-chars.test.ts": {"hash":"e03b63618680c02c46681969ee418546c6edcb10604b16f7f01fe5662e9a8a0b","verdict":"approved"},
       "file:source/cli/tests/unit/io/config-parser.test.ts": {"hash":"e4aa336051496913bf651c0367b51e4c1c487f733d6a315b872b883cc39c1795","verdict":"approved"},
+      "file:source/cli/tests/unit/io/events-reader.test.ts": {"hash":"1a7b10f9271b2b269c82a4d74910b6052ffefb7211c00202b62aae8889daa08f","verdict":"approved"},
       "file:source/cli/tests/unit/io/events-store.test.ts": {"hash":"89b7ca3c90cf890ba822b33cf225938edd9a019d033c79587dab400c58987054","verdict":"approved"},
       "file:source/cli/tests/unit/io/file-when-parser.test.ts": {"hash":"5b1b60b0d45cf29092636baf747d12a0d33e785dab64af7d4d35a3bad56c175b","verdict":"approved"},
       "file:source/cli/tests/unit/io/find-index.test.ts": {"hash":"8ddb09f87c81f3d52f8c3adb95399576330da231ca76a9c68f20e12557e94cbf","verdict":"approved"},

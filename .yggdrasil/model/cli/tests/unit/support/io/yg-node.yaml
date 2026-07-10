@@ -13,6 +13,7 @@ relations:
   ]
 mapping:
   - source/cli/tests/unit/io/artifact-reader.test.ts
+  - source/cli/tests/unit/io/events-reader.test.ts
   - source/cli/tests/unit/io/events-store.test.ts
   - source/cli/tests/unit/io/find-index.test.ts
   - source/cli/tests/unit/io/hash.test.ts

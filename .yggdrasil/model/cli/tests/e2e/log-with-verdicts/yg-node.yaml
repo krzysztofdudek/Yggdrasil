@@ -1,0 +1,11 @@
+name: E2E Tests — log-with-verdicts
+type: test-suite
+description: "Subprocess E2E for `yg log read --with-verdicts` — the interleaved
+  log + local-telemetry view: only the node's own fill events (by node: key or a
+  file: key under its mapping) render, other nodes' events and non-fill sources
+  are excluded, the local-telemetry header is shown, and plain `yg log read`
+  output stays unchanged."
+aspects: []
+relations: []
+mapping:
+  - source/cli/tests/e2e/cli-log-with-verdicts.test.ts

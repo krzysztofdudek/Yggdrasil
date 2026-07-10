@@ -3,4 +3,5 @@ type: module
 description: "CLI tool implementing continuous architecture enforcement for AI-assisted development"
 aspects:
   - wasm-tree-lifecycle
+  - events-reader-boundary
 relations: []

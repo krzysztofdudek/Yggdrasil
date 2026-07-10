@@ -151,6 +151,7 @@ node_types:
         - path: "source/cli/src/io/*-store.ts"
         - path: "source/cli/src/io/*-cache.ts"
         - path: "source/cli/src/io/artifact-reader.ts"
+        - path: "source/cli/src/io/events-reader.ts"
         - path: "source/cli/src/io/repo-scanner.ts"
         - path: "source/cli/src/io/find-index.ts"
         - path: "source/cli/src/io/file-content-cache.ts"

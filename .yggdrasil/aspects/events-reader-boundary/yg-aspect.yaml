@@ -1,0 +1,15 @@
+name: EventsReaderBoundary
+description: >-
+  The verdict-events reader (io/events-reader) reads local, gitignored telemetry
+  and MUST stay out of the engine. Only the CLI presentation commands may import
+  it: cli/log.ts, cli/aspects.ts, and cli/advise.ts. NO file under
+  source/cli/src/core/** may import it at ALL — core may use only the write-only
+  appender (io/events-store). Pulling the reader into a check / verify / render /
+  fill path would let telemetry influence a verdict, which is forbidden. AST-based:
+  flags a static import- or export-from whose module specifier resolves to
+  events-reader (alias-proof; the events-store appender is never matched) from any
+  disallowed file. Test code is outside the enforcement engine and is exempt — the
+  reader's own tests must import it. errs: under — it fires only on a provable
+  static import.
+errs: under
+status: enforced

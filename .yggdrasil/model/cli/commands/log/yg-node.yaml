@@ -8,6 +8,8 @@ relations:
     type: calls
   - target: cli/core/log
     type: calls
+  - target: cli/io/stores
+    type: calls
   - target: cli/tests/unit/cli
     type: uses
   - target: cli/formatters
