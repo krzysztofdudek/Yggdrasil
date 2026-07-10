@@ -166,11 +166,11 @@ inherit its implier's level.
 
 ### `when: descendants:`
 
-**Used as:** `provider-redaction-cascade` uses `descendants: { relations: { calls: { target_type: llm-provider } } }` — applies the aspect to any non-provider node whose call chain eventually reaches an LLM provider. One genuine site: the `verification` flow.
+**Used as:** Not currently used in this repo. `descendants:` is a `when:` grammar feature that filters on a node's **hierarchical** descendants — its child nodes in the model tree — **not** the transitive call graph.
 
-**Earn-rate: medium.** The filter correctly identified the verification orchestration layer as needing redaction review — without it, we would have needed to attach the aspect manually to six nodes.
+**Earn-rate: situational.** Because it walks the model hierarchy and not the call graph, it does not express "any node whose call chain eventually reaches X". To enforce a property along a **call chain** — e.g. every node that leads to an LLM provider must redact provider data before logging it — attach the aspect explicitly to the chain nodes, or use ports + `consumes` (channel 6) to carry the requirement across the specific boundary that matters.
 
-**Recommendation:** Introduce `descendants:` only when you have a real concern about transitive propagation of a security or correctness property. It is the most complex filter in the grammar; use it only when simpler alternatives (`node_type:`, `any_of:`) don't cover the case.
+**Recommendation:** Reach for `descendants:` only when the property genuinely follows the parent/child model hierarchy (e.g. "every child node of this subsystem inherits this rule"). It is the most complex filter in the grammar; do not use it to approximate call-chain propagation, which it cannot see — use explicit attachment or a port instead.
 
 ---
 
@@ -186,7 +186,7 @@ inherit its implier's level.
 
 ### Flow-level aspects (channel 5)
 
-**Used as:** Nine flows carry aspects. `validate` flow applies `deterministic` and `what-why-next` to its three participant nodes. `verification` flow applies `provider-redaction`, `provider-retry-contract`, and `provider-redaction-cascade`. Flow-level aspects propagate to all participant nodes automatically.
+**Used as:** Nine flows carry aspects. `validate` flow applies `deterministic` and `what-why-next` to its three participant nodes. `verification` flow applies `provider-redaction` and `what-why-next`. Flow-level aspects propagate to all participant nodes automatically.
 
 **Earn-rate: high.** Flows are the right place for cross-cutting process requirements. The `what-why-next` aspect was attached to eight flows covering 30+ nodes — a single flow-level declaration instead of 30 node-level ones.
 

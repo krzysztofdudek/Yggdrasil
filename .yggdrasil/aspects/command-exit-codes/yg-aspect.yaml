@@ -1,5 +1,5 @@
 name: Command Exit Codes
-description: "CLI commands use only process.exit(1) on failure — never process.exit(2) or process.exit(0)"
+description: "CLI commands use only exit codes 0 and 1 — process.exit(2) or higher is forbidden"
 errs: under
 reviewer:
   type: deterministic

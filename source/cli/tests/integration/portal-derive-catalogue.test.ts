@@ -41,15 +41,13 @@ describe('portal catalogue derivation (aspects / flows / types) — real repo', 
     expect(aspects.length).toBe(graphAspectCount);
   });
 
-  it('a rule-bearing aspect with zero expected pairs renders "verifies nothing" (vacuous)', () => {
-    // provider-redaction-cascade reaches no node in the real graph → zero expected
-    // pairs → the honest "vacuous" rendering, never a fabricated green.
-    const vacuous = aspects.find((a) => a.tally.render === 'vacuous');
-    expect(vacuous).toBeDefined();
-    if (vacuous && vacuous.tally.render === 'vacuous') {
-      expect(vacuous.tally.reason.length).toBeGreaterThan(0);
-    }
-  });
+  // NOTE: the honest "vacuous / verifies nothing" rendering (a rule-bearing aspect
+  // with zero expected pairs → tally.render === 'vacuous' with a non-empty reason)
+  // is covered SYNTHETICALLY below (the 'eff-empty' and draft cases). It is
+  // deliberately NOT asserted against the real repo: doing so would require the
+  // real graph to contain a rule attached where it applies to nothing — a "dead
+  // law" the effectiveness linter (aspect-effective-nowhere) now flags as a
+  // defect. A green repo has no such aspect, so there is nothing real to pin here.
 
   it('each normal aspect tally sums V+R+W+U to its unit count', () => {
     // The tally is status-adjusted: an advisory refusal counts as `warning`, kept distinct from

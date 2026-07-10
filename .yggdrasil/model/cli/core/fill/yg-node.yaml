@@ -14,6 +14,7 @@ aspects:
   - posix-paths-output
   - what-why-next
   - diagnostic-logging
+  - provider-redaction-cascade
 relations:
   - target: cli/core/check
     type: calls

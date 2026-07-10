@@ -274,18 +274,31 @@ describe('portal Phase-4 chunk-2 view modules (real source, real data)', () => {
     expect(classesIn(aggRow as FakeNode).has('state-verified')).toBe(false);
   });
 
-  it('V5 renders a VACUOUS aspect as "verifies nothing" with the resolved reason (real repo)', async () => {
-    if (!repo) return; // dist build absent — real-repo case skips, never fabricates
-    const vacuous = repo.aspects.find((a) => a.tally.render === 'vacuous');
-    expect(vacuous, 'the real repo carries at least one vacuous aspect').toBeTruthy();
+  it('V5 renders a VACUOUS aspect as "verifies nothing" with the resolved reason', async () => {
     const Yg = await loadYg();
+    // A rule-bearing aspect that resolves to ZERO expected pairs renders the honest
+    // "vacuous / verifies nothing" state with its resolved reason shown verbatim.
+    // Constructed synthetically and substituted onto the real fixture data (exactly as
+    // the sibling aggregate case above): the vacuous RENDERING is exercised through the
+    // real view module WITHOUT requiring the real repo to carry a dead-attached aspect —
+    // a "dead law" the effectiveness linter (aspect-effective-nowhere) now flags as a defect.
+    const vac: PortalData['aspects'][number] = {
+      id: 'redaction-cascade',
+      name: 'redaction-cascade',
+      kind: 'llm',
+      status: 'enforced',
+      scope: 'file',
+      hasWhen: false,
+      implies: [],
+      tally: { render: 'vacuous', reason: 'effective on zero nodes' },
+    };
+    const data: PortalData = { ...fixture, aspects: [vac, ...fixture.aspects] };
     const stage = makeNode('div');
-    Yg.views.rulebook(stage, { view: 'rulebook' }, repo, { navigate: () => undefined });
+    Yg.views.rulebook(stage, { view: 'rulebook' }, data, { navigate: () => undefined });
     const text = textOf(stage);
     expect(text).toMatch(/verifies nothing/i);
-    // The resolved reason from the real tally is shown verbatim (rot-proof, not invented).
-    const reason = (vacuous!.tally as { render: 'vacuous'; reason: string }).reason;
-    expect(text).toContain(reason);
+    // The resolved reason from the tally is shown verbatim (rot-proof, not invented).
+    expect(text).toContain('effective on zero nodes');
   });
 
   it('V5 opens a selected aspect in the inspector panel with honest per-node cells that route', async () => {

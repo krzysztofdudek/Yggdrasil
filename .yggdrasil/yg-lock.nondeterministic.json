@@ -262,6 +262,19 @@
       "file:source/cli/src/utils/validate-check-module.ts": {"hash":"f0670451f24755411fe642b50b1eaa437ef81c1619a5ab665d8a23747b31a6c7","verdict":"approved"},
       "file:source/cli/src/utils/when-parser.ts": {"hash":"17e7bdf6110fa914c16cc3bc3b0a6f9076a9233c5425cec5f456846b3d1b2300","verdict":"approved"}
     },
+    "provider-redaction-cascade": {
+      "file:source/cli/src/cli/aspect-test.ts": {"hash":"65478699bef6be0562a2b2e957640996a1d704f53b2ffbb3e535d8279631c5a1","verdict":"approved"},
+      "file:source/cli/src/core/fill-closure.ts": {"hash":"d010d565bc600855693d22aa4bf093f6e3efb0c9560c1c6b3500b56332604eb5","verdict":"approved"},
+      "file:source/cli/src/core/fill-det.ts": {"hash":"44c87bc2ac1cfc5ee01d4b926f1b44aa73fc34051c6657b5a23d26910dbd3098","verdict":"approved"},
+      "file:source/cli/src/core/fill-gc.ts": {"hash":"5005ac280e8d8fba3b12bc8269048a50fb1bb05369d6e59598a651b1cdc829bf","verdict":"approved"},
+      "file:source/cli/src/core/fill-llm.ts": {"hash":"3c1a3e050a901e22d6ee83d69ed83538c728d0addd9f6997215d0894a22d4f42","verdict":"approved"},
+      "file:source/cli/src/core/fill-log-gate.ts": {"hash":"e51813950b548adfe8e8f4f426c8e4756c355e278c82da6a41b45d8bea7e5d8e","verdict":"approved"},
+      "file:source/cli/src/core/fill-pool.ts": {"hash":"134e1826da08000f3780884f27551ff07ac2c8445c794a144a4fdd8cdc81a0b0","verdict":"approved"},
+      "file:source/cli/src/core/fill-progress.ts": {"hash":"4677e8b0fccf3c14ea33247de383caa95988027b03f7f6b5b3fd96caf18401da","verdict":"approved"},
+      "file:source/cli/src/core/fill-shared.ts": {"hash":"5f07541adafdfbbeb5fc60891064b5a90bed85a21d55cb7323b4fcc48666de72","verdict":"approved"},
+      "file:source/cli/src/core/fill.ts": {"hash":"02a37b4fc54d4997c68bd946dab020585132d19b25050c6a884160e717c46641","verdict":"approved"},
+      "file:source/cli/src/llm/index.ts": {"hash":"5340a4feed73225a985941020ef72fefc5dd56a4b4828c62dcbb307091307b17","verdict":"approved"}
+    },
     "provider-retry-contract": {
       "file:source/cli/src/llm/anthropic.ts": {"hash":"983698efa8c762afc38f3da5d70d98d7946389ea3736ac431b877804c250c93e","verdict":"approved"},
       "file:source/cli/src/llm/claude-code.ts": {"hash":"d34d7dd207fa6ea8bd95d733f05d31e70f070c816ae294c3c81d26d4213e3a95","verdict":"approved"},
@@ -405,7 +418,7 @@
       "file:source/cli/tests/integration/ollama-reviewer.external.test.ts": {"hash":"c47d1343aa31beb53a36a643c01fe01fddd33b755537485cd5900e691a70e41c","verdict":"approved"},
       "file:source/cli/tests/integration/portal-attestation-meta.test.ts": {"hash":"eaa004f7deab4d5bf369075afbc375191605592e94ca92fe9d25ff172e97315b","verdict":"approved"},
       "file:source/cli/tests/integration/portal-boundary.test.ts": {"hash":"25080a2e5ce000937a8e67688ec1091c498a9d567d9b596e042bcc0e6e03c382","verdict":"approved"},
-      "file:source/cli/tests/integration/portal-derive-catalogue.test.ts": {"hash":"10cb4d25131509939e04aee74d104dda41e29329086d2e66325335cdefcc8c76","verdict":"approved"},
+      "file:source/cli/tests/integration/portal-derive-catalogue.test.ts": {"hash":"2a052735cb6148a49f2555befb7de095d6c30c3400f7bc326f5b2c593348ce27","verdict":"approved"},
       "file:source/cli/tests/integration/portal-derive-nodes.test.ts": {"hash":"6d7883e973138805647ef2c285dfc163245718dfd5a3abeb47889d18613dfadb","verdict":"approved"},
       "file:source/cli/tests/integration/portal-derive-rest.test.ts": {"hash":"eda3ab51ca0ae4124d8d1cfa2e25e008cdda4a70e2c06eab2800f4e6629a0319","verdict":"approved"},
       "file:source/cli/tests/integration/portal-engine-api-provenance.test.ts": {"hash":"240a5483bddc231c5e06fd6e61a6ad6dde1cf72e0d12ee6a80dc93b59a6dba3b","verdict":"approved"},
@@ -415,7 +428,7 @@
       "file:source/cli/tests/integration/portal-server.test.ts": {"hash":"c75823b89f0315d7b5fe6105cc9b7afefbb0a558af086f723e60eb8f2dd03255","verdict":"approved"},
       "file:source/cli/tests/integration/portal-single-seam.test.ts": {"hash":"9c4022d4b744ab119f9a5e11059cb1fb06f4c419af0a00c16739a9684445b3d9","verdict":"approved"},
       "file:source/cli/tests/integration/portal-static-emit.test.ts": {"hash":"7a5180c986bc249980520c658b01d239d1cb4d8a954f6189c788655770f90312","verdict":"approved"},
-      "file:source/cli/tests/integration/portal-views-rulebook.test.ts": {"hash":"20454dd3df1d1ad4ab8a4dd97e00e8bbb86a38c328ca4e1c59c10aa08f9a185b","verdict":"approved"},
+      "file:source/cli/tests/integration/portal-views-rulebook.test.ts": {"hash":"03d237cc1a3a01088dff0a1b6bb72774245d69a5813fffcabb266274acb34767","verdict":"approved"},
       "file:source/cli/tests/integration/portal-views.test.ts": {"hash":"2daf9ff78719892907807626740b629796ee03ad4b03c5543afebb4394d821e1","verdict":"approved"},
       "file:source/cli/tests/integration/relation-c-cpp-antifp.test.ts": {"hash":"33a1dfcc9a86d04fb273cf29e6a1bd871008d57528735020bb6a1df8666e3151","verdict":"approved"},
       "file:source/cli/tests/integration/relation-check.test.ts": {"hash":"24530142db06c3a79f0942b5edc5c7fd3591cc85334aa83e5de095f52b24eed3","verdict":"approved"},

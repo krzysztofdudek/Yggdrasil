@@ -8,7 +8,8 @@ description: "Runs an aspect against a node or ad-hoc files WITHOUT touching the
   prints the assembled prompt(s) and makes no calls. Every diagnostic result
   ends with the footer noting the lock is unchanged and yg check still reports
   the stored verdict."
-aspects: []
+aspects:
+  - provider-redaction-cascade
 relations:
   - target: cli/ast/runtime
     type: calls

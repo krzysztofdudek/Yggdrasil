@@ -7,4 +7,3 @@ nodes:
 aspects:
   - provider-redaction
   - what-why-next
-  - provider-redaction-cascade

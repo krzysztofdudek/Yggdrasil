@@ -5,6 +5,8 @@ description: Provider registry barrel — side-effect-imports every concrete LLM
   and shared types. Isolated from the rest of the shared layer so the
   registration fan-out (registry depends on every provider, every provider
   depends on shared) does not close a cycle through the shared interface.
+aspects:
+  - provider-redaction-cascade
 relations:
   - target: cli/llm/providers
     type: calls
