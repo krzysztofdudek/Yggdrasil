@@ -79,6 +79,17 @@ describe('node-parser', () => {
     expect(emptyReason.maxDirectRelations).toBeUndefined();
   });
 
+  it('rejects a limit of 0 or a negative integer — undefined, so the strict global default applies', async () => {
+    // The field SETS the node's own ceiling and can be stricter than the global,
+    // but a ceiling below 1 is meaningless (a node can declare zero relations but
+    // never a sub-one ceiling), so both are rejected rather than silently zeroing
+    // the check. Undefined → the strict global default governs the node.
+    const zero = await parseWithMaxRel('max_direct_relations:\n  limit: 0\n  reason: "x"\n');
+    expect(zero.maxDirectRelations).toBeUndefined();
+    const negative = await parseWithMaxRel('max_direct_relations:\n  limit: -3\n  reason: "x"\n');
+    expect(negative.maxDirectRelations).toBeUndefined();
+  });
+
   it('throws on empty YAML file', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-empty');
     await mkdir(tmpDir, { recursive: true });

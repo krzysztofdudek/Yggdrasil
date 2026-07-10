@@ -90,14 +90,19 @@ describe('owner command', () => {
     });
   });
 
-  it('requires --file option', async () => {
+  it('requires --file with a structured what/why/next error (not a bare Commander error)', async () => {
     await withFixtureCopy(async (cwd) => {
       const result = spawnSync('node', [BIN_PATH, 'owner'], {
         cwd,
         encoding: 'utf-8',
       });
       expect(result.status).toBe(1);
-      expect(result.stderr).toMatch(/required option|--file/);
+      // WHAT / WHY / NEXT — the message-design contract, not Commander's default.
+      expect(result.stderr).toContain('--file is required.');
+      expect(result.stderr).toContain('yg owner resolves which graph node owns');
+      expect(result.stderr).toContain('yg owner --file <path>');
+      // The raw Commander phrasing must be gone.
+      expect(result.stderr).not.toContain("required option '--file <path>' not specified");
     });
   });
 

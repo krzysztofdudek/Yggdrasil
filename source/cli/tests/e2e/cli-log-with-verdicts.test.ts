@@ -129,6 +129,61 @@ describe.skipIf(!distExists)('CLI E2E — yg log read --with-verdicts (interleav
     }
   });
 
+  it('refuses the "local telemetry" wording when the events sidecar is git-tracked, and says so plainly', () => {
+    const dir = copyFixture('git-tracked');
+    try {
+      // One log entry + one matching fill event, fixed far-future instants.
+      writeFileSync(
+        ordersLog(dir),
+        '## [2027-01-01T12:00:00.000Z]\nOrders log body marker LOGBODY.\n',
+        'utf-8',
+      );
+      writeFileSync(
+        eventsFile(dir),
+        j({
+          v: 1,
+          ts: '2027-01-01T00:00:00.000Z',
+          source: 'fill',
+          aspectId: 'ASPECT-NODE',
+          unitKey: 'node:services/orders',
+          kind: 'deterministic',
+          disposition: 'approved',
+          hash: 'h1',
+        }) + '\n',
+        'utf-8',
+      );
+
+      // Put the sidecar under git — the dishonest state the label must call out.
+      // A fresh, independent repo in the temp dir (never the Yggdrasil repo); `-f`
+      // because the sidecar is normally gitignored, so it can only be tracked by force.
+      const init = spawnSync('git', ['init'], { cwd: dir, encoding: 'utf-8' });
+      expect(init.status).toBe(0);
+      const add = spawnSync('git', ['add', '-f', '.yggdrasil/.yg-events.jsonl'], {
+        cwd: dir,
+        encoding: 'utf-8',
+      });
+      expect(add.status).toBe(0);
+
+      const { stdout, status } = run(
+        ['log', 'read', '--node', 'services/orders', '--with-verdicts'],
+        dir,
+      );
+
+      expect(status).toBe(0);
+      // The header must NOT claim "local" telemetry — a tracked sidecar is shared.
+      expect(stdout).not.toContain('local telemetry since');
+      // Instead it states plainly that the sidecar is git-tracked (shared history).
+      expect(stdout).toContain('the events sidecar is git-tracked');
+      expect(stdout).toContain('shared history, not local-only telemetry');
+      // It still reports the telemetry window and interleaves the event + log entry.
+      expect(stdout).toContain('verification telemetry since 2027-01-01T00:00:00.000Z');
+      expect(stdout).toContain('ASPECT-NODE');
+      expect(stdout).toContain('LOGBODY');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('leaves plain `yg log read` (no flag) output unchanged — no telemetry header', () => {
     const dir = copyFixture('plain');
     try {

@@ -97,10 +97,16 @@ function renderGroupList(blocks: string[]): string {
  * cycles. `sccOutsideShare` is the fraction of crossings that flow between
  * distinct components (i.e. one-way); 1.0 means the whole level is acyclic.
  */
-function cyclePhrase(interBlockCount: number, sccOutsideShare: number): string {
+export function cyclePhrase(interBlockCount: number, sccOutsideShare: number): string {
   if (interBlockCount === 0) return 'No dependencies between these groups.';
-  if (sccOutsideShare >= 1) return 'All dependencies between groups flow one way (no cycles).';
-  const cyclePct = Math.round((1 - sccOutsideShare) * 100);
+  const cycleShare = 1 - sccOutsideShare;
+  // Only an EXACT-zero cycle share is truly acyclic; any positive share has cycles.
+  if (cycleShare <= 0) return 'All dependencies between groups flow one way (no cycles).';
+  // Floor: a nonzero cycle share must never round DOWN to "0%" — that would read as
+  // "no cycles" when cycles exist (e.g. a 0.3% share). Below the 0.5% rounding
+  // threshold it renders "<1%"; only the exact-zero branch above says "one way".
+  const rounded = Math.round(cycleShare * 100);
+  const cyclePct = rounded === 0 ? '<1' : String(rounded);
   return (
     `${cyclePct}% of the dependencies between groups are part of a cycle ` +
     `(groups that depend on each other); the rest flow one way.`

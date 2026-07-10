@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { access } from 'node:fs/promises';
+import chalk from 'chalk';
 import { Command } from 'commander';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { initDebugLog, debugWrite } from '../utils/debug-log.js';
@@ -61,9 +62,23 @@ export function registerOwnerCommand(program: Command): void {
   program
     .command('owner')
     .description('Find which graph node owns a source file')
-    .requiredOption('--file <path>', 'File path (relative to repository root)')
-    .action(async (options: { file: string }) => {
+    .option('--file <path>', 'File path (relative to repository root)')
+    .action(async (options: { file?: string }) => {
       try {
+        if (!options.file) {
+          // Emit a structured what/why/next error instead of Commander's bare
+          // "required option not specified" line.
+          process.stderr.write(
+            chalk.red(
+              `Error: ${buildIssueMessage({
+                what: '--file is required.',
+                why: 'yg owner resolves which graph node owns a specific source file, so it needs that file path.',
+                next: 'Re-run as: yg owner --file <path>',
+              })}\n`,
+            ),
+          );
+          process.exit(1);
+        }
         const graph = await loadGraphOrAbort(process.cwd());
         initDebugLog(graph.rootPath, graph.config.debug ?? false, appendToDebugLog);
         const repoRoot = projectRootFromGraph(graph.rootPath);

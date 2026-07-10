@@ -404,3 +404,24 @@ export function hasNonDraftEffectiveAspects(node: GraphNode, graph: Graph): bool
 export function isAggregateAspect(graph: Graph, aspectId: string): boolean {
   return graph.aspects.find(a => a.id === aspectId)?.reviewer.type === 'aggregate';
 }
+
+/**
+ * Infer an aspect's TRUE reviewer kind for DISPLAY the way the parser infers it —
+ * from rule-source presence, NOT the declared `reviewer.type` field (which a
+ * mis-authored yaml can contradict, e.g. an implies-only bundle that copy-pasted
+ * `reviewer:\n  type: llm` with no content.md):
+ *   - content.md present        → 'llm'
+ *   - check.mjs present         → 'deterministic'
+ *   - neither, implies declared → 'aggregate'
+ *   - none of the above         → the declared reviewer.type (last resort)
+ * Rule-source presence is read off the already-loaded `artifacts` (the loader
+ * captures every file in the aspect dir except yg-aspect.yaml), so this re-reads
+ * nothing from disk. Display/metadata only — NEVER folded into a verdict hash.
+ */
+export function inferAspectDisplayKind(aspect: AspectDef): 'llm' | 'deterministic' | 'aggregate' {
+  const has = (filename: string): boolean => aspect.artifacts.some((a) => a.filename === filename);
+  if (has('content.md')) return 'llm';
+  if (has('check.mjs')) return 'deterministic';
+  if (aspect.implies && aspect.implies.length > 0) return 'aggregate';
+  return aspect.reviewer.type;
+}

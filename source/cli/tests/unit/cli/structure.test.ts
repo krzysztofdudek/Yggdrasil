@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { Graph, GraphNode, Relation } from '../../../src/model/graph.js';
-import { renderStructure } from '../../../src/cli/structure.js';
+import { renderStructure, cyclePhrase } from '../../../src/cli/structure.js';
 
 const LEGEND =
   'edges = declared structural relations ∪ statically detected dependencies; event relations excluded; weights not computed';
@@ -100,5 +100,30 @@ describe('renderStructure', () => {
     const detected = new Map<string, Set<string>>([['p/a', new Set(['q/b'])]]);
     const out = renderStructure(graph, detected);
     expect(out).toContain('p/a → q/b — jumps 4 levels across the tree, no declared contract');
+  });
+});
+
+describe('cyclePhrase — cycle-share floor', () => {
+  it('never rounds a NONZERO cycle share down to "0%"; a sub-1% share reads "<1%"', () => {
+    // 332 of 333 crossings flow one way → a 1/333 ≈ 0.3% cycle share. Rounding
+    // gives 0, but a real cycle exists, so it must read "<1%", never "0%".
+    const phrase = cyclePhrase(333, 332 / 333);
+    expect(phrase).toContain('<1% of the dependencies between groups are part of a cycle');
+    expect(phrase).not.toMatch(/\b0% of the dependencies/);
+  });
+
+  it('only an EXACT-zero cycle share (all crossings one way) says "flow one way (no cycles)"', () => {
+    expect(cyclePhrase(10, 1)).toBe('All dependencies between groups flow one way (no cycles).');
+  });
+
+  it('a share at or above the rounding threshold renders its rounded whole percent', () => {
+    // 0.6% cycle share rounds up to 1%.
+    expect(cyclePhrase(1000, 0.994)).toContain('1% of the dependencies between groups are part of a cycle');
+    // A clear cycle majority rounds normally.
+    expect(cyclePhrase(4, 0.5)).toContain('50% of the dependencies between groups are part of a cycle');
+  });
+
+  it('reports no dependencies when there are no crossings', () => {
+    expect(cyclePhrase(0, 0)).toBe('No dependencies between these groups.');
   });
 });

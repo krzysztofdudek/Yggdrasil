@@ -11,5 +11,7 @@ relations:
     type: calls
   - target: cli/utils
     type: calls
+  - target: cli/io/stores
+    type: calls
 mapping:
   - source/cli/src/cli/init-scaffold.ts

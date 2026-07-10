@@ -4,7 +4,7 @@ import path from 'node:path';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { initDebugLog } from '../utils/debug-log.js';
 import { appendToDebugLog } from '../io/debug-log-writer.js';
-import { computeEffectiveAspects } from '../core/graph/aspects.js';
+import { computeEffectiveAspects, inferAspectDisplayKind } from '../core/graph/aspects.js';
 import type { Graph, AspectStatus } from '../model/graph.js';
 import { readLock } from '../io/lock-store.js';
 import { verifyLock } from '../core/verify-lock.js';
@@ -219,7 +219,7 @@ export function computeAspectHealth(
     if (refused.includes(UNVERIFIED)) hasUnverified = true;
     rows.push({
       aspectId: aspect.id,
-      kind: aspect.reviewer.type,
+      kind: inferAspectDisplayKind(aspect),
       status: aspect.status ?? 'enforced',
       nodes: agg?.nodes.size ?? 0,
       pairs,

@@ -234,10 +234,8 @@ Node size is bounded by the LLM prompt-size gate (\`max_prompt_chars\` per tier)
 not by a per-node character budget — there is no node-level size limit and no
 per-node size exemption.
 
-The global default is deliberately strict. A node that is a genuine
-single-responsibility seam — one auditable gateway or orchestrator that
-concentrates coupling by design — may declare its OWN, higher, justified ceiling
-in its \`yg-node.yaml\`:
+A node may declare its OWN justified ceiling in its \`yg-node.yaml\`, which SETS
+that node's own limit, REPLACING the global default for it:
 
 \`\`\`yaml
 max_direct_relations:
@@ -245,12 +243,17 @@ max_direct_relations:
   reason: "Single auditable gateway that concentrates this coupling by design."
 \`\`\`
 
-This raises the ceiling for that node ONLY; the global default still governs
-every other node, and the node still warns if it exceeds the number it declares.
-Both fields are required; a partial or malformed override is ignored (the global
-default applies). It is a check parameter only — never a verdict input, so
-declaring it re-verifies nothing. \`yg context --node\` and \`yg schemas read node\`
-surface the number and its justification, keeping the exception auditable.
+The declared limit sets the ceiling for that node ONLY — it may be HIGHER than the
+global (a genuine single-responsibility seam — one auditable gateway or
+orchestrator that concentrates coupling by design, where splitting would defeat the
+architecture) OR LOWER (holding this node to a stricter budget than the rest of the
+repo); only the safe direction — a limit below the global — adds warnings. The
+global default still governs every other node, and the node still warns if it
+exceeds the number it declares. Both fields are required; a partial or malformed
+override — including a \`limit\` below \`1\` — is ignored (the strict global default
+applies). It is a check parameter only — never a verdict input, so declaring it
+re-verifies nothing. \`yg context --node\` and \`yg schemas read node\` surface the
+number and its justification, keeping the exception auditable.
 
 ## Parallel vs consensus
 

@@ -261,10 +261,8 @@ quality threshold.
 
 ### Per-node reviewed-seam override
 
-The global default is deliberately strict. When a node is a genuine
-single-responsibility seam — one auditable gateway or orchestrator that
-concentrates coupling *by design* — splitting it would defeat the architecture.
-Such a node may declare its own, higher, justified ceiling in its `yg-node.yaml`:
+A node may declare its own justified ceiling in its `yg-node.yaml`, which **sets
+that node's own limit, replacing the global default for it**:
 
 ```yaml
 max_direct_relations:
@@ -272,14 +270,19 @@ max_direct_relations:
   reason: "Single auditable gateway that concentrates this coupling by design."
 ```
 
-This raises the ceiling **for that node only**. The global default still governs
-every other node, and the node still warns if it exceeds the number it declares
-here — so the allowance sanctions a specific, reviewed count rather than loosening
-the check globally. Both fields are required; a partial or malformed override is
-ignored and the global default applies. It is a check parameter only — never a
-verification input — so declaring it re-verifies nothing. The number and its
-justification are surfaced by `yg context --node` and `yg schemas read node`,
-keeping the exception explicit and auditable in the graph.
+The declared limit **sets the ceiling for that node only** — it may be **higher**
+than the global (a genuine single-responsibility seam — one auditable gateway or
+orchestrator that concentrates coupling *by design*, where splitting would defeat
+the architecture) **or lower** (holding this node to a stricter budget than the
+rest of the repo). Only the safe direction adds warnings: a limit *below* the
+global makes the node stricter. The global default still governs every other node,
+and this node still warns if it exceeds the number it declares here — so the
+allowance sanctions a specific, reviewed count rather than loosening the check
+globally. Both fields are required; a partial or malformed override — including a
+`limit` below `1` — is ignored and the strict global default applies. It is a
+check parameter only — never a verification input — so declaring it re-verifies
+nothing. The number and its justification are surfaced by `yg context --node` and
+`yg schemas read node`, keeping the exception explicit and auditable in the graph.
 
 ---
 

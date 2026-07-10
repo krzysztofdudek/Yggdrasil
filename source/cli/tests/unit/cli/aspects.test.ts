@@ -268,6 +268,32 @@ describe('computeAspectHealth', () => {
     expect(row.errs).toBe('over');
   });
 
+  it('renders the TRUE kind for an aggregate bundle even when reviewer.type mis-declares llm', () => {
+    // An implies-only bundle ships neither content.md nor check.mjs. Even if its
+    // yaml copy-pasted `reviewer:\n  type: llm`, the health kind must read
+    // 'aggregate' — kind is derived from rule-source presence, not the declared
+    // field, so a content-less bundle can never masquerade as an LLM reviewer.
+    const graph = makeGraph([
+      makeAspect('agg', { reviewer: 'llm', implies: ['child'], artifacts: [] }),
+      makeAspect('child', { reviewer: 'deterministic' }),
+    ]);
+    const { rows } = computeAspectHealth(graph, [], report());
+    expect(rows.find((r) => r.aspectId === 'agg')!.kind).toBe('aggregate');
+  });
+
+  it('derives kind from rule-source presence: content.md → llm, check.mjs → deterministic', () => {
+    const graph = makeGraph([
+      makeAspect('llm-x', { reviewer: 'llm', artifacts: [{ filename: 'content.md', content: 'rule' }] }),
+      makeAspect('det-x', {
+        reviewer: 'deterministic',
+        artifacts: [{ filename: 'check.mjs', content: 'export function check() { return []; }' }],
+      }),
+    ]);
+    const { rows } = computeAspectHealth(graph, [], report());
+    expect(rows.find((r) => r.aspectId === 'llm-x')!.kind).toBe('llm');
+    expect(rows.find((r) => r.aspectId === 'det-x')!.kind).toBe('deterministic');
+  });
+
   it('an absent verdict counts as unknown, never as a refusal (unverified ≠ zero)', () => {
     const graph = makeGraph([makeAspect('llm', { reviewer: 'llm' })]);
     const pairs: VerifiedPair[] = [

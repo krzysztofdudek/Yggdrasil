@@ -143,10 +143,11 @@ describe.skipIf(!distExists)('CLI E2E — query and navigation', () => {
     expect(stdout).toContain('no graph coverage (file not found)');
   });
 
-  it('yg owner without --file returns exit 1', () => {
+  it('yg owner without --file returns exit 1 with a structured what/why/next error', () => {
     const { status, stderr } = run(['owner']);
     expect(status).toBe(1);
-    expect(stderr).toContain('required option');
+    expect(stderr).toContain('--file is required.');
+    expect(stderr).toContain('yg owner --file <path>');
   });
 
   // --- Tree options ---
