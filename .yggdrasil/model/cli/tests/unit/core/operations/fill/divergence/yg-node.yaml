@@ -1,0 +1,15 @@
+name: Fill Divergence Unit Tests
+type: test-suite
+description: "Unit tests for the auto-approve convergence sentinel (fill-divergence)
+  — the pure 0-fill shape detector (fires only when zero pairs were to fill, yet
+  unverified pairs remain and no verdict was written), the bounded evidence-dump
+  builder with its line cap and already-stored hash attachment, the single
+  what/why/next notice, and the report step's injected-sink wiring."
+aspects: []
+relations:
+  [
+    { target: cli/core/fill, type: uses },
+    { target: cli/model/lock, type: uses }
+  ]
+mapping:
+  - source/cli/tests/unit/core/fill-divergence.test.ts

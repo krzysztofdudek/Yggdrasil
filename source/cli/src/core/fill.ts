@@ -69,6 +69,7 @@ import type { RunStructureAspectParams, RunStructureAspectResult } from '../stru
 import { logGateBlocks } from './fill-log-gate.js';
 import { applyPositiveClosure } from './fill-closure.js';
 import { garbageCollectAndRewrite } from './fill-gc.js';
+import { reportDivergenceIfDetected } from './fill-divergence.js';
 import { ProgressTracker } from './fill-progress.js';
 import { appendVerdictEvent, type VerdictEvent } from '../io/events-store.js';
 import { PROMPT_FORMAT_REV } from '../llm/prompt.js';
@@ -203,6 +204,12 @@ export interface RunFillOptions {
    *  degenerate case that keeps every existing verdict path byte-identical.
    *  Never affects verdicts, only speed. */
   detConcurrency?: number;
+  /** Best-effort, io-side sink for the convergence sentinel's evidence dump
+   *  (core/fill-divergence.ts). Injected from the CLI boundary so this engine
+   *  module takes no core → io dependency; when absent the sentinel still emits
+   *  its notice but records no file. The writer must never throw — a sentinel
+   *  failure must never fail a fill. */
+  divergenceWrite?: (text: string) => void;
 }
 
 export interface RunFillResult {
@@ -411,6 +418,13 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
     return { checkResult, reviewerCallsMade: 0, infraFailures: 0, runtimeErrors: 0, companionRuntimeErrors: 0, malformedSuppressErrors: 0 };
   }
 
+  // Count of verdict-content writes performed this run (one per setEntry). Read
+  // ONLY by the convergence sentinel at the report boundary — GC's canonical
+  // re-serialization and closure's fingerprint writes are deliberately NOT
+  // counted, since only a real verdict write would legitimately explain a change
+  // in the unverified set between the pre-fill and post-fill classifications.
+  let lockWrites = 0;
+
   // ── Serialized lock writer (interruption-safe, §7). ───────────────────────
   // --only-deterministic writes ONLY the gitignored det file; a full run writes all three.
   const writeScope = onlyDeterministic ? 'deterministic' : 'all';
@@ -431,6 +445,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
     // so a raw OS-native key (backslashes on Windows) would be stored under a key
     // no normalized lookup could find. A no-op on POSIX.
     (lock.verdicts[pair.aspectId] ??= {})[toPosixPath(pair.unitKey)] = entry;
+    lockWrites += 1;
     await persistLock();
     // Verdict-persisted-BEFORE-event: the lock write above is the source of truth
     // and has already resolved; the telemetry event below is a strictly-AFTER
@@ -846,5 +861,35 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
 
   // The `yg check --approve` combiner prints this report after filling.
   const checkResult = await runCheck(graph, opts.gitTrackedFiles);
+
+  // ── Convergence sentinel (C15) — READ-ONLY over the fill's own state. ──────
+  // Detect the exact 0-fill divergence: the pre-fill classification reported ZERO
+  // pairs to fill, yet the post-fill report finds unverified pairs, with NO
+  // verdict written in between. That triad is a genuine convergence gap (the
+  // classifier disagreed with itself over unchanged inputs) that would otherwise
+  // be silent. On fire: emit ONE notice and record a bounded evidence dump via
+  // the injected io writer. This NEVER alters exit codes, verdicts, the lock, or
+  // fill flow, and is wrapped in a swallow-all — a sentinel failure must never
+  // fail a fill.
+  try {
+    const postUnverified = checkResult.issues.filter((i) => i.code === 'unverified').length;
+    const shape = { toFill: unverifiedPairs.length, postUnverified, lockWrites };
+    await reportDivergenceIfDetected(shape, lock, {
+      emitIssue,
+      divergenceWrite: opts.divergenceWrite,
+      // Read-only enumeration (only invoked on fire): a fresh verifyLock pass
+      // names the divergent pairs; buildDivergenceDump attaches each pair's
+      // already-stored lock hash — nothing is re-hashed and nothing is written.
+      enumerate: async () => {
+        const postVerification = await verifyLock(graph, lock);
+        return postVerification.pairs
+          .filter((vp) => vp.state.kind === 'unverified')
+          .map((vp) => ({ aspectId: vp.pair.aspectId, unitKey: vp.pair.unitKey }));
+      },
+    });
+  } catch (e) {
+    debugWrite(`[fill] convergence sentinel failed (swallowed): ${e instanceof Error ? e.message : String(e)}`);
+  }
+
   return { checkResult, reviewerCallsMade, infraFailures, runtimeErrors, companionRuntimeErrors, malformedSuppressErrors };
 }

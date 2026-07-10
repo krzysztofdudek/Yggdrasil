@@ -4,7 +4,7 @@ import chalk from 'chalk';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { exitAfterFlush } from './exit-after-flush.js';
 import { initDebugLog, debugWrite } from '../utils/debug-log.js';
-import { appendToDebugLog } from '../io/debug-log-writer.js';
+import { appendToDebugLog, writeFillDivergence } from '../io/debug-log-writer.js';
 import { runCheck } from '../core/check.js';
 import type { CheckIssue, CheckResult } from '../core/check.js';
 import { runFill, FillGatingError } from '../core/fill.js';
@@ -295,6 +295,10 @@ export function registerCheckCommand(program: Command): void {
                   : (s: string) => { process.stderr.write(s); },
               isTTY: !isQuiet && (process.stderr.isTTY ?? false),
               emitIssue: (m) => { process.stderr.write(buildIssueMessage(m) + '\n'); },
+              // Best-effort, synchronous io writer for the convergence sentinel's
+              // evidence dump — wired here so the engine takes no core → io
+              // dependency. It never throws into the fill.
+              divergenceWrite: (text) => { writeFillDivergence(graph.rootPath, text); },
             });
             const autoFilled = isConfigDrivenFill && !opts.dryRun;
             process.stdout.write(formatOutput(fill.checkResult, { kind: 'full' }, autoFilled));

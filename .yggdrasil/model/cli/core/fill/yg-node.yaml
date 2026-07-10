@@ -68,3 +68,4 @@ mapping:
   - source/cli/src/core/fill-closure.ts
   - source/cli/src/core/fill-gc.ts
   - source/cli/src/core/fill-progress.ts
+  - source/cli/src/core/fill-divergence.ts

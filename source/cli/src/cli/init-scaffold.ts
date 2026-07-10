@@ -63,6 +63,7 @@ export async function ensureGitattributes(repoRoot: string): Promise<void> {
  *    - `.ast-cache/`      — the relation pass's content-addressed per-file AST fact cache
  *    - `.debug.log`       — the opt-in command debug log
  *    - `.yg-events.jsonl` — the fill stage's append-only verdict-events telemetry sidecar
+ *    - `.yg-fill-divergence.log` — the fill stage's convergence-sentinel evidence dump
  *  This is the single source of truth for what init writes into the local
  *  gitignore (both fresh init and every --upgrade). Paths are relative to the
  *  `.yggdrasil/` directory the file lives in. */
@@ -79,6 +80,9 @@ const YGGDRASIL_GITIGNORE_LINES = [
   // Append-only verdict-events telemetry sidecar: local, write-only, never read by
   // any check/verify/render path; never committed.
   '.yg-events.jsonl',
+  // Convergence-sentinel evidence dump: local, best-effort forensic log written
+  // only when the fill detects a 0-fill divergence; never committed.
+  '.yg-fill-divergence.log',
 ] as const;
 
 /**

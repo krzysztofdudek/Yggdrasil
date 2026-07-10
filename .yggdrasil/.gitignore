@@ -4,3 +4,4 @@ yg-secrets.yaml
 .yg-lock.deterministic.json
 .ast-cache/
 .yg-events.jsonl
+.yg-fill-divergence.log
