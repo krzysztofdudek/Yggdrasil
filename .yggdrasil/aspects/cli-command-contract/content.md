@@ -28,7 +28,7 @@ Every CLI command handler follows these conventions:
 
 - Commands requiring graph state start with `await loadGraphOrAbort(process.cwd())` (from `formatters/cli-preamble.js`).
 - `loadGraphOrAbort` writes the canonical what/why/next missing-graph error to stderr and `process.exit(1)`s on ENOENT-shaped loader failures, then rethrows any other error so the surrounding try/catch handles it.
-- The bootstrap command `init` is the only exception — it must run when no `.yggdrasil/` exists and therefore calls `loadGraph` directly inside its `--upgrade` path (covered by a separate suppression if the wider aspect ever forbids it).
+- The bootstrap command `init` is the only exception to starting with `loadGraphOrAbort`: it must be able to run when no `.yggdrasil/` exists (and its `--upgrade` path may migrate a graph that predates the current format), so it cannot load the graph first. Instead its `--upgrade` path delegates the missing-graph guard to the shared `abortUnlessYggdrasilExists` helper — a `stat`-based existence check on `.yggdrasil/` that, when the directory is absent, writes the canonical what/why/next missing-graph error via `buildIssueMessage` and `process.exit(1)`s. Because that helper (not the command body) owns the missing-graph string and the ENOENT-shaped branch, `init` calls no `loadGraph`, inlines no missing-graph string, and needs no suppression — it still satisfies the no-inlined-string rule above.
 
 ## Node path normalization
 

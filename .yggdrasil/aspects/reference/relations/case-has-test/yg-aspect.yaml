@@ -1,3 +1,4 @@
 name: RelationsCaseHasTest
 description: "1:1 between the relations reference catalogue and the matrix tests: every <id>.md has an it('<id>') in the matching matrix file, and every runCase-backed it('<id>') has an <id>.md (no untested cases, no orphan runCase tests)."
+errs: over
 status: enforced
