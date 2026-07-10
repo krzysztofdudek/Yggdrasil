@@ -2,9 +2,15 @@ name: Pair Hash Unit Tests
 type: test-suite
 description: "Unit tests for the frozen input-hash contract —
   codePointCanonicalJson code-point ordering, LLM and deterministic hash
-  computation, golden-pinned values, observation helpers, tierHashView, and
-  POSIX path normalization."
+  computation, golden-pinned values, observation helpers, tierHashView,
+  POSIX path normalization, and the errs never-hashed guard."
 aspects: []
-relations: [ { target: cli/core/pair-hash, type: uses } ]
+relations:
+  [
+    { target: cli/core/pair-hash, type: uses },
+    { target: cli/core/pair-inputs, type: uses },
+    { target: cli/io/parsers/aspect, type: uses }
+  ]
 mapping:
   - source/cli/tests/unit/core/pair-hash.test.ts
+  - source/cli/tests/unit/core/aspect-errs-hash-guard.test.ts

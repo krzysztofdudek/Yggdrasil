@@ -791,6 +791,71 @@ describe.skipIf(!distExists)('CLI E2E — raw-scan mandatory delimiter (F5) + in
 });
 
 // ---------------------------------------------------------------------------
+// errs: under — the suppression inventory FLAGS a waiver on an under-approximating
+// check. Such a check produces no false positives by design, so waiving one is a
+// footgun. The warning is advisory: `yg suppressions` still exits 0.
+// ---------------------------------------------------------------------------
+
+describe.skipIf(!distExists)('CLI E2E — suppressions flags a waiver on an errs: under check', () => {
+  /** Write a deterministic aspect explicitly labeled under-approximating. */
+  function writeUnderAspect(dir: string, id: string): void {
+    const aspectDir = path.join(dir, '.yggdrasil', 'aspects', id);
+    mkdirSync(aspectDir, { recursive: true });
+    writeFileSync(
+      path.join(aspectDir, 'yg-aspect.yaml'),
+      [
+        `name: ${id}`,
+        'description: A provable-only rule; never a false positive.',
+        'reviewer:',
+        '  type: deterministic',
+        'errs: under',
+        'status: enforced',
+        '',
+      ].join('\n'),
+      'utf-8',
+    );
+    writeFileSync(path.join(aspectDir, 'check.mjs'), 'export function check() { return []; }\n', 'utf-8');
+  }
+
+  it('yg suppressions prints the under-approximating warning and exits 0', () => {
+    const dir = hermeticFixture('errs-under-waiver');
+    try {
+      writeUnderAspect(dir, 'under-approx');
+      setNodeAspects(
+        ordersNodeYaml(dir),
+        'OrdersService',
+        'Creates and retrieves customer orders.',
+        'src/services/orders.ts',
+        ['under-approx'],
+      );
+
+      // A genuine single-line waiver naming the under-approximating aspect.
+      appendFileSync(
+        ordersFile(dir),
+        [
+          '',
+          '// yg-suppress(under-approx) waiving a provable-only check, tracked in the issue tracker',
+          'const flagged = 1;',
+          '',
+        ].join('\n'),
+        'utf-8',
+      );
+
+      const inv = run(['suppressions'], dir);
+      // Advisory only — the inventory still exits 0.
+      expect(inv.status).toBe(0);
+      expect(inv.stdout).toContain('single(under-approx)');
+      // The exact under-approximating footgun sentence reached the inventory output.
+      expect(inv.stdout).toContain(
+        'such checks produce no false positives by design; either the errs label is wrong or this code path deserves a second look.',
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // LLM / deterministic PARITY — the LLM reviewer prompt receives the SAME
 // resolved <suppressed-ranges> spans the deterministic matcher computes (Task
 // #18). Driven by an in-process mock reviewer (the dead-endpoint suite above can

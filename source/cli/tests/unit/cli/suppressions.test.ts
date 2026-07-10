@@ -262,6 +262,72 @@ describe('runSuppressionsScan: comment-only scoping for AST languages', () => {
   });
 });
 
+// ── errs: under warning (footgun on under-approximating checks) ───────────
+
+describe('runSuppressionsScan: warns when a waiver targets an errs: under check', () => {
+  const tempDirs: string[] = [];
+  afterEach(() => {
+    while (tempDirs.length > 0) {
+      const d = tempDirs.pop()!;
+      try { rmSync(d, { recursive: true, force: true }); } catch { /* ignore */ }
+    }
+  });
+
+  function freshDir(label: string): string {
+    const d = mkdtempSync(path.join(tmpdir(), `yg-supp-errs-${label}-`));
+    tempDirs.push(d);
+    return d;
+  }
+
+  function write(root: string, rel: string, content: string): void {
+    const abs = path.join(root, rel);
+    mkdirSync(path.dirname(abs), { recursive: true });
+    writeFileSync(abs, content, 'utf-8');
+  }
+
+  const EXACT =
+    'suppress targets an under-approximating check — such checks produce no false positives by design; either the errs label is wrong or this code path deserves a second look.';
+
+  it('a single-line waiver on an errs: under aspect emits the exact warning', async () => {
+    const root = freshDir('single');
+    write(root, 'svc.ts', '// yg-suppress(no-false-positives) known debt, tracked\nx();\n');
+    const report = await runSuppressionsScan(
+      root,
+      ['svc.ts'],
+      new Set(['no-false-positives']),
+      [],
+      new Set(['no-false-positives']), // errs: under
+    );
+    expect(report.warnings.some((w) => w.includes(EXACT))).toBe(true);
+  });
+
+  it('does NOT warn when the aspect is not under-approximating', async () => {
+    const root = freshDir('over');
+    write(root, 'svc.ts', '// yg-suppress(may-overreach) known debt, tracked\nx();\n');
+    const report = await runSuppressionsScan(
+      root,
+      ['svc.ts'],
+      new Set(['may-overreach']),
+      [],
+      new Set(), // no under-approximating aspects
+    );
+    expect(report.warnings.some((w) => w.includes(EXACT))).toBe(false);
+  });
+
+  it('does NOT warn on an enable terminator (not a waiver) even for an under aspect', async () => {
+    const root = freshDir('enable');
+    write(root, 'svc.ts', '// yg-suppress-enable(no-false-positives)\nx();\n');
+    const report = await runSuppressionsScan(
+      root,
+      ['svc.ts'],
+      new Set(['no-false-positives']),
+      [],
+      new Set(['no-false-positives']),
+    );
+    expect(report.warnings.some((w) => w.includes(EXACT))).toBe(false);
+  });
+});
+
 // ── formatSuppressionsOutput ──────────────────────────────
 
 describe('formatSuppressionsOutput', () => {

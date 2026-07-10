@@ -16,3 +16,4 @@ mapping:
   - source/cli/tests/unit/core/validator-structure.test.ts
   - source/cli/tests/unit/core/validator-aspect-aggregate.test.ts
   - source/cli/tests/unit/core/checks-aspects-branch-coverage.test.ts
+  - source/cli/tests/unit/core/aspect-errs-contract.test.ts

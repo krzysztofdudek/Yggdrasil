@@ -24,3 +24,5 @@ Reject companion misuse at validation time before any review runs: a companion r
 Missing-reviewer detection now consults the effective, non-draft judgment pairs through the canonical pair computation and stays silent when none exist, so a keyless project is a legal green state rather than a blocking error.
 ## [2026-07-05T21:17:23.050Z]
 The conditional missing-reviewer detection now short-circuits before the full pair enumeration when the graph defines no judgment (LLM) rule at all, so a script-only project never pays the per-component file walk on a routine check; the accurate effectiveness decision still runs when a judgment rule is present.
+## [2026-07-10T08:10:35.051Z]
+Added a graph-wide contract that the error-direction label is legal only on a locally-run rule, because that label describes how such a rule can be wrong: it may over-flag, it may only ever flag provable cases, or it may be exact. On a rule judged by a reviewer the label is meaningless, so it is now a blocking error that names the fix. The check fires only where the label exists, so an absent label is always a clean pass.

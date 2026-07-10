@@ -1,4 +1,4 @@
-export const summary = 'Aspect definition — reviewer kind, scope, status, implies, references, when.';
+export const summary = 'Aspect definition — reviewer kind, scope, status, errs, implies, references, when.';
 
 export const content = `# yg-aspect.yaml — Schema for cross-cutting aspects
 # Each aspect is a directory under .yggdrasil/aspects/ containing this file
@@ -57,6 +57,20 @@ status: enforced                   # optional — aspect-level default. enum: dr
                                    # carries status_inherit instead. Downgrade attempts are validator
                                    # errors. Advisory and enforced verdicts are recorded in the
                                    # baseline; draft aspects get no verdict.
+
+# errs: under                      # optional — the error-direction of a DETERMINISTIC check.
+                                   # enum: over | under | exact. Legal ONLY on deterministic aspects
+                                   # (declaring errs on an llm/aggregate aspect is a validator error).
+                                   # Absent → undefined.
+                                   #   over  = the check may flag code the rule does not forbid
+                                   #           (false positives possible).
+                                   #   under = the check only ever fires on provable violations
+                                   #           (no false positives by design).
+                                   #   exact = the check neither over- nor under-approximates.
+                                   # This is rendering/analysis metadata only. It is NEVER folded into
+                                   # any verdict hash — labeling or relabeling errs re-verifies nothing.
+                                   # \`yg suppressions\` warns when a waiver targets an errs: under check,
+                                   # since such a check has no false positives to waive.
 
 # implies:                         # optional — other aspects included automatically when this
 #                                  # aspect is effective on a node. Two forms:

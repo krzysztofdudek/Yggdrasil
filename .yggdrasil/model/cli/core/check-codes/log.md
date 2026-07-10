@@ -22,3 +22,5 @@ Removed the secrets-non-credential-field code: yg-secrets is now a general deep-
 Retires the structural issue code that reported a missing schema file. Schema references are no longer a per-project graph artifact whose presence is checked; they are delivered by a built-in command and travel with the tool, so a project can never be missing them and the code has nothing left to report.
 ## [2026-06-19T19:18:52.568Z]
 Register the two new companion-misuse error codes as blocking structural errors so they are categorised with the other aspect rule-source errors in the check summary.
+## [2026-07-10T08:10:35.358Z]
+Registered the error-direction validation code as a structural, always-blocking graph-shape error, next to the other rule-definition contract codes, so a misplaced or malformed label is caught by the read-only gate and by CI, not only during a fill.

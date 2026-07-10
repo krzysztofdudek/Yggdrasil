@@ -256,6 +256,35 @@ export function checkAspectTierReferences(graph: Graph): ValidationIssue[] {
   return issues;
 }
 
+// --- aspect-errs-invalid: errs is legal only on deterministic aspects ---
+
+/**
+ * The `errs` label declares a DETERMINISTIC check's error direction, so it is
+ * legal only on deterministic aspects. This is the presence-gated cross-field
+ * contract (mirrors checkReviewerPresence's shape): it fires ONLY where the field
+ * exists — an absent field is a clean pass, and a valid literal placed on an LLM
+ * or aggregating aspect is a blocking error. The literal itself is already
+ * validated at parse time (aspect-errs-invalid), so every errs seen here is one of
+ * over | under | exact.
+ */
+export function checkAspectErrsDirection(graph: Graph): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  for (const aspect of graph.aspects) {
+    if (aspect.errs === undefined) continue;              // presence gate
+    if (aspect.reviewer.type === 'deterministic') continue; // legal placement
+    const reviewerNoun = aspect.reviewer.type === 'llm'
+      ? 'LLM-reviewed'
+      : 'an aggregating aspect with no own check';
+    const msgData: IssueMessage = {
+      what: `Aspect '${aspect.id}' declares errs: '${aspect.errs}' but reviewer.type is '${aspect.reviewer.type}'.`,
+      why: `errs declares a deterministic check's error direction; this aspect is ${reviewerNoun}.`,
+      next: 'Set errs to one of over|under|exact, or remove the field — see .yggdrasil/aspects/README.md, section "errs census".',
+    };
+    issues.push({ code: 'aspect-errs-invalid', severity: 'error', rule: 'aspect-errs-invalid', ...issueMsg(msgData), messageData: msgData });
+  }
+  return issues;
+}
+
 // --- aspect-reference-broken ---
 
 export async function checkAspectReferences(graph: Graph): Promise<ValidationIssue[]> {

@@ -220,6 +220,22 @@ export type StatusInherit = 'strictest' | 'own-default';
 export const STATUS_INHERIT_VALUES: readonly StatusInherit[] = ['strictest', 'own-default'];
 
 // ============================================================
+// ErrsDirection — deterministic check error-direction label
+// ============================================================
+
+/**
+ * The error-direction of a deterministic check — whether it can flag code the
+ * rule does not actually forbid ('over', may produce false positives), only ever
+ * fires on provable violations ('under', no false positives by design), or is
+ * exact ('exact', neither over- nor under-approximates). Rendering/analysis metadata
+ * only — declared exclusively on deterministic aspects and NEVER a verdict-hash
+ * ingredient. Absent → undefined.
+ */
+export type ErrsDirection = 'over' | 'under' | 'exact';
+
+export const ERRS_DIRECTION_VALUES: readonly ErrsDirection[] = ['over', 'under', 'exact'];
+
+// ============================================================
 // Aspect
 // ============================================================
 
@@ -254,6 +270,14 @@ export interface AspectDef {
    * Forbidden on aggregate aspects (no rule source to scope).
    */
   scope?: ScopeDef;
+  /**
+   * Error-direction label of a deterministic check (over | under | exact).
+   * Legal ONLY on deterministic aspects — declares whether the check may
+   * over-approximate (false positives possible), under-approximate (no false
+   * positives by design), or is exact. Rendering/analysis metadata only; NEVER
+   * folded into any verdict hash. Absent → undefined.
+   */
+  errs?: ErrsDirection;
   /**
    * True when companion.mjs is present beside the aspect's rule sources.
    * Valid only when reviewer.type === 'llm'. Set by the loader when companion.mjs

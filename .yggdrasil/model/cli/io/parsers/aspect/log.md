@@ -4,3 +4,5 @@ Aspect parser gains a scope: block to declare review granularity. The scope.per 
 Updated parseFileWhen call to pass site: 'scope.files', satisfying the new required parameter introduced to make predicate cross-hint messages name the correct call site. No logic change to the aspect parser itself.
 ## [2026-06-19T19:19:17.923Z]
 Recognise a companion resolver sitting beside an aspect so the rest of the system knows the aspect resolves a per-unit paired file, without changing how the reviewer kind is inferred — the resolver is an add-on to an LLM aspect, not a new kind.
+## [2026-07-10T08:10:34.755Z]
+Added parsing of an optional error-direction label on rule definitions. It is accepted only as one of three fixed values and otherwise rejected with a message that names the valid ones. The parser tolerates the label regardless of how the rule is reviewed, because whether it belongs on a given rule is a separate cross-field decision made later. The label never contributes to a rule verified identity and is kept off every hash ingredient, so labeling or relabeling it re-verifies nothing.

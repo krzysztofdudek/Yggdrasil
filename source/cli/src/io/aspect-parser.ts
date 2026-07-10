@@ -2,8 +2,8 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { fileExistsSync } from './graph-fs.js';
-import type { AspectDef, AspectReviewerSpec, AspectStatus, StatusInherit, ScopeDef } from '../model/graph.js';
-import { ASPECT_STATUS_VALUES } from '../model/graph.js';
+import type { AspectDef, AspectReviewerSpec, AspectStatus, StatusInherit, ScopeDef, ErrsDirection } from '../model/graph.js';
+import { ASPECT_STATUS_VALUES, ERRS_DIRECTION_VALUES } from '../model/graph.js';
 import type { IssueMessage } from '../model/validation.js';
 import type { WhenPredicate } from '../model/when.js';
 import { readArtifacts } from './artifact-reader.js';
@@ -127,6 +127,30 @@ export async function parseAspect(
       };
     }
     status = raw.status as AspectStatus;
+  }
+
+  // errs: — optional deterministic-check error-direction label. Strict when
+  // present: accept ONLY the three literals here; whether errs is legal on THIS
+  // aspect's reviewer kind is a cross-field contract enforced downstream
+  // (checkAspectErrsDirection), so a valid literal on an LLM/aggregate aspect is
+  // tolerated by the parser and flagged by the validator. NEVER a hash ingredient.
+  let errs: ErrsDirection | undefined;
+  if (raw.errs !== undefined) {
+    if (typeof raw.errs !== 'string' || !ERRS_DIRECTION_VALUES.includes(raw.errs as ErrsDirection)) {
+      return {
+        ok: false,
+        aspectId: idTrimmed,
+        errors: [{
+          code: 'aspect-errs-invalid',
+          messageData: {
+            what: `Aspect '${idTrimmed}' declares errs: '${String(raw.errs)}' (not a valid value).`,
+            why: 'errs must be one of: over, under, exact.',
+            next: `Edit .yggdrasil/aspects/${idTrimmed}/yg-aspect.yaml and set errs to one of over|under|exact, or remove the field — see .yggdrasil/aspects/README.md, section "errs census".`,
+          },
+        }],
+      };
+    }
+    errs = raw.errs as ErrsDirection;
   }
 
   let implies: string[] | undefined;
@@ -372,6 +396,7 @@ export async function parseAspect(
       artifacts,
       ...(references && { references }),
       ...(status !== undefined && { status }),
+      ...(errs !== undefined && { errs }),
       ...(scope !== undefined && { scope }),
       ...(hasCompanionMjs && { hasCompanion: true }),
     },

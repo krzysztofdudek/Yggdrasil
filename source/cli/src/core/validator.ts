@@ -28,6 +28,7 @@ import {
   checkAspectRuleSources,
   checkReviewerPresence,
   checkAspectTierReferences,
+  checkAspectErrsDirection,
   checkAspectReferences,
   checkAspectStatusDowngrade,
 } from './checks/aspect-contracts.js';
@@ -133,6 +134,7 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
     issues.push(...checkMissingDescriptions(graph));
     issues.push(...(await checkReviewerPresence(graph)));
     issues.push(...checkAspectTierReferences(graph));
+    issues.push(...checkAspectErrsDirection(graph));
   }
 
   // Stage 3: architecture-level checks — fatal errors short-circuit per-node + global stages.

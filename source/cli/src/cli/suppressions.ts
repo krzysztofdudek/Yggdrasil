@@ -33,7 +33,18 @@ export function registerSuppressionsCommand(program: Command): void {
         const projectRoot = path.dirname(graph.rootPath);
         const gitFiles = await walkRepoFiles(projectRoot);
         const knownAspectIds = new Set(graph.aspects.map(a => a.id));
-        const report = await runSuppressionsScan(projectRoot, gitFiles, knownAspectIds, collectMappingEntries(graph));
+        // Aspects whose deterministic check is labeled under-approximating — a
+        // waiver targeting one is a footgun the scan flags as a non-blocking warning.
+        const underApproximatingAspectIds = new Set(
+          graph.aspects.filter(a => a.errs === 'under').map(a => a.id),
+        );
+        const report = await runSuppressionsScan(
+          projectRoot,
+          gitFiles,
+          knownAspectIds,
+          collectMappingEntries(graph),
+          underApproximatingAspectIds,
+        );
         process.stdout.write(formatSuppressionsOutput(report));
         // Always exit 0 — this is a purely informational command
       } catch (error) {

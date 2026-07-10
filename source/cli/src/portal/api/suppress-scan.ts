@@ -99,6 +99,7 @@ export async function runSuppressionsScan(
   gitTrackedFiles: string[],
   knownAspectIds: Set<string>,
   mappingEntries: string[] = [],
+  underApproximatingAspectIds: Set<string> = new Set(),
 ): Promise<SuppressionsReport> {
   const fileEntries: FileMarkers[] = [];
   const warnings: string[] = [];
@@ -181,6 +182,19 @@ export async function runSuppressionsScan(
           what: `Wildcard suppression "*" at ${file}:${m.line} silences ALL aspects.`,
           why: 'A wildcard suppresses every current and future aspect check on the affected code — including ones not yet written. This masks problems broadly and is hard to audit.',
           next: `Replace "*" with the specific aspect id(s) you intend to suppress.`,
+        });
+        warnings.push(msg);
+      }
+
+      // (d) Waiver on an under-approximating check (errs: under). Such a check
+      // produces no false positives by design — it only fires on provable
+      // violations — so waiving it is a footgun. `enable` is a range terminator,
+      // not a waiver, and a wildcard is already covered by (b), so skip both.
+      if (!m.wildcard && m.kind !== 'enable' && underApproximatingAspectIds.has(m.aspectId)) {
+        const msg = buildIssueMessage({
+          what: `yg-suppress(${m.aspectId}) at ${file}:${m.line} waives a check labeled errs: under.`,
+          why: 'suppress targets an under-approximating check — such checks produce no false positives by design; either the errs label is wrong or this code path deserves a second look.',
+          next: `Remove the waiver and re-examine the flagged code, or correct the aspect's errs label if 'under' is inaccurate.`,
         });
         warnings.push(msg);
       }

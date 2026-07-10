@@ -84,3 +84,5 @@ Dropped the secrets-non-credential check registration: yg-secrets is now a gener
 Stops enforcing that schema files are present. The presence requirement is gone because schema references are now embedded in the tool and reached through a command rather than copied into each project, so validation no longer wires in that check.
 ## [2026-07-05T20:58:29.353Z]
 The reviewer-section requirement is now conditional: the missing-reviewer error is raised only when a judgment rule is actually effective on some component, so a script-only project verifies clean without configuring a model to judge code.
+## [2026-07-10T08:10:35.648Z]
+Wired the error-direction contract into the validation pipeline so it runs on every check. A label that records how a rule can be wrong must be verified for legality across the whole graph, next to the other rule-definition contracts, so drift is refused at the gate rather than slipping through.

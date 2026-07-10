@@ -63,6 +63,10 @@ export const STRUCTURAL_CODES = new Set<string>([
   'aspect-reference-escape',
   'aspect-reference-duplicate',
   'aspect-tier-unknown',
+  // errs label declared on a non-deterministic aspect, or a malformed errs
+  // literal — always blocks (structural graph-shape error), like the other
+  // aspect-contract codes.
+  'aspect-errs-invalid',
   'mapping-escapes-repo',
   // The lock file is unparseable, garbled, conflict-markered, or an unknown
   // version. Fail closed — blocking, structural, independent of any pair state.
