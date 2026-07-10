@@ -616,8 +616,12 @@ describe.skipIf(!distExists)('CLI E2E — aspect authoring & deterministic check
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(0);
       expect(fill.stdout).toContain('yg check: PASS');
-      // no-banned-word never produced a pair, so it never appears in the fill.
-      expect(fill.stdout).not.toContain('no-banned-word');
+      // The edge `when` excludes no-banned-word from the effective set, so it
+      // produces no pair and never refuses the BANNED line. Attached only through
+      // that never-satisfied edge, it is effective on zero nodes — the dead-attach
+      // linter reports that as a non-blocking warning, now its sole appearance.
+      expect(fill.all).not.toContain('— refused');
+      expect(fill.stdout).toContain('aspect-effective-nowhere');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

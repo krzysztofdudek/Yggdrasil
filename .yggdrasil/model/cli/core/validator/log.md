@@ -86,3 +86,5 @@ Stops enforcing that schema files are present. The presence requirement is gone 
 The reviewer-section requirement is now conditional: the missing-reviewer error is raised only when a judgment rule is actually effective on some component, so a script-only project verifies clean without configuring a model to judge code.
 ## [2026-07-10T08:10:35.648Z]
 Wired the error-direction contract into the validation pipeline so it runs on every check. A label that records how a rule can be wrong must be verified for legality across the whole graph, next to the other rule-definition contracts, so drift is refused at the gate rather than slipping through.
+## [2026-07-10T10:30:26.493Z]
+Wired the dead-attach linter into the validation run so that a rule which is attached but effectively applies to no component surfaces as a non-blocking warning on every check. It runs only after the architecture vocabulary itself has been validated, because deciding whether a rule applies requires evaluating its conditional predicates, and those are meaningless on a structurally broken architecture — running earlier could produce misleading results before the real structural error is fixed.

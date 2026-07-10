@@ -31,6 +31,7 @@ import {
   checkAspectErrsDirection,
   checkAspectReferences,
   checkAspectStatusDowngrade,
+  checkAspectEffectiveNowhere,
 } from './checks/aspect-contracts.js';
 import {
   checkFileMappingGitignored,
@@ -176,6 +177,10 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
   issues.push(...checkAspectRuleSources(graph));
   issues.push(...(await checkAspectReferences(graph)));
   issues.push(...checkAspectStatusDowngrade(graph));
+  // Dead-attach linter (warning): a rule source effective on zero nodes after
+  // the full cascade + when. Runs here (post arch-fatal short-circuit) because it
+  // evaluates `when` predicates, which require a structurally-valid architecture.
+  issues.push(...checkAspectEffectiveNowhere(graph));
 
   // Stage 5: global checks.
   issues.push(...checkFileDuplicateMapping(graph));

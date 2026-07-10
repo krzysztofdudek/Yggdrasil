@@ -118,3 +118,22 @@ export const APPROVE_GATING_CODES = new Set<string>([
   'aspect-tier-on-deterministic',
   'aspect-tier-unknown',
 ]);
+
+/**
+ * Non-blocking warning codes. Warnings are emitted at `severity: 'warning'` and
+ * render in the grouped Warnings block; they are deliberately NOT members of the
+ * three sets above (STRUCTURAL / COMPLETENESS / APPROVE_GATING), because those
+ * sets gate blocking, categorization, or the fill stage — a warning must never
+ * block `yg check` or abort `--approve`. This registry documents the ones the
+ * check engine emits so a code is not silently mistaken for a blocking error.
+ *
+ *   - aspect-effective-nowhere — dead-attach linter (C4): an aspect that ships a
+ *     rule source (content.md or check.mjs) and is not draft, yet after the full
+ *     7-channel cascade and every `when` predicate is effective on ZERO nodes.
+ *     "Dead law that looks enforced." Emitted by checkAspectEffectiveNowhere.
+ *
+ * (Pre-existing warnings such as `orphaned-aspect`, `high-fan-out`, and
+ * `aspect-references-empty-array` follow the same convention: warning severity,
+ * outside every blocking set.)
+ */
+

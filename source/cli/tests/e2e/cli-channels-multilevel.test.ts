@@ -488,7 +488,11 @@ describe.skipIf(!distExists)(
         const fill = run(['check', '--approve'], dir);
         expect(fill.status).toBe(0);
         expect(fill.stdout).toContain('yg check: PASS');
-        expect(fill.all).not.toContain('no-banned-word');
+        // The gate excludes the rule from every node, so the BANNED token plants
+        // no refusal. Attached yet effective on zero nodes, the rule is correctly
+        // surfaced by the dead-attach linter as a non-blocking warning — PASS holds.
+        expect(fill.all).not.toContain('— refused');
+        expect(fill.all).toContain('aspect-effective-nowhere');
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }
@@ -745,7 +749,11 @@ describe.skipIf(!distExists)(
         const fill = run(['check', '--approve'], dir);
         expect(fill.status).toBe(0);
         expect(fill.stdout).toContain('yg check: PASS');
-        expect(fill.all).not.toContain('no-banned-word');
+        // The AND-composition excludes the rule from every node, so the BANNED
+        // token plants no refusal. Attached yet effective on zero nodes, the rule
+        // is surfaced by the dead-attach linter as a non-blocking warning.
+        expect(fill.all).not.toContain('— refused');
+        expect(fill.all).toContain('aspect-effective-nowhere');
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }
@@ -774,7 +782,11 @@ describe.skipIf(!distExists)(
         const fill = run(['check', '--approve'], dir);
         expect(fill.status).toBe(0);
         expect(fill.stdout).toContain('yg check: PASS');
-        expect(fill.all).not.toContain('no-banned-word');
+        // The AND-composition excludes the rule from every node, so the BANNED
+        // token plants no refusal. Attached yet effective on zero nodes, the rule
+        // is surfaced by the dead-attach linter as a non-blocking warning.
+        expect(fill.all).not.toContain('— refused');
+        expect(fill.all).toContain('aspect-effective-nowhere');
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }

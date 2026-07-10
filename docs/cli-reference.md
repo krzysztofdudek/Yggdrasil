@@ -255,6 +255,7 @@ status semantics):
 | `aspect-status-invalid` | error | Declared `status:` is not one of `draft`, `advisory`, `enforced`. |
 | `aspect-status-downgrade` | error | An attach site declares a status lower than the cascade would yield (bump up OK, downgrade is an error). |
 | `implies-status-inherit-invalid` | error | `status_inherit:` is not `strictest` or `own-default`. |
+| `aspect-effective-nowhere` | warning | A rule that ships a rule source and is not draft is effective on zero components after the full cascade and every `when` — a rule that looks enforced but is never verified anywhere. Silent while the model has no components. Fix by correcting the attach sites / `when`, or set `status: draft` until the component or type it targets exists. |
 
 ### `yg log`
 

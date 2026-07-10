@@ -3,7 +3,7 @@ import type { Graph, GraphNode, AspectStatus } from '../../model/graph.js';
 import { STATUS_ORDER } from '../../model/graph.js';
 import type { ValidationIssue, IssueMessage } from '../../model/validation.js';
 import { statPath, fileExistsSync } from '../../io/graph-fs.js';
-import { computeEffectiveAspectStatuses, getAspectStatusSources, type AttachSource } from '../graph/aspects.js';
+import { computeEffectiveAspects, computeEffectiveAspectStatuses, getAspectStatusSources, type AttachSource } from '../graph/aspects.js';
 import { aspectStatusDowngradeMessage } from '../../formatters/aspect-status-messages.js';
 import { issueMsg } from './shared.js';
 import { toPosixPath } from '../../utils/posix.js';
@@ -229,6 +229,89 @@ export async function checkReviewerPresence(graph: Graph): Promise<ValidationIss
     next: "Run yg init and pick 'Configure reviewer' (an installed agent CLI needs no API key), or add reviewer.tiers to .yggdrasil/yg-config.yaml — see yg knowledge read configuration.",
   };
   return [{ code: 'config-reviewer-missing', severity: 'error', rule: 'config-reviewer-missing', ...issueMsg(msgData), messageData: msgData }];
+}
+
+// --- aspect-effective-nowhere: a rule source attached where cascade + when match no node ---
+
+/**
+ * Dead-attach linter (WARNING). An aspect that ships a rule source (content.md
+ * or check.mjs) and is not draft, yet — after the full 7-channel cascade and
+ * every `when` predicate — is effective on ZERO nodes: its attach sites plus
+ * `when` predicates resolve to nothing, so the reviewer never runs it anywhere.
+ * A "dead law that looks enforced". Non-blocking (warning): it flags a graph
+ * authoring mistake without failing CI.
+ *
+ * Reuses the verifier's OWN effectiveness engine (computeEffectiveAspects — the
+ * exact per-node function computeExpectedPairs calls) so cascade + `when`
+ * semantics are never re-derived here; the "effective node set" is precisely the
+ * union of that engine's output over every node.
+ *
+ * Fires iff ALL hold:
+ *   - rule source present: content.md OR check.mjs exists on disk. This silently
+ *     excludes aggregating aspects (no own reviewer — their empty-set case is a
+ *     no-op the orphan warning covers) and does not pile onto an aspect whose
+ *     source is missing (a separate blocking aspect-missing-rule-source error).
+ *   - aspect default status ≠ draft — a draft aspect produces no expected pairs
+ *     and is intentionally parked; nothing to warn about.
+ *   - the aspect id is in NO node's effective-aspect set.
+ *
+ * Bootstrap carve-out: while the model tree has zero nodes this is COMPLETELY
+ * silent — a graph-before-code project legitimately authors aspects before any
+ * node exists, and every rule source would otherwise light up at once.
+ */
+export function checkAspectEffectiveNowhere(graph: Graph): ValidationIssue[] {
+  // Bootstrap carve-out: with no nodes, every aspect is trivially effective
+  // nowhere. A greenfield graph authoring aspects before any code must stay
+  // silent, so short-circuit before computing anything.
+  if (graph.nodes.size === 0) return [];
+
+  const projectRoot = path.dirname(graph.rootPath);
+
+  // Union of effective aspect ids across every node (7-channel cascade + when),
+  // via the verifier's own engine. A node whose effectiveness throws (an implies
+  // cycle — surfaced separately as a blocking aspect-implies-cycle error) is
+  // skipped, exactly as computeExpectedPairs skips it.
+  const effectiveSomewhere = new Set<string>();
+  for (const node of graph.nodes.values()) {
+    try {
+      for (const id of computeEffectiveAspects(node, graph)) effectiveSomewhere.add(id);
+    } catch {
+      // ImpliesCycleError or similar structural error — skip this node.
+    }
+  }
+
+  const issues: ValidationIssue[] = [];
+  for (const aspect of graph.aspects) {
+    // A draft aspect produces no expected pairs — parked by design, not dead.
+    if ((aspect.status ?? 'enforced') === 'draft') continue;
+
+    // Rule-source gate: only aspects that actually ship a reviewer input. This
+    // excludes aggregates (no content.md/check.mjs) and aspects mid-edit whose
+    // source is absent (a distinct blocking error), so neither double-reports.
+    const aspectDir = path.join(projectRoot, '.yggdrasil', 'aspects', aspect.id);
+    const hasRuleSource =
+      fileExistsSync(path.join(aspectDir, 'content.md')) ||
+      fileExistsSync(path.join(aspectDir, 'check.mjs'));
+    if (!hasRuleSource) continue;
+
+    if (effectiveSomewhere.has(aspect.id)) continue;
+
+    const msgData: IssueMessage = {
+      what: `Aspect '${aspect.id}' has a rule source but is effective on zero nodes.`,
+      why: `Its attach sites plus 'when' predicates match nothing, so the rule is never verified anywhere — dead law that looks enforced.`,
+      next: `Check the attach sites and 'when' predicate (yg impact --aspect ${aspect.id}). While authoring graph-before-code this is expected: create the node/type it targets, or set status: draft until the code lands.`,
+    };
+    issues.push({
+      severity: 'warning',
+      code: 'aspect-effective-nowhere',
+      rule: 'aspect-effective-nowhere',
+      ...issueMsg(msgData),
+      messageData: msgData,
+      nodePath: `aspects/${aspect.id}`,
+    });
+  }
+
+  return issues;
 }
 
 // --- aspect-tier-unknown: aspect.reviewer.tier must reference a configured tier ---

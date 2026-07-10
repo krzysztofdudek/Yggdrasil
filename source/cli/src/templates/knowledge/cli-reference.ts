@@ -465,6 +465,7 @@ The validator (\`yg check\`) emits the following issue codes:
 | \`aspect-status-invalid\` | error | Declared status is not one of \`draft\\|advisory\\|enforced\` |
 | \`aspect-status-downgrade\` | error | Declared status is lower than cascade would yield (bump up OK, downgrade is error) |
 | \`implies-status-inherit-invalid\` | error | \`status_inherit:\` value not one of \`strictest\\|own-default\` |
+| \`aspect-effective-nowhere\` | warning | Dead-attach linter: an aspect that ships a rule source (\`content.md\` or \`check.mjs\`) and is not draft, yet is effective on ZERO nodes after the full cascade + every \`when\` — a rule that looks enforced but is never verified anywhere. Silent while the model has no nodes. Next: \`yg impact --aspect <id>\`; fix the attach sites / \`when\`, or set \`status: draft\` until the node/type it targets exists. |
 
 For detailed semantics of status: \`yg knowledge read aspect-status\`. For the lock,
 verification, and caching: \`yg knowledge read verification-and-lock\`.

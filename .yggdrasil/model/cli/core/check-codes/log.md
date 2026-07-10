@@ -24,3 +24,5 @@ Retires the structural issue code that reported a missing schema file. Schema re
 Register the two new companion-misuse error codes as blocking structural errors so they are categorised with the other aspect rule-source errors in the check summary.
 ## [2026-07-10T08:10:35.358Z]
 Registered the error-direction validation code as a structural, always-blocking graph-shape error, next to the other rule-definition contract codes, so a misplaced or malformed label is caught by the read-only gate and by CI, not only during a fill.
+## [2026-07-10T10:30:30.800Z]
+Recorded the new dead-attach warning as a known non-blocking code and documented why it is intentionally kept out of the blocking code groups. Warnings must never fail a check run or abort the review-fill step; only the blocking categories do that. Documenting the code here, alongside the blocking sets, prevents a future reader from mistaking a purely advisory signal for a hard failure and wrongly adding it to a set that would gate the build.
