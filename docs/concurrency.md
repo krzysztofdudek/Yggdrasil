@@ -33,6 +33,12 @@ The local activity record is safe too: Yggdrasil keeps a small, git-ignored note
 
 In practice: let one tree-touching session land before you start the next, and keep any parallel work read-only.
 
+## When another tool changes a file mid-check
+
+**Rule.** If a background tool rewrites a tracked file while a check is running, that single run can disagree with itself — flag a problem that a plain re-run then clears. Re-run once and it settles.
+
+**Why.** A check reads each tracked file, decides, and then reports. If something else rewrites one of those files in the moment between the read and the report — a package manager pinning a version field, a formatter, a code generator — the run sees two different versions of the same file and flags the mismatch. Nothing is wrong with your code and nothing is lost: the next run reads a single, settled version and passes. This only surfaces on a repo with auto-approval turned on, because that is the run that both checks and reports in one pass. When Yggdrasil notices this exact self-disagreement it records a small, git-ignored note so you can confirm that is what happened rather than chasing a phantom failure — and the fix is simply to let the background tool finish, then re-run.
+
 ## No lock file (yet)
 
 Yggdrasil does not drop a lock file to physically block a second `--approve` from starting. That is deliberate. The guidance on this page is the mechanism for now; a real interlock ships only if and when an overlap is actually observed in practice. We do not add machinery ahead of a demonstrated need.

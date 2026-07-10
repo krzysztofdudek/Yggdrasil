@@ -332,6 +332,22 @@ explicit \`--approve\`.
 the behavior is fixed regardless of what \`auto_approve\` is set to in the
 project config, and the run stays key-free and deterministic.
 
+**One-run convergence caveat (an external writer touching a mapped file
+mid-run):** Under \`auto_approve: "deterministic"\` a single bare \`yg check\` is
+meant to fill, then report green, in ONE run. That convergence holds only while
+the mapped subject files stay byte-stable for the duration of the run. The
+classification is deterministic on byte-stable inputs — the pre-fill pass and
+the post-fill report read the same bytes and agree — and yg never writes your
+source. But if an EXTERNAL process rewrites a mapped file mid-run — e.g.
+\`corepack\` / \`pnpm\` pinning \`packageManager\` in \`package.json\`, a formatter, or
+a code generator — the two passes legitimately read different bytes, so that one
+run can report the just-touched pair as \`unverified\`; a plain re-run over the
+now-settled file converges green. This is not a yg defect and yg cannot stop an
+external writer, so it fails safe (never green over unseen bytes) and records
+bounded evidence of the exact shape to \`.yggdrasil/.yg-fill-divergence.log\` so
+the one-run divergence is observable rather than silent. Let the external tool
+finish, then re-run.
+
 An invalid \`auto_approve\` value (anything other than \`false\`, \`"deterministic"\`,
 or \`"full"\`) is a hard \`config-invalid\` error from \`yg check\`.
 `;
