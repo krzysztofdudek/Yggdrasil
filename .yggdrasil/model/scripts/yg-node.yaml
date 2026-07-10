@@ -5,3 +5,5 @@ aspects: []
 relations: []
 mapping:
   - scripts/repo-check.sh
+  - scripts/lock-history-audit.mjs
+  - scripts/decision-load.mjs

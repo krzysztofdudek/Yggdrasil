@@ -53,3 +53,22 @@ jobs:
         with:
           files: source/cli/coverage/lcov.info
           fail_ci_if_error: false
+
+  # DOGFOOD-ONLY integrity gate (never an adopter surface, never scaffolded by
+  # `yg init`). Replays the FULL committed history of the non-deterministic lock and
+  # fails the build on the hand-edit / laundering signature: the same (aspect, unit)
+  # verdict flipping while its input hash stayed identical between two consecutive
+  # lock commits — a shape the CLI never produces, so its only source is a manual
+  # edit or forged approval. Needs the entire history, hence fetch-depth: 0 (the
+  # quality job above runs shallow and would see only HEAD). Read-only over git;
+  # writes nothing; no build, no install, no reviewer — just Node over `git log`.
+  lock-history:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - run: node scripts/lock-history-audit.mjs

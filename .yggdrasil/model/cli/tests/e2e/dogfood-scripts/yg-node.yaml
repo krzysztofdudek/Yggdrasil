@@ -1,0 +1,13 @@
+name: E2E Tests — Dogfood Scripts
+type: test-suite
+description: >-
+  Spawn-smoke for the dogfood-only repo scripts (scripts/lock-history-audit.mjs
+  and scripts/decision-load.mjs). Runs each plain-Node script as a real
+  subprocess against this repository's actual git history and asserts it exits 0
+  and prints its recognizable header. Robust to a shallow clone (the audit sees
+  zero comparisons, the meter sees zero decision events — both still exit 0 and
+  print their header); the full-history audit runs in its own CI job.
+aspects: []
+relations: []
+mapping:
+  - source/cli/tests/e2e/dogfood-scripts-smoke.test.ts
