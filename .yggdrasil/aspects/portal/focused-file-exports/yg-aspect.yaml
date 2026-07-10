@@ -9,4 +9,5 @@ description: >-
   exports (interface / type, `export type { … }`, and an inline `export { type T }`
   specifier) are cheap and not counted. Advisory — it surfaces a signal without
   blocking, to be calibrated and promoted once the boundary is settled.
+errs: over
 status: advisory

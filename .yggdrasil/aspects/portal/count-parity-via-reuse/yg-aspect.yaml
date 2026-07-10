@@ -12,6 +12,7 @@ description: >-
   `const { verdicts } = lock`) — but are inherently heuristic and an obfuscated re-count
   can evade them, which is precisely why the positive manifest and the parity test carry
   the weight. AST-based, scope per node.
+errs: under
 status: enforced
 scope:
   per: node

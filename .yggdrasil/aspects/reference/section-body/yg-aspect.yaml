@@ -6,4 +6,5 @@ description: "Each reference-catalogue .md section body conforms to its kind's
   `keyed-list` sections may use only the declared keys (a typo'd key silently makes
   a runner assertion vanish), each value within its enum, and must carry every key
   the frontmatter expectation requires. No-op for kinds that declare no sections.body."
+errs: exact
 status: enforced

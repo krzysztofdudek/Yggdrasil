@@ -8,4 +8,5 @@ description: >-
   a missing or non-literal-true flag is the violation. Alias-proof: a local alias of
   a loader (import { loadGraph as load } or const lg = loadGraph) is resolved back to
   its canonical symbol before matching, so an aliased call is checked identically.
+errs: over
 status: enforced

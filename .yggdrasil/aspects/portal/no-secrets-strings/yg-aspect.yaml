@@ -7,4 +7,5 @@ description: >-
   misunderstands the secrets boundary. AST-based for JavaScript (only real string /
   template literals are inspected, so the word in a comment or identifier is not a
   violation); a quoted-only content scan for HTML/CSS, which have no AST grammar.
+errs: over
 status: enforced

@@ -1,5 +1,6 @@
 name: SchemaBumpBookkeeping
 description: "A migration must NOT write the project version itself — the migration runner is the sole writer of yg-config.yaml's version field. Mechanically forbids any call to updateConfigVersion() from migration code. A migration withholds the bump by returning bumpVersion: false instead."
+errs: under
 reviewer:
   type: deterministic
 when:

@@ -9,6 +9,7 @@ description: >-
   (2) it actually drives a browser page (page.goto / page.locator / page.keyboard / page.request /
   page.evaluate / page.reload), so it opens the page and asserts in the browser rather than no-opping.
   AST-based, scope per node — the whole suite's files are inspected together.
+errs: over
 status: enforced
 scope:
   per: node

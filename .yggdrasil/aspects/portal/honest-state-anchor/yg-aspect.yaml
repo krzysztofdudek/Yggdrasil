@@ -21,4 +21,5 @@ description: >-
   that the rendered states do not collapse into one another — remains the enforced per-file LLM
   aspect honest-state-never-collapsed, the PRIMARY guard; this anchor is the cheap structural
   backstop that keeps a refactor from quietly dropping the shared model, not the semantic judge.
+errs: over
 status: enforced

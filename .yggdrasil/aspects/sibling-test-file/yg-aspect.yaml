@@ -1,5 +1,6 @@
 name: SiblingTestFile
 description: "Each CLI command source file must have a sibling unit test under source/cli/tests/unit/cli/."
+errs: exact
 reviewer:
   type: deterministic
 status: enforced

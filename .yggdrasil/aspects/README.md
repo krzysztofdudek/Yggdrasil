@@ -140,3 +140,84 @@ Read these honestly before drawing any conclusion from a drill run.
   interaction. `yg check` does not execute them, no verdict is recorded for
   them, and they do not affect any pair's hash. They are inert fixtures run
   manually via `yg aspect-test`, exactly as the run book shows.
+
+## errs census
+
+Every **deterministic** aspect (each `check.mjs`) carries an `errs:` field in
+its `yg-aspect.yaml` declaring the **error-direction** of the check — which way
+it leans when it is wrong. The value is derived from the check's CODE (its
+detection mechanism), not from the aspect's prose description. It is
+rendering/analysis metadata only: `errs` is **never** folded into any verdict
+hash, so seeding or relabeling it re-verifies nothing.
+
+The three values (canonical definitions from `yg schemas read aspect`):
+
+- **over** — the check may flag code the rule does not forbid (false positives
+  possible). Typically a text/regex heuristic, a name allowlist that must be
+  maintained, a proxy threshold, or a fail-closed rule that flags anything not
+  statically provable-safe. A green is trustworthy; a red might be a false alarm.
+- **under** — the check only ever fires on provable violations (no false
+  positives by design). It resolves only unambiguous cases and stays silent on
+  dynamic/aliased shapes. A red is trustworthy; a green may hide a missed
+  violation. (`yg suppressions` warns when a waiver targets an `errs: under`
+  check, since it has no false positives to waive.)
+- **exact** — the check neither over- nor under-approximates: the property is
+  fully decidable from what it reads (an existence fact, list-membership, or a
+  static structural contract).
+
+One aspect is a genuine **mixed** case and intentionally leaves `errs` **absent**
+(see the note below the table) — forcing a single label there would be
+dishonest.
+
+| aspect id | errs | justification (from the check's code) |
+| --- | --- | --- |
+| `command-error-via-buildissuemessage` | over | Heuristic 400-char text window plus `Error:` / `chalk.red` regex around a `stderr.write`; an error routed through `buildIssueMessage` farther away or via an unlisted helper is falsely flagged. |
+| `migration-bumps-version` | over | Passes only if some string literal contains the version substring; a migration that references its version by any other means is falsely flagged. |
+| `parser-yaml-guard` | over | Requires the literal text `Array.isArray(raw)`; a valid array guard written with a different variable name or form is falsely flagged. |
+| `posix-paths-source` | over | Flags a backslash inside any string literal as a path separator; a backslash present for any other reason (escape, message, non-path token) is falsely flagged. |
+| `provider-redaction` | over | Sensitivity is decided by a fixed name allowlist (`prompt`/`response`/`content`/`body`); a benignly-named variable matching one is falsely flagged. |
+| `read-or-default-via-helper` | over | Regex-matches `readFile` + `ENOENT` in a try/catch's text; a try that reads a file and handles ENOENT for a non-default reason is falsely flagged. |
+| `top-level-error-handler` | over | Requires one exact structural idiom (try/catch around `program.parse` with `process.exit(1)` plus an `unhandledRejection` handler); an entry point guaranteeing the same exit via a different structure is falsely flagged. |
+| `portal/every-spec-uses-playwright-chromium` | over | "Drives a browser" is approximated by a maintained allowlist of page-method names; a spec that drives the page via any unlisted method is falsely flagged. |
+| `portal/every-surface-has-e2e` | over | A spec's coverage is confirmed by a maintained `NAV_MARKERS` regex table; a spec that genuinely navigates a surface via an unlisted marker is falsely flagged as hollow. |
+| `portal/focused-file-exports` | over | A >4 runtime-export count is a proxy for single-responsibility; a legitimately-focused file with more exports is falsely flagged (advisory). |
+| `portal/focused-file-size` | over | A >400 physical-line cap is a proxy for focus; a legitimately-focused longer file is falsely flagged. |
+| `portal/honest-state-anchor` | over | "Renders verdict state" is triggered by a green-word class allowlist (`green`/`ok`/`pass`/`verified`); a decorative green class unrelated to verdict state is falsely flagged as needing the shared model. |
+| `portal/loadgraph-nosecrets-flag` | over | Fail-closed: a loader call whose safe flag is not a statically-provable literal `true` (e.g. a variable that is true at runtime) is flagged though functionally safe. |
+| `portal/loopback-only` | over | Fail-closed: any `.listen(...)` whose host is not a statically-provable loopback literal (a computed-but-loopback host, or a non-server `.listen` name collision) is flagged. |
+| `portal/no-cdn-no-network` | over | Content regex scan for URLs over physical lines; an off-origin-looking but benign string (e.g. an SVG/XML namespace URL) is falsely flagged. |
+| `portal/no-network-egress` | over | The content URL-scan arm flags any http(s)/protocol-relative URL in executable code; a non-egress URL (XML/SVG namespace, data value) is falsely flagged (the AST egress-name arm is itself an evadable tripwire). |
+| `portal/no-secrets-strings` | over | Substring match of `yg-secrets`/`api_key` in any frontend string literal; a glossary or label string that merely mentions the field name is falsely flagged. |
+| `atomic-write-contract` | under | Flags only a direct call to a raw write function imported by its exact name; a namespace or aliased import (`fs.writeFile`, `writeFile as wf`) is silently skipped. |
+| `command-exit-codes` | under | Flags only a literal numeric `process.exit(N)` where N is not 0 or 1; a computed or variable exit code is silently skipped. |
+| `e2e-public-surface` | under | Resolves only statically-analyzable relative specifiers into `src/**`; an interpolated or computed specifier is silently skipped (zero-FP by design). |
+| `no-buildissuemessage-in-engine` | under | Flags only a bare `buildIssueMessage(` identifier call; an aliased or member-form call is silently skipped. |
+| `no-direct-console` | under | Flags only a callee whose text is `console.*`; an aliased or bracket-access console is silently skipped. |
+| `no-direct-fs` | under | Flags only a static `import` from an fs module; `require('fs')` or a dynamic import is silently skipped. |
+| `no-direct-minimatch` | under | Flags only a static `import 'minimatch'`; a require or dynamic import is silently skipped. |
+| `no-nondeterminism-direct` | under | Flags only literal `Date.now()` / `Math.random()` / `process.env`; an aliased or bracket-access form is silently skipped. |
+| `no-side-effects-on-import` | under | Flags only a bare top-level call/await statement; a side effect hidden in an initializer (`const x = f()`) is silently skipped. |
+| `schema-bump-bookkeeping` | under | Flags only a bare `updateConfigVersion(` identifier call; an aliased or member-form call is silently skipped. |
+| `single-source-graph-queries` | under | Flags only a reserved-name function or arrow/function-expression declaration; a redefinition through another form is silently skipped. |
+| `wasm-tree-lifecycle` | under | Flags only a named import of `parseFile` from the parser module; a require, dynamic, or namespace-access form is silently skipped. |
+| `portal/approve-shells-cli-only` | under | A tripwire over literal spawn-argument arrays and bare fill-call identifiers; a dynamically-built spawn or an aliased fill call is silently skipped. |
+| `portal/count-parity-via-reuse` | under | The negative arms are a self-described evadable tripwire over raw-verdict iteration shapes; a sufficiently obfuscated re-count is silently skipped (the real guarantee is the positive reuse manifest plus the parity test). |
+| `portal/no-lock-writer-import` | under | Flags only proven writer imports/calls (with lock-store namespace aliasing); a deeper alias or dynamic reach is silently skipped. |
+| `portal/no-node-imports-in-frontend` | under | Flags only static/require/dynamic node-builtin imports and literal `process.` access; a computed specifier or aliased `process` is silently skipped. |
+| `portal/no-secrets-import` | under | Flags only proven secrets-module imports/calls and fs reads of a path whose literal text names the secrets file; a computed module or path is silently skipped. |
+| `command-contract-shape` | exact | Decidably counts the file's exported `register<Pascal>Command` declarations and requires exactly one; the contract is fully visible in the static export shape. |
+| `sibling-test-file` | exact | Decidably checks whether a file named `<stem>.test.ts` exists in the mapped unit-test node's file set — a pure existence fact over the graph. |
+| `reference/doc-shape` | exact | Decidably checks the doc against its `_reference-schema.yaml`: required/enumerated frontmatter, `id` equals the stem, `language` equals the segment, and required sections present in order. |
+| `reference/layout` | exact | Decidably checks each doc path against the kind's layout pattern and segment enums, and lists directories for disallowed files — all facts from the graph and filesystem. |
+| `reference/section-body` | exact | Decidably checks each section body against the schema contract: a balanced fence of the declared width, keyed-list keys within the allowed set and enums, and every frontmatter-required key present. |
+
+**Mixed / absent — `reviewer-secrets-not-from-flags`.** This check errs in BOTH
+directions by design, so its `errs` field is intentionally omitted. It is *over*
+because credential-ness is a broad name regex
+(`key|secret|token|password|credential`) that false-positives on non-credential
+names — notably `token`, which is ubiquitous in an LLM reviewer
+(`maxTokens`, `tokenBudget`, …). It is *under* because it matches only direct
+reads of the literal `options` identifier, silently skipping the documented
+shapes: an aliased options object, a short-flag-only spec, a dynamically-built
+spec, and a rest-pattern capture. Neither direction dominates, so no single
+label would be honest.

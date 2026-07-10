@@ -1,5 +1,6 @@
 name: ProviderRedaction
 description: "LLM provider files must not reference raw prompt, response, content, or body identifiers in log calls (debugWrite, stderr.write) without redactSecrets() wrapping — prevents accidental exposure of LLM inputs or outputs in debug logs."
+errs: over
 reviewer:
   type: deterministic
 when:

@@ -8,4 +8,5 @@ description: >-
   code is dead or throws at runtime. AST-based over JavaScript files (HTML/CSS have no
   grammar and are skipped here — their network surface is covered by no-cdn-no-network);
   a string literal that merely contains the word require or process is never a violation.
+errs: under
 status: enforced

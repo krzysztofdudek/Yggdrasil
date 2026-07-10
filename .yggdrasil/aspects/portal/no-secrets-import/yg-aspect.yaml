@@ -10,4 +10,5 @@ description: >-
   skipSecretsOverlay). AST-based: only import/export declarations, dynamic-import and
   fs-read call expressions, and import-bound member calls are inspected — a plain
   string literal that merely contains a secret-shaped word is never a violation.
+errs: under
 status: enforced

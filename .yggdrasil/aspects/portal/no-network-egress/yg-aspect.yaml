@@ -8,4 +8,5 @@ description: >-
   code is taken as shipped), so this egress ban is the guard that keeps that exemption
   safe. AST-based for the call/constructor shapes (a string 'fetch' in a comment is not a
   call); content-based only for the URL scheme.
+errs: over
 status: enforced

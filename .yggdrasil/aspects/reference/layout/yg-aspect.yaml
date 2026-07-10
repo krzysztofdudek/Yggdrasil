@@ -1,3 +1,4 @@
 name: ReferenceLayout
 description: "A reference-catalogue directory conforms to its kind's layout: every .md path matches the declared pattern, each path segment value is within its enum, and no disallowed files exist (only the allow_only basenames)."
+errs: exact
 status: enforced

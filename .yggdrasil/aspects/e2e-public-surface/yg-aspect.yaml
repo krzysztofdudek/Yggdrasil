@@ -1,5 +1,6 @@
 name: E2EPublicSurface
 description: "End-to-end test files must exercise only the public CLI surface — spawn the built bin.js and read the committed on-disk artifacts — and must NEVER import the CLI's internal src/** modules in ANY form (static import, import type, dynamic import(), require(), or re-export from). Coupling an e2e test to an internal module turns a black-box contract test into a white-box one: a refactor of internals can then silently break the e2e suite, or worse, be masked by the test reaching into the very code it should only observe from outside. Keeping e2e a genuine black box means the suite proves the shipped CLI behaves correctly for adopters, and internal refactors are free to move code as long as the public behavior holds. Shared e2e helpers under support/ are fine: they read committed artifacts via node:fs and import nothing from src/**."
+errs: under
 reviewer:
   type: deterministic
 status: enforced

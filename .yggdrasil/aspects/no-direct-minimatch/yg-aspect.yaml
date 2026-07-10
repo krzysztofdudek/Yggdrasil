@@ -1,4 +1,5 @@
 name: NoDirectMinimatch
 description: "Source files must not import 'minimatch' directly — every glob/path match (node mapping, coverage roots, architecture when.path, the AST file-pattern DSL) must go through utils/mapping-path.ts (globMatch / mappingEntryMatchesFile), the single glob engine. This keeps glob semantics defined in exactly one place so a new match site cannot silently diverge."
+errs: under
 reviewer:
   type: deterministic

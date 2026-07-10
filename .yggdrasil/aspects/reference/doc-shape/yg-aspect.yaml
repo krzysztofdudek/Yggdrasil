@@ -1,3 +1,4 @@
 name: ReferenceDocShape
 description: "Each reference-catalogue .md conforms to its kind's _reference-schema.yaml: required+enumerated frontmatter, id equals the filename stem, language equals the path segment, and all required ## sections present in order."
+errs: exact
 status: enforced

@@ -10,4 +10,5 @@ description: >-
   NOT banned — readLock lives there — only its writer symbols are. The single
   write in the whole portal is the out-of-process shelled Approve; the
   non-persisting fillDetPair (core/fill-det) is allowed. AST-based.
+errs: under
 status: enforced

@@ -1,4 +1,5 @@
 name: Command Exit Codes
 description: "CLI commands use only process.exit(1) on failure — never process.exit(2) or process.exit(0)"
+errs: under
 reviewer:
   type: deterministic

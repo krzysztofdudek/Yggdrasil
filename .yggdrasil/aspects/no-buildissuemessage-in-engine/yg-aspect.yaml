@@ -1,5 +1,6 @@
 name: NoBuildIssueMessageInEngine
 description: "Engine-layer modules (core/, io/, ast/) must not call buildIssueMessage — they return structured IssueMessage data; the CLI command layer renders it. Mechanical half of what-why-next."
+errs: under
 reviewer:
   type: deterministic
 status: enforced

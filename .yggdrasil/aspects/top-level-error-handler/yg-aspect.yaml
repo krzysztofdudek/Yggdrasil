@@ -1,5 +1,6 @@
 name: TopLevelErrorHandler
 description: "bin.ts must structurally handle both synchronous and asynchronous uncaught errors at the top level: a try/catch around the synchronous entry point program.parse() whose catch calls process.exit(1), and a top-level process.on('unhandledRejection', ...) handler that calls process.exit(1). The exact stderr message wording is no longer machine-checked."
+errs: over
 reviewer:
   type: deterministic
 implies:

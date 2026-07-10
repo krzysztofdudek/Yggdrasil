@@ -1,4 +1,5 @@
 name: WasmTreeLifecycle
 description: "web-tree-sitter Tree objects are WASM-heap allocations — not managed by the JS garbage collector. Source files must not import parseFile from ast/parser directly. Use withParsedFile instead, which guarantees tree.delete() in a finally block. Only approved infrastructure files that manage tree ownership explicitly (via localTrees, prewarmupAstCache, or withParsedFile itself) may import parseFile directly."
+errs: under
 reviewer:
   type: deterministic

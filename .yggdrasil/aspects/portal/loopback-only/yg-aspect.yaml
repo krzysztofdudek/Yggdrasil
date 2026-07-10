@@ -11,4 +11,5 @@ description: >-
   loopback host is itself the violation). AST-based: only the arguments of a `.listen`
   member call are inspected — a string literal that merely contains an address
   elsewhere in the file is never a violation.
+errs: over
 status: enforced

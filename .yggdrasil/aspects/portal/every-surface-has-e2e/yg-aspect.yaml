@@ -21,6 +21,7 @@ description: >-
   repo-check.sh (real Chromium against the real emitted page) plus the e2e-public-surface aspect (the
   suite stays a black box over the shipped CLI). Do not over-read a green here as proof of behaviour;
   read it as proof the coverage map has no holes and no COVERS claim is hollow.
+errs: over
 status: enforced
 scope:
   per: node

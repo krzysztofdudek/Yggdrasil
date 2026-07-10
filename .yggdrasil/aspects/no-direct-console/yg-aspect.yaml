@@ -1,4 +1,5 @@
 name: NoDirectConsole
 description: "Engine files must not call console.log/warn/error/info/debug directly — engine output goes through debugWrite() or formatters; console.* is reserved for CLI command handlers."
+errs: under
 reviewer:
   type: deterministic

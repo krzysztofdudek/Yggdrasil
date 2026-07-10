@@ -1,5 +1,6 @@
 name: SingleSourceGraphQueries
 description: "Engine files must not redefine reserved graph-query helpers — these live only under core/graph/. Prevents future divergent implementations of node-hierarchy walks, flow lookups, aspect resolution, and file enumeration."
+errs: under
 reviewer:
   type: deterministic
 when:

@@ -13,4 +13,5 @@ description: >-
   through the spawned CLI, which owns secrets and the lock write. AST-based: only spawn
   call-expression arguments and imported call names are inspected; a string literal that
   merely contains '--approve' elsewhere is never a violation.
+errs: under
 status: enforced
