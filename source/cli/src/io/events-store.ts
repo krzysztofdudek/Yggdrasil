@@ -29,10 +29,14 @@ export interface VerdictEvent {
   v: 1;
   /** ISO 8601 UTC timestamp — from the fill's injected clock, never Date.now() in core/. */
   ts: string;
-  /** Discriminator for the emitting subsystem; future diagnostic sources use other tokens. */
-  source: 'fill';
+  /** Discriminator for the emitting subsystem. 'fill' = yg check --approve (core);
+   *  'drill' = yg drill (LLM case runs); 'diag' = yg aspect-test (--repeat / --tier).
+   *  NEVER a hash ingredient. Every reader MUST filter by this field before
+   *  aggregating — mixing regimes is corruption risk #1 (§5.2). */
+  source: 'fill' | 'drill' | 'diag';
   aspectId: string;
-  /** POSIX-normalized unit key ('node:<path>' or 'file:<path>'). */
+  /** POSIX-normalized unit key: 'node:<path>' or 'file:<path>' for verification
+   *  units, and 'drill:<aspect>/<case>' for a drill case run (source: 'drill'). */
   unitKey: string;
   kind: 'llm' | 'deterministic';
   disposition: 'approved' | 'refused' | 'infra' | 'companion-runtime-error' | 'runtime-error' | 'malformed-suppress';

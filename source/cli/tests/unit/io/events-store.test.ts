@@ -108,6 +108,72 @@ describe('events-store', () => {
     expect(parsedLegacy.aspectId).toBe('old');
   });
 
+  it('round-trips all three source discriminators (fill / drill / diag) as three valid JSON lines, each newline-terminated', () => {
+    // The source union widened to 'fill' | 'drill' | 'diag'. Each producer's line
+    // must survive a write/read cycle with its discriminator intact, and the
+    // drill unitKey uses the 'drill:<aspect>/<case>' form.
+    const fillEvent: VerdictEvent = {
+      v: 1,
+      ts: '2026-07-10T00:00:00.000Z',
+      source: 'fill',
+      aspectId: 'aspect-fill',
+      unitKey: 'node:x',
+      kind: 'deterministic',
+      disposition: 'approved',
+      hash: 'hash-fill',
+    };
+    const drillEvent: VerdictEvent = {
+      v: 1,
+      ts: '2026-07-10T00:00:01.000Z',
+      source: 'drill',
+      aspectId: 'aspect-drill',
+      unitKey: 'drill:a/violates-1',
+      kind: 'llm',
+      disposition: 'refused',
+      hash: 'hash-drill',
+      reason: 'case violates the rule',
+      tier: 'default',
+      promptRev: 1,
+    };
+    const diagEvent: VerdictEvent = {
+      v: 1,
+      ts: '2026-07-10T00:00:02.000Z',
+      source: 'diag',
+      aspectId: 'aspect-diag',
+      unitKey: 'file:y',
+      kind: 'llm',
+      disposition: 'approved',
+      hash: 'hash-diag',
+      tier: 'default',
+      promptRev: 1,
+    };
+
+    appendVerdictEvent(tmpDir, fillEvent);
+    appendVerdictEvent(tmpDir, drillEvent);
+    appendVerdictEvent(tmpDir, diagEvent);
+
+    const eventsPath = path.join(tmpDir, EVENTS_FILENAME);
+    const content = readFileSync(eventsPath, 'utf-8');
+
+    // One write() per line, O_APPEND: the file is exactly three JSON lines, each
+    // terminated by a newline (so it ends with '\n' and splitting yields a trailing
+    // empty segment — never a JSON payload without its own newline).
+    expect(content.endsWith('\n')).toBe(true);
+    const rawLines = content.split('\n');
+    expect(rawLines[rawLines.length - 1]).toBe('');
+    const lines = rawLines.filter((l) => l.length > 0);
+    expect(lines).toHaveLength(3);
+
+    // Each raw line parses as JSON and its source discriminator round-trips.
+    const parsed = lines.map((l) => JSON.parse(l) as VerdictEvent);
+    expect(parsed.map((e) => e.source)).toEqual(['fill', 'drill', 'diag']);
+    expect(parsed[0]).toEqual(fillEvent);
+    expect(parsed[1]).toEqual(drillEvent);
+    expect(parsed[2]).toEqual(diagEvent);
+    // The drill unitKey carries the drill:<aspect>/<case> form.
+    expect(parsed[1].unitKey).toBe('drill:a/violates-1');
+  });
+
   it('a write to an unwritable path does NOT throw (swallowed, best-effort telemetry)', () => {
     const unwritableDir = path.join(tmpDir, 'does-not-exist', 'nested');
     const event: VerdictEvent = {

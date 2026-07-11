@@ -304,7 +304,7 @@
       "node:cli/io/parsers/aspect": {"hash":"f2d707c34f55c42d10ca219bf4ce30ccf804d84f22013bec88d517f5663a7c88","verdict":"approved"},
       "node:cli/io/parsers/config": {"hash":"ab9e72155bda2d6212231f4fd8bc31886de7a4629afc0b60e68aa85e2bee8395","verdict":"approved"},
       "node:cli/io/parsers/graph": {"hash":"5e8ce7fd1db42ef519858c1ea0e7b039346fbea94c6e16f47acf1a1eb3ed4f90","verdict":"approved"},
-      "node:cli/io/stores": {"hash":"a78f24b0e2898950cd640467187ffb8b3e5b38065d0559f103183ec80c240d8e","verdict":"approved"}
+      "node:cli/io/stores": {"hash":"9a5ec37cb5fcdf885357b74b01fe6ae6756fd4555cfca9c7efbd9cecab74ad3e","verdict":"approved"}
     },
     "test-deterministic": {
       "file:source/cli/tests/e2e/cli-architecture-classification.test.ts": {"hash":"505c48f4801a1f0ef45c6dd303e174dcdb081a271272f00fd01af54c300ee8d9","verdict":"approved"},
@@ -624,8 +624,9 @@
       "file:source/cli/tests/unit/io/config-parser-branch-coverage.test.ts": {"hash":"961b2f6484335e59de26dd3a9e6bf814794d748b55167c2075b4a88f1678d2df","verdict":"approved"},
       "file:source/cli/tests/unit/io/config-parser-prompt-chars.test.ts": {"hash":"e03b63618680c02c46681969ee418546c6edcb10604b16f7f01fe5662e9a8a0b","verdict":"approved"},
       "file:source/cli/tests/unit/io/config-parser.test.ts": {"hash":"e4aa336051496913bf651c0367b51e4c1c487f733d6a315b872b883cc39c1795","verdict":"approved"},
+      "file:source/cli/tests/unit/io/events-reader-boundary.test.ts": {"hash":"4e66fb0dc6c08208118c6c75c1997e57b2d8970d07be80e4fd629798fed91a08","verdict":"approved"},
       "file:source/cli/tests/unit/io/events-reader.test.ts": {"hash":"1a7b10f9271b2b269c82a4d74910b6052ffefb7211c00202b62aae8889daa08f","verdict":"approved"},
-      "file:source/cli/tests/unit/io/events-store.test.ts": {"hash":"89b7ca3c90cf890ba822b33cf225938edd9a019d033c79587dab400c58987054","verdict":"approved"},
+      "file:source/cli/tests/unit/io/events-store.test.ts": {"hash":"f988e49026765f6828ec92594374f6e32ab2ba27626fe56583e0d26f3d081746","verdict":"approved"},
       "file:source/cli/tests/unit/io/file-when-parser.test.ts": {"hash":"5b1b60b0d45cf29092636baf747d12a0d33e785dab64af7d4d35a3bad56c175b","verdict":"approved"},
       "file:source/cli/tests/unit/io/find-index.test.ts": {"hash":"8ddb09f87c81f3d52f8c3adb95399576330da231ca76a9c68f20e12557e94cbf","verdict":"approved"},
       "file:source/cli/tests/unit/io/flow-parser-status.test.ts": {"hash":"1f8c59e1bfbef1f78b8d5b77ddf253c4c984d6b169fa6e2b73514cc5e4352d05","verdict":"approved"},

@@ -7,12 +7,14 @@ description: "Unit tests for I/O adapters that read/write runtime state —
 aspects: []
 relations:
   [
+    { target: cli/ast/runtime, type: uses },
     { target: cli/core/loader, type: uses },
     { target: cli/io/parsers/config, type: uses },
     { target: cli/io/stores, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/io/artifact-reader.test.ts
+  - source/cli/tests/unit/io/events-reader-boundary.test.ts
   - source/cli/tests/unit/io/events-reader.test.ts
   - source/cli/tests/unit/io/events-store.test.ts
   - source/cli/tests/unit/io/find-index.test.ts

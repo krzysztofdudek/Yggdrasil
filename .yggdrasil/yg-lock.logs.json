@@ -62,7 +62,7 @@
     "cli/io/parsers/aspect": {"log":{"last_entry_datetime":"2026-07-10T08:10:34.755Z","prefix_hash":"8a3a369ae23843618313ecd98c345e3ca8c5d2b42d6bbdc74205108be96bb498"},"source":"b63b7e83dd13d8f507fb3e2073478cfb868061106c0f3aec52d7c76e840394df"},
     "cli/io/parsers/config": {"log":{"last_entry_datetime":"2026-06-28T18:13:50.224Z","prefix_hash":"2e6bcc2c30112db15f235ce7df8e6f22557545896bbd7e66fb8807f41dc4d38f"},"source":"e9af040f4b0d3f2358163b53608a091c6d5562e93d17c8ab185dc53a9eade68c"},
     "cli/io/parsers/graph": {"log":{"last_entry_datetime":"2026-07-10T19:28:48.352Z","prefix_hash":"aadf1fbed29c5ba9aa162dfef06083a4559b9aae00bcbfdbe6585f115cd0139e"},"source":"8ecfbbf138a009c7777147300f877425d853a3b1385c42e23042e8b184e6ad50"},
-    "cli/io/stores": {"log":{"last_entry_datetime":"2026-07-10T15:32:44.753Z","prefix_hash":"5d3b63813ab9af8296106b6999fec00ae2c7a6d31a3f4dcf95fa8e8b55f3c746"},"source":"850341f43e89c69c3461cdb50aca6ac79c6eba2976f1c083a02870237b610c9b"},
+    "cli/io/stores": {"log":{"last_entry_datetime":"2026-07-11T01:25:03.331Z","prefix_hash":"f8eeea849a623c708c6c929684e6bb2265b0d4292ef692854b036edd41ce0b81"},"source":"a4ca7d365e7bc94a73bbe6e55f62dca2b34ff9a37097a3238d0cd2874e1fde6a"},
     "cli/knowledge": {"log":{"last_entry_datetime":"2026-05-29T08:33:39.060Z","prefix_hash":"3552dea263b549d286032427d5bcdb04868b462ef253508b34411990fc432a73"}},
     "cli/knowledge-concepts": {"log":{"last_entry_datetime":"2026-06-13T05:34:22.962Z","prefix_hash":"3b0c73d2106fb0660438da59ceaf03d23ba5ca976e352d9874f912e4dbb510f7"}},
     "cli/llm/providers": {"log":{"last_entry_datetime":"2026-06-03T07:05:36.038Z","prefix_hash":"11e5274c532b98adcc63daf62edbceb9052b9b9473f2e7daba875d5832bcd2ab"}},
