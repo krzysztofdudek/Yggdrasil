@@ -1,0 +1,16 @@
+name: Spectral Headroom Unit Tests
+type: test-suite
+description: >-
+  Unit tests for the spectral-headroom probe's pure structural analysis
+  (scripts/spectral-headroom.mjs): the undirected projection, giant-component
+  selection, the normalized-Laplacian λ₂ / Fiedler vector via deterministic power
+  iteration, the sweep-cut conductance φ*, the per-directory cut conductances, and
+  the headroom ratio — proven on a hand-checkable two-triangles-joined-by-one-edge
+  fixture (φ* = 1/7, λ₂ ≈ 0.2047, aligned directories → headroom 1) and shown
+  byte-identical across two runs. Fully offline — no subprocess, no built dist.
+aspects: []
+relations:
+  - target: scripts
+    type: uses
+mapping:
+  - source/cli/tests/unit/spectral-headroom.test.ts

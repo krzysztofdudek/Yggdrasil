@@ -1,6 +1,14 @@
 import { describe, it, expect } from 'vitest';
+import { mkdtempSync, cpSync, rmSync, existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { Graph, GraphNode, Relation } from '../../../src/model/graph.js';
-import { renderStructure, cyclePhrase } from '../../../src/cli/structure.js';
+import {
+  renderStructure,
+  cyclePhrase,
+  computeStructuralEdgeUniverse,
+} from '../../../src/cli/structure.js';
 
 const LEGEND =
   'edges = declared structural relations ∪ statically detected dependencies; event relations excluded; weights not computed';
@@ -100,6 +108,53 @@ describe('renderStructure', () => {
     const detected = new Map<string, Set<string>>([['p/a', new Set(['q/b'])]]);
     const out = renderStructure(graph, detected);
     expect(out).toContain('p/a → q/b — jumps 4 levels across the tree, no declared contract');
+  });
+});
+
+// The authoritative structural-edge-universe accessor, exercised end-to-end
+// against a REAL on-disk fixture project (copied to a temp dir so the relation
+// pass's cache never touches the committed fixture). It is the same universe the
+// `yg structure` command assembles; its correctness here is what keeps an offline
+// structural report from ever drifting from the dashboard.
+const FIXTURE = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../fixtures/sample-project',
+);
+
+describe.skipIf(!existsSync(FIXTURE))('computeStructuralEdgeUniverse (real fixture)', () => {
+  it('returns the declared structural edges ∪ detected edges over the fixture node ids', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-edge-universe-'));
+    try {
+      cpSync(FIXTURE, dir, { recursive: true });
+      const { nodeIds, edges } = await computeStructuralEdgeUniverse(dir);
+
+      // The fixture's nodes are all present.
+      for (const id of [
+        'checkout/controller',
+        'orders/order-service',
+        'auth/auth-api',
+        'users/user-repo',
+      ]) {
+        expect(nodeIds).toContain(id);
+      }
+
+      // Every edge endpoint is a known node (the universe is closed over nodeIds).
+      const idSet = new Set(nodeIds);
+      for (const e of edges) {
+        expect(idSet.has(e.from)).toBe(true);
+        expect(idSet.has(e.to)).toBe(true);
+      }
+
+      // The declared structural relations are present (independent of whether the
+      // detected-edge pass contributes anything on this host).
+      const has = (from: string, to: string) =>
+        edges.some((e) => e.from === from && e.to === to);
+      expect(has('checkout/controller', 'orders/order-service')).toBe(true);
+      expect(has('orders/order-service', 'auth/auth-api')).toBe(true);
+      expect(has('orders/order-service', 'users/user-repo')).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

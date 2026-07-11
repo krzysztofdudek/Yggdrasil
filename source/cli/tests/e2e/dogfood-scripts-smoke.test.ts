@@ -110,6 +110,32 @@ describe.skipIf(!isGitRepo)('dogfood scripts — spawn smoke', () => {
     expect(res.stdout).toContain('— honesty labels —');
     expect(res.stdout).toMatch(/all transforms deterministic, idempotent/);
   });
+
+  // spectral-headroom (RZ-15) — the OFFLINE structural report. Against THIS repo's
+  // real graph it must exit 0, print its header + the plain-language headroom
+  // sentence + the verbatim honesty label, and report a numeric φ*. It consumes the
+  // SAME structural edge universe `yg structure` uses (via the built accessor), so
+  // it depends on the build the quality gate runs first.
+  //
+  // Determinism is proven where it is actually MEANT — the spectral math itself:
+  // spectral-headroom.test.ts drives the pure analysis twice on a FIXED graph and
+  // asserts byte-identical numbers (the machine-independence guarantee: fixed seed,
+  // fixed iteration count, sorted tie-breaks). A second live-repo spawn is
+  // deliberately NOT asserted byte-identical here: both spawns run the full relation
+  // pass over the real repo and share the gitignored symbol-index cache under
+  // `.yggdrasil/`, which the parallel test suite also touches — so the edge-source
+  // half (shared with `yg structure`, not this script's math) can legitimately vary
+  // under concurrency. That is out of scope for the script's determinism contract.
+  it('spectral-headroom.mjs exits 0 with its header, headroom line, and verbatim label', () => {
+    const res = runScript('scripts/spectral-headroom.mjs');
+    expect(res.status).toBe(0);
+    expect(res.stdout).toContain('spectral-headroom');
+    expect(res.stdout).toMatch(/The tightest natural split has conductance \d+\.\d+/);
+    expect(res.stdout).toContain(
+      'conductance rewards balanced cuts — a small cohesive module legitimately scores low; ' +
+        'these are candidates for human eyes, never defects.',
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
