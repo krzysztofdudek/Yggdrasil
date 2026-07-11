@@ -12,7 +12,7 @@
 // mock while the child `yg` makes its HTTP calls (spawnSync would deadlock).
 
 import { describe, it, expect } from 'vitest';
-import { existsSync, mkdtempSync, rmSync, cpSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, cpSync, readFileSync, writeFileSync, appendFileSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -45,6 +45,21 @@ function pointReviewer(dir: string, endpoint: string): void {
   writeFileSync(p, readFileSync(p, 'utf-8').replace(/endpoint:\s*["']?[^"'\n]+["']?/, `endpoint: "${endpoint}"`), 'utf-8');
 }
 const OK: () => ChatReply = () => ({ satisfied: true, reason: 'ok' });
+
+/**
+ * Probe whether chmod 0o000 actually blocks reads. Under root (CI / container)
+ * chmod is ignored and readFileSync still succeeds, so the EACCES branch is
+ * unreachable — the reference-unreadable test skips cleanly when privileged,
+ * mirroring cli-scope-unreadable.test.ts.
+ */
+function isPrivileged(absPath: string): boolean {
+  try {
+    readFileSync(absPath);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 describe.skipIf(!distExists)('CLI E2E — fail-closed reviewer (#2)', () => {
   it('1: an infra failure (provider 500) on a source change does NOT advance the lock entry — yg check stays RED', async () => {
@@ -137,6 +152,86 @@ describe.skipIf(!distExists)('CLI E2E — fail-closed reviewer (#2)', () => {
       expect(check.all).not.toContain("aspect 'has-doc-comment' on node:services/orders");
     } finally {
       await mock.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // ===========================================================================
+  // (4) A present-but-UNREADABLE `references:` file fails CLOSED — the references
+  //   analogue of the scope-unreadable subject-file guarantee (cli-scope-unreadable),
+  //   at the fill / prompt-assembly boundary. A reference that EXISTS as a regular
+  //   file passes the graph validator (aspect-reference-broken fires only for a
+  //   MISSING file or a DIRECTORY — cli-aspect-authoring C1), so the poisoned
+  //   reference clears validation and the failure lands where the reviewer prompt
+  //   is assembled: fill-llm reads each reference as raw bytes BEFORE any consensus
+  //   vote, and a read failure (chmod 0o000 → EACCES) is an INFRA disposition — it
+  //   writes NOTHING, never bills the reviewer, and the run ends RED. Hashing over
+  //   empty-substituted bytes would desync producer and verifier and pin a false
+  //   verdict, so it fails closed instead.
+  //
+  //   The provider is REACHABLE (the mock) on purpose: the isAvailable gate must
+  //   pass so the reference read is actually reached. With an unreachable provider
+  //   the infra would be provider-unreachable (case 1) and mask this path.
+  // ===========================================================================
+  it('4: an unreadable references file is infra (red) — NOTHING written, reviewer never billed, stays red', async () => {
+    const dir = fixture('ref-unreadable');
+    const okMock = await startMockReviewer({ respond: OK });
+    let refAbs: string | undefined;
+    try {
+      pointReviewer(dir, okMock.endpoint);
+      // Declare a reference on the enforced LLM aspect, create it as a regular file
+      // (passes validation), then make it unreadable at reviewer-assembly time.
+      refAbs = path.join(dir, 'lookup-table.md');
+      writeFileSync(refAbs, '# Lookup table\n\nCODE_1 = ok\nCODE_2 = ok\n', 'utf-8');
+      // Keep the reference out of the disk coverage scan (it is a reference doc, not
+      // a mapped source file). References are loaded by EXPLICIT path, so gitignoring
+      // it does NOT suppress the read — the EACCES infra still fires; this only
+      // silences the unrelated unmapped-coverage warning so the run's only red is the
+      // fail-closed reference itself.
+      writeFileSync(path.join(dir, '.gitignore'), 'lookup-table.md\n', 'utf-8');
+      appendFileSync(
+        path.join(dir, '.yggdrasil', 'aspects', 'has-doc-comment', 'yg-aspect.yaml'),
+        'references:\n  - lookup-table.md\n',
+      );
+      chmodSync(refAbs, 0o000);
+      if (isPrivileged(refAbs)) {
+        chmodSync(refAbs, 0o644);
+        return; // privileged runtime — EACCES unreachable; skip cleanly.
+      }
+
+      const fill = await runAsync(['check', '--approve'], dir);
+      // FAIL-CLOSED: the unreadable reference is infra → the run ends RED.
+      expect(fill.status).toBe(1);
+      // NOT a graph-validation error: the reference exists and is a regular file,
+      // so aspect-reference-broken (missing/directory) never fires — the failure is
+      // purely at the fill / prompt-assembly boundary.
+      expect(fill.all).not.toContain('aspect-reference-broken');
+      // The infra notice is REFERENCE-SPECIFIC (not a generic provider failure):
+      // its fail-closed rationale is the reference-input desync, and its NEXT names
+      // the unreadable reference file. (The grouped view collapses the per-pair
+      // `what` — "Reference file '…' could not be read." — into the shared why/next.)
+      expect(fill.all).toContain('reading empty-substituted bytes would desync');
+      expect(fill.all).toContain("Restore the reference file at 'lookup-table.md'");
+      // Nothing written for the LLM aspect on EITHER node (both units load the same
+      // unreadable reference before consensus).
+      const v = readLock(yggPath(dir)).verdicts['has-doc-comment'] ?? {};
+      expect(v['node:services/orders']).toBeUndefined();
+      expect(v['node:services/payments']).toBeUndefined();
+      // The reviewer was NEVER billed — the reference read fails inside fill-llm
+      // before any consensus vote (callsMade 0); only the availability probe hit the
+      // mock, which does not count as a chat.
+      expect(okMock.chatCount()).toBe(0);
+
+      // A later plain `yg check` stays RED: the failed fill wrote no verdict, so both
+      // LLM pairs remain unverified — no false green over an input the reviewer never
+      // saw.
+      const after = await runAsync(['check'], dir);
+      expect(after.status).toBe(1);
+    } finally {
+      if (refAbs) {
+        try { chmodSync(refAbs, 0o644); } catch { /* already restored / privileged */ }
+      }
+      await okMock.close();
       rmSync(dir, { recursive: true, force: true });
     }
   });

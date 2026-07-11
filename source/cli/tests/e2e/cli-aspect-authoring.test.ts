@@ -493,6 +493,56 @@ describe.skipIf(!distExists)('CLI E2E — aspect authoring & deterministic check
     }
   });
 
+  it('B10: a check.mjs that FAILS TO IMPORT is aspect-check-runtime-error at the --only-deterministic fill boundary — left unverified, nothing written (exit 1)', () => {
+    const dir = deterministicFixture('b10');
+    try {
+      // A top-level UNRESOLVABLE import makes the dynamic import() of check.mjs
+      // REJECT before the check function ever runs — the load-time analogue of B3's
+      // call-time throw. The runner's loadHookModule wraps it as
+      // STRUCTURE_LOADER_RESOLVE_FAILED; the fill-det boundary must classify that
+      // the SAME way as any other check crash — aspect-check-runtime-error — and
+      // leave the pair UNVERIFIED with NO lock write. So the free, keyless CI gate
+      // (`--approve --only-deterministic`) stays RED over a check it could never
+      // load, never a false green. Group B's other fill cases (B1/B3) pin CALL-time
+      // failures; this pins the IMPORT/LOAD-time failure at the same boundary.
+      writeDeterministicAspect(
+        dir,
+        'import-broken',
+        'enforced',
+        [
+          "import { nope } from 'this-module-does-not-exist';",
+          'export function check(ctx) { void ctx; void nope; return []; }',
+          '',
+        ].join('\n'),
+      );
+      attachToOrders(dir, 'import-broken');
+
+      // The free, keyless CI / pre-commit gate — deterministic-only fill. A
+      // check.mjs that cannot even load is an infra disposition, not a code refusal.
+      const { status, all } = run(['check', '--approve', '--only-deterministic'], dir);
+      expect(status).toBe(1);
+      expect(all).toContain('import-broken');
+      expect(all).toContain('aspect-check-runtime-error');
+      // The loader names the IMPORT-time cause (module could not be loaded), not a
+      // call-time throw — distinguishing this from B3.
+      expect(all).toContain('Failed to load check.mjs');
+      // The pair is left unverified (no verdict written): grouped unverified block
+      // naming the node + aspect, exactly like the call-time B1/B3 fill failures.
+      expect(all).toMatch(/unverified \(not yet reviewed\)\s+1 pairs\s+1 nodes$/m);
+      expect(all).toContain("- services/orders  aspect 'import-broken'");
+
+      // NO false green: a later plain `yg check` never executes check.mjs — it
+      // re-hashes the lock, finds NO entry for this pair (the failed fill wrote
+      // nothing to the deterministic cache), and stays RED with the pair unverified.
+      const after = run(['check'], dir);
+      expect(after.status).toBe(1);
+      expect(after.all).toMatch(/unverified \(not yet reviewed\)\s+1 pairs\s+1 nodes$/m);
+      expect(after.all).toContain("- services/orders  aspect 'import-broken'");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   // =========================================================================
   // GROUP C — references validation gap (the directory variant of
   // aspect-reference-broken; cli-check-validation 6a pins only the missing-file
