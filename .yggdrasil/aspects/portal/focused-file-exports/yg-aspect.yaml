@@ -7,7 +7,11 @@ description: >-
   export statement: each declarator in `export const a=1,b=2` counts, and each
   non-type specifier in a named clause `export { a, b, c }` counts. Type-only
   exports (interface / type, `export type { … }`, and an inline `export { type T }`
-  specifier) are cheap and not counted. Advisory — it surfaces a signal without
-  blocking, to be calibrated and promoted once the boundary is settled.
+  specifier) are cheap and not counted. Intentionally advisory and kept that way:
+  this is a soft signal, not a hard law — being an over-approximating heuristic
+  (errs: over), enforcing it would wrongly block a file that legitimately exports
+  several symbols, so it surfaces as a non-blocking warning rather than gating CI.
+  It is also the repository's deliberate live advisory exemplar, preserving
+  real-repo coverage of the advisory-refusal-renders-as-warning honesty invariant.
 errs: over
 status: advisory
