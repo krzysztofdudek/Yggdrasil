@@ -84,6 +84,14 @@ describe('events-reader-boundary — appender clause (G1)', () => {
       'source/cli/src/core/reexport.ts',
       `export { appendVerdictEvent } from '../io/events-store.js';\n`, // re-export republishes it
     );
+    writeSource(
+      'source/cli/src/core/star-reexport.ts',
+      `export * from '../io/events-store.js';\n`, // bare `export *` re-export republishes it
+    );
+    writeSource(
+      'source/cli/src/core/ns-reexport.ts',
+      `export * as store from '../io/events-store.js';\n`, // `export * as ns` re-export exposes it
+    );
 
     // Legitimate constant / type imports from events-store — NEVER flagged (carve-out).
     writeSource(
@@ -104,17 +112,21 @@ describe('events-reader-boundary — appender clause (G1)', () => {
       'source/cli/src/cli/render.ts',
       'source/cli/src/core/sneaky.ts',
       'source/cli/src/core/reexport.ts',
+      'source/cli/src/core/star-reexport.ts',
+      'source/cli/src/core/ns-reexport.ts',
       'source/cli/src/io/events-reader.ts',
       'source/cli/src/cli/log.ts',
     ]);
 
-    // Exactly the four non-producers are flagged.
+    // Exactly the six non-producers are flagged.
     expect(flagged).toEqual(
       new Set([
         'source/cli/src/core/verify.ts',
         'source/cli/src/cli/render.ts',
         'source/cli/src/core/sneaky.ts',
         'source/cli/src/core/reexport.ts',
+        'source/cli/src/core/star-reexport.ts',
+        'source/cli/src/core/ns-reexport.ts',
       ]),
     );
     // The sanctioned producers and the constant/type importers are clear.

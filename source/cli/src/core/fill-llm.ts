@@ -207,7 +207,7 @@ export async function fillLlmPair(
       why: `the reviewer threw or returned an unparseable response: ${detail}`,
       messageData: {
         what: `Reviewer for aspect '${aspect.id}' on ${toPosixPath(pair.unitKey)} threw or returned an unparseable response: ${detail}`,
-        why: 'The reviewer could not produce a verdict — an infrastructure problem, not a code violation. Fail-closed: NOTHING was written, the pair stays unverified (spec §3.2).',
+        why: 'The reviewer could not produce a verdict — an infrastructure problem, not a code violation. Fail-closed: NOTHING was written, the pair stays unverified.',
         next: 'Check the provider endpoint, network, and credentials, then re-run: yg check --approve',
       },
       callsMade: consensus,
@@ -223,7 +223,7 @@ export async function fillLlmPair(
       why: `the reviewer returned a provider error: ${response.reason}`,
       messageData: {
         what: `Reviewer for aspect '${aspect.id}' on ${toPosixPath(pair.unitKey)} returned a provider error: ${response.reason}`,
-        why: 'A provider-sourced failure is infrastructure, not a code violation — only a codeViolation maps to a real verdict. Fail-closed: NOTHING was written, the pair stays unverified (spec §3.2).',
+        why: 'A provider-sourced failure is infrastructure, not a code violation — only a codeViolation maps to a real verdict. Fail-closed: NOTHING was written, the pair stays unverified.',
         next: 'Check the provider endpoint, network, and credentials, then re-run: yg check --approve',
       },
       callsMade: consensus,

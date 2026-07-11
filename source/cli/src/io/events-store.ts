@@ -32,7 +32,7 @@ export interface VerdictEvent {
   /** Discriminator for the emitting subsystem. 'fill' = yg check --approve (core);
    *  'drill' = yg drill (LLM case runs); 'diag' = yg aspect-test (--repeat / --tier).
    *  NEVER a hash ingredient. Every reader MUST filter by this field before
-   *  aggregating — mixing regimes is corruption risk #1 (§5.2). */
+   *  aggregating — mixing regimes is corruption risk #1. */
   source: 'fill' | 'drill' | 'diag';
   aspectId: string;
   /** POSIX-normalized unit key: 'node:<path>' or 'file:<path>' for verification

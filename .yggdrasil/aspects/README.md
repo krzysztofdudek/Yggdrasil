@@ -260,18 +260,20 @@ label would be honest.
 ## Graph-context aspects (no drill corpus in v1)
 
 These deterministic aspects read graph context (node / graph / fs / parseYaml),
-so `yg drill` runs the check over case files with no whole-graph context and
-records each case `unsupported` (recorded, not scored). They get no drill corpus
-in v1; a future fixture-graph drill mode lifts this. Each line names the graph
-context the check actually reads.
+which a drill case — plain files with no whole-graph context — cannot supply. So
+they ship no drill corpus in v1: `yg drill` finds no cases and reports "no case
+corpus found — nothing to run". Were a probe case added, the runner would record
+it `unsupported` (recorded, not scored), because the check reaches for graph
+context the case cannot provide. A future fixture-graph drill mode lifts this.
+Each line names the graph context the check actually reads.
 
-- `sibling-test-file` — reads graph context (node, graph); `yg drill` reports `unsupported` — a future fixture-graph mode lifts this.
-- `portal/count-parity-via-reuse` — reads graph context (node); `yg drill` reports `unsupported` — a future fixture-graph mode lifts this.
-- `reference/doc-shape` — reads graph context (node, graph, parseYaml); `yg drill` reports `unsupported` — a future fixture-graph mode lifts this.
-- `reference/layout` — reads graph context (node, graph, fs, parseYaml); `yg drill` reports `unsupported` — a future fixture-graph mode lifts this.
-- `reference/section-body` — reads graph context (node, graph, parseYaml); `yg drill` reports `unsupported` — a future fixture-graph mode lifts this.
-- `reference/relations/case-has-test` — reads graph context (node, graph); `yg drill` reports `unsupported` — a future fixture-graph mode lifts this.
-- `reference/relations/case-is-tested` — reads graph context (node, graph); `yg drill` reports `unsupported` — a future fixture-graph mode lifts this.
+- `sibling-test-file` — reads graph context (node, graph); a probe case would record `unsupported` — a future fixture-graph mode lifts this.
+- `portal/count-parity-via-reuse` — reads graph context (node); a probe case would record `unsupported` — a future fixture-graph mode lifts this.
+- `reference/doc-shape` — reads graph context (node, graph, parseYaml); a probe case would record `unsupported` — a future fixture-graph mode lifts this.
+- `reference/layout` — reads graph context (node, graph, fs, parseYaml); a probe case would record `unsupported` — a future fixture-graph mode lifts this.
+- `reference/section-body` — reads graph context (node, graph, parseYaml); a probe case would record `unsupported` — a future fixture-graph mode lifts this.
+- `reference/relations/case-has-test` — reads graph context (node, graph); a probe case would record `unsupported` — a future fixture-graph mode lifts this.
+- `reference/relations/case-is-tested` — reads graph context (node, graph); a probe case would record `unsupported` — a future fixture-graph mode lifts this.
 
 Two of these — `reference/doc-shape` and `reference/section-body` — reach graph
 context only on the `.md`-file branch that a generic non-`.md` probe never

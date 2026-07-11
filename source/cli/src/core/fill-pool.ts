@@ -38,7 +38,7 @@ export async function runPairPool<T>(
           why: `unexpected error during fill: ${detail}`,
           messageData: {
             what: `An unexpected error occurred while filling a pair: ${detail}`,
-            why: 'A fill worker caught a throw and converted it to an infra disposition so the run continues — sibling pairs are unaffected and NOTHING was written for this pair (fail-closed, spec §3.2).',
+            why: 'A fill worker caught a throw and converted it to an infra disposition so the run continues — sibling pairs are unaffected and NOTHING was written for this pair (fail-closed).',
             next: 'Re-run: yg check --approve. If the error persists, the underlying cause is in the message above.',
           },
           callsMade: 0,

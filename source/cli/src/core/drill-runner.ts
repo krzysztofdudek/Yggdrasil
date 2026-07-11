@@ -16,7 +16,7 @@
  * (cli/drill.ts) as `DrillDeps`, so this file stays deterministic and ast-free,
  * exactly as `fill.ts` keeps provider creation at the command boundary. Prompt
  * assembly here is byte-identical to the production filler (core/fill-llm.ts):
- * same `buildPairPrompt`, same suppress-range resolution, same §4 size gate.
+ * same `buildPairPrompt`, same suppress-range resolution, same prompt-size gate.
  */
 
 import path from 'node:path';
@@ -228,7 +228,8 @@ async function collectFiles(baseAbs: string): Promise<string[]> {
 
 // ── Hashing ──
 
-/** sha256 of the concatenated case file contents (sorted by path, line-ending normalized). */
+/** sha256 of the concatenated case file contents (raw bytes, sorted by path). Drill-internal
+ *  change-detection only — never a verdict/lock input, so no line-ending normalization is applied. */
 export async function caseHashOf(files: string[], projectRoot: string): Promise<string> {
   const buffers: Buffer[] = [];
   for (const rel of [...files].sort()) {
@@ -388,7 +389,7 @@ export async function runDrills(
   return summarize(results);
 }
 
-/** Assemble one unit's production prompt, apply the §4 size gate, and review it. */
+/** Assemble one unit's production prompt, apply the prompt-size gate, and review it. */
 async function reviewOneUnit(
   aspect: AspectDef,
   aspectContent: string,
@@ -401,6 +402,8 @@ async function reviewOneUnit(
   let suppressedRanges;
   try {
     suppressedRanges = await resolveSuppressedRangesForPrompt(
+      // Re-encoding the already-decoded content is byte-identical to fill's raw source bytes:
+      // drill case files must be valid UTF-8, for which decode→encode round-trips exactly.
       unit.map((u) => ({ path: u.path, bytes: Buffer.from(u.content, 'utf8') })),
       aspect.id,
     );
