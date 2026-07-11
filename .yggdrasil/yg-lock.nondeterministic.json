@@ -399,7 +399,7 @@
       "file:source/cli/tests/e2e/cli-tier-cascade.test.ts": {"hash":"89ca8afaf389fcbba6e4ee64a16fb00cd2d6aae434da5b4f7ae9922cb739bbea","verdict":"approved"},
       "file:source/cli/tests/e2e/cli-unreadable-pernode.test.ts": {"hash":"58e93b22b36173602e28c9ac18ea69399331792c43b921ecfed955192c420757","verdict":"approved"},
       "file:source/cli/tests/e2e/cli-validation-codes.test.ts": {"hash":"3677275c06d1188996a738f527ddfefe56c337e95df16e8de14986fdbb66bde2","verdict":"approved"},
-      "file:source/cli/tests/e2e/dogfood-scripts-smoke.test.ts": {"hash":"83687e826ee7d96e6774e70df63f7441cd5aeff24fd3b84028fbe298f138111c","verdict":"approved"},
+      "file:source/cli/tests/e2e/dogfood-scripts-smoke.test.ts": {"hash":"b72cbc8c9967cb144fff3c6a8b239bb1f8b45e24a3ddb62fd854537b77821a4f","verdict":"approved"},
       "file:source/cli/tests/e2e/relation-c.test.ts": {"hash":"4f6aab1122a40835fe68c5190ec6f6b473be1c8aa84902756edc354ab786cf4d","verdict":"approved"},
       "file:source/cli/tests/e2e/relation-crosslang.test.ts": {"hash":"7f771769544d6a5bcec9aad932ff0a02496193e636378c918f9c35d7b57f75ac","verdict":"approved"},
       "file:source/cli/tests/e2e/relation-csharp.test.ts": {"hash":"e3d542cfd0afa320cc56c81f543360a5d8b26ca907816b366d31a50f6424121c","verdict":"approved"},

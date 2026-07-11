@@ -58,6 +58,17 @@ describe.skipIf(!isGitRepo)('dogfood scripts — spawn smoke', () => {
     expect(res.stdout).toContain('[RZ-16]');
   });
 
+  it('escape-scan.mjs exits 0 with its header and both honesty labels on real history', () => {
+    const res = runScript('scripts/escape-scan.mjs');
+    expect(res.status).toBe(0);
+    expect(res.stdout).toContain('escape-scan');
+    expect(res.stdout).toContain('— honesty labels —');
+    // Both undercount + overcount labels and the never-a-gate line are mandatory.
+    expect(res.stdout).toContain('UNDERCOUNTS');
+    expect(res.stdout).toContain('OVERCOUNTS');
+    expect(res.stdout).toContain('candidates for human triage, never a gate.');
+  });
+
   // The four calibration instruments against THIS repo's real telemetry. Whatever
   // telemetry exists (possibly thin/empty) they must exit 0, print their header, and
   // end with the mandatory honesty-label footer — never crash.
@@ -485,6 +496,99 @@ describe('lock-history-audit — detection paths (fixture git repo)', () => {
       expect(res.stdout).toContain('WARN:');
       expect(res.stdout).toContain('asp-y / file:src/b.ts');
       expect(res.stdout).toContain('0 laundering signatures');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// escape-scan (RZ-11) — reality-oracle seed. A throwaway git repo on disk drives
+// the three join outcomes over a hand-built linear history (mainline pinned to HEAD
+// via YG_ESCAPE_MAINLINE so no branch-name fragility): a fix commit whose parent lock
+// was GREEN for the node is flagged; a non-fix commit is not; a fix commit whose parent
+// lock REFUSED the node is excluded (the reviewer already caught it). No mocking.
+// ---------------------------------------------------------------------------
+
+describe('escape-scan — fix-on-green candidates (fixture git repo)', () => {
+  function escapeLock(verdict: string): string {
+    return JSON.stringify({
+      version: 1,
+      verdicts: { 'input-validation': { 'file:src/orders/handler.ts': { hash: 'H', verdict } } },
+      nodes: {},
+    });
+  }
+
+  function makeEscapeRepo() {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-escape-'));
+    const git = (args: string[]) => execFileSync('git', args, { cwd: dir, env: GIT_ENV });
+    git(['init', '-q']);
+    // Current-graph node mapping (present at HEAD, which is what the scan resolves against).
+    mkdirSync(path.join(dir, '.yggdrasil/model/svc/orders'), { recursive: true });
+    writeFileSync(
+      path.join(dir, '.yggdrasil/model/svc/orders/yg-node.yaml'),
+      'name: Orders\ntype: service\nmapping:\n  - src/orders/*.ts\n',
+    );
+    mkdirSync(path.join(dir, 'src/orders'), { recursive: true });
+    mkdirSync(path.join(dir, '.yggdrasil'), { recursive: true });
+    const writeHandler = (body: string) =>
+      writeFileSync(path.join(dir, 'src/orders/handler.ts'), body);
+    const writeLock = (verdict: string) =>
+      writeFileSync(path.join(dir, '.yggdrasil/yg-lock.nondeterministic.json'), escapeLock(verdict));
+    const commit = (msg: string): string => {
+      git(['add', '-A']);
+      git(['commit', '-q', '-m', msg]);
+      return execFileSync('git', ['rev-parse', 'HEAD'], { cwd: dir, encoding: 'utf-8' }).trim();
+    };
+    return { dir, commit, writeHandler, writeLock };
+  }
+
+  it('flags a fix on a green parent, ignores a non-fix, and excludes a fix whose parent lock refused the node', () => {
+    const { dir, commit, writeHandler, writeLock } = makeEscapeRepo();
+    try {
+      // c1 seed: node yaml + handler + an APPROVED lock → the node is GREEN at c1.
+      writeHandler('export const total = 1;\n');
+      writeLock('approved');
+      commit('seed orders');
+      // c2 fix on a GREEN parent (c1: approved, no refusal) → CANDIDATE.
+      writeHandler('export const total = 2;\n');
+      const c2 = commit('fix(orders): correct total rounding');
+      // c3 NON-fix touching the same node → never flagged (fails the fix vocabulary).
+      writeHandler('export const total = 3;\n');
+      const c3 = commit('feat(orders): add discount');
+      // c4 seeds a REFUSED lock for the node (non-fix, so not itself a scanned commit).
+      writeHandler('export const total = 4;\n');
+      writeLock('refused');
+      commit('wip reviewer refused orders');
+      // c5 fix whose PARENT (c4) lock DID refuse the node → EXCLUDED (reviewer caught it).
+      writeHandler('export const total = 5;\n');
+      const c5 = commit('fix(orders): satisfy validation');
+
+      const res = spawnSync('node', [path.join(REPO_ROOT, 'scripts/escape-scan.mjs')], {
+        cwd: dir,
+        encoding: 'utf-8',
+        env: { ...process.env, YG_ESCAPE_MAINLINE: 'HEAD' },
+        maxBuffer: 64 * 1024 * 1024,
+      });
+      expect(res.status).toBe(0);
+      expect(res.stdout).toContain('escape-scan');
+      // c2 is a candidate — the exact spec line for the node.
+      expect(res.stdout).toMatch(
+        new RegExp(
+          '^  ' +
+            c2.slice(0, 12) +
+            ' fixed svc/orders — parent lock had no refusal for it \\(escape candidate for triage\\)$',
+          'm',
+        ),
+      );
+      // c3 (non-fix) and c5 (parent refused) are NOT candidates — their shas never appear.
+      expect(res.stdout).not.toContain(c3.slice(0, 12));
+      expect(res.stdout).not.toContain(c5.slice(0, 12));
+      // The refused-at-parent exclusion path fired exactly once (c5).
+      expect(res.stdout).toMatch(/parent lock DID refuse the node {2}1 /);
+      // Both honesty labels + the never-a-gate line are mandatory in the footer.
+      expect(res.stdout).toContain('candidates for human triage, never a gate.');
+      expect(res.stdout).toContain('— honesty labels —');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
