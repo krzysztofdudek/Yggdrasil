@@ -79,6 +79,26 @@ describe.skipIf(!isGitRepo)('dogfood scripts — spawn smoke', () => {
       expect(res.stdout).toMatch(/unknown ≠ zero/);
     });
   }
+
+  // metamorphic.mjs (analysis e) — the DEFAULT (no-arg) mode is the OFFLINE
+  // transform self-check: it parses the pilot corpus with the built grammars and
+  // proves the rename/reformat transforms are deterministic + idempotent, making
+  // ZERO reviewer calls (the `--run` pilot, which does bill the reviewer, is never
+  // exercised in CI). It must exit 0, print its header + the §10 inconsistency
+  // framing, and end with the honesty footer.
+  it('metamorphic.mjs (default self-check) exits 0 offline with header, §10 framing, and footer', () => {
+    const res = spawnSync('node', [path.join(REPO_ROOT, 'scripts/metamorphic.mjs')], {
+      cwd: REPO_ROOT,
+      encoding: 'utf-8',
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    expect(res.status).toBe(0);
+    expect(res.stdout).toContain('metamorphic');
+    expect(res.stdout).toMatch(/INCONSISTENCY, NOT CORRECTNESS/);
+    expect(res.stdout).toContain('NO reviewer calls');
+    expect(res.stdout).toContain('— honesty labels —');
+    expect(res.stdout).toMatch(/all transforms deterministic, idempotent/);
+  });
 });
 
 // ---------------------------------------------------------------------------

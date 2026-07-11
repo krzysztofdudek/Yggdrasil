@@ -112,3 +112,44 @@ the correct test for paired yes/no outcomes, and it is honest about small sample
 The discipline is simple: a model swap changes who is judging your code without
 telling anyone. The paired comparison is how you make that change visible before it
 becomes a silent regression.
+
+## A companion check: metamorphic probes
+
+The paired comparison asks *do two models agree?* A related question is *does one
+model agree with itself when the code says the same thing in a different way?* A
+reviewer you can trust should not change its verdict when you rename a local
+variable or reflow whitespace — those rewrites preserve meaning. If the verdict
+moves anyway, the rule text or the judge is reacting to surface, not substance.
+
+A **metamorphic probe** measures exactly that. It takes one of a rule's own example
+files and generates variants of it:
+
+- **Meaning-preserving (invariant) rewrites** — an AST-scoped identifier rename and a
+  whitespace normalization. The rename is deliberately careful: it only renames a
+  genuinely local name (never an imported or exported name, a property key, or a
+  shorthand property), uniformly across the file, to a fresh name that collides with
+  nothing — a sound rename that cannot change what the program does. The reformat
+  only touches whitespace outside strings and comments. The verdict **should not
+  move**.
+- **The meaning-changing (covariant) counterpart** — the rule's `violates-…` example,
+  which was written to break the rule. It **should stay refused**, even with invariant
+  surface noise layered on top.
+
+Each variant is judged by the real reviewer against a throwaway, one-file fixture —
+it never touches your lock or your telemetry. The result is reported per rule as
+`k/m invariant transforms preserved the verdict; j/n covariant cases stayed refused`.
+
+Read it the same way you read the paired comparison: **it measures consistency, not
+correctness.** A preserved verdict says the reviewer was robust to a cosmetic change,
+not that the rule is right; a variant that flips the verdict is a sign the rule reads
+two ways, and a candidate to sharpen so the reading is forced. Every figure is
+small-sample — one flaky run is noise, not a measured wobble rate.
+
+This repository ships a reference implementation. Run it offline to self-check the
+rewrites (no reviewer calls — this is the CI smoke), or with `--run` to execute the
+pilot against the live reviewer:
+
+```
+node scripts/metamorphic.mjs          # offline: prove the rewrites are sound
+node scripts/metamorphic.mjs --run     # pilot: judge the variants with the real reviewer
+```

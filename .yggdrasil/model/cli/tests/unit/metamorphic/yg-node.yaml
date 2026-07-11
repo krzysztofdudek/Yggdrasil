@@ -1,0 +1,14 @@
+name: Metamorphic Transform Unit Tests
+type: test-suite
+description: >-
+  Unit tests for the metamorphic probe's pure AST transforms
+  (scripts/metamorphic.mjs): the AST-scoped identifier rename (exact-span rewrite,
+  collision guard, import/export and shorthand-property exclusion, determinism) and
+  the string-safe, idempotent whitespace reformat. Fully offline — no reviewer, no
+  subprocess spawning.
+aspects: []
+relations:
+  - target: scripts
+    type: uses
+mapping:
+  - source/cli/tests/unit/metamorphic-transforms.test.ts
