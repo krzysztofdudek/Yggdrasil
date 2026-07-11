@@ -43,6 +43,7 @@ export default defineConfig({
         items: [
           { text: "The Portal", link: "/portal" },
           { text: "Reviewers", link: "/reviewers" },
+          { text: "Model-Swap Protocol", link: "/model-swap-protocol" },
           { text: "Aspect Status", link: "/aspect-status" },
           { text: "Conditional Aspects", link: "/conditional-aspects" },
           { text: "Configuration", link: "/configuration" },
