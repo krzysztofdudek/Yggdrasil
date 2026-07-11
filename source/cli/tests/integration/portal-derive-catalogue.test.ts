@@ -59,12 +59,18 @@ describe('portal catalogue derivation (aspects / flows / types) — real repo', 
     }
   });
 
-  it('no advisory aspect inflates the blocking refused bucket — a refusal tallies as a warning', () => {
-    // The honesty invariant, asserted across EVERY advisory aspect on the real repo rather than
-    // one coincidental refusal: an ADVISORY aspect's refusal renders as a non-blocking `warning`,
-    // never a blocking `refused`. (The concrete refused-unit → warning tally is exercised
-    // synthetically below, so this holds whether or not any advisory aspect currently refuses.)
-    // `portal/focused-file-exports` is one such advisory aspect and must obey the invariant.
+  it('the repository keeps a deliberate advisory exemplar, and no advisory aspect inflates the blocking refused bucket', () => {
+    // Two invariants, asserted against the REAL repo (not just the synthetic cases below):
+    //   1. At least one aspect is advisory. The repository deliberately maintains a live
+    //      advisory exemplar so the honest advisory-rendering path always has real-repo
+    //      coverage. `portal/focused-file-exports` is that exemplar BY DESIGN: an
+    //      over-approximating single-responsibility heuristic (errs: over) that is a soft
+    //      signal, never promoted to a blocking law. Leaving the repo with zero advisory
+    //      aspects (e.g. by promoting it) MUST trip this guard — that is intentional, not
+    //      an incidental coupling to "fix" by relaxing the assertion.
+    //   2. An ADVISORY aspect's refusal renders as a non-blocking `warning`, never a blocking
+    //      `refused`. (The concrete refused-unit -> warning tally is exercised synthetically
+    //      below, so this holds whether or not any advisory aspect currently refuses.)
     const advisory = aspects.filter((a) => a.status === 'advisory');
     expect(advisory.length).toBeGreaterThanOrEqual(1);
     for (const a of advisory) {

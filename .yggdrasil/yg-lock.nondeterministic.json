@@ -436,7 +436,7 @@
       "file:source/cli/tests/integration/ollama-reviewer.external.test.ts": {"hash":"c47d1343aa31beb53a36a643c01fe01fddd33b755537485cd5900e691a70e41c","verdict":"approved"},
       "file:source/cli/tests/integration/portal-attestation-meta.test.ts": {"hash":"eaa004f7deab4d5bf369075afbc375191605592e94ca92fe9d25ff172e97315b","verdict":"approved"},
       "file:source/cli/tests/integration/portal-boundary.test.ts": {"hash":"25080a2e5ce000937a8e67688ec1091c498a9d567d9b596e042bcc0e6e03c382","verdict":"approved"},
-      "file:source/cli/tests/integration/portal-derive-catalogue.test.ts": {"hash":"2a052735cb6148a49f2555befb7de095d6c30c3400f7bc326f5b2c593348ce27","verdict":"approved"},
+      "file:source/cli/tests/integration/portal-derive-catalogue.test.ts": {"hash":"95ce4ca97ea6e05cef70a4ab93e2f86c7c736187950ba72ce2853f197591cc8c","verdict":"approved"},
       "file:source/cli/tests/integration/portal-derive-nodes.test.ts": {"hash":"e76c012b662cc0b0fe591c7832e501b7f35dcf4d83dc334cf08820d7767a3482","verdict":"approved"},
       "file:source/cli/tests/integration/portal-derive-rest.test.ts": {"hash":"8535733e807003c49591e4951155b997149c79c3463983ee28d4c2f2cfe17015","verdict":"approved"},
       "file:source/cli/tests/integration/portal-engine-api-provenance.test.ts": {"hash":"240a5483bddc231c5e06fd6e61a6ad6dde1cf72e0d12ee6a80dc93b59a6dba3b","verdict":"approved"},
