@@ -138,7 +138,7 @@ describe('registerAspectTestCommand', () => {
     expect(findCommand(program, 'deterministic-test')).toBeUndefined();
   });
 
-  it('exposes --aspect, --node, --files, --check-determinism, --dry-run, and --repeat options', () => {
+  it('exposes --aspect, --node, --files, --check-determinism, --dry-run, --repeat, and --tier options', () => {
     const program = new Command();
     registerAspectTestCommand(program);
     const cmd = findCommand(program, 'aspect-test')!;
@@ -149,6 +149,7 @@ describe('registerAspectTestCommand', () => {
     expect(flags).toContain('--check-determinism');
     expect(flags).toContain('--dry-run');
     expect(flags).toContain('--repeat');
+    expect(flags).toContain('--tier');
   });
 
   it('requires the --aspect option', () => {

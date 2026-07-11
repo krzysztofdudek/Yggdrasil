@@ -1,0 +1,14 @@
+name: E2E Tests — yg aspect-test diagnostic telemetry
+type: test-suite
+description: "Subprocess E2E for yg aspect-test diagnostic telemetry over the
+  public CLI surface: --repeat N emits exactly N source:'diag' verdict-events for
+  the unit (consensus forced to 1, votes.total 1, carrying tier + judge), --tier
+  <known> re-runs the same pairs under a named tier from the merged config and
+  emits a diag line tagged with that tier, --tier <unknown> errors with the
+  verbatim what/why/next (nonzero exit, no reviewer call), --tier is rejected with
+  --files and on a deterministic aspect, and --tier combines with --repeat. Real
+  spawned binary with the in-process mock reviewer; the lock is never written."
+aspects: []
+relations: [ { target: cli/tests/e2e/support, type: uses } ]
+mapping:
+  - source/cli/tests/e2e/cli-aspect-test-telemetry.test.ts

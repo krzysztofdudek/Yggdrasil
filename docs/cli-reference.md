@@ -483,6 +483,7 @@ yg aspect-test --aspect <id> --files <path> [<path2> ...]
 yg aspect-test --aspect <id> --node <node-path> --check-determinism
 yg aspect-test --aspect <id> --node <node-path> --dry-run
 yg aspect-test --aspect <id> --node <node-path> --repeat <N>
+yg aspect-test --aspect <id> --node <node-path> --tier <name>
 ```
 
 - `--aspect <id>` — Required. The aspect's kind is inferred from its rule source.
@@ -509,6 +510,19 @@ yg aspect-test --aspect <id> --node <node-path> --repeat <N>
   separately; any single refused run marks the unit refused, and a unit whose runs all erred is
   stamped `incomplete`. Rejected with `--dry-run`, with `--files`, and for deterministic aspects
   (already exactly reproducible — use `--check-determinism` there).
+- `--tier <name>` — (LLM only, with `--node`) Re-runs the same pairs under a named reviewer tier
+  from the merged config (`yg-config.yaml` plus the local `yg-secrets` overlay), **overriding** the
+  tier the aspect would normally resolve — the dry-fit for "does this still pass under the model
+  I'm about to switch to?" Diagnostic only: no graph edits, no lock writes. An unknown tier name is
+  an error listing the tiers that exist. Rejected with `--files` and for deterministic aspects, and
+  may combine with `--repeat` (each of the N runs then goes through the chosen tier).
+
+Every LLM `aspect-test` run that actually calls the reviewer records one line of **local
+diagnostic telemetry** (`.yg-events.jsonl`, gitignored) — which reviewer judged the unit and how
+it voted. A plain `--node` run, `--repeat`, and `--tier` all record alike; `--repeat` just adds
+one line per repeated run and `--tier` re-points which reviewer is recorded (`--dry-run` makes no
+reviewer call, so it records nothing). It is write-only observability for later judge-stability and
+model-swap analysis; nothing in `yg check` ever reads it back, and the lock is never touched.
 
 For a deterministic aspect it runs `check.mjs` and prints violations. For an LLM
 aspect it runs the reviewer (or just prints the prompt under `--dry-run`). Exits 0

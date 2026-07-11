@@ -10,8 +10,9 @@ import { buildIssueMessage } from '../formatters/message-builder.js';
 import type { Violation as AstViolation } from '../ast/types.js';
 import type { Violation as StructureViolation } from '../structure/types.js';
 import { computeExpectedPairs, computeNodeMappedFiles } from '../core/pairs.js';
-import { buildPairPrompt } from '../llm/prompt.js';
+import { buildPairPrompt, PROMPT_FORMAT_REV } from '../llm/prompt.js';
 import type { PromptReferenceInput, PromptFileInput, PromptCompanionInput, PromptSuppressedRangesInput } from '../llm/prompt.js';
+import { appendVerdictEvent, type VerdictEvent } from '../io/events-store.js';
 import { resolveSuppressedRangesForPrompt, SuppressMarkerError } from '../structure/index.js';
 import { verifyWithConsensus } from '../llm/aspect-verifier.js';
 import { createLlmProvider } from '../llm/index.js';
@@ -22,7 +23,7 @@ import { toPosixPath } from '../utils/posix.js';
 import { runCompanionHook } from '../structure/hook-loader.js';
 import { resolveCompanionDescriptors } from '../core/companion-resolve.js';
 import type { ExpectedPair } from '../core/pairs.js';
-import type { AspectDef } from '../model/graph.js';
+import type { AspectDef, LlmConfig } from '../model/graph.js';
 
 /** Footer printed after every run (det, LLM, and --dry-run). */
 const DIAGNOSTIC_FOOTER =
@@ -54,6 +55,7 @@ export function registerAspectTestCommand(program: Command): void {
     .option('--check-determinism', 'run the check twice and fail if results differ (deterministic aspects only)')
     .option('--dry-run', 'for LLM aspects: print the assembled prompt(s) to stdout, make no reviewer/LLM call (companion hook runs live)')
     .option('--repeat <n>', 'for LLM aspects: re-run each unit N times (N >= 2) to measure how consistently the reviewer judges the same prompt (self-consistency, not correctness); not valid with --dry-run, --files, or deterministic aspects')
+    .option('--tier <name>', 'run the same pairs under a named reviewer tier from the merged config (dry-fit before a model swap); diagnostic — no graph edits, no lock writes')
     .action(async (opts) => {
       const projectRoot = process.cwd();
       try {
@@ -122,6 +124,36 @@ export function registerAspectTestCommand(program: Command): void {
           repeatN = parsed;
         }
 
+        // ── --tier validation (dry-fit under a named reviewer tier) ──────────
+        // --tier re-runs the SAME LLM pairs under a named tier from the merged
+        // config (yg-secrets included), overriding the aspect's declared/default
+        // tier — the "does this survive under the model I'm about to switch to?"
+        // probe. It is diagnostic: no graph edits, no lock writes. It mirrors
+        // --repeat's guards (LLM aspect + --node only; never --files, never a
+        // deterministic aspect) and MAY combine with --repeat (each of the N runs
+        // then emits under the chosen tier). The tier NAME itself is resolved in
+        // runLlmAspectTest (direct reviewer.tiers lookup, unknown-tier error).
+        if (typeof opts.tier === 'string') {
+          if (hasFiles) {
+            process.stderr.write(`Error: ${buildIssueMessage({
+                what: `--tier cannot be combined with --files.`,
+                why: `--tier re-runs LLM pairs under a named reviewer tier, which requires graph context (node mapping, effective aspects); --files runs a deterministic check with no tier.`,
+                next: `Use --tier with an LLM aspect and --node <node-path>.`,
+              })}\n`);
+            process.exit(1);
+            return;
+          }
+          if (aspect.reviewer.type !== 'llm') {
+            process.stderr.write(`Error: ${buildIssueMessage({
+                what: `--tier is not supported for ${aspect.reviewer.type} aspect '${opts.aspect}'.`,
+                why: `A deterministic check runs locally with no reviewer tier — there is no tier to swap. --tier re-runs an LLM aspect under a named reviewer tier.`,
+                next: `Run --tier against an LLM aspect (content.md) with --node, or drop --tier for a deterministic aspect.`,
+              })}\n`);
+            process.exit(1);
+            return;
+          }
+        }
+
         // ── LLM aspect path ──────────────────────────────────────────────────
         if (aspect.reviewer.type === 'llm') {
           // --files is not supported for LLM aspects: they need graph context.
@@ -156,7 +188,7 @@ export function registerAspectTestCommand(program: Command): void {
             return;
           }
 
-          const llmExit = await runLlmAspectTest(graph, projectRoot, aspect, nodePath, opts.dryRun ?? false, repeatN);
+          const llmExit = await runLlmAspectTest(graph, projectRoot, aspect, nodePath, opts.dryRun ?? false, repeatN, typeof opts.tier === 'string' ? opts.tier : undefined);
           process.stdout.write(DIAGNOSTIC_FOOTER);
           // Refused or incomplete (fail-closed) units exit 1, per the documented
           // 'exit 1 on violations or refusals' contract.
@@ -417,6 +449,19 @@ async function resolveSuppressedRangesForTest(
  * measure, NOT a correctness claim. Provider-error runs are excluded from the
  * k/N denominator and reported separately; a unit with any valid refused run is
  * refused, and a unit whose runs ALL erred is incomplete (fail closed).
+ *
+ * When `tierOverride` is a tier NAME, the reviewer runs under that tier from the
+ * MERGED config (yg-secrets included) instead of the aspect's declared/default
+ * tier — the "dry-fit before a model swap" probe. It is looked up DIRECTLY in
+ * reviewer.tiers (never through selectTierForAspect, which would resolve the
+ * aspect's own tier); an unknown name is a what/why/next error. --tier does ZERO
+ * graph edits and ZERO lock writes; it only re-points which reviewer is called.
+ *
+ * Either mode records local diagnostic telemetry: one source:'diag' verdict-event
+ * per reviewer RUN (one per repeat iteration; one per unit otherwise) is appended
+ * to the gitignored events sidecar, tagged with the tier ACTUALLY used and the
+ * resolved judge. Emission is best-effort — a failed append never fails the
+ * diagnostic — and is NEVER a hash ingredient (the lock stays untouched).
  */
 async function runLlmAspectTest(
   graph: import('../model/graph.js').Graph,
@@ -425,6 +470,7 @@ async function runLlmAspectTest(
   nodePath: string,
   dryRun: boolean,
   repeat: number,
+  tierOverride: string | undefined,
 ): Promise<0 | 1> {
   // Resolve the tier for this aspect.
   const reviewer = graph.config.reviewer;
@@ -437,13 +483,36 @@ async function runLlmAspectTest(
     process.exit(1);
     return 1;
   }
-  const tierResult = selectTierForAspect(aspect, reviewer);
-  if (!tierResult.ok) {
-    process.stderr.write(`Error: ${buildIssueMessage(tierResult.error)}\n`);
-    process.exit(1);
-    return 1;
+  let tier: LlmConfig;
+  let tierName: string;
+  if (tierOverride !== undefined) {
+    // --tier: resolve the NAME directly against the merged tier map (yg-secrets
+    // overlay already applied at parse time). This deliberately bypasses
+    // selectTierForAspect — the whole point of --tier is to override the aspect's
+    // declared/default tier with an arbitrary named one.
+    const direct = reviewer.tiers[tierOverride];
+    if (!direct) {
+      const tierNames = Object.keys(reviewer.tiers);
+      process.stderr.write(`Error: ${buildIssueMessage({
+          what: `Tier '${tierOverride}' is not defined in .yggdrasil/yg-config.yaml.`,
+          why: `--tier re-runs the same pairs under a named reviewer tier from the merged config (yg-secrets included); an unknown tier has no provider or model to call.`,
+          next: `Use one of: ${tierNames.join(', ')}, or add the tier to yg-config.yaml (or yg-secrets).`,
+        })}\n`);
+      process.exit(1);
+      return 1;
+    }
+    tier = direct;
+    tierName = tierOverride;
+  } else {
+    const tierResult = selectTierForAspect(aspect, reviewer);
+    if (!tierResult.ok) {
+      process.stderr.write(`Error: ${buildIssueMessage(tierResult.error)}\n`);
+      process.exit(1);
+      return 1;
+    }
+    tier = tierResult.tier;
+    tierName = tierResult.tierName;
   }
-  const { tier, tierName } = tierResult;
 
   // Compute the expected pairs filtered to this aspect+node. Drafts are
   // included: status gates the lock/fill, never this diagnostic — a draft
@@ -506,6 +575,36 @@ async function runLlmAspectTest(
       process.exit(1);
       return 1;
     }
+
+    // Diagnostic telemetry sidecar (source:'diag'): one line per reviewer RUN in
+    // this diagnostic — a real verdict (approved/refused) or an infra no-verdict
+    // outcome. `ts` is the CLI-boundary wall clock (this is a command, not an
+    // engine file, so new Date() is fine here — mirrors cli/drill.ts). The line
+    // carries the tier ACTUALLY used and the resolved judge so wave-4 analyses can
+    // separate judge/model regimes. Best-effort: appendVerdictEvent swallows any
+    // write failure by contract, so telemetry can never fail the diagnostic. NOT a
+    // hash ingredient — aspect-test never writes the lock.
+    const emitDiag = (
+      unitKey: string,
+      disposition: 'approved' | 'refused' | 'infra',
+      votes?: { satisfied: number; total: number },
+    ): void => {
+      const event: VerdictEvent = {
+        v: 1,
+        ts: new Date().toISOString(),
+        source: 'diag',
+        aspectId: aspect.id,
+        unitKey,
+        kind: 'llm',
+        disposition,
+        tier: tierName,
+        promptRev: PROMPT_FORMAT_REV,
+        judge: { provider: tier.provider, model: String(tier.model) },
+      };
+      // votes accompany a real verdict only; an infra run cast no countable vote.
+      if (votes !== undefined) event.votes = votes;
+      appendVerdictEvent(graph.rootPath, event);
+    };
 
     // Stability mode prints the total reviewer-call budget BEFORE the first
     // call (repeat N × units), so the cost is visible up front.
@@ -582,17 +681,25 @@ async function runLlmAspectTest(
           } catch (e) {
             debugWrite(`[aspect-test] reviewer threw for ${aspect.id} on ${pair.unitKey} run ${i}/${repeat}: ${e instanceof Error ? e.message : String(e)}`);
             providerErrorRuns++;
+            emitDiag(pair.unitKey, 'infra');
             process.stdout.write(`${pair.unitKey} run ${i}/${repeat}: provider-error — reviewer threw: ${e instanceof Error ? e.message : String(e)}\n`);
             continue;
           }
           if (!response.satisfied && response.errorSource === 'provider') {
             debugWrite(`[aspect-test] provider error for ${aspect.id} on ${pair.unitKey} run ${i}/${repeat}: ${response.reason}`);
             providerErrorRuns++;
+            emitDiag(pair.unitKey, 'infra');
             process.stdout.write(`${pair.unitKey} run ${i}/${repeat}: provider-error — ${response.reason}\n`);
             continue;
           }
           if (response.satisfied) satisfiedRuns++;
           else refusedRuns++;
+          // Consensus is forced to 1 per run here, so each run casts exactly one
+          // countable vote (votes.total: 1) — the raw self-consistency signal.
+          emitDiag(pair.unitKey, response.satisfied ? 'approved' : 'refused', {
+            satisfied: response.satisfied ? 1 : 0,
+            total: 1,
+          });
           const verdict = response.satisfied ? 'satisfied' : 'refused';
           process.stdout.write(`${pair.unitKey} run ${i}/${repeat}: ${verdict} — ${response.reason}\n`);
         }
@@ -620,6 +727,7 @@ async function runLlmAspectTest(
         ({ response, votes } = await verifyWithConsensus(provider, prompt, mergedTier.consensus ?? 1));
       } catch (e) {
         debugWrite(`[aspect-test] reviewer threw for ${aspect.id} on ${pair.unitKey}: ${e instanceof Error ? e.message : String(e)}`);
+        emitDiag(pair.unitKey, 'infra');
         process.stderr.write(`Error: ${buildIssueMessage({
             what: `Reviewer threw an error for aspect '${aspect.id}' on ${pair.unitKey}.`,
             why: `The reviewer returned an unparseable or errored response: ${e instanceof Error ? e.message : String(e)}`,
@@ -637,6 +745,7 @@ async function runLlmAspectTest(
       // editing code for a violation the reviewer never actually found.
       if (!response.satisfied && response.errorSource === 'provider') {
         debugWrite(`[aspect-test] provider error for ${aspect.id} on ${pair.unitKey}: ${response.reason}`);
+        emitDiag(pair.unitKey, 'infra');
         process.stderr.write(`Error: ${buildIssueMessage({
             what: `Reviewer for aspect '${aspect.id}' on ${pair.unitKey} returned a provider error: ${response.reason}`,
             why: `A provider-sourced failure is infrastructure, not a code violation — the unit was not verified.`,
@@ -647,6 +756,12 @@ async function runLlmAspectTest(
       }
 
       if (!response.satisfied) refusedCount++;
+      // Record the real verdict with its full consensus vote split (how many of
+      // the tier's independent passes were satisfied out of the total cast).
+      emitDiag(pair.unitKey, response.satisfied ? 'approved' : 'refused', {
+        satisfied: votes.filter((v) => v.satisfied).length,
+        total: votes.length,
+      });
       const verdict = response.satisfied ? 'satisfied' : 'refused';
       // Vote-split suffix — only when consensus > 1 actually cast multiple votes;
       // a consensus=1 aspect always wraps a single vote, so the line stays as-is.

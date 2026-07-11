@@ -2,7 +2,7 @@
   "version": 1,
   "verdicts": {
     "cli-command-contract": {
-      "file:source/cli/src/cli/aspect-test.ts": {"hash":"b9e5eefec2c19c0ee7f3ca910ca7a1b5cfcdf3571f73d4d0ec4ae95e4021e978","verdict":"approved"},
+      "file:source/cli/src/cli/aspect-test.ts": {"hash":"70fb3c849a334580ae31504b3588754af26465bb08f5cb9ab914edaf92f226a8","verdict":"approved"},
       "file:source/cli/src/cli/aspects.ts": {"hash":"e6b1f9eab9eef7fcdb01acb065ae6fdccb9ee6d0cfe26f922b4846e2a649918b","verdict":"approved"},
       "file:source/cli/src/cli/build-context.ts": {"hash":"0b491c68aebaf95bacc2f55c1825bc2134408120ec36d964eac1a3b90f4a075a","verdict":"approved"},
       "file:source/cli/src/cli/check.ts": {"hash":"b2c21ec25758c532af5baf97181069229b27ea9e73377590c7b808651754c0aa","verdict":"approved"},
@@ -143,7 +143,7 @@
       "file:source/cli/src/structure/types.ts": {"hash":"01c07ef77a28b579f4af4d5f12941e2c65449f236faf724d0be077edbd1a1aee","verdict":"approved"}
     },
     "diagnostic-logging": {
-      "file:source/cli/src/cli/aspect-test.ts": {"hash":"f2aaef817a7dae14fdeed08881fc7403b9324b3c14562674685784e856ea8e73","verdict":"approved"},
+      "file:source/cli/src/cli/aspect-test.ts": {"hash":"b2618b17b7f1b80f2a05098c65519d8f4a8a4c56ce3fede0fddbb8b6ca34e328","verdict":"approved"},
       "file:source/cli/src/cli/aspects.ts": {"hash":"2213db1cc44e0e38ec717d07b3240e265c629aa26fa6327c37ce21ac3aba5265","verdict":"approved"},
       "file:source/cli/src/cli/build-context.ts": {"hash":"6711cfa55441461f852d06d75df3a7321c2973570e3aeb9964e3548f7ba67d32","verdict":"approved"},
       "file:source/cli/src/cli/check.ts": {"hash":"8b47f29a91cb41ed26ee0d2df38d1072886a432016eca36e5b6cd0f3767062e2","verdict":"approved"},
@@ -272,7 +272,7 @@
       "file:source/cli/src/utils/when-parser.ts": {"hash":"17e7bdf6110fa914c16cc3bc3b0a6f9076a9233c5425cec5f456846b3d1b2300","verdict":"approved"}
     },
     "provider-redaction-cascade": {
-      "file:source/cli/src/cli/aspect-test.ts": {"hash":"65478699bef6be0562a2b2e957640996a1d704f53b2ffbb3e535d8279631c5a1","verdict":"approved"},
+      "file:source/cli/src/cli/aspect-test.ts": {"hash":"89ca1f27a2fbeaa610d560f04497ec5fb38f26dfe51aa922bc554c4b83544585","verdict":"approved"},
       "file:source/cli/src/cli/drill.ts": {"hash":"cea068b950ae172aba884471e3db7eb585c6c170b7f712c0ec3882927d8aa8a2","verdict":"approved"},
       "file:source/cli/src/core/fill-closure.ts": {"hash":"d010d565bc600855693d22aa4bf093f6e3efb0c9560c1c6b3500b56332604eb5","verdict":"approved"},
       "file:source/cli/src/core/fill-det.ts": {"hash":"44c87bc2ac1cfc5ee01d4b926f1b44aa73fc34051c6657b5a23d26910dbd3098","verdict":"approved"},
@@ -317,6 +317,7 @@
       "file:source/cli/tests/e2e/cli-aspect-authoring-remaining.test.ts": {"hash":"1712fc81c09b8969cffce0c6cb13baf5c70ede58b71190b498cd68be2b6ab868","verdict":"approved"},
       "file:source/cli/tests/e2e/cli-aspect-authoring.test.ts": {"hash":"86a709bfe29d46971c92b32d3f69a6bd9a0334a76337f33700a7cbf23009dfbc","verdict":"approved"},
       "file:source/cli/tests/e2e/cli-aspect-status-extended.test.ts": {"hash":"e72d86efa454db7b2136ff0c3da2c2ae97f47f95a5c81f41a223a671d775c3f4","verdict":"approved"},
+      "file:source/cli/tests/e2e/cli-aspect-test-telemetry.test.ts": {"hash":"5690209153444d4b4580c23c976b5008c6beb952020cdab08859f6ca36c73b2f","verdict":"approved"},
       "file:source/cli/tests/e2e/cli-aspect-yaml-validation.test.ts": {"hash":"ea6ab4eb6a46432b354514ef52456ba36693bfdfd78fb89294193751a4a7e9de","verdict":"approved"},
       "file:source/cli/tests/e2e/cli-aspects-health.test.ts": {"hash":"92687f138a20e3c1755021486177278412edfd6eb452f3841c8c759de1e93372","verdict":"approved"},
       "file:source/cli/tests/e2e/cli-ast-languages.test.ts": {"hash":"5a6526235d126a423273f61ffa42018de546b4621dccc8f16660aea058099967","verdict":"approved"},
@@ -521,7 +522,7 @@
       "file:source/cli/tests/unit/bounty4/suppress-syntax.test.ts": {"hash":"e9d9ec96f58819587114f09a33dc90f2967d06ac5ed31463c710b35118fa3c92","verdict":"approved"},
       "file:source/cli/tests/unit/bounty4/working-with-architecture.test.ts": {"hash":"bff1e9202d5bd1ff662ea080e18472ceeba7f3f2977a4769372987e68a10d762","verdict":"approved"},
       "file:source/cli/tests/unit/bounty4/writing-deterministic-aspects.test.ts": {"hash":"ef84549286342167aa487f4b3ce05c52935be8565cfd4d23fd3e8df1a30e77b0","verdict":"approved"},
-      "file:source/cli/tests/unit/cli/aspect-test.test.ts": {"hash":"76d132742c203a635999fdb80b746b7ab4a5801b03644cd541ad7377ba5c3e2b","verdict":"approved"},
+      "file:source/cli/tests/unit/cli/aspect-test.test.ts": {"hash":"4cd8b0b6918a48048952ef7ea881abb41032866c7d843c8c1665d4cb1d47c784","verdict":"approved"},
       "file:source/cli/tests/unit/cli/aspects.test.ts": {"hash":"9c2a844e00e38f0e9c40dcde5f23da5f6df8efe8939673a10420e9bd12a3b525","verdict":"approved"},
       "file:source/cli/tests/unit/cli/build-command.test.ts": {"hash":"73f8edf4680c1f73953f640783badcf7da69cda38b5539db7e0e171c9c80cf67","verdict":"approved"},
       "file:source/cli/tests/unit/cli/build-context.test.ts": {"hash":"631cd2ec9bcc4377d7a9537da610bf2fa7c8bef92b56f5c3bd1660914255a708","verdict":"approved"},

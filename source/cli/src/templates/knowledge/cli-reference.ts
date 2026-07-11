@@ -186,6 +186,9 @@ yg aspect-test --aspect test-quality --node orders/handler --dry-run
 
 # LLM: measure how consistently the reviewer judges the SAME prompt
 yg aspect-test --aspect test-quality --node orders/handler --repeat 5
+
+# LLM: dry-fit the SAME pairs under a different named reviewer before a model swap
+yg aspect-test --aspect test-quality --node orders/handler --tier premium
 \`\`\`
 
 Every run carries a one-line verdict stamp \`yg aspect-test:
@@ -223,6 +226,23 @@ whose runs ALL erred is incomplete (fail closed). \`--repeat\` is rejected with
 (a local check is already exactly reproducible — use \`--check-determinism\`
 there). Use it while authoring an LLM rule to catch a prompt so ambiguous the
 reviewer flips its own verdict run to run.
+\`--tier <name>\` (LLM aspects only, with \`--node\`) re-runs the SAME pairs under
+a named reviewer tier from the merged config (\`yg-config.yaml\` plus the local
+\`yg-secrets\` overlay), OVERRIDING the tier the aspect would normally use — the
+dry-fit for "does this still pass under the model I'm about to switch to?" It is
+purely diagnostic: no graph edits, no lock writes. An unknown tier name is an
+error listing the tiers that exist. \`--tier\` is rejected with \`--files\` and on
+deterministic aspects, and MAY combine with \`--repeat\` (each of the N runs then
+goes through the chosen tier).
+
+Every LLM \`aspect-test\` run that actually calls the reviewer records one line of
+LOCAL diagnostic telemetry — which reviewer judged the unit and how it voted —
+appended to a gitignored sidecar under \`.yggdrasil/\`. A plain \`--node\` run,
+\`--repeat\`, and \`--tier\` all record alike; \`--repeat\` just adds one line per
+repeated run and \`--tier\` re-points which reviewer is recorded (\`--dry-run\`
+makes no reviewer call, so it records nothing). It is write-only observability for
+later judge-stability / model-swap analysis; nothing in \`yg check\` ever reads it
+back, and the lock is never touched.
 
 ## yg drill
 

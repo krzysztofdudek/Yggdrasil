@@ -36,3 +36,32 @@ Added a repeated-run stability mode to the aspect diagnostic. When authoring or 
 Each run is deliberately reduced to a single vote rather than the configured multi-vote consensus, so the figure reflects the judge's own run-to-run consistency instead of a majority-aggregated verdict that would hide a genuine split. The wording around the result is kept scrupulously clear that consistency is not correctness — a rule can be consistently wrong, and a high agreement ratio only means the reviewer agreed with itself.
 
 Runs in which the reviewer could not be reached are excluded from the ratio and surfaced separately, so a transient outage never reads as instability. Any single run that refuses still marks the unit refused, and a unit whose every run failed to reach the reviewer is treated as incomplete rather than passed, keeping the fail-closed stance the rest of the tool follows. The mode is confined to LLM rules and to the live reviewing path, because a local deterministic check is already exactly reproducible and the prompt-preview path makes no reviewer call at all.
+## [2026-07-11T04:44:04.013Z]
+The reviewer-diagnostic command gained two capabilities that share one
+motivation: making reviewer behavior observable and comparable across runs
+without ever altering saved verification results.
+
+First, every live reviewer run this command performs — both the repeated
+self-consistency runs and an ordinary single run — now appends one entry to the
+local, gitignored telemetry record, noting which reviewer judged the unit, how it
+voted, and whether the run produced a verdict or hit an infrastructure failure.
+Until now the repeated-run mode reported self-consistency on screen but left no
+durable trace, so later analysis of how stably a rule judges, or how a judge
+behaves after a model change, had no data to draw on. Emission is deliberately
+best-effort: a failed write is swallowed so a diagnostic can never fail because
+telemetry could not be recorded, and the telemetry is never an input to any
+verdict, so the saved verification results stay untouched.
+
+Second, a run can now be pointed at an explicitly named reviewer configuration
+instead of the one the rule would normally resolve, so a candidate reviewer can
+be dry-fitted against the current code before an actual model swap is committed.
+The named configuration is looked up directly in the merged reviewer settings
+(the committed configuration plus the local secrets overlay), deliberately
+bypassing the normal rule-to-reviewer resolution — overriding that choice is the
+entire point. An unknown name is rejected with guidance listing the
+configurations that exist, and the override performs no graph edits and no
+saved-result writes.
+
+Both capabilities are strictly diagnostic and apply only to a judgment-based rule
+run against a graph node; neither applies to locally-checked rules or to ad-hoc
+file lists, which have no reviewer to vary.
