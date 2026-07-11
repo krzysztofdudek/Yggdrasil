@@ -151,6 +151,40 @@ describe('judge-stability (a) — reviewer self-consistency (fixture telemetry)'
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it('REFUSES the "local telemetry since" label when the sidecar is TRACKED in git', () => {
+    // A telemetry sidecar that has been git-added is no longer local/private — it is
+    // committed, mixes machines/judge regimes, and can be hand-edited. The honesty
+    // footer must REFUSE the "local telemetry since" label for it (isTracked → REFUSE).
+    const dir = makeInstrumentRepo();
+    try {
+      writeJsonl(dir, '.yg-events.jsonl', [
+        {
+          v: 1,
+          source: 'diag',
+          aspectId: 'some-rule',
+          unitKey: 'file:src/x.ts',
+          kind: 'llm',
+          hash: 'HHHH',
+          tier: 'standard',
+          disposition: 'approved',
+          ts: '2026-07-01T00:00:01.000Z',
+        },
+      ]);
+      // git-add (stage) the sidecar so `git ls-files --error-unmatch` reports it TRACKED.
+      execFileSync('git', ['add', '.yggdrasil/.yg-events.jsonl'], { cwd: dir, env: GIT_ENV });
+      const res = runInstrument(dir, 'scripts/judge-stability.mjs');
+      expect(res.status).toBe(0);
+      // Exact refusal wording the footer emits for a tracked source.
+      expect(res.stdout).toContain('local-telemetry label REFUSED');
+      expect(res.stdout).toContain('TRACKED in git');
+      // The honest label must be REFUSED, never emitted, for the tracked file.
+      expect(res.stdout).not.toContain('local telemetry since');
+      expect(res.stdout).toContain('— honesty labels —');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('cusum (b) — refusal-rate shift detector (fixture telemetry)', () => {
