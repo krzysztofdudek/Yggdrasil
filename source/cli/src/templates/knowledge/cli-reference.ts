@@ -367,10 +367,15 @@ surface — distinct nodes and total review units), **refused** (refusals whose
 recorded result still matches the current code — a stale or never-checked unit is
 excluded here), **suppresses** (live \`yg-suppress\` markers targeting this aspect;
 wildcard markers are summarized on their own line, not attributed per-aspect), and
-**errs** (a deterministic check's error-direction label). Honesty rule: when units
-have no valid result on record the **refused** cell reads \`unverified\`, NEVER
-\`0\` — an unchecked unit is not a clean one. Read-only: it makes no changes and
-never calls a reviewer.
+**errs** (a deterministic check's error-direction label), and **age** (how long
+ago this aspect's rule source was first added to version control, as a coarse
+duration such as \`3mo\` or \`1y\`, so you can weigh a rule's track record). Honesty
+rule: when units have no valid result on record the **refused** cell reads
+\`unverified\`, NEVER \`0\` — an unchecked unit is not a clean one; likewise **age**
+reads \`unknown\` when that history is unavailable (a shallow clone or no
+repository), never a fabricated \`0\`. The age lookup runs only in this view — the
+plain \`yg aspects\` listing is unchanged. Read-only: it makes no changes and never
+calls a reviewer.
 
 ## yg flows
 

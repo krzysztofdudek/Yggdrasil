@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { getLastCommitTimestamp } from '../../../src/utils/git.js';
+import { getLastCommitTimestamp, getFirstCommitTimestamp } from '../../../src/utils/git.js';
 
 vi.mock('node:child_process', () => ({
   execFileSync: vi.fn(),
@@ -51,6 +51,57 @@ describe('git', () => {
     it('normalizes Windows-style paths to forward slashes', () => {
       vi.mocked(execFileSync).mockReturnValue('1730000000\n');
       getLastCommitTimestamp(FIXTURE_ROOT, 'path\\with\\backslashes');
+      expect(execFileSync).toHaveBeenCalledWith(
+        'git',
+        expect.arrayContaining(['path/with/backslashes']),
+        expect.any(Object),
+      );
+    });
+  });
+
+  describe('getFirstCommitTimestamp', () => {
+    it('uses --follow --diff-filter=A --format=%ct to trace adds through renames', () => {
+      vi.mocked(execFileSync).mockReturnValue('1730000000\n');
+      getFirstCommitTimestamp(FIXTURE_ROOT, '.yggdrasil/aspects/x/content.md');
+      expect(execFileSync).toHaveBeenCalledWith(
+        'git',
+        expect.arrayContaining(['log', '--follow', '--diff-filter=A', '--format=%ct']),
+        expect.any(Object),
+      );
+    });
+
+    it('returns the LAST (oldest) line — the original creation — from newest-first output', () => {
+      // git log prints newest-first; with --diff-filter=A a re-added path yields
+      // several ADD commits. The FIRST creation is the final line.
+      vi.mocked(execFileSync).mockReturnValue('1780000000\n1750000000\n1730000000\n');
+      expect(getFirstCommitTimestamp(FIXTURE_ROOT, 'a/b.md')).toBe(1730000000);
+    });
+
+    it('returns the single value when the path was added exactly once', () => {
+      vi.mocked(execFileSync).mockReturnValue('1730000000\n');
+      expect(getFirstCommitTimestamp(FIXTURE_ROOT, 'a/b.md')).toBe(1730000000);
+    });
+
+    it('returns null on empty output (untracked / no add on record)', () => {
+      vi.mocked(execFileSync).mockReturnValue('');
+      expect(getFirstCommitTimestamp(FIXTURE_ROOT, 'nonexistent')).toBeNull();
+    });
+
+    it('returns null when the last line is non-numeric', () => {
+      vi.mocked(execFileSync).mockReturnValue('not-a-number\n');
+      expect(getFirstCommitTimestamp(FIXTURE_ROOT, 'a/b.md')).toBeNull();
+    });
+
+    it('returns null when execFileSync throws (no repo, or shallow clone lacking the add)', () => {
+      vi.mocked(execFileSync).mockImplementation(() => {
+        throw new Error('fatal: not a git repository');
+      });
+      expect(getFirstCommitTimestamp('/tmp/not-a-repo', 'any/path')).toBeNull();
+    });
+
+    it('normalizes Windows-style paths to forward slashes', () => {
+      vi.mocked(execFileSync).mockReturnValue('1730000000\n');
+      getFirstCommitTimestamp(FIXTURE_ROOT, 'path\\with\\backslashes');
       expect(execFileSync).toHaveBeenCalledWith(
         'git',
         expect.arrayContaining(['path/with/backslashes']),

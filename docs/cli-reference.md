@@ -383,10 +383,14 @@ it — and an `Implies:` line when the aspect implies others.
 (`llm` / `deterministic` / `aggregate`), status, review surface (`nodes` and `pairs`),
 `refused` (refusals whose recorded result still matches the current code — stale or
 never-checked units are excluded), `suppresses` (live `yg-suppress` markers targeting it;
-wildcard markers are summarized separately, not attributed per-aspect), and `errs` (a
-deterministic check's error-direction label). When units have no valid result on record the
-`refused` cell reads `unverified`, never `0`, so an unchecked aspect is never shown as clean.
-The view is read-only and never calls a reviewer.
+wildcard markers are summarized separately, not attributed per-aspect), `errs` (a
+deterministic check's error-direction label), and `age` (how long ago the aspect's rule
+source was first added to version control, as a coarse duration such as `3mo` or `1y`). When
+units have no valid result on record the `refused` cell reads `unverified`, never `0`, so an
+unchecked aspect is never shown as clean; likewise `age` reads `unknown` when that history is
+unavailable (a shallow clone or no repository), never a fabricated `0`. The age lookup runs
+only in this view — the plain `yg aspects` listing stays unchanged. The view is read-only and
+never calls a reviewer.
 
 ### `yg flows`
 

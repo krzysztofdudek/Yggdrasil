@@ -5,7 +5,7 @@ import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { initDebugLog } from '../utils/debug-log.js';
 import { appendToDebugLog } from '../io/debug-log-writer.js';
 import { computeEffectiveAspects, inferAspectDisplayKind } from '../core/graph/aspects.js';
-import type { Graph, AspectStatus } from '../model/graph.js';
+import type { Graph, AspectStatus, AspectDef } from '../model/graph.js';
 import { readLock } from '../io/lock-store.js';
 import { verifyLock } from '../core/verify-lock.js';
 import type { VerifiedPair } from '../core/verify-lock.js';
@@ -13,6 +13,7 @@ import { walkRepoFiles } from '../io/repo-scanner.js';
 import { runSuppressionsScan } from '../portal/api/suppress-scan.js';
 import type { SuppressionsReport } from '../portal/api/suppress-scan.js';
 import { collectMappingEntries } from '../portal/api/suppress-eligibility.js';
+import { getFirstCommitTimestamp } from '../utils/git.js';
 
 interface AspectUsage {
   architecture: number;
@@ -129,6 +130,13 @@ export interface AspectHealthRow {
   suppresses: number;
   /** Error-direction label ('over' | 'under' | 'exact') or EMPTY_CELL. */
   errs: string;
+  /**
+   * Coarse age of the aspect's rule source since it was first added to version
+   * control (e.g. '3mo', '1y'); the WORD 'unknown' when history is unavailable
+   * (shallow clone / no repo / untracked), never a fabricated 0; EMPTY_CELL for a
+   * bundle with no rule source to age.
+   */
+  age: string;
 }
 
 export interface AspectHealth {
@@ -154,6 +162,74 @@ export function renderRefusedCell(pairs: number, refused: number, unknown: numbe
   return `${refused} (+${unknown} ${UNVERIFIED})`;
 }
 
+/** Rendered when a rule's creation time cannot be read from version control. */
+const UNKNOWN_AGE = 'unknown';
+
+/**
+ * Render a coarse, single-token age for a rule source from its first-add
+ * timestamp (Unix seconds) and an INJECTED reference now (milliseconds). Coarse
+ * buckets keep the health table scannable rather than precise: '<1d' (also covers
+ * clock skew where the timestamp reads as future), 'Nd' under a month, 'Nmo' under
+ * a year, then 'Ny'. A null timestamp — git unavailable (shallow clone, no repo,
+ * untracked) — renders the WORD 'unknown', NEVER a fabricated 0, so a missing
+ * track record is never mistaken for a brand-new rule.
+ *
+ * `now` is a parameter, not a Date.now() read, so a fixed now yields a stable,
+ * testable bucket (the age of a given commit relative to a fixed now is constant).
+ */
+export function renderRuleAge(firstAddSeconds: number | null, nowMs: number): string {
+  if (firstAddSeconds === null) return UNKNOWN_AGE;
+  const ageSeconds = Math.floor(nowMs / 1000) - firstAddSeconds;
+  const ageDays = Math.floor(ageSeconds / 86400);
+  if (ageDays < 1) return '<1d';
+  if (ageDays < 30) return `${ageDays}d`;
+  if (ageDays < 365) return `${Math.floor(ageDays / 30)}mo`;
+  return `${Math.floor(ageDays / 365)}y`;
+}
+
+/**
+ * The rule-source filename an aspect ships (content.md for an LLM aspect,
+ * check.mjs for a deterministic one), or null for a bundle that ships neither and
+ * so has no rule to age. Read off the already-loaded artifacts — no disk access —
+ * mirroring how the display kind is inferred from rule-source presence.
+ */
+function ruleSourceFilename(aspect: AspectDef): string | null {
+  const has = (filename: string): boolean => aspect.artifacts.some((a) => a.filename === filename);
+  if (has('content.md')) return 'content.md';
+  if (has('check.mjs')) return 'check.mjs';
+  return null;
+}
+
+/**
+ * Resolve each aspect's rule-source age string for the health view, keyed by
+ * aspect id. For every aspect that ships a rule source, query version control for
+ * when that file was FIRST added and render a coarse duration from the injected
+ * reference now; aspects with no rule source (implies-only bundles) have nothing
+ * to age → EMPTY_CELL. Git-unavailable resolves to 'unknown', never a zero.
+ *
+ * Runs one git subprocess per rule-bearing aspect, so it is invoked ONLY on the
+ * --health path — the default `yg aspects` listing never calls this and therefore
+ * runs zero git subprocesses.
+ */
+export function resolveRuleAges(
+  graph: Graph,
+  projectRoot: string,
+  nowMs: number,
+): Map<string, string> {
+  const ages = new Map<string, string>();
+  for (const aspect of graph.aspects) {
+    const ruleFile = ruleSourceFilename(aspect);
+    if (ruleFile === null) {
+      ages.set(aspect.id, EMPTY_CELL);
+      continue;
+    }
+    const relPath = `.yggdrasil/aspects/${aspect.id}/${ruleFile}`;
+    const firstAdd = getFirstCommitTimestamp(projectRoot, relPath);
+    ages.set(aspect.id, renderRuleAge(firstAdd, nowMs));
+  }
+  return ages;
+}
+
 /**
  * Fold the verified-pair classification, the graph, and a live suppress scan into
  * one health row per aspect (sorted by id). Pure — no I/O; every input is already
@@ -168,6 +244,7 @@ export function computeAspectHealth(
   graph: Graph,
   verifiedPairs: VerifiedPair[],
   suppressReport: SuppressionsReport,
+  ruleAges: ReadonlyMap<string, string> = new Map(),
 ): AspectHealth {
   interface Agg {
     pairs: number;
@@ -226,6 +303,7 @@ export function computeAspectHealth(
       refused,
       suppresses: suppressByAspect.get(aspect.id) ?? 0,
       errs: aspect.errs ?? EMPTY_CELL,
+      age: ruleAges.get(aspect.id) ?? EMPTY_CELL,
     });
   }
 
@@ -242,6 +320,7 @@ const HEALTH_HEADERS = [
   'refused',
   'suppresses',
   'errs',
+  'age',
 ] as const;
 
 /** Render the health rows as a left-aligned, two-space-gap text table. */
@@ -257,6 +336,7 @@ export function formatAspectsHealthOutput(health: AspectHealth): string {
       r.refused,
       String(r.suppresses),
       r.errs,
+      r.age,
     ]),
   ];
 
@@ -284,10 +364,16 @@ export function formatAspectsHealthOutput(health: AspectHealth): string {
 /**
  * Assemble the `--health` view: read the lock, verify every pair against current
  * inputs (read-only — no writes, no reviewer calls), run a live suppress scan,
- * and fold the three into the health table. Reuses the exact core read-only
- * functions the check path uses, so refusal validity is computed identically.
+ * resolve each rule's creation age from version control, and fold them into the
+ * health table. Reuses the exact core read-only functions the check path uses, so
+ * refusal validity is computed identically.
+ *
+ * `nowMs` is the injected reference instant for the coarse age column (an
+ * observability timestamp — it records how long ago each rule was created, not
+ * what any verdict is), threaded from the command boundary so the pure renderers
+ * stay clock-free and testable.
  */
-export async function buildAspectsHealthOutput(graph: Graph): Promise<string> {
+export async function buildAspectsHealthOutput(graph: Graph, nowMs: number): Promise<string> {
   const projectRoot = path.dirname(graph.rootPath);
 
   const lock = readLock(graph.rootPath);
@@ -306,7 +392,8 @@ export async function buildAspectsHealthOutput(graph: Graph): Promise<string> {
     underApproximatingAspectIds,
   );
 
-  const health = computeAspectHealth(graph, verification.pairs, suppressReport);
+  const ruleAges = resolveRuleAges(graph, projectRoot, nowMs);
+  const health = computeAspectHealth(graph, verification.pairs, suppressReport, ruleAges);
   return formatAspectsHealthOutput(health);
 }
 
@@ -316,14 +403,18 @@ export function registerAspectsCommand(program: Command): void {
     .description('List aspects with usage stats')
     .option(
       '--health',
-      'per-aspect health: pairs, hash-valid refusals, suppress markers, error direction',
+      'per-aspect health: pairs, hash-valid refusals, suppress markers, error direction, rule age',
     )
     .action(async (options: { health?: boolean }) => {
       try {
         const graph = await loadGraphOrAbort(process.cwd());
         initDebugLog(graph.rootPath, graph.config.debug ?? false, appendToDebugLog);
         if (options.health) {
-          process.stdout.write(await buildAspectsHealthOutput(graph));
+          // Injected reference instant for the coarse rule-age column. Read once
+          // here at the command boundary (an observability timestamp — it records
+          // how long ago each rule was created, not what any verdict is) and
+          // threaded down so the pure renderers never read the clock themselves.
+          process.stdout.write(await buildAspectsHealthOutput(graph, Date.now()));
         } else {
           process.stdout.write(formatAspectsOutput(graph));
         }

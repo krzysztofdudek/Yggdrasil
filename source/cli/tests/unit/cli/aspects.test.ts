@@ -6,6 +6,8 @@ import {
   computeAspectHealth,
   formatAspectsHealthOutput,
   renderRefusedCell,
+  renderRuleAge,
+  resolveRuleAges,
 } from '../../../src/cli/aspects.js';
 import type { VerifiedPair, PairState } from '../../../src/core/verify-lock.js';
 import type { SuppressionsReport } from '../../../src/portal/api/suppress-scan.js';
@@ -361,7 +363,7 @@ describe('formatAspectsHealthOutput', () => {
     const out = formatAspectsHealthOutput(computeAspectHealth(graph, [], report()));
     const header = out.split('\n')[0].trim().split(/\s{2,}/);
     expect(header).toEqual([
-      'aspect', 'kind', 'status', 'nodes', 'pairs', 'refused', 'suppresses', 'errs',
+      'aspect', 'kind', 'status', 'nodes', 'pairs', 'refused', 'suppresses', 'errs', 'age',
     ]);
   });
 
@@ -404,5 +406,82 @@ describe('formatAspectsHealthOutput', () => {
     const out = formatAspectsHealthOutput(computeAspectHealth(graph, pairs, report()));
     expect(out).not.toContain('wildcard');
     expect(out).not.toContain('not yet checked');
+  });
+
+  it('renders the rule age in the last column when supplied', () => {
+    const graph = makeGraph([makeAspect('a1', { reviewer: 'deterministic' })]);
+    const ages = new Map([['a1', '3mo']]);
+    const health = computeAspectHealth(graph, [], report(), ages);
+    const out = formatAspectsHealthOutput(health);
+    const dataRow = out.split('\n').find((l) => l.trim().split(/\s{2,}/)[0] === 'a1')!;
+    const cells = dataRow.trim().split(/\s{2,}/);
+    expect(cells[cells.length - 1]).toBe('3mo'); // age is the final column
+  });
+});
+
+// ── rule-age column (C3 slice 2) ──────────────────────────────────────────
+
+describe('renderRuleAge', () => {
+  const BASE = 1_000_000_000; // fixed first-add instant (Unix seconds)
+  const at = (days: number): string => renderRuleAge(BASE, (BASE + days * 86400) * 1000);
+
+  it('null timestamp → the word "unknown", never a zero (history unavailable)', () => {
+    expect(renderRuleAge(null, (BASE + 999 * 86400) * 1000)).toBe('unknown');
+    expect(renderRuleAge(null, (BASE + 999 * 86400) * 1000)).not.toBe('0');
+  });
+
+  it('same instant / sub-day age → "<1d"', () => {
+    expect(at(0)).toBe('<1d');
+    expect(at(0.5)).toBe('<1d');
+  });
+
+  it('a future first-add (clock skew) clamps to "<1d", never a negative token', () => {
+    expect(renderRuleAge(BASE, (BASE - 5000) * 1000)).toBe('<1d');
+  });
+
+  it('days bucket below a month', () => {
+    expect(at(1)).toBe('1d');
+    expect(at(5)).toBe('5d');
+    expect(at(29)).toBe('29d');
+  });
+
+  it('months bucket below a year', () => {
+    expect(at(30)).toBe('1mo');
+    expect(at(45)).toBe('1mo');
+    expect(at(200)).toBe('6mo');
+  });
+
+  it('years bucket at and beyond a year', () => {
+    expect(at(365)).toBe('1y');
+    expect(at(800)).toBe('2y');
+  });
+
+  it('is stable for a fixed injected now (deterministic — the renderer reads no clock)', () => {
+    expect(at(90)).toBe('3mo');
+    expect(at(90)).toBe(at(90));
+  });
+});
+
+describe('resolveRuleAges', () => {
+  it('an implies-only bundle (no rule source) has no age → em-dash, needing no git', () => {
+    const graph = makeGraph([makeAspect('agg', { implies: ['child'], artifacts: [] })]);
+    // projectRoot is irrelevant: a bundle with no rule file never consults git.
+    const ages = resolveRuleAges(graph, '/nonexistent-yg-resolve-path', 1_700_000_000_000);
+    expect(ages.get('agg')).toBe('—');
+  });
+
+  it('a rule-bearing aspect with no readable history → "unknown", never a zero', () => {
+    const graph = makeGraph([
+      makeAspect('llm-x', { artifacts: [{ filename: 'content.md', content: 'rule' }] }),
+      makeAspect('det-x', {
+        reviewer: 'deterministic',
+        artifacts: [{ filename: 'check.mjs', content: 'export function check(){return [];}' }],
+      }),
+    ]);
+    // projectRoot does not exist → the git subprocess fails → an honest "unknown".
+    const ages = resolveRuleAges(graph, '/nonexistent-yg-resolve-path', 1_700_000_000_000);
+    expect(ages.get('llm-x')).toBe('unknown');
+    expect(ages.get('det-x')).toBe('unknown');
+    expect(ages.get('llm-x')).not.toBe('0');
   });
 });
