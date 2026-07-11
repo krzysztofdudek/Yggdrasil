@@ -1,0 +1,1 @@
+program.parse(process.argv);

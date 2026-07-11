@@ -256,3 +256,40 @@ reads of the literal `options` identifier, silently skipping the documented
 shapes: an aliased options object, a short-flag-only spec, a dynamically-built
 spec, and a rest-pattern capture. Neither direction dominates, so no single
 label would be honest.
+
+## Graph-context aspects (no drill corpus in v1)
+
+These deterministic aspects read graph context (node / graph / fs / parseYaml),
+so `yg drill` runs the check over case files with no whole-graph context and
+records each case `unsupported` (recorded, not scored). They get no drill corpus
+in v1; a future fixture-graph drill mode lifts this. Each line names the graph
+context the check actually reads.
+
+- `sibling-test-file` — reads graph context (node, graph); `yg drill` reports `unsupported` — a future fixture-graph mode lifts this.
+- `portal/count-parity-via-reuse` — reads graph context (node); `yg drill` reports `unsupported` — a future fixture-graph mode lifts this.
+- `reference/doc-shape` — reads graph context (node, graph, parseYaml); `yg drill` reports `unsupported` — a future fixture-graph mode lifts this.
+- `reference/layout` — reads graph context (node, graph, fs, parseYaml); `yg drill` reports `unsupported` — a future fixture-graph mode lifts this.
+- `reference/section-body` — reads graph context (node, graph, parseYaml); `yg drill` reports `unsupported` — a future fixture-graph mode lifts this.
+- `reference/relations/case-has-test` — reads graph context (node, graph); `yg drill` reports `unsupported` — a future fixture-graph mode lifts this.
+- `reference/relations/case-is-tested` — reads graph context (node, graph); `yg drill` reports `unsupported` — a future fixture-graph mode lifts this.
+
+Two of these — `reference/doc-shape` and `reference/section-body` — reach graph
+context only on the `.md`-file branch that a generic non-`.md` probe never
+exercises, so the runner's runtime `unsupported` classification alone would
+mis-file them as files-only. Their residual placement is established by READING
+the check (`ctx.node` / `ctx.graph` / `ctx.parseYaml` in the schema-load helper),
+which is authoritative over a single probe run.
+
+## Path-pinned files-only aspects (no drill corpus in v1)
+
+These two aspects use NO graph context, but each self-scopes to a
+repo-root-anchored production path (`filePath.startsWith('source/cli/…')` or an
+exact module-path allowlist). A drill case lives under
+`.yggdrasil/aspects/<id>/drills/…`, so it can never occupy that path: the check
+skips every synthetic case and a would-be `violates-*` case `MISS`es (verified:
+a case nested at the look-alike path still `MISS`es, because the prefix stays
+`.yggdrasil/`). `yg drill` v1 cannot exercise them; a future path-remapping drill
+mode lifts this.
+
+- `no-buildissuemessage-in-engine` — fires only inside `source/cli/src/{core,io,ast}/`; a `.yggdrasil/`-rooted case is always out of scope.
+- `instrument-import-fence` — fires only on exact gating / presentation module paths (e.g. `source/cli/src/cli/check.ts`, `source/cli/src/core/check.ts`); a synthetic case path is never in the set.
