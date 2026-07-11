@@ -1,0 +1,14 @@
+name: E2E Tests — yg drill
+type: test-suite
+description: "Subprocess E2E for yg drill over the public CLI surface: the
+  deterministic path (pass/pass, exit 0, honesty frame — no case source leaks),
+  a corpus that reveals a rule regression (MISS, exit 1), the LLM path against
+  the in-process mock reviewer (pass/pass, budget before the first case, one
+  source:'drill' verdict-event per LLM case, matching drill-results, lock never
+  written), prompt-too-large (unrun, exit 2, reviewer never called), the shipped
+  in-repo deterministic corpus, and the unknown-aspect error. Real spawned
+  binary with the in-process mock reviewer."
+aspects: []
+relations: [ { target: cli/tests/e2e/support, type: uses } ]
+mapping:
+  - source/cli/tests/e2e/cli-drill.test.ts

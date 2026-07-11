@@ -1,10 +1,11 @@
 # Aspect Drills
 
-Hand-authored regression fixtures for this repository's **deterministic**
-aspects. Each drill is a tiny synthetic source file that a deterministic
-`check.mjs` either refuses or passes. When a maintainer sharpens a check, these
-let them confirm — by hand, in seconds — that it still catches what it should
-and still ignores what it should.
+Hand-authored regression fixtures for this repository's aspects. Each drill is a
+tiny synthetic source file that an aspect's rule either refuses or passes. When a
+maintainer sharpens a rule, these let them confirm — in seconds — that it still
+catches what it should and still ignores what it should. Run a whole corpus with
+`yg drill --aspect <id>` (see **Running drills** below); deterministic aspects
+run locally and free, LLM aspects go through the real reviewer.
 
 Drills are committed on purpose: they are hand-authored test fixtures, not
 rebuildable derived state, so they are versioned alongside the checks they
@@ -30,10 +31,12 @@ refusal count of `1` maps to a single, obvious cause.
 
 ## Hard rules for authoring drills
 
-- **Deterministic aspects only.** Drills are run through `yg aspect-test
-  --files`, which executes the aspect's `check.mjs` directly. LLM aspects have
-  no local check to exercise this way.
-- **`.ts` files only, and only under `drills/<case>/`.** Nothing else belongs in
+- **Either reviewer kind.** `yg drill` runs a deterministic aspect's `check.mjs`
+  locally (free) and an LLM aspect's `content.md` through the production prompt
+  path (billed). A deterministic check that reads graph context, or an LLM aspect
+  that ships `companion.mjs`, resolves to `unsupported` (recorded, not scored) —
+  a drill runs the rule over case files only, with no whole-graph context.
+- **Source files only, and only under `drills/<case>/`.** Nothing else belongs in
   a `drills/` tree.
 - **Never place a file named `yg-aspect.yaml` anywhere beneath `drills/`** — not
   even as inert fixture data. The graph loader hard-skips any directory named
@@ -61,10 +64,38 @@ absolute path shifts the resolution and the violating case would silently pass.
 The five `../` segments in its violating drills walk from `drills/<case>/` back
 to the repo root before descending into `source/cli/src/`.
 
-## Run book
+## Running drills
 
-Run each command from the repository root. The comment on each line is the
-stamp that case must print.
+`yg drill --aspect <id>` runs an aspect's WHOLE corpus in one command and reports
+each case as `pass`, `MISS` (a `violates-*` case the rule failed to refuse — a
+real hole), `FALSE-ALARM` (a `satisfies-*` case the rule wrongly refused),
+`unrun` (could not be evaluated — a check runtime error or an over-limit LLM
+prompt), or `unsupported` (a capability gap — a graph-context check or a
+`companion.mjs` aspect). Exit is `1` on any MISS or FALSE-ALARM, `2` if any case
+is unrun, else `0`.
+
+```bash
+# Run the whole corpus (deterministic aspects run free; LLM aspects bill the reviewer)
+node source/cli/dist/bin.js drill --aspect no-direct-minimatch
+# -> ... 4 pass · 0 MISS · 0 FALSE-ALARM · 0 unrun · 0 unsupported
+
+# Filter to a subset of case labels
+node source/cli/dist/bin.js drill --aspect wasm-tree-lifecycle --case 'violates-*/**'
+```
+
+The lock is NEVER written: `yg drill` only appends to a local, gitignored results
+log (`.yggdrasil/.drill-results.jsonl`) plus, for LLM cases, one telemetry line
+each. Failure output shows only the corpus label, content hashes, and pass/fail —
+never the case source, since the committed set is a sharpening aid, not a
+measurement. The doctrine "no drill, no enforced" stays advisory: a missing
+corpus never gates `yg check`.
+
+## Run book (low-level, one case at a time)
+
+To exercise a single deterministic case directly — bypassing corpus discovery —
+run `yg aspect-test --files` over the case's file(s) and read the **stamp line**.
+Run each command from the repository root; the comment on each line is the stamp
+that case must print.
 
 ```bash
 # no-direct-minimatch
@@ -136,10 +167,12 @@ Read these honestly before drawing any conclusion from a drill run.
 - A **sealed holdout**, if one is ever kept, lives **outside this repository**,
   or not at all. Nothing in a committed, agent-visible tree can serve as a
   holdout.
-- There is **no engine support** for drills yet: no runner, no gate, no lock
-  interaction. `yg check` does not execute them, no verdict is recorded for
-  them, and they do not affect any pair's hash. They are inert fixtures run
-  manually via `yg aspect-test`, exactly as the run book shows.
+- The `yg drill` runner executes a corpus and classifies each case, but it is
+  **never a gate and never touches the lock**: `yg check` does not execute drills,
+  no verdict is recorded for them, and they do not affect any pair's hash. `yg
+  drill` writes only a local, gitignored results log (and, for LLM cases, a
+  telemetry line); the doctrine "no drill, no enforced" stays advisory. Drills
+  remain sharpening fixtures, not part of the verification lock.
 
 ## errs census
 

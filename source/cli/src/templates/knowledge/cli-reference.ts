@@ -1,5 +1,5 @@
 export const summary =
-  'Full yg command reference: check, check --approve, context, aspect-test, impact, tree, aspects, flows, find, log, owner, type-suggest, init, knowledge, schemas';
+  'Full yg command reference: check, check --approve, context, aspect-test, drill, impact, tree, aspects, flows, find, log, owner, type-suggest, init, knowledge, schemas';
 
 export const content = `# CLI reference
 
@@ -223,6 +223,53 @@ whose runs ALL erred is incomplete (fail closed). \`--repeat\` is rejected with
 (a local check is already exactly reproducible — use \`--check-determinism\`
 there). Use it while authoring an LLM rule to catch a prompt so ambiguous the
 reviewer flips its own verdict run to run.
+
+## yg drill
+
+Re-run ONE aspect's rule over its per-aspect case corpus — a library of example
+files whose directory prefix encodes the expected verdict — and report whether
+the rule still behaves. A \`violates-*\` case MUST be refused; a \`satisfies-*\`
+case MUST pass. Drills are REGRESSION FIXTURES for sharpening a rule, NOT a
+sensitivity/specificity measurement: the committed case set is visible to the
+author by definition. The lock is NEVER written.
+
+\`\`\`bash
+# Drill an aspect's in-repo corpus (aspects/<id>/drills/{violates-*,satisfies-*}/**)
+yg drill --aspect no-direct-minimatch
+
+# Run only matching case labels (repo-relative POSIX glob)
+yg drill --aspect no-direct-minimatch --case 'violates-*/**'
+
+# Drill against an EXTERNAL holdout corpus (data only — case files, never imported)
+yg drill --aspect no-direct-minimatch --dir ../holdout-cases --corpus holdout-v1
+\`\`\`
+
+Corpus layout: each source file under a \`violates-*\` / \`satisfies-*\`
+directory is one case; its label is the file's corpus-relative POSIX path with
+the extension stripped (e.g. \`violates-namespace-import/star-minimatch\`).
+
+Each case resolves to one of five outcomes:
+
+- \`pass\` — the rule produced the expected verdict.
+- \`MISS\` — a \`violates-*\` case the rule FAILED to refuse (the rule under-fires;
+  a real hole).
+- \`FALSE-ALARM\` — a \`satisfies-*\` case the rule wrongly refused (the rule
+  over-fires).
+- \`unrun\` — the case could not be evaluated (a check runtime error, or an LLM
+  prompt over the tier's \`max_prompt_chars\`); infra, recorded, not scored.
+- \`unsupported\` — the rule needs context a drill cannot supply (a deterministic
+  check that reads graph context, or an LLM aspect that ships \`companion.mjs\`);
+  a capability gap, recorded, never counted as pass/fail.
+
+Deterministic aspects run locally and FREE. LLM aspects go through the same
+production prompt path the reviewer uses and BILL the reviewer — the
+reviewer-call budget (\`<L> LLM case(s) × consensus <c>\`) prints BEFORE the first
+call. Exit is \`1\` on any MISS or FALSE-ALARM, else \`2\` if any case is unrun,
+else \`0\`. Failure output shows only the corpus label, content hashes, and
+pass/fail — never the case source. \`yg drill\` writes only a local, gitignored
+results log (\`.yggdrasil/.drill-results.jsonl\`) plus, for LLM cases, one
+telemetry line each; it never touches the verification lock. The doctrine "no
+drill, no enforced" is advisory — a missing corpus never gates \`yg check\`.
 
 ## yg impact
 

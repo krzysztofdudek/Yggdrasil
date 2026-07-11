@@ -1,0 +1,23 @@
+name: Drill Runner
+type: engine
+description: "yg drill orchestrator — discovers an aspect's per-aspect case corpus
+  (violates-*/satisfies-* files), dispatches each case, and classifies every
+  outcome as pass / MISS / FALSE-ALARM / unrun / unsupported. Deterministic
+  execution and the network reviewer are INJECTED by the command layer, so this
+  engine module stays deterministic and ast-free while assembling LLM prompts
+  byte-identically to the production filler. Never touches the lock."
+relations:
+  - target: cli/model/graph
+    type: uses
+  - target: cli/core/pair-inputs
+    type: calls
+  - target: cli/io/stores
+    type: calls
+  - target: cli/utils
+    type: calls
+  - target: cli/llm/shared
+    type: calls
+  - target: cli/structure
+    type: calls
+mapping:
+  - source/cli/src/core/drill-runner.ts

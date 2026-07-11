@@ -1,0 +1,40 @@
+name: DrillCommand
+type: command
+description: "Re-runs an aspect's rule over its violates-*/satisfies-* case corpus
+  and reports pass / MISS / FALSE-ALARM / unrun / unsupported. Deterministic
+  aspects run locally and free (via the AST runner under a graph-access trap);
+  LLM aspects go through the production prompt path and the real reviewer, with
+  the reviewer-call budget printed before the first call. The lock is NEVER
+  written — only the gitignored .drill-results.jsonl sidecar and, for LLM cases,
+  a source:'drill' verdict-event. Drills are regression fixtures for sharpening a
+  rule, not a sensitivity/specificity measurement; failure output shows only the
+  corpus label, content hashes, and pass/fail — never the case source."
+aspects:
+  - provider-redaction-cascade
+relations:
+  - target: cli/core/drill
+    type: calls
+  - target: cli/ast/runtime
+    type: calls
+  - target: cli/llm/shared
+    type: calls
+  - target: cli/llm/registry
+    type: calls
+  - target: cli/core/reviewer-tiers
+    type: calls
+  - target: cli/io/stores
+    type: calls
+  - target: cli/formatters
+    type: calls
+  - target: cli/preamble
+    type: calls
+  - target: cli/exit-after-flush
+    type: calls
+  - target: cli/utils
+    type: calls
+  - target: cli/model/graph
+    type: uses
+  - target: cli/tests/unit/cli
+    type: uses
+mapping:
+  - source/cli/src/cli/drill.ts

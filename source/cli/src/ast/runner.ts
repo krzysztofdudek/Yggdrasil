@@ -19,6 +19,16 @@ export interface RunAstAspectParams {
   files: Array<{ path: string }>;
   projectRoot: string;
   parseCache?: ParseCache;
+  /**
+   * When true, `ctx.node`, `ctx.graph`, `ctx.fs`, and `ctx.parseYaml` become
+   * getters that throw {@link GraphAccessTrap} the instant a check reads them.
+   * Set ONLY by `yg drill` (whose graphless case-file runs cannot supply graph
+   * context); unset EVERYWHERE else, so for every production path `ctx` stays
+   * exactly `{ files }` — zero behavior change. Under a false/absent value, a
+   * check that dereferences `ctx.node` sees `undefined` and throws a TypeError
+   * that wraps as `AST_CHECK_THROWN`, exactly as before this flag existed.
+   */
+  graphAccessTrap?: boolean;
 }
 
 export interface RunAstAspectResult {
@@ -31,6 +41,20 @@ export class AstRunnerError extends Error {
     super(`${data.what}\n${data.why}\n${data.next}`);
     this.messageData = data;
     this.name = 'AstRunnerError';
+  }
+}
+
+/**
+ * Thrown by a trapping ctx accessor when a check reads graph context under a
+ * drill (`graphAccessTrap: true`). It DISTINGUISHES "this check needs the graph
+ * → unsupported by drill v1" from "this check has a bug → unrun": the runner
+ * catches it and rethrows an `AstRunnerError('AST_GRAPH_CTX_UNSUPPORTED')`
+ * BEFORE the generic `AST_CHECK_THROWN` wrap. It never escapes `runAstAspect`.
+ */
+export class GraphAccessTrap extends Error {
+  constructor(public readonly accessor: string) {
+    super(`graph accessor '${accessor}' is unavailable under yg drill`);
+    this.name = 'GraphAccessTrap';
   }
 }
 
@@ -141,11 +165,39 @@ export async function runAstAspect(params: RunAstAspectParams): Promise<RunAstAs
     throw e;
   }
 
+  // Production paths pass `graphAccessTrap` false/unset, so `ctx` is EXACTLY
+  // `{ files }` for them (byte-for-byte the pre-existing object — zero behavior
+  // change). Only `yg drill` sets the trap: then the four graph-context accessors
+  // become getters that throw GraphAccessTrap the instant a check reads them, so a
+  // graph-aware check surfaces as `unsupported` (a capability gap) rather than
+  // `unrun` (a bug). The properties are non-enumerable so the object still
+  // serializes/inspects as `{ files }`.
   const ctx: CheckContext = { files: sourceFiles };
+  if (params.graphAccessTrap) {
+    for (const accessor of ['node', 'graph', 'fs', 'parseYaml'] as const) {
+      Object.defineProperty(ctx, accessor, {
+        configurable: true,
+        enumerable: false,
+        get() {
+          throw new GraphAccessTrap(accessor);
+        },
+      });
+    }
+  }
   let raw: unknown;
   try {
     raw = checkFn(ctx);
   } catch (e: unknown) {
+    // A GraphAccessTrap means the check read graph context the drill cannot
+    // supply — reclassify it as unsupported BEFORE the generic runtime-error wrap
+    // so `yg drill` records the case as a capability gap, never a check bug.
+    if (e instanceof GraphAccessTrap) {
+      throw new AstRunnerError('AST_GRAPH_CTX_UNSUPPORTED', {
+        what: `check.mjs for aspect '${params.aspectId}' read graph context (ctx.${e.accessor}), which yg drill does not provide.`,
+        why: `yg drill runs check.mjs over the case files only (ctx.files); a check that needs node / graph / fs / parseYaml cannot run in a graphless drill.`,
+        next: `The case is recorded as unsupported (not scored). Verify this aspect through yg check --approve, which supplies full graph context.`,
+      });
+    }
     throw new AstRunnerError('AST_CHECK_THROWN', {
       what: `check.mjs threw an exception while running (aspect '${params.aspectId}').`,
       why: (e instanceof Error ? e.stack : undefined) ?? String(e),

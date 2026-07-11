@@ -20,6 +20,8 @@ relations:
     type: calls
   - target: cli/commands/aspect-test
     type: uses
+  - target: cli/commands/drill
+    type: uses
   - target: cli/commands/find
     type: uses
   - target: cli/commands/knowledge

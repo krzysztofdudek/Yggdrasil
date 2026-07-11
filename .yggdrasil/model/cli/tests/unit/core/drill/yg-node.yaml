@@ -1,0 +1,16 @@
+name: Drill Runner Tests
+type: test-suite
+description: "Unit tests for the yg drill runner — corpus discovery (verdict-prefix
+  decoding, extension-stripped labels, .md/yg-aspect.yaml exclusion, --case glob,
+  --dir holdout), outcome classification and exit-code logic, caseHash stability,
+  and the runDrills orchestration over injected impure ops: deterministic pass /
+  MISS / FALSE-ALARM / unsupported, and the LLM path (budget before first review,
+  companion → unsupported, prompt-too-large → unrun, provider infra → unrun)."
+aspects: []
+relations:
+  [
+    { target: cli/core/drill, type: uses },
+    { target: cli/model/graph, type: uses }
+  ]
+mapping:
+  - source/cli/tests/unit/core/drill-runner.test.ts

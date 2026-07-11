@@ -7,6 +7,7 @@ relations:
   [
     { target: cli/ast/runtime, type: uses },
     { target: cli/commands/aspect-test, type: uses },
+    { target: cli/commands/drill, type: uses },
     { target: cli/commands/knowledge, type: uses },
     { target: cli/commands/schemas, type: uses },
     { target: cli/commands/suppressions, type: uses },
@@ -26,6 +27,7 @@ mapping:
   - source/cli/tests/unit/cli/knowledge.test.ts
   - source/cli/tests/unit/cli/schemas.test.ts
   - source/cli/tests/unit/cli/aspect-test.test.ts
+  - source/cli/tests/unit/cli/drill.test.ts
   - source/cli/tests/unit/cli/tree.test.ts
   - source/cli/tests/unit/cli/portal.test.ts
   - source/cli/tests/unit/cli/type-suggest.test.ts

@@ -10,4 +10,5 @@ relations:
   ]
 mapping:
   - source/cli/tests/integration/ast-runner.test.ts
+  - source/cli/tests/integration/ast-runner-graph-trap.test.ts
   - source/cli/tests/integration/impact-ast.test.ts
