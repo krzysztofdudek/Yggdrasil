@@ -395,6 +395,43 @@ describe.skipIf(!distExists)('yg advise — G4: exit 0 on every loadable fixture
   });
 });
 
+describe.skipIf(!distExists)('yg advise — G4: a drill MISS line missing `case` fails open (spawned)', () => {
+  let projectRoot: string;
+
+  beforeEach(() => {
+    projectRoot = mkdtempSync(path.join(tmpdir(), 'yg-advise-nocase-'));
+    cpSync(FIXTURE, projectRoot, { recursive: true });
+    // A corrupted / partially-written local drill line: valid JSON, a real MISS
+    // (expect refused, got satisfied), but NO `case` field. drillMissNominations
+    // dereferences line.case and passes it to quoteData — quoteData(undefined)
+    // throws — so if the reader did not drop this line, the read-only feed would
+    // crash. The reader must drop it and the feed must still render and exit 0.
+    const line = {
+      v: 1,
+      ts: '2026-07-01T00:00:00.000Z',
+      aspect: 'requires-audit',
+      expect: 'refused',
+      got: 'satisfied',
+      src: 'dev',
+      corpus: 'dev',
+      caseHash: 'c'.repeat(64),
+      ruleHash: '0'.repeat(64),
+      kind: 'llm',
+    };
+    writeFileSync(
+      path.join(projectRoot, '.yggdrasil', '.drill-results.jsonl'),
+      JSON.stringify(line) + '\n',
+      'utf-8',
+    );
+  });
+  afterEach(() => rmSync(projectRoot, { recursive: true, force: true }));
+
+  it('bare `yg advise` exits 0 over a case-less drill MISS line (no crash)', () => {
+    const { status } = run(['advise'], projectRoot);
+    expect(status).toBe(0);
+  });
+});
+
 describe('yg advise — G6: no YAML-writing helper is reachable from the advise surface', () => {
   const SRC = path.join(CLI_ROOT, 'src');
   const adviseFiles = [

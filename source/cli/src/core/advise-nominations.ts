@@ -255,7 +255,7 @@ function drillMissNominations(graph: Graph, results: DrillResultLine[]): Nominat
 
     const aspectQ = quoteData(line.aspect);
     const caseQ = quoteData(line.case);
-    const sinceLabel = `local diagnostic result since ${line.ts}`;
+    const sinceLabel = `local diagnostic result since ${quoteData(line.ts)}`;
 
     const what = fresh
       ? `A regression case for rule '${aspectQ}' is no longer caught.`
@@ -326,7 +326,7 @@ function promotionNominations(graph: Graph, events: VerdictEvent[]): Nomination[
     }
     if (refused !== 0 || approved < PROMOTION_MIN_APPROVED) continue;
 
-    const labels: string[] = [`local telemetry since ${firstTs ?? lastTs}`];
+    const labels: string[] = [`local telemetry since ${quoteData(firstTs ?? lastTs)}`];
     if (approved < THIN_DATA_N) labels.push('small-N');
     if (judgeMissing) labels.push('regime unknown');
 
@@ -411,7 +411,7 @@ function sharpenNominations(events: VerdictEvent[]): Nomination[] {
 
   const out: Nomination[] = [];
   for (const t of worstPerAspect.values()) {
-    const labels: string[] = [`local telemetry since ${t.lastTs}`];
+    const labels: string[] = [`local telemetry since ${quoteData(t.lastTs)}`];
     if (t.total < THIN_DATA_N) labels.push('small-N');
     if (t.judgeMissing) labels.push('regime unknown');
 
@@ -482,7 +482,7 @@ function decorativeRuleNominations(
       if (e.source !== 'fill' || e.aspectId !== aspect.id) continue;
       if (typeof e.ts === 'string' && e.ts > lastTs) lastTs = e.ts;
     }
-    const sinceLabel = lastTs !== '' ? ` [local telemetry since ${lastTs}]` : '';
+    const sinceLabel = lastTs !== '' ? ` [local telemetry since ${quoteData(lastTs)}]` : '';
 
     const aspectQ = quoteData(aspect.id);
     out.push({

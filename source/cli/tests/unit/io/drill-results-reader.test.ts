@@ -70,6 +70,44 @@ describe('drill-results-reader', () => {
     expect(r.firstTs).toBe('2026-07-01T00:00:00.000Z');
   });
 
+  it('drops a MISS-shaped line missing `case` (fail-open — counted skipped, never thrown)', () => {
+    // A corrupted / partially-written local line: valid JSON, a real MISS (expect
+    // refused, got satisfied), but NO `case` field. The nomination engine reads
+    // line.case and passes it to quoteData — quoteData(undefined) throws — so the
+    // reader must drop this line here, mirroring the rigor it applies to ts /
+    // aspect / expect / got / ruleHash, rather than surface an unusable record.
+    const noCase = JSON.stringify({
+      v: 1,
+      ts: '2026-07-01T00:00:05.000Z',
+      aspect: 'requires-audit',
+      expect: 'refused',
+      got: 'satisfied',
+      ruleHash: 'r'.repeat(64),
+    });
+    write(DRILL_RESULTS_FILENAME, [noCase, validLine('2026-07-01T00:00:06.000Z')]);
+    const r = readDrillResults(tmpDir);
+    // The case-less line is dropped; only the well-formed line survives, and no throw.
+    expect(r.results).toHaveLength(1);
+    expect(r.results[0].case).toBe('violates-x/case');
+    expect(r.skipped).toBe(1);
+  });
+
+  it('drops a line whose `case` is present but not a string', () => {
+    const nonStringCase = JSON.stringify({
+      v: 1,
+      ts: '2026-07-01T00:00:07.000Z',
+      aspect: 'requires-audit',
+      case: 42,
+      expect: 'refused',
+      got: 'satisfied',
+      ruleHash: 'r'.repeat(64),
+    });
+    write(DRILL_RESULTS_FILENAME, [nonStringCase]);
+    const r = readDrillResults(tmpDir);
+    expect(r.results).toHaveLength(0);
+    expect(r.skipped).toBe(1);
+  });
+
   it('reads the rotated `.1` sidecar BEFORE the current file (chronological order)', () => {
     write(`${DRILL_RESULTS_FILENAME}.1`, [validLine('2026-06-01T00:00:00.000Z')]);
     write(DRILL_RESULTS_FILENAME, [validLine('2026-07-01T00:00:00.000Z')]);

@@ -95,10 +95,11 @@ export function readDrillResults(yggRootPath: string): DrillResultsReadResult {
         continue;
       }
 
-      const { ts, aspect, expect, got, ruleHash } = parsed;
+      const { ts, aspect, case: caseLabel, expect, got, ruleHash } = parsed;
       if (
         typeof ts !== 'string' ||
         typeof aspect !== 'string' ||
+        typeof caseLabel !== 'string' ||
         typeof expect !== 'string' ||
         !KNOWN_EXPECT.has(expect) ||
         typeof got !== 'string' ||

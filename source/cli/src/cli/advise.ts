@@ -397,7 +397,7 @@ export function registerAdviseCommand(program: Command): void {
         requireNonEmptyReason(opts.reason, 'defer');
         if (!isValidReviewByDate(opts.until)) {
           failWith({
-            what: `--until '${opts.until}' is not a valid calendar date.`,
+            what: `--until '${quoteData(opts.until)}' is not a valid calendar date.`,
             why: 'A defer window is a bare ISO calendar day (YYYY-MM-DD); a mis-shaped or impossible date has no defined return point.',
             next: 'Re-run with --until in YYYY-MM-DD form, e.g. --until 2027-01-31.',
           });
@@ -417,7 +417,7 @@ export function registerAdviseCommand(program: Command): void {
         await recordDecision(
           graph,
           decision,
-          `Deferred '${quoteData(nomination.id)}' until ${opts.until}. It returns to the feed on or after that date.`,
+          `Deferred '${quoteData(nomination.id)}' until ${quoteData(opts.until)}. It returns to the feed on or after that date.`,
         );
       } catch (error) {
         handleError(error);
