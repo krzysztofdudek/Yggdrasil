@@ -501,6 +501,20 @@ An id that matches no current item is rejected with the list of current ids.
 \`yg advise\` never changes a verdict, the lock, or whether \`yg check\` passes —
 it only decides what the attention feed shows you.
 
+Every dismiss and defer is recorded as one line in \`.yggdrasil/advise-decisions.jsonl\`.
+That file is **committed** (not gitignored): the record is case law — a decision made
+on one machine is honored on every clone, and the file carries a \`merge=union\`
+attribute so two branches that each add decisions merge cleanly with no conflict.
+Dismissing or deferring is **human-signature territory, the same authorization class
+as \`yg-suppress\`**: the agent records a decision only on your explicit instruction and
+with a reason you supply — it never dismisses or defers a nomination on its own.
+
+**Cadence pattern (optional, for adopters).** A read-only, keyless job can publish the
+feed on a fixed rhythm: a weekly CI workflow that runs \`yg advise --all\` and upserts a
+single pinned issue gives you one place to review the attention items. This is a
+**documented pattern to copy, not a shipped default** — \`yg init\` never scaffolds it,
+and the feed never appears in \`yg check\`'s suggested next step.
+
 ## yg suppressions
 
 Read-only inventory of all active \`yg-suppress\` markers in the repository's
