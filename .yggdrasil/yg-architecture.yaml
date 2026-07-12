@@ -393,6 +393,9 @@ node_types:
         - path: "scripts/*.sh"
         - path: "scripts/*.mjs"
         - path: "scripts/*.ts"
+    aspects:
+      - id: repo-check-gate-steps
+        status: advisory
     parents: [module]
     relations:
       default: deny
@@ -419,6 +422,9 @@ node_types:
         - path: "source/cli/vitest*.config.ts"
         - path: "source/cli/tsup.config.ts"
         - path: "source/cli/playwright.config.ts"
+    aspects:
+      - id: ci-actions-pinned
+        status: advisory
     parents: [project, module]
     relations:
       default: deny

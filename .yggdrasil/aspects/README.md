@@ -222,6 +222,8 @@ dishonest.
 | `portal/no-network-egress` | over | The content URL-scan arm flags any http(s)/protocol-relative URL in executable code; a non-egress URL (XML/SVG namespace, data value) is falsely flagged (the AST egress-name arm is itself an evadable tripwire). |
 | `portal/no-secrets-strings` | over | Substring match of `yg-secrets`/`api_key` in any frontend string literal; a glossary or label string that merely mentions the field name is falsely flagged. |
 | `reference/relations/case-has-test` | over | The forward arm flags a catalogue `<id>.md` whenever a bare `it('<id>')` literal is not found, but its regex ignores rule-permitted forms — `it.only`/`it.skip`/`it.todo('<id>')` and template-literal names — so a case that does have a test is falsely flagged; the reverse arm's `runCase` proximity slice can likewise mis-attribute a call, so a red may be a false alarm. |
+| `ci-actions-pinned` | over | Content scan of YAML `uses:` lines; any value under a `uses:` key with no `@ref`, `./`/`../` prefix, or `docker://` scheme is treated as an unpinned action, so a non-workflow YAML that reused a `uses:` key for another purpose is falsely flagged (advisory). |
+| `repo-check-gate-steps` | over | Category presence is decided by command-keyword regexes over the gate script's non-comment lines; a category invoked under a phrasing the matcher does not recognize is falsely reported missing (advisory). |
 | `atomic-write-contract` | under | Flags only a direct call to a raw write function imported by its exact name; a namespace or aliased import (`fs.writeFile`, `writeFile as wf`) is silently skipped. |
 | `command-exit-codes` | under | Flags only a literal numeric `process.exit(N)` where N is not 0 or 1; a computed or variable exit code is silently skipped. |
 | `e2e-public-surface` | under | Resolves only statically-analyzable relative specifiers into `src/**`; an interpolated or computed specifier is silently skipped (zero-FP by design). |
@@ -295,3 +297,7 @@ mode lifts this.
 
 - `no-buildissuemessage-in-engine` — fires only inside `source/cli/src/{core,io,ast}/`; a `.yggdrasil/`-rooted case is always out of scope.
 - `instrument-import-fence` — fires only on exact gating / presentation module paths (e.g. `source/cli/src/cli/check.ts`, `source/cli/src/core/check.ts`); a synthetic case path is never in the set.
+
+## Uncovered by design
+
+- Deleting the gate invocation (`- run: scripts/repo-check.sh`) from `ci.yml` is a residual hole left uncovered: `repo-check-gate-steps` guards that the gate keeps its check categories (drift protection), not that CI still runs the gate at all (tamper-proofing). Asserting the invocation is a maintainer opt-up, not part of this aspect.

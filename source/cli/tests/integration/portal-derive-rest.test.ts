@@ -64,11 +64,26 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     expect(Array.isArray(data.boundary.declaredOnly)).toBe(true);
   });
 
-  it('the residue lists the real no-rule nodes and never hides them', () => {
-    // scripts / tools / examples etc. own source but carry no rule — they must appear.
-    expect(data.residue.noRuleNodes).toContain('scripts');
-    // Every residue no-rule node must also read state==='no-rule' in the node detail.
+  it('the residue never hides a genuinely-no-rule source node (universal honesty invariant, robust to coverage level)', () => {
+    // Asserted as a UNIVERSAL invariant rather than by pinning any one node. As coverage
+    // closes (rule-bearing aspects attach to more source-owning types), the set of genuinely-
+    // no-rule source nodes shrinks — and may legitimately trend all the way to EMPTY. The old
+    // pin that named `scripts` here rotted the instant `scripts` gained a rule, so it is gone.
+    // What MUST hold at every coverage level is that the residue never HIDES a source node
+    // that carries no rule: for every derived node that owns source, it is either surfaced in
+    // the no-rule residue, OR it carries at least one effective aspect (a rule reaches it), OR
+    // its mapped source was just edited (`fresh`) and it is therefore surfaced as `unverified`
+    // — a stronger, more-visible state than no-rule, never a silent green. This is strictly
+    // stronger than the old single-node pin and cannot be defeated by the coverage closing.
     const byPath = new Map(data.nodes.map((n) => [n.path, n]));
+    const noRule = new Set(data.residue.noRuleNodes);
+    for (const n of data.nodes) {
+      if (n.mapping.length === 0) continue; // a node with no source cannot be a no-rule SOURCE node
+      const surfaced = noRule.has(n.path) || n.effectiveAspects.length > 0 || n.fresh;
+      expect(surfaced, `source node "${n.path}" (state=${n.state}) is hidden: absent from the residue, carries no rule, and is not fresh`).toBe(true);
+    }
+    // The general residue invariant is KEPT: every node the residue calls no-rule reads
+    // state==='no-rule' in its own node detail — the residue can never mislabel a node.
     for (const p of data.residue.noRuleNodes) {
       expect(byPath.get(p)!.state).toBe('no-rule');
     }
