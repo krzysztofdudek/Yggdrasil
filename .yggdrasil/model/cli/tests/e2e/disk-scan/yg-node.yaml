@@ -6,6 +6,6 @@ description: "Subprocess E2E proving yg check uses disk-based file enumeration
   index) is not reported as unmapped. Guards the CLI disk-scan contract through
   the real built binary."
 aspects: []
-relations: []
+relations: [ { target: cli/tests/support, type: uses } ]
 mapping:
   - source/cli/tests/e2e/cli-disk-scan.test.ts

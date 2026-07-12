@@ -6,6 +6,6 @@ description: "Subprocess E2E for `yg log read --with-verdicts` — the interleav
   are excluded, the local-telemetry header is shown, and plain `yg log read`
   output stays unchanged."
 aspects: []
-relations: []
+relations: [ { target: cli/tests/support, type: uses } ]
 mapping:
   - source/cli/tests/e2e/cli-log-with-verdicts.test.ts

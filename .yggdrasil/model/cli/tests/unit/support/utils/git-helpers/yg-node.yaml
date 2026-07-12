@@ -3,7 +3,7 @@ type: test-suite
 description: "Unit tests for git and repository utility modules: git command
   helpers, git introspection, and repository scanning"
 aspects: []
-relations: [ { target: cli/io/stores, type: uses }, { target: cli/utils, type: uses } ]
+relations: [ { target: cli/io/stores, type: uses }, { target: cli/utils, type: uses }, { target: cli/tests/support, type: uses } ]
 mapping:
   - source/cli/tests/unit/utils/git.test.ts
   - source/cli/tests/unit/utils/git-introspect.test.ts

@@ -1,0 +1,13 @@
+name: Tests — Shared Git-Fixture Isolation
+type: test-suite
+description: "Cross-tier test support: a git-fixture isolation helper used by unit,
+  integration, and e2e suites that spawn throwaway `git init`/`add`/`commit`
+  fixtures. It pins every fixture git command to the fixture's own repository with
+  an explicit absolute GIT_DIR (disabling all repository discovery) and scrubs the
+  inherited GIT_* discovery variables, so a fixture write can never touch the real
+  repository's index — the isolation that keeps the pre-commit gate from ever
+  capturing a partial staged set. Imports only Node builtins; nothing from src/**."
+aspects: []
+relations: []
+mapping:
+  - source/cli/tests/support/git-fixture.ts

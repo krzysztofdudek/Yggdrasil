@@ -9,6 +9,7 @@ import {
   getFileAtRef,
   isMergeCommit,
 } from '../../../src/utils/git-introspect.js';
+import { gitFixtureEnv } from '../../support/git-fixture.js';
 
 const dirs: string[] = [];
 
@@ -19,7 +20,7 @@ afterEach(async () => {
 async function setupRepoWithMerge(): Promise<{ repo: string; mergeSha: string }> {
   const repo = await mkdtemp(path.join(tmpdir(), 'yg-git-'));
   dirs.push(repo);
-  const r = (cmd: string) => execSync(cmd, { cwd: repo, stdio: 'pipe' });
+  const r = (cmd: string) => execSync(cmd, { cwd: repo, stdio: 'pipe', env: gitFixtureEnv(repo) });
   r('git init -q -b main');
   r('git config user.email t@t.test');
   r('git config user.name Test');
@@ -35,7 +36,9 @@ async function setupRepoWithMerge(): Promise<{ repo: string; mergeSha: string }>
   r('git commit -qm "merge feat1"');
   r('git merge --no-commit --no-ff -X ours feat2 -q || true');
   r('git commit -qm "merge feat2 over feat1" || true');
-  const mergeSha = execSync('git rev-parse HEAD', { cwd: repo }).toString().trim();
+  const mergeSha = execSync('git rev-parse HEAD', { cwd: repo, env: gitFixtureEnv(repo) })
+    .toString()
+    .trim();
   return { repo, mergeSha };
 }
 

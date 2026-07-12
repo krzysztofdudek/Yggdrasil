@@ -35,6 +35,7 @@ import {
   partitionByCoverageTier,
 } from '../../../src/core/check-coverage-tiers.js';
 import type { CoverageConfig } from '../../../src/model/graph.js';
+import { gitFixtureEnv } from '../../support/git-fixture.js';
 
 // ───────────────────────────────────────────────────────────────────────────
 // normalizeRoot — POSIX, strip leading/trailing slashes, collapse internal
@@ -367,16 +368,18 @@ function makeRepo(label: string): string {
   cpSync(FIXTURE, dir, { recursive: true });
   // Initialize a real git repo so `git ls-files` returns tracked files (the
   // gate that enables the coverage scan in cli/check.ts).
-  execFileSync('git', ['init', '-q'], { cwd: dir });
-  execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: dir });
-  execFileSync('git', ['config', 'user.name', 'Test'], { cwd: dir });
+  const env = gitFixtureEnv(dir);
+  execFileSync('git', ['init', '-q'], { cwd: dir, env });
+  execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: dir, env });
+  execFileSync('git', ['config', 'user.name', 'Test'], { cwd: dir, env });
   return dir;
 }
 
 /** Stage + commit everything currently on disk so `git ls-files` sees it. */
 function commitAll(dir: string): void {
-  execFileSync('git', ['add', '-A'], { cwd: dir });
-  execFileSync('git', ['commit', '-q', '-m', 'fixture'], { cwd: dir });
+  const env = gitFixtureEnv(dir);
+  execFileSync('git', ['add', '-A'], { cwd: dir, env });
+  execFileSync('git', ['commit', '-q', '-m', 'fixture'], { cwd: dir, env });
 }
 
 const configPath = (dir: string) => path.join(dir, '.yggdrasil', 'yg-config.yaml');

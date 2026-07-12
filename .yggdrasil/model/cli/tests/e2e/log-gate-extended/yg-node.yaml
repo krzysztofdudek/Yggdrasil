@@ -2,6 +2,6 @@ name: E2E Tests — Log Gate Extended
 type: test-suite
 description: "Subprocess E2E proving the mandatory-log gate semantics and remaining log paths — a cascade-only approve requiring no new entry, the gate firing on a source change independent of aspect status, a log_required:false node type skipping the gate, a vacuous first approve with zero mapped source files, log-format edges (fenced level-2 heading, duplicate datetime), node-path invalid-syntax rejection across log add/read/merge-resolve, and merge-resolve node-not-found and missing-log paths."
 aspects: []
-relations: []
+relations: [ { target: cli/tests/support, type: uses } ]
 mapping:
   - source/cli/tests/e2e/cli-log-gate-extended.test.ts

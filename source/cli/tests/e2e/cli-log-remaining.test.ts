@@ -12,6 +12,7 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { gitFixtureEnv } from '../support/git-fixture.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../..');
@@ -94,7 +95,7 @@ const ordersLogPath = (dir: string) =>
 
 /** Run a git command in the repo with stdio piped (silent). */
 function git(repo: string, cmd: string): void {
-  execSync(`git ${cmd}`, { cwd: repo, stdio: 'pipe' });
+  execSync(`git ${cmd}`, { cwd: repo, stdio: 'pipe', env: gitFixtureEnv(repo) });
 }
 
 /** Initialize a throwaway git repo over a deterministic fixture copy. */

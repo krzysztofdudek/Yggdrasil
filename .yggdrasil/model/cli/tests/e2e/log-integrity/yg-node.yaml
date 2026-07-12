@@ -2,6 +2,6 @@ name: E2E Tests — Log Integrity
 type: test-suite
 description: Subprocess E2E proving the mandatory-log-before-approve gate, the level-2-heading reason rejection, log read --top validation, and the git merge-resolve flow (byte-exact ancestor + union, plus non-merge-commit and tampered-ancestor refusals).
 aspects: []
-relations: []
+relations: [ { target: cli/tests/support, type: uses } ]
 mapping:
   - source/cli/tests/e2e/cli-log-integrity.test.ts

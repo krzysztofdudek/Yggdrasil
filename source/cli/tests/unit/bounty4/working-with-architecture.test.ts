@@ -5,6 +5,7 @@ import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { runGitFixture } from '../../support/git-fixture.js';
 
 import { loadGraph } from '../../../src/core/graph-loader.js';
 import { validate } from '../../../src/core/validator.js';
@@ -740,10 +741,10 @@ describe.skipIf(!distExists)('type-suggest CLI edge-case messages', () => {
 
 describe.skipIf(!distExists)('yg check — architecture conformance (spawned)', () => {
   function gitInit(root: string): void {
-    spawnSync('git', ['init', '-q'], { cwd: root });
-    spawnSync('git', ['config', 'user.email', 'a@b.c'], { cwd: root });
-    spawnSync('git', ['config', 'user.name', 't'], { cwd: root });
-    spawnSync('git', ['add', '-A'], { cwd: root });
+    runGitFixture(root, ['init', '-q']);
+    runGitFixture(root, ['config', 'user.email', 'a@b.c']);
+    runGitFixture(root, ['config', 'user.name', 't']);
+    runGitFixture(root, ['add', '-A']);
   }
 
   function check(root: string): { stdout: string; status: number | null } {

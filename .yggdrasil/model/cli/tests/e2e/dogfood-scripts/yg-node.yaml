@@ -8,6 +8,6 @@ description: >-
   zero comparisons, the meter sees zero decision events — both still exit 0 and
   print their header); the full-history audit runs in its own CI job.
 aspects: []
-relations: []
+relations: [ { target: cli/tests/support, type: uses } ]
 mapping:
   - source/cli/tests/e2e/dogfood-scripts-smoke.test.ts

@@ -10,7 +10,8 @@ relations:
     { target: cli/core/log-validator, type: uses },
     { target: cli/core/parsing, type: uses },
     { target: cli/io/lock-store, type: uses },
-    { target: cli/model/lock, type: uses }
+    { target: cli/model/lock, type: uses },
+    { target: cli/tests/support, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/core/log-format.test.ts

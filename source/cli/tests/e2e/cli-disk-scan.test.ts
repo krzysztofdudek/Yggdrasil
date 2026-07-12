@@ -4,6 +4,7 @@ import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync, unlinkSync }
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { runGitFixture } from '../support/git-fixture.js';
 
 // ---------------------------------------------------------------------------
 // E2E: disk-based file enumeration for coverage scan.
@@ -26,7 +27,7 @@ const LOOPBACK = 'http://127.0.0.1:11434';
 const distExists = existsSync(BIN_PATH);
 
 function git(args: string[], cwd: string): void {
-  const r = spawnSync('git', args, { cwd, encoding: 'utf-8' });
+  const r = runGitFixture(cwd, args);
   if (r.status !== 0) throw new Error(`git ${args.join(' ')} failed: ${r.stderr}`);
 }
 

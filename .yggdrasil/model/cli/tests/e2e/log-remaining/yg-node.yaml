@@ -2,6 +2,6 @@ name: E2E Tests — log-remaining
 type: test-suite
 description: "Subprocess E2E covering the remaining log-management paths — the Supersedes convention, a large multi-entry log under read --top and --all without truncation, and the log add/read/merge-resolve error branches not already pinned by the other log suites."
 aspects: []
-relations: []
+relations: [ { target: cli/tests/support, type: uses } ]
 mapping:
   - source/cli/tests/e2e/cli-log-remaining.test.ts

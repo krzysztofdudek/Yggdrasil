@@ -16,6 +16,7 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { gitFixtureEnv } from '../support/git-fixture.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../..');
@@ -136,7 +137,7 @@ const P2_NEW = '## [2026-05-11T12:00:00.000Z]\nfeat2.\n';
 
 /** Run a git command in the repo with stdio piped (silent). */
 function git(repo: string, cmd: string): void {
-  execSync(`git ${cmd}`, { cwd: repo, stdio: 'pipe' });
+  execSync(`git ${cmd}`, { cwd: repo, stdio: 'pipe', env: gitFixtureEnv(repo) });
 }
 
 function buildMergeRepo(label: string, resolvedLog: string): string {

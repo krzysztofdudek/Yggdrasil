@@ -13,6 +13,7 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { gitFixtureEnv } from '../support/git-fixture.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../..');
@@ -153,7 +154,7 @@ const P1_NEW = '## [2026-05-11T11:00:00.000Z]\nfeat1.\n';
 const P2_NEW = '## [2026-05-11T12:00:00.000Z]\nfeat2.\n';
 
 function git(repo: string, cmd: string): void {
-  execSync(`git ${cmd}`, { cwd: repo, stdio: 'pipe' });
+  execSync(`git ${cmd}`, { cwd: repo, stdio: 'pipe', env: gitFixtureEnv(repo) });
 }
 
 /**
