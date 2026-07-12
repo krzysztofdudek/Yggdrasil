@@ -6,6 +6,7 @@ relations: []
 mapping:
   - .github/workflows/ci.yml
   - .github/workflows/codeql.yml
+  - .github/workflows/court-digest.yml
   - .github/workflows/docs.yml
   - .github/workflows/release.yml
   - .github/workflows/tag-release.yml

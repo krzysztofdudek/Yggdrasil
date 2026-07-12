@@ -384,13 +384,49 @@ it — and an `Implies:` line when the aspect implies others.
 `refused` (refusals whose recorded result still matches the current code — stale or
 never-checked units are excluded), `suppresses` (live `yg-suppress` markers targeting it;
 wildcard markers are summarized separately, not attributed per-aspect), `errs` (a
-deterministic check's error-direction label), and `age` (how long ago the aspect's rule
-source was first added to version control, as a coarse duration such as `3mo` or `1y`). When
+deterministic check's error-direction label), `age` (how long ago the aspect's rule
+source was first added to version control, as a coarse duration such as `3mo` or `1y`), and —
+per rule — `catch` and `exposure` (how many times the rule has actually refused a unit against
+how many times a reviewer genuinely exercised it, counted over distinct checks so a cached
+re-render never inflates them, and never pooled across the two reviewer kinds), plus a
+plain-words read of how confident that ratio is (few observations reads as a wide uncertainty
+range, never a false-precise number), and a `label` — `active`, `quiet`, or `decorative?`. A
+`decorative?` rule whose own examples still pass is reported as *possibly deterring the very
+violations it would catch* rather than assumed useless; a demotion is only ever suggested when
+several independent signals agree, never on the catch count alone. When
 units have no valid result on record the `refused` cell reads `unverified`, never `0`, so an
 unchecked aspect is never shown as clean; likewise `age` reads `unknown` when that history is
-unavailable (a shallow clone or no repository), never a fabricated `0`. The age lookup runs
+unavailable (a shallow clone or no repository), never a fabricated `0`. These lookups run
 only in this view — the plain `yg aspects` listing stays unchanged. The view is read-only and
 never calls a reviewer.
+
+### `yg advise`
+
+A read-only attention layer over the graph. With no subcommand it prints two sections:
+**Attention** (one aggregate line per class of signal — e.g. how many dependencies reach
+across distant parts of the architecture, pointing you to `yg structure`) and **Nominations**
+(up to ten ranked, evidence-backed suggestions in a fixed priority order). Each nomination
+states what it found, why — with the underlying evidence quoted verbatim as data (a waiver's
+own words, a case name, a file and line, shown in quotes with their source, never echoed as an
+instruction) — and the exact next step, which always ends by noting it needs your approval.
+
+```bash
+yg advise                                              # the two-section feed
+yg advise --all                                        # remove the 10-item cap; also list dismissed / deferred
+yg advise --ids                                        # print each item's stable id
+yg advise dismiss <id> --reason "reviewed, keeping"    # hide until the evidence changes
+yg advise defer <id> --until 2027-01-31 --reason "…"   # hide until a date, then it returns
+```
+
+`--reason` is mandatory (recorded precedent must carry a human-signed justification). Decisions
+are written one per line to `.yggdrasil/advise-decisions.jsonl`, which is **committed** (case
+law — honored on every clone) and carries a `merge=union` attribute so branches merge cleanly.
+Dismissing or deferring is human-signature territory, the same authorization class as
+`yg-suppress`: the agent records a decision only on your explicit instruction, with your reason.
+`yg advise` always exits 0 on a loadable graph; it never changes a verdict, the lock, or whether
+`yg check` passes, and never appears in the suggested next step. A read-only, keyless CI job that
+runs `yg advise --all` into a pinned issue on a weekly rhythm is a documented **pattern** to
+copy — not a shipped default.
 
 ### `yg flows`
 

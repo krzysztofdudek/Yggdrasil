@@ -1,5 +1,6 @@
 name: AtomicWriteContract
 description: "Persistence-adapter files must not call writeFile or appendFile from node:fs/promises directly — all file writes must go through atomicWriteFile() from io/atomic-write to ensure crash-safe atomic updates."
+review_by: 2026-12-24
 errs: under
 reviewer:
   type: deterministic

@@ -12,6 +12,19 @@ import {
 import type { VerifiedPair, PairState } from '../../../src/core/verify-lock.js';
 import type { SuppressionsReport } from '../../../src/portal/api/suppress-scan.js';
 import { nodeUnit } from '../../../src/model/lock.js';
+import type { AspectHealthSignal, DrillStatus } from '../../../src/core/aspect-health-signals.js';
+
+function signal(over: Partial<AspectHealthSignal>): AspectHealthSignal {
+  return {
+    catch: 0,
+    exposure: 0,
+    pointEstimate: 0,
+    uncertaintyWide: false,
+    label: 'quiet',
+    demotionCorroborated: false,
+    ...over,
+  };
+}
 
 function makeAspect(id: string, overrides: Partial<Omit<AspectDef, 'reviewer'>> & { reviewer?: string | AspectDef['reviewer'] } = {}): AspectDef {
   const { reviewer: rev, ...rest } = overrides;
@@ -364,6 +377,7 @@ describe('formatAspectsHealthOutput', () => {
     const header = out.split('\n')[0].trim().split(/\s{2,}/);
     expect(header).toEqual([
       'aspect', 'kind', 'status', 'nodes', 'pairs', 'refused', 'suppresses', 'errs', 'age',
+      'catch', 'exposure', 'signal',
     ]);
   });
 
@@ -408,14 +422,64 @@ describe('formatAspectsHealthOutput', () => {
     expect(out).not.toContain('not yet checked');
   });
 
-  it('renders the rule age in the last column when supplied', () => {
+  it('renders the rule age in its column when supplied (age is column index 8)', () => {
     const graph = makeGraph([makeAspect('a1', { reviewer: 'deterministic' })]);
     const ages = new Map([['a1', '3mo']]);
     const health = computeAspectHealth(graph, [], report(), ages);
     const out = formatAspectsHealthOutput(health);
     const dataRow = out.split('\n').find((l) => l.trim().split(/\s{2,}/)[0] === 'a1')!;
     const cells = dataRow.trim().split(/\s{2,}/);
-    expect(cells[cells.length - 1]).toBe('3mo'); // age is the final column
+    // age holds its fixed position; the catch/exposure/signal columns follow it,
+    // reading em-dash for a rule with no recorded telemetry.
+    expect(cells[8]).toBe('3mo');
+    expect(cells.slice(9)).toEqual(['—', '—', '—']);
+  });
+});
+
+// ── catch / exposure + anti-Goodhart signal (C3 slice 3) ──────────────────
+
+describe('computeAspectHealth — catch/exposure cells + signal notes', () => {
+  it('fills catch/exposure/signal cells from the signal, em-dash when never exposed', () => {
+    const graph = makeGraph([
+      makeAspect('active-x', { reviewer: 'deterministic' }),
+      makeAspect('dormant-x', { reviewer: 'deterministic' }),
+    ]);
+    const signals = new Map<string, AspectHealthSignal>([
+      ['active-x', signal({ catch: 4, exposure: 12, label: 'active' })],
+      ['dormant-x', signal({ catch: 0, exposure: 0, label: 'quiet' })],
+    ]);
+    const { rows } = computeAspectHealth(graph, [], report(), new Map(), signals);
+    const active = rows.find((r) => r.aspectId === 'active-x')!;
+    expect(active.catchCell).toBe('4');
+    expect(active.exposureCell).toBe('12');
+    expect(active.signalCell).toBe('active');
+    const dormant = rows.find((r) => r.aspectId === 'dormant-x')!;
+    expect(dormant.catchCell).toBe('—');
+    expect(dormant.exposureCell).toBe('—');
+    expect(dormant.signalCell).toBe('—');
+  });
+
+  it('emits the anti-Goodhart covenant note for a decorative? rule whose drills pass', () => {
+    const graph = makeGraph([makeAspect('never-hit', { reviewer: 'deterministic' })]);
+    const signals = new Map<string, AspectHealthSignal>([
+      ['never-hit', signal({ catch: 0, exposure: 30, label: 'decorative?', pointEstimate: 0.03 })],
+    ]);
+    const drillStatuses = new Map<string, DrillStatus>([['never-hit', 'proves-catch']]);
+    const { signalNotes } = computeAspectHealth(graph, [], report(), new Map(), signals, drillStatuses);
+    expect(signalNotes.some((n) => n.includes('enforceable but never violated — may be deterring violations'))).toBe(true);
+    const out = formatAspectsHealthOutput(computeAspectHealth(graph, [], report(), new Map(), signals, drillStatuses));
+    expect(out).toContain('enforceable but never violated — may be deterring violations');
+    expect(out).not.toContain('beta-binomial'); // method names never leak into CLI text
+    expect(out).not.toContain('Wilson');
+  });
+
+  it('emits a plain-words "few observations" note for a thin sample', () => {
+    const graph = makeGraph([makeAspect('thin-x', { reviewer: 'deterministic' })]);
+    const signals = new Map<string, AspectHealthSignal>([
+      ['thin-x', signal({ catch: 1, exposure: 3, label: 'active', uncertaintyWide: true, pointEstimate: 0.25 })],
+    ]);
+    const out = formatAspectsHealthOutput(computeAspectHealth(graph, [], report(), new Map(), signals));
+    expect(out).toContain('uncertainty range is wide (few observations)');
   });
 });
 

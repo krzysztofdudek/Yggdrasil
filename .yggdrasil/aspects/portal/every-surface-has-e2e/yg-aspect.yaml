@@ -23,5 +23,6 @@ description: >-
   read it as proof the coverage map has no holes and no COVERS claim is hollow.
 errs: over
 status: enforced
+review_by: 2027-02-18
 scope:
   per: node

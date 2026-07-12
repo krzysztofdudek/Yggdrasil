@@ -127,6 +127,10 @@ describe.skipIf(!isGitRepo)('dogfood scripts — spawn smoke', () => {
   // `.yggdrasil/`, which the parallel test suite also touches — so the edge-source
   // half (shared with `yg structure`, not this script's math) can legitimately vary
   // under concurrency. That is out of scope for the script's determinism contract.
+  // spectral-headroom runs a deterministic power iteration (POWER_ITERATIONS=4000)
+  // over the real graph's giant component; that is ~2.3s in isolation but can exceed
+  // the 5s vitest default under full-suite parallel CPU contention, so this spawn-smoke
+  // gets a generous per-test timeout to stay non-flaky (the computation itself is fixed).
   it('spectral-headroom.mjs exits 0 with its header, headroom line, and verbatim label', () => {
     const res = runScript('scripts/spectral-headroom.mjs');
     expect(res.status).toBe(0);
@@ -136,7 +140,7 @@ describe.skipIf(!isGitRepo)('dogfood scripts — spawn smoke', () => {
       'conductance rewards balanced cuts — a small cohesive module legitimately scores low; ' +
         'these are candidates for human eyes, never defects.',
     );
-  });
+  }, 30_000);
 });
 
 // ---------------------------------------------------------------------------

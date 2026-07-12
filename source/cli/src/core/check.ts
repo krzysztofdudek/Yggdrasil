@@ -3,6 +3,7 @@ import type { ValidationIssue } from '../model/validation.js';
 import { DEFAULT_COVERAGE } from '../io/config-parser.js';
 import { normalizeMappingPaths } from '../io/paths.js';
 import { validate } from './validator.js';
+import { checkReviewOverdue } from './checks/aspect-contracts.js';
 import { readTextFile } from '../io/graph-fs.js';
 import path from 'node:path';
 import { validateAppendOnly } from './log-integrity.js';
@@ -500,8 +501,18 @@ function buildGitignoredCoveredIssues(offending: string[]): CheckIssue[] {
  * relation pass parses source locally but is keyless / makes no LLM calls.
  *
  * @param gitTrackedFiles -- pass null to skip unmapped-files check (no git available).
+ * @param opts.nowUtc -- INJECTED clock for the review-cadence check (spec RZ-18).
+ *        When ABSENT the aspect-review-overdue check is SKIPPED entirely: core
+ *        keeps no `Date.now`, so with no clock supplied there is no overdue
+ *        signal. The CLI boundary always passes `() => new Date()`; tests pin a
+ *        fixed clock. It is a read-only warning — it never writes the lock,
+ *        changes a verdict, or gates `--approve`.
  */
-export async function runCheck(graph: Graph, gitTrackedFiles: string[] | null): Promise<CheckResult> {
+export async function runCheck(
+  graph: Graph,
+  gitTrackedFiles: string[] | null,
+  opts?: { nowUtc?: () => Date },
+): Promise<CheckResult> {
   const projectRoot = path.dirname(graph.rootPath);
 
   // 1. Validation (structural + completeness)
@@ -510,6 +521,16 @@ export async function runCheck(graph: Graph, gitTrackedFiles: string[] | null): 
   const validationIssues: CheckIssue[] = validation.issues
     .filter(vi => vi.code)
     .map(vi => ({ ...vi, code: vi.code! }));
+
+  // 1b. Review-cadence (spec RZ-18): overdue is a warning computed against an
+  // INJECTED clock. Absent clock ⇒ skip (no fabricated Date.now in core). Merged
+  // into the issue set exactly like validationIssues; never blocks (warning) and
+  // never touches the lock.
+  const reviewOverdueIssues: CheckIssue[] = opts?.nowUtc
+    ? checkReviewOverdue(graph, opts.nowUtc())
+        .filter(vi => vi.code)
+        .map(vi => ({ ...vi, code: vi.code! }))
+    : [];
 
   // 2. Lock verification (replaces drift classification). Read the lock once.
   // A garbled/version/conflict-markered lock fails closed: emit one blocking
@@ -626,6 +647,7 @@ export async function runCheck(graph: Graph, gitTrackedFiles: string[] | null): 
   const allIssues: CheckIssue[] = [
     ...lockIssues,
     ...validationIssues,
+    ...reviewOverdueIssues,
     ...coverageIssues,
   ];
 

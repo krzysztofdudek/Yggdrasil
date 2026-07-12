@@ -12,3 +12,4 @@ description: >-
   non-persisting fillDetPair (core/fill-det) is allowed. AST-based.
 errs: under
 status: enforced
+review_by: 2026-12-12

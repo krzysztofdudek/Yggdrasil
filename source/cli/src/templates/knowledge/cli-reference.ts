@@ -369,7 +369,18 @@ excluded here), **suppresses** (live \`yg-suppress\` markers targeting this aspe
 wildcard markers are summarized on their own line, not attributed per-aspect), and
 **errs** (a deterministic check's error-direction label), and **age** (how long
 ago this aspect's rule source was first added to version control, as a coarse
-duration such as \`3mo\` or \`1y\`, so you can weigh a rule's track record). Honesty
+duration such as \`3mo\` or \`1y\`, so you can weigh a rule's track record), and —
+the newest columns — **catch** and **exposure** (how many times this rule has
+actually refused a unit, against how many times a reviewer genuinely exercised it;
+a cached re-render never counts, and the two reviewer kinds are counted separately
+because their false-alarm behaviours differ), plus a plain-words read of how
+confident that ratio is (few observations reads as a wide, honest uncertainty
+range rather than a false-precise number), and a **label**: \`active\` (it is
+catching things), \`quiet\` (little exercised), or \`decorative?\` (enforceable yet
+never violated). A \`decorative?\` rule whose own examples still pass is reported as
+*possibly deterring the very violations it would catch* rather than assumed
+useless — and a rule is only ever suggested for demotion when several independent
+signals agree, never on the catch count alone. Honesty
 rule: when units have no valid result on record the **refused** cell reads
 \`unverified\`, NEVER \`0\` — an unchecked unit is not a clean one; likewise **age**
 reads \`unknown\` when that history is unavailable (a shallow clone or no
@@ -439,6 +450,70 @@ or partially written file still reads. If the telemetry file has been committed
 (git-tracked) the header drops the "local" wording and says so, since a tracked
 file is shared history rather than local-only telemetry. Plain \`yg log read\` is
 unchanged.
+
+## yg advise
+
+Read-only attention layer over the graph. With no subcommand, \`yg advise\` prints
+two fixed sections and exits 0 whenever the graph loads (a graph that does not
+load exits non-zero via the standard loader error). It **never** gates: it makes
+no reviewer calls, writes no verdict, changes no exit code, and never appears in
+\`suggestedNext\`.
+
+\`\`\`bash
+yg advise            # the two-section feed
+yg advise --all      # remove the 10-item cap; also list dismissed / deferred items
+yg advise --ids      # print each item's stable id (for dismiss / defer)
+\`\`\`
+
+- **Attention** — one aggregate line per class of signal, with no per-instance
+  ranking (rankings stay inside the instrument commands like \`yg structure\`). In
+  v1 the single class is dependency tunnels: how many dependencies reach across
+  distant parts of the architecture.
+- **Nominations** — up to ten ranked, evidence-backed suggestions in a fixed
+  priority order: a regression case a rule no longer catches, a risky waiver, a
+  rule effective nowhere, an orphaned rule, a rule past its review-by date, and —
+  below all of those — history-derived suggestions such as promoting a clean-record
+  advisory rule or sharpening an inconsistently-judged rule. Each item states WHAT
+  it found, WHY (with the underlying repo text quoted verbatim as data with its
+  provenance — never echoed as an instruction), and the exact human NEXT step,
+  which always ends by noting it requires your approval. The list is capped at ten
+  with a footer counting what the cap hid; \`--all\` removes the cap. Suggestions
+  drawn from local history are labelled honestly when the evidence is thin.
+
+The two acknowledgement subcommands act on a nomination's id (\`--ids\` prints it):
+
+\`\`\`bash
+yg advise dismiss <id> --reason "reviewed, keeping as-is"
+yg advise defer <id> --until 2027-01-31 --reason "revisit next quarter"
+\`\`\`
+
+- **dismiss** hides the item until its underlying evidence changes. The decision
+  is bound to the exact evidence the item carries right now, so the moment that
+  evidence moves the item returns to the feed as new — a dismissal is never a
+  permanent silence over a changed situation.
+- **defer** hides the item until the given date, then it returns on its own.
+  \`--until\` is a bare calendar day (\`YYYY-MM-DD\`); a date that is not a real day
+  is rejected.
+
+\`--reason\` is **mandatory** on every decision — recorded precedent must carry a
+human-signed justification, so an empty reason is rejected and nothing is written.
+An id that matches no current item is rejected with the list of current ids.
+\`yg advise\` never changes a verdict, the lock, or whether \`yg check\` passes —
+it only decides what the attention feed shows you.
+
+Every dismiss and defer is recorded as one line in \`.yggdrasil/advise-decisions.jsonl\`.
+That file is **committed** (not gitignored): the record is case law — a decision made
+on one machine is honored on every clone, and the file carries a \`merge=union\`
+attribute so two branches that each add decisions merge cleanly with no conflict.
+Dismissing or deferring is **human-signature territory, the same authorization class
+as \`yg-suppress\`**: the agent records a decision only on your explicit instruction and
+with a reason you supply — it never dismisses or defers a nomination on its own.
+
+**Cadence pattern (optional, for adopters).** A read-only, keyless job can publish the
+feed on a fixed rhythm: a weekly CI workflow that runs \`yg advise --all\` and upserts a
+single pinned issue gives you one place to review the attention items. This is a
+**documented pattern to copy, not a shipped default** — \`yg init\` never scaffolds it,
+and the feed never appears in \`yg check\`'s suggested next step.
 
 ## yg suppressions
 
@@ -583,6 +658,8 @@ The validator (\`yg check\`) emits the following issue codes:
 | \`relation-undeclared-dependency\` | error (always) | Built-in relation-conformance check: node depends on another node's code without a declared, sanctioned relation. Not an aspect — not status-governed, not suppressible. Next: declare the relation in \`yg-node.yaml\` or remove the dependency. |
 | \`log-entry-missing\` | error | \`--approve\` log gate fired |
 | \`aspect-status-invalid\` | error | Declared status is not one of \`draft\\|advisory\\|enforced\` |
+| \`aspect-review-by-malformed\` | error | Declared \`review_by:\` is present but not a calendar-valid bare ISO date (\`YYYY-MM-DD\`; e.g. \`2027-13-40\` or \`2027-02-30\`). Blocking parse-time error, fired ONLY on the aspect that carries the field. |
+| \`aspect-review-overdue\` | warning | A rule's standing \`review_by:\` date has passed (compared against the CLI clock) — the rule is running unreviewed. Status-independent. Never writes the lock, changes a verdict, or gates \`--approve\`. Next: ask the user to renew (new \`review_by:\`) or retire (demote) the rule; never change the date without their approval. |
 | \`aspect-status-downgrade\` | error | Declared status is lower than cascade would yield (bump up OK, downgrade is error) |
 | \`implies-status-inherit-invalid\` | error | \`status_inherit:\` value not one of \`strictest\\|own-default\` |
 | \`aspect-effective-nowhere\` | warning | Dead-attach linter: an aspect that ships a rule source (\`content.md\` or \`check.mjs\`) and is not draft, yet is effective on ZERO nodes after the full cascade + every \`when\` — a rule that looks enforced but is never verified anywhere. Silent while the model has no nodes. Next: \`yg impact --aspect <id>\`; fix the attach sites / \`when\`, or set \`status: draft\` until the node/type it targets exists. |

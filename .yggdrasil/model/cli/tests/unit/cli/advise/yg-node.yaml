@@ -1,0 +1,13 @@
+name: Advise Command Tests
+type: test-suite
+description: "Unit + spawned tests for yg advise — subcommand registration shape,
+  and end-to-end dismiss/defer against a real fixture graph: one appended
+  decision line bound to the current evidence hash, an empty reason / unknown id /
+  mis-shaped defer date each rejected with nothing written."
+aspects: []
+relations:
+  [
+    { target: cli/commands/advise, type: uses }
+  ]
+mapping:
+  - source/cli/tests/unit/cli/advise.test.ts

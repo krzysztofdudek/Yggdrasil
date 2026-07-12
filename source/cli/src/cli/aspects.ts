@@ -14,6 +14,16 @@ import { runSuppressionsScan } from '../portal/api/suppress-scan.js';
 import type { SuppressionsReport } from '../portal/api/suppress-scan.js';
 import { collectMappingEntries } from '../portal/api/suppress-eligibility.js';
 import { getFirstCommitTimestamp } from '../utils/git.js';
+import { readVerdictEvents } from '../io/events-reader.js';
+import { readDrillResults } from '../io/drill-results-reader.js';
+import {
+  computeAspectHealthSignals,
+  groupUnitsByAspect,
+  covenantLine,
+  computeDrillStatus,
+  type AspectHealthSignal,
+  type DrillStatus,
+} from '../core/aspect-health-signals.js';
 
 interface AspectUsage {
   architecture: number;
@@ -137,6 +147,15 @@ export interface AspectHealthRow {
    * bundle with no rule source to age.
    */
   age: string;
+  /**
+   * Times this rule caught a violation (a refused fill), or EMPTY_CELL when it has
+   * no recorded exposure. A raw count from local telemetry — never a hash input.
+   */
+  catchCell: string;
+  /** Times the reviewer actually judged this rule (approved + refused fills), or EMPTY_CELL. */
+  exposureCell: string;
+  /** Coarse reading of the catch/exposure record ('active' | 'quiet' | 'decorative?'), or EMPTY_CELL. */
+  signalCell: string;
 }
 
 export interface AspectHealth {
@@ -145,6 +164,12 @@ export interface AspectHealth {
   wildcardMarkers: number;
   /** True when any row's refusal cell reads as unverified (drives the footer note). */
   hasUnverified: boolean;
+  /**
+   * Plain-words lines rendered below the table: the anti-Goodhart covenant
+   * cross-reference for every `decorative?` rule, and a "few observations"
+   * uncertainty note for every thin-sample rule. Empty when no rule has telemetry.
+   */
+  signalNotes: string[];
 }
 
 /**
@@ -240,11 +265,63 @@ export function resolveRuleAges(
  * (unverified / prompt-too-large / companion-error) is counted as `unknown`, so a
  * stale or absent verdict can never masquerade as a clean pass.
  */
+/**
+ * Render a signal's three table cells. A rule with no recorded exposure has no
+ * catch/exposure/reading to show — EMPTY_CELL across the board, never a `0` that
+ * would read as "checked and clean" (the same unverified-≠-zero honesty the
+ * refused cell follows).
+ */
+function signalCells(sig: AspectHealthSignal | undefined): {
+  catchCell: string;
+  exposureCell: string;
+  signalCell: string;
+} {
+  if (sig === undefined || sig.exposure === 0) {
+    return { catchCell: EMPTY_CELL, exposureCell: EMPTY_CELL, signalCell: EMPTY_CELL };
+  }
+  return { catchCell: String(sig.catch), exposureCell: String(sig.exposure), signalCell: sig.label };
+}
+
+/**
+ * Build the plain-words lines rendered below the table. For a `decorative?` rule
+ * the anti-Goodhart covenant cross-reference (drill-status-dependent, so a
+ * never-violated rule proven to still catch reads as possibly DETERRING, not
+ * useless); for any other thin-sample rule, a "few observations" uncertainty note.
+ * Method names never appear — the uncertainty is stated in plain words only.
+ */
+function buildSignalNotes(
+  sortedAspects: AspectDef[],
+  signals: ReadonlyMap<string, AspectHealthSignal>,
+  drillStatuses: ReadonlyMap<string, DrillStatus>,
+): string[] {
+  const notes: string[] = [];
+  for (const aspect of sortedAspects) {
+    const sig = signals.get(aspect.id);
+    if (sig === undefined || sig.exposure === 0) continue;
+    const pct = Math.round(sig.pointEstimate * 100);
+    if (sig.label === 'decorative?') {
+      const cross = covenantLine(drillStatuses.get(aspect.id) ?? 'none');
+      notes.push(
+        `${aspect.id}: ${cross} (0 of ${sig.exposure} recorded checks; estimated catch rate ~${pct}%).`,
+      );
+    } else if (sig.uncertaintyWide && sig.catch > 0) {
+      // Caveat only where there is a real catch rate to over-trust; a never-caught
+      // thin rule's story is already told by its catch=0 / signal=quiet cells.
+      notes.push(
+        `${aspect.id}: estimated catch rate ~${pct}% — uncertainty range is wide (few observations).`,
+      );
+    }
+  }
+  return notes;
+}
+
 export function computeAspectHealth(
   graph: Graph,
   verifiedPairs: VerifiedPair[],
   suppressReport: SuppressionsReport,
   ruleAges: ReadonlyMap<string, string> = new Map(),
+  signals: ReadonlyMap<string, AspectHealthSignal> = new Map(),
+  drillStatuses: ReadonlyMap<string, DrillStatus> = new Map(),
 ): AspectHealth {
   interface Agg {
     pairs: number;
@@ -294,6 +371,7 @@ export function computeAspectHealth(
     const pairs = agg?.pairs ?? 0;
     const refused = renderRefusedCell(pairs, agg?.refused ?? 0, agg?.unknown ?? 0);
     if (refused.includes(UNVERIFIED)) hasUnverified = true;
+    const cells = signalCells(signals.get(aspect.id));
     rows.push({
       aspectId: aspect.id,
       kind: inferAspectDisplayKind(aspect),
@@ -304,10 +382,14 @@ export function computeAspectHealth(
       suppresses: suppressByAspect.get(aspect.id) ?? 0,
       errs: aspect.errs ?? EMPTY_CELL,
       age: ruleAges.get(aspect.id) ?? EMPTY_CELL,
+      catchCell: cells.catchCell,
+      exposureCell: cells.exposureCell,
+      signalCell: cells.signalCell,
     });
   }
 
-  return { rows, wildcardMarkers, hasUnverified };
+  const signalNotes = buildSignalNotes(sorted, signals, drillStatuses);
+  return { rows, wildcardMarkers, hasUnverified, signalNotes };
 }
 
 /** Column order is fixed by contract; other waves append columns to the right. */
@@ -321,6 +403,9 @@ const HEALTH_HEADERS = [
   'suppresses',
   'errs',
   'age',
+  'catch',
+  'exposure',
+  'signal',
 ] as const;
 
 /** Render the health rows as a left-aligned, two-space-gap text table. */
@@ -337,6 +422,9 @@ export function formatAspectsHealthOutput(health: AspectHealth): string {
       String(r.suppresses),
       r.errs,
       r.age,
+      r.catchCell,
+      r.exposureCell,
+      r.signalCell,
     ]),
   ];
 
@@ -358,6 +446,12 @@ export function formatAspectsHealthOutput(health: AspectHealth): string {
     );
   }
 
+  if (health.signalNotes.length > 0) {
+    lines.push('');
+    lines.push('Signal detail (catch = violations caught; exposure = times the reviewer judged):');
+    for (const note of health.signalNotes) lines.push(`  ${note}`);
+  }
+
   return lines.join('\n') + '\n';
 }
 
@@ -373,6 +467,18 @@ export function formatAspectsHealthOutput(health: AspectHealth): string {
  * what any verdict is), threaded from the command boundary so the pure renderers
  * stay clock-free and testable.
  */
+/** Per-aspect count of active (non-enable, non-wildcard) suppress markers from a live scan. */
+function countSuppressesByAspect(report: SuppressionsReport): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const { markers } of report.fileEntries) {
+    for (const m of markers) {
+      if (m.kind === 'enable' || m.wildcard) continue;
+      counts.set(m.aspectId, (counts.get(m.aspectId) ?? 0) + 1);
+    }
+  }
+  return counts;
+}
+
 export async function buildAspectsHealthOutput(graph: Graph, nowMs: number): Promise<string> {
   const projectRoot = path.dirname(graph.rootPath);
 
@@ -392,8 +498,33 @@ export async function buildAspectsHealthOutput(graph: Graph, nowMs: number): Pro
     underApproximatingAspectIds,
   );
 
+  // Local, gitignored telemetry — read HERE at the CLI boundary (aspects.ts is on
+  // the events-reader allow-list) and handed to the pure signal engine as plain
+  // data, so core/aspect-health-signals never imports a reader (G1 boundary).
+  const verdictEvents = readVerdictEvents(graph.rootPath).events;
+  const drillResults = readDrillResults(graph.rootPath).results;
+
+  const currentUnitsByAspect = groupUnitsByAspect(verification.pairs.map((vp) => vp.pair));
+  const suppressCountsByAspect = countSuppressesByAspect(suppressReport);
+  const signals = computeAspectHealthSignals(graph, {
+    verdictEvents,
+    drillResults,
+    currentUnitsByAspect,
+    suppressCountsByAspect,
+  });
+  const drillStatuses = new Map<string, DrillStatus>(
+    graph.aspects.map((a) => [a.id, computeDrillStatus(a.id, drillResults)]),
+  );
+
   const ruleAges = resolveRuleAges(graph, projectRoot, nowMs);
-  const health = computeAspectHealth(graph, verification.pairs, suppressReport, ruleAges);
+  const health = computeAspectHealth(
+    graph,
+    verification.pairs,
+    suppressReport,
+    ruleAges,
+    signals,
+    drillStatuses,
+  );
   return formatAspectsHealthOutput(health);
 }
 
@@ -403,7 +534,7 @@ export function registerAspectsCommand(program: Command): void {
     .description('List aspects with usage stats')
     .option(
       '--health',
-      'per-aspect health: pairs, hash-valid refusals, suppress markers, error direction, rule age',
+      'per-aspect health: pairs, hash-valid refusals, suppress markers, error direction, rule age, catch/exposure counts and reading',
     )
     .action(async (options: { health?: boolean }) => {
       try {

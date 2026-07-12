@@ -314,6 +314,57 @@ export function checkAspectEffectiveNowhere(graph: Graph): ValidationIssue[] {
   return issues;
 }
 
+// --- aspect-review-overdue: a rule is past its standing review_by date ---
+
+/**
+ * Constitution review-cadence linter (WARNING, never blocking). An aspect that
+ * declares a `review_by:` date whose day has PASSED (relative to an INJECTED UTC
+ * clock) is running unreviewed — the standing request to re-examine whether the
+ * rule still earns its place is overdue.
+ *
+ * Design invariants (spec RZ-18):
+ *   - INJECTED CLOCK. `todayUtc` is supplied by the caller; core keeps no
+ *     `Date.now`. When the CLI boundary omits the clock, runCheck skips this
+ *     check entirely (no fabricated clock, no overdue signal).
+ *   - STATUS-INDEPENDENT. draft / advisory / enforced all participate — the
+ *     constitution reviews a rule's continued relevance, not its enforcement.
+ *   - NEVER writes the lock, changes a verdict, or gates `--approve`. It is a
+ *     pure read-only warning; auto-flipping a rule on a clock-dependent, per-CLI
+ *     result is rejected forever (nomination-only).
+ *
+ * Comparison: `today = todayUtc.toISOString().slice(0, 10)` (bare `YYYY-MM-DD`).
+ * An aspect is overdue when `aspect.reviewBy < today` — a lexicographic compare,
+ * which is correct because both operands are zero-padded ISO bare dates.
+ *
+ * All overdue aspects share one rule id (`aspect-review-overdue`) with the SAME
+ * why+next, so the grouped renderer collapses them into ONE warning block with
+ * each affected aspect listed beneath (the same pattern aspect-effective-nowhere
+ * uses: the aspect id is carried on a synthetic `aspects/<id>` nodePath, and no
+ * `aspectId` is set so grouping is by code only).
+ */
+export function checkReviewOverdue(graph: Graph, todayUtc: Date): ValidationIssue[] {
+  const today = todayUtc.toISOString().slice(0, 10);
+  const issues: ValidationIssue[] = [];
+  for (const aspect of graph.aspects) {
+    if (aspect.reviewBy === undefined) continue;   // presence gate
+    if (!(aspect.reviewBy < today)) continue;       // due today or in the future → not overdue
+    const msgData: IssueMessage = {
+      what: `Aspect '${aspect.id}' is past its review_by date (${aspect.reviewBy}).`,
+      why: 'A review_by date is a standing request to re-examine whether this rule still earns its place — the date has passed, so the rule is running unreviewed.',
+      next: 'Ask the user to renew or retire this rule — propose a new review_by date or a demotion; never change the date without their approval.',
+    };
+    issues.push({
+      severity: 'warning',
+      code: 'aspect-review-overdue',
+      rule: 'aspect-review-overdue',
+      ...issueMsg(msgData),
+      messageData: msgData,
+      nodePath: `aspects/${aspect.id}`,
+    });
+  }
+  return issues;
+}
+
 // --- aspect-tier-unknown: aspect.reviewer.tier must reference a configured tier ---
 
 export function checkAspectTierReferences(graph: Graph): ValidationIssue[] {

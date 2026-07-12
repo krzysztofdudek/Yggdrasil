@@ -1,3 +1,4 @@
 * text=auto eol=lf
 repos/** -text
 /.yggdrasil/yg-lock.*.json linguist-generated=true
+/.yggdrasil/advise-decisions.jsonl merge=union

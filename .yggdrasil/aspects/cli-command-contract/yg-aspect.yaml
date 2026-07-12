@@ -1,5 +1,6 @@
 name: CLI Command Contract
 description: "Output, error handling, and exit code conventions for all CLI command handlers"
+review_by: 2026-09-02
 reviewer:
   type: llm
 scope:

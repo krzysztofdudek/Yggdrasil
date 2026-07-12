@@ -1,5 +1,6 @@
 name: NoSideEffectsOnImport
 description: "Utility modules must not execute bare top-level function calls (expression statements containing call_expression) at module scope — importing a utility must never trigger I/O or global side effects."
+review_by: 2027-04-24
 errs: under
 reviewer:
   type: deterministic

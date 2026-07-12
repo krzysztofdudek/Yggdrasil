@@ -3,7 +3,7 @@ type: test-suite
 description: "Unit tests for the frozen input-hash contract —
   codePointCanonicalJson code-point ordering, LLM and deterministic hash
   computation, golden-pinned values, observation helpers, tierHashView,
-  POSIX path normalization, and the errs never-hashed guard."
+  POSIX path normalization, and the errs and review_by never-hashed guards."
 aspects: []
 relations:
   [
@@ -14,3 +14,4 @@ relations:
 mapping:
   - source/cli/tests/unit/core/pair-hash.test.ts
   - source/cli/tests/unit/core/aspect-errs-hash-guard.test.ts
+  - source/cli/tests/unit/core/review-by-hash-guard.test.ts

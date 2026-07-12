@@ -30,6 +30,8 @@ relations:
     type: uses
   - target: cli/commands/log
     type: uses
+  - target: cli/commands/advise
+    type: uses
   - target: cli/commands/suppressions
     type: uses
   - target: cli/commands/type-suggest

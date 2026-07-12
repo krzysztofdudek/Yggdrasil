@@ -1,5 +1,6 @@
 name: NoNondeterminismDirect
 description: "Engine files must not call Date.now(), Math.random(), or access process.env directly — all non-deterministic inputs must be injected by the CLI layer as explicit parameters."
+review_by: 2027-04-02
 errs: under
 reviewer:
   type: deterministic

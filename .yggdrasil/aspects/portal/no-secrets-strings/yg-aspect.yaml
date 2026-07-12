@@ -9,3 +9,4 @@ description: >-
   violation); a quoted-only content scan for HTML/CSS, which have no AST grammar.
 errs: over
 status: enforced
+review_by: 2027-02-08

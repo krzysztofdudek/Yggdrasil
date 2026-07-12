@@ -12,3 +12,4 @@ description: >-
   string literal that merely contains a secret-shaped word is never a violation.
 errs: under
 status: enforced
+review_by: 2026-11-16

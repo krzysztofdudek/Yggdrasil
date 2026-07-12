@@ -1,0 +1,24 @@
+name: Advise Nominations & Feed
+type: engine
+description: "Pure advise engine — turns the graph's live attention signals into
+  stable, evidence-bound nominations (buildNominations) and folds the committed
+  decision register over them into a visible/hidden feed (applyDecisions). No I/O
+  and no clock of its own: the UTC date is injected and suppress-marker anomalies
+  are passed in from the CLI boundary, so output is deterministic given the graph
+  and inputs."
+relations:
+  - target: cli/core/checks/aspects
+    type: calls
+  - target: cli/core/pair-inputs
+    type: calls
+  - target: cli/core/aspect-health-signals
+    type: calls
+  - target: cli/io/stores
+    type: calls
+  - target: cli/model/graph
+    type: uses
+  - target: cli/model/validation
+    type: uses
+mapping:
+  - source/cli/src/core/advise-nominations.ts
+  - source/cli/src/core/advise-feed.ts

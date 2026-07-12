@@ -328,7 +328,11 @@ export function registerCheckCommand(program: Command): void {
           }
         }
 
-        const result = await runCheck(graph, gitFiles);
+        // Supply the injected UTC clock so the review-cadence check (spec RZ-18)
+        // runs at the CLI boundary. Core has no Date.now of its own; without this
+        // the overdue warning is skipped. It is read-only — never writes the lock
+        // or gates the fill above.
+        const result = await runCheck(graph, gitFiles, { nowUtc: () => new Date() });
         process.stdout.write(formatOutput(result, view));
 
         // Exit code is derived from the FULL issue set, OUTSIDE formatOutput and

@@ -170,6 +170,15 @@ export function edgeUniverse(
 // ---------------------------------------------------------------------------
 
 /**
+ * How many of the widest-spanning tunnels the structural view LISTS — and thus
+ * the exact count the advise attention line reports. Shared here as the single
+ * source of truth so `yg structure`'s displayed tunnel count and `yg advise`'s
+ * attention count can never drift out of step: both slice / cap the tunnel set to
+ * this same N.
+ */
+export const TOP_TUNNELS = 10;
+
+/**
  * Annotate each edge with its hierarchy `span`:
  *   span = depth(from) + depth(to) − 2·lcaDepth(from, to)
  * i.e. the number of hierarchy hops the edge traverses (0 for siblings' parent,

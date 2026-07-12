@@ -1,5 +1,6 @@
 name: ParserContract
 description: "Parser adapters follow a consistent read → parse → validate → return pipeline; any format (YAML, JSON, NDJSON, plain text) must follow the same error and null-safety conventions."
+review_by: 2027-03-13
 reviewer:
   type: llm
 scope:

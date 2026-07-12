@@ -1,0 +1,17 @@
+name: Aspect Health Signals Unit Tests
+type: test-suite
+description: "Unit tests for the shared aspect-health signal engine — distinct
+  (aspect, unit, hash) catch/exposure counting with infra and drill/diag events
+  excluded, within-kind beta-binomial shrinkage, the active/quiet/decorative?
+  labels, the drill-status covenant line, and the corroborated-demotion gate
+  (true only when no drills AND a shrinking attach set AND no suppress history)."
+aspects: []
+relations:
+  - target: cli/core/aspect-health-signals
+    type: uses
+  - target: cli/model/graph
+    type: uses
+  - target: cli/io/stores
+    type: uses
+mapping:
+  - source/cli/tests/unit/core/aspect-health-signals.test.ts

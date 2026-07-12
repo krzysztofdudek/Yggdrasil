@@ -1,5 +1,6 @@
 name: CommandErrorViaBuildIssueMessage
 description: "CLI command handlers must construct user-visible error messages via buildIssueMessage, or route them through the loadGraphOrAbort / abortOnUnexpectedError helpers. Raw stderr.write of 'Error: ...' strings (constant text, .message concatenation) is forbidden in command files."
+review_by: 2026-11-29
 errs: over
 reviewer:
   type: deterministic

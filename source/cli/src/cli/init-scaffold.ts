@@ -9,21 +9,31 @@ import { FILL_DIVERGENCE_FILENAME } from '../io/debug-log-writer.js';
 // .gitattributes — mark the committed lock as generated
 // ---------------------------------------------------------------------------
 
-/** The exact .gitattributes line that marks the committed lock files as generated for
- *  diff/review tools. The glob covers the triad's committed members
- *  (yg-lock.nondeterministic.json, yg-lock.logs.json); the gitignored deterministic
- *  cache is never committed, so it needs no attribute. */
-const GITATTRIBUTES_LOCK_LINE = '/.yggdrasil/yg-lock.*.json linguist-generated=true';
+/** The exact .gitattributes lines Yggdrasil manages at the repo root, in order:
+ *    - the lock's linguist-generated line — the committed lock triad
+ *      (yg-lock.nondeterministic.json, yg-lock.logs.json) is machine-written, so
+ *      marking it generated keeps it out of language stats and collapses it in
+ *      review diffs (the gitignored deterministic cache is never committed, so it
+ *      needs no attribute);
+ *    - the advise-decisions register's merge=union line — that ledger is COMMITTED
+ *      case law appended on many branches, so a union merge keeps every branch's
+ *      decisions instead of forcing a conflict on the append-only file.
+ *  Single source of truth for what init writes into the repo-root .gitattributes
+ *  (both fresh init and every --upgrade). */
+const GITATTRIBUTES_LINES = [
+  '/.yggdrasil/yg-lock.*.json linguist-generated=true',
+  '/.yggdrasil/advise-decisions.jsonl merge=union',
+] as const;
 
 /**
- * Ensure the repo-root .gitattributes carries the lock's linguist-generated
- * line (spec §8). The lock is committed but machine-written — marking it
- * generated keeps it out of language stats and collapses it in review diffs.
+ * Ensure the repo-root .gitattributes carries every line Yggdrasil manages (see
+ * {@link GITATTRIBUTES_LINES}).
  *
- * Idempotent: creates the file with the single line when absent; appends the
- * line exactly once when the file exists without it (preserving other content
- * and ensuring a separating newline); no-op when the line is already present.
- * Run on fresh init AND every --upgrade so existing adopters pick it up.
+ * Idempotent: creates the file with all lines when absent; appends only the
+ * missing line(s), once each, when the file exists without them (preserving any
+ * other content and ensuring a separating newline); no-op when every line is
+ * already present. Run on fresh init AND every --upgrade so existing adopters
+ * pick up the complete set.
  */
 export async function ensureGitattributes(repoRoot: string): Promise<void> {
   const gaPath = path.join(repoRoot, '.gitattributes');
@@ -37,19 +47,17 @@ export async function ensureGitattributes(repoRoot: string): Promise<void> {
   }
 
   if (existing === undefined) {
-    await writeFile(gaPath, `${GITATTRIBUTES_LOCK_LINE}\n`, 'utf-8');
+    await writeFile(gaPath, `${GITATTRIBUTES_LINES.join('\n')}\n`, 'utf-8');
     return;
   }
 
-  // Already present (anywhere, as a full line) → nothing to do.
-  const hasLine = existing
-    .split('\n')
-    .some((line) => line.trim() === GITATTRIBUTES_LOCK_LINE);
-  if (hasLine) return;
+  const presentLines = new Set(existing.split('\n').map((line) => line.trim()));
+  const missing = GITATTRIBUTES_LINES.filter((line) => !presentLines.has(line));
+  if (missing.length === 0) return;
 
-  // Append once, guaranteeing a newline boundary before and after.
+  // Append each missing line once, guaranteeing a newline boundary before and after.
   const sep = existing.length > 0 && !existing.endsWith('\n') ? '\n' : '';
-  await writeFile(gaPath, `${existing}${sep}${GITATTRIBUTES_LOCK_LINE}\n`, 'utf-8');
+  await writeFile(gaPath, `${existing}${sep}${missing.join('\n')}\n`, 'utf-8');
 }
 
 // ---------------------------------------------------------------------------

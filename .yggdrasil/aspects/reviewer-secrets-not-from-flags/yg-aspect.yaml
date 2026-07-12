@@ -3,3 +3,4 @@ description: "Reviewer credentials must never be sourced from a CLI flag — onl
 reviewer:
   type: deterministic
 status: enforced
+review_by: 2027-06-13

@@ -1,0 +1,32 @@
+name: Advise Commands
+type: command
+description: "CLI commands for acting on attention items — yg advise dismiss and
+  yg advise defer. Each resolves an item id against the live nominations, captures
+  its current evidence snapshot, and appends one committed decision line with a
+  mandatory human-signed reason. The bare feed-rendering command is added later."
+aspects: []
+relations:
+  - target: cli/core/advise
+    type: calls
+  - target: cli/core/aspect-health-signals
+    type: calls
+  - target: cli/core/pairs
+    type: calls
+  - target: cli/core/graph
+    type: calls
+  - target: cli/io/stores
+    type: calls
+  - target: cli/io/parsers/aspect
+    type: calls
+  - target: cli/portal/engine-api
+    type: calls
+  - target: cli/formatters
+    type: calls
+  - target: cli/preamble
+    type: calls
+  - target: cli/utils
+    type: calls
+  - target: cli/tests/unit/cli
+    type: uses
+mapping:
+  - source/cli/src/cli/advise.ts

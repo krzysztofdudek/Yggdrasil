@@ -1,4 +1,4 @@
-export const summary = 'Aspect definition — reviewer kind, scope, status, errs, implies, references, when.';
+export const summary = 'Aspect definition — reviewer kind, scope, status, review_by, errs, implies, references, when.';
 
 export const content = `# yg-aspect.yaml — Schema for cross-cutting aspects
 # Each aspect is a directory under .yggdrasil/aspects/ containing this file
@@ -57,6 +57,26 @@ status: enforced                   # optional — aspect-level default. enum: dr
                                    # carries status_inherit instead. Downgrade attempts are validator
                                    # errors. Advisory and enforced verdicts are recorded in the
                                    # baseline; draft aspects get no verdict.
+
+# review_by: 2027-01-15            # optional — a standing review-by date (bare ISO
+                                   # calendar date YYYY-MM-DD). It is the constitution's
+                                   # request to re-examine whether this rule still earns
+                                   # its place by that day.
+                                   # Valid on ANY aspect kind (llm | deterministic |
+                                   # aggregate) and independent of status — review cadence
+                                   # is about the rule's continued relevance, not its
+                                   # reviewer kind or enforcement level.
+                                   # When present it must be a real calendar date
+                                   # (2027-02-30 / 2027-13-01 are rejected); a malformed
+                                   # value is a blocking error (aspect-review-by-malformed),
+                                   # fired ONLY on the aspect that carries it.
+                                   # Once the date has passed, yg check emits ONE advisory
+                                   # warning (aspect-review-overdue) asking you to renew or
+                                   # retire the rule — it NEVER changes the date itself and
+                                   # never blocks a build.
+                                   # NEVER folded into any verdict hash: recording or
+                                   # changing review_by re-verifies nothing. Absent →
+                                   # undefined (no review-cadence tracking).
 
 # errs: under                      # optional — the error-direction of a DETERMINISTIC check.
                                    # enum: over | under | exact. Legal ONLY on deterministic aspects

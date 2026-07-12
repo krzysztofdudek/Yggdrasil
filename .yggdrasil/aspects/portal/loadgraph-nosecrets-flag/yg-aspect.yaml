@@ -10,3 +10,4 @@ description: >-
   its canonical symbol before matching, so an aliased call is checked identically.
 errs: over
 status: enforced
+review_by: 2026-11-20

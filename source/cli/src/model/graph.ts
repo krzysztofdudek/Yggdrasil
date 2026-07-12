@@ -276,6 +276,17 @@ export interface AspectDef {
   /** Aspect-level default status. Absent → 'enforced'. Attach sites may override per the bump rule: bump up OK, downgrade is a validator error. */
   status?: AspectStatus;
   /**
+   * Standing review-by date (bare ISO calendar date `YYYY-MM-DD`) — the
+   * constitution's request to re-examine whether this rule still earns its place
+   * by the given day. Valid on ANY aspect kind (llm / deterministic / aggregate)
+   * and independent of `status`, because review cadence is about the rule's
+   * continued relevance, not its reviewer kind or enforcement level. Parsed only
+   * when present, and rejected (aspect-review-by-malformed) when present but not a
+   * calendar-valid bare date. NEVER a verdict-hash ingredient — recording or
+   * changing a review-by date invalidates no stored verdict. Absent → undefined.
+   */
+  reviewBy?: string;
+  /**
    * Review scope: controls review granularity and the subject-file set.
    *   per: node (default) — one review over all subject files.
    *   per: file — one review per subject file.

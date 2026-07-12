@@ -1,7 +1,7 @@
 name: Aspect Parser Unit Tests
 type: test-suite
 description: "Unit tests for the aspect-file parser — core parsing, references,
-  status-field, and errs-field handling."
+  status-field, errs-field, and review_by-field handling."
 aspects: []
 relations: [ { target: cli/io/parsers/aspect, type: uses } ]
 mapping:
@@ -12,3 +12,4 @@ mapping:
   - source/cli/tests/unit/io/aspect-parser-aggregate.test.ts
   - source/cli/tests/unit/io/aspect-parser-branch-coverage.test.ts
   - source/cli/tests/unit/io/aspect-parser-errs.test.ts
+  - source/cli/tests/unit/io/aspect-parser-review-by.test.ts

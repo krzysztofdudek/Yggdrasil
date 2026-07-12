@@ -1,5 +1,6 @@
 name: DiagnosticLogging
 description: Catch blocks that swallow errors must call debugWrite() — no silent failures
+review_by: 2027-05-14
 reviewer:
   type: llm
 scope:

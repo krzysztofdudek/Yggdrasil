@@ -88,8 +88,27 @@ function healthRow(output: string, aspectId: string): string[] {
   return line.trim().split(/\s{2,}/);
 }
 
-// Column indices for the fixed order: aspect | kind | status | nodes | pairs | refused | suppresses | errs | age
-const COL = { aspect: 0, kind: 1, status: 2, nodes: 3, pairs: 4, refused: 5, suppresses: 6, errs: 7, age: 8 };
+// Column indices for the fixed order:
+//   aspect | kind | status | nodes | pairs | refused | suppresses | errs | age | catch | exposure | signal
+const COL = {
+  aspect: 0, kind: 1, status: 2, nodes: 3, pairs: 4, refused: 5, suppresses: 6, errs: 7, age: 8,
+  catch: 9, exposure: 10, signal: 11,
+};
+
+/** Append well-formed synthetic telemetry lines to a gitignored sidecar under `.yggdrasil/`. */
+function writeSidecar(dir: string, filename: string, lines: object[]): void {
+  const body = lines.map((l) => JSON.stringify(l)).join('\n') + '\n';
+  writeFileSync(path.join(dir, '.yggdrasil', filename), body, 'utf-8');
+}
+
+/** N approved fill events on one unit with distinct hashes (N distinct triples). */
+function approvedFills(aspectId: string, unitKey: string, n: number, kind: 'llm' | 'deterministic'): object[] {
+  const out: object[] = [];
+  for (let i = 0; i < n; i += 1) {
+    out.push({ v: 1, ts: '2026-07-01T00:00:00.000Z', source: 'fill', aspectId, unitKey, kind, disposition: 'approved', hash: `h-${aspectId}-${i}` });
+  }
+  return out;
+}
 
 describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () => {
   it('default `yg aspects` output is byte-identical (no --health regression)', () => {
@@ -156,6 +175,7 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () 
       const headerCols = header!.trim().split(/\s{2,}/);
       expect(headerCols).toEqual([
         'aspect', 'kind', 'status', 'nodes', 'pairs', 'refused', 'suppresses', 'errs', 'age',
+        'catch', 'exposure', 'signal',
       ]);
 
       // no-todo-comments: one hash-valid refusal (orders), one approved (payments).
@@ -184,6 +204,62 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () 
       expect(hasDoc[COL.kind]).toBe('llm');
       expect(hasDoc[COL.refused]).toBe('unverified');
       expect(hasDoc[COL.refused]).not.toBe('0');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('renders catch/exposure counts, the decorative? covenant line, and plain-words uncertainty (C3 slice 3)', () => {
+    const dir = copyFixture('signals');
+    try {
+      // has-doc-comment (llm): 25 approved, 0 refused → decorative?; a PASSING drill
+      // proves it still catches, so the covenant reads "may be deterring", not useless.
+      // no-todo-comments (det): 5 refused + 5 approved → active with real counts.
+      // requires-named-export (det): 3 approved → thin data → wide uncertainty.
+      const refusedFills = Array.from({ length: 5 }, (_, i) => ({
+        v: 1, ts: '2026-07-01T00:00:00.000Z', source: 'fill', aspectId: 'no-todo-comments',
+        unitKey: 'node:services/orders', kind: 'deterministic', disposition: 'refused', hash: `r-${i}`,
+      }));
+      writeSidecar(dir, '.yg-events.jsonl', [
+        ...approvedFills('has-doc-comment', 'node:services/orders', 25, 'llm'),
+        ...refusedFills,
+        ...approvedFills('no-todo-comments', 'node:services/payments', 5, 'deterministic'),
+        ...approvedFills('requires-named-export', 'node:services/orders', 3, 'deterministic'),
+      ]);
+      writeSidecar(dir, '.drill-results.jsonl', [
+        {
+          v: 1, ts: '2026-07-01T00:00:00.000Z', aspect: 'has-doc-comment',
+          case: 'violates-x/needs-doc', expect: 'refused', got: 'refused',
+          src: 'dev', corpus: 'dev', caseHash: 'c'.repeat(64), ruleHash: 'r'.repeat(64), kind: 'llm',
+        },
+      ]);
+
+      const health = run(['aspects', '--health'], dir);
+      expect(health.status).toBe(0); // informational, never blocks
+      const out = health.stdout;
+
+      // has-doc-comment: never caught across 25 exposures → decorative?
+      const hasDoc = healthRow(out, 'has-doc-comment');
+      expect(hasDoc[COL.catch]).toBe('0');
+      expect(hasDoc[COL.exposure]).toBe('25');
+      expect(hasDoc[COL.signal]).toBe('decorative?');
+      // Anti-Goodhart covenant, verbatim: a passing drill means it may be deterring.
+      expect(out).toContain('enforceable but never violated — may be deterring violations');
+
+      // no-todo-comments: a frequently-refused rule reads active with its counts.
+      const noTodo = healthRow(out, 'no-todo-comments');
+      expect(noTodo[COL.catch]).toBe('5');
+      expect(noTodo[COL.exposure]).toBe('10');
+      expect(noTodo[COL.signal]).toBe('active');
+
+      // requires-named-export: thin data → the range is stated in plain words.
+      const reqExport = healthRow(out, 'requires-named-export');
+      expect(reqExport[COL.exposure]).toBe('3');
+      expect(out).toContain('uncertainty range is wide (few observations)');
+
+      // Method names never leak into operator-facing text.
+      expect(out).not.toContain('beta-binomial');
+      expect(out).not.toContain('Wilson');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -223,6 +299,7 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () 
         const header = health.stdout.split('\n').find((l) => l.includes('aspect') && l.includes('age'));
         expect(header!.trim().split(/\s{2,}/)).toEqual([
           'aspect', 'kind', 'status', 'nodes', 'pairs', 'refused', 'suppresses', 'errs', 'age',
+          'catch', 'exposure', 'signal',
         ]);
 
         // A deterministic rule (ships check.mjs) committed in 2015 reads a coarse,

@@ -21,6 +21,8 @@ relations:
     type: calls
   - target: cli/core/verify-lock
     type: calls
+  - target: cli/core/aspect-health-signals
+    type: calls
   - target: cli/portal/engine-api
     type: calls
 mapping:
