@@ -28,8 +28,7 @@ node_types:
     aspects:
       - top-level-error-handler
       - command-exit-codes
-      - posix-paths-source
-      - no-direct-minimatch
+      - source-hygiene
     parents: [module]
     relations:
       calls: [command]
@@ -49,8 +48,7 @@ node_types:
       - cli-command-contract
       - diagnostic-logging
       - command-contract-shape
-      - posix-paths-source
-      - no-direct-minimatch
+      - source-hygiene
       - command-error-via-buildissuemessage
       - sibling-test-file
     log_required: true
@@ -71,8 +69,7 @@ node_types:
         - not:
             content: "export\\s+function\\s+register[A-Z]\\w*Command\\("
     aspects:
-      - posix-paths-source
-      - no-direct-minimatch
+      - source-hygiene
       - command-error-via-buildissuemessage
     parents: [module]
     relations:
@@ -93,8 +90,7 @@ node_types:
       - no-direct-fs
       - no-direct-console
       - no-nondeterminism-direct
-      - posix-paths-source
-      - no-direct-minimatch
+      - source-hygiene
       - single-source-graph-queries
     log_required: true
     parents: [module]
@@ -112,8 +108,7 @@ node_types:
       - migration-idempotent
       - migration-bumps-version
       - schema-bump-bookkeeping
-      - posix-paths-source
-      - no-direct-minimatch
+      - source-hygiene
     log_required: true
     parents: [module]
     relations:
@@ -132,8 +127,7 @@ node_types:
     aspects:
       - parser-contract
       - silent-missing-files
-      - posix-paths-source
-      - no-direct-minimatch
+      - source-hygiene
       - read-or-default-via-helper
       - parser-yaml-guard
     log_required: true
@@ -164,8 +158,7 @@ node_types:
     aspects:
       - silent-missing-files
       - atomic-write-contract
-      - posix-paths-source
-      - no-direct-minimatch
+      - source-hygiene
       - read-or-default-via-helper
     log_required: true
     parents: [module]
@@ -184,8 +177,7 @@ node_types:
             path: "**/*.test.ts"
     aspects:
       - deterministic
-      - posix-paths-source
-      - no-direct-minimatch
+      - source-hygiene
     log_required: true
     parents: [module]
     relations:
@@ -203,8 +195,7 @@ node_types:
             path: "**/*.test.ts"
     aspects:
       - deterministic
-      - posix-paths-source
-      - no-direct-minimatch
+      - source-hygiene
     parents: [module]
     relations:
       calls: [utility, ast-adapter, engine, persistence-adapter, structure-adapter]
@@ -221,8 +212,7 @@ node_types:
             path: "**/*.test.ts"
     aspects:
       - deterministic
-      - posix-paths-source
-      - no-direct-minimatch
+      - source-hygiene
     parents: [module]
     relations:
       calls: [engine, ast-adapter, structure-adapter, persistence-adapter, llm-shared, utility, relations-adapter]
@@ -237,8 +227,7 @@ node_types:
     aspects:
       - provider-retry-contract
       - provider-redaction
-      - posix-paths-source
-      - no-direct-minimatch
+      - source-hygiene
     parents: [module]
     relations:
       calls: [llm-shared, llm-subprocess-base, utility]
@@ -256,7 +245,7 @@ node_types:
         - not:
             path: "**/*.test.ts"
     aspects:
-      - no-direct-minimatch
+      - source-hygiene
     parents: [module]
     relations:
       calls: [llm-provider, utility]
@@ -271,8 +260,7 @@ node_types:
       path: "source/cli/src/llm/cli-base.ts"
     aspects:
       - provider-redaction
-      - posix-paths-source
-      - no-direct-minimatch
+      - source-hygiene
     parents: [module]
     relations:
       calls: [utility]
@@ -286,8 +274,7 @@ node_types:
       path: "source/cli/src/formatters/*.ts"
     aspects:
       - what-why-next
-      - posix-paths-source
-      - no-direct-minimatch
+      - source-hygiene
     parents: [module]
     relations:
       calls: [utility]
@@ -300,7 +287,7 @@ node_types:
     when:
       path: "source/cli/src/model/*.ts"
     aspects:
-      - no-direct-minimatch
+      - source-hygiene
     parents: [module]
     relations:
       uses: [types]
@@ -317,8 +304,7 @@ node_types:
     aspects:
       - no-side-effects-on-import
       - no-direct-fs
-      - posix-paths-source
-      - no-direct-minimatch
+      - source-hygiene
     parents: [module]
     relations:
       calls: [utility]
@@ -332,8 +318,7 @@ node_types:
       path: "source/cli/src/templates/{default-config,platform,rules}.ts"
     aspects:
       - what-why-next
-      - posix-paths-source
-      - no-direct-minimatch
+      - source-hygiene
     log_required: true
     parents: [module]
     relations:
@@ -347,7 +332,7 @@ node_types:
     when:
       path: "source/cli/src/templates/knowledge/*.ts"
     aspects:
-      - no-direct-minimatch
+      - source-hygiene
     parents: [module]
     relations:
       uses: [knowledge-doc]
@@ -359,7 +344,7 @@ node_types:
     when:
       path: "source/cli/src/templates/schemas/*.ts"
     aspects:
-      - no-direct-minimatch
+      - source-hygiene
     parents: [module]
     relations:
       default: deny
@@ -512,7 +497,7 @@ node_types:
     when:
       path: "source/cli/src/portal/contract.ts"
     aspects:
-      - no-direct-minimatch
+      - source-hygiene
     parents: [module]
     relations:
       uses: [types]
@@ -541,8 +526,7 @@ node_types:
       - portal/count-parity-via-reuse
       - portal/focused-file-size
       - portal/focused-file-exports
-      - posix-paths-source
-      - no-direct-minimatch
+      - source-hygiene
     log_required: true
     parents: [module]
     relations:
@@ -566,8 +550,7 @@ node_types:
       - portal/no-lock-writer-import
       - portal/count-parity-via-reuse
       - portal/focused-file-size
-      - posix-paths-source
-      - no-direct-minimatch
+      - source-hygiene
     log_required: true
     parents: [module]
     relations:
@@ -589,8 +572,7 @@ node_types:
       - portal/no-secrets-import
       - portal/no-lock-writer-import
       - portal/focused-file-size
-      - posix-paths-source
-      - no-direct-minimatch
+      - source-hygiene
     log_required: true
     parents: [module]
     relations:

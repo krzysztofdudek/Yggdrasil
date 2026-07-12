@@ -1,0 +1,8 @@
+name: SourceHygiene
+description: "Named bundle of the two baseline source-hygiene rules every source file must satisfy: POSIX-only path separators (posix-paths-source) and no direct minimatch import (no-direct-minimatch). A single attach point keeps the two rules bound together so they cannot silently diverge across node types. Aggregate only — it has no own reviewer and produces no own verdict; it expands to its two children on every node where it is effective."
+reviewer:
+  type: aggregate
+status: enforced
+implies:
+  - posix-paths-source
+  - no-direct-minimatch
