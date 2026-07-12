@@ -412,6 +412,37 @@ Quick ownership check — use `yg context --file` when you need the full context
 yg owner --file <path>
 ```
 
+### `yg suppressions`
+
+Read-only inventory of every active `yg-suppress` marker in your source. Each
+marker is listed with its aspect path, location, reason, and kind — single-line,
+bracket, wildcard, or **file-level**. It never touches `yg check` or the lock and
+always exits 0.
+
+```bash
+yg suppressions
+```
+
+It emits non-blocking warnings so accumulated waivers stay auditable:
+
+- **Unknown aspect-id** — the marker names an aspect that no known aspect matches.
+- **Wildcard suppress** (`*`) — waives every aspect in range, so any aspect added
+  later is silently waived too.
+- **Unbounded range** — a `yg-suppress-disable` with no matching
+  `yg-suppress-enable`, placed below the file head — usually a forgotten close, so
+  the waiver runs to the end of the file by accident.
+
+A bare `yg-suppress-disable` with no matching enable is the sanctioned way to
+waive an entire file, but only at the top: when it sits within the first five
+lines of the file that carry any non-whitespace text (a shebang and each
+header-comment line count; blank lines do not), the inventory classifies it
+`file-level`, lists it under that label, and does not warn. Placed lower, the same
+unclosed marker reads as an **Unbounded range**. This is a classification-and-reporting
+distinction only — what each reviewer actually waives (the resolved suppressed
+line ranges) is identical either way.
+
+Use it to review accumulated waivers before a release or a new rule rollout.
+
 ### `yg type-suggest`
 
 Suggests which architecture type(s) a file belongs to, based on `when` predicates
