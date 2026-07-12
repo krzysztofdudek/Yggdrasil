@@ -13,6 +13,7 @@ import {
   depthOfPath,
   lcaDepthOfPaths,
   ancestorAtDepth,
+  TOP_TUNNELS,
   type DeclaredRelation,
   type StructEdge,
 } from '../core/graph-metrics.js';
@@ -42,9 +43,6 @@ import {
 /** Verbatim edge-universe legend — printed on every run, no matter the graph. */
 const EDGE_UNIVERSE_LEGEND =
   'edges = declared structural relations ∪ statically detected dependencies; event relations excluded; weights not computed';
-
-/** How many of the widest-spanning tunnels to list. */
-const TOP_TUNNELS = 10;
 
 /** How many group names to list before collapsing the tail into a count. */
 const MAX_GROUP_NAMES = 12;

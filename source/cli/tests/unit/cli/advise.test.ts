@@ -28,9 +28,23 @@ const distExists = existsSync(BIN_PATH);
 const LIVE_ID = 'overdue-review-by:requires-logging';
 const HEX64 = /^[0-9a-f]{64}$/;
 
-function run(args: string[], cwd: string) {
-  const r = spawnSync('node', [BIN_PATH, ...args], { cwd, encoding: 'utf-8' });
+function run(args: string[], cwd: string, env?: Record<string, string>) {
+  const r = spawnSync('node', [BIN_PATH, ...args], {
+    cwd,
+    encoding: 'utf-8',
+    env: env ? { ...process.env, ...env } : process.env,
+  });
   return { stdout: r.stdout ?? '', stderr: r.stderr ?? '', status: r.status };
+}
+
+/** Count raw C0 (except LF) / DEL / C1 control bytes in a string — 0 means clean. */
+function rawControlBytes(s: string): number {
+  let n = 0;
+  for (const ch of s) {
+    const c = ch.codePointAt(0) ?? 0;
+    if ((c < 0x20 && c !== 0x0a) || (c >= 0x7f && c <= 0x9f)) n += 1;
+  }
+  return n;
 }
 
 function readRegister(projectRoot: string): string[] {
@@ -238,6 +252,120 @@ describe.skipIf(!distExists)('yg advise — Step 2: cap, --all, --ids (spawned)'
     const { status, stdout } = run(['advise', '--ids'], projectRoot);
     expect(status).toBe(0);
     expect(stdout).toMatch(/id: suppress-anomaly:src\/auth\/auth\.controller\.ts:\d+/);
+  });
+});
+
+// ── Task 5 fixes: id-surface injection hygiene + attention/structure consistency ──
+
+/**
+ * Write a drill-results sidecar with a MISS whose repo-derived `case` label — which
+ * flows verbatim into the stable nomination id — carries a bell, an ANSI escape,
+ * and a raw newline. A POSIX-legal but hostile label; the id must reach every
+ * opt-in surface neutralized.
+ */
+function writeHostileDrillCase(projectRoot: string): string {
+  const ESC = String.fromCharCode(27); // ANSI escape
+  const BEL = String.fromCharCode(7); // bell — a control byte chalk never emits
+  const caseLabel = `violates-x/needs${BEL}${ESC}\naudit`;
+  const line = {
+    v: 1,
+    ts: '2026-07-01T00:00:00.000Z',
+    aspect: 'requires-audit',
+    case: caseLabel,
+    expect: 'refused',
+    got: 'satisfied',
+    src: 'dev',
+    corpus: 'dev',
+    caseHash: 'c'.repeat(64),
+    ruleHash: '0'.repeat(64),
+    kind: 'llm',
+  };
+  writeFileSync(
+    path.join(projectRoot, '.yggdrasil', '.drill-results.jsonl'),
+    JSON.stringify(line) + '\n',
+    'utf-8',
+  );
+  return `drill-miss:requires-audit/${caseLabel}`;
+}
+
+describe.skipIf(!distExists)('yg advise — id-surface injection hygiene (spawned)', () => {
+  let projectRoot: string;
+  let canonicalId: string;
+
+  beforeEach(() => {
+    projectRoot = mkdtempSync(path.join(tmpdir(), 'yg-advise-idhyg-'));
+    cpSync(FIXTURE, projectRoot, { recursive: true });
+    canonicalId = writeHostileDrillCase(projectRoot);
+  });
+  afterEach(() => rmSync(projectRoot, { recursive: true, force: true }));
+
+  // NO_COLOR so chalk emits no styling ESC of its own — then every control byte we
+  // see could only have come from the injected id, making the assertion exact.
+  const noColor = { NO_COLOR: '1' };
+  // The rendered (sanitized) form: the three hostile bytes collapse to ONE space.
+  const SANITIZED = 'drill-miss:requires-audit/violates-x/needs audit';
+
+  it('--ids renders the id with every control byte neutralized (no rogue byte escapes)', () => {
+    const { status, stdout } = run(['advise', '--ids'], projectRoot, noColor);
+    expect(status).toBe(0);
+    expect(rawControlBytes(stdout)).toBe(0);
+    // Still rendered — the bytes are folded to a space, never dropped or line-broken.
+    expect(stdout).toContain(`id: ${SANITIZED}`);
+  });
+
+  it('the dismiss "known ids" error join neutralizes control bytes in the listed ids', () => {
+    const { status, stderr } = run(
+      ['advise', 'dismiss', 'no-such-id', '--reason', 'x'],
+      projectRoot,
+      noColor,
+    );
+    expect(status).toBe(1);
+    expect(rawControlBytes(stderr)).toBe(0);
+    expect(stderr).toContain(SANITIZED);
+  });
+
+  it('dismiss still resolves the REAL canonical id — sanitizing is render-only', () => {
+    // The canonical id keeps its raw bytes; naming it exactly still succeeds and
+    // the committed decision stores it verbatim, proving the render-time sanitizer
+    // never touched what decisions bind to.
+    const { status } = run(['advise', 'dismiss', canonicalId, '--reason', 'reviewed'], projectRoot, noColor);
+    expect(status).toBe(0);
+    const lines = readRegister(projectRoot);
+    expect(lines).toHaveLength(1);
+    expect(JSON.parse(lines[0]).id).toBe(canonicalId);
+  });
+});
+
+describe.skipIf(!distExists)('yg advise — attention count mirrors yg structure (spawned)', () => {
+  let projectRoot: string;
+  beforeEach(() => {
+    projectRoot = mkdtempSync(path.join(tmpdir(), 'yg-advise-mirror-'));
+    cpSync(FIXTURE, projectRoot, { recursive: true });
+  });
+  afterEach(() => rmSync(projectRoot, { recursive: true, force: true }));
+
+  it('the attention tunnel count equals the number of tunnels yg structure lists', () => {
+    const advise = run(['advise'], projectRoot);
+    const structure = run(['structure'], projectRoot);
+    expect(advise.status).toBe(0);
+    expect(structure.status).toBe(0);
+
+    // advise's attention line reports N (verbatim line text — only N varies).
+    const m = advise.stdout.match(
+      /(\d+) dependencies jump across distant parts of the architecture — run yg structure to see them/,
+    );
+    expect(m).not.toBeNull();
+    const attentionN = Number(m![1]);
+
+    // yg structure prints exactly one line per tunnel it lists (its top-N farthest).
+    const listed = (structure.stdout.match(/ jumps \d+ level/g) ?? []).length;
+
+    // The invariant: advise reports EXACTLY what structure displays — capped at the
+    // shared TOP_TUNNELS, never the full cross-tree edge universe. A future drift in
+    // either surface breaks this equality.
+    expect(attentionN).toBe(listed);
+    expect(attentionN).toBeGreaterThanOrEqual(1);
+    expect(attentionN).toBeLessThanOrEqual(10);
   });
 });
 

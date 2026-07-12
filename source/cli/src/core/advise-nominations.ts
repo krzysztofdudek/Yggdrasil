@@ -118,20 +118,35 @@ const THIN_DATA_N = 20;
 const MAX_QUOTED = 200;
 
 /**
- * Render an untrusted repo-derived string as SAFE inline data. Control characters
- * (including CR / LF, ESC, NUL and the C1 range) are collapsed to spaces so the
- * value can never inject an escape sequence or a line break that breaks out of
- * its quotes; runs of whitespace are collapsed and the result is length-bounded.
- * The caller wraps the return value in quotes — this keeps repo text as DATA, not
- * an instruction to the agent reading the feed.
+ * Neutralize every control character in an untrusted repo-derived string. Each C0
+ * control (including CR / LF, ESC, NUL and the whole 0x00–0x1F range) and every
+ * DEL / C1 code point (0x7F–0x9F) is replaced with a space, then runs of
+ * whitespace are collapsed and the result trimmed. The `\s+` collapse also folds
+ * the Unicode line/paragraph separators (U+2028 / U+2029) and NEL-adjacent
+ * whitespace, so no escape sequence or line break can survive to read as an
+ * instruction to the agent reading the feed. This is the injection-neutralization
+ * core with NO length bound — safe for a full authored message whose only
+ * untrusted part is a length-bounded id.
  */
-function quoteData(raw: string): string {
+function neutralizeControls(raw: string): string {
   let out = '';
   for (const ch of raw) {
     const code = ch.codePointAt(0) ?? 0;
     out += code < 0x20 || (code >= 0x7f && code <= 0x9f) ? ' ' : ch;
   }
-  out = out.replace(/\s+/g, ' ').trim();
+  return out.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Render an untrusted repo-derived string as SAFE inline DATA: neutralize control
+ * characters (neutralizeControls) then length-bound the result. The caller wraps
+ * the return value in quotes — this keeps repo text as DATA, not an instruction to
+ * the agent reading the feed. Exported so the CLI boundary sanitizes the same way
+ * when it renders a nomination's stable id (which embeds raw repo strings) onto
+ * the opt-in id / dismiss / defer surfaces.
+ */
+export function quoteData(raw: string): string {
+  const out = neutralizeControls(raw);
   return out.length > MAX_QUOTED ? `${out.slice(0, MAX_QUOTED)}…` : out;
 }
 
@@ -462,9 +477,13 @@ export function buildNominations(graph: Graph, sources: NominationSources): Nomi
     nominations.push({
       id: `dead-attach:${aspectId}`,
       classRank: CLASS_RANK.deadAttach,
-      what: issue.messageData.what,
-      why: issue.messageData.why,
-      next: asApprovalNext(issue.messageData.next),
+      // Validator messages embed the aspect id (dir-name-constrained, so bounded)
+      // amid authored prose. On the always-on feed every repo-derived string is
+      // uniformly neutralized — control-byte-only (no length bound), so the full
+      // authored what/why/next survives while any injected byte cannot.
+      what: neutralizeControls(issue.messageData.what),
+      why: neutralizeControls(issue.messageData.why),
+      next: asApprovalNext(neutralizeControls(issue.messageData.next)),
       evidenceHash: hashEvidence({ source: 'dead-attach', aspectId }),
       evidenceTs: todayIso,
     });
@@ -477,9 +496,9 @@ export function buildNominations(graph: Graph, sources: NominationSources): Nomi
     nominations.push({
       id: `orphaned-aspect:${aspectId}`,
       classRank: CLASS_RANK.orphaned,
-      what: issue.messageData.what,
-      why: issue.messageData.why,
-      next: asApprovalNext(issue.messageData.next),
+      what: neutralizeControls(issue.messageData.what),
+      why: neutralizeControls(issue.messageData.why),
+      next: asApprovalNext(neutralizeControls(issue.messageData.next)),
       evidenceHash: hashEvidence({ source: 'orphaned-aspect', aspectId }),
       evidenceTs: todayIso,
     });
@@ -494,9 +513,9 @@ export function buildNominations(graph: Graph, sources: NominationSources): Nomi
     nominations.push({
       id: `overdue-review-by:${aspectId}`,
       classRank: CLASS_RANK.overdueReviewBy,
-      what: issue.messageData.what,
-      why: issue.messageData.why,
-      next: asApprovalNext(issue.messageData.next),
+      what: neutralizeControls(issue.messageData.what),
+      why: neutralizeControls(issue.messageData.why),
+      next: asApprovalNext(neutralizeControls(issue.messageData.next)),
       evidenceHash: hashEvidence({ source: 'overdue-review-by', aspectId, reviewBy }),
       // The review-by day is the item's natural recency key.
       evidenceTs: reviewBy !== '' ? `${reviewBy}T00:00:00.000Z` : todayIso,

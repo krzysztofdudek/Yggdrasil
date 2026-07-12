@@ -7,6 +7,7 @@ import { buildIssueMessage } from '../formatters/message-builder.js';
 import {
   buildNominations,
   buildAttention,
+  quoteData,
   type Nomination,
   type NominationSources,
   type SuppressAnomaly,
@@ -24,6 +25,7 @@ import {
   tunnelSpans,
   depthOfPath,
   lcaDepthOfPaths,
+  TOP_TUNNELS,
   type DeclaredRelation,
 } from '../core/graph-metrics.js';
 import { isValidReviewByDate } from '../io/aspect-parser.js';
@@ -72,18 +74,23 @@ function collectDeclaredRelations(graph: Graph): DeclaredRelation[] {
 }
 
 /**
- * The C7 tunnel count for the Attention line — the number of structural edges in
- * the deduped universe (declared structural relations ∪ statically detected
- * dependencies; event relations excluded), the SAME universe `yg structure`
- * ranks. Any failure degrades to 0 (the line is simply omitted) so the attention
- * computation can never break the exit-0 invariant (G4).
+ * The C7 tunnel count for the Attention line. `yg structure` ranks the structural
+ * edge universe (declared structural relations ∪ statically detected dependencies;
+ * event relations excluded) by span and DISPLAYS only the widest TOP_TUNNELS of
+ * them. The attention line points the reader straight at that view — "run yg
+ * structure to see them" — so it must report exactly what structure lists, not the
+ * full edge universe: the count is min(TOP_TUNNELS, number of tunnels), using the
+ * SAME shared constant structure slices by, so the two can never drift. Any
+ * failure degrades to 0 (the line is simply omitted) so the attention computation
+ * can never break the exit-0 invariant (G4).
  */
 async function computeTunnelCount(graph: Graph): Promise<number> {
   try {
     const projectRoot = path.dirname(graph.rootPath);
     const detected = (await computeDetectedEdges(graph, projectRoot)) ?? new Map();
     const edges = edgeUniverse(collectDeclaredRelations(graph), detected);
-    return tunnelSpans(edges, depthOfPath, lcaDepthOfPaths).length;
+    const tunnels = tunnelSpans(edges, depthOfPath, lcaDepthOfPaths).length;
+    return Math.min(TOP_TUNNELS, tunnels);
   } catch (error) {
     debugWrite(`[advise] tunnel-count degraded to 0: ${(error as Error).message}`);
     return 0;
@@ -156,7 +163,10 @@ function renderNomination(nom: VisibleNomination, showIds: boolean): string[] {
   out.push(`  ${nom.what}${note}`);
   out.push(`    ${nom.why}`);
   out.push(`    ${nom.next}`);
-  if (showIds) out.push(chalk.dim(`    id: ${nom.id}`));
+  // The id embeds raw repo strings (a file path, a drill-case name). Sanitize the
+  // RENDERED form only — the canonical id stays intact for evidence-hash matching
+  // and for the committed decision line — so no control byte reaches this surface.
+  if (showIds) out.push(chalk.dim(`    id: ${quoteData(nom.id)}`));
   return out;
 }
 
@@ -200,7 +210,7 @@ function renderNominations(
     parts.push(chalk.dim(`Dismissed / deferred (${hidden.length}):`));
     for (const nom of hidden) {
       parts.push(chalk.dim(`  ${nom.what}`));
-      if (showIds) parts.push(chalk.dim(`    id: ${nom.id}`));
+      if (showIds) parts.push(chalk.dim(`    id: ${quoteData(nom.id)}`));
     }
   }
 
@@ -219,11 +229,14 @@ function renderNominations(
  * evidence the item carries now.
  */
 function resolveNominationOrFail(noms: Nomination[], id: string): Nomination {
+  // Match on the RAW id — the canonical id is what decisions bind to; only the
+  // rendered forms below are sanitized (the id embeds raw repo strings, and both
+  // the echoed argument and the known-id list must stay injection-safe).
   const nomination = noms.find((n) => n.id === id);
   if (nomination === undefined) {
-    const knownIds = noms.map((n) => n.id);
+    const knownIds = noms.map((n) => quoteData(n.id));
     failWith({
-      what: `No current attention item has id '${id}'.`,
+      what: `No current attention item has id '${quoteData(id)}'.`,
       why:
         knownIds.length > 0
           ? 'A dismiss or defer must name a live attention item, but this id matches none of the current items.'
@@ -315,7 +328,7 @@ export function registerAdviseCommand(program: Command): void {
         await recordDecision(
           graph,
           decision,
-          `Dismissed '${nomination.id}'. It stays hidden until its underlying evidence changes.`,
+          `Dismissed '${quoteData(nomination.id)}'. It stays hidden until its underlying evidence changes.`,
         );
       } catch (error) {
         handleError(error);
@@ -354,7 +367,7 @@ export function registerAdviseCommand(program: Command): void {
         await recordDecision(
           graph,
           decision,
-          `Deferred '${nomination.id}' until ${opts.until}. It returns to the feed on or after that date.`,
+          `Deferred '${quoteData(nomination.id)}' until ${opts.until}. It returns to the feed on or after that date.`,
         );
       } catch (error) {
         handleError(error);
