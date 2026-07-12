@@ -50,7 +50,8 @@ export interface FileFacts {
    * instrumentation. Always present for an extractor-backed file (this pass only reaches
    * `countFeatures` for files with a registered extractor). Rides in the pass's returned
    * `factsByPath` for downstream read-only consumers; the anomaly layer reads
-   * `factsByPath.get(path).features` — no new pass-result field is added.
+   * `factsByPath.get(path).features` alongside the per-file content hash the pass also
+   * exposes on its result (`hashByPath`) to pin a file's vector to its exact bytes.
    */
   features: FeatureVector;
 }
@@ -61,6 +62,16 @@ export interface RelationPassResult {
    *  Exposed so the cache-audit harness can deep-equal a cache-HIT run against a
    *  cache-DISABLED run — a mismatch means an incomplete key or a broken round-trip. */
   factsByPath: Map<string, FileFacts>;
+  /**
+   * ADDITIVE, read-only: repo-rel POSIX path → the file's raw content hash
+   * (`FileRecord.hash`, i.e. `hashString(fileBytes)`). Computed once at file-enumeration
+   * time from the freshly-read bytes — the SAME hash regardless of an AST-cache hit/miss,
+   * and the SAME hash a later reader re-derives from the file bytes. Exposed so downstream
+   * read-only consumers (the silent feature-field index) can pin an entry to the exact bytes
+   * the feature vectors were computed from WITHOUT re-reading or re-hashing. Populated for
+   * every enumerated file (a superset of `factsByPath`, which drops parse-failed files).
+   */
+  hashByPath: Map<string, string>;
   /**
    * ADDITIVE, read-only: the FULL set of statically-detected cross-node code edges
    * keyed by source nodeId → the set of resolved target nodeIds it depends on. This is
@@ -472,5 +483,11 @@ export async function runRelationPass(
     }
   }
 
-  return { violationsByNode, factsByPath, detectedEdgesByNode };
+  // ADDITIVE read-only: expose each enumerated file's raw content hash (computed once from
+  // the freshly-read bytes at enumeration, independent of any AST-cache hit/miss). Lets the
+  // silent feature-field index pin an entry to exact bytes without re-reading or re-hashing.
+  const hashByPath = new Map<string, string>();
+  for (const [rel, record] of recordByPath) hashByPath.set(rel, record.hash);
+
+  return { violationsByNode, factsByPath, detectedEdgesByNode, hashByPath };
 }

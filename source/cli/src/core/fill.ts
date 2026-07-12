@@ -186,6 +186,16 @@ export interface RunFillOptions {
    *  — the early-return precedes the serialized writer's construction, so the
    *  no-write guarantee is structural. Powers `yg check --approve --dry-run`. */
   dryRun?: boolean;
+  /** When true, maintain the silent feature-field deviation index on the REAL post-fill
+   *  report — the reporting path of `yg check --approve`. Threaded ONLY to the final report
+   *  runCheck; the dry-run re-check (which returns before that report) and every other caller
+   *  stay byproduct-free. Best-effort and gitignored, so it never affects the fill outcome or
+   *  exit code. Default false. */
+  writeFeatureIndex?: boolean;
+  /** INJECTED clock for the feature-field index's `generatedAt` stamp — distinct from `now`
+   *  below, which is the progress/heartbeat clock returning epoch ms. Passed through to the
+   *  final report runCheck; defaults inside it to `() => new Date()` when the index is written. */
+  featureIndexNow?: () => Date;
   /** Whether the write sink is an interactive TTY. Defaults to process.stderr.isTTY ?? false.
    *  When true, the progress tracker rewrites a single line with \r instead of emitting
    *  milestone lines. */
@@ -859,8 +869,14 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   clearInterval(tickInterval);
   tracker.clearLine(write);
 
-  // The `yg check --approve` combiner prints this report after filling.
-  const checkResult = await runCheck(graph, opts.gitTrackedFiles);
+  // The `yg check --approve` combiner prints this report after filling. This IS the
+  // reporting path for `--approve`, so it maintains the silent feature-field index when the
+  // CLI asks (best-effort, byproduct-free elsewhere). The dry-run re-check above returns
+  // before reaching here, so a cost preview never writes it regardless of the flag.
+  const checkResult = await runCheck(graph, opts.gitTrackedFiles, {
+    writeFeatureIndex: opts.writeFeatureIndex,
+    now: opts.featureIndexNow,
+  });
 
   // ── Convergence sentinel (C15) — READ-ONLY over the fill's own state. ──────
   // Detect the exact 0-fill divergence: the pre-fill classification reported ZERO

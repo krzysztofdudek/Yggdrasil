@@ -3,3 +3,4 @@ yg-secrets.yaml
 .ast-cache/
 .debug.log
 .yg-lock.deterministic.json
+.feature-field.json

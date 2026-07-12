@@ -1,0 +1,11 @@
+name: E2E Tests — Feature-Field Index & Attention Dump
+type: test-suite
+description: "Subprocess E2E over the public CLI: yg check maintains the local,
+  gitignored feature-field index (git never stages it and the .yggdrasil
+  gitignore carries the line), the hidden --attention-dump prints plain-language
+  calibration output, exits 0, and writes nothing, and yg check --approve
+  --dry-run writes no index. Spawns the built bin.js; no source imports."
+aspects: []
+relations: []
+mapping:
+  - source/cli/tests/e2e/cli-attention-dump.test.ts

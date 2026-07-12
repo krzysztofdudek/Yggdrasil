@@ -2,3 +2,4 @@ yg-secrets.yaml
 .symbols-cache/
 .debug.log
 .yg-lock.deterministic.json
+.feature-field.json

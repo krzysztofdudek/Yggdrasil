@@ -1,0 +1,15 @@
+name: Feature-Field Deviation Unit Tests
+type: test-suite
+description: "Unit tests for the silent feature-field deviation math — the robust
+  median / MAD / z helpers and computeFamilyDeviations over synthetic families:
+  outlier admission (family size at least MIN_N, non-zero spread, threshold),
+  small-sample and zero-spread silence (no divide-by-zero), the sparse output,
+  and the owner-node x extractor-language family key."
+aspects: []
+relations:
+  [
+    { target: cli/core/check, type: uses },
+    { target: cli/relations/core, type: uses }
+  ]
+mapping:
+  - source/cli/tests/unit/core/feature-index-deviations.test.ts

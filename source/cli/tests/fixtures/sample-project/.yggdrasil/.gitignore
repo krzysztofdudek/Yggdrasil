@@ -1,3 +1,4 @@
 yg-secrets.yaml
 .symbols-cache/
 .debug.log
+.feature-field.json

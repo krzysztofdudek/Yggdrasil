@@ -6,3 +6,4 @@ yg-secrets.yaml
 .yg-events.jsonl
 .yg-fill-divergence.log
 .drill-results.jsonl*
+.feature-field.json

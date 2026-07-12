@@ -82,6 +82,28 @@ never a silent full dump — for the single suggested-next group use bare
 matching the count the build enforces. Orient with \`--summary\`/\`--top\`, drill
 with \`--aspect\` or plain \`yg check\`.
 
+### Silent structural-deviation index (attention only)
+
+As a byproduct, a plain \`yg check\` also maintains a local, gitignored
+\`.yggdrasil/.feature-field.json\`: a sparse list of source files that look
+structurally unusual among their node's OTHER same-language files (measured on
+the per-file structural counts the relation pass already computes — size,
+nesting, and the six category counts). It is pure ATTENTION: it is NEVER an
+issue, an exit code, or a suggested next step; it never gates \`yg check\`, and
+it is computed from the warm parse cache at no extra cost. The write is
+best-effort — a failure to write it never fails a check. Only the reporting
+read path maintains it; \`--approve\`, \`--dry-run\`, and the internal fill
+re-checks leave it untouched.
+
+\`\`\`bash
+yg check --attention-dump   # hidden: print the raw measurements, then exit 0
+\`\`\`
+
+\`--attention-dump\` is a calibration instrument: it prints each file's raw
+structural counts grouped by node and language, marks the outliers "worth a
+closer read", and exits 0. It runs over the warm cache (no new parse), writes
+NOTHING, and makes no reviewer calls.
+
 ## yg check --approve
 
 Fill every unverified pair, then report. The only writer of verdicts (alongside
