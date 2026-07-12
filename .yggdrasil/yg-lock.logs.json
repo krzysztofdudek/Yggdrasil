@@ -5,7 +5,7 @@
   "nodes": {
     "cli/ast": {"log":{"last_entry_datetime":"2026-05-26T10:52:08.726Z","prefix_hash":"9fbde98b0c903f19473c74f077b29fc098aef162424f6cf383c8fcfcaf361ea1"}},
     "cli/ast/report": {"log":{"last_entry_datetime":"2026-06-08T19:56:29.501Z","prefix_hash":"6726dc32495c3e8d7b8f7d37de0904430161168455bdc3f4e8f4941352072f11"},"source":"8378c30eb8ec3d04a205b24994876c0d7c9e0a634ace5a926d8d6a27d6e78d90"},
-    "cli/ast/runtime": {"log":{"last_entry_datetime":"2026-07-11T03:28:01.077Z","prefix_hash":"737bdbff327bd5a57193d19b0086baeaf8ccd6ea69dbaa2bb37cb1ab5eba4e4d"},"source":"7feb41a3ed9a61e551742aac0879b23ffdee2495d1162a12a986a8a1b91a72df"},
+    "cli/ast/runtime": {"log":{"last_entry_datetime":"2026-07-12T07:23:27.678Z","prefix_hash":"3a7c163b6a72d491a4b17da7ba5f627455e169278184e7a0cf74f6a2cfab790f"},"source":"9ef79ec4ff3b1aef600c0d328c39585f98d1a73849b4c611f8c9921a45bbdeb8"},
     "cli/commands/aspect-test": {"log":{"last_entry_datetime":"2026-07-11T04:44:04.013Z","prefix_hash":"07b187d1abd969b8863248c36daa241322e90cac52050b83dddde058fff790db"},"source":"d5fe125f682107d8b1723a42776af1aa808c05960e2a2019726e692bbdb52bae"},
     "cli/commands/aspects": {"log":{"last_entry_datetime":"2026-07-11T18:56:07.319Z","prefix_hash":"d549cdf91e0c21bfb43956340a839f357417923b81bb0339b40cfd2f94052819"},"source":"f86c87507d7473243d040473aab6eb30a573b82fc702b3a993695b056ed21755"},
     "cli/commands/build-context": {"log":{"last_entry_datetime":"2026-07-03T08:34:29.911Z","prefix_hash":"d207fbbffdda6391dfb01515a6bbd42bc0a277497d52e5a472c58a440b6af97b"},"source":"d55cba29b2fc99137ffaab86ec5d85fec80551a909a2f6accd689771b1565a59"},

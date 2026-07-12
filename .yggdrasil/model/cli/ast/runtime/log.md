@@ -68,3 +68,24 @@ Made the Markdown fenced-code-block mask that renders documented suppression exa
 The shared suppression-marker scanner now records, per marker, whether it sits within the first five non-empty lines of its file. This positional fact exists to let the inventory distinguish a deliberate whole-file waiver — a bare disable placed at the top of a file, which intentionally runs to end-of-file — from a bare disable buried lower in the file, which usually means its closing enable marker was forgotten. Blank and whitespace-only lines do not count toward that five-line budget, so a marker after a shebang or a short header comment still reads as top-of-file. The signal is computed identically for both the comment-scanned (registered-grammar) path and the raw-line (non-grammar) path so the two cannot diverge. It is a classification input only: it does not change which lines any reviewer waives, so the resolved suppressed ranges are byte-for-byte unchanged.
 ## [2026-07-11T03:28:01.077Z]
 Added an opt-in graph-access sentinel to the single-file check runner so a graphless "re-run a rule over example files" mode can tell apart two failure kinds that otherwise look identical: a check that legitimately needs whole-graph context (node/graph/fs/parseYaml) versus a check with a real bug. When the sentinel is enabled, reading any graph-context accessor throws a distinct, trappable error that the caller reclassifies as an unsupported capability gap (recorded, never scored) instead of a generic runtime error. The sentinel is opt-in and never enabled on production verification paths, so for every normal run the context object is unchanged and behaviour is byte-for-byte identical to before — a regression test pins that the same graph-reading check still surfaces as a runtime error when the sentinel is off.
+## [2026-07-12T07:23:27.678Z]
+The deterministic-check harness that backs the interactive rule-exercising
+and single-rule diagnostic commands used to abort a case whenever the subject
+file could not be parsed cleanly by its grammar — a syntax error, or a raw
+control byte that corrupts the parse. The production verification path never
+does this: it parses best-effort and hands the check whatever tree the parser
+produces, so a content-only rule (one that inspects the raw file text and never
+the syntax tree — for example a scan for raw control bytes) refuses a broken
+file cleanly at the gate. The harness aborting on the parse error meant such a
+rule could not be exercised against a broken same-extension fixture: the harness
+recorded the case as "could not evaluate" while the gate recorded it as
+"refused" — a fidelity gap between two surfaces that are meant to reach the same
+verdict on the same input.
+
+The harness now mirrors the gate. It delivers the parsed tree best-effort even
+when the tree carries parse errors, so a content-only rule runs identically in
+both places, and a rule that does consume the tree receives the same error-laden
+tree the gate would hand it — introducing no new divergence. Preserving that
+harness-equals-gate equivalence is the invariant this runner exists to uphold:
+a rule author must be able to trust that a case exercised in the diagnostic
+surface behaves exactly as it will in the enforcing one.
