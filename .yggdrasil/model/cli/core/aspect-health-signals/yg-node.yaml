@@ -1,0 +1,18 @@
+name: Aspect Health Signals
+type: engine
+description: "Pure, shared per-aspect health signal read by both the yg aspects
+  --health view and the advise decorative-rule nomination source. Counts catch
+  (refused fills) and exposure (approved+refused fills) over distinct
+  (aspect, unit, hash) triples, shrinks the catch rate within its kind stratum
+  (beta-binomial empirical Bayes), labels each rule active/quiet/decorative?, and
+  gates a demotion proposal on independent corroborating signals (no drills, a
+  shrinking attach set, no suppress history) — never the catch counter alone. No
+  I/O and no clock: every telemetry input arrives as a plain-data parameter from
+  the CLI boundary, so core never imports a telemetry reader."
+relations:
+  - target: cli/io/stores
+    type: calls
+  - target: cli/model/graph
+    type: uses
+mapping:
+  - source/cli/src/core/aspect-health-signals.ts

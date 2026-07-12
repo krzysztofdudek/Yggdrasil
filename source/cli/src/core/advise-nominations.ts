@@ -30,9 +30,11 @@
  *     anomalies, dead-attach (aspect-effective-nowhere), orphaned aspects,
  *     overdue review_by.
  *   T1 (from local telemetry, thin-data honesty labels — RZ-21): promotion
- *     (an advisory rule with a clean recorded record) and sharpen (a rule the
- *     reviewer judged the SAME input inconsistently under --repeat). Every T1
- *     class ranks BELOW every T0 class.
+ *     (an advisory rule with a clean recorded record), sharpen (a rule the
+ *     reviewer judged the SAME input inconsistently under --repeat), and
+ *     decorative-rule (an enforceable rule never once violated at exposure, whose
+ *     independent corroborating signals agree it may be safe to demote — under the
+ *     anti-Goodhart covenant). Every T1 class ranks BELOW every T0 class.
  */
 
 import type { Graph } from '../model/graph.js';
@@ -42,6 +44,7 @@ import { checkReviewOverdue, checkAspectEffectiveNowhere } from './checks/aspect
 import { checkOrphanedAspects } from './checks/aspects.js';
 import { ruleHashFor } from './pair-inputs.js';
 import { hashString } from '../io/hash.js';
+import { computeAspectHealthSignals } from './aspect-health-signals.js';
 import type { DrillResultLine } from '../io/drill-results-store.js';
 import type { VerdictEvent } from '../io/events-store.js';
 
@@ -90,8 +93,20 @@ export interface NominationSources {
   suppressAnomalies?: SuppressAnomaly[];
   /** Drill-result telemetry (T0-local drill MISS). Absent → none. */
   drillResults?: DrillResultLine[];
-  /** Verdict-event telemetry (T1 promotion / sharpen). Absent → none. */
+  /** Verdict-event telemetry (T1 promotion / sharpen / decorative-rule). Absent → none. */
   verdictEvents?: VerdictEvent[];
+  /**
+   * Current expected units per aspect (aspectId → unit keys), from the graph's
+   * pairs. Required for the decorative-rule source's shrinking-attach-set signal;
+   * absent → that source does not run (fail-safe: no demotion nominated).
+   */
+  currentUnitsByAspect?: Map<string, Set<string>>;
+  /**
+   * Live non-wildcard suppress-marker counts per aspect. Required for the
+   * decorative-rule source's no-suppress-history signal; absent → that source does
+   * not run.
+   */
+  suppressCountsByAspect?: Map<string, number>;
 }
 
 /**
@@ -108,6 +123,7 @@ const CLASS_RANK = {
   // --- T1: below all T0 ---
   promotion: 60,
   sharpen: 70,
+  decorativeRule: 80,
 } as const;
 
 /** Promotion needs at least this many recorded clean approvals to be nominated. */
@@ -424,6 +440,79 @@ function sharpenNominations(events: VerdictEvent[]): Nomination[] {
 }
 
 // ---------------------------------------------------------------------------
+// T1 — decorative-rule (an enforceable rule never violated at exposure)
+// ---------------------------------------------------------------------------
+
+/**
+ * Nominate a rule for a demotion/retire review ONLY when it looks decorative
+ * (never once refused across meaningful exposure) AND every independent
+ * corroborating signal agrees it is safe to consider demoting: no regression
+ * drills, a shrinking attach set, and no suppress history. This gate lives in
+ * `computeAspectHealthSignals` as `demotionCorroborated` — never the catch counter
+ * alone. The anti-Goodhart covenant is honoured IN THE WHY: zero catches at
+ * exposure is ALSO the signature of a perfectly deterring rule, so the item never
+ * asserts the rule is useless; it names the corroborating signals as DATA and
+ * offers "add a regression drill" as an alternative to demotion. The signature
+ * stays human — the item proposes, the user decides.
+ */
+function decorativeRuleNominations(
+  graph: Graph,
+  events: VerdictEvent[],
+  drillResults: DrillResultLine[],
+  currentUnitsByAspect: Map<string, Set<string>>,
+  suppressCountsByAspect: Map<string, number>,
+  todayIso: string,
+): Nomination[] {
+  const signals = computeAspectHealthSignals(graph, {
+    verdictEvents: events,
+    drillResults,
+    currentUnitsByAspect,
+    suppressCountsByAspect,
+  });
+
+  const out: Nomination[] = [];
+  for (const aspect of graph.aspects) {
+    const sig = signals.get(aspect.id);
+    if (sig === undefined || !sig.demotionCorroborated) continue;
+
+    // Most-recent fill timestamp is the item's natural recency key (corroboration
+    // requires ≥1 fill, so this is populated; fall back defensively).
+    let lastTs = '';
+    for (const e of events) {
+      if (e.source !== 'fill' || e.aspectId !== aspect.id) continue;
+      if (typeof e.ts === 'string' && e.ts > lastTs) lastTs = e.ts;
+    }
+    const sinceLabel = lastTs !== '' ? ` [local telemetry since ${lastTs}]` : '';
+
+    const aspectQ = quoteData(aspect.id);
+    out.push({
+      id: `decorative-rule:${aspect.id}`,
+      classRank: CLASS_RANK.decorativeRule,
+      what: `Rule '${aspectQ}' is enforceable but has never been refused in recorded checks.`,
+      why:
+        `caught 0 of ${sig.exposure} recorded checks while its attach set is shrinking, with no regression ` +
+        `drill on record and no suppress waiver — the independent signals that it may be decorative all agree. ` +
+        `Zero catches at this exposure can equally mean the rule is deterring the very violations it would ` +
+        `catch; only a regression drill tells the two apart.${sinceLabel}`,
+      next: asApprovalNext(
+        `Propose demoting rule '${aspectQ}' to advisory or retiring it, citing these numbers — or add a ` +
+          `regression drill to confirm it still catches before demoting.`,
+      ),
+      // Bind to the counts: more checks (or a first catch) moves the hash, so a
+      // dismissed item returns when the evidence changes.
+      evidenceHash: hashEvidence({
+        source: 'decorative-rule',
+        aspectId: aspect.id,
+        catch: sig.catch,
+        exposure: sig.exposure,
+      }),
+      evidenceTs: lastTs !== '' ? lastTs : todayIso,
+    });
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // buildNominations
 // ---------------------------------------------------------------------------
 
@@ -526,6 +615,21 @@ export function buildNominations(graph: Graph, sources: NominationSources): Nomi
   const events = sources.verdictEvents ?? [];
   nominations.push(...promotionNominations(graph, events));
   nominations.push(...sharpenNominations(events));
+
+  // --- T1: decorative-rule (runs only when the CLI supplied both attach-set and
+  //     suppress-count context — fail-safe: absent context ⇒ no demotion nominated) ---
+  if (sources.currentUnitsByAspect !== undefined && sources.suppressCountsByAspect !== undefined) {
+    nominations.push(
+      ...decorativeRuleNominations(
+        graph,
+        events,
+        sources.drillResults ?? [],
+        sources.currentUnitsByAspect,
+        sources.suppressCountsByAspect,
+        todayIso,
+      ),
+    );
+  }
 
   nominations.sort((a, b) =>
     a.classRank !== b.classRank

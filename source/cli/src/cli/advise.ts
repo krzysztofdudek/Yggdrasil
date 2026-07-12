@@ -13,6 +13,8 @@ import {
   type SuppressAnomaly,
 } from '../core/advise-nominations.js';
 import { applyDecisions, type VisibleNomination } from '../core/advise-feed.js';
+import { groupUnitsByAspect } from '../core/aspect-health-signals.js';
+import { computeExpectedPairs } from '../core/pairs.js';
 import { appendDecision, readDecisions, type AdviseDecision } from '../io/advise-decisions-store.js';
 import { readDrillResults } from '../io/drill-results-reader.js';
 import { readVerdictEvents } from '../io/events-reader.js';
@@ -97,8 +99,19 @@ async function computeTunnelCount(graph: Graph): Promise<number> {
   }
 }
 
-/** Gather the risky suppress markers live (repo walk + comment-aware scan). */
-async function gatherSuppressAnomalies(graph: Graph, projectRoot: string): Promise<SuppressAnomaly[]> {
+/**
+ * One live suppress scan → both the risky-marker anomalies (nomination inputs) and
+ * the per-aspect non-wildcard marker counts (the decorative-rule no-suppress-history
+ * signal). A single scan feeds both so the walk runs once. On any failure the whole
+ * thing degrades to undefined — the caller then omits BOTH, so the decorative-rule
+ * source (which must NOT run on an unknown suppress state) simply does not fire.
+ */
+interface SuppressData {
+  anomalies: SuppressAnomaly[];
+  counts: Map<string, number>;
+}
+
+async function gatherSuppressData(graph: Graph, projectRoot: string): Promise<SuppressData | undefined> {
   try {
     const gitFiles = await walkRepoFiles(projectRoot);
     const knownAspectIds = new Set(graph.aspects.map((a) => a.id));
@@ -111,10 +124,10 @@ async function gatherSuppressAnomalies(graph: Graph, projectRoot: string): Promi
       knownAspectIds,
       collectMappingEntries(graph),
     );
-    const out: SuppressAnomaly[] = [];
+    const anomalies: SuppressAnomaly[] = [];
     for (const m of scanPortalSuppressions(report, knownAspectIds, draftAspectIds)) {
       if (!m.risk) continue; // only the risky markers become nominations
-      out.push({
+      anomalies.push({
         file: m.file,
         line: m.line,
         aspectId: m.aspectId,
@@ -122,10 +135,32 @@ async function gatherSuppressAnomalies(graph: Graph, projectRoot: string): Promi
         ...(m.reason !== undefined ? { reason: m.reason } : {}),
       });
     }
-    return out;
+    const counts = new Map<string, number>();
+    for (const { markers } of report.fileEntries) {
+      for (const mk of markers) {
+        if (mk.kind === 'enable' || mk.wildcard) continue;
+        counts.set(mk.aspectId, (counts.get(mk.aspectId) ?? 0) + 1);
+      }
+    }
+    return { anomalies, counts };
   } catch (error) {
     debugWrite(`[advise] suppress scan degraded to empty: ${(error as Error).message}`);
-    return [];
+    return undefined;
+  }
+}
+
+/**
+ * The current expected units per aspect (aspectId → unit keys) — the decorative-rule
+ * shrinking-attach-set signal compares this against the units the fill telemetry
+ * recorded. Fail-safe: any failure degrades to undefined so no demotion is nominated.
+ */
+async function gatherCurrentUnits(graph: Graph): Promise<Map<string, Set<string>> | undefined> {
+  try {
+    const { pairs } = await computeExpectedPairs(graph);
+    return groupUnitsByAspect(pairs);
+  } catch (error) {
+    debugWrite(`[advise] expected-pairs degraded to empty: ${(error as Error).message}`);
+    return undefined;
   }
 }
 
@@ -137,10 +172,25 @@ async function gatherSuppressAnomalies(graph: Graph, projectRoot: string): Promi
  */
 async function gatherNominationSources(graph: Graph, todayUtc: Date): Promise<NominationSources> {
   const projectRoot = path.dirname(graph.rootPath);
-  const suppressAnomalies = await gatherSuppressAnomalies(graph, projectRoot);
+  const suppressData = await gatherSuppressData(graph, projectRoot);
   const drillResults = readDrillResults(graph.rootPath).results;
   const verdictEvents = readVerdictEvents(graph.rootPath).events;
-  return { todayUtc, suppressAnomalies, drillResults, verdictEvents };
+  const currentUnitsByAspect = await gatherCurrentUnits(graph);
+
+  const sources: NominationSources = {
+    todayUtc,
+    suppressAnomalies: suppressData?.anomalies ?? [],
+    drillResults,
+    verdictEvents,
+  };
+  // The decorative-rule source needs BOTH the current attach sets and the suppress
+  // counts; supply them only when both resolved, so an unknown suppress state or an
+  // unreadable graph can never let a demotion be nominated on incomplete evidence.
+  if (currentUnitsByAspect !== undefined && suppressData !== undefined) {
+    sources.currentUnitsByAspect = currentUnitsByAspect;
+    sources.suppressCountsByAspect = suppressData.counts;
+  }
+  return sources;
 }
 
 // ---------------------------------------------------------------------------

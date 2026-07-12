@@ -369,7 +369,18 @@ excluded here), **suppresses** (live \`yg-suppress\` markers targeting this aspe
 wildcard markers are summarized on their own line, not attributed per-aspect), and
 **errs** (a deterministic check's error-direction label), and **age** (how long
 ago this aspect's rule source was first added to version control, as a coarse
-duration such as \`3mo\` or \`1y\`, so you can weigh a rule's track record). Honesty
+duration such as \`3mo\` or \`1y\`, so you can weigh a rule's track record), and —
+the newest columns — **catch** and **exposure** (how many times this rule has
+actually refused a unit, against how many times a reviewer genuinely exercised it;
+a cached re-render never counts, and the two reviewer kinds are counted separately
+because their false-alarm behaviours differ), plus a plain-words read of how
+confident that ratio is (few observations reads as a wide, honest uncertainty
+range rather than a false-precise number), and a **label**: \`active\` (it is
+catching things), \`quiet\` (little exercised), or \`decorative?\` (enforceable yet
+never violated). A \`decorative?\` rule whose own examples still pass is reported as
+*possibly deterring the very violations it would catch* rather than assumed
+useless — and a rule is only ever suggested for demotion when several independent
+signals agree, never on the catch count alone. Honesty
 rule: when units have no valid result on record the **refused** cell reads
 \`unverified\`, NEVER \`0\` — an unchecked unit is not a clean one; likewise **age**
 reads \`unknown\` when that history is unavailable (a shallow clone or no
