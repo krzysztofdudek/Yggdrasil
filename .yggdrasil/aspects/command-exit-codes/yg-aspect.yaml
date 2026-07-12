@@ -1,5 +1,6 @@
 name: Command Exit Codes
 description: "CLI commands use only exit codes 0 and 1 — process.exit(2) or higher is forbidden"
+review_by: 2026-09-16
 errs: under
 reviewer:
   type: deterministic

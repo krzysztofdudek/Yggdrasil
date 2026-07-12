@@ -11,5 +11,6 @@ description: >-
   AST-based, scope per node — the whole suite's files are inspected together.
 errs: over
 status: enforced
+review_by: 2027-06-06
 scope:
   per: node

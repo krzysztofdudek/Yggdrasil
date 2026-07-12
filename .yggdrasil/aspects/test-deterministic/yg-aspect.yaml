@@ -1,5 +1,6 @@
 name: TestDeterministic
 description: "Test suites must produce identical results on repeated runs — no Math.random(), no wall-clock assertions, fresh temp dirs per test, no ambient environment dependencies."
+review_by: 2027-07-26
 reviewer:
   type: llm
 scope:

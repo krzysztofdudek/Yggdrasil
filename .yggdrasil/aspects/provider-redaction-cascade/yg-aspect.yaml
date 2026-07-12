@@ -1,5 +1,6 @@
 name: ProviderRedactionCascade
 description: "Any node in the call chain leading to an LLM provider must not log, persist, or expose raw prompt or response data before redaction has been applied."
+review_by: 2026-09-16
 reviewer:
   type: llm
 scope:

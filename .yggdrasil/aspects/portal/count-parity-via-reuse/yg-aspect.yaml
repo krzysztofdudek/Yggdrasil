@@ -14,5 +14,6 @@ description: >-
   the weight. AST-based, scope per node.
 errs: under
 status: enforced
+review_by: 2027-02-26
 scope:
   per: node

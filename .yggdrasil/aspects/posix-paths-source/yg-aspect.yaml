@@ -1,5 +1,6 @@
 name: PosixPathsSource
 description: "Source files must not use native path separators — forbids path.sep member access and backslash (\\) as a path separator in string literals. Use forward-slash literals or path utilities that emit POSIX output."
+review_by: 2027-01-25
 errs: over
 reviewer:
   type: deterministic

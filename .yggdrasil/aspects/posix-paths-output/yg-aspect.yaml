@@ -1,5 +1,6 @@
 name: PosixPathsOutput
 description: "All paths written to stdout, stderr, or stored in graph outputs use forward-slash separators and no trailing slashes — consumer tools must never receive Windows-native paths."
+review_by: 2027-02-02
 reviewer:
   type: llm
 scope:

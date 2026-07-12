@@ -1,5 +1,6 @@
 name: NoDirectFs
 description: "Engine and utility files must not import node:fs or node:fs/promises directly — all filesystem calls must go through io/graph-fs.ts or other persistence-adapter helpers."
+review_by: 2027-01-08
 errs: under
 reviewer:
   type: deterministic

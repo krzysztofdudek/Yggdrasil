@@ -3,6 +3,7 @@ description: "Named bundle of the two baseline source-hygiene rules every source
 reviewer:
   type: aggregate
 status: enforced
+review_by: 2027-04-15
 implies:
   - posix-paths-source
   - no-direct-minimatch

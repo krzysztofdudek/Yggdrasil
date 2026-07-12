@@ -8,3 +8,4 @@ description: "Each reference-catalogue .md section body conforms to its kind's
   the frontmatter expectation requires. No-op for kinds that declare no sections.body."
 errs: exact
 status: enforced
+review_by: 2026-11-27

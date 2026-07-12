@@ -10,3 +10,4 @@ description: >-
   a string literal that merely contains the word require or process is never a violation.
 errs: under
 status: enforced
+review_by: 2026-09-27

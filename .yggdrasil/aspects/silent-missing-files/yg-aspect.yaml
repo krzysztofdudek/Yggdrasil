@@ -1,5 +1,6 @@
 name: Silent Missing Files
 description: "Optional graph files and state files return empty defaults instead of throwing on absence"
+review_by: 2027-05-12
 reviewer:
   type: llm
 when:
