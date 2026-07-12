@@ -7,7 +7,7 @@ import type { IssueMessage } from '../model/validation.js';
 import { collectSuppressions, isLineSuppressed, SuppressMarkerError } from './suppress.js';
 import { validateCheckModuleExport } from '../utils/validate-check-module.js';
 import { getLanguageForExtension } from '../core/graph/language-registry.js';
-import type { Node, Tree } from 'web-tree-sitter';
+import type { Tree } from 'web-tree-sitter';
 import type { CheckContext, SourceFile, Violation } from './types.js';
 import type { ParseCache } from './parse-cache.js';
 
@@ -132,14 +132,20 @@ export async function runAstAspect(params: RunAstAspectParams): Promise<RunAstAs
     if (!params.parseCache) {
       localTrees.push(ast);
     }
-    if (ast.rootNode.hasError) {
-      const err = findFirstErrorNode(ast.rootNode);
-      throw new AstRunnerError('AST_SOURCE_PARSE_ERROR', {
-        what: `Source file ${f.path} has a syntax error at line ${(err?.startPosition.row ?? 0) + 1}.`,
-        why: `Tree-sitter could not parse the file cleanly.`,
-        next: `Fix the syntax error in ${f.path}.`,
-      });
-    }
+    // Deliver the parsed tree BEST-EFFORT even when it carries parse errors
+    // (ast.rootNode.hasError). This mirrors the production check runner exactly:
+    // the structure runner's prewarmupAstCache (structure/ctx-parsers.ts) parses
+    // and caches the tree without ever inspecting hasError. Because this runner is
+    // the harness behind `yg drill` / `yg aspect-test` (its only callers), aborting
+    // the case on a parse error diverged the harness from production — a content-only
+    // check (e.g. a raw-control-byte scan that never reads file.ast) could not be
+    // drilled with a syntactically-broken same-extension fixture, even though
+    // `yg check --approve` refuses that same file cleanly. Delivering the tree
+    // best-effort closes that fidelity gap: the content-only check runs, and an
+    // AST-consuming check receives the identical error-laden tree production hands
+    // it — no new harness/production divergence. A genuinely malformed fixture is
+    // not hidden: an AST-consuming check reading a broken subtree yields the same
+    // result it would in the gate, which is the faithful signal to the author.
     if (params.parseCache) {
       params.parseCache.set(f.path, { content, ast });
     }
@@ -244,13 +250,4 @@ export async function runAstAspect(params: RunAstAspectParams): Promise<RunAstAs
   } finally {
     for (const t of localTrees) t.delete();
   }
-}
-
-function findFirstErrorNode(node: Node): Node | null {
-  if (node.isError) return node;
-  for (const child of node.children) {
-    const found = findFirstErrorNode(child);
-    if (found) return found;
-  }
-  return null;
 }

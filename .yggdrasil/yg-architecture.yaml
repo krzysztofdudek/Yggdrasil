@@ -26,10 +26,11 @@ node_types:
     when:
       path: "source/cli/src/bin.ts"
     aspects:
+      - id: source-no-raw-control-chars
+        status: enforced
       - top-level-error-handler
       - command-exit-codes
-      - posix-paths-source
-      - no-direct-minimatch
+      - source-hygiene
     parents: [module]
     relations:
       calls: [command]
@@ -46,11 +47,12 @@ node_types:
             path: "**/*.test.ts"
         - content: "export\\s+function\\s+register[A-Z]\\w*Command\\("
     aspects:
+      - id: source-no-raw-control-chars
+        status: enforced
       - cli-command-contract
       - diagnostic-logging
       - command-contract-shape
-      - posix-paths-source
-      - no-direct-minimatch
+      - source-hygiene
       - command-error-via-buildissuemessage
       - sibling-test-file
     log_required: true
@@ -71,8 +73,9 @@ node_types:
         - not:
             content: "export\\s+function\\s+register[A-Z]\\w*Command\\("
     aspects:
-      - posix-paths-source
-      - no-direct-minimatch
+      - id: source-no-raw-control-chars
+        status: enforced
+      - source-hygiene
       - command-error-via-buildissuemessage
     parents: [module]
     relations:
@@ -89,12 +92,13 @@ node_types:
         - not:
             path: "**/*.test.ts"
     aspects:
+      - id: source-no-raw-control-chars
+        status: enforced
       - deterministic
       - no-direct-fs
       - no-direct-console
       - no-nondeterminism-direct
-      - posix-paths-source
-      - no-direct-minimatch
+      - source-hygiene
       - single-source-graph-queries
     log_required: true
     parents: [module]
@@ -109,11 +113,12 @@ node_types:
     when:
       path: "source/cli/src/migrations/*.ts"
     aspects:
+      - id: source-no-raw-control-chars
+        status: enforced
       - migration-idempotent
       - migration-bumps-version
       - schema-bump-bookkeeping
-      - posix-paths-source
-      - no-direct-minimatch
+      - source-hygiene
     log_required: true
     parents: [module]
     relations:
@@ -130,10 +135,11 @@ node_types:
         - not:
             path: "**/*.test.ts"
     aspects:
+      - id: source-no-raw-control-chars
+        status: enforced
       - parser-contract
       - silent-missing-files
-      - posix-paths-source
-      - no-direct-minimatch
+      - source-hygiene
       - read-or-default-via-helper
       - parser-yaml-guard
     log_required: true
@@ -162,10 +168,11 @@ node_types:
         - path: "source/cli/src/io/debug-log-writer.ts"
         - path: "source/cli/src/io/read-or-default.ts"
     aspects:
+      - id: source-no-raw-control-chars
+        status: enforced
       - silent-missing-files
       - atomic-write-contract
-      - posix-paths-source
-      - no-direct-minimatch
+      - source-hygiene
       - read-or-default-via-helper
     log_required: true
     parents: [module]
@@ -183,9 +190,10 @@ node_types:
         - not:
             path: "**/*.test.ts"
     aspects:
+      - id: source-no-raw-control-chars
+        status: enforced
       - deterministic
-      - posix-paths-source
-      - no-direct-minimatch
+      - source-hygiene
     log_required: true
     parents: [module]
     relations:
@@ -202,9 +210,10 @@ node_types:
         - not:
             path: "**/*.test.ts"
     aspects:
+      - id: source-no-raw-control-chars
+        status: enforced
       - deterministic
-      - posix-paths-source
-      - no-direct-minimatch
+      - source-hygiene
     parents: [module]
     relations:
       calls: [utility, ast-adapter, engine, persistence-adapter, structure-adapter]
@@ -220,9 +229,10 @@ node_types:
         - not:
             path: "**/*.test.ts"
     aspects:
+      - id: source-no-raw-control-chars
+        status: enforced
       - deterministic
-      - posix-paths-source
-      - no-direct-minimatch
+      - source-hygiene
     parents: [module]
     relations:
       calls: [engine, ast-adapter, structure-adapter, persistence-adapter, llm-shared, utility, relations-adapter]
@@ -235,10 +245,11 @@ node_types:
     when:
       path: "source/cli/src/llm/{anthropic,claude-code,codex,gemini-cli,google,ollama,openai}.ts"
     aspects:
+      - id: source-no-raw-control-chars
+        status: enforced
       - provider-retry-contract
       - provider-redaction
-      - posix-paths-source
-      - no-direct-minimatch
+      - source-hygiene
     parents: [module]
     relations:
       calls: [llm-shared, llm-subprocess-base, utility]
@@ -256,7 +267,9 @@ node_types:
         - not:
             path: "**/*.test.ts"
     aspects:
-      - no-direct-minimatch
+      - id: source-no-raw-control-chars
+        status: enforced
+      - source-hygiene
     parents: [module]
     relations:
       calls: [llm-provider, utility]
@@ -270,9 +283,10 @@ node_types:
     when:
       path: "source/cli/src/llm/cli-base.ts"
     aspects:
+      - id: source-no-raw-control-chars
+        status: enforced
       - provider-redaction
-      - posix-paths-source
-      - no-direct-minimatch
+      - source-hygiene
     parents: [module]
     relations:
       calls: [utility]
@@ -285,9 +299,10 @@ node_types:
     when:
       path: "source/cli/src/formatters/*.ts"
     aspects:
+      - id: source-no-raw-control-chars
+        status: enforced
       - what-why-next
-      - posix-paths-source
-      - no-direct-minimatch
+      - source-hygiene
     parents: [module]
     relations:
       calls: [utility]
@@ -300,7 +315,9 @@ node_types:
     when:
       path: "source/cli/src/model/*.ts"
     aspects:
-      - no-direct-minimatch
+      - id: source-no-raw-control-chars
+        status: enforced
+      - source-hygiene
     parents: [module]
     relations:
       uses: [types]
@@ -315,10 +332,11 @@ node_types:
         - not:
             path: "**/*.test.ts"
     aspects:
+      - id: source-no-raw-control-chars
+        status: enforced
       - no-side-effects-on-import
       - no-direct-fs
-      - posix-paths-source
-      - no-direct-minimatch
+      - source-hygiene
     parents: [module]
     relations:
       calls: [utility]
@@ -331,9 +349,10 @@ node_types:
     when:
       path: "source/cli/src/templates/{default-config,platform,rules}.ts"
     aspects:
+      - id: source-no-raw-control-chars
+        status: enforced
       - what-why-next
-      - posix-paths-source
-      - no-direct-minimatch
+      - source-hygiene
     log_required: true
     parents: [module]
     relations:
@@ -347,7 +366,9 @@ node_types:
     when:
       path: "source/cli/src/templates/knowledge/*.ts"
     aspects:
-      - no-direct-minimatch
+      - id: source-no-raw-control-chars
+        status: enforced
+      - source-hygiene
     parents: [module]
     relations:
       uses: [knowledge-doc]
@@ -359,7 +380,9 @@ node_types:
     when:
       path: "source/cli/src/templates/schemas/*.ts"
     aspects:
-      - no-direct-minimatch
+      - id: source-no-raw-control-chars
+        status: enforced
+      - source-hygiene
     parents: [module]
     relations:
       default: deny
@@ -373,6 +396,8 @@ node_types:
         - not:
             path: "source/cli/tests/fixtures/**"
     aspects:
+      - id: source-no-raw-control-chars
+        status: enforced
       - test-deterministic
     parents: [module, test-suite]
 
@@ -393,6 +418,11 @@ node_types:
         - path: "scripts/*.sh"
         - path: "scripts/*.mjs"
         - path: "scripts/*.ts"
+    aspects:
+      - id: source-no-raw-control-chars
+        status: enforced
+      - id: repo-check-gate-steps
+        status: advisory
     parents: [module]
     relations:
       default: deny
@@ -401,6 +431,9 @@ node_types:
     description: "Example material — demo files for Yggdrasil adopters. Not enforced strict (examples may be incomplete by design)."
     when:
       path: "examples/**"
+    aspects:
+      - id: example-self-contained
+        status: advisory
     parents: [module]
     relations:
       default: deny
@@ -419,6 +452,9 @@ node_types:
         - path: "source/cli/vitest*.config.ts"
         - path: "source/cli/tsup.config.ts"
         - path: "source/cli/playwright.config.ts"
+    aspects:
+      - id: ci-actions-pinned
+        status: advisory
     parents: [project, module]
     relations:
       default: deny
@@ -503,7 +539,9 @@ node_types:
     when:
       path: "source/cli/src/portal/contract.ts"
     aspects:
-      - no-direct-minimatch
+      - id: source-no-raw-control-chars
+        status: enforced
+      - source-hygiene
     parents: [module]
     relations:
       uses: [types]
@@ -526,14 +564,15 @@ node_types:
         - not:
             path: "**/*.test.ts"
     aspects:
+      - id: source-no-raw-control-chars
+        status: enforced
       - portal/no-secrets-import
       - portal/loadgraph-nosecrets-flag
       - portal/no-lock-writer-import
       - portal/count-parity-via-reuse
       - portal/focused-file-size
       - portal/focused-file-exports
-      - posix-paths-source
-      - no-direct-minimatch
+      - source-hygiene
     log_required: true
     parents: [module]
     relations:
@@ -552,13 +591,14 @@ node_types:
         - not:
             path: "**/*.test.ts"
     aspects:
+      - id: source-no-raw-control-chars
+        status: enforced
       - portal/no-secrets-import
       - portal/loadgraph-nosecrets-flag
       - portal/no-lock-writer-import
       - portal/count-parity-via-reuse
       - portal/focused-file-size
-      - posix-paths-source
-      - no-direct-minimatch
+      - source-hygiene
     log_required: true
     parents: [module]
     relations:
@@ -575,13 +615,14 @@ node_types:
         - not:
             path: "**/*.test.ts"
     aspects:
+      - id: source-no-raw-control-chars
+        status: enforced
       - portal/loopback-only
       - portal/approve-shells-cli-only
       - portal/no-secrets-import
       - portal/no-lock-writer-import
       - portal/focused-file-size
-      - posix-paths-source
-      - no-direct-minimatch
+      - source-hygiene
     log_required: true
     parents: [module]
     relations:
@@ -604,6 +645,8 @@ node_types:
         - not:
             path: "source/cli/src/templates/portal/js/views/**"
     aspects:
+      - id: source-no-raw-control-chars
+        status: enforced
       - portal/no-node-imports-in-frontend
       - portal/no-cdn-no-network
       - portal/no-secrets-strings
@@ -618,6 +661,8 @@ node_types:
     when:
       path: "source/cli/src/templates/portal/js/views/**/*.js"
     aspects:
+      - id: source-no-raw-control-chars
+        status: enforced
       - portal/honest-state-never-collapsed
       - portal/honest-state-anchor
       - portal/no-node-imports-in-frontend
@@ -634,6 +679,8 @@ node_types:
     when:
       path: "source/cli/src/templates/portal/vendor/**"
     aspects:
+      - id: source-no-raw-control-chars
+        status: enforced
       - portal/no-network-egress
     parents: [module]
     relations:

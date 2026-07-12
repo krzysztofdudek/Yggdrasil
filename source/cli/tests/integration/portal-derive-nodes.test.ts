@@ -95,15 +95,33 @@ describe('portal per-node derivation (honest state, effective aspects, relations
     expect(typeof llm!.consensus).toBe('number');
   });
 
-  it('a no-rule node (scripts) has checked=false, state=no-rule, empty effective aspects', () => {
+  it('scripts is now covered — its effective set carries the advisory gate-steps drill (positive derivation of its NEW checked state)', () => {
+    // `scripts` used to be THE real-repo no-rule exemplar here. A deterministic ADVISORY
+    // drift-guard is now attached to the build-script TYPE (channel 3), so `scripts` carries a
+    // real, verdict-bearing pair — it is no longer no-rule. Rather than re-pin the no-rule
+    // demonstration onto another currently-uncovered node (which the rest of the coverage-
+    // closing work would re-break as more source-owning types gain rules), this asserts the
+    // HONEST derivation of scripts' NEW state: it is `checked`, and its effective-aspect set
+    // carries the advisory gate-steps row with the right provenance and a real (non-`n/a`)
+    // verdict. The no-rule DERIVATION LOGIC itself remains fully covered by the synthetic
+    // 'ref'/'unv'/'p' cases below — this real node simply moved from no-rule to covered, which
+    // is the drill's whole point, so this break becomes a positive test of that effect.
     const scripts = byPath.get('scripts');
     expect(scripts).toBeDefined();
-    expect(scripts!.checked).toBe(false);
-    expect(scripts!.state).toBe('no-rule');
-    expect(scripts!.effectiveAspects).toEqual([]);
-    // own state and rollupState are kept SEPARATE: a no-rule node owns no rule, but its
-    // rollupState reflects the worst of itself and any descendants (here: still no-rule).
-    expect(scripts!.rollupState).toBe('no-rule');
+    expect(scripts!.checked).toBe(true);
+    // Find the gate-steps row by id — do NOT pin the row COUNT: later coverage-closing aspects
+    // may attach further rows to this same source-owning type, and this test must survive that.
+    const gate = scripts!.effectiveAspects.find((a) => a.aspectId === 'repo-check-gate-steps');
+    expect(gate).toBeDefined();
+    expect(gate!.kind).toBe('deterministic');
+    expect(gate!.status).toBe('advisory'); // a soft drift signal, never a blocking law
+    expect(gate!.cost).toBe('free'); // deterministic checks are free
+    expect(gate!.channel).toBe(3); // reached via the build-script TYPE default (channel 3)
+    expect(gate!.origin).toBe('type:build-script');
+    // A REAL verdict-bearing pair (never a vacuous n/a): on the all-green real lock it reads
+    // `verified`; a future advisory refusal would render as `warning` — either way it is a real
+    // verdict, which is what makes `scripts` genuinely checked rather than no-rule.
+    expect(['verified', 'warning']).toContain(gate!.pairState);
   });
 
   it('relationsOut mirrors declared relations and relationsIn is the inversion', () => {

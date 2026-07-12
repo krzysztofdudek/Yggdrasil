@@ -212,6 +212,33 @@ export function renderStructure(graph: Graph, detected: Map<string, Set<string>>
   return sections.map((s) => s.join('\n')).join('\n\n') + '\n';
 }
 
+/**
+ * The authoritative structural edge universe `yg structure` reports, exposed as
+ * plain data so an out-of-band, offline structural report can consume the EXACT
+ * same universe the dashboard computes — never a second, drifting graph reader.
+ *
+ * This is a read-only DATA accessor, not a command handler: it loads the graph and
+ * runs the relation pass through the read-only portal facade (parse + resolve; no
+ * verdict written, no lock touched), then returns the node ids plus the deduped
+ * structural edges (declared structural relations ∪ statically detected
+ * dependencies; event relations excluded) — identical to what `registerStructureCommand`
+ * assembles before rendering. `fromDir` is the directory to search upward from for
+ * the `.yggdrasil/` graph (the project root); a graph-load failure is handled by
+ * `loadGraphOrAbort` (the canonical what/why/next message + exit), exactly as the
+ * command does.
+ */
+export async function computeStructuralEdgeUniverse(
+  fromDir: string,
+): Promise<{ nodeIds: string[]; edges: StructEdge[] }> {
+  const graph = await loadGraphOrAbort(fromDir);
+  const projectRoot = path.dirname(graph.rootPath);
+  const detected = (await computeDetectedEdges(graph, projectRoot)) ?? new Map();
+  const declared = collectDeclaredRelations(graph);
+  const edges = edgeUniverse(declared, detected);
+  const nodeIds = [...graph.nodes.keys()];
+  return { nodeIds, edges };
+}
+
 export function registerStructureCommand(program: Command): void {
   program
     .command('structure')

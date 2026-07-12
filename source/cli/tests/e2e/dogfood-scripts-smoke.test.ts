@@ -9,16 +9,24 @@ import { fileURLToPath } from 'node:url';
 // Tests for the DOGFOOD-ONLY repo scripts (never adopter surfaces):
 //   - scripts/lock-history-audit.mjs  (the lock laundering-signature CI gate)
 //   - scripts/decision-load.mjs       (the decision-load λ proxy meter)
+//   - scripts/judge-stability.mjs     (reviewer self-consistency, analysis a)
+//   - scripts/cusum.mjs               (refusal-rate CUSUM, analysis b)
+//   - scripts/mcnemar.mjs             (paired old-vs-new reviewer test, analysis c)
+//   - scripts/displacement.mjs        (Bode "waterbed" sibling analysis, analysis d)
 //
-// Both are plain Node ESM with no deps that run READ-ONLY over a git history via
-// `git log`/`git show`, self-locating the repo root with `git rev-parse
-// --show-toplevel`. No mocking, no fabricated data:
-//   * the spawn-smoke block runs each script against THIS repository's real
-//     history and asserts exit 0 + a recognizable header;
+// All are plain Node ESM with no deps that run READ-ONLY over git history and/or the
+// LOCAL, gitignored telemetry sidecars (.yggdrasil/.yg-events.jsonl and
+// .yggdrasil/.drill-results.jsonl), self-locating the repo root with `git rev-parse
+// --show-toplevel`. No mocking, no fabricated production data:
+//   * the spawn-smoke blocks run each script against THIS repository's real
+//     history/telemetry and assert exit 0 + a recognizable header;
 //   * the audit-signature block builds a REAL on-disk git repo in a temp dir with
 //     hand-crafted lock commits and proves the audit's FAIL (exit 1) and WARN
 //     (exit 0) paths — without these, a future `===`→`!==` slip in the detector
-//     would keep CI green.
+//     would keep CI green;
+//   * the calibration-instrument blocks build REAL on-disk fixtures (a git repo +
+//     seeded telemetry sidecars) and prove each instrument's signal path and its
+//     honest-empty path — exactly the per-step smoke each analysis requires.
 // ---------------------------------------------------------------------------
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
@@ -48,6 +56,375 @@ describe.skipIf(!isGitRepo)('dogfood scripts — spawn smoke', () => {
     expect(res.status).toBe(0);
     expect(res.stdout).toContain('decision-load');
     expect(res.stdout).toContain('[RZ-16]');
+  });
+
+  it('escape-scan.mjs exits 0 with its header and both honesty labels on real history', () => {
+    const res = runScript('scripts/escape-scan.mjs');
+    expect(res.status).toBe(0);
+    expect(res.stdout).toContain('escape-scan');
+    expect(res.stdout).toContain('— honesty labels —');
+    // Both undercount + overcount labels and the never-a-gate line are mandatory.
+    expect(res.stdout).toContain('UNDERCOUNTS');
+    expect(res.stdout).toContain('OVERCOUNTS');
+    expect(res.stdout).toContain('candidates for human triage, never a gate.');
+  });
+
+  // The four calibration instruments against THIS repo's real telemetry. Whatever
+  // telemetry exists (possibly thin/empty) they must exit 0, print their header, and
+  // end with the mandatory honesty-label footer — never crash.
+  for (const [rel, header, args] of [
+    ['scripts/judge-stability.mjs', 'judge-stability', []],
+    ['scripts/cusum.mjs', 'cusum', []],
+    ['scripts/mcnemar.mjs', 'mcnemar', []],
+    ['scripts/displacement.mjs', 'displacement', []],
+  ] as const) {
+    it(`${rel} exits 0 with its header and honesty footer on real telemetry`, () => {
+      const res = spawnSync('node', [path.join(REPO_ROOT, rel), ...args], {
+        cwd: REPO_ROOT,
+        encoding: 'utf-8',
+        maxBuffer: 256 * 1024 * 1024,
+      });
+      expect(res.status).toBe(0);
+      expect(res.stdout).toContain(header);
+      expect(res.stdout).toContain('— honesty labels —');
+      expect(res.stdout).toMatch(/unknown ≠ zero/);
+    });
+  }
+
+  // metamorphic.mjs (analysis e) — the DEFAULT (no-arg) mode is the OFFLINE
+  // transform self-check: it parses the pilot corpus with the built grammars and
+  // proves the rename/reformat transforms are deterministic + idempotent, making
+  // ZERO reviewer calls (the `--run` pilot, which does bill the reviewer, is never
+  // exercised in CI). It must exit 0, print its header + the §10 inconsistency
+  // framing, and end with the honesty footer.
+  it('metamorphic.mjs (default self-check) exits 0 offline with header, §10 framing, and footer', () => {
+    const res = spawnSync('node', [path.join(REPO_ROOT, 'scripts/metamorphic.mjs')], {
+      cwd: REPO_ROOT,
+      encoding: 'utf-8',
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    expect(res.status).toBe(0);
+    expect(res.stdout).toContain('metamorphic');
+    expect(res.stdout).toMatch(/INCONSISTENCY, NOT CORRECTNESS/);
+    expect(res.stdout).toContain('NO reviewer calls');
+    expect(res.stdout).toContain('— honesty labels —');
+    expect(res.stdout).toMatch(/all transforms deterministic, idempotent/);
+  });
+
+  // spectral-headroom (RZ-15) — the OFFLINE structural report. Against THIS repo's
+  // real graph it must exit 0, print its header + the plain-language headroom
+  // sentence + the verbatim honesty label, and report a numeric φ*. It consumes the
+  // SAME structural edge universe `yg structure` uses (via the built accessor), so
+  // it depends on the build the quality gate runs first.
+  //
+  // Determinism is proven where it is actually MEANT — the spectral math itself:
+  // spectral-headroom.test.ts drives the pure analysis twice on a FIXED graph and
+  // asserts byte-identical numbers (the machine-independence guarantee: fixed seed,
+  // fixed iteration count, sorted tie-breaks). A second live-repo spawn is
+  // deliberately NOT asserted byte-identical here: both spawns run the full relation
+  // pass over the real repo and share the gitignored symbol-index cache under
+  // `.yggdrasil/`, which the parallel test suite also touches — so the edge-source
+  // half (shared with `yg structure`, not this script's math) can legitimately vary
+  // under concurrency. That is out of scope for the script's determinism contract.
+  it('spectral-headroom.mjs exits 0 with its header, headroom line, and verbatim label', () => {
+    const res = runScript('scripts/spectral-headroom.mjs');
+    expect(res.status).toBe(0);
+    expect(res.stdout).toContain('spectral-headroom');
+    expect(res.stdout).toMatch(/The tightest natural split has conductance \d+\.\d+/);
+    expect(res.stdout).toContain(
+      'conductance rewards balanced cuts — a small cohesive module legitimately scores low; ' +
+        'these are candidates for human eyes, never defects.',
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Calibration instruments — fixture-backed signal + honest-empty proofs. Each test
+// builds a throwaway git repo on disk (so `git rev-parse --show-toplevel` resolves
+// there) and seeds the LOCAL telemetry sidecars it reads. The telemetry files are
+// left UNTRACKED (never git-added), mirroring their real gitignored nature — so the
+// scripts print the "local telemetry since" label rather than refusing it.
+// ---------------------------------------------------------------------------
+
+/** git-init a temp repo with a `.yggdrasil/` dir; return the dir path. */
+function makeInstrumentRepo(): string {
+  const dir = mkdtempSync(path.join(tmpdir(), 'yg-instr-'));
+  execFileSync('git', ['init', '-q'], { cwd: dir, env: GIT_ENV });
+  mkdirSync(path.join(dir, '.yggdrasil'), { recursive: true });
+  return dir;
+}
+function writeJsonl(dir: string, name: string, records: unknown[]): void {
+  writeFileSync(
+    path.join(dir, '.yggdrasil', name),
+    records.map((r) => JSON.stringify(r)).join('\n') + '\n',
+  );
+}
+function runInstrument(dir: string, rel: string, args: string[] = []) {
+  return spawnSync('node', [path.join(REPO_ROOT, rel), ...args], {
+    cwd: dir,
+    encoding: 'utf-8',
+    maxBuffer: 64 * 1024 * 1024,
+  });
+}
+
+describe('judge-stability (a) — reviewer self-consistency (fixture telemetry)', () => {
+  it('names a k/N self-disagreement split on identical diagnostic input', () => {
+    const dir = makeInstrumentRepo();
+    try {
+      // Three diagnostic (aspect-test) repeat runs on ONE identical input (same
+      // aspectId, unitKey, hash): two approved, one refused → a 1/3 split.
+      const base = {
+        v: 1,
+        source: 'diag',
+        aspectId: 'ambiguous-rule',
+        unitKey: 'file:src/x.ts',
+        kind: 'llm',
+        hash: 'HHHH',
+        tier: 'standard',
+      };
+      writeJsonl(dir, '.yg-events.jsonl', [
+        { ...base, ts: '2026-07-01T00:00:01.000Z', disposition: 'approved' },
+        { ...base, ts: '2026-07-01T00:00:02.000Z', disposition: 'approved' },
+        { ...base, ts: '2026-07-01T00:00:03.000Z', disposition: 'refused' },
+      ]);
+      const res = runInstrument(dir, 'scripts/judge-stability.mjs');
+      expect(res.status).toBe(0);
+      expect(res.stdout).toMatch(/ambiguous-rule: file:src\/x\.ts split 1\/3/);
+      expect(res.stdout).toMatch(/sharpen ambiguous-rule content\.md/);
+      expect(res.stdout).toContain('— honesty labels —');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('reports honest-empty on an empty events file (exit 0, no crash)', () => {
+    const dir = makeInstrumentRepo();
+    try {
+      writeFileSync(path.join(dir, '.yggdrasil', '.yg-events.jsonl'), '');
+      const res = runInstrument(dir, 'scripts/judge-stability.mjs');
+      expect(res.status).toBe(0);
+      expect(res.stdout).toMatch(/self-consistency telemetry yet/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('REFUSES the "local telemetry since" label when the sidecar is TRACKED in git', () => {
+    // A telemetry sidecar that has been git-added is no longer local/private — it is
+    // committed, mixes machines/judge regimes, and can be hand-edited. The honesty
+    // footer must REFUSE the "local telemetry since" label for it (isTracked → REFUSE).
+    const dir = makeInstrumentRepo();
+    try {
+      writeJsonl(dir, '.yg-events.jsonl', [
+        {
+          v: 1,
+          source: 'diag',
+          aspectId: 'some-rule',
+          unitKey: 'file:src/x.ts',
+          kind: 'llm',
+          hash: 'HHHH',
+          tier: 'standard',
+          disposition: 'approved',
+          ts: '2026-07-01T00:00:01.000Z',
+        },
+      ]);
+      // git-add (stage) the sidecar so `git ls-files --error-unmatch` reports it TRACKED.
+      execFileSync('git', ['add', '.yggdrasil/.yg-events.jsonl'], { cwd: dir, env: GIT_ENV });
+      const res = runInstrument(dir, 'scripts/judge-stability.mjs');
+      expect(res.status).toBe(0);
+      // Exact refusal wording the footer emits for a tracked source.
+      expect(res.stdout).toContain('local-telemetry label REFUSED');
+      expect(res.stdout).toContain('TRACKED in git');
+      // The honest label must be REFUSED, never emitted, for the tracked file.
+      expect(res.stdout).not.toContain('local telemetry since');
+      expect(res.stdout).toContain('— honesty labels —');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('cusum (b) — refusal-rate shift detector (fixture telemetry)', () => {
+  const flatRun = (aspectId: string, n: number, start: number) =>
+    Array.from({ length: n }, (_, i) => ({
+      v: 1,
+      source: 'fill',
+      aspectId,
+      unitKey: `file:src/${aspectId}-${i}.ts`,
+      kind: 'llm',
+      disposition: 'approved',
+      hash: `h${i}`,
+      ts: `2026-07-01T00:${String(Math.floor((start + i) / 60)).padStart(2, '0')}:${String((start + i) % 60).padStart(2, '0')}.000Z`,
+    }));
+
+  it('raises an alarm when an aspect steps into a refusal cluster', () => {
+    const dir = makeInstrumentRepo();
+    try {
+      const events = [
+        ...flatRun('flat-rule', 30, 0),
+        ...flatRun('stepping-rule', 10, 0), // baseline: all approved
+        // then a burst of refusals on the same aspect
+        ...Array.from({ length: 8 }, (_, i) => ({
+          v: 1,
+          source: 'fill',
+          aspectId: 'stepping-rule',
+          unitKey: `file:src/step-r-${i}.ts`,
+          kind: 'llm',
+          disposition: 'refused',
+          hash: `r${i}`,
+          reason: 'seeded',
+          ts: `2026-07-02T00:00:${String(i).padStart(2, '0')}.000Z`,
+        })),
+      ];
+      writeJsonl(dir, '.yg-events.jsonl', events);
+      const res = runInstrument(dir, 'scripts/cusum.mjs');
+      expect(res.status).toBe(0);
+      expect(res.stdout).toMatch(/shifted upward/);
+      expect(res.stdout).toContain('stepping-rule');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('raises no alarm on a flat all-approved stream', () => {
+    const dir = makeInstrumentRepo();
+    try {
+      writeJsonl(dir, '.yg-events.jsonl', flatRun('calm-rule', 40, 0));
+      const res = runInstrument(dir, 'scripts/cusum.mjs');
+      expect(res.status).toBe(0);
+      expect(res.stdout).toContain('No aspect crossed the alarm threshold');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('mcnemar (c) — paired old-vs-new comparison (fixture telemetry)', () => {
+  const drill = (aspect: string, caseId: string, tier: string, got: string, ts: string) => ({
+    v: 1,
+    ts,
+    aspect,
+    case: caseId,
+    expect: 'refused',
+    got,
+    src: 'dev',
+    corpus: 'dev',
+    caseHash: `c-${aspect}-${caseId}`,
+    ruleHash: `r-${aspect}`,
+    kind: 'llm',
+    tier,
+  });
+
+  it('reports the b/c discordance across two tiers', () => {
+    const dir = makeInstrumentRepo();
+    try {
+      writeJsonl(dir, '.drill-results.jsonl', [
+        // b = old refused, new satisfied (old caught, new missed) — two cases
+        drill('a1', 'k1', 'oldm', 'refused', '2026-07-01T00:00:01.000Z'),
+        drill('a1', 'k1', 'newm', 'satisfied', '2026-07-01T00:00:02.000Z'),
+        drill('a1', 'k2', 'oldm', 'refused', '2026-07-01T00:00:03.000Z'),
+        drill('a1', 'k2', 'newm', 'satisfied', '2026-07-01T00:00:04.000Z'),
+        // c = old satisfied, new refused — one case
+        drill('a2', 'k3', 'oldm', 'satisfied', '2026-07-01T00:00:05.000Z'),
+        drill('a2', 'k3', 'newm', 'refused', '2026-07-01T00:00:06.000Z'),
+        // concordant pairs (carry no signal)
+        drill('a3', 'k4', 'oldm', 'refused', '2026-07-01T00:00:07.000Z'),
+        drill('a3', 'k4', 'newm', 'refused', '2026-07-01T00:00:08.000Z'),
+      ]);
+      const res = runInstrument(dir, 'scripts/mcnemar.mjs', ['--old', 'oldm', '--new', 'newm']);
+      expect(res.status).toBe(0);
+      expect(res.stdout).toMatch(/2 cases the old reviewer caught and the new missed; 1 the reverse/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('reports "need two tiers" on single-tier data (exit 0)', () => {
+    const dir = makeInstrumentRepo();
+    try {
+      writeJsonl(dir, '.drill-results.jsonl', [
+        drill('a1', 'k1', 'solo', 'refused', '2026-07-01T00:00:01.000Z'),
+        drill('a1', 'k2', 'solo', 'satisfied', '2026-07-01T00:00:02.000Z'),
+      ]);
+      const res = runInstrument(dir, 'scripts/mcnemar.mjs', ['--old', 'solo', '--new', 'other']);
+      expect(res.status).toBe(0);
+      expect(res.stdout).toMatch(/Need two tiers to compare/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('displacement (d) — Bode waterbed sibling analysis (fixture git + telemetry)', () => {
+  it('emits a sibling table for a rule edit with active siblings', () => {
+    const dir = makeInstrumentRepo();
+    try {
+      const git = (args: string[], env = GIT_ENV) => execFileSync('git', args, { cwd: dir, env });
+      // A rule-source edit for rule-a, committed at a fixed date (drives the window).
+      mkdirSync(path.join(dir, '.yggdrasil/aspects/rule-a'), { recursive: true });
+      writeFileSync(path.join(dir, '.yggdrasil/aspects/rule-a/content.md'), '# rule-a\noriginal\n');
+      git(['add', '.yggdrasil/aspects/rule-a/content.md']);
+      git(['commit', '-q', '-m', 'add rule-a'], {
+        ...GIT_ENV,
+        GIT_AUTHOR_DATE: '2026-07-01T00:00:00Z',
+        GIT_COMMITTER_DATE: '2026-07-01T00:00:00Z',
+      });
+      // Fill telemetry (UNTRACKED): rule-a and rule-b both fire on file:src/x.ts →
+      // siblings. rule-b has decided trials before AND after the edit, with a refusal
+      // after → a computable, non-flat sibling row.
+      const mk = (aspectId: string, disp: string, ts: string) => ({
+        v: 1,
+        source: 'fill',
+        aspectId,
+        unitKey: 'file:src/x.ts',
+        kind: 'llm',
+        disposition: disp,
+        hash: `${aspectId}-${ts}`,
+        ts,
+      });
+      writeJsonl(dir, '.yg-events.jsonl', [
+        mk('rule-a', 'approved', '2026-07-01T00:00:00.000Z'),
+        mk('rule-b', 'approved', '2026-06-28T00:00:00.000Z'), // before window
+        mk('rule-b', 'approved', '2026-06-29T00:00:00.000Z'), // before window
+        mk('rule-b', 'refused', '2026-07-03T00:00:00.000Z'), // after window (refusal)
+        mk('rule-b', 'approved', '2026-07-04T00:00:00.000Z'), // after window
+      ]);
+      const res = runInstrument(dir, 'scripts/displacement.mjs');
+      expect(res.status).toBe(0);
+      expect(res.stdout).toMatch(/Rule edit: rule-a/);
+      expect(res.stdout).toContain('rule-b');
+      expect(res.stdout).toContain('— honesty labels —');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('reports honest-empty when there are no rule-source edits in range', () => {
+    const dir = makeInstrumentRepo();
+    try {
+      const git = (args: string[]) => execFileSync('git', args, { cwd: dir, env: GIT_ENV });
+      // A commit that touches NO aspect rule source → zero rule edits to analyze.
+      writeFileSync(path.join(dir, 'README.md'), 'hello\n');
+      git(['add', 'README.md']);
+      git(['commit', '-q', '-m', 'no aspects here']);
+      writeJsonl(dir, '.yg-events.jsonl', [
+        {
+          v: 1,
+          source: 'fill',
+          aspectId: 'some-rule',
+          unitKey: 'file:src/y.ts',
+          kind: 'llm',
+          disposition: 'approved',
+          hash: 'h1',
+          ts: '2026-07-01T00:00:00.000Z',
+        },
+      ]);
+      const res = runInstrument(dir, 'scripts/displacement.mjs');
+      expect(res.status).toBe(0);
+      expect(res.stdout).toMatch(/No rule-source edits/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 
@@ -145,6 +522,99 @@ describe('lock-history-audit — detection paths (fixture git repo)', () => {
       expect(res.stdout).toContain('WARN:');
       expect(res.stdout).toContain('asp-y / file:src/b.ts');
       expect(res.stdout).toContain('0 laundering signatures');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// escape-scan (RZ-11) — reality-oracle seed. A throwaway git repo on disk drives
+// the three join outcomes over a hand-built linear history (mainline pinned to HEAD
+// via YG_ESCAPE_MAINLINE so no branch-name fragility): a fix commit whose parent lock
+// was GREEN for the node is flagged; a non-fix commit is not; a fix commit whose parent
+// lock REFUSED the node is excluded (the reviewer already caught it). No mocking.
+// ---------------------------------------------------------------------------
+
+describe('escape-scan — fix-on-green candidates (fixture git repo)', () => {
+  function escapeLock(verdict: string): string {
+    return JSON.stringify({
+      version: 1,
+      verdicts: { 'input-validation': { 'file:src/orders/handler.ts': { hash: 'H', verdict } } },
+      nodes: {},
+    });
+  }
+
+  function makeEscapeRepo() {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-escape-'));
+    const git = (args: string[]) => execFileSync('git', args, { cwd: dir, env: GIT_ENV });
+    git(['init', '-q']);
+    // Current-graph node mapping (present at HEAD, which is what the scan resolves against).
+    mkdirSync(path.join(dir, '.yggdrasil/model/svc/orders'), { recursive: true });
+    writeFileSync(
+      path.join(dir, '.yggdrasil/model/svc/orders/yg-node.yaml'),
+      'name: Orders\ntype: service\nmapping:\n  - src/orders/*.ts\n',
+    );
+    mkdirSync(path.join(dir, 'src/orders'), { recursive: true });
+    mkdirSync(path.join(dir, '.yggdrasil'), { recursive: true });
+    const writeHandler = (body: string) =>
+      writeFileSync(path.join(dir, 'src/orders/handler.ts'), body);
+    const writeLock = (verdict: string) =>
+      writeFileSync(path.join(dir, '.yggdrasil/yg-lock.nondeterministic.json'), escapeLock(verdict));
+    const commit = (msg: string): string => {
+      git(['add', '-A']);
+      git(['commit', '-q', '-m', msg]);
+      return execFileSync('git', ['rev-parse', 'HEAD'], { cwd: dir, encoding: 'utf-8' }).trim();
+    };
+    return { dir, commit, writeHandler, writeLock };
+  }
+
+  it('flags a fix on a green parent, ignores a non-fix, and excludes a fix whose parent lock refused the node', () => {
+    const { dir, commit, writeHandler, writeLock } = makeEscapeRepo();
+    try {
+      // c1 seed: node yaml + handler + an APPROVED lock → the node is GREEN at c1.
+      writeHandler('export const total = 1;\n');
+      writeLock('approved');
+      commit('seed orders');
+      // c2 fix on a GREEN parent (c1: approved, no refusal) → CANDIDATE.
+      writeHandler('export const total = 2;\n');
+      const c2 = commit('fix(orders): correct total rounding');
+      // c3 NON-fix touching the same node → never flagged (fails the fix vocabulary).
+      writeHandler('export const total = 3;\n');
+      const c3 = commit('feat(orders): add discount');
+      // c4 seeds a REFUSED lock for the node (non-fix, so not itself a scanned commit).
+      writeHandler('export const total = 4;\n');
+      writeLock('refused');
+      commit('wip reviewer refused orders');
+      // c5 fix whose PARENT (c4) lock DID refuse the node → EXCLUDED (reviewer caught it).
+      writeHandler('export const total = 5;\n');
+      const c5 = commit('fix(orders): satisfy validation');
+
+      const res = spawnSync('node', [path.join(REPO_ROOT, 'scripts/escape-scan.mjs')], {
+        cwd: dir,
+        encoding: 'utf-8',
+        env: { ...process.env, YG_ESCAPE_MAINLINE: 'HEAD' },
+        maxBuffer: 64 * 1024 * 1024,
+      });
+      expect(res.status).toBe(0);
+      expect(res.stdout).toContain('escape-scan');
+      // c2 is a candidate — the exact spec line for the node.
+      expect(res.stdout).toMatch(
+        new RegExp(
+          '^  ' +
+            c2.slice(0, 12) +
+            ' fixed svc/orders — parent lock had no refusal for it \\(escape candidate for triage\\)$',
+          'm',
+        ),
+      );
+      // c3 (non-fix) and c5 (parent refused) are NOT candidates — their shas never appear.
+      expect(res.stdout).not.toContain(c3.slice(0, 12));
+      expect(res.stdout).not.toContain(c5.slice(0, 12));
+      // The refused-at-parent exclusion path fired exactly once (c5).
+      expect(res.stdout).toMatch(/parent lock DID refuse the node {2}1 /);
+      // Both honesty labels + the never-a-gate line are mandatory in the footer.
+      expect(res.stdout).toContain('candidates for human triage, never a gate.');
+      expect(res.stdout).toContain('— honesty labels —');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

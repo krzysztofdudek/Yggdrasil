@@ -222,9 +222,12 @@ dishonest.
 | `portal/no-network-egress` | over | The content URL-scan arm flags any http(s)/protocol-relative URL in executable code; a non-egress URL (XML/SVG namespace, data value) is falsely flagged (the AST egress-name arm is itself an evadable tripwire). |
 | `portal/no-secrets-strings` | over | Substring match of `yg-secrets`/`api_key` in any frontend string literal; a glossary or label string that merely mentions the field name is falsely flagged. |
 | `reference/relations/case-has-test` | over | The forward arm flags a catalogue `<id>.md` whenever a bare `it('<id>')` literal is not found, but its regex ignores rule-permitted forms — `it.only`/`it.skip`/`it.todo('<id>')` and template-literal names — so a case that does have a test is falsely flagged; the reverse arm's `runCase` proximity slice can likewise mis-attribute a call, so a red may be a false alarm. |
+| `ci-actions-pinned` | over | Content scan of YAML `uses:` lines; any value under a `uses:` key with no `@ref`, `./`/`../` prefix, or `docker://` scheme is treated as an unpinned action, so a non-workflow YAML that reused a `uses:` key for another purpose is falsely flagged (advisory). |
+| `repo-check-gate-steps` | over | Category presence is decided by command-keyword regexes over the gate script's non-comment lines; a category invoked under a phrasing the matcher does not recognize is falsely reported missing (advisory). |
 | `atomic-write-contract` | under | Flags only a direct call to a raw write function imported by its exact name; a namespace or aliased import (`fs.writeFile`, `writeFile as wf`) is silently skipped. |
 | `command-exit-codes` | under | Flags only a literal numeric `process.exit(N)` where N is not 0 or 1; a computed or variable exit code is silently skipped. |
 | `e2e-public-surface` | under | Resolves only statically-analyzable relative specifiers into `src/**`; an interpolated or computed specifier is silently skipped (zero-FP by design). |
+| `example-self-contained` | under | Resolves only statically-analyzable relative module specifiers (`import`/`export … from`, `require`, dynamic `import`) in JS/TS-family example files; a Python relative import, a computed/interpolated specifier, or a string-path `fs` read is silently skipped, so every flagged escape is a provable cross-directory reference (zero-FP by design, advisory). |
 | `no-buildissuemessage-in-engine` | under | Flags only a bare `buildIssueMessage(` identifier call; an aliased or member-form call is silently skipped. |
 | `no-direct-console` | under | Flags only a callee whose text is `console.*`; an aliased or bracket-access console is silently skipped. |
 | `no-direct-fs` | under | Flags only a static `import` from an fs module; `require('fs')` or a dynamic import is silently skipped. |
@@ -233,6 +236,7 @@ dishonest.
 | `no-side-effects-on-import` | under | Flags only a bare top-level call/await statement; a side effect hidden in an initializer (`const x = f()`) is silently skipped. |
 | `schema-bump-bookkeeping` | under | Flags only a bare `updateConfigVersion(` identifier call; an aliased or member-form call is silently skipped. |
 | `single-source-graph-queries` | under | Flags only a reserved-name function or arrow/function-expression declaration; a redefinition through another form is silently skipped. |
+| `source-no-raw-control-chars` | under | Flags only a provable raw C0 control byte (`0x00`–`0x1F` except tab/LF/CR) in the decoded content — each such code point is a single UTF-8 byte equal to its value, so a hit is never a false positive; the broader family of invisible/corrupting bytes it does not check (DEL `0x7F`, the C1 range `0x80`–`0x9F`, zero-width and other non-printing code points) is silently skipped, so a green does not prove the file free of every invisible character. |
 | `wasm-tree-lifecycle` | under | Flags only a named import of `parseFile` from the parser module; a require, dynamic, or namespace-access form is silently skipped. |
 | `portal/approve-shells-cli-only` | under | A tripwire over literal spawn-argument arrays and bare fill-call identifiers; a dynamically-built spawn or an aliased fill call is silently skipped. |
 | `portal/count-parity-via-reuse` | under | The negative arms are a self-described evadable tripwire over raw-verdict iteration shapes; a sufficiently obfuscated re-count is silently skipped (the real guarantee is the positive reuse manifest plus the parity test). |
@@ -295,3 +299,7 @@ mode lifts this.
 
 - `no-buildissuemessage-in-engine` — fires only inside `source/cli/src/{core,io,ast}/`; a `.yggdrasil/`-rooted case is always out of scope.
 - `instrument-import-fence` — fires only on exact gating / presentation module paths (e.g. `source/cli/src/cli/check.ts`, `source/cli/src/core/check.ts`); a synthetic case path is never in the set.
+
+## Uncovered by design
+
+- Deleting the gate invocation (`- run: scripts/repo-check.sh`) from `ci.yml` is a residual hole left uncovered: `repo-check-gate-steps` guards that the gate keeps its check categories (drift protection), not that CI still runs the gate at all (tamper-proofing). Asserting the invocation is a maintainer opt-up, not part of this aspect.

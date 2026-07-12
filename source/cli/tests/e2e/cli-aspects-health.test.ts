@@ -87,8 +87,8 @@ function healthRow(output: string, aspectId: string): string[] {
   return line.trim().split(/\s{2,}/);
 }
 
-// Column indices for the fixed order: aspect | kind | status | nodes | pairs | refused | suppresses | errs
-const COL = { aspect: 0, kind: 1, status: 2, nodes: 3, pairs: 4, refused: 5, suppresses: 6, errs: 7 };
+// Column indices for the fixed order: aspect | kind | status | nodes | pairs | refused | suppresses | errs | age
+const COL = { aspect: 0, kind: 1, status: 2, nodes: 3, pairs: 4, refused: 5, suppresses: 6, errs: 7, age: 8 };
 
 describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () => {
   it('default `yg aspects` output is byte-identical (no --health regression)', () => {
@@ -154,7 +154,7 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () 
       expect(header).toBeDefined();
       const headerCols = header!.trim().split(/\s{2,}/);
       expect(headerCols).toEqual([
-        'aspect', 'kind', 'status', 'nodes', 'pairs', 'refused', 'suppresses', 'errs',
+        'aspect', 'kind', 'status', 'nodes', 'pairs', 'refused', 'suppresses', 'errs', 'age',
       ]);
 
       // no-todo-comments: one hash-valid refusal (orders), one approved (payments).
@@ -166,6 +166,10 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () 
       expect(noTodo[COL.refused]).toBe('1');
       expect(noTodo[COL.suppresses]).toBe('0');
       expect(noTodo[COL.errs]).toBe('over');
+      // The temp copy is not a git repo ⇒ rule creation history is unavailable, so
+      // the age reads the WORD `unknown`, never a fabricated `0`.
+      expect(noTodo[COL.age]).toBe('unknown');
+      expect(noTodo[COL.age]).not.toBe('0');
 
       // requires-named-export: deterministic cache absent ⇒ unverified, NEVER 0.
       const reqExport = healthRow(out, 'requires-named-export');
@@ -183,4 +187,61 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () 
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  // Rule-age column (C3 slice 2): a committed rule source shows a coarse duration;
+  // the default `yg aspects` listing must stay byte-identical even when git history
+  // IS present, proving the age lookup lives only behind `--health`.
+  const gitAvailable = spawnSync('git', ['--version'], { encoding: 'utf-8' }).status === 0;
+
+  it.skipIf(!gitAvailable)(
+    'a committed rule shows a coarse age; the default listing stays byte-identical in a git repo',
+    () => {
+      const dir = copyFixture('age-git');
+      try {
+        // Stand up a real repo and commit the whole graph with a backdated instant,
+        // so every rule source has a first-add far in the past (a stable years bucket
+        // regardless of when the suite runs).
+        const gitEnv = {
+          ...process.env,
+          GIT_AUTHOR_NAME: 'Test',
+          GIT_AUTHOR_EMAIL: 'test@example.com',
+          GIT_COMMITTER_NAME: 'Test',
+          GIT_COMMITTER_EMAIL: 'test@example.com',
+          GIT_AUTHOR_DATE: '2015-01-01T00:00:00',
+          GIT_COMMITTER_DATE: '2015-01-01T00:00:00',
+        };
+        const git = (args: string[]) =>
+          spawnSync('git', args, { cwd: dir, env: gitEnv, encoding: 'utf-8' });
+        git(['init', '-q']);
+        git(['add', '-A']);
+        git(['commit', '-q', '-m', 'seed']);
+
+        const health = run(['aspects', '--health'], dir);
+        expect(health.status).toBe(0);
+
+        // Header still ends with the new age column, after errs.
+        const header = health.stdout.split('\n').find((l) => l.includes('aspect') && l.includes('age'));
+        expect(header!.trim().split(/\s{2,}/)).toEqual([
+          'aspect', 'kind', 'status', 'nodes', 'pairs', 'refused', 'suppresses', 'errs', 'age',
+        ]);
+
+        // A deterministic rule (ships check.mjs) committed in 2015 reads a coarse,
+        // years-scale age — a real value, never `unknown`.
+        const noTodo = healthRow(health.stdout, 'no-todo-comments');
+        expect(noTodo[COL.age]).not.toBe('unknown');
+        expect(noTodo[COL.age]).toMatch(/^\d+y$/);
+
+        // An LLM rule (ships content.md) is aged the same way from its content file.
+        const hasDoc = healthRow(health.stdout, 'has-doc-comment');
+        expect(hasDoc[COL.age]).toMatch(/^\d+y$/);
+
+        // The default `yg aspects` output is byte-identical to the pre-`--health`
+        // golden EVEN with git history present — the age lookup never touches it.
+        const plain = run(['aspects'], dir);
+        expect(plain.stdout).toBe(DEFAULT_ASPECTS_GOLDEN);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    },
+  );
 });

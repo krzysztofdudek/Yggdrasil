@@ -1,0 +1,15 @@
+name: CiActionsPinned
+description: >-
+  Drift protection for CI: every GitHub Actions step that pulls in an external
+  action must pin it to a version. A bare `uses: owner/repo` with no `@ref`
+  floats on the action's default branch, so the gate can change under the
+  repository between runs. A tag or SHA pin (`@v4`, `@<sha>`), a local `./`
+  reference, a `docker://` reference, and a reusable-workflow call
+  (`owner/repo/.github/workflows/x.yml@ref`) all carry an explicit ref and pass.
+  This is a content scan of YAML workflow files (no AST exists for YAML), so it
+  is over-approximating (errs: over) and intentionally advisory: it warns about
+  a floating action but never blocks. Framing is drift protection, not
+  tamper-proofing — it keeps the gate you depend on from silently shifting, not
+  an adversary from swapping it.
+errs: over
+status: advisory

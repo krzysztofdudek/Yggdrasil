@@ -134,17 +134,48 @@ export function check(ctx) {
     ).rejects.toMatchObject({ code: 'AST_CHECK_RETURN_SHAPE' });
   });
 
-  it('parse error node is detected and reported as AST_PARSE_ERROR', async () => {
+  it('a content-only check runs over a syntactically-broken grammar-extension file (best-effort, no abort — mirrors production)', async () => {
+    // Harness/production fidelity: the production check runner (structure
+    // prewarmupAstCache) parses a broken same-extension source best-effort and
+    // never aborts on a parse error, so a content-only rule (one that never reads
+    // file.ast — e.g. a raw-control-byte scan) runs over it. The drill/aspect-test
+    // runner must behave identically; a parse-error abort used to make such a
+    // fixture impossible to exercise here.
     const { mkdtempSync, writeFileSync } = await import('node:fs');
     const { tmpdir } = await import('node:os');
     const dir = mkdtempSync(path.join(tmpdir(), 'yg-test-')); tmpDirs.push(dir);
-    writeFileSync(path.join(dir, 'check.mjs'), 'export function check(ctx) { return []; }');
+    // A content-only check: flags any delivered file whose content carries the
+    // marker text — it never dereferences file.ast.
+    writeFileSync(
+      path.join(dir, 'check.mjs'),
+      'export function check(ctx) { return ctx.files.filter(f => f.content.includes("MARKER")).map(f => ({ file: f.path, line: 1, column: 0, message: "content-only rule ran" })); }',
+    );
     const tmpFile = path.join(dir, 'bad.ts');
-    // Syntactically invalid TypeScript
+    // Syntactically invalid TypeScript (tree-sitter yields a tree with error nodes).
+    writeFileSync(tmpFile, 'function )(( // MARKER\n');
+    const result = await runAstAspect({ aspectDir: dir, aspectId: 'test', files: [{ path: tmpFile }], projectRoot: '/' });
+    // No AST_SOURCE_PARSE_ERROR abort — the content-only check ran and reported.
+    expect(result.violations).toHaveLength(1);
+    expect(result.violations[0]).toMatchObject({ file: tmpFile, message: 'content-only rule ran' });
+  });
+
+  it('an AST-consuming check receives the same error-laden best-effort tree production hands it', async () => {
+    // The faithful mirror is not "ast:undefined for a broken grammar file": an
+    // AST-consuming check must get the identical tree the production structure
+    // runner caches — parsed, with rootNode.hasError true. This proves the harness
+    // neither aborts nor substitutes undefined, so no NEW divergence is introduced.
+    const { mkdtempSync, writeFileSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-test-')); tmpDirs.push(dir);
+    writeFileSync(
+      path.join(dir, 'check.mjs'),
+      'export function check(ctx) { return ctx.files.filter(f => f.ast !== undefined && f.ast.rootNode.hasError).map(f => ({ file: f.path, line: 1, column: 0, message: "best-effort tree with errors delivered" })); }',
+    );
+    const tmpFile = path.join(dir, 'bad.ts');
     writeFileSync(tmpFile, 'function )((\n');
-    await expect(
-      runAstAspect({ aspectDir: dir, aspectId: 'test', files: [{ path: tmpFile }], projectRoot: '/' }),
-    ).rejects.toMatchObject({ code: 'AST_SOURCE_PARSE_ERROR' });
+    const result = await runAstAspect({ aspectDir: dir, aspectId: 'test', files: [{ path: tmpFile }], projectRoot: '/' });
+    expect(result.violations).toHaveLength(1);
+    expect(result.violations[0].message).toBe('best-effort tree with errors delivered');
   });
 
   it('AST_LOADER_RESOLVE_FAILED when check.mjs does not exist', async () => {
@@ -213,43 +244,40 @@ export function check(ctx) {
     ).rejects.toSatisfy((e: any) => !(e instanceof AstRunnerError));
   });
 
-  it('AST_SOURCE_PARSE_ERROR traverses clean nodes before finding error (findFirstErrorNode coverage)', async () => {
-    const { mkdtempSync, writeFileSync } = await import('node:fs');
-    const { tmpdir } = await import('node:os');
-    const dir = mkdtempSync(path.join(tmpdir(), 'yg-test-')); tmpDirs.push(dir);
-    writeFileSync(path.join(dir, 'check.mjs'), 'export function check(ctx) { return []; }');
-    const tmpFile = path.join(dir, 'mixed.ts');
-    // Valid statement first, then invalid — findFirstErrorNode traverses clean lexical_declaration
-    writeFileSync(tmpFile, 'const x = 1;\n)((\n');
-    await expect(
-      runAstAspect({ aspectDir: dir, aspectId: 'test', files: [{ path: tmpFile }], projectRoot: '/' }),
-    ).rejects.toMatchObject({ code: 'AST_SOURCE_PARSE_ERROR' });
-  });
-
   it('parseCache: same file across two aspect calls is parsed only once', async () => {
     const { mkdtempSync, writeFileSync } = await import('node:fs');
     const { tmpdir } = await import('node:os');
     const dir = mkdtempSync(path.join(tmpdir(), 'yg-test-')); tmpDirs.push(dir);
+    // The check counts call_expressions via the cached AST — a discriminator that
+    // does NOT depend on a parse-error abort (the runner now delivers a best-effort
+    // tree instead of throwing, so a broken second read would no longer distinguish
+    // "cache reused" from "re-parsed").
     writeFileSync(path.join(dir, 'check.mjs'), `
 export function check(ctx) {
-  return [];
+  const out = [];
+  for (const f of ctx.files) {
+    for (const n of f.ast.rootNode.descendantsOfType('call_expression')) {
+      out.push({ file: f.path, line: n.startPosition.row + 1, message: 'call' });
+    }
+  }
+  return out;
 }
 `);
     const tmpFile = path.join(dir, 'x.ts');
-    writeFileSync(tmpFile, 'const valid = 1;');
+    writeFileSync(tmpFile, 'const valid = 1;'); // zero call_expressions
 
     const cache = new Map();
-    await runAstAspect({ aspectDir: dir, aspectId: 'a1', files: [{ path: tmpFile }], projectRoot: '/', parseCache: cache });
+    const r1 = await runAstAspect({ aspectDir: dir, aspectId: 'a1', files: [{ path: tmpFile }], projectRoot: '/', parseCache: cache });
+    expect(r1.violations).toHaveLength(0);
     expect(cache.size).toBe(1);
 
-    // Modify the file to syntactically invalid content between calls.
-    // If the cache is consulted on the second run, the call still succeeds because
-    // the cached AST is reused. If the cache is ignored, the runner reads the file
-    // again and surfaces AST_SOURCE_PARSE_ERROR.
-    writeFileSync(tmpFile, 'const = = broken @@');
-    await expect(
-      runAstAspect({ aspectDir: dir, aspectId: 'a2', files: [{ path: tmpFile }], projectRoot: '/', parseCache: cache }),
-    ).resolves.toMatchObject({ violations: [] });
+    // Change the file on disk to content with ONE call_expression. If the cache is
+    // consulted (parse-once), the second run reuses the cached AST of `const valid
+    // = 1;` and sees zero calls; if the cache were ignored, it would re-read/parse
+    // `doThing();` and report one call. Zero violations proves the cache was reused.
+    writeFileSync(tmpFile, 'doThing();');
+    const r2 = await runAstAspect({ aspectDir: dir, aspectId: 'a2', files: [{ path: tmpFile }], projectRoot: '/', parseCache: cache });
+    expect(r2.violations).toHaveLength(0); // cached AST reused → no re-parse
     expect(cache.size).toBe(1);
   });
 

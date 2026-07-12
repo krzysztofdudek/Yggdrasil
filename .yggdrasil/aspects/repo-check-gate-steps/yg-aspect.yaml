@@ -1,0 +1,17 @@
+name: RepoCheckGateSteps
+description: >-
+  Drift protection for the single binding quality gate: the repository gate
+  script (repo-check.sh) must keep invoking every expected check category, so a
+  whole class of regression cannot slip through because a step was quietly
+  dropped. The check asserts the presence of each category by matching the
+  invoked commands (not exact lines): typecheck, lint, build, test/coverage,
+  docs build, markdownlint, and the graph check. A missing category is a
+  violation. This is a content scan of a shell script (no AST exists for shell),
+  matched against command-keyword patterns over the non-comment lines, so it
+  over-approximates (errs: over) — a category invoked under an unrecognized
+  phrasing would be falsely reported missing — and is intentionally advisory:
+  it warns, never blocks. Framing is drift protection, not tamper-proofing: it
+  does not assert that CI still invokes the gate script (that residual hole is
+  documented as uncovered by design), only that the gate keeps its categories.
+errs: over
+status: advisory
