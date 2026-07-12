@@ -16,6 +16,7 @@ relations:
 mapping:
   - source/cli/tests/unit/io/advise-decisions-store.test.ts
   - source/cli/tests/unit/io/artifact-reader.test.ts
+  - source/cli/tests/unit/io/drill-results-reader.test.ts
   - source/cli/tests/unit/io/drill-results-store.test.ts
   - source/cli/tests/unit/io/events-reader-boundary.test.ts
   - source/cli/tests/unit/io/events-reader.test.ts

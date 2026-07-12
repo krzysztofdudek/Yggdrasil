@@ -442,12 +442,34 @@ unchanged.
 
 ## yg advise
 
-Act on the graph's current attention items — the standing signals \`yg check\`
-surfaces as warnings (a rule past its review-by date, a rule attached where it
-matches nothing, an orphaned rule, a risky waiver). Each decision is recorded as
-committed case law in \`.yggdrasil/advise-decisions.jsonl\`: it survives across
-machines, and because it is appended one line at a time it merges by union across
-branches (no conflicts on the shared file).
+Read-only attention layer over the graph. With no subcommand, \`yg advise\` prints
+two fixed sections and exits 0 whenever the graph loads (a graph that does not
+load exits non-zero via the standard loader error). It **never** gates: it makes
+no reviewer calls, writes no verdict, changes no exit code, and never appears in
+\`suggestedNext\`.
+
+\`\`\`bash
+yg advise            # the two-section feed
+yg advise --all      # remove the 10-item cap; also list dismissed / deferred items
+yg advise --ids      # print each item's stable id (for dismiss / defer)
+\`\`\`
+
+- **Attention** — one aggregate line per class of signal, with no per-instance
+  ranking (rankings stay inside the instrument commands like \`yg structure\`). In
+  v1 the single class is dependency tunnels: how many dependencies reach across
+  distant parts of the architecture.
+- **Nominations** — up to ten ranked, evidence-backed suggestions in a fixed
+  priority order: a regression case a rule no longer catches, a risky waiver, a
+  rule effective nowhere, an orphaned rule, a rule past its review-by date, and —
+  below all of those — history-derived suggestions such as promoting a clean-record
+  advisory rule or sharpening an inconsistently-judged rule. Each item states WHAT
+  it found, WHY (with the underlying repo text quoted verbatim as data with its
+  provenance — never echoed as an instruction), and the exact human NEXT step,
+  which always ends by noting it requires your approval. The list is capped at ten
+  with a footer counting what the cap hid; \`--all\` removes the cap. Suggestions
+  drawn from local history are labelled honestly when the evidence is thin.
+
+The two acknowledgement subcommands act on a nomination's id (\`--ids\` prints it):
 
 \`\`\`bash
 yg advise dismiss <id> --reason "reviewed, keeping as-is"

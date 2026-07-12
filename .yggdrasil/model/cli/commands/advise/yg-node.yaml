@@ -8,9 +8,13 @@ aspects: []
 relations:
   - target: cli/core/advise
     type: calls
+  - target: cli/core/graph
+    type: calls
   - target: cli/io/stores
     type: calls
   - target: cli/io/parsers/aspect
+    type: calls
+  - target: cli/portal/engine-api
     type: calls
   - target: cli/formatters
     type: calls
