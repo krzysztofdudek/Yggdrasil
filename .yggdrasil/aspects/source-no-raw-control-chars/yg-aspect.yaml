@@ -1,0 +1,18 @@
+name: SourceNoRawControlChars
+description: >-
+  No raw control byte may appear in a source file. A literal control byte in the
+  C0 range (0x00–0x1F) — most notably a NUL (0x00) — is invisible to typecheck,
+  lint, and tests, and makes git treat the file as binary, so the file never
+  diffs and the corruption slips silently past review. This check refuses any
+  file that contains a raw C0 control byte EXCEPT the three whitespace controls
+  that legitimately occur in text: tab (0x09), line feed (0x0A), and carriage
+  return (0x0D). Because every C0 code point is a single UTF-8 byte equal to its
+  code point, scanning the decoded content's char codes over 0x00–0x1F is
+  exactly a raw-byte scan of that range: every hit is a provable raw control
+  byte and there are no false positives by design (errs: under). No legitimate
+  source text carries a raw NUL/control byte — the compliant way to put a NUL in
+  a string is the escape `\0` (or `\x00`), which is ordinary ASCII and passes.
+  Enforced across all first-party source so a byte-corrupted file is blocked at
+  the gate instead of being merged undiffable.
+errs: under
+status: enforced
