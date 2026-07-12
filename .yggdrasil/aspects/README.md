@@ -227,6 +227,7 @@ dishonest.
 | `atomic-write-contract` | under | Flags only a direct call to a raw write function imported by its exact name; a namespace or aliased import (`fs.writeFile`, `writeFile as wf`) is silently skipped. |
 | `command-exit-codes` | under | Flags only a literal numeric `process.exit(N)` where N is not 0 or 1; a computed or variable exit code is silently skipped. |
 | `e2e-public-surface` | under | Resolves only statically-analyzable relative specifiers into `src/**`; an interpolated or computed specifier is silently skipped (zero-FP by design). |
+| `example-self-contained` | under | Resolves only statically-analyzable relative module specifiers (`import`/`export … from`, `require`, dynamic `import`) in JS/TS-family example files; a Python relative import, a computed/interpolated specifier, or a string-path `fs` read is silently skipped, so every flagged escape is a provable cross-directory reference (zero-FP by design, advisory). |
 | `no-buildissuemessage-in-engine` | under | Flags only a bare `buildIssueMessage(` identifier call; an aliased or member-form call is silently skipped. |
 | `no-direct-console` | under | Flags only a callee whose text is `console.*`; an aliased or bracket-access console is silently skipped. |
 | `no-direct-fs` | under | Flags only a static `import` from an fs module; `require('fs')` or a dynamic import is silently skipped. |

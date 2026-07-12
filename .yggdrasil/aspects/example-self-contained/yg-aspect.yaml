@@ -1,0 +1,16 @@
+name: ExampleSelfContained
+description: >-
+  Directory self-containment for example projects: each example must be
+  copy-and-run self-contained, so no file inside an example directory may
+  reference a path OUTSIDE that directory. The check flags any
+  statically-resolvable relative module reference (`import`/`export … from`,
+  `require(…)`, dynamic `import(…)`) in a JS/TS-family file whose resolved
+  target escapes the example's own directory. It under-approximates the full
+  self-containment concept (JS/TS-family relative specifiers only; Python
+  relative imports and non-static references are out of scope for now), so
+  every violation it reports is a provable cross-directory reference and it has
+  no false positives by design. Advisory: it warns when an example folder
+  reaches outside itself, and never blocks. Exit path is a promotion nomination
+  on evidence once it has run FP-clean across the corpus.
+errs: under
+status: advisory

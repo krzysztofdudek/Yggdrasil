@@ -404,6 +404,9 @@ node_types:
     description: "Example material — demo files for Yggdrasil adopters. Not enforced strict (examples may be incomplete by design)."
     when:
       path: "examples/**"
+    aspects:
+      - id: example-self-contained
+        status: advisory
     parents: [module]
     relations:
       default: deny
