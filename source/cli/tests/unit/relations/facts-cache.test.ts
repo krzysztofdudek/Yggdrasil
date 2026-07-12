@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { astCacheDir, factsKey, loadFacts, writeFacts } from '../../../src/relations/facts-cache.js';
@@ -10,6 +10,21 @@ import {
   assembleCsharpCandidates,
 } from '../../../src/relations/extractors/csharp.js';
 import type { ParsedFile } from '../../../src/relations/extractors/types.js';
+import type { FeatureVector } from '../../../src/relations/feature-vector.js';
+
+/** A representative non-trivial feature vector for round-trip assertions. */
+const FV: FeatureVector = {
+  nodeCount: 7,
+  depthQuartiles: [1, 2, 4],
+  categories: {
+    'function-like': 1,
+    'class-like': 2,
+    'import-like': 3,
+    'branch-like': 0,
+    'call-like': 5,
+    'literal-like': 4,
+  },
+};
 
 describe('facts-cache', () => {
   let root: string;
@@ -20,6 +35,20 @@ describe('facts-cache', () => {
   });
   afterEach(() => { rmSync(root, { recursive: true, force: true }); });
   const key = factsKey({ contentHash: 'abc', language: 'typescript', grammarHash: 'g1', rev: 1 });
+
+  /** Locate the single .json shard writeFacts created under `base` (recursive). */
+  function shardFile(base: string): string {
+    for (const entry of readdirSync(base)) {
+      const full = path.join(base, entry);
+      if (statSync(full).isDirectory()) {
+        const nested = shardFile(full);
+        if (nested) return nested;
+      } else if (entry.endsWith('.json')) {
+        return full;
+      }
+    }
+    return '';
+  }
 
   // The key is 32 lowercase-hex chars = 128 bits of SHA-256. 64 bits (16 chars) was a
   // false-green CLASS: a birthday collision could serve one file's shard for another and the
@@ -34,9 +63,33 @@ describe('facts-cache', () => {
     expect(other).not.toBe(key);
   });
 
-  it('round-trips facts', async () => {
-    await writeFacts(dir, 'typescript', key, { declarations: [], uses: [] });
-    expect(await loadFacts(dir, 'typescript', key)).toEqual({ declarations: [], uses: [] });
+  it('round-trips facts (including the v2 features vector)', async () => {
+    await writeFacts(dir, 'typescript', key, { declarations: [], uses: [], features: FV });
+    expect(await loadFacts(dir, 'typescript', key)).toEqual({ declarations: [], uses: [], features: FV });
+  });
+
+  it('misses the whole shard when the persisted features vector is malformed', async () => {
+    // A v2 shard whose `features` is missing or ill-shaped is fail-closed-to-parse: loadFacts
+    // returns null so the file re-parses (recomputing declarations, uses AND features
+    // together — the shard is all-or-nothing), never a silent zero-vector.
+    await writeFacts(dir, 'typescript', key, { declarations: [], uses: [], features: FV });
+    const p = shardFile(dir);
+    // Drop `features` entirely.
+    writeFileSync(p, JSON.stringify({ v: 2, key, declarations: [], uses: [] }), 'utf-8');
+    expect(await loadFacts(dir, 'typescript', key)).toBeNull();
+    // A structurally-broken features (missing a category key) also misses.
+    writeFileSync(
+      p,
+      JSON.stringify({
+        v: 2,
+        key,
+        declarations: [],
+        uses: [],
+        features: { nodeCount: 1, depthQuartiles: [0, 0, 0], categories: { 'function-like': 0 } },
+      }),
+      'utf-8',
+    );
+    expect(await loadFacts(dir, 'typescript', key)).toBeNull();
   });
   it('returns null on miss', async () => {
     expect(await loadFacts(dir, 'typescript', factsKey({ contentHash: 'zzz', language: 'typescript', grammarHash: 'g1', rev: 1 }))).toBeNull();
@@ -71,7 +124,7 @@ describe('facts-cache', () => {
     expect(extract.scope.globalAliases.size).toBeGreaterThan(0);
 
     const cKey = factsKey({ contentHash: 'csharp1', language: 'csharp', grammarHash: 'g1', rev: 2 });
-    await writeFacts(dir, 'csharp', cKey, { declarations: [], uses: [], csharp: extract });
+    await writeFacts(dir, 'csharp', cKey, { declarations: [], uses: [], features: FV, csharp: extract });
     const loaded = await loadFacts(dir, 'csharp', cKey);
     expect(loaded).not.toBeNull();
     expect(loaded!.csharp).toBeDefined();

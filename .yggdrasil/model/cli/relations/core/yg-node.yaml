@@ -9,6 +9,7 @@ mapping:
   - source/cli/src/relations/allowed-types.ts
   - source/cli/src/relations/audit.ts
   - source/cli/src/relations/facts-cache.ts
+  - source/cli/src/relations/feature-vector.ts
   - source/cli/src/relations/messages.ts
   - source/cli/src/relations/owner-index.ts
   - source/cli/src/relations/pass.ts

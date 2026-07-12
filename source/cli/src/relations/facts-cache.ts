@@ -4,9 +4,19 @@ import { createHash } from 'node:crypto';
 import { atomicWriteFile } from '../io/atomic-write.js';
 import type { DeclaredSymbol, DetectedDep } from './extractors/types.js';
 import type { CsharpExtract } from './extractors/csharp.js';
+import { isValidFeatureVector, type FeatureVector } from './feature-vector.js';
 
-/** Cache schema version. Bump whenever the on-disk shard format changes. */
-export const CACHE_SCHEMA_VERSION = 1;
+/**
+ * Cache schema version. Bump whenever the on-disk shard format changes.
+ *
+ * v2: the shard now also carries a per-file structural `features` vector (see
+ * feature-vector.ts). The `FEATURE_VOCAB` table is versioned WITH this number — any edit
+ * to that table changes what a warm shard would carry, so it is a cache-format change and
+ * requires bumping this constant. Bumping orphans older-version shards under `.ast-cache/`
+ * (a one-time cold re-parse of a gitignored, rebuildable cache — benign), guaranteeing no
+ * shard ever mixes two schema/vocab revisions.
+ */
+export const CACHE_SCHEMA_VERSION = 2;
 
 /** Re-export so callers can `import { CsharpExtract } from facts-cache` if convenient. */
 export type { CsharpExtract } from './extractors/csharp.js';
@@ -15,6 +25,14 @@ export type { CsharpExtract } from './extractors/csharp.js';
 export interface FileFacts {
   declarations: DeclaredSymbol[];
   uses: DetectedDep[];
+  /**
+   * Per-file structural feature vector (see feature-vector.ts). Speed-only and OUTSIDE
+   * every verdict hash — pure instrumentation for the anomaly layer. Always present for an
+   * extractor-backed file: it is computed in the SAME parse-on-miss walk as declarations /
+   * uses, and a shard whose `features` is missing or malformed is a whole-shard cache MISS
+   * (`loadFacts` returns null → re-parse), never a silent zero-vector.
+   */
+  features: FeatureVector;
   /**
    * C#-specific pre-assembly extract (alias-UNRESOLVED). Present ONLY for C# files. Its
    * `scope.aliases` / `scope.globalAliases` are JavaScript `Map`s — see the serialization
@@ -136,6 +154,9 @@ interface ShardBody {
   key: string;
   declarations: DeclaredSymbol[];
   uses: DetectedDep[];
+  /** Per-file structural feature vector. Optional on the RAW shape (a v1 or corrupt shard
+   *  may lack it); `loadFacts` validates it strictly and misses the whole shard if absent. */
+  features?: FeatureVector;
   /** The C# extract in its JSON-safe (Map-flattened) on-disk form. */
   csharp?: SerializedCsharpExtract;
 }
@@ -147,7 +168,7 @@ interface ShardBody {
  *   - shard file absent
  *   - JSON parse error
  *   - `v` field absent or !== CACHE_SCHEMA_VERSION (checked FIRST)
- *   - missing/malformed required fields (`key`, `declarations`, `uses`)
+ *   - missing/malformed required fields (`key`, `declarations`, `uses`, `features`)
  *   - inner `key` field does not match the requested `key` (identity mismatch)
  *
  * NEVER returns `{ declarations: [], uses: [] }` to paper over a corrupt shard —
@@ -177,6 +198,12 @@ export async function loadFacts(
   if (!Array.isArray(parsed.declarations)) return null;
   if (!Array.isArray(parsed.uses)) return null;
 
+  // v2: features are mandatory and all-or-nothing. A missing or malformed features field is
+  // a whole-shard MISS (fail-closed-to-parse) — never a silent 0-vector, which would let a
+  // corrupt shard feed a false "typical" reading into the anomaly layer. Validate shape
+  // strictly: nodeCount + depthQuartiles(3 finite numbers) + all six category keys.
+  if (!isValidFeatureVector(parsed.features)) return null;
+
   // Defensive identity assertion — stored key must match the requested key.
   if (parsed.key !== key) return null;
 
@@ -184,6 +211,7 @@ export async function loadFacts(
   const facts: FileFacts = {
     declarations: parsed.declarations,
     uses: parsed.uses,
+    features: parsed.features,
   };
   if (parsed.csharp !== undefined) {
     // Rebuild the C# extract's `Map`s from their entry-array mirror. A malformed mirror
@@ -218,6 +246,9 @@ export async function writeFacts(
     key,
     declarations: facts.declarations,
     uses: facts.uses,
+    // v2: persist the structural feature vector (plain JSON — no Map trap). Mandatory on
+    // FileFacts, so it is always present here; a shard reloaded without it is a MISS.
+    features: facts.features,
     // Flatten the C# extract's `Map`s to entry arrays BEFORE JSON.stringify — a bare `Map`
     // stringifies to `"{}"` and would silently lose every alias entry (the false-green vector).
     ...(facts.csharp !== undefined ? { csharp: serializeCsharp(facts.csharp) } : {}),

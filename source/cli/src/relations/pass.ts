@@ -16,6 +16,7 @@ import {
   type CsharpExtract,
 } from './extractors/csharp.js';
 import { loadFacts, writeFacts, factsKey } from './facts-cache.js';
+import { countFeatures, type FeatureVector } from './feature-vector.js';
 import { verifyNodeDeps, type ResolvedDep, type RelationGraphView, type Violation } from './verifier.js';
 import type {
   DependencyExtractor,
@@ -43,6 +44,15 @@ export interface FileFacts {
   declarations: DeclaredSymbol[];
   uses: DetectedDep[] | null; // null ⇔ C# (assembled live)
   csharp: CsharpExtract | null; // non-null ⇔ C#
+  /**
+   * Per-file structural feature vector, computed in the SAME parse-on-miss walk as
+   * declarations / uses (NO second parse). Speed-only, OUTSIDE every verdict hash — pure
+   * instrumentation. Always present for an extractor-backed file (this pass only reaches
+   * `countFeatures` for files with a registered extractor). Rides in the pass's returned
+   * `factsByPath` for downstream read-only consumers; the anomaly layer reads
+   * `factsByPath.get(path).features` — no new pass-result field is added.
+   */
+  features: FeatureVector;
 }
 
 export interface RelationPassResult {
@@ -177,7 +187,10 @@ export async function runRelationPass(
       // cached fact. Non-C#: `uses()` is a pure function of the file's bytes → cache it.
       const uses = isCsharp ? null : extractor.uses(parsed);
       const csharp = isCsharp ? extractCsharpRefs(parsed) : null;
-      return { declarations, uses, csharp };
+      // Structural feature vector over the SAME already-parsed tree (no second parse). This
+      // is speed-only instrumentation and never enters any verdict hash.
+      const features = countFeatures(parsed.tree.rootNode, parsed.language);
+      return { declarations, uses, csharp, features };
     } finally {
       parsed.tree.delete();
     }
@@ -251,6 +264,9 @@ export async function runRelationPass(
           declarations: cached.declarations,
           uses: isCsharp ? null : cached.uses,
           csharp: isCsharp ? cached.csharp! : null,
+          // Guaranteed present — `loadFacts` fail-closes to a MISS on a missing/malformed
+          // features field, so a returned cached fact always carries a valid vector.
+          features: cached.features,
         };
       }
 
@@ -263,6 +279,7 @@ export async function runRelationPass(
       await writeFacts(deps.symbolIndexDir, language, key, {
         declarations: facts.declarations,
         uses: facts.uses ?? [],
+        features: facts.features,
         ...(facts.csharp !== null ? { csharp: facts.csharp } : {}),
       });
       return facts;

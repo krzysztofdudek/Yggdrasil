@@ -22,3 +22,4 @@ mapping:
   - source/cli/tests/integration/relation-pass-edges.test.ts
   - source/cli/tests/integration/relation-check.test.ts
   - source/cli/tests/integration/relation-fill.test.ts
+  - source/cli/tests/integration/feature-hash-guard.test.ts
