@@ -19,8 +19,10 @@ relations:
     { target: cli/core/pairs, type: uses },
     { target: cli/io/file-content-cache, type: uses },
     { target: cli/io/stores, type: uses },
+    { target: cli/tests/support, type: uses },
     { target: cli/utils, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/repo/no-removed-commands.test.ts
   - source/cli/tests/unit/repo/false-green-invariant.test.ts
+  - source/cli/tests/unit/repo/git-fixture-isolation-invariant.test.ts

@@ -2,6 +2,6 @@ name: E2E Tests — Log Integrity Extended
 type: test-suite
 description: "Subprocess E2E extending the log-integrity coverage — append-only prefix-modified and boundary-missing refusals surfaced by both approve and check, log-format datetime/header/code-fence/ordering/level-2-in-body violations, log add symlink/hardlink/whitespace-reason/missing-and-directory reason-file/both-flags guards, log read --all and --top NaN and no-log, plus merge-resolve dropped/fabricated/altered-entry tamper paths."
 aspects: []
-relations: []
+relations: [ { target: cli/tests/support, type: uses } ]
 mapping:
   - source/cli/tests/e2e/cli-log-integrity-extended.test.ts

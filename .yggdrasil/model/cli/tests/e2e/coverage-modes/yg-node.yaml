@@ -2,6 +2,6 @@ name: E2E Tests — Scoped Coverage CLI Contract
 type: test-suite
 description: "Subprocess E2E proving yg check honours the coverage.required/excluded scope through the real built binary on a git-initialized fixture: an advisory-only run (uncovered files outside any required root) exits 0 (PASS) with a rendered 'uncovered (N)' warning while excluded and nested-.yggdrasil files stay silent, and a file left unmapped under a required root exits 1 (FAIL) with a rendered 'unmapped (N)' error. Guards the CLI exit-code + render contract that the runCheck-level integration tests cannot reach."
 aspects: []
-relations: []
+relations: [ { target: cli/tests/support, type: uses } ]
 mapping:
   - source/cli/tests/e2e/cli-coverage-modes.test.ts

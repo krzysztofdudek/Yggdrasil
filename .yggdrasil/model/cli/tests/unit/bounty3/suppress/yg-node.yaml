@@ -5,7 +5,8 @@ aspects: []
 relations:
   [
     { target: cli/ast/runtime, type: uses },
-    { target: cli/commands/suppressions, type: uses }
+    { target: cli/commands/suppressions, type: uses },
+    { target: cli/tests/support, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/bounty3/suppress.test.ts

@@ -12,6 +12,7 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { runGitFixture } from '../../support/git-fixture.js';
 
 import {
   collectSuppressions,
@@ -596,11 +597,11 @@ describe('bounty3: formatSuppressionsOutput rendering', () => {
 // ===========================================================================
 
 function gitInit(dir: string): void {
-  spawnSync('git', ['init', '-q'], { cwd: dir });
-  spawnSync('git', ['config', 'user.email', 'test@example.com'], { cwd: dir });
-  spawnSync('git', ['config', 'user.name', 'Test'], { cwd: dir });
-  spawnSync('git', ['add', '-A'], { cwd: dir });
-  spawnSync('git', ['commit', '-qm', 'init'], { cwd: dir });
+  runGitFixture(dir, ['init', '-q']);
+  runGitFixture(dir, ['config', 'user.email', 'test@example.com']);
+  runGitFixture(dir, ['config', 'user.name', 'Test']);
+  runGitFixture(dir, ['add', '-A']);
+  runGitFixture(dir, ['commit', '-qm', 'init']);
 }
 
 describe.skipIf(!distExists)('bounty3 E2E: yg suppressions always exits 0 and lists waivers + warnings', () => {

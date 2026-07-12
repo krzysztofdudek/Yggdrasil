@@ -4,6 +4,7 @@ import path from 'node:path';
 import { existsSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { gitFixtureEnv } from '../support/git-fixture.js';
 
 // ---------------------------------------------------------------------------
 // Tests for the DOGFOOD-ONLY repo scripts (never adopter surfaces):
@@ -149,7 +150,7 @@ describe.skipIf(!isGitRepo)('dogfood scripts — spawn smoke', () => {
 /** git-init a temp repo with a `.yggdrasil/` dir; return the dir path. */
 function makeInstrumentRepo(): string {
   const dir = mkdtempSync(path.join(tmpdir(), 'yg-instr-'));
-  execFileSync('git', ['init', '-q'], { cwd: dir, env: GIT_ENV });
+  execFileSync('git', ['init', '-q'], { cwd: dir, env: gitFixtureEnv(dir, GIT_ENV) });
   mkdirSync(path.join(dir, '.yggdrasil'), { recursive: true });
   return dir;
 }
@@ -229,7 +230,7 @@ describe('judge-stability (a) — reviewer self-consistency (fixture telemetry)'
         },
       ]);
       // git-add (stage) the sidecar so `git ls-files --error-unmatch` reports it TRACKED.
-      execFileSync('git', ['add', '.yggdrasil/.yg-events.jsonl'], { cwd: dir, env: GIT_ENV });
+      execFileSync('git', ['add', '.yggdrasil/.yg-events.jsonl'], { cwd: dir, env: gitFixtureEnv(dir, GIT_ENV) });
       const res = runInstrument(dir, 'scripts/judge-stability.mjs');
       expect(res.status).toBe(0);
       // Exact refusal wording the footer emits for a tracked source.
@@ -359,7 +360,8 @@ describe('displacement (d) — Bode waterbed sibling analysis (fixture git + tel
   it('emits a sibling table for a rule edit with active siblings', () => {
     const dir = makeInstrumentRepo();
     try {
-      const git = (args: string[], env = GIT_ENV) => execFileSync('git', args, { cwd: dir, env });
+      const git = (args: string[], env = GIT_ENV) =>
+        execFileSync('git', args, { cwd: dir, env: gitFixtureEnv(dir, env) });
       // A rule-source edit for rule-a, committed at a fixed date (drives the window).
       mkdirSync(path.join(dir, '.yggdrasil/aspects/rule-a'), { recursive: true });
       writeFileSync(path.join(dir, '.yggdrasil/aspects/rule-a/content.md'), '# rule-a\noriginal\n');
@@ -402,7 +404,7 @@ describe('displacement (d) — Bode waterbed sibling analysis (fixture git + tel
   it('reports honest-empty when there are no rule-source edits in range', () => {
     const dir = makeInstrumentRepo();
     try {
-      const git = (args: string[]) => execFileSync('git', args, { cwd: dir, env: GIT_ENV });
+      const git = (args: string[]) => execFileSync('git', args, { cwd: dir, env: gitFixtureEnv(dir, GIT_ENV) });
       // A commit that touches NO aspect rule source → zero rule edits to analyze.
       writeFileSync(path.join(dir, 'README.md'), 'hello\n');
       git(['add', 'README.md']);
@@ -455,7 +457,7 @@ function lock(verdicts: unknown): string {
 /** Build a temp git repo; `commit(verdicts)` writes the lock and commits it. */
 function makeAuditRepo() {
   const dir = mkdtempSync(path.join(tmpdir(), 'yg-lock-audit-'));
-  const git = (args: string[]) => execFileSync('git', args, { cwd: dir, env: GIT_ENV });
+  const git = (args: string[]) => execFileSync('git', args, { cwd: dir, env: gitFixtureEnv(dir, GIT_ENV) });
   git(['init', '-q']);
   mkdirSync(path.join(dir, '.yggdrasil'), { recursive: true });
   let n = 0;
@@ -547,7 +549,7 @@ describe('escape-scan — fix-on-green candidates (fixture git repo)', () => {
 
   function makeEscapeRepo() {
     const dir = mkdtempSync(path.join(tmpdir(), 'yg-escape-'));
-    const git = (args: string[]) => execFileSync('git', args, { cwd: dir, env: GIT_ENV });
+    const git = (args: string[]) => execFileSync('git', args, { cwd: dir, env: gitFixtureEnv(dir, GIT_ENV) });
     git(['init', '-q']);
     // Current-graph node mapping (present at HEAD, which is what the scan resolves against).
     mkdirSync(path.join(dir, '.yggdrasil/model/svc/orders'), { recursive: true });
@@ -564,7 +566,11 @@ describe('escape-scan — fix-on-green candidates (fixture git repo)', () => {
     const commit = (msg: string): string => {
       git(['add', '-A']);
       git(['commit', '-q', '-m', msg]);
-      return execFileSync('git', ['rev-parse', 'HEAD'], { cwd: dir, encoding: 'utf-8' }).trim();
+      return execFileSync('git', ['rev-parse', 'HEAD'], {
+        cwd: dir,
+        encoding: 'utf-8',
+        env: gitFixtureEnv(dir),
+      }).trim();
     };
     return { dir, commit, writeHandler, writeLock };
   }

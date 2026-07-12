@@ -5,5 +5,7 @@ aspects: []
 relations:
   - target: cli/tests/e2e/support
     type: uses
+  - target: cli/tests/support
+    type: uses
 mapping:
   - source/cli/tests/e2e/cli-aspects-health.test.ts

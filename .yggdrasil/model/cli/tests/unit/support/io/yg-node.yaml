@@ -10,7 +10,8 @@ relations:
     { target: cli/ast/runtime, type: uses },
     { target: cli/core/loader, type: uses },
     { target: cli/io/parsers/config, type: uses },
-    { target: cli/io/stores, type: uses }
+    { target: cli/io/stores, type: uses },
+    { target: cli/tests/support, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/io/artifact-reader.test.ts

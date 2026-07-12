@@ -5,6 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { EVENTS_FILENAME } from '../../../src/io/events-store.js';
 import { readVerdictEvents } from '../../../src/io/events-reader.js';
+import { gitFixtureEnv } from '../../support/git-fixture.js';
 
 /**
  * Reader tolerance (read-side V1/G1 contract). The reader is telemetry: it must
@@ -126,7 +127,7 @@ describe('events-reader', () => {
     // Real on-disk git repo — no mocking. The sidecar is added and committed so
     // `git ls-files --error-unmatch` exits 0 for it.
     const git = (...args: string[]): void => {
-      execFileSync('git', args, { cwd: tmpDir, stdio: 'ignore' });
+      execFileSync('git', args, { cwd: tmpDir, stdio: 'ignore', env: gitFixtureEnv(tmpDir) });
     };
     git('init');
     git('config', 'user.email', 't@t.test');

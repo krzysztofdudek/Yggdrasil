@@ -4,6 +4,7 @@ import { existsSync, mkdtempSync, rmSync, cpSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { runGitFixture } from '../support/git-fixture.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../..');
@@ -156,12 +157,9 @@ describe.skipIf(!distExists)('CLI E2E — yg log read --with-verdicts (interleav
       // Put the sidecar under git — the dishonest state the label must call out.
       // A fresh, independent repo in the temp dir (never the Yggdrasil repo); `-f`
       // because the sidecar is normally gitignored, so it can only be tracked by force.
-      const init = spawnSync('git', ['init'], { cwd: dir, encoding: 'utf-8' });
+      const init = runGitFixture(dir, ['init']);
       expect(init.status).toBe(0);
-      const add = spawnSync('git', ['add', '-f', '.yggdrasil/.yg-events.jsonl'], {
-        cwd: dir,
-        encoding: 'utf-8',
-      });
+      const add = runGitFixture(dir, ['add', '-f', '.yggdrasil/.yg-events.jsonl']);
       expect(add.status).toBe(0);
 
       const { stdout, status } = run(

@@ -12,6 +12,7 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { runGitFixture } from '../support/git-fixture.js';
 import { detLockPath } from './support/read-lock.js';
 
 // ---------------------------------------------------------------------------
@@ -210,8 +211,7 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () 
           GIT_AUTHOR_DATE: '2015-01-01T00:00:00',
           GIT_COMMITTER_DATE: '2015-01-01T00:00:00',
         };
-        const git = (args: string[]) =>
-          spawnSync('git', args, { cwd: dir, env: gitEnv, encoding: 'utf-8' });
+        const git = (args: string[]) => runGitFixture(dir, args, { extraEnv: gitEnv });
         git(['init', '-q']);
         git(['add', '-A']);
         git(['commit', '-q', '-m', 'seed']);

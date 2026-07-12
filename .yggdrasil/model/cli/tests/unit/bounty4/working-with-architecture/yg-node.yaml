@@ -10,7 +10,8 @@ relations:
     { target: cli/core/file-when-evaluator, type: uses },
     { target: cli/core/loader, type: uses },
     { target: cli/core/validator, type: uses },
-    { target: cli/io/file-content-cache, type: uses }
+    { target: cli/io/file-content-cache, type: uses },
+    { target: cli/tests/support, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/bounty4/working-with-architecture.test.ts

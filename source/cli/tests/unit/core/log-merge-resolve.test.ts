@@ -9,6 +9,7 @@ import { logMergeResolve } from '../../../src/core/log/log-merge-resolve.js';
 import { readLock, writeLock } from '../../../src/io/lock-store.js';
 import { parseLog } from '../../../src/core/parsing/log-parser.js';
 import { LOCK_FORMAT_VERSION } from '../../../src/model/lock.js';
+import { gitFixtureEnv } from '../../support/git-fixture.js';
 
 const dirs: string[] = [];
 
@@ -27,7 +28,7 @@ const RESOLVED_LOG_GOOD =
 async function setupMergeRepo(): Promise<{ projectRoot: string; nodePath: string }> {
   const repo = await mkdtemp(path.join(tmpdir(), 'yg-merge-'));
   dirs.push(repo);
-  const r = (cmd: string) => execSync(cmd, { cwd: repo, stdio: 'pipe' });
+  const r = (cmd: string) => execSync(cmd, { cwd: repo, stdio: 'pipe', env: gitFixtureEnv(repo) });
   r('git init -q -b main');
   r('git config user.email t@t.test');
   r('git config user.name Test');
@@ -123,7 +124,7 @@ describe('logMergeResolve (core, lock store)', () => {
   it('rejects when HEAD is not a merge commit', async () => {
     const repo = await mkdtemp(path.join(tmpdir(), 'yg-merge-'));
     dirs.push(repo);
-    const r = (cmd: string) => execSync(cmd, { cwd: repo, stdio: 'pipe' });
+    const r = (cmd: string) => execSync(cmd, { cwd: repo, stdio: 'pipe', env: gitFixtureEnv(repo) });
     r('git init -q -b main');
     r('git config user.email t@t.test');
     r('git config user.name Test');
