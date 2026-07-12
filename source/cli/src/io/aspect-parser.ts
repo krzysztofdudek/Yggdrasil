@@ -9,8 +9,35 @@ import type { WhenPredicate } from '../model/when.js';
 import { readArtifacts } from './artifact-reader.js';
 import { parseWhen, parseAspectAttachment } from '../utils/when-parser.js';
 import { parseFileWhen, WhenPredicateInvalidError } from '../utils/file-when-parser.js';
-import { aspectStatusInvalidMessage, impliesStatusInheritInvalidMessage } from '../formatters/aspect-status-messages.js';
+import { aspectStatusInvalidMessage, aspectReviewByMalformedMessage, impliesStatusInheritInvalidMessage } from '../formatters/aspect-status-messages.js';
 import { toPosixPath } from '../utils/posix.js';
+
+/**
+ * Bare ISO calendar-date shape for `review_by:` — `YYYY-MM-DD`, nothing else.
+ * DELIBERATELY a fresh regex, NOT DATETIME_STRICT (which requires a full
+ * `T..:..:..Z` timestamp): review_by is a day-granularity review cadence, not a
+ * log timestamp. The regex only pins the digit shape; calendar validity (a real
+ * month/day) is enforced separately by isValidReviewByDate below.
+ */
+const REVIEW_BY_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * True iff `value` is both shaped like `YYYY-MM-DD` AND a real calendar date.
+ * The round-trip guard rejects overflow dates the bare regex would let through
+ * (e.g. `2027-13-40`, `2027-02-30`): JS Date normalizes an out-of-range month or
+ * day into a different date, so a component that fails to survive the UTC
+ * round-trip is not a valid calendar date.
+ */
+function isValidReviewByDate(value: string): boolean {
+  if (!REVIEW_BY_DATE.test(value)) return false;
+  const [year, month, day] = value.split('-').map(Number);
+  const dt = new Date(Date.UTC(year, month - 1, day));
+  return (
+    dt.getUTCFullYear() === year &&
+    dt.getUTCMonth() === month - 1 &&
+    dt.getUTCDate() === day
+  );
+}
 
 export type ParseAspectResult =
   | { ok: true; aspect: AspectDef }
@@ -127,6 +154,32 @@ export async function parseAspect(
       };
     }
     status = raw.status as AspectStatus;
+  }
+
+  // review_by: — optional standing review-by date (bare ISO `YYYY-MM-DD`).
+  // Presence-gated and strict when present (mirrors the status block above): a
+  // malformed date must NOT silently never-fire, so a present-but-invalid value
+  // is the blocking parse error aspect-review-by-malformed via the same errors
+  // path aspect-status-invalid uses. Valid on ANY aspect kind — review cadence is
+  // independent of reviewer kind, so no cross-field check downstream. NEVER a hash
+  // ingredient (the pair-hash builders do not read reviewBy).
+  let reviewBy: string | undefined;
+  if (raw.review_by !== undefined) {
+    if (typeof raw.review_by !== 'string' || !isValidReviewByDate(raw.review_by)) {
+      return {
+        ok: false,
+        aspectId: idTrimmed,
+        errors: [{
+          code: 'aspect-review-by-malformed',
+          messageData: aspectReviewByMalformedMessage({
+            aspectId: idTrimmed,
+            value: String(raw.review_by),
+            aspectDir,
+          }),
+        }],
+      };
+    }
+    reviewBy = raw.review_by;
   }
 
   // errs: — optional deterministic-check error-direction label. Strict when
@@ -396,6 +449,7 @@ export async function parseAspect(
       artifacts,
       ...(references && { references }),
       ...(status !== undefined && { status }),
+      ...(reviewBy !== undefined && { reviewBy }),
       ...(errs !== undefined && { errs }),
       ...(scope !== undefined && { scope }),
       ...(hasCompanionMjs && { hasCompanion: true }),

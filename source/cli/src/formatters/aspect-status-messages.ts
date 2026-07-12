@@ -18,6 +18,18 @@ export function aspectStatusInvalidMessage(params: {
   };
 }
 
+export function aspectReviewByMalformedMessage(params: {
+  aspectId: string;
+  value: string;
+  aspectDir: string;
+}): IssueMessage {
+  return {
+    what: `Aspect '${params.aspectId}' declares review_by: '${params.value}' (not a valid calendar date).`,
+    why: 'review_by must be a bare ISO calendar date in the form YYYY-MM-DD (e.g. 2027-01-15) — the day the rule is next due for review. A present-but-malformed date must be rejected, never silently ignored.',
+    next: `Edit ${posixPath(params.aspectDir)}/yg-aspect.yaml and set review_by to a real YYYY-MM-DD date, or remove the field.`,
+  };
+}
+
 export function impliesStatusInheritInvalidMessage(params: {
   implierId: string;
   impliedId: string;

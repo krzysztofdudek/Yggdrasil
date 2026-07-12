@@ -132,8 +132,22 @@ export const APPROVE_GATING_CODES = new Set<string>([
  *     7-channel cascade and every `when` predicate is effective on ZERO nodes.
  *     "Dead law that looks enforced." Emitted by checkAspectEffectiveNowhere.
  *
+ *   - aspect-review-overdue — constitution review-cadence linter (RZ-18): an
+ *     aspect whose `review_by:` date has passed (against an INJECTED clock, so it
+ *     is skipped when no clock is supplied). Status-independent. Emitted by
+ *     checkReviewOverdue. It NEVER writes the lock, changes a verdict, or gates
+ *     `--approve` — a pure read-only warning, deliberately outside every blocking
+ *     set.
+ *
  * (Pre-existing warnings such as `orphaned-aspect`, `high-fan-out`, and
  * `aspect-references-empty-array` follow the same convention: warning severity,
  * outside every blocking set.)
+ *
+ * NOTE on the sibling parse error `aspect-review-by-malformed`: it is NOT a
+ * warning. It is a BLOCKING parse-time error emitted via `graph.aspectParseErrors`
+ * (severity error) when an aspect declares a present-but-malformed `review_by:`
+ * value — the exact same classification as `aspect-status-invalid` (also a
+ * parse-time blocking error carried by aspectParseErrors, intentionally NOT a
+ * member of STRUCTURAL_CODES). No set membership is required for it to block.
  */
 

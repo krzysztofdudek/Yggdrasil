@@ -2,7 +2,8 @@ name: Core Validator Pipeline Tests
 type: test-suite
 description: Unit tests for the core validator pipeline — the main validator
   suite (scope handling, dangling/duplicate aspect refs, mapping overlaps,
-  relations, flows, schemas) and structural-aspect validation
+  relations, flows, schemas), structural-aspect validation, and the
+  review-cadence overdue linter
 aspects: []
 relations:
   [
@@ -18,3 +19,4 @@ mapping:
   - source/cli/tests/unit/core/aspect-effective-nowhere.test.ts
   - source/cli/tests/unit/core/checks-aspects-branch-coverage.test.ts
   - source/cli/tests/unit/core/aspect-errs-contract.test.ts
+  - source/cli/tests/unit/core/aspect-review-overdue.test.ts

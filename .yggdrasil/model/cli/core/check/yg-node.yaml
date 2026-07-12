@@ -26,6 +26,8 @@ relations:
     type: uses
   - target: cli/core/check-codes
     type: calls
+  - target: cli/core/checks/aspects
+    type: calls
   - target: cli/core/check-coverage-tiers
     type: calls
   - target: cli/core/log-validator
