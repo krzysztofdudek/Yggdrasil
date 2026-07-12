@@ -27,8 +27,12 @@ const REVIEW_BY_DATE = /^\d{4}-\d{2}-\d{2}$/;
  * (e.g. `2027-13-40`, `2027-02-30`): JS Date normalizes an out-of-range month or
  * day into a different date, so a component that fails to survive the UTC
  * round-trip is not a valid calendar date.
+ *
+ * Exported as the single source of truth for the bare ISO calendar-date guard —
+ * both `review_by:` parsing here and the `advise defer --until` command validate
+ * a `YYYY-MM-DD` day against exactly this rule, so the two can never diverge.
  */
-function isValidReviewByDate(value: string): boolean {
+export function isValidReviewByDate(value: string): boolean {
   if (!REVIEW_BY_DATE.test(value)) return false;
   const [year, month, day] = value.split('-').map(Number);
   const dt = new Date(Date.UTC(year, month - 1, day));

@@ -5,6 +5,7 @@ import path from 'node:path';
 import { runVersionUpgrade, ensureGitattributes, ensureYggdrasilGitignore } from '../../../src/cli/init.js';
 
 const LOCK_LINE = '/.yggdrasil/yg-lock.*.json linguist-generated=true';
+const ADVISE_LINE = '/.yggdrasil/advise-decisions.jsonl merge=union';
 const GITIGNORE_LINES = ['yg-secrets.yaml', '.symbols-cache/', '.ast-cache/', '.debug.log', '.yg-lock.deterministic.json', '.yg-events.jsonl', '.yg-fill-divergence.log'];
 
 async function scaffoldExistingYgg(projectRoot: string, version: string): Promise<string> {
@@ -108,6 +109,7 @@ describe('runVersionUpgrade', () => {
 
     const ga = await readFile(path.join(projectRoot, '.gitattributes'), 'utf-8');
     expect(ga).toContain(LOCK_LINE);
+    expect(ga).toContain(ADVISE_LINE);
   });
 });
 
@@ -117,20 +119,20 @@ describe('ensureGitattributes', () => {
     for (const d of dirsToCleanup.splice(0)) await rm(d, { recursive: true, force: true });
   });
 
-  it('creates .gitattributes with the lock line when absent', async () => {
+  it('creates .gitattributes with both managed lines when absent', async () => {
     const repoRoot = await mkdtemp(path.join(tmpdir(), 'yg-gitattr-'));
     dirsToCleanup.push(repoRoot);
 
     await ensureGitattributes(repoRoot);
 
     const ga = await readFile(path.join(repoRoot, '.gitattributes'), 'utf-8');
-    expect(ga).toBe(`${LOCK_LINE}\n`);
+    expect(ga).toBe(`${LOCK_LINE}\n${ADVISE_LINE}\n`);
   });
 
-  it('leaves the file unchanged when the lock line is already present', async () => {
+  it('leaves the file unchanged when both managed lines are already present', async () => {
     const repoRoot = await mkdtemp(path.join(tmpdir(), 'yg-gitattr-'));
     dirsToCleanup.push(repoRoot);
-    const original = `* text=auto\n${LOCK_LINE}\n`;
+    const original = `* text=auto\n${LOCK_LINE}\n${ADVISE_LINE}\n`;
     await writeFile(path.join(repoRoot, '.gitattributes'), original, 'utf-8');
 
     await ensureGitattributes(repoRoot);
@@ -139,19 +141,33 @@ describe('ensureGitattributes', () => {
     expect(ga).toBe(original);
   });
 
-  it('appends the lock line exactly once when other content exists', async () => {
+  it('appends ONLY the missing line when the file already carries one of them', async () => {
+    const repoRoot = await mkdtemp(path.join(tmpdir(), 'yg-gitattr-'));
+    dirsToCleanup.push(repoRoot);
+    // Existing adopter: has the lock line but not yet the advise line.
+    await writeFile(path.join(repoRoot, '.gitattributes'), `* text=auto\n${LOCK_LINE}\n`, 'utf-8');
+
+    await ensureGitattributes(repoRoot);
+
+    const ga = await readFile(path.join(repoRoot, '.gitattributes'), 'utf-8');
+    expect(ga).toBe(`* text=auto\n${LOCK_LINE}\n${ADVISE_LINE}\n`);
+    // The lock line is not duplicated.
+    expect(ga.split('\n').filter((l) => l.trim() === LOCK_LINE)).toHaveLength(1);
+  });
+
+  it('appends both managed lines exactly once when other content exists (idempotent)', async () => {
     const repoRoot = await mkdtemp(path.join(tmpdir(), 'yg-gitattr-'));
     dirsToCleanup.push(repoRoot);
     await writeFile(path.join(repoRoot, '.gitattributes'), '* text=auto\n', 'utf-8');
 
     await ensureGitattributes(repoRoot);
-    // Second call must NOT append a duplicate.
+    // Second call must NOT append duplicates.
     await ensureGitattributes(repoRoot);
 
     const ga = await readFile(path.join(repoRoot, '.gitattributes'), 'utf-8');
-    expect(ga).toBe(`* text=auto\n${LOCK_LINE}\n`);
-    const occurrences = ga.split('\n').filter((l) => l.trim() === LOCK_LINE).length;
-    expect(occurrences).toBe(1);
+    expect(ga).toBe(`* text=auto\n${LOCK_LINE}\n${ADVISE_LINE}\n`);
+    expect(ga.split('\n').filter((l) => l.trim() === LOCK_LINE)).toHaveLength(1);
+    expect(ga.split('\n').filter((l) => l.trim() === ADVISE_LINE)).toHaveLength(1);
   });
 
   it('inserts a separating newline when the existing file lacks a trailing one', async () => {
@@ -162,7 +178,7 @@ describe('ensureGitattributes', () => {
     await ensureGitattributes(repoRoot);
 
     const ga = await readFile(path.join(repoRoot, '.gitattributes'), 'utf-8');
-    expect(ga).toBe(`* text=auto\n${LOCK_LINE}\n`);
+    expect(ga).toBe(`* text=auto\n${LOCK_LINE}\n${ADVISE_LINE}\n`);
   });
 });
 

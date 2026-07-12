@@ -13,6 +13,7 @@ relations:
   - target: cli/utils
     type: calls
 mapping:
+  - source/cli/src/io/advise-decisions-store.ts
   - source/cli/src/io/artifact-reader.ts
   - source/cli/src/io/debug-log-writer.ts
   - source/cli/src/io/drill-results-store.ts

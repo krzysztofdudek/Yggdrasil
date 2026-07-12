@@ -1,0 +1,16 @@
+name: Advise Engine Unit Tests
+type: test-suite
+description: "Unit tests for the advise engine — buildNominations over a real
+  fixture graph (overdue review_by and suppress-anomaly sources, evidence-hash
+  determinism, classRank ordering) and the pure applyDecisions feed matrix
+  (dismiss/defer/done, stale-hash return, deferral elapse, latest-decision-wins)."
+aspects: []
+relations:
+  [
+    { target: cli/core/advise, type: uses },
+    { target: cli/core/loader, type: uses },
+    { target: cli/io/stores, type: uses }
+  ]
+mapping:
+  - source/cli/tests/unit/core/advise-feed.test.ts
+  - source/cli/tests/unit/core/advise-nominations.test.ts

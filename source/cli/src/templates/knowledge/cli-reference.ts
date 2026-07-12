@@ -440,6 +440,34 @@ or partially written file still reads. If the telemetry file has been committed
 file is shared history rather than local-only telemetry. Plain \`yg log read\` is
 unchanged.
 
+## yg advise
+
+Act on the graph's current attention items — the standing signals \`yg check\`
+surfaces as warnings (a rule past its review-by date, a rule attached where it
+matches nothing, an orphaned rule, a risky waiver). Each decision is recorded as
+committed case law in \`.yggdrasil/advise-decisions.jsonl\`: it survives across
+machines, and because it is appended one line at a time it merges by union across
+branches (no conflicts on the shared file).
+
+\`\`\`bash
+yg advise dismiss <id> --reason "reviewed, keeping as-is"
+yg advise defer <id> --until 2027-01-31 --reason "revisit next quarter"
+\`\`\`
+
+- **dismiss** hides the item until its underlying evidence changes. The decision
+  is bound to the exact evidence the item carries right now, so the moment that
+  evidence moves the item returns to the feed as new — a dismissal is never a
+  permanent silence over a changed situation.
+- **defer** hides the item until the given date, then it returns on its own.
+  \`--until\` is a bare calendar day (\`YYYY-MM-DD\`); a date that is not a real day
+  is rejected.
+
+\`--reason\` is **mandatory** on every decision — recorded precedent must carry a
+human-signed justification, so an empty reason is rejected and nothing is written.
+An id that matches no current item is rejected with the list of current ids.
+\`yg advise\` never changes a verdict, the lock, or whether \`yg check\` passes —
+it only decides what the attention feed shows you.
+
 ## yg suppressions
 
 Read-only inventory of all active \`yg-suppress\` markers in the repository's
