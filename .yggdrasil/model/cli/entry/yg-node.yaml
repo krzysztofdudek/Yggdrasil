@@ -34,6 +34,8 @@ relations:
     type: uses
   - target: cli/commands/suppressions
     type: uses
+  - target: cli/commands/simulate
+    type: uses
   - target: cli/commands/type-suggest
     type: uses
   - target: cli/commands/portal

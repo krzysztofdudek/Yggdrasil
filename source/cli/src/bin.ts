@@ -17,6 +17,7 @@ import { registerTypeSuggestCommand } from './cli/type-suggest.js';
 import { registerKnowledgeCommand } from './cli/knowledge.js';
 import { registerSchemasCommand } from './cli/schemas.js';
 import { registerSuppressionsCommand } from './cli/suppressions.js';
+import { registerSimulateCommand } from './cli/simulate.js';
 import { registerPortalCommand } from './cli/portal.js';
 import { registerStructureCommand } from './cli/structure.js';
 import { readFileSync } from 'node:fs';
@@ -51,6 +52,7 @@ registerTypeSuggestCommand(program);
 registerKnowledgeCommand(program);
 registerSchemasCommand(program);
 registerSuppressionsCommand(program);
+registerSimulateCommand(program);
 registerPortalCommand(program);
 registerStructureCommand(program);
 

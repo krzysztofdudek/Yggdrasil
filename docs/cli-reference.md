@@ -531,11 +531,12 @@ Run `yg knowledge list` to see the current list with one-line descriptions.
 
 ---
 
-## Development (1)
+## Development (2)
 
 | Command                                                          | Purpose                               |
 |------------------------------------------------------------------|---------------------------------------|
 | `yg aspect-test --aspect <id> --node <path>` / `--files <paths...>` | Run an aspect of either kind on demand; never writes the lock |
+| `yg simulate <candidate> --node <path>`                          | Replay a deterministic rule over reachable history in an isolated clone; read-only, exits 0 |
 
 ### `yg aspect-test`
 
@@ -613,6 +614,43 @@ When `yg aspect-test` repeatedly approves what the lock has refused, the rule te
 is ambiguous — sharpen `content.md` (which re-verifies every pair of the aspect; check
 `yg impact --aspect` first) or propose a suppress. There is deliberately no command
 to drop or re-roll a recorded verdict.
+
+### `yg simulate`
+
+Replays a candidate **deterministic** rule over the history it can honestly reach —
+"if I had shipped this rule, what would it have caught?" It replays the candidate's
+`check.mjs` over recent commits in an **isolated temp clone**, one fresh subprocess
+per commit, strictly read-only: your working tree is left byte-for-byte unchanged.
+
+```bash
+yg simulate <candidate> --node <node-path>                 # replay over the last 20 commits
+yg simulate <candidate> --node <node-path> --max-commits 50 # widen the window
+```
+
+- `<candidate>` — Required. The id of an aspect in this project that ships a
+  `check.mjs`. An LLM- or companion-reviewed candidate is refused up front: a
+  language-model verdict is point-in-time testimony, not a reproducible replay — use
+  `yg drill` to test an LLM rule's falsifiability instead.
+- `--node <path>` — Required. The node whose files the candidate replays over at
+  each commit.
+- `--max-commits <n>` — How many most-recent commits to consider (default 20).
+
+Each commit resolves to one of three first-class outcomes — never a silent zero:
+`ran-clean` (ran, found nothing), `violations (N)` (refused N files), or
+`non-comparable` (could not be honestly compared — the commit pre-dates
+initialization so it has no graph of its own, or its committed graph schema differs
+from the current one and would need a migration this replay never performs).
+
+The isolation is the point: every checkout and the candidate overlay happen in the
+throwaway clone, and a clone-boundary guard refuses to let the graph resolver escape
+the clone — so a pre-init checkout is reported `non-comparable` rather than silently
+resolving your real graph. `yg simulate` is a **report tool**: it exits `0` whatever
+it finds, never writes the lock, and never changes whether `yg check` passes. It
+prints a survivorship-bias caveat, because the old rule gate already refused code
+that never landed: a tightening replay is a **lower** bound on true catches, a
+loosening one an **upper** bound. Only a precondition failure on the real project
+(no graph, missing candidate, wrong candidate kind, or an inability to clone) exits
+non-zero.
 
 ---
 

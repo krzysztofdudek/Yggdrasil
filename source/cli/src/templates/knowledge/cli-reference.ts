@@ -328,6 +328,49 @@ results log (\`.yggdrasil/.drill-results.jsonl\`) plus, for LLM cases, one
 telemetry line each; it never touches the verification lock. The doctrine "no
 drill, no enforced" is advisory — a missing corpus never gates \`yg check\`.
 
+## yg simulate
+
+Replay a candidate DETERMINISTIC rule over the history it can honestly reach, to
+answer "if I had shipped this rule, what would it have caught?" It replays the
+candidate's \`check.mjs\` over recent commits in an ISOLATED temp clone — one fresh
+subprocess per commit — strictly read-only. The real working tree is left
+byte-for-byte unchanged.
+
+\`\`\`bash
+# Replay an existing deterministic rule over a node, across the most recent commits
+yg simulate no-raw-sql --node data/repository
+
+# Widen (or narrow) the window of most-recent commits considered (default 20)
+yg simulate no-raw-sql --node data/repository --max-commits 50
+\`\`\`
+
+The \`<candidate>\` is the id of an aspect in this project that ships a \`check.mjs\`;
+\`--node\` is the node whose files the candidate replays over at each commit. Each
+commit resolves to one of three first-class outcomes — never a silent zero:
+
+- \`ran-clean\` — the candidate ran and found nothing at that commit.
+- \`violations (N)\` — the candidate refused N of that commit's files.
+- \`non-comparable\` — the commit could not be honestly compared: it PRE-DATES
+  \`yg init\` (no graph of its own), or its committed graph schema differs from the
+  current one (it would need a migration this replay never performs). Reported
+  explicitly, so a commit the replay could not reach never reads as a clean pass.
+
+Guarantees that make the replay trustworthy: every checkout and the candidate
+overlay happen in the throwaway clone (never in your tree); a clone-boundary guard
+refuses to let the graph resolver escape the clone, so a pre-init checkout is
+\`non-comparable\` rather than silently the real graph; only the candidate rule is
+overlaid; and only commits whose committed schema EQUALS the current one are
+replayed. An LLM- or companion-reviewed candidate is refused up front — a
+language-model verdict is point-in-time testimony, not a reproducible replay; use
+\`yg drill\` to test an LLM rule's falsifiability instead.
+
+\`yg simulate\` is a REPORT tool: it exits \`0\` whatever it finds (a finding never
+gates), and prints a survivorship-bias caveat — the old rule gate already refused
+code that never landed, so a tightening replay is a LOWER bound on true catches and
+a loosening one an UPPER bound. Only a precondition failure on the real project (no
+graph, missing candidate, wrong candidate kind, or an inability to clone) exits
+non-zero. It never writes the lock and never changes whether \`yg check\` passes.
+
 ## yg impact
 
 Show blast radius before a change — which pairs an edit would invalidate.

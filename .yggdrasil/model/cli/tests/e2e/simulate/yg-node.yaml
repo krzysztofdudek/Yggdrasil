@@ -1,0 +1,13 @@
+name: E2E Tests — yg simulate
+type: test-suite
+description: "Subprocess E2E for yg simulate over the public CLI surface: a real
+  four-commit git fixture spanning a pre-init commit (non-comparable — clone-boundary
+  proven, the real repo never consulted), a schema-5.1.0 commit whose source trips the
+  candidate (violations), a schema-5.0.0 commit out of horizon (non-comparable), and a
+  fixed commit (ran-clean); the verbatim Wald label; an LLM candidate structurally
+  refused (exit 1); exit 0 for the report; and a before/after byte-compare proving the
+  real fixture tree is untouched. Real spawned binary; no internal src imports."
+aspects: []
+relations: []
+mapping:
+  - source/cli/tests/e2e/simulate.e2e.test.ts
