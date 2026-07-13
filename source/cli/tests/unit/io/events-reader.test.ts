@@ -3,8 +3,8 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import os from 'node:os';
-import { EVENTS_FILENAME } from '../../../src/io/events-store.js';
-import { readVerdictEvents } from '../../../src/io/events-reader.js';
+import { EVENTS_FILENAME, COMMITTED_EVENTS_FILENAME } from '../../../src/io/events-store.js';
+import { readVerdictEvents, COMMITTED_STREAM_NOTE } from '../../../src/io/events-reader.js';
 import { gitFixtureEnv } from '../../support/git-fixture.js';
 
 /**
@@ -148,6 +148,88 @@ describe('events-reader', () => {
 
     const result = readVerdictEvents(tmpDir);
     expect(result.gitTracked).toBe(true);
+    expect(result.events).toHaveLength(1);
+  });
+
+  // ── Union reader (RZ-14). The reader takes union(local, local.1, committed)
+  //    deduped by FULL line, and labels the committed contribution verbatim so a
+  //    shared record is never mistaken for complete. ─────────────────────────
+
+  it('unions the committed stream (yg-events.llm.jsonl) with the local sidecar and labels the committed contribution', () => {
+    const localEvent = JSON.stringify({
+      v: 1,
+      ts: '2026-07-11T00:00:00.000Z',
+      source: 'fill',
+      aspectId: 'det-local',
+      unitKey: 'node:a',
+      kind: 'deterministic',
+      disposition: 'approved',
+      hash: 'h-local',
+    });
+    // A committed (shared) LLM-fill line — reason already stripped upstream.
+    const committedEvent = JSON.stringify({
+      v: 1,
+      ts: '2026-07-12T00:00:00.000Z',
+      source: 'fill',
+      aspectId: 'llm-committed',
+      unitKey: 'node:b',
+      kind: 'llm',
+      disposition: 'refused',
+      hash: 'h-committed',
+      tier: 'standard',
+      promptRev: 1,
+    });
+    write(EVENTS_FILENAME, [localEvent]);
+    write(COMMITTED_EVENTS_FILENAME, [committedEvent]);
+
+    const result = readVerdictEvents(tmpDir);
+    expect(result.events.map((e) => e.aspectId).sort()).toEqual(['det-local', 'llm-committed']);
+    // The committed contribution is counted and labeled verbatim.
+    expect(result.committedCount).toBe(1);
+    expect(result.committedNote).toBe(COMMITTED_STREAM_NOTE);
+    expect(COMMITTED_STREAM_NOTE).toBe('machines on older CLIs do not contribute');
+  });
+
+  it('dedupes by FULL line across the union (git merge=union can duplicate a committed line)', () => {
+    const dup = JSON.stringify({
+      v: 1,
+      ts: '2026-07-12T00:00:00.000Z',
+      source: 'fill',
+      aspectId: 'llm-dup',
+      unitKey: 'node:b',
+      kind: 'llm',
+      disposition: 'approved',
+      hash: 'h-dup',
+      tier: 'standard',
+      promptRev: 1,
+    });
+    // The SAME byte-identical line appears twice in the committed file (union merge)
+    // and once again in the local sidecar.
+    write(COMMITTED_EVENTS_FILENAME, [dup, dup]);
+    write(EVENTS_FILENAME, [dup]);
+
+    const result = readVerdictEvents(tmpDir);
+    // Full-line dedupe collapses all three occurrences to one accepted event.
+    expect(result.events).toHaveLength(1);
+    expect(result.events[0].aspectId).toBe('llm-dup');
+    expect(result.skipped).toBe(0);
+  });
+
+  it('no committed stream ⇒ committedCount 0 and NO committed label (absent file)', () => {
+    write(EVENTS_FILENAME, [
+      JSON.stringify({
+        v: 1,
+        ts: '2026-07-03T00:00:00.000Z',
+        source: 'fill',
+        aspectId: 'a',
+        unitKey: 'node:x',
+        kind: 'deterministic',
+        disposition: 'approved',
+      }),
+    ]);
+    const result = readVerdictEvents(tmpDir);
+    expect(result.committedCount).toBe(0);
+    expect(result.committedNote).toBeUndefined();
     expect(result.events).toHaveLength(1);
   });
 

@@ -21,6 +21,15 @@ coverage:
 debug: false
 
 auto_approve: false
+
+# Committed, shared record of LLM verification events (opt-in; default OFF).
+# When enabled, each time the reviewer verifies a rule the event is appended to a
+# committed, union-merged file (.yggdrasil/yg-events.llm.jsonl) shared across the
+# team instead of a local-only file. Sensitive rationale is stripped from the
+# shared copy. Deterministic checks never write there, so a keyless CI run adds
+# nothing to it. Leave this off to keep every verification event local.
+# events:
+#   committed_llm: true
 `;
 
 export const DEFAULT_ARCHITECTURE = `# Define your node types below. Each type may have:

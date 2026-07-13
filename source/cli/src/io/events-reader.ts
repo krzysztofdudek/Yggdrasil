@@ -19,23 +19,37 @@
  *
  * The rotated `.1` sidecar (if present) is read BEFORE the current file so the
  * merged event stream stays in chronological (append) order.
+ *
+ * Union reader: the returned set is union(local, local `.1`, committed) deduped
+ * by FULL line. The committed shared stream (`yg-events.llm.jsonl`) carries only
+ * LLM-fill events; older CLIs write ONLY the local sidecar, so they do not
+ * contribute. Full-line dedupe collapses the byte-identical duplicates a git
+ * `merge=union` can leave on the committed stream.
  */
 
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { EVENTS_FILENAME, type VerdictEvent } from './events-store.js';
+import { EVENTS_FILENAME, COMMITTED_EVENTS_FILENAME, type VerdictEvent } from './events-store.js';
 
-/** Result of reading the local verdict-events telemetry sidecar. */
+/** Verbatim honesty label for the committed contribution — older CLIs write only
+ *  the local sidecar, so the shared record is never assumed complete. */
+export const COMMITTED_STREAM_NOTE = 'machines on older CLIs do not contribute';
+
+/** Result of reading the verdict-events telemetry (local union committed). */
 export interface EventsReadResult {
-  /** Parsed events, in file order — rotated `.1` first, then the current file. */
+  /** Parsed events, deduped by full line — local rotated `.1`, local current, then committed. */
   events: VerdictEvent[];
   /** Count of dropped lines: unknown `v`, unknown unitKey prefix, or non-JSON. */
   skipped: number;
-  /** True when the sidecar is git-tracked — the caller must then refuse the "local" label. */
+  /** True when the LOCAL sidecar is git-tracked — the caller must then refuse the "local" label. */
   gitTracked: boolean;
   /** Earliest `ts` observed across accepted events (undefined when none). */
   firstTs?: string;
+  /** Count of accepted events sourced from the committed shared stream. 0 when that file is absent/empty. */
+  committedCount: number;
+  /** Verbatim honesty label ({@link COMMITTED_STREAM_NOTE}) — present only when committedCount > 0. */
+  committedNote?: string;
 }
 
 /** Unit-key prefixes a v1 line may carry; any other prefix is an unknown future shape. */
@@ -80,21 +94,36 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  */
 export function readVerdictEvents(yggRootPath: string): EventsReadResult {
   const currentPath = path.join(yggRootPath, EVENTS_FILENAME);
-  // Rotation convention: the previous generation is `<sidecar>.1`, read first so
-  // the merged stream stays in append (chronological) order.
+  // Rotation: the previous generation `<sidecar>.1` is read first so the merged
+  // stream stays in append order; the opt-in committed stream is read last.
   const rotatedPath = `${currentPath}.1`;
+  const committedPath = path.join(yggRootPath, COMMITTED_EVENTS_FILENAME);
 
   const events: VerdictEvent[] = [];
   let skipped = 0;
   let firstTs: string | undefined;
+  let committedCount = 0;
 
-  for (const filePath of [rotatedPath, currentPath]) {
+  // Full-line dedupe across the union: a git `merge=union` can leave byte-identical
+  // duplicate lines. A byte-identical line is the SAME event, accepted once (a
+  // duplicate is NOT counted as a skip — it is not malformed).
+  const seenLines = new Set<string>();
+
+  const sources: Array<{ filePath: string; committed: boolean }> = [
+    { filePath: rotatedPath, committed: false },
+    { filePath: currentPath, committed: false },
+    { filePath: committedPath, committed: true },
+  ];
+
+  for (const { filePath, committed } of sources) {
     const content = readSidecarSafe(filePath);
     if (content === undefined) continue;
 
     for (const rawLine of content.split('\n')) {
       const line = rawLine.trim();
       if (line === '') continue;
+      if (seenLines.has(line)) continue; // full-line dedupe (union-merge duplicates, cross-source repeats)
+      seenLines.add(line);
 
       let parsed: unknown;
       try {
@@ -124,6 +153,7 @@ export function readVerdictEvents(yggRootPath: string): EventsReadResult {
 
       const event = parsed as unknown as VerdictEvent;
       events.push(event);
+      if (committed) committedCount += 1;
 
       const ts = event.ts;
       if (typeof ts === 'string' && (firstTs === undefined || ts < firstTs)) {
@@ -132,5 +162,14 @@ export function readVerdictEvents(yggRootPath: string): EventsReadResult {
     }
   }
 
-  return { events, skipped, gitTracked: isGitTracked(currentPath), firstTs };
+  return {
+    events,
+    skipped,
+    // gitTracked keys on the LOCAL sidecar (the honesty check is about the local
+    // file being mistakenly committed, not the intentionally-committed stream).
+    gitTracked: isGitTracked(currentPath),
+    firstTs,
+    committedCount,
+    ...(committedCount > 0 ? { committedNote: COMMITTED_STREAM_NOTE } : {}),
+  };
 }

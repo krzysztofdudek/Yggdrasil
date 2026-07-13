@@ -58,6 +58,14 @@ signals:                          # Optional — attention-layer switches. Absen
   attention: true                 #   attention (default true): the advisory "structurally unusual" note in
                                   #   yg context --file. Set false to silence it. Must be a boolean; an
                                   #   unknown key under signals: is rejected (a typo would silently leave it on).
+
+events:                           # Optional — committed-events opt-in. Absent ⇒ every LLM-fill event stays LOCAL.
+  committed_llm: true             #   committed_llm (default false): route LLM verification-fill events to a
+                                  #   COMMITTED, union-merged, team-shared file (.yggdrasil/yg-events.llm.jsonl)
+                                  #   with the refusal reason stripped, instead of the local gitignored sidecar.
+                                  #   Deterministic/drill/diag events always stay local (keyless CI = zero churn).
+                                  #   Must be a boolean; an unknown key under events: is rejected. Never folds
+                                  #   into any verdict hash — flipping it invalidates nothing.
 \`\`\`
 
 ## Reviewer tiers
@@ -376,4 +384,42 @@ finish, then re-run.
 
 An invalid \`auto_approve\` value (anything other than \`false\`, \`"deterministic"\`,
 or \`"full"\`) is a hard \`config-invalid\` error from \`yg check\`.
+
+## events
+
+Optional. Controls WHERE LLM verification-fill events are recorded. Its only key
+today is \`committed_llm\` (default \`false\`). Absent \`events\`, or absent
+\`events.committed_llm\`, both mean OFF — every fill event stays in the LOCAL,
+gitignored sidecar \`.yggdrasil/.yg-events.jsonl\` (see "Local state" above).
+
+| Value | Behavior |
+|---|---|
+| \`committed_llm: false\` (default) | Every fill event goes to the local, gitignored sidecar. |
+| \`committed_llm: true\` | LLM verification-fill events go to a COMMITTED, shared file \`.yggdrasil/yg-events.llm.jsonl\` instead. |
+
+When ON, the committed stream is:
+
+- **LLM-fill ONLY.** Only \`source: 'fill'\` + \`kind: 'llm'\` events graduate.
+  Deterministic checks, drill runs (\`yg drill\`), and diagnostic runs
+  (\`yg aspect-test\`) always stay in the local sidecar. So the keyless CI gate
+  (\`yg check --approve --only-deterministic\`) leaves the committed file
+  byte-unchanged — zero churn.
+- **Single-home.** An LLM-fill event goes to the committed file and NOT the local
+  one — no double-write, no double-count.
+- **Union-merged.** \`yg init\` (and every \`--upgrade\`) marks the file
+  \`merge=union\` in the repo-root \`.gitattributes\`, so events appended on
+  different branches combine on merge instead of conflicting. The committed file
+  is NOT gitignored; the local \`.yg-events.jsonl*\` stays gitignored.
+- **Rationale-stripped.** The refusal \`reason\` is omitted from the shared copy
+  (refusal prose can carry code fragments); the local copy keeps it.
+
+Readers (\`yg log read --with-verdicts\`, and the rule-health surfaces) take the
+union of the local sidecar and the committed stream, de-duplicated line by line,
+and note that machines on older CLIs — which write only the local sidecar — do
+not contribute to the shared record, so it is never assumed complete.
+
+The key never folds into any verdict hash: recording it, or flipping it on/off,
+invalidates NOTHING. \`committed_llm\` must be a boolean, and \`events\` accepts no
+other key — an unknown sibling is a hard \`config-events-unknown-key\` error so a
+typo can't silently leave the shared record disabled.
 `;

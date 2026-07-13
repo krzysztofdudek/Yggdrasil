@@ -1,22 +1,30 @@
 /**
  * source/cli/src/io/events-store.ts — append-only, write-only verdict-events
- * telemetry sidecar. Every fill (`yg check --approve`) appends one JSON line
- * per (aspect, unit) disposition — approved, refused, or an infra/runtime
- * no-write outcome — to a local, gitignored file under `.yggdrasil/`.
+ * telemetry appender. Every fill appends one JSON line per (aspect, unit)
+ * disposition under `.yggdrasil/`, to one of two homes (single-home switch, see
+ * appendVerdictEvent): the LOCAL gitignored sidecar `.yg-events.jsonl` (default,
+ * and the ONLY home for det/drill/diag events), or the COMMITTED shared stream
+ * `yg-events.llm.jsonl` (opt-in; LLM-fill events only, `reason` stripped).
  *
- * This is local telemetry ONLY: nothing in the engine (check/verify/render/
- * fill) ever reads `.yg-events.jsonl` back. It exists to make otherwise
- * invisible fill outcomes (a refused pair, an infra failure that silently
- * blocks a run) observable across runs, motivating future rule-health
- * reporting. A failed append must never affect a fill's outcome — see the
- * try/catch below.
+ * Nothing in the engine reads either file back — the sole reader is the
+ * quarantined io/events-reader.ts. A failed append must never affect a fill's
+ * outcome — see the try/catch below.
  */
 
 import path from 'node:path';
 import { appendToDebugLog } from './debug-log-writer.js';
 
-/** The events sidecar's filename, relative to the `.yggdrasil/` graph root. Gitignored — never committed, never read by any check/verify/render path. */
+/** The LOCAL events sidecar's filename, relative to the `.yggdrasil/` graph root. Gitignored — never committed. */
 export const EVENTS_FILENAME = '.yg-events.jsonl';
+
+/**
+ * The COMMITTED shared LLM-fill event stream's filename, relative to the
+ * `.yggdrasil/` graph root. Opt-in only (`events: { committed_llm: true }`). NOT
+ * gitignored — committed, `merge=union`-merged across branches, carrying ONLY
+ * LLM-fill events (`source: 'fill'` + `kind: 'llm'`) with `reason` stripped.
+ * Det/drill/diag NEVER land here (the keyless-CI zero-churn invariant).
+ */
+export const COMMITTED_EVENTS_FILENAME = 'yg-events.llm.jsonl';
 
 /**
  * One line of the append-only verdict-events sidecar. `v` is the line-schema
@@ -63,12 +71,35 @@ export interface VerdictEvent {
   judge?: { provider: string; model: string };
 }
 
+/** Options threaded from the caller's resolved config (dependency-injected — io
+ *  never imports core to read config). */
+export interface AppendVerdictEventOptions {
+  /** Resolved `events.committed_llm`. When true, an LLM-fill event is routed to
+   *  the committed shared stream with `reason` stripped, instead of the local
+   *  sidecar (single-home — no double-write). Every other event stays local. */
+  committedLlm?: boolean;
+}
+
 /**
  * Best-effort, write-only telemetry. MUST NEVER throw into the fill: a failed
- * append loses one event line and nothing else. No engine path reads this file.
+ * append loses one event line and nothing else. Single-home switch: when
+ * `opts.committedLlm` is set AND this is an LLM-fill event, the line goes to the
+ * committed shared stream (`reason` stripped for privacy); everything else goes
+ * to the local sidecar.
  */
-export function appendVerdictEvent(yggRootPath: string, event: VerdictEvent): void {
+export function appendVerdictEvent(
+  yggRootPath: string,
+  event: VerdictEvent,
+  opts?: AppendVerdictEventOptions,
+): void {
   try {
+    if (opts?.committedLlm === true && event.source === 'fill' && event.kind === 'llm') {
+      // Privacy: the shared copy never records `reason` (present only on refusals).
+      const shared: VerdictEvent = { ...event };
+      delete shared.reason;
+      appendToDebugLog(path.join(yggRootPath, COMMITTED_EVENTS_FILENAME), JSON.stringify(shared) + '\n');
+      return;
+    }
     appendToDebugLog(path.join(yggRootPath, EVENTS_FILENAME), JSON.stringify(event) + '\n');
   } catch {
     /* swallowed by contract — telemetry must never affect a fill */

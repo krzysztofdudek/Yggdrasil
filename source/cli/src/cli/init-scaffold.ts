@@ -18,11 +18,18 @@ import { FILL_DIVERGENCE_FILENAME } from '../io/debug-log-writer.js';
  *    - the advise-decisions register's merge=union line — that ledger is COMMITTED
  *      case law appended on many branches, so a union merge keeps every branch's
  *      decisions instead of forcing a conflict on the append-only file.
+ *    - the committed LLM-fill events stream's merge=union line — that stream is a
+ *      COMMITTED, opt-in shared record of LLM verification-fill events appended on
+ *      many branches, so a union merge keeps every branch's events instead of
+ *      forcing a conflict on the append-only file. (The file itself only exists
+ *      once a repo opts in via `events: { committed_llm: true }`; the attribute is
+ *      harmless when the file is absent.)
  *  Single source of truth for what init writes into the repo-root .gitattributes
  *  (both fresh init and every --upgrade). */
 const GITATTRIBUTES_LINES = [
   '/.yggdrasil/yg-lock.*.json linguist-generated=true',
   '/.yggdrasil/advise-decisions.jsonl merge=union',
+  '/.yggdrasil/yg-events.llm.jsonl merge=union',
 ] as const;
 
 /**

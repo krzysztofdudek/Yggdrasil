@@ -8,7 +8,6 @@ import { buildIssueMessage } from '../formatters/message-builder.js';
 import { logAdd } from '../core/log/log-add.js';
 import { logRead } from '../core/log/log-read.js';
 import { logMergeResolve } from '../core/log/log-merge-resolve.js';
-import { toPosix } from '../utils/posix.js';
 import { mappingEntryMatchesFile, normalizeMappingPath } from '../utils/mapping-path.js';
 import { readVerdictEvents } from '../io/events-reader.js';
 import type { VerdictEvent } from '../io/events-store.js';
@@ -100,7 +99,7 @@ export function registerLogCommand(program: Command): void {
           reasonText = opts.reason!;
         }
 
-        const nodePath = toPosix(opts.node.trim()).replace(/\/$/, '');
+        const nodePath = opts.node.trim().replace(/\/$/, '');
         const result = await logAdd({ graph, nodePath, reasonText, nowMs: Date.now() });
         if (!result.ok) {
           process.stderr.write(chalk.red(buildIssueMessage(result.error)) + '\n');
@@ -129,7 +128,7 @@ export function registerLogCommand(program: Command): void {
     .action(async (opts: { node: string; top?: number; all?: boolean; withVerdicts?: boolean }) => {
       try {
         const graph = await loadGraphOrAbort(process.cwd(), { tolerateInvalidConfig: true });
-        const nodePath = toPosix(opts.node.trim()).replace(/\/$/, '');
+        const nodePath = opts.node.trim().replace(/\/$/, '');
         const result = await logRead({ graph, nodePath, top: opts.top, all: opts.all });
         if (!result.ok) {
           process.stderr.write(chalk.red(buildIssueMessage(result.error)) + '\n');
@@ -169,6 +168,18 @@ export function registerLogCommand(program: Command): void {
             );
           } else {
             process.stdout.write(chalk.dim(`local telemetry since ${since}\n`));
+          }
+
+          // Committed shared stream: when it contributed events, surface the
+          // verbatim honesty label so the shared record is never mistaken for
+          // complete — older CLIs write only locally and do not contribute.
+          if (evResult.committedNote !== undefined) {
+            process.stdout.write(
+              chalk.dim(
+                `includes ${evResult.committedCount} event(s) from the committed shared stream ` +
+                  `(${evResult.committedNote})\n`,
+              ),
+            );
           }
 
           const items: Array<{ ts: string; text: string }> = [];
@@ -211,7 +222,7 @@ export function registerLogCommand(program: Command): void {
       try {
         const graph = await loadGraphOrAbort(process.cwd(), { tolerateInvalidConfig: true });
         const repoRoot = path.dirname(graph.rootPath);
-        const nodePath = toPosix(opts.node.trim()).replace(/\/$/, '');
+        const nodePath = opts.node.trim().replace(/\/$/, '');
         const result = await logMergeResolve({ graph, nodePath, repoRoot });
         if (!result.ok) {
           process.stderr.write(chalk.red(buildIssueMessage(result.error)) + '\n');

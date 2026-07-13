@@ -2,7 +2,12 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { appendVerdictEvent, EVENTS_FILENAME, type VerdictEvent } from '../../../src/io/events-store.js';
+import {
+  appendVerdictEvent,
+  EVENTS_FILENAME,
+  COMMITTED_EVENTS_FILENAME,
+  type VerdictEvent,
+} from '../../../src/io/events-store.js';
 
 describe('events-store', () => {
   let tmpDir: string;
@@ -172,6 +177,113 @@ describe('events-store', () => {
     expect(parsed[2]).toEqual(diagEvent);
     // The drill unitKey carries the drill:<aspect>/<case> form.
     expect(parsed[1].unitKey).toBe('drill:a/violates-1');
+  });
+
+  // ── Single-home switch (RZ-14). When the committed-events opt-in is ON, an
+  //    LLM verification-FILL event (source:'fill', kind:'llm') is written to the
+  //    COMMITTED shared stream and NOT to the local sidecar (no double-write, no
+  //    double-count). Deterministic, drill, and diag events ALWAYS stay local —
+  //    preserving the keyless-CI zero-churn invariant. ────────────────────────
+
+  const llmFill = (overrides: Partial<VerdictEvent> = {}): VerdictEvent => ({
+    v: 1,
+    ts: '2026-07-13T00:00:00.000Z',
+    source: 'fill',
+    aspectId: 'llm-aspect',
+    unitKey: 'node:svc',
+    kind: 'llm',
+    disposition: 'approved',
+    hash: 'hash-llm',
+    tier: 'standard',
+    promptRev: 1,
+    ...overrides,
+  });
+
+  const readLines = (name: string): VerdictEvent[] => {
+    const p = path.join(tmpDir, name);
+    if (!existsSync(p)) return [];
+    return readFileSync(p, 'utf-8')
+      .split('\n')
+      .filter((l) => l.length > 0)
+      .map((l) => JSON.parse(l) as VerdictEvent);
+  };
+
+  it('committedLlm ON: an LLM-fill event lands in the COMMITTED stream and NOT the local sidecar', () => {
+    appendVerdictEvent(tmpDir, llmFill(), { committedLlm: true });
+
+    // Committed stream got exactly the one event; the local sidecar was never created.
+    const committed = readLines(COMMITTED_EVENTS_FILENAME);
+    expect(committed).toHaveLength(1);
+    expect(committed[0].aspectId).toBe('llm-aspect');
+    expect(existsSync(path.join(tmpDir, EVENTS_FILENAME))).toBe(false);
+    // The two homes are distinct files (committed one is NOT dot-prefixed / gitignored).
+    expect(COMMITTED_EVENTS_FILENAME).toBe('yg-events.llm.jsonl');
+    expect(EVENTS_FILENAME.startsWith('.')).toBe(true);
+    expect(COMMITTED_EVENTS_FILENAME.startsWith('.')).toBe(false);
+  });
+
+  it('committedLlm ON: a deterministic-fill event STAYS local (never routed to the committed stream)', () => {
+    const detFill: VerdictEvent = {
+      v: 1,
+      ts: '2026-07-13T00:00:01.000Z',
+      source: 'fill',
+      aspectId: 'det-aspect',
+      unitKey: 'node:svc',
+      kind: 'deterministic',
+      disposition: 'approved',
+      hash: 'hash-det',
+    };
+    appendVerdictEvent(tmpDir, detFill, { committedLlm: true });
+
+    expect(readLines(EVENTS_FILENAME)).toHaveLength(1);
+    expect(existsSync(path.join(tmpDir, COMMITTED_EVENTS_FILENAME))).toBe(false);
+  });
+
+  it('committedLlm ON: a drill LLM event STAYS local (only source:fill is graduated)', () => {
+    const drillLlm: VerdictEvent = {
+      v: 1,
+      ts: '2026-07-13T00:00:02.000Z',
+      source: 'drill',
+      aspectId: 'llm-aspect',
+      unitKey: 'drill:a/violates-1',
+      kind: 'llm',
+      disposition: 'refused',
+      reason: 'case violates the rule',
+      tier: 'standard',
+      promptRev: 1,
+    };
+    appendVerdictEvent(tmpDir, drillLlm, { committedLlm: true });
+
+    expect(readLines(EVENTS_FILENAME)).toHaveLength(1);
+    expect(existsSync(path.join(tmpDir, COMMITTED_EVENTS_FILENAME))).toBe(false);
+  });
+
+  it('committedLlm OFF (or absent): an LLM-fill event STAYS local (today’s behavior)', () => {
+    appendVerdictEvent(tmpDir, llmFill(), { committedLlm: false });
+    appendVerdictEvent(tmpDir, llmFill({ ts: '2026-07-13T00:00:03.000Z' })); // no opts at all
+
+    expect(readLines(EVENTS_FILENAME)).toHaveLength(2);
+    expect(existsSync(path.join(tmpDir, COMMITTED_EVENTS_FILENAME))).toBe(false);
+  });
+
+  it('reason-strip: the COMMITTED refusal line has NO reason; the LOCAL (key OFF) line keeps it', () => {
+    const refusal = llmFill({ disposition: 'refused', reason: 'leaks src/secret.ts internals' });
+
+    // Committed copy (key ON): reason is stripped for privacy.
+    appendVerdictEvent(tmpDir, refusal, { committedLlm: true });
+    const committed = readLines(COMMITTED_EVENTS_FILENAME);
+    expect(committed).toHaveLength(1);
+    expect('reason' in committed[0]).toBe(false);
+    expect(committed[0].disposition).toBe('refused');
+    // Every other field survives the strip.
+    expect(committed[0].hash).toBe('hash-llm');
+    expect(committed[0].aspectId).toBe('llm-aspect');
+
+    // Local copy (key OFF): reason is retained verbatim.
+    appendVerdictEvent(tmpDir, refusal, { committedLlm: false });
+    const local = readLines(EVENTS_FILENAME);
+    expect(local).toHaveLength(1);
+    expect(local[0].reason).toBe('leaks src/secret.ts internals');
   });
 
   it('a write to an unwritable path does NOT throw (swallowed, best-effort telemetry)', () => {

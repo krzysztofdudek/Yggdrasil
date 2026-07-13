@@ -563,7 +563,17 @@ Both reviewer types record their results the same way: one content-addressed ent
 
 ### Verdict-events sidecar
 
-Alongside the lock, every `yg check --approve` fill appends a one-line record of each verdict — and each failed attempt — to a local `.yg-events.jsonl` file under `.yggdrasil/`. Each line is a single JSON object describing one filled pair: the aspect, the unit, the reviewer kind, the disposition (approved, refused, or a specific no-write outcome such as an unreachable reviewer, a crashed check, or a malformed suppress marker), and a UTC timestamp; a refusal also carries its reason, and a consensus review carries its vote tally (satisfied of total). The file is **local-only telemetry**: it is gitignored, never committed, and **never read back by any check, verification, or render path** — it exists only to make fill outcomes observable across runs (which rules refuse often, which infrastructure paths fail repeatedly), motivating future rule-health reporting. A failed append is swallowed and can never change a fill's outcome.
+Alongside the lock, every `yg check --approve` fill appends a one-line record of each verdict — and each failed attempt — to a local `.yg-events.jsonl` file under `.yggdrasil/`. Each line is a single JSON object describing one filled pair: the aspect, the unit, the reviewer kind, the disposition (approved, refused, or a specific no-write outcome such as an unreachable reviewer, a crashed check, or a malformed suppress marker), and a UTC timestamp; a refusal also carries its reason, and a consensus review carries its vote tally (satisfied of total). By default the file is **local-only telemetry**: it is gitignored, never committed, and **never read back by any check, verification, or render path** — it exists only to make fill outcomes observable across runs (which rules refuse often, which infrastructure paths fail repeatedly), motivating rule-health reporting. A failed append is swallowed and can never change a fill's outcome.
+
+#### Committed, shared record (opt-in)
+
+A team can opt into a **committed, shared** record of LLM verification-fill events with a single config key, `events: { committed_llm: true }` (see [Configuration → events](/configuration#events)). When it is on, each LLM fill event is appended to a committed file, `.yggdrasil/yg-events.llm.jsonl`, instead of the local sidecar — a single home per event, so nothing is double-counted. This file is:
+
+- **LLM-fill only.** Deterministic checks, drill runs, and diagnostic runs always stay in the local sidecar, so the free, keyless CI gate (`yg check --approve --only-deterministic`) never touches the committed file — running it adds nothing and produces zero churn.
+- **Union-merged.** `yg init` marks the file `merge=union` in `.gitattributes`, so events appended on different branches combine on merge instead of conflicting.
+- **Rationale-stripped.** The refusal reason is omitted from the shared copy (it can carry code fragments); the local copy keeps it.
+
+Readers combine the local sidecar with the committed stream, de-duplicated line by line. Because a machine on an older CLI writes only locally, a reader that surfaces these events notes that older machines do not contribute to the shared record — the committed stream is never assumed complete. The opt-in never affects any verdict or its hash: turning it on or off invalidates nothing.
 
 ---
 
