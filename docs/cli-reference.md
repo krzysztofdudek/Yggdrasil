@@ -400,7 +400,12 @@ plain-words read of how confident that ratio is (few observations reads as a wid
 range, never a false-precise number), and a `label` — `active`, `quiet`, or `decorative?`. A
 `decorative?` rule whose own examples still pass is reported as *possibly deterring the very
 violations it would catch* rather than assumed useless; a demotion is only ever suggested when
-several independent signals agree, never on the catch count alone. When
+several independent signals agree, never on the catch count alone. The last column, `fp`, is the
+false-block signal — how many of the rule's refusals a human later waived or overturned (a live
+`yg-suppress` waiver now covers the refused code, or the block was re-approved after a waiver moved
+rather than a genuine code fix; a real fix, with no waiver, never counts). It is a count with a
+plain-words small-sample label, never a bare rate, and it never gates — it feeds a human retirement
+ritual (the false-block budget), never an automatic block. When
 units have no valid result on record the `refused` cell reads `unverified`, never `0`, so an
 unchecked aspect is never shown as clean; likewise `age` reads `unknown` when that history is
 unavailable (a shallow clone or no repository), never a fabricated `0`. These lookups run

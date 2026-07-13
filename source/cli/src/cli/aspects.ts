@@ -12,16 +12,19 @@ import type { VerifiedPair } from '../core/verify-lock.js';
 import { walkRepoFiles } from '../io/repo-scanner.js';
 import { runSuppressionsScan } from '../portal/api/suppress-scan.js';
 import type { SuppressionsReport } from '../portal/api/suppress-scan.js';
+import { resolveSuppressedUnitsByAspect } from '../portal/api/suppress-coverage.js';
 import { collectMappingEntries } from '../portal/api/suppress-eligibility.js';
 import { getFirstCommitTimestamp } from '../utils/git.js';
 import { readVerdictEvents } from '../io/events-reader.js';
 import { readDrillResults } from '../io/drill-results-reader.js';
 import {
   computeAspectHealthSignals,
+  computeAspectFalsePositiveSignals,
   groupUnitsByAspect,
   covenantLine,
   computeDrillStatus,
   type AspectHealthSignal,
+  type AspectFalsePositiveSignal,
   type DrillStatus,
 } from '../core/aspect-health-signals.js';
 
@@ -156,6 +159,13 @@ export interface AspectHealthRow {
   exposureCell: string;
   /** Coarse reading of the catch/exposure record ('active' | 'quiet' | 'decorative?'), or EMPTY_CELL. */
   signalCell: string;
+  /**
+   * False-block cell — how many of this rule's refusals a human later waived or
+   * overturned, as an honest COUNT with a thin-data label (`<n>` or `<n> (thin
+   * data)`); EMPTY_CELL when the rule has no recorded block. Never a bare rate,
+   * never a gate — a read for the human retirement ritual.
+   */
+  fpCellValue: string;
 }
 
 export interface AspectHealth {
@@ -170,6 +180,13 @@ export interface AspectHealth {
    * uncertainty note for every thin-sample rule. Empty when no rule has telemetry.
    */
   signalNotes: string[];
+  /**
+   * Plain-words false-block lines rendered below the table: the "local telemetry
+   * since <ts>" honesty line plus, per rule with a waived/overturned block, how
+   * many of its blocks turned out false (with a plain-words rate and thin-data
+   * caveat — never a bare rate). Empty when no rule has a recorded block.
+   */
+  fpNotes: string[];
 }
 
 /**
@@ -283,6 +300,18 @@ function signalCells(sig: AspectHealthSignal | undefined): {
 }
 
 /**
+ * Render the false-block (fp) cell. A rule with no recorded block has nothing to
+ * show — EMPTY_CELL, never a `0` that would read as "checked and clean" (the same
+ * unverified-≠-zero honesty the refused/catch cells follow). Otherwise the raw
+ * COUNT of waived/overturned blocks, with a plain-words `(thin data)` label when
+ * the block sample is small — never a bare rate.
+ */
+function fpCell(sig: AspectFalsePositiveSignal | undefined): string {
+  if (sig === undefined || sig.blocks === 0) return EMPTY_CELL;
+  return sig.thinData ? `${sig.fp} (thin data)` : String(sig.fp);
+}
+
+/**
  * Build the plain-words lines rendered below the table. For a `decorative?` rule
  * the anti-Goodhart covenant cross-reference (drill-status-dependent, so a
  * never-violated rule proven to still catch reads as possibly DETERRING, not
@@ -315,6 +344,48 @@ function buildSignalNotes(
   return notes;
 }
 
+/**
+ * Build the plain-words false-block lines rendered below the table. When ANY rule
+ * has a recorded block, a leading "local telemetry since <ts>" honesty line (plus
+ * the committed-stream caveat when teammate events contribute); then, per rule with
+ * a waived/overturned block, how many of its blocks turned out false — stated as a
+ * count with a plain-words rate and a thin-data caveat, NEVER a bare rate. Returns
+ * [] when no rule has a recorded block (nothing to disclose). Method names never
+ * appear — the uncertainty is stated in plain words only.
+ */
+function buildFpNotes(
+  sortedAspects: AspectDef[],
+  fpSignals: ReadonlyMap<string, AspectFalsePositiveSignal>,
+  telemetrySince: string | undefined,
+  committedNote: string | undefined,
+): string[] {
+  const detail: string[] = [];
+  let hasBlocks = false;
+  for (const aspect of sortedAspects) {
+    const sig = fpSignals.get(aspect.id);
+    if (sig === undefined || sig.blocks === 0) continue;
+    hasBlocks = true;
+    if (sig.fp === 0) continue;
+    const pct = Math.round(sig.shrunkRate * 100);
+    // Distinguish a plain waiver (still refused) from an overturn (re-approved after
+    // a suppress-range change) — both are false blocks, but the human action differs.
+    const how =
+      sig.overturned > 0 && sig.suppressed > 0
+        ? 'waived or overturned'
+        : sig.overturned > 0
+          ? 'overturned after a suppress range changed'
+          : 'waived by a suppress marker';
+    const thin = sig.thinData ? ', few observations' : '';
+    detail.push(
+      `${aspect.id}: ${sig.fp} of ${sig.blocks} recorded block${sig.blocks === 1 ? '' : 's'} later ${how} (estimated false-block rate ~${pct}%${thin}).`,
+    );
+  }
+  if (!hasBlocks) return [];
+  const since = telemetrySince ?? 'the first recorded event';
+  const caveat = committedNote ? ` Shared LLM events included (${committedNote}).` : '';
+  return [`Local telemetry since ${since}.${caveat}`, ...detail];
+}
+
 export function computeAspectHealth(
   graph: Graph,
   verifiedPairs: VerifiedPair[],
@@ -322,6 +393,9 @@ export function computeAspectHealth(
   ruleAges: ReadonlyMap<string, string> = new Map(),
   signals: ReadonlyMap<string, AspectHealthSignal> = new Map(),
   drillStatuses: ReadonlyMap<string, DrillStatus> = new Map(),
+  fpSignals: ReadonlyMap<string, AspectFalsePositiveSignal> = new Map(),
+  telemetrySince: string | undefined = undefined,
+  committedNote: string | undefined = undefined,
 ): AspectHealth {
   interface Agg {
     pairs: number;
@@ -385,11 +459,13 @@ export function computeAspectHealth(
       catchCell: cells.catchCell,
       exposureCell: cells.exposureCell,
       signalCell: cells.signalCell,
+      fpCellValue: fpCell(fpSignals.get(aspect.id)),
     });
   }
 
   const signalNotes = buildSignalNotes(sorted, signals, drillStatuses);
-  return { rows, wildcardMarkers, hasUnverified, signalNotes };
+  const fpNotes = buildFpNotes(sorted, fpSignals, telemetrySince, committedNote);
+  return { rows, wildcardMarkers, hasUnverified, signalNotes, fpNotes };
 }
 
 /** Column order is fixed by contract; other waves append columns to the right. */
@@ -406,6 +482,7 @@ const HEALTH_HEADERS = [
   'catch',
   'exposure',
   'signal',
+  'fp',
 ] as const;
 
 /** Render the health rows as a left-aligned, two-space-gap text table. */
@@ -425,6 +502,7 @@ export function formatAspectsHealthOutput(health: AspectHealth): string {
       r.catchCell,
       r.exposureCell,
       r.signalCell,
+      r.fpCellValue,
     ]),
   ];
 
@@ -450,6 +528,14 @@ export function formatAspectsHealthOutput(health: AspectHealth): string {
     lines.push('');
     lines.push('Signal detail (catch = violations caught; exposure = times the reviewer judged):');
     for (const note of health.signalNotes) lines.push(`  ${note}`);
+  }
+
+  if (health.fpNotes.length > 0) {
+    lines.push('');
+    lines.push(
+      'False-block signal (fp = refusals a human later waived or overturned; a read for a human retirement ritual, never a gate):',
+    );
+    for (const note of health.fpNotes) lines.push(`  ${note}`);
   }
 
   return lines.join('\n') + '\n';
@@ -500,8 +586,10 @@ export async function buildAspectsHealthOutput(graph: Graph, nowMs: number): Pro
 
   // Local, gitignored telemetry — read HERE at the CLI boundary (aspects.ts is on
   // the events-reader allow-list) and handed to the pure signal engine as plain
-  // data, so core/aspect-health-signals never imports a reader (G1 boundary).
-  const verdictEvents = readVerdictEvents(graph.rootPath).events;
+  // data, so core/aspect-health-signals never imports a reader (G1 boundary). The
+  // union stream (local + committed) drives both catch/exposure and the fp join.
+  const eventsResult = readVerdictEvents(graph.rootPath);
+  const verdictEvents = eventsResult.events;
   const drillResults = readDrillResults(graph.rootPath).results;
 
   const currentUnitsByAspect = groupUnitsByAspect(verification.pairs.map((vp) => vp.pair));
@@ -516,6 +604,15 @@ export async function buildAspectsHealthOutput(graph: Graph, nowMs: number): Pro
     graph.aspects.map((a) => [a.id, computeDrillStatus(a.id, drillResults)]),
   );
 
+  // The fp (false-block) signal: past refusals (union event stream) joined against
+  // the LIVE suppress coverage. Both inputs are resolved here at the boundary and
+  // handed to the pure engine as plain data.
+  const suppressedUnitsByAspect = resolveSuppressedUnitsByAspect(graph, suppressReport);
+  const fpSignals = computeAspectFalsePositiveSignals(graph, {
+    verdictEvents,
+    suppressedUnitsByAspect,
+  });
+
   const ruleAges = resolveRuleAges(graph, projectRoot, nowMs);
   const health = computeAspectHealth(
     graph,
@@ -524,6 +621,9 @@ export async function buildAspectsHealthOutput(graph: Graph, nowMs: number): Pro
     ruleAges,
     signals,
     drillStatuses,
+    fpSignals,
+    eventsResult.firstTs,
+    eventsResult.committedNote,
   );
   return formatAspectsHealthOutput(health);
 }
@@ -534,7 +634,7 @@ export function registerAspectsCommand(program: Command): void {
     .description('List aspects with usage stats')
     .option(
       '--health',
-      'per-aspect health: pairs, hash-valid refusals, suppress markers, error direction, rule age, catch/exposure counts and reading',
+      'per-aspect health: pairs, hash-valid refusals, suppress markers, error direction, rule age, catch/exposure counts and reading, and false-block (fp) count',
     )
     .action(async (options: { health?: boolean }) => {
       try {

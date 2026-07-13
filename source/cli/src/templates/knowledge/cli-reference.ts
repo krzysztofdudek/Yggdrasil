@@ -460,7 +460,15 @@ catching things), \`quiet\` (little exercised), or \`decorative?\` (enforceable 
 never violated). A \`decorative?\` rule whose own examples still pass is reported as
 *possibly deterring the very violations it would catch* rather than assumed
 useless — and a rule is only ever suggested for demotion when several independent
-signals agree, never on the catch count alone. Honesty
+signals agree, never on the catch count alone. The final column, **fp**, is the
+false-block signal — how many of this rule's refusals a human LATER waived or
+overturned (a live \`yg-suppress\` waiver now covers the refused code, or the block
+was re-approved after a waiver moved rather than a genuine code fix — a real fix,
+with no waiver, never counts). It is a COUNT with a plain-words small-sample label,
+never a bare rate, and — like every signal here — never a gate: it feeds a human
+retirement ritual (the false-block budget — each rule debits the repo by its shrunk
+false-block rate, and retiring the worst offenders makes room for new rules), never
+an automatic block. Honesty
 rule: when units have no valid result on record the **refused** cell reads
 \`unverified\`, NEVER \`0\` — an unchecked unit is not a clean one; likewise **age**
 reads \`unknown\` when that history is unavailable (a shallow clone or no

@@ -4,6 +4,7 @@ import type { VerdictEvent } from '../../../src/io/events-store.js';
 import type { DrillResultLine } from '../../../src/io/drill-results-store.js';
 import {
   computeAspectHealthSignals,
+  computeAspectFalsePositiveSignals,
   betaBinomialShrink,
   computeDrillStatus,
   covenantLine,
@@ -258,5 +259,138 @@ describe('groupUnitsByAspect', () => {
     ]);
     expect([...grouped.get('A')!].sort()).toEqual(['node:x', 'node:y']);
     expect([...grouped.get('B')!]).toEqual(['node:x']);
+  });
+});
+
+describe('computeAspectFalsePositiveSignals (fp — refusals later waived or overturned)', () => {
+  /** A live-suppress coverage map: aspectId → covered unit keys. */
+  function covered(entries: Record<string, string[]>): Map<string, Set<string>> {
+    return new Map(Object.entries(entries).map(([id, units]) => [id, new Set(units)]));
+  }
+
+  it('(a) a refusal covered by a live suppress marker counts as a suppressed false block', () => {
+    const events = [fill('A', 'node:u1', 'refused', 'h1', 'deterministic')];
+    const sig = computeAspectFalsePositiveSignals(graphOf(aspect('A', 'deterministic')), {
+      verdictEvents: events,
+      suppressedUnitsByAspect: covered({ A: ['node:u1'] }),
+    }).get('A')!;
+    expect(sig.blocks).toBe(1);
+    expect(sig.fp).toBe(1);
+    expect(sig.suppressed).toBe(1);
+    expect(sig.overturned).toBe(0);
+  });
+
+  it('(b) a refused→approved flip with a covering marker counts as an overturned false block', () => {
+    const events = [
+      fill('A', 'node:u1', 'refused', 'h1', 'deterministic', '2026-07-01T00:00:00.000Z'),
+      fill('A', 'node:u1', 'approved', 'h2', 'deterministic', '2026-07-02T00:00:00.000Z'),
+    ];
+    const sig = computeAspectFalsePositiveSignals(graphOf(aspect('A', 'deterministic')), {
+      verdictEvents: events,
+      suppressedUnitsByAspect: covered({ A: ['node:u1'] }),
+    }).get('A')!;
+    expect(sig.blocks).toBe(1);
+    expect(sig.fp).toBe(1);
+    expect(sig.overturned).toBe(1);
+    expect(sig.suppressed).toBe(0);
+  });
+
+  it('(c) a refusal that stays refused with NO covering marker is a block but not a false block', () => {
+    const events = [fill('A', 'node:u1', 'refused', 'h1', 'deterministic')];
+    const sig = computeAspectFalsePositiveSignals(graphOf(aspect('A', 'deterministic')), {
+      verdictEvents: events,
+      suppressedUnitsByAspect: new Map(),
+    }).get('A')!;
+    expect(sig.blocks).toBe(1);
+    expect(sig.fp).toBe(0);
+  });
+
+  it('a refused→approved flip with NO covering marker is a genuine code fix, never a false block', () => {
+    // The rule blocked, the code was fixed, the rule then passed — the rule working,
+    // not a false block. Requiring the live marker is what excludes this.
+    const events = [
+      fill('A', 'node:u1', 'refused', 'h1', 'deterministic', '2026-07-01T00:00:00.000Z'),
+      fill('A', 'node:u1', 'approved', 'h2', 'deterministic', '2026-07-02T00:00:00.000Z'),
+    ];
+    const sig = computeAspectFalsePositiveSignals(graphOf(aspect('A', 'deterministic')), {
+      verdictEvents: events,
+      suppressedUnitsByAspect: new Map(),
+    }).get('A')!;
+    expect(sig.blocks).toBe(1);
+    expect(sig.fp).toBe(0);
+    expect(sig.overturned).toBe(0);
+  });
+
+  it('an aspect that only ever approved has no block and an empty (blocks: 0) signal', () => {
+    const events = [fill('A', 'node:u1', 'approved', 'h1', 'deterministic')];
+    const sig = computeAspectFalsePositiveSignals(graphOf(aspect('A', 'deterministic')), {
+      verdictEvents: events,
+      suppressedUnitsByAspect: covered({ A: ['node:u1'] }),
+    }).get('A')!;
+    expect(sig.blocks).toBe(0);
+    expect(sig.fp).toBe(0);
+  });
+
+  it('drill and diag events never count toward blocks (only source:fill)', () => {
+    const events: VerdictEvent[] = [
+      { v: 1, ts: '2026-07-01T00:00:00.000Z', source: 'drill', aspectId: 'A', unitKey: 'drill:A/case', kind: 'deterministic', disposition: 'refused', hash: 'h1' },
+      { v: 1, ts: '2026-07-01T00:00:00.000Z', source: 'diag', aspectId: 'A', unitKey: 'node:u1', kind: 'deterministic', disposition: 'refused', hash: 'h2' },
+    ];
+    const sig = computeAspectFalsePositiveSignals(graphOf(aspect('A', 'deterministic')), {
+      verdictEvents: events,
+      suppressedUnitsByAspect: covered({ A: ['node:u1', 'drill:A/case'] }),
+    }).get('A')!;
+    expect(sig.blocks).toBe(0);
+    expect(sig.fp).toBe(0);
+  });
+
+  it('the false-block rate is beta-binomial shrunk WITHIN kind — deterministic and LLM never pool', () => {
+    // Deterministic stratum: aspect D blocks 10×, all 10 waived (raw rate 1.0).
+    // LLM stratum: aspect L blocks once, waived once — its shrunk rate must be pulled
+    // toward the LLM base rate (1.0 within its own kind here), NOT the det stratum.
+    const detEvents = Array.from({ length: 10 }, (_, i) =>
+      fill('D', `node:d${i}`, 'refused', `hd${i}`, 'deterministic'),
+    );
+    const llmEvents = [fill('L', 'node:l1', 'refused', 'hl1', 'llm')];
+    const detCovered: Record<string, string[]> = { D: detEvents.map((_, i) => `node:d${i}`) };
+    const graph = graphOf(aspect('D', 'deterministic'), aspect('L', 'llm'));
+    const sigs = computeAspectFalsePositiveSignals(graph, {
+      verdictEvents: [...detEvents, ...llmEvents],
+      suppressedUnitsByAspect: covered({ ...detCovered, L: ['node:l1'] }),
+    });
+    const d = sigs.get('D')!;
+    const l = sigs.get('L')!;
+    // Det base rate = 10/10 = 1.0 → shrink(10,10,1.0) = (10+5)/(10+5) = 1.0.
+    expect(d.shrunkRate).toBeCloseTo(betaBinomialShrink(10, 10, 1.0), 10);
+    // LLM base rate = 1/1 = 1.0 (its OWN stratum) → shrink(1,1,1.0) = (1+5)/(1+5) = 1.0.
+    expect(l.shrunkRate).toBeCloseTo(betaBinomialShrink(1, 1, 1.0), 10);
+    // Thin-data flag keys on the block sample, not exposure.
+    expect(l.thinData).toBe(true);
+    expect(d.thinData).toBe(true); // 10 blocks < THIN_DATA_EXPOSURE (20)
+  });
+
+  it('the within-kind base rate does not leak across strata (a clean LLM rule stays near 0)', () => {
+    // Deterministic rule D: 4 blocks, all waived (det base rate 1.0).
+    // LLM rule L: 4 blocks, NONE waived → its shrunk rate must stay near 0 (pulled to
+    // the LLM base rate of 0), proving the det stratum's 1.0 never bleeds in.
+    const detEvents = Array.from({ length: 4 }, (_, i) => fill('D', `node:d${i}`, 'refused', `hd${i}`, 'deterministic'));
+    const llmEvents = Array.from({ length: 4 }, (_, i) => fill('L', `node:l${i}`, 'refused', `hl${i}`, 'llm'));
+    const sigs = computeAspectFalsePositiveSignals(graphOf(aspect('D', 'deterministic'), aspect('L', 'llm')), {
+      verdictEvents: [...detEvents, ...llmEvents],
+      suppressedUnitsByAspect: covered({ D: detEvents.map((_, i) => `node:d${i}`) }),
+    });
+    expect(sigs.get('L')!.fp).toBe(0);
+    expect(sigs.get('L')!.shrunkRate).toBeCloseTo(0, 10); // shrink(0,4,0) = 0
+  });
+
+  it('a wildcard/whole-aspect marker is resolved by the boundary — the engine trusts the coverage map', () => {
+    // The engine only sees the resolved coverage set; a pair absent from it is not a
+    // false block even with a refusal on record.
+    const events = [fill('A', 'node:u1', 'refused', 'h1', 'deterministic')];
+    const sig = computeAspectFalsePositiveSignals(graphOf(aspect('A', 'deterministic')), {
+      verdictEvents: events,
+      suppressedUnitsByAspect: covered({ A: ['node:OTHER'] }),
+    }).get('A')!;
+    expect(sig.fp).toBe(0);
   });
 });

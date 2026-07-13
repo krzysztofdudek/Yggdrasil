@@ -73,3 +73,4 @@ mapping:
   - source/cli/src/portal/api/boundary.ts
   - source/cli/src/portal/api/suppress-scan.ts
   - source/cli/src/portal/api/suppress-eligibility.ts
+  - source/cli/src/portal/api/suppress-coverage.ts

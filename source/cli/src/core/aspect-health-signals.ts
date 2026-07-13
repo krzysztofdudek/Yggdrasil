@@ -357,3 +357,213 @@ export function groupUnitsByAspect(
   }
   return byAspect;
 }
+
+// ============================================================
+// The false-block (fp) signal — refusals a human later waived or overturned
+// ============================================================
+
+/**
+ * One aspect's false-block signal: how often the rule's REFUSALS were later
+ * waived or overturned by a human, a coarse "this rule may block wrongly" read
+ * feeding a HUMAN retirement ritual (the false-block budget) — NEVER a gate.
+ *
+ * ── What counts as a false block (binding definitions) ───────────────────────
+ *   block     = a distinct refused (aspectId, unitKey) pair on record (source:'fill'
+ *               event with disposition 'refused') — an opportunity for the rule to
+ *               have blocked WRONGLY.
+ *   fp        = a block a human later waived or overturned, by EITHER:
+ *     (a) SUPPRESSED — a LIVE, non-wildcard `yg-suppress` marker for THIS aspect now
+ *         covers the refused unit (a file the unit owns). The human waived it.
+ *     (b) OVERTURNED — the block later flipped to approved (a source:'fill' approved
+ *         event post-dating a refusal for the same pair) AND a live marker now
+ *         covers the unit — the overturn rode a suppress-range change, not a rule
+ *         fix. A refused→approved flip with NO covering marker is a genuine code
+ *         FIX (the rule working), so requiring the live marker excludes the
+ *         SYSTEMATIC false positive: a genuine code fix is never counted.
+ * A wildcard `*` marker silences every aspect and is never attributed to one — it
+ * mirrors the `suppresses` column and keeps fp attribution precise.
+ *
+ * ── A residual, coincidence-only over-count (honest limitation) ───────────────
+ * Coverage is resolved at FILE / NODE granularity, not per LINE (a refusal event
+ * records no line). So a RESIDUAL over-count remains: if a same-aspect marker
+ * waives one violation in a unit's file while an UNRELATED genuine refusal — or a
+ * genuine-fix flip — for a different site occurs on the SAME unit, that unrelated
+ * block is tallied as a false block, defaming a rule that did its job. It is
+ * coincidence-gated (needs a same-aspect waiver co-located on the very unit), it
+ * rides the thin-data honesty label, and it NEVER gates — so it is disclosed here
+ * rather than engineered away (line-level attribution would need line-carrying
+ * events, a schema change unjustified for a non-gating signal). Weigh a lone hit
+ * accordingly; the column feeds a human review, never an automatic block.
+ *
+ * ── The estimate and its uncertainty ─────────────────────────────────────────
+ * `shrunkRate` is a beta-binomial (empirical-Bayes) shrink of the raw false-block
+ * rate (fp / blocks) computed WITHIN the aspect's kind stratum — deterministic and
+ * LLM rules generate false positives by different mechanisms, so their rates are
+ * NEVER pooled together. `thinData` is the raw-count small-sample flag; the CLI
+ * renders it in PLAIN WORDS ("few observations"). Method names live in comments
+ * and docs only, never in CLI output.
+ *
+ * Counted over DISTINCT (aspectId, unitKey) PAIRS — a unit that was blocked and
+ * waived counts once regardless of how many hash-states it passed through.
+ */
+export interface AspectFalsePositiveSignal {
+  /** Distinct blocks a human later waived or overturned (suppressed + overturned). */
+  fp: number;
+  /** Distinct refused (aspectId, unitKey) pairs on record — the blocks (denominator). */
+  blocks: number;
+  /** Of `fp`, blocks still refused but now covered by a live suppress marker (criterion a). */
+  suppressed: number;
+  /** Of `fp`, blocks that flipped refused→approved with a live covering marker (criterion b). */
+  overturned: number;
+  /** Within-kind beta-binomial-shrunk false-block rate in [0, 1] (fp / blocks). */
+  shrunkRate: number;
+  /** True when the block sample is too small for a tight rate (raw-count small-N). */
+  thinData: boolean;
+}
+
+/** Plain-data telemetry + the live-suppress coverage the fp signal needs (resolved at the CLI boundary). */
+export interface AspectFalsePositiveInputs {
+  /** All verdict events (any source); this module filters to source:'fill' itself. */
+  verdictEvents: VerdictEvent[];
+  /**
+   * aspectId → the set of unit keys currently covered by a LIVE non-wildcard
+   * suppress marker for that aspect. Resolved at the CLI boundary from the live
+   * suppress scan + the graph's file→node ownership (the engine never runs the
+   * scan or touches the graph's mapping I/O here), exactly as the other telemetry
+   * arrives — as plain data.
+   */
+  suppressedUnitsByAspect: Map<string, Set<string>>;
+}
+
+/** Per-aspect refusal/approval facts folded from the fill event stream. */
+interface PairFacts {
+  /** Earliest refusal timestamp for the pair (ISO 8601, lexicographically ordered). */
+  earliestRefusal?: string;
+  /** Latest approval timestamp for the pair (ISO 8601). */
+  latestApproval?: string;
+}
+
+/**
+ * Fold the fill event stream into per (aspectId, unitKey) refusal/approval facts.
+ * Only source:'fill' events with an approved/refused disposition are considered —
+ * infra-class outcomes and drill/diag events are excluded, mirroring catch/exposure.
+ */
+function collectPairFacts(events: VerdictEvent[]): Map<string, PairFacts> {
+  const facts = new Map<string, PairFacts>();
+  for (const e of events) {
+    if (e.source !== 'fill') continue;
+    if (e.disposition !== 'approved' && e.disposition !== 'refused') continue;
+    const key = `${e.aspectId}${SEP}${e.unitKey}`;
+    let f = facts.get(key);
+    if (f === undefined) {
+      f = {};
+      facts.set(key, f);
+    }
+    if (e.disposition === 'refused') {
+      if (f.earliestRefusal === undefined || e.ts < f.earliestRefusal) f.earliestRefusal = e.ts;
+    } else {
+      if (f.latestApproval === undefined || e.ts > f.latestApproval) f.latestApproval = e.ts;
+    }
+  }
+  return facts;
+}
+
+interface FpAccumulator {
+  blocks: number;
+  suppressed: number;
+  overturned: number;
+}
+
+/**
+ * Count blocks and false blocks per aspect. A pair is a BLOCK iff it has a refusal
+ * event; it is a false block iff it is additionally covered by a live suppress
+ * marker for the aspect. A false block is OVERTURNED when a refusal is followed by
+ * an approval (the block flipped), else SUPPRESSED (still refused, now waived).
+ */
+function accumulateFp(
+  facts: Map<string, PairFacts>,
+  suppressedUnitsByAspect: Map<string, Set<string>>,
+): Map<string, FpAccumulator> {
+  const acc = new Map<string, FpAccumulator>();
+  for (const [key, f] of facts) {
+    if (f.earliestRefusal === undefined) continue; // no block on this pair
+    const sep = key.indexOf(SEP);
+    const aspectId = key.slice(0, sep);
+    const unitKey = key.slice(sep + 1);
+    let a = acc.get(aspectId);
+    if (a === undefined) {
+      a = { blocks: 0, suppressed: 0, overturned: 0 };
+      acc.set(aspectId, a);
+    }
+    a.blocks += 1;
+    const covered = suppressedUnitsByAspect.get(aspectId)?.has(unitKey) ?? false;
+    if (!covered) continue;
+    // A refusal followed by a later approval is an OVERTURN; a covered block with no
+    // subsequent approval is a still-refused block a human waived (SUPPRESSED).
+    if (f.latestApproval !== undefined && f.earliestRefusal < f.latestApproval) a.overturned += 1;
+    else a.suppressed += 1;
+  }
+  return acc;
+}
+
+/**
+ * Pool the raw false-block rate (fp / blocks) WITHIN each kind stratum — the base
+ * rate a small sample is shrunk toward. Deterministic and LLM aspects are pooled
+ * separately and never mixed (their false-positive mechanisms differ). An empty
+ * stratum yields 0.
+ */
+function poolFpBaseRatesByKind(
+  graph: Graph,
+  acc: Map<string, FpAccumulator>,
+): Map<'llm' | 'deterministic', number> {
+  const pooled = new Map<'llm' | 'deterministic', { fp: number; blocks: number }>();
+  for (const aspect of graph.aspects) {
+    const kind = kindStratum(aspect);
+    if (kind === undefined) continue;
+    const a = acc.get(aspect.id);
+    if (a === undefined) continue;
+    let p = pooled.get(kind);
+    if (p === undefined) {
+      p = { fp: 0, blocks: 0 };
+      pooled.set(kind, p);
+    }
+    p.fp += a.suppressed + a.overturned;
+    p.blocks += a.blocks;
+  }
+  const rates = new Map<'llm' | 'deterministic', number>();
+  for (const [kind, p] of pooled) rates.set(kind, p.blocks > 0 ? p.fp / p.blocks : 0);
+  return rates;
+}
+
+/**
+ * Compute the false-block (fp) signal for every aspect in the graph. Aspects with
+ * no recorded block get a zero/zero signal (blocks: 0), which the CLI renders as an
+ * empty cell rather than a false clean 0. Deterministic given the inputs; PURE — the
+ * live-suppress coverage and telemetry arrive as parameters (see the module header
+ * on the G1 boundary).
+ */
+export function computeAspectFalsePositiveSignals(
+  graph: Graph,
+  inputs: AspectFalsePositiveInputs,
+): Map<string, AspectFalsePositiveSignal> {
+  const facts = collectPairFacts(inputs.verdictEvents);
+  const acc = accumulateFp(facts, inputs.suppressedUnitsByAspect);
+  const baseRates = poolFpBaseRatesByKind(graph, acc);
+
+  const out = new Map<string, AspectFalsePositiveSignal>();
+  for (const aspect of graph.aspects) {
+    const kind = kindStratum(aspect);
+    const a = acc.get(aspect.id) ?? { blocks: 0, suppressed: 0, overturned: 0 };
+    const fp = a.suppressed + a.overturned;
+    const baseRate = kind !== undefined ? (baseRates.get(kind) ?? 0) : 0;
+    out.set(aspect.id, {
+      fp,
+      blocks: a.blocks,
+      suppressed: a.suppressed,
+      overturned: a.overturned,
+      shrunkRate: betaBinomialShrink(fp, a.blocks, baseRate),
+      thinData: a.blocks > 0 && a.blocks < THIN_DATA_EXPOSURE,
+    });
+  }
+  return out;
+}

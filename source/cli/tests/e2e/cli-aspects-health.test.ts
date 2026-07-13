@@ -89,10 +89,10 @@ function healthRow(output: string, aspectId: string): string[] {
 }
 
 // Column indices for the fixed order:
-//   aspect | kind | status | nodes | pairs | refused | suppresses | errs | age | catch | exposure | signal
+//   aspect | kind | status | nodes | pairs | refused | suppresses | errs | age | catch | exposure | signal | fp
 const COL = {
   aspect: 0, kind: 1, status: 2, nodes: 3, pairs: 4, refused: 5, suppresses: 6, errs: 7, age: 8,
-  catch: 9, exposure: 10, signal: 11,
+  catch: 9, exposure: 10, signal: 11, fp: 12,
 };
 
 /** Append well-formed synthetic telemetry lines to a gitignored sidecar under `.yggdrasil/`. */
@@ -175,7 +175,7 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () 
       const headerCols = header!.trim().split(/\s{2,}/);
       expect(headerCols).toEqual([
         'aspect', 'kind', 'status', 'nodes', 'pairs', 'refused', 'suppresses', 'errs', 'age',
-        'catch', 'exposure', 'signal',
+        'catch', 'exposure', 'signal', 'fp',
       ]);
 
       // no-todo-comments: one hash-valid refusal (orders), one approved (payments).
@@ -299,7 +299,7 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () 
         const header = health.stdout.split('\n').find((l) => l.includes('aspect') && l.includes('age'));
         expect(header!.trim().split(/\s{2,}/)).toEqual([
           'aspect', 'kind', 'status', 'nodes', 'pairs', 'refused', 'suppresses', 'errs', 'age',
-          'catch', 'exposure', 'signal',
+          'catch', 'exposure', 'signal', 'fp',
         ]);
 
         // A deterministic rule (ships check.mjs) committed in 2015 reads a coarse,
@@ -321,4 +321,144 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () 
       }
     },
   );
+
+  // ── fp column (C3 slice 4): refusals a human later waived or overturned ──────
+  //
+  // `fp` joins the union verdict-event stream (past refusals) against a LIVE
+  // suppress scan: a refused (aspect, unit) whose block is now covered by a
+  // suppress marker for that aspect is a false-block signal. Two criteria:
+  //   (a) SUPPRESSED — a refusal covered by a live marker (the human waived it).
+  //   (b) OVERTURNED — a refusal that later flipped to approved with the marker
+  //       now covering it (overturned by a suppress-range change, not a rule fix).
+  // A refusal that stayed refused with NO covering marker is NOT fp. The cell is
+  // a COUNT with a thin-data honesty label — never a bare rate — and it never
+  // reaches the exit code (exit 0, read-only).
+
+  /** One refused fill event on a unit (a "block"). */
+  function refusedFill(aspectId: string, unitKey: string, hash: string, ts: string): object {
+    return { v: 1, ts, source: 'fill', aspectId, unitKey, kind: 'deterministic', disposition: 'refused', hash };
+  }
+  /** One approved fill event on a unit (an overturn, when it post-dates a refusal). */
+  function approvedFill(aspectId: string, unitKey: string, hash: string, ts: string): object {
+    return { v: 1, ts, source: 'fill', aspectId, unitKey, kind: 'deterministic', disposition: 'approved', hash };
+  }
+
+  it('(a) a refusal later covered by a suppress marker is counted in fp; (c) one that stays refused with no marker is not', () => {
+    const dir = copyFixture('fp-suppressed');
+    try {
+      // no-todo-comments: a past block on orders, now covered by a LIVE suppress
+      // marker for the SAME aspect in that node's file → criterion (a) → fp.
+      // requires-named-export: a past block on payments with NO marker → not fp.
+      writeSidecar(dir, '.yg-events.jsonl', [
+        refusedFill('no-todo-comments', 'node:services/orders', 'r-todo-1', '2026-07-01T00:00:00.000Z'),
+        refusedFill('requires-named-export', 'node:services/payments', 'r-exp-1', '2026-07-01T00:00:00.000Z'),
+      ]);
+      appendFileSync(
+        ordersFile(dir),
+        '\n// yg-suppress(no-todo-comments) known debt, tracked externally\n',
+      );
+
+      const health = run(['aspects', '--health'], dir);
+      expect(health.status).toBe(0); // informational, never blocks
+      const out = health.stdout;
+
+      // Header gains fp as the LAST column.
+      const header = out.split('\n').find((l) => l.includes('aspect') && l.includes('fp'));
+      expect(header!.trim().split(/\s{2,}/)).toEqual([
+        'aspect', 'kind', 'status', 'nodes', 'pairs', 'refused', 'suppresses', 'errs', 'age',
+        'catch', 'exposure', 'signal', 'fp',
+      ]);
+
+      // no-todo-comments: one block, now waived → fp = 1, thin sample labelled honestly.
+      const noTodo = healthRow(out, 'no-todo-comments');
+      expect(noTodo[COL.fp]).toBe('1 (thin data)');
+
+      // requires-named-export: one block, NO covering marker → fp = 0 (never omitted
+      // to hide it), and honestly flagged thin.
+      const reqExport = healthRow(out, 'requires-named-export');
+      expect(reqExport[COL.fp]).toBe('0 (thin data)');
+
+      // The plain-words false-block detail names the waived rule, never a bare rate,
+      // and carries the "since <ts>" telemetry honesty + the never-a-gate framing.
+      expect(out).toContain('False-block signal');
+      expect(out).toMatch(/no-todo-comments: 1 of 1 recorded block later waived/);
+      expect(out).toContain('never a gate');
+      expect(out).toMatch(/Local telemetry since 2026-07-01T00:00:00\.000Z/);
+      // Method names never leak into operator-facing text.
+      expect(out).not.toContain('beta-binomial');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('(b) a refused→approved flip with a moved suppress range is counted as overturned', () => {
+    const dir = copyFixture('fp-overturned');
+    try {
+      // requires-named-export: a block on payments, THEN a later approval (the flip)
+      // for the same pair, with a LIVE suppress marker now covering it — the overturn
+      // rode a suppress-range change, not a rule fix → criterion (b) → fp (overturned).
+      writeSidecar(dir, '.yg-events.jsonl', [
+        refusedFill('requires-named-export', 'node:services/payments', 'r-exp-1', '2026-07-01T00:00:00.000Z'),
+        approvedFill('requires-named-export', 'node:services/payments', 'a-exp-2', '2026-07-02T00:00:00.000Z'),
+      ]);
+      appendFileSync(
+        paymentsFile(dir),
+        '\n// yg-suppress(requires-named-export) waived after review, tracked externally\n',
+      );
+
+      const health = run(['aspects', '--health'], dir);
+      expect(health.status).toBe(0);
+      const out = health.stdout;
+
+      const reqExport = healthRow(out, 'requires-named-export');
+      expect(reqExport[COL.fp]).toBe('1 (thin data)');
+
+      // The detail distinguishes an OVERTURN (re-approved) from a plain suppress.
+      expect(out).toMatch(/requires-named-export: 1 of 1 recorded block later overturned/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('covers a per-file refusal unit: a marker in the file waives a `file:` block', () => {
+    const dir = copyFixture('fp-file-unit');
+    try {
+      // A refusal recorded against a FILE unit (not a node) is covered when a live
+      // marker for that aspect sits in that same file — exercising the file:<path>
+      // coverage branch of the resolver.
+      writeSidecar(dir, '.yg-events.jsonl', [
+        refusedFill('no-todo-comments', 'file:src/services/payments.ts', 'r-file-1', '2026-07-01T00:00:00.000Z'),
+      ]);
+      appendFileSync(
+        paymentsFile(dir),
+        '\n// yg-suppress(no-todo-comments) known debt, tracked externally\n',
+      );
+
+      const health = run(['aspects', '--health'], dir);
+      expect(health.status).toBe(0);
+      const noTodo = healthRow(health.stdout, 'no-todo-comments');
+      expect(noTodo[COL.fp]).toBe('1 (thin data)');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('default `yg aspects` (no flag) stays byte-identical even with fp telemetry present', () => {
+    const dir = copyFixture('fp-default-guard');
+    try {
+      writeSidecar(dir, '.yg-events.jsonl', [
+        refusedFill('no-todo-comments', 'node:services/orders', 'r-todo-1', '2026-07-01T00:00:00.000Z'),
+      ]);
+      appendFileSync(
+        ordersFile(dir),
+        '\n// yg-suppress(no-todo-comments) known debt, tracked externally\n',
+      );
+      // The suppress marker changes a source file, but the DEFAULT listing reads only
+      // the graph — no events, no suppress scan — so it is unchanged byte-for-byte.
+      const plain = run(['aspects'], dir);
+      expect(plain.stdout).toBe(DEFAULT_ASPECTS_GOLDEN);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
