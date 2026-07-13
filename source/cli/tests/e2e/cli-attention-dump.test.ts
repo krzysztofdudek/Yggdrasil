@@ -138,4 +138,19 @@ describe.skipIf(!distExists)('CLI E2E — feature-field index + --attention-dump
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  // Calibration regression guard over the COMMITTED non-TS fixture: a well-behaved
+  // same-language family (six similar Python files, no deliberate outlier) must stay
+  // silent at the calibrated sensitivity — proof the threshold does not spuriously
+  // fire in a non-TypeScript language. Read-only (`--attention-dump` writes nothing).
+  it('the committed polyglot fixture — a well-behaved Python family — flags nothing', () => {
+    const fixture = path.join(CLI_ROOT, 'tests/fixtures/feature-field-polyglot');
+    const res = run(['check', '--attention-dump'], fixture);
+    expect(res.status).toBe(0);
+    // The Python family is present and compared (>= MIN_N files)…
+    expect(res.stdout).toMatch(/services · python\s+\(6 files\)/);
+    // …but nothing in it is called out. The per-file flag marker (arrow-prefixed)
+    // never appears; the bare phrase in the explanatory header is not a flag.
+    expect(res.stdout).not.toContain('→ worth a closer read');
+  });
 });

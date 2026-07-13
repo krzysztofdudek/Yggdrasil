@@ -190,6 +190,45 @@ export async function parseConfig(
     auto_approve = false;
   }
 
+  // signals — optional attention-layer switches. Absent ⇒ undefined (every signal
+  // at its default; today that means the advisory "structurally unusual" note in
+  // `yg context --file` is ON). Tolerated when absent (like auto_approve), but
+  // STRICT-validated when present: `signals` must be a mapping, `signals.attention`
+  // (if given) must be boolean, and an UNKNOWN sibling is rejected — the section is
+  // a tight, enumerated namespace (mirroring the reviewer section), and a misspelled
+  // key (e.g. `attetnion`) would otherwise SILENTLY leave the note enabled, quietly
+  // defeating an intended off-switch. No schema-version bump: an absent key changes
+  // nothing about how any existing config parses.
+  let signals: { attention?: boolean } | undefined;
+  if (raw.signals !== undefined) {
+    if (typeof raw.signals !== 'object' || Array.isArray(raw.signals) || raw.signals === null) {
+      throw new ConfigParseError({
+        what: `${filename}: signals must be a mapping (got ${JSON.stringify(raw.signals)}).`,
+        why: 'signals holds attention-layer switches (currently `attention`); a non-mapping value cannot carry them.',
+        next: 'Set signals to a mapping, e.g. `signals: { attention: false }`, or remove the signals key.',
+      }, 'config-invalid');
+    }
+    const sig = raw.signals as Record<string, unknown>;
+    const allowedSignalKeys = new Set(['attention']);
+    for (const k of Object.keys(sig)) {
+      if (!allowedSignalKeys.has(k)) {
+        throw new ConfigParseError({
+          what: `${filename}: unknown key '${k}' under signals:`,
+          why: 'the signals section accepts only `attention`; a misspelled key would silently leave the advisory "structurally unusual" note enabled, defeating an intended off-switch.',
+          next: "Remove the key, or set signals.attention to true or false.",
+        }, 'config-signals-unknown-key');
+      }
+    }
+    if (sig.attention !== undefined && typeof sig.attention !== 'boolean') {
+      throw new ConfigParseError({
+        what: `${filename}: signals.attention must be a boolean (got ${JSON.stringify(sig.attention)}).`,
+        why: 'signals.attention toggles the advisory "structurally unusual" note in `yg context --file`; it is on by default, and only a boolean can switch it.',
+        next: "Set signals.attention to true or false, or remove the signals key.",
+      }, 'config-invalid');
+    }
+    signals = { attention: sig.attention as boolean | undefined };
+  }
+
   return {
     version,
     quality,
@@ -197,6 +236,7 @@ export async function parseConfig(
     parallel,
     debug,
     auto_approve,
+    signals,
     coverage: parseCoverage(raw.coverage, filename),
   };
 }

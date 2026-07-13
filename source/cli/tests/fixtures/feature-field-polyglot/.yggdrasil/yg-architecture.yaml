@@ -1,0 +1,6 @@
+node_types:
+  service:
+    description: 'A small in-memory record-store service. One per file; all share the same shape.'
+    log_required: false
+    when:
+      path: "services/**"

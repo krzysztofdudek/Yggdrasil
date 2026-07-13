@@ -62,6 +62,20 @@ import { getLanguageForExtension } from './graph/language-registry.js';
 import { atomicWriteFile } from '../io/atomic-write.js';
 import { readTextFile, writeTextFile } from '../io/graph-fs.js';
 import { debugWrite } from '../utils/debug-log.js';
+import {
+  FAMILY_SEP,
+  FEATURE_FIELD_VERSION,
+  FEATURE_FIELD_FILENAME,
+  type Deviation,
+  type FeatureFieldIndex,
+} from './feature-field-schema.js';
+
+// Re-export the shared on-disk contract so existing consumers of this module
+// (and its tests) keep a stable import surface. The single definitions live in
+// feature-field-schema.ts — shared with the reader, which may not import this
+// module (the instrument-import fence).
+export { FEATURE_FIELD_VERSION, FEATURE_FIELD_FILENAME };
+export type { Deviation, FeatureFieldIndex };
 
 // ── Named admission constants (documented change policy — RZ-21) ─────────────
 
@@ -70,8 +84,20 @@ import { debugWrite } from '../utils/debug-log.js';
  * its family's median on a dimension to be flagged. Raised ONLY by a deliberate
  * re-calibration (informed by `--attention-dump`) and recorded in the changelog — never
  * tuned silently.
+ *
+ * Calibrated to 12.0 by the documented +0.5 policy: starting from 3.5, the threshold was
+ * raised in +0.5 steps and the fire-rate re-measured (fires ÷ extractor-backed mapped
+ * files) until it fell to ≤2% of files repo-wide — the point at which the advisory
+ * attention note is a rare, high-signal hint rather than noise. 12.0 is the first step
+ * that clears the bar on this codebase (1.84%). NOTE (heavy tail): the fire-rate decays
+ * slowly — the raw counts are integer-valued with tight-but-nonzero within-family spread,
+ * so a robust-z built on the median-absolute-deviation produces many moderately-large
+ * scores, and reaching ≤2% needs a threshold far above the ~3.5 a normal distribution
+ * would suggest. That is a property of the dimension set / statistic, worth revisiting if
+ * the note ever feels miscalibrated; it does not affect any verdict (this constant changes
+ * attention output only and is never a hash input).
  */
-export const Z_ADMIT = 3.5;
+export const Z_ADMIT = 12.0;
 
 /**
  * Minimum family size. A family with fewer than this many same-language files contributes
@@ -79,24 +105,7 @@ export const Z_ADMIT = 3.5;
  */
 export const MIN_N = 5;
 
-/** On-disk index schema version. */
-export const FEATURE_FIELD_VERSION = 1;
-
-/** Basename of the local, gitignored index file (under `.yggdrasil/`). */
-export const FEATURE_FIELD_FILENAME = '.feature-field.json';
-
-/** NUL separator inside the family key — never appears in a node id or a language id. */
-const FAMILY_SEP = '\x00';
-
 // ── Types ────────────────────────────────────────────────────────────────────
-
-/** One admitted deviation: the dimension name and the file's robust score on it. */
-export interface Deviation {
-  /** One of the ten dimension names (see {@link DIMS}). */
-  dim: string;
-  /** The file's robust score on this dimension (rounded for storage; admission used full precision). */
-  z: number;
-}
 
 /** Per-file deviation record produced by {@link computeFamilyDeviations}. */
 export interface FileDeviations {
@@ -106,13 +115,6 @@ export interface FileDeviations {
   contentHash: string;
   /** Every dimension on which this file is a robust outlier within its family. */
   deviations: Deviation[];
-}
-
-/** The on-disk index shape (§5.3). */
-export interface FeatureFieldIndex {
-  v: number;
-  generatedAt: string;
-  files: Record<string, { contentHash: string; family: string; deviations: Deviation[] }>;
 }
 
 // ── Robust statistics (pure; exported for direct unit testing) ───────────────

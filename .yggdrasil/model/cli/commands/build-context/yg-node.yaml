@@ -11,6 +11,10 @@ relations:
     type: calls
   - target: cli/core/validator
     type: calls
+  - target: cli/core/check
+    type: calls
+  - target: cli/core/language-registry
+    type: calls
   - target: cli/formatters
     type: calls
 

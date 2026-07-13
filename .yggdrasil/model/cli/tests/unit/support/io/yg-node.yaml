@@ -2,7 +2,8 @@ name: I/O Adapter Tests
 type: test-suite
 description: "Unit tests for I/O adapters that read/write runtime state —
   artifact-reader, find-index, secrets-parser, read-or-default,
-  content hashing, the append-only verdict-events telemetry sidecar
+  content hashing, the append-only verdict-events telemetry sidecar, and the
+  instrument-import fence guard (feature-field reader/writer import boundary)
   (config-parser and lock-store tests live in child nodes)"
 aspects: []
 relations:
@@ -19,6 +20,7 @@ mapping:
   - source/cli/tests/unit/io/drill-results-reader.test.ts
   - source/cli/tests/unit/io/drill-results-store.test.ts
   - source/cli/tests/unit/io/events-reader-boundary.test.ts
+  - source/cli/tests/unit/io/instrument-import-fence.test.ts
   - source/cli/tests/unit/io/events-reader.test.ts
   - source/cli/tests/unit/io/events-store.test.ts
   - source/cli/tests/unit/io/find-index.test.ts

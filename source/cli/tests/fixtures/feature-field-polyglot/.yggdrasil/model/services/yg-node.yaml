@@ -1,0 +1,7 @@
+name: Services
+type: service
+description: "In-memory record-store services — a well-behaved same-language family (Python), all structurally similar, no deliberate outlier."
+aspects: []
+relations: []
+mapping:
+  - services/

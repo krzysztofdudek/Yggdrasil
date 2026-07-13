@@ -236,3 +236,35 @@ export function getGrammarForExtension(ext: string): { wasmFile: string; wasmPac
   if (!def) return null;
   return { wasmFile: def.wasmFile, wasmPackage: def.wasmPackage };
 }
+
+/**
+ * Extractor-language ids whose human display name is NOT a simple capitalization
+ * of the id. Everything not listed capitalizes its first letter (see
+ * {@link getLanguageDisplayName}).
+ */
+const LANGUAGE_DISPLAY_NAMES: Record<string, string> = {
+  typescript: 'TypeScript',
+  tsx: 'TSX',
+  javascript: 'JavaScript',
+  csharp: 'C#',
+  cpp: 'C++',
+  php: 'PHP',
+  json: 'JSON',
+  yaml: 'YAML',
+  toml: 'TOML',
+};
+
+/**
+ * Human-readable display name for an extractor-language id — the single place
+ * that decides how a language is shown in user-facing text (e.g. `typescript` →
+ * "TypeScript", `csharp` → "C#", `python` → "Python"). Ids whose casing is more
+ * than a first-letter capitalization are listed in {@link LANGUAGE_DISPLAY_NAMES};
+ * every other id (including an unrecognized one) capitalizes its first letter, so
+ * the function is total and never throws.
+ */
+export function getLanguageDisplayName(languageId: string): string {
+  const explicit = LANGUAGE_DISPLAY_NAMES[languageId];
+  if (explicit !== undefined) return explicit;
+  if (languageId.length === 0) return languageId;
+  return languageId.charAt(0).toUpperCase() + languageId.slice(1);
+}

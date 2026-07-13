@@ -4,7 +4,10 @@ description: "Unit tests for the silent feature-field deviation math — the rob
   median / MAD / z helpers and computeFamilyDeviations over synthetic families:
   outlier admission (family size at least MIN_N, non-zero spread, threshold),
   small-sample and zero-spread silence (no divide-by-zero), the sparse output,
-  and the owner-node x extractor-language family key."
+  and the owner-node x extractor-language family key. Also covers the index
+  READER's match-or-omit contract: it returns an entry only on an exact
+  content-hash match and resolves an absent / garbled / unknown-version index to
+  null without throwing."
 aspects: []
 relations:
   [
@@ -13,3 +16,4 @@ relations:
   ]
 mapping:
   - source/cli/tests/unit/core/feature-index-deviations.test.ts
+  - source/cli/tests/unit/core/feature-index-read.test.ts

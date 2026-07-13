@@ -54,3 +54,5 @@ relations:
 mapping:
   - source/cli/src/core/check.ts
   - source/cli/src/core/feature-index-write.ts
+  - source/cli/src/core/feature-index-read.ts
+  - source/cli/src/core/feature-field-schema.ts

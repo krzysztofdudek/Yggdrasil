@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
@@ -9,7 +10,11 @@ import { formatFileContext } from '../formatters/context-file.js';
 import { validate } from '../core/validator.js';
 import { findOwner } from './owner.js';
 import { normalizeMappingPaths, projectRootFromGraph, resolveFileArg } from '../io/paths.js';
-import { expandMappingPaths } from '../io/hash.js';
+import { expandMappingPaths, hashString } from '../io/hash.js';
+import { readTextFile } from '../io/graph-fs.js';
+import { readFeatureFieldEntry } from '../core/feature-index-read.js';
+import { FAMILY_SEP } from '../core/feature-field-schema.js';
+import { getLanguageDisplayName } from '../core/graph/language-registry.js';
 import { isCoverageExcludedPath } from '../io/repo-scanner.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
 import { computeExpectedPairs, computeSourceFingerprint, FileUnreadableError } from '../core/pairs.js';
@@ -146,6 +151,39 @@ async function attachLockObservability(
   data.logState = logState;
 }
 
+/**
+ * Advisory structural-attention note for `yg context --file` (spec RZ-21).
+ *
+ * When the file being inspected is a recorded structural OUTLIER among its node's
+ * other same-language files, AND the local deviation index still describes exactly
+ * these bytes (a live content-hash match against the same hashing the relation pass
+ * uses), append ONE plain-language line hinting a closer read. It is never a rule
+ * and never blocks: `yg context --file` stays exit 0. A stale index (bytes changed
+ * since it was written) stays silent — the hash will not match.
+ *
+ * Entirely best-effort: any failure — an unreadable file, a missing or garbled
+ * index — is swallowed to the debug log and NOTHING is printed. The caller gates
+ * this on `signals.attention` (default ON), so an absent `signals` config means the
+ * note is shown.
+ */
+async function maybeAppendAttentionLine(graph: Graph, repoRelPosixPath: string): Promise<void> {
+  try {
+    const projectRoot = projectRootFromGraph(graph.rootPath);
+    const content = await readTextFile(path.join(projectRoot, repoRelPosixPath));
+    const entry = readFeatureFieldEntry(graph.rootPath, repoRelPosixPath, hashString(content));
+    if (entry === null) return; // no live outlier record for these exact bytes → say nothing
+    // family = `${ownerNodeId}\x00${language}`; take the language half and humanize it.
+    const sepAt = entry.family.indexOf(FAMILY_SEP);
+    const language = sepAt >= 0 ? entry.family.slice(sepAt + 1) : entry.family;
+    const lang = getLanguageDisplayName(language);
+    process.stdout.write(
+      `\nThis file is structurally unusual among this node's other ${lang} files — worth a closer read; no action required.\n`,
+    );
+  } catch (err) {
+    debugWrite(`[build-context] attention note skipped (best-effort): ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
 export function registerBuildCommand(program: Command): void {
   const contextAction = async (options: { node?: string; file?: string }) => {
       try {
@@ -252,6 +290,12 @@ export function registerBuildCommand(program: Command): void {
         if (resolvedFilePath) {
           const data = buildFileContextData(graph, resolvedFilePath, nodePath);
           process.stdout.write(formatFileContext(data));
+          // Advisory structural-attention note. Default ON; the off-switch is
+          // signals.attention: false (absent `signals` ⇒ ON). Read-only,
+          // best-effort, non-blocking — yg context --file stays exit 0.
+          if (graph.config.signals?.attention !== false) {
+            await maybeAppendAttentionLine(graph, resolvedFilePath);
+          }
         } else {
           const data = buildNodeContextData(graph, nodePath);
           const projectRoot = projectRootFromGraph(graph.rootPath);

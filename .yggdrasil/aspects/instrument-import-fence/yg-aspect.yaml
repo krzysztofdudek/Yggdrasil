@@ -12,8 +12,13 @@ description: >-
   YAML serializer; the codebase has no dedicated YAML-writer io helper, so the
   only YAML-write capability is the `yaml` package's serializer (stringify /
   stringifyDocument / Document, or a namespace/default import of `yaml`). These
-  commands report on the graph; they never rewrite it. errs: under — it fires
-  only on a provable static import.
+  commands report on the graph; they never rewrite it. (c) The feature-field
+  attention index: its READER (core/feature-index-read) is importable only by
+  cli/build-context.ts and cli/advise.ts, and its WRITER (core/feature-index-write)
+  only by core/check.ts — no other module, and no issue-emission / exit-code /
+  suggestedNext path, may pull either in, so read-only structural attention never
+  reaches a verdict. Test code is exempt. errs: under — it fires only on a
+  provable static import.
 errs: under
 status: enforced
 review_by: 2027-01-19

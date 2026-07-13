@@ -191,6 +191,21 @@ yes/no\`).
 Read the files listed under \`read:\` before editing any source file — they
 contain the rules the reviewer will check your code against.
 
+The file form may also end with ONE advisory line when the file is a structural
+OUTLIER among its node's other same-language files:
+
+\`\`\`
+This file is structurally unusual among this node's other TypeScript files — worth a closer read; no action required.
+\`\`\`
+
+It is pure attention (drawn from the silent \`.feature-field.json\` index above),
+never a rule and never blocking — \`yg context --file\` still exits 0. It appears
+ONLY when the local index still describes the file's exact current bytes, so a
+file edited since the last \`yg check\` stays silent (a stale index never speaks).
+It is ON by default; silence it with \`signals: { attention: false }\` in
+\`yg-config.yaml\` (\`signals\` is an optional mapping — its only key today is
+\`attention\`, which must be a boolean).
+
 ## yg aspect-test
 
 Diagnostic — run a check or reviewer LIVE without writing the lock. Works for
