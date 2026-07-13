@@ -415,9 +415,11 @@ never calls a reviewer.
 ### `yg advise`
 
 A read-only attention layer over the graph. With no subcommand it prints two sections:
-**Attention** (one aggregate line per class of signal — e.g. how many dependencies reach
-across distant parts of the architecture, pointing you to `yg structure`, and how many files
-look [structurally unusual](/feature-field) among their same-language neighbours, pointing you
+**Attention** (one aggregate line per class of signal — how many incidents are on record
+(the one reality check that comes from outside the graph, shown even when there are none, see
+[`yg incident`](#yg-incident)), how many dependencies reach across distant parts of the
+architecture, pointing you to `yg structure`, and how many files look
+[structurally unusual](/feature-field) among their same-language neighbours, pointing you
 to `yg context`) and **Nominations** (up to ten ranked, evidence-backed suggestions in a fixed
 priority order). Each nomination
 states what it found, why — with the underlying evidence quoted verbatim as data (a waiver's
@@ -441,6 +443,40 @@ Dismissing or deferring is human-signature territory, the same authorization cla
 `yg check` passes, and never appears in the suggested next step. A read-only, keyless CI job that
 runs `yg advise --all` into a pinned issue on a weekly rhythm is a documented **pattern** to
 copy — not a shipped default.
+
+### `yg incident`
+
+The incident ledger — a committed record of what escaped enforcement and how it
+surfaced. It is the one signal that comes from **outside** the graph: everything else
+the tool reports is the graph reasoning about itself, while an incident is a person
+writing down a real miss — a concern that shipped with no rule, a rule that fired on
+the wrong thing, a reviewer that could not see what mattered, a lone judge that missed
+what a panel would have caught, or a gap that was not about enforcement at all.
+
+```bash
+yg incident add --tag wrong-rule --reason "a UI file reached the database and no rule caught it"
+yg incident read   # list recorded incidents (datetime + cause), oldest first
+```
+
+- `--tag <cause>` — Required. Names the cause, one of `no-rule`, `wrong-rule`,
+  `judges-blind`, `single-judge-miss`, or `not-enforcement`. An unrecognized tag is
+  rejected with the valid list, and nothing is written.
+- `--reason <text>` — Required. What escaped and how it surfaced.
+
+Each `add` appends one timestamped, human-signed entry to a committed file,
+`.yggdrasil/incidents.md`. That file lives in your history and is reviewed in diffs,
+but it is **never treated as source** — no rule maps it and no reviewer reads it as
+code. Entries are append-only and kept in time order. Because the ledger is testimony
+that must never be able to break your build, `yg check` only **warns** (never blocks)
+when the dates fall out of order — the sign of a hand-edit or a messy merge — and stays
+silent when there is no ledger at all.
+
+Recording an incident is your decision, the same as a waiver: the tool never invents
+one. `yg advise` surfaces the running count as a single reality-check line (shown even
+at zero, so the outside reference is never forgotten), and when any incident is tagged
+`wrong-rule` it adds a note that your rules themselves may need a second look. The
+command only ever appends — it never changes a verification result or whether your build
+passes.
 
 ### `yg flows`
 

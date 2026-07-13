@@ -555,8 +555,12 @@ yg advise --ids      # print each item's stable id (for dismiss / defer)
 
 - **Attention** — one aggregate line per class of signal, with no per-instance
   ranking (rankings stay inside the instrument commands like \`yg structure\`, and
-  per-file detail stays in \`yg context\`). A class with a zero count prints no line.
-  Two classes:
+  per-file detail stays in \`yg context\`). A structural class with a zero count prints
+  no line; the incident reality-counter is the one exception — always shown. The classes:
+  - **incidents on record** — the running count from the committed incident ledger,
+    the only signal from OUTSIDE the graph. Always shown, even at 0, so the tower stays
+    aware it has an outside reference at all; when any incident is tagged \`wrong-rule\`
+    an extra line notes the rules themselves may be miscalibrated. See \`yg incident\`.
   - **dependency tunnels** — how many dependencies reach across distant parts of the
     architecture (run \`yg structure\` to see them).
   - **structural deviations** — how many files look structurally unusual among their
