@@ -1,0 +1,15 @@
+name: Incident Command Tests
+type: test-suite
+description: "Unit tests for the incident ledger: the committed-testimony store
+  (tag vocabulary, header parsing, append/read/count round-trip with an injected
+  datetime) and the yg incident command registration shape (add + read subcommands)."
+aspects: []
+relations:
+  - target: cli/commands/incident
+    type: uses
+  - target: cli/io/incident-ledger
+    type: uses
+  - target: cli/core/checks/incident-ledger
+    type: uses
+mapping:
+  - source/cli/tests/unit/cli/incident.test.ts

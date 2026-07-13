@@ -1,0 +1,23 @@
+name: Incident Command
+type: command
+description: "The incident ledger command — yg incident add records what escaped
+  enforcement and how it surfaced, tagged by cause (no-rule / wrong-rule /
+  judges-blind / single-judge-miss / not-enforcement), appending one committed,
+  human-signed entry to .yggdrasil/incidents.md with an injected UTC datetime;
+  yg incident read lists the recorded incidents. The ledger is the tower's only
+  external reality check. The tag is mandatory and validated; a non-empty reason
+  is mandatory; the write is append-only and never touches the lock."
+aspects: []
+relations:
+  - target: cli/preamble
+    type: calls
+  - target: cli/formatters
+    type: calls
+  - target: cli/io/incident-ledger
+    type: calls
+  - target: cli/utils
+    type: calls
+  - target: cli/tests/unit/cli
+    type: uses
+mapping:
+  - source/cli/src/cli/incident.ts

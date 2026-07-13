@@ -1,6 +1,16 @@
 name: Entry
 type: entry-point
 description: CLI entry point that bootstraps Commander and registers all yg subcommands
+max_direct_relations:
+  limit: 25
+  reason: >-
+    Reviewed architectural seam. This node is the SINGLE CLI dispatcher — the bin.ts
+    entry point that registers every yg subcommand — so it necessarily references one
+    node per command, and that count grows by one with each command the CLI adds
+    (the incident ledger command is the latest). Concentrating that coupling in one
+    auditable place is the whole point of a dispatcher; splitting it would only scatter
+    the same edges. The ceiling carries modest headroom above the current command count
+    so routine command additions do not churn this allowance.
 relations:
   - target: cli/commands/init
     type: calls
@@ -31,6 +41,8 @@ relations:
   - target: cli/commands/log
     type: uses
   - target: cli/commands/advise
+    type: uses
+  - target: cli/commands/incident
     type: uses
   - target: cli/commands/suppressions
     type: uses

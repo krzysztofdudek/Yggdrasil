@@ -33,6 +33,7 @@ import {
   checkAspectStatusDowngrade,
   checkAspectEffectiveNowhere,
 } from './checks/aspect-contracts.js';
+import { checkIncidentLedger } from './checks/incident-ledger.js';
 import {
   checkFileMappingGitignored,
   checkFileDuplicateMapping,
@@ -134,6 +135,11 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
     issues.push(...checkHighFanOut(graph));
     issues.push(...checkMissingDescriptions(graph));
     issues.push(...(await checkReviewerPresence(graph)));
+    // Incident-ledger integrity (spec §3.2): a NON-blocking WARNING when the
+    // committed incidents.md datetimes are not strictly ascending. Config-
+    // independent and absence-tolerant; never gates `yg check` (severity warning,
+    // outside every blocking code set).
+    issues.push(...checkIncidentLedger(graph));
     issues.push(...checkAspectTierReferences(graph));
     issues.push(...checkAspectErrsDirection(graph));
   }

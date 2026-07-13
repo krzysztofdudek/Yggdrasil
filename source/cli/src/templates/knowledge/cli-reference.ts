@@ -609,6 +609,43 @@ single pinned issue gives you one place to review the attention items. This is a
 **documented pattern to copy, not a shipped default** — \`yg init\` never scaffolds it,
 and the feed never appears in \`yg check\`'s suggested next step.
 
+## yg incident
+
+The **incident ledger** — a committed record of what escaped enforcement and how it
+surfaced. It is the only signal that comes from OUTSIDE the graph: every other layer
+(\`yg check\`, \`yg advise\`, catch/exposure health, structural attention) is the graph
+reasoning about itself; an incident is a human recording a real miss. Recording one is
+**human-signature territory, the same authorization class as \`yg-suppress\`**: an agent
+records an incident only on your explicit instruction, with a tag and reason you supply —
+it never invents one.
+
+\`\`\`bash
+yg incident add --tag wrong-rule --reason "a UI file reached the DB and no rule caught it"
+yg incident read     # list recorded incidents (datetime + cause), oldest first
+\`\`\`
+
+The \`--tag\` names the CAUSE and is **mandatory** — one of \`no-rule\` (a concern shipped
+with no rule at all), \`wrong-rule\` (a rule existed but was miscalibrated), \`judges-blind\`
+(the reviewer could not see what mattered), \`single-judge-miss\` (a lone judge missed what
+a panel would have caught), or \`not-enforcement\` (the escape was not an enforcement gap).
+An unrecognized tag is rejected with the valid list and nothing is written. \`--reason\` is
+also mandatory: the entry must say what escaped and how it surfaced.
+
+Each \`add\` appends one \`## [<ISO UTC>] <tag>\` block to \`.yggdrasil/incidents.md\` with an
+injected timestamp. The file is **committed** (not gitignored) — it is human testimony
+that must survive across clones and be reviewed in a diff — but it is **not reviewed
+source**: no aspect maps it and no reviewer ever reads it as code. Entries are append-only
+and their datetimes are strictly ascending. There is **no content hash baseline** in v1:
+the ledger must never be able to break CI, so the only integrity signal is a **non-blocking
+\`yg check\` warning** when the datetimes are out of order (the signature of a hand-edit or
+a reordering merge). An absent ledger is tolerated — no file, no warning. \`yg incident\`
+never touches the lock and exits 0 (a rejected tag or a loader error is the only non-zero).
+
+\`yg advise\` surfaces the ledger as a one-line reality counter in its Attention section —
+\`N incidents on record …\`, shown even at 0 so the tower stays aware it has an outside
+reference at all — and, when any incident is tagged \`wrong-rule\`, an aggregate line noting
+that the rules themselves may be miscalibrated.
+
 ## yg suppressions
 
 Read-only inventory of all active \`yg-suppress\` markers in the repository's

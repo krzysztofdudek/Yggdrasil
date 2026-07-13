@@ -750,6 +750,19 @@ export interface AttentionSources {
    * Computed at the boundary (the index read lives there); 0 omits the line.
    */
   deviationCount: number;
+  /**
+   * Total incidents recorded in the committed ledger (`.yggdrasil/incidents.md`),
+   * counted at the boundary; 0 when the ledger is absent. Unlike the structural
+   * lines this is the tower's only EXTERNAL oracle, so its reality-counter line is
+   * always shown — even at 0 (an empty ledger is honest, not hidden).
+   */
+  incidentCount: number;
+  /**
+   * How many recorded incidents are tagged `wrong-rule` — evidence that the rules
+   * themselves may be miscalibrated (it joins the catch/exposure health story). The
+   * evidence line is shown only when this is > 0.
+   */
+  wrongRuleIncidentCount: number;
 }
 
 /**
@@ -764,6 +777,22 @@ export interface AttentionSources {
  */
 export function buildAttention(sources: AttentionSources): string[] {
   const lines: string[] = [];
+  // The reality counter — the tower's ONLY external oracle. Always shown (0 or N):
+  // an empty ledger is honest, not hidden, and its very presence keeps the tower
+  // aware it has an outside reference at all. RZ-5 quoted-data: a count plus a fixed
+  // sentence, with the ledger's own provenance — never a narrator-voice instruction.
+  lines.push(
+    `${sources.incidentCount} incidents on record — the only external oracle; see .yggdrasil/incidents.md`,
+  );
+  // wrong-rule-tagged incidents are evidence the rules themselves may be
+  // miscalibrated — the external counterpart to the catch/exposure health story.
+  // Shown only when such evidence exists (K > 0); AGGREGATE only (no per-aspect
+  // attribution in v1 — that is a future maintainer decision, not invented here).
+  if (sources.wrongRuleIncidentCount > 0) {
+    lines.push(
+      `${sources.wrongRuleIncidentCount} wrong-rule incidents recorded — rules may be miscalibrated; see incidents.md`,
+    );
+  }
   if (sources.tunnelCount > 0) {
     lines.push(
       `${sources.tunnelCount} dependencies jump across distant parts of the architecture — run yg structure to see them`,

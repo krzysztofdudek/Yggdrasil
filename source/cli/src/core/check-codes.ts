@@ -139,6 +139,15 @@ export const APPROVE_GATING_CODES = new Set<string>([
  *     `--approve` — a pure read-only warning, deliberately outside every blocking
  *     set.
  *
+ *   - incident-ledger-out-of-order — incident-ledger integrity linter (spec §3.2):
+ *     the committed `.yggdrasil/incidents.md` is append-only human testimony whose
+ *     entry datetimes must be strictly ascending; this warns (never blocks) when two
+ *     consecutive entries are not — the signature of a hand-edit or a reordering
+ *     merge. Emitted by checkIncidentLedger. There is NO hash baseline in v1: the
+ *     ledger is the tower's only external oracle and must never break CI, so this is
+ *     a pure read-only WARNING, deliberately outside every blocking set. Absence is
+ *     tolerated (no file ⇒ no warning).
+ *
  * (Pre-existing warnings such as `orphaned-aspect`, `high-fan-out`, and
  * `aspect-references-empty-array` follow the same convention: warning severity,
  * outside every blocking set.)

@@ -20,6 +20,7 @@ import { computeExpectedPairs } from '../core/pairs.js';
 import { appendDecision, readDecisions, type AdviseDecision } from '../io/advise-decisions-store.js';
 import { readDrillResults } from '../io/drill-results-reader.js';
 import { readVerdictEvents } from '../io/events-reader.js';
+import { countIncidents } from '../io/incidents-store.js';
 import { walkRepoFiles } from '../io/repo-scanner.js';
 import { runSuppressionsScan, scanPortalSuppressions } from '../portal/api/suppress-scan.js';
 import { collectMappingEntries } from '../portal/api/suppress-eligibility.js';
@@ -61,7 +62,7 @@ function handleError(error: unknown): never {
 
 /** Emit a blocking what/why/next error to stderr and exit(1) — nothing is written. */
 function failWith(msg: { what: string; why: string; next: string }): never {
-  process.stderr.write(chalk.red(buildIssueMessage(msg)) + '\n');
+  process.stderr.write(chalk.red(`Error: ${buildIssueMessage(msg)}`) + '\n');
   process.exit(1);
 }
 
@@ -470,7 +471,18 @@ export function registerAdviseCommand(program: Command): void {
         // tunnels line is unrelated to signals.attention and is always shown.
         const deviationCount =
           graph.config.signals?.attention !== false ? computeDeviationCount(graph) : 0;
-        const attention = buildAttention({ tunnelCount, deviationCount });
+        // The incident reality-counter is the tower's only EXTERNAL oracle, not a
+        // structural signal — it is always read and always shown (0 or N), never
+        // gated by signals.attention (which governs the internal structural lines).
+        const { total: incidentCount, wrongRule: wrongRuleIncidentCount } = countIncidents(
+          graph.rootPath,
+        );
+        const attention = buildAttention({
+          tunnelCount,
+          deviationCount,
+          incidentCount,
+          wrongRuleIncidentCount,
+        });
 
         const output = [
           renderAttention(attention),
