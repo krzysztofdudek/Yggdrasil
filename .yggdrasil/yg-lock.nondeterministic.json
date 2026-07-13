@@ -3,7 +3,7 @@
   "verdicts": {
     "cli-command-contract": {
       "file:source/cli/src/cli/advise.ts": {"hash":"87a8fe909ccdfe2f9bfa2b23c22d9e205fafea01d28e549e96dae9c225cc6007","verdict":"approved"},
-      "file:source/cli/src/cli/aspect-test.ts": {"hash":"70fb3c849a334580ae31504b3588754af26465bb08f5cb9ab914edaf92f226a8","verdict":"approved"},
+      "file:source/cli/src/cli/aspect-test.ts": {"hash":"5abf3ae484a1ba5f5ca37908d28488f2de127b522ab31d3be8658c463661fbc1","verdict":"approved"},
       "file:source/cli/src/cli/aspects.ts": {"hash":"5f16364f2e5e74e40b6b95edf0947cd700526eea1c72c819437ce7b6fe3f5340","verdict":"approved"},
       "file:source/cli/src/cli/build-context.ts": {"hash":"58f34c8e5332383901b5eea589fc1cd76779b1e598f3631de2d846a718aa31f3","verdict":"approved"},
       "file:source/cli/src/cli/check.ts": {"hash":"e5c9dbfb5e1ecba74d90260b75732cc4144cfadebc2a93056196871019d636fc","verdict":"approved"},
@@ -153,7 +153,7 @@
     },
     "diagnostic-logging": {
       "file:source/cli/src/cli/advise.ts": {"hash":"c23a9dc5407d7aaf0abc5defbd3e627a662b78deb93851b6bb48edce813cd29a","verdict":"approved"},
-      "file:source/cli/src/cli/aspect-test.ts": {"hash":"b2618b17b7f1b80f2a05098c65519d8f4a8a4c56ce3fede0fddbb8b6ca34e328","verdict":"approved"},
+      "file:source/cli/src/cli/aspect-test.ts": {"hash":"fb51765770f7d5d2e2e4f06b6a8d3522f69fc10d385798690c6ac31137df6cd0","verdict":"approved"},
       "file:source/cli/src/cli/aspects.ts": {"hash":"04b59ce72d68a40995c316bf02ac9084b70816e17503d24e1f9ef5bd2a00fb76","verdict":"approved"},
       "file:source/cli/src/cli/build-context.ts": {"hash":"2d246e680b354c21eeca542ed858ea1c2ceff6ea8e8d1dbe37e5c51b338de8c4","verdict":"approved"},
       "file:source/cli/src/cli/check.ts": {"hash":"6d3fd9635c0419a61cc248c489965babceea44a19bdd80f7df496dfe362521a9","verdict":"approved"},
@@ -285,7 +285,7 @@
       "file:source/cli/src/utils/when-parser.ts": {"hash":"17e7bdf6110fa914c16cc3bc3b0a6f9076a9233c5425cec5f456846b3d1b2300","verdict":"approved"}
     },
     "provider-redaction-cascade": {
-      "file:source/cli/src/cli/aspect-test.ts": {"hash":"89ca1f27a2fbeaa610d560f04497ec5fb38f26dfe51aa922bc554c4b83544585","verdict":"approved"},
+      "file:source/cli/src/cli/aspect-test.ts": {"hash":"71e2acb01e12bdc454817feb472403653cb265772efe8923c7df0c3ff3683f2a","verdict":"approved"},
       "file:source/cli/src/cli/drill.ts": {"hash":"cea068b950ae172aba884471e3db7eb585c6c170b7f712c0ec3882927d8aa8a2","verdict":"approved"},
       "file:source/cli/src/core/fill-closure.ts": {"hash":"d010d565bc600855693d22aa4bf093f6e3efb0c9560c1c6b3500b56332604eb5","verdict":"approved"},
       "file:source/cli/src/core/fill-det.ts": {"hash":"44c87bc2ac1cfc5ee01d4b926f1b44aa73fc34051c6657b5a23d26910dbd3098","verdict":"approved"},
@@ -436,7 +436,7 @@
       "file:source/cli/tests/integration/aspect-references-when-implies.test.ts": {"hash":"d59d8c367dc1dc882038fde968c8e1ff1aeb5552198e09e8170013e628316c5d","verdict":"approved"},
       "file:source/cli/tests/integration/aspect-status-downgrade-blocks.test.ts": {"hash":"8d02d3a1dfad7dfe7679fb7f906127363ea52dbf971ae46a94d7966a82a007ec","verdict":"approved"},
       "file:source/cli/tests/integration/aspect-status-implies.test.ts": {"hash":"a232b729ffc34e87fc8fdffecbeec18e61498fde68679bab16f5599cb057bf67","verdict":"approved"},
-      "file:source/cli/tests/integration/aspect-test-cli.test.ts": {"hash":"3dc2fe10202fca8162e8d1fddb411c3d509d6b791ef884320f8188f7ef8eedbc","verdict":"approved"},
+      "file:source/cli/tests/integration/aspect-test-cli.test.ts": {"hash":"2415648eb247e029962d50d31cf0a069c97bbaf6fd044219b0e4b49835be989f","verdict":"approved"},
       "file:source/cli/tests/integration/aspect-test-references.test.ts": {"hash":"38c509fc6cd6b5f1199a46a9cbf3d57c60583d2ab0f389ff50931734d635a621","verdict":"approved"},
       "file:source/cli/tests/integration/ast-runner-graph-trap.test.ts": {"hash":"40d51a1b0828e7ba25ef63c38c44ffdab3c5eb455be1e31e795a944f61ac3299","verdict":"approved"},
       "file:source/cli/tests/integration/ast-runner.test.ts": {"hash":"88d1bcfcfebe6a925c283b73698d0b443da764db8a8986eab28bd71370768cb5","verdict":"approved"},

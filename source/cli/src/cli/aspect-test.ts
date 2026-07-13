@@ -10,6 +10,7 @@ import { buildIssueMessage } from '../formatters/message-builder.js';
 import type { Violation as AstViolation } from '../ast/types.js';
 import type { Violation as StructureViolation } from '../structure/types.js';
 import { computeExpectedPairs, computeNodeMappedFiles } from '../core/pairs.js';
+import { computeEffectiveAspects } from '../core/graph/aspects.js';
 import { buildPairPrompt, PROMPT_FORMAT_REV } from '../llm/prompt.js';
 import type { PromptReferenceInput, PromptFileInput, PromptCompanionInput, PromptSuppressedRangesInput } from '../llm/prompt.js';
 import { appendVerdictEvent, type VerdictEvent } from '../io/events-store.js';
@@ -250,15 +251,21 @@ export function registerAspectTestCommand(program: Command): void {
           // it runs against the node's files even when the aspect is NOT effective
           // on the node through any channel — silently printing a verdict yg check
           // will never produce (the LLM path says "No pairs" in the same case).
-          // Restore the symmetry: if no expected pair exists for this aspect+node,
-          // print a one-line NOTE to stderr first. Effectiveness comes from the
-          // SAME computeExpectedPairs source the LLM path uses (includeDraft: true).
-          // Exit code and verdict output are unchanged; if classification fails
-          // (e.g. an incomplete graph in a unit harness), skip the NOTE rather than
-          // block the diagnostic.
+          // Restore the symmetry: if the aspect is not effective on this node,
+          // print a one-line NOTE to stderr first. Effectiveness is the full
+          // 7-channel cascade — NOT "a pair exists at this exact node": an aspect
+          // attached to an organizational / fileless node (no own mapping) produces
+          // no pair AT that node but is genuinely effective, its pairs materializing
+          // at file-bearing descendants. computeEffectiveAspects returns the ids
+          // effective on the node regardless of whether the node itself bears files,
+          // and does not filter by status — a DRAFT aspect attached to its own node
+          // still resolves as attached (status gates the lock/fill, never this
+          // diagnostic). Exit code and verdict output are unchanged; if
+          // classification fails (e.g. an incomplete graph in a unit harness), skip
+          // the NOTE rather than block the diagnostic.
           try {
-            const { pairs: expected } = await computeExpectedPairs(graph, { includeDraft: true });
-            const attached = expected.some((p) => p.aspectId === aspect.id && p.nodePath === nodePath);
+            const effective = computeEffectiveAspects(node, graph);
+            const attached = effective.has(aspect.id);
             if (!attached) {
               process.stderr.write(
                 `Note: aspect '${aspect.id}' is not attached to node '${nodePath}' — running the check ad-hoc against its files; yg check will not produce a verdict for this pair.\n`,

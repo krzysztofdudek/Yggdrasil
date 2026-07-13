@@ -65,3 +65,5 @@ saved-result writes.
 Both capabilities are strictly diagnostic and apply only to a judgment-based rule
 run against a graph node; neither applies to locally-checked rules or to ad-hoc
 file lists, which have no reviewer to vary.
+## [2026-07-13T12:50:06.053Z]
+The aspect diagnostic decides whether the rule under test is genuinely in force on the target before it runs the check ad-hoc. That decision now follows the full attachment cascade rather than asking whether a verdict slot happens to exist at that exact target. An organizational grouping that carries no source of its own can still put a rule in force across everything beneath it, with the actual verdicts landing on the descendants that hold the files. Deciding attachment by presence-of-a-slot-here wrongly treated such a grouping as unattached and emitted a misleading advisory that the rule was being run only ad-hoc. Basing the decision on effective-force keeps the advisory truthful in both directions and preserves the intent that a not-yet-active (draft-status) rule attached to its own target still reads as attached, since activation status never gates this diagnostic.
