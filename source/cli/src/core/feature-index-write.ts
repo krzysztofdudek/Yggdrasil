@@ -44,11 +44,12 @@
  *
  * ## contentHash — the match key for the reader
  *
- * Each index entry carries the file's raw content hash, threaded from the relation pass
- * (`hashByPath`, i.e. the pass's `FileRecord.hash`, which is `hashString(fileBytes)`). This
- * is the SAME hash a later reader re-derives from the file bytes: an index entry is valid
- * exactly while the file's bytes are unchanged. Threading the pass's own hash (rather than
- * re-reading here) guarantees the hash pins the exact bytes the feature vectors were
+ * Each index entry carries the file's content hash, threaded from the relation pass
+ * (`hashByPath`, i.e. the pass's `FileRecord.hash`, which is `hashString` of the UTF-8
+ * file text — NOT `hashBytes`, the byte/line-ending-normalizing variant). This is the
+ * SAME hash a later reader re-derives from the file's text: an index entry is valid
+ * exactly while the file's contents are unchanged. Threading the pass's own hash (rather
+ * than re-reading here) guarantees the hash pins the exact bytes the feature vectors were
  * computed from — no re-read, no time-of-check/time-of-use gap.
  */
 

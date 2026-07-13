@@ -503,9 +503,16 @@ yg advise --ids      # print each item's stable id (for dismiss / defer)
 \`\`\`
 
 - **Attention** — one aggregate line per class of signal, with no per-instance
-  ranking (rankings stay inside the instrument commands like \`yg structure\`). In
-  v1 the single class is dependency tunnels: how many dependencies reach across
-  distant parts of the architecture.
+  ranking (rankings stay inside the instrument commands like \`yg structure\`, and
+  per-file detail stays in \`yg context\`). A class with a zero count prints no line.
+  Two classes:
+  - **dependency tunnels** — how many dependencies reach across distant parts of the
+    architecture (run \`yg structure\` to see them).
+  - **structural deviations** — how many files look structurally unusual among their
+    same-language neighbours, counted only while the local structural index still
+    describes each file's exact current contents (a file edited since the last check
+    is not counted). It is a bare count that points you at \`yg context\` for the
+    per-file note; it lists no files, names no measures, and ranks nothing.
 - **Nominations** — up to ten ranked, evidence-backed suggestions in a fixed
   priority order: a regression case a rule no longer catches, a risky waiver, a
   rule effective nowhere, an orphaned rule, a rule past its review-by date, and —

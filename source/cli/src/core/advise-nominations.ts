@@ -656,19 +656,35 @@ export function buildNominations(graph: Graph, sources: NominationSources): Nomi
 export interface AttentionSources {
   /** C7 tunnel count — structural edges in the deduped universe (graph-metrics). */
   tunnelCount: number;
+  /**
+   * C8 live structural-deviation count — how many files the local feature-field
+   * index still records as structural outliers under the exact-bytes match rule
+   * `yg context` uses (a file changed since the index was written is NOT counted).
+   * Computed at the boundary (the index read lives there); 0 omits the line.
+   */
+  deviationCount: number;
 }
 
 /**
  * The Attention section: ONE aggregate line per signal class, with NO per-instance
  * ranking (per-instance rankings stay inside the instrument commands — a ranked
- * list in a feed read every session is a to-do list regardless of exit codes).
- * v1 has a single class: C7 tunnels. A zero count omits the line entirely.
+ * list in a feed read every session is a to-do list regardless of exit codes). A
+ * zero count omits its line entirely (no "0 items" noise). Two classes:
+ *   - C7 tunnels — dependencies reaching across distant parts of the architecture.
+ *   - C8 structural deviations — files that look unusual among their neighbours; the
+ *     line is a bare count pointing at `yg context` for the per-file detail, never a
+ *     ranking or a list (per-instance detail stays in `yg context`, read on demand).
  */
 export function buildAttention(sources: AttentionSources): string[] {
   const lines: string[] = [];
   if (sources.tunnelCount > 0) {
     lines.push(
       `${sources.tunnelCount} dependencies jump across distant parts of the architecture — run yg structure to see them`,
+    );
+  }
+  if (sources.deviationCount > 0) {
+    lines.push(
+      `${sources.deviationCount} files deviate structurally from their neighbors — shown in yg context when you work there.`,
     );
   }
   return lines;

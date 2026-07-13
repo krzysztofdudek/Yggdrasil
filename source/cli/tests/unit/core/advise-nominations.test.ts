@@ -117,12 +117,34 @@ function diagEvent(aspectId: string, satisfied: 0 | 1, ts: string): VerdictEvent
 
 describe('buildAttention — C7 tunnels aggregate line', () => {
   it('omits the line when there are no tunnels', () => {
-    expect(buildAttention({ tunnelCount: 0 })).toEqual([]);
+    expect(buildAttention({ tunnelCount: 0, deviationCount: 0 })).toEqual([]);
   });
   it('renders the verbatim aggregate line with the exact count', () => {
-    expect(buildAttention({ tunnelCount: 7 })).toEqual([
+    expect(buildAttention({ tunnelCount: 7, deviationCount: 0 })).toEqual([
       '7 dependencies jump across distant parts of the architecture — run yg structure to see them',
     ]);
+  });
+});
+
+describe('buildAttention — C8 structural-deviation aggregate line', () => {
+  const C8 = (m: number) =>
+    `${m} files deviate structurally from their neighbors — shown in yg context when you work there.`;
+
+  it('omits the line at a zero deviation count (no "0 files" noise)', () => {
+    expect(buildAttention({ tunnelCount: 0, deviationCount: 0 })).toEqual([]);
+  });
+
+  it('renders the verbatim C8 line with the exact count when > 0', () => {
+    expect(buildAttention({ tunnelCount: 0, deviationCount: 2 })).toEqual([C8(2)]);
+  });
+
+  it('emits C7 then C8, each independently gated on its own positive count', () => {
+    expect(buildAttention({ tunnelCount: 3, deviationCount: 5 })).toEqual([
+      '3 dependencies jump across distant parts of the architecture — run yg structure to see them',
+      C8(5),
+    ]);
+    // C8 alone when there are no tunnels.
+    expect(buildAttention({ tunnelCount: 0, deviationCount: 5 })).toEqual([C8(5)]);
   });
 });
 

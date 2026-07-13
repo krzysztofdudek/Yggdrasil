@@ -31,6 +31,7 @@ import {
   type DeclaredRelation,
 } from '../core/graph-metrics.js';
 import { isValidReviewByDate } from '../io/aspect-parser.js';
+import { countLiveDeviationFiles } from '../core/feature-index-read.js';
 import type { Graph } from '../model/graph.js';
 
 /** The hard cap on rendered nominations (spec §7.2). `--all` removes it. */
@@ -95,6 +96,27 @@ async function computeTunnelCount(graph: Graph): Promise<number> {
     return Math.min(TOP_TUNNELS, tunnels);
   } catch (error) {
     debugWrite(`[advise] tunnel-count degraded to 0: ${(error as Error).message}`);
+    return 0;
+  }
+}
+
+/**
+ * The C8 live structural-deviation count for the Attention line: how many files the
+ * local `.feature-field.json` index still records as structural outliers under the
+ * exact-bytes match rule `yg context --file` uses (a file whose bytes changed since
+ * the index was written is not counted). The index read is the reader's job — this
+ * only threads the repo root (the parent of the `.yggdrasil/` dir) to it. The reader
+ * is already tolerant (a missing / garbled index yields 0), and any unexpected
+ * failure degrades to 0 here too, so the attention computation can never break the
+ * exit-0 invariant (G4). It publishes a bare aggregate that points the reader at
+ * `yg context` for the per-file detail — never a ranking, a list, or a nomination.
+ */
+function computeDeviationCount(graph: Graph): number {
+  try {
+    const projectRoot = path.dirname(graph.rootPath);
+    return countLiveDeviationFiles(graph.rootPath, projectRoot);
+  } catch (error) {
+    debugWrite(`[advise] deviation-count degraded to 0: ${(error as Error).message}`);
     return 0;
   }
 }
@@ -339,7 +361,8 @@ export function registerAdviseCommand(program: Command): void {
         const { visible, hidden } = applyDecisions(noms, readDecisions(graph.rootPath).decisions, now);
 
         const tunnelCount = await computeTunnelCount(graph);
-        const attention = buildAttention({ tunnelCount });
+        const deviationCount = computeDeviationCount(graph);
+        const attention = buildAttention({ tunnelCount, deviationCount });
 
         const output = [
           renderAttention(attention),

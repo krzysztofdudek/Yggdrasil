@@ -7,10 +7,13 @@ description: "Subprocess E2E over the public CLI: yg check maintains the local,
   --dry-run writes no index. Also covers the advisory structural-attention note
   in yg context --file: it prints the verbatim line for a live outlier (exit 0),
   stays silent for a non-outlier and for a stale index (bytes changed since the
-  index wrote), and is suppressed by signals.attention: false. Spawns the built
-  bin.js; no source imports."
+  index wrote), and is suppressed by signals.attention: false. Also covers the yg
+  advise structural-deviation aggregate line: it shows one bare count of the files
+  the index still records as live outliers (a stale entry excluded), omits the line
+  when the count is zero, and exits 0. Spawns the built bin.js; no source imports."
 aspects: []
 relations: []
 mapping:
   - source/cli/tests/e2e/cli-attention-dump.test.ts
   - source/cli/tests/e2e/cli-context-attention-line.test.ts
+  - source/cli/tests/e2e/cli-advise-deviation-line.test.ts
