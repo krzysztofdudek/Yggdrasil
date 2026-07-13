@@ -28,3 +28,4 @@ mapping:
   - source/cli/src/portal/derive-catalogue.ts
   - source/cli/src/portal/derive-rest.ts
   - source/cli/src/portal/derive-boundary.ts
+  - source/cli/src/portal/derive-metrics.ts

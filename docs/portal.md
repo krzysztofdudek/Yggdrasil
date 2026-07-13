@@ -62,6 +62,14 @@ A row of views down the side, each answering a different question:
 
 - **Relations & boundaries** — what each component is allowed to depend on, what it
   actually depends on, and where the two disagree.
+- **Dependency structure** — the shape of how components depend on one another, in
+  plain language: the dependencies that reach farthest across the tree, how the
+  component groups at each level depend on one another (and where those
+  dependencies form a loop), and how far a change tends to travel from an average
+  component. It is honest about its own limits — if the dependency scan cannot run
+  it says the structure is unknown rather than showing an empty graph, and on a
+  small project it shows the raw reach figure without over-reading it. Event
+  relations are left out of this picture and the view says so.
 - **Flows** — your business processes, each participant marked with its honest
   state, so a single weak link in a flow is never hidden behind an otherwise-green
   picture.

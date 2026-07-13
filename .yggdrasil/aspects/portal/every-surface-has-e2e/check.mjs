@@ -102,6 +102,7 @@ const NAV_MARKERS = {
   coverage: ['#/view/coverage', "navTo\\(page, 'Coverage & audit'\\)", '\\.cov-ledger', '\\.cov-bar'],
   tree: ['#/view/tree', "navTo\\(page, 'Structure'\\)", '\\.tree-mount', '\\.tree-row'],
   relations: ['#/view/relations', "navTo\\(page, 'Relations & boundaries'\\)", '\\.mtx-canvas', '\\.mtx-mirror', '\\.rel-hub'],
+  structure: ['#/view/structure', "navTo\\(page, 'Dependency structure'\\)", '\\.str-legend', '\\.str-tunnels', '\\.str-reach'],
   rulebook: ['#/view/rulebook', "navTo\\(page, 'Rulebook'\\)", '\\.rb-table'],
   types: ['#/view/types', "navTo\\(page, 'Type model'\\)", '\\.ty-grid', '\\.ty-card'],
   flows: ['#/view/flows', "navTo\\(page, 'Flows'\\)", '\\.fl-gallery', '\\.fl-detail'],

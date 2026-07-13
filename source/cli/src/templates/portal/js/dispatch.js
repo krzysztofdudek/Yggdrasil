@@ -22,6 +22,7 @@
     coverage: { title: 'Coverage & audit', blurb: 'The full honest ledger — every verdict, every non-pair state.' },
     tree: { title: 'Structure', blurb: 'The component hierarchy, each row carrying its honest state.' },
     relations: { title: 'Relations & boundaries', blurb: 'The allowed-relation matrix, the hubs, and the live boundary.' },
+    structure: { title: 'Dependency structure', blurb: 'The farthest-reaching dependencies, module groups, and change reach — in plain language.' },
     rulebook: { title: 'Rulebook', blurb: 'Every rule the code must satisfy, with its honest tally.' },
     types: { title: 'Type model', blurb: 'The architecture vocabulary — what can be enforced, and how.' },
     flows: { title: 'Flows', blurb: 'The business processes that span components.' },

@@ -128,7 +128,17 @@ export async function computePortalBoundary(
     }
   }
 
-  return { phantom, declaredOnly, forbiddenType };
+  // Flatten the pass's detected-edge set (a Map<string, Set<string>>) into plain, sorted arrays
+  // AT THIS SEAM — before it can enter PortalData, where a Map would serialize to `{}`. This is
+  // the SAME `detected` set already used by the joins above (no second pass); the structure panel
+  // reconstructs the universe from it, so surfacing it is free.
+  const detectedEdgesByNode: Array<{ from: string; targets: string[] }> = [];
+  for (const [from, targets] of detected) {
+    detectedEdgesByNode.push({ from, targets: [...targets].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)) });
+  }
+  detectedEdgesByNode.sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0));
+
+  return { phantom, declaredOnly, forbiddenType, detectedEdgesByNode };
 }
 
 /**

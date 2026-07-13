@@ -6,8 +6,8 @@
  * without a covering spec is a blocking refusal; that is the point.
  *
  * Each id maps to a §3a surface:
- *   V1–V9 full views   → overview / coverage / tree / relations / rulebook / types / flows /
- *                         suppressions / start
+ *   V1–V10 full views  → overview / coverage / tree / relations / structure / rulebook / types /
+ *                         flows / suppressions / start
  *   SHELL              → shell-nav (persistent left navigation rail) /
  *                         shell-panel (Node Attestation) / shell-refresh / shell-approve /
  *                         shell-theme / shell-deeplink / shell-prov (provenance/freshness pins)
@@ -21,6 +21,7 @@ export const SURFACE_MANIFEST = [
   'coverage',
   'tree',
   'relations',
+  'structure',
   'rulebook',
   'types',
   'flows',

@@ -42,7 +42,7 @@ function read(rel: string): string {
 }
 
 // The pipeline files — the de-spidered consumers that must reach the engine only via the facade.
-const PIPELINE_FILES = ['extract.ts', 'derive-nodes.ts', 'derive-catalogue.ts', 'derive-rest.ts'];
+const PIPELINE_FILES = ['extract.ts', 'derive-nodes.ts', 'derive-catalogue.ts', 'derive-rest.ts', 'derive-metrics.ts'];
 
 describe('portal — single engine seam (the de-spidered pipeline)', () => {
   for (const file of PIPELINE_FILES) {

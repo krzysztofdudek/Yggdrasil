@@ -79,6 +79,8 @@ relations:
     type: uses
   - target: cli/model/graph
     type: uses
+  - target: cli/relations/core
+    type: uses
 mapping:
   - source/cli/tests/integration/portal-extract.test.ts
   - source/cli/tests/integration/portal-derive-nodes.test.ts
@@ -86,6 +88,7 @@ mapping:
   - source/cli/tests/integration/portal-derive-rest.test.ts
   - source/cli/tests/integration/portal-static-emit.test.ts
   - source/cli/tests/integration/portal-single-seam.test.ts
+  - source/cli/tests/integration/portal-structure.test.ts
   - source/cli/tests/integration/portal-boundary.test.ts
   - source/cli/tests/integration/portal-server.test.ts
   - source/cli/tests/integration/portal-frontend-modules.test.ts
