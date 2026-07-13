@@ -1,5 +1,5 @@
 import { access, lstat, readdir, readFile, stat, writeFile } from 'node:fs/promises';
-import { existsSync, constants as fsConstants } from 'node:fs';
+import { existsSync, readFileSync, constants as fsConstants } from 'node:fs';
 import type { Dirent, Stats } from 'node:fs';
 import { debugWrite } from '../utils/debug-log.js';
 
@@ -53,6 +53,20 @@ export async function statPath(targetPath: string): Promise<Stats> {
 
 export function fileExistsSync(filePath: string): boolean {
   return existsSync(filePath);
+}
+
+/**
+ * Synchronous UTF-8 read that never throws: returns the file's text, or null when
+ * the file is missing or unreadable. For read-only consumers that must resolve a
+ * value inline (no async boundary) and treat an absent/garbled source as "nothing
+ * to say" rather than an error — e.g. the silent feature-field index reader.
+ */
+export function readTextFileSyncOrNull(filePath: string): string | null {
+  try {
+    return readFileSync(filePath, 'utf-8');
+  } catch {
+    return null;
+  }
 }
 
 export async function readFileBytes(filePath: string): Promise<Buffer | null> {

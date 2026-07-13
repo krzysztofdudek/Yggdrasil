@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { LANGUAGES, EXTENSION_TO_LANGUAGE, getLanguageForExtension, getExtensionsForLanguage, getGrammarForExtension } from '../../../src/core/graph/language-registry.js';
+import { LANGUAGES, EXTENSION_TO_LANGUAGE, getLanguageForExtension, getExtensionsForLanguage, getGrammarForExtension, getLanguageDisplayName } from '../../../src/core/graph/language-registry.js';
 
 describe('language registry', () => {
   it('lists Tier 0 (ts/tsx/js) + Tier 1 + JSON', () => {
@@ -92,5 +92,34 @@ describe('getGrammarForExtension', () => {
   });
   it('returns null for a still-unregistered extension', () => {
     expect(getGrammarForExtension('.swift')).toBeNull();
+  });
+
+  describe('getLanguageDisplayName', () => {
+    it('uses explicit display names for ids whose casing is not a simple capitalization', () => {
+      expect(getLanguageDisplayName('typescript')).toBe('TypeScript');
+      expect(getLanguageDisplayName('tsx')).toBe('TSX');
+      expect(getLanguageDisplayName('javascript')).toBe('JavaScript');
+      expect(getLanguageDisplayName('csharp')).toBe('C#');
+      expect(getLanguageDisplayName('cpp')).toBe('C++');
+      expect(getLanguageDisplayName('php')).toBe('PHP');
+      expect(getLanguageDisplayName('json')).toBe('JSON');
+      expect(getLanguageDisplayName('yaml')).toBe('YAML');
+      expect(getLanguageDisplayName('toml')).toBe('TOML');
+    });
+
+    it('capitalizes the first letter for every other registered id', () => {
+      expect(getLanguageDisplayName('python')).toBe('Python');
+      expect(getLanguageDisplayName('go')).toBe('Go');
+      expect(getLanguageDisplayName('rust')).toBe('Rust');
+      expect(getLanguageDisplayName('java')).toBe('Java');
+      expect(getLanguageDisplayName('c')).toBe('C');
+      expect(getLanguageDisplayName('ruby')).toBe('Ruby');
+      expect(getLanguageDisplayName('kotlin')).toBe('Kotlin');
+    });
+
+    it('is total — an unknown id capitalizes, and the empty string is returned as-is', () => {
+      expect(getLanguageDisplayName('haskell')).toBe('Haskell');
+      expect(getLanguageDisplayName('')).toBe('');
+    });
   });
 });

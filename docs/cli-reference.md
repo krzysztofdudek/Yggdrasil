@@ -41,6 +41,13 @@ set (including `0 files — vacuous` when a `scope.files` filter excludes everyt
 and a log-state line — whether a fresh log entry is required before `yg check
 --approve` and whether one is present.
 
+The `--file` view may also end with a single advisory line when the file looks
+structurally unusual among its node's other same-language files — a hint to read
+it more carefully, never a rule and never blocking (the command still exits 0).
+It is on by default; silence it with `signals: { attention: false }` in
+`yg-config.yaml`. See [Structural attention](/feature-field) for what it means
+and its honest limits.
+
 ### `yg impact`
 
 Predicts which pairs an edit to a node, aspect, flow, or type would invalidate —
@@ -404,8 +411,10 @@ never calls a reviewer.
 
 A read-only attention layer over the graph. With no subcommand it prints two sections:
 **Attention** (one aggregate line per class of signal — e.g. how many dependencies reach
-across distant parts of the architecture, pointing you to `yg structure`) and **Nominations**
-(up to ten ranked, evidence-backed suggestions in a fixed priority order). Each nomination
+across distant parts of the architecture, pointing you to `yg structure`, and how many files
+look [structurally unusual](/feature-field) among their same-language neighbours, pointing you
+to `yg context`) and **Nominations** (up to ten ranked, evidence-backed suggestions in a fixed
+priority order). Each nomination
 states what it found, why — with the underlying evidence quoted verbatim as data (a waiver's
 own words, a case name, a file and line, shown in quotes with their source, never echoed as an
 instruction) — and the exact next step, which always ends by noting it needs your approval.

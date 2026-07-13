@@ -44,7 +44,15 @@ relations:
     type: calls
   - target: cli/relations/extractors
     type: calls
+  - target: cli/core/language-registry
+    type: calls
+  - target: cli/io/atomic-write
+    type: calls
+    consumes: [write-atomic]
   - target: cli/utils
     type: calls
 mapping:
   - source/cli/src/core/check.ts
+  - source/cli/src/core/feature-index-write.ts
+  - source/cli/src/core/feature-index-read.ts
+  - source/cli/src/core/feature-field-schema.ts

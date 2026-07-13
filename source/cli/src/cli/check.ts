@@ -1,11 +1,11 @@
 // yg-suppress-disable(deterministic) presentational adaptation to terminal capabilities (TTY-aware truncation, color/emoji) and the inherent --approve LLM writer call; the verdict, counts, and exit code are invariant across environments, so these are not determinism violations of the check result
-import { Command } from 'commander';
+import { Command, Option } from 'commander';
 import chalk from 'chalk';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { exitAfterFlush } from './exit-after-flush.js';
 import { initDebugLog, debugWrite } from '../utils/debug-log.js';
 import { appendToDebugLog, writeFillDivergence } from '../io/debug-log-writer.js';
-import { runCheck } from '../core/check.js';
+import { runCheck, runAttentionDump } from '../core/check.js';
 import type { CheckIssue, CheckResult } from '../core/check.js';
 import { runFill, FillGatingError } from '../core/fill.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
@@ -72,13 +72,27 @@ export function registerCheckCommand(program: Command): void {
     .option('--details', 'Read-only: ungrouped, one block per issue (full per-pair detail). Opposite of the default grouped view.')
     .option('--aspect <id>', "Read-only: drill into one rule — show only that aspect's issues, grouped, with the full per-node detail.")
     .option('-q, --quiet', 'Suppress --approve progress on stderr (only the final report + exit code). No-op with a plain read; with --dry-run the budget preview still prints (--dry-run wins).')
-    .action(async (opts: { approve?: boolean; onlyDeterministic?: boolean; dryRun?: boolean; top?: boolean | string; summary?: boolean; details?: boolean; aspect?: string; quiet?: boolean }) => {
+    // Hidden calibration instrument: print the raw per-file structural measurements grouped by
+    // family, with the outliers marked, then exit 0. Writes nothing, makes no LLM calls.
+    .addOption(new Option('--attention-dump', 'Calibration: print raw structural measurements (writes nothing, exit 0).').hideHelp())
+    .action(async (opts: { approve?: boolean; onlyDeterministic?: boolean; dryRun?: boolean; top?: boolean | string; summary?: boolean; details?: boolean; aspect?: string; quiet?: boolean; attentionDump?: boolean }) => {
       try {
         const cwd = process.cwd();
         const graph = await loadGraphOrAbort(cwd, { tolerateInvalidConfig: true });
         initDebugLog(graph.rootPath, graph.config.debug ?? false, appendToDebugLog);
         const projectRoot = path.dirname(graph.rootPath);
         const gitFiles = await walkRepoFiles(projectRoot);
+
+        // Hidden calibration instrument. Bypasses the normal report entirely: run the
+        // read-only attention dump over warm shards, print it, exit 0. Writes nothing. It is
+        // scoped to the same tracked, graph-governed file set the report path uses — the git
+        // call stays in this CLI layer (core never shells out to git).
+        if (opts.attentionDump) {
+          const dump = await runAttentionDump(graph, gitFiles);
+          process.stdout.write(dump);
+          await exitAfterFlush(0);
+          return;
+        }
 
         // --top and --summary are READ-ONLY triage views over the plain check wall.
         // They are mutually exclusive with each other, and neither combines with
@@ -285,6 +299,11 @@ export function registerCheckCommand(program: Command): void {
               gitTrackedFiles: gitFiles,
               onlyDeterministic: mode.onlyDeterministic,
               dryRun: isDryRun,
+              // Maintain the silent feature-field index on the REAL post-fill report (the
+              // `--approve` reporting path); the fill returns before that report on --dry-run,
+              // so a cost preview writes nothing. Injected clock for the index's generatedAt.
+              writeFeatureIndex: true,
+              featureIndexNow: () => new Date(),
               // Core count resolved in the CLI layer (engine stays deterministic);
               // deterministic checks run across this many worker threads.
               detConcurrency: Math.max(1, availableParallelism() - 1),
@@ -332,7 +351,18 @@ export function registerCheckCommand(program: Command): void {
         // runs at the CLI boundary. Core has no Date.now of its own; without this
         // the overdue warning is skipped. It is read-only — never writes the lock
         // or gates the fill above.
-        const result = await runCheck(graph, gitFiles, { nowUtc: () => new Date() });
+        //
+        // The read-only report path that maintains the silent feature-field index:
+        // writeFeatureIndex:true with an injected clock for the index's generatedAt stamp.
+        // The `--approve` fill path also maintains it — via runFill's real post-fill report
+        // (which passes the same flag into its own runCheck) — so both `yg check` and
+        // `yg check --approve` keep the index current. Only --dry-run (returns before the
+        // fill's report) and the internal fill/portal re-checks stay byproduct-free.
+        const result = await runCheck(graph, gitFiles, {
+          nowUtc: () => new Date(),
+          writeFeatureIndex: true,
+          now: () => new Date(),
+        });
         process.stdout.write(formatOutput(result, view));
 
         // Exit code is derived from the FULL issue set, OUTSIDE formatOutput and

@@ -46,6 +46,13 @@ export interface YggConfig {
   debug?: boolean;
   /** Controls what bare `yg check` does: false = read-only; 'deterministic' = free local fill; 'full' = full reviewer fill. */
   auto_approve?: 'deterministic' | 'full' | false;
+  /**
+   * Attention-layer switches. Absent ⇒ every signal at its default. `attention`
+   * (default ON — absent `signals` OR absent `signals.attention` both mean ON)
+   * toggles the advisory "structurally unusual" note in `yg context --file`; set
+   * `signals: { attention: false }` to silence it. Never affects any verdict.
+   */
+  signals?: { attention?: boolean };
   /** Coverage scope. Absent ⇒ DEFAULT_COVERAGE (whole repo required = today's behavior). */
   coverage?: CoverageConfig;
 }

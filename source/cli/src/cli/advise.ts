@@ -1,4 +1,5 @@
 import type { Command } from 'commander';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import chalk from 'chalk';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
@@ -12,6 +13,7 @@ import {
   type NominationSources,
   type SuppressAnomaly,
 } from '../core/advise-nominations.js';
+import { countChurnByNode, ownerOfForGraph } from '../core/node-churn.js';
 import { applyDecisions, type VisibleNomination } from '../core/advise-feed.js';
 import { groupUnitsByAspect } from '../core/aspect-health-signals.js';
 import { computeExpectedPairs } from '../core/pairs.js';
@@ -31,10 +33,26 @@ import {
   type DeclaredRelation,
 } from '../core/graph-metrics.js';
 import { isValidReviewByDate } from '../io/aspect-parser.js';
+import { countLiveDeviationFiles } from '../core/feature-index-read.js';
 import type { Graph } from '../model/graph.js';
 
 /** The hard cap on rendered nominations (spec §7.2). `--all` removes it. */
 const NOMINATION_CAP = 10;
+
+/**
+ * How many recent commits the uncovered-hot-spot churn signal looks back over.
+ *
+ * CHANGE POLICY: this window is a deliberate PARAMETER, not an incidental default.
+ * The churn count and the "last N commits" provenance are folded into each hot-spot
+ * nomination's evidence hash, so changing this value re-bases the whole class —
+ * counts shift and any hot spot previously dismissed/deferred returns to the feed as
+ * new (its bound evidence no longer matches). That is correct (a different window is
+ * a different measurement), but treat a change as a deliberate re-baseline of the
+ * class, not a silent tweak: prefer it only when the repo's commit cadence makes 200
+ * commits span too little or too much wall-clock history to be a useful "recent"
+ * horizon.
+ */
+const CHURN_WINDOW = 200;
 
 function handleError(error: unknown): never {
   debugWrite(`[advise] command failed: ${(error as Error).message}`);
@@ -95,6 +113,27 @@ async function computeTunnelCount(graph: Graph): Promise<number> {
     return Math.min(TOP_TUNNELS, tunnels);
   } catch (error) {
     debugWrite(`[advise] tunnel-count degraded to 0: ${(error as Error).message}`);
+    return 0;
+  }
+}
+
+/**
+ * The C8 live structural-deviation count for the Attention line: how many files the
+ * local `.feature-field.json` index still records as structural outliers under the
+ * exact-bytes match rule `yg context --file` uses (a file whose bytes changed since
+ * the index was written is not counted). The index read is the reader's job — this
+ * only threads the repo root (the parent of the `.yggdrasil/` dir) to it. The reader
+ * is already tolerant (a missing / garbled index yields 0), and any unexpected
+ * failure degrades to 0 here too, so the attention computation can never break the
+ * exit-0 invariant (G4). It publishes a bare aggregate that points the reader at
+ * `yg context` for the per-file detail — never a ranking, a list, or a nomination.
+ */
+function computeDeviationCount(graph: Graph): number {
+  try {
+    const projectRoot = path.dirname(graph.rootPath);
+    return countLiveDeviationFiles(graph.rootPath, projectRoot);
+  } catch (error) {
+    debugWrite(`[advise] deviation-count degraded to 0: ${(error as Error).message}`);
     return 0;
   }
 }
@@ -165,10 +204,86 @@ async function gatherCurrentUnits(graph: Graph): Promise<Map<string, Set<string>
 }
 
 /**
+ * Parse `git log --name-only --format=%H` output into one touch set per commit.
+ * Each commit block is a full-length commit-hash line (40 hex for sha-1, 64 for
+ * sha-256), a blank line, then the changed files (one repo-relative POSIX path per
+ * line) until the next hash. Blank lines separate the header from the file list and
+ * are ignored; an empty commit (e.g. a merge with no listed files) yields an empty
+ * touch set, which contributes no churn. Pure — string in, per-commit path arrays
+ * out.
+ */
+function parseNameOnlyLog(output: string): string[][] {
+  const HASH = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/; // sha-1 (40) or sha-256 (64)
+  const commits: string[][] = [];
+  let current: string[] | undefined;
+  for (const rawLine of output.split('\n')) {
+    const line = rawLine.replace(/\r$/, '');
+    if (line === '') continue;
+    if (HASH.test(line)) {
+      current = [];
+      commits.push(current);
+    } else if (current !== undefined) {
+      current.push(line);
+    }
+  }
+  return commits;
+}
+
+/**
+ * Assemble the per-node churn signal for the uncovered-hot-spot nomination: run a
+ * READ-ONLY `git log` over the recent window, parse it to per-commit touch sets, and
+ * count per node via the SAME owner index the checker uses. This is the only impure
+ * step in the churn path (the counting core is pure). HONESTY LAW ([RZ-21]): churn is
+ * used ONLY when git is present AND the repo has its FULL history; otherwise this
+ * returns undefined so the caller OMITS the churn source entirely and the hot-spot
+ * class stays SILENT rather than fabricating a signal over history it could not read.
+ * Two silence gates:
+ *   - shallow clone — `git log -n 200` on a shallow repo exits 0 and returns a
+ *     TRUNCATED window, which would undercount churn while the "last 200 commits"
+ *     provenance overstates it; `--is-shallow-repository` catches that before any
+ *     count is trusted.
+ *   - no readable history — git missing, not a repo, or the subprocess fails for any
+ *     reason (the shallow probe throwing counts here too: an unconfirmed history is
+ *     honest silence).
+ * An empty map (git present, full history, but no window commit touched any node) is
+ * a DIFFERENT, honest outcome: the class runs and simply produces nothing.
+ */
+function gatherChurnByNode(
+  graph: Graph,
+  projectRoot: string,
+): Map<string, { churn: number; files: string[] }> | undefined {
+  const gitOpts = {
+    cwd: projectRoot,
+    encoding: 'utf-8' as const,
+    // Mutable element type (NOT `as const`): execFileSync's stdio option is a
+    // mutable array, so a readonly tuple fails the overload.
+    stdio: ['pipe', 'pipe', 'pipe'] as ('pipe' | 'inherit' | 'ignore')[],
+  };
+  try {
+    // Gate 1: a shallow clone has a truncated history — never count over a partial
+    // window. A missing git / non-repo makes this throw → the catch turns it into
+    // honest silence too.
+    const shallow = execFileSync('git', ['rev-parse', '--is-shallow-repository'], gitOpts).trim();
+    if (shallow === 'true') {
+      debugWrite('[advise] churn signal silent (shallow clone — truncated history would miscount)');
+      return undefined;
+    }
+    const out = execFileSync('git', ['log', '-n', String(CHURN_WINDOW), '--name-only', '--format=%H'], {
+      ...gitOpts,
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    return countChurnByNode(parseNameOnlyLog(out), ownerOfForGraph(graph));
+  } catch (error) {
+    debugWrite(`[advise] churn signal silent (no readable git history): ${(error as Error).message}`);
+    return undefined;
+  }
+}
+
+/**
  * Gather every non-graph input `buildNominations` needs, at the CLI boundary:
- * risky suppress markers (live scan), drill-result telemetry, and verdict-event
- * telemetry. The core engine imports NONE of these readers — telemetry crosses
- * the boundary as plain data only.
+ * risky suppress markers (live scan), drill-result telemetry, verdict-event
+ * telemetry, and per-node churn (git history). The core engine imports NONE of
+ * these readers — telemetry and history cross the boundary as plain data only.
  */
 async function gatherNominationSources(graph: Graph, todayUtc: Date): Promise<NominationSources> {
   const projectRoot = path.dirname(graph.rootPath);
@@ -176,6 +291,7 @@ async function gatherNominationSources(graph: Graph, todayUtc: Date): Promise<No
   const drillResults = readDrillResults(graph.rootPath).results;
   const verdictEvents = readVerdictEvents(graph.rootPath).events;
   const currentUnitsByAspect = await gatherCurrentUnits(graph);
+  const churnByNode = gatherChurnByNode(graph, projectRoot);
 
   const sources: NominationSources = {
     todayUtc,
@@ -189,6 +305,13 @@ async function gatherNominationSources(graph: Graph, todayUtc: Date): Promise<No
   if (currentUnitsByAspect !== undefined && suppressData !== undefined) {
     sources.currentUnitsByAspect = currentUnitsByAspect;
     sources.suppressCountsByAspect = suppressData.counts;
+  }
+  // The uncovered-hot-spot source needs both the churn map and the window it was
+  // measured over; supply them only when churn is KNOWN (git history readable), so a
+  // no-git / shallow clone leaves the class silent instead of fabricating churn.
+  if (churnByNode !== undefined) {
+    sources.churnByNode = churnByNode;
+    sources.churnWindow = CHURN_WINDOW;
   }
   return sources;
 }
@@ -339,7 +462,15 @@ export function registerAdviseCommand(program: Command): void {
         const { visible, hidden } = applyDecisions(noms, readDecisions(graph.rootPath).decisions, now);
 
         const tunnelCount = await computeTunnelCount(graph);
-        const attention = buildAttention({ tunnelCount });
+        // The C8 structural-deviation line points the reader at `yg context --file`,
+        // the exact surface that `signals.attention: false` silences (absent `signals`
+        // ⇒ ON, mirroring cli/build-context.ts). Honor the SAME off-switch here: when
+        // attention is disabled, skip the index read and pass 0 so buildAttention omits
+        // the C8 line rather than pointing at a surface the user turned off. The C7
+        // tunnels line is unrelated to signals.attention and is always shown.
+        const deviationCount =
+          graph.config.signals?.attention !== false ? computeDeviationCount(graph) : 0;
+        const attention = buildAttention({ tunnelCount, deviationCount });
 
         const output = [
           renderAttention(attention),

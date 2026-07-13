@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import path from 'node:path';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync, readdirSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 
 import { loadGraph } from '../../src/core/graph-loader.js';
@@ -18,6 +18,22 @@ import { hashString } from '../../src/io/hash.js';
 import { grammarWasmHash } from '../../src/ast/parser.js';
 import { csharpExtractor } from '../../src/relations/extractors/csharp.js';
 import { ensureLoaderRegistered } from '../../src/ast/loader-hook.js';
+import { isValidFeatureVector, type FeatureVector } from '../../src/relations/feature-vector.js';
+
+/** A structurally-valid feature vector for pre-seeding a shard (its value is irrelevant to
+ *  the relation verdict — features are speed-only and outside every hash). */
+const FV: FeatureVector = {
+  nodeCount: 1,
+  depthQuartiles: [0, 0, 0],
+  categories: {
+    'function-like': 0,
+    'class-like': 0,
+    'import-like': 0,
+    'branch-like': 0,
+    'call-like': 0,
+    'literal-like': 0,
+  },
+};
 
 /** List every content-addressed AST shard under `<astCacheDir>/v<N>/` (empty if absent). The
  *  versioned subdir scopes the count to the NEW fact cache only — never the old symbol-index
@@ -247,6 +263,48 @@ describe('runRelationPass — AST fact cache', () => {
     expect(shardsAfterSecond).toEqual(shardsAfterFirst);
   });
 
+  it('WARM-CACHE REGRESSION (v2 + features): a second plain pass parses NOTHING new — every shard byte- and mtime-identical, and features ride through the HIT', async () => {
+    // The feature vector rides in the v2 shard. This is the "free CI gate must not slow down"
+    // guarantee: writing features on the cold pass must not cause any re-parse or re-write on a
+    // warm pass. We assert the STRONGEST form — after one warming pass, a second pass leaves
+    // every shard's mtime AND bytes untouched (zero re-parse, zero re-write), and the facts the
+    // warm run serves carry a valid features vector recovered from the shard (not recomputed).
+    writeNode(root, 'a', 'A', 'src/a');
+    writeNode(root, 'b', 'B', 'src/b');
+    w(root, 'src/a/foo.ts', `import { bar } from '../b/bar.js';\nexport const foo = bar;\n`);
+    w(root, 'src/b/bar.ts', `export const bar = 2;\n`);
+
+    const astCacheDir = path.join(root, '.yggdrasil', '.ast-cache');
+    const deps = {
+      extractorFor: extractorForLanguage,
+      resolvePathToFile: makeResolvePathToFile(root),
+      symbolIndexDir: astCacheDir,
+    };
+
+    // Warm pass — cold cache → every TS file parsed and a v2 shard written per file.
+    await runRelationPass(await loadGraph(root), root, deps);
+    const shards = listShards(astCacheDir);
+    expect(shards.length).toBeGreaterThan(0);
+    const before = shards.map((p) => ({ p, mtime: statSync(p).mtimeMs, bytes: statSync(p).size }));
+
+    // Second plain pass over the unchanged project — must parse NOTHING new.
+    const warm = await runRelationPass(await loadGraph(root), root, deps);
+    const after = listShards(astCacheDir).map((p) => ({ p, mtime: statSync(p).mtimeMs, bytes: statSync(p).size }));
+
+    // No new/removed shards; every shard's mtime and byte-size are unchanged → zero re-write.
+    expect(after).toEqual(before);
+
+    // The warm run's served facts carry a well-formed features vector recovered from the shard
+    // (the HIT copy-through), proving features survive the JSON round-trip and ride factsByPath.
+    const foo = warm.factsByPath.get('src/a/foo.ts');
+    expect(foo).toBeDefined();
+    expect(isValidFeatureVector(foo!.features)).toBe(true);
+    // foo.ts has one `import` statement (the `export const` is outbound linkage, not an
+    // import, so import-like counts only the import) → import-like === 1 (structural,
+    // recovered from cache, not recomputed).
+    expect(foo!.features.categories['import-like']).toBe(1);
+  });
+
   it('resolves a cross-file C# global-using ALIAS edge on a CACHED run (Map round-trip)', async () => {
     // Mirrors reference/relations/csharp/csharp-global-using-alias.md, READ-ONLY oracle:
     //   global using Cust = MyApp.Models.Customer;  (node g)
@@ -322,7 +380,7 @@ describe('runRelationPass — AST fact cache', () => {
       grammarHash: grammarWasmHash('.cs'),
       rev: csharpExtractor.rev,
     });
-    await writeFacts(astCacheDir, 'csharp', cKey, { declarations: [], uses: [] });
+    await writeFacts(astCacheDir, 'csharp', cKey, { declarations: [], uses: [], features: FV });
 
     const deps = {
       extractorFor: extractorForLanguage,

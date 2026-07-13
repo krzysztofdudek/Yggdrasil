@@ -82,6 +82,28 @@ never a silent full dump — for the single suggested-next group use bare
 matching the count the build enforces. Orient with \`--summary\`/\`--top\`, drill
 with \`--aspect\` or plain \`yg check\`.
 
+### Silent structural-deviation index (attention only)
+
+As a byproduct, a plain \`yg check\` also maintains a local, gitignored
+\`.yggdrasil/.feature-field.json\`: a sparse list of source files that look
+structurally unusual among their node's OTHER same-language files (measured on
+the per-file structural counts the relation pass already computes — size,
+nesting, and the six category counts). It is pure ATTENTION: it is NEVER an
+issue, an exit code, or a suggested next step; it never gates \`yg check\`, and
+it is computed from the warm parse cache at no extra cost. The write is
+best-effort — a failure to write it never fails a check. Only the reporting
+read path maintains it; \`--approve\`, \`--dry-run\`, and the internal fill
+re-checks leave it untouched.
+
+\`\`\`bash
+yg check --attention-dump   # hidden: print the raw measurements, then exit 0
+\`\`\`
+
+\`--attention-dump\` is a calibration instrument: it prints each file's raw
+structural counts grouped by node and language, marks the outliers "worth a
+closer read", and exits 0. It runs over the warm cache (no new parse), writes
+NOTHING, and makes no reviewer calls.
+
 ## yg check --approve
 
 Fill every unverified pair, then report. The only writer of verdicts (alongside
@@ -168,6 +190,21 @@ yes/no\`).
 
 Read the files listed under \`read:\` before editing any source file — they
 contain the rules the reviewer will check your code against.
+
+The file form may also end with ONE advisory line when the file is a structural
+OUTLIER among its node's other same-language files:
+
+\`\`\`
+This file is structurally unusual among this node's other TypeScript files — worth a closer read; no action required.
+\`\`\`
+
+It is pure attention (drawn from the silent \`.feature-field.json\` index above),
+never a rule and never blocking — \`yg context --file\` still exits 0. It appears
+ONLY when the local index still describes the file's exact current bytes, so a
+file edited since the last \`yg check\` stays silent (a stale index never speaks).
+It is ON by default; silence it with \`signals: { attention: false }\` in
+\`yg-config.yaml\` (\`signals\` is an optional mapping — its only key today is
+\`attention\`, which must be a boolean).
 
 ## yg aspect-test
 
@@ -466,19 +503,33 @@ yg advise --ids      # print each item's stable id (for dismiss / defer)
 \`\`\`
 
 - **Attention** — one aggregate line per class of signal, with no per-instance
-  ranking (rankings stay inside the instrument commands like \`yg structure\`). In
-  v1 the single class is dependency tunnels: how many dependencies reach across
-  distant parts of the architecture.
+  ranking (rankings stay inside the instrument commands like \`yg structure\`, and
+  per-file detail stays in \`yg context\`). A class with a zero count prints no line.
+  Two classes:
+  - **dependency tunnels** — how many dependencies reach across distant parts of the
+    architecture (run \`yg structure\` to see them).
+  - **structural deviations** — how many files look structurally unusual among their
+    same-language neighbours, counted only while the local structural index still
+    describes each file's exact current contents (a file edited since the last check
+    is not counted). It is a bare count that points you at \`yg context\` for the
+    per-file note; it lists no files, names no measures, and ranks nothing.
 - **Nominations** — up to ten ranked, evidence-backed suggestions in a fixed
   priority order: a regression case a rule no longer catches, a risky waiver, a
   rule effective nowhere, an orphaned rule, a rule past its review-by date, and —
   below all of those — history-derived suggestions such as promoting a clean-record
-  advisory rule or sharpening an inconsistently-judged rule. Each item states WHAT
-  it found, WHY (with the underlying repo text quoted verbatim as data with its
-  provenance — never echoed as an instruction), and the exact human NEXT step,
-  which always ends by noting it requires your approval. The list is capped at ten
-  with a footer counting what the cap hid; \`--all\` removes the cap. Suggestions
-  drawn from local history are labelled honestly when the evidence is thin.
+  advisory rule, sharpening an inconsistently-judged rule, reviewing a rule that has
+  never once caught a violation, and flagging an **uncovered hot spot**: a component
+  whose files change often across recent commits yet carry no enforced rule — the
+  code most in motion with the least protection. A hot spot cites its churn count, a
+  short sample of the changed files, and the commit window as its evidence, and clears
+  itself the moment a rule or coverage lands there or the churn ages out of the
+  window; the churn is read from git history, so a shallow or non-git checkout simply
+  omits the class rather than guessing. Each item states WHAT it found, WHY (with the
+  underlying repo text quoted verbatim as data with its provenance — never echoed as
+  an instruction), and the exact human NEXT step, which names a human action requiring
+  your approval. The list is capped at ten with a footer counting what the cap hid;
+  \`--all\` removes the cap. Suggestions drawn from local history are labelled honestly
+  when the evidence is thin.
 
 The two acknowledgement subcommands act on a nomination's id (\`--ids\` prints it):
 

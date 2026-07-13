@@ -73,6 +73,7 @@ export async function ensureGitattributes(repoRoot: string): Promise<void> {
  *    - `.debug.log`       — the opt-in command debug log
  *    - `.yg-events.jsonl` — the fill stage's append-only verdict-events telemetry sidecar
  *    - `.yg-fill-divergence.log` — the fill stage's convergence-sentinel evidence dump
+ *    - `.feature-field.json` — `yg check`'s silent structural-deviation attention index
  *  This is the single source of truth for what init writes into the local
  *  gitignore (both fresh init and every --upgrade). Paths are relative to the
  *  `.yggdrasil/` directory the file lives in. */
@@ -93,6 +94,10 @@ const YGGDRASIL_GITIGNORE_LINES = [
   // only when the fill detects a 0-fill divergence; never committed. Name shared
   // with the writer (io/debug-log-writer) so the two can never drift.
   FILL_DIVERGENCE_FILENAME,
+  // Silent feature-field deviation index: a local, rebuildable attention index `yg check`
+  // maintains (files structurally unusual among their node's same-language peers); never
+  // committed. The writer (core/feature-index-write) self-ensures this same line as a backstop.
+  '.feature-field.json',
 ] as const;
 
 /**

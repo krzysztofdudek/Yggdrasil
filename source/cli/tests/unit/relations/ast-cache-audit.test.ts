@@ -44,6 +44,8 @@ import {
   mkdtempSync,
   mkdirSync,
   writeFileSync,
+  readFileSync,
+  readdirSync,
   rmSync,
 } from 'node:fs';
 import os from 'node:os';
@@ -54,6 +56,7 @@ import { extractorForLanguage } from '../../../src/relations/extractors/registry
 import { makeResolvePathToFile } from '../../../src/relations/resolve-path.js';
 import { astCacheDir } from '../../../src/relations/facts-cache.js';
 import { runCacheAudit } from '../../../src/relations/audit.js';
+import { runRelationPass } from '../../../src/relations/pass.js';
 
 // ---------------------------------------------------------------------------
 // Helpers — build a minimal yg project from a set of (path, content) pairs
@@ -220,4 +223,60 @@ describe('AST cache audit — cache-HIT run deep-equals cache-DISABLED run', () 
     // violationsByNode diff and failing the audit.
     await auditProject(ALIAS_FILES, 'global-using-alias');
   });
+
+  it('a stale/corrupt features write is CAUGHT: the audit reports it as a factsDiffs entry', async () => {
+    // The audit deep-equals the WHOLE FileFacts (JSON.stringify with a Map replacer), and
+    // `features` now rides inside FileFacts — so a features round-trip bug is caught for free.
+    // We prove the guard bites: warm a shard, then corrupt ONLY its `features` on disk (leaving
+    // declarations/uses correct), so the cache-HIT run (A, reads the corrupt features) and the
+    // cache-DISABLED run (B, fresh-parses the correct features) differ solely in `features`.
+    const files: ProjectFile[] = [{ path: 'src/a/foo.ts', content: 'export const x = 1;\n' }];
+    buildProject(root, files);
+    const cacheDir = astCacheDir(path.join(root, '.yggdrasil'));
+    const deps = {
+      extractorFor: extractorForLanguage,
+      resolvePathToFile: makeResolvePathToFile(root),
+      symbolIndexDir: cacheDir,
+    };
+
+    // Cold pass writes the correct shard (correct declarations/uses/features).
+    await runRelationPass(await loadGraph(root), root, deps);
+    const shard = findFirstShard(path.join(cacheDir, 'v2'));
+    expect(shard).not.toBe('');
+    const body = JSON.parse(readFileSync(shard, 'utf-8')) as {
+      features: { nodeCount: number };
+    };
+    // Corrupt ONLY features (bump nodeCount) — declarations/uses stay exactly correct, so the
+    // A/B diff is attributable purely to features.
+    body.features.nodeCount += 1000;
+    writeFileSync(shard, JSON.stringify(body), 'utf-8');
+
+    // runCacheAudit's warm pass is create-only → it will NOT overwrite the corrupted shard.
+    // A (cache-HIT) reads corrupt features; B (cache-DISABLED) parses correct features.
+    const result = await runCacheAudit(await loadGraph(root), root, deps);
+    expect(result.pass).toBe(false);
+    const diff = result.factsDiffs.find((d) => d.path === 'src/a/foo.ts');
+    expect(diff, 'expected a factsDiffs entry for the corrupt-features file').toBeDefined();
+    // The reported diff carries the mutated nodeCount → the round-trip guard covers features.
+    expect(diff!.reason).toContain(String(body.features.nodeCount));
+  });
 });
+
+/** Return the first `.json` shard path under `base` (recursive), or '' if none. */
+function findFirstShard(base: string): string {
+  let out = '';
+  const walk = (d: string): void => {
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      if (out) return;
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (e.name.endsWith('.json')) out = p;
+    }
+  };
+  try {
+    walk(base);
+  } catch {
+    /* no cache dir → '' */
+  }
+  return out;
+}

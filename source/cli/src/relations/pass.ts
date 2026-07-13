@@ -16,6 +16,7 @@ import {
   type CsharpExtract,
 } from './extractors/csharp.js';
 import { loadFacts, writeFacts, factsKey } from './facts-cache.js';
+import { countFeatures, type FeatureVector } from './feature-vector.js';
 import { verifyNodeDeps, type ResolvedDep, type RelationGraphView, type Violation } from './verifier.js';
 import type {
   DependencyExtractor,
@@ -43,6 +44,16 @@ export interface FileFacts {
   declarations: DeclaredSymbol[];
   uses: DetectedDep[] | null; // null ⇔ C# (assembled live)
   csharp: CsharpExtract | null; // non-null ⇔ C#
+  /**
+   * Per-file structural feature vector, computed in the SAME parse-on-miss walk as
+   * declarations / uses (NO second parse). Speed-only, OUTSIDE every verdict hash — pure
+   * instrumentation. Always present for an extractor-backed file (this pass only reaches
+   * `countFeatures` for files with a registered extractor). Rides in the pass's returned
+   * `factsByPath` for downstream read-only consumers; the anomaly layer reads
+   * `factsByPath.get(path).features` alongside the per-file content hash the pass also
+   * exposes on its result (`hashByPath`) to pin a file's vector to its exact bytes.
+   */
+  features: FeatureVector;
 }
 
 export interface RelationPassResult {
@@ -51,6 +62,16 @@ export interface RelationPassResult {
    *  Exposed so the cache-audit harness can deep-equal a cache-HIT run against a
    *  cache-DISABLED run — a mismatch means an incomplete key or a broken round-trip. */
   factsByPath: Map<string, FileFacts>;
+  /**
+   * ADDITIVE, read-only: repo-rel POSIX path → the file's raw content hash
+   * (`FileRecord.hash`, i.e. `hashString(fileBytes)`). Computed once at file-enumeration
+   * time from the freshly-read bytes — the SAME hash regardless of an AST-cache hit/miss,
+   * and the SAME hash a later reader re-derives from the file bytes. Exposed so downstream
+   * read-only consumers (the silent feature-field index) can pin an entry to the exact bytes
+   * the feature vectors were computed from WITHOUT re-reading or re-hashing. Populated for
+   * every enumerated file (a superset of `factsByPath`, which drops parse-failed files).
+   */
+  hashByPath: Map<string, string>;
   /**
    * ADDITIVE, read-only: the FULL set of statically-detected cross-node code edges
    * keyed by source nodeId → the set of resolved target nodeIds it depends on. This is
@@ -177,7 +198,10 @@ export async function runRelationPass(
       // cached fact. Non-C#: `uses()` is a pure function of the file's bytes → cache it.
       const uses = isCsharp ? null : extractor.uses(parsed);
       const csharp = isCsharp ? extractCsharpRefs(parsed) : null;
-      return { declarations, uses, csharp };
+      // Structural feature vector over the SAME already-parsed tree (no second parse). This
+      // is speed-only instrumentation and never enters any verdict hash.
+      const features = countFeatures(parsed.tree.rootNode, parsed.language);
+      return { declarations, uses, csharp, features };
     } finally {
       parsed.tree.delete();
     }
@@ -251,6 +275,9 @@ export async function runRelationPass(
           declarations: cached.declarations,
           uses: isCsharp ? null : cached.uses,
           csharp: isCsharp ? cached.csharp! : null,
+          // Guaranteed present — `loadFacts` fail-closes to a MISS on a missing/malformed
+          // features field, so a returned cached fact always carries a valid vector.
+          features: cached.features,
         };
       }
 
@@ -263,6 +290,7 @@ export async function runRelationPass(
       await writeFacts(deps.symbolIndexDir, language, key, {
         declarations: facts.declarations,
         uses: facts.uses ?? [],
+        features: facts.features,
         ...(facts.csharp !== null ? { csharp: facts.csharp } : {}),
       });
       return facts;
@@ -455,5 +483,11 @@ export async function runRelationPass(
     }
   }
 
-  return { violationsByNode, factsByPath, detectedEdgesByNode };
+  // ADDITIVE read-only: expose each enumerated file's raw content hash (computed once from
+  // the freshly-read bytes at enumeration, independent of any AST-cache hit/miss). Lets the
+  // silent feature-field index pin an entry to exact bytes without re-reading or re-hashing.
+  const hashByPath = new Map<string, string>();
+  for (const [rel, record] of recordByPath) hashByPath.set(rel, record.hash);
+
+  return { violationsByNode, factsByPath, detectedEdgesByNode, hashByPath };
 }

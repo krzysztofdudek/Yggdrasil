@@ -59,6 +59,11 @@ describe.skipIf(!isGitRepo)('dogfood scripts — spawn smoke', () => {
     expect(res.stdout).toContain('[RZ-16]');
   });
 
+  // escape-scan walks THIS repo's entire commit history (fix-flavored commits ×
+  // mapped-file touches), so its wall-clock scales with history depth and, under
+  // full-suite parallel CPU contention, exceeds the 5s default. The scan itself is
+  // deterministic; it gets a generous per-test timeout to stay non-flaky (same
+  // rationale as the spectral-headroom smoke below).
   it('escape-scan.mjs exits 0 with its header and both honesty labels on real history', () => {
     const res = runScript('scripts/escape-scan.mjs');
     expect(res.status).toBe(0);
@@ -68,7 +73,7 @@ describe.skipIf(!isGitRepo)('dogfood scripts — spawn smoke', () => {
     expect(res.stdout).toContain('UNDERCOUNTS');
     expect(res.stdout).toContain('OVERCOUNTS');
     expect(res.stdout).toContain('candidates for human triage, never a gate.');
-  });
+  }, 30_000);
 
   // The four calibration instruments against THIS repo's real telemetry. Whatever
   // telemetry exists (possibly thin/empty) they must exit 0, print their header, and

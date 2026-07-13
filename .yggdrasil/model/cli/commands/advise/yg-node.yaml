@@ -8,6 +8,8 @@ aspects: []
 relations:
   - target: cli/core/advise
     type: calls
+  - target: cli/core/check
+    type: calls
   - target: cli/core/aspect-health-signals
     type: calls
   - target: cli/core/pairs

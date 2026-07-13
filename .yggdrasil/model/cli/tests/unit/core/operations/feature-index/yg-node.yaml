@@ -1,0 +1,24 @@
+name: Feature-Field Deviation Unit Tests
+type: test-suite
+description: "Unit tests for the silent feature-field deviation math — the robust
+  median / MAD / z helpers and computeFamilyDeviations over synthetic families:
+  outlier admission (family size at least MIN_N, non-zero spread, threshold),
+  small-sample and zero-spread silence (no divide-by-zero), the sparse output,
+  and the owner-node x extractor-language family key. Also covers the index
+  READER's match-or-omit contract: it returns an entry only on an exact
+  content-hash match, drops malformed deviation elements (rejecting a corrupted
+  entry whole), and resolves an absent / garbled / unknown-version index to null
+  without throwing. Also covers the aggregate live-outlier count behind the yg
+  advise attention line: it counts only files whose current bytes still match the
+  stored hash (a changed / missing file excluded) and agrees file-for-file with the
+  per-file lookup."
+aspects: []
+relations:
+  [
+    { target: cli/core/check, type: uses },
+    { target: cli/relations/core, type: uses },
+    { target: cli/io/stores, type: uses }
+  ]
+mapping:
+  - source/cli/tests/unit/core/feature-index-deviations.test.ts
+  - source/cli/tests/unit/core/feature-index-read.test.ts

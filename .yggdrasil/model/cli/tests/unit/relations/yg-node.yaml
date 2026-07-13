@@ -12,6 +12,7 @@ relations:
     { target: cli/io/parsers/graph, type: uses },
     { target: cli/ast/runtime, type: uses },
     { target: cli/core/loader, type: uses },
+    { target: cli/core/language-registry, type: uses },
     { target: cli/tests/unit/helpers, type: uses }
   ]
 mapping:
@@ -28,3 +29,4 @@ mapping:
   - source/cli/tests/unit/relations/csharp-parity.test.ts
   - source/cli/tests/unit/relations/ast-cache-audit.test.ts
   - source/cli/tests/unit/relations/facts-cache-branch-coverage.test.ts
+  - source/cli/tests/unit/relations/feature-vector.test.ts

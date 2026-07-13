@@ -117,12 +117,34 @@ function diagEvent(aspectId: string, satisfied: 0 | 1, ts: string): VerdictEvent
 
 describe('buildAttention — C7 tunnels aggregate line', () => {
   it('omits the line when there are no tunnels', () => {
-    expect(buildAttention({ tunnelCount: 0 })).toEqual([]);
+    expect(buildAttention({ tunnelCount: 0, deviationCount: 0 })).toEqual([]);
   });
   it('renders the verbatim aggregate line with the exact count', () => {
-    expect(buildAttention({ tunnelCount: 7 })).toEqual([
+    expect(buildAttention({ tunnelCount: 7, deviationCount: 0 })).toEqual([
       '7 dependencies jump across distant parts of the architecture — run yg structure to see them',
     ]);
+  });
+});
+
+describe('buildAttention — C8 structural-deviation aggregate line', () => {
+  const C8 = (m: number) =>
+    `${m} files deviate structurally from their neighbors — shown in yg context when you work there.`;
+
+  it('omits the line at a zero deviation count (no "0 files" noise)', () => {
+    expect(buildAttention({ tunnelCount: 0, deviationCount: 0 })).toEqual([]);
+  });
+
+  it('renders the verbatim C8 line with the exact count when > 0', () => {
+    expect(buildAttention({ tunnelCount: 0, deviationCount: 2 })).toEqual([C8(2)]);
+  });
+
+  it('emits C7 then C8, each independently gated on its own positive count', () => {
+    expect(buildAttention({ tunnelCount: 3, deviationCount: 5 })).toEqual([
+      '3 dependencies jump across distant parts of the architecture — run yg structure to see them',
+      C8(5),
+    ]);
+    // C8 alone when there are no tunnels.
+    expect(buildAttention({ tunnelCount: 0, deviationCount: 5 })).toEqual([C8(5)]);
   });
 });
 
@@ -288,6 +310,88 @@ describe('buildNominations — T1 promotion + sharpen (below all T0)', () => {
     ];
     const noms = buildNominations(graph, { todayUtc: TODAY, verdictEvents: events });
     expect(noms.find((n) => n.id === 'sharpen:requires-logging')).toBeUndefined();
+  });
+});
+
+// ── Task 5 (wave-6): T1 uncovered hot spot (churn × zero-aspect nodes) ──
+
+describe('buildNominations — T1 uncovered hot spot (churn × zero-aspect, below all T0)', () => {
+  let projectRoot: string;
+  beforeEach(() => {
+    projectRoot = mkdtempSync(path.join(os.tmpdir(), 'yg-advise-hotspot-'));
+    cpSync(FIXTURE, projectRoot, { recursive: true });
+  });
+  afterEach(() => rmSync(projectRoot, { recursive: true, force: true }));
+
+  const CH = (churn: number, files: string[]) => ({ churn, files });
+
+  it('nominates a zero-aspect node that churns, carrying count, evidence + provenance', async () => {
+    const graph = await loadGraph(projectRoot);
+    // checkout/controller is a zero-aspect node in the fixture (service type, no
+    // own aspects, module parent with none).
+    const churnByNode = new Map([['checkout/controller', CH(3, ['src/checkout/controller.ts'])]]);
+    const noms = buildNominations(graph, { todayUtc: TODAY, churnByNode, churnWindow: 200 });
+    const hot = noms.find((n) => n.id === 'uncovered-hot-spot:checkout/controller');
+    expect(hot).toBeDefined();
+    expect(hot!.classRank).toBe(90); // below every T0 (10..50) and the other T1s (60..80)
+    expect(hot!.what).toBe("Node 'checkout/controller' is changing but has no rule covering it.");
+    expect(hot!.why).toContain('3 of the last 200 commits touched this node');
+    expect(hot!.why).toContain('the code most in motion has the least protection');
+    expect(hot!.next).toContain('propose an aspect or a coverage node');
+    expect(hot!.next).toContain('requires their approval');
+    expect(hot!.next).toContain(
+      'Evidence: src/checkout/controller.ts (last 200 commits, from git history).',
+    );
+    expect(hot!.evidenceHash).toMatch(HEX64);
+  });
+
+  it('does NOT nominate a node covered by a live enforced aspect, even with high churn', async () => {
+    const graph = await loadGraph(projectRoot);
+    // orders/order-service carries requires-audit (enforced llm) in the fixture.
+    const churnByNode = new Map([['orders/order-service', CH(9, ['src/orders/order.service.ts'])]]);
+    const noms = buildNominations(graph, { todayUtc: TODAY, churnByNode, churnWindow: 200 });
+    expect(noms.find((n) => n.id.startsWith('uncovered-hot-spot:'))).toBeUndefined();
+  });
+
+  it('does NOT nominate a zero-aspect node whose churn is 0 in the window', async () => {
+    const graph = await loadGraph(projectRoot);
+    const churnByNode = new Map([['users/user-repo', CH(0, [])]]);
+    const noms = buildNominations(graph, { todayUtc: TODAY, churnByNode, churnWindow: 200 });
+    expect(noms.find((n) => n.id === 'uncovered-hot-spot:users/user-repo')).toBeUndefined();
+  });
+
+  it('DOES nominate a node whose ONLY aspect is draft (draft enforces nothing) when it churns', async () => {
+    // Flip the fixture's requires-logging (auth/auth-api's only aspect) to draft.
+    appendFileSync(
+      path.join(projectRoot, '.yggdrasil', 'aspects', 'requires-logging', 'yg-aspect.yaml'),
+      '\nstatus: draft\n',
+      'utf-8',
+    );
+    const graph = await loadGraph(projectRoot);
+    const churnByNode = new Map([['auth/auth-api', CH(2, ['src/auth/auth.controller.ts'])]]);
+    const noms = buildNominations(graph, { todayUtc: TODAY, churnByNode, churnWindow: 200 });
+    expect(noms.find((n) => n.id === 'uncovered-hot-spot:auth/auth-api')).toBeDefined();
+  });
+
+  it('is SILENT when the churn source is unknown (no git / shallow clone → undefined)', async () => {
+    const graph = await loadGraph(projectRoot);
+    // No churnByNode at all → the class must not appear (never fabricated as 0-and-fired).
+    const noms = buildNominations(graph, { todayUtc: TODAY });
+    expect(noms.find((n) => n.id.startsWith('uncovered-hot-spot:'))).toBeUndefined();
+    // Also silent when the window is present but the map is absent (both-or-neither).
+    const noms2 = buildNominations(graph, { todayUtc: TODAY, churnWindow: 200 });
+    expect(noms2.find((n) => n.id.startsWith('uncovered-hot-spot:'))).toBeUndefined();
+  });
+
+  it('moves the evidence hash when churn changes, so a dismissed hot spot returns', async () => {
+    const graph = await loadGraph(projectRoot);
+    const hashAt = (churn: number) =>
+      buildNominations(graph, {
+        todayUtc: TODAY,
+        churnByNode: new Map([['checkout/controller', CH(churn, ['src/checkout/controller.ts'])]]),
+        churnWindow: 200,
+      }).find((n) => n.id === 'uncovered-hot-spot:checkout/controller')!.evidenceHash;
+    expect(hashAt(4)).not.toBe(hashAt(3));
   });
 });
 

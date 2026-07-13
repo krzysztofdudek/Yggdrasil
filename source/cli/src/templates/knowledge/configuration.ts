@@ -53,6 +53,11 @@ auto_approve: false               # Controls the behavior of bare yg check (with
 
 debug: false                      # When true, appends all command output to .yggdrasil/.debug.log (default: false)
                                   # Applies during yg check --approve or when auto_approve triggers a fill.
+
+signals:                          # Optional — attention-layer switches. Absent ⇒ every signal at its default.
+  attention: true                 #   attention (default true): the advisory "structurally unusual" note in
+                                  #   yg context --file. Set false to silence it. Must be a boolean; an
+                                  #   unknown key under signals: is rejected (a typo would silently leave it on).
 \`\`\`
 
 ## Reviewer tiers

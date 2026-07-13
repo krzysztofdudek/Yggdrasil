@@ -800,4 +800,73 @@ quality:
     });
   });
 
+  // signals — the attention-layer switch block (RZ-21). Tolerated when absent,
+  // strict-validated when present. Pins the parser contract the advisory
+  // "structurally unusual" note in yg context --file gates on.
+  describe('signals config key', () => {
+    /** Write a config body (already including a version) to a fresh tmp dir and parse it. */
+    async function parseWith(body: string): Promise<YggConfig> {
+      const dir = await mkdtemp(path.join(FIXTURES_DIR, 'tmp-config-signals-'));
+      const filePath = path.join(dir, 'yg-config.yaml');
+      await writeFile(filePath, `version: "5.1.0"\n${body}`, 'utf-8');
+      try {
+        return await parseConfig(filePath, { skipSecretsOverlay: true });
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    }
+
+    it('(a) a config with NO signals key parses unchanged — signals is undefined (attention defaults ON)', async () => {
+      const cfg = await parseWith('');
+      expect(cfg.signals).toBeUndefined();
+      // Default-ON contract: absent signals ⇒ attention !== false is true.
+      expect(cfg.signals?.attention !== false).toBe(true);
+    });
+
+    it('(b) signals: { attention: false } parses to attention === false (the off-switch)', async () => {
+      const cfg = await parseWith('signals:\n  attention: false\n');
+      expect(cfg.signals).toEqual({ attention: false });
+      expect(cfg.signals?.attention !== false).toBe(false);
+    });
+
+    it('signals: { attention: true } parses to attention === true (explicit ON)', async () => {
+      const cfg = await parseWith('signals:\n  attention: true\n');
+      expect(cfg.signals).toEqual({ attention: true });
+    });
+
+    it('an empty signals: {} mapping parses — attention undefined (still ON by default)', async () => {
+      const cfg = await parseWith('signals: {}\n');
+      expect(cfg.signals).toEqual({ attention: undefined });
+      expect(cfg.signals?.attention !== false).toBe(true);
+    });
+
+    it('(c) an UNKNOWN sibling under signals is REJECTED (strict — a typo must not silently leave the note on)', async () => {
+      await expect(parseWith('signals:\n  attetnion: false\n')).rejects.toThrow(ConfigParseError);
+      await expect(parseWith('signals:\n  verbose: true\n')).rejects.toThrow(
+        /unknown key 'verbose' under signals/,
+      );
+    });
+
+    it('signals.attention must be boolean — a non-boolean is rejected with the guided next step', async () => {
+      await expect(parseWith('signals:\n  attention: "yes"\n')).rejects.toThrow(
+        /signals\.attention must be a boolean/,
+      );
+      // The NEXT guidance is verbatim contract.
+      let captured: ConfigParseError | undefined;
+      try {
+        await parseWith('signals:\n  attention: 1\n');
+      } catch (e) {
+        captured = e as ConfigParseError;
+      }
+      expect(captured).toBeInstanceOf(ConfigParseError);
+      expect(captured?.messageData.next).toBe(
+        'Set signals.attention to true or false, or remove the signals key.',
+      );
+    });
+
+    it('signals must be a mapping — a scalar value is rejected', async () => {
+      await expect(parseWith('signals: on\n')).rejects.toThrow(/signals must be a mapping/);
+    });
+  });
+
 });

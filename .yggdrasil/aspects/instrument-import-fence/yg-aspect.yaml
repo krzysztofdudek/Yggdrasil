@@ -5,15 +5,21 @@ description: >-
   alias-proof bans, both fired only on a provable static import- or export-from:
   (a) the modules that shape the build's exit code, issue emission, and
   suggestedNext — cli/check.ts, core/check.ts, and cli/group-issues.ts — must NOT
-  import the structural-metrics core (core/graph-metrics) or the verdict-events
-  reader (io/events-reader); pulling ranking or telemetry into the gate would let
-  an instrument influence whether the build passes. (b) The read-only presentation
+  import the structural-metrics core (core/graph-metrics), the verdict-events
+  reader (io/events-reader), or the node-churn instrument (core/node-churn);
+  pulling ranking, telemetry, or churn into the gate would let an instrument
+  influence whether the build passes. (b) The read-only presentation
   commands — cli/structure.ts, cli/aspects.ts, cli/log.ts — must NOT import a
   YAML serializer; the codebase has no dedicated YAML-writer io helper, so the
   only YAML-write capability is the `yaml` package's serializer (stringify /
   stringifyDocument / Document, or a namespace/default import of `yaml`). These
-  commands report on the graph; they never rewrite it. errs: under — it fires
-  only on a provable static import.
+  commands report on the graph; they never rewrite it. (c) The feature-field
+  attention index: its READER (core/feature-index-read) is importable only by
+  cli/build-context.ts and cli/advise.ts, and its WRITER (core/feature-index-write)
+  only by core/check.ts — no other module, and no issue-emission / exit-code /
+  suggestedNext path, may pull either in, so read-only structural attention never
+  reaches a verdict. Test code is exempt. errs: under — it fires only on a
+  provable static import.
 errs: under
 status: enforced
 review_by: 2027-01-19

@@ -28,11 +28,23 @@ import {
 } from '../formatters/lock-issue-messages.js';
 // ── Relation-conformance (computed live, parse + resolve every run) ──
 import { runRelationPass } from '../relations/pass.js';
+import type { FileFacts } from '../relations/pass.js';
 import { extractorForLanguage } from '../relations/extractors/registry.js';
 import { astCacheDir } from '../relations/facts-cache.js';
 import { relationRefusedMessage } from '../relations/messages.js';
 import { makeResolvePathToFile } from '../relations/resolve-path.js';
 import { buildOwnerIndex } from '../relations/owner-index.js';
+// ── Silent feature-field deviation index (L3 attention) — the writer lives HERE ONLY,
+//    behind the runCheck fence (G2). cli/check.ts calls runAttentionDump, never the writer. ──
+import {
+  writeFeatureIndex,
+  computeFamilyDeviations,
+  groupByFamily,
+  median,
+  DIMS,
+  MIN_N,
+  Z_ADMIT,
+} from './feature-index-write.js';
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -201,7 +213,11 @@ async function classifyLogStateFromLock(
   issues: CheckIssue[],
 ): Promise<void> {
   for (const [nodePath] of graph.nodes) {
-    const logRel = `.yggdrasil/model/${nodePath}/log.md`;
+    // Normalize the node path for OUTPUT (what/next message text), mirroring the sibling
+    // classifyLogRequirement: nodePath is exempt from normalization only for graph-internal
+    // lookups, never for values rendered into stdout-facing strings (posix-paths-output).
+    const nodePathPosix = toPosixPath(nodePath);
+    const logRel = `.yggdrasil/model/${nodePathPosix}/log.md`;
     const logAbs = path.join(projectRoot, logRel);
     let logContent: string | null = null;
     try {
@@ -229,7 +245,7 @@ async function classifyLogStateFromLock(
         messageData: {
           what: `Log contains git conflict markers at ${logRel}`,
           why: 'A conflict-markered log.md cannot be validated; hand-stitching the two sides breaks the append-only integrity hashes — the merge must be reconciled structurally.',
-          next: `yg log merge-resolve --node ${nodePath}`,
+          next: `yg log merge-resolve --node ${nodePathPosix}`,
         },
         nodePath,
       });
@@ -501,17 +517,32 @@ function buildGitignoredCoveredIssues(offending: string[]): CheckIssue[] {
  * relation pass parses source locally but is keyless / makes no LLM calls.
  *
  * @param gitTrackedFiles -- pass null to skip unmapped-files check (no git available).
- * @param opts.nowUtc -- INJECTED clock for the review-cadence check (spec RZ-18).
+ * @param options.nowUtc -- INJECTED clock for the review-cadence check (spec RZ-18).
  *        When ABSENT the aspect-review-overdue check is SKIPPED entirely: core
  *        keeps no `Date.now`, so with no clock supplied there is no overdue
  *        signal. The CLI boundary always passes `() => new Date()`; tests pin a
  *        fixed clock. It is a read-only warning — it never writes the lock,
  *        changes a verdict, or gates `--approve`.
+ * @param options.writeFeatureIndex -- when true (set ONLY by cli/check.ts's report
+ *        path, default false everywhere else), write the SILENT feature-field
+ *        deviation index after the full issue set is computed. Best-effort and
+ *        byproduct-free: it never changes the issue set or the exit code, and the
+ *        four other runCheck call sites (portal, fill's re-checks) never set it.
+ * @param options.now -- INJECTED clock stamped into the index's `generatedAt`.
  */
+export interface RunCheckOptions {
+  /** INJECTED clock for the review-cadence check (spec RZ-18). Absent ⇒ that check is skipped. */
+  nowUtc?: () => Date;
+  /** Write the silent feature-field deviation index after issues are computed (default false). */
+  writeFeatureIndex?: boolean;
+  /** INJECTED clock for the index's `generatedAt`; defaults to `() => new Date()` when writing. */
+  now?: () => Date;
+}
+
 export async function runCheck(
   graph: Graph,
   gitTrackedFiles: string[] | null,
-  opts?: { nowUtc?: () => Date },
+  options?: RunCheckOptions,
 ): Promise<CheckResult> {
   const projectRoot = path.dirname(graph.rootPath);
 
@@ -526,11 +557,17 @@ export async function runCheck(
   // INJECTED clock. Absent clock ⇒ skip (no fabricated Date.now in core). Merged
   // into the issue set exactly like validationIssues; never blocks (warning) and
   // never touches the lock.
-  const reviewOverdueIssues: CheckIssue[] = opts?.nowUtc
-    ? checkReviewOverdue(graph, opts.nowUtc())
+  const reviewOverdueIssues: CheckIssue[] = options?.nowUtc
+    ? checkReviewOverdue(graph, options.nowUtc())
         .filter(vi => vi.code)
         .map(vi => ({ ...vi, code: vi.code! }))
     : [];
+
+  // Captured from the relation pass (run once below) for the optional feature-field index
+  // write. Stay null if the lock is invalid (the pass is skipped) — the best-effort index
+  // simply is not written that run.
+  let featureFactsByPath: Map<string, FileFacts> | null = null;
+  let featureHashByPath: Map<string, string> | null = null;
 
   // 2. Lock verification (replaces drift classification). Read the lock once.
   // A garbled/version/conflict-markered lock fails closed: emit one blocking
@@ -582,6 +619,10 @@ export async function runCheck(
       // per-file parse cache that skips the tree-sitter re-parse of unchanged files.
       symbolIndexDir: astCacheDir(graph.rootPath),
     });
+    // Capture the per-file feature facts + content hashes for the optional feature-field
+    // index write below (no extra parse — this is the same pass the relation check runs).
+    featureFactsByPath = relResult.factsByPath;
+    featureHashByPath = relResult.hashByPath;
     for (const [nodeId, nv] of relResult.violationsByNode) {
       if (nv.verdict !== 'refused') continue;
       lockIssues.push({
@@ -662,6 +703,24 @@ export async function runCheck(
   const advisoryWarnings = allIssues.filter(i => i.code === 'aspect-violation-advisory').length;
   const draftSkipped = countDraftAspectsAcrossGraph(graph);
 
+  // Silent feature-field deviation index (L3 attention). Written ONLY when the CLI report
+  // path requests it — AFTER the full issue set is assembled, so a write failure can never
+  // change the issue set or the exit code. `writeFeatureIndex` is internally best-effort
+  // (every error swallowed to debugWrite), so this never throws into the check.
+  //
+  // Scope the index to the repository's tracked, graph-governed universe — EXACTLY the set the
+  // coverage layer governs (tracked files minus nested-graph subtrees). This keeps attention off
+  // gitignored scratch or a nested-worktree copy that falls under a mapped ancestor directory.
+  // With no git set available (gitTrackedFiles === null) NO index is written — honest scoping.
+  if (options?.writeFeatureIndex && featureFactsByPath && featureHashByPath && gitTrackedFiles !== null) {
+    const includedPaths = new Set(
+      excludeNestedGraphSubtrees(gitTrackedFiles).map((f) => toPosixPath(f.trim())),
+    );
+    await writeFeatureIndex(graph, featureFactsByPath, featureHashByPath, includedPaths, {
+      now: options.now ?? (() => new Date()),
+    });
+  }
+
   return {
     projectName: path.basename(projectRoot),
     nodeCount: graph.nodes.size,
@@ -677,6 +736,103 @@ export async function runCheck(
     verifiedDet,
     verifiedLlm,
   };
+}
+
+// ── Calibration instrument: `--attention-dump` (writes nothing, exits 0) ──────
+
+/** Plain-language dimension labels for the calibration dump — deliberately NO statistics
+ *  jargon (no "z-score" / "MAD" / "percentile" in any user-facing string). */
+const DIM_LABEL: Record<string, string> = {
+  nodeCount: 'size',
+  depthQ25: 'nesting (shallow)',
+  depthQ50: 'nesting (middle)',
+  depthQ75: 'nesting (deep)',
+  'function-like': 'functions',
+  'class-like': 'classes',
+  'import-like': 'imports',
+  'branch-like': 'branches',
+  'call-like': 'calls',
+  'literal-like': 'literals',
+};
+
+/**
+ * The calibration instrument behind the hidden `--attention-dump` flag. Runs the relation
+ * pass over WARM shards (no new parse — it HITs the AST fact cache), computes candidate
+ * deviations at the CURRENT `Z_ADMIT`, and returns a plain-language report: each file's raw
+ * structural counts grouped by family, with the outliers marked "worth a closer read". It
+ * writes NOTHING and makes no LLM calls — it is a read-only lens used to re-calibrate the
+ * threshold. Returns the formatted string; the CLI prints it and exits 0.
+ *
+ * `gitTrackedFiles` scopes the universe to the same tracked, graph-governed set the written
+ * index uses (the CLI layer supplies it — the same `git ls-files`-equivalent walk the report
+ * path uses — so core never shells out to git). A gitignored / scratch file that falls under a
+ * mapped ancestor directory is never shown.
+ */
+export async function runAttentionDump(graph: Graph, gitTrackedFiles: string[]): Promise<string> {
+  const projectRoot = path.dirname(graph.rootPath);
+  const ownerOf = buildOwnerIndex(graph.nodes).ownerOf;
+  const relResult = await runRelationPass(graph, projectRoot, {
+    extractorFor: extractorForLanguage,
+    resolvePathToFile: makeResolvePathToFile(projectRoot, ownerOf),
+    symbolIndexDir: astCacheDir(graph.rootPath),
+  });
+  const includedPaths = new Set(
+    excludeNestedGraphSubtrees(gitTrackedFiles).map((f) => toPosixPath(f.trim())),
+  );
+  const deviations = computeFamilyDeviations(relResult.factsByPath, ownerOf, relResult.hashByPath, includedPaths);
+  const dimGet = new Map(DIMS.map((d) => [d.dim, d.get] as const));
+
+  // Group every parsed file's raw vector by family — the SAME grouping the index writer uses
+  // (shared helper, so the dump and the written index can never drift on cohort membership).
+  const families = groupByFamily(relResult.factsByPath, ownerOf, includedPaths);
+
+  const out: string[] = [];
+  out.push('Structural feature field — calibration view (read-only; nothing is written).');
+  out.push('');
+  out.push("Each file's raw structural counts are compared only against its node's other");
+  out.push('same-language files. A file is called "worth a closer read" when it sits far from');
+  out.push('its neighbours on some dimension. This is a local hint on a small sample — never a');
+  out.push('verdict, and it never affects whether your build passes.');
+  out.push(
+    `Sensitivity in effect: ${Z_ADMIT} (higher flags fewer, more extreme files); a group needs at ` +
+      `least ${MIN_N} same-language files before anything is compared at all.`,
+  );
+  out.push('');
+
+  if (families.size === 0) {
+    out.push('No node owns any parsed source files yet — nothing to compare.');
+    return `${out.join('\n')}\n`;
+  }
+
+  for (const key of [...families.keys()].sort((a, b) => a.localeCompare(b, 'en'))) {
+    const members = families.get(key)!;
+    const [owner, language] = key.split('\x00');
+    const tooFew = members.length < MIN_N;
+    const note = tooFew ? ' — too few files to compare; nothing flagged here' : '';
+    out.push(`${owner} · ${language}  (${members.length} file${members.length === 1 ? '' : 's'}${note})`);
+    for (const m of [...members].sort((a, b) => a.path.localeCompare(b.path, 'en'))) {
+      const c = m.fv.categories;
+      out.push(`  ${m.path}`);
+      out.push(
+        `      size=${m.fv.nodeCount} nest=${m.fv.depthQuartiles.join('/')} ` +
+          `fn=${c['function-like']} cls=${c['class-like']} imp=${c['import-like']} ` +
+          `br=${c['branch-like']} call=${c['call-like']} lit=${c['literal-like']}`,
+      );
+      const dev = deviations.get(m.path);
+      if (dev !== undefined) {
+        const flags = dev.deviations.map((d) => {
+          const get = dimGet.get(d.dim)!;
+          const value = get(m.fv);
+          const med = median(members.map((mm) => get(mm.fv)));
+          const direction = value >= med ? 'high' : 'low';
+          return `${DIM_LABEL[d.dim] ?? d.dim} unusually ${direction} (${value}; neighbours ~${med})`;
+        });
+        out.push(`      → worth a closer read: ${flags.join('; ')}`);
+      }
+    }
+    out.push('');
+  }
+  return `${out.join('\n')}\n`;
 }
 
 // ── Internal helpers ───────────────────────────────────────
@@ -755,13 +911,15 @@ export function computeSuggestedNext(issues: CheckIssue[]): string | null {
   // 5b. log integrity / format.
   const logIntegrity = errors.find(i => i.code === 'log-integrity');
   if (logIntegrity) {
-    const node = logIntegrity.nodePath ?? '<unknown>';
+    // Normalize the node path for the printed command (posix-paths-output): the structured
+    // field stays raw, but any path written into stdout uses forward slashes.
+    const node = toPosixPath(logIntegrity.nodePath ?? '<unknown>');
     const count = errors.filter(i => i.code === 'log-integrity').length;
     return `git checkout HEAD -- .yggdrasil/model/${node}/log.md .yggdrasil/yg-lock.logs.json\n  ${count} log integrity violation${count === 1 ? '' : 's'} — restore from git`;
   }
   const logFormat = errors.find(i => i.code === 'log-format');
   if (logFormat) {
-    const node = logFormat.nodePath ?? '<unknown>';
+    const node = toPosixPath(logFormat.nodePath ?? '<unknown>');
     const count = errors.filter(i => i.code === 'log-format').length;
     return `Edit .yggdrasil/model/${node}/log.md to fix format violations\n  ${count} log format violation${count === 1 ? '' : 's'} — post-baseline edit OR git checkout for pre-baseline`;
   }
@@ -787,7 +945,7 @@ export function computeSuggestedNext(issues: CheckIssue[]): string | null {
     const then = coverageErrors.length > 0
       ? `\n  Then: ${coverageErrors[0].uncoveredCount ?? 0} files need coverage`
       : '';
-    return `Fix ${first.code} in ${first.nodePath ?? '.yggdrasil'}\n  1 of ${structuralErrors.length} structural error${structuralErrors.length === 1 ? '' : 's'}${then}`;
+    return `Fix ${first.code} in ${toPosixPath(first.nodePath ?? '.yggdrasil')}\n  1 of ${structuralErrors.length} structural error${structuralErrors.length === 1 ? '' : 's'}${then}`;
   }
 
   // 8. coverage.
@@ -800,7 +958,7 @@ export function computeSuggestedNext(issues: CheckIssue[]): string | null {
   const completenessErrors = errors.filter(i => COMPLETENESS_CODES.has(i.code));
   if (completenessErrors.length > 0) {
     const first = completenessErrors[0];
-    return `Fix ${first.code} for ${first.nodePath}\n  1 of ${completenessErrors.length} completeness error${completenessErrors.length === 1 ? '' : 's'} — post-modify workflow`;
+    return `Fix ${first.code} for ${toPosixPath(first.nodePath ?? '')}\n  1 of ${completenessErrors.length} completeness error${completenessErrors.length === 1 ? '' : 's'} — post-modify workflow`;
   }
 
   // 10. Any remaining error — architecture/strict codes outside the categories
