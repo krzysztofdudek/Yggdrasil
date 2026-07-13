@@ -49,6 +49,7 @@ export default defineConfig({
           { text: "Configuration", link: "/configuration" },
           { text: "CLI Reference", link: "/cli-reference" },
           { text: "Running in Parallel", link: "/concurrency" },
+          { text: "Structural Attention", link: "/feature-field" },
           { text: "Supported Platforms", link: "/platforms" },
         ],
       },

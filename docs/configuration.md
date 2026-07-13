@@ -31,6 +31,7 @@ refreshes the rules and platform files.
 - **parallel** — How many **LLM (reviewer) verifications** run concurrently (positive integer, default `1`). Governs only the reviewer fill phase, where the cost is network latency. Deterministic checks ignore it — they are CPU-bound and run across a worker-thread pool sized automatically from your machine's cores (no configuration; never affects verdicts, only speed).
 - **debug** — Set `true` to append all CLI output to `.yggdrasil/.debug.log`.
 - **auto_approve** — Auto-fill mode for bare `yg check` (default `false`; see [Auto-approve config](#auto-approve-config) below).
+- **signals** — Attention-layer switches (optional). Its only key today is `attention` (default `true`): the advisory "structurally unusual" note in `yg context --file`. Set `false` to silence it. See [Signals](#signals) below and [Structural attention](/feature-field).
 
 Node types are defined in the separate **architecture file** (`.yggdrasil/yg-architecture.yaml`),
 not in `yg-config.yaml`.
@@ -65,6 +66,9 @@ quality:
 parallel: 10                          # Concurrent LLM verifications (reviewer phase only)
 debug: false
 auto_approve: false   # false (default) | deterministic | full
+
+signals:                              # Optional — attention-layer switches
+  attention: true                     # The "structurally unusual" note in yg context --file (default true)
 ```
 
 ---
@@ -334,6 +338,29 @@ When a fill triggered by `auto_approve` produces a PASS, the result line shows
 # .yggdrasil/yg-config.yaml
 auto_approve: deterministic   # fill the deterministic cache automatically on bare yg check
 ```
+
+---
+
+## Signals
+
+`signals` is an optional section that turns attention-layer hints on or off. It
+is absent by default, which leaves every signal at its default.
+
+| Key | Type | Default | Effect |
+| --- | --- | --- | --- |
+| `attention` | boolean | `true` | The advisory "structurally unusual" note in `yg context --file`. Set `false` to silence it. |
+
+```yaml
+# .yggdrasil/yg-config.yaml
+signals:
+  attention: false   # silence the "structurally unusual" note in yg context --file
+```
+
+The note is purely advisory: it never blocks a check and never changes any
+verification result whether it is on or off. `attention` must be a boolean, and
+`signals` accepts no other key — a misspelled key is rejected so a typo can't
+silently leave the note enabled. See [Structural attention](/feature-field) for
+what the note means and its honest limits.
 
 ---
 
