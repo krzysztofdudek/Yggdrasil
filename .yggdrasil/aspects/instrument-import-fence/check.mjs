@@ -19,9 +19,10 @@ import { walk, report } from '@chrisdudek/yg/ast';
  *
  *   (a) The GATING modules — the ones that shape the exit code, issue emission,
  *       and suggestedNext — must not import the structural-metrics core
- *       (core/graph-metrics) or the verdict-events reader (io/events-reader).
- *       Ranking and telemetry are instruments; letting either into the gate
- *       would let an instrument decide whether the build passes.
+ *       (core/graph-metrics), the verdict-events reader (io/events-reader), or the
+ *       node-churn instrument (core/node-churn). Ranking, telemetry, and churn are
+ *       all read-only instruments; letting any of them into the gate would let an
+ *       instrument decide whether the build passes.
  *
  *   (b) The read-only PRESENTATION commands must not import OR re-export a YAML
  *       serializer. There is no dedicated YAML-writer io helper in this codebase
@@ -53,6 +54,7 @@ const GATING_MODULES = new Set([
 const FORBIDDEN_ON_GATING = [
   { re: /(^|\/)graph-metrics(\.js)?$/, label: 'the structural-metrics core (core/graph-metrics)' },
   { re: /(^|\/)events-reader(\.js)?$/, label: 'the verdict-events reader (io/events-reader)' },
+  { re: /(^|\/)node-churn(\.js)?$/, label: 'the node-churn instrument (core/node-churn)' },
 ];
 
 /** Read-only presentation commands that must never gain YAML-write capability. */

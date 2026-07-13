@@ -149,6 +149,24 @@ describe('instrument-import-fence — feature-field clause (c)', () => {
     expect(flagged.has('source/cli/src/core/check.ts')).toBe(true);
   });
 
+  it('gating clause (a): a gating module may not import the node-churn instrument (and node-churn.ts is real)', async () => {
+    // node-churn is a read-only signal input (only cli/advise.ts imports it today). The
+    // fence bans it on the gating path for parity with graph-metrics and events-reader —
+    // an instrument can never decide whether the build passes. Self-test the glob is not
+    // dead: the real module must exist, and the ban must fire on a gating module keyed on
+    // its actual filename while leaving a non-gating importer (cli/advise.ts) alone.
+    expect(existsSync(path.join(REPO_ROOT, 'source/cli/src/core/node-churn.ts'))).toBe(true);
+    const IMPORT_CHURN = `import { countChurnByNode } from '../core/node-churn.js';\nexport const c = countChurnByNode;\n`;
+    writeSource('source/cli/src/cli/group-issues.ts', IMPORT_CHURN); // gating module — FLAGGED
+    writeSource('source/cli/src/cli/advise.ts', IMPORT_CHURN); // non-gating importer — allowed
+    const flagged = await runGuard([
+      'source/cli/src/cli/group-issues.ts',
+      'source/cli/src/cli/advise.ts',
+    ]);
+    expect(flagged.has('source/cli/src/cli/group-issues.ts')).toBe(true);
+    expect(flagged.has('source/cli/src/cli/advise.ts')).toBe(false);
+  });
+
   it('self-test: BOTH guarded modules exist in this repo (the guard globs are not dead)', () => {
     // If either module were renamed/removed without updating the guard, the fence would
     // be silently vacuous. Assert both real files exist AND that the guard flags a

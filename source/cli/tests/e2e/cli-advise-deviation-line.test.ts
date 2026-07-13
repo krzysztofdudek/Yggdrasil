@@ -12,6 +12,14 @@
 //   1. 2 live entries + 1 stale (hash mismatch) → the verbatim line with M = 2
 //   2. an empty index (files: {})               → the line is OMITTED (no "0 files")
 //   3. no index file at all                      → the line is OMITTED
+//   4. live entries + signals.attention: false  → the line is OMITTED (off-switch)
+//   5. live entries + signals.attention: true   → the line is SHOWN (explicit on)
+//
+// Scenarios 4/5 pin the off-switch: `signals.attention: false` silences the per-file
+// note in `yg context --file`, and the same switch must silence the `yg advise` C8
+// aggregate that points the reader at that surface — otherwise the feed would steer a
+// user toward a view they disabled. Scenario 1 already covers the default (key absent
+// ⇒ ON); 4/5 guard both explicit directions.
 // =============================================================================
 
 import { describe, it, expect } from 'vitest';
@@ -79,6 +87,31 @@ function writeIndex(dir: string, files: Record<string, unknown>): void {
   w(dir, INDEX_REL, JSON.stringify({ v: 1, generatedAt: '2026-01-01T00:00:00.000Z', files }));
 }
 
+/**
+ * Rewrite the fixture config with an explicit signals.attention switch. Keeps the
+ * same reviewer tier makeFixture writes so the graph still loads; only adds the
+ * top-level `signals:` block that governs the structural-attention off-switch.
+ */
+function setSignalsAttention(dir: string, attention: boolean): void {
+  w(
+    dir,
+    '.yggdrasil/yg-config.yaml',
+    `reviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\nsignals:\n  attention: ${attention}\n`,
+  );
+}
+
+/** Two live index entries over two real source files — enough to fire the C8 line. */
+function seedTwoLiveEntries(dir: string): void {
+  const a = 'export const a = 1;\n';
+  const b = 'export const b = 2;\n';
+  w(dir, 'src/svc/a.ts', a);
+  w(dir, 'src/svc/b.ts', b);
+  writeIndex(dir, {
+    'src/svc/a.ts': { contentHash: contentHash(a), family: 'svc\x00typescript', deviations: DEV },
+    'src/svc/b.ts': { contentHash: contentHash(b), family: 'svc\x00typescript', deviations: DEV },
+  });
+}
+
 describe.skipIf(!distExists)('CLI E2E — yg advise C8 structural-deviation line', () => {
   it('1. shows the verbatim line with M = 2 when 2 entries are live and 1 is stale (exit 0)', () => {
     const dir = makeFixture('live');
@@ -135,6 +168,39 @@ describe.skipIf(!distExists)('CLI E2E — yg advise C8 structural-deviation line
       const { status, stdout } = run(['advise'], dir);
       expect(status).toBe(0);
       expect(stdout).not.toContain('deviate structurally');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('4. omits the line when signals.attention is false, even with live entries (off-switch), exit 0', () => {
+    const dir = makeFixture('off');
+    try {
+      gitInit(dir);
+      seedTwoLiveEntries(dir);
+      setSignalsAttention(dir, false);
+      const { status, stdout } = run(['advise'], dir);
+      expect(status).toBe(0); // never gates (G4)
+      // The same off-switch that silences the per-file note in `yg context --file`
+      // silences the aggregate that points there.
+      expect(stdout).not.toContain('deviate structurally');
+      expect([...stdout.matchAll(C8_RE)]).toHaveLength(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('5. shows the line when signals.attention is explicitly true, exit 0', () => {
+    const dir = makeFixture('on');
+    try {
+      gitInit(dir);
+      seedTwoLiveEntries(dir);
+      setSignalsAttention(dir, true);
+      const { status, stdout } = run(['advise'], dir);
+      expect(status).toBe(0);
+      const matches = [...stdout.matchAll(C8_RE)];
+      expect(matches).toHaveLength(1); // explicit on keeps the C8 line
+      expect(Number(matches[0][1])).toBe(2);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -2,7 +2,7 @@
   "version": 1,
   "verdicts": {
     "cli-command-contract": {
-      "file:source/cli/src/cli/advise.ts": {"hash":"976ef0ec1f44edcd338dcf032120ec6cabd41dc4f59b677f29146cfd2d4c5ec8","verdict":"approved"},
+      "file:source/cli/src/cli/advise.ts": {"hash":"87a8fe909ccdfe2f9bfa2b23c22d9e205fafea01d28e549e96dae9c225cc6007","verdict":"approved"},
       "file:source/cli/src/cli/aspect-test.ts": {"hash":"70fb3c849a334580ae31504b3588754af26465bb08f5cb9ab914edaf92f226a8","verdict":"approved"},
       "file:source/cli/src/cli/aspects.ts": {"hash":"5f16364f2e5e74e40b6b95edf0947cd700526eea1c72c819437ce7b6fe3f5340","verdict":"approved"},
       "file:source/cli/src/cli/build-context.ts": {"hash":"58f34c8e5332383901b5eea589fc1cd76779b1e598f3631de2d846a718aa31f3","verdict":"approved"},
@@ -152,7 +152,7 @@
       "file:source/cli/src/structure/types.ts": {"hash":"01c07ef77a28b579f4af4d5f12941e2c65449f236faf724d0be077edbd1a1aee","verdict":"approved"}
     },
     "diagnostic-logging": {
-      "file:source/cli/src/cli/advise.ts": {"hash":"62db3392caa2b6fa0862eda16a59003056173d46f5d77f6b8e52dd3a29f9d915","verdict":"approved"},
+      "file:source/cli/src/cli/advise.ts": {"hash":"c23a9dc5407d7aaf0abc5defbd3e627a662b78deb93851b6bb48edce813cd29a","verdict":"approved"},
       "file:source/cli/src/cli/aspect-test.ts": {"hash":"b2618b17b7f1b80f2a05098c65519d8f4a8a4c56ce3fede0fddbb8b6ca34e328","verdict":"approved"},
       "file:source/cli/src/cli/aspects.ts": {"hash":"04b59ce72d68a40995c316bf02ac9084b70816e17503d24e1f9ef5bd2a00fb76","verdict":"approved"},
       "file:source/cli/src/cli/build-context.ts": {"hash":"2d246e680b354c21eeca542ed858ea1c2ceff6ea8e8d1dbe37e5c51b338de8c4","verdict":"approved"},
@@ -324,7 +324,7 @@
       "node:cli/io/stores": {"hash":"bab6aa66ff4881380cbb1ce60dbedc854d4a53cb1f7435c20a3719356d934a12","verdict":"approved"}
     },
     "test-deterministic": {
-      "file:source/cli/tests/e2e/cli-advise-deviation-line.test.ts": {"hash":"5675a96d4b635626050203f18f49405e5cb9a362333af67cc13f11a04498fe00","verdict":"approved"},
+      "file:source/cli/tests/e2e/cli-advise-deviation-line.test.ts": {"hash":"d139b4f206dea45fde9546b118b7c4f15e24bbc7cff25fd1cefd605fcd094c40","verdict":"approved"},
       "file:source/cli/tests/e2e/cli-advise-hot-spot.test.ts": {"hash":"682c3ea4c24d00fdc75465d02ae4b7fcd27bca3707c694939bd07a281c668335","verdict":"approved"},
       "file:source/cli/tests/e2e/cli-architecture-classification.test.ts": {"hash":"505c48f4801a1f0ef45c6dd303e174dcdb081a271272f00fd01af54c300ee8d9","verdict":"approved"},
       "file:source/cli/tests/e2e/cli-architecture-relation-defaults.test.ts": {"hash":"b647a33de92a91dd40937dc1490ec9c56bdc46194017d0b1ab528293d6fd45c0","verdict":"approved"},
@@ -674,7 +674,7 @@
       "file:source/cli/tests/unit/io/flow-parser-status.test.ts": {"hash":"1f8c59e1bfbef1f78b8d5b77ddf253c4c984d6b169fa6e2b73514cc5e4352d05","verdict":"approved"},
       "file:source/cli/tests/unit/io/flow-parser.test.ts": {"hash":"853b141bed5bab136f9515509b97dc13bf50931ded77c4078f83941381fe32b5","verdict":"approved"},
       "file:source/cli/tests/unit/io/hash.test.ts": {"hash":"b2b11259374b7c9088fe8987dd6754d32a5f55632f55212bb3ab2ebcd76c556f","verdict":"approved"},
-      "file:source/cli/tests/unit/io/instrument-import-fence.test.ts": {"hash":"49480b0bcac5c91087350350b5a692f7efc619fc9e1c8beaceb8e98bd984fba5","verdict":"approved"},
+      "file:source/cli/tests/unit/io/instrument-import-fence.test.ts": {"hash":"f87ad7fdcdbd019f702156800733d7ee93738b926f5a1e9b54afe13c0e0ec2e7","verdict":"approved"},
       "file:source/cli/tests/unit/io/lock-store-migration.test.ts": {"hash":"c4e7d09fef2c802fa9aeb6787fdbd9305712207a934d8c43907dfd845315a6b3","verdict":"approved"},
       "file:source/cli/tests/unit/io/lock-store.test.ts": {"hash":"15fffa8b82c10440c529868e6d4a49366c4236fb65e0657cbdd2d1add1a01fcd","verdict":"approved"},
       "file:source/cli/tests/unit/io/log-parser.test.ts": {"hash":"d1de7f835eafbf697bda4d10d0dcbdff995da7fc18b5cab3a5349e2ac9ebd658","verdict":"approved"},

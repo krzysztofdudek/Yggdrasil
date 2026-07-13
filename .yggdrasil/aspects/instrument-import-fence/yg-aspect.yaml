@@ -5,9 +5,10 @@ description: >-
   alias-proof bans, both fired only on a provable static import- or export-from:
   (a) the modules that shape the build's exit code, issue emission, and
   suggestedNext — cli/check.ts, core/check.ts, and cli/group-issues.ts — must NOT
-  import the structural-metrics core (core/graph-metrics) or the verdict-events
-  reader (io/events-reader); pulling ranking or telemetry into the gate would let
-  an instrument influence whether the build passes. (b) The read-only presentation
+  import the structural-metrics core (core/graph-metrics), the verdict-events
+  reader (io/events-reader), or the node-churn instrument (core/node-churn);
+  pulling ranking, telemetry, or churn into the gate would let an instrument
+  influence whether the build passes. (b) The read-only presentation
   commands — cli/structure.ts, cli/aspects.ts, cli/log.ts — must NOT import a
   YAML serializer; the codebase has no dedicated YAML-writer io helper, so the
   only YAML-write capability is the `yaml` package's serializer (stringify /

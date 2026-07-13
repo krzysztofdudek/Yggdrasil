@@ -462,7 +462,14 @@ export function registerAdviseCommand(program: Command): void {
         const { visible, hidden } = applyDecisions(noms, readDecisions(graph.rootPath).decisions, now);
 
         const tunnelCount = await computeTunnelCount(graph);
-        const deviationCount = computeDeviationCount(graph);
+        // The C8 structural-deviation line points the reader at `yg context --file`,
+        // the exact surface that `signals.attention: false` silences (absent `signals`
+        // ⇒ ON, mirroring cli/build-context.ts). Honor the SAME off-switch here: when
+        // attention is disabled, skip the index read and pass 0 so buildAttention omits
+        // the C8 line rather than pointing at a surface the user turned off. The C7
+        // tunnels line is unrelated to signals.attention and is always shown.
+        const deviationCount =
+          graph.config.signals?.attention !== false ? computeDeviationCount(graph) : 0;
         const attention = buildAttention({ tunnelCount, deviationCount });
 
         const output = [
