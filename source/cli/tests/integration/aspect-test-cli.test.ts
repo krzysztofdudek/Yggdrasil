@@ -500,6 +500,68 @@ export function check(ctx) {
     expect(stderr).not.toContain('is not attached to node');
   });
 
+  it('--node deterministic: prints NO note on an ORGANIZATIONAL/fileless node whose aspect cascades (regression)', () => {
+    // An organizational node (module type, NO own mapping) can carry an aspect
+    // that is genuinely effective — its pairs materialize at file-bearing
+    // DESCENDANTS via cascade, never at the fileless parent itself. Attachment
+    // must be decided by effectiveness (the full 7-channel cascade), not by "a
+    // pair exists at this exact node"; the latter falsely reads the parent as
+    // "not attached" because it owns no files and thus no pair of its own.
+    writeAspect(
+      projectRoot,
+      'cascade',
+      `name: Cascade\ndescription: cascade\nreviewer:\n  type: deterministic\n`,
+      `export function check(ctx) { return []; }\n`,
+    );
+    // Parent ORG node: module, NO mapping, owns `cascade` (channel 1 — own).
+    mkdirSync(path.join(projectRoot, '.yggdrasil', 'model', 'ORG', 'CH'), {
+      recursive: true,
+    });
+    writeFileSync(
+      path.join(projectRoot, '.yggdrasil', 'model', 'ORG', 'yg-node.yaml'),
+      `name: Org\ntype: module\naspects:\n  - cascade\n`,
+    );
+    // File-bearing child: the aspect's pair materializes HERE, proving `cascade`
+    // is genuinely effective across the ORG subtree even though ORG has no file.
+    writeFileSync(path.join(projectRoot, 'src', 'b.ts'), 'export const y = 2;\n');
+    writeFileSync(
+      path.join(projectRoot, '.yggdrasil', 'model', 'ORG', 'CH', 'yg-node.yaml'),
+      `name: Child\ntype: module\nmapping:\n  - src/b.ts\n`,
+    );
+    const { stdout, stderr, status } = run(
+      ['aspect-test', '--aspect', 'cascade', '--node', 'ORG'],
+      projectRoot,
+    );
+    expect(status).toBe(0);
+    // ORG bears no files → the ad-hoc structure run finds nothing to flag.
+    expect(stdout).toContain('No violations.');
+    // Effective via the own-attach cascade, though ORG has no pair of its own.
+    expect(stderr).not.toContain('is not attached to node');
+  });
+
+  it('--node deterministic: a DRAFT aspect attached to its own node reads as attached (no note)', () => {
+    // includeDraft parity: draft is a STATUS, not an attach channel. A draft
+    // aspect attached to a node is still effective on it (status gates the
+    // lock/fill, never this diagnostic), so testing it on its own node must
+    // NOT print the "not attached" note.
+    writeAspect(
+      projectRoot,
+      'draft-attached',
+      `name: DraftAttached\ndescription: draft attached\nreviewer:\n  type: deterministic\nstatus: draft\n`,
+      `export function check(ctx) { return []; }\n`,
+    );
+    writeFileSync(
+      path.join(projectRoot, '.yggdrasil', 'model', 'N', 'yg-node.yaml'),
+      `name: NodeN\ntype: module\naspects:\n  - draft-attached\nmapping:\n  - src/a.ts\n`,
+    );
+    const { stderr, status } = run(
+      ['aspect-test', '--aspect', 'draft-attached', '--node', 'N'],
+      projectRoot,
+    );
+    expect(status).toBe(0);
+    expect(stderr).not.toContain('is not attached to node');
+  });
+
   // --- --files mode (AST runner + AST renderer) ----------------------------
 
   it('--files prints "No violations." and exits 0 for a clean file', () => {
