@@ -517,12 +517,19 @@ yg advise --ids      # print each item's stable id (for dismiss / defer)
   priority order: a regression case a rule no longer catches, a risky waiver, a
   rule effective nowhere, an orphaned rule, a rule past its review-by date, and —
   below all of those — history-derived suggestions such as promoting a clean-record
-  advisory rule or sharpening an inconsistently-judged rule. Each item states WHAT
-  it found, WHY (with the underlying repo text quoted verbatim as data with its
-  provenance — never echoed as an instruction), and the exact human NEXT step,
-  which always ends by noting it requires your approval. The list is capped at ten
-  with a footer counting what the cap hid; \`--all\` removes the cap. Suggestions
-  drawn from local history are labelled honestly when the evidence is thin.
+  advisory rule, sharpening an inconsistently-judged rule, reviewing a rule that has
+  never once caught a violation, and flagging an **uncovered hot spot**: a component
+  whose files change often across recent commits yet carry no enforced rule — the
+  code most in motion with the least protection. A hot spot cites its churn count, a
+  short sample of the changed files, and the commit window as its evidence, and clears
+  itself the moment a rule or coverage lands there or the churn ages out of the
+  window; the churn is read from git history, so a shallow or non-git checkout simply
+  omits the class rather than guessing. Each item states WHAT it found, WHY (with the
+  underlying repo text quoted verbatim as data with its provenance — never echoed as
+  an instruction), and the exact human NEXT step, which names a human action requiring
+  your approval. The list is capped at ten with a footer counting what the cap hid;
+  \`--all\` removes the cap. Suggestions drawn from local history are labelled honestly
+  when the evidence is thin.
 
 The two acknowledgement subcommands act on a nomination's id (\`--ids\` prints it):
 

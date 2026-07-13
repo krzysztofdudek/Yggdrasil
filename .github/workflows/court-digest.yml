@@ -26,6 +26,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Full history: the advise hot-spot signal counts commits over a 200-commit
+          # window, and it goes silent on a shallow clone (a truncated window would
+          # miscount). Mirror ci.yml so the weekly digest runs on complete history.
+          fetch-depth: 0
       - uses: actions/setup-node@v6
         with:
           node-version: 22

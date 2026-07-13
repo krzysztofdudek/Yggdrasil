@@ -31,10 +31,12 @@
  *     overdue review_by.
  *   T1 (from local telemetry, thin-data honesty labels — RZ-21): promotion
  *     (an advisory rule with a clean recorded record), sharpen (a rule the
- *     reviewer judged the SAME input inconsistently under --repeat), and
- *     decorative-rule (an enforceable rule never once violated at exposure, whose
- *     independent corroborating signals agree it may be safe to demote — under the
- *     anti-Goodhart covenant). Every T1 class ranks BELOW every T0 class.
+ *     reviewer judged the SAME input inconsistently under --repeat), decorative-rule
+ *     (an enforceable rule never once violated at exposure, whose independent
+ *     corroborating signals agree it may be safe to demote — under the anti-Goodhart
+ *     covenant), and uncovered-hot-spot (a node whose mapped source churns yet has no
+ *     enforced rule covering it — churn signal from git history, injected). Every T1
+ *     class ranks BELOW every T0 class.
  */
 
 import type { Graph } from '../model/graph.js';
@@ -42,6 +44,7 @@ import type { AspectDef } from '../model/graph.js';
 import type { ValidationIssue } from '../model/validation.js';
 import { checkReviewOverdue, checkAspectEffectiveNowhere } from './checks/aspect-contracts.js';
 import { checkOrphanedAspects } from './checks/aspects.js';
+import { hasNonDraftEffectiveAspects } from './graph/aspects.js';
 import { ruleHashFor } from './pair-inputs.js';
 import { hashString } from '../io/hash.js';
 import { computeAspectHealthSignals } from './aspect-health-signals.js';
@@ -107,12 +110,23 @@ export interface NominationSources {
    * not run.
    */
   suppressCountsByAspect?: Map<string, number>;
+  /**
+   * Per-node churn (window commit counts + a capped file sample) assembled at the
+   * CLI boundary from git history, paired with `churnWindow` (the window those
+   * counts were measured over). BOTH absent → churn is UNKNOWN (no git / shallow
+   * clone) → the uncovered-hot-spot class is SILENT, never fabricated as
+   * zero-and-fired or churn-present. Both present → the class runs.
+   */
+  churnByNode?: Map<string, { churn: number; files: string[] }>;
+  /** The window size (commits) the churn counts were measured over; see churnByNode. */
+  churnWindow?: number;
 }
 
 /**
  * Class precedence per source (lower = higher priority). Spec §7.2:
  *   drill-MISS > suppress anomaly > dead-attach > orphaned > overdue review_by,
- * with EVERY T1 class (promotion, sharpen) below EVERY T0 class.
+ * with EVERY T1 class (promotion, sharpen, decorative-rule, uncovered-hot-spot)
+ * below EVERY T0 class.
  */
 const CLASS_RANK = {
   drillMiss: 10,
@@ -124,6 +138,7 @@ const CLASS_RANK = {
   promotion: 60,
   sharpen: 70,
   decorativeRule: 80,
+  uncoveredHotSpot: 90,
 } as const;
 
 /** Promotion needs at least this many recorded clean approvals to be nominated. */
@@ -513,6 +528,69 @@ function decorativeRuleNominations(
 }
 
 // ---------------------------------------------------------------------------
+// T1 — uncovered hot spot (a node that changes often but has no rule covering it)
+// ---------------------------------------------------------------------------
+
+/**
+ * Nominate a node as an "uncovered hot spot" when its mapped source changed in the
+ * window (churn > 0) yet it has ZERO effective non-draft aspects — the code most in
+ * motion has the least protection. The zero-aspect test reuses the single canonical
+ * effective-aspect query (hasNonDraftEffectiveAspects), so the full 7-channel
+ * cascade, every `when` predicate, and draft semantics are honoured exactly as the
+ * verifier sees them: a node whose ONLY aspect is draft still counts as uncovered
+ * (draft enforces nothing). Self-clearing — the item disappears the moment a rule or
+ * coverage lands (the node stops being zero-aspect) OR its churn ages out of the
+ * window. The churn evidence (count, capped file sample, provenance) is rendered as
+ * QUOTED DATA (RZ-5), never as an instruction. The signature stays human — the item
+ * proposes adding coverage; the user decides.
+ */
+function hotSpotNominations(
+  graph: Graph,
+  churnByNode: Map<string, { churn: number; files: string[] }>,
+  window: number,
+  todayIso: string,
+): Nomination[] {
+  const out: Nomination[] = [];
+  for (const [nodeId, { churn, files }] of churnByNode) {
+    if (churn <= 0) continue;
+    const node = graph.nodes.get(nodeId);
+    if (node === undefined) continue; // ownerOf resolved a live node; defensive only
+    if (hasNonDraftEffectiveAspects(node, graph)) continue; // a live rule covers it ⇒ not a hot spot
+
+    const nodeQ = quoteData(nodeId);
+    const fileSample = files.map((f) => quoteData(f)).join(', ');
+    const provenance = `last ${window} commits, from git history`;
+    const evidence = fileSample !== '' ? `${fileSample} (${provenance})` : provenance;
+
+    out.push({
+      id: `uncovered-hot-spot:${nodeId}`,
+      classRank: CLASS_RANK.uncoveredHotSpot,
+      what: `Node '${nodeQ}' is changing but has no rule covering it.`,
+      why:
+        `${churn} of the last ${window} commits touched this node's files, yet no enforced ` +
+        `rule verifies any of them — an uncovered hot spot: the code most in motion has the ` +
+        `least protection.`,
+      next:
+        `Consider adding a rule or coverage here — propose an aspect or a coverage node to ` +
+        `the user (requires their approval). Evidence: ${evidence}.`,
+      // Bind to churn + window + the file sample: a new commit (churn up), a widened
+      // window, or a changed file set moves the hash, so a dismissed hot spot returns
+      // when the evidence moves; a landed rule removes the item outright (it stops
+      // being emitted, never re-surfaced by a stale decision).
+      evidenceHash: hashEvidence({
+        source: 'uncovered-hot-spot',
+        nodeId,
+        churn,
+        window,
+        files: files.join('|'),
+      }),
+      evidenceTs: todayIso,
+    });
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // buildNominations
 // ---------------------------------------------------------------------------
 
@@ -628,6 +706,15 @@ export function buildNominations(graph: Graph, sources: NominationSources): Nomi
         sources.suppressCountsByAspect,
         todayIso,
       ),
+    );
+  }
+
+  // --- T1: uncovered hot spot (churn × zero-aspect nodes) — runs only when the CLI
+  //     supplied BOTH the churn map and the window it was measured over; no git /
+  //     shallow clone ⇒ omitted ⇒ SILENT (never fabricated as zero-and-fired) ---
+  if (sources.churnByNode !== undefined && sources.churnWindow !== undefined) {
+    nominations.push(
+      ...hotSpotNominations(graph, sources.churnByNode, sources.churnWindow, todayIso),
     );
   }
 
