@@ -405,7 +405,13 @@ false-block signal — how many of the rule's refusals a human later waived or o
 `yg-suppress` waiver now covers the refused code, or the block was re-approved after a waiver moved
 rather than a genuine code fix; a real fix, with no waiver, never counts). It is a count with a
 plain-words small-sample label, never a bare rate, and it never gates — it feeds a human retirement
-ritual (the false-block budget), never an automatic block. When
+ritual (the false-block budget), never an automatic block. The final column, `wrong-rule`, is the
+per-rule incident join: how many committed `wrong-rule` incidents name **this** rule via
+[`yg incident add --aspect`](#yg-incident), rendered as an honest count with a `(thin data)` label
+because incident testimony is sparse and qualitative (there is no exposure denominator to grow out of
+thin-ness). A `wrong-rule` incident recorded **without** `--aspect` counts in the `yg advise`
+aggregate but never surfaces per-rule here — the ledger read runs only in this view and never
+influences a verdict. When
 units have no valid result on record the `refused` cell reads `unverified`, never `0`, so an
 unchecked aspect is never shown as clean; likewise `age` reads `unknown` when that history is
 unavailable (a shallow clone or no repository), never a fabricated `0`. These lookups run
@@ -462,6 +468,12 @@ yg incident read   # list recorded incidents (datetime + cause), oldest first
   `judges-blind`, `single-judge-miss`, or `not-enforcement`. An unrecognized tag is
   rejected with the valid list, and nothing is written.
 - `--reason <text>` — Required. What escaped and how it surfaced.
+- `--aspect <id>` — Optional. Attributes the escape to one existing rule, mainly for a
+  `wrong-rule` incident naming the miscalibrated rule. The id must name a declared aspect;
+  an unknown id is rejected with the same guidance as an unknown `--tag`, and nothing is
+  written. When given, the attribution is recorded on the entry and surfaces in the
+  `wrong-rule` column of [`yg aspects --health`](#yg-aspects); when omitted, the incident is
+  unattributed — it still counts in the `yg advise` aggregate but names no rule per-rule.
 
 Each `add` appends one timestamped, human-signed entry to a committed file,
 `.yggdrasil/incidents.md`. That file lives in your history and is reviewed in diffs,
@@ -474,9 +486,12 @@ silent when there is no ledger at all.
 Recording an incident is your decision, the same as a waiver: the tool never invents
 one. `yg advise` surfaces the running count as a single reality-check line (shown even
 at zero, so the outside reference is never forgotten), and when any incident is tagged
-`wrong-rule` it adds a note that your rules themselves may need a second look. The
-command only ever appends — it never changes a verification result or whether your build
-passes.
+`wrong-rule` it adds a note that your rules themselves may need a second look — that
+aggregate note counts every `wrong-rule` incident, attributed or not. When you attribute a
+`wrong-rule` incident to a rule with `--aspect`, that rule's own `wrong-rule` count also
+surfaces in [`yg aspects --health`](#yg-aspects); an unattributed one stays in the aggregate
+only. The command only ever appends — it never changes a verification result or whether your
+build passes.
 
 ### `yg flows`
 

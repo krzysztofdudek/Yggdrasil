@@ -1,6 +1,6 @@
 # Silent Missing Files
 
-Components tagged with this aspect treat missing optional files/directories as valid empty state, not errors.
+Files tagged with this aspect treat missing optional files/directories as valid empty state, not errors.
 
 ## Pattern
 
@@ -14,11 +14,12 @@ try {
 
 ## Scope
 
-A component satisfies this aspect if every optional file or directory it reads
-uses the pattern above. Each component is evaluated against only the optional
-resources it is responsible for; presence of unrelated resources is out of scope.
+A file satisfies this aspect if every optional file or directory the reader it
+contains reads uses the pattern above. Each file is evaluated against only the
+optional resources it is responsible for; presence of unrelated resources is out
+of scope.
 
-Known examples (each enforced on the owning component, not all of them on one):
+Known examples (each enforced on the owning reader, not all of them on one):
 
 - **Graph loader:** `aspects/`, `flows/` directories may not exist. Return empty arrays.
 - **Lock store:** the `yg-lock.json` file may not exist. Return an empty lock.

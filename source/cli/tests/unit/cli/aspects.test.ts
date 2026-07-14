@@ -393,7 +393,7 @@ describe('formatAspectsHealthOutput', () => {
     const header = out.split('\n')[0].trim().split(/\s{2,}/);
     expect(header).toEqual([
       'aspect', 'kind', 'status', 'nodes', 'pairs', 'refused', 'suppresses', 'errs', 'age',
-      'catch', 'exposure', 'signal', 'fp',
+      'catch', 'exposure', 'signal', 'fp', 'wrong-rule',
     ]);
   });
 
@@ -448,7 +448,7 @@ describe('formatAspectsHealthOutput', () => {
     // age holds its fixed position; the catch/exposure/signal/fp columns follow it,
     // reading em-dash for a rule with no recorded telemetry.
     expect(cells[8]).toBe('3mo');
-    expect(cells.slice(9)).toEqual(['—', '—', '—', '—']);
+    expect(cells.slice(9)).toEqual(['—', '—', '—', '—', '—']);
   });
 });
 
@@ -572,6 +572,51 @@ describe('computeAspectHealth — false-block (fp) cell + notes', () => {
       ),
     );
     expect(out).toContain('Shared LLM events included (machines on older CLIs do not contribute).');
+  });
+});
+
+// ── wrong-rule attribution cell + note (per-aspect incident join) ──────────
+
+describe('computeAspectHealth — wrong-rule attribution cell + note', () => {
+  const noSignals = new Map<string, AspectHealthSignal>();
+  const emptyDrills = new Map<string, DrillStatus>();
+  const noFp = new Map<string, AspectFalsePositiveSignal>();
+
+  /** computeAspectHealth positional-arg helper threading only the wrong-rule map. */
+  const withWrongRule = (graph: Graph, wr: Map<string, number>) =>
+    computeAspectHealth(graph, [], report(), new Map(), noSignals, emptyDrills, noFp, undefined, undefined, wr);
+
+  it('renders the wrong-rule cell as a thin-data-labelled count, em-dash when none attributed', () => {
+    const graph = makeGraph([
+      makeAspect('named-x', { reviewer: 'deterministic' }),
+      makeAspect('clean-x', { reviewer: 'deterministic' }),
+    ]);
+    const { rows } = withWrongRule(graph, new Map([['named-x', 2]]));
+    expect(rows.find((r) => r.aspectId === 'named-x')!.wrongRuleCell).toBe('2 (thin data)');
+    // No incident names clean-x → em-dash, never a `0` that reads as "checked and clean".
+    expect(rows.find((r) => r.aspectId === 'clean-x')!.wrongRuleCell).toBe('—');
+  });
+
+  it('renders the wrong-rule cell in the last column and emits the attribution disclosure note', () => {
+    const graph = makeGraph([makeAspect('named-x', { reviewer: 'deterministic' })]);
+    const health = withWrongRule(graph, new Map([['named-x', 1]]));
+    expect(health.hasWrongRuleAttribution).toBe(true);
+    const out = formatAspectsHealthOutput(health);
+    const dataRow = out.split('\n').find((l) => l.trim().split(/\s{2,}/)[0] === 'named-x')!;
+    const cells = dataRow.trim().split(/\s{2,}/);
+    expect(cells[13]).toBe('1 (thin data)'); // wrong-rule is the last column (index 13)
+    // The disclosure states the honesty boundary: unattributed incidents count in advise, not here.
+    expect(out).toContain('Wrong-rule attribution');
+    expect(out).toContain('yg incident add --aspect');
+    expect(out).toContain("counts in `yg advise`'s total but not here");
+  });
+
+  it('omits the attribution note entirely when no rule has an attributed wrong-rule incident', () => {
+    const graph = makeGraph([makeAspect('a1', { reviewer: 'deterministic' })]);
+    const health = computeAspectHealth(graph, [], report());
+    expect(health.hasWrongRuleAttribution).toBe(false);
+    const out = formatAspectsHealthOutput(health);
+    expect(out).not.toContain('Wrong-rule attribution');
   });
 });
 

@@ -11,10 +11,21 @@
  * no reviewer ever reads it as code.
  *
  * Each entry is one markdown block: `## [<ISO UTC>] <tag>` followed by the human's
- * prose. Entries are append-only and their datetimes are STRICTLY ASCENDING. There
- * is NO hash baseline in v1: a hand-edited or reordering-merged ledger must never
- * block CI, so the only integrity signal is a non-blocking `yg check` WARNING on
- * out-of-order datetimes (see core/checks/incident-ledger).
+ * prose. An entry MAY additionally attribute the escape to one named rule via a
+ * trailing ` aspect=<id>` token ON THE HEADER LINE — `## [<ISO UTC>] <tag> aspect=<id>`
+ * — used mainly by `wrong-rule` incidents to name the miscalibrated rule so per-rule
+ * health can surface it. Attribution lives on the header (never in the body) ON
+ * PURPOSE: the header is machine-written and validated at write time, so a free-text
+ * reason line that merely reads like `aspect: …` can NEVER be mistaken for attribution
+ * — a reason cannot forge a rule name. The attribution is OPTIONAL and fully
+ * BACKWARD-COMPATIBLE: an entry with no `aspect=` token (every pre-attribution entry,
+ * and every entry recorded without `--aspect`) is byte-identical to the original two-
+ * part block and parses with `aspect` simply absent. The datetime capture is unchanged,
+ * so the ascending-datetime validator is unaffected. Entries are append-only and their
+ * datetimes are STRICTLY ASCENDING. There is NO hash baseline in v1: a hand-edited or
+ * reordering-merged ledger must never block CI, so the only integrity signal is a
+ * non-blocking `yg check` WARNING on out-of-order datetimes (see
+ * core/checks/incident-ledger).
  *
  * `appendIncident` writes through the shared O_APPEND single-write chokepoint
  * (io/debug-log-writer), exactly as the committed advise-decisions register does.
@@ -64,6 +75,14 @@ export interface IncidentEntry {
   datetime: string;
   /** The cause tag from the header (may be any token on a hand-edited line). */
   tag: string;
+  /**
+   * The rule this escape is attributed to, from an OPTIONAL ` aspect=<id>` token on the
+   * entry's header line (absent on an unattributed entry — including every
+   * pre-attribution entry, which is why the field is optional for backward compat).
+   * The reader does not gate on the graph's aspect vocabulary here; the CLI validates
+   * the id against the loaded graph at write time.
+   */
+  aspect?: string;
 }
 
 /** Result of reading the committed ledger. */
@@ -82,7 +101,18 @@ export interface ReadIncidentsResult {
  * follows; the reader does not gate on the closed vocabulary (a hand-edited tag is
  * still an entry), the CLI validates the vocabulary at write time.
  */
-const HEADER_RE = /^##\s+\[(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z)\]\s+(\S+)\s*$/;
+/**
+ * A ledger entry HEADER, with an OPTIONAL trailing ` aspect=<id>` attribution token:
+ *   `## [<ISO UTC>] <tag>`            → unattributed (group 3 undefined)
+ *   `## [<ISO UTC>] <tag> aspect=<id>` → attributed to rule <id> (group 3)
+ * Group 1 (the datetime) and group 2 (the tag) are UNCHANGED from the original header
+ * shape — `<tag>` is a single non-space token, so it can never swallow the token that
+ * follows — which keeps the ascending-datetime validator and the tag read intact. The
+ * attribution is captured ONLY here, on the machine-written header; the reader never
+ * scans the human's prose body for it, so a reason line cannot forge a rule name.
+ */
+const HEADER_RE =
+  /^##\s+\[(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z)\]\s+(\S+)(?:\s+aspect=(\S+))?\s*$/;
 
 /** One-time preamble written when the ledger is first created — never a header. */
 const LEDGER_PREAMBLE =
@@ -91,9 +121,22 @@ const LEDGER_PREAMBLE =
   `cause. Append-only; one entry per incident, datetimes strictly ascending. Recorded\n` +
   `only with a maintainer's explicit tag and reason; never fabricate an entry.\n\n`;
 
-/** Render one ledger entry block: the machine-shaped header plus the human's prose. */
-export function formatIncidentEntry(isoDatetime: string, tag: string, reason: string): string {
-  return `## [${isoDatetime}] ${tag}\n\n${reason.trim()}\n\n`;
+/**
+ * Render one ledger entry block: the machine-shaped header — carrying a trailing
+ * ` aspect=<id>` attribution token ONLY when `aspect` is given — then the human's
+ * prose. Omitting the attribution reproduces the original `## [<iso>] <tag>` header
+ * byte-for-byte, so an unattributed entry is written exactly as before. The
+ * attribution rides the header, never the body, so a reason can never forge it.
+ */
+export function formatIncidentEntry(
+  isoDatetime: string,
+  tag: string,
+  reason: string,
+  aspect?: string,
+): string {
+  const header =
+    aspect !== undefined ? `## [${isoDatetime}] ${tag} aspect=${aspect}` : `## [${isoDatetime}] ${tag}`;
+  return `${header}\n\n${reason.trim()}\n\n`;
 }
 
 /**
@@ -108,7 +151,11 @@ export function parseIncidents(text: string): IncidentEntry[] {
     const line = rawLine.replace(/\r$/, '');
     const m = HEADER_RE.exec(line);
     if (m === null) continue;
-    entries.push({ datetime: m[1], tag: m[2] });
+    // Attribution is read ONLY from the header's optional `aspect=<id>` token — the
+    // prose body is never scanned, so a free-text reason cannot forge an attribution.
+    const entry: IncidentEntry = { datetime: m[1], tag: m[2] };
+    if (m[3] !== undefined) entry.aspect = m[3];
+    entries.push(entry);
   }
   return entries;
 }
@@ -144,6 +191,28 @@ export function countIncidents(yggRootPath: string): { total: number; wrongRule:
 }
 
 /**
+ * Per-aspect wrong-rule attribution: for every rule named on a `wrong-rule`
+ * incident's `aspect:` line, how many such incidents name it (aspectId → count).
+ *
+ * HONESTY BOUNDARY — a wrong-rule incident recorded WITHOUT an aspect line counts in
+ * the AGGREGATE (`countIncidents(...).wrongRule`, the `yg advise` reality-counter)
+ * but NOT here: per-aspect attribution requires the maintainer to have named the
+ * miscalibrated rule explicitly. Only the `wrong-rule` tag is tallied — attribution
+ * on any other tag is allowed but is not miscalibration evidence, so it never
+ * surfaces per-aspect. An absent ledger reads honestly as an empty map.
+ */
+export function countWrongRuleIncidentsByAspect(yggRootPath: string): Map<string, number> {
+  const { entries } = readIncidents(yggRootPath);
+  const counts = new Map<string, number>();
+  for (const e of entries) {
+    if (e.tag !== WRONG_RULE_TAG) continue;
+    if (e.aspect === undefined) continue;
+    counts.set(e.aspect, (counts.get(e.aspect) ?? 0) + 1);
+  }
+  return counts;
+}
+
+/**
  * Append one incident to the committed ledger under `yggRootPath`. The ONLY writer
  * of this file: one incident = one complete markdown block written through the
  * shared O_APPEND single-write chokepoint (never a full-file rewrite). The clock is
@@ -154,7 +223,7 @@ export function countIncidents(yggRootPath: string): { total: number; wrongRule:
  */
 export function appendIncident(
   yggRootPath: string,
-  entry: { tag: string; reason: string; isoDatetime: string },
+  entry: { tag: string; reason: string; isoDatetime: string; aspect?: string },
 ): void {
   const filePath = path.join(yggRootPath, INCIDENTS_FILENAME);
   let existing: string;
@@ -164,7 +233,7 @@ export function appendIncident(
     // Absent ledger → first write; the preamble is prepended below.
     existing = '';
   }
-  const block = formatIncidentEntry(entry.isoDatetime, entry.tag, entry.reason);
+  const block = formatIncidentEntry(entry.isoDatetime, entry.tag, entry.reason, entry.aspect);
   const text = existing.trim() === '' ? LEDGER_PREAMBLE + block : block;
   appendToDebugLog(filePath, text);
 }

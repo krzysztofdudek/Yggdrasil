@@ -38,7 +38,11 @@ export function registerIncidentCommand(program: Command): void {
       `Cause of the escape (one of: ${INCIDENT_TAGS.join(', ')})`,
     )
     .requiredOption('--reason <text>', 'What escaped and how it surfaced (mandatory human testimony)')
-    .action(async (opts: { tag: string; reason: string }) => {
+    .option(
+      '--aspect <id>',
+      'Attribute this escape to one existing rule by id — mainly for --tag wrong-rule, naming the miscalibrated rule so per-rule health can surface it. Optional; omit for an unattributed incident.',
+    )
+    .action(async (opts: { tag: string; reason: string; aspect?: string }) => {
       try {
         const graph = await loadGraphOrAbort(process.cwd(), { tolerateInvalidConfig: true });
 
@@ -58,14 +62,31 @@ export function registerIncidentCommand(program: Command): void {
           });
         }
 
+        // Optional per-rule attribution. When present, the id MUST name an existing
+        // aspect — validated exactly like an unknown --tag: attributing an escape to a
+        // rule that does not exist would poison the per-rule health signal, so it is
+        // rejected before anything is written.
+        if (opts.aspect !== undefined && !graph.aspects.some((a) => a.id === opts.aspect)) {
+          failWith({
+            what: `--aspect '${opts.aspect}' is not an aspect declared in this graph.`,
+            why: 'Per-rule attribution names the miscalibrated rule so per-rule health can surface it against the right rule; an unknown id would attribute the escape to a rule that does not exist.',
+            next: 'List the declared rules with yg aspects, then re-run with --aspect <existing-aspect-id> — or omit --aspect to record an unattributed incident.',
+          });
+        }
+
         // Injected UTC clock at the boundary (wave-5/6 pattern) — the store keeps no
         // Date.now of its own, so tests can pin the datetime deterministically.
         const isoDatetime = new Date().toISOString();
-        appendIncident(graph.rootPath, { tag: opts.tag, reason: opts.reason, isoDatetime });
+        appendIncident(graph.rootPath, {
+          tag: opts.tag,
+          reason: opts.reason,
+          isoDatetime,
+          aspect: opts.aspect,
+        });
 
         process.stdout.write(
           chalk.green(
-            `Recorded incident [${opts.tag}] at ${isoDatetime} in .yggdrasil/${INCIDENTS_FILENAME}\n`,
+            `Recorded incident [${opts.tag}]${opts.aspect !== undefined ? ` attributed to ${opts.aspect}` : ''} at ${isoDatetime} in .yggdrasil/${INCIDENTS_FILENAME}\n`,
           ),
         );
       } catch (error) {
