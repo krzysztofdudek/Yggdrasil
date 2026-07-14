@@ -1,0 +1,3 @@
+name: Data
+description: "Data-access grouping — parent of the planted repository family"
+type: module

@@ -37,6 +37,13 @@
  *     covenant), and uncovered-hot-spot (a node whose mapped source churns yet has no
  *     enforced rule covering it — churn signal from git history, injected). Every T1
  *     class ranks BELOW every T0 class.
+ *   T2 (below all of T0/T1, sharing T1's decision stream and the joint cap):
+ *     family-without-law (a tight cluster of files sharing no narrow rule, read
+ *     from the offline miner's `.family-candidates.json` — present-or-omit,
+ *     freshness-gated) and architecture-cut (module groups that mutually depend,
+ *     found as non-trivial cycles in the structural quotient — declared-only, so
+ *     reproducible across machines). Both end at a printed proposal (V2), never an
+ *     aspect; every repo-derived string is quoted data with provenance (RZ-5).
  */
 
 import type { Graph } from '../model/graph.js';
@@ -87,6 +94,55 @@ export interface SuppressAnomaly {
   reason?: string;
 }
 
+/**
+ * One family-without-law candidate, as read from `.family-candidates.json` (the
+ * offline miner's output — telemetry, never an engine input). Every string field
+ * is UNTRUSTED repo-derived DATA: it is rendered through `quoteData` (RZ-5), never
+ * interpolated raw into an instruction sentence.
+ */
+export interface FamilyCandidate {
+  /** The miner's deterministic stable id (`family-<lang>-<key>`). */
+  id: string;
+  /** The language stratum the family was mined within. */
+  language: string;
+  /** Repo-relative POSIX member paths (sorted by the miner). */
+  members: string[];
+  /** The fitted applicability predicate cut from the cluster (glob or regex). */
+  fittedPredicate: { kind: string; value: string };
+  /** The `when`/`scope.files` skeleton the miner drafted for the family. */
+  scopeFilesDraft: string[];
+  /** Cluster size (member count) recorded by the miner. */
+  clusterSize: number;
+  /** Robustness tightness score (0..1) recorded by the miner. */
+  tightness: number;
+}
+
+/**
+ * The FRESH family-candidates payload the family-without-law nomination class
+ * consumes. Produced by `parseFamilyCandidates` (present-or-omit + freshness gate);
+ * absent → the class is silently omitted.
+ */
+export interface FamilyCandidatesData {
+  /** The miner's injected timestamp — the `local analysis since <ts>` provenance. */
+  ts: string;
+  /** The fresh, well-formed candidate families (possibly empty → no items). */
+  families: FamilyCandidate[];
+}
+
+/**
+ * One non-trivial cycle in the structural quotient at a given depth — a group of
+ * two or more module blocks that mutually depend (the architecture-cut signal).
+ * Derived at the CLI boundary from the committed graph's DECLARED relations only
+ * (no relation pass), so it is reproducible across machines. Block ids are
+ * UNTRUSTED repo-derived DATA, rendered through `quoteData` (RZ-5).
+ */
+export interface ArchitectureCutCycle {
+  /** The quotient depth at which the cycle is visible (provenance). */
+  depth: number;
+  /** The ≥ 2 module block ids that form the loop, sorted. */
+  blocks: string[];
+}
+
 /** Inputs beyond the graph that the live nomination sources need. */
 export interface NominationSources {
   /** Injected UTC clock — the engine keeps no `Date.now`; the overdue source
@@ -120,6 +176,19 @@ export interface NominationSources {
   churnByNode?: Map<string, { churn: number; files: string[] }>;
   /** The window size (commits) the churn counts were measured over; see churnByNode. */
   churnWindow?: number;
+  /**
+   * The FRESH family-without-law candidates (T2 class A), read + freshness-gated at
+   * the CLI boundary via `parseFamilyCandidates`. Absent (no file, or a stale/garbled
+   * one) → the class is silently omitted. Present-but-empty → the class runs and
+   * produces nothing.
+   */
+  familyCandidates?: FamilyCandidatesData;
+  /**
+   * The non-trivial structural-quotient cycles (T2 class B), computed at the CLI
+   * boundary from the committed graph's DECLARED relations only (no relation pass —
+   * reproducible across machines). Absent / empty → no architecture-cut items.
+   */
+  architectureCutCycles?: ArchitectureCutCycle[];
 }
 
 /**
@@ -139,6 +208,10 @@ const CLASS_RANK = {
   sharpen: 70,
   decorativeRule: 80,
   uncoveredHotSpot: 90,
+  // --- T2: below all T0 and all T1 (spec §7.2). Both classes share T1's decision
+  //     stream (λ) and the joint cap; family ranks above architecture-cut. ---
+  familyWithoutLaw: 100,
+  architectureCut: 110,
 } as const;
 
 /** Promotion needs at least this many recorded clean approvals to be nominated. */
@@ -591,6 +664,199 @@ function hotSpotNominations(
 }
 
 // ---------------------------------------------------------------------------
+// T2 — family-without-law (file-backed, local): a tight cluster of files sharing
+// no narrow rule, read from the offline miner's `.family-candidates.json`.
+// ---------------------------------------------------------------------------
+
+/**
+ * The `.family-candidates.json` format version (`v`) this consumer accepts. It is the
+ * REJECT-ON-OLD gate: `parseFamilyCandidates` omits any file whose `v` is not exactly
+ * this, so a candidates file mined under a superseded shard schema is rejected at parse
+ * rather than rendered as a live family proposal.
+ *
+ * LOCKSTEP RULE: whenever the AST-shard schema (`facts-cache.CACHE_SCHEMA_VERSION`) moves,
+ * bump BOTH this AND `CANDIDATES_SHARD_SCHEMA` together — and have the miner emit the new
+ * `v`. Bumping `CANDIDATES_SHARD_SCHEMA` alone re-greens the build-time coupling test while
+ * this constant stays put, so the old `v` is still accepted and a candidates file mined
+ * under the OLD schema keeps parsing and reads as fresh. The coupling test guards the anchor;
+ * THIS `v` gate is what actually rejects the stale file. Exported so the coupling test and the
+ * reject-on-old-v guard test can assert the invariant against a real constant, not a literal.
+ */
+export const SUPPORTED_CANDIDATES_V = 1;
+/**
+ * The AST-shard schema (`facts-cache.CACHE_SCHEMA_VERSION`) the current candidates format was
+ * validated against. The family feature vectors are cut from shards at that schema, so the
+ * mined families are only meaningful while the engine's live schema is unchanged. This
+ * constant ANCHORS the candidates lineage to the concrete shard schema: a build-time coupling
+ * test (`CACHE_SCHEMA_VERSION` must equal this) reddens the build the moment the engine's live
+ * schema advances past it. That is the RZ-21 evidence-at-build re-gate — a moved schema fails
+ * the build until a human re-validates the miner.
+ *
+ * LOCKSTEP RULE (see the coupling test): on a moved shard schema, bump BOTH this anchor AND
+ * `SUPPORTED_CANDIDATES_V` (and the miner's emitted `v`) together. Re-greening by bumping THIS
+ * anchor ALONE leaves `SUPPORTED_CANDIDATES_V` accepting the old `v`, so a candidates file
+ * mined under the OLD schema keeps parsing and would render as a live family proposal. The `v`
+ * bump is the reject-on-old gate that keeps a stale-schema file from ever rendering as live.
+ *
+ * Kept out of the runtime freshness gate deliberately — reading the live constant here would
+ * couple this read-only command's layer to the relation-analysis subsystem; the coupling test
+ * carries it.
+ */
+export const CANDIDATES_SHARD_SCHEMA = 2;
+
+/** True iff `s` is a non-empty string that parses as a real calendar instant. */
+function isParseableTs(s: unknown): s is string {
+  return typeof s === 'string' && s.trim() !== '' && !Number.isNaN(Date.parse(s));
+}
+
+/** Normalize one raw family entry, or drop it (undefined) when malformed. */
+function normalizeFamily(raw: unknown): FamilyCandidate | undefined {
+  if (raw === null || typeof raw !== 'object') return undefined;
+  const o = raw as Record<string, unknown>;
+  const members = Array.isArray(o.members) ? o.members.filter((m): m is string => typeof m === 'string') : [];
+  const pred = o.fittedPredicate;
+  const scopeFilesDraft = Array.isArray(o.scopeFilesDraft)
+    ? o.scopeFilesDraft.filter((s): s is string => typeof s === 'string')
+    : [];
+  const evidence = (o.evidence ?? {}) as Record<string, unknown>;
+  if (
+    typeof o.id !== 'string' ||
+    typeof o.language !== 'string' ||
+    members.length === 0 ||
+    pred === null ||
+    typeof pred !== 'object' ||
+    typeof (pred as Record<string, unknown>).kind !== 'string' ||
+    typeof (pred as Record<string, unknown>).value !== 'string'
+  ) {
+    return undefined;
+  }
+  const p = pred as Record<string, unknown>;
+  return {
+    id: o.id,
+    language: o.language,
+    members,
+    fittedPredicate: { kind: p.kind as string, value: p.value as string },
+    scopeFilesDraft,
+    clusterSize: typeof evidence.clusterSize === 'number' ? evidence.clusterSize : members.length,
+    tightness: typeof evidence.tightness === 'number' ? evidence.tightness : 0,
+  };
+}
+
+/**
+ * Freshness-gate + normalize an already-parsed `.family-candidates.json` value.
+ * PURE (no I/O — the boundary reads the bytes), so the gate is unit-testable.
+ * Returns the fresh payload, or `undefined` when the file is absent-shaped, stale,
+ * or garbled — in every not-fresh case the class is silently omitted (never
+ * rendered stale as live). Freshness requires, together:
+ *   - the file's own format version `v` equals `SUPPORTED_CANDIDATES_V` — the
+ *     schema-lineage token, anchored to the live shard schema by the build-time
+ *     coupling test (see `CANDIDATES_SHARD_SCHEMA`), so a moved shard schema cannot
+ *     ship a file that still reads as fresh here;
+ *   - `ts` is a parseable instant (it becomes the `local analysis since <ts>`
+ *     provenance label).
+ * Individual malformed family entries are dropped; a fresh file with zero (or all
+ * -dropped) families yields an empty list (the class runs and produces nothing).
+ */
+export function parseFamilyCandidates(raw: unknown): FamilyCandidatesData | undefined {
+  if (raw === null || typeof raw !== 'object') return undefined;
+  const o = raw as Record<string, unknown>;
+  if (o.v !== SUPPORTED_CANDIDATES_V) return undefined; // format / schema-lineage moved → stale
+  if (!isParseableTs(o.ts)) return undefined; // no usable provenance → omit
+  const rawFamilies = Array.isArray(o.families) ? o.families : [];
+  const families: FamilyCandidate[] = [];
+  for (const f of rawFamilies) {
+    const norm = normalizeFamily(f);
+    if (norm !== undefined) families.push(norm);
+  }
+  return { ts: o.ts, families };
+}
+
+/**
+ * Turn each fresh family candidate into ONE T2 nomination. WHAT names the N member
+ * files, WHY carries the fitted predicate + tightness + the scope-files skeleton,
+ * NEXT names the exact human action and ends with the literal consent suffix — all
+ * repo-derived strings rendered as QUOTED DATA with provenance (RZ-5). Ranks below
+ * every T1 class; the file `ts` is the freshness tie-break key.
+ */
+function familyNominations(data: FamilyCandidatesData): Nomination[] {
+  const out: Nomination[] = [];
+  const sinceLabel = `local analysis since ${quoteData(data.ts)}`;
+  const provenance = `.family-candidates.json:${quoteData(data.ts)}`;
+  for (const fam of data.families) {
+    const n = fam.members.length;
+    const memberList = fam.members.map((m) => `'${quoteData(m)}'`).join(', ');
+    const predQ = quoteData(fam.fittedPredicate.value);
+    const scopeList = fam.scopeFilesDraft.map((s) => `'${quoteData(s)}'`).join(', ');
+    out.push({
+      id: `family-without-law:${fam.id}`,
+      classRank: CLASS_RANK.familyWithoutLaw,
+      what: `A candidate rule family — ${n} files share no rule of their own: ${memberList}.`,
+      why:
+        `${sinceLabel}: these files cluster tightly (tightness ${fam.tightness}) yet share no own, ` +
+        `port, or narrow-ancestor rule — the fingerprint of a convention with no rule of its own. A ` +
+        `fitted scope \`${predQ}\` covers exactly them; scope skeleton ${scopeList}. Provenance: ${provenance}.`,
+      // NEXT names the exact human action and ends with the literal consent suffix
+      // (T2 uses "requires your consent", never the T0/T1 approval phrasing).
+      next: `Create a draft aspect scoped to \`${predQ}\` for these ${n} files, then supply the rationale — never invent it — requires your consent.`,
+      // Bind to the family identity + fitted reach + member set + provenance: a
+      // re-mine that changes members or the predicate moves the hash, so a
+      // dismissed family returns as new evidence.
+      evidenceHash: hashEvidence({
+        source: 'family-without-law',
+        familyId: fam.id,
+        predicate: fam.fittedPredicate.value,
+        members: fam.members.join('|'),
+        ts: data.ts,
+      }),
+      evidenceTs: data.ts,
+    });
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// T2 — architecture-cut (live, reproducible): a group of module blocks that
+// mutually depend, found in the structural quotient's cycles (declared-only).
+// ---------------------------------------------------------------------------
+
+/**
+ * Turn each non-trivial quotient cycle into ONE T2 nomination. WHAT names the
+ * module GROUPS plainly (quoted block ids), WHY states they depend on each other
+ * in a loop with the quotient depth as provenance, NEXT proposes a cut or a port
+ * contract and ends with the literal consent suffix. Derives from the committed
+ * graph ⇒ reproducible (no `local analysis` label, no timestamp). Plain language
+ * only — never "SCC" / "strongly connected component". Ranks below family.
+ */
+function architectureCutNominations(cycles: ArchitectureCutCycle[]): Nomination[] {
+  const out: Nomination[] = [];
+  for (const cycle of cycles) {
+    const blockList = cycle.blocks.map((b) => `'${quoteData(b)}'`).join(', ');
+    const provenance = `structure quotient depth ${cycle.depth}`;
+    out.push({
+      id: `architecture-cut:depth${cycle.depth}:${cycle.blocks.join('|')}`,
+      classRank: CLASS_RANK.architectureCut,
+      what: `Module groups ${blockList} depend on each other in a loop.`,
+      why:
+        `at ${provenance}, these module groups each reach the other by following declared ` +
+        `dependencies — a dependency loop, not a one-way layering. Provenance: ${provenance}.`,
+      next: `Consider a cut between these module groups, or declare a contract (a port) across the boundary — requires your consent.`,
+      // Bind to the depth + the exact block set: a changed loop (blocks added or a
+      // cut declared) moves the hash, so a dismissed item returns when the
+      // structure moves; a resolved loop stops being emitted entirely.
+      evidenceHash: hashEvidence({
+        source: 'architecture-cut',
+        depth: cycle.depth,
+        blocks: cycle.blocks.join('|'),
+      }),
+      // Reproducible from the committed graph — no meaningful recency key, so all
+      // architecture-cut items tie on freshness and break to stable id order.
+      evidenceTs: '',
+    });
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // buildNominations
 // ---------------------------------------------------------------------------
 
@@ -717,6 +983,16 @@ export function buildNominations(graph: Graph, sources: NominationSources): Nomi
       ...hotSpotNominations(graph, sources.churnByNode, sources.churnWindow, todayIso),
     );
   }
+
+  // --- T2: family-without-law (below all T1) — runs only when the CLI supplied a
+  //     FRESH candidates payload; absent / stale / garbled ⇒ silently omitted ---
+  if (sources.familyCandidates !== undefined) {
+    nominations.push(...familyNominations(sources.familyCandidates));
+  }
+
+  // --- T2: architecture-cut (below family) — one item per non-trivial quotient
+  //     cycle (declared-only, reproducible); absent / acyclic ⇒ nothing ---
+  nominations.push(...architectureCutNominations(sources.architectureCutCycles ?? []));
 
   nominations.sort((a, b) =>
     a.classRank !== b.classRank

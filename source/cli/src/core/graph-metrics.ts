@@ -252,17 +252,22 @@ export function quotientAtDepth(
 }
 
 /**
- * Fraction of the given inter-block edges whose endpoints land in DIFFERENT
- * strongly-connected components. Runs an iterative Tarjan SCC over the block
- * graph (deterministic: nodes and adjacency are pre-sorted). Returns 0 when
- * there are no edges.
+ * The strongly-connected components of the block graph (blocks + inter-block
+ * edges), each returned as an array of block ids. Runs the iterative Tarjan SCC
+ * over the block graph — the SINGLE source of truth for "which quotient blocks
+ * form a cycle", shared by the cycle statistic below and by any caller that needs
+ * the cyclic groups themselves (e.g. the advise architecture-cut nomination).
+ *
+ * Deterministic: adjacency is built in `edges` order then sorted ascending, each
+ * component's members are sorted, and the components are sorted by their smallest
+ * member — so the result never depends on Map/Set iteration order. A component of
+ * size ≥ 2 is a cycle (its blocks are mutually reachable); a size-1 component is
+ * acyclic (self-loops never occur — the quotient drops intra-block edges).
  */
-function computeSccOutsideShare(
+export function quotientSccs(
   blocks: string[],
   edges: Array<{ from: string; to: string }>,
-): number {
-  if (edges.length === 0) return 0;
-
+): string[][] {
   const index = new Map<string, number>();
   blocks.forEach((b, i) => index.set(b, i));
 
@@ -278,12 +283,46 @@ function computeSccOutsideShare(
 
   const comp = tarjanScc(blocks.length, adj);
 
+  // Group block ids by component id, then canonicalize (sorted members; groups
+  // sorted by first member) so the output is order-independent.
+  const groups = new Map<number, string[]>();
+  for (let i = 0; i < blocks.length; i++) {
+    const c = comp[i];
+    let g = groups.get(c);
+    if (g === undefined) {
+      g = [];
+      groups.set(c, g);
+    }
+    g.push(blocks[i]);
+  }
+  const out = [...groups.values()].map((g) => [...g].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)));
+  out.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+  return out;
+}
+
+/**
+ * Fraction of the given inter-block edges whose endpoints land in DIFFERENT
+ * strongly-connected components. Reuses `quotientSccs` (the shared Tarjan) so the
+ * cycle statistic and the cyclic-group enumeration can never disagree. Returns 0
+ * when there are no edges.
+ */
+function computeSccOutsideShare(
+  blocks: string[],
+  edges: Array<{ from: string; to: string }>,
+): number {
+  if (edges.length === 0) return 0;
+
+  const compOf = new Map<string, number>();
+  quotientSccs(blocks, edges).forEach((group, ci) => {
+    for (const b of group) compOf.set(b, ci);
+  });
+
   let outside = 0;
   for (const e of edges) {
-    const u = index.get(e.from);
-    const v = index.get(e.to);
-    if (u === undefined || v === undefined) continue;
-    if (comp[u] !== comp[v]) outside++;
+    const cf = compOf.get(e.from);
+    const ct = compOf.get(e.to);
+    if (cf === undefined || ct === undefined) continue;
+    if (cf !== ct) outside++;
   }
   return outside / edges.length;
 }

@@ -1,0 +1,18 @@
+name: Repositories (over-match)
+description: >-
+  Five structurally-identical repository classes that DO cluster, PLUS a
+  structurally-distinct `LegacyRepository.ts` that does NOT cluster but shares the
+  `*Repository.ts` filename affix (and the `export class …` declaration). The only
+  glob/regex that covers the five members also reaches the non-member, so there is no
+  faithful reach predicate — the miner MUST DROP this family rather than emit an
+  over-reaching scope. This is the regression that pins the faithful-reach check.
+type: repository
+aspects: []
+relations: []
+mapping:
+  - src/repo/UserRepository.ts
+  - src/repo/OrderRepository.ts
+  - src/repo/ProductRepository.ts
+  - src/repo/InvoiceRepository.ts
+  - src/repo/PaymentRepository.ts
+  - src/repo/LegacyRepository.ts

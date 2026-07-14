@@ -1,13 +1,18 @@
 name: Advise Command Tests
 type: test-suite
 description: "Unit + spawned tests for yg advise — subcommand registration shape,
-  and end-to-end dismiss/defer against a real fixture graph: one appended
-  decision line bound to the current evidence hash, an empty reason / unknown id /
-  mis-shaped defer date each rejected with nothing written."
+  end-to-end dismiss/defer against a real fixture graph, and the wave-8 T2
+  nomination classes: the family-without-law freshness gate + rendering, the
+  architecture-cut loop nomination, and the joint T1+T2 cap. Also carries the
+  build-time coupling that anchors the family-candidates format to the AST-shard
+  schema version."
 aspects: []
 relations:
   [
-    { target: cli/commands/advise, type: uses }
+    { target: cli/commands/advise, type: uses },
+    { target: cli/core/advise, type: uses },
+    { target: cli/core/loader, type: uses },
+    { target: cli/relations/core, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/cli/advise.test.ts

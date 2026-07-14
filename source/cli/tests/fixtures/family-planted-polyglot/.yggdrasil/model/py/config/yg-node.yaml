@@ -1,0 +1,10 @@
+name: Python Config Loader
+description: >-
+  The Python half of the superficially-similar cross-language decoy pair. It looks
+  like the TypeScript config loader, but it is alone in the Python stratum and is
+  structurally distinct from the Python repositories, so it must not cluster.
+type: service
+aspects: []
+relations: []
+mapping:
+  - src/py/config_loader.py

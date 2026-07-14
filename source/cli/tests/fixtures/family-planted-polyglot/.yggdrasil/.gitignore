@@ -1,0 +1,6 @@
+yg-secrets.yaml
+.symbols-cache/
+.ast-cache/
+.debug.log
+.feature-field.json
+.family-candidates.json

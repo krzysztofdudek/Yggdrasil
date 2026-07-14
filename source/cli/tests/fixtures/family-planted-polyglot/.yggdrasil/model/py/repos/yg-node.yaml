@@ -1,0 +1,14 @@
+name: Python Repositories
+description: >-
+  PLANTED Python family: five structurally-identical repository classes with NO
+  narrow aspect. The miner must find exactly these five, language-tagged
+  `python`, and must never merge them with the TypeScript family.
+type: repository
+aspects: []
+relations: []
+mapping:
+  - src/py/user_repository.py
+  - src/py/order_repository.py
+  - src/py/product_repository.py
+  - src/py/invoice_repository.py
+  - src/py/payment_repository.py

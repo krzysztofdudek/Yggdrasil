@@ -1,0 +1,17 @@
+name: Misc Support
+description: >-
+  Five mutually-distinct decoy files (a branchy router, a set of free functions, a
+  config object, an import-heavy client, and a switch-based dispatcher). None share
+  the repository shape and none share each other's shape, so this is a dissimilar
+  5+ set: the miner must NOT fold any of them into the planted family AND must not
+  form a second family out of them (proving "zero false" is active, not a mere
+  side effect of there being fewer than five decoys).
+type: service
+aspects: []
+relations: []
+mapping:
+  - src/support/router.ts
+  - src/support/mathx.ts
+  - src/support/settings.ts
+  - src/support/client.ts
+  - src/support/dispatcher.ts

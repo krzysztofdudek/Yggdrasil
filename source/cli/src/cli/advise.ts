@@ -1,5 +1,6 @@
 import type { Command } from 'commander';
 import { execFileSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import chalk from 'chalk';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
@@ -9,9 +10,12 @@ import {
   buildNominations,
   buildAttention,
   quoteData,
+  parseFamilyCandidates,
   type Nomination,
   type NominationSources,
   type SuppressAnomaly,
+  type ArchitectureCutCycle,
+  type FamilyCandidatesData,
 } from '../core/advise-nominations.js';
 import { countChurnByNode, ownerOfForGraph } from '../core/node-churn.js';
 import { applyDecisions, type VisibleNomination } from '../core/advise-feed.js';
@@ -30,6 +34,9 @@ import {
   tunnelSpans,
   depthOfPath,
   lcaDepthOfPaths,
+  quotientAtDepth,
+  ancestorAtDepth,
+  quotientSccs,
   TOP_TUNNELS,
   type DeclaredRelation,
 } from '../core/graph-metrics.js';
@@ -115,6 +122,69 @@ async function computeTunnelCount(graph: Graph): Promise<number> {
   } catch (error) {
     debugWrite(`[advise] tunnel-count degraded to 0: ${(error as Error).message}`);
     return 0;
+  }
+}
+
+/**
+ * The family-without-law candidates (T2 class A) at the CLI boundary: read the
+ * offline miner's `.family-candidates.json` PRESENT-OR-OMIT, then hand the parsed
+ * value to the pure core freshness gate — a moved format / schema-lineage, a bad
+ * timestamp, or a garbled / unreadable file all degrade to undefined so the class
+ * is silently omitted and the exit-0 invariant (G4) can never break. (The gate keys
+ * on the file's own format version, which is anchored to the live shard schema by a
+ * build-time coupling test — see `CANDIDATES_SHARD_SCHEMA` — so this read-only
+ * command's layer never has to import the relation-analysis subsystem.) The
+ * candidates file is telemetry the miner writes; nothing here writes or runs it.
+ */
+function readFamilyCandidatesSource(graph: Graph): FamilyCandidatesData | undefined {
+  try {
+    const file = path.join(graph.rootPath, '.family-candidates.json');
+    if (!existsSync(file)) return undefined; // present-or-omit — absence is silent
+    const parsed: unknown = JSON.parse(readFileSync(file, 'utf-8'));
+    return parseFamilyCandidates(parsed);
+  } catch (error) {
+    debugWrite(`[advise] family candidates omitted: ${(error as Error).message}`);
+    return undefined;
+  }
+}
+
+/**
+ * The architecture-cut cycles (T2 class B) at the CLI boundary. Builds the
+ * structural edge universe from the committed graph's DECLARED relations ONLY
+ * (empty detected map — the AST relation pass is NEVER run here, so the result is
+ * reproducible across machines from the committed graph alone), then collects
+ * every non-trivial (size ≥ 2) strongly-connected group of the quotient at each
+ * depth via the shared `quotientSccs` helper. A loop is reported at the COARSEST
+ * depth it first becomes visible; a finer re-manifestation of an already-reported
+ * loop is suppressed (a depth-d group whose blocks project onto ≥ 2 blocks of a
+ * shallower reported group is that same loop at finer grain). Any failure degrades
+ * to an empty list so the exit-0 invariant (G4) can never break.
+ */
+function computeArchitectureCutCycles(graph: Graph): ArchitectureCutCycle[] {
+  try {
+    const edges = edgeUniverse(collectDeclaredRelations(graph), new Map());
+    let maxDepth = 0;
+    for (const e of edges) maxDepth = Math.max(maxDepth, depthOfPath(e.from), depthOfPath(e.to));
+    const out: ArchitectureCutCycle[] = [];
+    const emitted: Array<{ depth: number; blocks: Set<string> }> = [];
+    for (let d = 1; d <= maxDepth; d++) {
+      const q = quotientAtDepth(edges, d, ancestorAtDepth);
+      for (const scc of quotientSccs(q.blocks, q.interBlockEdges)) {
+        if (scc.length < 2) continue; // trivial component — no loop
+        const covered = emitted.some((prev) => {
+          const proj = new Set(scc.map((b) => ancestorAtDepth(b, prev.depth)));
+          return proj.size >= 2 && [...proj].every((p) => prev.blocks.has(p));
+        });
+        if (covered) continue; // finer view of a loop already reported coarser
+        const blocks = [...scc].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+        emitted.push({ depth: d, blocks: new Set(blocks) });
+        out.push({ depth: d, blocks });
+      }
+    }
+    return out;
+  } catch (error) {
+    debugWrite(`[advise] architecture-cut cycles omitted: ${(error as Error).message}`);
+    return [];
   }
 }
 
@@ -293,6 +363,8 @@ async function gatherNominationSources(graph: Graph, todayUtc: Date): Promise<No
   const verdictEvents = readVerdictEvents(graph.rootPath).events;
   const currentUnitsByAspect = await gatherCurrentUnits(graph);
   const churnByNode = gatherChurnByNode(graph, projectRoot);
+  const familyCandidates = readFamilyCandidatesSource(graph);
+  const architectureCutCycles = computeArchitectureCutCycles(graph);
 
   const sources: NominationSources = {
     todayUtc,
@@ -313,6 +385,15 @@ async function gatherNominationSources(graph: Graph, todayUtc: Date): Promise<No
   if (churnByNode !== undefined) {
     sources.churnByNode = churnByNode;
     sources.churnWindow = CHURN_WINDOW;
+  }
+  // T2 class A: a FRESH family-candidates payload (present-or-omit + freshness
+  // gate) enables the family-without-law class; absent/stale ⇒ left unset ⇒ omitted.
+  if (familyCandidates !== undefined) {
+    sources.familyCandidates = familyCandidates;
+  }
+  // T2 class B: the reproducible declared-only quotient cycles; empty ⇒ left unset.
+  if (architectureCutCycles.length > 0) {
+    sources.architectureCutCycles = architectureCutCycles;
   }
   return sources;
 }

@@ -1,0 +1,16 @@
+name: Clean Services
+description: >-
+  Five structurally-identical service classes with NO narrow aspect and — crucially —
+  NO same-affix non-member in their directory. The miner MUST find this family: its
+  fitted glob `src/clean/*Service.ts` faithfully covers exactly the five members and
+  reaches no non-member. This proves clustering + fitting still work, so a dropped
+  over-match family (see the repo group) is a real drop, not a failure to cluster.
+type: service
+aspects: []
+relations: []
+mapping:
+  - src/clean/UserService.ts
+  - src/clean/OrderService.ts
+  - src/clean/ProductService.ts
+  - src/clean/InvoiceService.ts
+  - src/clean/PaymentService.ts
