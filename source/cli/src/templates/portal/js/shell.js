@@ -37,6 +37,7 @@
         { view: 'coverage', glyph: '▦', label: 'Coverage & audit' },
         { view: 'tree', glyph: '⌗', label: 'Structure' },
         { view: 'relations', glyph: '↔', label: 'Relations & boundaries' },
+        { view: 'structure', glyph: '⋔', label: 'Dependency structure' },
         { view: 'suppressions', glyph: '⛉', label: 'Suppressions' },
       ],
     },

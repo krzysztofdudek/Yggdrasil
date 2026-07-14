@@ -51,6 +51,25 @@ import { collectMappingEntries } from './api/suppress-eligibility.js';
 /** CLI_SUPPORTED_SCHEMA, surfaced through the facade so the pipeline needs no loader import. */
 export const PORTAL_SCHEMA_SUPPORTED = CLI_SUPPORTED_SCHEMA;
 
+// ── Structural-metrics core (the `yg structure` pure functions), re-exported ───
+//
+// The structure panel's derivation reuses the SAME wave-2 pure metrics `yg structure` uses. It is
+// surfaced through this facade (not imported directly by the pipeline) so the extraction pipeline
+// keeps its single-seam guarantee — the facade already declares its `cli/core/graph` relation, so
+// re-exporting graph-metrics adds no new engine coupling. These are pure data-in / data-out
+// functions: no I/O, no graph mutation, no lock access.
+export {
+  edgeUniverse,
+  tunnelSpans,
+  quotientAtDepth,
+  changeReach,
+  depthOfPath,
+  lcaDepthOfPaths,
+  ancestorAtDepth,
+  TOP_TUNNELS,
+} from '../core/graph-metrics.js';
+export type { DeclaredRelation, StructEdge, EdgeOrigin, QuotientView } from '../core/graph-metrics.js';
+
 // ── Graph + repo loading ─────────────────────────────────────────────────────
 
 /**

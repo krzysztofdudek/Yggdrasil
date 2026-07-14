@@ -32,6 +32,7 @@ refreshes the rules and platform files.
 - **debug** — Set `true` to append all CLI output to `.yggdrasil/.debug.log`.
 - **auto_approve** — Auto-fill mode for bare `yg check` (default `false`; see [Auto-approve config](#auto-approve-config) below).
 - **signals** — Attention-layer switches (optional). Its only key today is `attention` (default `true`): the advisory "structurally unusual" note in `yg context --file`. Set `false` to silence it. See [Signals](#signals) below and [Structural attention](/feature-field).
+- **events** — Committed-events opt-in (optional). Its only key today is `committed_llm` (default `false`): opt into a committed, team-shared record of LLM verification events. See [Events](#events) below.
 
 Node types are defined in the separate **architecture file** (`.yggdrasil/yg-architecture.yaml`),
 not in `yg-config.yaml`.
@@ -69,6 +70,9 @@ auto_approve: false   # false (default) | deterministic | full
 
 signals:                              # Optional — attention-layer switches
   attention: true                     # The "structurally unusual" note in yg context --file (default true)
+
+events:                               # Optional — committed-events opt-in (default off)
+  committed_llm: true                 # Commit + share LLM verification events (default false)
 ```
 
 ---
@@ -361,6 +365,43 @@ verification result whether it is on or off. `attention` must be a boolean, and
 `signals` accepts no other key — a misspelled key is rejected so a typo can't
 silently leave the note enabled. See [Structural attention](/feature-field) for
 what the note means and its honest limits.
+
+---
+
+## Events
+
+`events` is an optional section that controls where LLM verification events are
+recorded. It is absent by default, which keeps every event in a local,
+gitignored file (see [Verdict-events sidecar](/reviewers#verdict-events-sidecar)).
+
+| Key | Type | Default | Effect |
+| --- | --- | --- | --- |
+| `committed_llm` | boolean | `false` | Opt into a committed, team-shared record of LLM verification events. |
+
+```yaml
+# .yggdrasil/yg-config.yaml
+events:
+  committed_llm: true   # commit + share LLM verification events (default off)
+```
+
+When `committed_llm` is on, each LLM verification event is appended to a
+committed file, `.yggdrasil/yg-events.llm.jsonl`, instead of the local sidecar —
+a single home per event, so nothing is double-counted. The committed file is:
+
+- **LLM-only.** Deterministic checks, drill runs, and diagnostic runs stay
+  local, so a free, keyless CI run (`yg check --approve --only-deterministic`)
+  adds nothing to it — zero churn.
+- **Union-merged.** `yg init` marks it `merge=union` in `.gitattributes`, so
+  events appended on different branches combine on merge instead of conflicting.
+- **Rationale-stripped.** The refusal reason is omitted from the shared copy
+  (it can carry code fragments); the local copy keeps it.
+
+Turning the opt-in on or off never changes any verification result or its hash —
+it invalidates nothing. `committed_llm` must be a boolean, and `events` accepts
+no other key — a misspelled key is rejected so a typo can't silently leave the
+shared record disabled. A machine on an older CLI writes only locally and does
+not contribute to the shared file, so a reader that combines the two says as
+much rather than treating the committed record as complete.
 
 ---
 

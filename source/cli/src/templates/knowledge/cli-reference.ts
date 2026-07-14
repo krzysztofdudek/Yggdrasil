@@ -328,6 +328,49 @@ results log (\`.yggdrasil/.drill-results.jsonl\`) plus, for LLM cases, one
 telemetry line each; it never touches the verification lock. The doctrine "no
 drill, no enforced" is advisory — a missing corpus never gates \`yg check\`.
 
+## yg simulate
+
+Replay a candidate DETERMINISTIC rule over the history it can honestly reach, to
+answer "if I had shipped this rule, what would it have caught?" It replays the
+candidate's \`check.mjs\` over recent commits in an ISOLATED temp clone — one fresh
+subprocess per commit — strictly read-only. The real working tree is left
+byte-for-byte unchanged.
+
+\`\`\`bash
+# Replay an existing deterministic rule over a node, across the most recent commits
+yg simulate no-raw-sql --node data/repository
+
+# Widen (or narrow) the window of most-recent commits considered (default 20)
+yg simulate no-raw-sql --node data/repository --max-commits 50
+\`\`\`
+
+The \`<candidate>\` is the id of an aspect in this project that ships a \`check.mjs\`;
+\`--node\` is the node whose files the candidate replays over at each commit. Each
+commit resolves to one of three first-class outcomes — never a silent zero:
+
+- \`ran-clean\` — the candidate ran and found nothing at that commit.
+- \`violations (N)\` — the candidate refused N of that commit's files.
+- \`non-comparable\` — the commit could not be honestly compared: it PRE-DATES
+  \`yg init\` (no graph of its own), or its committed graph schema differs from the
+  current one (it would need a migration this replay never performs). Reported
+  explicitly, so a commit the replay could not reach never reads as a clean pass.
+
+Guarantees that make the replay trustworthy: every checkout and the candidate
+overlay happen in the throwaway clone (never in your tree); a clone-boundary guard
+refuses to let the graph resolver escape the clone, so a pre-init checkout is
+\`non-comparable\` rather than silently the real graph; only the candidate rule is
+overlaid; and only commits whose committed schema EQUALS the current one are
+replayed. An LLM- or companion-reviewed candidate is refused up front — a
+language-model verdict is point-in-time testimony, not a reproducible replay; use
+\`yg drill\` to test an LLM rule's falsifiability instead.
+
+\`yg simulate\` is a REPORT tool: it exits \`0\` whatever it finds (a finding never
+gates), and prints a survivorship-bias caveat — the old rule gate already refused
+code that never landed, so a tightening replay is a LOWER bound on true catches and
+a loosening one an UPPER bound. Only a precondition failure on the real project (no
+graph, missing candidate, wrong candidate kind, or an inability to clone) exits
+non-zero. It never writes the lock and never changes whether \`yg check\` passes.
+
 ## yg impact
 
 Show blast radius before a change — which pairs an edit would invalidate.
@@ -417,7 +460,15 @@ catching things), \`quiet\` (little exercised), or \`decorative?\` (enforceable 
 never violated). A \`decorative?\` rule whose own examples still pass is reported as
 *possibly deterring the very violations it would catch* rather than assumed
 useless — and a rule is only ever suggested for demotion when several independent
-signals agree, never on the catch count alone. Honesty
+signals agree, never on the catch count alone. The final column, **fp**, is the
+false-block signal — how many of this rule's refusals a human LATER waived or
+overturned (a live \`yg-suppress\` waiver now covers the refused code, or the block
+was re-approved after a waiver moved rather than a genuine code fix — a real fix,
+with no waiver, never counts). It is a COUNT with a plain-words small-sample label,
+never a bare rate, and — like every signal here — never a gate: it feeds a human
+retirement ritual (the false-block budget — each rule debits the repo by its shrunk
+false-block rate, and retiring the worst offenders makes room for new rules), never
+an automatic block. Honesty
 rule: when units have no valid result on record the **refused** cell reads
 \`unverified\`, NEVER \`0\` — an unchecked unit is not a clean one; likewise **age**
 reads \`unknown\` when that history is unavailable (a shallow clone or no
@@ -504,8 +555,12 @@ yg advise --ids      # print each item's stable id (for dismiss / defer)
 
 - **Attention** — one aggregate line per class of signal, with no per-instance
   ranking (rankings stay inside the instrument commands like \`yg structure\`, and
-  per-file detail stays in \`yg context\`). A class with a zero count prints no line.
-  Two classes:
+  per-file detail stays in \`yg context\`). A structural class with a zero count prints
+  no line; the incident reality-counter is the one exception — always shown. The classes:
+  - **incidents on record** — the running count from the committed incident ledger,
+    the only signal from OUTSIDE the graph. Always shown, even at 0, so the tower stays
+    aware it has an outside reference at all; when any incident is tagged \`wrong-rule\`
+    an extra line notes the rules themselves may be miscalibrated. See \`yg incident\`.
   - **dependency tunnels** — how many dependencies reach across distant parts of the
     architecture (run \`yg structure\` to see them).
   - **structural deviations** — how many files look structurally unusual among their
@@ -565,6 +620,43 @@ feed on a fixed rhythm: a weekly CI workflow that runs \`yg advise --all\` and u
 single pinned issue gives you one place to review the attention items. This is a
 **documented pattern to copy, not a shipped default** — \`yg init\` never scaffolds it,
 and the feed never appears in \`yg check\`'s suggested next step.
+
+## yg incident
+
+The **incident ledger** — a committed record of what escaped enforcement and how it
+surfaced. It is the only signal that comes from OUTSIDE the graph: every other layer
+(\`yg check\`, \`yg advise\`, catch/exposure health, structural attention) is the graph
+reasoning about itself; an incident is a human recording a real miss. Recording one is
+**human-signature territory, the same authorization class as \`yg-suppress\`**: an agent
+records an incident only on your explicit instruction, with a tag and reason you supply —
+it never invents one.
+
+\`\`\`bash
+yg incident add --tag wrong-rule --reason "a UI file reached the DB and no rule caught it"
+yg incident read     # list recorded incidents (datetime + cause), oldest first
+\`\`\`
+
+The \`--tag\` names the CAUSE and is **mandatory** — one of \`no-rule\` (a concern shipped
+with no rule at all), \`wrong-rule\` (a rule existed but was miscalibrated), \`judges-blind\`
+(the reviewer could not see what mattered), \`single-judge-miss\` (a lone judge missed what
+a panel would have caught), or \`not-enforcement\` (the escape was not an enforcement gap).
+An unrecognized tag is rejected with the valid list and nothing is written. \`--reason\` is
+also mandatory: the entry must say what escaped and how it surfaced.
+
+Each \`add\` appends one \`## [<ISO UTC>] <tag>\` block to \`.yggdrasil/incidents.md\` with an
+injected timestamp. The file is **committed** (not gitignored) — it is human testimony
+that must survive across clones and be reviewed in a diff — but it is **not reviewed
+source**: no aspect maps it and no reviewer ever reads it as code. Entries are append-only
+and their datetimes are strictly ascending. There is **no content hash baseline** in v1:
+the ledger must never be able to break CI, so the only integrity signal is a **non-blocking
+\`yg check\` warning** when the datetimes are out of order (the signature of a hand-edit or
+a reordering merge). An absent ledger is tolerated — no file, no warning. \`yg incident\`
+never touches the lock and exits 0 (a rejected tag or a loader error is the only non-zero).
+
+\`yg advise\` surfaces the ledger as a one-line reality counter in its Attention section —
+\`N incidents on record …\`, shown even at 0 so the tower stays aware it has an outside
+reference at all — and, when any incident is tagged \`wrong-rule\`, an aggregate line noting
+that the rules themselves may be miscalibrated.
 
 ## yg suppressions
 

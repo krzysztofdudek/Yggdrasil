@@ -1,0 +1,14 @@
+name: Incident Ledger Store
+type: persistence-adapter
+description: "Reader and append-only writer for the committed incident ledger
+  (.yggdrasil/incidents.md): the tag vocabulary, header parsing, tolerant read /
+  count, and the single-write append of one human-signed entry through the shared
+  append chokepoint. The ledger is committed human testimony (never gitignored) and
+  is not reviewed source; the clock is injected by the CLI, so this store keeps no
+  Date.now of its own. Kept as its own node so the ledger is a distinct persistence
+  concern from the general io stores."
+relations:
+  - target: cli/io/stores
+    type: calls
+mapping:
+  - source/cli/src/io/incidents-store.ts

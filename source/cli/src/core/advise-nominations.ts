@@ -750,20 +750,58 @@ export interface AttentionSources {
    * Computed at the boundary (the index read lives there); 0 omits the line.
    */
   deviationCount: number;
+  /**
+   * Total incidents recorded in the committed ledger (`.yggdrasil/incidents.md`),
+   * counted at the boundary; 0 when the ledger is absent. Unlike the structural
+   * lines this is the tower's only EXTERNAL oracle, so its reality-counter line is
+   * always shown — even at 0 (an empty ledger is honest, not hidden).
+   */
+  incidentCount: number;
+  /**
+   * How many recorded incidents are tagged `wrong-rule` — evidence that the rules
+   * themselves may be miscalibrated (it joins the catch/exposure health story). The
+   * evidence line is shown only when this is > 0.
+   */
+  wrongRuleIncidentCount: number;
 }
 
 /**
  * The Attention section: ONE aggregate line per signal class, with NO per-instance
  * ranking (per-instance rankings stay inside the instrument commands — a ranked
  * list in a feed read every session is a to-do list regardless of exit codes). A
- * zero count omits its line entirely (no "0 items" noise). Two classes:
- *   - C7 tunnels — dependencies reaching across distant parts of the architecture.
- *   - C8 structural deviations — files that look unusual among their neighbours; the
- *     line is a bare count pointing at `yg context` for the per-file detail, never a
- *     ranking or a list (per-instance detail stays in `yg context`, read on demand).
+ * structural class with a zero count omits its line entirely (no "0 items" noise);
+ * the incident reality-counter is the one exception — always shown, even at 0.
+ * Three classes, emitted in this order:
+ *   - incidents on record — the reality-counter for the committed incident ledger,
+ *     the tower's only EXTERNAL oracle. ALWAYS shown (0 or N): an empty ledger is
+ *     honest, not hidden, and its presence keeps the tower aware it has an outside
+ *     reference at all. When any incident is tagged `wrong-rule` (count > 0) an
+ *     extra aggregate line notes the rules themselves may be miscalibrated.
+ *   - C7 tunnels — dependencies reaching across distant parts of the architecture;
+ *     shown only when the count is > 0, pointing at `yg structure` for the detail.
+ *   - C8 structural deviations — files that look unusual among their neighbours;
+ *     shown only when the count is > 0. A bare count pointing at `yg context` for
+ *     the per-file detail, never a ranking or a list (per-instance detail stays in
+ *     `yg context`, read on demand).
  */
 export function buildAttention(sources: AttentionSources): string[] {
   const lines: string[] = [];
+  // The reality counter — the tower's ONLY external oracle. Always shown (0 or N):
+  // an empty ledger is honest, not hidden, and its very presence keeps the tower
+  // aware it has an outside reference at all. RZ-5 quoted-data: a count plus a fixed
+  // sentence, with the ledger's own provenance — never a narrator-voice instruction.
+  lines.push(
+    `${sources.incidentCount} incidents on record — the only external oracle; see .yggdrasil/incidents.md`,
+  );
+  // wrong-rule-tagged incidents are evidence the rules themselves may be
+  // miscalibrated — the external counterpart to the catch/exposure health story.
+  // Shown only when such evidence exists (K > 0); AGGREGATE only (no per-aspect
+  // attribution in v1 — that is a future maintainer decision, not invented here).
+  if (sources.wrongRuleIncidentCount > 0) {
+    lines.push(
+      `${sources.wrongRuleIncidentCount} wrong-rule incidents recorded — rules may be miscalibrated; see incidents.md`,
+    );
+  }
   if (sources.tunnelCount > 0) {
     lines.push(
       `${sources.tunnelCount} dependencies jump across distant parts of the architecture — run yg structure to see them`,

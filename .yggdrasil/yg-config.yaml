@@ -3,6 +3,13 @@ quality:
   max_direct_relations: 20
 parallel: 10
 debug: false
+# This repo dogfoods the committed, team-shared record of LLM verification
+# events: each LLM fill event is written to the committed, union-merged file
+# .yggdrasil/yg-events.llm.jsonl (refusal rationale stripped) instead of the
+# local-only sidecar. Deterministic checks never write there, so the keyless CI
+# gate stays byte-stable. This opt-in never folds into any verdict hash.
+events:
+  committed_llm: true
 reviewer:
   tiers:
     standard:

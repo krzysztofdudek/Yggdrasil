@@ -22,6 +22,7 @@ import { buildPortalNodes, displayPairState, type SuppressionsByFile } from './d
 import { buildAspects, buildFlows, buildTypes } from './derive-catalogue.js';
 import { buildSuppressions, buildHubs, buildResidue, buildWorklist } from './derive-rest.js';
 import { buildBoundary } from './derive-boundary.js';
+import { deriveStructure } from './derive-metrics.js';
 
 /**
  * Extract the portal data contract from a project's graph + lock.
@@ -120,7 +121,20 @@ export async function extractPortalData(
   // FULL live boundary via the facade — phantom + declared-only + forbidden-type, joined
   // from the relation pass and the architecture matrix. `null` (the parse genuinely threw)
   // is the ONLY honest "unknown"; a successful parse yields the three classes verbatim.
-  const boundary = buildBoundary(await computePortalBoundary(graph, projectRoot));
+  // ONE relation pass backs BOTH the boundary AND the structure panel: computePortalBoundary
+  // runs the pass once and surfaces its detected-edge set on `boundaryInput`, so deriving the
+  // structure metrics below adds NO second pass (the ≤2-pass invariant — runCheck + this one).
+  const boundaryInput = await computePortalBoundary(graph, projectRoot);
+  const boundary = buildBoundary(boundaryInput);
+
+  // Structure panel — the same analysis `yg structure` computes (dependency tunnels, module
+  // groups, change reach), derived PURELY from the already-flattened detected edges + the graph's
+  // declared structural relations. A null boundaryInput (the parse threw) yields an explicit
+  // UNKNOWN structure, never a fabricated zero graph.
+  const structure = deriveStructure(
+    graph,
+    boundaryInput === null ? null : boundaryInput.detectedEdgesByNode ?? [],
+  );
 
   // Attestation provenance — read-only: a content hash over the committed lock triad and the
   // git HEAD commit ref. Both pin an attestation digest to an exact committed state. The lock
@@ -145,6 +159,7 @@ export async function extractPortalData(
     flows,
     types,
     boundary,
+    structure,
     suppressions: flatSuppressions,
     hubs,
     worklist,

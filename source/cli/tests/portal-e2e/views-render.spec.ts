@@ -18,6 +18,7 @@ export const COVERS = [
   'coverage',
   'tree',
   'relations',
+  'structure',
   'rulebook',
   'types',
   'flows',
@@ -56,7 +57,9 @@ test.describe('§3a views V1–V9 — render real data + honest palette', () => 
     // rail links into the full views (this is the surface every navTo() below clicks).
     await expect(page.locator('.app-rail')).toBeVisible();
     await expect(page.locator('.app-rail .rail-link', { hasText: 'Coverage & audit' })).toHaveCount(1);
-    await expect(page.locator('.app-rail .rail-link', { hasText: 'Structure' })).toHaveCount(1);
+    // Match the label span EXACTLY: the rail now also carries a "Dependency structure" link, whose
+    // label contains the substring "Structure", so a loose hasText would match two links.
+    await expect(page.locator('.app-rail .rail-link span', { hasText: /^Structure$/ })).toHaveCount(1);
     await expect(page.locator('.app-rail .rail-link')).not.toHaveCount(0);
     // Default hash → overview. portal-basic has 2 unverified pairs → "waiting to be checked".
     await expect(page.locator('.ov-verdict')).toBeVisible();
@@ -162,6 +165,27 @@ test.describe('§3a views V1–V9 — render real data + honest palette', () => 
     await navTo(page, 'Start here');
     await expect(page.locator('.st-card .st-h1')).toContainText('What this system is');
     await expect(page.locator('.st-steps .st-step')).toHaveCount(5);
+    await expectHonestPalette(page);
+  });
+
+  test('V10 Dependency structure renders the legend, tunnels-in-words, module groups, and the reach caption', async ({
+    page,
+    repoPage,
+  }) => {
+    // The real repo is well above the small-N floor and has real cross-tree dependencies, so the
+    // full panel (legend + tunnels + module groups + the interpretive reach caption) must render.
+    await page.goto(repoPage);
+    await navTo(page, 'Dependency structure');
+    // The verbatim edge-universe legend is always printed and states that event relations are excluded.
+    await expect(page.locator('.str-legend')).toContainText('event relations excluded');
+    // Tunnels are named in words — a span reads as "spans N levels across the tree", never jargon.
+    await expect(page.locator('.str-tunnels')).toBeVisible();
+    await expect(page.locator('.str-tunnels .str-tunnel').first()).toContainText('across the tree');
+    // The module-groups section is present with at least one level.
+    await expect(page.locator('.str-modules .str-layer').first()).toBeVisible();
+    // Above the floor: the interpretive change-reach caption renders (small-N panel absent).
+    await expect(page.locator('.str-reach .str-reach-cap')).toContainText('average component');
+    await expect(page.locator('.str-smalln')).toHaveCount(0);
     await expectHonestPalette(page);
   });
 });

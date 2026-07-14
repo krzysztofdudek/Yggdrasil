@@ -1,0 +1,96 @@
+import type { Command } from 'commander';
+import chalk from 'chalk';
+import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
+import { debugWrite } from '../utils/debug-log.js';
+import { buildIssueMessage } from '../formatters/message-builder.js';
+import {
+  appendIncident,
+  readIncidents,
+  isValidIncidentTag,
+  INCIDENT_TAGS,
+  INCIDENTS_FILENAME,
+} from '../io/incidents-store.js';
+
+function handleError(error: unknown): never {
+  debugWrite(`[incident] command failed: ${(error as Error).message}`);
+  abortOnUnexpectedError(error, 'running incident command');
+}
+
+/** Emit a blocking what/why/next error to stderr and exit(1) — nothing is written. */
+function failWith(msg: { what: string; why: string; next: string }): never {
+  process.stderr.write(chalk.red(`Error: ${buildIssueMessage(msg)}`) + '\n');
+  process.exit(1);
+}
+
+export function registerIncidentCommand(program: Command): void {
+  const incident = program
+    .command('incident')
+    .description(
+      'The incident ledger — a committed record of what escaped enforcement and how, the tower\'s only external reality check (read-only; add appends one human-signed entry)',
+    );
+
+  incident
+    .command('add')
+    .description('Record what escaped enforcement and how it surfaced, tagged by cause')
+    .requiredOption(
+      '--tag <cause>',
+      `Cause of the escape (one of: ${INCIDENT_TAGS.join(', ')})`,
+    )
+    .requiredOption('--reason <text>', 'What escaped and how it surfaced (mandatory human testimony)')
+    .action(async (opts: { tag: string; reason: string }) => {
+      try {
+        const graph = await loadGraphOrAbort(process.cwd(), { tolerateInvalidConfig: true });
+
+        if (!isValidIncidentTag(opts.tag)) {
+          failWith({
+            what: `--tag '${opts.tag}' is not a recognized incident cause.`,
+            why: 'Each incident is tagged by CAUSE so the shape of what enforcement misses stays legible; an unknown tag would make that record meaningless.',
+            next: `Re-run with one of: ${INCIDENT_TAGS.join(', ')}.`,
+          });
+        }
+
+        if (opts.reason.trim() === '') {
+          failWith({
+            what: 'An incident needs a non-empty --reason.',
+            why: 'The ledger is human testimony: the entry must say WHAT escaped and HOW it surfaced, or it records nothing worth committing.',
+            next: 'Re-run with --reason "<what escaped enforcement and how it surfaced>".',
+          });
+        }
+
+        // Injected UTC clock at the boundary (wave-5/6 pattern) — the store keeps no
+        // Date.now of its own, so tests can pin the datetime deterministically.
+        const isoDatetime = new Date().toISOString();
+        appendIncident(graph.rootPath, { tag: opts.tag, reason: opts.reason, isoDatetime });
+
+        process.stdout.write(
+          chalk.green(
+            `Recorded incident [${opts.tag}] at ${isoDatetime} in .yggdrasil/${INCIDENTS_FILENAME}\n`,
+          ),
+        );
+      } catch (error) {
+        handleError(error);
+      }
+    });
+
+  incident
+    .command('read')
+    .description('List recorded incidents (datetime and cause, oldest first); the full testimony lives in the committed ledger file')
+    .action(async () => {
+      try {
+        const graph = await loadGraphOrAbort(process.cwd(), { tolerateInvalidConfig: true });
+        const { entries, present } = readIncidents(graph.rootPath);
+        if (!present || entries.length === 0) {
+          process.stdout.write('No incidents recorded.\n');
+          return;
+        }
+        process.stdout.write(
+          `${entries.length} incident${entries.length === 1 ? '' : 's'} on record:\n\n`,
+        );
+        for (const entry of entries) {
+          process.stdout.write(`## [${entry.datetime}] ${entry.tag}\n`);
+        }
+      } catch (error) {
+        handleError(error);
+      }
+    });
+}

@@ -1,0 +1,25 @@
+name: Simulate Command
+type: command
+description: "CLI command yg simulate — replays a candidate deterministic rule over
+  the commits it can honestly reach (same graph schema), in an isolated temp clone,
+  one fresh subprocess per commit, strictly read-only. It never touches the real
+  tree: every checkout and the candidate overlay happen in the clone, and a
+  clone-boundary guard refuses to let the graph-root resolver escape the clone into
+  the real repo, so a pre-init commit is non-comparable rather than silently the
+  real graph. LLM and companion candidates are structurally refused (a replay must
+  be deterministic). It is a report tool — exit 0 whatever it finds; only a
+  precondition failure on the real repo exits non-zero."
+aspects: []
+relations:
+  - target: cli/io/stores
+    type: calls
+  - target: cli/formatters
+    type: calls
+  - target: cli/utils
+    type: calls
+  - target: cli/preamble
+    type: calls
+  - target: cli/tests/unit/cli
+    type: uses
+mapping:
+  - source/cli/src/cli/simulate.ts

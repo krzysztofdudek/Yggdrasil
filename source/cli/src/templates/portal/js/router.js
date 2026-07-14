@@ -30,6 +30,7 @@
     'coverage',
     'tree',
     'relations',
+    'structure',
     'rulebook',
     'types',
     'flows',

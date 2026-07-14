@@ -1,0 +1,17 @@
+name: Incident Ledger Check
+type: engine
+description: "Validation check for the committed incident ledger
+  (.yggdrasil/incidents.md): a non-blocking WARNING when its append-only entry
+  datetimes are not strictly ascending — the signature of a hand-edit or a
+  reordering merge. There is no hash baseline in v1: the ledger is the tower's only
+  external oracle and must never break CI, so the check only warns and tolerates
+  absence (no file, no warning). Reads the ledger through the persistence adapter;
+  the validate() orchestrator composes this alongside the other checks."
+aspects: []
+relations:
+  - target: cli/core/checks/architecture
+    type: calls
+  - target: cli/io/incident-ledger
+    type: calls
+mapping:
+  - source/cli/src/core/checks/incident-ledger.ts

@@ -1,0 +1,12 @@
+name: E2E Tests — Incident Ledger
+type: test-suite
+description: "Subprocess E2E over the public CLI for the incident ledger: yg
+  incident add creates the committed incidents.md and appends strictly-ascending
+  entries; yg check WARNS (never blocks) on out-of-order datetimes and tolerates an
+  absent ledger; an unknown --tag is rejected with the valid-tag list and nothing is
+  written; and yg advise surfaces the reality-counter line (shown at 0 or N) plus
+  the wrong-rule miscalibration evidence. Spawns the built bin.js; no source imports."
+aspects: []
+relations: []
+mapping:
+  - source/cli/tests/e2e/cli-incident-ledger.test.ts

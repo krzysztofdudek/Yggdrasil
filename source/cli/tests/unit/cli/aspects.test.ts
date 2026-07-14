@@ -12,7 +12,11 @@ import {
 import type { VerifiedPair, PairState } from '../../../src/core/verify-lock.js';
 import type { SuppressionsReport } from '../../../src/portal/api/suppress-scan.js';
 import { nodeUnit } from '../../../src/model/lock.js';
-import type { AspectHealthSignal, DrillStatus } from '../../../src/core/aspect-health-signals.js';
+import type {
+  AspectHealthSignal,
+  AspectFalsePositiveSignal,
+  DrillStatus,
+} from '../../../src/core/aspect-health-signals.js';
 
 function signal(over: Partial<AspectHealthSignal>): AspectHealthSignal {
   return {
@@ -22,6 +26,18 @@ function signal(over: Partial<AspectHealthSignal>): AspectHealthSignal {
     uncertaintyWide: false,
     label: 'quiet',
     demotionCorroborated: false,
+    ...over,
+  };
+}
+
+function fpSignal(over: Partial<AspectFalsePositiveSignal>): AspectFalsePositiveSignal {
+  return {
+    fp: 0,
+    blocks: 0,
+    suppressed: 0,
+    overturned: 0,
+    shrunkRate: 0,
+    thinData: false,
     ...over,
   };
 }
@@ -377,7 +393,7 @@ describe('formatAspectsHealthOutput', () => {
     const header = out.split('\n')[0].trim().split(/\s{2,}/);
     expect(header).toEqual([
       'aspect', 'kind', 'status', 'nodes', 'pairs', 'refused', 'suppresses', 'errs', 'age',
-      'catch', 'exposure', 'signal',
+      'catch', 'exposure', 'signal', 'fp',
     ]);
   });
 
@@ -429,10 +445,10 @@ describe('formatAspectsHealthOutput', () => {
     const out = formatAspectsHealthOutput(health);
     const dataRow = out.split('\n').find((l) => l.trim().split(/\s{2,}/)[0] === 'a1')!;
     const cells = dataRow.trim().split(/\s{2,}/);
-    // age holds its fixed position; the catch/exposure/signal columns follow it,
+    // age holds its fixed position; the catch/exposure/signal/fp columns follow it,
     // reading em-dash for a rule with no recorded telemetry.
     expect(cells[8]).toBe('3mo');
-    expect(cells.slice(9)).toEqual(['—', '—', '—']);
+    expect(cells.slice(9)).toEqual(['—', '—', '—', '—']);
   });
 });
 
@@ -480,6 +496,82 @@ describe('computeAspectHealth — catch/exposure cells + signal notes', () => {
     ]);
     const out = formatAspectsHealthOutput(computeAspectHealth(graph, [], report(), new Map(), signals));
     expect(out).toContain('uncertainty range is wide (few observations)');
+  });
+});
+
+describe('computeAspectHealth — false-block (fp) cell + notes', () => {
+  const emptyDrills = new Map<string, DrillStatus>();
+  const noSignals = new Map<string, AspectHealthSignal>();
+
+  it('renders the fp cell as a thin-data-labelled count, em-dash when no block is on record', () => {
+    const graph = makeGraph([
+      makeAspect('waived-x', { reviewer: 'deterministic' }),
+      makeAspect('clean-x', { reviewer: 'deterministic' }),
+    ]);
+    const fpSignals = new Map<string, AspectFalsePositiveSignal>([
+      ['waived-x', fpSignal({ fp: 1, blocks: 2, suppressed: 1, thinData: true, shrunkRate: 0.4 })],
+      ['clean-x', fpSignal({ blocks: 0 })],
+    ]);
+    const { rows } = computeAspectHealth(graph, [], report(), new Map(), noSignals, emptyDrills, fpSignals);
+    expect(rows.find((r) => r.aspectId === 'waived-x')!.fpCellValue).toBe('1 (thin data)');
+    // No recorded block → em-dash, never a `0` that reads as "checked and clean".
+    expect(rows.find((r) => r.aspectId === 'clean-x')!.fpCellValue).toBe('—');
+  });
+
+  it('renders a bare count (no thin-data label) once the block sample is large', () => {
+    const graph = makeGraph([makeAspect('busy-x', { reviewer: 'deterministic' })]);
+    const fpSignals = new Map<string, AspectFalsePositiveSignal>([
+      ['busy-x', fpSignal({ fp: 3, blocks: 40, suppressed: 3, thinData: false, shrunkRate: 0.075 })],
+    ]);
+    const { rows } = computeAspectHealth(graph, [], report(), new Map(), noSignals, emptyDrills, fpSignals);
+    expect(rows.find((r) => r.aspectId === 'busy-x')!.fpCellValue).toBe('3');
+  });
+
+  it('emits the telemetry-since honesty line and a plain-words per-rule detail — never a bare rate', () => {
+    const graph = makeGraph([makeAspect('waived-x', { reviewer: 'deterministic' })]);
+    const fpSignals = new Map<string, AspectFalsePositiveSignal>([
+      ['waived-x', fpSignal({ fp: 1, blocks: 1, suppressed: 1, thinData: true, shrunkRate: 0.4 })],
+    ]);
+    const out = formatAspectsHealthOutput(
+      computeAspectHealth(graph, [], report(), new Map(), noSignals, emptyDrills, fpSignals, '2026-07-01T00:00:00.000Z'),
+    );
+    expect(out).toContain('never a gate');
+    expect(out).toContain('Local telemetry since 2026-07-01T00:00:00.000Z');
+    expect(out).toContain('waived-x: 1 of 1 recorded block later waived by a suppress marker');
+    expect(out).toContain('few observations');
+    expect(out).not.toContain('beta-binomial'); // method names never leak
+  });
+
+  it('distinguishes an overturn from a plain waiver in the detail line', () => {
+    const graph = makeGraph([makeAspect('flipped-x', { reviewer: 'deterministic' })]);
+    const fpSignals = new Map<string, AspectFalsePositiveSignal>([
+      ['flipped-x', fpSignal({ fp: 1, blocks: 1, overturned: 1, thinData: true, shrunkRate: 0.4 })],
+    ]);
+    const out = formatAspectsHealthOutput(
+      computeAspectHealth(graph, [], report(), new Map(), noSignals, emptyDrills, fpSignals, '2026-07-01T00:00:00.000Z'),
+    );
+    expect(out).toContain('overturned after a suppress range changed');
+  });
+
+  it('omits the false-block section entirely when no rule has a recorded block', () => {
+    const graph = makeGraph([makeAspect('a1', { reviewer: 'deterministic' })]);
+    const out = formatAspectsHealthOutput(computeAspectHealth(graph, [], report()));
+    expect(out).not.toContain('False-block signal');
+    expect(out).not.toContain('Local telemetry since');
+  });
+
+  it('appends the committed-stream caveat when teammate events contribute', () => {
+    const graph = makeGraph([makeAspect('waived-x', { reviewer: 'deterministic' })]);
+    const fpSignals = new Map<string, AspectFalsePositiveSignal>([
+      ['waived-x', fpSignal({ fp: 1, blocks: 1, suppressed: 1, thinData: true, shrunkRate: 0.4 })],
+    ]);
+    const out = formatAspectsHealthOutput(
+      computeAspectHealth(
+        graph, [], report(), new Map(), noSignals, emptyDrills, fpSignals,
+        '2026-07-01T00:00:00.000Z', 'machines on older CLIs do not contribute',
+      ),
+    );
+    expect(out).toContain('Shared LLM events included (machines on older CLIs do not contribute).');
   });
 });
 

@@ -869,4 +869,76 @@ quality:
     });
   });
 
+  // events — the committed-events opt-in block (RZ-14). Tolerated when absent,
+  // strict-validated when present. Pins the parser contract the committed
+  // LLM-fill event stream gates on. Absent ⇒ LLM-fill events stay LOCAL +
+  // gitignored (today's behavior); an absent key must NEVER change how any
+  // existing config parses, and the key never folds into any verdict hash (G3).
+  describe('events config key', () => {
+    /** Write a config body (already including a version) to a fresh tmp dir and parse it. */
+    async function parseWith(body: string): Promise<YggConfig> {
+      const dir = await mkdtemp(path.join(FIXTURES_DIR, 'tmp-config-events-'));
+      const filePath = path.join(dir, 'yg-config.yaml');
+      await writeFile(filePath, `version: "5.1.0"\n${body}`, 'utf-8');
+      try {
+        return await parseConfig(filePath, { skipSecretsOverlay: true });
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    }
+
+    it('(a) a config with NO events key parses unchanged — events is undefined (committed stream OFF)', async () => {
+      const cfg = await parseWith('');
+      expect(cfg.events).toBeUndefined();
+      // Default-OFF contract: absent events ⇒ committed_llm !== true.
+      expect(cfg.events?.committed_llm === true).toBe(false);
+    });
+
+    it('(b) events: { committed_llm: true } parses to committed_llm === true (the opt-in)', async () => {
+      const cfg = await parseWith('events:\n  committed_llm: true\n');
+      expect(cfg.events).toEqual({ committed_llm: true });
+      expect(cfg.events?.committed_llm === true).toBe(true);
+    });
+
+    it('events: { committed_llm: false } parses to committed_llm === false (explicit OFF)', async () => {
+      const cfg = await parseWith('events:\n  committed_llm: false\n');
+      expect(cfg.events).toEqual({ committed_llm: false });
+      expect(cfg.events?.committed_llm === true).toBe(false);
+    });
+
+    it('an empty events: {} mapping parses — committed_llm undefined (still OFF by default)', async () => {
+      const cfg = await parseWith('events: {}\n');
+      expect(cfg.events).toEqual({ committed_llm: undefined });
+      expect(cfg.events?.committed_llm === true).toBe(false);
+    });
+
+    it('(c) an UNKNOWN sibling under events is REJECTED (strict — a typo must not silently leave the stream off)', async () => {
+      await expect(parseWith('events:\n  commited_llm: true\n')).rejects.toThrow(ConfigParseError);
+      await expect(parseWith('events:\n  verbose: true\n')).rejects.toThrow(
+        /unknown key 'verbose' under events/,
+      );
+    });
+
+    it('events.committed_llm must be boolean — a non-boolean is rejected with the guided next step', async () => {
+      await expect(parseWith('events:\n  committed_llm: "yes"\n')).rejects.toThrow(
+        /events\.committed_llm must be a boolean/,
+      );
+      // The NEXT guidance is verbatim contract.
+      let captured: ConfigParseError | undefined;
+      try {
+        await parseWith('events:\n  committed_llm: 1\n');
+      } catch (e) {
+        captured = e as ConfigParseError;
+      }
+      expect(captured).toBeInstanceOf(ConfigParseError);
+      expect(captured?.messageData.next).toBe(
+        'Set events.committed_llm to true or false, or remove the events key.',
+      );
+    });
+
+    it('events must be a mapping — a scalar value is rejected', async () => {
+      await expect(parseWith('events: on\n')).rejects.toThrow(/events must be a mapping/);
+    });
+  });
+
 });

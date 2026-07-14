@@ -1,0 +1,158 @@
+/*
+ * Dependency structure panel (Yg.views.structure). Plain, read-only styling with two explicit
+ * HONEST-STATE anchors that must never read as a blank "clean" section:
+ *   .str-unknown — the live parse could not run (distinct dashed unverified panel).
+ *   .str-smalln  — below the node-count floor: raw figure only, distinct panel.
+ */
+
+.str-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+.str-legend {
+  margin: 0 0 14px;
+  padding: 8px 10px;
+  border-left: 3px solid var(--border);
+  background: var(--surface-1);
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.str-summary {
+  margin: 0 0 16px;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.str-sect {
+  margin: 0 0 22px;
+}
+
+.str-h {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.str-empty {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Tunnels ---------------------------------------------------------------- */
+
+.str-tunnel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.str-tunnel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--surface-1);
+}
+
+.str-edge {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.str-span {
+  color: var(--text-secondary);
+  font-size: 12.5px;
+}
+
+/* Module groups --------------------------------------------------------- */
+
+.str-layer {
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--surface-1);
+}
+
+.str-layer-h {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.str-layer-groups {
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  margin-bottom: 6px;
+  word-break: break-word;
+}
+
+.str-layer-cross {
+  color: var(--text-secondary);
+  font-size: 12.5px;
+}
+
+.str-layer-loop {
+  color: var(--text-muted);
+  font-size: 12.5px;
+  margin-top: 2px;
+}
+
+/* Change reach ---------------------------------------------------------- */
+
+.str-reach-cap {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+/* Honest-state anchors -------------------------------------------------- */
+
+.str-unknown {
+  border: 1px dashed var(--unverified);
+  border-radius: 8px;
+  padding: 14px 16px;
+  background: var(--unverified-bg);
+}
+
+.str-unknown b {
+  display: block;
+  margin: 6px 0 4px;
+  color: var(--text-primary);
+}
+
+.str-unknown p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.str-smalln {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: var(--surface-1);
+}
+
+.str-smalln b {
+  display: block;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.str-smalln p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  line-height: 1.5;
+}

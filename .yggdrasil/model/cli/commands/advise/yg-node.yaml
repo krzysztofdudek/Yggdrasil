@@ -18,6 +18,8 @@ relations:
     type: calls
   - target: cli/io/stores
     type: calls
+  - target: cli/io/incident-ledger
+    type: calls
   - target: cli/io/parsers/aspect
     type: calls
   - target: cli/portal/engine-api

@@ -55,6 +55,14 @@ Every aspect has a status that controls how its results show up. You move a rule
 
 Status defaults to `enforced`. See [Aspect Status](/aspect-status) for the full lifecycle.
 
+## Retiring a rule that blocks wrongly
+
+A rule earns its place by catching real mistakes. But a rule can also block the *wrong* thing — refuse code that was actually fine — and when that happens often, the team stops trusting the rule and starts routing around it. To keep that visible, the rule-health view (`yg aspects --health`) has a **false-block** column: for each rule, how many of its past refusals a person later waived (with a `yg-suppress` marker) or overturned. A refusal that was fixed in the code never counts — only refusals a human decided were wrong. Where the history is thin the number is shown with a plain "not much to go on yet" label, never a precise-looking rate.
+
+The count is a coarse read, not a precise verdict, and it can over-count in one rare case: it matches a waiver to a refusal by file and component, not by exact line, so if a waiver for a rule sits on the same file or component as an *unrelated* refusal from that same rule, that unrelated refusal can be tallied as a false block. Weigh a single hit with that in mind — it is thin-data by design and feeds a human review, never an automatic block.
+
+Think of it as a **false-block budget** for the whole repo: every enforced rule quietly spends a little of the team's goodwill each time it blocks something that turns out to be fine, and the budget is finite. When it runs tight, the answer is not to raise the ceiling — it is to look at which rules are doing the most wrongful blocking and retire the worst offenders, which frees room for new rules worth adding. This is a judgement a person makes by reading the column, weighing it against what the rule is protecting; nothing in the tool ever retires a rule for you, and the false-block number never blocks a build or shows up as a required action. It is a signal for a periodic human review, in the same spirit as renewing or retiring a rule that has passed its review-by date.
+
 ## Scope, at a glance
 
 By default an aspect reviews a whole component in one pass — `per: node`. The reviewer sees all of the component's files together, which is what cross-file rules need ("exactly one file exports this", "a correlation ID propagates across calls").

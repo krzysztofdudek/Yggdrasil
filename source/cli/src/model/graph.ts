@@ -53,6 +53,16 @@ export interface YggConfig {
    * `signals: { attention: false }` to silence it. Never affects any verdict.
    */
   signals?: { attention?: boolean };
+  /**
+   * Committed-events opt-in. Absent ⇒ every LLM verification-fill event stays in
+   * the LOCAL, gitignored sidecar (today's behavior). `committed_llm: true` opts
+   * the repo into a COMMITTED, shared record of LLM-fill events
+   * (`.yggdrasil/yg-events.llm.jsonl`, union-merged across branches, refusal
+   * `reason` stripped for privacy); deterministic / drill / diag events always
+   * stay local. Absent `events` OR absent `events.committed_llm` both mean OFF.
+   * Never affects any verdict hash (recording it invalidates nothing).
+   */
+  events?: { committed_llm?: boolean };
   /** Coverage scope. Absent ⇒ DEFAULT_COVERAGE (whole repo required = today's behavior). */
   coverage?: CoverageConfig;
 }

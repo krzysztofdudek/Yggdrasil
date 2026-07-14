@@ -229,6 +229,45 @@ export async function parseConfig(
     signals = { attention: sig.attention as boolean | undefined };
   }
 
+  // events — optional committed-events opt-in (RZ-14). Absent ⇒ undefined (every
+  // LLM verification-fill event stays in the LOCAL, gitignored sidecar — today's
+  // behavior). Tolerated when absent (like auto_approve / signals), but STRICT when
+  // present: `events` must be a mapping, `events.committed_llm` (if given) must be
+  // boolean, and an UNKNOWN sibling is rejected — the section is a tight, enumerated
+  // namespace, and a misspelled key (e.g. `commited_llm`) would otherwise SILENTLY
+  // leave the committed LLM-fill stream disabled. No schema-version bump: an absent
+  // key changes nothing about how any existing config parses, and the key never
+  // folds into any verdict hash (recording it invalidates no baseline).
+  let events: { committed_llm?: boolean } | undefined;
+  if (raw.events !== undefined) {
+    if (typeof raw.events !== 'object' || Array.isArray(raw.events) || raw.events === null) {
+      throw new ConfigParseError({
+        what: `${filename}: events must be a mapping (got ${JSON.stringify(raw.events)}).`,
+        why: 'events holds the committed-events opt-in (currently `committed_llm`); a non-mapping value cannot carry it.',
+        next: 'Set events to a mapping, e.g. `events: { committed_llm: true }`, or remove the events key.',
+      }, 'config-invalid');
+    }
+    const ev = raw.events as Record<string, unknown>;
+    const allowedEventKeys = new Set(['committed_llm']);
+    for (const k of Object.keys(ev)) {
+      if (!allowedEventKeys.has(k)) {
+        throw new ConfigParseError({
+          what: `${filename}: unknown key '${k}' under events:`,
+          why: 'the events section accepts only `committed_llm`; a misspelled key would silently leave the committed LLM-fill event stream disabled.',
+          next: 'Remove the key, or set events.committed_llm to true or false.',
+        }, 'config-events-unknown-key');
+      }
+    }
+    if (ev.committed_llm !== undefined && typeof ev.committed_llm !== 'boolean') {
+      throw new ConfigParseError({
+        what: `${filename}: events.committed_llm must be a boolean (got ${JSON.stringify(ev.committed_llm)}).`,
+        why: 'events.committed_llm opts the repo into a committed, shared record of LLM verification-fill events; only a boolean can switch it.',
+        next: 'Set events.committed_llm to true or false, or remove the events key.',
+      }, 'config-invalid');
+    }
+    events = { committed_llm: ev.committed_llm as boolean | undefined };
+  }
+
   return {
     version,
     quality,
@@ -237,6 +276,7 @@ export async function parseConfig(
     debug,
     auto_approve,
     signals,
+    events,
     coverage: parseCoverage(raw.coverage, filename),
   };
 }

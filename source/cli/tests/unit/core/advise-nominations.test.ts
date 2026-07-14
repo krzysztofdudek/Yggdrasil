@@ -115,12 +115,51 @@ function diagEvent(aspectId: string, satisfied: 0 | 1, ts: string): VerdictEvent
   };
 }
 
+/** The always-on incident reality-counter line (only N varies). */
+const INC = (n: number) =>
+  `${n} incidents on record — the only external oracle; see .yggdrasil/incidents.md`;
+/** The wrong-rule miscalibration-evidence line (only K varies). */
+const WRONG = (k: number) =>
+  `${k} wrong-rule incidents recorded — rules may be miscalibrated; see incidents.md`;
+
+describe('buildAttention — incident reality-counter (the only external oracle)', () => {
+  it('always shows the counter, even at zero (an empty ledger is honest, not hidden)', () => {
+    expect(
+      buildAttention({ tunnelCount: 0, deviationCount: 0, incidentCount: 0, wrongRuleIncidentCount: 0 }),
+    ).toEqual([INC(0)]);
+  });
+
+  it('renders the exact recorded count and precedes the structural lines', () => {
+    expect(
+      buildAttention({ tunnelCount: 4, deviationCount: 0, incidentCount: 3, wrongRuleIncidentCount: 0 }),
+    ).toEqual([
+      INC(3),
+      '4 dependencies jump across distant parts of the architecture — run yg structure to see them',
+    ]);
+  });
+
+  it('adds the wrong-rule evidence line only when there is such evidence (K > 0), right after the counter', () => {
+    expect(
+      buildAttention({ tunnelCount: 0, deviationCount: 0, incidentCount: 5, wrongRuleIncidentCount: 2 }),
+    ).toEqual([INC(5), WRONG(2)]);
+    // No evidence line when no incident is tagged wrong-rule.
+    expect(
+      buildAttention({ tunnelCount: 0, deviationCount: 0, incidentCount: 5, wrongRuleIncidentCount: 0 }),
+    ).toEqual([INC(5)]);
+  });
+});
+
 describe('buildAttention — C7 tunnels aggregate line', () => {
-  it('omits the line when there are no tunnels', () => {
-    expect(buildAttention({ tunnelCount: 0, deviationCount: 0 })).toEqual([]);
+  it('omits the line when there are no tunnels (only the reality-counter shows)', () => {
+    expect(
+      buildAttention({ tunnelCount: 0, deviationCount: 0, incidentCount: 0, wrongRuleIncidentCount: 0 }),
+    ).toEqual([INC(0)]);
   });
   it('renders the verbatim aggregate line with the exact count', () => {
-    expect(buildAttention({ tunnelCount: 7, deviationCount: 0 })).toEqual([
+    expect(
+      buildAttention({ tunnelCount: 7, deviationCount: 0, incidentCount: 0, wrongRuleIncidentCount: 0 }),
+    ).toEqual([
+      INC(0),
       '7 dependencies jump across distant parts of the architecture — run yg structure to see them',
     ]);
   });
@@ -131,20 +170,29 @@ describe('buildAttention — C8 structural-deviation aggregate line', () => {
     `${m} files deviate structurally from their neighbors — shown in yg context when you work there.`;
 
   it('omits the line at a zero deviation count (no "0 files" noise)', () => {
-    expect(buildAttention({ tunnelCount: 0, deviationCount: 0 })).toEqual([]);
+    expect(
+      buildAttention({ tunnelCount: 0, deviationCount: 0, incidentCount: 0, wrongRuleIncidentCount: 0 }),
+    ).toEqual([INC(0)]);
   });
 
   it('renders the verbatim C8 line with the exact count when > 0', () => {
-    expect(buildAttention({ tunnelCount: 0, deviationCount: 2 })).toEqual([C8(2)]);
+    expect(
+      buildAttention({ tunnelCount: 0, deviationCount: 2, incidentCount: 0, wrongRuleIncidentCount: 0 }),
+    ).toEqual([INC(0), C8(2)]);
   });
 
-  it('emits C7 then C8, each independently gated on its own positive count', () => {
-    expect(buildAttention({ tunnelCount: 3, deviationCount: 5 })).toEqual([
+  it('emits reality-counter, then C7, then C8, each independently gated on its own positive count', () => {
+    expect(
+      buildAttention({ tunnelCount: 3, deviationCount: 5, incidentCount: 0, wrongRuleIncidentCount: 0 }),
+    ).toEqual([
+      INC(0),
       '3 dependencies jump across distant parts of the architecture — run yg structure to see them',
       C8(5),
     ]);
-    // C8 alone when there are no tunnels.
-    expect(buildAttention({ tunnelCount: 0, deviationCount: 5 })).toEqual([C8(5)]);
+    // C8 alone (plus the always-on counter) when there are no tunnels.
+    expect(
+      buildAttention({ tunnelCount: 0, deviationCount: 5, incidentCount: 0, wrongRuleIncidentCount: 0 }),
+    ).toEqual([INC(0), C8(5)]);
   });
 });
 

@@ -261,6 +261,11 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   // Deterministic-phase thread budget (injected; engine reads no system state).
   // 1 → sequential in-process; >1 → a worker-thread pool bounded by this value.
   const detConcurrency = Math.max(1, Math.floor(opts.detConcurrency ?? 1));
+  // Committed-events opt-in (RZ-14). Read from the resolved config once and passed
+  // to the appender per event: when ON, LLM verification-fill events graduate to
+  // the committed shared stream; every other event stays in the local sidecar.
+  // Never folds into any verdict hash.
+  const committedLlm = graph.config.events?.committed_llm === true;
 
   // ── Verdict-events telemetry sidecar (write-only; nothing in the engine ever
   // reads it back). One line per (aspect, unit) disposition — a real verdict
@@ -307,7 +312,11 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
     // (verdict site + LLM infra sites). Absent on deterministic lines and on the
     // no-reviewer / tier-unresolvable site (no judge ever resolved there).
     if (extra?.judge !== undefined) event.judge = extra.judge;
-    appendVerdictEvent(graph.rootPath, event);
+    // Single-home switch (RZ-14): the resolved committed-events opt-in is passed
+    // via the injected-config pattern (io never reads core config). When ON, the
+    // appender routes an LLM-fill event to the COMMITTED shared stream (reason
+    // stripped) instead of the local sidecar; deterministic events stay local.
+    appendVerdictEvent(graph.rootPath, event, { committedLlm });
   };
 
   // ── Step 1: Structural gate. A gating code aborts the whole fill. ──────────

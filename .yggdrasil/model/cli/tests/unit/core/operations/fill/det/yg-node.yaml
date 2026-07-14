@@ -25,4 +25,5 @@ mapping:
   - source/cli/tests/unit/core/fill-infra-grouping.test.ts
   - source/cli/tests/unit/core/fill-progress.test.ts
   - source/cli/tests/unit/core/fill-events.test.ts
+  - source/cli/tests/unit/core/fill-committed-events.test.ts
   - source/cli/tests/unit/core/fill-det-parallel.test.ts

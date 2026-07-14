@@ -400,7 +400,12 @@ plain-words read of how confident that ratio is (few observations reads as a wid
 range, never a false-precise number), and a `label` — `active`, `quiet`, or `decorative?`. A
 `decorative?` rule whose own examples still pass is reported as *possibly deterring the very
 violations it would catch* rather than assumed useless; a demotion is only ever suggested when
-several independent signals agree, never on the catch count alone. When
+several independent signals agree, never on the catch count alone. The last column, `fp`, is the
+false-block signal — how many of the rule's refusals a human later waived or overturned (a live
+`yg-suppress` waiver now covers the refused code, or the block was re-approved after a waiver moved
+rather than a genuine code fix; a real fix, with no waiver, never counts). It is a count with a
+plain-words small-sample label, never a bare rate, and it never gates — it feeds a human retirement
+ritual (the false-block budget), never an automatic block. When
 units have no valid result on record the `refused` cell reads `unverified`, never `0`, so an
 unchecked aspect is never shown as clean; likewise `age` reads `unknown` when that history is
 unavailable (a shallow clone or no repository), never a fabricated `0`. These lookups run
@@ -410,9 +415,11 @@ never calls a reviewer.
 ### `yg advise`
 
 A read-only attention layer over the graph. With no subcommand it prints two sections:
-**Attention** (one aggregate line per class of signal — e.g. how many dependencies reach
-across distant parts of the architecture, pointing you to `yg structure`, and how many files
-look [structurally unusual](/feature-field) among their same-language neighbours, pointing you
+**Attention** (one aggregate line per class of signal — how many incidents are on record
+(the one reality check that comes from outside the graph, shown even when there are none, see
+[`yg incident`](#yg-incident)), how many dependencies reach across distant parts of the
+architecture, pointing you to `yg structure`, and how many files look
+[structurally unusual](/feature-field) among their same-language neighbours, pointing you
 to `yg context`) and **Nominations** (up to ten ranked, evidence-backed suggestions in a fixed
 priority order). Each nomination
 states what it found, why — with the underlying evidence quoted verbatim as data (a waiver's
@@ -436,6 +443,40 @@ Dismissing or deferring is human-signature territory, the same authorization cla
 `yg check` passes, and never appears in the suggested next step. A read-only, keyless CI job that
 runs `yg advise --all` into a pinned issue on a weekly rhythm is a documented **pattern** to
 copy — not a shipped default.
+
+### `yg incident`
+
+The incident ledger — a committed record of what escaped enforcement and how it
+surfaced. It is the one signal that comes from **outside** the graph: everything else
+the tool reports is the graph reasoning about itself, while an incident is a person
+writing down a real miss — a concern that shipped with no rule, a rule that fired on
+the wrong thing, a reviewer that could not see what mattered, a lone judge that missed
+what a panel would have caught, or a gap that was not about enforcement at all.
+
+```bash
+yg incident add --tag wrong-rule --reason "a UI file reached the database and no rule caught it"
+yg incident read   # list recorded incidents (datetime + cause), oldest first
+```
+
+- `--tag <cause>` — Required. Names the cause, one of `no-rule`, `wrong-rule`,
+  `judges-blind`, `single-judge-miss`, or `not-enforcement`. An unrecognized tag is
+  rejected with the valid list, and nothing is written.
+- `--reason <text>` — Required. What escaped and how it surfaced.
+
+Each `add` appends one timestamped, human-signed entry to a committed file,
+`.yggdrasil/incidents.md`. That file lives in your history and is reviewed in diffs,
+but it is **never treated as source** — no rule maps it and no reviewer reads it as
+code. Entries are append-only and kept in time order. Because the ledger is testimony
+that must never be able to break your build, `yg check` only **warns** (never blocks)
+when the dates fall out of order — the sign of a hand-edit or a messy merge — and stays
+silent when there is no ledger at all.
+
+Recording an incident is your decision, the same as a waiver: the tool never invents
+one. `yg advise` surfaces the running count as a single reality-check line (shown even
+at zero, so the outside reference is never forgotten), and when any incident is tagged
+`wrong-rule` it adds a note that your rules themselves may need a second look. The
+command only ever appends — it never changes a verification result or whether your build
+passes.
 
 ### `yg flows`
 
@@ -531,11 +572,12 @@ Run `yg knowledge list` to see the current list with one-line descriptions.
 
 ---
 
-## Development (1)
+## Development (2)
 
 | Command                                                          | Purpose                               |
 |------------------------------------------------------------------|---------------------------------------|
 | `yg aspect-test --aspect <id> --node <path>` / `--files <paths...>` | Run an aspect of either kind on demand; never writes the lock |
+| `yg simulate <candidate> --node <path>`                          | Replay a deterministic rule over reachable history in an isolated clone; read-only, exits 0 |
 
 ### `yg aspect-test`
 
@@ -613,6 +655,43 @@ When `yg aspect-test` repeatedly approves what the lock has refused, the rule te
 is ambiguous — sharpen `content.md` (which re-verifies every pair of the aspect; check
 `yg impact --aspect` first) or propose a suppress. There is deliberately no command
 to drop or re-roll a recorded verdict.
+
+### `yg simulate`
+
+Replays a candidate **deterministic** rule over the history it can honestly reach —
+"if I had shipped this rule, what would it have caught?" It replays the candidate's
+`check.mjs` over recent commits in an **isolated temp clone**, one fresh subprocess
+per commit, strictly read-only: your working tree is left byte-for-byte unchanged.
+
+```bash
+yg simulate <candidate> --node <node-path>                 # replay over the last 20 commits
+yg simulate <candidate> --node <node-path> --max-commits 50 # widen the window
+```
+
+- `<candidate>` — Required. The id of an aspect in this project that ships a
+  `check.mjs`. An LLM- or companion-reviewed candidate is refused up front: a
+  language-model verdict is point-in-time testimony, not a reproducible replay — use
+  `yg drill` to test an LLM rule's falsifiability instead.
+- `--node <path>` — Required. The node whose files the candidate replays over at
+  each commit.
+- `--max-commits <n>` — How many most-recent commits to consider (default 20).
+
+Each commit resolves to one of three first-class outcomes — never a silent zero:
+`ran-clean` (ran, found nothing), `violations (N)` (refused N files), or
+`non-comparable` (could not be honestly compared — the commit pre-dates
+initialization so it has no graph of its own, or its committed graph schema differs
+from the current one and would need a migration this replay never performs).
+
+The isolation is the point: every checkout and the candidate overlay happen in the
+throwaway clone, and a clone-boundary guard refuses to let the graph resolver escape
+the clone — so a pre-init checkout is reported `non-comparable` rather than silently
+resolving your real graph. `yg simulate` is a **report tool**: it exits `0` whatever
+it finds, never writes the lock, and never changes whether `yg check` passes. It
+prints a survivorship-bias caveat, because the old rule gate already refused code
+that never landed: a tightening replay is a **lower** bound on true catches, a
+loosening one an **upper** bound. Only a precondition failure on the real project
+(no graph, missing candidate, wrong candidate kind, or an inability to clone) exits
+non-zero.
 
 ---
 

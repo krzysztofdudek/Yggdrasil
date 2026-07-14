@@ -271,6 +271,15 @@ export interface BoundaryInput {
   declaredOnly: Array<{ source: string; target: string }>;
   /** FORBIDDEN-TYPE: a detected dependency whose target type the architecture matrix forbids. */
   forbiddenType: Array<{ source: string; target: string }>;
+  /**
+   * The FULL set of statically-detected cross-node code edges, keyed source → targets. This is
+   * the relation pass's `detectedEdgesByNode` (a `Map<string, Set<string>>`) ALREADY FLATTENED to
+   * plain arrays at this seam — the Map/Set do NOT survive `JSON.stringify`, so the facade converts
+   * them here, before they can reach `PortalData`. The structure derivation reconstructs the
+   * universe from this half plus the declared structural relations, so surfacing it costs NO second
+   * relation pass. Absent only on older producers; the pipeline treats absence as an empty set.
+   */
+  detectedEdgesByNode?: Array<{ from: string; targets: string[] }>;
 }
 
 /**
@@ -330,6 +339,63 @@ export interface PortalResidue {
   uncoveredFiles: string[];
 }
 
+/**
+ * One entry in the structure panel's "tunnels" list — a structural dependency ranked by how far
+ * it reaches across the component hierarchy. `span` is the number of hierarchy hops the edge
+ * traverses (0 for an edge between siblings' shared parent, larger for edges that reach across
+ * distant subtrees). `viaContract` is true when a declared port contract backs the edge; `origin`
+ * records whether the pair is declared-only, statically-detected-only, or both. Plain data only —
+ * the frontend renders `span` in words ("spans N levels across the tree"), never as jargon.
+ */
+export interface PortalStructureTunnel {
+  from: string;
+  to: string;
+  span: number;
+  viaContract: boolean;
+  origin: 'declared' | 'detected' | 'both';
+}
+
+/**
+ * One depth level of the "module groups" view: the component groups at that level of the tree and
+ * how they depend on one another. `groups` are the distinct group ids at this depth (sorted);
+ * `crossings` is the count of dependencies that cross BETWEEN groups; `loopShare` is the fraction
+ * (0..1) of those crossings that form a loop (groups that depend on each other), the rest flowing
+ * one way. Rendered in plain language — never "quotient", "SCC", or "conductance".
+ */
+export interface PortalStructureLayer {
+  depth: number;
+  groups: string[];
+  crossings: number;
+  loopShare: number;
+}
+
+/**
+ * The read-only structure panel's data — the SAME analysis `yg structure` computes (dependency
+ * tunnels, module groups, change reach) surfaced for the portal. FULLY JSON-flat: no `Map`/`Set`
+ * survives to this shape, so it round-trips through `JSON.stringify` losslessly.
+ *
+ * Honesty is the spine: `unknown: true` means the relation parse could NOT run — the panel renders
+ * an explicit UNKNOWN state, NEVER a fabricated empty/zero graph. `smallGraph` is the small-N floor
+ * signal: below the node-count floor the average-reach figure is not statistically meaningful, so
+ * the panel shows the raw number WITHOUT the interpretive "average component" sentence.
+ */
+export interface PortalStructure {
+  /** true ⇔ the relation parse could not run; render UNKNOWN, never a fabricated zero graph. */
+  unknown: boolean;
+  /** Structural edges in the universe (declared structural relations ∪ statically detected; events excluded). */
+  edgeCount: number;
+  /** Total graph nodes — the change-reach denominator basis and the small-N floor input. */
+  nodeCount: number;
+  /** The widest-spanning tunnels, ranked span-desc then (from, to), capped at the top-N. */
+  tunnels: PortalStructureTunnel[];
+  /** Module-group layers per depth (only depths that resolve to 2+ groups). */
+  layers: PortalStructureLayer[];
+  /** Mean forward-reach fraction across all nodes (0..1). */
+  reachMean: number;
+  /** true ⇔ nodeCount is below the interpretive-caption floor — show the raw figure only. */
+  smallGraph: boolean;
+}
+
 export interface PortalData {
   meta: PortalMeta;
   nodes: PortalNode[];
@@ -337,6 +403,7 @@ export interface PortalData {
   flows: PortalFlow[];
   types: PortalType[];
   boundary: PortalBoundary;
+  structure: PortalStructure;
   suppressions: PortalSuppression[];
   hubs: { fanIn: HubEntry[]; fanOut: HubEntry[] };
   worklist: WorklistGroup[];

@@ -1,0 +1,15 @@
+name: Simulate Command Tests
+type: test-suite
+description: "Unit tests for yg simulate — the clone-boundary guard (the security
+  crux: a graph-less checkout resolves non-comparable and the ancestor/real graph is
+  never consulted), candidate-kind detection, schema-version read, per-commit run
+  classification, --max-commits parsing, and report rendering including the verbatim
+  Wald label."
+aspects: []
+relations:
+  - target: cli/commands/simulate
+    type: uses
+  - target: cli/io/stores
+    type: uses
+mapping:
+  - source/cli/tests/unit/cli/simulate.test.ts

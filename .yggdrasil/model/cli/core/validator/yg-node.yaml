@@ -22,6 +22,8 @@ relations:
     type: calls
   - target: cli/core/checks/relations
     type: calls
+  - target: cli/core/checks/incident-ledger
+    type: calls
   - target: cli/io/file-content-cache
     type: calls
 mapping:
