@@ -18,7 +18,7 @@
 // =============================================================================
 
 import { describe, it, expect, vi } from 'vitest';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { findYggRoot } from '../../../src/io/paths.js';
@@ -32,6 +32,7 @@ import {
   runSimulation,
   isPlainRelativeName,
   pathIsWithin,
+  realpathIsWithin,
   WALD_LABEL,
   type CommitOutcome,
 } from '../../../src/cli/simulate.js';
@@ -86,6 +87,48 @@ describe('yg simulate — clone-boundary guard (the security crux)', () => {
       expect(await resolveYggRootWithinClone(clone)).toBeNull();
     } finally {
       rmSync(clone, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a `.yggdrasil` SYMLINK that escapes the clone: realpath fires where the lexical check would have passed, no fs op touches the link target', async () => {
+    // The symlink hazard: a checked-out commit that committed `.yggdrasil` as a
+    // symlink resolving OUTSIDE the clone (into the real repo, or /etc). statSync
+    // follows the link, so a purely lexical containment check sees a directory
+    // "inside" the clone and waves it through — while every later read/overlay would
+    // act on the real target outside. The realpath layer must catch this.
+    const clone = mkTmp('symlink-clone');
+    const outside = mkTmp('symlink-outside'); // a SIBLING dir, NOT under the clone
+    try {
+      // A graph + a canary living OUTSIDE the clone — what the escaping link points at.
+      const outsideYgg = path.join(outside, '.yggdrasil');
+      mkdirSync(outsideYgg, { recursive: true });
+      writeFileSync(path.join(outsideYgg, 'yg-config.yaml'), 'version: "5.1.0"\n', 'utf-8');
+      const canary = path.join(outside, 'canary.txt');
+      const canaryBytes = 'do-not-touch\n';
+      writeFileSync(canary, canaryBytes, 'utf-8');
+
+      // The commit's `.yggdrasil` is a SYMLINK escaping the clone.
+      const link = path.join(clone, '.yggdrasil');
+      symlinkSync(outsideYgg, link, 'dir');
+
+      // findYggRoot follows the link and returns a path LEXICALLY inside the clone.
+      const resolved = await findYggRoot(clone);
+      expect(resolved).toBe(path.join(path.resolve(clone), '.yggdrasil'));
+
+      // (a) The LEXICAL check would PASS — this is exactly the escape the old
+      //     path.relative-only guard let through.
+      expect(pathIsWithin(clone, resolved)).toBe(true);
+      // (b) The REALPATH check REFUSES — it follows the link to the outside target.
+      expect(realpathIsWithin(clone, resolved)).toBe(false);
+
+      // (c) Integrated: the guard returns null → the commit is non-comparable.
+      expect(await resolveYggRootWithinClone(clone)).toBeNull();
+
+      // (d) No fs op touched the link target: the canary outside stays byte-unchanged.
+      expect(readFileSync(canary, 'utf-8')).toBe(canaryBytes);
+    } finally {
+      rmSync(clone, { recursive: true, force: true });
+      rmSync(outside, { recursive: true, force: true });
     }
   });
 });

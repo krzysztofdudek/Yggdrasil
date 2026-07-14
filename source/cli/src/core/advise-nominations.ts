@@ -769,11 +769,20 @@ export interface AttentionSources {
  * The Attention section: ONE aggregate line per signal class, with NO per-instance
  * ranking (per-instance rankings stay inside the instrument commands — a ranked
  * list in a feed read every session is a to-do list regardless of exit codes). A
- * zero count omits its line entirely (no "0 items" noise). Two classes:
- *   - C7 tunnels — dependencies reaching across distant parts of the architecture.
- *   - C8 structural deviations — files that look unusual among their neighbours; the
- *     line is a bare count pointing at `yg context` for the per-file detail, never a
- *     ranking or a list (per-instance detail stays in `yg context`, read on demand).
+ * structural class with a zero count omits its line entirely (no "0 items" noise);
+ * the incident reality-counter is the one exception — always shown, even at 0.
+ * Three classes, emitted in this order:
+ *   - incidents on record — the reality-counter for the committed incident ledger,
+ *     the tower's only EXTERNAL oracle. ALWAYS shown (0 or N): an empty ledger is
+ *     honest, not hidden, and its presence keeps the tower aware it has an outside
+ *     reference at all. When any incident is tagged `wrong-rule` (count > 0) an
+ *     extra aggregate line notes the rules themselves may be miscalibrated.
+ *   - C7 tunnels — dependencies reaching across distant parts of the architecture;
+ *     shown only when the count is > 0, pointing at `yg structure` for the detail.
+ *   - C8 structural deviations — files that look unusual among their neighbours;
+ *     shown only when the count is > 0. A bare count pointing at `yg context` for
+ *     the per-file detail, never a ranking or a list (per-instance detail stays in
+ *     `yg context`, read on demand).
  */
 export function buildAttention(sources: AttentionSources): string[] {
   const lines: string[] = [];

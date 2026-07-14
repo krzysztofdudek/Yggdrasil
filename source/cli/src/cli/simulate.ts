@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { spawnSync } from 'node:child_process';
-import { statSync, existsSync, mkdtempSync, mkdirSync, rmSync, cpSync, readFileSync } from 'node:fs';
+import { statSync, existsSync, mkdtempSync, mkdirSync, rmSync, cpSync, readFileSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { findYggRoot, getPackageRoot } from '../io/paths.js';
@@ -102,6 +102,56 @@ export function pathIsWithin(baseDir: string, target: string): boolean {
   return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
 }
 
+/**
+ * Realpath a path whose LEAF may not exist yet: realpath the longest existing
+ * ANCESTOR, then re-append the not-yet-created remainder. The overlay destination
+ * (`.../aspects/<candidateId>`, whose leaf does not exist before the copy) can thus
+ * still be resolved through any symlink in its existing prefix. Returns null only if
+ * no ancestor at all can be resolved — degrade to refuse, never let a realpath throw
+ * crash this read-only tool.
+ */
+function realpathOfExistingPrefix(target: string): string | null {
+  let existing = path.resolve(target);
+  const remainder: string[] = []; // collected leaf-first while walking up
+  for (;;) {
+    try {
+      const real = realpathSync(existing);
+      return remainder.length === 0 ? real : path.join(real, ...remainder.slice().reverse());
+    } catch (err) {
+      const parent = path.dirname(existing);
+      if (parent === existing) {
+        debugWrite(`[simulate] realpath found no existing ancestor of '${target}': ${(err as Error).message}`);
+        return null;
+      }
+      remainder.push(path.basename(existing));
+      existing = parent;
+    }
+  }
+}
+
+/**
+ * Realpath-based containment: true iff `target`, resolved through the filesystem
+ * (FOLLOWING SYMLINKS), lands on `baseDir` itself or a path inside it — the
+ * symlink-aware counterpart to the lexical pathIsWithin. It catches a checked-out
+ * commit that committed `.yggdrasil` (or the overlay's `aspects/` dir, or the leaf)
+ * as a SYMLINK whose real target escapes the clone: a purely lexical `path.relative`
+ * check waves that through, while the destructive rmSync/cpSync would act on the real
+ * target OUTSIDE the clone. Resolving both sides through realpathSync first refuses
+ * it. A realpath failure degrades to false (refuse) — never a throw.
+ */
+export function realpathIsWithin(baseDir: string, target: string): boolean {
+  let realBase: string;
+  try {
+    realBase = realpathSync(path.resolve(baseDir));
+  } catch (err) {
+    debugWrite(`[simulate] realpath(base) failed for '${baseDir}': ${(err as Error).message}`);
+    return false;
+  }
+  const realTarget = realpathOfExistingPrefix(target);
+  if (realTarget === null) return false;
+  return pathIsWithin(realBase, realTarget);
+}
+
 // ---------------------------------------------------------------------------
 // Candidate-kind detection (filenames only — kind is inferred from the rule
 // source, exactly as the graph loader infers it, so simulate never needs to
@@ -164,8 +214,11 @@ export function readConfigVersion(yggRoot: string): string | null {
  *     up at all — the resolver is never given the chance to escape, so no ancestor
  *     (and in particular the real repo) is ever consulted.
  *   - Otherwise it resolves via findYggRoot and, as defence in depth, CONFIRMS the
- *     resolved path is inside the clone before accepting it; anything outside is
- *     refused (null).
+ *     resolved path is inside the clone before accepting it — both LEXICALLY and
+ *     through the filesystem (realpath, following symlinks). A checkout that committed
+ *     `.yggdrasil` as a SYMLINK escaping the clone passes the lexical test (statSync
+ *     follows the link, so the naive check sees a directory "inside" the clone) but is
+ *     refused by the realpath layer; anything outside is refused (null).
  *
  * null means the commit is `non-comparable`, never zero and never the real graph.
  */
@@ -177,11 +230,18 @@ export async function resolveYggRootWithinClone(cloneDir: string): Promise<strin
   if (!ownStat || !ownStat.isDirectory()) return null;
 
   // The clone HAS its own `.yggdrasil/`, so findYggRoot resolves it on the first
-  // step and cannot climb past it. Confirm containment anyway — a resolved path
-  // outside the clone (e.g. via a surprising symlink) is refused.
+  // step and cannot climb past it. Confirm containment anyway, in two layers:
+  //   - Lexical (pathIsWithin): the resolved path must sit under the clone by name.
+  //   - Realpath (realpathIsWithin): AND it must still sit under the clone once every
+  //     symlink is followed. A checkout that committed `.yggdrasil` as a symlink
+  //     escaping the clone (e.g. into the real repo, or /etc) passes the lexical test
+  //     but not this one — statSync follows the link so the naive check sees a
+  //     directory "inside" the clone, while every later read/overlay would act on the
+  //     real target OUTSIDE it. Refusing here makes the commit non-comparable and no
+  //     fs op ever touches the link target.
   const resolved = await findYggRoot(cloneDir);
-  const rel = path.relative(path.resolve(cloneDir), path.resolve(resolved));
-  if (rel.startsWith('..') || path.isAbsolute(rel)) return null;
+  if (!pathIsWithin(cloneDir, resolved)) return null;
+  if (!realpathIsWithin(cloneDir, resolved)) return null;
   return resolved;
 }
 
@@ -255,10 +315,17 @@ function parseCommitLog(output: string): Commit[] {
 /** Write the candidate aspect (and only the candidate) into the clone's graph. */
 function overlayCandidate(candidateDir: string, cloneYggRoot: string, candidateId: string): void {
   const dest = path.join(cloneYggRoot, 'aspects', candidateId);
-  // Hard containment guard, immediately before the destructive fs ops: if `dest`
-  // ever resolved outside the clone (a traversing candidateId that slipped past the
-  // upfront check), the recursive rmSync could delete REAL files. Never proceed.
-  if (!pathIsWithin(cloneYggRoot, dest)) {
+  // Hard containment guard, immediately before the destructive fs ops: if `dest` ever
+  // resolved outside the clone, the recursive rmSync could delete REAL files. Two
+  // layers, both must hold:
+  //   - Lexical (pathIsWithin): catches a traversing candidateId that slipped past the
+  //     upfront isPlainRelativeName check.
+  //   - Realpath (realpathIsWithin): catches a committed `aspects/` dir (or the leaf)
+  //     that is a SYMLINK escaping the clone — the lexical check waves it through, but
+  //     the rmSync/cpSync would act on the real target outside. Resolving the existing
+  //     prefix through realpathSync refuses it. Refusing throws → the commit degrades
+  //     to non-comparable and no fs op touches the link target.
+  if (!pathIsWithin(cloneYggRoot, dest) || !realpathIsWithin(cloneYggRoot, dest)) {
     throw new Error(`overlay destination escapes the clone (candidate '${candidateId}') — refusing to touch the filesystem`);
   }
   rmSync(dest, { recursive: true, force: true });
