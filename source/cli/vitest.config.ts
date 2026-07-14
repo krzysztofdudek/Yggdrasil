@@ -4,6 +4,16 @@ export default defineConfig({
   test: {
     globals: true,
     setupFiles: ['./tests/setup.ts'],
+    // Default per-test/hook timeout. The suite is I/O-bound (e2e tests spawn the
+    // built bin.js as subprocesses dozens of times per file; some unit tests make
+    // real network calls) — under vitest fork-pool contention the 5000ms vitest
+    // default can be exceeded even though the test itself is correct. 30000 gives
+    // ~6x headroom over observed contended durations and matches this repo's
+    // existing per-test precedent (e.g. fill-det-parallel.test.ts uses 30000;
+    // cli-llm-companion-integration.test.ts uses 40000-60000). Explicit per-test
+    // timeouts still override this default in either direction.
+    testTimeout: 30000,
+    hookTimeout: 30000,
     exclude: [
       '**/node_modules/**',
       '**/dist/**',
