@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
+import { quoteData } from '../core/advise-nominations.js';
 import {
   appendIncident,
   readIncidents,
@@ -87,7 +88,11 @@ export function registerIncidentCommand(program: Command): void {
           `${entries.length} incident${entries.length === 1 ? '' : 's'} on record:\n\n`,
         );
         for (const entry of entries) {
-          process.stdout.write(`## [${entry.datetime}] ${entry.tag}\n`);
+          // The tag is captured verbatim from a possibly hand-edited committed header,
+          // so it may carry control bytes. Neutralize it through the same helper the
+          // advise feed uses to render untrusted repo strings as inert inline data —
+          // a raw control byte must never reach the terminal.
+          process.stdout.write(`## [${entry.datetime}] ${quoteData(entry.tag)}\n`);
         }
       } catch (error) {
         handleError(error);

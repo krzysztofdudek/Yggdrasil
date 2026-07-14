@@ -3,6 +3,8 @@ description: "Optional graph files and state files return empty defaults instead
 review_by: 2027-05-12
 reviewer:
   type: llm
+scope:
+  per: file
 when:
   any_of:
     - node:

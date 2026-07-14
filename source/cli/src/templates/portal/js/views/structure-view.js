@@ -119,7 +119,10 @@
   function renderReach(stage, structure) {
     var sect = dom.el('section', 'str-sect str-reach');
     sect.appendChild(dom.el('h3', 'str-h', 'Change reach — how far a change tends to travel'));
-    var pct = Math.round(structure.reachMean * 100);
+    // Floor mirrors the loop-share phrase: a nonzero mean that rounds below 1% must
+    // read "<1%", never "0%" (which would falsely say a change reaches nothing).
+    var rounded = Math.round(structure.reachMean * 100);
+    var pct = structure.reachMean > 0 && rounded === 0 ? '<1' : String(rounded);
     if (structure.smallGraph) {
       // Small-N honesty: the raw figure only, in a distinct labelled panel — no "average
       // component" reading generalised from too few components.

@@ -31,9 +31,9 @@ const distExists = existsSync(BIN_PATH);
 
 const INCIDENTS_REL = path.join('.yggdrasil', 'incidents.md');
 
-/** The reality-counter line, verbatim (only N varies). */
+/** The reality-counter line, verbatim (only N varies; the noun is singular at N=1). */
 const COUNTER_RE =
-  /(\d+) incidents on record — the only external oracle; see \.yggdrasil\/incidents\.md/g;
+  /(\d+) incidents? on record — the only external oracle; see \.yggdrasil\/incidents\.md/g;
 
 function run(args: string[], cwd: string): { stdout: string; stderr: string; status: number | null } {
   const r = spawnSync('node', [BIN_PATH, ...args], { cwd, encoding: 'utf-8' });
@@ -183,8 +183,33 @@ describe.skipIf(!distExists)('CLI E2E — incident ledger', () => {
       m = [...withOne.stdout.matchAll(COUNTER_RE)];
       expect(m).toHaveLength(1);
       expect(Number(m[0][1])).toBe(1);
-      // A wrong-rule incident joins the health story as evidence.
-      expect(withOne.stdout).toContain('wrong-rule incidents recorded — rules may be miscalibrated; see incidents.md');
+      // A wrong-rule incident joins the health story as evidence — singular noun at exactly one.
+      expect(withOne.stdout).toContain('1 wrong-rule incident recorded — rules may be miscalibrated; see incidents.md');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('6. read neutralizes a control byte in a hand-edited tag (renders inert, never raw)', () => {
+    const dir = makeFixture('control-byte');
+    try {
+      // A hand-edited ledger whose tag carries a raw control byte (BEL, 0x07) between
+      // two words. The add path validates the closed tag vocabulary, but the file is
+      // committed and can be edited by hand, so the read render path must not trust it.
+      // The byte is constructed via an escape here so THIS test source stays control-free.
+      const bel = '\x07';
+      w(
+        dir,
+        INCIDENTS_REL,
+        `# Incident ledger\n\n## [2026-01-01T00:00:00.000Z] wrong${bel}rule\n\nedited by hand\n\n`,
+      );
+
+      const read = run(['incident', 'read'], dir);
+      expect(read.status).toBe(0);
+      // The raw control byte never reaches the terminal...
+      expect(read.stdout).not.toContain(bel);
+      // ...and the tag renders inert (the byte folded to a space), still legible.
+      expect(read.stdout).toContain('wrong rule');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
