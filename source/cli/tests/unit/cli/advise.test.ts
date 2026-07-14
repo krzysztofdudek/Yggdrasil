@@ -16,6 +16,13 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { registerAdviseCommand } from '../../../src/cli/advise.js';
+import { loadGraph } from '../../../src/core/graph-loader.js';
+import {
+  buildNominations,
+  parseFamilyCandidates,
+  CANDIDATES_SHARD_SCHEMA,
+} from '../../../src/core/advise-nominations.js';
+import { CACHE_SCHEMA_VERSION } from '../../../src/relations/facts-cache.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../../..');
@@ -457,5 +464,303 @@ describe('yg advise — G6: no YAML-writing helper is reachable from the advise 
   it('the committed decisions register (JSONL appender) is the ONLY sanctioned writer used', () => {
     const cli = readFileSync(path.join(SRC, 'cli', 'advise.ts'), 'utf-8');
     expect(cli).toContain('appendDecision');
+  });
+});
+
+// ── Wave-8 Task 2: advise T2 — family-without-law + architecture-cut ──────────
+
+/** Write a file (creating parent dirs) inside a temp project. */
+function w(root: string, rel: string, content: string): void {
+  const abs = path.join(root, rel);
+  mkdirSync(path.dirname(abs), { recursive: true });
+  writeFileSync(abs, content, 'utf-8');
+}
+
+/** A minimal, loadable single-node graph (one `svc` unit under src/). */
+function makeMinimalGraph(label: string): string {
+  const dir = mkdtempSync(path.join(tmpdir(), `yg-advise-t2-${label}-`));
+  w(
+    dir,
+    '.yggdrasil/yg-architecture.yaml',
+    `node_types:\n  svc:\n    description: 'a unit'\n    log_required: false\n    when:\n      path: "src/**"\n`,
+  );
+  w(
+    dir,
+    '.yggdrasil/yg-config.yaml',
+    `reviewer:\n  tiers:\n    standard:\n      provider: claude-code\n      consensus: 1\n      config:\n        model: sonnet\n`,
+  );
+  w(dir, '.yggdrasil/model/app/yg-node.yaml', `name: App\ndescription: app\ntype: svc\nmapping:\n  - src/app\n`);
+  w(dir, 'src/app/a.ts', 'export const a = 1;\n');
+  return dir;
+}
+
+/** Build one family-candidates payload with `n` planted families (deterministic). */
+function familyPayload(ts: string, n: number): unknown {
+  const families = [];
+  for (let i = 0; i < n; i++) {
+    families.push({
+      id: `family-typescript-fam${i}`,
+      language: 'typescript',
+      members: ['A', 'B', 'C', 'D', 'E'].map((s) => `src/data/M${i}${s}Repository.ts`),
+      fittedPredicate: { kind: 'glob', value: `src/data/M${i}*Repository.ts` },
+      scopeFilesDraft: [`src/data/M${i}*Repository.ts`],
+      evidence: { clusterSize: 5, tightness: 0.91, sharedDiscriminatingAspects: [] },
+    });
+  }
+  return { v: 1, ts, coverage: ['typescript'], families };
+}
+
+/** Write a family-candidates payload into a project's `.yggdrasil/`. */
+function writeCandidates(root: string, payload: unknown): void {
+  writeFileSync(
+    path.join(root, '.yggdrasil', '.family-candidates.json'),
+    JSON.stringify(payload, null, 2) + '\n',
+    'utf-8',
+  );
+}
+
+describe('parseFamilyCandidates — present-or-omit freshness gate (pure)', () => {
+  const fresh = () => familyPayload('2026-06-01T00:00:00.000Z', 1) as Record<string, unknown>;
+
+  it('accepts a well-formed, current-format payload and normalizes its families', () => {
+    const data = parseFamilyCandidates(fresh());
+    expect(data).toBeDefined();
+    expect(data!.ts).toBe('2026-06-01T00:00:00.000Z');
+    expect(data!.families).toHaveLength(1);
+    expect(data!.families[0].id).toBe('family-typescript-fam0');
+    expect(data!.families[0].fittedPredicate.value).toBe('src/data/M0*Repository.ts');
+    expect(data!.families[0].members).toHaveLength(5);
+  });
+
+  it('omits (undefined) when the file format / schema-lineage version is not the supported one', () => {
+    // `v` is the schema-lineage token: a bump (which a moved shard schema forces via
+    // the build-time coupling below) makes an old file read as stale → omitted, so a
+    // stale-schema file is never rendered as live.
+    expect(parseFamilyCandidates({ ...fresh(), v: 2 })).toBeUndefined();
+  });
+
+  it('omits (undefined) when ts is missing or not a real instant', () => {
+    expect(parseFamilyCandidates({ ...fresh(), ts: 'not-a-date' })).toBeUndefined();
+    const noTs = fresh();
+    delete noTs.ts;
+    expect(parseFamilyCandidates(noTs)).toBeUndefined();
+  });
+
+  it('accepts a fresh file with an empty family list (class runs, produces nothing)', () => {
+    const empty = parseFamilyCandidates(familyPayload('2026-06-01T00:00:00.000Z', 0));
+    expect(empty).toBeDefined();
+    expect(empty!.families).toHaveLength(0);
+  });
+
+  it('drops a malformed family entry but keeps the well-formed ones', () => {
+    const payload = fresh();
+    (payload.families as unknown[]).push({ id: 'family-x', language: 'typescript' }); // no members/predicate
+    const data = parseFamilyCandidates(payload);
+    expect(data!.families).toHaveLength(1); // the malformed one dropped
+  });
+
+  it('omits a garbled (non-object) value', () => {
+    expect(parseFamilyCandidates(null)).toBeUndefined();
+    expect(parseFamilyCandidates('nope')).toBeUndefined();
+  });
+
+  it('is anchored to the live shard schema by a build-time coupling (RZ-21 re-gate)', () => {
+    // The candidates format is validated against one AST-shard schema. If the engine's
+    // live schema ever advances past it, THIS assertion fails — reddening the build so a
+    // human must re-validate the miner and bump the candidates format version before any
+    // family mined under a moved schema could be shown. This is how the family class
+    // "gates on CACHE_SCHEMA_VERSION" without the read-only command layer importing the
+    // relation-analysis subsystem at runtime.
+    expect(CACHE_SCHEMA_VERSION).toBe(CANDIDATES_SHARD_SCHEMA);
+  });
+});
+
+describe.skipIf(!distExists)('buildNominations — T2 ranks strictly below every T1 (pure)', () => {
+  let projectRoot: string;
+  beforeEach(() => {
+    projectRoot = makeMinimalGraph('rank');
+  });
+  afterEach(() => rmSync(projectRoot, { recursive: true, force: true }));
+
+  it('places family and architecture-cut below all T0/T1, family above architecture-cut', async () => {
+    const graph = await loadGraph(projectRoot);
+    const familyCandidates = parseFamilyCandidates(familyPayload('2026-06-01T00:00:00.000Z', 1));
+    const noms = buildNominations(graph, {
+      todayUtc: new Date('2026-07-12T00:00:00.000Z'),
+      familyCandidates,
+      architectureCutCycles: [{ depth: 1, blocks: ['ga', 'gb'] }],
+    });
+
+    const family = noms.find((n) => n.id.startsWith('family-without-law:'));
+    const cut = noms.find((n) => n.id.startsWith('architecture-cut:'));
+    expect(family).toBeDefined();
+    expect(cut).toBeDefined();
+
+    // The lowest-priority T1 class (uncovered-hot-spot) ranks 90; T2 is strictly
+    // below every T1, so both T2 ranks exceed 90, and family outranks the cut.
+    expect(family!.classRank).toBeGreaterThan(90);
+    expect(cut!.classRank).toBeGreaterThan(family!.classRank);
+
+    // Every OTHER nomination present ranks strictly above both T2 classes.
+    for (const n of noms) {
+      if (n === family || n === cut) continue;
+      expect(n.classRank).toBeLessThan(family!.classRank);
+    }
+
+    // The engine returns the list already classRank-sorted, so family precedes cut.
+    expect(noms.indexOf(family!)).toBeLessThan(noms.indexOf(cut!));
+  });
+});
+
+describe.skipIf(!distExists)('yg advise — T2 family-without-law (spawned)', () => {
+  let projectRoot: string;
+  beforeEach(() => {
+    projectRoot = makeMinimalGraph('family');
+    writeCandidates(projectRoot, familyPayload('2026-06-01T00:00:00.000Z', 1));
+  });
+  afterEach(() => rmSync(projectRoot, { recursive: true, force: true }));
+
+  it('renders exactly one family item as quoted data with provenance and the consent NEXT, exit 0', () => {
+    const { status, stdout } = run(['advise'], projectRoot);
+    expect(status).toBe(0);
+
+    // WHAT names the N member files as quoted data.
+    expect(stdout).toContain('A candidate rule family — 5 files share no rule of their own');
+    expect(stdout).toContain("'src/data/M0ARepository.ts'");
+    expect(stdout).toContain("'src/data/M0ERepository.ts'");
+
+    // WHY carries the fitted predicate + tightness + scope skeleton, with provenance.
+    expect(stdout).toContain('local analysis since 2026-06-01T00:00:00.000Z');
+    expect(stdout).toContain('tightness 0.91');
+    expect(stdout).toContain('src/data/M0*Repository.ts');
+    expect(stdout).toContain('.family-candidates.json:2026-06-01T00:00:00.000Z');
+
+    // NEXT names the exact action and ends with the literal consent suffix.
+    expect(stdout).toContain('Create a draft aspect scoped to');
+    expect(stdout).toMatch(/for these 5 files, then supply the rationale — never invent it — requires your consent\./);
+
+    // Exactly one family item (one planted family).
+    expect((stdout.match(/A candidate rule family —/g) ?? []).length).toBe(1);
+  });
+
+  it('--ids shows the family stable id under the item', () => {
+    const { status, stdout } = run(['advise', '--ids'], projectRoot);
+    expect(status).toBe(0);
+    expect(stdout).toContain('id: family-without-law:family-typescript-fam0');
+  });
+
+  it('omits the class silently when the candidates file is absent', () => {
+    rmSync(path.join(projectRoot, '.yggdrasil', '.family-candidates.json'));
+    const { status, stdout } = run(['advise'], projectRoot);
+    expect(status).toBe(0);
+    expect(stdout).not.toContain('candidate rule family');
+  });
+});
+
+describe.skipIf(!distExists)('yg advise — T2 architecture-cut (spawned)', () => {
+  /**
+   * Two module groups `ga` and `gb`, each a `svc` child, that `uses` each other.
+   * The depth-1 quotient collapses the services to their groups, forming a loop.
+   * With `cyclic=false` only ga → gb is declared, so the quotient is acyclic.
+   */
+  function makeGroups(label: string, cyclic: boolean): string {
+    const dir = mkdtempSync(path.join(tmpdir(), `yg-advise-cut-${label}-`));
+    w(
+      dir,
+      '.yggdrasil/yg-architecture.yaml',
+      `node_types:\n` +
+        `  grp:\n    description: 'organizational group'\n    log_required: false\n` +
+        `  svc:\n    description: 'a service'\n    log_required: false\n    when:\n      path: "src/**"\n    parents: [grp]\n    relations:\n      uses: [svc]\n`,
+    );
+    w(
+      dir,
+      '.yggdrasil/yg-config.yaml',
+      `reviewer:\n  tiers:\n    standard:\n      provider: claude-code\n      consensus: 1\n      config:\n        model: sonnet\n`,
+    );
+    w(dir, '.yggdrasil/model/ga/yg-node.yaml', `name: GroupA\ndescription: group a\ntype: grp\n`);
+    w(dir, '.yggdrasil/model/gb/yg-node.yaml', `name: GroupB\ndescription: group b\ntype: grp\n`);
+    w(
+      dir,
+      '.yggdrasil/model/ga/svc/yg-node.yaml',
+      `name: SvcA\ndescription: service a\ntype: svc\nmapping:\n  - src/ga\nrelations:\n  - target: gb/svc\n    type: uses\n`,
+    );
+    const gbRel = cyclic ? `relations:\n  - target: ga/svc\n    type: uses\n` : '';
+    w(
+      dir,
+      '.yggdrasil/model/gb/svc/yg-node.yaml',
+      `name: SvcB\ndescription: service b\ntype: svc\nmapping:\n  - src/gb\n${gbRel}`,
+    );
+    w(dir, 'src/ga/x.ts', 'export const x = 1;\n');
+    w(dir, 'src/gb/y.ts', 'export const y = 1;\n');
+    return dir;
+  }
+
+  it('names both module groups plainly for a 2-block loop, in plain language, exit 0', () => {
+    const dir = makeGroups('cyclic', true);
+    try {
+      const { status, stdout } = run(['advise'], dir);
+      expect(status).toBe(0);
+      expect(stdout).toContain("Module groups 'ga', 'gb' depend on each other in a loop.");
+      expect(stdout).toContain('structure quotient depth 1');
+      expect(stdout).toContain('Consider a cut between these module groups, or declare a contract (a port) across the boundary — requires your consent.');
+      // Exactly one item (the finer depth-2 view of the same loop is suppressed).
+      expect((stdout.match(/depend on each other in a loop/g) ?? []).length).toBe(1);
+      // NEVER the internal graph-theory terms in user-facing output.
+      expect(stdout).not.toContain('SCC');
+      expect(stdout).not.toContain('strongly connected');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('omits the class when the quotient is acyclic (one-way dependency), exit 0', () => {
+    const dir = makeGroups('acyclic', false);
+    try {
+      const { status, stdout } = run(['advise'], dir);
+      expect(status).toBe(0);
+      expect(stdout).not.toContain('depend on each other in a loop');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe.skipIf(!distExists)('yg advise — T2 shares the JOINT cap with T1 (non-additive, spawned)', () => {
+  let projectRoot: string;
+  beforeEach(() => {
+    projectRoot = makeMinimalGraph('cap');
+    // A far-past review_by makes one T0 overdue item live alongside the T2 families.
+    w(
+      projectRoot,
+      '.yggdrasil/aspects/needs-review/yg-aspect.yaml',
+      `name: NeedsReview\ndescription: a rule\nreviewer:\n  type: llm\nreview_by: 2020-01-01\n`,
+    );
+    w(projectRoot, '.yggdrasil/aspects/needs-review/content.md', '# NeedsReview\n\nThe unit must be reviewed.\n');
+    appendFileSync(
+      path.join(projectRoot, '.yggdrasil', 'model', 'app', 'yg-node.yaml'),
+      'aspects:\n  - needs-review\n',
+      'utf-8',
+    );
+    // 12 planted families → 12 T2 items, plus the 1 T0 overdue = 13 total nominations.
+    writeCandidates(projectRoot, familyPayload('2026-06-01T00:00:00.000Z', 12));
+  });
+  afterEach(() => rmSync(projectRoot, { recursive: true, force: true }));
+
+  it('caps the COMBINED feed at 10 (T0 + T2 together, not 10 per tier)', () => {
+    const { status, stdout } = run(['advise'], projectRoot);
+    expect(status).toBe(0);
+
+    const overdueShown = stdout.includes('is past its review_by date');
+    const familiesShown = (stdout.match(/A candidate rule family —/g) ?? []).length;
+    expect(overdueShown).toBe(true); // the T0 outranks every family
+    // 13 total, cap 10 → 1 T0 + 9 families shown (NOT 1 + 10 = 11: the cap is joint).
+    expect(familiesShown).toBe(9);
+    expect(stdout).toMatch(/and 3 more nomination/);
+  });
+
+  it('--all lifts the cap and shows every family', () => {
+    const { status, stdout } = run(['advise', '--all'], projectRoot);
+    expect(status).toBe(0);
+    expect((stdout.match(/A candidate rule family —/g) ?? []).length).toBe(12);
   });
 });

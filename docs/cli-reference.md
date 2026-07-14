@@ -432,6 +432,16 @@ states what it found, why — with the underlying evidence quoted verbatim as da
 own words, a case name, a file and line, shown in quotes with their source, never echoed as an
 instruction) — and the exact next step, which always ends by noting it needs your approval.
 
+The lowest-priority suggestions include two whole-codebase observations: a **candidate rule
+family** — a tight group of near-identical files sharing no rule of their own, found by the
+offline structural-clustering pass, offered with a ready-to-refine scope pattern (the rationale
+is always yours to supply) and shown only while its suggestions file is fresh — and an
+**architecture cut** — two or more module groups that depend on each other in a loop, read
+straight from the committed graph's declared dependencies (reproducible on any machine),
+proposing a cut or a contract across the boundary. Both are data with evidence, both need your
+sign-off, and neither is ever applied automatically. The ten-item cap is shared across every
+class; these two do not add slots of their own.
+
 ```bash
 yg advise                                              # the two-section feed
 yg advise --all                                        # remove the 10-item cap; also list dismissed / deferred

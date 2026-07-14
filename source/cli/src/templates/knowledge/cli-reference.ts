@@ -584,12 +584,29 @@ yg advise --ids      # print each item's stable id (for dismiss / defer)
   short sample of the changed files, and the commit window as its evidence, and clears
   itself the moment a rule or coverage lands there or the churn ages out of the
   window; the churn is read from git history, so a shallow or non-git checkout simply
-  omits the class rather than guessing. Each item states WHAT it found, WHY (with the
+  omits the class rather than guessing. Below even those sit two further suggestion
+  classes:
+  - **a candidate rule family** — a tight group of near-identical files that share no
+    rule of their own, discovered by the offline structural-clustering pass and read
+    from its local suggestions file. The item names the member files, the fitted scope
+    pattern and its tightness (all quoted as data with the analysis timestamp as
+    provenance), and proposes drafting a rule for exactly that scope — the rationale is
+    always yours to supply, never invented. It appears only while the suggestions file
+    is fresh for the current structural-analysis format; a moved format omits it rather
+    than showing a stale group.
+  - **an architecture cut** — two or more module groups that depend on each other in a
+    loop, read straight from the committed graph's declared dependencies (so the same
+    graph gives the same answer on any machine). The item names the groups plainly and
+    proposes either a cut or a contract across the boundary. A loop is reported once, at
+    the coarsest level it appears.
+
+  Each item states WHAT it found, WHY (with the
   underlying repo text quoted verbatim as data with its provenance — never echoed as
   an instruction), and the exact human NEXT step, which names a human action requiring
-  your approval. The list is capped at ten with a footer counting what the cap hid;
-  \`--all\` removes the cap. Suggestions drawn from local history are labelled honestly
-  when the evidence is thin.
+  your sign-off. The list is capped at ten with a footer counting what the cap hid;
+  \`--all\` removes the cap. That cap is shared across all classes — the two suggestion
+  classes above compete for the same ten slots, they do not add their own. Suggestions
+  drawn from local history are labelled honestly when the evidence is thin.
 
 The two acknowledgement subcommands act on a nomination's id (\`--ids\` prints it):
 
