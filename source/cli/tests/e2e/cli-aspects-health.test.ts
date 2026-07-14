@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import {
   existsSync,
   mkdtempSync,
+  mkdirSync,
   rmSync,
   cpSync,
   readFileSync,
@@ -99,6 +100,19 @@ const COL = {
 function writeSidecar(dir: string, filename: string, lines: object[]): void {
   const body = lines.map((l) => JSON.stringify(l)).join('\n') + '\n';
   writeFileSync(path.join(dir, '.yggdrasil', filename), body, 'utf-8');
+}
+
+/**
+ * Stage a REAL in-repo drill case on disk under an aspect's drills/ directory. The
+ * health view now consults drill telemetry ONLY for cases that still live in the
+ * aspect's current corpus, so a drill line that drives a covenant reading must name
+ * a case that actually exists — this puts one there (a `.ts` file whose
+ * extension-stripped, corpus-relative label equals `caseLabel`).
+ */
+function stageDrillCase(dir: string, aspectId: string, caseLabel: string): void {
+  const abs = path.join(dir, '.yggdrasil', 'aspects', aspectId, 'drills', `${caseLabel}.ts`);
+  mkdirSync(path.dirname(abs), { recursive: true });
+  writeFileSync(abs, 'export const x = 1;\n', 'utf-8');
 }
 
 /** N approved fill events on one unit with distinct hashes (N distinct triples). */
@@ -226,6 +240,9 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () 
         ...approvedFills('no-todo-comments', 'node:services/payments', 5, 'deterministic'),
         ...approvedFills('requires-named-export', 'node:services/orders', 3, 'deterministic'),
       ]);
+      // The proves-catch drill only counts while its case is REAL in the current
+      // corpus (orphaned telemetry is dropped), so stage the case on disk.
+      stageDrillCase(dir, 'has-doc-comment', 'violates-x/needs-doc');
       writeSidecar(dir, '.drill-results.jsonl', [
         {
           v: 1, ts: '2026-07-01T00:00:00.000Z', aspect: 'has-doc-comment',
@@ -260,6 +277,40 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () 
       // Method names never leak into operator-facing text.
       expect(out).not.toContain('beta-binomial');
       expect(out).not.toContain('Wilson');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('drops an orphaned drill signal: a holdout MISS never flips the covenant to "weakening"', () => {
+    const dir = copyFixture('signals-orphan');
+    try {
+      // has-doc-comment: 25 approved, 0 refused → decorative?. A MISS is on record,
+      // but it is a HOLDOUT (external --dir) measurement — not an in-repo corpus case
+      // — so the health view must ignore it: the covenant reads "unconfirmed", never
+      // "the rule may be weakening". (No drills/ case is staged, so even were it a dev
+      // line it would be an orphan.)
+      writeSidecar(dir, '.yg-events.jsonl', [
+        ...approvedFills('has-doc-comment', 'node:services/orders', 25, 'llm'),
+      ]);
+      writeSidecar(dir, '.drill-results.jsonl', [
+        {
+          v: 1, ts: '2026-07-01T00:00:00.000Z', aspect: 'has-doc-comment',
+          case: 'violates-x/needs-doc', expect: 'refused', got: 'satisfied',
+          src: 'holdout', corpus: 'probe', caseHash: 'c'.repeat(64), ruleHash: 'r'.repeat(64), kind: 'llm',
+        },
+      ]);
+
+      const health = run(['aspects', '--health'], dir);
+      expect(health.status).toBe(0);
+      const out = health.stdout;
+      // Still decorative? (the catch/exposure record is unchanged)…
+      expect(healthRow(out, 'has-doc-comment')[COL.signal]).toBe('decorative?');
+      // …but the orphaned holdout MISS is ignored: no "weakening", only "unconfirmed".
+      expect(out).not.toContain('the rule may be weakening');
+      expect(out).toContain(
+        'no regression drill confirms it can still catch, so whether it deters or is decorative is unconfirmed',
+      );
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

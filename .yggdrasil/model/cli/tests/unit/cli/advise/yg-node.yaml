@@ -12,6 +12,7 @@ relations:
     { target: cli/commands/advise, type: uses },
     { target: cli/core/advise, type: uses },
     { target: cli/core/loader, type: uses },
+    { target: cli/core/pair-inputs, type: uses },
     { target: cli/relations/core, type: uses }
   ]
 mapping:

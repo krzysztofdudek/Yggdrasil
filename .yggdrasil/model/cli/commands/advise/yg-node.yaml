@@ -12,6 +12,8 @@ relations:
     type: calls
   - target: cli/core/aspect-health-signals
     type: calls
+  - target: cli/core/drill
+    type: calls
   - target: cli/core/pairs
     type: calls
   - target: cli/core/graph

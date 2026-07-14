@@ -23,6 +23,8 @@ import { groupUnitsByAspect } from '../core/aspect-health-signals.js';
 import { computeExpectedPairs } from '../core/pairs.js';
 import { appendDecision, readDecisions, type AdviseDecision } from '../io/advise-decisions-store.js';
 import { readDrillResults } from '../io/drill-results-reader.js';
+import { filterInCorpusDevDrills } from '../core/drill-runner.js';
+import type { DrillResultLine } from '../io/drill-results-store.js';
 import { readVerdictEvents } from '../io/events-reader.js';
 import { countIncidents } from '../io/incidents-store.js';
 import { walkRepoFiles } from '../io/repo-scanner.js';
@@ -351,6 +353,31 @@ function gatherChurnByNode(
 }
 
 /**
+ * The drill-result telemetry the drill-MISS nomination consumes, filtered to the
+ * lines that are ACTIONABLE: an in-repo (`dev`) drill run whose `(aspect, case)`
+ * still lives in the aspect's CURRENT `drills/` corpus. A holdout (`--dir`)
+ * measurement, or a case since removed / renamed (or an aspect with no corpus at
+ * all), is an ORPHAN — there is nothing here left to re-drill or retire — so it is
+ * dropped rather than surfaced as a dead "regression no longer caught" alarm or a
+ * stale re-drill note. Fail-open (G4): any corpus-discovery failure degrades to an
+ * empty list, so the read-only feed keeps its exit-0 invariant and an orphan never
+ * resurfaces on a discovery hiccup.
+ */
+async function gatherInCorpusDrillResults(
+  graph: Graph,
+  projectRoot: string,
+): Promise<DrillResultLine[]> {
+  try {
+    return await filterInCorpusDevDrills(readDrillResults(graph.rootPath).results, projectRoot);
+  } catch (error) {
+    debugWrite(
+      `[advise] drill telemetry filtered to empty (corpus discovery failed): ${(error as Error).message}`,
+    );
+    return [];
+  }
+}
+
+/**
  * Gather every non-graph input `buildNominations` needs, at the CLI boundary:
  * risky suppress markers (live scan), drill-result telemetry, verdict-event
  * telemetry, and per-node churn (git history). The core engine imports NONE of
@@ -359,7 +386,7 @@ function gatherChurnByNode(
 async function gatherNominationSources(graph: Graph, todayUtc: Date): Promise<NominationSources> {
   const projectRoot = path.dirname(graph.rootPath);
   const suppressData = await gatherSuppressData(graph, projectRoot);
-  const drillResults = readDrillResults(graph.rootPath).results;
+  const drillResults = await gatherInCorpusDrillResults(graph, projectRoot);
   const verdictEvents = readVerdictEvents(graph.rootPath).events;
   const currentUnitsByAspect = await gatherCurrentUnits(graph);
   const churnByNode = gatherChurnByNode(graph, projectRoot);

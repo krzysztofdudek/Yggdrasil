@@ -22,6 +22,7 @@
 import path from 'node:path';
 
 import type { AspectDef } from '../model/graph.js';
+import type { DrillResultLine } from '../io/drill-results-store.js';
 import { ruleHashFor, contentFor } from './pair-inputs.js';
 import { hashBytes } from '../io/hash.js';
 import { listDirEntries, readFileBytes } from '../io/graph-fs.js';
@@ -224,6 +225,51 @@ async function collectFiles(baseAbs: string): Promise<string[]> {
   };
   await walk(baseAbs);
   return out;
+}
+
+/**
+ * Filter drill-result telemetry down to the lines that are ACTIONABLE on the
+ * read-only advise / health surfaces. A recorded drill line is kept only when it is
+ * BOTH:
+ *   (a) `src === 'dev'` — an IN-REPO drill run, not an external `--dir` holdout
+ *       measurement (a holdout line names a corpus that does not live in this repo,
+ *       so there is nothing here to re-drill or retire); AND
+ *   (b) its `(aspect, case)` is still present in that aspect's CURRENT in-repo
+ *       `drills/` corpus (a case since removed or renamed, or an aspect with no
+ *       corpus at all, has no drill left to re-run).
+ * Every other line is an ORPHAN — dropped silently, so a stale case or a holdout
+ * residue can never surface as a live "regression no longer caught" alarm or even a
+ * stale re-drill note (there is nothing left to re-drill or retire).
+ *
+ * Corpus membership is resolved by the SAME read-only discovery `yg drill` uses
+ * (`discoverDrillCases` — it LISTS the corpus files, never runs a case), once per
+ * distinct aspect that has a dev line. The telemetry arrives as a plain-data
+ * parameter (never a reader import), so the CLI boundary threads the drill lines
+ * through here exactly as they already cross it, keeping the pure nomination /
+ * health engines free of any corpus I/O.
+ */
+export async function filterInCorpusDevDrills(
+  drillResults: readonly DrillResultLine[],
+  projectRoot: string,
+): Promise<DrillResultLine[]> {
+  const devLines = drillResults.filter((line) => line.src === 'dev');
+  if (devLines.length === 0) return [];
+
+  // NUL byte separator: a NUL cannot occur in a POSIX filename or an aspect id, so
+  // the composite key is collision-proof even when a case label legitimately
+  // contains spaces or slashes. Built with String.fromCharCode so no raw control
+  // byte appears in this source file.
+  const nul = String.fromCharCode(0);
+  const keyOf = (aspect: string, caseLabel: string): string => `${aspect}${nul}${caseLabel}`;
+  const inCorpus = new Set<string>();
+  const discovered = new Set<string>();
+  for (const line of devLines) {
+    if (discovered.has(line.aspect)) continue;
+    discovered.add(line.aspect);
+    const cases = await discoverDrillCases({ aspectId: line.aspect, projectRoot });
+    for (const c of cases) inCorpus.add(keyOf(line.aspect, c.caseLabel));
+  }
+  return devLines.filter((line) => inCorpus.has(keyOf(line.aspect, line.case)));
 }
 
 // ── Hashing ──

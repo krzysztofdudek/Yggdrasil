@@ -17,6 +17,9 @@ import { collectMappingEntries } from '../portal/api/suppress-eligibility.js';
 import { getFirstCommitTimestamp } from '../utils/git.js';
 import { readVerdictEvents } from '../io/events-reader.js';
 import { readDrillResults } from '../io/drill-results-reader.js';
+import { filterInCorpusDevDrills } from '../core/drill-runner.js';
+import type { DrillResultLine } from '../io/drill-results-store.js';
+import { debugWrite } from '../utils/debug-log.js';
 import { countWrongRuleIncidentsByAspect } from '../io/incidents-store.js';
 import {
   computeAspectHealthSignals,
@@ -610,6 +613,30 @@ function countSuppressesByAspect(report: SuppressionsReport): Map<string, number
   return counts;
 }
 
+/**
+ * The drill-result telemetry the health signal consumes, filtered to the lines that
+ * are ACTIONABLE: an in-repo (`dev`) drill run whose `(aspect, case)` still lives in
+ * the aspect's CURRENT `drills/` corpus. A holdout (`--dir`) measurement, or a case
+ * since removed / renamed (or an aspect with no corpus at all), is an ORPHAN — so it
+ * never contributes a drill status (proves-catch / miss) or a demotion-corroboration
+ * signal for a corpus that no longer exists. Fail-open: any corpus-discovery failure
+ * degrades to an empty list so the read-only `--health` view can never break, and an
+ * orphaned drill signal never resurfaces on a discovery hiccup.
+ */
+async function gatherInCorpusDrillResults(
+  graph: Graph,
+  projectRoot: string,
+): Promise<DrillResultLine[]> {
+  try {
+    return await filterInCorpusDevDrills(readDrillResults(graph.rootPath).results, projectRoot);
+  } catch (error) {
+    debugWrite(
+      `[aspects] drill telemetry filtered to empty (corpus discovery failed): ${(error as Error).message}`,
+    );
+    return [];
+  }
+}
+
 export async function buildAspectsHealthOutput(graph: Graph, nowMs: number): Promise<string> {
   const projectRoot = path.dirname(graph.rootPath);
 
@@ -635,7 +662,7 @@ export async function buildAspectsHealthOutput(graph: Graph, nowMs: number): Pro
   // union stream (local + committed) drives both catch/exposure and the fp join.
   const eventsResult = readVerdictEvents(graph.rootPath);
   const verdictEvents = eventsResult.events;
-  const drillResults = readDrillResults(graph.rootPath).results;
+  const drillResults = await gatherInCorpusDrillResults(graph, projectRoot);
 
   const currentUnitsByAspect = groupUnitsByAspect(verification.pairs.map((vp) => vp.pair));
   const suppressCountsByAspect = countSuppressesByAspect(suppressReport);
