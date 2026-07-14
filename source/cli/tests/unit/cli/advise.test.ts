@@ -21,6 +21,7 @@ import {
   buildNominations,
   parseFamilyCandidates,
   CANDIDATES_SHARD_SCHEMA,
+  SUPPORTED_CANDIDATES_V,
 } from '../../../src/core/advise-nominations.js';
 import { CACHE_SCHEMA_VERSION } from '../../../src/relations/facts-cache.js';
 
@@ -567,11 +568,56 @@ describe('parseFamilyCandidates — present-or-omit freshness gate (pure)', () =
   it('is anchored to the live shard schema by a build-time coupling (RZ-21 re-gate)', () => {
     // The candidates format is validated against one AST-shard schema. If the engine's
     // live schema ever advances past it, THIS assertion fails — reddening the build so a
-    // human must re-validate the miner and bump the candidates format version before any
-    // family mined under a moved schema could be shown. This is how the family class
-    // "gates on CACHE_SCHEMA_VERSION" without the read-only command layer importing the
-    // relation-analysis subsystem at runtime.
-    expect(CACHE_SCHEMA_VERSION).toBe(CANDIDATES_SHARD_SCHEMA);
+    // human must re-validate the miner before any family mined under a moved schema could
+    // be shown. This is how the family class "gates on CACHE_SCHEMA_VERSION" without the
+    // read-only command layer importing the relation-analysis subsystem at runtime.
+    //
+    // LOCKSTEP on re-green: when CACHE_SCHEMA_VERSION has moved, do NOT re-green by bumping
+    // CANDIDATES_SHARD_SCHEMA alone. Bump BOTH CANDIDATES_SHARD_SCHEMA (the anchor) AND
+    // SUPPORTED_CANDIDATES_V (the accepted candidates-file `v`) together, and have the miner
+    // emit the new `v`. The anchor-only bump leaves parseFamilyCandidates still accepting the
+    // old `v`, so a candidates file mined under the OLD schema keeps parsing and would render
+    // as a live family proposal; the `v` bump is the reject-on-old gate that rejects it at
+    // parse. The failure message below states this so the reconciliation is the COMPLETE one.
+    expect(
+      CACHE_SCHEMA_VERSION,
+      'AST-shard schema (CACHE_SCHEMA_VERSION) moved past the family-miner anchor. ' +
+        'Re-validate the miner, then bump BOTH CANDIDATES_SHARD_SCHEMA (the anchor) AND ' +
+        'SUPPORTED_CANDIDATES_V (the accepted candidates-file `v`) in lockstep, and have the ' +
+        'miner emit the new `v`. Bumping CANDIDATES_SHARD_SCHEMA alone re-greens this test ' +
+        'while parseFamilyCandidates still accepts the old `v`, so a candidates file mined ' +
+        'under the OLD schema keeps parsing and would render as a live family proposal. A ' +
+        'stale-schema file must be rejected at parse via the `v` gate — never shown as a ' +
+        'live family proposal.',
+    ).toBe(CANDIDATES_SHARD_SCHEMA);
+  });
+});
+
+describe.skipIf(!distExists)('parseFamilyCandidates — reject-on-old-v guard (end-to-end)', () => {
+  let projectRoot: string;
+  beforeEach(() => {
+    projectRoot = makeMinimalGraph('stale-v');
+  });
+  afterEach(() => rmSync(projectRoot, { recursive: true, force: true }));
+
+  it('a candidates file whose v is below SUPPORTED_CANDIDATES_V yields no family nomination', async () => {
+    // The reject-on-old-v guard, end-to-end. A file mined under a superseded shard schema
+    // carries a `v` below the accepted one; parseFamilyCandidates omits it, so buildNominations
+    // emits no family-without-law item. This is the guard that keeps a stale-schema file from
+    // ever rendering as a live family proposal — the reason SUPPORTED_CANDIDATES_V must move in
+    // lockstep with any shard-schema bump (see the build-time coupling test above).
+    const staleV = {
+      ...(familyPayload('2026-06-01T00:00:00.000Z', 1) as Record<string, unknown>),
+      v: SUPPORTED_CANDIDATES_V - 1,
+    };
+    expect(parseFamilyCandidates(staleV)).toBeUndefined();
+
+    const graph = await loadGraph(projectRoot);
+    const noms = buildNominations(graph, {
+      todayUtc: new Date('2026-07-12T00:00:00.000Z'),
+      familyCandidates: parseFamilyCandidates(staleV),
+    });
+    expect(noms.some((n) => n.id.startsWith('family-without-law:'))).toBe(false);
   });
 });
 

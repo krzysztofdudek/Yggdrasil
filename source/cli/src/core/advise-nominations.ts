@@ -668,22 +668,39 @@ function hotSpotNominations(
 // no narrow rule, read from the offline miner's `.family-candidates.json`.
 // ---------------------------------------------------------------------------
 
-/** The `.family-candidates.json` format version this consumer understands. */
-const SUPPORTED_CANDIDATES_V = 1;
 /**
- * The AST-shard schema (`facts-cache.CACHE_SCHEMA_VERSION`) the current `v1`
- * candidates format was validated against. The family feature vectors are cut from
- * shards at that schema, so the mined families are only meaningful while the engine's
- * live schema is unchanged. The freshness gate below keys on the file's own format
- * version `v` — a schema-LINEAGE token that is bumped in lockstep with any shard-schema
- * change that alters feature vectors — and this constant ANCHORS that lineage to the
- * concrete shard schema so a build-time coupling test (`CACHE_SCHEMA_VERSION` must equal
- * this) reddens the build the moment the engine's live schema advances past it. That is
- * the RZ-21 evidence-at-build re-gate: a moved schema fails the build until a human
- * re-validates the miner and bumps `SUPPORTED_CANDIDATES_V` (after which old-`v` files
- * are rejected here), so a stale-schema file is NEVER rendered as live. Kept out of the
- * runtime gate deliberately — reading the live constant here would couple this read-only
- * command's layer to the relation-analysis subsystem; the coupling test carries it.
+ * The `.family-candidates.json` format version (`v`) this consumer accepts. It is the
+ * REJECT-ON-OLD gate: `parseFamilyCandidates` omits any file whose `v` is not exactly
+ * this, so a candidates file mined under a superseded shard schema is rejected at parse
+ * rather than rendered as a live family proposal.
+ *
+ * LOCKSTEP RULE: whenever the AST-shard schema (`facts-cache.CACHE_SCHEMA_VERSION`) moves,
+ * bump BOTH this AND `CANDIDATES_SHARD_SCHEMA` together — and have the miner emit the new
+ * `v`. Bumping `CANDIDATES_SHARD_SCHEMA` alone re-greens the build-time coupling test while
+ * this constant stays put, so the old `v` is still accepted and a candidates file mined
+ * under the OLD schema keeps parsing and reads as fresh. The coupling test guards the anchor;
+ * THIS `v` gate is what actually rejects the stale file. Exported so the coupling test and the
+ * reject-on-old-v guard test can assert the invariant against a real constant, not a literal.
+ */
+export const SUPPORTED_CANDIDATES_V = 1;
+/**
+ * The AST-shard schema (`facts-cache.CACHE_SCHEMA_VERSION`) the current candidates format was
+ * validated against. The family feature vectors are cut from shards at that schema, so the
+ * mined families are only meaningful while the engine's live schema is unchanged. This
+ * constant ANCHORS the candidates lineage to the concrete shard schema: a build-time coupling
+ * test (`CACHE_SCHEMA_VERSION` must equal this) reddens the build the moment the engine's live
+ * schema advances past it. That is the RZ-21 evidence-at-build re-gate — a moved schema fails
+ * the build until a human re-validates the miner.
+ *
+ * LOCKSTEP RULE (see the coupling test): on a moved shard schema, bump BOTH this anchor AND
+ * `SUPPORTED_CANDIDATES_V` (and the miner's emitted `v`) together. Re-greening by bumping THIS
+ * anchor ALONE leaves `SUPPORTED_CANDIDATES_V` accepting the old `v`, so a candidates file
+ * mined under the OLD schema keeps parsing and would render as a live family proposal. The `v`
+ * bump is the reject-on-old gate that keeps a stale-schema file from ever rendering as live.
+ *
+ * Kept out of the runtime freshness gate deliberately — reading the live constant here would
+ * couple this read-only command's layer to the relation-analysis subsystem; the coupling test
+ * carries it.
  */
 export const CANDIDATES_SHARD_SCHEMA = 2;
 
