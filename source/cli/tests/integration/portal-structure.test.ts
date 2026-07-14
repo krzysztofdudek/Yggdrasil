@@ -1,6 +1,8 @@
-import { describe, it, expect, beforeAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { mkdtempSync, cpSync, rmSync, existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 
 // Wrap the REAL relation pass so a single portal render's pass count can be measured — the
 // ≤2-pass invariant (runCheck's relation-conformance pass + the boundary pass, and NO third).
@@ -14,6 +16,9 @@ vi.mock('../../src/relations/pass.js', async (importOriginal) => {
 import { runRelationPass } from '../../src/relations/pass.js';
 import { extractPortalData } from '../../src/portal/extract.js';
 import { deriveStructure, REACH_CAPTION_MIN_NODES } from '../../src/portal/derive-metrics.js';
+import { renderStructure, cyclePhrase } from '../../src/cli/structure.js';
+import { loadGraph } from '../../src/core/graph-loader.js';
+import { computeDetectedEdges } from '../../src/portal/api/boundary.js';
 import type { PortalData, PortalStructure } from '../../src/portal/contract.js';
 import type { Graph } from '../../src/model/graph.js';
 
@@ -169,3 +174,119 @@ describe('portal structure panel — real repo, ≤2 relation passes, JSON-flat 
     }
   });
 });
+
+// ── portal ↔ `yg structure` PARITY — the drift guard for the verbatim-duplicated feeders ─────
+//
+// `portal/derive-metrics.deriveStructure` and the `yg structure` command (`cli/structure.ts`)
+// each carry their OWN verbatim copy of `isLineage` and `collectDeclaredRelations`, and each
+// renders tunnels / module groups / change reach independently. The product promise — "the
+// portal shows the same picture as `yg structure`" — rests on those copies staying identical.
+// This test binds them: on ONE real fixture graph with ONE shared detected-edge set it drives
+// BOTH feeders and asserts the structured portal output matches the rendered command output. A
+// future drift in either copy (a diverged lineage filter, a changed ranking, a reworded module
+// block) makes the two pictures disagree and fails here.
+
+const SAMPLE_FIXTURE = path.resolve(__dirname, '../fixtures/sample-project');
+
+/** Parse the command's rendered tunnel lines into `{ from, to, span }`, in printed order. */
+function parseTunnels(text: string): Array<{ from: string; to: string; span: number }> {
+  const out: Array<{ from: string; to: string; span: number }> = [];
+  for (const line of text.split('\n')) {
+    const m = /^ {2}(\S+) → (\S+) — jumps (\d+) levels? across the tree, /.exec(line);
+    if (m) out.push({ from: m[1], to: m[2], span: Number(m[3]) });
+  }
+  return out;
+}
+
+/** Parse the command's rendered module blocks (one per printed depth), in order. */
+function parseModuleBlocks(
+  text: string,
+): Array<{ depth: number; groupCount: number; groupNames: string; crossings: number; cyclePhraseLine: string }> {
+  const lines = text.split('\n');
+  const out: Array<{ depth: number; groupCount: number; groupNames: string; crossings: number; cyclePhraseLine: string }> = [];
+  for (let i = 0; i < lines.length; i++) {
+    const dm = /^ {2}At depth (\d+):$/.exec(lines[i]);
+    if (!dm) continue;
+    const gm = /^ {4}(\d+) groups?: (.+)$/.exec(lines[i + 1] ?? '');
+    const cm = /^ {4}(\d+) (?:dependency|dependencies) between groups$/.exec(lines[i + 2] ?? '');
+    out.push({
+      depth: Number(dm[1]),
+      groupCount: gm ? Number(gm[1]) : NaN,
+      groupNames: gm ? gm[2] : '',
+      crossings: cm ? Number(cm[1]) : NaN,
+      cyclePhraseLine: (lines[i + 3] ?? '').replace(/^ {4}/, ''),
+    });
+  }
+  return out;
+}
+
+/** Parse the command's change-reach percentage (the same integer `Math.round` the panel derives). */
+function parseReachPct(text: string): number {
+  const m = /From an average component, (\d+)% of the system is reachable through dependencies\./.exec(text);
+  return m ? Number(m[1]) : NaN;
+}
+
+describe.skipIf(!existsSync(SAMPLE_FIXTURE))(
+  'portal ↔ yg structure parity — same graph, same detected edges, one picture',
+  () => {
+    let tmp: string;
+    let s: PortalStructure;
+    let text: string;
+
+    beforeAll(async () => {
+      // Copy to a temp dir so the relation pass's symbol cache never touches the committed fixture.
+      tmp = mkdtempSync(path.join(tmpdir(), 'yg-structure-parity-'));
+      cpSync(SAMPLE_FIXTURE, tmp, { recursive: true });
+      const graph = await loadGraph(tmp);
+      const projectRoot = path.dirname(graph.rootPath);
+      const detectedMap =
+        (await computeDetectedEdges(graph, projectRoot)) ?? new Map<string, Set<string>>();
+      // The SAME detected edges, in each feeder's own shape — the portal takes the flattened seam
+      // form, the command takes the Map — so the only remaining variable is the duplicated code.
+      const detectedFlat = [...detectedMap].map(([from, targetSet]) => ({
+        from,
+        targets: [...targetSet],
+      }));
+      s = deriveStructure(graph, detectedFlat);
+      text = renderStructure(graph, detectedMap);
+    }, 60_000);
+
+    afterAll(() => {
+      if (tmp) rmSync(tmp, { recursive: true, force: true });
+    });
+
+    it('the fixture actually exercises tunnels and module groups (the guard is not vacuous)', () => {
+      expect(s.unknown).toBe(false);
+      expect(s.tunnels.length).toBeGreaterThan(0);
+      expect(s.layers.length).toBeGreaterThan(0);
+    });
+
+    it('tunnels match — same ranked list of (from, to, span) in the same order', () => {
+      expect(parseTunnels(text)).toEqual(
+        s.tunnels.map((t) => ({ from: t.from, to: t.to, span: t.span })),
+      );
+    });
+
+    it('change reach matches — the panel and the command round the same mean identically', () => {
+      expect(parseReachPct(text)).toBe(Math.round(s.reachMean * 100));
+    });
+
+    it('module groups match — same depths, group counts/names, crossings, and loop/cycle share', () => {
+      const blocks = parseModuleBlocks(text);
+      expect(blocks.length).toBe(s.layers.length);
+      for (let i = 0; i < s.layers.length; i++) {
+        const layer = s.layers[i];
+        expect(blocks[i].depth).toBe(layer.depth);
+        expect(blocks[i].groupCount).toBe(layer.groups.length);
+        expect(blocks[i].crossings).toBe(layer.crossings);
+        // Group names are printed in full below the collapse threshold — compare them directly then.
+        if (!blocks[i].groupNames.includes('(+')) {
+          expect(blocks[i].groupNames).toBe(layer.groups.join(', '));
+        }
+        // The rendered cycle sentence must be exactly what the command's own phrasing produces from
+        // the panel's loopShare — binding the loop-share value across the two surfaces.
+        expect(blocks[i].cyclePhraseLine).toBe(cyclePhrase(layer.crossings, 1 - layer.loopShare));
+      }
+    });
+  },
+);

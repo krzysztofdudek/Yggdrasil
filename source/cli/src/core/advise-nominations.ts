@@ -791,7 +791,7 @@ export function buildAttention(sources: AttentionSources): string[] {
   // aware it has an outside reference at all. RZ-5 quoted-data: a count plus a fixed
   // sentence, with the ledger's own provenance — never a narrator-voice instruction.
   lines.push(
-    `${sources.incidentCount} incidents on record — the only external oracle; see .yggdrasil/incidents.md`,
+    `${sources.incidentCount} incident${sources.incidentCount === 1 ? '' : 's'} on record — the only external oracle; see .yggdrasil/incidents.md`,
   );
   // wrong-rule-tagged incidents are evidence the rules themselves may be
   // miscalibrated — the external counterpart to the catch/exposure health story.
@@ -799,7 +799,7 @@ export function buildAttention(sources: AttentionSources): string[] {
   // attribution in v1 — that is a future maintainer decision, not invented here).
   if (sources.wrongRuleIncidentCount > 0) {
     lines.push(
-      `${sources.wrongRuleIncidentCount} wrong-rule incidents recorded — rules may be miscalibrated; see incidents.md`,
+      `${sources.wrongRuleIncidentCount} wrong-rule incident${sources.wrongRuleIncidentCount === 1 ? '' : 's'} recorded — rules may be miscalibrated; see incidents.md`,
     );
   }
   if (sources.tunnelCount > 0) {
