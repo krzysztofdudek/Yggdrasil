@@ -668,6 +668,7 @@
       "file:source/cli/tests/unit/core/verify-lock-companion.test.ts": {"hash":"44400e0054a41739eeaa9060d00967185756f83c7cb11e079cc9a2634bf4b425","verdict":"approved"},
       "file:source/cli/tests/unit/core/verify-lock.test.ts": {"hash":"0f944a8a3b6dd721f2aea720c1b9b04295ab36adf8fea78bdd284f9b4f8e5a13","verdict":"approved"},
       "file:source/cli/tests/unit/core/when-evaluator.test.ts": {"hash":"1466f640896968c3839c7ac6d8a244e7185c9f74d3478b1ba2e54b78c9d7c3cd","verdict":"approved"},
+      "file:source/cli/tests/unit/family-without-law.test.ts": {"hash":"87c5e61d9642dfcc764de6759d9cae8567d7c4cbbd3e1d9896b100671b2c165a","verdict":"approved"},
       "file:source/cli/tests/unit/formatters/cli-preamble.test.ts": {"hash":"b5a44cc926229f026a3b00df908df8437db7826c601f1736e8e013698c86add6","verdict":"approved"},
       "file:source/cli/tests/unit/formatters/context-file.test.ts": {"hash":"751875ef537a77d4984b675e321799802db83f26532c9c3529858e95b66c15c8","verdict":"approved"},
       "file:source/cli/tests/unit/formatters/context-node.test.ts": {"hash":"780e6a145fc1323bcd3dc9b448d3747e5deef5636dfc860b4335db18a43d4856","verdict":"approved"},

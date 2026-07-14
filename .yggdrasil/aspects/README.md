@@ -303,3 +303,41 @@ mode lifts this.
 ## Uncovered by design
 
 - Deleting the gate invocation (`- run: scripts/repo-check.sh`) from `ci.yml` is a residual hole left uncovered: `repo-check-gate-steps` guards that the gate keeps its check categories (drift protection), not that CI still runs the gate at all (tamper-proofing). Asserting the invocation is a maintainer opt-up, not part of this aspect.
+
+## family-without-law miner
+
+`scripts/family-without-law.mjs` is an OFFLINE, read-only analysis script (a "miner"),
+NOT an aspect and not part of any drill corpus. It makes ZERO LLM calls, is not wired into
+`yg`, has no effect on any exit code / verdict / issue / `suggestedNext`, and — the hard
+stability guarantee — it **NEVER creates or writes any aspect**. Its only write is the
+gitignored `.yggdrasil/.family-candidates.json` telemetry file (best-effort, atomic; the
+writer self-ensures the `.gitignore` line). It surfaces PROPOSALS for a human to weigh; a
+later `yg advise` layer reads the file. A human always decides.
+
+What it does: within each language stratum (never across languages), it clusters source
+files whose structure is near-identical — a **tight cluster**, where "tight" is a robust
+intra-cluster distance below a parameter threshold, computed with **median / MAD, never
+mean / σ** — and keeps only those clusters that share **no narrow law**. For each surviving
+cluster it cuts a **fitted applicability predicate** from the members' shared path or
+structure (a minimatch glob, or a content regex over a shared structural signature), so a
+proposed rule is born WITH its reach evidence; a cluster for which no discriminating
+predicate can be cut is dropped, not proposed.
+
+Near-vacuous caveat (printed verbatim by the miner, and binding here):
+
+> Note: "no shared aspect" is near-vacuous — type-default and broad-parent cascades are excluded, so a family fires only when the cluster shares no NARROW (own / port / narrow-ancestor) aspect that would already be its law.
+
+Shard dependency: the per-file structural feature vectors it clusters on are the wave-6
+`features` the AST fact shards carry (`source/cli/src/relations/facts-cache.ts` →
+`FeatureVector`: `nodeCount`, depth quartiles, six category counts). The miner reads them
+through the CLI's own read-only calibration surface (`yg check --attention-dump`), so it
+never re-derives the content-addressed shard key (which would silently rot on a grammar or
+extractor-revision bump) and it inherits the engine's exact node-ownership resolution.
+
+Admission control (RZ-21): this surface is admitted only after proven precision at BUILD
+time — the planted-family fixtures (`family-planted-mono`, `family-planted-polyglot`) assert
+exact recall, zero false families, correct language tagging, no cross-language merge, and
+byte-identical determinism across two runs (`tests/unit/family-without-law.test.ts`). That
+evidence gate, not any elapsed time, is what lets a family be shown. Thresholds are
+evidence-tuned documented constants in the script header (env overrides `YG_FAMILY_*` exist
+for recalibration sweeps; the committed defaults are the shipped policy).

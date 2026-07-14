@@ -1,0 +1,10 @@
+name: TS Config Loader
+description: >-
+  The TypeScript half of the superficially-similar cross-language decoy pair. It
+  looks like the Python config loader, but it is alone in the TS stratum and is
+  structurally distinct from the TS repositories, so it must not cluster.
+type: service
+aspects: []
+relations: []
+mapping:
+  - src/ts/ConfigLoader.ts

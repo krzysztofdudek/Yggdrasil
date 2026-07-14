@@ -7,3 +7,4 @@ yg-secrets.yaml
 .yg-fill-divergence.log
 .drill-results.jsonl*
 .feature-field.json
+.family-candidates.json

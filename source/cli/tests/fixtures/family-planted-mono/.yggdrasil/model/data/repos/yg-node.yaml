@@ -1,0 +1,15 @@
+name: Repositories
+description: >-
+  The PLANTED family: five structurally-identical repository classes with NO
+  narrow (own / port / narrow-ancestor) aspect — their would-be shared "law" is
+  missing. The miner must cluster exactly these five and propose one fitted-scope
+  family; the aspect list is intentionally empty so nothing already governs them.
+type: repository
+aspects: []
+relations: []
+mapping:
+  - src/data/UserRepository.ts
+  - src/data/OrderRepository.ts
+  - src/data/ProductRepository.ts
+  - src/data/InvoiceRepository.ts
+  - src/data/PaymentRepository.ts

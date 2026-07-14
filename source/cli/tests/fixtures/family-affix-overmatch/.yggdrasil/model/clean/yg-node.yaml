@@ -1,0 +1,3 @@
+name: Clean
+description: "Grouping for the cleanly-fittable family (no same-affix non-member)"
+type: module

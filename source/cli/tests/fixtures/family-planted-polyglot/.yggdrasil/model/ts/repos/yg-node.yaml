@@ -1,0 +1,14 @@
+name: TS Repositories
+description: >-
+  PLANTED TypeScript family: five structurally-identical repository classes with
+  NO narrow aspect. The miner must find exactly these five, language-tagged
+  `typescript`, and must never merge them with the Python family.
+type: repository
+aspects: []
+relations: []
+mapping:
+  - src/ts/UserRepository.ts
+  - src/ts/OrderRepository.ts
+  - src/ts/ProductRepository.ts
+  - src/ts/InvoiceRepository.ts
+  - src/ts/PaymentRepository.ts

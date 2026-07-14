@@ -1,0 +1,15 @@
+quality:
+  max_direct_relations: 10
+
+reviewer:
+  tiers:
+    standard:
+      provider: ollama
+      consensus: 1
+      config:
+        model: test
+        # Reserved port 1 — guaranteed unreachable, so the reviewer is never
+        # actually called. This fixture is only ever driven read-only by the
+        # offline family miner (structural feature vectors only); no verdict is
+        # produced, so no reachable reviewer is required.
+        endpoint: http://127.0.0.1:1

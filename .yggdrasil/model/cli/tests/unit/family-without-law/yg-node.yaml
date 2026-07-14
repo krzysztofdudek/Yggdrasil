@@ -1,0 +1,18 @@
+name: Family-Without-Law Miner Unit Tests
+type: test-suite
+description: >-
+  Precision + determinism gate for the offline family miner
+  (scripts/family-without-law.mjs). Drives the miner through its public surface
+  (spawned node process) over two real on-disk fixture projects — single-language
+  and mixed TypeScript/Python — asserting exact recall of the planted families,
+  zero false families, correct per-language tagging, no cross-language merge,
+  self-ensured gitignore, and byte-identical families across two runs with
+  different injected clocks. Also mines this repository and asserts every reported
+  family is well-formed (no false family by construction). Spawn-based; self-skips
+  when the built dist is absent, like the E2E suites.
+aspects: []
+relations:
+  - target: scripts
+    type: uses
+mapping:
+  - source/cli/tests/unit/family-without-law.test.ts

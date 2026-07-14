@@ -1,0 +1,14 @@
+node_types:
+  module:
+    description: 'Logical grouping of related code'
+    log_required: false
+  service:
+    description: 'Discrete service / support unit'
+    log_required: false
+    when:
+      path: "**"
+  repository:
+    description: 'Data access layer'
+    log_required: false
+    when:
+      path: "**"
