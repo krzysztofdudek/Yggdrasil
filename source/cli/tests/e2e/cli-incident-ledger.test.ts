@@ -64,9 +64,10 @@ function makeFixture(label: string): string {
   return dir;
 }
 
-/** Extract the datetimes from every `## [<ISO>] <tag>` header, in file order. */
+/** Extract the datetimes from every `## [<ISO>] <tag>` header (tolerating the optional
+ *  trailing ` aspect=<id>` attribution token), in file order. */
 function headerDatetimes(text: string): string[] {
-  const re = /^##\s+\[([^\]]+)\]\s+\S+\s*$/gm;
+  const re = /^##\s+\[([^\]]+)\]\s+\S+(?:\s+aspect=\S+)?\s*$/gm;
   const out: string[] = [];
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) out.push(m[1]);
@@ -210,6 +211,27 @@ describe.skipIf(!distExists)('CLI E2E — incident ledger', () => {
       expect(read.stdout).not.toContain(bel);
       // ...and the tag renders inert (the byte folded to a space), still legible.
       expect(read.stdout).toContain('wrong rule');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('7. --aspect naming a rule not in the graph is rejected with guidance; nothing is written', () => {
+    const dir = makeFixture('bad-aspect');
+    try {
+      // The fixture graph declares no aspects, so any --aspect id is unknown. Optional
+      // per-rule attribution must be validated exactly like an unknown --tag: rejected
+      // (non-zero) with guidance, and the committed ledger untouched.
+      const { status, stderr } = run(
+        ['incident', 'add', '--tag', 'wrong-rule', '--aspect', 'no-such-rule', '--reason', 'x'],
+        dir,
+      );
+      expect(status).not.toBe(0);
+      expect(stderr).toContain("'no-such-rule' is not an aspect");
+      // Guidance points the human at the list of declared rules.
+      expect(stderr).toContain('yg aspects');
+      // Rejected input never touches the committed ledger.
+      expect(existsSync(path.join(dir, INCIDENTS_REL))).toBe(false);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

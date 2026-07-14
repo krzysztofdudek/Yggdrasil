@@ -18,6 +18,7 @@ import {
   appendIncident,
   readIncidents,
   countIncidents,
+  countWrongRuleIncidentsByAspect,
 } from '../../../src/io/incidents-store.js';
 import { checkIncidentLedger } from '../../../src/core/checks/incident-ledger.js';
 import { registerIncidentCommand } from '../../../src/cli/incident.js';
@@ -88,6 +89,56 @@ describe('incidents-store — parsing', () => {
     const block = formatIncidentEntry(T1, 'judges-blind', '   the reviewer could not see it   ');
     expect(block).toBe(`## [${T1}] judges-blind\n\nthe reviewer could not see it\n\n`);
   });
+
+  it('formatIncidentEntry carries an aspect=<id> token ON THE HEADER when given', () => {
+    const block = formatIncidentEntry(T1, 'wrong-rule', 'the rule missed it', 'ui-no-direct-db');
+    // Attribution rides the header, ahead of the untouched prose body.
+    expect(block).toBe(`## [${T1}] wrong-rule aspect=ui-no-direct-db\n\nthe rule missed it\n\n`);
+  });
+
+  it('formatIncidentEntry is byte-identical to the original header when unattributed', () => {
+    // No aspect → the header is exactly `## [<iso>] <tag>`, no trailing token — an
+    // unattributed entry is written exactly as before attribution existed.
+    expect(formatIncidentEntry(T1, 'no-rule', 'x')).toBe(`## [${T1}] no-rule\n\nx\n\n`);
+  });
+
+  it('BACKWARD-COMPAT: an OLD header (no aspect= token) and a NEW header (aspect= token) both parse', () => {
+    // The ledger is committed and long-lived: an entry written before per-rule
+    // attribution existed carries a plain header and MUST still parse unchanged, while
+    // a newer entry carries the header token — both in one file, in order.
+    const text =
+      `# Incident ledger\n\n` +
+      `## [${T1}] wrong-rule\n\nan old entry, written before attribution existed\n\n` +
+      `## [${T2}] wrong-rule aspect=input-validation\n\na new entry naming the miscalibrated rule\n\n`;
+    const entries = parseIncidents(text);
+    expect(entries).toEqual([
+      { datetime: T1, tag: 'wrong-rule' }, // no aspect key — unattributed, as before
+      { datetime: T2, tag: 'wrong-rule', aspect: 'input-validation' },
+    ]);
+  });
+
+  it('SPOOF GUARD: an `aspect:` line in the reason BODY is inert — it never becomes attribution', () => {
+    // The header carries NO attribution token, and a reason line that merely reads
+    // `aspect: <rule>` must NOT be read as attribution — otherwise a free-text reason
+    // could silently forge a rule name into that rule's per-rule health. The body is
+    // never scanned; only the header's `aspect=` token attributes.
+    const text =
+      `## [${T1}] wrong-rule\n\nthe config broke\naspect: input-validation\nand it slipped\n\n`;
+    const entries = parseIncidents(text);
+    expect(entries).toEqual([{ datetime: T1, tag: 'wrong-rule' }]); // no aspect key
+    expect(entries[0].aspect).toBeUndefined();
+  });
+
+  it('datetime + tag capture are unchanged by the optional trailing token (validator-safe)', () => {
+    // The ascending-datetime validator reads only `.datetime`; the tag read is
+    // group 2. Both must be identical whether or not an aspect= token trails.
+    const plain = parseIncidents(`## [${T1}] wrong-rule\n\nr\n\n`);
+    const tokened = parseIncidents(`## [${T1}] wrong-rule aspect=some-rule\n\nr\n\n`);
+    expect(plain[0].datetime).toBe(T1);
+    expect(tokened[0].datetime).toBe(T1);
+    expect(plain[0].tag).toBe('wrong-rule');
+    expect(tokened[0].tag).toBe('wrong-rule');
+  });
 });
 
 describe('incidents-store — append / read / count round-trip', () => {
@@ -127,6 +178,73 @@ describe('incidents-store — append / read / count round-trip', () => {
       appendIncident(root, { tag: 'wrong-rule', reason: 'c', isoDatetime: T3 });
 
       expect(countIncidents(root)).toEqual({ total: 3, wrongRule: 2 });
+    } finally {
+      rmSync(path.dirname(root), { recursive: true, force: true });
+    }
+  });
+
+  it('round-trips an attributed entry: appendIncident writes the aspect, readIncidents reads it back', () => {
+    const root = freshRoot();
+    try {
+      appendIncident(root, {
+        tag: 'wrong-rule',
+        reason: 'the rule fired on the wrong site',
+        isoDatetime: T1,
+        aspect: 'ui-no-direct-db',
+      });
+      // A second, unattributed entry (no aspect) still appends and reads with no key.
+      appendIncident(root, { tag: 'no-rule', reason: 'uncovered concern', isoDatetime: T2 });
+
+      // On disk the attribution rides the header token; the plain entry keeps the bare
+      // header, and neither writes an `aspect:` body line.
+      const raw = readFileSync(path.join(root, 'incidents.md'), 'utf-8');
+      expect(raw).toContain(`## [${T1}] wrong-rule aspect=ui-no-direct-db`);
+      expect(raw).toContain(`## [${T2}] no-rule`);
+      expect(raw).not.toContain('aspect: ui-no-direct-db');
+
+      const { entries } = readIncidents(root);
+      expect(entries).toEqual([
+        { datetime: T1, tag: 'wrong-rule', aspect: 'ui-no-direct-db' },
+        { datetime: T2, tag: 'no-rule' },
+      ]);
+    } finally {
+      rmSync(path.dirname(root), { recursive: true, force: true });
+    }
+  });
+
+  it('countWrongRuleIncidentsByAspect tallies only attributed wrong-rule incidents (honesty boundary)', () => {
+    const root = freshRoot();
+    try {
+      // Absent ledger reads as an empty map.
+      expect(countWrongRuleIncidentsByAspect(root)).toEqual(new Map());
+
+      // Two wrong-rule incidents name rule-a; one names rule-b.
+      appendIncident(root, { tag: 'wrong-rule', reason: 'a1', isoDatetime: T1, aspect: 'rule-a' });
+      appendIncident(root, { tag: 'wrong-rule', reason: 'a2', isoDatetime: T2, aspect: 'rule-a' });
+      appendIncident(root, { tag: 'wrong-rule', reason: 'b1', isoDatetime: T3, aspect: 'rule-b' });
+      // An UNATTRIBUTED wrong-rule incident counts in the aggregate but NOT per-aspect.
+      appendIncident(root, {
+        tag: 'wrong-rule',
+        reason: 'no rule named',
+        isoDatetime: '2026-04-01T00:00:00.000Z',
+      });
+      // A non-wrong-rule tag with an aspect is allowed but is not miscalibration
+      // evidence, so it never surfaces per-aspect.
+      appendIncident(root, {
+        tag: 'judges-blind',
+        reason: 'blind spot',
+        isoDatetime: '2026-05-01T00:00:00.000Z',
+        aspect: 'rule-a',
+      });
+
+      expect(countWrongRuleIncidentsByAspect(root)).toEqual(
+        new Map([
+          ['rule-a', 2],
+          ['rule-b', 1],
+        ]),
+      );
+      // The aggregate still counts every wrong-rule incident, attributed or not.
+      expect(countIncidents(root).wrongRule).toBe(4);
     } finally {
       rmSync(path.dirname(root), { recursive: true, force: true });
     }

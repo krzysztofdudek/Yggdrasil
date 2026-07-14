@@ -468,7 +468,12 @@ with no waiver, never counts). It is a COUNT with a plain-words small-sample lab
 never a bare rate, and — like every signal here — never a gate: it feeds a human
 retirement ritual (the false-block budget — each rule debits the repo by its shrunk
 false-block rate, and retiring the worst offenders makes room for new rules), never
-an automatic block. Honesty
+an automatic block. The last column, **wrong-rule**, is the per-rule incident join:
+how many committed \`wrong-rule\` incidents name THIS rule via
+\`yg incident add --aspect\` — an honest COUNT always carrying a \`(thin data)\` label,
+because incident testimony is sparse and qualitative (there is no exposure denominator
+to outgrow thin-ness). A \`wrong-rule\` incident recorded WITHOUT \`--aspect\` counts in
+the \`yg advise\` aggregate but never surfaces per-rule here. Honesty
 rule: when units have no valid result on record the **refused** cell reads
 \`unverified\`, NEVER \`0\` — an unchecked unit is not a clean one; likewise **age**
 reads \`unknown\` when that history is unavailable (a shallow clone or no
@@ -642,6 +647,14 @@ with no rule at all), \`wrong-rule\` (a rule existed but was miscalibrated), \`j
 a panel would have caught), or \`not-enforcement\` (the escape was not an enforcement gap).
 An unrecognized tag is rejected with the valid list and nothing is written. \`--reason\` is
 also mandatory: the entry must say what escaped and how it surfaced.
+
+\`--aspect <id>\` is **optional** and attributes the escape to one existing rule — mainly a
+\`wrong-rule\` incident naming the miscalibrated rule. The id must name a declared aspect; an
+unknown id is rejected exactly like an unknown \`--tag\` (with guidance, nothing written). When
+given, the attribution is recorded on the entry and that rule's own \`wrong-rule\` count
+surfaces in the **wrong-rule** column of \`yg aspects --health\`. Honesty boundary: a
+\`wrong-rule\` incident recorded WITHOUT \`--aspect\` still counts in the \`yg advise\` aggregate
+below, but names no rule and never surfaces per-rule.
 
 Each \`add\` appends one \`## [<ISO UTC>] <tag>\` block to \`.yggdrasil/incidents.md\` with an
 injected timestamp. The file is **committed** (not gitignored) — it is human testimony

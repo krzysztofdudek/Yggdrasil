@@ -89,10 +89,10 @@ function healthRow(output: string, aspectId: string): string[] {
 }
 
 // Column indices for the fixed order:
-//   aspect | kind | status | nodes | pairs | refused | suppresses | errs | age | catch | exposure | signal | fp
+//   aspect | kind | status | nodes | pairs | refused | suppresses | errs | age | catch | exposure | signal | fp | wrong-rule
 const COL = {
   aspect: 0, kind: 1, status: 2, nodes: 3, pairs: 4, refused: 5, suppresses: 6, errs: 7, age: 8,
-  catch: 9, exposure: 10, signal: 11, fp: 12,
+  catch: 9, exposure: 10, signal: 11, fp: 12, wrongRule: 13,
 };
 
 /** Append well-formed synthetic telemetry lines to a gitignored sidecar under `.yggdrasil/`. */
@@ -175,7 +175,7 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () 
       const headerCols = header!.trim().split(/\s{2,}/);
       expect(headerCols).toEqual([
         'aspect', 'kind', 'status', 'nodes', 'pairs', 'refused', 'suppresses', 'errs', 'age',
-        'catch', 'exposure', 'signal', 'fp',
+        'catch', 'exposure', 'signal', 'fp', 'wrong-rule',
       ]);
 
       // no-todo-comments: one hash-valid refusal (orders), one approved (payments).
@@ -299,7 +299,7 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () 
         const header = health.stdout.split('\n').find((l) => l.includes('aspect') && l.includes('age'));
         expect(header!.trim().split(/\s{2,}/)).toEqual([
           'aspect', 'kind', 'status', 'nodes', 'pairs', 'refused', 'suppresses', 'errs', 'age',
-          'catch', 'exposure', 'signal', 'fp',
+          'catch', 'exposure', 'signal', 'fp', 'wrong-rule',
         ]);
 
         // A deterministic rule (ships check.mjs) committed in 2015 reads a coarse,
@@ -366,7 +366,7 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () 
       const header = out.split('\n').find((l) => l.includes('aspect') && l.includes('fp'));
       expect(header!.trim().split(/\s{2,}/)).toEqual([
         'aspect', 'kind', 'status', 'nodes', 'pairs', 'refused', 'suppresses', 'errs', 'age',
-        'catch', 'exposure', 'signal', 'fp',
+        'catch', 'exposure', 'signal', 'fp', 'wrong-rule',
       ]);
 
       // no-todo-comments: one block, now waived → fp = 1, thin sample labelled honestly.
@@ -457,6 +457,70 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () 
       // the graph — no events, no suppress scan — so it is unchanged byte-for-byte.
       const plain = run(['aspects'], dir);
       expect(plain.stdout).toBe(DEFAULT_ASPECTS_GOLDEN);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // ── wrong-rule attribution column: committed incidents named against a rule ──
+  //
+  // `yg incident add --tag wrong-rule --aspect <id>` attributes a miscalibration to a
+  // named rule; `--health` surfaces the per-rule count as an honest, thin-data-labelled
+  // indicator. HONESTY BOUNDARY: an unattributed wrong-rule incident still counts in
+  // `yg advise`'s aggregate but never surfaces per-aspect here.
+  it('surfaces per-aspect wrong-rule incidents in --health; unattributed ones stay out (advise aggregate unchanged)', () => {
+    const dir = copyFixture('wrong-rule-attr');
+    try {
+      // A valid --aspect id is accepted and recorded (exit 0); one wrong-rule incident
+      // names no-todo-comments, another is unattributed.
+      const attributed = run(
+        ['incident', 'add', '--tag', 'wrong-rule', '--aspect', 'no-todo-comments',
+         '--reason', 'a TODO slipped past the rule and shipped'],
+        dir,
+      );
+      expect(attributed.status).toBe(0);
+      expect(attributed.stdout).toContain('attributed to no-todo-comments');
+
+      // SPOOF ATTEMPT: this unattributed incident's free-text reason contains a line
+      // that reads `aspect: has-doc-comment`. Because attribution rides the header token
+      // (never the body), this must stay inert — has-doc-comment must NOT gain a count.
+      const unattributed = run(
+        ['incident', 'add', '--tag', 'wrong-rule',
+         '--reason', 'a different miscalibration, no rule named\naspect: has-doc-comment\nand it slipped through'],
+        dir,
+      );
+      expect(unattributed.status).toBe(0);
+
+      const health = run(['aspects', '--health'], dir);
+      expect(health.status).toBe(0); // informational, never blocks
+      const out = health.stdout;
+
+      // Header gains wrong-rule as the LAST column.
+      const header = out.split('\n').find((l) => l.includes('aspect') && l.includes('wrong-rule'));
+      expect(header!.trim().split(/\s{2,}/)).toEqual([
+        'aspect', 'kind', 'status', 'nodes', 'pairs', 'refused', 'suppresses', 'errs', 'age',
+        'catch', 'exposure', 'signal', 'fp', 'wrong-rule',
+      ]);
+
+      // no-todo-comments: exactly the ONE attributed incident, thin-data labelled.
+      const noTodo = healthRow(out, 'no-todo-comments');
+      expect(noTodo[COL.wrongRule]).toBe('1 (thin data)');
+
+      // has-doc-comment: the unattributed incident does NOT surface per-aspect, AND its
+      // reason's spoofing `aspect: has-doc-comment` line is inert → em-dash, never a count.
+      const hasDoc = healthRow(out, 'has-doc-comment');
+      expect(hasDoc[COL.wrongRule]).toBe('—');
+
+      // The attribution disclosure names the honesty boundary in plain words.
+      expect(out).toContain('Wrong-rule attribution');
+      expect(out).toContain('yg incident add --aspect');
+      expect(out).toContain("counts in `yg advise`'s total but not here");
+
+      // AGGREGATE UNCHANGED: `yg advise` still counts BOTH wrong-rule incidents
+      // (attributed + unattributed) in its reality-counter evidence line.
+      const advise = run(['advise'], dir);
+      expect(advise.status).toBe(0);
+      expect(advise.stdout).toContain('2 wrong-rule incidents recorded — rules may be miscalibrated; see incidents.md');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

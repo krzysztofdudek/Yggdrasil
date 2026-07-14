@@ -17,6 +17,7 @@ import { collectMappingEntries } from '../portal/api/suppress-eligibility.js';
 import { getFirstCommitTimestamp } from '../utils/git.js';
 import { readVerdictEvents } from '../io/events-reader.js';
 import { readDrillResults } from '../io/drill-results-reader.js';
+import { countWrongRuleIncidentsByAspect } from '../io/incidents-store.js';
 import {
   computeAspectHealthSignals,
   computeAspectFalsePositiveSignals,
@@ -166,6 +167,15 @@ export interface AspectHealthRow {
    * never a gate — a read for the human retirement ritual.
    */
   fpCellValue: string;
+  /**
+   * Wrong-rule attribution cell — how many committed `wrong-rule` incidents name
+   * THIS rule (via `yg incident add --aspect`), as an honest COUNT carrying a
+   * `(thin data)` humility label; EMPTY_CELL when none name it. Incidents are sparse
+   * human testimony with no exposure denominator, so a nonzero count always wears the
+   * thin-data label. Read-only observability from the committed ledger — never a hash
+   * input, never a gate.
+   */
+  wrongRuleCell: string;
 }
 
 export interface AspectHealth {
@@ -187,6 +197,13 @@ export interface AspectHealth {
    * caveat — never a bare rate). Empty when no rule has a recorded block.
    */
   fpNotes: string[];
+  /**
+   * True when at least one aspect has a `wrong-rule` incident attributed to it,
+   * driving the plain-words attribution disclosure below the table (the honesty
+   * boundary: an unattributed wrong-rule incident counts in `yg advise`'s total but
+   * never here).
+   */
+  hasWrongRuleAttribution: boolean;
 }
 
 /**
@@ -312,6 +329,19 @@ function fpCell(sig: AspectFalsePositiveSignal | undefined): string {
 }
 
 /**
+ * Render the wrong-rule attribution cell. No incident naming this rule → EMPTY_CELL,
+ * never a `0` that would read as "checked and clean" (the same unverified-≠-zero
+ * honesty the refused/catch/fp cells follow). Otherwise the raw COUNT of committed
+ * `wrong-rule` incidents attributed to the rule, always with the `(thin data)` label:
+ * incident testimony is a sparse, qualitative signal with no exposure denominator to
+ * grow out of thin-ness, so even a handful is weighed as anecdote, never a rate.
+ */
+function wrongRuleCell(count: number): string {
+  if (count === 0) return EMPTY_CELL;
+  return `${count} (thin data)`;
+}
+
+/**
  * Build the plain-words lines rendered below the table. For a `decorative?` rule
  * the anti-Goodhart covenant cross-reference (drill-status-dependent, so a
  * never-violated rule proven to still catch reads as possibly DETERRING, not
@@ -396,6 +426,7 @@ export function computeAspectHealth(
   fpSignals: ReadonlyMap<string, AspectFalsePositiveSignal> = new Map(),
   telemetrySince: string | undefined = undefined,
   committedNote: string | undefined = undefined,
+  wrongRuleByAspect: ReadonlyMap<string, number> = new Map(),
 ): AspectHealth {
   interface Agg {
     pairs: number;
@@ -439,6 +470,7 @@ export function computeAspectHealth(
 
   const rows: AspectHealthRow[] = [];
   let hasUnverified = false;
+  let hasWrongRuleAttribution = false;
   const sorted = [...graph.aspects].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   for (const aspect of sorted) {
     const agg = byAspect.get(aspect.id);
@@ -446,6 +478,8 @@ export function computeAspectHealth(
     const refused = renderRefusedCell(pairs, agg?.refused ?? 0, agg?.unknown ?? 0);
     if (refused.includes(UNVERIFIED)) hasUnverified = true;
     const cells = signalCells(signals.get(aspect.id));
+    const wrongRuleCount = wrongRuleByAspect.get(aspect.id) ?? 0;
+    if (wrongRuleCount > 0) hasWrongRuleAttribution = true;
     rows.push({
       aspectId: aspect.id,
       kind: inferAspectDisplayKind(aspect),
@@ -460,12 +494,13 @@ export function computeAspectHealth(
       exposureCell: cells.exposureCell,
       signalCell: cells.signalCell,
       fpCellValue: fpCell(fpSignals.get(aspect.id)),
+      wrongRuleCell: wrongRuleCell(wrongRuleCount),
     });
   }
 
   const signalNotes = buildSignalNotes(sorted, signals, drillStatuses);
   const fpNotes = buildFpNotes(sorted, fpSignals, telemetrySince, committedNote);
-  return { rows, wildcardMarkers, hasUnverified, signalNotes, fpNotes };
+  return { rows, wildcardMarkers, hasUnverified, signalNotes, fpNotes, hasWrongRuleAttribution };
 }
 
 /** Column order is fixed by contract; other waves append columns to the right. */
@@ -483,6 +518,7 @@ const HEALTH_HEADERS = [
   'exposure',
   'signal',
   'fp',
+  'wrong-rule',
 ] as const;
 
 /** Render the health rows as a left-aligned, two-space-gap text table. */
@@ -503,6 +539,7 @@ export function formatAspectsHealthOutput(health: AspectHealth): string {
       r.exposureCell,
       r.signalCell,
       r.fpCellValue,
+      r.wrongRuleCell,
     ]),
   ];
 
@@ -536,6 +573,14 @@ export function formatAspectsHealthOutput(health: AspectHealth): string {
       'False-block signal (fp = refusals a human later waived or overturned; a read for a human retirement ritual, never a gate):',
     );
     for (const note of health.fpNotes) lines.push(`  ${note}`);
+  }
+
+  if (health.hasWrongRuleAttribution) {
+    lines.push('');
+    lines.push(
+      'Wrong-rule attribution (wrong-rule = committed incidents recorded against this specific rule via `yg incident add --aspect`; ' +
+        "a wrong-rule incident recorded WITHOUT --aspect counts in `yg advise`'s total but not here):",
+    );
   }
 
   return lines.join('\n') + '\n';
@@ -613,6 +658,12 @@ export async function buildAspectsHealthOutput(graph: Graph, nowMs: number): Pro
     suppressedUnitsByAspect,
   });
 
+  // Committed human testimony — read HERE at the CLI boundary (aspects.ts is a
+  // presentation command, permitted to read the incident ledger) and handed to the
+  // pure health builder as plain per-aspect counts, exactly as the events telemetry
+  // is threaded in. The core health-signal engine never touches this reader.
+  const wrongRuleByAspect = countWrongRuleIncidentsByAspect(graph.rootPath);
+
   const ruleAges = resolveRuleAges(graph, projectRoot, nowMs);
   const health = computeAspectHealth(
     graph,
@@ -624,6 +675,7 @@ export async function buildAspectsHealthOutput(graph: Graph, nowMs: number): Pro
     fpSignals,
     eventsResult.firstTs,
     eventsResult.committedNote,
+    wrongRuleByAspect,
   );
   return formatAspectsHealthOutput(health);
 }
@@ -634,7 +686,7 @@ export function registerAspectsCommand(program: Command): void {
     .description('List aspects with usage stats')
     .option(
       '--health',
-      'per-aspect health: pairs, hash-valid refusals, suppress markers, error direction, rule age, catch/exposure counts and reading, and false-block (fp) count',
+      'per-aspect health: pairs, hash-valid refusals, suppress markers, error direction, rule age, catch/exposure counts and reading, false-block (fp) count, and wrong-rule incidents attributed to the rule',
     )
     .action(async (options: { health?: boolean }) => {
       try {
