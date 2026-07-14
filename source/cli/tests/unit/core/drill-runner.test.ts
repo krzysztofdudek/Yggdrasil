@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
   discoverDrillCases,
+  filterInCorpusDevDrills,
   runDrills,
   classifyOutcome,
   summarize,
@@ -18,6 +19,7 @@ import {
   type DrillRunContext,
 } from '../../../src/core/drill-runner.js';
 import type { AspectDef } from '../../../src/model/graph.js';
+import type { DrillResultLine } from '../../../src/io/drill-results-store.js';
 
 const CTX: DrillRunContext = { consensus: 1, maxPromptChars: 50000 };
 
@@ -135,6 +137,84 @@ describe('drill-runner — discovery', () => {
     const root = mkdtempSync(path.join(tmpdir(), 'yg-drill-empty-'));
     roots.push(root);
     expect(await discoverDrillCases({ aspectId: 'nope', projectRoot: root })).toEqual([]);
+  });
+});
+
+describe('drill-runner — filterInCorpusDevDrills (advise / health actionability gate)', () => {
+  const roots: string[] = [];
+  afterEach(() => {
+    for (const r of roots.splice(0)) rmSync(r, { recursive: true, force: true });
+  });
+
+  /** A MISS-shaped drill line (expect refused, got satisfied) with defaulted metadata. */
+  const line = (
+    over: Partial<DrillResultLine> & Pick<DrillResultLine, 'aspect' | 'case'>,
+  ): DrillResultLine => ({
+    v: 1,
+    ts: '2026-07-01T00:00:00.000Z',
+    expect: 'refused',
+    got: 'satisfied',
+    src: 'dev',
+    corpus: 'dev',
+    caseHash: 'c'.repeat(64),
+    ruleHash: 'r'.repeat(64),
+    kind: 'deterministic',
+    ...over,
+  });
+
+  it('keeps a dev line whose (aspect, case) is in the current in-repo corpus', async () => {
+    const root = stageCorpus('a', { 'violates-x/case.ts': 'bad', 'satisfies-ok/ok.ts': 'good' });
+    roots.push(root);
+    const kept = await filterInCorpusDevDrills([line({ aspect: 'a', case: 'violates-x/case' })], root);
+    expect(kept.map((l) => l.case)).toEqual(['violates-x/case']);
+  });
+
+  it('drops a dev line whose case is not in the corpus (case removed or renamed)', async () => {
+    const root = stageCorpus('a', { 'violates-x/case.ts': 'bad' });
+    roots.push(root);
+    const kept = await filterInCorpusDevDrills([line({ aspect: 'a', case: 'violates-gone/orphan' })], root);
+    expect(kept).toEqual([]);
+  });
+
+  it('drops a holdout line even when its case label matches a corpus case', async () => {
+    const root = stageCorpus('a', { 'violates-x/case.ts': 'bad' });
+    roots.push(root);
+    const kept = await filterInCorpusDevDrills(
+      [line({ aspect: 'a', case: 'violates-x/case', src: 'holdout', corpus: 'probe' })],
+      root,
+    );
+    expect(kept).toEqual([]);
+  });
+
+  it('drops every line for an aspect that has no drills/ corpus at all', async () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'yg-drill-nocorpus-'));
+    roots.push(root);
+    const kept = await filterInCorpusDevDrills([line({ aspect: 'no-corpus', case: 'violates-x/case' })], root);
+    expect(kept).toEqual([]);
+  });
+
+  it('partitions a mixed batch: keeps the in-corpus dev line, drops orphan + holdout + no-corpus', async () => {
+    const root = stageCorpus('a', { 'violates-x/case.ts': 'bad' });
+    roots.push(root);
+    const kept = await filterInCorpusDevDrills(
+      [
+        line({ aspect: 'a', case: 'violates-x/case' }), // in-corpus dev → keep
+        line({ aspect: 'a', case: 'violates-gone/orphan' }), // dev, case not in corpus → drop
+        line({ aspect: 'a', case: 'violates-x/case', src: 'holdout', corpus: 'probe' }), // holdout → drop
+        line({ aspect: 'other', case: 'violates-x/case' }), // aspect has no corpus → drop
+      ],
+      root,
+    );
+    expect(kept).toHaveLength(1);
+    expect(kept[0].aspect).toBe('a');
+    expect(kept[0].case).toBe('violates-x/case');
+    expect(kept[0].src).toBe('dev');
+  });
+
+  it('an empty batch yields an empty result (no corpus discovery attempted)', async () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'yg-drill-empty2-'));
+    roots.push(root);
+    expect(await filterInCorpusDevDrills([], root)).toEqual([]);
   });
 });
 

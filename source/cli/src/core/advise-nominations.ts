@@ -150,7 +150,14 @@ export interface NominationSources {
   todayUtc: Date;
   /** Risky suppress markers gathered live at the CLI boundary. Absent → none. */
   suppressAnomalies?: SuppressAnomaly[];
-  /** Drill-result telemetry (T0-local drill MISS). Absent → none. */
+  /**
+   * Drill-result telemetry (T0-local drill MISS). Absent → none. The CLI boundary
+   * pre-filters this to ACTIONABLE lines only — an in-repo (`dev`) run whose
+   * `(aspect, case)` still lives in the aspect's current `drills/` corpus (see
+   * drill-runner.filterInCorpusDevDrills). Holdout measurements and orphaned cases
+   * (removed / renamed, or an aspect with no corpus) are dropped there, so this
+   * engine never nominates a drill the graph can no longer re-run or retire.
+   */
   drillResults?: DrillResultLine[];
   /** Verdict-event telemetry (T1 promotion / sharpen / decorative-rule). Absent → none. */
   verdictEvents?: VerdictEvent[];
@@ -323,12 +330,15 @@ function isDrillMiss(line: DrillResultLine): boolean {
 }
 
 /**
- * Turn recorded drill MISSes into T0-local nominations. A MISS is a live alarm
- * ONLY while the drill's recorded `ruleHash` still matches the current rule
- * source; once the rule has changed the recorded outcome no longer reflects it,
- * so the item renders as a benign `stale — re-run yg drill` note rather than an
- * alarm (never a false live signal). Always labeled `local diagnostic result` —
- * a diagnostic outcome, never a live rule verdict.
+ * Turn recorded drill MISSes into T0-local nominations. The caller has already
+ * dropped every non-actionable line (holdout measurements and orphaned cases — see
+ * NominationSources.drillResults), so every line reaching here names a case that
+ * still lives in the aspect's current corpus. A MISS is a live alarm ONLY while the
+ * drill's recorded `ruleHash` still matches the current rule source; once the rule
+ * has changed the recorded outcome no longer reflects it, so the item renders as a
+ * benign `stale — re-run yg drill` note rather than an alarm (never a false live
+ * signal). Always labeled `local diagnostic result` — a diagnostic outcome, never a
+ * live rule verdict.
  */
 function drillMissNominations(graph: Graph, results: DrillResultLine[]): Nomination[] {
   const out: Nomination[] = [];

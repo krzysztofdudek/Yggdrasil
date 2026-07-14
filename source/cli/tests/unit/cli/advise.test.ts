@@ -24,6 +24,7 @@ import {
   SUPPORTED_CANDIDATES_V,
 } from '../../../src/core/advise-nominations.js';
 import { CACHE_SCHEMA_VERSION } from '../../../src/relations/facts-cache.js';
+import { ruleHashFor } from '../../../src/core/pair-inputs.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../../..');
@@ -275,6 +276,21 @@ function writeHostileDrillCase(projectRoot: string): string {
   const ESC = String.fromCharCode(27); // ANSI escape
   const BEL = String.fromCharCode(7); // bell — a control byte chalk never emits
   const caseLabel = `violates-x/needs${BEL}${ESC}\naudit`;
+  // The drill-MISS nomination now only surfaces for a case that is REAL in the
+  // aspect's current in-repo corpus (orphaned telemetry is dropped). Stage the
+  // matching case file on disk so the hostile label reaches the id surface through
+  // the real corpus-membership gate — a `.ts` case under drills/violates-x/ whose
+  // extension-stripped, corpus-relative label is exactly `caseLabel`.
+  const caseAbs = path.join(
+    projectRoot,
+    '.yggdrasil',
+    'aspects',
+    'requires-audit',
+    'drills',
+    `${caseLabel}.ts`,
+  );
+  mkdirSync(path.dirname(caseAbs), { recursive: true });
+  writeFileSync(caseAbs, 'export const x = 1;\n', 'utf-8');
   const line = {
     v: 1,
     ts: '2026-07-01T00:00:00.000Z',
@@ -341,6 +357,64 @@ describe.skipIf(!distExists)('yg advise — id-surface injection hygiene (spawne
     const lines = readRegister(projectRoot);
     expect(lines).toHaveLength(1);
     expect(JSON.parse(lines[0]).id).toBe(canonicalId);
+  });
+});
+
+describe.skipIf(!distExists)('yg advise — drill-miss is gated to the current in-repo corpus (spawned)', () => {
+  let projectRoot: string;
+
+  beforeEach(async () => {
+    projectRoot = mkdtempSync(path.join(tmpdir(), 'yg-advise-corpus-'));
+    cpSync(FIXTURE, projectRoot, { recursive: true });
+    // Stage a REAL in-repo corpus for requires-audit: one case a dev line names and
+    // one a holdout line names — both genuinely on disk under the aspect's drills/.
+    const drills = path.join(projectRoot, '.yggdrasil', 'aspects', 'requires-audit', 'drills');
+    for (const c of ['violates-in-dev/case', 'violates-in-holdout/case']) {
+      const abs = path.join(drills, `${c}.ts`);
+      mkdirSync(path.dirname(abs), { recursive: true });
+      writeFileSync(abs, 'export const x = 1;\n', 'utf-8');
+    }
+    // A FRESH ruleHash (matching the current rule source) makes an in-corpus dev MISS
+    // render as a LIVE "no longer caught" alarm rather than a stale note.
+    const graph = await loadGraph(projectRoot);
+    const aspect = graph.aspects.find((a) => a.id === 'requires-audit')!;
+    const freshHash = ruleHashFor(aspect, 'content.md');
+
+    const mk = (caseLabel: string, src: 'dev' | 'holdout') => ({
+      v: 1,
+      ts: '2026-07-01T00:00:00.000Z',
+      aspect: 'requires-audit',
+      case: caseLabel,
+      expect: 'refused',
+      got: 'satisfied',
+      src,
+      corpus: src === 'dev' ? 'dev' : 'probe',
+      caseHash: 'c'.repeat(64),
+      ruleHash: freshHash,
+      kind: 'llm',
+    });
+    writeFileSync(
+      path.join(projectRoot, '.yggdrasil', '.drill-results.jsonl'),
+      [
+        JSON.stringify(mk('violates-in-dev/case', 'dev')), // in-corpus dev → LIVE nomination
+        JSON.stringify(mk('violates-orphan/case', 'dev')), // dev, case not in corpus → dropped
+        JSON.stringify(mk('violates-in-holdout/case', 'holdout')), // holdout → dropped
+      ].join('\n') + '\n',
+      'utf-8',
+    );
+  });
+  afterEach(() => rmSync(projectRoot, { recursive: true, force: true }));
+
+  it('surfaces only the in-corpus dev MISS; drops the orphan and the holdout', () => {
+    const { status, stdout } = run(['advise', '--all', '--ids'], projectRoot);
+    expect(status).toBe(0);
+    // The in-corpus dev case surfaces as a LIVE regression alarm, id and all.
+    expect(stdout).toContain('id: drill-miss:requires-audit/violates-in-dev/case');
+    expect(stdout).toContain("A regression case for rule 'requires-audit' is no longer caught.");
+    // The orphan (dev, case gone from the corpus) and the holdout (external
+    // measurement) produce NOTHING — nothing left to re-drill or retire.
+    expect(stdout).not.toContain('violates-orphan/case');
+    expect(stdout).not.toContain('violates-in-holdout/case');
   });
 });
 
