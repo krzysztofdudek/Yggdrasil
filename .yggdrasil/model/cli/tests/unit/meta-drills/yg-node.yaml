@@ -1,0 +1,7 @@
+name: Unit Tests — Enforced-Deterministic Drill Coverage (M3)
+type: test-suite
+description: "Dogfood invariant test enforcing 'no drill, no enforced' for this repo's own deterministic aspects — every enforced deterministic aspect must ship a violates-* drill or carry a reasoned exemption; the exemption list may not grow silently or go stale."
+aspects: []
+relations: []
+mapping:
+  - source/cli/tests/unit/dogfood-enforced-det-drills.test.ts

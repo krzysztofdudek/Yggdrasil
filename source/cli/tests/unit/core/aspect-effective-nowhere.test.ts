@@ -2,7 +2,10 @@ import { describe, it, expect, afterEach } from 'vitest';
 import path from 'node:path';
 import os from 'node:os';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
-import { checkAspectEffectiveNowhere } from '../../../src/core/checks/aspect-contracts.js';
+import {
+  checkAspectEffectiveNowhere,
+  checkArchitectureDefaultAspectUnreachable,
+} from '../../../src/core/checks/aspect-contracts.js';
 import type { Graph, AspectDef, GraphNode, ArchitectureDef } from '../../../src/model/graph.js';
 import type { WhenPredicate } from '../../../src/model/when.js';
 
@@ -188,5 +191,62 @@ describe('checkAspectEffectiveNowhere (C4 dead-attach linter)', () => {
     const graph = makeGraph(rootPath, [aspect], new Map([['svc', moduleNode('svc', ['sourceless'])]]));
 
     expect(checkAspectEffectiveNowhere(graph)).toHaveLength(0);
+  });
+});
+
+describe('checkArchitectureDefaultAspectUnreachable (per-type dead-attach linter)', () => {
+  // Architecture attaches `pinned` as a default of type 'module', but the aspect's
+  // own when targets a different type ('ghost'), so it is filtered off every module
+  // node — the class where a rule's when cancels its architecture attachment.
+  const ARCH_PINNED: ArchitectureDef = {
+    node_types: {
+      module: { description: 'A module', aspects: ['pinned'] },
+      ghost: { description: 'A type no node uses', aspects: [] },
+    },
+  };
+
+  function graphWith(rootPath: string, aspects: AspectDef[], nodes: Map<string, GraphNode>, arch: ArchitectureDef): Graph {
+    return { config: {}, architecture: arch, nodes, aspects, flows: [], rootPath };
+  }
+
+  it('warns when an architecture type default is filtered off every node of that type', async () => {
+    const rootPath = await createTempYggdrasil();
+    await createRuleSource(rootPath, 'pinned', 'check.mjs');
+    // The aspect is a module default in the architecture, but its when targets 'ghost'.
+    const pinned = detAspect('pinned', { when: NEVER_MATCHES });
+    const graph = graphWith(rootPath, [pinned], new Map([['svc', moduleNode('svc', [])]]), ARCH_PINNED);
+
+    const issues = checkArchitectureDefaultAspectUnreachable(graph);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].code).toBe('architecture-default-aspect-unreachable');
+    expect(issues[0].severity).toBe('warning');
+    expect(issues[0].messageData.what).toContain("'pinned'");
+    expect(issues[0].messageData.what).toContain("'module'");
+  });
+
+  it('stays silent when the default aspect is effective on at least one node of the type', async () => {
+    const rootPath = await createTempYggdrasil();
+    await createRuleSource(rootPath, 'pinned', 'check.mjs');
+    // No when — the default reaches every module node.
+    const pinned = detAspect('pinned');
+    const graph = graphWith(rootPath, [pinned], new Map([['svc', moduleNode('svc', [])]]), ARCH_PINNED);
+
+    expect(checkArchitectureDefaultAspectUnreachable(graph)).toHaveLength(0);
+  });
+
+  it('stays silent for a type with no nodes (nothing to reach)', async () => {
+    const rootPath = await createTempYggdrasil();
+    await createRuleSource(rootPath, 'pinned', 'check.mjs');
+    const pinned = detAspect('pinned', { when: NEVER_MATCHES });
+    // Only a 'ghost'-typed node exists; type 'module' has no instances.
+    const ghostNode: GraphNode = {
+      path: 'g',
+      meta: { name: 'g', type: 'ghost', aspects: [], mapping: ['src/g.ts'] },
+      children: [],
+      parent: null,
+    };
+    const graph = graphWith(rootPath, [pinned], new Map([['g', ghostNode]]), ARCH_PINNED);
+
+    expect(checkArchitectureDefaultAspectUnreachable(graph)).toHaveLength(0);
   });
 });

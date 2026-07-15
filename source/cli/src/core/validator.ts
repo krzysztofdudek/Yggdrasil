@@ -32,6 +32,7 @@ import {
   checkAspectReferences,
   checkAspectStatusDowngrade,
   checkAspectEffectiveNowhere,
+  checkArchitectureDefaultAspectUnreachable,
 } from './checks/aspect-contracts.js';
 import { checkIncidentLedger } from './checks/incident-ledger.js';
 import {
@@ -187,6 +188,7 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
   // the full cascade + when. Runs here (post arch-fatal short-circuit) because it
   // evaluates `when` predicates, which require a structurally-valid architecture.
   issues.push(...checkAspectEffectiveNowhere(graph));
+  issues.push(...checkArchitectureDefaultAspectUnreachable(graph));
 
   // Stage 5: global checks.
   issues.push(...checkFileDuplicateMapping(graph));

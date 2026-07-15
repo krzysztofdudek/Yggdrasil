@@ -314,6 +314,75 @@ export function checkAspectEffectiveNowhere(graph: Graph): ValidationIssue[] {
   return issues;
 }
 
+// --- architecture-default-aspect-unreachable: a type default filtered off its own type ---
+
+/**
+ * Per-type dead-attach linter (WARNING). The architecture declares aspect A as a
+ * DEFAULT for node type T (channel 3), but after the full cascade + every `when`
+ * predicate, A is effective on ZERO nodes of type T — its own `when` (or the
+ * attach-site `when`) filters it back off the exact type the architecture attaches
+ * it to. The rule looks enforced for that type yet silently verifies nothing there.
+ * (This is the class behind a rule whose `when: { node: { type: X } }` cancels the
+ * architecture's attachment of it to a sibling type Y.)
+ *
+ * Distinct from aspect-effective-nowhere: A may be effective on OTHER types' nodes
+ * (so it is not dead everywhere), yet still unreachable on T specifically.
+ *
+ * Fires iff ALL hold, per (type T, default-aspect A):
+ *   - T has at least one node in the model (no bootstrap noise, and a type with no
+ *     instances legitimately has no effective aspects yet).
+ *   - A is a declared aspect (an undefined id is a separate aspect-undefined error).
+ *   - A is in the effective-aspect set of NO node of type T.
+ * Non-blocking (warning): it surfaces a graph-authoring mistake without failing CI.
+ */
+export function checkArchitectureDefaultAspectUnreachable(graph: Graph): ValidationIssue[] {
+  if (graph.nodes.size === 0) return [];
+
+  const definedAspectIds = new Set(graph.aspects.map((a) => a.id));
+
+  // For each type, the set of aspect ids effective on ANY node of that type.
+  const effectiveByType = new Map<string, Set<string>>();
+  const typeHasNodes = new Set<string>();
+  for (const node of graph.nodes.values()) {
+    typeHasNodes.add(node.meta.type);
+    let set = effectiveByType.get(node.meta.type);
+    if (!set) {
+      set = new Set<string>();
+      effectiveByType.set(node.meta.type, set);
+    }
+    try {
+      for (const id of computeEffectiveAspects(node, graph)) set.add(id);
+    } catch {
+      // ImpliesCycleError or similar — surfaced separately; skip this node.
+    }
+  }
+
+  const issues: ValidationIssue[] = [];
+  for (const [typeName, typeConfig] of Object.entries(graph.architecture.node_types)) {
+    if (!typeHasNodes.has(typeName)) continue; // no instances — nothing to reach.
+    const defaults = typeConfig.aspects ?? [];
+    const effective = effectiveByType.get(typeName) ?? new Set<string>();
+    for (const aspectId of defaults) {
+      if (!definedAspectIds.has(aspectId)) continue; // aspect-undefined handles this.
+      if (effective.has(aspectId)) continue;
+      const msgData: IssueMessage = {
+        what: `Aspect '${aspectId}' is a default aspect of type '${typeName}' but is effective on zero nodes of that type.`,
+        why: `The architecture attaches it to '${typeName}', but its own 'when' (or the attach-site 'when') filters it back off every '${typeName}' node — so the rule looks enforced for this type yet verifies nothing there.`,
+        next: `Widen or remove the aspect's 'when' so it reaches '${typeName}' nodes (yg impact --aspect ${aspectId}), or drop the default from the '${typeName}' type in yg-architecture.yaml if it should not apply there.`,
+      };
+      issues.push({
+        severity: 'warning',
+        code: 'architecture-default-aspect-unreachable',
+        rule: 'architecture-default-aspect-unreachable',
+        ...issueMsg(msgData),
+        messageData: msgData,
+        nodePath: `aspects/${aspectId}`,
+      });
+    }
+  }
+  return issues;
+}
+
 // --- aspect-review-overdue: a rule is past its standing review_by date ---
 
 /**
