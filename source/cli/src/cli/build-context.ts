@@ -15,7 +15,7 @@ import { computeNodeMappedFiles } from '../core/pairs.js';
 import { readTextFile } from '../io/graph-fs.js';
 import { readFeatureFieldEntry } from '../core/feature-index-read.js';
 import { FAMILY_SEP } from '../core/feature-field-schema.js';
-import { getLanguageDisplayName } from '../core/graph/language-registry.js';
+import { getLanguageDisplayName } from '../utils/language-registry.js';
 import { isCoverageExcludedPath } from '../io/repo-scanner.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
 import { computeExpectedPairs, computeSourceFingerprint, FileUnreadableError } from '../core/pairs.js';
@@ -28,8 +28,12 @@ import { toPosixPath } from '../utils/posix.js';
 type CandidateNode = { nodePath: string; fileCount: number };
 
 function findCandidateNodes(graph: Graph, unmappedFile: string): CandidateNode[] {
-  const dir = unmappedFile.replace(/\/[^/]+$/, '');
-  if (!dir || dir === unmappedFile) return [];
+  // Normalize first so the directory derived here compares like-for-like against
+  // the toPosixPath-normalized mapping dirs below (raw OS separators would never
+  // match on Windows).
+  const normalized = toPosixPath(unmappedFile);
+  const dir = normalized.replace(/\/[^/]+$/, '');
+  if (!dir || dir === normalized) return [];
 
   const candidates = new Map<string, number>();
 
@@ -227,7 +231,7 @@ export function registerBuildCommand(program: Command): void {
                 why: 'This path is never scanned for coverage (git internals / the graph directory itself), so it cannot and need not be mapped to a node.',
                 next: 'No action needed.',
               });
-              process.stderr.write(`${excludedMsg}\n`);
+              process.stdout.write(`${excludedMsg}\n`);
               process.exit(0);
             }
             const candidates = findCandidateNodes(graph, result.file);
@@ -252,7 +256,7 @@ export function registerBuildCommand(program: Command): void {
             }
             process.exit(1);
           }
-          process.stderr.write(`${displayFile} -> ${result.nodePath}\n`);
+          process.stdout.write(`${displayFile} -> ${result.nodePath}\n`);
           nodePath = result.nodePath;
           resolvedFilePath = toPosixPath(result.file);
         } else {

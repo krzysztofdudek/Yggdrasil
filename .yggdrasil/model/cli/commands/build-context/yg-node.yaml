@@ -13,7 +13,7 @@ relations:
     type: calls
   - target: cli/core/check
     type: calls
-  - target: cli/core/language-registry
+  - target: cli/language-registry
     type: calls
   - target: cli/formatters
     type: calls

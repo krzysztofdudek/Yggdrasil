@@ -24,7 +24,7 @@ relations:
     type: calls
   - target: cli/ast/runtime
     type: calls
-  - target: cli/core/language-registry
+  - target: cli/language-registry
     type: calls
   - target: cli/core/pair-hash
     type: calls

@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
-import { getGrammarForExtension } from '../core/graph/language-registry.js';
+import { getGrammarForExtension } from '../utils/language-registry.js';
 
 const _require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);

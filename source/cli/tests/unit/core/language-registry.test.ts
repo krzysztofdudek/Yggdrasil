@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { LANGUAGES, EXTENSION_TO_LANGUAGE, getLanguageForExtension, getExtensionsForLanguage, getGrammarForExtension, getLanguageDisplayName } from '../../../src/core/graph/language-registry.js';
+import { LANGUAGES, EXTENSION_TO_LANGUAGE, getLanguageForExtension, getExtensionsForLanguage, getGrammarForExtension, getLanguageDisplayName } from '../../../src/utils/language-registry.js';
 
 describe('language registry', () => {
   it('lists Tier 0 (ts/tsx/js) + Tier 1 + JSON', () => {

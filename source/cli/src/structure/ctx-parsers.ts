@@ -5,7 +5,7 @@ import { parse as parseYaml } from 'yaml';
 import { parse as parseTomlSmol } from 'smol-toml';
 import { parseFile as parseAstFile } from '../ast/parser.js';
 import type { ParseCache } from '../ast/parse-cache.js';
-import { getLanguageForExtension } from '../core/graph/language-registry.js';
+import { getLanguageForExtension } from '../utils/language-registry.js';
 import { resolveAllowedReadPath } from './ctx-fs.js';
 import type { File } from './types.js';
 import type { ObservationRecorder } from './observations.js';

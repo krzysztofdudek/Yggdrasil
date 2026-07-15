@@ -10,7 +10,7 @@ mapping:
   - source/cli/src/ast/types.ts
   - source/cli/src/ast/walk.ts
 relations:
-  - target: cli/core/language-registry
+  - target: cli/language-registry
     type: calls
   - target: cli/utils
     type: calls

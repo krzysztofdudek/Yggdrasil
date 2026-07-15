@@ -12,7 +12,7 @@ relations:
     { target: cli/io/parsers/graph, type: uses },
     { target: cli/ast/runtime, type: uses },
     { target: cli/core/loader, type: uses },
-    { target: cli/core/language-registry, type: uses },
+    { target: cli/language-registry, type: uses },
     { target: cli/tests/unit/helpers, type: uses }
   ]
 mapping:

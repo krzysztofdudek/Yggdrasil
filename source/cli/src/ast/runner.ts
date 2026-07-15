@@ -6,7 +6,7 @@ import { parseFile } from './parser.js';
 import type { IssueMessage } from '../model/validation.js';
 import { collectSuppressions, isLineSuppressed, SuppressMarkerError } from './suppress.js';
 import { validateCheckModuleExport } from '../utils/validate-check-module.js';
-import { getLanguageForExtension } from '../core/graph/language-registry.js';
+import { getLanguageForExtension } from '../utils/language-registry.js';
 import type { Tree } from 'web-tree-sitter';
 import type { CheckContext, SourceFile, Violation } from './types.js';
 import type { ParseCache } from './parse-cache.js';

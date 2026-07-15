@@ -14,7 +14,7 @@ import { expect } from 'vitest';
 
 import { ensureLoaderRegistered } from '../../../src/ast/loader-hook.js';
 import { withParsedFiles } from '../helpers/with-parsed-files.js';
-import { getLanguageForExtension } from '../../../src/core/graph/language-registry.js';
+import { getLanguageForExtension } from '../../../src/utils/language-registry.js';
 import { extractorForLanguage } from '../../../src/relations/extractors/registry.js';
 import {
   csharpUses,

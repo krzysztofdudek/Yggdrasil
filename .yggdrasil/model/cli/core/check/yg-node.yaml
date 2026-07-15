@@ -44,7 +44,7 @@ relations:
     type: calls
   - target: cli/relations/extractors
     type: calls
-  - target: cli/core/language-registry
+  - target: cli/language-registry
     type: calls
   - target: cli/io/atomic-write
     type: calls
