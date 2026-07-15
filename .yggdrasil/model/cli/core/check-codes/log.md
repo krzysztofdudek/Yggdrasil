@@ -32,3 +32,5 @@ Registers the two codes behind the standing review-by date: a blocking parse-tim
 Records the incident-ledger out-of-order warning in the registry of issue-code categories so it is documented as a non-gating warning and can never be mistaken for a blocking error. It belongs to none of the blocking sets on purpose: the incident ledger is committed human testimony and its only integrity signal must warn without ever failing a check.
 ## [2026-07-15T04:26:22.805Z]
 aspect-when-invalid joins the structural code set so a malformed when: predicate blocks like the other aspect-contract errors and can never render as a non-blocking or absent signal.
+## [2026-07-15T08:06:56.202Z]
+Registers aspect-tier-on-aggregate in the structural code set so a tier declared on an aggregate aspect blocks like the sibling aspect-contract codes.

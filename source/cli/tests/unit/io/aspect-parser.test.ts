@@ -415,6 +415,13 @@ describe('parseAspect v5 error paths', () => {
     if (!r.ok) expect(r.errors.some(e => e.code === 'aspect-tier-on-deterministic')).toBe(true);
   });
 
+  it('errors on aggregate + tier (an aggregate has no own reviewer)', async () => {
+    const dir = await newDir(`name: Foo\ndescription: x\nreviewer:\n  type: aggregate\n  tier: deep\nimplies:\n  - other\n`);
+    const r = await parseAspect(dir, path.join(dir, 'yg-aspect.yaml'), 'foo');
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.errors.some(e => e.code === 'aspect-tier-on-aggregate')).toBe(true);
+  });
+
   it('errors on unknown reviewer key', async () => {
     const dir = await newDir(`name: Foo\ndescription: x\nreviewer:\n  type: llm\n  model: opus\n`);
     const r = await parseAspect(dir, path.join(dir, 'yg-aspect.yaml'), 'foo');

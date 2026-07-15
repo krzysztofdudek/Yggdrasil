@@ -120,6 +120,7 @@ export const APPROVE_GATING_CODES = new Set<string>([
   'aspect-reviewer-type-invalid',
   'aspect-reviewer-unknown-key',
   'aspect-tier-on-deterministic',
+  'aspect-tier-on-aggregate',
   'aspect-tier-unknown',
 ]);
 

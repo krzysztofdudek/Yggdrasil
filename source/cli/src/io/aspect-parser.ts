@@ -622,7 +622,7 @@ function parseReviewer(
   // Step 4: cross-field — only when type is valid
   if (!typeValid) return { ok: false, errors }; // unreachable but type-safe
 
-  const type = obj.type as 'llm' | 'deterministic';
+  const type = obj.type as 'llm' | 'deterministic' | 'aggregate';
   if (obj.tier !== undefined) {
     if (typeof obj.tier !== 'string' || obj.tier.trim() === '') {
       return {
@@ -637,14 +637,19 @@ function parseReviewer(
         }],
       };
     }
-    if (type === 'deterministic') {
+    // A tier names an LLM reviewer configuration, so it is only meaningful on an
+    // LLM aspect. Deterministic aspects run locally with no reviewer; aggregate
+    // aspects have no own reviewer at all — a tier on either is a contradiction.
+    if (type === 'deterministic' || type === 'aggregate') {
       return {
         ok: false,
         errors: [{
-          code: 'aspect-tier-on-deterministic',
+          code: type === 'deterministic' ? 'aspect-tier-on-deterministic' : 'aspect-tier-on-aggregate',
           messageData: {
-            what: `aspect '${aspectId}' has reviewer.type: deterministic together with reviewer.tier: '${obj.tier}'`,
-            why: 'Deterministic aspects run locally without an LLM; tiers do not apply',
+            what: `aspect '${aspectId}' has reviewer.type: ${type} together with reviewer.tier: '${obj.tier}'`,
+            why: type === 'deterministic'
+              ? 'Deterministic aspects run locally without an LLM; tiers do not apply'
+              : 'Aggregate aspects have no own reviewer; a tier does not apply',
             next: 'remove tier: from the aspect',
           },
         }],
