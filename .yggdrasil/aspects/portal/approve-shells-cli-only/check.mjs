@@ -4,19 +4,24 @@ import { walk, report } from '@chrisdudek/yg/ast';
 // shell of the existing CLI, never an in-process fill. This check pins the approve shape
 // so a future edit cannot quietly re-implement the write or impersonate the flag:
 //
-//   1. Any spawn-family call (spawn / spawnSync / execFile / execFileSync) whose argument
-//      array contains the literal command token 'check' MUST also contain the literal
-//      fill flag '--approve'. A spawn that runs `check` without a literal --approve is a
-//      mis-shaped or no-op write path.
-//   2. The SAME argument array must contain NO `process.env.<X>` member access — neither
-//      the command, the bin reference, nor the fill flag may be swapped at runtime
-//      (the constant-bin-ref / literal-flag pin, no env impersonation).
-//   3. The server may not call the engine's in-process fill entry points (runCheck,
-//      runFill, fillLlmPair, runApprove) by imported name — the fill is reached ONLY
-//      through the spawned CLI.
+//   1. Every CLI argument VECTOR — an array literal that contains the literal command
+//      token 'check' — MUST also contain the literal fill flag '--approve'. The real
+//      approve builds this vector in a helper (approveArgs / dryRunArgs return
+//      ['check', '--approve', …]) and spreads it into the spawn call, so checking the
+//      spawn call's own array (which is `[CLI_BIN, ...args]` — a spread, no 'check'
+//      literal) verifies nothing. Checking every 'check'-bearing array literal in the
+//      file catches a regression that drops '--approve' from the vector wherever it is
+//      constructed.
+//   2. No spawn-family call (spawn / spawnSync / execFile / execFileSync) may read
+//      `process.env.<X>` anywhere in its argument list — the command, the bin reference,
+//      and the fill flag must all be literals / module constants, never swapped at
+//      runtime (`process.execPath` is not `process.env`, so the real spawn is fine).
+//   3. The server may not call the engine's in-process fill entry points (runFill,
+//      fillLlmPair, runApprove) by imported name — the fill is reached ONLY through the
+//      spawned CLI.
 //
-// DETECTION IS AST-ONLY: only the argument list of a spawn call-expression and the
-// callee identifier of a call are inspected. A plain string literal that merely contains
+// DETECTION IS AST-ONLY: only array-literal elements, spawn-call argument subtrees, and
+// callee identifiers are inspected. A plain string literal that merely contains
 // '--approve' in a comment or message is never a violation.
 
 // Child-process spawn APIs the approve handler uses to run the CLI.
@@ -92,6 +97,25 @@ export function check(ctx) {
     if (!file.ast) continue;
 
     walk(file.ast.rootNode, (node) => {
+      // (1) Every CLI arg VECTOR (array literal containing the 'check' token) must
+      // carry a literal '--approve' — wherever it is built (approveArgs/dryRunArgs
+      // return it and it is spread into the spawn call).
+      if (node.type === 'array') {
+        const literals = literalElements(node);
+        if (literals.includes(CHECK_TOKEN) && !literals.includes(APPROVE_FLAG)) {
+          violations.push(
+            report(
+              file,
+              node,
+              `Portal CLI argument vector runs 'check' but the fill flag '--approve' is not a literal ` +
+                `element. Approve must shell 'check' with a literal '--approve' (add '--only-deterministic' ` +
+                `for the free path) — never build the flag from a variable or env, which could no-op the write.`,
+            ),
+          );
+        }
+        return true;
+      }
+
       if (node.type !== 'call_expression') return true;
       const fn = node.childForFieldName('function');
       if (!fn) return true;
@@ -109,35 +133,20 @@ export function check(ctx) {
         return true;
       }
 
-      // (1)+(2) Spawn-family call running a `check` — pin the flag + ban env impersonation.
+      // (2) Spawn-family call — ban any process.env read anywhere in its argument list
+      // (bin reference and flags must be literals / module constants, never impersonated).
       const calleeName = fn.type === 'identifier' ? fn.text : fn.type === 'member_expression' ? fn.childForFieldName('property')?.text : undefined;
       if (calleeName && SPAWN_APIS.has(calleeName)) {
         const argsNode = node.childForFieldName('arguments');
-        for (const arr of argArrayNodes(argsNode)) {
-          const literals = literalElements(arr);
-          if (!literals.includes(CHECK_TOKEN)) continue; // not a check spawn — out of scope.
-
-          if (!literals.includes(APPROVE_FLAG)) {
-            violations.push(
-              report(
-                file,
-                node,
-                `Portal server spawns the CLI to run 'check' but the fill flag '--approve' is not a literal ` +
-                  `argument. Approve must shell 'check' with a literal '--approve' (add '--only-deterministic' ` +
-                  `for the free path) — never build the flag from a variable or env, which could no-op the write.`,
-              ),
-            );
-          }
-          if (containsProcessEnv(arr)) {
-            violations.push(
-              report(
-                file,
-                node,
-                `Portal server's check-spawn argument array reads process.env. The command, bin reference, and ` +
-                  `fill flag must all be literals / module constants — no runtime impersonation of the write path.`,
-              ),
-            );
-          }
+        if (argsNode && containsProcessEnv(argsNode)) {
+          violations.push(
+            report(
+              file,
+              node,
+              `Portal server's spawn argument list reads process.env. The command, bin reference, and ` +
+                `fill flag must all be literals / module constants — no runtime impersonation of the write path.`,
+            ),
+          );
         }
       }
 

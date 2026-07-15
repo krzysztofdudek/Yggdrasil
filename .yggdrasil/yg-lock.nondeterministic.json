@@ -303,7 +303,14 @@
       "file:source/cli/src/core/fill-progress.ts": {"hash":"4677e8b0fccf3c14ea33247de383caa95988027b03f7f6b5b3fd96caf18401da","verdict":"approved"},
       "file:source/cli/src/core/fill-shared.ts": {"hash":"5f07541adafdfbbeb5fc60891064b5a90bed85a21d55cb7323b4fcc48666de72","verdict":"approved"},
       "file:source/cli/src/core/fill.ts": {"hash":"1b50d124de08b118cbcb167a6c4fd1c87f1ed5025d1265b49aa081292b8df118","verdict":"approved"},
-      "file:source/cli/src/llm/index.ts": {"hash":"5340a4feed73225a985941020ef72fefc5dd56a4b4828c62dcbb307091307b17","verdict":"approved"}
+      "file:source/cli/src/llm/api-utils.ts": {"hash":"ef4704c4f8af4e430175d005e7817d42d7123595b13202e70383f190a025292c","verdict":"approved"},
+      "file:source/cli/src/llm/aspect-verifier.ts": {"hash":"225fb630a519656b1447a4aff5731b3d89c3dd0614024e2a7a0d51cc91fd978a","verdict":"approved"},
+      "file:source/cli/src/llm/model-fetcher.ts": {"hash":"b3e38571fa3e3d55f43f8f7678eb3cc5e902fa3ac6824541ce20f5c25af74345","verdict":"approved"},
+      "file:source/cli/src/llm/prompt.ts": {"hash":"aaa693772774bf2226a2d8e877b7ece200d46188dbb257326368a3881f7cd092","verdict":"approved"},
+      "file:source/cli/src/llm/provider.ts": {"hash":"70c0dbc956bf773ba6bad07fb02c72b97486fa346568f8d50597e4e90d390c91","verdict":"approved"},
+      "file:source/cli/src/llm/reviewer-test.ts": {"hash":"cf95b22b0b038bbc0212b53338216654dec5ec1b8a42376f16f20b0b80a54b41","verdict":"approved"},
+      "file:source/cli/src/llm/types.ts": {"hash":"df3428e7d5c45aa514c98eb3d22450fc573d54d034419a10d31cde2e48fad963","verdict":"approved"},
+      "file:source/cli/src/llm/xml-escape.ts": {"hash":"0cff822eac6690055d577a6e6603b61218d25517cd113a636130cc7a742cf9d9","verdict":"approved"}
     },
     "provider-retry-contract": {
       "file:source/cli/src/llm/anthropic.ts": {"hash":"79f57f7694c61ece0d09a84c21909e305d2aaaff21de3c1310c2a57f20ca71b1","verdict":"approved"},
