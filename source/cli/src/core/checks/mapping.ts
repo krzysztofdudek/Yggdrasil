@@ -176,6 +176,19 @@ function isAncestorNode(possibleAncestor: string, possibleDescendant: string): b
   return possibleDescendant.startsWith(possibleAncestor + '/');
 }
 
+/**
+ * True when mapping `descendant` is nested in (or equal to) mapping `ancestor` —
+ * the EXACT condition under which getChildMappingExclusions carves the descendant
+ * subtree out of the ancestor's file set (core/pairs.ts). Both are already
+ * normalized (normalizePathForCompare). Ancestor/descendant here refer to the
+ * MAPPING strings, not the node hierarchy: only when the deeper node's mapping is
+ * genuinely contained in the shallower node's mapping does the runtime assign the
+ * overlapping file to exactly one owner; otherwise both nodes own it.
+ */
+function isNestedMapping(descendant: string, ancestor: string): boolean {
+  return descendant === ancestor || descendant.startsWith(ancestor + '/');
+}
+
 export async function checkMappingOverlap(graph: Graph): Promise<ValidationIssue[]> {
   const issues: ValidationIssue[] = [];
   const ownership: Array<{ nodePath: string; mappingPath: string }> = [];
@@ -211,12 +224,19 @@ export async function checkMappingOverlap(graph: Graph): Promise<ValidationIssue
         continue;
       }
 
-      // Allow containment overlaps between ancestor-descendant nodes ("child wins" model).
-      const isHierarchical =
-        isAncestorNode(current.nodePath, candidate.nodePath) ||
-        isAncestorNode(candidate.nodePath, current.nodePath);
-
-      if (isHierarchical) continue;
+      // Child-wins carve-out: exempt an ancestor↔descendant node overlap ONLY when
+      // the DESCENDANT node's mapping is nested in the ANCESTOR node's mapping — the
+      // exact case getChildMappingExclusions carves out, leaving a single owner. When
+      // the descendant's mapping is BROADER than (or otherwise not contained in) the
+      // ancestor's, no carve-out applies and BOTH nodes own the overlap, so it must
+      // fall through to the overlapping-mapping error rather than be silently exempted.
+      const currentIsAncestor = isAncestorNode(current.nodePath, candidate.nodePath);
+      const candidateIsAncestor = isAncestorNode(candidate.nodePath, current.nodePath);
+      if (currentIsAncestor || candidateIsAncestor) {
+        const ancestorMapping = currentIsAncestor ? current.mappingPath : candidate.mappingPath;
+        const descendantMapping = currentIsAncestor ? candidate.mappingPath : current.mappingPath;
+        if (isNestedMapping(descendantMapping, ancestorMapping)) continue;
+      }
 
       issues.push({
         severity: 'error',
@@ -248,24 +268,39 @@ export async function checkMappingOverlap(graph: Graph): Promise<ValidationIssue
     const reported = new Set<string>();
     for (const rawRel of repoFiles) {
       const relPath = normalizePathForCompare(rawRel);
-      const owners: string[] = [];
+      // Track each owner's MATCHING mapping entries (normalized) — the child-wins
+      // carve-out is per-entry containment, not per-node hierarchy, so the entries
+      // are needed to decide who genuinely owns the file.
+      const owners: Array<{ nodePath: string; entries: string[] }> = [];
       let viaGlob = false;
       for (const [nodePath, node] of graph.nodes) {
-        let matched = false;
+        const matchedEntries: string[] = [];
         for (const entry of node.meta.mapping ?? []) {
           if (!mappingEntryMatchesFile(entry, relPath)) continue;
-          matched = true;
+          matchedEntries.push(normalizePathForCompare(entry));
           if (isGlobPattern(entry)) viaGlob = true;
         }
-        if (matched) owners.push(nodePath);
+        if (matchedEntries.length > 0) owners.push({ nodePath, entries: matchedEntries });
       }
       // Only the glob pass's job: plain↔plain overlaps are handled above.
       if (owners.length < 2 || !viaGlob || reported.has(relPath)) continue;
-      // Child-wins: drop owners that are an ancestor of another owner; an
-      // ambiguous file is one with two or more remaining (sibling/unrelated) owners.
-      const leaves = owners.filter(
-        (o) => !owners.some((other) => other !== o && isAncestorNode(o, other)),
-      );
+      // Effective owners after the runtime carve-out: an ancestor node loses the
+      // file to a descendant ONLY when the descendant has a matching entry NESTED
+      // in one of the ancestor's matching entries (exactly getChildMappingExclusions).
+      // A descendant that matches via a broader/glob entry NOT string-contained in
+      // the ancestor's entry does NOT carve the ancestor out — both still own the
+      // file, which is the ambiguity this check must flag.
+      const leaves = owners
+        .filter(
+          (o) =>
+            !owners.some(
+              (d) =>
+                d.nodePath !== o.nodePath &&
+                isAncestorNode(o.nodePath, d.nodePath) &&
+                d.entries.some((de) => o.entries.some((oe) => isNestedMapping(de, oe))),
+            ),
+        )
+        .map((o) => o.nodePath);
       if (leaves.length < 2) continue;
       reported.add(relPath);
       issues.push({

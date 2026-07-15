@@ -3,7 +3,7 @@ import * as path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { ensureLoaderRegistered } from '../ast/loader-hook.js';
 import { createCtxFs, UndeclaredFsReadError } from './ctx-fs.js';
-import { createCtxGraph, UndeclaredGraphReadError, computeAllowedNodePaths } from './ctx-graph.js';
+import { createCtxGraph, UndeclaredGraphReadError, computeAllowedNodePaths, recordNodeGraphObservation } from './ctx-graph.js';
 import { createCtxParsers, prewarmupAstCache, enrichFilesWithAst, ParseAstNotPrewarmedError } from './ctx-parsers.js';
 import { collectAllowedReadsForAspect } from './allowed-reads.js';
 import { normalizeMappingPath, isPathInMapping } from './expand-mapping-sync.js';
@@ -293,14 +293,30 @@ export async function buildUnitCtx(params: BuildUnitCtxParams): Promise<BuildUni
     nodeFilesEnriched = ownFilesEnriched;
     ctxFilesEnriched = ownFilesEnriched;
   }
-  const ctx: Ctx = {
-    node: {
-      id: node.path,
-      type: node.meta.type,
-      mapping: node.meta.mapping ?? [],
-      files: nodeFilesEnriched,
-      ports: (node.meta.ports ?? {}) as Record<string, Port>,
+  // ctx.node reads of `type` / `ports` must fold the node's identity into the
+  // verdict, else a check that gates on ctx.node.type (a documented cookbook
+  // pattern) produces a stale-green verdict when the type/ports later change.
+  // A Proxy records the same graph:<self> observation a ctx.graph.node(self) call
+  // would — lazily, so a check that never reads type/ports pays nothing. (id,
+  // mapping, files are already covered: nodePath is hashed, subject files hashed,
+  // node.files reads fold their own observations.)
+  const rawCtxNode = {
+    id: node.path,
+    type: node.meta.type,
+    mapping: node.meta.mapping ?? [],
+    files: nodeFilesEnriched,
+    ports: (node.meta.ports ?? {}) as Record<string, Port>,
+  };
+  const ctxNode = new Proxy(rawCtxNode, {
+    get(target, prop, receiver) {
+      if (prop === 'type' || prop === 'ports') {
+        recordNodeGraphObservation(recorder, projectRoot, node);
+      }
+      return Reflect.get(target, prop, receiver);
     },
+  });
+  const ctx: Ctx = {
+    node: ctxNode,
     files: ctxFilesEnriched,
     // ctx.subject is the unit's subject file(s): for the deterministic whole-node
     // case it is the SAME array reference as ctx.files; for a per:file unit it is

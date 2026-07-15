@@ -319,15 +319,25 @@ describe('checkMappingOverlap — glob file-level pass', () => {
     expect(msg).toContain('other');
   });
 
-  it('a single file claimed by ONLY an ancestor + its descendant via glob: child-wins leaves one leaf -> no overlap', async () => {
+  it('ancestor glob NOT string-nested by the descendant entry -> both own the file -> overlapping-mapping', async () => {
+    // The parent's glob (src/**/*.cs) matches src/repo/FooRepository.cs, and the
+    // runtime carve-out (getChildMappingExclusions) only drops a child entry that
+    // is STRING-nested in a parent entry — src/repo/FooRepository.cs is NOT nested
+    // in the glob string 'src/**/*.cs', so the parent's glob STILL owns the file
+    // alongside the child. That is genuine double-ownership (previously exempted by
+    // a node-hierarchy-only heuristic), so it must be flagged, not treated as clean.
     const { projectRoot, yggRoot } = await makeProject();
     await writeFileEnsuringDir(path.join(projectRoot, 'src/repo/FooRepository.cs'), 'class Foo {}');
     const graph = buildGraph(yggRoot, [
-      { path: 'svc', mapping: ['src/**/*.cs'] }, // glob; ancestor
+      { path: 'svc', mapping: ['src/**/*.cs'] }, // glob; ancestor node
       { path: 'svc/inner', mapping: ['src/repo/FooRepository.cs'], parent: 'svc' },
     ]);
     const issues = await checkMappingOverlap(graph);
-    expect(issues.filter((i) => i.code === 'overlapping-mapping')).toHaveLength(0);
+    const overlaps = issues.filter((i) => i.code === 'overlapping-mapping');
+    expect(overlaps.length).toBeGreaterThanOrEqual(1);
+    const what = overlaps.map((i) => i.messageData.what).join('\n');
+    expect(what).toContain('svc');
+    expect(what).toContain('svc/inner');
   });
 
   it('a glob that matches a file owned by NO other node produces no overlap', async () => {

@@ -67,3 +67,33 @@ export function mappingEntryMatchesFile(entry: string, file: string): boolean {
   if (isGlobPattern(e)) return globMatch(f, e);
   return f === e || f.startsWith(e + '/');
 }
+
+/**
+ * The SINGLE owner-selection rule shared by every file→owning-node resolver
+ * (the live relation-conformance owner index, the blast-radius reverse map, and
+ * the GC detachment proof). Given two candidate mappings that both match a file,
+ * returns true when `candidate` should win over `current`:
+ *
+ *   1. Longer mapping string wins — a more specific mapping owns the file.
+ *   2. On a mapping-length tie, the DEEPER node wins ("child wins"): a node
+ *      nested under another (a strictly longer hierarchy path) is the more
+ *      specific owner, matching the graph's documented single-ownership /
+ *      child-carve-out model (getChildMappingExclusions).
+ *   3. On a full tie (same length, same depth — an unrelated overlap the
+ *      overlap validator flags), fall back to lexicographic node path so every
+ *      resolver agrees deterministically instead of on Map-iteration order.
+ *
+ * Keeping this in one place is what stops the three resolvers from silently
+ * disagreeing on a tie (which produced a live false positive on the built-in
+ * relation-conformance gate).
+ */
+export function isBetterMappingOwner(
+  candidate: { nodePath: string; mappingLen: number },
+  current: { nodePath: string; mappingLen: number },
+): boolean {
+  if (candidate.mappingLen !== current.mappingLen) return candidate.mappingLen > current.mappingLen;
+  const candDepth = candidate.nodePath.split('/').length;
+  const curDepth = current.nodePath.split('/').length;
+  if (candDepth !== curDepth) return candDepth > curDepth;
+  return candidate.nodePath < current.nodePath;
+}

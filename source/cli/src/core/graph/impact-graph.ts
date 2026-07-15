@@ -5,6 +5,7 @@ import type { Graph } from '../../model/graph.js';
 import type { LockFile } from '../../model/lock.js';
 import type { ExpectedPair } from '../pairs.js';
 import { toPosix } from '../../utils/posix.js';
+import { isBetterMappingOwner } from '../../utils/mapping-path.js';
 
 /**
  * Pure graph blast-radius / reverse-dependency algorithms for `yg impact`.
@@ -56,7 +57,10 @@ function ownerNodeForFile(graph: Graph, file: string): string | null {
   let best: { nodePath: string; len: number } | null = null;
   for (const [nodePath, node] of graph.nodes) {
     for (const m of (node.meta.mapping ?? []).map(toPosix)) {
-      if (isPathInMapping(file, [m]) && (!best || m.length > best.len)) {
+      if (
+        isPathInMapping(file, [m]) &&
+        (!best || isBetterMappingOwner({ nodePath, mappingLen: m.length }, { nodePath: best.nodePath, mappingLen: best.len }))
+      ) {
         best = { nodePath, len: m.length };
       }
     }

@@ -1,6 +1,6 @@
 import type { Graph } from '../model/graph.js';
 import { normalizeMappingPaths } from '../io/paths.js';
-import { mappingEntryMatchesFile, isGlobPattern } from '../utils/mapping-path.js';
+import { mappingEntryMatchesFile, isGlobPattern, isBetterMappingOwner } from '../utils/mapping-path.js';
 import { toPosixPath } from '../utils/posix.js';
 
 export interface OwnerIndex {
@@ -31,8 +31,10 @@ export function buildOwnerIndex(nodes: Graph['nodes']): OwnerIndex {
 
         if (
           !best ||
-          e.mapping.length > best.len ||
-          (e.mapping.length === best.len && e.nodePath < best.nodePath)
+          isBetterMappingOwner(
+            { nodePath: e.nodePath, mappingLen: e.mapping.length },
+            { nodePath: best.nodePath, mappingLen: best.len },
+          )
         ) {
           best = { nodePath: e.nodePath, len: e.mapping.length };
         }

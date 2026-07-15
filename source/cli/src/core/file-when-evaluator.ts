@@ -9,9 +9,22 @@ import type { FileContentCache } from '../io/file-content-cache.js';
 const YGGDRASIL_PREFIX = '.yggdrasil/';
 
 /**
- * Native RegExp has no built-in timeout. Bound input length to avoid
- * pathological scans (catastrophic backtracking). 256KB head is enough
- * for content predicates; longer files indicate the wrong kind of check.
+ * Bound the INPUT LENGTH a content-predicate regex scans (256KB head). This
+ * caps the linear cost of a well-behaved pattern on a large file — it does NOT
+ * bound worst-case execution time: a catastrophically-backtracking pattern
+ * (e.g. nested quantifiers like `(a+)+`) is exponential in input length and can
+ * still hang on far fewer than 256KB characters. Node's RegExp runs
+ * synchronously and cannot be interrupted or timed out, so there is no
+ * in-process wall-clock bound here; the `catch` is a guard for a thrown engine
+ * error, not a timeout (V8 does not throw on slow backtracking — it blocks).
+ *
+ * A `content:` regex is authored inside the trust boundary (yg-architecture.yaml
+ * or an aspect's scope.files, both human-confirmed edits), so this is a
+ * robustness footgun, not an external attack surface: keep content predicates
+ * simple and avoid nested/overlapping quantifiers. A genuine wall-clock bound
+ * would require evaluating the match off the main thread (a worker with a hard
+ * timeout) — deliberately deferred as a designed change rather than a
+ * heuristic ReDoS reject that could wrongly block a legitimate pattern.
  */
 function safeRegexTest(re: RegExp, str: string): { match: boolean; timeout?: boolean } {
   const HEAD_LIMIT = 256 * 1024;

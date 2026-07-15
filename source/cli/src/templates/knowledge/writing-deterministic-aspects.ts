@@ -484,6 +484,15 @@ export function check(ctx) {
 Child nodes are always in the own descendant mappings channel — no additional
 relation declarations are required to access them via \`ctx.graph.children\`.
 
+Invalidation note: reading \`ctx.node.type\` or \`ctx.node.ports\` folds the reviewed
+node's identity (its \`yg-node.yaml\` bytes) into the verdict — exactly as a
+\`ctx.graph.node(<self>)\` call would — so a later change to the node's type or
+ports re-runs the check (at zero LLM cost) instead of leaving a stale-green
+verdict. (\`ctx.graph.children\` folds each child's identity too, so a child's
+type change invalidates as well.) Reading only \`ctx.node.id\`, \`ctx.node.mapping\`,
+or \`ctx.node.files\` does not add this fold — \`id\` and mapping are already pinned
+by the node path and subject-file hashes.
+
 ## Testing with yg aspect-test
 
 Run a deterministic aspect's \`check.mjs\` live, without writing the lock. Scope it
