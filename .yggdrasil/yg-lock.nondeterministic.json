@@ -306,13 +306,13 @@
       "file:source/cli/src/llm/index.ts": {"hash":"5340a4feed73225a985941020ef72fefc5dd56a4b4828c62dcbb307091307b17","verdict":"approved"}
     },
     "provider-retry-contract": {
-      "file:source/cli/src/llm/anthropic.ts": {"hash":"b4e5d821e3194621612313f6f2f3bfce1102681f6ce9fcafcb2cc2dac9c665c1","verdict":"approved"},
-      "file:source/cli/src/llm/claude-code.ts": {"hash":"d34d7dd207fa6ea8bd95d733f05d31e70f070c816ae294c3c81d26d4213e3a95","verdict":"approved"},
-      "file:source/cli/src/llm/codex.ts": {"hash":"b1c270078b5d29c6157266aa430fef10295ce151db5089d032d315f7b4b9d112","verdict":"approved"},
-      "file:source/cli/src/llm/gemini-cli.ts": {"hash":"903a4a51f1609f7f87372a9b518269afb056f027435196e1e1869a548ba85e8a","verdict":"approved"},
-      "file:source/cli/src/llm/google.ts": {"hash":"8bcb691ec4a866b3725d9b124633e3d2edd7aab908dceb0f3f81b05eab41262e","verdict":"approved"},
-      "file:source/cli/src/llm/ollama.ts": {"hash":"8fcf3dd9feea80c5122ad732c68ab4827bb1fbcb7e4013399ff47d50ee7acf0f","verdict":"approved"},
-      "file:source/cli/src/llm/openai.ts": {"hash":"fdc464a7250ffb52025de81e1134dd81aed6f58a93ceaf611f798bbbc5d62e82","verdict":"approved"}
+      "file:source/cli/src/llm/anthropic.ts": {"hash":"79f57f7694c61ece0d09a84c21909e305d2aaaff21de3c1310c2a57f20ca71b1","verdict":"approved"},
+      "file:source/cli/src/llm/claude-code.ts": {"hash":"a1e2213c6371aeb358d4ff8b8f76c01e486e339bd59d448f603bc75fce2675bf","verdict":"approved"},
+      "file:source/cli/src/llm/codex.ts": {"hash":"77d3772ced49642466985d5842a3c950ddda56c6a2a00859d187418a17bd152c","verdict":"approved"},
+      "file:source/cli/src/llm/gemini-cli.ts": {"hash":"e7cbb144f27f38b8ea15620ea5196d5d7681be16bfc315d807ef798143298d0e","verdict":"approved"},
+      "file:source/cli/src/llm/google.ts": {"hash":"a21c6cf5c3209cea838fda5a0f06418eeeb460c1ada9464ce165ba03dc8c7385","verdict":"approved"},
+      "file:source/cli/src/llm/ollama.ts": {"hash":"9486aadf9b8e484e18453d8ebc68db7eac10cb687bb659bb639d79a5dbff631e","verdict":"approved"},
+      "file:source/cli/src/llm/openai.ts": {"hash":"c481063a09fc5eaeb9bb0d676c07213a4ef102c5bc28215a33d3d826493fb054","verdict":"approved"}
     },
     "silent-missing-files": {
       "file:source/cli/src/core/checks/architecture.ts": {"hash":"2e3b5907831bcd4882f719953d1522514f40f66b007244fc7e81fa1f52a57ad9","verdict":"approved"},

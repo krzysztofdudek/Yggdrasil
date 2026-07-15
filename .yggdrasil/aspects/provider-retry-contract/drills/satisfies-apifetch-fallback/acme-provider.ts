@@ -29,8 +29,4 @@ export class AcmeProvider {
   isAvailable(): boolean {
     return this.configured;
   }
-
-  getContextWindowSize(): number | undefined {
-    return 200000;
-  }
 }

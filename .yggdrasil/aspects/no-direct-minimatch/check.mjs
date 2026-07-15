@@ -5,6 +5,13 @@ import { walk, report } from '@chrisdudek/yg/ast';
 // exports (globMatch / mappingEntryMatchesFile / isGlobPattern).
 const CANONICAL_GLOB_MODULE = 'source/cli/src/utils/mapping-path.ts';
 
+// A statement-level type-only import (`import type { IMinimatch } from 'minimatch'`)
+// is erased at compile time — no runtime dependency on the glob engine — so
+// flagging it would break this aspect's errs: under (no-false-positives) contract.
+function isTypeOnly(node) {
+  return node.children.some((c) => c.type === 'type');
+}
+
 export function check(ctx) {
   const violations = [];
   for (const file of ctx.files) {
@@ -12,6 +19,7 @@ export function check(ctx) {
     if (file.path === CANONICAL_GLOB_MODULE) continue;
     walk(file.ast.rootNode, (node) => {
       if (node.type !== 'import_statement') return;
+      if (isTypeOnly(node)) return;
       const sourceNode = node.childForFieldName('source');
       if (!sourceNode) return;
       // strip surrounding quotes
