@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { runMigrations, detectVersion, updateConfigVersion } from '../../../src/core/migrator.js';
+import { detectVersion, updateConfigVersion } from '../../../src/core/migrator.js';
 import type { Migration } from '../../../src/core/migrator.js';
 import { runVersionUpgrade } from '../../../src/core/migrator-runner.js';
 import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises';
@@ -27,50 +27,6 @@ describe('detectVersion', () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'yg-mig-')); dirsToCleanup.push(dir);
     await writeFile(path.join(dir, 'yg-config.yaml'), 'name: "test"\n');
     expect(await detectVersion(dir)).toBeNull();
-  });
-});
-
-describe('runMigrations', () => {
-  it('runs applicable migrations in order', async () => {
-    const dir = await mkdtemp(path.join(os.tmpdir(), 'yg-mig-')); dirsToCleanup.push(dir);
-    const order: string[] = [];
-    const migrations: Migration[] = [
-      { to: '5.0.0', description: 'future', run: async () => { order.push('5'); return { actions: ['5'], warnings: [] }; } },
-      { to: '4.0.0', description: 'v4', run: async () => { order.push('4'); return { actions: ['4'], warnings: [] }; } },
-    ];
-    const results = await runMigrations('3.0.0', migrations, dir);
-    expect(order).toEqual(['4', '5']);
-    expect(results).toHaveLength(2);
-  });
-
-  it('skips migrations at or below current version', async () => {
-    const dir = await mkdtemp(path.join(os.tmpdir(), 'yg-mig-')); dirsToCleanup.push(dir);
-    const migrations: Migration[] = [
-      { to: '3.0.0', description: 'old', run: async () => ({ actions: ['old'], warnings: [] }) },
-      { to: '4.0.0', description: 'current', run: async () => ({ actions: ['current'], warnings: [] }) },
-    ];
-    const results = await runMigrations('4.0.0', migrations, dir);
-    expect(results).toHaveLength(0);
-  });
-
-  it('returns empty for invalid current version', async () => {
-    const dir = await mkdtemp(path.join(os.tmpdir(), 'yg-mig-')); dirsToCleanup.push(dir);
-    const migrations: Migration[] = [
-      { to: '4.0.0', description: 'v4', run: async () => ({ actions: ['4'], warnings: [] }) },
-    ];
-    const results = await runMigrations('not-a-version', migrations, dir);
-    expect(results).toHaveLength(0);
-  });
-
-  it('skips migrations with invalid target version', async () => {
-    const dir = await mkdtemp(path.join(os.tmpdir(), 'yg-mig-')); dirsToCleanup.push(dir);
-    const migrations: Migration[] = [
-      { to: 'bad', description: 'invalid', run: async () => ({ actions: ['bad'], warnings: [] }) },
-      { to: '4.0.0', description: 'v4', run: async () => ({ actions: ['4'], warnings: [] }) },
-    ];
-    const results = await runMigrations('3.0.0', migrations, dir);
-    expect(results).toHaveLength(1);
-    expect(results[0].actions).toEqual(['4']);
   });
 });
 
