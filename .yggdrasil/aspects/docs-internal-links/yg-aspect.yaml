@@ -1,0 +1,16 @@
+name: DocsInternalLinks
+description: >-
+  Every internal link on a documentation page must resolve to an existing
+  documentation page. The check reads the whole doc set at once (the aspect's
+  subject is a single node that maps every doc page), builds the set of clean-URL
+  keys that exist, and flags any inline markdown link whose resolved target is
+  absent — a broken internal link that would 404 for a reader. It under-approximates
+  by design (errs: under): it resolves only what it can with certainty and skips
+  external links, assets, same-page anchors, reference-style links, and anything
+  inside a code block or code span, so every violation it reports is a provably
+  dead link and it has no false positives. IMPORTANT: all documentation pages must
+  live in ONE node for this rule to be complete — a page in a sibling node it cannot
+  see would read as a broken target — which is why the adopter docs are modeled as a
+  single node.
+errs: under
+status: enforced

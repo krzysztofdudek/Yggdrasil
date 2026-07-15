@@ -36,6 +36,7 @@ const DRILL_EXEMPT: Record<string, string> = {
   'reference/section-body': 'needs the catalogue kind schema + section contract; not a single file.',
   'reference/relations/case-has-test': 'needs the matrix test file alongside the case doc; cross-file, no single-file drill.',
   'reference/relations/case-is-tested': 'needs the matrix test file alongside the case doc; cross-file, no single-file drill.',
+  'docs-internal-links': 'resolves links across the WHOLE doc set (needs many .md files together), but the drill corpus excludes .md files and runs one file per case; regression-covered instead by tests/e2e/docs-internal-links.test.ts.',
 };
 
 /** Recursively find every aspect directory (one holding a yg-aspect.yaml). */
