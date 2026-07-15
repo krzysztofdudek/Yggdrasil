@@ -128,40 +128,45 @@ Now run `yg check`:
 ```text
 $ yg check
 
-my-project — 1 nodes, 1 aspects, 0 flows
-Coverage: 1/1 source files (100%)
+yg check: FAIL  1 nodes · 1/1 files · 1 aspects · 0 flows
 
-Errors (1) in 1 group:
+Errors (1):
 
-  unverified — requires-audit (1 node)
-    payments  [src/payments/]
-    This pair has never been verified. Next: yg check --approve
+  unverified (not yet reviewed)  1 pairs  1 nodes  aspect 'requires-audit'
+            The lock holds no entry for this pair, or its inputs changed since the verdict was recorded (source edit, aspect edit, or a fill that did not complete). A verdict is valid only while its inputs hash to the stored value.
+            Fix: yg check --approve
+            - payments
 
-yg check: FAIL  Errors: 1  Warnings: 0
+Next: yg check --approve
 ```
 
 Check detected that the `requires-audit` rule on `src/payments/` has no recorded
 verdict. The agent runs `yg check --approve` and the reviewer reads the source
-code, checks it against the rules in `content.md`, and reports:
+code, checks it against the rules in `content.md`. The reviewer runs on stderr
+and the report is written to stdout — a clean run prints the PASS header:
 
 ```text
 $ yg check --approve
 
-Filling 1 unverified pair across 1 node — 0 deterministic (no cost), 1 reviewer call.
+Filling 1 unverified pairs across 1 nodes — 0 deterministic (no cost), 1 reviewer calls (consensus included).
 
-  payments / requires-audit — SATISFIED
-
-Result: PASS (verdict recorded in the lock)
+yg check: PASS  1 nodes · 1/1 files · 1 aspects · 0 flows · 1 verified (0 deterministic, 1 LLM)
 ```
 
-If the code didn't satisfy the aspect, the output would show:
+If the code didn't satisfy the aspect, the pair is refused and the report shows
+the enforced refusal block with the reviewer's reason:
 
 ```text
-  payments / requires-audit — REFUSED
-    chargeCard() does not emit an audit event.
-    No call to auditLog.emit() found in any mutation path.
+yg check: FAIL  1 nodes · 1/1 files · 1 aspects · 0 flows
 
-Result: FAIL — fix the violation, then re-run: yg check --approve
+Errors (1):
+
+  enforced  1 pairs  1 nodes  aspect 'requires-audit'
+            A refused verdict for unchanged inputs is final and cached; re-running the reviewer would only re-roll the same inputs.
+            Fix: Three exits: fix the code; sharpen the aspect's content.md; or propose a yg-suppress (user must approve the reason).
+            - payments  Reviewer reason: chargeCard() does not emit an audit event; no auditLog.emit() call in any mutation path.
+
+Next: fix the violation, then re-run: yg check --approve
 ```
 
 The agent fixes the code and re-runs `yg check --approve` until all aspects pass.

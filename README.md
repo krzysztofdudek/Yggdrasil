@@ -82,7 +82,7 @@ You reviewed nothing.
 5. **`yg check --approve`** runs the checks. Scripts run locally for free. Rules that need judgment go to the reviewer.
 6. A rule fails: *"audit logging missing in charge()."*
 7. The agent fixes it and re-runs the check, looping until it is green.
-8. The verdict is recorded in the committed lock.
+8. The verdict is recorded in the lock — LLM verdicts committed, free deterministic ones in a gitignored cache CI rebuilds on demand.
 9. In CI, **`yg check`** recomputes the input hashes and passes, with no LLM calls.
 
 Aspects are scoped. The agent only sees the ones that touch the file it's working on, not all 200. One aspect can cover dozens of files. Change an aspect and everything it governs gets flagged for re-verification.
@@ -193,10 +193,11 @@ The agent verifies its own code as it works. When it violates a rule, it gets fe
 **4. Enforce in CI.**
 
 ```yaml
+- run: npx @chrisdudek/yg check --approve --only-deterministic
 - run: npx @chrisdudek/yg check
 ```
 
-`yg check` is the deterministic gate: it makes no LLM calls and needs no provider config or keys. It recomputes the input hash of every expected pair and compares it against the verdict recorded in the lock, and also validates structure, coverage, and completeness. If code changed without being verified, the pair no longer matches its recorded hash and check fails.
+The first step rebuilds the gitignored deterministic-verdict cache — free, no LLM calls, no provider keys — because a fresh checkout never has it. The second is the gate: it recomputes the input hash of every expected pair and compares it against the recorded verdict (the deterministic cache plus the two committed lock files), and also validates structure, coverage, and completeness. If code changed without being verified, the pair no longer matches its recorded hash and check fails.
 
 ## Supported platforms
 
@@ -238,7 +239,7 @@ Linters check syntax and patterns. "Rate limiting required" isn't a lint rule. "
 PR review happens after the code is written. By then the agent has moved on, context is lost, and you're catching up. Yggdrasil reviews while the agent is working, so violations get fixed in the same session.
 
 **Does it work?**
-Locally, `yg check --approve` sends LLM aspects to the reviewer and runs script aspects on your machine, then records each verdict in a single committed lock file. `yg check` in CI makes no LLM calls. It recomputes the input hash of every expected pair and compares it against the verdict the lock recorded (and validates structure and coverage). If a PR has unverified changes, the hashes no longer match and CI catches it.
+Locally, `yg check --approve` sends LLM aspects to the reviewer and runs script aspects on your machine, then records each verdict — LLM verdicts and the log baseline go into two committed lock files; deterministic (`check.mjs`) verdicts go into a gitignored local cache, since they are free to rebuild. `yg check` in CI makes no LLM calls, but a fresh checkout has no deterministic cache, so CI first runs `yg check --approve --only-deterministic` to rebuild it for free (no keys), then `yg check`, which recomputes the input hash of every expected pair against the recorded verdict (and validates structure and coverage). If a PR has unverified changes, the hashes no longer match and CI catches it.
 
 **What if I want to stop?**
 Delete `.yggdrasil/` and the rules file. No runtime dependencies, no build hooks, nothing left behind.

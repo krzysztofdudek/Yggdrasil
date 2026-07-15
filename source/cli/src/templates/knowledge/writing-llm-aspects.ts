@@ -124,9 +124,14 @@ pair is skipped by \`--approve\`. Remedies, in safety order:
    generated files, docs).
 2. Switch the aspect to \`per: file\` — ONLY if the rule is file-local (above).
 3. Split the node.
-4. Raise the limit or move the aspect to a higher-limit tier — a tier edit
-   cascades re-verification across every aspect resolving to that tier; confirm
-   with the user.
+4. Raise \`max_prompt_chars\` on the current tier, or re-point the aspect's
+   \`reviewer.tier:\` to a higher-limit tier. Raising the limit on the SAME tier
+   invalidates NOTHING — tier config (including \`max_prompt_chars\`) is excluded
+   from the pair hash; it simply lets a previously oversized, unverified pair get
+   reviewed for the first time on the next \`--approve\`. Re-pointing THIS aspect's
+   \`reviewer.tier:\` to a differently-named tier invalidates only this aspect's own
+   pairs (other aspects already on that tier are untouched — their \`reviewer.tier:\`
+   did not change); confirm with the user.
 
 ## False-positive mitigation
 

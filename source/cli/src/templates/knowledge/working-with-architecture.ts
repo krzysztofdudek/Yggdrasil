@@ -76,6 +76,9 @@ Don't use \`enforce: strict\` when the \`when\` predicate is broad (e.g.
 \`path: "**"\`) — every repo file would be required in that type's mapping.
 
 Strict enforcement fires these error codes:
+- \`enforce-strict-without-when\` — a type declares \`enforce: strict\` with no
+  \`when\` predicate (strict needs \`when\` to know which files it must enforce
+  against; without one there is no condition to evaluate)
 - \`type-strict-orphan\` — file matches \`when\` but is in no mapping
 - \`type-strict-misplaced\` — file matches \`when\` but is in a wrong-type mapping
 - \`strict-overlap-conflict\` — a file matches the \`when\` of TWO strict types, so

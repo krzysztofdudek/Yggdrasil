@@ -73,11 +73,17 @@ The reviewer compares text against code. Vague rules produce vague verdicts; spe
 ```text
 $ yg check --approve
 
-  payments / requires-audit — REFUSED
-    chargeCard() does not emit an audit event.
-    No call to auditLog.emit() found in any mutation path.
+Filling 1 unverified pairs across 1 nodes — 0 deterministic (no cost), 1 reviewer calls (consensus included).
 
-yg check: FAIL  Errors: 1  Warnings: 0
+yg check: FAIL  1 nodes · 1/1 files · 1 aspects · 0 flows
+
+Errors (1):
+
+  enforced  1 pairs  1 nodes  aspect 'requires-audit'
+            A refused verdict for unchanged inputs is final and cached; re-running the reviewer would only re-roll the same inputs.
+            Fix: Three exits: fix the code; sharpen the aspect's content.md; or propose a yg-suppress (user must approve the reason).
+            - payments  Reviewer reason: chargeCard() does not emit an audit event; no auditLog.emit() call in any mutation path.
+
 Next: fix the violation, then re-run: yg check --approve
 ```
 

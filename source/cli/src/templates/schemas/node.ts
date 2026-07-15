@@ -43,12 +43,21 @@ relations:                    # optional — outgoing dependencies to other node
                               # BLOCKING ERROR (port-missing-consumes) that fails the architecture gate.
                               # There is no waiver; resolve by adding consumes or removing the ports.
                               # Naming a target that declares no ports raises consumes-without-ports.
+    event_name: order.placed  # optional — ONLY for the event relation types (emits / listens):
+                              # the named channel the two ends share. emits and listens must be
+                              # PAIRED — every emits on one node needs a matching listens (same
+                              # event_name) on another, and vice versa, or yg check emits the
+                              # BLOCKING event-unpaired error. Ignored on structural relation types.
 
 mapping:                      # optional — source files and directories owned by this node
   - src/modules/component/    # directory — all files inside are owned (recursive)
   - src/modules/component.ts  # file — exact match
+  - src/db/*Repository.cs     # glob — minimatch: * matches within one path segment,
+  - src/**/*.ts               #        ** matches across segments (recursive)
                               # paths are relative to repository root
-                              # each source file must have exactly one owner node
+                              # each source file must have exactly one owner node — except that a
+                              # child node claiming a specific file inside a directory its parent
+                              # globs owns that file (child precedence), with no overlap error
 
 max_direct_relations:         # optional — reviewed-seam override of the built-in
                               # high-fan-out warning FOR THIS NODE ONLY. It SETS this
