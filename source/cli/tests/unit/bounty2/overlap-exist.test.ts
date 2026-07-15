@@ -271,19 +271,18 @@ describe('checkMappingOverlap — string pass: report branches', () => {
     expect(issues).toHaveLength(0);
   });
 
-  it('descendant node with a BROADER mapping than its ancestor -> overlapping-mapping (no valid carve-out)', async () => {
-    // Regression: the child-wins carve-out only applies when the DESCENDANT node's
-    // mapping is nested in the ANCESTOR node's. Here the child maps the broader
-    // path (src/feature) and the parent the narrower (src/feature/sub), so
-    // getChildMappingExclusions carves out nothing and BOTH nodes own
-    // src/feature/sub/*. This must be flagged, not silently exempted as "hierarchical".
+  it('descendant node with a BROADER mapping than its ancestor is exempt (child-precedence: deeper node wins)', async () => {
+    // Child-precedence (child-wins): the deeper node owns the shared files even
+    // when it maps a broader path than its ancestor. The runtime carve-out
+    // (getChildMappingExclusions, glob-aware) removes the overlap from the
+    // ancestor's subject set, so ownership is unambiguous and this is not flagged.
     const { yggRoot } = await makeProject();
     const graph = buildGraph(yggRoot, [
       { path: 'parent', mapping: ['src/feature/sub'] },
       { path: 'parent/child', mapping: ['src/feature'], parent: 'parent' },
     ]);
     const issues = await checkMappingOverlap(graph);
-    expect(codes(issues)).toContain('overlapping-mapping');
+    expect(codes(issues)).not.toContain('overlapping-mapping');
   });
 
   it('ancestor-descendant mapping the SAME exact file STILL flags file-duplicate-mapping (equal branch runs before hierarchy check)', async () => {
@@ -379,25 +378,20 @@ describe('checkMappingOverlap — glob pass: per-file skip branches', () => {
     expect(overlaps(issues)).toHaveLength(0);
   });
 
-  it('viaGlob true, ancestor glob NOT string-nested by the descendant entry -> both own the file -> overlapping-mapping', async () => {
-    // Regression (the live relation-gate false-positive class): parent maps a glob
-    // (src/*/y.ts) and the graph-child maps a plain entry of the SAME length
-    // (src/x/y.ts) that is NOT string-contained in the parent's glob entry. The
-    // runtime carve-out only excludes a child entry nested in the parent's entry,
-    // so the parent's glob STILL owns src/x/y.ts alongside the child — both own it.
-    // The ancestor must NOT be pruned as "child-wins" here.
+  it('child-precedence: a child claiming a specific file inside a parent glob is exempt (child wins, no overlap)', async () => {
+    // The maintainer's "special case in a globbed directory" pattern: the parent
+    // globs src/*/y.ts and the graph-child claims the specific src/x/y.ts. The
+    // child (deeper node) wins IMPLICITLY — the glob-aware runtime carve-out
+    // removes src/x/y.ts from the parent's subject set — so this is NOT an overlap,
+    // even though the child's entry is not string-nested in the parent's glob.
     const { projectRoot, yggRoot } = await makeProject();
     await writeFileEnsuringDir(path.join(projectRoot, 'src/x/y.ts'), 'export {}');
     const graph = buildGraph(yggRoot, [
       { path: 'app', mapping: ['src/*/y.ts'] }, // ancestor via glob
-      { path: 'app/x', mapping: ['src/x/y.ts'], parent: 'app' }, // descendant, NOT nested in the glob string
+      { path: 'app/x', mapping: ['src/x/y.ts'], parent: 'app' }, // descendant claims the specific file
     ]);
     const issues = await checkMappingOverlap(graph);
-    const ov = overlaps(issues);
-    expect(ov.length).toBeGreaterThanOrEqual(1);
-    const what = ov.map((i) => i.messageData.what).join('\n');
-    expect(what).toContain('app');
-    expect(what).toContain('app/x');
+    expect(overlaps(issues)).toHaveLength(0);
   });
 
   it('viaGlob true, leaves >= 2: two siblings + one ancestor claim a file -> ancestor pruned, siblings still conflict', async () => {

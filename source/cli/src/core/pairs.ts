@@ -117,29 +117,29 @@ export class FileUnreadableError extends Error {
 // ============================================================
 
 /**
- * Compute child mapping exclusions for the child-wins model.
+ * Compute child mapping exclusions for the CHILD-PRECEDENCE (child-wins) model.
  *
- * Returns the list of mapping entries owned by descendant nodes so that a
- * parent's subject-file set can exclude files already mapped by a child.
- * Exact match with the implementations previously in approve.ts (exported) and
- * check.ts (private) — both are removed and this is the single source of truth.
+ * Returns the mapping entries of every strict-descendant node, so a parent's
+ * subject-file set can exclude any file a descendant maps. The exclusion is
+ * applied by the callers via mappingEntryMatchesFile (glob-aware), so a
+ * descendant that claims a specific file INSIDE a directory the parent globs
+ * (e.g. parent `src/repo/** /*.cs`, child `src/repo/FooRepository.cs`) genuinely
+ * carves that file out of the parent — the deeper node wins, implicitly, with no
+ * requirement that the child's mapping string be nested under the parent's.
+ * (A previous version gated on `cm === pm || cm.startsWith(pm + '/')`, which only
+ * carved a string-nested entry and so never realized child-precedence for a glob
+ * parent — the file stayed double-owned. That gate is removed.)
  */
 export function getChildMappingExclusions(graph: Graph, nodePath: string): string[] {
   const node = graph.nodes.get(nodePath);
   if (!node) return [];
-  const parentMappings = normalizeMappingPaths(node.meta.mapping);
-  if (parentMappings.length === 0) return [];
+  if (normalizeMappingPaths(node.meta.mapping).length === 0) return [];
 
   const exclusions: string[] = [];
   for (const [childPath, childNode] of graph.nodes) {
     if (childPath === nodePath || !childPath.startsWith(nodePath + '/')) continue;
-    const childMappings = normalizeMappingPaths(childNode.meta.mapping);
-    for (const cm of childMappings) {
-      for (const pm of parentMappings) {
-        if (cm === pm || cm.startsWith(pm + '/')) {
-          exclusions.push(cm);
-        }
-      }
+    for (const cm of normalizeMappingPaths(childNode.meta.mapping)) {
+      exclusions.push(cm);
     }
   }
   return exclusions;

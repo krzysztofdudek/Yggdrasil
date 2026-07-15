@@ -71,29 +71,34 @@ export function mappingEntryMatchesFile(entry: string, file: string): boolean {
 /**
  * The SINGLE owner-selection rule shared by every file→owning-node resolver
  * (the live relation-conformance owner index, the blast-radius reverse map, and
- * the GC detachment proof). Given two candidate mappings that both match a file,
- * returns true when `candidate` should win over `current`:
+ * the GC detachment proof). Given two candidate nodes that both map a file,
+ * returns true when `candidate` should win over `current`, under the graph's
+ * CHILD-PRECEDENCE (child-wins) model:
  *
- *   1. Longer mapping string wins — a more specific mapping owns the file.
- *   2. On a mapping-length tie, the DEEPER node wins ("child wins"): a node
- *      nested under another (a strictly longer hierarchy path) is the more
- *      specific owner, matching the graph's documented single-ownership /
- *      child-carve-out model (getChildMappingExclusions).
- *   3. On a full tie (same length, same depth — an unrelated overlap the
- *      overlap validator flags), fall back to lexicographic node path so every
- *      resolver agrees deterministically instead of on Map-iteration order.
+ *   1. If one node is a hierarchical descendant of the other, the DESCENDANT
+ *      wins — regardless of mapping length. A child claiming a specific file
+ *      inside a directory its parent globs owns that file; the parent's
+ *      (possibly longer) glob does not. This matches the runtime carve-out
+ *      (getChildMappingExclusions), so the resolver and the subject-set agree.
+ *   2. Otherwise the two are non-hierarchical (siblings). There is no "deeper"
+ *      node, so fall back to the more specific (longer) mapping, then a
+ *      lexicographic node-path tiebreak — every resolver then agrees
+ *      deterministically instead of on Map-iteration order. (A file genuinely
+ *      mapped by two siblings is flagged by the overlap validator; the ordering
+ *      here only keeps the resolvers consistent.)
  *
  * Keeping this in one place is what stops the three resolvers from silently
- * disagreeing on a tie (which produced a live false positive on the built-in
+ * disagreeing (which produced a live false positive on the built-in
  * relation-conformance gate).
  */
 export function isBetterMappingOwner(
   candidate: { nodePath: string; mappingLen: number },
   current: { nodePath: string; mappingLen: number },
 ): boolean {
+  // Child-precedence: a hierarchical descendant node always wins.
+  if (candidate.nodePath.startsWith(current.nodePath + '/')) return true;
+  if (current.nodePath.startsWith(candidate.nodePath + '/')) return false;
+  // Non-hierarchical: more specific (longer) mapping wins, then lexicographic.
   if (candidate.mappingLen !== current.mappingLen) return candidate.mappingLen > current.mappingLen;
-  const candDepth = candidate.nodePath.split('/').length;
-  const curDepth = current.nodePath.split('/').length;
-  if (candDepth !== curDepth) return candDepth > curDepth;
   return candidate.nodePath < current.nodePath;
 }

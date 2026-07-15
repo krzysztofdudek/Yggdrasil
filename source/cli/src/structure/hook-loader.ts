@@ -51,15 +51,24 @@ async function buildOwnFiles(
   projectRoot: string,
   touchedFiles: string[],
 ): Promise<Array<{ file: File; bytes: Buffer }>> {
-  // Collect all mapping entries from child nodes — we exclude any file that falls
-  // under a child's mapping (file-or-directory) to preserve the child-wins model.
+  // Collect mapping entries from ALL strict-descendant nodes (not just direct
+  // children) — we exclude any file a descendant maps (glob-aware) to preserve the
+  // child-precedence (child-wins) model: the deepest node that maps a file owns it,
+  // including a descendant claiming a specific file inside a directory this node
+  // globs. Recursing beyond direct children keeps this identical to the subject-set
+  // carve (getChildMappingExclusions), so ctx.node.files and the hashed subject set
+  // agree even when a grandchild owns a file under an organizational parent.
   const childMappingEntries: string[] = [];
-  for (const child of node.children) {
-    for (const raw of child.meta.mapping ?? []) {
-      const p = normalizeMappingPath(raw);
-      if (p) childMappingEntries.push(p);
+  const collectDescendantMappings = (n: ModelNode): void => {
+    for (const child of n.children) {
+      for (const raw of child.meta.mapping ?? []) {
+        const p = normalizeMappingPath(raw);
+        if (p) childMappingEntries.push(p);
+      }
+      collectDescendantMappings(child);
     }
-  }
+  };
+  collectDescendantMappings(node);
 
   const rawMapping = (node.meta.mapping ?? [])
     .map(normalizeMappingPath)

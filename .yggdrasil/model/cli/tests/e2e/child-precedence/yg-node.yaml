@@ -1,0 +1,7 @@
+name: E2E Tests — Child-Precedence Ownership
+type: test-suite
+description: "Subprocess E2E proving child-precedence (child-wins) ownership through the public CLI — a child node claiming a specific file inside a directory its parent globs owns that file: yg check is green with no overlapping-mapping, yg owner names the child, and yg context carves the file out of the parent and into the child."
+aspects: []
+relations: []
+mapping:
+  - source/cli/tests/e2e/cli-child-precedence.test.ts

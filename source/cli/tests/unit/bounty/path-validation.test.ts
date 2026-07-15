@@ -319,13 +319,13 @@ describe('checkMappingOverlap — glob file-level pass', () => {
     expect(msg).toContain('other');
   });
 
-  it('ancestor glob NOT string-nested by the descendant entry -> both own the file -> overlapping-mapping', async () => {
-    // The parent's glob (src/**/*.cs) matches src/repo/FooRepository.cs, and the
-    // runtime carve-out (getChildMappingExclusions) only drops a child entry that
-    // is STRING-nested in a parent entry — src/repo/FooRepository.cs is NOT nested
-    // in the glob string 'src/**/*.cs', so the parent's glob STILL owns the file
-    // alongside the child. That is genuine double-ownership (previously exempted by
-    // a node-hierarchy-only heuristic), so it must be flagged, not treated as clean.
+  it('child-precedence: a child claiming a specific file inside a parent glob is exempt (child wins)', async () => {
+    // The parent globs src/**/*.cs and the graph-child claims the specific
+    // src/repo/FooRepository.cs. Under child-precedence the deeper node wins
+    // implicitly — the glob-aware runtime carve-out removes that file from the
+    // parent's subject set — so this is NOT flagged, even though the child's entry
+    // is not string-nested in the parent's glob. (This is the "special case in a
+    // globbed directory" pattern.)
     const { projectRoot, yggRoot } = await makeProject();
     await writeFileEnsuringDir(path.join(projectRoot, 'src/repo/FooRepository.cs'), 'class Foo {}');
     const graph = buildGraph(yggRoot, [
@@ -333,11 +333,7 @@ describe('checkMappingOverlap — glob file-level pass', () => {
       { path: 'svc/inner', mapping: ['src/repo/FooRepository.cs'], parent: 'svc' },
     ]);
     const issues = await checkMappingOverlap(graph);
-    const overlaps = issues.filter((i) => i.code === 'overlapping-mapping');
-    expect(overlaps.length).toBeGreaterThanOrEqual(1);
-    const what = overlaps.map((i) => i.messageData.what).join('\n');
-    expect(what).toContain('svc');
-    expect(what).toContain('svc/inner');
+    expect(issues.filter((i) => i.code === 'overlapping-mapping')).toHaveLength(0);
   });
 
   it('a glob that matches a file owned by NO other node produces no overlap', async () => {

@@ -10,7 +10,8 @@ import { formatFileContext } from '../formatters/context-file.js';
 import { validate } from '../core/validator.js';
 import { findOwner } from './owner.js';
 import { normalizeMappingPaths, projectRootFromGraph, resolveFileArg } from '../io/paths.js';
-import { expandMappingPaths, hashString } from '../io/hash.js';
+import { hashString } from '../io/hash.js';
+import { computeNodeMappedFiles } from '../core/pairs.js';
 import { readTextFile } from '../io/graph-fs.js';
 import { readFeatureFieldEntry } from '../core/feature-index-read.js';
 import { FAMILY_SEP } from '../core/feature-field-schema.js';
@@ -298,8 +299,10 @@ export function registerBuildCommand(program: Command): void {
           }
         } else {
           const data = buildNodeContextData(graph, nodePath);
-          const projectRoot = projectRootFromGraph(graph.rootPath);
-          data.sourceFiles = await expandMappingPaths(projectRoot, data.sourceFiles);
+          // Show the node's OWNED files — the child-precedence carve-out applied —
+          // so `yg context` agrees with `yg owner` and with what the node's aspects
+          // actually review: a file claimed by a descendant node is NOT listed here.
+          data.sourceFiles = await computeNodeMappedFiles(graph, nodePath);
           await attachLockObservability(graph, nodePath, data);
           process.stdout.write(formatNodeContext(data));
         }
