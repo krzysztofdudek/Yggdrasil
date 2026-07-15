@@ -1,0 +1,7 @@
+name: NoShellInjection
+description: "Forbids a shell command built from anything but a static string literal, and any child_process call that re-enables the shell (shell: true). A dynamically-built exec/execSync command (template substitution or string concatenation), or an argv call run through a shell, is a provable command-injection surface — use execFile/execFileSync with an argument array instead. AST-based and binding-aware: it fires only on calls whose callee resolves to a child_process exec/execSync binding (or a spawn-family call with shell: true), so RegExp.prototype.exec and a static-literal exec are never flagged."
+reviewer:
+  type: deterministic
+status: enforced
+errs: under
+review_by: 2027-04-15
