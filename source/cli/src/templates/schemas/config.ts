@@ -45,6 +45,13 @@ signals:                          # optional — attention-layer switches. Absen
   attention: true                 #   attention (default true): the advisory "structurally unusual" note in
                                   #   yg context --file. false silences it. Must be boolean; unknown keys rejected.
 
+events:                           # optional — where LLM verification-fill events are recorded. Absent = local only.
+  committed_llm: false            #   committed_llm (default false): when true, LLM-fill events go to a COMMITTED,
+                                  #   union-merged, rationale-stripped file (.yggdrasil/yg-events.llm.jsonl) shared
+                                  #   with the team instead of the local gitignored sidecar. Deterministic/drill/diag
+                                  #   events always stay local (keyless CI = zero churn). Must be boolean; unknown
+                                  #   keys rejected. Never folded into any verdict hash — flipping it invalidates nothing.
+
 reviewer:                         # required only once a judgment (LLM) rule is actually effective —
                                   # used during yg check --approve or when auto_approve triggers a fill.
                                   # A script-only / keyless project (deterministic aspects only, or none)
