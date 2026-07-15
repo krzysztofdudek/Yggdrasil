@@ -81,10 +81,15 @@ export class FlowLoadError extends Error {
   readonly detail: string;
 
   constructor(flowYamlPath: string, cause: unknown) {
+    // Normalize to POSIX separators: this path is surfaced verbatim in CLI-facing
+    // what/why/next output, so an OS-native (backslash) path here would leak into
+    // stdout/stderr. Normalizing at the single construction point covers both the
+    // stored property and the embedded message.
+    const normalizedPath = toPosixPath(flowYamlPath);
     const detail = cause instanceof Error ? cause.message : String(cause);
-    super(`Failed to load flow file ${flowYamlPath}: ${detail}`);
+    super(`Failed to load flow file ${normalizedPath}: ${detail}`);
     this.name = 'FlowLoadError';
-    this.flowYamlPath = flowYamlPath;
+    this.flowYamlPath = normalizedPath;
     this.detail = detail;
     if (cause !== undefined) (this as { cause?: unknown }).cause = cause;
   }
@@ -283,8 +288,15 @@ async function loadAspects(
   const parseErrors: Array<{ aspectId: string; code: string; messageData: IssueMessage }> = [];
   try {
     await scanAspectsDirectory(aspectsDir, aspectsDir, aspects, parseErrors);
-  } catch {
-    // directory doesn't exist — return empty
+  } catch (err) {
+    // Only a filesystem "no usable aspects/ directory" condition is benign
+    // empty-state: the directory is absent (ENOENT) or the path is not a
+    // directory at all (ENOTDIR). Any OTHER error — a parse throw that escaped
+    // parseAspect's {ok:false} contract, or an I/O fault — must NOT be silently
+    // swallowed: doing so drops every aspect and lets yg check report a clean
+    // PASS over unenforced code. Re-throw so the loader surfaces it.
+    const code = (err as NodeJS.ErrnoException)?.code;
+    if (code !== 'ENOENT' && code !== 'ENOTDIR') throw err;
   }
   return { aspects, parseErrors };
 }

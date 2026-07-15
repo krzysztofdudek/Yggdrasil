@@ -30,3 +30,5 @@ Recorded the new dead-attach warning as a known non-blocking code and documented
 Registers the two codes behind the standing review-by date: a blocking parse-time rejection fired only on a rule that carries a malformed date, and a non-blocking, status-independent warning for a rule whose review-by date has passed. The warning is intentionally kept out of every blocking set so it can never fail a build, and the date itself is excluded from every verification hash, so recording it invalidates no existing judgment.
 ## [2026-07-13T18:13:56.734Z]
 Records the incident-ledger out-of-order warning in the registry of issue-code categories so it is documented as a non-gating warning and can never be mistaken for a blocking error. It belongs to none of the blocking sets on purpose: the incident ledger is committed human testimony and its only integrity signal must warn without ever failing a check.
+## [2026-07-15T04:26:22.805Z]
+aspect-when-invalid joins the structural code set so a malformed when: predicate blocks like the other aspect-contract errors and can never render as a non-blocking or absent signal.

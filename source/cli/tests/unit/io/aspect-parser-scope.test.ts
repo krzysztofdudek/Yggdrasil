@@ -332,43 +332,60 @@ describe('aspect-parser scope: error paths', () => {
 });
 
 describe('aspect-parser cross-hint B: path/content in aspect when:', () => {
-  it('path atom in aspect when: → error with cross-hint mentioning scope.files', async () => {
+  // A malformed aspect-level when: must return a structured {ok:false} parse
+  // error (code aspect-when-invalid), NOT throw. A throw here escapes parseAspect
+  // and is swallowed by the loader, silently dropping the aspect into a clean PASS
+  // over unenforced code — the exact defect this contract closes.
+  async function expectWhenInvalid(aspectDir: string, yamlPath: string): Promise<string> {
+    const result = await parseAspect(aspectDir, yamlPath, 'test');
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('unreachable');
+    expect(result.errors[0].code).toBe('aspect-when-invalid');
+    return result.errors[0].messageData.what;
+  }
+
+  it('path atom in aspect when: → aspect-when-invalid with cross-hint mentioning scope.files', async () => {
     const { aspectDir, yamlPath } = alloc('path-in-when');
-    writeLlm(yamlPath, [
-      'when:',
-      '  path: "src/**"',
-    ].join('\n') + '\n');
-    await expect(parseAspect(aspectDir, yamlPath, 'test'))
-      .rejects.toThrow(/scope\.files/);
+    writeLlm(yamlPath, ['when:', '  path: "src/**"'].join('\n') + '\n');
+    expect(await expectWhenInvalid(aspectDir, yamlPath)).toMatch(/scope\.files/);
   });
 
-  it('content atom in aspect when: → error with cross-hint mentioning scope.files', async () => {
+  it('content atom in aspect when: → aspect-when-invalid with cross-hint mentioning scope.files', async () => {
     const { aspectDir, yamlPath } = alloc('content-in-when');
-    writeLlm(yamlPath, [
-      'when:',
-      '  content: "handler"',
-    ].join('\n') + '\n');
-    await expect(parseAspect(aspectDir, yamlPath, 'test'))
-      .rejects.toThrow(/scope\.files/);
+    writeLlm(yamlPath, ['when:', '  content: "handler"'].join('\n') + '\n');
+    expect(await expectWhenInvalid(aspectDir, yamlPath)).toMatch(/scope\.files/);
   });
 
   it('path atom in aspect when: → error message contains "file atom"', async () => {
     const { aspectDir, yamlPath } = alloc('path-in-when-2');
-    writeLlm(yamlPath, [
-      'when:',
-      '  path: "src/**"',
-    ].join('\n') + '\n');
-    await expect(parseAspect(aspectDir, yamlPath, 'test'))
-      .rejects.toThrow(/file atom/);
+    writeLlm(yamlPath, ['when:', '  path: "src/**"'].join('\n') + '\n');
+    expect(await expectWhenInvalid(aspectDir, yamlPath)).toMatch(/file atom/);
   });
 
   it('content atom in aspect when: → error message contains "file atom"', async () => {
     const { aspectDir, yamlPath } = alloc('content-in-when-2');
+    writeLlm(yamlPath, ['when:', '  content: "handler"'].join('\n') + '\n');
+    expect(await expectWhenInvalid(aspectDir, yamlPath)).toMatch(/file atom/);
+  });
+
+  it('empty node clause in aspect when: → aspect-when-invalid (not silent drop)', async () => {
+    const { aspectDir, yamlPath } = alloc('empty-node-in-when');
+    writeLlm(yamlPath, ['when:', '  node: {}'].join('\n') + '\n');
+    expect(await expectWhenInvalid(aspectDir, yamlPath)).toMatch(/node|type|has_/i);
+  });
+
+  it('malformed when: on an implies edge → aspect-when-invalid (not silent drop)', async () => {
+    const { aspectDir, yamlPath } = alloc('implies-edge-bad-when');
     writeLlm(yamlPath, [
-      'when:',
-      '  content: "handler"',
+      'implies:',
+      '  - id: other',
+      '    when:',
+      '      path: "src/**"',
     ].join('\n') + '\n');
-    await expect(parseAspect(aspectDir, yamlPath, 'test'))
-      .rejects.toThrow(/file atom/);
+    const result = await parseAspect(aspectDir, yamlPath, 'test');
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('unreachable');
+    expect(result.errors[0].code).toBe('aspect-when-invalid');
+    expect(result.errors[0].messageData.what).toMatch(/implies\[0\]/);
   });
 });

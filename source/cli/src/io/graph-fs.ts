@@ -2,6 +2,7 @@ import { access, lstat, readdir, readFile, stat, writeFile } from 'node:fs/promi
 import { existsSync, readFileSync, constants as fsConstants } from 'node:fs';
 import type { Dirent, Stats } from 'node:fs';
 import { debugWrite } from '../utils/debug-log.js';
+import { atomicWriteFile } from './atomic-write.js';
 
 export async function readSortedDir(dirPath: string): Promise<Dirent[]> {
   const entries = await readdir(dirPath, { withFileTypes: true });
@@ -23,6 +24,15 @@ export async function readSortedDirOrEmpty(dirPath: string): Promise<Dirent[]> {
 
 export async function writeTextFile(filePath: string, content: string): Promise<void> {
   await writeFile(filePath, content, 'utf-8');
+}
+
+/**
+ * Crash-safe text write (temp file + atomic rename). Use for committed graph
+ * state — e.g. the migration rewrite of yg-config.yaml — so an interrupt can
+ * never leave a half-written config on disk.
+ */
+export async function atomicWriteTextFile(filePath: string, content: string): Promise<void> {
+  await atomicWriteFile(filePath, content);
 }
 
 export async function fileAccess(filePath: string): Promise<void> {

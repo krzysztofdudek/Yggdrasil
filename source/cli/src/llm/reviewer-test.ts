@@ -97,10 +97,12 @@ async function testOpenAI(apiKey: string, model: string, endpoint: string): Prom
 }
 
 async function testGoogle(apiKey: string, model: string): Promise<ReviewerTestResult> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  // Key in the `x-goog-api-key` header, NOT a `?key=` query string — a URL key
+  // leaks into proxy/CDN/server access logs and any error report echoing the URL.
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
     body: JSON.stringify({
       contents: [{ role: 'user', parts: [{ text: 'Respond with OK' }] }],
     }),

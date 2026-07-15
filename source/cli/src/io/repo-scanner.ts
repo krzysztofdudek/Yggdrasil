@@ -28,7 +28,11 @@ export function isIgnoredByStack(absPath: string, stack: GitignoreEntry[]): bool
     const rel = relative(entry.dir, absPath);
     if (rel === '' || rel.startsWith('..')) continue;
     const normalized = rel.split(sep).join('/');
-    if (entry.ig.ignores(normalized)) return true;
+    // Query both the bare path and the directory form: a directory-only
+    // .gitignore pattern (trailing slash, e.g. `build/`) matches only when the
+    // candidate is presented as a directory, so checking `normalized` alone
+    // silently fails to prune such directories from the scan.
+    if (entry.ig.ignores(normalized) || entry.ig.ignores(normalized + '/')) return true;
   }
   return false;
 }

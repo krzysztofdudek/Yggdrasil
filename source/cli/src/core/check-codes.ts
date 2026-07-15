@@ -55,6 +55,10 @@ export const STRUCTURAL_CODES = new Set<string>([
   'file-unreadable',
   'aspect-references-on-deterministic',
   'aspect-scope-invalid',
+  // Malformed aspect-level (or implies-edge) when: predicate. Structural
+  // graph-shape error — blocks like the other aspect-contract codes, so a
+  // broken when: can never be silently dropped into a clean PASS.
+  'aspect-when-invalid',
   'aspect-scope-on-aggregate',
   'aspect-references-on-aggregate',
   'aspect-reference-broken',

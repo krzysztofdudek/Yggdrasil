@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { parse as parseYaml } from 'yaml';
-import { readTextFile, writeTextFile } from '../io/graph-fs.js';
+import { readTextFile, atomicWriteTextFile } from '../io/graph-fs.js';
 import { gt, valid, compare } from 'semver';
 import { toPosixPath } from '../utils/posix.js';
 
@@ -75,5 +75,5 @@ export async function updateConfigVersion(yggRoot: string, version: string): Pro
   const updated = content.match(/^version:\s/m)
     ? content.replace(/^version:\s.*$/m, `version: "${version}"`)
     : `version: "${version}"\n` + content;
-  await writeTextFile(configPath, updated);
+  await atomicWriteTextFile(configPath, updated);
 }

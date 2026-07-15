@@ -311,7 +311,9 @@ describe('aspect-parser — when filter', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('rejects invalid when at aspect level', async () => {
+  it('reports invalid when at aspect level as a structured error, not a throw', async () => {
+    // Must return {ok:false} with aspect-when-invalid — a throw would escape into
+    // the loader and silently drop the aspect over a clean PASS.
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-aspect-when-bad');
     await mkdir(tmpDir, { recursive: true });
     const aspectYaml = path.join(tmpDir, 'yg-aspect.yaml');
@@ -323,8 +325,12 @@ describe('aspect-parser — when filter', () => {
       '  mostly_of: []',
     ].join('\n'), 'utf-8');
 
-    await expect(parseAspect(tmpDir, aspectYaml, 'example'))
-      .rejects.toThrow(/unknown when operator 'mostly_of'/);
+    const result = await parseAspect(tmpDir, aspectYaml, 'example');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors[0].code).toBe('aspect-when-invalid');
+      expect(result.errors[0].messageData.what).toMatch(/unknown when operator 'mostly_of'/);
+    }
 
     await rm(tmpDir, { recursive: true, force: true });
   });
