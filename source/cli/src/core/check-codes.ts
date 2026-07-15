@@ -36,6 +36,10 @@ export const STRUCTURAL_CODES = new Set<string>([
   'mapped-file-gitignored',
   'enforce-strict-without-when',
   'architecture-cycle',
+  // A relation allow-list in yg-architecture.yaml names a target type that is
+  // not a defined node type (and not the '*' wildcard) — a dangling reference
+  // that silently over-restricts the relation. Blocking, like type-unknown-parent.
+  'relation-target-type-unknown',
   'when-predicate-invalid',
   'when-unknown-type',
   'when-unknown-node',

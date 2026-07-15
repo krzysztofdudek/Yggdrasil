@@ -7,6 +7,7 @@ import { issueMsg } from './checks/shared.js';
 import { toPosixPath } from '../utils/posix.js';
 import {
   checkTypeUnknownParent,
+  checkRelationTargetTypeUnknown,
   checkArchitectureParentCycles,
   checkEnforceStrictWithoutWhen,
   checkTypeWithoutWhenWithMapping,
@@ -148,6 +149,7 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
   // Stage 3: architecture-level checks — fatal errors short-circuit per-node + global stages.
   const archIssues: ValidationIssue[] = [];
   archIssues.push(...checkTypeUnknownParent(graph));
+  archIssues.push(...checkRelationTargetTypeUnknown(graph));
   archIssues.push(...checkArchitectureParentCycles(graph));
   archIssues.push(...checkEnforceStrictWithoutWhen(graph));
   issues.push(...archIssues);

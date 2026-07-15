@@ -92,3 +92,5 @@ Wired the dead-attach linter into the validation run so that a rule which is att
 The structural validation pass now also composes the incident-ledger ordering check, so a repository that keeps a committed ledger gets its out-of-order warning on an ordinary read-only check, with no extra command and no reviewer cost. The check is composed alongside the other schema-independent checks; it is a non-blocking warning by construction, so folding it into the validation pass cannot change whether the build passes.
 ## [2026-07-15T07:22:28.944Z]
 Wires the new per-type dead-attach linter into the validation pass alongside the existing effective-nowhere linter, so a default aspect that its own when filters off its own type is surfaced as a warning during yg check.
+## [2026-07-15T08:27:07.026Z]
+Wires the new relation-target-type integrity check into the architecture-level validation stage alongside the existing undefined-parent check, so a dangling relation target type blocks like the other architecture-shape errors.

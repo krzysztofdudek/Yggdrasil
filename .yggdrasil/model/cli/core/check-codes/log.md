@@ -34,3 +34,5 @@ Records the incident-ledger out-of-order warning in the registry of issue-code c
 aspect-when-invalid joins the structural code set so a malformed when: predicate blocks like the other aspect-contract errors and can never render as a non-blocking or absent signal.
 ## [2026-07-15T08:06:56.202Z]
 Registers aspect-tier-on-aggregate in the structural code set so a tier declared on an aggregate aspect blocks like the sibling aspect-contract codes.
+## [2026-07-15T08:27:07.379Z]
+Registers relation-target-type-unknown in the structural code set so a relation allow-list that names an undefined target type is categorized and blocks like the sibling relation-integrity codes.

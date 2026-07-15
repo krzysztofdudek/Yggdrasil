@@ -365,6 +365,31 @@ node_types:
       expect(arch.node_types.service).not.toHaveProperty('integration_aspects');
       await cleanup(file);
     });
+
+    it('rejects an unknown node_type key (typo of a real field)', async () => {
+      // 'parent' (singular) is a typo of 'parents' — silently ignored before,
+      // dropping the intended hierarchy constraint. Now a blocking parse error.
+      const file = await writeTmp('yg-architecture.yaml', `
+node_types:
+  service:
+    description: "Request handler"
+    parent: [module]
+`);
+      await expect(parseArchitecture(file)).rejects.toThrow(/unknown key 'parent'/i);
+      await cleanup(file);
+    });
+
+    it('lists every unknown node_type key when several are present', async () => {
+      const file = await writeTmp('yg-architecture.yaml', `
+node_types:
+  service:
+    description: "Request handler"
+    aspect: [requires-auth]
+    relation: {}
+`);
+      await expect(parseArchitecture(file)).rejects.toThrow(/unknown keys 'aspect', 'relation'/i);
+      await cleanup(file);
+    });
   });
 });
 

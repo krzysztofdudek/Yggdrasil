@@ -89,6 +89,45 @@ describe('validator', () => {
       expect(relationTargetForbidden).toBeUndefined();
     });
 
+    it('relation-target-type-unknown when an allow-list names an undefined target type', async () => {
+      const graph = createGraph({
+        architecture: {
+          node_types: {
+            service: {
+              description: 'A service',
+              relations: { calls: ['modul'] }, // typo of 'module'
+            },
+            module: { description: 'A module' },
+          },
+        },
+      });
+
+      const result = await validate(graph);
+      const dangling = result.issues.find(i => i.code === 'relation-target-type-unknown');
+      expect(dangling).toBeDefined();
+      expect(dangling!.severity).toBe('error');
+      expect(msgOf(dangling!)).toContain('modul');
+      expect(msgOf(dangling!)).toContain('calls');
+    });
+
+    it('relation-target-type-unknown not fired for a defined type or the * wildcard', async () => {
+      const graph = createGraph({
+        architecture: {
+          node_types: {
+            service: {
+              description: 'A service',
+              relations: { calls: ['module'], uses: ['*'] },
+            },
+            module: { description: 'A module' },
+          },
+        },
+      });
+
+      const result = await validate(graph);
+      const dangling = result.issues.find(i => i.code === 'relation-target-type-unknown');
+      expect(dangling).toBeUndefined();
+    });
+
     it('invalid-parent-type when parent type not in allowed list', async () => {
       const parentNode = createNode('parent', { type: 'library' });
       const childNode = createNode('parent/child', { type: 'service' });
