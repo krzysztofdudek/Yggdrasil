@@ -145,7 +145,7 @@ Provider-specific options passed to the LLM client:
 | \`model\` | string | Required. Provider-specific model identifier. |
 | \`temperature\` | number | Defaults to 0. Higher = more varied responses. |
 | \`endpoint\` | string | Required for \`openai-compatible\` (no default host — else falls back to api.openai.com); \`ollama\` defaults to http://localhost:11434. |
-| \`timeout\` | number | Timeout in seconds. Default 300. Applies to CLI providers only — non-CLI/API providers ignore it. Not folded into a verdict's hash (a transport knob). |
+| \`timeout\` | number | Timeout in seconds. Default 300. Honored by CLI providers AND the \`ollama\` provider; other hosted API providers (anthropic/openai/google) ignore it. Not folded into a verdict's hash (a transport knob). |
 
 API keys do NOT belong in the committed config — put them in \`yg-secrets.yaml\`,
 the local overlay (see "Secrets and local overrides" below). API providers also

@@ -186,11 +186,13 @@ semantics, a false approval is much more costly than the higher per-call price,
 or the rules are ambiguous enough that a cheaper model gives flaky judgments. Use
 the cheaper default tier for narrow, well-defined contracts.
 
-The resolved tier identity is folded into every LLM pair's hash: changing
-\`reviewer.tier:\` on an aspect, or editing the referenced tier's
-\`provider\`/\`consensus\`/\`config\`, invalidates every pair using it and re-verifies
-on the next \`yg check --approve\`. Run \`yg impact --aspect <id>\` before swapping
-a tier on a widely-used aspect.
+Only the tier's NAME is folded into an LLM pair's hash — not its config. Changing
+\`reviewer.tier:\` on an aspect (pointing it at a differently-named tier) invalidates
+every pair using it and re-verifies on the next \`yg check --approve\`. Editing the
+referenced tier's own \`provider\` / \`consensus\` / \`config\` does NOT invalidate any
+verdict — the config is the reviewer's private business, so a named tier can be
+re-pointed at a different model or provider without re-verifying. Run
+\`yg impact --aspect <id>\` before swapping a tier on a widely-used aspect.
 
 ## When to prefer a deterministic aspect over LLM
 

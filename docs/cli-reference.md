@@ -258,7 +258,7 @@ status semantics):
 | `aspect-companion-runtime-error` | error (`--approve` only) | A `companion.mjs` failed to resolve/run at fill time (threw, returned a bad shape, resolved a missing or out-of-reach path, or observations stayed inconsistent) — fail closed, no verdict written; plain `yg check` shows the pair as unverified. |
 | `aspect-companion-without-content` | error (structural) | An aspect ships `companion.mjs` without `content.md`. Companions are an add-on to LLM aspects; `companion.mjs` alone is invalid. |
 | `aspect-companion-with-check` | error (structural) | An aspect ships both `companion.mjs` and `check.mjs`. Companions apply to LLM aspects only. |
-| `log-entry-missing` | error (`--approve` only) | A `log_required` node changed source without a fresh log entry. |
+| `log-entry-missing` | error | A `log_required` node changed source without a fresh log entry. Enforced read-only — a blocking error on plain `yg check`, not only at `--approve`. |
 | `aspect-status-invalid` | error | Declared `status:` is not one of `draft`, `advisory`, `enforced`. |
 | `aspect-status-downgrade` | error | An attach site declares a status lower than the cascade would yield (bump up OK, downgrade is an error). |
 | `implies-status-inherit-invalid` | error | `status_inherit:` is not `strictest` or `own-default`. |

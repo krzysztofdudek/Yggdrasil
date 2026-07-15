@@ -75,12 +75,14 @@ type). Closes the type-shopping evasion entirely for the type.
 Don't use \`enforce: strict\` when the \`when\` predicate is broad (e.g.
 \`path: "**"\`) — every repo file would be required in that type's mapping.
 
-Strict enforcement fires two error codes:
+Strict enforcement fires these error codes:
 - \`type-strict-orphan\` — file matches \`when\` but is in no mapping
 - \`type-strict-misplaced\` — file matches \`when\` but is in a wrong-type mapping
+- \`strict-overlap-conflict\` — a file matches the \`when\` of TWO strict types, so
+  neither can own it unambiguously (resolve by narrowing one type's \`when\`)
 
-Both are reported alongside \`unmapped-files\` when applicable. They are
-distinct symptoms with distinct fixes — no de-duplication.
+They are reported alongside \`unmapped-files\` when applicable — distinct symptoms
+with distinct fixes, no de-duplication.
 
 ## Pitfalls
 

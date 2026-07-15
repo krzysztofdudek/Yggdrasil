@@ -80,11 +80,13 @@ The basic workflow:
   3. \`yg check --approve\`
 
 If you forget step 2, plain \`yg check\` raises a blocking \`log-entry-missing\`
-error for that node (caught read-only, regardless of whether the node has pairs);
-at \`--approve\` a node that has pairs additionally has them skipped while other
-nodes proceed, and the run stays red until the entry exists. Add the entry and
-re-run. If a pair is refused, iterate on the code WITHOUT adding new log entries —
-one entry covers all edits until the node reaches closure.
+error for that node (caught read-only, regardless of whether the node has pairs).
+The log gate is ALL-OR-NOTHING at \`--approve\`: if ANY \`log_required\` node's
+source drifted with no fresh entry, \`--approve\` fills NOTHING that run — no pair
+on any node, related or not, is verified — and the run stays red until every
+missing entry exists. Add the entries and re-run. If a pair is refused, iterate on
+the code WITHOUT adding new log entries — one entry covers all edits until the node
+reaches closure.
 
 ## Self-contained entry — worked example
 

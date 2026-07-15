@@ -43,17 +43,17 @@ EXAMPLE: node "orders/handler" (type: command, child of "orders")
 
 Channel 1: OWN         — node.aspects: [input-validation]
 Channel 2: ANCESTOR    — parent "orders" has aspects: [audit-logging]
-Channel 3: OWN TYPE    — architecture says type "command" → [cli-command-contract]
+Channel 3: OWN TYPE    — architecture says type "command" → [command-contract]
 Channel 4: ANCESTOR TYPE — parent "orders" type "module" → [] (no defaults here)
-Channel 5: FLOWS       — flow "order-processing" includes "orders" → flow aspects: [deterministic]
+Channel 5: FLOWS       — flow "order-processing" includes "orders" → flow aspects: [idempotent-processing]
 Channel 6: PORTS       — relation to "payments/service" consumes port "charge" → [correlation-tracking]
 Channel 7: IMPLIED     — aspect "audit-logging" implies: [diagnostic-logging]
 
 EFFECTIVE ASPECTS for "orders/handler":
   input-validation      ← own
   audit-logging         ← parent "orders"
-  cli-command-contract  ← architecture type "command"
-  deterministic         ← flow "order-processing" (via parent "orders")
+  command-contract      ← architecture type "command"
+  idempotent-processing ← flow "order-processing" (via parent "orders")
   correlation-tracking  ← port "charge" on "payments/service"
   diagnostic-logging    ← implied by "audit-logging"
 ```
@@ -132,6 +132,11 @@ Full lock format, hash ingredients, caching policy, merge procedure, garbage-col
 | `yg knowledge list` / `yg knowledge read <name>` | Browse deep-reference topics |
 | `yg advise` | Read-only attention layer: aggregates signals and proposes rule changes, each with evidence and a human-action NEXT. Never gates `yg check`, never writes a verdict, never appears in `suggestedNext`. |
 | `yg schemas list` / `yg schemas read <name>` | Browse graph-element schemas (node, aspect, architecture, config, flow) |
+| `yg drill --aspect <id>` | Replay a rule over its `drills/` case corpus (violates-* must refuse, satisfies-* must pass) to sharpen it — a regression fixture, never a verdict write. Deterministic drills are free; LLM drills bill the reviewer. |
+| `yg simulate <det-aspect> --node <path>` | Replay a candidate DETERMINISTIC rule over recent history in an isolated clone ("what would it have caught?"). Read-only, exits 0 whatever it finds. |
+| `yg structure` | Read-only structural dashboard — dependency tunnels, per-level module groups (and cycles), change reach. Never gates. |
+| `yg incident add --tag <cause> --reason <text>` | Record what escaped enforcement (human-signed, committed ledger) — the only signal from outside the graph. `yg incident read` lists them. |
+| `yg portal [--static]` | Local read-only web view of the graph and its verification state (loopback-only; one shelled Approve). |
 
 Full command reference (`yg aspects`, `yg flows`, `yg owner`, `yg suppressions`, `yg aspect-test`, `yg type-suggest`, `yg init`, `yg log merge-resolve`, `yg schemas`, all option flags): `yg knowledge read cli-reference`.
 
@@ -316,9 +321,10 @@ edited, the node's source untouched) needs no new entry.
 The requirement is enforced READ-ONLY: a missing entry is a blocking `yg check`
 error in its own right, not only a `--approve`-time gate — so plain `yg check`
 (and a CI run on it) catches an unlogged source change even on a node that
-produces no pairs. If you forget step 2: `yg check` flags that node; at
-`--approve` a node that has pairs has them skipped (other nodes proceed) and the
-run stays red until the entry exists. Add the entry and re-run.
+produces no pairs. If you forget step 2: `yg check` flags that node; the log gate
+is ALL-OR-NOTHING at `--approve` — if ANY `log_required` node's source drifted
+with no fresh entry, `--approve` fills NOTHING that run (no pair on any node is
+verified) and stays red until every missing entry exists. Add the entries and re-run.
 
 If a pair is refused, iterate on the code WITHOUT adding new log entries. One
 log entry covers all source edits until the node reaches positive closure —

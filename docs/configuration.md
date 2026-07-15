@@ -144,7 +144,7 @@ reviewer:
 | `config.model` | yes | Provider-specific model identifier |
 | `config.temperature` | no | Sampling temperature. Defaults to `0`. |
 | `config.endpoint` | required for `openai-compatible` (ollama defaults to `http://localhost:11434`) | API endpoint URL |
-| `config.timeout` | no | Per-call timeout in seconds. Defaults to `300`. Applies to CLI providers only (non-CLI/API providers ignore it). |
+| `config.timeout` | no | Per-call timeout in seconds. Defaults to `300`. Honored by CLI providers and the `ollama` provider; other hosted API providers ignore it. |
 
 Unknown `config.*` keys are silently ignored (no error, no warning) — only the
 keys listed above are read.
