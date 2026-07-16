@@ -1,4 +1,4 @@
-import { access, lstat, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { access, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { existsSync, readFileSync, constants as fsConstants } from 'node:fs';
 import type { Dirent, Stats } from 'node:fs';
 import { debugWrite } from '../utils/debug-log.js';
@@ -51,10 +51,6 @@ export async function probeUnreadable(absPath: string): Promise<string | null> {
   } catch (e) {
     return e instanceof Error ? e.message : String(e);
   }
-}
-
-export async function lstatFile(filePath: string): Promise<Stats> {
-  return lstat(filePath);
 }
 
 export async function statPath(targetPath: string): Promise<Stats> {
