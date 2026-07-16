@@ -52,6 +52,62 @@ async function readJsonBody(req: IncomingMessage): Promise<Record<string, unknow
   }
 }
 
+/** Loopback hostnames the portal is reachable at (any port). Used to reject a cross-origin
+ *  or DNS-rebinding request that does not claim a genuine loopback host. */
+const LOOPBACK_HOSTNAMES = new Set(['127.0.0.1', 'localhost', '::1']);
+
+/** The hostname (no port) of a Host/Origin host value, handling the bracketed IPv6 form. */
+function hostnameOf(hostValue: string): string {
+  const v = hostValue.trim();
+  if (v.startsWith('[')) {
+    const end = v.indexOf(']');
+    return end === -1 ? v.toLowerCase() : v.slice(1, end).toLowerCase(); // [::1]:port -> ::1
+  }
+  const colon = v.indexOf(':');
+  return (colon === -1 ? v : v.slice(0, colon)).toLowerCase(); // 127.0.0.1:port -> 127.0.0.1
+}
+
+/** True when a Host/Origin host value names a loopback interface (any port). */
+function isLoopbackHostValue(hostValue: string): boolean {
+  return LOOPBACK_HOSTNAMES.has(hostnameOf(hostValue));
+}
+
+/**
+ * Cross-origin / CSRF guard for the portal's sensitive routes (/data, /approve/dry-run,
+ * /approve). These are called ONLY by the portal's own page script, which attaches the
+ * X-Yg-Portal marker header. A cross-site page cannot set a custom header on a simple request,
+ * and the server returns no permissive CORS header, so a forged cross-origin request never
+ * carries the marker — its absence is a refusal (the primary defense, e.g. against a malicious
+ * page a user opens in another tab silently POSTing /approve to the loopback port). The Origin
+ * and Host checks are defense in depth: a request whose Origin is another site, or whose Host is
+ * not a loopback literal (a DNS-rebinding attempt), is rejected even if the marker were present.
+ * The HTML routes (/, /render, /static/*) are deliberately NOT guarded — a browser navigates
+ * them directly and cannot attach a custom header.
+ */
+function isTrustedApiRequest(req: IncomingMessage): boolean {
+  if (req.headers['x-yg-portal'] === undefined) return false;
+  const origin = req.headers['origin'];
+  if (origin !== undefined) {
+    let originHost: string;
+    try {
+      originHost = new URL(origin).host;
+    } catch {
+      return false; // unparseable Origin (incl. the literal "null") — refuse
+    }
+    if (!isLoopbackHostValue(originHost)) return false;
+  }
+  const host = req.headers['host'];
+  if (host !== undefined && !isLoopbackHostValue(host)) return false;
+  return true;
+}
+
+/** The sensitive routes the cross-origin guard protects (page/static routes are exempt). */
+function isGuardedApiRoute(method: string, pathname: string): boolean {
+  if (method === 'POST') return pathname === '/approve';
+  if (method === 'GET') return pathname === '/data' || pathname === '/approve/dry-run';
+  return false;
+}
+
 /**
  * Handle one request. Pure dispatch over method + pathname; all engine access is via the
  * portal's own modules (page → pipeline/serializer; approve → spawned CLI). Any handler
@@ -67,6 +123,18 @@ export async function handleRequest(
   const pathname = url.pathname;
 
   try {
+    if (isGuardedApiRoute(method, pathname) && !isTrustedApiRequest(req)) {
+      // The request did not come from the portal's own page (no marker header, or a
+      // cross-origin Origin / non-loopback Host). Refuse before touching the engine.
+      sendJson(res, 403, {
+        error: 'forbidden-cross-origin',
+        message:
+          'This request did not come from the portal page. The portal only answers its own ' +
+          'page; open it from the address the CLI printed and use its controls.',
+      });
+      return;
+    }
+
     if (method === 'GET' && pathname === '/') {
       // The instant loading shell — no graph access, so the browser paints immediately
       // instead of staring at a blank page while the whole extraction + render runs. The

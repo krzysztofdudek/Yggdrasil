@@ -27,6 +27,10 @@ exception is a single, clearly-labelled approve action — and even that just ru
 the same verification you would run from the command line; you can turn it off
 entirely with `yg portal --no-write` for a shared screen or a wall display.
 
+The portal answers only requests that come from its own page, so another website
+you happen to have open in a different browser tab cannot reach across and
+trigger the approve action — even though the portal lives on your own machine.
+
 To hand the picture to someone who does not have the project checked out:
 
 ```bash

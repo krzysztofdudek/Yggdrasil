@@ -93,9 +93,12 @@ test.describe('§3a SHELL-top — Refresh (read-only) + Approve (the one write)'
     // The brand sub + live pill announce view-only.
     await expect(page.locator('.rail-brand-sub')).toHaveText('view-only');
 
-    // A stray POST /approve is rejected with 409 by the server (the server's own guard).
+    // A page-originated POST /approve (carrying the portal marker header) is rejected 409 by
+    // the view-only guard — the write is disabled, not merely hidden. (A forged cross-site POST
+    // without the marker would be refused even earlier, 403, by the cross-origin guard.)
     const res = await page.request.post(baseUrl + '/approve', {
       data: { llm: false },
+      headers: { 'x-yg-portal': '1' },
       failOnStatusCode: false,
     });
     expect(res.status()).toBe(409);

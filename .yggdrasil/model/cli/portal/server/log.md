@@ -9,3 +9,28 @@ Stop the loopback HTTP server from returning raw internal error detail in the bo
 
 ### What changed in behavior
 The failure response now returns a generic message, and the full technical reason is written to the terminal that runs the portal — a channel visible only to the process owner. The operator keeps full debuggability (the real cause is on their terminal, where the error page already directs them), while the wire no longer carries internal paths or stack detail. The human-readable HTML error page for a failed top-level render is unchanged; this concerns the machine-readable data-endpoint responses.
+## [2026-07-16T12:58:03.595Z]
+Guard the portal's local web view against cross-site request forgery.
+
+The portal's sensitive routes — the one write (Approve) and the read-only
+data and cost-preview fetches — were answered for any request that reached
+the loopback port. A browser will SEND a cross-site request to a loopback
+address even though it cannot READ the response, so a malicious page a person
+happened to open in another tab could silently trigger the Approve write (or
+repeatedly spawn the preview subprocess) without the operator's knowledge or
+intent. Binding to the loopback interface alone does not prevent this: the
+request originates from the operator's own browser, which can always reach the
+loopback address.
+
+The defense requires the portal's own page to prove that each sensitive
+request came from itself. The page attaches a custom marker header that a
+cross-site "simple" request cannot set, and the server refuses any sensitive
+request that lacks it; because the server also returns no permissive
+cross-origin response header, a pre-flighted forgery cannot succeed either.
+As defense in depth the server additionally rejects a request whose stated
+origin is a different site, or whose Host header is not a loopback literal —
+the latter blocking a DNS-rebinding attempt that reaches the loopback server
+under an attacker-controlled hostname. The plain page and static-asset routes
+are deliberately left unguarded, because a browser navigates to them directly
+and cannot attach a custom header; those routes perform no action and reveal
+only the same page a local operator already sees.

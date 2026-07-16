@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { readFileSync, statSync, existsSync, cpSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import http from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { startServer, type ServerHandle } from '../../src/portal/server/server.js';
 import { parseDryRunBudget } from '../../src/portal/server/approve.js';
@@ -36,6 +37,43 @@ interface ViewOnlyBody {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.resolve(__dirname, '../..');
 const FIXTURE_ROOT = path.join(CLI_ROOT, 'tests', 'fixtures', 'portal-basic');
+
+// The portal page attaches a marker header to every /data, /approve/dry-run and /approve call;
+// the server refuses a guarded request that lacks it (cross-origin / CSRF guard). These
+// functional tests simulate the page, so they send it via apiFetch. The dedicated guard block
+// below drives raw HTTP (node:http, unlike fetch, does NOT strip the forbidden Origin/Host
+// headers) to prove the refusal path.
+function apiFetch(url: string, init: Record<string, unknown> = {}) {
+  const headers = { ...(init.headers as Record<string, string> | undefined), 'x-yg-portal': '1' };
+  return fetch(url, { ...init, headers } as Parameters<typeof fetch>[1]);
+}
+
+/** Issue a raw HTTP request with EXACT headers (needed to set Origin/Host, which fetch strips). */
+function rawRequest(
+  urlStr: string,
+  opts: { method?: string; headers?: Record<string, string>; body?: string },
+): Promise<{ status: number; body: string }> {
+  const u = new URL(urlStr);
+  return new Promise((resolve, reject) => {
+    const req = http.request(
+      {
+        hostname: u.hostname,
+        port: u.port,
+        path: u.pathname + u.search,
+        method: opts.method ?? 'GET',
+        headers: opts.headers ?? {},
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (c) => chunks.push(c as Buffer));
+        res.on('end', () => resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString('utf-8') }));
+      },
+    );
+    req.on('error', reject);
+    if (opts.body !== undefined) req.write(opts.body);
+    req.end();
+  });
+}
 
 const tmpDirs: string[] = [];
 afterAll(() => {
@@ -106,7 +144,7 @@ describe('portal loopback server — read-only surface + no-persist refresh', ()
   });
 
   it('GET /data returns valid PortalData whose counts equal yg check', async () => {
-    const res = await fetch(`${handle.url}/data`);
+    const res = await apiFetch(`${handle.url}/data`);
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toContain('application/json');
     const data = (await res.json()) as PortalData;
@@ -130,9 +168,9 @@ describe('portal loopback server — read-only surface + no-persist refresh', ()
 
   it('repeated GET /data writes NOTHING — committed lock + det cache byte-unchanged', async () => {
     const before = lockSnapshot(FIXTURE_ROOT);
-    await (await fetch(`${handle.url}/data`)).json();
-    await (await fetch(`${handle.url}/data`)).json();
-    await (await fetch(`${handle.url}/data`)).json();
+    await (await apiFetch(`${handle.url}/data`)).json();
+    await (await apiFetch(`${handle.url}/data`)).json();
+    await (await apiFetch(`${handle.url}/data`)).json();
     const after = lockSnapshot(FIXTURE_ROOT);
     for (const [name, b] of before) {
       const a = after.get(name)!;
@@ -142,8 +180,8 @@ describe('portal loopback server — read-only surface + no-persist refresh', ()
   }, 60_000);
 
   it('successive refreshes report identical counts (deterministic, stable)', async () => {
-    const a = (await (await fetch(`${handle.url}/data`)).json()) as PortalData;
-    const b = (await (await fetch(`${handle.url}/data`)).json()) as PortalData;
+    const a = (await (await apiFetch(`${handle.url}/data`)).json()) as PortalData;
+    const b = (await (await apiFetch(`${handle.url}/data`)).json()) as PortalData;
     expect(a.meta.counts).toEqual(b.meta.counts);
   }, 60_000);
 
@@ -176,6 +214,57 @@ describe('portal loopback server — read-only surface + no-persist refresh', ()
   });
 });
 
+describe('portal loopback server — cross-origin / CSRF guard on the sensitive routes', () => {
+  let handle: ServerHandle;
+
+  beforeAll(async () => {
+    // A 403 refusal never reaches the engine and never writes, so the committed fixture is safe.
+    handle = await startServer({ projectRoot: FIXTURE_ROOT, port: 0, writeEnabled: true });
+  }, 60_000);
+
+  afterAll(async () => {
+    await handle.close();
+  });
+
+  it('a guarded request WITHOUT the portal marker header is refused 403 (a forged cross-site call cannot set it)', async () => {
+    const post = await rawRequest(`${handle.url}/approve`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ llm: false }),
+    });
+    expect(post.status).toBe(403);
+    expect((JSON.parse(post.body) as { error: string }).error).toBe('forbidden-cross-origin');
+    expect((await rawRequest(`${handle.url}/data`, {})).status).toBe(403);
+    expect((await rawRequest(`${handle.url}/approve/dry-run?llm=false`, {})).status).toBe(403);
+  });
+
+  it('a cross-origin Origin is refused even WITH the marker header (defense in depth)', async () => {
+    const res = await rawRequest(`${handle.url}/approve`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-yg-portal': '1', origin: 'https://evil.example' },
+      body: JSON.stringify({ llm: false }),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it('a non-loopback Host is refused even WITH the marker header (DNS-rebinding guard)', async () => {
+    const res = await rawRequest(`${handle.url}/data`, {
+      headers: { 'x-yg-portal': '1', host: 'evil.example' },
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it('the marker header + loopback Host passes the guard — the portal page path is never blocked', async () => {
+    const ok = await rawRequest(`${handle.url}/data`, { headers: { 'x-yg-portal': '1' } });
+    expect(ok.status).toBe(200);
+  }, 60_000);
+
+  it('the un-guarded HTML page routes need no marker (a browser navigates them directly)', async () => {
+    expect((await rawRequest(`${handle.url}/`, {})).status).toBe(200);
+    expect((await rawRequest(`${handle.url}/render`, {})).status).toBe(200);
+  }, 60_000);
+});
+
 describe('portal loopback server — view-only mode rejects the write', () => {
   let handle: ServerHandle;
 
@@ -188,7 +277,7 @@ describe('portal loopback server — view-only mode rejects the write', () => {
   });
 
   it('POST /approve is rejected 409 in view-only (--no-write) mode', async () => {
-    const res = await fetch(`${handle.url}/approve`, {
+    const res = await apiFetch(`${handle.url}/approve`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ llm: false }),
@@ -199,7 +288,7 @@ describe('portal loopback server — view-only mode rejects the write', () => {
   });
 
   it('GET /data still works in view-only mode and reflects writeEnabled:false', async () => {
-    const res = await fetch(`${handle.url}/data`);
+    const res = await apiFetch(`${handle.url}/data`);
     expect(res.status).toBe(200);
     const data = (await res.json()) as PortalData;
     expect(data.meta.writeEnabled).toBe(false);
@@ -207,7 +296,7 @@ describe('portal loopback server — view-only mode rejects the write', () => {
 
   it('view-only refresh still writes nothing to the lock', async () => {
     const before = lockSnapshot(FIXTURE_ROOT);
-    await (await fetch(`${handle.url}/data`)).json();
+    await (await apiFetch(`${handle.url}/data`)).json();
     const after = lockSnapshot(FIXTURE_ROOT);
     for (const [name, b] of before) {
       expect(after.get(name)!.bytes).toBe(b.bytes);
@@ -230,7 +319,7 @@ describe('portal loopback server — dry-run preview + the one Approve write (te
   });
 
   it('GET /approve/dry-run returns the engine budget preview (free det path, llm=false)', async () => {
-    const res = await fetch(`${handle.url}/approve/dry-run?llm=false`);
+    const res = await apiFetch(`${handle.url}/approve/dry-run?llm=false`);
     expect(res.status).toBe(200);
     const body = (await res.json()) as DryRunBody;
     expect(typeof body.pairs).toBe('number');
@@ -240,7 +329,7 @@ describe('portal loopback server — dry-run preview + the one Approve write (te
   }, 60_000);
 
   it('GET /approve/dry-run defaults the LLM checkbox on when llm param is absent', async () => {
-    const res = await fetch(`${handle.url}/approve/dry-run`);
+    const res = await apiFetch(`${handle.url}/approve/dry-run`);
     expect(res.status).toBe(200);
     const body = (await res.json()) as DryRunBody;
     expect(typeof body.pairs).toBe('number');
@@ -251,7 +340,7 @@ describe('portal loopback server — dry-run preview + the one Approve write (te
     const committedLock = path.join(ygDir, 'yg-lock.nondeterministic.json');
     const committedBefore = existsSync(committedLock) ? readFileSync(committedLock, 'utf-8') : null;
 
-    const res = await fetch(`${handle.url}/approve`, {
+    const res = await apiFetch(`${handle.url}/approve`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ llm: false }),
@@ -269,7 +358,7 @@ describe('portal loopback server — dry-run preview + the one Approve write (te
     }
 
     // The next /data reflects post-approve truth — re-derived live, never a silent success.
-    const after = (await (await fetch(`${handle.url}/data`)).json()) as PortalData;
+    const after = (await (await apiFetch(`${handle.url}/data`)).json()) as PortalData;
     expect(after.meta.counts.unverified).toBe(0);
     expect(after.meta.counts.refused).toBe(0);
     expect(after.meta.counts.errors).toBe(0);
@@ -278,7 +367,7 @@ describe('portal loopback server — dry-run preview + the one Approve write (te
   it('POST /approve with an empty body is accepted (LLM checkbox defaults on) and returns a structured result', async () => {
     // After the prior deterministic approve everything is already verified, so a full
     // --approve fills nothing and returns cleanly — exercising the empty-body default path.
-    const res = await fetch(`${handle.url}/approve`, { method: 'POST' });
+    const res = await apiFetch(`${handle.url}/approve`, { method: 'POST' });
     expect(res.status).toBe(200);
     const body = (await res.json()) as ApproveBody;
     expect(body).toHaveProperty('exitCode');
@@ -288,7 +377,7 @@ describe('portal loopback server — dry-run preview + the one Approve write (te
   it('POST /approve with a non-JSON body is tolerated (parse falls back, write still runs)', async () => {
     // An unparseable body falls back to {} → the LLM checkbox defaults on → a clean full
     // --approve (everything already verified) — exercising the body-parse fallback path.
-    const res = await fetch(`${handle.url}/approve`, {
+    const res = await apiFetch(`${handle.url}/approve`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: 'not json {',
@@ -300,7 +389,7 @@ describe('portal loopback server — dry-run preview + the one Approve write (te
 
   it('POST /approve with a non-object JSON body (e.g. true) falls back to defaults and still runs', async () => {
     // Valid JSON that is not an object → the body-shape guard returns {} → LLM defaults on.
-    const res = await fetch(`${handle.url}/approve`, {
+    const res = await apiFetch(`${handle.url}/approve`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: 'true',
@@ -328,7 +417,7 @@ describe('portal loopback server — handler error surfaces as a structured 500 
   });
 
   it('GET /data on a project with no graph returns a structured 500', async () => {
-    const res = await fetch(`${handle.url}/data`);
+    const res = await apiFetch(`${handle.url}/data`);
     expect(res.status).toBe(500);
     const body = (await res.json()) as { error: string; message: string };
     expect(body.error).toBe('internal');

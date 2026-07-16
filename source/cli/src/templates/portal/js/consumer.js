@@ -20,6 +20,32 @@
 
   var Yg = (window.YgPortal = window.YgPortal || {});
 
+  /*
+   * The portal's own requests carry a marker header so the loopback server can tell them apart
+   * from a forged cross-site request (which cannot set a custom header on a simple request). The
+   * value is not a secret — its PRESENCE is the signal. Only the /data, /approve/dry-run and
+   * /approve calls below need it; the HTML page load is navigated directly and is not guarded.
+   */
+  var PORTAL_HEADER = 'X-Yg-Portal';
+
+  /** Return fetch options with the portal marker header merged in (never mutates the input). */
+  function withPortalHeader(opts) {
+    var src = opts || {};
+    var headers = {};
+    if (src.headers) {
+      for (var hk in src.headers) {
+        if (Object.prototype.hasOwnProperty.call(src.headers, hk)) headers[hk] = src.headers[hk];
+      }
+    }
+    headers[PORTAL_HEADER] = '1';
+    var out = {};
+    for (var pk in src) {
+      if (Object.prototype.hasOwnProperty.call(src, pk)) out[pk] = src[pk];
+    }
+    out.headers = headers;
+    return out;
+  }
+
   /** Read the inlined PortalData from the data <script> the serializer wrote, or null. */
   function readInlined() {
     var elx = document.getElementById('portal-data');
@@ -54,7 +80,7 @@
     if (typeof net !== 'function') {
       return Promise.reject(new Error('no-network-primitive'));
     }
-    return net('/data', { cache: 'no-store' }).then(function (resp) {
+    return net('/data', withPortalHeader({ cache: 'no-store' })).then(function (resp) {
       if (!resp || !resp.ok) throw new Error('refresh-failed');
       return resp.json();
     });
@@ -81,7 +107,7 @@
     var net = netFn();
     if (!net) return Promise.reject(new Error('no-network-primitive'));
     var url = '/approve/dry-run' + (llm === false ? '?llm=false' : '');
-    return net(url, { cache: 'no-store' }).then(function (resp) {
+    return net(url, withPortalHeader({ cache: 'no-store' })).then(function (resp) {
       if (!resp || !resp.ok) throw new Error('dry-run-failed');
       return resp.json();
     });
@@ -96,11 +122,11 @@
     if (!isServed()) return Promise.reject(new Error('not-served'));
     var net = netFn();
     if (!net) return Promise.reject(new Error('no-network-primitive'));
-    return net('/approve', {
+    return net('/approve', withPortalHeader({
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ llm: llm !== false }),
-    }).then(function (resp) {
+    })).then(function (resp) {
       return resp.json().then(function (body) {
         if (resp.status === 409) throw new Error('view-only');
         return body;

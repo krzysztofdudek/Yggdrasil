@@ -75,6 +75,14 @@ function startPortalServer(cwd: string): Promise<{ baseUrl: string; proc: ChildP
   });
 }
 
+// The portal page attaches a marker header to its /data, /approve/dry-run and /approve calls;
+// the server refuses a guarded request that lacks it (cross-origin / CSRF guard). These tests
+// simulate the page, so they send it — the un-guarded HTML page routes (/) stay bare fetch.
+function apiFetch(url: string, init: Record<string, unknown> = {}) {
+  const headers = { ...(init.headers as Record<string, string> | undefined), 'x-yg-portal': '1' };
+  return fetch(url, { ...init, headers } as Parameters<typeof fetch>[1]);
+}
+
 describe.skipIf(!distExists)('CLI E2E — yg portal server (loopback, refresh, approve)', () => {
   let projectRoot: string;
   let baseUrl: string;
@@ -94,7 +102,7 @@ describe.skipIf(!distExists)('CLI E2E — yg portal server (loopback, refresh, a
   });
 
   it('GET /data returns valid PortalData (live, fresh re-extraction)', async () => {
-    const res = await fetch(`${baseUrl}/data`);
+    const res = await apiFetch(`${baseUrl}/data`);
     expect(res.status).toBe(200);
     const data = (await res.json()) as PortalDataLike;
     expect(data.meta.counts.nodes).toBe(3);
@@ -102,7 +110,7 @@ describe.skipIf(!distExists)('CLI E2E — yg portal server (loopback, refresh, a
   });
 
   it('GET /approve/dry-run returns a reviewer-call / cost preview with a count', async () => {
-    const res = await fetch(`${baseUrl}/approve/dry-run?llm=false`);
+    const res = await apiFetch(`${baseUrl}/approve/dry-run?llm=false`);
     expect(res.status).toBe(200);
     const preview = (await res.json()) as DryRunLike;
     // The preview carries the engine's own budget numbers — never re-implemented.
@@ -129,7 +137,7 @@ describe.skipIf(!distExists)('CLI E2E — yg portal server (loopback, refresh, a
       ? { bytes: readFileSync(committedLock, 'utf-8'), mtimeMs: statSync(committedLock).mtimeMs }
       : null;
 
-    const res = await fetch(`${baseUrl}/approve`, {
+    const res = await apiFetch(`${baseUrl}/approve`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ llm: false }),
@@ -151,7 +159,7 @@ describe.skipIf(!distExists)('CLI E2E — yg portal server (loopback, refresh, a
 
     // The next /data reflects the post-approve truth — counts re-derived live, never a
     // silent success. The deterministic pairs are now verified (the fixture is all-green).
-    const after = (await (await fetch(`${baseUrl}/data`)).json()) as PortalDataLike;
+    const after = (await (await apiFetch(`${baseUrl}/data`)).json()) as PortalDataLike;
     expect(after.meta.counts.unverified).toBe(0);
     expect(after.meta.counts.refused).toBe(0);
     expect(after.meta.counts.errors).toBe(0);

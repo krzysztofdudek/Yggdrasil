@@ -70,8 +70,12 @@ test.describe('the page counts EQUAL `yg check` on the same fixture', () => {
     const project = freshFixtureCopy(t, 'portal-basic');
     const { baseUrl } = await servedPortal(t, { cwd: project });
 
-    // Run the real deterministic fill through the served bin (POST /approve {llm:false}).
-    const approveRes = await page.request.post(baseUrl + '/approve', { data: { llm: false } });
+    // Run the real deterministic fill through the served bin (POST /approve {llm:false}). The
+    // portal marker header lets it past the server's cross-origin guard, as the page's own call does.
+    const approveRes = await page.request.post(baseUrl + '/approve', {
+      data: { llm: false },
+      headers: { 'x-yg-portal': '1' },
+    });
     expect(approveRes.ok()).toBeTruthy();
 
     // The CLI now reports clean on the same project.
