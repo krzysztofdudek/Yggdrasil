@@ -1,8 +1,9 @@
 name: Graph navigation
-description: "Navigational queries to locate nodes, browse hierarchy, and trace forward dependencies"
+description: "Navigational queries to locate nodes, browse hierarchy, trace forward dependencies, and find entry points by natural-language query"
 aspects:
   - what-why-next
 nodes:
   - cli/commands/owner
   - cli/commands/tree
+  - cli/commands/find
   - cli/core/loader

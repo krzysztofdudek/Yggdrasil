@@ -1,0 +1,7 @@
+name: Reference browsing
+description: "Browse the built-in reference material — yg knowledge lists and reads the deep-dive topics and yg schemas lists and reads the graph-element field references; both print bundled reference content and reject an unknown topic or schema name."
+aspects:
+  - what-why-next
+nodes:
+  - cli/commands/knowledge
+  - cli/commands/schemas

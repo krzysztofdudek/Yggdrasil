@@ -1,5 +1,5 @@
 name: Graph analysis
-description: "Analytical queries for blast radius, graph health, aspect inventory, and context assembly"
+description: "Analytical queries for blast radius, graph health, aspect inventory, flow inventory, waiver inventory, type classification, and context assembly"
 aspects:
   - deterministic
   - what-why-next
@@ -7,7 +7,11 @@ nodes:
   - cli/commands/impact
   - cli/commands/aspects
   - cli/commands/build-context
+  - cli/commands/flows
+  - cli/commands/suppressions
+  - cli/commands/type-suggest
   - cli/core/loader
   - cli/core/context
   - cli/core/check
+  - cli/core/type-classifier
   - cli/formatters

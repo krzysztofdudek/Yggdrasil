@@ -1,0 +1,9 @@
+name: Decision log
+description: "Maintain the per-node append-only decision log — yg log add appends a justification entry, yg log read returns recent entries, and yg log merge-resolve reconciles the log after a merge by validating the byte-exact ancestor and the union of new entries."
+aspects:
+  - deterministic
+  - what-why-next
+nodes:
+  - cli/commands/log
+  - cli/core/log
+  - cli/formatters
