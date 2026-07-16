@@ -15,10 +15,11 @@ usage — there are no separate "styles" to choose between.
 
 ## When the lock executes a check
 
-\`check.mjs\` executes in exactly two places: the \`yg check --approve\` fill stage,
-and \`yg aspect-test\`. **Plain \`yg check\` never executes a deterministic check** —
-it validates the entry by hashing, exactly like an LLM entry. So CI executes no
-adopter code; check's cost is hashing only.
+\`check.mjs\` executes in three places: the \`yg check --approve\` fill stage,
+\`yg aspect-test\`, and \`yg drill\` (which replays the check over its case corpus).
+**Plain \`yg check\` never executes a deterministic check** — it validates the entry
+by hashing, exactly like an LLM entry. So CI executes no adopter code; check's cost
+is hashing only.
 
 The verdict is cached in the lock like every other verdict. It is reusable while
 its inputs are unchanged — the subject files AND every value the check observed
@@ -62,13 +63,17 @@ Rules:
 - Do not touch a file outside \`ctx.files\` directly — reach other files only
   through \`ctx.fs\` / \`ctx.graph\` within the allowed reads set.
 
-The runner raises typed runtime errors when the contract is broken:
+The runner raises typed runtime errors when the contract is broken. The fill stage
+and \`yg aspect-test --node\` run the check through the structure runner, which
+raises \`STRUCTURE_CHECK_*\` codes; the ad-hoc \`yg aspect-test --files\` / \`yg drill\`
+path uses the AST runner, whose codes are the \`AST_CHECK_*\` equivalents:
 
-| Error code | Cause |
+| Error code (fill / --node) | Cause |
 |---|---|
-| \`AST_CHECK_FILE_NOT_IN_CONTEXT\` | \`check\` touched a file that is not in \`ctx.files\` |
-| \`AST_CHECK_ASYNC\` | \`check\` returned a thenable/Promise — it must be synchronous |
-| \`AST_CHECK_RETURN_SHAPE\` | \`check\` returned a non-array — it must return \`Violation[]\` |
+| \`STRUCTURE_CHECK_FILE_NOT_IN_CONTEXT\` | \`check\` touched a file that is not in \`ctx.files\` |
+| \`STRUCTURE_CHECK_ASYNC\` | \`check\` returned a thenable/Promise — it must be synchronous |
+| \`STRUCTURE_CHECK_RETURN_SHAPE\` | \`check\` returned a non-array — it must return \`Violation[]\` |
+| \`STRUCTURE_CHECK_THROWN\` | \`check\` threw during execution |
 
 A runtime failure at fill time (import error, thrown exception, broken contract)
 is an infra disposition: NO entry is written, the pair stays unverified, and the
@@ -78,7 +83,8 @@ is an infra disposition: NO entry is written, the pair stays unverified, and the
 ## Iterating over the files
 
 A node's mapping may include non-parseable files (e.g. \`.md\`, \`.sh\`,
-\`.json\`). For those files \`file.ast\` is \`undefined\`. **Always guard
+\`.txt\`). For those files \`file.ast\` is \`undefined\`. (\`.json\` DOES have a
+registered grammar, so a JSON file is parseable and gets an AST.) **Always guard
 before touching \`file.ast\`**:
 
 \`\`\`javascript
@@ -291,10 +297,10 @@ The runner enforces a strict read boundary. Attempting to read outside it throws
 a runtime violation instead of returning data.
 
 This boundary is a read **discipline**, not a security sandbox. \`check.mjs\` runs
-in the main Node process with full privileges — an adversarial check could still
-write files or open sockets; the runner does not prevent it. The allow-list scopes
-which files count as observed dependencies, not what the process is capable of.
-Only run aspects you trust.
+in-process (on an auto-sized worker-thread pool during \`--approve\`, for speed) with
+full Node privileges — an adversarial check could still write files or open sockets;
+the runner does not prevent it. The allow-list scopes which files count as observed
+dependencies, not what the process is capable of. Only run aspects you trust.
 
 Paths in the allowed reads set for a node:
 
@@ -483,6 +489,15 @@ export function check(ctx) {
 
 Child nodes are always in the own descendant mappings channel — no additional
 relation declarations are required to access them via \`ctx.graph.children\`.
+
+Invalidation note: reading \`ctx.node.type\` or \`ctx.node.ports\` folds the reviewed
+node's identity (its \`yg-node.yaml\` bytes) into the verdict — exactly as a
+\`ctx.graph.node(<self>)\` call would — so a later change to the node's type or
+ports re-runs the check (at zero LLM cost) instead of leaving a stale-green
+verdict. (\`ctx.graph.children\` folds each child's identity too, so a child's
+type change invalidates as well.) Reading only \`ctx.node.id\`, \`ctx.node.mapping\`,
+or \`ctx.node.files\` does not add this fold — \`id\` and mapping are already pinned
+by the node path and subject-file hashes.
 
 ## Testing with yg aspect-test
 

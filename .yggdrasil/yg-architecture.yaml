@@ -434,7 +434,6 @@ node_types:
       path: "examples/**"
     aspects:
       - id: example-self-contained
-        status: advisory
     parents: [module]
     relations:
       default: deny
@@ -470,8 +469,14 @@ node_types:
         - path: ".editorconfig"
         - path: ".gitattributes"
         - path: ".gitignore"
-        - path: ".github/**"
-        - path: ".markdownlint*"
+        # .github/** EXCEPT workflow files — .github/workflows/*.yml and
+        # .markdownlint* belong to ci-config (CI/lint gate). Excluding them here
+        # keeps the two types' classifications disjoint, so a workflow or lint
+        # config misfiled into a repo-config node is caught by type-when-mismatch.
+        - all_of:
+            - path: ".github/**"
+            - not:
+                path: ".github/workflows/**"
         - path: ".nvmrc"
         - path: ".rtk/**"
         - path: "*.code-workspace"

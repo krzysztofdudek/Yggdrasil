@@ -906,23 +906,13 @@ describe.skipIf(!distExists)(
       }
     });
 
-    it('T32: BUG — a node type whose relation TARGET type is undefined produces NO validation error', () => {
-      // CONTRACT vs ACTUAL.
-      //   CONTRACT (subagent brief / intent): "a type lists a relation target
-      //     type that does not exist" should be a validation error at the
-      //     architecture level, symmetric with type-unknown-parent (which DOES
-      //     reject an undefined PARENT type).
-      //   ACTUAL: parseRelations in src/io/architecture-parser.ts accepts any
-      //     string as a relation target-type name without checking it against
-      //     node_types, and no later validator pass (checkArchitectureRelations
-      //     only validates ACTUAL node relations against the allowed list)
-      //     re-checks it. So an undefined relation target TYPE is silently
-      //     accepted — the architecture loads clean and `yg check` reports only
-      //     unrelated drift/unapproved errors.
-      // This test PINS the actual (buggy) behavior: no architecture-integrity
-      // error fires for the undefined target type. If the CLI is later fixed to
-      // reject it, this test will fail and must be updated to assert the new
-      // error code.
+    it('T32: a relation allow-list naming an undefined TARGET type is a blocking architecture error', () => {
+      // Symmetric with type-unknown-parent (which rejects an undefined PARENT
+      // type): a relation allow-list that names a target type not defined in
+      // node_types is a dangling reference that silently over-restricts the
+      // relation — a node of the intended type never matches the misspelled
+      // entry. checkRelationTargetTypeUnknown now catches it at the
+      // architecture level with the relation-target-type-unknown code.
       const dir = copyFixture('t32');
       try {
         const arch = readFileSync(archPath(dir), 'utf-8').replace(
@@ -931,12 +921,12 @@ describe.skipIf(!distExists)(
         );
         writeArch(dir, arch);
         const { stdout } = run(['check'], dir);
-        // No architecture-integrity error mentions the undefined target type.
-        expect(stdout).not.toContain('ghost-target-type');
+        expect(stdout).toContain('relation-target-type-unknown');
+        expect(stdout).toContain('ghost-target-type');
+        // It is a distinct code from the per-node relation check and the
+        // undefined-node-type check — neither of those should fire here.
         expect(stdout).not.toContain('relation-target-forbidden');
         expect(stdout).not.toContain('type-undefined');
-        expect(stdout).not.toContain('architecture-invalid');
-        expect(stdout).not.toContain('when-unknown-type');
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }

@@ -35,7 +35,7 @@ const ARCH = [
   '      path: "**"',
   '  leaf:',
   '    description: l',
-  '    allowed_parents: [module]',
+  '    parents: [module]',
   '    when:',
   '      path: "**"',
 ].join('\n') + '\n';

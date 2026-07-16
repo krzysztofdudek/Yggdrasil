@@ -4,7 +4,7 @@ import chalk from 'chalk';
 import { scanSuppressionMarkers, scanSuppressionMarkersInComments } from '../../ast/suppress.js';
 import type { SuppressionMarkerInfo } from '../../ast/suppress.js';
 import { withParsedFile } from '../../ast/parser.js';
-import { getLanguageForExtension } from '../../core/graph/language-registry.js';
+import { getLanguageForExtension } from '../../utils/language-registry.js';
 import { buildIssueMessage } from '../../formatters/message-builder.js';
 import { toPosixPath } from '../../utils/posix.js';
 import { debugWrite } from '../../utils/debug-log.js';

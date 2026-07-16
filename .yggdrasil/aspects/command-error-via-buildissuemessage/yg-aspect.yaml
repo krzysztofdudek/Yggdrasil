@@ -4,6 +4,8 @@ review_by: 2026-11-29
 errs: over
 reviewer:
   type: deterministic
-when:
-  node:
-    type: command
+# No `when`: the architecture attaches this aspect to BOTH the `command` and
+# `command-support` types, and the check.mjs glob (**/src/cli/*.ts) already scopes
+# it to command-layer files. A `when: { node: { type: command } }` here previously
+# filtered it back OFF on command-support — silently un-enforcing it on the exact
+# node (cli/preamble) that houses the canonical buildIssueMessage-emitting helpers.

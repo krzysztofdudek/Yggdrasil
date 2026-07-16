@@ -1,0 +1,7 @@
+name: E2E Tests — Docs Internal Links
+type: test-suite
+description: "Subprocess E2E for the docs-internal-links deterministic aspect via the spawned binary (yg aspect-test --files over real .md fixtures): cross-page resolution, broken-link detection with line numbers, multiple breaks, the full adversarial false-positive battery (titled links, angle+title, images, assets, external, anchors, escaped brackets, inline/fenced/indented code, balanced parens, root/index aliases), and a clean pass over the real adopter doc set. This is the aspect's regression vehicle because the drill corpus excludes .md files."
+aspects: []
+relations: []
+mapping:
+  - source/cli/tests/e2e/docs-internal-links.test.ts

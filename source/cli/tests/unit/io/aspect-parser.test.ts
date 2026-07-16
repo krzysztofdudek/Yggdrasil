@@ -311,7 +311,9 @@ describe('aspect-parser — when filter', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('rejects invalid when at aspect level', async () => {
+  it('reports invalid when at aspect level as a structured error, not a throw', async () => {
+    // Must return {ok:false} with aspect-when-invalid — a throw would escape into
+    // the loader and silently drop the aspect over a clean PASS.
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-aspect-when-bad');
     await mkdir(tmpDir, { recursive: true });
     const aspectYaml = path.join(tmpDir, 'yg-aspect.yaml');
@@ -323,8 +325,12 @@ describe('aspect-parser — when filter', () => {
       '  mostly_of: []',
     ].join('\n'), 'utf-8');
 
-    await expect(parseAspect(tmpDir, aspectYaml, 'example'))
-      .rejects.toThrow(/unknown when operator 'mostly_of'/);
+    const result = await parseAspect(tmpDir, aspectYaml, 'example');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors[0].code).toBe('aspect-when-invalid');
+      expect(result.errors[0].messageData.what).toMatch(/unknown when operator 'mostly_of'/);
+    }
 
     await rm(tmpDir, { recursive: true, force: true });
   });
@@ -407,6 +413,13 @@ describe('parseAspect v5 error paths', () => {
     const r = await parseAspect(dir, path.join(dir, 'yg-aspect.yaml'), 'foo');
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.errors.some(e => e.code === 'aspect-tier-on-deterministic')).toBe(true);
+  });
+
+  it('errors on aggregate + tier (an aggregate has no own reviewer)', async () => {
+    const dir = await newDir(`name: Foo\ndescription: x\nreviewer:\n  type: aggregate\n  tier: deep\nimplies:\n  - other\n`);
+    const r = await parseAspect(dir, path.join(dir, 'yg-aspect.yaml'), 'foo');
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.errors.some(e => e.code === 'aspect-tier-on-aggregate')).toBe(true);
   });
 
   it('errors on unknown reviewer key', async () => {

@@ -62,9 +62,11 @@ export async function fetchOpenAIModels(apiKey: string, endpoint?: string): Prom
 
 export async function fetchGoogleModels(apiKey: string): Promise<FetchModelsResult> {
   try {
+    // Key in the `x-goog-api-key` header, NOT a `?key=` query string — a URL key
+    // leaks into proxy/CDN/server access logs and any error report echoing the URL.
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`,
-      { signal: AbortSignal.timeout(15_000) },
+      'https://generativelanguage.googleapis.com/v1beta/models',
+      { headers: { 'x-goog-api-key': apiKey }, signal: AbortSignal.timeout(15_000) },
     );
     if (!res.ok) {
       const msg = `HTTP ${res.status} ${res.statusText}`;

@@ -2,14 +2,31 @@ import { walk, report, inFile } from '@chrisdudek/yg/ast';
 
 // Reserved graph-query helper names. These live only under core/graph/.
 // Engine files outside core/graph/ must import from there, not redefine.
+// Regenerated from core/graph/'s actual graph-query / aspect-resolution export
+// surface. Language-registry exports (EXTENSION, LANGUAGES, get*Language*, …) are
+// deliberately EXCLUDED: they are a different concern and their names are too
+// generic to reserve without risking a false positive on an unrelated local.
 const RESERVED_NAMES = new Set([
+  // hierarchy / flow / dependency traversal
   'collectAncestors',
   'collectDescendants',
   'collectParticipatingFlows',
   'collectDependencyAncestors',
+  'collectReverseDependents',
+  'collectIndirectDependents',
+  'buildTransitiveChains',
+  'touchedReferencesFile',
+  'classifyInvalidations',
+  'nodesWithRefusedVerdict',
+  'yggPrefixOf',
+  // aspect resolution
   'computeEffectiveAspects',
+  'computeEffectiveAspectStatuses',
   'getAspectSource',
-  'collectTrackedFiles',
+  'getAspectStatusSources',
+  'hasNonDraftEffectiveAspects',
+  'isAggregateAspect',
+  'inferAspectDisplayKind',
 ]);
 
 export function check(ctx) {

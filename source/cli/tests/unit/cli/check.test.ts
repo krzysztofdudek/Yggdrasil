@@ -433,8 +433,7 @@ describe('check command', () => {
           '      provider: ollama\n      consensus: 1\n' +
           '      config:\n        model: "m"\n        endpoint: "http://127.0.0.1:1"\n', 'utf-8');
         await writeFile(path.join(ygg, 'yg-architecture.yaml'),
-          'node_types:\n  module:\n    description: \'Organizational grouping.\'\n' +
-          '    allowed_parents: []\n    default_aspects: []\nrelation_types: {}\n', 'utf-8');
+          'node_types:\n  module:\n    description: \'Organizational grouping.\'\n', 'utf-8');
         await writeFile(path.join(ygg, 'model', 'core', 'yg-node.yaml'),
           'name: core\ntype: module\ndescription: An organizational node with no mapping.\n', 'utf-8');
 
@@ -477,8 +476,7 @@ describe('check command', () => {
         );
         await writeFile(
           path.join(ygg, 'yg-architecture.yaml'),
-          'node_types:\n  module:\n    description: \'Organizational grouping.\'\n' +
-          '    allowed_parents: []\n    default_aspects: []\nrelation_types: {}\n',
+          'node_types:\n  module:\n    description: \'Organizational grouping.\'\n',
           'utf-8',
         );
         await writeFile(

@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { execSync } from 'node:child_process';
 import path from 'node:path';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import {
   getMergeParents,
@@ -71,5 +71,18 @@ describe('git-introspect', () => {
     const { repo } = await setupRepoWithMerge();
     const content = await getFileAtRef(repo, 'HEAD', 'nonexistent.txt');
     expect(content).toBe('');
+  });
+
+  it('getFileAtRef does NOT execute shell metacharacters in the file path (no injection)', async () => {
+    // The file path is built from a caller-supplied node path. With the argv form
+    // (execFile, no shell) a metacharacter payload is a literal path git cannot
+    // find, not a command to run. A regression to shell exec() would create the
+    // sentinel file. This is the A2 injection guard.
+    const { repo } = await setupRepoWithMerge();
+    const sentinel = path.join(repo, 'INJECTED_PROOF.txt');
+    const payload = '$(touch INJECTED_PROOF.txt).md';
+    const content = await getFileAtRef(repo, 'HEAD', payload);
+    expect(content).toBe('');
+    await expect(stat(sentinel)).rejects.toThrow();
   });
 });

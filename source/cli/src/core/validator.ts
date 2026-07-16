@@ -7,6 +7,7 @@ import { issueMsg } from './checks/shared.js';
 import { toPosixPath } from '../utils/posix.js';
 import {
   checkTypeUnknownParent,
+  checkRelationTargetTypeUnknown,
   checkArchitectureParentCycles,
   checkEnforceStrictWithoutWhen,
   checkTypeWithoutWhenWithMapping,
@@ -32,6 +33,7 @@ import {
   checkAspectReferences,
   checkAspectStatusDowngrade,
   checkAspectEffectiveNowhere,
+  checkArchitectureDefaultAspectUnreachable,
 } from './checks/aspect-contracts.js';
 import { checkIncidentLedger } from './checks/incident-ledger.js';
 import {
@@ -147,6 +149,7 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
   // Stage 3: architecture-level checks — fatal errors short-circuit per-node + global stages.
   const archIssues: ValidationIssue[] = [];
   archIssues.push(...checkTypeUnknownParent(graph));
+  archIssues.push(...checkRelationTargetTypeUnknown(graph));
   archIssues.push(...checkArchitectureParentCycles(graph));
   archIssues.push(...checkEnforceStrictWithoutWhen(graph));
   issues.push(...archIssues);
@@ -187,6 +190,7 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
   // the full cascade + when. Runs here (post arch-fatal short-circuit) because it
   // evaluates `when` predicates, which require a structurally-valid architecture.
   issues.push(...checkAspectEffectiveNowhere(graph));
+  issues.push(...checkArchitectureDefaultAspectUnreachable(graph));
 
   // Stage 5: global checks.
   issues.push(...checkFileDuplicateMapping(graph));

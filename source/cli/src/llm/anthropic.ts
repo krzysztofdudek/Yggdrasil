@@ -39,6 +39,13 @@ export class AnthropicProvider implements LlmProvider {
           temperature: this.temperature,
         }),
       }, 'anthropic');
+      if (!res.ok) {
+        // Surface the HTTP status (never the body — that could carry response
+        // content). Without this a 4xx/5xx is parsed as if it were a verdict,
+        // losing the one diagnostic that explains the failure. Fail closed.
+        debugWrite(`[anthropic] verifyAspect HTTP ${res.status} ${res.statusText}`);
+        return fallback;
+      }
       const data = await res.json() as { content?: Array<{ text?: string }> };
       const content = data.content?.[0]?.text ?? '';
       return parseAspectResponse(content) ?? fallback;

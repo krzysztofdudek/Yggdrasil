@@ -258,7 +258,7 @@ status semantics):
 | `aspect-companion-runtime-error` | error (`--approve` only) | A `companion.mjs` failed to resolve/run at fill time (threw, returned a bad shape, resolved a missing or out-of-reach path, or observations stayed inconsistent) — fail closed, no verdict written; plain `yg check` shows the pair as unverified. |
 | `aspect-companion-without-content` | error (structural) | An aspect ships `companion.mjs` without `content.md`. Companions are an add-on to LLM aspects; `companion.mjs` alone is invalid. |
 | `aspect-companion-with-check` | error (structural) | An aspect ships both `companion.mjs` and `check.mjs`. Companions apply to LLM aspects only. |
-| `log-entry-missing` | error (`--approve` only) | A `log_required` node changed source without a fresh log entry. |
+| `log-entry-missing` | error | A `log_required` node changed source without a fresh log entry. Enforced read-only — a blocking error on plain `yg check`, not only at `--approve`. |
 | `aspect-status-invalid` | error | Declared `status:` is not one of `draft`, `advisory`, `enforced`. |
 | `aspect-status-downgrade` | error | An attach site declares a status lower than the cascade would yield (bump up OK, downgrade is an error). |
 | `implies-status-inherit-invalid` | error | `status_inherit:` is not `strictest` or `own-default`. |
@@ -572,11 +572,12 @@ to help you choose where to move or refactor the file.
 
 ---
 
-## Knowledge base (1)
+## Knowledge base (2)
 
 | Command                              | Purpose                        |
 |--------------------------------------|--------------------------------|
 | `yg knowledge list` / `read <name>` | Built-in deep-dive documentation |
+| `yg schemas list` / `read <name>`   | Field reference for each graph element |
 
 ### `yg knowledge`
 
@@ -591,18 +592,51 @@ yg knowledge read <name>
 Available topics include: `working-with-architecture`, `aspects-overview`, `aspect-status`,
 `writing-llm-aspects`, `writing-deterministic-aspects`,
 `conditional-aspects`, `suppress-syntax`, `verification-and-lock`, `configuration`,
-`cli-reference`, `log-management`, `ports-and-relations`, `flows`.
+`cli-reference`, `log-management`, `ports-and-relations`, `flows`, `meta-modeling`, `onboarding`.
 
 Run `yg knowledge list` to see the current list with one-line descriptions.
 
+### `yg schemas`
+
+Prints the field reference for a graph element — the schema for a `yg-node.yaml`,
+`yg-aspect.yaml`, `yg-architecture.yaml`, `yg-config.yaml`, or `yg-flow.yaml`. Read
+the relevant schema before hand-authoring one of these files. Works without a
+`.yggdrasil/` present.
+
+```bash
+yg schemas list                # node, aspect, architecture, config, flow
+yg schemas read node
+```
+
 ---
 
-## Development (2)
+## Development (3)
 
 | Command                                                          | Purpose                               |
 |------------------------------------------------------------------|---------------------------------------|
 | `yg aspect-test --aspect <id> --node <path>` / `--files <paths...>` | Run an aspect of either kind on demand; never writes the lock |
+| `yg drill --aspect <id>`                                         | Replay a rule over its `drills/` case corpus (`violates-*` must refuse, `satisfies-*` must pass); never writes the lock |
 | `yg simulate <candidate> --node <path>`                          | Replay a deterministic rule over reachable history in an isolated clone; read-only, exits 0 |
+
+### `yg drill`
+
+Replays one rule over its per-aspect case corpus — a `drills/` directory of
+example files whose `violates-*` / `satisfies-*` prefix encodes the expected
+verdict — and reports whether the rule still behaves. A regression fixture for
+sharpening a rule, not a sensitivity measurement; the lock is never written.
+
+```bash
+yg drill --aspect no-direct-minimatch              # the in-repo corpus
+yg drill --aspect no-direct-minimatch --case 'violates-*/**'
+yg drill --aspect no-direct-minimatch --dir ../holdout --corpus holdout-v1
+```
+
+Each case resolves to `pass`, `MISS` (a `violates-*` case the rule failed to
+refuse), `FALSE-ALARM` (a `satisfies-*` case wrongly refused), `unrun` (infra —
+a check error or an over-limit prompt), or `unsupported` (the rule needs context
+a single-file drill cannot supply). Deterministic drills run locally and free; an
+LLM aspect goes through the real reviewer and bills it (the call budget prints
+first). Exit `1` on any MISS/FALSE-ALARM, else `2` on any unrun, else `0`.
 
 ### `yg aspect-test`
 

@@ -33,6 +33,43 @@ export function checkTypeUnknownParent(graph: Graph): ValidationIssue[] {
   return issues;
 }
 
+/**
+ * Every target-type name listed under `node_types.<type>.relations.<relType>`
+ * must be a defined node type (or the `*` any-target wildcard). This is the
+ * relation-side sibling of checkTypeUnknownParent: a typo in an allow-list
+ * (`relations.calls: [widgett]`) is otherwise silent — a node of the intended
+ * type never matches the misspelled entry, so the relation is over-restricted
+ * (spurious relation-target-forbidden) or the constraint never fires as meant.
+ * Catching the dangling name at the architecture level keeps the vocabulary
+ * self-consistent before any node is judged against it.
+ */
+export function checkRelationTargetTypeUnknown(graph: Graph): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const knownTypes = new Set(Object.keys(graph.architecture.node_types));
+  for (const [typeName, typeConfig] of Object.entries(graph.architecture.node_types)) {
+    const lists = typeConfig.relations;
+    if (!lists) continue;
+    for (const [relType, targets] of Object.entries(lists)) {
+      for (const target of targets ?? []) {
+        if (target === '*' || knownTypes.has(target)) continue;
+        const msgData: IssueMessage = {
+          what: `Architecture type '${typeName}' allows relation '${relType}' to target type '${target}', which is not defined in node_types.`,
+          why: `Relation target types must be defined in yg-architecture.yaml (or the '*' wildcard) — a dangling name silently over-restricts the relation, so a node of the intended type never matches it.`,
+          next: `Fix the spelling, add '${target}' to node_types, use '*' for any target, or remove it from '${typeName}.relations.${relType}'.`,
+        };
+        issues.push({
+          severity: 'error',
+          code: 'relation-target-type-unknown',
+          rule: 'relation-target-type-unknown',
+          ...issueMsg(msgData),
+          messageData: msgData,
+        });
+      }
+    }
+  }
+  return issues;
+}
+
 export function checkArchitectureParentCycles(graph: Graph): ValidationIssue[] {
   const types = graph.architecture.node_types;
   const typeIds = Object.keys(types);
@@ -134,7 +171,7 @@ export function checkTypeWithoutWhenWithMapping(graph: Graph): ValidationIssue[]
     const mapping = node.meta.mapping ?? [];
     if (mapping.length === 0) continue;
 
-    const preview = mapping.slice(0, 3).map((m) => `  - ${m}`).join('\n');
+    const preview = mapping.slice(0, 3).map((m) => `  - ${toPosixPath(m)}`).join('\n');
     const ellipsis = mapping.length > 3 ? `\n  ... (${mapping.length - 3} more)` : '';
     const msgData: IssueMessage = {
       what: `Node '${nodePath}' has type '${node.meta.type}' (no \`when\` — organizational type) but mapping is not empty:\n  mapping:\n${preview}${ellipsis}`,
@@ -184,7 +221,10 @@ export async function checkTypeWhenMismatch(
         // drops missing paths, which would otherwise swallow that diagnostic).
         // An empty GLOB, by contrast, legitimately matches no files here — its
         // empty match is reported by checkMappingPathsExist, so push nothing.
-        pathsToCheck.push(entry);
+        // Normalize the raw entry to POSIX form (as the sibling branch does for
+        // expandMappingPaths' output) because it flows on into CLI-facing
+        // diagnostic strings below as `relPath`.
+        pathsToCheck.push(toPosixPath(entry));
       }
     }
     for (const relPath of pathsToCheck) {

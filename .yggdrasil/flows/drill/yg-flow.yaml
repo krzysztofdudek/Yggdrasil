@@ -1,0 +1,8 @@
+name: Drill replay
+description: "Replay a rule over its case corpus — yg drill discovers the violates-*/satisfies-* fixtures, dispatches each case (deterministic checks locally, LLM cases through the production prompt), and reports pass/MISS/FALSE-ALARM so a rule can be sharpened against regressions."
+aspects:
+  - what-why-next
+nodes:
+  - cli/commands/drill
+  - cli/core/drill
+  - cli/formatters

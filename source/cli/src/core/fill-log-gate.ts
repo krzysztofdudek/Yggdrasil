@@ -18,8 +18,9 @@ import { toPosixPath } from '../utils/posix.js';
 
 /**
  * Step-4 log gate: consults logGateBlocksNode (the shared predicate) and emits the
- * `log-entry-missing` message when it blocks (its pairs are skipped this run;
- * other nodes proceed).
+ * `log-entry-missing` message when a node blocks. The gate is ALL-OR-NOTHING —
+ * fill.ts collects every blocked node and, if any exist, throws FillGatingError so
+ * the run fills NOTHING (no pair on any node is verified until every entry exists).
  */
 export async function logGateBlocks(
   graph: Graph,

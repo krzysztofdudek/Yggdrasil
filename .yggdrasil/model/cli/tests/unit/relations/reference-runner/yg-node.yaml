@@ -11,7 +11,7 @@ aspects: []
 relations:
   - target: cli/ast/runtime
     type: uses
-  - target: cli/core/language-registry
+  - target: cli/language-registry
     type: uses
   - target: cli/relations/core
     type: uses

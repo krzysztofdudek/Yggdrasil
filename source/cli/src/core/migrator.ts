@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { parse as parseYaml } from 'yaml';
-import { readTextFile, writeTextFile } from '../io/graph-fs.js';
-import { gt, valid, compare } from 'semver';
+import { readTextFile, atomicWriteTextFile } from '../io/graph-fs.js';
 import { toPosixPath } from '../utils/posix.js';
 
 export interface Migration {
@@ -37,35 +36,6 @@ export async function detectVersion(yggRoot: string): Promise<string | null> {
 }
 
 /**
- * Run all applicable migrations sequentially.
- * A migration is applicable when its target version is strictly greater than currentVersion.
- */
-export async function runMigrations(
-  currentVersion: string,
-  migrations: Migration[],
-  yggRoot: string,
-): Promise<MigrationResult[]> {
-  const root = toPosixPath(yggRoot.trim());
-  const cVer = valid(currentVersion);
-  if (!cVer) return [];
-
-  const applicable = migrations
-    .filter((m) => {
-      const mVer = valid(m.to);
-      if (!mVer) return false;
-      return gt(mVer, cVer);
-    })
-    .sort((a, b) => compare(valid(a.to)!, valid(b.to)!));
-
-  const results: MigrationResult[] = [];
-  for (const migration of applicable) {
-    const result = await migration.run(root);
-    results.push(result);
-  }
-  return results;
-}
-
-/**
  * Update version field in yg-config.yaml.
  */
 export async function updateConfigVersion(yggRoot: string, version: string): Promise<void> {
@@ -75,5 +45,5 @@ export async function updateConfigVersion(yggRoot: string, version: string): Pro
   const updated = content.match(/^version:\s/m)
     ? content.replace(/^version:\s.*$/m, `version: "${version}"`)
     : `version: "${version}"\n` + content;
-  await writeTextFile(configPath, updated);
+  await atomicWriteTextFile(configPath, updated);
 }

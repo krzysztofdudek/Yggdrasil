@@ -359,18 +359,20 @@ describe.skipIf(!distExists)('CLI E2E — query and navigation', () => {
     // .git is UNCONDITIONALLY skipped by the coverage scan, so mapping it would
     // create a node yg check never enumerates. The command must say so, and must
     // NOT emit the "add it to a node mapping" advice used for a real coverage gap.
-    const { status, stderr } = run(['context', '--file', '.git']);
+    // "Excluded by design" is a non-error answer (exit 0), so it is a RESULT on
+    // stdout, not an error on stderr.
+    const { status, stdout } = run(['context', '--file', '.git']);
     expect(status).toBe(0);
-    expect(stderr).toContain('excluded from graph coverage by design');
-    expect(stderr).not.toContain('Add the file to an existing node mapping');
-    expect(stderr).not.toContain('no graph coverage');
+    expect(stdout).toContain('excluded from graph coverage by design');
+    expect(stdout).not.toContain('Add the file to an existing node mapping');
+    expect(stdout).not.toContain('no graph coverage');
   });
 
   it('yg context --file on a .yggdrasil-internal path is excluded by design (exit 0)', () => {
-    const { status, stderr } = run(['context', '--file', '.yggdrasil/yg-lock.logs.json']);
+    const { status, stdout } = run(['context', '--file', '.yggdrasil/yg-lock.logs.json']);
     expect(status).toBe(0);
-    expect(stderr).toContain('excluded from graph coverage by design');
-    expect(stderr).not.toContain('Add the file to an existing node mapping');
+    expect(stdout).toContain('excluded from graph coverage by design');
+    expect(stdout).not.toContain('Add the file to an existing node mapping');
   });
 
   it('yg context --file on a genuinely-unmapped normal file is NOT treated as excluded', () => {

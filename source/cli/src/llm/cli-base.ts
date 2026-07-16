@@ -157,6 +157,11 @@ export function parseAspectResponse(output: string): AspectResponse | undefined 
   return { satisfied: false, reason: `Unparseable reviewer response: ${trimmed.slice(0, 160)}`, errorSource: 'provider' };
 }
 
+// Grace period between SIGTERM and the escalated SIGKILL when a reviewer
+// subprocess overruns its timeout. Bounds how long a SIGTERM-ignoring child can
+// keep yg check waiting before it is force-killed.
+const SIGKILL_GRACE_MS = 5_000;
+
 export abstract class CliAgentProvider implements LlmProvider {
   protected model: string;
   protected timeout: number;
@@ -194,11 +199,19 @@ export abstract class CliAgentProvider implements LlmProvider {
       let stdout = '';
       let stderr = '';
       let killed = false;
+      let sigkillTimer: ReturnType<typeof setTimeout> | undefined;
 
       const timer = setTimeout(() => {
         killed = true;
         debugWrite(`[${this.binary}] timeout after ${this.timeout}ms; stderr tail: ${stderr.slice(-500)}`);
         child.kill('SIGTERM');
+        // Escalate: a child that ignores SIGTERM would otherwise hang yg check
+        // indefinitely. Give it a short grace period, then force SIGKILL so the
+        // reviewer call always terminates.
+        sigkillTimer = setTimeout(() => {
+          debugWrite(`[${this.binary}] still alive ${SIGKILL_GRACE_MS}ms after SIGTERM; sending SIGKILL`);
+          child.kill('SIGKILL');
+        }, SIGKILL_GRACE_MS);
       }, this.timeout);
 
       child.stdout.on('data', (data: Buffer) => { stdout += data.toString(); });
@@ -209,6 +222,7 @@ export abstract class CliAgentProvider implements LlmProvider {
       child.stderr.on('data', (data: Buffer) => { stderr += data.toString(); });
       child.on('error', (err) => {
         clearTimeout(timer);
+        clearTimeout(sigkillTimer);
         const isE2BIG = (err as NodeJS.ErrnoException).code === 'E2BIG';
         const msg = isE2BIG
           ? 'Prompt too large for CLI arg mode'
@@ -218,6 +232,7 @@ export abstract class CliAgentProvider implements LlmProvider {
       });
       child.on('close', (code) => {
         clearTimeout(timer);
+        clearTimeout(sigkillTimer);
         if (killed || code !== 0) {
           if (!killed && code !== 0) debugWrite(`[${this.binary}] exit_code=${code}`);
           resolve(fallback);

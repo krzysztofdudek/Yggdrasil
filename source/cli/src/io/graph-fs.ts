@@ -1,7 +1,8 @@
-import { access, lstat, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { access, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { existsSync, readFileSync, constants as fsConstants } from 'node:fs';
 import type { Dirent, Stats } from 'node:fs';
 import { debugWrite } from '../utils/debug-log.js';
+import { atomicWriteFile } from './atomic-write.js';
 
 export async function readSortedDir(dirPath: string): Promise<Dirent[]> {
   const entries = await readdir(dirPath, { withFileTypes: true });
@@ -25,6 +26,15 @@ export async function writeTextFile(filePath: string, content: string): Promise<
   await writeFile(filePath, content, 'utf-8');
 }
 
+/**
+ * Crash-safe text write (temp file + atomic rename). Use for committed graph
+ * state — e.g. the migration rewrite of yg-config.yaml — so an interrupt can
+ * never leave a half-written config on disk.
+ */
+export async function atomicWriteTextFile(filePath: string, content: string): Promise<void> {
+  await atomicWriteFile(filePath, content);
+}
+
 export async function fileAccess(filePath: string): Promise<void> {
   await access(filePath);
 }
@@ -41,10 +51,6 @@ export async function probeUnreadable(absPath: string): Promise<string | null> {
   } catch (e) {
     return e instanceof Error ? e.message : String(e);
   }
-}
-
-export async function lstatFile(filePath: string): Promise<Stats> {
-  return lstat(filePath);
 }
 
 export async function statPath(targetPath: string): Promise<Stats> {

@@ -45,6 +45,13 @@ signals:                          # optional — attention-layer switches. Absen
   attention: true                 #   attention (default true): the advisory "structurally unusual" note in
                                   #   yg context --file. false silences it. Must be boolean; unknown keys rejected.
 
+events:                           # optional — where LLM verification-fill events are recorded. Absent = local only.
+  committed_llm: false            #   committed_llm (default false): when true, LLM-fill events go to a COMMITTED,
+                                  #   union-merged, rationale-stripped file (.yggdrasil/yg-events.llm.jsonl) shared
+                                  #   with the team instead of the local gitignored sidecar. Deterministic/drill/diag
+                                  #   events always stay local (keyless CI = zero churn). Must be boolean; unknown
+                                  #   keys rejected. Never folded into any verdict hash — flipping it invalidates nothing.
+
 reviewer:                         # required only once a judgment (LLM) rule is actually effective —
                                   # used during yg check --approve or when auto_approve triggers a fill.
                                   # A script-only / keyless project (deterministic aspects only, or none)
@@ -60,7 +67,7 @@ reviewer:                         # required only once a judgment (LLM) rule is 
         model: "qwen3.5:9b"       #       model id
         endpoint: "http://localhost:11434"   # custom endpoint (required for openai-compatible; ollama defaults to http://localhost:11434)
         temperature: 0            #       reduces variability — keep at 0
-        # timeout: 300            #       Per-call timeout in SECONDS (default 300). Only CLI providers.
+        # timeout: 300            #       Per-call timeout in SECONDS (default 300). CLI providers and ollama; other API providers ignore it.
       # max_prompt_chars: 200000  # optional — assembled reviewer-prompt character cap (positive integer).
                                   #   Checked deterministically before the LLM call. Absent defaults to 50000.
                                   #   Exceeding this limit renders a blocking error naming remedies

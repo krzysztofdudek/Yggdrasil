@@ -11,7 +11,7 @@ relations:
     type: uses
   - target: cli/model/when
     type: uses
-  - target: cli/core/language-registry
+  - target: cli/language-registry
     type: calls
   - target: cli/structure
     type: calls

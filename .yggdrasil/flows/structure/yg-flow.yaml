@@ -1,0 +1,9 @@
+name: Structure dashboard
+description: "Report the shape of the graph's dependencies — yg structure computes dependency tunnels, per-level module groups and cycles, and change reach from the loaded graph and the detected-edges boundary, and prints a read-only dashboard; it never gates."
+aspects:
+  - deterministic
+  - what-why-next
+nodes:
+  - cli/commands/structure
+  - cli/portal/engine-api
+  - cli/formatters

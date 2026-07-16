@@ -1,0 +1,7 @@
+name: Aspect diagnostics
+description: "Run an aspect against a node or ad-hoc files on demand without touching the lock — yg aspect-test executes a check or previews/records a reviewer verdict for diagnosis; it can bill the reviewer, so it is not part of the determinism contract."
+aspects:
+  - what-why-next
+nodes:
+  - cli/commands/aspect-test
+  - cli/formatters

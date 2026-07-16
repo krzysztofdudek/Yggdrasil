@@ -211,11 +211,14 @@ export async function checkMappingOverlap(graph: Graph): Promise<ValidationIssue
         continue;
       }
 
-      // Allow containment overlaps between ancestor-descendant nodes ("child wins" model).
+      // Child-precedence (child-wins): an ancestor↔descendant NODE overlap is
+      // exempt — the deeper node owns the shared file and the runtime carve-out
+      // (getChildMappingExclusions) removes it from the ancestor's subject set,
+      // glob-aware, so ownership is unambiguous. Only a NON-hierarchical (sibling)
+      // overlap, where there is no "deeper" node to break the tie, is flagged below.
       const isHierarchical =
         isAncestorNode(current.nodePath, candidate.nodePath) ||
         isAncestorNode(candidate.nodePath, current.nodePath);
-
       if (isHierarchical) continue;
 
       issues.push({
@@ -261,8 +264,11 @@ export async function checkMappingOverlap(graph: Graph): Promise<ValidationIssue
       }
       // Only the glob pass's job: plain↔plain overlaps are handled above.
       if (owners.length < 2 || !viaGlob || reported.has(relPath)) continue;
-      // Child-wins: drop owners that are an ancestor of another owner; an
-      // ambiguous file is one with two or more remaining (sibling/unrelated) owners.
+      // Child-precedence: drop any owner that is an ancestor of another owner — the
+      // deeper node wins and the runtime carve-out removes the file from the
+      // ancestor's subject set (getChildMappingExclusions, glob-aware). What remains
+      // are the deepest owners; TWO or more of those are non-hierarchical siblings
+      // with no "deeper" tiebreak, which is the genuine ambiguity to flag.
       const leaves = owners.filter(
         (o) => !owners.some((other) => other !== o && isAncestorNode(o, other)),
       );

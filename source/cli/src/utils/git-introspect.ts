@@ -1,12 +1,19 @@
-import { exec } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
-const execp = promisify(exec);
+// Argument-vector form (no shell): git args are passed as an array, so a ref or
+// file path containing shell metacharacters ($, `, ;, (), …) is treated as a
+// literal argument and can never be interpreted by a shell. `filePath` here is
+// derived from a caller-supplied node path, so shell interpolation would be a
+// command-injection vector — the array form closes it. Mirrors utils/git.ts.
+const execFilep = promisify(execFile);
 
 /** Returns true if `ref` resolves to a merge commit (>= 2 parents). */
 export async function isMergeCommit(repoCwd: string, ref: string): Promise<boolean> {
   try {
-    const { stdout } = await execp(`git rev-list --parents -n 1 ${ref}`, { cwd: repoCwd });
+    const { stdout } = await execFilep('git', ['rev-list', '--parents', '-n', '1', ref], {
+      cwd: repoCwd,
+    });
     const parts = stdout.trim().split(/\s+/);
     return parts.length >= 3;
   } catch {
@@ -16,7 +23,9 @@ export async function isMergeCommit(repoCwd: string, ref: string): Promise<boole
 
 /** Returns parent SHAs of the merge commit at `ref`. Throws on non-merge. */
 export async function getMergeParents(repoCwd: string, ref: string): Promise<string[]> {
-  const { stdout } = await execp(`git rev-list --parents -n 1 ${ref}`, { cwd: repoCwd });
+  const { stdout } = await execFilep('git', ['rev-list', '--parents', '-n', '1', ref], {
+    cwd: repoCwd,
+  });
   const parts = stdout.trim().split(/\s+/);
   if (parts.length < 3) {
     throw new Error(`${ref} is not a merge commit (has ${parts.length - 1} parent(s))`);
@@ -26,7 +35,7 @@ export async function getMergeParents(repoCwd: string, ref: string): Promise<str
 
 /** Returns the merge-base SHA of two refs. */
 export async function getMergeBase(repoCwd: string, refA: string, refB: string): Promise<string> {
-  const { stdout } = await execp(`git merge-base ${refA} ${refB}`, { cwd: repoCwd });
+  const { stdout } = await execFilep('git', ['merge-base', refA, refB], { cwd: repoCwd });
   return stdout.trim();
 }
 
@@ -40,7 +49,7 @@ export async function getFileAtRef(
   filePath: string,
 ): Promise<string> {
   try {
-    const { stdout } = await execp(`git show ${ref}:${filePath}`, {
+    const { stdout } = await execFilep('git', ['show', `${ref}:${filePath}`], {
       cwd: repoCwd,
       maxBuffer: 100 * 1024 * 1024,
     });

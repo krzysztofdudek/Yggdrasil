@@ -40,7 +40,7 @@ Before writing a single YAML file, we spent the equivalent of several days restr
 
 ### `all_of` / `any_of` / `not` combinators
 
-**Used as:** `command` requires `all_of: [path: cli/*.ts, not: {path: **/*.test.ts}]`. `parser-adapter` requires `all_of` with a path match. `persistence-adapter` uses `any_of` across seven explicit paths.
+**Used as:** `command` requires `all_of: [path: cli/*.ts, not: {path: **/*.test.ts}]`. `parser-adapter` requires `all_of` with a path match. `persistence-adapter` uses `any_of` across 14 explicit paths.
 
 **Earn-rate: high.** Combinators are essential whenever test files share a directory with production code, or when a type is defined by a fixed list of files rather than a glob.
 
@@ -80,9 +80,9 @@ Before writing a single YAML file, we spent the equivalent of several days restr
 
 ### `aspects:` (type-level defaults — channel 3)
 
-**Used as:** `engine` type automatically applies `deterministic`, `no-direct-fs`, `no-direct-console`, `no-nondeterminism-direct`. `command` type applies `cli-command-contract`, `diagnostic-logging`, `command-contract-shape`. Eight types carry at least one default aspect.
+**Used as:** `engine` type automatically applies `deterministic`, `no-direct-fs`, `no-direct-console`, `no-nondeterminism-direct`. `command` type applies `cli-command-contract`, `diagnostic-logging`, `command-contract-shape`. 31 types carry at least one default aspect.
 
-**Earn-rate: high.** This is the architecture-as-policy layer. Adding one aspect to a type applies it to every node of that type, past and future. We used it to roll out `test-deterministic` to all 12 test-suite nodes simultaneously.
+**Earn-rate: high.** This is the architecture-as-policy layer. Adding one aspect to a type applies it to every node of that type, past and future. We used it to roll out `test-deterministic` to all 226 test-suite nodes simultaneously.
 
 **Recommendation:** Add type-level defaults only for aspects that genuinely apply to every node of that type without exception. When you find yourself suppressing an aspect on half the nodes of a type, the aspect probably doesn't belong at the type level.
 
@@ -102,7 +102,7 @@ Before writing a single YAML file, we spent the equivalent of several days restr
 
 **Used as:** Three chains: `cli-command-contract` → `[command-exit-codes, diagnostic-logging]`; `deterministic` → `[no-nondeterminism-direct]`; `top-level-error-handler` → `[command-exit-codes]`. Implied aspects propagate automatically — no duplication in node or architecture defaults.
 
-**Earn-rate: medium.** The `deterministic` → `no-nondeterminism-direct` chain is the best example: every node that must be deterministic also must not use `Math.random()` or `Date.now()` directly. Declaring this once in the implies chain beats repeating it across 14 engine nodes.
+**Earn-rate: medium.** The `deterministic` → `no-nondeterminism-direct` chain is the best example: every node that must be deterministic also must not use `Math.random()` or `Date.now()` directly. Declaring this once in the implies chain beats repeating it across 30 engine nodes.
 
 **Recommendation:** Use `implies:` when one aspect logically entails another with no exceptions. Keep chains short — depth > 3 is a code smell indicating the aspect boundaries need rethinking.
 
@@ -156,7 +156,7 @@ inherit its implier's level.
 
 ### `when:` on aspect definitions
 
-**Used as:** Ten aspects carry `when:` filters that limit which nodes the aspect checks: `silent-missing-files` fires only on `parser-adapter`, `persistence-adapter`, and `engine` nodes; `atomic-write-contract` fires only on `persistence-adapter`; `test-deterministic` fires only on `test-suite` nodes.
+**Used as:** Nine aspects carry `when:` filters that limit which nodes the aspect checks: `silent-missing-files` fires only on `parser-adapter`, `persistence-adapter`, and `engine` nodes; `atomic-write-contract` fires only on `persistence-adapter`; `test-deterministic` fires only on `test-suite` nodes.
 
 **Earn-rate: high.** Without these filters, attaching an aspect to a flow or type default would fire the reviewer on every node in the graph. Filters eliminate false positives without suppression markers.
 
@@ -188,7 +188,7 @@ inherit its implier's level.
 
 **Used as:** Nine flows carry aspects. `validate` flow applies `deterministic`, `what-why-next`, and `silent-missing-files` to its four participant nodes. `verification` flow applies `provider-redaction` and `what-why-next`. Flow-level aspects propagate to all participant nodes automatically.
 
-**Earn-rate: high.** Flows are the right place for cross-cutting process requirements. The `what-why-next` aspect was attached to eight flows covering 30+ nodes — a single flow-level declaration instead of 30 node-level ones.
+**Earn-rate: high.** Flows are the right place for cross-cutting process requirements. The `what-why-next` aspect was attached to all nine flows, covering 18 distinct nodes — a handful of flow-level declarations instead of dozens of node-level ones.
 
 **Recommendation:** Think of flows as the "cross-cutting concern" layer. If an aspect should apply to every node that participates in a named business process (authentication, payment, approval), put it on the flow. If an aspect applies only to a specific code layer (engine, formatter), use a type default instead.
 
@@ -207,7 +207,8 @@ The following features exist in the schema but were not exercised because no gen
 | `when: consumes_port:` | Deferred | Single consumer set; predicate not needed |
 | Multi-port `consumes:` | Deferred | Only one port in catalog |
 | Paired `emits` / `listens` | Deferred | No event bus in the codebase |
-| `extends` / `implements` relations | Deferred | No inheritance hierarchy in TypeScript code |
+| `extends` relation | Used | `cli/llm/registry` → `cli/llm/shared` (the registry barrel extends the shared provider interface) |
+| `implements` relation | Deferred | No interface-conformance relation declared across a node boundary |
 
 Deferred does not mean unsupported — these features are tested and documented. They simply had no real use case in this particular dogfood project.
 
@@ -220,6 +221,6 @@ Deferred does not mean unsupported — these features are tested and documented.
 | **Use from day one** | `path:` when, combinators (`all_of`/`not`), `parents:`, `log_required`, type-level `aspects:`, `when:` on aspects |
 | **Introduce when you have 5+ nodes** | `enforce: strict`, node-level aspects, `implies:`, flow-level aspects |
 | **Introduce when a specific problem arises** | `content:` when, ports + `consumes:`, `when: descendants:` |
-| **Defer until the schema demands it** | Event relations, `extends`/`implements`, multi-port, conditional implies |
+| **Defer until the schema demands it** | Event relations, `implements`, multi-port, conditional implies |
 
 The biggest ROI in our dogfood came from three things: type-level aspect defaults (one YAML line covers all current and future nodes of a type), flow-level aspects (one YAML block covers all participants in a business process), and `enforce: strict` (zero uncovered files at merge time). Everything else is additive.

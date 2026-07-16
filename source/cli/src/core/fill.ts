@@ -13,8 +13,9 @@
  *      one implementation, so a verdict fill writes here verifies there.
  *      prompt-too-large pairs are SKIPPED (gate precedence, §4).
  *   3. Pre-dispatch header: counts.
- *   4. Per-node log gate (§9): a log_required node whose source fingerprint
- *      drifted with no fresh entry has its pairs skipped (others proceed).
+ *   4. Log gate (§9), ALL-OR-NOTHING: if ANY log_required node's source
+ *      fingerprint drifted with no fresh entry, the run fills NOTHING (throws
+ *      FillGatingError before any deterministic or LLM fill) and stays red.
  *   5. Deterministic fills FIRST (free) → deterministic gate (a node with an
  *      enforced det refusal skips its LLM fills this run).
  *   6. LLM fills (grouped by tier; one provider per tier; run-scoped caches).

@@ -13,5 +13,5 @@ description: >-
   reaches outside itself, and never blocks. Exit path is a promotion nomination
   on evidence once it has run FP-clean across the corpus.
 errs: under
-status: advisory
+status: enforced
 review_by: 2027-02-13

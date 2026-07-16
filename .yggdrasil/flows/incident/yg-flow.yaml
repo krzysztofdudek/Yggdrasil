@@ -1,0 +1,9 @@
+name: Incident recording
+description: "Record what escaped enforcement into the committed incident ledger — yg incident add validates the cause tag and any named rule, appends a timestamped human-signed entry, and yg incident read lists them; the tower's only external reality check."
+aspects:
+  - what-why-next
+  - deterministic
+nodes:
+  - cli/commands/incident
+  - cli/io/incident-ledger
+  - cli/formatters

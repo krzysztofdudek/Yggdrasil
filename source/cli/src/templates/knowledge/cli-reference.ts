@@ -389,7 +389,8 @@ currently-green verdict(s) re-rolled\`). For \`--file\`, it ends with a precise
 \`Total to re-verify:\` block -- billed reviewer calls, free deterministic pairs,
 and currently-green verdicts re-rolled -- preceded by a per-node breakdown tagged
 with why each node is affected (own pairs / references this file / companion
-observes this file / deterministic check observes this file). To compute this
+observes this file / deterministic check observes this file / may observe this file
+(cold-start)). To compute this
 precisely even before the first fill, \`yg impact\` runs the companion resolver for
 cold companion-backed pairs -- it makes no LLM call, never runs \`check.mjs\`, and
 writes nothing. A companion whose hook fails is listed under \`Unresolved\` (cost

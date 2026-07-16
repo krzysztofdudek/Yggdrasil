@@ -1,6 +1,6 @@
 import { extname } from 'node:path';
 import type { Tree, Node } from 'web-tree-sitter';
-import { LANGUAGES, getLanguageForExtension } from '../core/graph/language-registry.js';
+import { LANGUAGES, getLanguageForExtension } from '../utils/language-registry.js';
 
 export type FindCommentsTarget =
   // SourceFile form — a `ctx.files` element `{ path, content, ast }`; the

@@ -1,0 +1,8 @@
+name: Rule simulation
+description: "Replay a candidate deterministic rule over recent history in an isolated clone — yg simulate checks out each commit, overlays the candidate check, runs it read-only, and reports per-commit what it would have caught, with a hard guard that a pre-setup commit can never fall back to today's rules."
+aspects:
+  - what-why-next
+  - deterministic
+nodes:
+  - cli/commands/simulate
+  - cli/formatters

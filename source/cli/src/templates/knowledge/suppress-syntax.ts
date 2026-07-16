@@ -138,12 +138,22 @@ the language provides — \`//\` and \`/* */\` (C-family), \`#\` (shell, Python)
 not a specific comment style — but only in the anchored position described below.
 
 A marker must be anchored: the \`yg-suppress...\` token must be the first thing
-on its comment line — only whitespace and a single leading comment delimiter
-(\`//\`, \`/*\`, \`*\`, \`#\`, \`--\`, \`;\`, \`<!--\`, ...) may precede it. Prose
-that merely mentions the syntax mid-sentence, a backtick-quoted
-\`yg-suppress(...)\`, or a marker-shaped token following code on the same line
-is NOT a marker — it is neither honored by any reviewer nor listed by
-\`yg suppressions\`.
+inside its comment — only whitespace and a single leading comment delimiter
+(\`//\`, \`/*\`, \`*\`, \`#\`, \`--\`, \`;\`, \`<!--\`, ...) may precede it WITHIN the
+comment. Prose that merely mentions the syntax mid-sentence or a backtick-quoted
+\`yg-suppress(...)\` is NOT a marker — it is neither honored by any reviewer nor
+listed by \`yg suppressions\`.
+
+One footgun: a trailing comment written AFTER code on the same physical line
+(\`doThing(); // yg-suppress(rule) reason\`) behaves DIFFERENTLY by file kind. In
+a file with a registered grammar the scanner reads the comment node's own text,
+so that trailing marker IS anchored and honored — but as a single-line marker it
+waives the line BELOW it, never the line of code it trails. In raw-scan mode (a
+file with no grammar, see "Language support" below) the whole physical line is
+scanned, so a delimiter that does not start the line is not a marker at all.
+Because the two modes disagree, NEVER rely on a trailing same-line comment to
+waive the code it sits on: always put a single-line marker on its own line,
+directly above the line it waives.
 
 For a file whose extension has a registered grammar, markers are read from the
 file's comments, so a \`yg-suppress(...)\` that merely appears inside a string

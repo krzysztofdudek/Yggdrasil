@@ -1,0 +1,9 @@
+name: Portal view
+description: "Serve or write the read-only web view of the graph — yg portal derives the page model from the committed graph and its verification state and either serves it on loopback or writes a self-contained static file; the one shelled write goes through the CLI."
+aspects:
+  - what-why-next
+  - posix-paths-output
+nodes:
+  - cli/commands/portal
+  - cli/portal/serializer
+  - cli/formatters

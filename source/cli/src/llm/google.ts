@@ -40,6 +40,13 @@ export class GoogleProvider implements LlmProvider {
           },
         }),
       }, 'google');
+      if (!res.ok) {
+        // Surface the HTTP status (never the body — that could carry response
+        // content). Without this a 4xx/5xx is parsed as if it were a verdict,
+        // losing the one diagnostic that explains the failure. Fail closed.
+        debugWrite(`[google] verifyAspect HTTP ${res.status} ${res.statusText}`);
+        return fallback;
+      }
       const data = await res.json() as {
         candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>
       };

@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 
 import type { Graph } from '../model/graph.js';
 import { parseFile, grammarWasmHash } from '../ast/parser.js';
-import { getLanguageForExtension } from '../core/graph/language-registry.js';
+import { getLanguageForExtension } from '../utils/language-registry.js';
 import { ensureLoaderRegistered } from '../ast/loader-hook.js';
 import { expandMappingPaths, hashString } from '../io/hash.js';
 

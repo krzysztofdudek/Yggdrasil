@@ -9,6 +9,25 @@ import type { WhenPredicate } from '../model/when.js';
 
 const VALID_RELATION_TYPES: Set<string> = new Set(['uses', 'calls', 'extends', 'implements', 'emits', 'listens']);
 
+/**
+ * The complete set of keys a single `node_types.<name>` entry may declare. An
+ * unknown key is almost always a typo (`parent` for `parents`, `aspect` for
+ * `aspects`, `relation` for `relations`) — and a silently-ignored typo drops an
+ * intended architectural constraint without any warning, exactly the failure the
+ * non-string-array guard below also defends against. Rejecting loudly turns a
+ * silent no-op into a blocking, fixable error. Mirrors the unknown-key rejection
+ * the config parser already applies to reviewer/tier blocks.
+ */
+const VALID_NODE_TYPE_KEYS: Set<string> = new Set([
+  'description',
+  'aspects',
+  'parents',
+  'relations',
+  'log_required',
+  'when',
+  'enforce',
+]);
+
 export async function parseArchitecture(filePath: string): Promise<ArchitectureDef> {
   const content = await readFile(filePath, 'utf-8');
   const raw = parseYaml(content) as Record<string, unknown>;
@@ -45,6 +64,15 @@ export async function parseArchitecture(filePath: string): Promise<ArchitectureD
     if (entry.integration_aspects !== undefined) {
       throw new Error(
         `yg-architecture.yaml: node type '${typeName}' has unknown field 'integration_aspects'. Use ports on the target node instead.`,
+      );
+    }
+
+    const unknownKeys = Object.keys(entry).filter((k) => !VALID_NODE_TYPE_KEYS.has(k));
+    if (unknownKeys.length > 0) {
+      throw new Error(
+        `yg-architecture.yaml: node_types.${typeName} has unknown ${unknownKeys.length === 1 ? 'key' : 'keys'} ${unknownKeys.map((k) => `'${k}'`).join(', ')}. ` +
+          `A misspelled key (e.g. 'parent' for 'parents', 'aspect' for 'aspects') is silently ignored, dropping the constraint you intended. ` +
+          `Valid keys: ${Array.from(VALID_NODE_TYPE_KEYS).join(', ')}. Fix or remove the offending ${unknownKeys.length === 1 ? 'key' : 'keys'}.`,
       );
     }
 

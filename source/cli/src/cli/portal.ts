@@ -4,6 +4,7 @@ import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { initDebugLog, debugWrite } from '../utils/debug-log.js';
 import { appendToDebugLog } from '../io/debug-log-writer.js';
 import { projectRootFromGraph } from '../io/paths.js';
+import { toPosixPath } from '../utils/posix.js';
 import { extractPortalData } from '../portal/extract.js';
 import { emitStatic } from '../portal/serializer.js';
 import { startServer } from '../portal/server/server.js';
@@ -71,7 +72,9 @@ async function runPortal(options: PortalOptions): Promise<void> {
     const data = await extractPortalData(projectRoot, { writeEnabled: options.write });
     const outPath = path.resolve(projectRoot, options.out ?? 'yg-portal.html');
     await emitStatic(data, outPath);
-    process.stdout.write(`Portal page written to ${outPath}\n`);
+    // outPath (path.resolve) is OS-native; normalize only the displayed path —
+    // emitStatic/openInBrowser keep the native form for filesystem access.
+    process.stdout.write(`Portal page written to ${toPosixPath(outPath)}\n`);
     if (options.open) {
       await openInBrowser(outPath);
     }

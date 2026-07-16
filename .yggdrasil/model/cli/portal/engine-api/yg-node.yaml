@@ -48,7 +48,7 @@ relations:
     type: calls
   - target: cli/core/reviewer-tiers
     type: calls
-  - target: cli/core/language-registry
+  - target: cli/language-registry
     type: calls
   - target: cli/group-issues
     type: calls

@@ -4,6 +4,12 @@ description: Shared LLM utilities — provider interface, registry, API helpers,
   aspect verifier, model fetcher, and reviewer connectivity test.
 aspects:
   - diagnostic-logging
+  # provider-redaction-cascade guards the nodes in the call chain to a provider
+  # against logging/persisting raw prompt or response before redaction. This node
+  # holds the aspect verifier and prompt assembly — where prompt/response data
+  # actually lives — so the cascade belongs here (it was previously attached to
+  # the registry barrel, which carries nothing to protect).
+  - provider-redaction-cascade
 mapping:
   - source/cli/src/llm/types.ts
   - source/cli/src/llm/provider.ts

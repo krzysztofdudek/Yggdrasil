@@ -124,9 +124,14 @@ pair is skipped by \`--approve\`. Remedies, in safety order:
    generated files, docs).
 2. Switch the aspect to \`per: file\` — ONLY if the rule is file-local (above).
 3. Split the node.
-4. Raise the limit or move the aspect to a higher-limit tier — a tier edit
-   cascades re-verification across every aspect resolving to that tier; confirm
-   with the user.
+4. Raise \`max_prompt_chars\` on the current tier, or re-point the aspect's
+   \`reviewer.tier:\` to a higher-limit tier. Raising the limit on the SAME tier
+   invalidates NOTHING — tier config (including \`max_prompt_chars\`) is excluded
+   from the pair hash; it simply lets a previously oversized, unverified pair get
+   reviewed for the first time on the next \`--approve\`. Re-pointing THIS aspect's
+   \`reviewer.tier:\` to a differently-named tier invalidates only this aspect's own
+   pairs (other aspects already on that tier are untouched — their \`reviewer.tier:\`
+   did not change); confirm with the user.
 
 ## False-positive mitigation
 
@@ -186,11 +191,13 @@ semantics, a false approval is much more costly than the higher per-call price,
 or the rules are ambiguous enough that a cheaper model gives flaky judgments. Use
 the cheaper default tier for narrow, well-defined contracts.
 
-The resolved tier identity is folded into every LLM pair's hash: changing
-\`reviewer.tier:\` on an aspect, or editing the referenced tier's
-\`provider\`/\`consensus\`/\`config\`, invalidates every pair using it and re-verifies
-on the next \`yg check --approve\`. Run \`yg impact --aspect <id>\` before swapping
-a tier on a widely-used aspect.
+Only the tier's NAME is folded into an LLM pair's hash — not its config. Changing
+\`reviewer.tier:\` on an aspect (pointing it at a differently-named tier) invalidates
+every pair using it and re-verifies on the next \`yg check --approve\`. Editing the
+referenced tier's own \`provider\` / \`consensus\` / \`config\` does NOT invalidate any
+verdict — the config is the reviewer's private business, so a named tier can be
+re-pointed at a different model or provider without re-verifying. Run
+\`yg impact --aspect <id>\` before swapping a tier on a widely-used aspect.
 
 ## When to prefer a deterministic aspect over LLM
 

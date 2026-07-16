@@ -257,6 +257,26 @@ export async function parseAspect(
             }],
           };
         }
+        // parseAspectAttachment parses an implies edge's own when: via parseWhen with
+        // a ctx suffixed `/when`, so every when-parse failure on the edge carries
+        // `/when:` in its message — and no other parseAspectAttachment error does.
+        // A malformed when: here must surface as a structured parse error, not an
+        // uncaught throw that the loader silently swallows (dropping this aspect and
+        // any scanned after it with a clean PASS).
+        if (msg.includes('/when:')) {
+          return {
+            ok: false,
+            aspectId: idTrimmed,
+            errors: [{
+              code: 'aspect-when-invalid',
+              messageData: {
+                what: `yg-aspect.yaml at ${aspectYamlPath}: implies[${i}] when predicate is invalid: ${msg}`,
+                why: 'an implies-edge when: must be a valid node predicate (node/relations/descendants atoms and all_of/any_of/not combinators)',
+                next: 'correct the when: predicate — see yg knowledge read conditional-aspects',
+              },
+            }],
+          };
+        }
         throw err;
       }
       implies.push(parsed.id);
@@ -271,7 +291,38 @@ export async function parseAspect(
 
   let when: WhenPredicate | undefined;
   if (raw.when !== undefined) {
-    when = parseWhen(raw.when, `yg-aspect.yaml at ${aspectYamlPath}: when`);
+    try {
+      when = parseWhen(raw.when, `yg-aspect.yaml at ${aspectYamlPath}: when`);
+    } catch (err) {
+      // A malformed aspect-level when: must surface as a structured parse error,
+      // NOT propagate as a throw — an uncaught throw here escapes parseAspect
+      // (whose contract is a {ok}|{ok:false,errors} union) and is swallowed by the
+      // loader, silently dropping this aspect (and any scanned after it) with a
+      // clean PASS. A WhenPredicateInvalidError already carries the file-atom
+      // cross-hint text; surface it verbatim so the guidance is preserved.
+      const message = err instanceof Error ? err.message : String(err);
+      // parseWhen embeds the file-atom cross-hint directly in its message text
+      // (it throws a plain Error, not a typed class), so detect by content.
+      const isFileAtomHint = message.includes('file atom');
+      return {
+        ok: false,
+        aspectId: idTrimmed,
+        errors: [{
+          code: 'aspect-when-invalid',
+          messageData: {
+            what: isFileAtomHint
+              ? message
+              : `yg-aspect.yaml at ${aspectYamlPath}: when predicate is invalid: ${message}`,
+            why: isFileAtomHint
+              ? 'the aspect-level when: uses the node-predicate grammar (node/relations/descendants atoms); path/content are file atoms and belong in scope.files'
+              : 'when: must be a valid node predicate (node/relations/descendants atoms and all_of/any_of/not combinators)',
+            next: isFileAtomHint
+              ? 'move the file filter to scope.files, or use a node-family atom in when:'
+              : 'correct the when: predicate — see yg knowledge read conditional-aspects',
+          },
+        }],
+      };
+    }
   }
 
   // references: optional, normalized to Array<{ path, description? }>
@@ -571,7 +622,7 @@ function parseReviewer(
   // Step 4: cross-field — only when type is valid
   if (!typeValid) return { ok: false, errors }; // unreachable but type-safe
 
-  const type = obj.type as 'llm' | 'deterministic';
+  const type = obj.type as 'llm' | 'deterministic' | 'aggregate';
   if (obj.tier !== undefined) {
     if (typeof obj.tier !== 'string' || obj.tier.trim() === '') {
       return {
@@ -586,14 +637,19 @@ function parseReviewer(
         }],
       };
     }
-    if (type === 'deterministic') {
+    // A tier names an LLM reviewer configuration, so it is only meaningful on an
+    // LLM aspect. Deterministic aspects run locally with no reviewer; aggregate
+    // aspects have no own reviewer at all — a tier on either is a contradiction.
+    if (type === 'deterministic' || type === 'aggregate') {
       return {
         ok: false,
         errors: [{
-          code: 'aspect-tier-on-deterministic',
+          code: type === 'deterministic' ? 'aspect-tier-on-deterministic' : 'aspect-tier-on-aggregate',
           messageData: {
-            what: `aspect '${aspectId}' has reviewer.type: deterministic together with reviewer.tier: '${obj.tier}'`,
-            why: 'Deterministic aspects run locally without an LLM; tiers do not apply',
+            what: `aspect '${aspectId}' has reviewer.type: ${type} together with reviewer.tier: '${obj.tier}'`,
+            why: type === 'deterministic'
+              ? 'Deterministic aspects run locally without an LLM; tiers do not apply'
+              : 'Aggregate aspects have no own reviewer; a tier does not apply',
             next: 'remove tier: from the aspect',
           },
         }],

@@ -59,7 +59,7 @@ import type { Graph } from '../model/graph.js';
 import type { FileFacts } from '../relations/pass.js';
 import { ALL_FEATURE_CATEGORIES, type FeatureVector } from '../relations/feature-vector.js';
 import { buildOwnerIndex } from '../relations/owner-index.js';
-import { getLanguageForExtension } from './graph/language-registry.js';
+import { getLanguageForExtension } from '../utils/language-registry.js';
 import { atomicWriteFile } from '../io/atomic-write.js';
 import { readTextFile, writeTextFile } from '../io/graph-fs.js';
 import { debugWrite } from '../utils/debug-log.js';

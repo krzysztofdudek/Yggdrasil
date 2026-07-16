@@ -34,6 +34,13 @@ export class OpenAIProvider implements LlmProvider {
           response_format: { type: 'json_object' },
         }),
       }, 'openai');
+      if (!res.ok) {
+        // Surface the HTTP status (never the body — that could carry response
+        // content). Without this a 4xx/5xx is parsed as if it were a verdict,
+        // losing the one diagnostic that explains the failure. Fail closed.
+        debugWrite(`[openai] verifyAspect HTTP ${res.status} ${res.statusText}`);
+        return fallback;
+      }
       const data = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
       const content = data.choices?.[0]?.message?.content ?? '';
       return parseAspectResponse(content) ?? fallback;

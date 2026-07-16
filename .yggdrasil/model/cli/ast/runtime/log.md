@@ -89,3 +89,5 @@ tree the gate would hand it — introducing no new divergence. Preserving that
 harness-equals-gate equivalence is the invariant this runner exists to uphold:
 a rule author must be able to trust that a case exercised in the diagnostic
 surface behaves exactly as it will in the enforcing one.
+## [2026-07-15T09:46:48.865Z]
+The language-registry module — the pure extension-to-grammar lookup table with no imports of its own — was relocated from the core layer to the utility leaf so that lower layers (AST parsing, relation extraction, structural checks) no longer declare a dependency that points back up into core. This node's import path to that module was updated to the new leaf location. Pure structural relocation: no behavior changes, the lookup table and its helpers are byte-identical.

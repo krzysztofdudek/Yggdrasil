@@ -53,13 +53,7 @@ export function needsEndpoint(provider: ReviewerProvider): boolean {
 }
 
 async function promptApiKey(provider: ReviewerProvider): Promise<string> {
-  const envVars: Record<string, string> = {
-    anthropic: 'ANTHROPIC_API_KEY',
-    openai: 'OPENAI_API_KEY',
-    google: 'GOOGLE_API_KEY',
-    'openai-compatible': 'OPENAI_API_KEY',
-  };
-  const envVar = envVars[provider];
+  const envVar = API_KEY_ENV[provider];
   const hint = envVar ? ` (or set ${envVar} env var)` : '';
   const key = await p.text({
     message: `API key for ${provider}${hint}`,

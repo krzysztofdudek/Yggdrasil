@@ -91,6 +91,40 @@ export interface CtxGraph {
   flowParticipants(flowName: string): GraphNode[];
 }
 
+/**
+ * Record a `graph:<node>` observation for one model node into the recorder,
+ * folding the node's RAW yg-node.yaml DISK bytes — byte-identical to what the
+ * verifier re-observes (it reads the same file from disk). Reading disk here,
+ * rather than re-encoding the in-memory nodeYamlRaw as UTF-8, keeps the two
+ * sides symmetric for a non-UTF-8 yg-node.yaml. Falls back to the in-memory raw
+ * when the disk read fails (tests with minimal stubs); an absent file with no
+ * in-memory raw records the MISSING token so creating the file later invalidates.
+ *
+ * Shared by ctx.graph node probes AND the ctx.node self-observation (hook-loader),
+ * so a check that reads ctx.node.type / ctx.node.ports folds the node's identity
+ * exactly as a ctx.graph.node(self) call would — closing the stale-green hole
+ * where a type/ports change left a deterministic verdict wrongly valid.
+ */
+export function recordNodeGraphObservation(
+  recorder: ObservationRecorder | undefined,
+  projectRoot: string,
+  m: ModelNode,
+): void {
+  if (!recorder) return;
+  const ygNodePath = path.join(projectRoot, '.yggdrasil', 'model', m.path, 'yg-node.yaml');
+  let yamlBytes: Buffer | undefined;
+  try {
+    yamlBytes = fs.readFileSync(ygNodePath);
+  } catch {
+    yamlBytes = m.nodeYamlRaw !== undefined ? Buffer.from(m.nodeYamlRaw, 'utf8') : undefined;
+  }
+  if (yamlBytes === undefined) {
+    recorder.recordGraphNodeAbsent(m.path);
+  } else {
+    recorder.recordGraphNode(m.path, yamlBytes);
+  }
+}
+
 export function computeAllowedNodePaths(currentPath: string, graph: Graph): Set<string> {
   const allowed = new Set<string>([currentPath]);
   const current = graph.nodes.get(currentPath);
@@ -129,27 +163,7 @@ export function createCtxGraph(params: CtxGraphParams): CtxGraph {
   }
 
   function recordGraphNode(m: ModelNode): void {
-    if (!recorder) return;
-    // Hash the RAW yg-node.yaml DISK bytes — byte-identical to what the verifier
-    // re-observes (it reads the same file from disk). Reading disk here, rather
-    // than re-encoding the in-memory nodeYamlRaw string as UTF-8, keeps the two
-    // sides symmetric for a non-UTF-8 yg-node.yaml (a lossy round-trip would
-    // diverge). Fall back to the in-memory raw only when the disk read fails
-    // (e.g. tests with minimal graph stubs and no on-disk file). An absent file
-    // with no in-memory raw records the MISSING_OBSERVATION token via
-    // recordGraphNodeAbsent so creating the file later invalidates.
-    const ygNodePath = path.join(projectRoot, '.yggdrasil', 'model', m.path, 'yg-node.yaml');
-    let yamlBytes: Buffer | undefined;
-    try {
-      yamlBytes = fs.readFileSync(ygNodePath);
-    } catch {
-      yamlBytes = m.nodeYamlRaw !== undefined ? Buffer.from(m.nodeYamlRaw, 'utf8') : undefined;
-    }
-    if (yamlBytes === undefined) {
-      recorder.recordGraphNodeAbsent(m.path);
-    } else {
-      recorder.recordGraphNode(m.path, yamlBytes);
-    }
+    recordNodeGraphObservation(recorder, projectRoot, m);
   }
 
   function toPublicNode(m: ModelNode): GraphNode {

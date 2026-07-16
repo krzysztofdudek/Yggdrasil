@@ -1,7 +1,7 @@
 import { extname } from 'node:path';
 import type { Tree } from 'web-tree-sitter';
 import { findComments } from './find-comments.js';
-import { getLanguageForExtension } from '../core/graph/language-registry.js';
+import { getLanguageForExtension } from '../utils/language-registry.js';
 import { toPosixPath } from '../utils/posix.js';
 import type { IssueMessage } from '../model/validation.js';
 

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { withParsedFile } from '../../../src/ast/parser.js';
 import { ensureLoaderRegistered } from '../../../src/ast/loader-hook.js';
-import { LANGUAGES } from '../../../src/core/graph/language-registry.js';
+import { LANGUAGES } from '../../../src/utils/language-registry.js';
 import {
   countFeatures,
   isValidFeatureVector,

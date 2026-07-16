@@ -10,11 +10,6 @@
  */
 
 import type { IssueMessage } from '../model/validation.js';
-import { toPosixPath } from '../utils/posix.js';
-
-function posix(p: string): string {
-  return toPosixPath(p);
-}
 
 /**
  * An expected pair has no valid verdict in the lock (missing entry, edited
@@ -95,21 +90,3 @@ export function promptTooLargeMessage(params: {
   };
 }
 
-/**
- * A scope.files content filter could not read a candidate subject file. The
- * file is excluded from the subject set; surfacing it as a blocking error keeps
- * a silently-dropped file from turning an enforced rule into a vacuous pass.
- * Reuses the existing `file-unreadable` code conventions.
- */
-export function fileUnreadableMessage(params: {
-  aspectId: string;
-  nodePath: string;
-  path: string;
-  reason: string;
-}): IssueMessage {
-  return {
-    what: `Aspect '${params.aspectId}' on node '${posix(params.nodePath)}' could not read subject file '${posix(params.path)}': ${params.reason}.`,
-    why: 'A file the scope.files filter must evaluate could not be read, so it was dropped from the review subject set. A silently dropped file can turn an enforced rule into a vacuous pass.',
-    next: `Fix the file permissions or remove '${posix(params.path)}' from the node mapping, then re-run yg check.`,
-  };
-}

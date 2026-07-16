@@ -319,11 +319,17 @@ describe('checkMappingOverlap — glob file-level pass', () => {
     expect(msg).toContain('other');
   });
 
-  it('a single file claimed by ONLY an ancestor + its descendant via glob: child-wins leaves one leaf -> no overlap', async () => {
+  it('child-precedence: a child claiming a specific file inside a parent glob is exempt (child wins)', async () => {
+    // The parent globs src/**/*.cs and the graph-child claims the specific
+    // src/repo/FooRepository.cs. Under child-precedence the deeper node wins
+    // implicitly — the glob-aware runtime carve-out removes that file from the
+    // parent's subject set — so this is NOT flagged, even though the child's entry
+    // is not string-nested in the parent's glob. (This is the "special case in a
+    // globbed directory" pattern.)
     const { projectRoot, yggRoot } = await makeProject();
     await writeFileEnsuringDir(path.join(projectRoot, 'src/repo/FooRepository.cs'), 'class Foo {}');
     const graph = buildGraph(yggRoot, [
-      { path: 'svc', mapping: ['src/**/*.cs'] }, // glob; ancestor
+      { path: 'svc', mapping: ['src/**/*.cs'] }, // glob; ancestor node
       { path: 'svc/inner', mapping: ['src/repo/FooRepository.cs'], parent: 'svc' },
     ]);
     const issues = await checkMappingOverlap(graph);

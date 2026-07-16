@@ -99,7 +99,7 @@ export interface Ctx {
 //   - all paths in ctx.files (own mapping minus child carve-out)
 //   - all paths in ctx.node.mapping that match known AST language extensions
 //     (.ts/.tsx/.js/.jsx — language registry via getGrammarForExtension /
-//      getLanguageForExtension in core/graph/language-registry.ts)
+//      getLanguageForExtension in utils/language-registry.ts)
 //   - paths reachable via ctx.graph.node(target).files for each declared relation target
 //     (lazy: only parsed if the aspect actually touches that node)
 //

@@ -3,6 +3,6 @@ type: test-suite
 description: "Unit tests for the language registry helper — the lookup that maps
   file extensions to parser languages used by AST and structure reviewers."
 aspects: []
-relations: [ { target: cli/core/language-registry, type: uses } ]
+relations: [ { target: cli/language-registry, type: uses } ]
 mapping:
   - source/cli/tests/unit/core/language-registry.test.ts

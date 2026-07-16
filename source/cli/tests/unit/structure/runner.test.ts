@@ -398,6 +398,33 @@ describe('runStructureAspect', () => {
       expect(r.violations[0].message).toBe('ok');
       expect(r.touchedFiles).toContain('src/a.ts');
     });
+
+    it('reading ctx.node.type folds a graph: observation on the reviewed node (no stale-green on a type change)', async () => {
+      await writeAspect('canary-type', `export function check(ctx) { if (ctx.node.type === 'engine') return [{ message: 'x' }]; return []; }`);
+      const g = buildTestGraphForStructure({
+        nodes: [{ path: 'N', type: 'module', mapping: ['src/a.ts'] }],
+      });
+      const r = await runStructureAspect({
+        aspectDir: path.join('.yggdrasil/aspects/canary-type'),
+        aspectId: 'canary-type', nodePath: 'N', graph: g, projectRoot,
+      });
+      expect(r.succeeded).toBe(true);
+      // The node's identity is now folded, so a later type/ports change invalidates.
+      expect(r.observations.some(([k]) => k.startsWith('graph:') && k.includes('N'))).toBe(true);
+    });
+
+    it('a check that never reads ctx.node.type/ports does NOT fold the self graph: observation', async () => {
+      await writeAspect('canary-id', `export function check(ctx) { void ctx.node.id; void ctx.node.files; return []; }`);
+      const g = buildTestGraphForStructure({
+        nodes: [{ path: 'N', type: 'module', mapping: ['src/a.ts'] }],
+      });
+      const r = await runStructureAspect({
+        aspectDir: path.join('.yggdrasil/aspects/canary-id'),
+        aspectId: 'canary-id', nodePath: 'N', graph: g, projectRoot,
+      });
+      expect(r.succeeded).toBe(true);
+      expect(r.observations.some(([k]) => k.startsWith('graph:') && k.includes('N'))).toBe(false);
+    });
   });
 
   it('node with children — child mapping carved out of own files', async () => {

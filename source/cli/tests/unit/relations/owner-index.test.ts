@@ -23,4 +23,20 @@ describe('OwnerIndex', () => {
     const idx = buildOwnerIndex(new Map([['r', node('r', ['src/**/*.ts'])]]) as any);
     expect(idx.ownerOf('src/deep/x.ts')).toBe('r');
   });
+
+  it('child wins an equal-length mapping tie against its ancestor (deeper node), independent of insertion order', () => {
+    // Parent glob and child plain entry both match src/x/y.ts and are the same
+    // length (10). The deeper node (the child) must win — matching the graph's
+    // child-carve-out model — regardless of Map insertion order.
+    const forward = buildOwnerIndex(new Map([
+      ['app', node('app', ['src/*/y.ts'])],
+      ['app/x', node('app/x', ['src/x/y.ts'])],
+    ]) as any);
+    const reverse = buildOwnerIndex(new Map([
+      ['app/x', node('app/x', ['src/x/y.ts'])],
+      ['app', node('app', ['src/*/y.ts'])],
+    ]) as any);
+    expect(forward.ownerOf('src/x/y.ts')).toBe('app/x');
+    expect(reverse.ownerOf('src/x/y.ts')).toBe('app/x');
+  });
 });
