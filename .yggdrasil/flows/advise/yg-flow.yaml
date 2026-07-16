@@ -1,0 +1,9 @@
+name: Advisory attention
+description: "Aggregate signals into ranked attention items — yg advise reads health signals, structural nominations, drill regression telemetry, and the incident count, and presents each proposal with its evidence and a human NEXT; it never gates or writes a verdict."
+aspects:
+  - deterministic
+  - what-why-next
+nodes:
+  - cli/commands/advise
+  - cli/core/advise
+  - cli/formatters
