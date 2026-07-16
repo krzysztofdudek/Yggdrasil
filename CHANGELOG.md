@@ -75,6 +75,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **(Repo-internal.)** Retired a dead "layer builder" subsystem in the context-data builder — six exported per-layer helper functions with no production callers (the context builders were refactored to assemble their output directly and no longer used them; they survived only because a dedicated test exercised them). Removed the functions, the types and imports they alone used, and their now-orphaned tests, keeping the live context-data builders and their tests unchanged.
 - **(Repo-internal.)** Removed four dead, unreferenced exports (a derived provider type, a retired graph-file-path helper, an unused filesystem stat helper, and an unused lock-diagnostic message builder) along with the imports they left dangling. Verified zero importers across the whole tree first.
 - **(Repo-internal.)** Deduplicated the provider→API-key-env-var map in the init reviewer setup — the interactive key prompt now reads the single `API_KEY_ENV` source of truth instead of re-declaring the same table inline.
 - **(Repo-internal.)** Removed a dead migration-runner function whose applicable-filter / sort / run logic was fully duplicated by, and superseded by, the live version-upgrade runner. It had no production callers; the live runner's own tests already cover the same ordering and skip behavior.

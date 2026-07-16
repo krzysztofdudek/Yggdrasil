@@ -1,18 +1,7 @@
-import path from 'node:path';
-import type {
-  Graph,
-  GraphNode,
-  YggConfig,
-  AspectDef,
-  Relation,
-} from '../model/graph.js';
-import type {
-  ContextLayer,
-} from '../model/context.js';
+import type { Graph } from '../model/graph.js';
 import type { NodeContextData } from '../formatters/context-node.js';
 import type { FileContextData } from '../formatters/context-file.js';
 import { normalizeMappingPaths } from '../io/paths.js';
-import { readTextFile } from '../io/graph-fs.js';
 import { computeEffectiveAspects, computeEffectiveAspectStatuses, getAspectSource } from './graph/aspects.js';
 import { toPosixPath } from '../utils/posix.js';
 import {
@@ -34,127 +23,6 @@ function normPath(p: string): string {
   return toPosixPath(p);
 }
 
-
-// --- Layer builders (exported for testing) ---
-
-export function buildGlobalLayer(rootPath: string): ContextLayer {
-  const projectName = path.basename(path.dirname(rootPath));
-  const content = `**Project:** ${projectName}\n`;
-  return { type: 'global', label: 'Global Context', content };
-}
-
-export function buildHierarchyLayer(
-  ancestor: GraphNode,
-  _config: YggConfig,
-  graph: Graph,
-): ContextLayer {
-  const parts: string[] = [];
-  if (ancestor.nodeYamlRaw) {
-    parts.push(`### yg-node.yaml\n${ancestor.nodeYamlRaw.trim()}`);
-  }
-  const content = parts.join('\n\n');
-  const effectiveIds = computeEffectiveAspects(ancestor, graph);
-  const attrs: Record<string, string> | undefined =
-    effectiveIds.size > 0 ? { aspects: [...effectiveIds].join(',') } : undefined;
-  return {
-    type: 'hierarchy',
-    label: `Module Context (${normPath(ancestor.path)})`,
-    content,
-    attrs,
-  };
-}
-
-export async function buildOwnLayer(
-  node: GraphNode,
-  _config: YggConfig,
-  graphRootPath: string,
-  graph: Graph,
-): Promise<ContextLayer> {
-  const parts: string[] = [];
-
-  if (node.nodeYamlRaw) {
-    parts.push(`### yg-node.yaml\n${node.nodeYamlRaw.trim()}`);
-  } else {
-    const nodeYamlPath = path.join(graphRootPath, 'model', node.path, 'yg-node.yaml');
-    try {
-      const nodeYamlContent = await readTextFile(nodeYamlPath);
-      parts.push(`### yg-node.yaml\n${nodeYamlContent.trim()}`);
-    } catch {
-      parts.push(`### yg-node.yaml\n(not found)`);
-    }
-  }
-
-  const content = parts.join('\n\n');
-  const effectiveIds = computeEffectiveAspects(node, graph);
-  const attrs: Record<string, string> | undefined =
-    effectiveIds.size > 0 ? { aspects: [...effectiveIds].join(',') } : undefined;
-  return {
-    type: 'hierarchy',
-    label: `Node: ${node.meta.name}`,
-    content,
-    attrs,
-  };
-}
-
-export function buildStructuralRelationLayer(
-  target: GraphNode,
-  relation: Relation,
-): ContextLayer {
-  let content = '';
-  if (relation.consumes?.length) {
-    content += `Consumes: ${relation.consumes.join(', ')}\n\n`;
-  }
-
-  if (target.meta.description) {
-    content += target.meta.description;
-  }
-
-  const attrs: Record<string, string> = {
-    target: normPath(target.path),
-    type: relation.type,
-  };
-  if (relation.consumes?.length) attrs.consumes = relation.consumes.join(', ');
-
-  return {
-    type: 'relational',
-    label: `Dependency: ${target.meta.name} (${relation.type}) — ${normPath(target.path)}`,
-    content: content.trim(),
-    attrs,
-  };
-}
-
-export function buildEventRelationLayer(target: GraphNode, relation: Relation): ContextLayer {
-  const eventName = relation.event_name ?? target.meta.name;
-  const isEmit = relation.type === 'emits';
-  let content = isEmit
-    ? `Target: ${normPath(target.path)}\nYou publish ${eventName}.`
-    : `Source: ${normPath(target.path)}\nYou listen for ${eventName}.`;
-  if (relation.consumes?.length) {
-    content += `\nConsumes: ${relation.consumes.join(', ')}`;
-  }
-  const attrs: Record<string, string> = {
-    target: normPath(target.path),
-    type: relation.type,
-    'event-name': eventName,
-  };
-  if (relation.consumes?.length) attrs.consumes = relation.consumes.join(', ');
-
-  return {
-    type: 'relational',
-    label: `Event: ${eventName} [${relation.type}]`,
-    content,
-    attrs,
-  };
-}
-
-export function buildAspectLayer(aspect: AspectDef): ContextLayer {
-  const content = aspect.artifacts.map((a) => `### ${a.filename}\n${a.content}`).join('\n\n');
-  return {
-    type: 'aspects',
-    label: `${aspect.name} (aspect: ${aspect.id})`,
-    content,
-  };
-}
 
 /**
  * Compute how many nodes have a structural relation targeting nodePath.
