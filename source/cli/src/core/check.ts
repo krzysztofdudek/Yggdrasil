@@ -526,8 +526,10 @@ function buildGitignoredCoveredIssues(offending: string[]): CheckIssue[] {
  * @param options.writeFeatureIndex -- when true (set ONLY by cli/check.ts's report
  *        path, default false everywhere else), write the SILENT feature-field
  *        deviation index after the full issue set is computed. Best-effort and
- *        byproduct-free: it never changes the issue set or the exit code, and the
- *        four other runCheck call sites (portal, fill's re-checks) never set it.
+ *        byproduct-free: it never changes the issue set or the exit code. The
+ *        portal re-check and fill's dry-run pre-check never set it; fill's
+ *        post-fill report forwards whatever its own caller set (true only under
+ *        `yg check --approve`, which always sets it).
  * @param options.now -- INJECTED clock stamped into the index's `generatedAt`.
  */
 export interface RunCheckOptions {

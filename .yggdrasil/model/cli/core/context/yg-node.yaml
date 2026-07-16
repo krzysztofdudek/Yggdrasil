@@ -6,8 +6,6 @@ aspects: []
 relations:
   - target: cli/model/graph
     type: uses
-  - target: cli/model/context
-    type: uses
   - target: cli/utils
     type: calls
   - target: cli/core/graph

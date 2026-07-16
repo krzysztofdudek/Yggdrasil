@@ -1,4 +1,4 @@
-export const MAX_DESC = 80;
+const MAX_DESC = 80;
 
 export function truncateDescription(s: string): string {
   if (s.length <= MAX_DESC) return s;

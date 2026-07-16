@@ -110,14 +110,14 @@ export interface DrillRunContext {
 }
 
 /** The fixed node description for a drill prompt — a synthetic fixture, not a graph node. */
-export function drillNodeDescription(aspectId: string): string {
+function drillNodeDescription(aspectId: string): string {
   return `Drill case corpus for aspect '${aspectId}' — a synthetic fixture exercising the rule, not a graph node.`;
 }
 
 // ── Verbatim CLI lines (built here as plain strings so the command renders them;
 //    the engine never calls buildIssueMessage or console). ──
 
-export function drillBudgetLine(
+function drillBudgetLine(
   aspectId: string,
   reviewerCalls: number,
   llmCases: number,
@@ -127,27 +127,27 @@ export function drillBudgetLine(
   return `yg drill: budgeting ${reviewerCalls} reviewer call(s) for '${aspectId}' — ${llmCases} LLM case(s) × consensus ${consensus}; ${detCases} deterministic case(s) run free.`;
 }
 
-export function drillUnsupportedGraphCtxLine(aspectId: string): string {
+function drillUnsupportedGraphCtxLine(aspectId: string): string {
   return `unsupported: check '${aspectId}' reads graph context (node/graph/fs/parseYaml); drill v1 runs check.mjs over case files only. Recorded, not scored.`;
 }
 
-export function drillUnsupportedCompanionLine(aspectId: string): string {
+function drillUnsupportedCompanionLine(aspectId: string): string {
   return `unsupported: aspect '${aspectId}' ships companion.mjs; drill v1 cannot assemble per-unit companions without a graph. Recorded, not scored.`;
 }
 
-export function drillUnrunPromptTooLargeLine(chars: number, limit: number): string {
+function drillUnrunPromptTooLargeLine(chars: number, limit: number): string {
   return `unrun: assembled prompt is ${chars} chars, over the tier's limit of ${limit}. Split the case or raise the tier's max_prompt_chars.`;
 }
 
-export function drillUnrunDeterministicLine(aspectId: string): string {
+function drillUnrunDeterministicLine(aspectId: string): string {
   return `unrun: check '${aspectId}' could not be evaluated over this case (source parse or runtime error). Recorded, not scored.`;
 }
 
-export function drillUnrunReviewerLine(aspectId: string): string {
+function drillUnrunReviewerLine(aspectId: string): string {
   return `unrun: reviewer could not evaluate aspect '${aspectId}' on this case (infrastructure error). Recorded, not scored.`;
 }
 
-export function drillUnrunSuppressLine(aspectId: string): string {
+function drillUnrunSuppressLine(aspectId: string): string {
   return `unrun: a case file for aspect '${aspectId}' has a yg-suppress marker missing its required reason. Recorded, not scored.`;
 }
 
@@ -286,7 +286,7 @@ export async function caseHashOf(files: string[], projectRoot: string): Promise<
 }
 
 /** sha256 of the aspect's rule source (check.mjs for deterministic, content.md for LLM). */
-export function ruleHashOf(aspect: AspectDef): string {
+function ruleHashOf(aspect: AspectDef): string {
   return ruleHashFor(aspect, aspect.reviewer.type === 'deterministic' ? 'check.mjs' : 'content.md');
 }
 

@@ -447,7 +447,7 @@ export function resolveTopValue(raw: boolean | string | undefined): number | nul
  * nothing after the colon. Rule: a first line that ends in `:` is a heading, so
  * surface the WHOLE block; otherwise keep the terse first-line-only form.
  */
-export function nextPointer(next: string): string {
+function nextPointer(next: string): string {
   const firstLine = next.split('\n')[0];
   return firstLine.trimEnd().endsWith(':') ? next : firstLine;
 }
@@ -460,7 +460,7 @@ export function nextPointer(next: string): string {
  * where N = count of error issues with code `unverified`, K = count of error
  * issues with code !== `unverified`. Otherwise returns ''.
  */
-export function residualAfterNext(result: CheckResult): string {
+function residualAfterNext(result: CheckResult): string {
   if (!result.suggestedNext?.startsWith('yg check --approve')) return '';
   const errors = result.issues.filter(i => i.severity === 'error');
   const N = errors.filter(i => i.code === 'unverified').length;

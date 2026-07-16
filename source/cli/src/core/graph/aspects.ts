@@ -7,9 +7,9 @@ import { debugWrite } from '../../utils/debug-log.js';
 
 /**
  * Thrown when implies expansion / status propagation encounters a cycle in the
- * aspect implies graph. Recognizable as a distinct class so callers (notably
- * `classifyDrift` in core/check.ts) can skip per-node drift computation on a
- * structurally-invalid graph WITHOUT swallowing unrelated errors. The static
+ * aspect implies graph. Recognizable as a distinct class so callers that compute
+ * effective aspects per node (in core/pairs.ts and core/checks/aspect-contracts.ts)
+ * can skip a structurally-invalid node WITHOUT swallowing unrelated errors. The static
  * validator (`checkImpliesNoCycles`) still produces the user-facing structured
  * `aspect-implies-cycle` issue — this error only signals "stop computing here".
  */

@@ -637,7 +637,7 @@ async function gatherInCorpusDrillResults(
   }
 }
 
-export async function buildAspectsHealthOutput(graph: Graph, nowMs: number): Promise<string> {
+async function buildAspectsHealthOutput(graph: Graph, nowMs: number): Promise<string> {
   const projectRoot = path.dirname(graph.rootPath);
 
   const lock = readLock(graph.rootPath);

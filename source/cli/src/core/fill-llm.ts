@@ -272,7 +272,7 @@ export async function fillLlmPair(
  * preserved: `what:` is replaced with the token-bearing form, but `why:` and
  * `next:` from `originalMessageData` are kept so actionable guidance is not lost.
  */
-export function companionRuntimeNotice(aspectId: string, unitKey: string, reason: string, originalMessageData?: IssueMessage): IssueMessage {
+function companionRuntimeNotice(aspectId: string, unitKey: string, reason: string, originalMessageData?: IssueMessage): IssueMessage {
   // why: combines the original what+why so the full diagnostic text (including the
   // specific failure kind — "companion hook threw", "expected an array of", etc.) is
   // always surfaced. The original next: is threaded through so actionable guidance

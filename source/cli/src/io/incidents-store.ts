@@ -62,7 +62,7 @@ export const INCIDENT_TAGS = [
 export type IncidentTag = (typeof INCIDENT_TAGS)[number];
 
 /** The tag whose incidents are miscalibration evidence for the catch/exposure health story. */
-export const WRONG_RULE_TAG: IncidentTag = 'wrong-rule';
+const WRONG_RULE_TAG: IncidentTag = 'wrong-rule';
 
 /** True iff `tag` is one of the sanctioned incident causes. */
 export function isValidIncidentTag(tag: string): tag is IncidentTag {

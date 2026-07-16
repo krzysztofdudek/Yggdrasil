@@ -155,7 +155,7 @@ export async function fillDetPair(
   return { kind: 'verdict', entry };
 }
 
-export function detRuntimeNotice(aspectId: string, unitKey: string, reason: string): IssueMessage {
+function detRuntimeNotice(aspectId: string, unitKey: string, reason: string): IssueMessage {
   return {
     what: `Deterministic check '${aspectId}' failed to run on ${toPosixPath(unitKey)} — left unverified (aspect-check-runtime-error).`,
     why: `The check.mjs crashed, returned an invalid result, or its observations changed mid-run: ${reason}`,

@@ -10,7 +10,7 @@ import path from 'node:path';
  *
  * `exists(repoRelPosix)` reports whether a candidate file exists in the resolution
  * universe (disk at --approve time; a fixed known-set in unit tests). The crate root
- * is discovered through `findCrateSrc`, which walks up from the importing file to the
+ * is discovered through `crateRootFor` (resolve-path.ts), which walks up from the importing file to the
  * nearest `Cargo.toml` and returns that crate's `src/` directory (and, when known,
  * the crate's own package name so a path rooted at the crate's own name is treated
  * like `crate`).

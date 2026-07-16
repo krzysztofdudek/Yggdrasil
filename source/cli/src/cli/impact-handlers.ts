@@ -199,7 +199,7 @@ interface FillCost {
  * re-fill would dispatch (units × the resolved tier consensus). Deterministic
  * aspects are free (0 reviewer calls).
  */
-export async function computeAspectFillCost(graph: Graph, aspectId: string): Promise<FillCost> {
+async function computeAspectFillCost(graph: Graph, aspectId: string): Promise<FillCost> {
   const aspect = graph.aspects.find((a) => a.id === aspectId);
   const { pairs } = await computeExpectedPairs(graph);
   const units = pairs.filter((p) => p.aspectId === aspectId).length;
@@ -218,7 +218,7 @@ export async function computeAspectFillCost(graph: Graph, aspectId: string): Pro
 }
 
 /** Render the cost lines for an aspect change in lock vocabulary (no drift words). */
-export function renderFillCost(cost: FillCost, affectedNodes: number): string {
+function renderFillCost(cost: FillCost, affectedNodes: number): string {
   if (cost.units === 0) {
     return `  No verified pairs of this aspect exist yet — a change re-verifies them on the next yg check --approve.\n`;
   }

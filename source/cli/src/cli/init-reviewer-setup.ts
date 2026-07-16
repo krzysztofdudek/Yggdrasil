@@ -28,7 +28,7 @@ const CLI_PROVIDERS: ReviewerProvider[] = ['claude-code', 'codex', 'gemini-cli']
 /** Every valid --provider value (free CLI-agent providers first, then API/local). */
 export const ALL_PROVIDERS: ReviewerProvider[] = [...CLI_PROVIDERS, ...API_PROVIDERS];
 /** Env var each API provider reads its key from, for non-interactive init. */
-export const API_KEY_ENV: Partial<Record<ReviewerProvider, string>> = {
+const API_KEY_ENV: Partial<Record<ReviewerProvider, string>> = {
   anthropic: 'ANTHROPIC_API_KEY',
   openai: 'OPENAI_API_KEY',
   google: 'GOOGLE_API_KEY',
@@ -44,11 +44,11 @@ const CLAUDE_CODE_ALIASES = [
 // Reviewer configuration flow
 // ---------------------------------------------------------------------------
 
-export function needsApiKey(provider: ReviewerProvider): boolean {
+function needsApiKey(provider: ReviewerProvider): boolean {
   return !CLI_PROVIDERS.includes(provider) && provider !== 'ollama';
 }
 
-export function needsEndpoint(provider: ReviewerProvider): boolean {
+function needsEndpoint(provider: ReviewerProvider): boolean {
   return provider === 'openai-compatible' || provider === 'ollama';
 }
 
@@ -245,7 +245,7 @@ export async function runReviewerConfigFlow(): Promise<{
  * the secrets file is a 1:1 deep-merge overlay over the config and must address
  * the SAME tier.
  */
-export const BOOTSTRAP_TIER_NAME = 'standard';
+const BOOTSTRAP_TIER_NAME = 'standard';
 
 export async function writeReviewerConfig(
   yggRoot: string,

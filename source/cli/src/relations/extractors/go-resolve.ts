@@ -22,7 +22,7 @@ import path from 'node:path';
  *
  * Resolution is pure except through `deps`, which provides disk access derived
  * from the project root. The module path is read from go.mod once and cached by
- * the caller (`makeGoResolver`).
+ * the caller (`makeGoResolveDeps` in resolve-path.ts).
  */
 export interface GoResolveDeps {
   /**

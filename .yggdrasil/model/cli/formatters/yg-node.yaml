@@ -3,8 +3,6 @@ type: formatter
 description: Output formatting for context packages, converting structured data
   to YAML and text
 relations:
-  - target: cli/model/context
-    type: uses
   - target: cli/model/graph
     type: uses
   - target: cli/utils

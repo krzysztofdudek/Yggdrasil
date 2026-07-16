@@ -87,7 +87,7 @@ const ERROR_CODE_PRIORITY: string[] = [
   'mapped-file-gitignored',
 ];
 
-export function issuePriorityRank(issue: CheckIssue): number {
+function issuePriorityRank(issue: CheckIssue): number {
   const idx = ERROR_CODE_PRIORITY.indexOf(issue.code);
   if (idx >= 0) return idx;
   // Unranked errors sub-rank by the SAME category cascade computeSuggestedNext
