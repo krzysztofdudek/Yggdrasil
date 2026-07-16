@@ -75,6 +75,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **(Repo-internal.)** Deduplicated the provider→API-key-env-var map in the init reviewer setup — the interactive key prompt now reads the single `API_KEY_ENV` source of truth instead of re-declaring the same table inline.
 - **(Repo-internal.)** Removed a dead migration-runner function whose applicable-filter / sort / run logic was fully duplicated by, and superseded by, the live version-upgrade runner. It had no production callers; the live runner's own tests already cover the same ordering and skip behavior.
 - **(Repo-internal.)** The language-registry module (the pure extension-to-grammar lookup with no dependencies of its own) moved from the core layer to the utility leaf, so the parsing, relation-extraction, and structural-check layers no longer reach up into core to use it — cutting a two-level dependency cycle. No behavior change; the table and its helpers are byte-identical.
 
