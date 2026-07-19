@@ -327,7 +327,8 @@ record a refusal.
    <its default>\` — or keyless, config by hand (\`yg schemas read config\`);
    in the hand-config path also write \`.yggdrasil/.gitignore\` with the lines
    \`yg init\` ships (\`yg-secrets.yaml\`, \`.symbols-cache/\`, \`.ast-cache/\`,
-   \`.debug.log\`, \`.yg-lock.deterministic.json\`) so the derived caches the
+   \`.debug.log\`, \`.yg-lock.deterministic.json\`, \`.yg-events.jsonl\`,
+   \`.yg-fill-divergence.log\`, \`.feature-field.json\`) so the derived caches the
    demos generate never surface as untracked files and break the porcelain
    proof. Add the scaffold's side files (rules file, \`.gitattributes\`) to
    \`coverage.excluded\` so the learner's first green isn't blemished by a

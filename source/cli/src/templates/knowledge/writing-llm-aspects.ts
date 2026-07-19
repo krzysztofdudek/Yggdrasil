@@ -219,7 +219,8 @@ description.
 \`\`\`javascript
 // .yggdrasil/aspects/my-rule/companion.mjs
 export async function companion(ctx) {
-  // ctx mirrors the deterministic check ctx, plus ctx.subject.
+  // ctx is the same ctx a deterministic check.mjs receives, including ctx.subject
+  // (that field is shared — both runners build it from one factory, not companion-only).
   // ctx.subject is always File[] (never a bare File).
   //   scope.per:file  → single-element array [file].
   //   scope.per:node  → the full subject set (same as ctx.files).

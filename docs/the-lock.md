@@ -4,7 +4,7 @@ title: The lock
 
 This is the depth page. Day to day you never touch the lock — your agent runs `yg check` and `yg check --approve`, and the lock takes care of itself. Read this when you want to know exactly how a verdict is stored, when it expires, and why CI can recheck your whole repo without an API key.
 
-> **Note:** By default `yg check` is read-only — it writes nothing, makes no LLM calls, and needs no keys. When `auto_approve` is set to `deterministic` or `full` in `yg-config.yaml`, bare `yg check` behaves like `yg check --approve --only-deterministic` or `yg check --approve` respectively. Explicit CLI flags always override the config. CI scripts use explicit flags and are unaffected by `auto_approve`.
+> **Note:** By default `yg check` writes no verdicts and never touches the lock, makes no LLM calls, and needs no keys. When `auto_approve` is set to `deterministic` or `full` in `yg-config.yaml`, bare `yg check` behaves like `yg check --approve --only-deterministic` or `yg check --approve` respectively. Explicit CLI flags always override the config. CI scripts use explicit flags and are unaffected by `auto_approve`.
 
 The payoff is simple: every verdict is recorded so that CI doesn't re-run the reviewer — it recomputes a hash and confirms the recorded verdicts still match the current code. Fast, keyless, and it travels with the repo.
 
@@ -53,13 +53,13 @@ One thing is deliberately **not** an input: the aspect's status. Flipping `draft
 
 These are two different jobs.
 
-`yg check` by default writes nothing. It recomputes each pair's input hash and compares it against the lock. It runs no aspect reviewers, makes no LLM calls, and needs no provider keys — which is why it's the CI gate. (It does recompute relation conformance live; see below.) A mismatch means a pair changed without being re-verified, and check reports it.
+`yg check` by default writes no verdicts and never touches the lock. It recomputes each pair's input hash and compares it against the lock. It runs no aspect reviewers, makes no LLM calls, and needs no provider keys — which is why it's the CI gate. (It does recompute relation conformance live; see below.) A mismatch means a pair changed without being re-verified, and check reports it.
 
 However, when `auto_approve` is configured in `yg-config.yaml`, bare `yg check` may fill pairs automatically: `auto_approve: deterministic` behaves like `yg check --approve --only-deterministic`; `auto_approve: full` behaves like `yg check --approve`. CI scripts use explicit flags (`yg check --approve --only-deterministic`) and are unaffected by `auto_approve` — the CI-is-free-and-keyless guarantee holds.
 
 `yg check --approve` is the only command that writes verdicts. It fills every unverified pair: deterministic checks first (they run locally, for free), then the LLM pairs. When a pair gets a real verdict — pass or refusal — the entry lands in the lock: the deterministic verdicts in the gitignored cache, the LLM verdicts in the committed `yg-lock.nondeterministic.json`. Then it reports, just like a plain check.
 
-A failed pair never blocks the others. `--approve` records every result it gets and exits non-zero if any error remains.
+An aspect refusal never blocks other nodes' pairs. `--approve` records every result it gets and exits non-zero if any error remains. One exception: a node carrying an enforced deterministic refusal has its own LLM pairs skipped for that run, so a known-broken node never bills the reviewer — those pairs stay unverified until the refusal is cleared.
 
 ### `--only-deterministic` — fill the local cache, free and keyless
 
@@ -100,7 +100,7 @@ yg check --approve
 
 The same recovery applies per committed file: take one side of `yg-lock.logs.json` the same way if it also conflicted. Prefer the side that covers more of the merged code, to minimize re-verification. This is safe because the lock is self-validating: a verdict you kept by accident can't lie — its hash won't match the current inputs, so it re-verifies. The discarded side's verdicts are simply re-filled on that run.
 
-Hand-merging entry by entry is the one thing to avoid. A duplicate key or a stray conflict marker makes the whole file invalid, and Yggdrasil fails closed rather than trust a damaged lock.
+Hand-merging entry by entry is the one thing to avoid. A stray conflict marker makes the whole file invalid, and Yggdrasil fails closed rather than trust a damaged lock. A duplicate key is worse in a quieter way — JSON parsing silently keeps only the last occurrence, with no error — which is exactly why you take one side wholesale instead of splicing entries by hand.
 
 ## Migrating an older single-file lock
 

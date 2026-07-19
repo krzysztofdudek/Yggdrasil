@@ -183,7 +183,7 @@ The companion hook is bounded by the same allowed-reads set as `check.mjs`: the 
 
 ### How companion files are injected
 
-Resolved companion files appear in a distinct `<companions>` block in the reviewer prompt, separate from the `<references>` block (static references) and `<source-files>` (the unit's own source). The companions block is absent when the hook returns `[]`. Companion files count toward the tier's `max_prompt_chars` gate, exactly like subject and reference files. On a companion-bearing pair's first fill the prompt-size check runs at fill time, before the reviewer is called (not at `yg check` time), because the companion bytes are only known once the hook resolves — so a too-large companion prompt is caught and billed nothing on that first approve.
+Resolved companion files appear in a distinct `<companions>` block in the reviewer prompt, separate from the `<references>` block (static references) and `<source-files>` (the unit's own source). The companions block is absent when the hook returns `[]`. Companion files count toward the tier's `max_prompt_chars` gate, exactly like subject and reference files. On a companion-bearing pair the prompt-size check runs wherever the pair is evaluated: at fill time (before the reviewer is called), and on a plain `yg check` too, which resolves the companion hook live to recompute the assembled size. The companion bytes are only known once the hook resolves, so a too-large companion prompt is caught and billed nothing.
 
 **`yg-suppress` is honored only from the `<source-files>` block.** A suppress marker inside a companion file is ignored — companions are read-only reference material, not the unit under judgment.
 
@@ -270,7 +270,8 @@ interface CheckContext {
 interface SourceFile {
   path: string;       // relative to project root
   content: string;    // raw file content
-  ast: Tree;          // tree-sitter parse tree
+  ast?: Tree;         // tree-sitter parse tree — undefined for a file whose
+                      // extension has no registered grammar (.md, .sh, …); guard before use
 }
 
 interface Violation {

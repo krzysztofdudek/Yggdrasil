@@ -10,7 +10,7 @@ When you ask for a file's context ([`yg context --file`](/cli-reference#yg-conte
 
 > This file is structurally unusual among this node's other TypeScript files — worth a closer read; no action required.
 
-That is the whole thing on the surface. No score, no ranking, no breakdown of what stood out — just the one line, and only when it genuinely applies. It appears only while the note still matches the file's current contents; edit the file and it stays silent until the next check refreshes the picture.
+That is the whole thing at the file level — no score, no ranking, no breakdown of what stood out, just the one line, and only when it genuinely applies. It appears only while the note still matches the file's current contents; edit the file and it stays silent until the next check refreshes the picture. There is one other surface: `yg advise` prints a single aggregate line counting how many files across the repo currently stand out structurally, pointing you back to `yg context --file` where each lives.
 
 ## What "structurally unusual" means — and what it doesn't
 
@@ -19,7 +19,7 @@ Yggdrasil keeps a small, rough shape for each file: how big it is, how deeply ne
 Two honest limits follow from that, and they matter:
 
 - **It is relative, never absolute.** A file is only ever compared with its own node's other files in the same language — a Python file is never measured against a Java one. The line means "this file is unlike its neighbours," not "this file is bad." A perfectly good file can be the odd one out; a genuinely messy file surrounded by equally messy siblings will say nothing.
-- **It needs enough neighbours to compare against.** With only a file or two of a language in a node, there is nothing to stand out from, so the hint stays quiet.
+- **It needs enough neighbours to compare against.** A node needs at least five files of the same language before the hint can fire at all; with fewer than that there is nothing to stand out from, so it stays quiet.
 
 Treat the line as an invitation to look, not a verdict. Often the closer read simply confirms the file is fine — that is a normal, expected outcome.
 

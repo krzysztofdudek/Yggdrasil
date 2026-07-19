@@ -10,7 +10,7 @@ Yggdrasil is safe to run many ways at once. There is one exception, and it only 
 
 **Why.** An approval writes its results and each component's history back to shared files as it runs — each finished result lands right away. Two approvals running side by side do not merge — as they progress they overwrite each other's results, the one that finishes last wins, and the work in between is lost. This is not a supported way to run, and nothing physically stops you today, so serializing is on you.
 
-Parallelism *inside* a single run is fine and already handled for you: one approval fans out across many components at once and writes its results safely. The hazard is two separate `--approve` runs overlapping — not one busy run.
+Parallelism *inside* a single run is handled for you: one approval fans out and writes its results safely. The free deterministic checks run across your cores automatically; the reviewer (LLM) verifications run one at a time by default — raise `parallel` in `yg-config.yaml` to fan those out too. The hazard is two separate `--approve` runs overlapping — not one busy run, however it is tuned.
 
 ## What is always safe to run concurrently
 
@@ -18,7 +18,7 @@ Parallelism *inside* a single run is fine and already handled for you: one appro
 
 **Why.** They never write results. This covers plain `yg check` (without `--approve`), `yg structure`, `yg aspects`, and `yg log read`. One caveat: if the project has turned on auto-approval (the `auto_approve` setting in its config), a plain `yg check` performs an approval on its own — and therefore writes — so on such a repo it counts as an approval for the rule above, not a read-only command.
 
-The local activity record is safe too: Yggdrasil keeps a small, git-ignored note of what each run checked (surfaced by `yg log read --with-verdicts`). Every entry is a single atomic append, so two runs writing to it at the same moment never corrupt it — no coordination needed.
+The local activity record is safe too: Yggdrasil keeps a small note of what each run checked (surfaced by `yg log read --with-verdicts`). It is git-ignored by default; a repo that opts into a shared record (`events: { committed_llm: true }` in its config) instead appends its reviewer-verification events to a committed, union-merged file. Either way every entry is a single atomic append, so two runs writing to it at the same moment never corrupt it — no coordination needed.
 
 ## When two agent sessions share one checkout
 
@@ -37,7 +37,7 @@ In practice: let one tree-touching session land before you start the next, and k
 
 **Rule.** If a background tool rewrites a tracked file while a check is running, that single run can disagree with itself — flag a problem that a plain re-run then clears. Re-run once and it settles.
 
-**Why.** A check reads each tracked file, decides, and then reports. If something else rewrites one of those files in the moment between the read and the report — a package manager pinning a version field, a formatter, a code generator — the run sees two different versions of the same file and flags the mismatch. Nothing is wrong with your code and nothing is lost: the next run reads a single, settled version and passes. This only surfaces on a repo with auto-approval turned on, because that is the run that both checks and reports in one pass. When Yggdrasil notices this exact self-disagreement it records a small, git-ignored note so you can confirm that is what happened rather than chasing a phantom failure — and the fix is simply to let the background tool finish, then re-run.
+**Why.** A check reads each tracked file, decides, and then reports. If something else rewrites one of those files in the moment between the read and the report — a package manager pinning a version field, a formatter, a code generator — the run sees two different versions of the same file and flags the mismatch. Nothing is wrong with your code and nothing is lost: the next run reads a single, settled version and passes. This surfaces on any run that both fills and then reports in one pass — `yg check --approve` (and `--approve --only-deterministic`) as well as a plain `yg check` on a repo with auto-approval turned on. When Yggdrasil notices this exact self-disagreement it records a small, git-ignored note so you can confirm that is what happened rather than chasing a phantom failure — and the fix is simply to let the background tool finish, then re-run.
 
 ## No lock file (yet)
 

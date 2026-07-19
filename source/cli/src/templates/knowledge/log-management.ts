@@ -183,9 +183,11 @@ yg log merge-resolve --node <path>
 \`\`\`
 
 The tool validates byte-exact ancestor portion and union of new entries — it
-cannot silently drop or fabricate entries — and writes the reconciled history plus
-the node's \`log\` baseline into the lock. Do NOT manually concatenate the two log
-histories — integrity hashes will break and \`yg check\` will fail.
+cannot silently drop or fabricate entries — and records the node's \`log\` baseline
+into the lock. The reconciled history itself stays in \`log.md\`, written by your
+merge resolution; merge-resolve reads it, never rewrites it. Do NOT manually
+concatenate the two log histories — integrity hashes will break and \`yg check\`
+will fail.
 
 When BOTH \`log.md\` and \`yg-lock.logs.json\` conflicted, the order is: resolve the lock
 (take ONE side wholesale) → \`yg log merge-resolve --node <path>\` per conflicted

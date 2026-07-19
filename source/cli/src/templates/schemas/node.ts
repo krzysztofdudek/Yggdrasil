@@ -44,10 +44,11 @@ relations:                    # optional — outgoing dependencies to other node
                               # There is no waiver; resolve by adding consumes or removing the ports.
                               # Naming a target that declares no ports raises consumes-without-ports.
     event_name: order.placed  # optional — ONLY for the event relation types (emits / listens):
-                              # the named channel the two ends share. emits and listens must be
-                              # PAIRED — every emits on one node needs a matching listens (same
-                              # event_name) on another, and vice versa, or yg check emits the
-                              # BLOCKING event-unpaired error. Ignored on structural relation types.
+                              # a descriptive label for the channel. emits and listens must be
+                              # PAIRED BY NODE PATH — every emits A->B needs some listens B->A (and
+                              # vice versa), or yg check emits the BLOCKING event-unpaired error.
+                              # Pairing does NOT compare event_name — it is documentation only.
+                              # Ignored on structural relation types.
 
 mapping:                      # optional — source files and directories owned by this node
   - src/modules/component/    # directory — all files inside are owned (recursive)

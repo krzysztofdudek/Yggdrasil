@@ -70,7 +70,7 @@ Before writing a single YAML file, we spent the equivalent of several days restr
 
 ### `log_required`
 
-**Used as:** Opted in (`log_required: true`) on the production-code types whose changes carry business intent worth recording — `engine`, `command`, the persistence/parser/AST adapters, `migration`, `template`. Documentation, schemas, test suites, fixtures, and CI configs leave it off (the default), so no log entry is demanded before their changes are verified.
+**Used as:** Opted in (`log_required: true`) on the production-code types whose changes carry business intent worth recording — `engine`, `command`, the persistence/parser/AST adapters, `migration`, `template`, and the portal backend types (`portal-pipeline`, `portal-engine-api`, `portal-server`). Documentation, schemas, test suites, fixtures, and CI configs leave it off (the default), so no log entry is demanded before their changes are verified.
 
 **Earn-rate: high.** Targeting the gate at code an LLM reviewer scrutinizes captures the *why* behind real changes where it matters, without accumulating meaningless log entries on config files and test suites.
 
@@ -82,7 +82,7 @@ Before writing a single YAML file, we spent the equivalent of several days restr
 
 **Used as:** `engine` type automatically applies `deterministic`, `no-direct-fs`, `no-direct-console`, `no-nondeterminism-direct`. `command` type applies `cli-command-contract`, `diagnostic-logging`, `command-contract-shape`. 31 types carry at least one default aspect.
 
-**Earn-rate: high.** This is the architecture-as-policy layer. Adding one aspect to a type applies it to every node of that type, past and future. We used it to roll out `test-deterministic` to all 226 test-suite nodes simultaneously.
+**Earn-rate: high.** This is the architecture-as-policy layer. Adding one aspect to a type applies it to every node of that type, past and future. We used it to roll out `test-deterministic` to every test-suite node at once.
 
 **Recommendation:** Add type-level defaults only for aspects that genuinely apply to every node of that type without exception. When you find yourself suppressing an aspect on half the nodes of a type, the aspect probably doesn't belong at the type level.
 
@@ -90,7 +90,7 @@ Before writing a single YAML file, we spent the equivalent of several days restr
 
 ### `aspects:` (node-level — channel 1)
 
-**Used as:** Specific nodes carry aspects not shared by their type — for example, `cli/io/atomic-write` carries `atomic-write-contract` only at the node level, not as a type default.
+**Used as:** Specific nodes carry aspects not shared by their type — for example, `cli/init-reviewer-setup` carries `reviewer-secrets-not-from-flags` at the node level, a one-off rule its type does not default.
 
 **Earn-rate: high.** Node-level aspects handle exceptions to type defaults and one-off requirements on specific components.
 
@@ -100,7 +100,7 @@ Before writing a single YAML file, we spent the equivalent of several days restr
 
 ### `implies:` chains
 
-**Used as:** Three chains: `cli-command-contract` → `[command-exit-codes, diagnostic-logging]`; `deterministic` → `[no-nondeterminism-direct]`; `top-level-error-handler` → `[command-exit-codes]`. Implied aspects propagate automatically — no duplication in node or architecture defaults.
+**Used as:** Four chains: `cli-command-contract` → `[command-exit-codes, diagnostic-logging]`; `deterministic` → `[no-nondeterminism-direct]`; `top-level-error-handler` → `[command-exit-codes]`; `source-hygiene` → `[posix-paths-source, no-direct-minimatch, no-shell-injection]`. Implied aspects propagate automatically — no duplication in node or architecture defaults.
 
 **Earn-rate: medium.** The `deterministic` → `no-nondeterminism-direct` chain is the best example: every node that must be deterministic also must not use `Math.random()` or `Date.now()` directly. Declaring this once in the implies chain beats repeating it across 30 engine nodes.
 
@@ -121,7 +121,7 @@ sit at `status: draft` — they produce no expected pairs, so the reviewer
 never runs and nothing is recorded in the lock.
 
 ```yaml
-# .yggdrasil/aspects/audit-logging/yg-aspect.yaml
+# Illustrative — a new aspect introduced at advisory
 name: Audit Logging
 description: "Every mutation emits an audit event"
 status: advisory             # gathering signal; refusals are warnings
@@ -130,7 +130,7 @@ reviewer:
 ```
 
 ```yaml
-# .yggdrasil/aspects/diagnostic-logging/yg-aspect.yaml
+# Illustrative — a vetted aspect promoted to enforced that pulls in a sibling
 status: enforced             # vetted; refusals block CI
 
 implies:
@@ -186,9 +186,9 @@ inherit its implier's level.
 
 ### Flow-level aspects (channel 5)
 
-**Used as:** Nine flows carry aspects. `validate` flow applies `deterministic`, `what-why-next`, and `silent-missing-files` to its four participant nodes. `verification` flow applies `provider-redaction` and `what-why-next`. Flow-level aspects propagate to all participant nodes automatically.
+**Used as:** Eighteen flows carry aspects. `validate` flow applies `deterministic`, `what-why-next`, and `silent-missing-files` to its four participant nodes. `verification` flow applies `provider-redaction` and `what-why-next`. Flow-level aspects propagate to all participant nodes automatically.
 
-**Earn-rate: high.** Flows are the right place for cross-cutting process requirements. The `what-why-next` aspect was attached to all nine flows, covering 18 distinct nodes — a handful of flow-level declarations instead of dozens of node-level ones.
+**Earn-rate: high.** Flows are the right place for cross-cutting process requirements. The `what-why-next` aspect was attached to all eighteen flows, covering 39 distinct participant nodes — a handful of flow-level declarations instead of dozens of node-level ones.
 
 **Recommendation:** Think of flows as the "cross-cutting concern" layer. If an aspect should apply to every node that participates in a named business process (authentication, payment, approval), put it on the flow. If an aspect applies only to a specific code layer (engine, formatter), use a type default instead.
 

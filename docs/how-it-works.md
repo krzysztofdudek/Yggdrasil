@@ -32,12 +32,12 @@ From the agent's point of view, every change runs this cycle:
 
 1. **Before editing**, the agent runs `yg context --file <path>`. It gets only the rules in force on that one file, not the whole rulebook, so it writes code that fits them instead of guessing and getting bounced.
 2. **After editing**, it runs `yg check --approve`. The free local scripts run first, then the remaining rules go to the LLM reviewer.
-3. **On a pass**, the verdict is recorded in a committed lock file.
+3. **On a pass**, the verdict is recorded in the lock. The LLM reviewer's verdicts live in a committed file; the free local-script verdicts live in a gitignored local cache that any checkout rebuilds for free.
 4. **On a failure**, the agent gets specific feedback (which rule, which file, what is wrong), fixes it in the same session, and re-runs. It loops here until green.
-5. **In CI**, plain `yg check` confirms the recorded verdicts still hold for the current code.
+5. **In CI**, a free, keyless step rebuilds the local-script cache, then `yg check` confirms the recorded verdicts still hold for the current code.
 
 ::: info CI is free and keyless — and a green build can't lie
-`yg check` in CI does not call the reviewer and needs no API keys. It only confirms that the results already recorded still hold. Each verdict is tied by hash to the exact code it checked, so a file that changed but was never re-verified turns the build red — a stale or unverified change can't ride through as green. The verification happens locally while the agent works; CI just re-proves it was done. The mechanics live in [The lock](/the-lock).
+CI does not call the LLM reviewer and needs no API keys. Because the free local-script verdicts live in a gitignored cache, a fresh checkout first rebuilds that cache with `yg check --approve --only-deterministic` (free and keyless), then plain `yg check` confirms every recorded verdict still holds — and re-checks, live and for free, that the code's real dependencies match its declared relations. Each verdict is tied by hash to the exact code it checked, so a file that changed but was never re-verified turns the build red — a stale or unverified change can't ride through as green. The LLM verification happens locally while the agent works; CI just re-proves it was done. The mechanics live in [The lock](/the-lock).
 :::
 
 ## See it catch a mistake
@@ -73,7 +73,7 @@ A file can pick up rules from several places at once: its own component, a paren
 yg context --file src/payments/charge.ts
 ```
 
-It prints every rule in force on that file and where each one came from, plus the path to each rule's text. The graph computes it, you read the answer. `yg context --node <path>` gives the same view from a component's side.
+It prints every rule in force on that file, plus the path to each rule's text. The graph computes it, you read the answer. `yg context --node <path>` gives the picture from a component's side, and additionally shows where each rule comes from — the component's own declaration, a parent, its type, or a flow.
 
 ## What lives next to your code
 
@@ -96,7 +96,7 @@ The event must include: user ID, action, timestamp, resource ID.
 The reviewer reads that and checks your code against it. Write rules the way you would write a clear code-review comment.
 
 ::: info No lock-in
-Delete `.yggdrasil/` and your project builds and runs exactly as before. No build dependencies, no runtime hooks, nothing left behind.
+Delete `.yggdrasil/` and your project builds and runs exactly as before — no build dependencies, no runtime hooks. The one artifact that lives outside it is the agent-rules file `yg init` wrote for your platform (for example `CLAUDE.md`, which imports the graph's rules); delete that too if you want no trace left.
 :::
 
 ## Where next

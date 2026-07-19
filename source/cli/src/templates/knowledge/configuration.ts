@@ -299,10 +299,14 @@ All Yggdrasil-derived LOCAL state — rebuildable caches and secrets — lives u
 to the \`.yggdrasil/\` directory):
 
 \`\`\`
-yg-secrets.yaml      # provider API keys
-.symbols-cache/      # the relation pass's legacy per-language symbol-index cache
-.ast-cache/          # the relation pass's content-addressed per-file AST fact cache
-.debug.log           # the opt-in command debug log
+yg-secrets.yaml               # provider API keys
+.symbols-cache/               # the relation pass's legacy per-language symbol-index cache
+.ast-cache/                   # the relation pass's content-addressed per-file AST fact cache
+.debug.log                    # the opt-in command debug log
+.yg-lock.deterministic.json   # the free deterministic-verdict cache (rebuilt keyless)
+.yg-events.jsonl              # the local verdict-events telemetry sidecar
+.yg-fill-divergence.log       # forensic dump written only on a fill convergence divergence
+.feature-field.json           # the local structural-deviation attention index
 \`\`\`
 
 It is written idempotently on fresh \`yg init\` AND on every \`yg init --upgrade\`

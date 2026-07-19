@@ -73,7 +73,9 @@ Two design properties make it false-positive-free:
 Two ways to clear a refusal:
 
 1. **Declare the relation** in the depending node's \`yg-node.yaml\`, choosing a
-   relation type the architecture allows between the two node types.
+   relation type the architecture allows between the two node types. The relation
+   may target the depended-on node OR any of its ancestors — a relation to a
+   parent node sanctions dependencies on the parent and all of its descendants.
 2. **Remove the dependency** if the code should not depend on the other node.
 
 If NO relation type is allowed between the two node types, that is a dead end you

@@ -16,9 +16,10 @@ up reviewing the rules.
 ## It is allowed — and opt-in
 
 - **Nothing forbids it.** A node \`mapping:\` may point at a path under the graph
-  directory. The only mapping prohibition is escaping the repository root (an
-  absolute path or one climbing above the root with \`..\`); a path inside the graph
-  directory passes. Mapped paths only have to exist on disk.
+  directory — a literal file path or a glob both work. A graph-directory path is no
+  more restricted by LOCATION than the rest of your code (the usual rules still
+  hold everywhere: no absolute path, no climbing above the repo root with \`..\`, the
+  path must exist on disk, and it can't overlap another node's mapping).
 - **Coverage never nags.** The top-level graph directory is excluded from the
   scanned-file universe that powers the "uncovered files" check. So you can model a
   FEW graph-directory files without the coverage gate demanding you cover the rest.

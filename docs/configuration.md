@@ -141,10 +141,11 @@ reviewer:
 | `provider` | yes | One of the supported providers (see below) |
 | `consensus` | yes | Positive odd integer. `1` = single call. `3` = majority vote. |
 | `max_prompt_chars` | no | Positive integer. Caps the assembled-prompt length for LLM pairs on this tier (see [Prompt-size gate](#prompt-size-gate)). Absent defaults to 50000. `yg init` writes `50000`. |
-| `config.model` | yes | Provider-specific model identifier |
+| `config.model` | required for `ollama` / `openai` / `anthropic` / `google` / `openai-compatible`; optional for the CLI providers | Provider-specific model identifier. Omitted on a CLI provider it defaults to: `claude-code` → `haiku`, `codex` → `o4-mini`, `gemini-cli` → `gemini-2.5-flash`. |
 | `config.temperature` | no | Sampling temperature. Defaults to `0`. |
 | `config.endpoint` | required for `openai-compatible` (ollama defaults to `http://localhost:11434`) | API endpoint URL |
 | `config.timeout` | no | Per-call timeout in seconds. Defaults to `300`. Honored by CLI providers and the `ollama` provider; other hosted API providers ignore it. |
+| `config.api_key` | no | Provider API key. Takes precedence over the provider's environment variable. Do not put it in `yg-config.yaml` — supply it through the gitignored `yg-secrets.yaml` overlay (see the Secrets section below). |
 
 Unknown `config.*` keys are silently ignored (no error, no warning) — only the
 keys listed above are read.
@@ -297,12 +298,21 @@ nothing. The number and its justification are surfaced by `yg context --node` an
 ## Upgrading
 
 ```bash
-yg init --upgrade
+yg init --upgrade --platform <name>
 ```
 
-Lifts the graph's config version to the current one and refreshes the rules,
-schemas, and platform files. The legacy single-section reviewer format (flat
-provider keys + `reviewer.active`) is migrated to `reviewer.tiers` automatically.
+Lifts the graph's config version to the current one and refreshes the rules and
+platform files. `--platform` is required: the upgrade regenerates the agent-rules
+file, so it must know which platform's rules to write — run `yg init --upgrade`
+without it and the command exits with an error naming the supported platforms.
+(Upgrading a pre-5.1.0 graph also removes the now-retired on-disk `schemas/`
+directory; schemas are read with `yg schemas read <name>` instead.)
+
+The legacy single-section reviewer format (flat provider keys + `reviewer.active`)
+is **not** migrated — the upgrade leaves the `reviewer:` block untouched, so a
+config still in that shape then fails `yg check` with a `config-reviewer-unknown-key`
+error on `active`. Convert it to `reviewer.tiers` by hand (see the tier fields
+above).
 Retired fields are SILENTLY IGNORED — a `yg-config.yaml` still carrying
 `quality.max_node_chars`, per-tier `config.references:` size caps, or other
 retired `config.*` keys (e.g. `config.context_length_field`) produces no error and

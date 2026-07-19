@@ -1,10 +1,13 @@
 # Aspect Status
 
 Yggdrasil aspects ship with three enforcement levels: `draft`, `advisory`,
-`enforced`. **Status is purely how results render.** It never decides whether a
-verdict is computed or re-used — only whether a pair is expected at all (`draft`
-removes it) and whether a problem blocks CI. It is the dial you turn as a rule
-matures: start silent, gather signal, then enforce.
+`enforced`. **Status governs how results render**, and it never changes a
+verdict's input hash or whether a recorded verdict stays valid and is re-used.
+Beyond rendering it has two operational effects: `draft` removes a pair from the
+expected set entirely (nothing is verified for it), and — so a known-broken node
+never bills the reviewer — an `enforced` deterministic refusal on a node makes
+`yg check --approve` skip that node's LLM pairs for the run. Otherwise it is the
+dial you turn as a rule matures: start silent, gather signal, then enforce.
 
 ## Three levels
 
@@ -14,11 +17,19 @@ matures: start silent, gather signal, then enforce.
 | `advisory`  | warning              | warning                       | no                 |
 | `enforced`  | error                | error                         | yes                |
 
-`draft` aspects produce no pairs at all — there is nothing to verify and nothing
-in the lock. `advisory` and `enforced` pairs are both verified and cached the
-same way; the level only changes severity. Severity follows status uniformly:
-**advisory never blocks** (whether a pair is refused or merely unverified), and
-**enforced always blocks**.
+A pair whose **effective** status is `draft` is not expected — nothing is
+verified for it and no new verdict is written. (Effective status is the strictest
+level across every channel that attaches the aspect, so an aspect authored
+`status: draft` is still enforced wherever an attach site or an active implier
+raises it — see [How effective status is computed](#how-effective-status-is-computed).)
+A verdict already recorded for a pair survives a `draft` round-trip and stays in
+the lock — see [Status and verdicts](#status-and-verdicts). `advisory` and
+`enforced` pairs are both verified and cached the same way; the level only changes
+severity. Severity follows status with one exception: **advisory never blocks**
+(whether a pair is refused or merely unverified) and **enforced always blocks** —
+but a `prompt-too-large` failure is always an error and blocks `yg check`
+regardless of status, so an advisory pair can still block if its assembled prompt
+exceeds the resolved tier's `max_prompt_chars`.
 
 ## When to use each
 

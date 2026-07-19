@@ -20,6 +20,10 @@ Status colors verdicts that exist; it never substitutes for verification.
   is an error, advisory unverified is a warning. Flipping an aspect to advisory
   does NOT make an unverified enforced pair go green; the pair is still
   unverified, just now a warning. \`yg check --approve\` is what fills it.
+- ONE exception to "advisory never blocks": the \`prompt-too-large\` assembly gate
+  is emitted at error severity regardless of status. An advisory LLM pair whose
+  assembled prompt exceeds the resolved tier's \`max_prompt_chars\` blocks
+  \`yg check\` all the same — it can never be verified, so status cannot soften it.
 - Only **\`draft\`** removes a pair from the expected set entirely — it is the only
   keyless way to stop a pair from blocking CI (relevant in a keyless-CI
   emergency).

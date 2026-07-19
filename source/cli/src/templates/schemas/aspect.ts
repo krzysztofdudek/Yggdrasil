@@ -39,9 +39,13 @@ description: "Short description"   # required — shown in yg aspects output and
                                    #                   implies:. A named bundle — expands its implied
                                    #                   aspects onto every node where effective. Has no
                                    #                   own reviewer and produces no own verdict. An
-                                   #                   aspect with neither rule source and no implies:
-                                   #                   is rejected (aspect-empty).
-  # type: llm                      #   optional; must be 'llm', 'deterministic', or 'aggregate' if set.
+                                   #                   aspect with no rule source, no implies:, and no
+                                   #                   reviewer: block is rejected as
+                                   #                   aspect-reviewer-missing.
+  # type: llm                      #   REQUIRED whenever the reviewer: block is present (one of
+                                   #     'llm', 'deterministic', 'aggregate'). The block itself is
+                                   #     optional — omit it entirely to infer the kind — but you
+                                   #     cannot write reviewer: with only tier: and no type.
   # tier: deep                     #   optional, only when type: llm (or inferred llm).
                                    #     If omitted, the aspect uses reviewer.default from yg-config.yaml.
                                    #     If present, must reference a key under reviewer.tiers in the config.

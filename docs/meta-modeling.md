@@ -13,10 +13,12 @@ what the requirement says.
 ## It's allowed, and opt-in
 
 Pointing a component's file mapping at a path under `.yggdrasil/` is allowed — the
-only mapping restriction is that a mapped path can't escape the repository. And
-because the graph directory is excluded from the "uncovered files" scan, you can
-model a few rule files without the coverage check demanding you model the rest.
-Meta-modeling is partial by design.
+graph directory is no more restricted than the rest of your code. (The usual
+mapping rules still apply everywhere: a mapped path may not be absolute or climb
+above the repo root, it must exist on disk, and it can't overlap another
+component's mapping.) And because the graph directory is excluded from the
+"uncovered files" scan, you can model a few rule files without the coverage check
+demanding you model the rest. Meta-modeling is partial by design.
 
 ## Four ways a rule file reaches a reviewer
 
@@ -43,6 +45,11 @@ Mapping rule files makes them first-class citizens, with the obligations that br
 - Every rule effective on the component now reviews those rule files too — choose the
   component's type deliberately and use [conditional rules](/conditional-aspects) so a
   code rule doesn't fire on a Markdown rule file.
+- The file-classification predicate auto-exempts every `.yggdrasil/` path — it returns
+  true without checking — so you can map a rule file to a component of any type without
+  tripping a type/`when` mismatch. The flip side: the type's `when` gives you no
+  filtering here. It is the aspect's own scope, not the type predicate, that decides
+  whether a given rule actually fires on a mapped rule file.
 - A rule that reviews another rule means editing one re-checks both — keep the meta
   layer small and targeted.
 - **Never map the whole `.yggdrasil/` directory.** A broad glob would sweep in the

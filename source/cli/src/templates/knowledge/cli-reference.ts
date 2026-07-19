@@ -1,5 +1,5 @@
 export const summary =
-  'Full yg command reference: check, check --approve, context, aspect-test, drill, impact, tree, aspects, flows, find, log, owner, type-suggest, init, knowledge, schemas';
+  'Full yg command reference: check, check --approve, context, aspect-test, drill, impact, tree, aspects, flows, find, log, owner, type-suggest, init, knowledge, schemas, simulate, structure, advise, incident, suppressions, portal';
 
 export const content = `# CLI reference
 
@@ -716,6 +716,28 @@ This is a classification-and-reporting distinction only — what each reviewer
 actually waives (the resolved suppressed line ranges) is identical either way.
 
 Use \`yg suppressions\` to audit accumulated waivers before a release or a new aspect rollout. It does not affect \`yg check\` or the lock.
+
+## yg portal
+
+Local, read-only web view of the graph and its verification state. Serves on a
+loopback-only address (default port 4317) and prints the link.
+
+\`\`\`bash
+yg portal                       # serve the live view on http://127.0.0.1:4317
+yg portal --port 8080           # choose the loopback port
+yg portal --no-write            # disable the one shelled Approve action (pure read-only)
+yg portal --open                # also open the browser at it
+yg portal --static              # write a single self-contained HTML file instead of serving
+yg portal --static --out x.html # choose the static output path (default: yg-portal.html)
+\`\`\`
+
+The served view is read-only except for one clearly-labelled Approve action that
+runs the same verification as \`yg check --approve\`; \`--no-write\` removes it. The
+requests that do real work (approve, its cost preview, and the live data behind
+them) are answered only for the portal's own page — a cross-origin request from
+another site is refused — and the server binds loopback only. \`--static\` needs no
+server and no network. Flags: \`--port <n>\`, \`--out <path>\`, \`--static\`, \`--open\`,
+\`--no-write\`.
 
 ## yg type-suggest
 

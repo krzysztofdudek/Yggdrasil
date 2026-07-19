@@ -97,7 +97,7 @@ yg check: PASS (1 warning)  0 nodes · 0/50 files (0%) · 0 aspects · 0 flows
 Warnings (1):
 
   uncovered (50)
-            src/…  (every file, listed)
+            src/…  (first 10 paths, then "... +40")
             Why: Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it.
             Fix: Map these files to a node, or add their root to coverage.required to make this an error.
 ```
@@ -132,10 +132,10 @@ yg check: FAIL  1 nodes · 1/1 files · 1 aspects · 0 flows
 
 Errors (1):
 
-  unverified (not yet reviewed)  1 pairs  1 nodes  aspect 'requires-audit'
+  unverified (not yet reviewed)  1 pairs  1 nodes
             The lock holds no entry for this pair, or its inputs changed since the verdict was recorded (source edit, aspect edit, or a fill that did not complete). A verdict is valid only while its inputs hash to the stored value.
             Fix: yg check --approve
-            - payments
+            - payments  aspect 'requires-audit'
 
 Next: yg check --approve
 ```
@@ -163,10 +163,16 @@ Errors (1):
 
   enforced  1 pairs  1 nodes  aspect 'requires-audit'
             A refused verdict for unchanged inputs is final and cached; re-running the reviewer would only re-roll the same inputs.
-            Fix: Three exits: fix the code; sharpen the aspect's content.md; or propose a yg-suppress (user must approve the reason).
+            Fix: Three exits:
+              1. Fix the code so it satisfies aspect 'requires-audit', then: yg check --approve
+              2. Sharpen the aspect's content.md — this re-reviews EVERY node using the aspect; check `yg impact --aspect requires-audit` first.
+              3. Propose a `yg-suppress` to the user (user must approve the reason).
             - payments  Reviewer reason: chargeCard() does not emit an audit event; no auditLog.emit() call in any mutation path.
 
-Next: fix the violation, then re-run: yg check --approve
+Next: Three exits:
+  1. Fix the code so it satisfies aspect 'requires-audit', then: yg check --approve
+  2. Sharpen the aspect's content.md — this re-reviews EVERY node using the aspect; check `yg impact --aspect requires-audit` first.
+  3. Propose a `yg-suppress` to the user (user must approve the reason).
 ```
 
 The agent fixes the code and re-runs `yg check --approve` until all aspects pass.
@@ -281,11 +287,11 @@ graph yourself. Ask the tool:
 yg context --file src/payments/charge.ts
 ```
 
-It prints every aspect effective on that file, **where each one came from**
-(its own node, an ancestor, the architecture type, a flow, a port, or an
-`implies` edge), and the `read:` path to each rule's text. The graph computes
-the cascade; you read the answer. `yg context --node <path>` does the same from
-a node's point of view.
+It prints every aspect effective on that file and the `read:` path to each
+rule's text. The graph computes the cascade; you read the answer. To see **where
+each rule comes from** — its own node, an ancestor, the architecture type, a
+flow, a port, or an `implies` edge — use `yg context --node <path>`, which adds a
+`Source:` line to each aspect.
 
 ::: info Zero lock-in
 Delete `.yggdrasil/` and your project works exactly as before. No build dependencies, no runtime hooks.

@@ -39,7 +39,7 @@ Your agent reads `CLAUDE.md` and applies maybe 70% of it. Tests pass, lint passe
 - **A full feedback loop.** It runs a real check, reads the failure, and fixes itself before you look.
 
 ::: tip Yggdrasil gives the agent a loop of its own.
-Before it edits, `yg context` hands it only the rules that touch the file. After it edits, `yg check` verifies them, and the agent fixes any failure before it moves on. This is code review while the agent works, not after.
+Before it edits, `yg context` hands it only the rules that touch the file. After it edits, `yg check --approve` verifies them, and the agent fixes any failure before it moves on. This is code review while the agent works, not after.
 :::
 
 ## A rule is plain text
@@ -54,7 +54,7 @@ auditLog.emit() before it returns. A mutation with no
 audit event is a refusal.
 ```
 
-When a script can decide it, the same rule runs locally for free, with no model at all.
+When a script can decide it, you write the rule as a small local script instead — it runs for free, with no model at all.
 
 ## See it catch a mistake
 
@@ -79,7 +79,7 @@ async function refund(req) {
 
 :::
 
-`yg check` refused the first version: *"refund changes a charge with no audit event."* The agent added the call, re-ran, and passed. You reviewed nothing.
+The reviewer refused the first version at `yg check --approve`: *"refund changes a charge with no audit event."* The agent added the call, re-ran, and passed. You reviewed nothing.
 
 ::: info Next
 New here? Read [How it works](/how-it-works) for the full picture, then [Get started](/getting-started) and set up your first verified rule in five minutes. Works with Claude Code, Cursor, Copilot, Codex, Cline, and more.

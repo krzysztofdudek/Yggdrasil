@@ -62,14 +62,19 @@ the correct test for paired yes/no outcomes, and it is honest about small sample
 3. **Run your regression drill corpus under both tiers**, so every case is recorded
    once under the current model and once under the candidate:
 
-   ```
-   yg drill            # under the current tier
-   # then re-point the corpus at the candidate tier and:
-   yg drill            # under the candidate tier
+   ```bash
+   # yg drill takes no --tier flag: it runs a rule under whatever tier the rule's
+   # reviewer.tier (or the default) resolves to, and it requires --aspect.
+   yg drill --aspect <id>     # drill each rule under the current tier (loop over `yg aspects`)
+   # then point the rule (or the tier it names) at the candidate model and drill again:
+   yg drill --aspect <id>     # now recorded under the candidate tier
    ```
 
-   Each drill case is logged locally with the tier it ran under. This is local,
-   private telemetry — it is never committed and never affects a verdict.
+   Re-pointing a rule to a different tier name invalidates that rule's recorded
+   reviewer verdicts (the tier name is a verdict input), so do this on a scratch
+   branch you discard, or re-approve afterward. Each drill case is logged locally
+   with the tier it ran under. This is local, private telemetry — it is never
+   committed and never affects a verdict.
 
 4. **Run the paired comparison.** This repository ships a reference implementation
    of the McNemar analysis over the local drill telemetry:

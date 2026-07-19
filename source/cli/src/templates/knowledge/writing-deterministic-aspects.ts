@@ -7,16 +7,24 @@ A deterministic aspect ships a \`check.mjs\` file. The check runs locally at zer
 LLM cost and returns a \`Violation[]\`. Deterministic aspects do not use reviewer
 tiers — \`reviewer.tier:\` is rejected on them.
 
-There is ONE \`check(ctx)\` contract. The function receives a \`ctx\` object exposing
-the unit's files, the file system, the graph, and parsers, and returns a
-synchronous \`Violation[]\`. A check that only inspects each file's syntax tree and
-a check that walks the graph topology are the same contract with different \`ctx\`
-usage — there are no separate "styles" to choose between.
+The \`check(ctx)\` function receives a \`ctx\` object and returns a synchronous
+\`Violation[]\`. On the graph-aware path its \`ctx\` exposes the unit's files, the file
+system, the graph, parsers, and the node — a check that only inspects each file's
+syntax tree and a check that walks the graph topology differ only in which parts of
+that \`ctx\` they touch. But \`ctx\` is not equally rich everywhere it runs (see below).
 
 ## When the lock executes a check
 
-\`check.mjs\` executes in three places: the \`yg check --approve\` fill stage,
-\`yg aspect-test\`, and \`yg drill\` (which replays the check over its case corpus).
+\`check.mjs\` executes in three places, split across TWO runners with different \`ctx\`:
+
+- The **graph-aware runner** — the \`yg check --approve\` fill stage and
+  \`yg aspect-test --node\` — hands the check the full \`ctx\`: \`files\`, \`fs\`, \`graph\`,
+  \`node\`, \`subject\`, and the parsers (\`parseAst\`, \`parseYaml\`, \`parseJson\`, \`parseToml\`).
+- The **graphless AST runner** — \`yg drill\` and \`yg aspect-test --files\` — hands the
+  check only \`ctx.files\`. A check that reads \`ctx.node\`, \`ctx.graph\`, \`ctx.fs\`, or
+  \`ctx.parseYaml\` cannot run there; \`yg drill\` reports that as an unsupported-capability
+  gap (exit 0), not a check failure.
+
 **Plain \`yg check\` never executes a deterministic check** — it validates the entry
 by hashing, exactly like an LLM entry. So CI executes no adopter code; check's cost
 is hashing only.
@@ -70,7 +78,7 @@ path uses the AST runner, whose codes are the \`AST_CHECK_*\` equivalents:
 
 | Error code (fill / --node) | Cause |
 |---|---|
-| \`STRUCTURE_CHECK_FILE_NOT_IN_CONTEXT\` | \`check\` touched a file that is not in \`ctx.files\` |
+| \`STRUCTURE_CHECK_FILE_NOT_IN_CONTEXT\` | a returned \`Violation\` references a file that is neither in the node's own mapping nor read via \`ctx.fs\` / \`ctx.graph\` during the run |
 | \`STRUCTURE_CHECK_ASYNC\` | \`check\` returned a thenable/Promise — it must be synchronous |
 | \`STRUCTURE_CHECK_RETURN_SHAPE\` | \`check\` returned a non-array — it must return \`Violation[]\` |
 | \`STRUCTURE_CHECK_THROWN\` | \`check\` threw during execution |
@@ -249,8 +257,10 @@ interface GraphNode {
 }
 
 interface File {
-  path: string;    // repo-relative POSIX path
-  content: string; // raw file content
+  path: string;      // repo-relative POSIX path
+  content: string;   // raw file content
+  ast?: Tree;        // tree-sitter parse tree; undefined for a file whose extension has no grammar
+  language?: string; // registry language id (e.g. 'typescript'); undefined when there is no grammar
 }
 
 interface FsEntry {
@@ -270,6 +280,12 @@ interface Violation {
 Note \`ctx.files\` (the scope-driven subject view) vs \`ctx.node.files\` (always the
 full mapped set). Under \`scope.per: file\`, \`ctx.files\` is the single file; under
 \`per: node\` it is the whole subject set.
+
+\`file\` is optional on the graph-aware path, where a file-less (graph-level)
+violation is accepted. On the graphless AST runner (\`yg drill\`,
+\`yg aspect-test --files\`) every returned violation must carry a \`file\` that is one
+of the supplied files — a violation whose \`file\` is absent or outside that set
+raises \`STRUCTURE_CHECK_FILE_NOT_IN_CONTEXT\`.
 
 ## parseAst is synchronous
 
@@ -315,7 +331,7 @@ Accessing anything outside this set produces:
 | Violation kind | Trigger |
 |---|---|
 | \`structure-aspect-undeclared-fs-read\` | \`ctx.fs.exists/list/read\` on a path outside the allowed set |
-| \`structure-aspect-undeclared-graph-read\` | \`ctx.graph.node/nodesByType\` returning a node outside the allowed set |
+| \`structure-aspect-undeclared-graph-read\` | \`ctx.graph.node(path)\` returning a node outside the allowed read set (\`nodesByType\` never triggers this — it only ever returns nodes already within the set) |
 | \`structure-aspect-parseast-not-prewarmed\` | \`ctx.parseAst\` on a file not in the pre-warmed set |
 
 If your check needs to reach a node not currently in scope, add an explicit

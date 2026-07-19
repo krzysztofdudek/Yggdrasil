@@ -13,7 +13,7 @@ You pick the flavor per rule. Most teams use both.
 
 ## Anatomy of an aspect
 
-An aspect is a directory under `.yggdrasil/aspects/<id>/`. The directory name is the aspect's ID. Inside are two files: `yg-aspect.yaml` (name and description) and the rule itself.
+An aspect is a directory under `.yggdrasil/aspects/<id>/`. Its path under `aspects/` is the aspect's ID — a top-level `audit-logging/` is `audit-logging`, a nested `logging/audit/` is `logging/audit`. Inside are two files: `yg-aspect.yaml` (name and description) and the rule itself.
 
 ```text
 .yggdrasil/aspects/
@@ -47,7 +47,7 @@ Specific rules produce reproducible verdicts. "Audit logging should be appropria
 | **LLM** (`content.md`) | judgment calls a human reviewer would make — "mutations must emit audit events", "this handler validates its input semantically" | one call per check (paid) |
 | **Deterministic** (`check.mjs`) | mechanical rules — forbidden API calls, naming conventions, import restrictions | runs locally, free, identical every run |
 
-You don't set the kind in a config field — it's inferred from which file is present (`content.md` → LLM, `check.mjs` → deterministic). An LLM aspect may also ship an optional `companion.mjs` hook that resolves per-unit companion files — see [Reviewers](/reviewers) for authoring depth. See [Reviewers](/reviewers) to write either kind.
+You don't set the kind in a config field — it's inferred from which file is present (`content.md` → LLM, `check.mjs` → deterministic, or neither file plus a non-empty `implies:` → an aggregating bundle that has no own reviewer and produces no own verdict). An LLM aspect may also ship an optional `companion.mjs` hook that resolves per-unit companion files — see [Reviewers](/reviewers) for authoring depth. See [Reviewers](/reviewers) to write either kind.
 
 ## Status, at a glance
 
@@ -57,7 +57,7 @@ Status defaults to `enforced`. See [Aspect Status](/aspect-status) for the full 
 
 ## Retiring a rule that blocks wrongly
 
-A rule earns its place by catching real mistakes. But a rule can also block the *wrong* thing — refuse code that was actually fine — and when that happens often, the team stops trusting the rule and starts routing around it. To keep that visible, the rule-health view (`yg aspects --health`) has a **false-block** column: for each rule, how many of its past refusals a person later waived (with a `yg-suppress` marker) or overturned. A refusal that was fixed in the code never counts — only refusals a human decided were wrong. Where the history is thin the number is shown with a plain "not much to go on yet" label, never a precise-looking rate.
+A rule earns its place by catching real mistakes. But a rule can also block the *wrong* thing — refuse code that was actually fine — and when that happens often, the team stops trusting the rule and starts routing around it. To keep that visible, the rule-health view (`yg aspects --health`) has a **false-block** column: for each rule, how many of its past refusals a person later waived (with a `yg-suppress` marker) or overturned. A refusal that was fixed in the code never counts — only refusals a human decided were wrong. Where the history is thin the number is shown with a plain `(thin data)` label, never a precise-looking rate.
 
 The count is a coarse read, not a precise verdict, and it can over-count in one rare case: it matches a waiver to a refusal by file and component, not by exact line, so if a waiver for a rule sits on the same file or component as an *unrelated* refusal from that same rule, that unrelated refusal can be tallied as a false block. Weigh a single hit with that in mind — it is thin-data by design and feeds a human review, never an automatic block.
 
@@ -71,7 +71,7 @@ By default an aspect reviews a whole component in one pass — `per: node`. The 
 
 For rules that hold within a single file on its own ("every handler validates its input"), switch to `per: file`: one check per file. Use it only when the rule truly is file-local — a per-file reviewer can't see the rest of the component.
 
-You can also narrow which files get reviewed with `scope.files`. Depth is in [Reviewers](/reviewers) and [The Lock](/the-lock).
+You can also narrow which files get reviewed with `scope.files`. One catch: the moment you write a `scope:` block at all, `per:` becomes required inside it — the `per: node` default applies only when there is no `scope:` block. Depth is in [Reviewers](/reviewers) and [The Lock](/the-lock).
 
 ## When something should be an aspect
 

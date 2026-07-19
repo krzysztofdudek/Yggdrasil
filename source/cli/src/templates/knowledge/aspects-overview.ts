@@ -12,8 +12,9 @@ verdict is cached in the lock.
 An aspect pairs a description (\`content.md\` for LLM, \`check.mjs\` for
 deterministic) with metadata (\`yg-aspect.yaml\`), and optionally reference files
 (LLM aspects only) for supporting context. Verification produces \`approved\` or
-\`refused\` with a violation report, stored in \`.yggdrasil/yg-lock.nondeterministic.json\` keyed by
-the \`(aspect, unit)\` pair.
+\`refused\` with a violation report, cached in the lock keyed by the
+\`(aspect, unit)\` pair — LLM verdicts in the committed \`yg-lock.nondeterministic.json\`,
+deterministic verdicts in the gitignored \`.yg-lock.deterministic.json\` cache.
 
 A verdict holds exactly while the inputs that produced it are unchanged. Editing
 a subject file, the aspect's rule source, its \`scope\`, or its tier makes the pair

@@ -8,15 +8,15 @@ instruction file — so the agent knows how to work with Yggdrasil.
 | Platform | File created/updated by `yg init` | Touches user files? |
 |---|---|---|
 | Cursor | `.cursor/rules/yggdrasil.mdc` | ❌ No |
-| Claude Code | `CLAUDE.md` (single `@...` line) | ⚠️ Minimal (1 line) |
+| Claude Code | `.yggdrasil/agent-rules.md` + `CLAUDE.md` (single `@...` line pointing at it) | ⚠️ Minimal (1 line) |
 | GitHub Copilot | `.github/copilot-instructions.md` (append section) | ⚠️ Appends a section |
 | Cline | `.clinerules/yggdrasil.md` | ❌ No |
 | RooCode | `.roo/rules/yggdrasil.md` | ❌ No |
 | Codex | `AGENTS.md` (append section) | ⚠️ Appends a section |
 | Windsurf | `.windsurf/rules/yggdrasil.md` | ❌ No |
-| Aider | `.aider.conf.yml` (adds `read:` entry) | ⚠️ Minimal (1 line) |
-| Gemini CLI | `GEMINI.md` (single `@...` line) | ⚠️ Minimal (1 line) |
-| Amp | `AGENTS.md` (single `@...` line) | ⚠️ Minimal (1 line) |
+| Aider | `.yggdrasil/agent-rules.md` + `.aider.conf.yml` (adds `read:` entry pointing at it) | ⚠️ Minimal (1 line) |
+| Gemini CLI | `.yggdrasil/agent-rules.md` + `GEMINI.md` (single `@...` line pointing at it) | ⚠️ Minimal (1 line) |
+| Amp | `.yggdrasil/agent-rules.md` + `AGENTS.md` (single `@...` line pointing at it) | ⚠️ Minimal (1 line) |
 | OpenCode | `AGENTS.md` (append section) | ⚠️ Appends a section |
 | CodeBuddy | `.codebuddy/rules/yggdrasil/RULE.mdc` | ❌ No |
 | Generic | `.yggdrasil/agent-rules.md` | ❌ No |

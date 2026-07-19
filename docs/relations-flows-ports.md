@@ -46,17 +46,20 @@ Two properties keep it free of false alarms:
 
 - **One-directional.** A real code dependency must be declared. The reverse is not required: a declared relation needs no code behind it. Dependencies over HTTP, dependency injection, reflection, and events are legitimately declared without any resolvable call in the source, and the check never complains about a relation with no matching code.
 - **Mapped-target-only and unambiguous-only.** It fires only when the depended-on file is mapped to a known node — a dependency on an unmapped file is a coverage matter, not a relation error. And it resolves only dependencies it can pin to exactly one target. Anything dynamic, reflective, external, or not uniquely resolvable is left alone.
+- **Hierarchy is exempt.** A dependency inside one component, or between a component and its own ancestor or descendant, needs no relation — those are not edges between two distinct components, so the check skips them.
 
 This is not an aspect. It has no rule file, it is not attached to your nodes, and the draft/advisory/enforced levels do not apply — it is **always an error** and always blocks `yg check`, like the architecture and mapping validators. It cannot be suppressed.
 
 There are two ways to clear a refusal:
 
-1. **Declare the relation** in the component's `yg-node.yaml`, with a type the architecture allows between the two node types.
+1. **Declare the relation** in the component's `yg-node.yaml`, with a type the architecture allows between the two node types. A relation declared to a *parent* node also sanctions dependencies on any of its descendants, so you can point one relation at a subtree's root instead of at each child.
 2. **Remove the dependency** if the code should not depend on the other component.
 
 If no relation type is allowed between the two node types, that is an architecture decision. Your agent surfaces it for your confirmation — you either change a node's type so an allowed relation exists, or extend the allowed relations in `yg-architecture.yaml`.
 
-One detail worth knowing: this check runs on **every** `yg check`, not only `yg check --approve`. It is recomputed live — parse, resolve, verify — on every run and never cached, so it is always the current truth of your code against the graph, at zero LLM cost. That is what lets a keyless CI `yg check` catch an undeclared dependency even though it makes no LLM calls. When adopting Yggdrasil on an existing codebase, the first run names every file, target, and the exact `relations:` stanza to add.
+One caveat on declaring the relation: the four structural relation types (`calls`, `uses`, `extends`, `implements`) must form a DAG. If two components depend on each other, declaring both directions creates a cycle, which a separate always-blocking validator rejects with a `structural-cycle` error (a component relating to itself counts too). Break the cycle — extract the shared piece into a third component both depend on — rather than declaring a mutual dependency.
+
+One detail worth knowing: this check runs on **every** `yg check`, not only `yg check --approve`. Its result is never cached: the resolve-and-verify join runs live on every call, so it is always the current truth of your code against the graph, at zero LLM cost. (Parsing a file is served from a content-addressed cache when its bytes are unchanged, but the resolution and the verdict are always recomputed.) That is what lets a keyless CI `yg check` catch an undeclared dependency even though it makes no LLM calls. When adopting Yggdrasil on an existing codebase, the first run names every file, target, and the exact `relations:` stanza to add.
 
 ---
 

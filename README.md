@@ -249,7 +249,7 @@ No. Review bots hunt for bugs against their own general model of "good code" —
 
 ## Examples
 
-[`examples/`](examples/) has two projects you can run. One passes, one has a deliberate violation for the reviewer to catch.
+[`examples/`](examples/) has six standalone projects you can run. Four are **keyless** — the free, local layer (deterministic `check.mjs` rules and the built-in relation check), no API key needed — and two exercise the **reviewer** (LLM) layer: `passing/` passes, `failing/` has a deliberate violation for the reviewer to catch. See [`examples/README.md`](examples/README.md) for the full tour.
 
 This repo uses Yggdrasil on itself. Browse [`.yggdrasil/`](.yggdrasil/) for a real, live graph, or run `yg check` in a clone to see the current node and aspect coverage for yourself.
 

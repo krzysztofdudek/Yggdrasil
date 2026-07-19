@@ -24,7 +24,7 @@ node_types:
                                              #
                                              # Grammar:
                                              #   path: <glob>                — minimatch glob on repo-relative POSIX path
-                                             #   content: <regex>            — JavaScript regex against file content
+                                             #   content: <regex>            — JS regex against the file's first 256KB (a file >5MB can't be content-classified)
                                              #   path + content combined     — implicit all_of of both atoms
                                              #   all_of: [<predicate>, ...]  — every child must satisfy
                                              #   any_of: [<predicate>, ...]  — at least one child must satisfy

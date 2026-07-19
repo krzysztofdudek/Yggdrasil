@@ -46,6 +46,13 @@ The token inside the parentheses is the aspect id — its directory under
 hierarchical like \`parent/child\`. Use \`yg aspects\` to list aspect ids. A
 reason must follow — it is permanent.
 
+One marker may name SEVERAL aspects at once, comma-separated:
+\`yg-suppress(a, b) <reason>\` (and \`yg-suppress-disable(a, b)\` /
+\`yg-suppress-enable(a, b)\` for the bracket form). The listed ids share the same
+waived range — the single line below for a single-line marker, or the bracketed
+span for the disable/enable form. This is not the wildcard \`*\`: it waives exactly
+the ids you name, nothing added later.
+
 ## Bracket
 
 The bracket form suppresses all lines between the disable and enable markers.

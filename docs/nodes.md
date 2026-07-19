@@ -44,7 +44,7 @@ The fields:
 
 ```yaml
 mapping:
-  - src/orders/         # directory — owns every file inside, recursively
+  - src/orders/         # directory — owns every file inside, recursively (minus files a child node claims)
   - src/orders.ts       # file — exact match
 ```
 
@@ -57,7 +57,7 @@ mapping:
 
 `src/db/*Repository.ts` matches `OrderRepository.ts` but not `Helper.ts` and not anything in a subdirectory. `src/**/*.ts` matches every `.ts` file anywhere under `src/`.
 
-Each source file has exactly one owner node. That rule keeps verification unambiguous — there is always one component, and one set of rules, responsible for any given file.
+Each source file has exactly one owner node. That rule keeps verification unambiguous — there is always one component, and one set of rules, responsible for any given file. When a parent maps a directory and a child node maps a specific file inside it, the child wins: that file is carved out of the parent's set, so the two never conflict.
 
 ## Nesting and inheritance
 
@@ -75,7 +75,9 @@ mapping:
   - src/legacy/auth/
 ```
 
-A node with no aspects produces nothing to verify and nothing to record. It satisfies the coverage requirement for free. The point is to get all your code mapped cheaply, then add rules where they matter, one component at a time. When you are ready to enforce something here, add an aspect to the node.
+A node with no aspects produces no rule verdicts and records nothing in the lock. It satisfies the coverage requirement for free. (One built-in check still runs on any node that maps code: if its files import another node's code, that dependency has to be declared as a relation — see [Relations, flows, ports](/relations-flows-ports).) The point is to get all your code mapped cheaply, then add rules where they matter, one component at a time. When you are ready to enforce something here, add an aspect to the node.
+
+The node's type still has to be one that classifies files — a type with a `when` predicate. A purely organizational type (no `when`) cannot map files at all; `yg check` rejects a mapping on such a type.
 
 Coverage — which files must be mapped, and how strictly — is configured separately. See [Configuration](/configuration).
 
@@ -83,7 +85,7 @@ Coverage — which files must be mapped, and how strictly — is configured sepa
 
 Every node declares a `type`, and every type is defined once in `.yggdrasil/yg-architecture.yaml`. Types are the vocabulary of your architecture. A type can:
 
-- **classify files** — a `when` predicate says which source files belong to this type, so your agent can place new files correctly.
+- **classify files** — a `when` predicate says which source files belong to this type, so your agent can place new files correctly. It is also enforced forward: every file a node of this type maps must match the type's `when`, or `yg check` reports a mismatch.
 - **set default rules** — list aspects every node of the type must satisfy, so you attach a cross-cutting rule once instead of on every node.
 - **constrain structure** — `parents` limits where a node of this type may nest; `relations` limits which types it may depend on, and through which relation type.
 - **opt into the log gate** — `log_required: true` makes a change to a node of this type record a short note on *why* before it is verified — your agent writes it with `yg log add` (see the [CLI reference](/cli-reference)).
@@ -94,6 +96,8 @@ A compact example:
 node_types:
   module:
     description: "Business logic unit with a clear domain responsibility"
+    when:
+      path: "src/**"                  # a module owns source files, so its type needs a when
 
   service:
     description: "Provides functionality to other components"
@@ -112,7 +116,7 @@ node_types:
       path: "src/shared/**"
 ```
 
-A type with a `when` predicate classifies files. A type without `when` is organizational — usable as a parent in the hierarchy, but its nodes cannot map any files. The `when` grammar (path and content matching, `all_of` / `any_of` / `not`) is the same one used for [conditional aspects](/conditional-aspects); read that page for the full grammar.
+A type with a `when` predicate classifies files. A type without `when` is organizational — usable as a parent in the hierarchy, but its nodes cannot map any files. The boolean combinators (`all_of` / `any_of` / `not`) are the same ones used for [conditional aspects](/conditional-aspects), but the atoms differ by site: a type's `when` classifies *files* and accepts only `path:` (a minimatch glob on the repo-relative path) and `content:` (a regular expression against the file's contents), whereas an aspect's `when` filters *nodes* and uses node atoms instead. Here, use `path` and `content`.
 
 The architecture file is the foundation of the graph, so changes to it ripple across every node of the affected type. Change it deliberately, and confirm the change before applying it.
 

@@ -27,9 +27,12 @@ exception is a single, clearly-labelled approve action — and even that just ru
 the same verification you would run from the command line; you can turn it off
 entirely with `yg portal --no-write` for a shared screen or a wall display.
 
-The portal answers only requests that come from its own page, so another website
-you happen to have open in a different browser tab cannot reach across and
-trigger the approve action — even though the portal lives on your own machine.
+For anything that could act on the project — the approve action, the cost
+preview, and the live data behind them — the portal answers only requests that
+come from its own page, so another website you happen to have open in a different
+browser tab cannot reach across and trigger the approve action, even though the
+portal lives on your own machine. (The page shell and its assets are served to
+anything on your machine, but they do nothing on their own.)
 
 To hand the picture to someone who does not have the project checked out:
 
@@ -40,6 +43,11 @@ yg portal --static
 This writes one self-contained file — no server, no internet, no build step —
 that opens in any browser and shows the exact same map, frozen at the moment you
 exported it. Add `--open` to either form to launch your browser straight at it.
+
+By default the served form uses a fixed local port (4317) — pass
+`yg portal --port <n>` to choose another — and the static form writes to
+`yg-portal.html` in the project root — pass `yg portal --static --out <path>` to
+write it elsewhere.
 
 ## What you see
 
@@ -64,6 +72,9 @@ A row of views down the side, each answering a different question:
 
   ![The portal's rulebook — a selected rule opened in the inspector panel, showing its full text, the rules it includes, and every component it lands on](/portal-rulebook.png)
 
+- **Type model** — the vocabulary your architecture is written in: every kind of
+  component, the rules each kind carries by default, and which components are of
+  that kind.
 - **Relations & boundaries** — what each component is allowed to depend on, what it
   actually depends on, and where the two disagree.
 - **Dependency structure** — the shape of how components depend on one another, in
