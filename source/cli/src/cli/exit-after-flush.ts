@@ -43,13 +43,20 @@
 const FORCE_EXIT_GRACE_MS = 2000;
 
 export async function exitAfterFlush(code: number): Promise<never> {
+  // Commit the exit code and arm the fallback BEFORE any await. 'drain' is emitted
+  // only after a write returned false, so a sub-highWaterMark buffered write emits
+  // none — the await below would then hang, leaving the exit code at its 0 default
+  // (a refusal silently exiting green) and the force-exit backstop never scheduled.
+  // Ordering these first makes the exit code correct regardless of whether drain
+  // ever fires; the loop still exits naturally on `process.exitCode` once stdout
+  // flushes, and the unref'd fallback fires only if a lingering handle blocks that.
+  process.exitCode = code;
+  // Fallback only — unref() so it never keeps the loop alive on its own; fires
+  // solely if a genuinely lingering handle blocks the natural exit.
+  setTimeout(() => process.exit(code), FORCE_EXIT_GRACE_MS).unref();
   if (process.stdout.writableLength > 0) {
     await new Promise<void>((resolve) => process.stdout.once('drain', resolve));
   }
-  process.exitCode = code;
-  // Fallback only — unref() so it never keeps the loop alive on its own; fires
-  // solely if a genuinely lingering handle blocks the natural exit above.
-  setTimeout(() => process.exit(code), FORCE_EXIT_GRACE_MS).unref();
   // Never resolves: exitAfterFlush is terminal for its callers (see doc comment).
   return new Promise<never>(() => {});
 }

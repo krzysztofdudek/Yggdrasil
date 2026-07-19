@@ -58,6 +58,28 @@ describe('exitAfterFlush', () => {
     expect(exitSpy).toHaveBeenCalledWith(2);
   });
 
+  it('commits the exit code and arms the fallback even when the buffer never emits drain', async () => {
+    // writableLength > 0 but no 'drain' will ever fire — a sub-highWaterMark
+    // buffered write emits none. The code and the fallback must be committed
+    // BEFORE the drain await, or the await hangs, the exit code stays at its 0
+    // default (a refusal exits green), and the force-exit backstop is never armed.
+    const wlSpy = vi.spyOn(process.stdout, 'writableLength', 'get').mockReturnValue(1);
+    // once('drain', …) that never invokes its listener (drain never arrives).
+    const onceSpy = vi
+      .spyOn(process.stdout, 'once')
+      .mockImplementation(() => process.stdout);
+    try {
+      void exitAfterFlush(5);
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(process.exitCode).toBe(5);
+      expect(unrefSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      wlSpy.mockRestore();
+      onceSpy.mockRestore();
+    }
+  });
+
   it('returns a promise that never resolves (terminal for callers)', async () => {
     let settled = false;
     void exitAfterFlush(1).then(

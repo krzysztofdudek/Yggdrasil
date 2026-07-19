@@ -223,7 +223,11 @@ function isMarkdownExt(file: string): boolean {
  */
 export function markdownFencedLines(text: string): Set<number> {
   const fenced = new Set<number>();
-  const lines = text.split('\n');
+  // Strip a trailing CR so a CRLF-authored file masks identically to LF. RE_FENCE
+  // ends with `(.*)$`, and neither `.` nor `$` spans `\r`, so a raw "```\r" line
+  // never matched — a CRLF Markdown file would get NO fence masking and a
+  // documented yg-suppress example inside a fence would leak out as a live waiver.
+  const lines = text.split('\n').map((l) => (l.endsWith('\r') ? l.slice(0, -1) : l));
   // The fence currently open: its delimiter CHARACTER and the opener's run LENGTH
   // (both needed to apply CommonMark's close rules).
   let open: { char: string; len: number } | null = null;

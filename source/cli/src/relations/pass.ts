@@ -161,6 +161,17 @@ export async function runRelationPass(
   // 3. Owner index over the whole graph.
   const ownerIndex = buildOwnerIndex(graph.nodes);
 
+  // Child-precedence: enumeration above records each file once under the FIRST node
+  // in graph insertion order whose mapping matches it — typically a globbing parent.
+  // But ownership (and therefore which node's declared relations sanction the file's
+  // outgoing dependencies) must honor child-precedence, exactly as `yg owner` and the
+  // pair-set carve-out do. Re-point every record at its true owner so a parent is
+  // never blamed for a dependency the child node that actually owns the file declared.
+  for (const record of fileRecords) {
+    const trueOwner = ownerIndex.ownerOf(record.path);
+    if (trueOwner !== undefined) record.nodeId = trueOwner;
+  }
+
   // Parse a single file, returning a ParsedFile with a live WASM tree.
   // The CALLER must call tree.delete() immediately after use — trees are never cached
   // here to keep WASM heap usage bounded to O(1) trees at any moment.

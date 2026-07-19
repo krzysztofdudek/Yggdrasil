@@ -626,6 +626,15 @@ describe('markdownFencedLines: the shared fence mask', () => {
     expect(markdownFencedLines(noOpen).size).toBe(0);
   });
 
+  it('a CRLF-authored fence masks identically to LF (trailing \\r must not break the match)', () => {
+    // Regression: RE_FENCE ends with `(.*)$`; `.` and `$` do not span `\r`, so a
+    // "```\r" line never matched and a CRLF Markdown file got ZERO fence masking —
+    // turning a documented yg-suppress EXAMPLE inside a fence into a live waiver.
+    const lf = ['before', '```', 'yg-suppress(x) reason', '```', 'after'].join('\n');
+    const crlf = lf.replace(/\n/g, '\r\n');
+    expect(sorted(markdownFencedLines(crlf))).toEqual([2, 3, 4]);
+  });
+
   it('a ~~~ line does NOT close a ``` fence (the fence char must match)', () => {
     const text = ['```', 'inside', '~~~', 'still inside', '```', 'after'].join('\n');
     // ``` opens at 1; ~~~ at 3 is interior, not a close; ``` at 5 closes.
