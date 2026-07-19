@@ -417,6 +417,41 @@ describe('checkFileMappingGitignored', () => {
       await rm(tmpDir, { recursive: true, force: true });
     }
   });
+
+  it('does not emit for a LITERAL .yggdrasil/ file mapping (meta-modeling)', async () => {
+    // A committed rule file under .yggdrasil/ is skipped by walkRepoFiles for
+    // STRUCTURAL reasons (the graph's own directory), not because it is gitignored.
+    // Meta-modeling explicitly allows mapping such a file by its literal path, so the
+    // gitignored check must exempt it — otherwise `yg check` blocks the very mapping
+    // the docs instruct authors to write.
+    const tmpDir = path.join(CLI_ROOT, '.temp-test-metamodel-literal');
+    try {
+      const yggDir = path.join(tmpDir, '.yggdrasil');
+      await mkdir(path.join(yggDir, 'model', 'enforcers'), { recursive: true });
+      await mkdir(path.join(yggDir, 'aspects', 'no-foo'), { recursive: true });
+      await writeFile(path.join(yggDir, 'aspects', 'no-foo', 'check.mjs'), 'export function check() { return []; }\n');
+      await writeFile(path.join(yggDir, 'yg-config.yaml'), 'version: "5.1.0"\n');
+      await writeFile(path.join(yggDir, 'yg-architecture.yaml'), [
+        'node_types:',
+        '  service:',
+        '    description: Service',
+        '    when:',
+        '      path: "**"',
+      ].join('\n'));
+      await writeFile(path.join(yggDir, 'model', 'enforcers', 'yg-node.yaml'), [
+        'name: enforcers',
+        'type: service',
+        'description: x',
+        'mapping:',
+        '  - .yggdrasil/aspects/no-foo/check.mjs',
+      ].join('\n'));
+      const graph = await loadGraph(tmpDir);
+      const result = await validate(graph);
+      expect(result.issues.find((i) => i.code === 'file-mapping-gitignored')).toBeUndefined();
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('checkStrictBackwardCoverage', () => {

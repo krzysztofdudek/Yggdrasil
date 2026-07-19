@@ -5,7 +5,7 @@ import { normalizeMappingPaths } from '../../io/paths.js';
 import { expandMappingPaths } from '../../io/hash.js';
 import { mappingEntryMatchesFile, isGlobPattern } from '../../utils/mapping-path.js';
 import { readSortedDir, statPath, fileAccess } from '../../io/graph-fs.js';
-import { walkRepoFiles } from '../../io/repo-scanner.js';
+import { walkRepoFiles, isCoverageExcludedPath } from '../../io/repo-scanner.js';
 import { FileContentCache } from '../../io/file-content-cache.js';
 import { evaluateFileWhen } from '../file-when-evaluator.js';
 import { renderTrace } from '../../formatters/predicate-trace.js';
@@ -20,6 +20,13 @@ export async function checkFileMappingGitignored(graph: Graph): Promise<Validati
   for (const [nodePath, node] of graph.nodes) {
     const mapping = node.meta.mapping ?? [];
     for (const relPath of mapping) {
+      // Paths that walkRepoFiles skips for STRUCTURAL reasons (the top-level
+      // `.yggdrasil/` graph directory, any `.git` segment) are absent from
+      // `tracked` but are NOT gitignored. Mapping a committed rule file under
+      // `.yggdrasil/` is sanctioned meta-modeling; treating its structural
+      // absence as ".gitignored" would block the very mapping the docs instruct
+      // authors to write. Exempt exactly those paths here.
+      if (isCoverageExcludedPath(relPath)) continue;
       const absPath = path.join(projectRoot, relPath);
       let st;
       try { st = await statPath(absPath); } catch { continue; }
