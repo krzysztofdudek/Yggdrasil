@@ -105,13 +105,38 @@ async function loadRootGitignoreStack(projectRoot?: string): Promise<GitignoreEn
   }
 }
 
-function isIgnoredByStack(candidatePath: string, stack: GitignoreEntry[]): boolean {
+function isIgnoredByStack(
+  candidatePath: string,
+  stack: GitignoreEntry[],
+  isDirectory = false,
+): boolean {
   for (const { basePath, matcher } of stack) {
     const relativePath = toPosix(path.relative(basePath, candidatePath));
     if (relativePath === '' || relativePath.startsWith('..')) continue;
-    if (matcher.ignores(relativePath) || matcher.ignores(relativePath + '/')) return true;
+    // Query the bare path always, and the directory form (trailing slash) ONLY
+    // when the candidate is actually a directory. A directory-only .gitignore
+    // pattern (e.g. `build/`) matches git-side only against directories, so
+    // querying `relativePath + '/'` for a FILE would wrongly drop a tracked file
+    // whose name collides with such a pattern (e.g. a file `scripts/build` under
+    // a `build/` rule) — excluding it from the node's hashed subject set and
+    // producing a false green. Real directories are still pruned: the
+    // isDirectory form runs the trailing-slash query for them. Mirrors the C-27
+    // fix in io/repo-scanner.ts's isIgnoredByStack.
+    if (matcher.ignores(relativePath) || (isDirectory && matcher.ignores(relativePath + '/'))) return true;
   }
   return false;
+}
+
+/**
+ * Defense-in-depth containment guard: true iff `relPath` resolved against
+ * `root` stays inside `root`. The node-parser rejects escaping mappings at parse
+ * time (they never reach a loaded graph), so this is belt-and-suspenders — if an
+ * escaping mapping ever reaches expansion another way, its out-of-repo path must
+ * not be surfaced to a caller (e.g. the reviewer-prompt subject assembler).
+ */
+function isWithinRoot(root: string, relPath: string): boolean {
+  const rel = path.relative(root, path.resolve(root, relPath));
+  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
 }
 
 export function hashString(content: string): string {
@@ -184,7 +209,7 @@ async function collectDirectoryFilePaths(
 
   for (const entry of entries) {
     const absoluteChildPath = path.join(directoryPath, entry.name);
-    if (isIgnoredByStack(absoluteChildPath, stack)) continue;
+    if (isIgnoredByStack(absoluteChildPath, stack, entry.isDirectory())) continue;
     if (entry.isDirectory()) dirs.push(absoluteChildPath);
     else if (entry.isFile()) files.push(absoluteChildPath);
   }
@@ -265,14 +290,24 @@ export async function expandMappingPaths(
   projectRoot: string,
   mappingPaths: string[],
 ): Promise<string[]> {
+  const root = path.resolve(projectRoot);
   const gitignoreStack = await loadRootGitignoreStack(projectRoot);
   const result: string[] = [];
+
+  // Every returned path is funneled through the containment guard, so a resolved
+  // path that escapes the repo root is never surfaced (see isWithinRoot).
+  const pushContained = (relPath: string): void => {
+    if (isWithinRoot(root, relPath)) result.push(relPath);
+  };
 
   for (const mp of mappingPaths) {
     if (isGlobPattern(mp)) {
       const entries = await expandGlobEntry(projectRoot, mp, gitignoreStack);
-      for (const entry of entries) result.push(entry.relPath);
+      for (const entry of entries) pushContained(entry.relPath);
     } else {
+      // Guard the mapping entry itself before touching the filesystem — an
+      // escaping entry must not even be stat()'d as an in-repo path.
+      if (!isWithinRoot(root, mp)) continue;
       const absPath = path.join(projectRoot, mp);
       try {
         const st = await stat(absPath);
@@ -282,10 +317,10 @@ export async function expandMappingPaths(
             gitignoreStack,
           });
           for (const entry of dirEntries) {
-            result.push(toPosixPath(path.join(mp, entry.relPath)));
+            pushContained(toPosixPath(path.join(mp, entry.relPath)));
           }
         } else {
-          result.push(toPosixPath(mp));
+          pushContained(toPosixPath(mp));
         }
       } catch {
         // Missing path — skip

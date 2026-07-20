@@ -1,11 +1,28 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { mkdtemp, cp, rm } from 'node:fs/promises';
+import { Command } from 'commander';
 import { findOwner } from '../../../src/cli/owner.js';
 import type { Graph } from '../../../src/model/graph.js';
 import { tmpdir } from 'node:os';
+
+// Keep the real abortOnUnexpectedError (so an unclassified error still renders
+// the generic "file an issue" text) but stub loadGraphOrAbort so the owner
+// action can run in-process against a fixed graph root — no built bin.js needed.
+vi.mock('../../../src/cli/preamble.js', async (importActual) => {
+  const actual = await importActual<typeof import('../../../src/cli/preamble.js')>();
+  return { ...actual, loadGraphOrAbort: vi.fn() };
+});
+vi.mock('../../../src/utils/debug-log.js', () => ({
+  initDebugLog: vi.fn(),
+  debugWrite: vi.fn(),
+}));
+vi.mock('../../../src/io/debug-log-writer.js', () => ({ appendToDebugLog: vi.fn() }));
+
+import { registerOwnerCommand } from '../../../src/cli/owner.js';
+import { loadGraphOrAbort } from '../../../src/cli/preamble.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../../..');
@@ -116,6 +133,59 @@ describe('owner command', () => {
       expect(result.status).toBe(0);
       expect(result.stdout).toMatch(/src\/checkout\/checkout\.controller\.ts -> checkout\/controller/);
     });
+  });
+});
+
+class ExitSignal extends Error {
+  constructor(public readonly code: number) {
+    super(`exit:${code}`);
+  }
+}
+
+describe('owner --file outside the project root: classified, not a "file an issue" crash', () => {
+  const mockLoad = vi.mocked(loadGraphOrAbort);
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('reports the path is outside the project root (what/why/next), never the generic bug message, exit 1', async () => {
+    // A real fixture graph root — the action derives repoRoot from it, so an
+    // absolute /etc/passwd resolves outside and findOwner throws the
+    // "Path is outside project root" error the CLI must classify.
+    mockLoad.mockResolvedValue({
+      rootPath: path.join(FIXTURE, '.yggdrasil'),
+      nodes: new Map(),
+      config: {},
+    } as unknown as Graph);
+
+    let exitCode: number | undefined;
+    vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+      exitCode = code ?? 0;
+      throw new ExitSignal(exitCode);
+    }) as never);
+    const stderrSpy = vi
+      .spyOn(process.stderr, 'write')
+      .mockImplementation(() => true);
+    const stdoutSpy = vi
+      .spyOn(process.stdout, 'write')
+      .mockImplementation(() => true);
+
+    const program = new Command();
+    program.exitOverride();
+    registerOwnerCommand(program);
+    try {
+      await program.parseAsync(['node', 'yg', 'owner', '--file', '/etc/passwd']);
+    } catch (e) {
+      if (!(e instanceof ExitSignal)) throw e;
+    }
+
+    const err = stderrSpy.mock.calls.map((c: unknown[]) => String(c[0])).join('');
+    void stdoutSpy;
+    expect(exitCode).toBe(1);
+    expect(err).toContain('outside the project root');
+    // The generic crash handler must NOT fire for this user-input error.
+    expect(err).not.toContain('This is a bug');
   });
 });
 

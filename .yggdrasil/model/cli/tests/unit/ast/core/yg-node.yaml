@@ -6,10 +6,12 @@ aspects: []
 relations:
   [
     { target: cli/ast/report, type: uses },
-    { target: cli/ast/runtime, type: uses }
+    { target: cli/ast/runtime, type: uses },
+    { target: cli/language-registry, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/ast/find-comments.test.ts
+  - source/cli/tests/unit/ast/grammar-registry-loads.test.ts
   - source/cli/tests/unit/ast/index-exports.test.ts
   - source/cli/tests/unit/ast/parser.test.ts
   - source/cli/tests/unit/ast/parser-concurrency.test.ts

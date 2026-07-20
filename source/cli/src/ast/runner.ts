@@ -180,7 +180,12 @@ export async function runAstAspect(params: RunAstAspectParams): Promise<RunAstAs
   // serializes/inspects as `{ files }`.
   const ctx: CheckContext = { files: sourceFiles };
   if (params.graphAccessTrap) {
-    for (const accessor of ['node', 'graph', 'fs', 'parseYaml'] as const) {
+    // The full complement of the production Ctx contract (structure/types.ts
+    // `Ctx`) MINUS `files` — every accessor a graphless drill cannot supply.
+    // Keep this list in sync with `Ctx`: a new graph-context member left off
+    // here would surface as `AST_CHECK_THROWN` (misclassified `unrun`, exit 2)
+    // instead of `AST_GRAPH_CTX_UNSUPPORTED` (`unsupported`, exit 0).
+    for (const accessor of ['node', 'subject', 'graph', 'fs', 'parseAst', 'parseYaml', 'parseJson', 'parseToml'] as const) {
       Object.defineProperty(ctx, accessor, {
         configurable: true,
         enumerable: false,
@@ -200,7 +205,7 @@ export async function runAstAspect(params: RunAstAspectParams): Promise<RunAstAs
     if (e instanceof GraphAccessTrap) {
       throw new AstRunnerError('AST_GRAPH_CTX_UNSUPPORTED', {
         what: `check.mjs for aspect '${params.aspectId}' read graph context (ctx.${e.accessor}), which yg drill does not provide.`,
-        why: `yg drill runs check.mjs over the case files only (ctx.files); a check that needs node / graph / fs / parseYaml cannot run in a graphless drill.`,
+        why: `yg drill runs check.mjs over the case files only (ctx.files); a check that needs node / subject / graph / fs / parseAst / parseYaml / parseJson / parseToml cannot run in a graphless drill.`,
         next: `The case is recorded as unsupported (not scored). Verify this aspect through yg check --approve, which supplies full graph context.`,
       });
     }

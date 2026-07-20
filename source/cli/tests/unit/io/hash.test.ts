@@ -206,6 +206,76 @@ describe('expandMappingPaths', () => {
   });
 });
 
+describe('expandMappingPaths containment (security: no out-of-repo path)', () => {
+  it('never returns a path that resolves outside the repo root', async () => {
+    // Build an outer dir with the project root nested inside and a secret file as
+    // a SIBLING of the root, so `../` from the root reaches it. An escaping
+    // mapping must never surface an out-of-repo path (which would flow into a
+    // reviewer prompt); the node-parser rejects these at parse time, and this is
+    // the belt-and-suspenders guard in the expansion layer.
+    const outer = await mkdtemp(path.join(tmpdir(), 'yg-hash-outer-'));
+    dirs.push(outer);
+    const root = path.join(outer, 'proj');
+    await mkdir(path.join(root, 'src'), { recursive: true });
+    await writeFile(path.join(root, 'src', 'in.ts'), 'in\n');
+    await writeFile(path.join(outer, 'outside.ts'), 'secret\n');
+
+    // An escaping file entry, an escaping directory entry, and an escaping glob
+    // are all present alongside one legitimate in-repo entry.
+    const out = await expandMappingPaths(root, [
+      'src/in.ts',
+      '../outside.ts',
+      '../',
+      '../*.ts',
+    ]);
+
+    // Only the in-repo file survives.
+    expect(out).toEqual(['src/in.ts']);
+    // Belt-and-suspenders: no returned path resolves outside the root.
+    for (const p of out) {
+      const rel = path.relative(root, path.resolve(root, p));
+      expect(rel.startsWith('..')).toBe(false);
+      expect(path.isAbsolute(rel)).toBe(false);
+    }
+  });
+
+  it('preserves an in-repo `a/../b` mapping (resolves back inside the root)', async () => {
+    const root = await tmpTree({ 'b/x.ts': 'x\n' });
+    // `a/../b` resolves to root/b — inside the repo — so it must be kept, matching
+    // the node-parser's escapesRepo tolerance (depth never goes negative).
+    const out = await expandMappingPaths(root, ['a/../b']);
+    expect(out).toEqual(['b/x.ts']);
+  });
+});
+
+describe('directory-only gitignore pattern vs a like-named FILE (C-27 twin)', () => {
+  it('keeps a tracked FILE whose name matches a directory-only pattern (build/)', async () => {
+    const root = await tmpTree({
+      'src/keep.ts': 'k\n',
+      // A FILE literally named `build` — git does NOT ignore it under a `build/`
+      // (directory-only) rule, so it must stay in the node's subject set.
+      'src/scripts/build': '#!/bin/sh\necho hi\n',
+      '.gitignore': 'build/\n',
+    });
+    const out = await expandMappingPaths(root, ['src']);
+    // Before the fix the "both forms" query dropped src/scripts/build (a false
+    // green — a mapped file the reviewer would never see).
+    expect(out.sort()).toEqual(['src/keep.ts', 'src/scripts/build']);
+  });
+
+  it('still prunes a real DIRECTORY matching a directory-only pattern (build/)', async () => {
+    const root = await tmpTree({
+      'src/keep.ts': 'k\n',
+      // A DIRECTORY named `build` — git ignores it under `build/`, so the fix must
+      // still prune it (the trailing-slash query runs for directories).
+      'src/build/artifact.js': 'compiled\n',
+      '.gitignore': 'build/\n',
+    });
+    const out = await expandMappingPaths(root, ['src']);
+    expect(out).toEqual(['src/keep.ts']);
+  });
+});
+
 describe('expandMappingPathsExcluding', () => {
   it('returns all files when no exclusions are given', async () => {
     const root = await tmpTree({ 'src/a.ts': 'a\n', 'src/b.ts': 'b\n' });

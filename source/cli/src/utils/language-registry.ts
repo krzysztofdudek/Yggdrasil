@@ -221,8 +221,15 @@ export const EXTENSION_TO_LANGUAGE: Record<string, string> = Object.fromEntries(
 );
 
 export function getLanguageForExtension(ext: string, overrides?: Record<string, string>): string | null {
-  if (overrides && ext in overrides) return overrides[ext];
-  return EXTENSION_TO_LANGUAGE[ext] ?? null;
+  // Normalize casing here — the registry keys are all lowercase and the sibling
+  // getGrammarForExtension already lowercases, so every caller may rely on a
+  // case-insensitive lookup. Without this, an uppercase/mixed-case extension
+  // (`Foo.PY`, `Foo.H`) missed here even though the file WAS parsed (the
+  // parse-decision paths lowercase first), dropping the tree and, for the
+  // suppress scan, honoring a marker that only lives inside a string literal.
+  const normalized = ext.toLowerCase();
+  if (overrides && normalized in overrides) return overrides[normalized];
+  return EXTENSION_TO_LANGUAGE[normalized] ?? null;
 }
 
 export function getExtensionsForLanguage(lang: string): string[] {

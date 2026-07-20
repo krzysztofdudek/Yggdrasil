@@ -81,7 +81,14 @@ export async function logMergeResolve(input: LogMergeResolveInput): Promise<LogM
     };
   }
 
-  if (/^(<{7}|={7}|>{7})/m.test(currentLog)) {
+  // Match ONLY the unambiguous open/close markers (7 `<` or 7 `>` at line
+  // start), matching core/check.ts's log-conflict guard. DEVIATION from the
+  // JSON-lock parity check (io/lock-store.ts, which also keys off `=======`):
+  // log.md is markdown, where a line-leading run of `=` is a legitimate setext
+  // H1 underline / horizontal rule and would false-positive. A real git
+  // conflict always also emits the `<<<<<<<`/`>>>>>>>` markers, so dropping the
+  // `=` alternative loses no true-positive detection.
+  if (/^<{7}/m.test(currentLog) || /^>{7}/m.test(currentLog)) {
     return {
       ok: false,
       error: {

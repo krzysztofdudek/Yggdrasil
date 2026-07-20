@@ -3,7 +3,7 @@ import path from 'node:path';
 import { DEFAULT_CONFIG, DEFAULT_ARCHITECTURE } from '../templates/default-config.js';
 import { installRulesForPlatform, type Platform } from '../templates/platform.js';
 import { debugWrite } from '../utils/debug-log.js';
-import { FILL_DIVERGENCE_FILENAME } from '../io/debug-log-writer.js';
+import { FILL_DIVERGENCE_GITIGNORE_LINE } from '../io/debug-log-writer.js';
 
 // ---------------------------------------------------------------------------
 // .gitattributes — mark the committed lock as generated
@@ -98,9 +98,10 @@ const YGGDRASIL_GITIGNORE_LINES = [
   // any check/verify/render path; never committed.
   '.yg-events.jsonl',
   // Convergence-sentinel evidence dump: local, best-effort forensic log written
-  // only when the fill detects a 0-fill divergence; never committed. Name shared
-  // with the writer (io/debug-log-writer) so the two can never drift.
-  FILL_DIVERGENCE_FILENAME,
+  // only when the fill detects a 0-fill divergence; never committed. The trailing
+  // `*` also covers the single `.1` rotation. Pattern shared with the writer
+  // (io/debug-log-writer) so the two can never drift.
+  FILL_DIVERGENCE_GITIGNORE_LINE,
   // Silent feature-field deviation index: a local, rebuildable attention index `yg check`
   // maintains (files structurally unusual among their node's same-language peers); never
   // committed. The writer (core/feature-index-write) self-ensures this same line as a backstop.

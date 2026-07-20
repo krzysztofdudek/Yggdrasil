@@ -67,6 +67,17 @@ export async function logAdd(input: LogAddInput): Promise<LogAddResult> {
     };
   }
 
+  if (reasonHasUnbalancedFence(reasonText)) {
+    return {
+      ok: false,
+      error: {
+        what: 'Reason contains an unclosed code fence',
+        why: 'An unbalanced ``` fence in one entry silently swallows every following `## [datetime]` header into this entry’s body for later readers (yg log read, yg check) — the entry boundary is lost.',
+        next: 'Close every ``` fence you open inside --reason (add a matching ``` line), or remove the fence.',
+      },
+    };
+  }
+
   const logPath = path.join(graph.rootPath, 'model', nodePath, 'log.md');
 
   const stats = await statLogFile(logPath);
@@ -143,4 +154,22 @@ function reasonHasLevel2HeaderOutsideFence(reason: string): boolean {
     if (line.startsWith('## ')) return true;
   }
   return false;
+}
+
+function reasonHasUnbalancedFence(reason: string): boolean {
+  const lines = reason.split('\n');
+  let fenceOpen = false;
+  let fenceLen = 0;
+  for (const line of lines) {
+    const m = /^(`{3,})(.*)$/.exec(line);
+    if (fenceOpen) {
+      if (m && m[2].trim() === '' && m[1].length >= fenceLen) fenceOpen = false;
+      continue;
+    }
+    if (m) {
+      fenceOpen = true;
+      fenceLen = m[1].length;
+    }
+  }
+  return fenceOpen;
 }

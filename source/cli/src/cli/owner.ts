@@ -122,6 +122,19 @@ export function registerOwnerCommand(program: Command): void {
           }
         }
       } catch (error) {
+        // A --file path that resolves outside the repository is USER input, not an
+        // internal bug — classify it rather than routing to the crash handler.
+        const msg = error instanceof Error ? error.message : String(error);
+        const outsideRoot = msg.match(/^Path is outside project root: (.+)$/);
+        if (outsideRoot) {
+          debugWrite(`[owner] file arg outside project root: ${msg}`);
+          process.stderr.write(chalk.red('Error: ' + buildIssueMessage({
+            what: `The path '${toPosixPath(outsideRoot[1])}' is outside the project root.`,
+            why: `yg owner resolves ownership only for files tracked inside the project.`,
+            next: `Pass a path inside the project root (relative to the repo).`,
+          }) + '\n'));
+          process.exit(1);
+        }
         abortOnUnexpectedError(error, 'resolving file owner');
       }
     });

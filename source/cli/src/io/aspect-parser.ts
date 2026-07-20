@@ -259,11 +259,13 @@ export async function parseAspect(
         }
         // parseAspectAttachment parses an implies edge's own when: via parseWhen with
         // a ctx suffixed `/when`, so every when-parse failure on the edge carries
-        // `/when:` in its message — and no other parseAspectAttachment error does.
-        // A malformed when: here must surface as a structured parse error, not an
-        // uncaught throw that the loader silently swallows (dropping this aspect and
-        // any scanned after it with a clean PASS).
-        if (msg.includes('/when:')) {
+        // `/when` in its message — the top-level shape as `.../when: ...` and every
+        // nested structural failure as `.../when/relations/...`, `.../when/node/...`,
+        // etc. Match the `/when` prefix (NOT the exact `/when:` shape) so a nested
+        // typo inside the predicate is routed here too, not thrown. A malformed when:
+        // must surface as a structured parse error, not an uncaught throw that the
+        // loader surfaces as a non-actionable "file an issue" abort of the whole run.
+        if (msg.includes('/when')) {
           return {
             ok: false,
             aspectId: idTrimmed,
@@ -277,7 +279,24 @@ export async function parseAspect(
             }],
           };
         }
-        throw err;
+        // Any remaining parseAspectAttachment validation failure (missing/blank id,
+        // unknown field, wrong entry type) must also become a structured result —
+        // parseAspect's contract is a {ok}|{ok:false,errors} union that never throws
+        // for validation. An uncaught throw here escapes to the loader and aborts the
+        // ENTIRE graph load with a generic "this is a bug" message instead of a scoped
+        // per-aspect error. Mirror the top-level when: catch-all below.
+        return {
+          ok: false,
+          aspectId: idTrimmed,
+          errors: [{
+            code: 'aspect-implies-invalid',
+            messageData: {
+              what: `yg-aspect.yaml at ${aspectYamlPath}: implies[${i}] is invalid: ${msg}`,
+              why: 'each implies entry must be an aspect id string, or an object { id, when?, status_inherit? }',
+              next: 'fix the implies entry — see yg schemas read aspect',
+            },
+          }],
+        };
       }
       implies.push(parsed.id);
       if (parsed.when) {

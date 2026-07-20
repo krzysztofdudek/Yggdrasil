@@ -588,7 +588,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check validation code matrix (remai
     }
   });
 
-  it('H4: a mapping path that climbs above the repo root yields mapping-escapes-repo (exit 1)', () => {
+  it('H4: a mapping path that climbs above the repo root is rejected at parse time (exit 1)', () => {
     const dir = minimalGraph('mapping-escapes', ({ ygRoot, projectRoot }) => {
       // A valid node keeps the graph non-empty and covered…
       writeNode(ygRoot, 'widget', ['name: Widget', 'description: A widget', 'type: service', 'mapping:', '  - src/widget.ts', ''].join('\n'));
@@ -597,9 +597,19 @@ describe.skipIf(!distExists)('CLI E2E — yg check validation code matrix (remai
       writeNode(ygRoot, 'escaper', ['name: Escaper', 'description: Escapes', 'type: service', 'mapping:', '  - ../../outside.ts', ''].join('\n'));
     });
     try {
+      // The node-parser now rejects an escaping mapping at PARSE time (closing a
+      // path-traversal hole where an out-of-repo file would flow into the
+      // reviewer prompt): the node fails to load and surfaces as a yaml-invalid
+      // parse error whose message says the mapping must not escape the repo. The
+      // node never enters the graph, so the later mapping-escapes-repo validator
+      // — which only iterates loaded nodes — never runs on it.
       const { status, all } = run(['check'], dir);
       expect(status).toBe(1);
-      expect(all).toContain('mapping-escapes-repo');
+      // Parse-time rejection: the escaping node fails to load with a guided message.
+      expect(all).toContain('must not escape it');
+      expect(all).toContain('escaper');
+      // The later validator's code must NOT appear — the node never loaded.
+      expect(all).not.toContain('mapping-escapes-repo');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

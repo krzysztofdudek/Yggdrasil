@@ -95,4 +95,14 @@ describe('readKnowledge', () => {
     const { stderr } = captureOutput(() => readKnowledge('nonexistent-topic'));
     expect(stderr).toContain('working-with-architecture');
   });
+
+  it.each(['constructor', 'toString', 'hasOwnProperty', 'valueOf', '__proto__'])(
+    'treats inherited Object.prototype key %s as an unknown topic (no crash)',
+    (name) => {
+      const { stderr, exitCode } = captureOutput(() => readKnowledge(name));
+      expect(exitCode).toBe(1);
+      expect(stderr).toMatch(new RegExp(`Unknown knowledge topic`));
+      expect(stderr).toContain('Available:');
+    },
+  );
 });

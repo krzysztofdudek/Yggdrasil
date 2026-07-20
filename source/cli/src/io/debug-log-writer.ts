@@ -35,6 +35,13 @@ export function ensureGitignoreLine(yggRootPath: string, line: string): void {
  *  written only when the fill detects a 0-fill divergence; never committed. */
 export const FILL_DIVERGENCE_FILENAME = '.yg-fill-divergence.log';
 
+/** The gitignore line that covers the evidence log AND its single rotation
+ *  (`<name>.1`). A bare filename entry matches only the exact name under
+ *  gitignore fnmatch semantics, so the trailing `*` is required to keep the
+ *  rotated dump out of the repo too. Callers must pass this exact string to
+ *  {@link ensureGitignoreLine} (the idempotency test is an exact match). */
+export const FILL_DIVERGENCE_GITIGNORE_LINE = `${FILL_DIVERGENCE_FILENAME}*`;
+
 /**
  * Persist one convergence-sentinel evidence dump. Synchronous and best-effort —
  * the sentinel fires at the fill's report boundary just before the CLI exits, so
@@ -45,7 +52,7 @@ export const FILL_DIVERGENCE_FILENAME = '.yg-fill-divergence.log';
  */
 export function writeFillDivergence(yggRootPath: string, text: string): void {
   try {
-    ensureGitignoreLine(yggRootPath, FILL_DIVERGENCE_FILENAME);
+    ensureGitignoreLine(yggRootPath, FILL_DIVERGENCE_GITIGNORE_LINE);
     const logPath = path.join(yggRootPath, FILL_DIVERGENCE_FILENAME);
     const rotated = `${logPath}.1`;
     if (existsSync(logPath)) {

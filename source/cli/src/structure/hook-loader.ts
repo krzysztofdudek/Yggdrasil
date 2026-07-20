@@ -98,12 +98,17 @@ async function buildOwnFiles(
 }
 
 /**
- * Wrap a NON-subject own-file (visible through `ctx.node.files`) so reading its
- * `content` folds a `read:` observation on first access. The raw disk `bytes`
- * make the fold byte-symmetric with verifyLock's re-observation; the recorder
- * dedups, so repeated reads cost one observation. All other File fields
- * (path/ast/language) pass through untouched. If raw bytes are unavailable
- * (defensive — should not happen for a materialized own-file) the content reads
+ * Wrap a NON-subject own-file (visible through `ctx.node.files`) so reading any
+ * content-derived field folds a `read:` observation on first access. Both
+ * `content` AND `ast` are gated: the AST is parsed from the file bytes, so a
+ * check that inspects a sibling's `.ast` is reading its content just as surely
+ * as reading `.content`, and must widen invalidation identically. Both getters
+ * share one record-once guard, so touching either (or both) costs exactly one
+ * observation; the raw disk `bytes` make the fold byte-symmetric with
+ * verifyLock's re-observation. `path` and `language` pass through untouched —
+ * both are extension/path-derived, not content-derived, so a sibling content
+ * edit need never invalidate on their account. If raw bytes are unavailable
+ * (defensive — should not happen for a materialized own-file) the fields read
  * back plainly without recording. Spec §3.1 (Bug 1): the observation is what
  * widens invalidation, so a sibling that is never read stays immune.
  */
@@ -114,18 +119,29 @@ function wrapNonSubjectFile(
   recorder: ObservationRecorder,
 ): File {
   if (bytes === undefined) return f;
-  const { content, ...rest } = f;
+  const { content, ast, ...rest } = f;
   let recorded = false;
+  const ensureRecorded = (): void => {
+    if (!recorded) {
+      recorder.recordRead(repoRelPosixPath, bytes);
+      recorded = true;
+    }
+  };
   const wrapped = { ...rest } as File;
   Object.defineProperty(wrapped, 'content', {
     enumerable: true,
     configurable: true,
     get(): string {
-      if (!recorded) {
-        recorder.recordRead(repoRelPosixPath, bytes);
-        recorded = true;
-      }
+      ensureRecorded();
       return content;
+    },
+  });
+  Object.defineProperty(wrapped, 'ast', {
+    enumerable: true,
+    configurable: true,
+    get(): unknown {
+      ensureRecorded();
+      return ast;
     },
   });
   return wrapped;

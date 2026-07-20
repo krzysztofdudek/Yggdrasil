@@ -385,6 +385,23 @@ describe('impact command', () => {
         expect(result.stderr).toContain('no graph coverage');
       });
     });
+
+    it('classifies a --file outside the project root (what/why/next), not a generic crash', async () => {
+      await withFixtureCopy(async (cwd) => {
+        // An absolute path outside the repo copy resolves outside the project
+        // root; the resolver throws "Path is outside project root", which impact
+        // must classify as user input — never route to the "file an issue" abort.
+        const result = spawnSync(
+          'node',
+          [BIN_PATH, 'impact', '--file', '/etc/passwd'],
+          { cwd, encoding: 'utf-8' },
+        );
+        expect(result.status).toBe(1);
+        expect(result.stderr).toContain('outside the project root');
+        // The generic crash handler must NOT fire for this user-input error.
+        expect(result.stderr).not.toContain('This is a bug');
+      });
+    });
   });
 
   describe('error cases', () => {

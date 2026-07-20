@@ -56,8 +56,38 @@ export interface FileFacts {
   features: FeatureVector;
 }
 
+/**
+ * An INFRASTRUCTURE failure while parsing a mapped source file during the relation
+ * pass: a missing/corrupt WASM grammar, a `Parser.init()` / `Language.load()`
+ * rejection, or `parser.parse()` returning null. tree-sitter is an ERROR-TOLERANT
+ * parser — it returns a tree (with `hasError` nodes) for malformed source and NEVER
+ * throws on bad syntax — so any exception `parseFile` throws is BY CONSTRUCTION an
+ * infrastructure fault, never a code-level parse of bad source. Such a failure must
+ * FAIL CLOSED: the relation-conformance check must NOT silently treat the file as
+ * having zero dependencies (which would make `yg check` pass over code it never
+ * analyzed — repo-wide for a whole language if that language's grammar is missing).
+ * Deduplicated per language (one grammar fault hits every file of that language
+ * identically); `examplePath` names the first file that hit it and `fileCount` how
+ * many files of the language failed. The caller surfaces each as a BLOCKING issue.
+ */
+export interface RelationParseFailure {
+  language: string;
+  examplePath: string; // repo-rel POSIX path of the first file that failed to parse
+  fileCount: number; // number of files of this language that failed to parse
+  message: string; // the underlying parseFile error text (e.g. resolveWasm's)
+}
+
 export interface RelationPassResult {
   violationsByNode: Map<string, NodeViolations>;
+  /**
+   * ALWAYS present (empty when every mapped file parsed). Infrastructure parse
+   * failures encountered during the pass, one entry per affected language. The gate
+   * caller (`yg check`) MUST surface each as a blocking issue — an unparsed file
+   * contributes no detected dependencies, so silently dropping it would let the
+   * relation-conformance check go green over code it never analyzed. A read-only
+   * consumer (e.g. the calibration dump) may ignore this field; it is never a gate.
+   */
+  parseFailures: RelationParseFailure[];
   /** Per-file extractor facts (repo-rel POSIX path → facts). Always populated.
    *  Exposed so the cache-audit harness can deep-equal a cache-HIT run against a
    *  cache-DISABLED run — a mismatch means an incomplete key or a broken round-trip. */
@@ -172,15 +202,47 @@ export async function runRelationPass(
     if (trueOwner !== undefined) record.nodeId = trueOwner;
   }
 
+  // Infrastructure parse failures collected during the pass, deduped per language.
+  // Populated ONLY by the parseFile-throws branch in parseSingle below; returned on
+  // the result so the gate caller can surface each as a blocking issue (fail closed).
+  const parseFailuresByLanguage = new Map<string, RelationParseFailure>();
+
   // Parse a single file, returning a ParsedFile with a live WASM tree.
   // The CALLER must call tree.delete() immediately after use — trees are never cached
   // here to keep WASM heap usage bounded to O(1) trees at any moment.
   async function parseSingle(record: FileRecord): Promise<ParsedFile | null> {
+    // No grammar registered for this file's extension → a legitimate, SILENT skip:
+    // the file is simply outside relation conformance. This is NOT an infra failure
+    // and must never surface as an error.
     if (!record.language) return null;
     try {
       const tree = await parseFile(record.path, record.content);
       return { path: record.path, content: record.content, tree, language: record.language };
-    } catch {
+    } catch (err) {
+      // FAIL CLOSED. tree-sitter is error-tolerant — it returns a tree (with `hasError`
+      // nodes) for malformed source and never throws on bad syntax — so any throw from
+      // parseFile is an INFRASTRUCTURE fault (missing/corrupt WASM grammar,
+      // Parser.init()/Language.load() rejection, or parser.parse() returning null),
+      // exactly the condition ast/runner.ts treats as AST_GRAMMAR_LOAD_FAILED. The old
+      // `catch { return null; }` collapsed this into "the file has no dependencies",
+      // silently zeroing the relation-conformance analysis for the file — repo-wide for a
+      // whole language if its grammar is missing — so `yg check` went green over code it
+      // never analyzed. Record the fault (deduped per language) so the caller surfaces it
+      // as a BLOCKING relation-parse-failed issue; still return null so the pass completes
+      // and every OTHER language is analyzed and reported. parseFile creates no tree when
+      // it throws, so there is nothing to delete here.
+      const message = err instanceof Error ? err.message : String(err);
+      const prior = parseFailuresByLanguage.get(record.language);
+      if (prior) {
+        prior.fileCount++;
+      } else {
+        parseFailuresByLanguage.set(record.language, {
+          language: record.language,
+          examplePath: record.path,
+          fileCount: 1,
+          message,
+        });
+      }
       return null;
     }
   }
@@ -500,5 +562,11 @@ export async function runRelationPass(
   const hashByPath = new Map<string, string>();
   for (const [rel, record] of recordByPath) hashByPath.set(rel, record.hash);
 
-  return { violationsByNode, factsByPath, detectedEdgesByNode, hashByPath };
+  return {
+    violationsByNode,
+    factsByPath,
+    detectedEdgesByNode,
+    hashByPath,
+    parseFailures: [...parseFailuresByLanguage.values()],
+  };
 }

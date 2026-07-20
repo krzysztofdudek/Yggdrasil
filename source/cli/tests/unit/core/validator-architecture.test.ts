@@ -418,6 +418,40 @@ describe('checkFileMappingGitignored', () => {
     }
   });
 
+  it('does not emit for a tracked file mapped with a leading "./" prefix', async () => {
+    // A mapping entry may carry a no-op './' prefix. walkRepoFiles emits clean
+    // POSIX paths (no './'), so an unnormalized membership test would miss the
+    // tracked file and falsely flag a correctly-tracked, non-gitignored file as
+    // gitignored. The check must normalize the entry before the tracked-set test.
+    const tmpDir = path.join(CLI_ROOT, '.temp-test-dotslash-mapping');
+    try {
+      const yggDir = path.join(tmpDir, '.yggdrasil');
+      await mkdir(path.join(yggDir, 'model', 'svc'), { recursive: true });
+      await mkdir(path.join(tmpDir, 'src'), { recursive: true });
+      await writeFile(path.join(tmpDir, 'src', 'handler.ts'), 'export function handle() {}');
+      await writeFile(path.join(yggDir, 'yg-config.yaml'), 'version: "5.1.0"\n');
+      await writeFile(path.join(yggDir, 'yg-architecture.yaml'), [
+        'node_types:',
+        '  service:',
+        '    description: Service',
+        '    when:',
+        '      path: "**"',
+      ].join('\n'));
+      await writeFile(path.join(yggDir, 'model', 'svc', 'yg-node.yaml'), [
+        'name: svc',
+        'type: service',
+        'description: x',
+        'mapping:',
+        '  - ./src/handler.ts',
+      ].join('\n'));
+      const graph = await loadGraph(tmpDir);
+      const result = await validate(graph);
+      expect(result.issues.find((i) => i.code === 'file-mapping-gitignored')).toBeUndefined();
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
   it('does not emit for a LITERAL .yggdrasil/ file mapping (meta-modeling)', async () => {
     // A committed rule file under .yggdrasil/ is skipped by walkRepoFiles for
     // STRUCTURAL reasons (the graph's own directory), not because it is gitignored.

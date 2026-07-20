@@ -16,7 +16,8 @@ import type { Graph } from '../model/graph.js';
 import type { LockFile, LockNodeEntry } from '../model/lock.js';
 import { computeSourceFingerprint, FileUnreadableError } from './pairs.js';
 import { verifyLock } from './verify-lock.js';
-import { computeLogBaselineForNode } from './log/log-gate.js';
+import { computeLogBaselineFromContent, readLogContent } from './log/log-gate.js';
+import { validateAppendOnly } from './log-integrity.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { logGateBlocksNode } from './log/log-gate.js';
 
@@ -135,8 +136,13 @@ export async function applyPositiveClosure(
 
     const entry = lock.nodes[nodePath] ?? {};
     entry.source = currentFingerprint;
-    const logBaseline = await computeLogBaselineForNode(projectRoot, nodePath);
-    if (logBaseline) entry.log = logBaseline;
+    const content = await readLogContent(projectRoot, nodePath);
+    const logBaseline = computeLogBaselineFromContent(content);
+    // Advance the log baseline only when current content is a pure append over the
+    // stored one — never launder a tampered history green (advancing the source
+    // fingerprint is unaffected: the read-path integrity check still refuses while
+    // the log baseline stays the last known-good value).
+    if (logBaseline && !baselineTampered(content, entry.log)) entry.log = logBaseline;
     lock.nodes[nodePath] = entry;
     mutated = true;
   }
@@ -147,6 +153,20 @@ export async function applyPositiveClosure(
 function logBaselineEquals(a: LockNodeEntry['log'], b: LockNodeEntry['log']): boolean {
   if (!a || !b) return !a && !b;
   return a.last_entry_datetime === b.last_entry_datetime && a.prefix_hash === b.prefix_hash;
+}
+
+/**
+ * True when a prior stored baseline exists AND current log content is NOT a pure
+ * append over it — i.e. a historical entry inside the hashed prefix was edited.
+ * Closure must NEVER overwrite the stored baseline from such tampered content: the
+ * freshly-computed baseline would hash the tampered bytes, laundering the break
+ * green and hiding it from the read-path integrity check (classifyLogStateFromLock
+ * / validateAppendOnly) that otherwise refuses on every `yg check`. When this trips,
+ * closure keeps the last known-good baseline so that refusal survives.
+ */
+function baselineTampered(content: string, priorLog: LockNodeEntry['log']): boolean {
+  if (!priorLog) return false;
+  return !validateAppendOnly(content, priorLog.last_entry_datetime, priorLog.prefix_hash).ok;
 }
 
 /**
@@ -162,9 +182,15 @@ async function reconcileNonLogRequiredEntry(
   nodePath: string,
   lock: LockFile,
 ): Promise<boolean> {
-  const logBaseline = await computeLogBaselineForNode(projectRoot, nodePath);
+  const content = await readLogContent(projectRoot, nodePath);
+  const logBaseline = computeLogBaselineFromContent(content);
   const existing = lock.nodes[nodePath];
-  const desiredLog = logBaseline ?? existing?.log;
+  // Never launder a tampered history: if current content is not a pure append over
+  // the stored baseline, keep the last known-good baseline instead of advancing to
+  // the freshly-computed (tampered) one — the read-path integrity check keeps refusing.
+  const desiredLog = baselineTampered(content, existing?.log)
+    ? existing?.log
+    : (logBaseline ?? existing?.log);
 
   // Desired entry: { log } when a baseline applies, otherwise no entry. Never a source.
   if (!desiredLog) {
@@ -184,10 +210,13 @@ async function reconcileNonLogRequiredEntry(
  * Returns true when it changed the lock.
  */
 async function closeLogBaselineOnly(projectRoot: string, nodePath: string, lock: LockFile): Promise<boolean> {
-  const logBaseline = await computeLogBaselineForNode(projectRoot, nodePath);
+  const content = await readLogContent(projectRoot, nodePath);
+  const logBaseline = computeLogBaselineFromContent(content);
   if (!logBaseline) return false;
   const existing = lock.nodes[nodePath];
   if (logBaselineEquals(existing?.log, logBaseline)) return false;
+  // Never launder a tampered history green: keep the last known-good baseline.
+  if (baselineTampered(content, existing?.log)) return false;
   lock.nodes[nodePath] = { ...(existing ?? {}), log: logBaseline };
   return true;
 }

@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
-import { mkdtemp, mkdir, writeFile, rm, chmod } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm, chmod } from 'node:fs/promises';
 
 import { loadGraph } from '../../../src/core/graph-loader.js';
 import { runFill } from '../../../src/core/fill.js';
@@ -115,6 +115,61 @@ describe('positive closure — log_required source fingerprint + minimal logs lo
     } finally {
       await chmod(svc, 0o644); // restore so the temp dir can be cleaned up
     }
+  });
+
+  it('closure NEVER launders a tampered log history green — the stored baseline survives --approve', async () => {
+    // Two-entry log so the append-only baseline boundary is the SECOND entry and
+    // the FIRST entry lives strictly inside the hashed prefix. Editing the first
+    // entry's body is a historical tamper the read-path integrity check refuses.
+    const logMd =
+      '## [2026-05-11T10:00:00.000Z]\nfirst entry body\n## [2026-05-11T11:00:00.000Z]\nsecond entry body\n';
+    const projectRoot = await setupDetNode({ logContent: logMd }); // non-log_required
+    const nodeLog = path.join(projectRoot, '.yggdrasil', 'model', 'svc', 'log.md');
+
+    let graph = await loadGraph(projectRoot);
+    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    const sealed = readLock(graph.rootPath).nodes['svc']?.log;
+    expect(sealed?.last_entry_datetime).toBe('2026-05-11T11:00:00.000Z');
+    expect(sealed?.prefix_hash).toBeDefined();
+
+    // Tamper the FIRST (pre-baseline) entry's body in place — the boundary entry's
+    // datetime is untouched, so the break is a prefix modification inside the seal.
+    await writeFile(
+      nodeLog,
+      logMd.replace('first entry body', 'TAMPERED HISTORY'),
+    );
+
+    // Re-fill (the standard end-of-work path). Closure must NOT recompute the
+    // baseline over the tampered bytes and overwrite the committed anchor.
+    graph = await loadGraph(projectRoot);
+    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+
+    const afterTamper = readLock(graph.rootPath).nodes['svc']?.log;
+    expect(afterTamper?.prefix_hash).toBe(sealed?.prefix_hash);
+    expect(afterTamper?.last_entry_datetime).toBe(sealed?.last_entry_datetime);
+    // Sanity: the tamper is real on disk (so a passing assertion is not vacuous).
+    expect(await readFile(nodeLog, 'utf-8')).toContain('TAMPERED HISTORY');
+  });
+
+  it('closure DOES advance the baseline for a legitimate pure append (no false hold-back)', async () => {
+    const logMd = '## [2026-05-11T10:00:00.000Z]\nfirst entry body\n';
+    const projectRoot = await setupDetNode({ logContent: logMd }); // non-log_required
+    const nodeLog = path.join(projectRoot, '.yggdrasil', 'model', 'svc', 'log.md');
+
+    let graph = await loadGraph(projectRoot);
+    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    const first = readLock(graph.rootPath).nodes['svc']?.log;
+    expect(first?.last_entry_datetime).toBe('2026-05-11T10:00:00.000Z');
+
+    // Append a NEW entry the way `yg log add` does — header directly after the
+    // trailing newline, no blank-line separator — leaving historical bytes intact.
+    await writeFile(nodeLog, logMd + '## [2026-05-11T12:00:00.000Z]\nsecond entry body\n');
+    graph = await loadGraph(projectRoot);
+    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+
+    const advanced = readLock(graph.rootPath).nodes['svc']?.log;
+    expect(advanced?.last_entry_datetime).toBe('2026-05-11T12:00:00.000Z');
+    expect(advanced?.prefix_hash).not.toBe(first?.prefix_hash);
   });
 
   it('a non-log_required node strips a stale source-only entry left by an earlier CLI', async () => {

@@ -95,4 +95,24 @@ describe('walkRepoFiles', () => {
     fs.symlinkSync(join(tmpDir, 'gone.ts'), join(tmpDir, 'broken.ts'));
     await expect(walkRepoFiles(tmpDir)).resolves.toBeInstanceOf(Array);
   });
+
+  it('keeps a tracked FILE whose name collides with a directory-only pattern', async () => {
+    // A directory-only pattern (`build/`) must NOT drop a same-named file.
+    writeFileSync(join(tmpDir, '.gitignore'), 'build/\n');
+    mkdirSync(join(tmpDir, 'scripts'));
+    writeFileSync(join(tmpDir, 'scripts/build'), '#!/bin/sh\n');
+    const files = await walkRepoFiles(tmpDir);
+    expect(files).toContain('scripts/build');
+  });
+
+  it('still prunes a real directory matched by a directory-only pattern', async () => {
+    // Regression guard: `build/` must still exclude an actual `build/` directory.
+    writeFileSync(join(tmpDir, '.gitignore'), 'build/\n');
+    mkdirSync(join(tmpDir, 'build'));
+    writeFileSync(join(tmpDir, 'build/out.js'), '');
+    writeFileSync(join(tmpDir, 'keep.ts'), '');
+    const files = await walkRepoFiles(tmpDir);
+    expect(files).toContain('keep.ts');
+    expect(files).not.toContain('build/out.js');
+  });
 });

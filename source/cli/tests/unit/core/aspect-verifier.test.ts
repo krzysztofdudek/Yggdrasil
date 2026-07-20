@@ -235,4 +235,37 @@ describe('verifyWithConsensus', () => {
     expect(result.response.errorSource).toBe('provider');
     expect(result.votes).toHaveLength(3);
   });
+
+  it('(e) consensus=2 mixed losing set [provider-error, codeViolation] surfaces the real violation reason, not the provider-error text', async () => {
+    const responses: AspectResponse[] = [
+      { satisfied: false, reason: 'OpenAI request failed', errorSource: 'provider' },
+      { satisfied: false, reason: 'Rule X violated: missing null check', errorSource: 'codeViolation' },
+    ];
+    let i = 0;
+    const provider: LlmProvider = {
+      verifyAspect: vi.fn(async () => responses[i++]),
+      isAvailable: vi.fn(async () => true),
+    };
+    const result = await verifyWithConsensus(provider, 'prompt', 2);
+    expect(result.response.satisfied).toBe(false);
+    // Classification is unchanged: at least one losing vote is a real refusal.
+    expect(result.response.errorSource).toBe('codeViolation');
+    // The reason must come from the codeViolation vote, not the leading provider error.
+    expect(result.response.reason).toBe('Rule X violated: missing null check');
+  });
+
+  it('(f) consensus=2 mixed losing set is order-independent [codeViolation, provider-error]', async () => {
+    const responses: AspectResponse[] = [
+      { satisfied: false, reason: 'Rule Y violated: unsafe cast', errorSource: 'codeViolation' },
+      { satisfied: false, reason: 'Anthropic request failed', errorSource: 'provider' },
+    ];
+    let i = 0;
+    const provider: LlmProvider = {
+      verifyAspect: vi.fn(async () => responses[i++]),
+      isAvailable: vi.fn(async () => true),
+    };
+    const result = await verifyWithConsensus(provider, 'prompt', 2);
+    expect(result.response.errorSource).toBe('codeViolation');
+    expect(result.response.reason).toBe('Rule Y violated: unsafe cast');
+  });
 });

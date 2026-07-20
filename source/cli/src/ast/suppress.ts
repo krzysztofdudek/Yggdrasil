@@ -186,10 +186,11 @@ function parseMarker(lineText: string, line: number, file: string, requireDelimi
 // consumers mask out fenced lines before matching.
 //
 // FAIL TOWARD ENFORCEMENT: any fence-parsing ambiguity (an unclosed fence, a
-// ~~~ fence, an up-to-3-space-indented fence, a nested fence, an info-string
-// close) may at worst SKIP a marker (stricter — the marker is simply not
-// honored), and can NEVER honor a fenced example as a waiver. An unclosed fence
-// therefore extends through EOF. Close detection follows CommonMark: a closing
+// ~~~ fence, an indented fence, a nested fence, an info-string close, or a plain
+// 4-space/tab indented code block) may at worst SKIP a marker (stricter — the
+// marker is simply not honored), and can NEVER honor a fenced example as a
+// waiver. An unclosed fence therefore extends through EOF. Close detection follows
+// CommonMark: a closing
 // fence must use the SAME character, run AT LEAST as long as the opener, and
 // carry NO info string — so a shorter inner run (a ``` inside a ```` block) or a
 // ```lang line never closes the fence, only ever keeping it open LONGER (safe).
@@ -200,7 +201,19 @@ function parseMarker(lineText: string, line: number, file: string, requireDelimi
 //
 // Group 1 captures the full delimiter RUN (so its length is comparable); group 2
 // captures the trailing text (so an info string on a would-be close is detected).
-const RE_FENCE = /^ {0,3}((?:`{3,})|(?:~{3,}))[ \t]*(.*)$/;
+// Leading whitespace is UNBOUNDED (not capped at 3): a fence nested inside a list
+// item or blockquote is indented past column 3, and recognizing it as a fence is
+// the SAFE direction (over-recognizing a fence only ever masks MORE — it can never
+// honor a fenced example). A plain 4-space/tab indented CommonMark code block —
+// which carries no fence syntax at all — is masked separately in the loop below.
+const RE_FENCE = /^[ \t]*((?:`{3,})|(?:~{3,}))[ \t]*(.*)$/;
+// A CommonMark indented code block: a line indented 4+ spaces (a leading tab
+// counts as 4 columns). This is the OTHER standard Markdown code-block form,
+// which RE_FENCE structurally cannot express. Masking such a line keeps a
+// documented suppress example written as an indented block from leaking out as a
+// live waiver. Over-masking (e.g. an indented continuation line under a list) is
+// safe — it can at worst SKIP a marker, never honor one.
+const RE_INDENTED_CODE = /^(?: {4,}|\t)/;
 const MARKDOWN_EXTS = new Set(['.md', '.markdown']);
 
 /** True when the path's extension is Markdown (the only class that gets fence masking). */
@@ -210,8 +223,10 @@ function isMarkdownExt(file: string): boolean {
 
 /**
  * 1-based line numbers that fall inside a Markdown fenced code block — the fence
- * delimiter lines themselves INCLUDED. A fence opens on the first ``` / ~~~ line
- * (run of 3+, indented at most 3 spaces); an info string ON THE OPENER is allowed
+ * delimiter lines themselves INCLUDED — OR inside a plain indented (4-space/tab)
+ * code block, the other CommonMark code-block form. A fence opens on the first
+ * ``` / ~~~ line (run of 3+, at any leading indentation); an info string ON THE
+ * OPENER is allowed
  * (```ts still opens). It closes only on a later line that (per CommonMark) uses
  * the SAME character, runs AT LEAST as long as the opener, and carries NO info
  * string (trailing text whitespace-only). A shorter same-character run, a
@@ -239,6 +254,12 @@ export function markdownFencedLines(text: string): Set<number> {
       // non-empty.
       if (m) {
         open = { char: m[1][0], len: m[1].length };
+        fenced.add(i + 1);
+      } else if (RE_INDENTED_CODE.test(lines[i])) {
+        // Not a fence, but a 4-space/tab indented CommonMark code block line — mask
+        // it too so a documented suppress example written as an indented block is
+        // inert. Only reached when no fence is open (an open fence already masks
+        // every interior line below, regardless of indentation).
         fenced.add(i + 1);
       }
       continue;

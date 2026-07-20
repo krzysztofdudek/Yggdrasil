@@ -809,6 +809,42 @@ describe('check render — --aspect drill-in view (task 2.2)', () => {
     // …and NOT the global Next form (avoid double-messaging).
     expect(out).not.toMatch(/\nNext: /);
   });
+
+  // The drill-in "Next (this group):" pointer must name the HIGHEST-PRIORITY
+  // filtered issue's next, per the same cascade computeSuggestedNext uses — NOT
+  // the first issue in emission order. Here an enforced refusal (rank 3) is
+  // emitted BEFORE an unverified pair (rank 2) on the same aspect, so a naive
+  // array-order pick would point at the refusal's "Three exits" text instead of
+  // the unverified pair's "yg check --approve".
+  it('drill-in Next points at the highest-priority issue, not the first-emitted one', () => {
+    const mixedPriorityIssues: CheckIssue[] = [
+      // Emitted FIRST but LOWER priority (enforced refusal, rank 3).
+      {
+        severity: 'error',
+        code: 'aspect-violation-enforced',
+        rule: 'aspect-violation-enforced',
+        aspectId: 'x',
+        pairKind: 'llm',
+        nodePath: 'node-a',
+        messageData: llmRefusedMessage({ aspectId: 'x', unitKey: 'node-a#x', reason: 'missing entry A' }),
+      } as CheckIssue,
+      // Emitted SECOND but HIGHER priority (unverified, rank 2).
+      {
+        severity: 'error',
+        code: 'unverified',
+        rule: 'unverified',
+        aspectId: 'x',
+        pairKind: 'llm',
+        nodePath: 'node-b',
+        messageData: unverifiedMessage({ aspectId: 'x', unitKey: 'node-b#x' }),
+      } as CheckIssue,
+    ];
+    const out = stripAnsi(formatOutput(baseResult(mixedPriorityIssues), { kind: 'aspect', id: 'x' }));
+    // The pointer must be the unverified pair's next ('yg check --approve'), NOT
+    // the enforced refusal's 'Three exits:' text.
+    expect(out).toMatch(/\nNext \(this group\): yg check --approve/);
+    expect(out).not.toMatch(/\nNext \(this group\): Three exits:/);
+  });
 });
 
 // ── --top GROUP-based rendering (task 2.3) ────────────────────────────────────

@@ -197,6 +197,12 @@ export interface RunFillOptions {
    *  below, which is the progress/heartbeat clock returning epoch ms. Passed through to the
    *  final report runCheck; defaults inside it to `() => new Date()` when the index is written. */
   featureIndexNow?: () => Date;
+  /** INJECTED clock for the review-cadence check (spec RZ-18), threaded into both the dry-run
+   *  cost-preview report and the final post-fill report runCheck — mirrors cli/check.ts's
+   *  plain-check nowUtc so `yg check --approve` surfaces the same aspect-review-overdue warnings
+   *  plain `yg check` does. Absent ⇒ the review-overdue check is skipped on this path too (core
+   *  purity: no fabricated Date.now). Read-only — never writes the lock or gates the fill. */
+  reviewNowUtc?: () => Date;
   /** Whether the write sink is an interactive TTY. Defaults to process.stderr.isTTY ?? false.
    *  When true, the progress tracker rewrites a single line with \r instead of emitting
    *  milestone lines. */
@@ -434,7 +440,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
         `deterministic refusal has its LLM fills skipped this run, and a fresh refusal or ` +
         `infra disposition can leave a pair unfilled. Nothing was written; run yg check --approve to fill.\n`,
     );
-    const checkResult = await runCheck(graph, opts.gitTrackedFiles);
+    const checkResult = await runCheck(graph, opts.gitTrackedFiles, { nowUtc: opts.reviewNowUtc });
     return { checkResult, reviewerCallsMade: 0, infraFailures: 0, runtimeErrors: 0, companionRuntimeErrors: 0, malformedSuppressErrors: 0 };
   }
 
@@ -886,6 +892,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   const checkResult = await runCheck(graph, opts.gitTrackedFiles, {
     writeFeatureIndex: opts.writeFeatureIndex,
     now: opts.featureIndexNow,
+    nowUtc: opts.reviewNowUtc,
   });
 
   // ── Convergence sentinel (C15) — READ-ONLY over the fill's own state. ──────

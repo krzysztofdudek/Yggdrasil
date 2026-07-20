@@ -69,10 +69,14 @@ export async function verifyWithConsensus(
   }
   const losingVotes = votes.filter(v => !v.satisfied);
   const allProvider = losingVotes.every(v => v.errorSource === 'provider');
+  // When the aggregate is a real code refusal (not allProvider), source the
+  // reason from a losing vote that actually refused the code — otherwise a
+  // leading provider-error vote's text would masquerade as the violation.
+  const reasonSource = allProvider ? losingVotes[0]! : losingVotes.find(v => v.errorSource !== 'provider')!;
   return {
     response: {
       satisfied: false,
-      reason: losingVotes[0]!.reason,
+      reason: reasonSource.reason,
       errorSource: allProvider ? 'provider' : 'codeViolation',
     },
     votes,

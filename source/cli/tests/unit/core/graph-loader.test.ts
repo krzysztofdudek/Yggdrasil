@@ -6,7 +6,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { loadGraph, UnsupportedSchemaVersionError, OutdatedSchemaVersionError } from '../../../src/core/graph-loader.js';
+import { loadGraph, UnsupportedSchemaVersionError, OutdatedSchemaVersionError, MalformedSchemaVersionError } from '../../../src/core/graph-loader.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE_PROJECT = path.join(__dirname, '../../fixtures/sample-project');
@@ -40,6 +40,29 @@ describe('loadGraph version gate', () => {
   it('loads when version equals the supported schema', async () => {
     writeFileSync(join(tmpRoot, '.yggdrasil', 'yg-config.yaml'), 'version: "5.1.0"\n');
     await expect(loadGraph(tmpRoot)).resolves.toBeDefined();
+  });
+
+  it('fails closed when version is present but not valid semver', async () => {
+    // "5.1" is not valid semver — semver.valid() returns null, which would
+    // short-circuit BOTH the gt/lt gates and let the graph load ungated (a
+    // fail-open of the version gate). It must instead refuse to load.
+    writeFileSync(join(tmpRoot, '.yggdrasil', 'yg-config.yaml'), 'version: "5.1"\n');
+    await expect(loadGraph(tmpRoot)).rejects.toThrow(/not valid semver/i);
+    await expect(loadGraph(tmpRoot)).rejects.toThrow(/version "5\.1"/);
+    await expect(loadGraph(tmpRoot)).rejects.toBeInstanceOf(MalformedSchemaVersionError);
+    await loadGraph(tmpRoot).catch((e: unknown) => {
+      expect(e).toBeInstanceOf(MalformedSchemaVersionError);
+      expect((e as MalformedSchemaVersionError).detectedVersion).toBe('5.1');
+    });
+  });
+
+  it('does not trip the malformed guard on legitimate pre-release semver', async () => {
+    // A pre-release like "5.1.0-beta.1" IS valid semver (valid() accepts it), so
+    // it must reach the real gt/lt gates — not the malformed-version guard. Being
+    // a pre-release it sorts below 5.1.0, so it lands on the OUTDATED gate.
+    writeFileSync(join(tmpRoot, '.yggdrasil', 'yg-config.yaml'), 'version: "5.1.0-beta.1"\n');
+    await expect(loadGraph(tmpRoot)).rejects.toBeInstanceOf(OutdatedSchemaVersionError);
+    await expect(loadGraph(tmpRoot)).rejects.not.toBeInstanceOf(MalformedSchemaVersionError);
   });
 
   it('refuses to load when version is older than the supported schema (CLI)', async () => {

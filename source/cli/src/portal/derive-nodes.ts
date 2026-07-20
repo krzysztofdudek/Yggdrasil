@@ -121,9 +121,12 @@ export function buildPortalNodes(
   }
 
   // Roll up bottom-up: a node's rollupState is the worst of its own state and the
-  // rollupState of every direct child. Compute over the in-memory tree so the order
-  // is leaves-first; `built` is keyed by path so we resolve children by their paths.
-  for (const [path, node] of graph.nodes) {
+  // rollupState of every direct child. `graph.nodes` is pre-order DFS (the loader
+  // inserts a node before recursing into its children), so iterating it in REVERSE
+  // visits every descendant before its ancestor — each child's rollupState is already
+  // finalized when its parent is computed, letting a deep refusal bubble the whole way
+  // up. `built` is keyed by path so we resolve children by their paths.
+  for (const [path, node] of [...graph.nodes].reverse()) {
     const portal = built.get(path)!;
     portal.rollupState = computeRollup(node, built);
   }

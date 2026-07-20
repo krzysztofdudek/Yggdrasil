@@ -2,7 +2,6 @@ import type { Graph, AspectDef, FlowDef } from '../model/graph.js';
 import {
   collectDescendants,
   computeEffectiveAspects,
-  hasNonDraftEffectiveAspects,
   type VerifiedPair,
 } from './engine-api.js';
 import { displayPairState } from './derive-nodes.js';
@@ -179,9 +178,14 @@ function computeFlowState(
   for (const path of participants) {
     const node = graph.nodes.get(path);
     if (!node) continue;
-    if (!hasNonDraftEffectiveAspects(node, graph)) continue;
-    anyChecked = true;
+    // `checked` is driven by the presence of a REAL verdict-bearing pair, not by mere
+    // aspect effectiveness. A participant with a non-draft effective aspect but zero
+    // expected pairs (empty mapping, all-vacuous subject set) produces no pair state and
+    // contributes nothing checked — seeding a flow green off it would fabricate a green
+    // over a node nothing actually checks. Mirrors derive-nodes.ts's `checked` computation.
     const states = nodeStateOf(path) ?? [];
+    if (states.length === 0) continue;
+    anyChecked = true;
     if (states.some((s) => s === 'refused' || s === 'unverified')) anyAttention = true;
   }
   if (!anyChecked) return 'nothing-checked';

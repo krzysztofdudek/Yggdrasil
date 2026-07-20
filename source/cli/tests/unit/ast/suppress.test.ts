@@ -618,12 +618,14 @@ describe('markdownFencedLines: the shared fence mask', () => {
     expect(sorted(markdownFencedLines(text))).toEqual([2, 3, 4]);
   });
 
-  it('an up-to-3-space-indented fence opens; a 4-space-indented line does not', () => {
+  it('an up-to-3-space-indented fence opens; a 4-space-indented line is masked as an indented code block', () => {
     const opens = ['x', '   ```', 'in', '   ```', 'y'].join('\n');
     expect(sorted(markdownFencedLines(opens))).toEqual([2, 3, 4]);
-    // 4 leading spaces is an indented code block, not a fence opener — no mask.
-    const noOpen = ['x', '    ```', 'in', '    ```', 'y'].join('\n');
-    expect(markdownFencedLines(noOpen).size).toBe(0);
+    // 4 leading spaces is a CommonMark indented code block — its lines are masked
+    // too (the safe direction), so a documented suppress example written as an
+    // indented block never leaks out as a live waiver.
+    const indented = ['x', '    ```', 'in', '    ```', 'y'].join('\n');
+    expect(sorted(markdownFencedLines(indented))).toEqual([2, 3, 4]);
   });
 
   it('a CRLF-authored fence masks identically to LF (trailing \\r must not break the match)', () => {
@@ -799,5 +801,89 @@ describe('suppress: Markdown fenced examples are inert (A4 — the docs suppress
 
     // Load-bearing mask: without a Markdown path the marker is honored.
     expect(scanSuppressionMarkers(md).map((m) => m.aspectId)).toEqual(['after-info-inert']);
+  });
+});
+
+describe('suppress: Markdown indented (non-fenced) examples are inert (C-4)', () => {
+  // A `yg-suppress(...)` written inside a plain CommonMark indented code block
+  // (4+ leading spaces or a leading tab) — the OTHER standard Markdown code-block
+  // form, carrying no fence syntax at all — is a documented EXAMPLE, not a live
+  // waiver. Before the fix the raw-scan honoring path never modeled this block, so
+  // a doc author's indented example silently waived the aspect on the next line.
+
+  it('a plain 4-space indented HTML-comment example is masked, not honored', () => {
+    // No fence markers anywhere — the only thing making the marker line code is its
+    // 4-space indentation.
+    const md = ['Here is an example:', '', '    <!-- yg-suppress(*) example reason -->', '', 'More text.'].join('\n');
+    // Low-level mask: the indented marker line (3) is masked.
+    expect(markdownFencedLines(md).has(3)).toBe(true);
+    // Honoring path: no live range at all — the indented example is inert.
+    const ranges = collectSuppressions(undefined, 'docs/how-to.md', md.split('\n').length, md);
+    expect(ranges).toEqual([]);
+    // Load-bearing mask: the SAME text scanned WITHOUT a Markdown path (no masking)
+    // honors the marker — proving it is a real, otherwise-live marker.
+    expect(scanSuppressionMarkers(md).map((m) => m.aspectId)).toEqual(['*']);
+  });
+
+  it('a fence nested (indented 5 spaces) under a list bullet still masks the whole block', () => {
+    const md = ['- Example:', '     ```ts', '     <!-- yg-suppress(*) example reason -->', '     ```', 'after'].join('\n');
+    // The indented fence opener/interior/closer (2–4) are all masked.
+    for (const l of [2, 3, 4]) expect(markdownFencedLines(md).has(l)).toBe(true);
+    // Honoring path: inert — no live range from the nested example.
+    const ranges = collectSuppressions(undefined, 'docs/list.md', md.split('\n').length, md);
+    expect(ranges).toEqual([]);
+    expect(isLineSuppressed(ranges, '*', 4)).toBe(false);
+  });
+
+  it('a leading tab (an indented code block) is masked too', () => {
+    const md = ['before', '\t<!-- yg-suppress(*) tabbed example -->', 'after'].join('\n');
+    expect(markdownFencedLines(md).has(2)).toBe(true);
+    expect(collectSuppressions(undefined, 'docs/tab.md', md.split('\n').length, md)).toEqual([]);
+  });
+});
+
+describe('suppress: uppercase/mixed-case extension takes the AST comment path (C-19 / C-20)', () => {
+  // The grammar-support probe must be case-insensitive: a mapped source file with
+  // an uppercase/mixed-case extension (e.g. `Foo.PY`, `Foo.H`) is parsed by the
+  // real caller (which lowercases first), so a valid `tree` is passed in. Before
+  // the fix, collectSuppressions recomputed grammar support against the RAW-cased
+  // extension, missed, discarded the tree, and fell to the raw scan — which is NOT
+  // comment-isolated, so a marker inside a string literal was honored as a waiver.
+
+  it('Python docstring marker is inert regardless of extension casing', async () => {
+    // The `# yg-suppress(...)` line lives INSIDE a triple-quoted string — it is a
+    // string literal, not a real comment. The AST path never honors it.
+    const code = [
+      'DOC = """',
+      '# yg-suppress(secrets-scan) this is documentation, not a real marker',
+      'more docs',
+      '"""',
+      'SECRET = "value"',
+    ].join('\n');
+    const total = code.split('\n').length;
+    await withParsedFile('case.py', code, (tree) => {
+      // Correct-cased path: AST comment scan — the in-string marker is never honored.
+      expect(collectSuppressions(tree, 'case.py', total, code)).toEqual([]);
+      // Upper-cased path with the SAME tree: must ALSO take the AST path and stay inert.
+      expect(collectSuppressions(tree, 'case.PY', total, code)).toEqual([]);
+    });
+  });
+
+  it('an uppercase-extension file with a real block-comment interior marker IS honored (fail-closed sub-case)', async () => {
+    // A marker on a delimiter-less interior line of a real multi-line block comment
+    // is honored only on the AST path. The uppercase extension must reach it.
+    const code = [
+      'const a = 1;',
+      '/*',
+      'yg-suppress(my-aspect) interior block-comment marker',
+      '*/',
+      'const b = 2;',
+    ].join('\n');
+    const total = code.split('\n').length;
+    await withParsedFile('Case.js', code, (tree) => {
+      const ranges = collectSuppressions(tree, 'Case.JS', total, code);
+      // The interior marker waives the line below it (the closer line 4).
+      expect(isLineSuppressed(ranges, 'my-aspect', 4)).toBe(true);
+    });
   });
 });

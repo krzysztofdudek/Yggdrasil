@@ -67,6 +67,30 @@ export class OutdatedSchemaVersionError extends Error {
 }
 
 /**
+ * Thrown when the project's yg-config.yaml declares a `version:` field that is
+ * present but not valid semver (e.g. "5.1" or "latest"). Without a parseable
+ * version the CLI cannot tell whether the graph is newer, older, or current, so
+ * the version gate cannot be evaluated — reading the graph anyway would fail
+ * OPEN (a clean PASS over a graph whose format the CLI never confirmed it can
+ * read). This is an expected USER condition (a hand-edited or corrupted version
+ * field), NOT an internal bug — callers recognize it and emit a clean
+ * what/why/next message instead of the generic "please file an issue" wrapper.
+ */
+export class MalformedSchemaVersionError extends Error {
+  readonly detectedVersion: string;
+
+  constructor(detectedVersion: string) {
+    super(
+      `yg-config.yaml version "${detectedVersion}" is not valid semver, so the CLI ` +
+        `cannot determine graph compatibility. Restore the version field from version ` +
+        `control or re-run \`yg init\`.`,
+    );
+    this.name = 'MalformedSchemaVersionError';
+    this.detectedVersion = detectedVersion;
+  }
+}
+
+/**
  * Thrown when a `flows/<x>/yg-flow.yaml` cannot be loaded — the file is missing
  * (ENOENT), is a directory (EISDIR), is unparseable YAML, or fails flow-shape
  * validation. This is an expected USER condition on an ALREADY-INITIALIZED graph
@@ -108,6 +132,13 @@ export async function loadGraph(
   const yggRoot = await findYggRoot(projectRoot);
 
   const detected = await detectVersion(yggRoot);
+  // A present-but-unparseable version fails CLOSED. valid() short-circuits both
+  // gt/lt gates below, so without this branch a malformed version ("5.1",
+  // "latest") would slip past the gate entirely and let the graph load as if it
+  // were the current schema.
+  if (detected !== null && valid(detected) === null) {
+    throw new MalformedSchemaVersionError(detected);
+  }
   if (detected !== null && valid(detected) && gt(detected, CLI_SUPPORTED_SCHEMA)) {
     throw new UnsupportedSchemaVersionError(detected, CLI_SUPPORTED_SCHEMA);
   }

@@ -1,5 +1,8 @@
-import { describe, it, expect } from 'vitest';
-import { collectDescendants } from '../../../src/cli/impact-handlers.js';
+import { describe, it, expect, vi } from 'vitest';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { collectDescendants, handleTypeImpact } from '../../../src/cli/impact-handlers.js';
+import { loadGraph } from '../../../src/core/graph-loader.js';
 import {
   collectReverseDependents,
   buildTransitiveChains,
@@ -147,6 +150,71 @@ describe('buildTransitiveChains', () => {
     // c and d are transitive-only; chains start after the target node.
     expect(chains).toContain('<- b <- c');
     expect(chains.some((c2) => c2.includes('<- d'))).toBe(true);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// handleTypeImpact — inherited Object.prototype keys are NOT valid types
+// A raw bracket lookup on the plain node_types object would resolve inherited
+// members (constructor, toString, valueOf, hasOwnProperty) as truthy and print
+// a fabricated zero-impact report at exit 0 for a type that does not exist.
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('handleTypeImpact — Object.prototype key guard', () => {
+  const fixtureRoot = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    '../../fixtures/sample-project',
+  );
+
+  async function runType(
+    typeId: string,
+  ): Promise<{ exitCode: number | undefined; stdout: string; stderr: string }> {
+    const graph = await loadGraph(fixtureRoot);
+    let exitCode: number | undefined;
+    let stdout = '';
+    let stderr = '';
+    const stdoutSpy = vi
+      .spyOn(process.stdout, 'write')
+      .mockImplementation(((s: string) => { stdout += String(s); return true; }) as never);
+    const stderrSpy = vi
+      .spyOn(process.stderr, 'write')
+      .mockImplementation(((s: string) => { stderr += String(s); return true; }) as never);
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+      exitCode = code ?? 0;
+      throw new Error(`__exit__${exitCode}`);
+    }) as never);
+    try {
+      await handleTypeImpact(graph, typeId);
+    } catch (e) {
+      if (!(e instanceof Error) || !e.message.startsWith('__exit__')) throw e;
+    } finally {
+      stdoutSpy.mockRestore();
+      stderrSpy.mockRestore();
+      exitSpy.mockRestore();
+    }
+    return { exitCode, stdout, stderr };
+  }
+
+  it.each(['constructor', 'toString', 'valueOf', 'hasOwnProperty'])(
+    'rejects inherited prototype key %s as an unknown type (exit 1, no fabricated report)',
+    async (typeId) => {
+      const { exitCode, stdout, stderr } = await runType(typeId);
+      expect(exitCode).toBe(1);
+      expect(stderr).toContain(`Type '${typeId}' not found in architecture.`);
+      expect(stdout).not.toContain(`Type: ${typeId}`);
+    },
+  );
+
+  it('still accepts a real architecture type', async () => {
+    const { exitCode, stdout } = await runType('module');
+    expect(exitCode).toBeUndefined();
+    expect(stdout).toContain('Type: module');
+  });
+
+  it('still rejects an ordinary unknown type id', async () => {
+    const { exitCode, stderr } = await runType('does-not-exist');
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain("Type 'does-not-exist' not found in architecture.");
   });
 });
 

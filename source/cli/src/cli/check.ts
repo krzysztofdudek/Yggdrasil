@@ -12,7 +12,7 @@ import { buildIssueMessage } from '../formatters/message-builder.js';
 import path from 'node:path';
 import { availableParallelism } from 'node:os';
 import { walkRepoFiles } from '../io/repo-scanner.js';
-import { groupIssues, type IssueGroup, getIssueLabel, FULL_WHAT_CODES } from './group-issues.js';
+import { groupIssues, type IssueGroup, getIssueLabel, FULL_WHAT_CODES, issuePriorityRank } from './group-issues.js';
 import type { YggConfig } from '../model/graph.js';
 
 /**
@@ -304,6 +304,11 @@ export function registerCheckCommand(program: Command): void {
               // so a cost preview writes nothing. Injected clock for the index's generatedAt.
               writeFeatureIndex: true,
               featureIndexNow: () => new Date(),
+              // Injected UTC clock for the review-cadence check (spec RZ-18), so
+              // `yg check --approve` surfaces the same aspect-review-overdue warnings
+              // the plain `yg check` path does (runCheck below). Core has no Date.now
+              // of its own; read-only, never gates the fill.
+              reviewNowUtc: () => new Date(),
               // Core count resolved in the CLI layer (engine stays deterministic);
               // deterministic checks run across this many worker threads.
               detConcurrency: Math.max(1, availableParallelism() - 1),
@@ -537,7 +542,15 @@ export function formatOutput(result: CheckResult, view: CheckView = { kind: 'ful
       sections.push(renderWarningSection(filteredWarnings, drillOpts));
     }
     // Next (this group): the first line of the highest-priority filtered issue's next.
-    const firstFiltered = [...filteredErrors, ...filteredWarnings][0];
+    // Pick by the same priority cascade computeSuggestedNext and groupIssues use —
+    // not raw emission order — so the drill-in pointer cannot disagree with the
+    // global Next when a lower-priority issue happens to be emitted first. Stable
+    // min-by: strict `<` keeps the first-encountered on equal rank.
+    const combined = [...filteredErrors, ...filteredWarnings];
+    const firstFiltered =
+      combined.length > 0
+        ? combined.reduce((best, cur) => (issuePriorityRank(cur) < issuePriorityRank(best) ? cur : best))
+        : undefined;
     if (firstFiltered?.messageData.next) {
       const nextCmd = nextPointer(firstFiltered.messageData.next);
       sections.push('');

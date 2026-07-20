@@ -10,7 +10,7 @@ description: "Fill stage behind yg check --approve — the single producer of
   (provider unreachable, tier-resolution error, reference-load failure,
   unparseable response) or a tainted/failed deterministic result."
 max_direct_relations:
-  limit: 21
+  limit: 22
   reason: >-
     Reviewed architectural seam. This node is the SINGLE producer of verdict-lock
     entries and the fill orchestrator — it fans out to every subsystem a
@@ -20,8 +20,12 @@ max_direct_relations:
     direct-relation count concentrates that orchestration in one auditable place
     by design; a split was deliberately deferred by the maintainer because
     dividing the single write chokepoint would weaken the fail-closed guarantee.
-    The ceiling is set to the exact reviewed count (21), so any NEW dependency
+    The ceiling is set to the exact reviewed count (22), so any NEW dependency
     beyond this pushes the node over its own ceiling and re-raises the warning.
+    Raised from 21 to 22 for a reviewed dependency on the log-history validator:
+    the closure step records a node's log baseline, and a correctness fix now
+    validates that baseline against tampering before recording it, rather than
+    trusting a working-tree log that a merge or hand-edit could have rewritten.
 aspects:
   - deterministic
   - posix-paths-output
@@ -40,6 +44,8 @@ relations:
   - target: cli/core/reviewer-tiers
     type: calls
   - target: cli/core/validator
+    type: calls
+  - target: cli/core/log-validator
     type: calls
   - target: cli/io/lock-store
     type: calls

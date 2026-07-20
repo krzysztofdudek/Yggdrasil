@@ -1,13 +1,15 @@
 import { describe, it, expect, afterAll } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, cpSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, cpSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { loadGraph } from '../../src/core/graph-loader.js';
+import { runCheck } from '../../src/core/check.js';
 import {
   readGitCommitRef,
   computePortalLockHash,
   computePortalFreshness,
+  runPortalCheck,
 } from '../../src/portal/engine-api.js';
 import type { LockFile } from '../../src/model/lock.js';
 
@@ -36,6 +38,9 @@ function tmp(prefix: string): string {
 
 const SHA = 'a'.repeat(40);
 const SHA2 = 'b'.repeat(40);
+// SHA-256 object ids (64 hex chars) — `git init --object-format=sha256` repos.
+const SHA256 = 'c'.repeat(64);
+const SHA256_2 = 'd'.repeat(64);
 
 describe('readGitCommitRef — every .git resolution path (real on-disk layouts)', () => {
   it('reads a detached HEAD (the sha held directly in HEAD)', () => {
@@ -120,6 +125,35 @@ describe('readGitCommitRef — every .git resolution path (real on-disk layouts)
     writeFileSync(path.join(root, '.git'), 'not a gitdir pointer\n');
     expect(readGitCommitRef(root)).toBeNull();
   });
+
+  // `git init --object-format=sha256` stores 64-hex-char object ids. Every resolution path must
+  // accept them, not only the SHA-1 (40-char) default — otherwise the reader silently returns
+  // null on a SHA-256 repo and the attestation states "no commit ref" for a repo that has one.
+  it('reads a detached HEAD holding a SHA-256 (64-hex) object id', () => {
+    const root = tmp('yg-git-detached-256-');
+    mkdirSync(path.join(root, '.git'), { recursive: true });
+    writeFileSync(path.join(root, '.git', 'HEAD'), SHA256 + '\n');
+    expect(readGitCommitRef(root)).toBe(SHA256);
+  });
+
+  it('follows a symbolic HEAD to a loose ref holding a SHA-256 object id', () => {
+    const root = tmp('yg-git-loose-256-');
+    mkdirSync(path.join(root, '.git', 'refs', 'heads'), { recursive: true });
+    writeFileSync(path.join(root, '.git', 'HEAD'), 'ref: refs/heads/main\n');
+    writeFileSync(path.join(root, '.git', 'refs', 'heads', 'main'), SHA256 + '\n');
+    expect(readGitCommitRef(root)).toBe(SHA256);
+  });
+
+  it('falls back to packed-refs holding a SHA-256 object id', () => {
+    const root = tmp('yg-git-packed-256-');
+    mkdirSync(path.join(root, '.git'), { recursive: true });
+    writeFileSync(path.join(root, '.git', 'HEAD'), 'ref: refs/heads/main\n');
+    writeFileSync(
+      path.join(root, '.git', 'packed-refs'),
+      `# pack-refs with: peeled fully-peeled sorted\n${SHA256} refs/heads/main\n${SHA256_2} refs/heads/other\n`,
+    );
+    expect(readGitCommitRef(root)).toBe(SHA256);
+  });
 });
 
 describe('computePortalLockHash — committed-lock content fold', () => {
@@ -184,5 +218,33 @@ describe('computePortalFreshness — the baseline branches (real graph)', () => 
     const fresh = await computePortalFreshness(graph, lock);
     const apiNode = fresh.find((f) => f.nodePath === 'api')!;
     expect(apiNode.sourceChanged).toBe(false);
+  });
+});
+
+describe('runPortalCheck — parity with `yg check` on the review-cadence signal', () => {
+  it('surfaces aspect-review-overdue warnings (portal injects the wall clock like the CLI)', async () => {
+    // Real on-disk fixture with a past `review_by:` on its aspect. The portal MUST inject the
+    // clock the same way the `yg check` CLI boundary does; without it, core skips the
+    // review-cadence check and the portal silently undercounts warnings vs `yg check`.
+    const root = tmp('yg-portal-overdue-');
+    cpSync(BASIC_FIXTURE, root, { recursive: true });
+    const aspectYaml = path.join(root, '.yggdrasil', 'aspects', 'no-todo-comments', 'yg-aspect.yaml');
+    // A date long in the past — overdue relative to any real run clock.
+    writeFileSync(aspectYaml, readFileSync(aspectYaml, 'utf-8') + '\nreview_by: "2020-01-01"\n');
+    const graph = await loadGraph(root);
+
+    const portalResult = await runPortalCheck(graph, []);
+    const overduePortal = portalResult.issues.filter((i) => i.code === 'aspect-review-overdue');
+    expect(overduePortal.length).toBeGreaterThan(0);
+
+    // Oracle: the CLI path passes `nowUtc: () => new Date()`; the portal must match it exactly.
+    const cliResult = await runCheck(graph, [], { nowUtc: () => new Date() });
+    const overdueCli = cliResult.issues.filter((i) => i.code === 'aspect-review-overdue');
+    expect(overduePortal.length).toBe(overdueCli.length);
+
+    // Guard against a self-referential oracle: with NO clock, core skips the check entirely —
+    // proving the portal's warnings come from the injected clock, not from runCheck by default.
+    const noClock = await runCheck(graph, []);
+    expect(noClock.issues.some((i) => i.code === 'aspect-review-overdue')).toBe(false);
   });
 });

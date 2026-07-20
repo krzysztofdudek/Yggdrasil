@@ -23,16 +23,24 @@ export async function loadRootGitignoreStack(projectRoot: string): Promise<Gitig
   }
 }
 
-export function isIgnoredByStack(absPath: string, stack: GitignoreEntry[]): boolean {
+export function isIgnoredByStack(
+  absPath: string,
+  stack: GitignoreEntry[],
+  isDirectory = false,
+): boolean {
   for (const entry of stack) {
     const rel = relative(entry.dir, absPath);
     if (rel === '' || rel.startsWith('..')) continue;
     const normalized = rel.split(sep).join('/');
-    // Query both the bare path and the directory form: a directory-only
-    // .gitignore pattern (trailing slash, e.g. `build/`) matches only when the
-    // candidate is presented as a directory, so checking `normalized` alone
-    // silently fails to prune such directories from the scan.
-    if (entry.ig.ignores(normalized) || entry.ig.ignores(normalized + '/')) return true;
+    // Query the bare path always, and the directory form ONLY when the candidate
+    // is actually a directory: a directory-only .gitignore pattern (trailing
+    // slash, e.g. `build/`) matches git-side only against directories. Querying
+    // `normalized + '/'` for a FILE would wrongly drop a tracked file whose name
+    // collides with a directory-only pattern (e.g. a file `scripts/build` under a
+    // `build/` rule). Real directories are still pruned: the `isDirectory` form
+    // runs the trailing-slash query for them.
+    if (entry.ig.ignores(normalized) || (isDirectory && entry.ig.ignores(normalized + '/')))
+      return true;
   }
   return false;
 }
@@ -68,7 +76,7 @@ async function collectFiles(
     const absPath = join(dir, entry.name);
     if (entry.isDirectory()) {
       if (entry.name === YGGDRASIL_DIRNAME && dir === projectRoot) continue;
-      if (isIgnoredByStack(absPath, localStack)) continue;
+      if (isIgnoredByStack(absPath, localStack, true)) continue;
       results.push(...(await collectFiles(absPath, projectRoot, localStack)));
     } else if (entry.isFile()) {
       if (isIgnoredByStack(absPath, localStack)) continue;

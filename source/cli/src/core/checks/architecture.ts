@@ -6,8 +6,9 @@ import { evaluateFileWhen } from '../file-when-evaluator.js';
 import { renderTrace } from '../../formatters/predicate-trace.js';
 import { issueMsg } from './shared.js';
 import { expandMappingPaths } from '../../io/hash.js';
-import { isGlobPattern } from '../../utils/mapping-path.js';
+import { isGlobPattern, mappingEntryMatchesFile } from '../../utils/mapping-path.js';
 import { toPosixPath } from '../../utils/posix.js';
+import { getChildMappingExclusions } from '../pairs.js';
 
 export function checkTypeUnknownParent(graph: Graph): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -227,7 +228,19 @@ export async function checkTypeWhenMismatch(
         pathsToCheck.push(toPosixPath(entry));
       }
     }
-    for (const relPath of pathsToCheck) {
+    // Apply the child-precedence (child-wins) carve-out to the assembled path
+    // set, matching computeExpectedPairs/computeNodeMappedFiles. A file that a
+    // descendant node's mapping claims is owned by that child, so it must be
+    // classified against the CHILD's type, not this ancestor's — folding it into
+    // the ancestor's type-when check is a false refusal (e.g. a `repository`
+    // parent globbing a directory where a `service` child carves out one file).
+    // Filter the final list (not per-entry) so both the expand branch and the
+    // missing-exact-file branch above are covered.
+    const excludePrefixes = getChildMappingExclusions(graph, nodePath);
+    const filteredPaths = excludePrefixes.length > 0
+      ? pathsToCheck.filter((p) => !excludePrefixes.some((ep) => mappingEntryMatchesFile(ep, p)))
+      : pathsToCheck;
+    for (const relPath of filteredPaths) {
       const absPath = path.join(projectRoot, relPath);
       const result = await evaluateFileWhen(typeDef.when, {
         absPath,

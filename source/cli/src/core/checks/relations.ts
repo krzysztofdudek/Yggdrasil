@@ -99,10 +99,14 @@ export function checkNoCycles(graph: Graph): ValidationIssue[] {
             next: `Break the cycle: extract a shared interface, invert a dependency, or merge nodes.`,
           }),
         });
+        color.set(nodePath, BLACK);
         return true;
       }
       if (color.get(rel.target) === WHITE) {
-        if (dfs(rel.target, [...pathSegments, nodePath])) return true;
+        if (dfs(rel.target, [...pathSegments, nodePath])) {
+          color.set(nodePath, BLACK);
+          return true;
+        }
       }
     }
     color.set(nodePath, BLACK);

@@ -25,7 +25,10 @@ reviewer:
       # raising it invalidates no recorded baseline. Raised again to 64000: the
       # check command file (cli/commands/check) sits right at the cap, so its
       # per-node reviewer prompts (cli-command-contract, what-why-next) had no room
-      # for even a one-line edit. 64K stays comfortable under sonnet's context.
-      max_prompt_chars: 64000
+      # for even a one-line edit. Raised again to 68000: correctness fixes to the
+      # check command file (a priority-ordered suggested-next pick, an injected
+      # review clock) pushed its cli-command-contract / what-why-next prompts just
+      # past 64000. 68K stays comfortable under sonnet's 200K context.
+      max_prompt_chars: 68000
       config:
         model: sonnet

@@ -335,7 +335,9 @@ describe('aspect-parser — when filter', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('rejects non-string non-object entries in implies', async () => {
+  it('rejects non-string non-object entries in implies as a structured error, not a throw', async () => {
+    // parseAspect's contract is a {ok}|{ok:false,errors} union that never throws
+    // for validation — a throw here escapes to the loader and aborts the whole run.
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-aspect-implies-bad');
     await mkdir(tmpDir, { recursive: true });
     const aspectYaml = path.join(tmpDir, 'yg-aspect.yaml');
@@ -347,8 +349,87 @@ describe('aspect-parser — when filter', () => {
       '  - 42',
     ].join('\n'), 'utf-8');
 
-    await expect(parseAspect(tmpDir, aspectYaml, 'example'))
-      .rejects.toThrow(/aspect attachment must be a string or an object/);
+    const result = await parseAspect(tmpDir, aspectYaml, 'example');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors[0].code).toBe('aspect-implies-invalid');
+      expect(result.errors[0].messageData.what).toMatch(/aspect attachment must be a string or an object/);
+    }
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('reports a nested structural when error inside an implies edge as a structured error, not a throw', async () => {
+    // A typo DEEP inside an implies edge's when: (here an empty calls target) throws
+    // a message shaped `.../implies[0]/when/relations/calls: ...` — it contains
+    // `/when` but NOT the exact `/when:` shape. It must still surface as a scoped
+    // parse error, never an uncaught throw that aborts the entire graph load.
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-aspect-implies-when-nested-bad');
+    await mkdir(tmpDir, { recursive: true });
+    const aspectYaml = path.join(tmpDir, 'yg-aspect.yaml');
+    await writeFile(aspectYaml, [
+      'name: ExampleAspect',
+      'reviewer:',
+      '  type: llm',
+      'implies:',
+      '  - id: conditional-aspect',
+      '    when:',
+      '      relations:',
+      '        calls:',
+      '          target: ""',
+    ].join('\n'), 'utf-8');
+
+    const result = await parseAspect(tmpDir, aspectYaml, 'example');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors[0].code).toBe('aspect-when-invalid');
+    }
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('reports an implies object with an unknown field as a structured error, not a throw', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-aspect-implies-unknown-field');
+    await mkdir(tmpDir, { recursive: true });
+    const aspectYaml = path.join(tmpDir, 'yg-aspect.yaml');
+    await writeFile(aspectYaml, [
+      'name: ExampleAspect',
+      'reviewer:',
+      '  type: llm',
+      'implies:',
+      '  - id: other-aspect',
+      '    badkey: 1',
+    ].join('\n'), 'utf-8');
+
+    const result = await parseAspect(tmpDir, aspectYaml, 'example');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors[0].code).toBe('aspect-implies-invalid');
+      expect(result.errors[0].messageData.what).toMatch(/unknown field 'badkey'/);
+    }
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('reports an implies object missing id as a structured error, not a throw', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-aspect-implies-missing-id');
+    await mkdir(tmpDir, { recursive: true });
+    const aspectYaml = path.join(tmpDir, 'yg-aspect.yaml');
+    await writeFile(aspectYaml, [
+      'name: ExampleAspect',
+      'reviewer:',
+      '  type: llm',
+      'implies:',
+      '  - when:',
+      '      node: { has_port: charge }',
+    ].join('\n'), 'utf-8');
+
+    const result = await parseAspect(tmpDir, aspectYaml, 'example');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors[0].code).toBe('aspect-implies-invalid');
+      expect(result.errors[0].messageData.what).toMatch(/requires 'id' as a non-empty string/);
+    }
 
     await rm(tmpDir, { recursive: true, force: true });
   });

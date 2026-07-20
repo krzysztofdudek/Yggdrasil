@@ -7,7 +7,7 @@
 
 import type { Graph } from '../model/graph.js';
 import type { LockFile } from '../model/lock.js';
-import { LOCK_FORMAT_VERSION } from '../model/lock.js';
+import { LOCK_FORMAT_VERSION, nodeUnit, fileUnit } from '../model/lock.js';
 import { computeExpectedPairs, computeUncomputableNodes } from './pairs.js';
 import { toPosix } from '../utils/posix.js';
 import { isBetterMappingOwner } from '../utils/mapping-path.js';
@@ -58,15 +58,40 @@ export function owningNodeForUnitKey(graph: Graph, unitKey: string): string | nu
  * Such a node's entries are RETAINED untouched (the validator still surfaces the
  * cycle as a blocking error). The universe accounts only for nodes that COULD be
  * computed, so an entry is pruned iff (pair ∉ universe) AND (its owning node was
- * NOT uncomputable this run) — a node that vanished from the graph is not
- * uncomputable (it is not iterated), so its entries remain prunable.
+ * NOT uncomputable this run) AND (its subject was not unreadable this run) — a
+ * node that vanished from the graph is not uncomputable (it is not iterated), so
+ * its entries remain prunable.
+ *
+ * Two further incompleteness conditions also block pruning, because under them the
+ * graph cannot positively prove ANYTHING detached:
+ *   - A yg-node.yaml / yg-aspect.yaml that failed to PARSE this run is absent from
+ *     the graph entirely (the loader records it in nodeParseErrors/aspectParseErrors
+ *     and never adds it — nor, for a node, any of its descendants — to graph.nodes /
+ *     graph.aspects). Its still-valid verdict entries would look detached. While any
+ *     parse error is present GC skips pruning AND the canonical rewrite entirely; the
+ *     validator surfaces the parse error as a blocking `yaml-invalid`, and a later
+ *     clean run resumes GC normally.
+ *   - A mapped subject file that was UNREADABLE this run (EACCES, vanished mid-run,
+ *     over the scan-size limit) is dropped from its aspect's subject set; when that
+ *     empties the set, no pair is emitted and the verdict looks detached even though
+ *     the file is still mapped and still exists. Such a pair is RETAINED (the run is
+ *     already red from the blocking file-unreadable error). This mirrors the
+ *     protection fill-closure applies for the same root cause.
  */
 export async function garbageCollectAndRewrite(
   graph: Graph,
   lock: LockFile,
   persistLock: () => Promise<void>,
 ): Promise<void> {
-  const { pairs } = await computeExpectedPairs(graph, { includeDraft: true });
+  // A node/aspect that failed to parse hides itself (and, for a node, its whole
+  // subtree) from the graph, so its pairs never reach the universe. While the
+  // graph is provably incomplete GC cannot prove anything detached — skip pruning
+  // and the rewrite entirely, leaving the committed lock byte-for-byte untouched.
+  if ((graph.nodeParseErrors?.length ?? 0) > 0 || (graph.aspectParseErrors?.length ?? 0) > 0) {
+    return;
+  }
+
+  const { pairs, unreadable } = await computeExpectedPairs(graph, { includeDraft: true });
   const universe = new Set<string>(); // `${aspectId}\0${unitKey}`
   for (const p of pairs) universe.add(`${p.aspectId}\0${p.unitKey}`);
 
@@ -74,11 +99,25 @@ export async function garbageCollectAndRewrite(
   // universe, so their entries must NOT be treated as detached.
   const uncomputable = computeUncomputableNodes(graph);
 
-  // Prune verdicts ∉ universe, EXCEPT entries owned by an uncomputable node.
+  // Pairs whose subject file was unreadable this run — their pair is dropped from
+  // the universe (an empty subject set emits no pair), yet the file is still
+  // mapped and still exists, so the verdict is NOT positively detached. Retain
+  // both the per:node unit and the per:file unit so the guard covers whichever
+  // scope the aspect uses, keyed exactly (aspectId + unit) so unrelated verdicts
+  // on the same node still prune normally.
+  const unreadableUnits = new Set<string>(); // `${aspectId}\0${unitKey}`
+  for (const u of unreadable) {
+    unreadableUnits.add(`${u.aspectId}\0${nodeUnit(u.nodePath)}`);
+    unreadableUnits.add(`${u.aspectId}\0${fileUnit(u.path)}`);
+  }
+
+  // Prune verdicts ∉ universe, EXCEPT entries owned by an uncomputable node or
+  // whose subject was unreadable this run.
   for (const aspectId of Object.keys(lock.verdicts)) {
     const unitMap = lock.verdicts[aspectId];
     for (const unitKey of Object.keys(unitMap)) {
       if (universe.has(`${aspectId}\0${unitKey}`)) continue;
+      if (unreadableUnits.has(`${aspectId}\0${unitKey}`)) continue;
       const owner = owningNodeForUnitKey(graph, unitKey);
       // Retain only when we can attribute the entry to a node that could not be
       // computed this run. Everything else (deleted node, detached aspect,

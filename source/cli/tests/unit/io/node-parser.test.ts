@@ -341,6 +341,47 @@ mapping:
     await rm(tmpDir, { recursive: true, force: true });
   });
 
+  it('throws when mapping escapes the repository root via ..', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-escape-path');
+    await mkdir(tmpDir, { recursive: true });
+    const nodePath = path.join(tmpDir, 'yg-node.yaml');
+    await writeFile(
+      nodePath,
+      `
+name: EscapePath
+type: service
+mapping:
+  - ../outside-secret.txt
+`,
+      'utf-8',
+    );
+
+    await expect(parseNodeYaml(nodePath)).rejects.toThrow('escape');
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('tolerates in-repo .. that never climbs above the root', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-inrepo-dotdot');
+    await mkdir(tmpDir, { recursive: true });
+    const nodePath = path.join(tmpDir, 'yg-node.yaml');
+    await writeFile(
+      nodePath,
+      `
+name: InRepoDotDot
+type: service
+mapping:
+  - src/a/../b/service.ts
+`,
+      'utf-8',
+    );
+
+    const meta = await parseNodeYaml(nodePath);
+    expect(meta.mapping).toEqual(['src/a/../b/service.ts']);
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
   it('throws when mapping is an empty array', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-empty-paths');
     await mkdir(tmpDir, { recursive: true });

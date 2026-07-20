@@ -3,7 +3,8 @@ import type { Graph } from '../../model/graph.js';
 import type { ValidationIssue } from '../../model/validation.js';
 import { normalizeMappingPaths } from '../../io/paths.js';
 import { expandMappingPaths } from '../../io/hash.js';
-import { mappingEntryMatchesFile, isGlobPattern } from '../../utils/mapping-path.js';
+import { mappingEntryMatchesFile, isGlobPattern, normalizeMappingPath } from '../../utils/mapping-path.js';
+import { buildOwnerIndex } from '../../relations/owner-index.js';
 import { readSortedDir, statPath, fileAccess } from '../../io/graph-fs.js';
 import { walkRepoFiles, isCoverageExcludedPath } from '../../io/repo-scanner.js';
 import { FileContentCache } from '../../io/file-content-cache.js';
@@ -27,18 +28,24 @@ export async function checkFileMappingGitignored(graph: Graph): Promise<Validati
       // absence as ".gitignored" would block the very mapping the docs instruct
       // authors to write. Exempt exactly those paths here.
       if (isCoverageExcludedPath(relPath)) continue;
-      const absPath = path.join(projectRoot, relPath);
+      // Normalize the mapping entry (strip a leading './', convert separators)
+      // before the tracked-set membership test. `tracked` holds clean POSIX
+      // repo-relative paths, but a mapping entry like './src/a.ts' arrives here
+      // only trimmed — an unnormalized comparison would miss the tracked file
+      // and falsely report a correctly-tracked file as gitignored.
+      const norm = normalizeMappingPath(relPath);
+      const absPath = path.join(projectRoot, norm);
       let st;
       try { st = await statPath(absPath); } catch { continue; }
       if (!st.isFile()) continue;
-      if (tracked.has(relPath)) continue;
+      if (tracked.has(norm)) continue;
       issues.push({
         severity: 'error',
         code: 'file-mapping-gitignored',
         rule: 'file-mapping-gitignored',
         nodePath,
         ...issueMsg({
-          what: `File '${normalizePathForCompare(relPath)}' is in mapping of node '${nodePath}' but is excluded by .gitignore.`,
+          what: `File '${norm}' is in mapping of node '${nodePath}' but is excluded by .gitignore.`,
           why: `Mappings cannot contain .gitignored files — strict backward scan skips them, creating a gap where agent-created files matching a strict type's when could evade enforcement.`,
           next: `Either:\n  1. Remove the file from .gitignore (if it should be tracked code).\n  2. Remove the file from the mapping (if it's a generated artifact).`,
         }),
@@ -63,6 +70,15 @@ export async function checkStrictBackwardCoverage(
   const issues: ValidationIssue[] = [];
   const unreadable: ValidationIssue[] = [];
   const overlapPairsSeen = new Set<string>();
+
+  // File→owner resolution must agree with the runtime child-precedence rule
+  // (getChildMappingExclusions and the live relation-conformance owner index):
+  // a descendant node that claims a file inside a parent's glob owns it. Build
+  // the canonical owner index ONCE (it scans every node's mappings and is
+  // file-independent) rather than picking the first matching node in graph
+  // insertion order, which always resolved the ancestor and disagreed with the
+  // real owner used to attach aspects.
+  const ownerIndex = buildOwnerIndex(graph.nodes);
 
   for (const rawRel of repoFiles) {
     // walkRepoFiles already POSIX-normalizes, but re-apply the canonical normalization
@@ -130,16 +146,14 @@ export async function checkStrictBackwardCoverage(
     if (matchingTypes.length === 0) continue;
 
     const { typeId, trace } = matchingTypes[0];
-    // Glob-aware owner resolution: first node (graph insertion order = first-owner-wins)
-    // whose mapping has an entry matching this file.
-    let owner: { nodePath: string; nodeType: string } | undefined;
-    for (const [nodePath, node] of graph.nodes) {
-      const entries = node.meta.mapping ?? [];
-      if (entries.some((entry) => mappingEntryMatchesFile(entry, relPath))) {
-        owner = { nodePath, nodeType: node.meta.type };
-        break;
-      }
-    }
+    // Glob-aware owner resolution via the canonical child-precedence resolver, so
+    // a descendant node that claims this file inside a parent's glob is picked as
+    // the owner (matching the runtime subject-set), not the ancestor.
+    const ownerPath = ownerIndex.ownerOf(relPath);
+    const owner: { nodePath: string; nodeType: string } | undefined =
+      ownerPath !== undefined
+        ? { nodePath: ownerPath, nodeType: graph.nodes.get(ownerPath)!.meta.type }
+        : undefined;
     if (owner === undefined) {
       issues.push({
         severity: 'error',

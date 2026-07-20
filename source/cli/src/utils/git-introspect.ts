@@ -55,10 +55,21 @@ export async function getFileAtRef(
     });
     return stdout;
   } catch (err) {
-    const e = err as { stderr?: string; message?: string };
-    const stderr = e.stderr ?? e.message ?? '';
-    if (stderr.includes('does not exist') || stderr.includes('exists on disk, but not in')) {
-      return '';
+    // `git show` prints a gettext-translated fatal message when the path is
+    // absent at the ref, so classifying the failure by matching English stderr
+    // text ("does not exist", …) silently breaks under a non-English locale and
+    // rethrows what should be the documented empty-string result. Detect the
+    // absence structurally instead: `git ls-tree` lists the path at `ref` with a
+    // zero exit iff `ref` resolves; empty output means the path does not exist
+    // there. A non-empty listing (path present but unreadable) or a failing
+    // ls-tree (ref itself invalid) is a genuine error — rethrow the original.
+    try {
+      const { stdout } = await execFilep('git', ['ls-tree', ref, '--', filePath], {
+        cwd: repoCwd,
+      });
+      if (stdout.trim() === '') return '';
+    } catch {
+      // ref does not resolve — fall through to rethrow the original error.
     }
     throw err;
   }

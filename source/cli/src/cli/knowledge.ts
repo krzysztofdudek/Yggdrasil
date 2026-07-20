@@ -14,8 +14,7 @@ export function listKnowledge(): void {
 }
 
 export function readKnowledge(name: string): void {
-  const topic = KNOWLEDGE_TOPICS[name];
-  if (topic === undefined) {
+  if (!Object.prototype.hasOwnProperty.call(KNOWLEDGE_TOPICS, name)) {
     const available = Object.keys(KNOWLEDGE_TOPICS).sort().join(', ');
     process.stderr.write(
       chalk.red(
@@ -28,6 +27,7 @@ export function readKnowledge(name: string): void {
     );
     process.exit(1);
   }
+  const topic = KNOWLEDGE_TOPICS[name];
   process.stdout.write(topic.content);
 }
 

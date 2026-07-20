@@ -13,6 +13,7 @@ interface Issue {
   severity: 'error' | 'warning';
   code: string;
   nodePath?: string;
+  aspectId?: string;
   uncoveredCount?: number;
   messageData: { what: string; why: string; next: string };
 }
@@ -29,6 +30,44 @@ describe('computeSuggestedNext', () => {
   it('surfaces the advisory next when only aspect warnings remain', () => {
     const issues: Issue[] = [{ severity: 'warning', code: 'aspect-violation-advisory', messageData: md('REVIEW-ADVISORY') }];
     expect(run(issues)).toBe('REVIEW-ADVISORY');
+  });
+
+  it('surfaces a non-advisory warning next when only such warnings remain (C-41)', () => {
+    // A fully-green graph with a single rule past its review_by date produces
+    // errors=[], warnings=[aspect-review-overdue]. The top-level Next: must still
+    // point somewhere rather than going silently absent.
+    const issues: Issue[] = [
+      { severity: 'warning', code: 'aspect-review-overdue', aspectId: 'audit-log', messageData: md('RENEW-OR-DEMOTE') },
+    ];
+    expect(run(issues)).toBe('RENEW-OR-DEMOTE');
+  });
+
+  it('picks the alphabetically-first aspectId among advisory warnings (C-42)', () => {
+    // Raw emission order (pair iteration) is not locale order; the Next: line must
+    // name the same aspect groupIssues/--top renders first — the locale-first id.
+    const issues: Issue[] = [
+      { severity: 'warning', code: 'aspect-violation-advisory', aspectId: 'zebra', messageData: md('NEXT-ZEBRA') },
+      { severity: 'warning', code: 'aspect-violation-advisory', aspectId: 'alpha', messageData: md('NEXT-ALPHA') },
+    ];
+    expect(run(issues)).toBe('NEXT-ALPHA');
+  });
+
+  it('prefers an advisory warning over other warnings when both are present (C-41/C-42)', () => {
+    const issues: Issue[] = [
+      { severity: 'warning', code: 'high-fan-out', nodePath: 'a/n', messageData: md('NEXT-FANOUT') },
+      { severity: 'warning', code: 'aspect-violation-advisory', aspectId: 'audit-log', messageData: md('NEXT-ADVISORY') },
+    ];
+    expect(run(issues)).toBe('NEXT-ADVISORY');
+  });
+
+  it('picks the alphabetically-first enforced refusal by aspectId (C-37)', () => {
+    // Raw emission order puts 'B-rule' first (byte compare: B < a), but locale order
+    // puts 'audit-log' first — matching the group bare `yg check --top` renders.
+    const issues: Issue[] = [
+      { severity: 'error', code: 'aspect-violation-enforced', aspectId: 'B-rule', nodePath: 'x/n', messageData: md('NEXT-BRULE') },
+      { severity: 'error', code: 'aspect-violation-enforced', aspectId: 'audit-log', nodePath: 'y/n', messageData: md('NEXT-AUDIT') },
+    ];
+    expect(run(issues)).toBe('NEXT-AUDIT');
   });
 
   it('renders a log-integrity remedy, defaulting an absent node and pluralizing the count', () => {

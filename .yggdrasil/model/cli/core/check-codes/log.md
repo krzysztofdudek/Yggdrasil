@@ -36,3 +36,5 @@ aspect-when-invalid joins the structural code set so a malformed when: predicate
 Registers aspect-tier-on-aggregate in the structural code set so a tier declared on an aggregate aspect blocks like the sibling aspect-contract codes.
 ## [2026-07-15T08:27:07.379Z]
 Registers relation-target-type-unknown in the structural code set so a relation allow-list that names an undefined target type is categorized and blocks like the sibling relation-integrity codes.
+## [2026-07-20T04:43:29.950Z]
+An out-of-repository file's bytes must never flow into a reviewer prompt. The primary defense rejects a mapping that escapes the project root at parse time, so such a node never loads. As defense in depth, the fill-and-approve stage now also treats an escaping mapping as a gating condition: if one ever reached a loaded graph by another route, the approve run aborts before any subject file is read rather than sending its contents to a reviewer.

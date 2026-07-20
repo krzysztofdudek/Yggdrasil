@@ -585,6 +585,24 @@ describe('checkNoCycles — structural relations only', () => {
     expect(codesOf(checkNoCycles(makeGraph({ nodes })))).toEqual(['structural-cycle']);
   });
 
+  // REGRESSION: a node that merely depends INTO a cycle member (but is not
+  // itself part of any cycle) must NOT be reported. The DFS must finalize
+  // (BLACK) every node on an aborted cycle-discovery path, otherwise cycle
+  // members stay GRAY and a later, unrelated DFS root fabricates a spurious
+  // structural-cycle against the innocent downstream node.
+  it('a node depending INTO a cycle member is not spuriously reported', () => {
+    const nodes = new Map<string, GraphNode>([
+      ['A', makeNode('A', { relations: [{ target: 'B', type: 'uses' }] })],
+      ['B', makeNode('B', { relations: [{ target: 'A', type: 'uses' }] })],
+      ['C', makeNode('C', { relations: [{ target: 'A', type: 'uses' }] })],
+    ]);
+    const issues = checkNoCycles(makeGraph({ nodes }));
+    expect(codesOf(issues)).toEqual(['structural-cycle']);
+    for (const issue of issues) {
+      expect(issue.messageData.what).not.toContain('C ->');
+    }
+  });
+
   // INVARIANT: event relations are EXCLUDED from cycle detection — an
   // emits/listens loop between two nodes is the NORMAL paired form, not a cycle.
   it('an emits/listens loop between two nodes is NOT a structural cycle', () => {

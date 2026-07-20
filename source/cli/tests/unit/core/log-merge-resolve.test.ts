@@ -149,6 +149,58 @@ describe('logMergeResolve (core, lock store)', () => {
     if (!result.ok) expect(result.error.what).toContain('conflict markers');
   });
 
+  it('accepts a resolved log whose entry body contains a legitimate ======= divider (not a conflict marker)', async () => {
+    // log.md is markdown: a line-leading run of `=` is a valid setext H1
+    // underline / horizontal rule, NOT a leftover git conflict marker. The
+    // guard must key ONLY off the unambiguous `<<<<<<<`/`>>>>>>>` markers.
+    const repo = await mkdtemp(path.join(tmpdir(), 'yg-merge-'));
+    dirs.push(repo);
+    const r = (cmd: string) => execSync(cmd, { cwd: repo, stdio: 'pipe', env: gitFixtureEnv(repo) });
+    r('git init -q -b main');
+    r('git config user.email t@t.test');
+    r('git config user.name Test');
+    const nodeDir = path.join(repo, '.yggdrasil', 'model', 'billing');
+    await mkdir(nodeDir, { recursive: true });
+    await writeFile(path.join(nodeDir, 'yg-node.yaml'), 'name: billing\ntype: module\ndescription: x\n');
+
+    // Ancestor entry body carries a legitimate markdown divider line of `=`.
+    const ancestor = '## [2026-05-11T10:00:00.000Z]\nSection\n=======\nbase body.\n';
+    const p1 = ancestor + '## [2026-05-11T11:00:00.000Z]\nfeat1.\n';
+    const p2 = ancestor + '## [2026-05-11T12:00:00.000Z]\nfeat2.\n';
+    const resolved =
+      ancestor +
+      '## [2026-05-11T11:00:00.000Z]\nfeat1.\n' +
+      '## [2026-05-11T12:00:00.000Z]\nfeat2.\n';
+
+    await writeFile(path.join(nodeDir, 'log.md'), ancestor);
+    r('git add -A && git commit -qm ancestor');
+    r('git checkout -qb feat1');
+    await writeFile(path.join(nodeDir, 'log.md'), p1);
+    r('git add -A && git commit -qm feat1');
+    r('git checkout -q main && git checkout -qb feat2 main');
+    await writeFile(path.join(nodeDir, 'log.md'), p2);
+    r('git add -A && git commit -qm feat2');
+    r('git merge --no-commit --no-ff feat1 -q || true');
+    await writeFile(path.join(nodeDir, 'log.md'), resolved);
+    r('git add -A');
+    r('git commit -qm "merge feat1 into feat2"');
+
+    const graph = await loadGraph(repo, { tolerateInvalidConfig: true });
+    const result = await logMergeResolve({ graph, nodePath: 'billing', repoRoot: repo });
+    expect(result.ok).toBe(true);
+  });
+
+  it('still rejects genuine open/close conflict markers with no ======= line present', async () => {
+    const { projectRoot, nodePath } = await setupMergeRepo();
+    const logPath = path.join(projectRoot, '.yggdrasil', 'model', nodePath, 'log.md');
+    // Only the unambiguous markers, no `=======` line at all — must still refuse.
+    await writeFile(logPath, '<<<<<<< HEAD\nx\ny\n>>>>>>> feat\n');
+    const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
+    const result = await logMergeResolve({ graph, nodePath, repoRoot: projectRoot });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.what).toContain('conflict markers');
+  });
+
   it('rejects when old portion modified vs ancestor', async () => {
     const { projectRoot, nodePath } = await setupMergeRepo();
     const logPath = path.join(projectRoot, '.yggdrasil', 'model', nodePath, 'log.md');

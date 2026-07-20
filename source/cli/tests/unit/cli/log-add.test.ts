@@ -104,6 +104,71 @@ describe('logAdd (core)', () => {
     expect(result.ok).toBe(true);
   });
 
+  it('rejects reasonText with an unclosed code fence (never writes log.md)', async () => {
+    const { projectRoot, nodePath } = await setupNode('billing');
+    const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
+    const logPath = path.join(projectRoot, '.yggdrasil', 'model', nodePath, 'log.md');
+    const result = await logAdd({
+      graph,
+      nodePath,
+      reasonText: 'see code:\n```\nfoo()',
+      nowMs: 1000,
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.what).toMatch(/unclosed code fence/i);
+    // The rejection must happen before any write: log.md stays absent.
+    await expect(readFile(logPath, 'utf-8')).rejects.toBeTruthy();
+  });
+
+  it('rejects an unclosed fence up front, so a later entry can never be swallowed', async () => {
+    // Case B: entry 1 opens a fence it never closes; entry 2 leads with a bare
+    // closing fence. Without the guard, both writes succeed and the shared
+    // fence-aware parser merges entry 2 into entry 1's body — one entry silently
+    // vanishes. The guard must reject the FIRST add before log.md is ever written.
+    const { projectRoot, nodePath } = await setupNode('billing');
+    const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
+    const logPath = path.join(projectRoot, '.yggdrasil', 'model', nodePath, 'log.md');
+    const first = await logAdd({
+      graph,
+      nodePath,
+      reasonText: 'first entry:\n```python\nfoo()',
+      nowMs: 1000,
+    });
+    expect(first.ok).toBe(false);
+    await expect(readFile(logPath, 'utf-8')).rejects.toBeTruthy();
+
+    // Corrected: both reasons individually fence-balanced — both add cleanly and
+    // both entries survive as distinct headers.
+    const a = await logAdd({
+      graph,
+      nodePath,
+      reasonText: 'first entry:\n```python\nfoo()\n```',
+      nowMs: 1000,
+    });
+    expect(a.ok).toBe(true);
+    const b = await logAdd({
+      graph,
+      nodePath,
+      reasonText: 'second entry justification text',
+      nowMs: 2000,
+    });
+    expect(b.ok).toBe(true);
+    const content = await readFile(logPath, 'utf-8');
+    expect(parseLog(content)).toHaveLength(2);
+  });
+
+  it('accepts a reason whose fence closes with a CRLF-terminated line', async () => {
+    const { projectRoot, nodePath } = await setupNode('billing');
+    const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
+    const result = await logAdd({
+      graph,
+      nodePath,
+      reasonText: 'before\r\n```python\r\nfoo()\r\n```\r\nafter',
+      nowMs: 1000,
+    });
+    expect(result.ok).toBe(true);
+  });
+
   it('rejects symlink log.md', async () => {
     const { projectRoot, nodePath } = await setupNode('billing');
     const logPath = path.join(projectRoot, '.yggdrasil', 'model', nodePath, 'log.md');

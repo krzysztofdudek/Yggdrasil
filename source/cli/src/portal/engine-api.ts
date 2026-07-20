@@ -90,9 +90,15 @@ export async function walkPortalFiles(projectRoot: string): Promise<string[]> {
 
 // ── Engine read-only entry points (severities, coverage, pairs, lock) ─────────
 
-/** Reuse the engine: severities + coverage come straight from runCheck. */
+/**
+ * Reuse the engine: severities + coverage come straight from runCheck. Injects the
+ * wall clock the same way the `yg check` CLI boundary does (`() => new Date()`), so the
+ * portal's issue set — and therefore `meta.counts.warnings` and the worklist — includes
+ * aspect-review-overdue warnings and matches `yg check` exactly. Without the clock, the
+ * review-cadence check is skipped in core and the portal would silently undercount.
+ */
 export async function runPortalCheck(graph: Graph, gitFiles: string[]): Promise<CheckResult> {
-  return runCheck(graph, gitFiles);
+  return runCheck(graph, gitFiles, { nowUtc: () => new Date() });
 }
 
 /** Read the lock and verify it in one read-only step — per-pair states for the portal. */
@@ -242,8 +248,8 @@ export function readGitCommitRef(projectRoot: string): string | null {
   } catch {
     return null;
   }
-  // Detached HEAD: the file holds the sha directly.
-  if (/^[0-9a-f]{40}$/i.test(head)) return head;
+  // Detached HEAD: the file holds the sha directly (SHA-1 = 40 hex, SHA-256 = 64 hex).
+  if (/^[0-9a-f]{40}$|^[0-9a-f]{64}$/i.test(head)) return head;
   const refMatch = head.match(/^ref:\s*(.+)$/);
   if (!refMatch) return null;
   const refName = refMatch[1].trim();
@@ -266,7 +272,7 @@ export function readGitCommitRef(projectRoot: string): string | null {
   if (existsSync(looseRef)) {
     try {
       const sha = readFileSync(looseRef, 'utf-8').trim();
-      if (/^[0-9a-f]{40}$/i.test(sha)) return sha;
+      if (/^[0-9a-f]{40}$|^[0-9a-f]{64}$/i.test(sha)) return sha;
     } catch {
       /* fall through to packed-refs */
     }
@@ -277,7 +283,7 @@ export function readGitCommitRef(projectRoot: string): string | null {
     try {
       const lines = readFileSync(packed, 'utf-8').split('\n');
       for (const line of lines) {
-        const m = line.match(/^([0-9a-f]{40})\s+(.+)$/i);
+        const m = line.match(/^([0-9a-f]{40}|[0-9a-f]{64})\s+(.+)$/i);
         if (m && m[2].trim() === refName) return m[1];
       }
     } catch {

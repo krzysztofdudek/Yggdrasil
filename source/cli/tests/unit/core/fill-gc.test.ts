@@ -22,7 +22,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -45,6 +45,7 @@ interface GcTestAspect {
   kind?: 'llm' | 'deterministic' | 'aggregate';
   status?: 'draft' | 'advisory' | 'enforced';
   implies?: string[];
+  scope?: { per: 'node' | 'file' };
 }
 
 interface GcTestNode {
@@ -70,6 +71,7 @@ function buildGraph(
       reviewer: { type: kind },
       status: a.status ?? 'enforced',
       implies: a.implies,
+      scope: a.scope,
       artifacts:
         kind === 'aggregate'
           ? []
@@ -342,5 +344,127 @@ describe('garbageCollectAndRewrite', () => {
     await garbageCollectAndRewrite(graph, lock, async () => {});
 
     expect(lock.verdicts['wip']?.[nodeUnit('svc')]?.hash).toBe('h-wip');
+  });
+
+  it('skips pruning AND the rewrite entirely when the graph carries a node parse error (a hidden node/subtree must not make its verdicts look detached)', async () => {
+    // A yg-node.yaml parse failure removes the node (and its subtree) from the
+    // graph, so its pairs never reach the universe. GC must NOT prune the seeded
+    // entries and must NOT rewrite/stamp the committed lock this run.
+    writeFile('src/svc.ts', 'export const x = 1;');
+    const graph = buildGraph(
+      tmpDir,
+      [{ path: 'svc', mapping: ['src/svc.ts'], aspects: ['live'] }],
+      [{ id: 'live', kind: 'deterministic' }],
+    );
+    (graph as unknown as { nodeParseErrors: unknown[] }).nodeParseErrors = [
+      { nodePath: 'broken', messageData: { what: 'x', why: 'y', next: 'z' } },
+    ];
+
+    const lock: LockFile = {
+      version: 0, // must stay 0 — the guard returns before stamping
+      verdicts: {
+        // `broken` is hidden by the parse error; without the guard its entry would
+        // be pruned as detached. It must survive untouched.
+        live: {
+          [nodeUnit('svc')]: { verdict: 'approved', hash: 'h-live' },
+          [nodeUnit('broken')]: { verdict: 'approved', hash: 'h-broken' },
+        },
+      },
+      nodes: {},
+    };
+
+    let persistCalls = 0;
+    await garbageCollectAndRewrite(graph, lock, async () => { persistCalls += 1; });
+
+    expect(lock.verdicts['live']?.[nodeUnit('svc')]?.hash).toBe('h-live');
+    expect(lock.verdicts['live']?.[nodeUnit('broken')]?.hash).toBe('h-broken');
+    expect(lock.version).toBe(0);
+    expect(persistCalls).toBe(0);
+  });
+
+  it('skips pruning entirely when the graph carries an aspect parse error', async () => {
+    writeFile('src/svc.ts', 'export const x = 1;');
+    const graph = buildGraph(
+      tmpDir,
+      [{ path: 'svc', mapping: ['src/svc.ts'], aspects: ['live'] }],
+      [{ id: 'live', kind: 'deterministic' }],
+    );
+    (graph as unknown as { aspectParseErrors: unknown[] }).aspectParseErrors = [
+      { aspectId: 'broken-aspect', code: 'yaml-invalid', messageData: { what: 'x', why: 'y', next: 'z' } },
+    ];
+
+    const lock: LockFile = {
+      version: LOCK_FORMAT_VERSION,
+      verdicts: {
+        // Aspect absent from graph.aspects → normally pruned repo-wide. Retained.
+        'broken-aspect': { [nodeUnit('svc')]: { verdict: 'approved', hash: 'h-x' } },
+      },
+      nodes: {},
+    };
+
+    let persistCalls = 0;
+    await garbageCollectAndRewrite(graph, lock, async () => { persistCalls += 1; });
+
+    expect(lock.verdicts['broken-aspect']?.[nodeUnit('svc')]?.hash).toBe('h-x');
+    expect(persistCalls).toBe(0);
+  });
+
+  it('retains a per:node verdict whose only subject file is unreadable this run (not positively detached)', async () => {
+    // The mapped subject is chmod 000 → probeUnreadable flags it, the subject set
+    // empties, and no pair is emitted for aspect `live` on node:svc. Without the
+    // guard GC would prune the (still-valid, still-mapped) verdict.
+    writeFile('src/svc.ts', 'export const x = 1;');
+    const graph = buildGraph(
+      tmpDir,
+      [{ path: 'svc', mapping: ['src/svc.ts'], aspects: ['live'] }],
+      [{ id: 'live', kind: 'deterministic' }],
+    );
+
+    const lock: LockFile = {
+      version: LOCK_FORMAT_VERSION,
+      verdicts: {
+        live: { [nodeUnit('svc')]: { verdict: 'approved', hash: 'h-live' } },
+        // A genuinely-detached aspect on the SAME node must still prune — the
+        // unreadable retention is keyed exactly per (aspect, unit).
+        'ghost-aspect': { [nodeUnit('svc')]: { verdict: 'approved', hash: 'h-ghost' } },
+      },
+      nodes: {},
+    };
+
+    chmodSync(path.join(tmpDir, 'src/svc.ts'), 0o000);
+    try {
+      await garbageCollectAndRewrite(graph, lock, async () => {});
+    } finally {
+      chmodSync(path.join(tmpDir, 'src/svc.ts'), 0o644);
+    }
+
+    expect(lock.verdicts['live']?.[nodeUnit('svc')]?.hash).toBe('h-live');
+    expect(lock.verdicts['ghost-aspect']).toBeUndefined();
+  });
+
+  it('retains a per:file verdict whose subject file is unreadable this run', async () => {
+    writeFile('src/svc.ts', 'export const x = 1;');
+    const graph = buildGraph(
+      tmpDir,
+      [{ path: 'svc', mapping: ['src/svc.ts'], aspects: ['live'] }],
+      [{ id: 'live', kind: 'deterministic', scope: { per: 'file' } }],
+    );
+
+    const lock: LockFile = {
+      version: LOCK_FORMAT_VERSION,
+      verdicts: {
+        live: { [fileUnit('src/svc.ts')]: { verdict: 'approved', hash: 'h-file' } },
+      },
+      nodes: {},
+    };
+
+    chmodSync(path.join(tmpDir, 'src/svc.ts'), 0o000);
+    try {
+      await garbageCollectAndRewrite(graph, lock, async () => {});
+    } finally {
+      chmodSync(path.join(tmpDir, 'src/svc.ts'), 0o644);
+    }
+
+    expect(lock.verdicts['live']?.[fileUnit('src/svc.ts')]?.hash).toBe('h-file');
   });
 });

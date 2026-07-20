@@ -378,6 +378,20 @@ export function registerImpactCommand(program: Command): void {
             }) + '\n',
           );
         } catch (error) {
+          // A --file path that resolves outside the repository is USER input, not
+          // an internal bug — classify it (what/why/next) rather than routing to
+          // the generic "file an issue" crash handler. Mirrors owner.ts.
+          const msg = error instanceof Error ? error.message : String(error);
+          const outsideRoot = msg.match(/^Path is outside project root: (.+)$/);
+          if (outsideRoot) {
+            debugWrite(`[impact] file arg outside project root: ${msg}`);
+            process.stderr.write(chalk.red('Error: ' + buildIssueMessage({
+              what: `The path '${toPosixPath(outsideRoot[1])}' is outside the project root.`,
+              why: 'yg impact resolves impact only for files tracked inside the project.',
+              next: 'Pass a path inside the project root (relative to the repo).',
+            }) + '\n'));
+            process.exit(1);
+          }
           debugWrite(`[impact] command failed: ${(error as Error).message}`);
           abortOnUnexpectedError(error, 'running impact');
         }

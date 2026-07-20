@@ -29,6 +29,24 @@ function normalizeResponse(raw: unknown): AspectResponse {
 }
 
 /**
+ * A syntactically valid JSON.parse result is only a VERDICT when it is a plain
+ * object carrying a coercible boolean `satisfied` field — the same gate
+ * extractLastVerdict applies (line: `coerceBool(obj.satisfied) !== undefined`).
+ * Steps 1/2 use this so an array-wrapped verdict, a bare primitive, or an object
+ * with a renamed/missing verdict field does NOT short-circuit into a false
+ * `satisfied: false` codeViolation refusal; instead it falls through to the
+ * recovery/fail-closed steps (3–5), matching the documented A3b contract.
+ */
+function isVerdictObject(v: unknown): v is Record<string, unknown> {
+  return (
+    typeof v === 'object' &&
+    v !== null &&
+    !Array.isArray(v) &&
+    coerceBool((v as Record<string, unknown>).satisfied) !== undefined
+  );
+}
+
+/**
  * Last-resort salvage for a reply that is a CLEAR verdict object but invalid JSON
  * — an unescaped `"` inside the long `reason`, a missing closing `"}`, or
  * chain-of-thought leaked into the reason string. We read the verdict FIELD
@@ -119,13 +137,16 @@ export function parseAspectResponse(output: string): AspectResponse | undefined 
     return undefined;
   }
 
-  // 1. Direct JSON
-  try { return normalizeResponse(JSON.parse(trimmed)); } catch (err) { debugWrite(`[parseAspectResponse] direct JSON parse failed: ${(err as Error).message}`); }
+  // 1. Direct JSON — only short-circuit when the parsed value is actually a
+  // verdict object; a valid-but-wrong-shape reply (array-wrapped, primitive, or
+  // renamed field) must fall through to recovery/fail-closed rather than becoming
+  // a false codeViolation refusal.
+  try { const parsed = JSON.parse(trimmed); if (isVerdictObject(parsed)) return normalizeResponse(parsed); } catch (err) { debugWrite(`[parseAspectResponse] direct JSON parse failed: ${(err as Error).message}`); }
 
-  // 2. Markdown fence
+  // 2. Markdown fence — same verdict-shape gate as step 1.
   const fenceMatch = trimmed.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
   if (fenceMatch) {
-    try { return normalizeResponse(JSON.parse(fenceMatch[1].trim())); } catch (err) { debugWrite(`[parseAspectResponse] fence JSON parse failed: ${(err as Error).message}`); }
+    try { const parsed = JSON.parse(fenceMatch[1].trim()); if (isVerdictObject(parsed)) return normalizeResponse(parsed); } catch (err) { debugWrite(`[parseAspectResponse] fence JSON parse failed: ${(err as Error).message}`); }
   }
 
   // 3. Embedded JSON verdict — the model may emit its JSON verdict surrounded by

@@ -340,6 +340,87 @@ describe('checkTypeWhenMismatch — branch coverage', () => {
       await cleanup(root);
     }
   });
+
+  it('CHILD-PRECEDENCE carve-out: a file a descendant node claims is not checked against the ancestor type', async () => {
+    // Parent node `data` (type repository, glob-maps src/data/**) would classify
+    // every file under src/data against the repository when. Child node
+    // `data/svc` (type service) carves out src/data/UserService.ts — that file
+    // legitimately belongs to the child and satisfies the service when, not the
+    // repository when. Before the child-precedence carve-out, the ancestor's
+    // type-when check folded that file in and raised a false type-when-mismatch.
+    const { root, graph } = await buildProject({
+      architecture: [
+        'node_types:',
+        '  repository:',
+        '    description: Repository',
+        '    when:',
+        '      content: "extends Repository"',
+        '  service:',
+        '    description: Service',
+        '    parents: [repository]',
+        '    when:',
+        '      content: "class .*Service"',
+      ].join('\n'),
+      files: [
+        { rel: 'src/data/UserRepo.ts', content: 'class UserRepo extends Repository {}' },
+        { rel: 'src/data/UserService.ts', content: 'class UserService {}' },
+      ],
+      nodes: [
+        { dir: 'data', yaml: nodeYaml('data', 'repository', ['src/data/**/*.ts']) },
+        { dir: 'data/svc', yaml: nodeYaml('svc', 'service', ['src/data/UserService.ts']) },
+      ],
+    });
+    try {
+      const { issues, unreadable } = await checkTypeWhenMismatch(graph, new FileContentCache());
+      // The child-owned file must NOT be reported against the parent type.
+      expect(
+        issues.find(
+          (i) =>
+            i.code === 'type-when-mismatch' &&
+            i.messageData.what.includes('src/data/UserService.ts'),
+        ),
+      ).toBeUndefined();
+      // And nothing at all should fire: the parent's own file satisfies its when,
+      // the child's own file satisfies the service when.
+      expect(issues.find((i) => i.code === 'type-when-mismatch')).toBeUndefined();
+      expect(unreadable).toHaveLength(0);
+    } finally {
+      await cleanup(root);
+    }
+  });
+
+  it('NEGATIVE CONTROL: without a descendant claiming it, a non-satisfying file in the parent mapping still fires', async () => {
+    // Same shape as the carve-out case but with NO child node — the file stays
+    // owned by the parent, so the repository when is (correctly) enforced and a
+    // type-when-mismatch is raised. Proves the carve-out only removes files a
+    // descendant genuinely claims, not the parent's own non-satisfying files.
+    const { root, graph } = await buildProject({
+      architecture: [
+        'node_types:',
+        '  repository:',
+        '    description: Repository',
+        '    when:',
+        '      content: "extends Repository"',
+      ].join('\n'),
+      files: [
+        { rel: 'src/data/UserRepo.ts', content: 'class UserRepo extends Repository {}' },
+        { rel: 'src/data/UserService.ts', content: 'class UserService {}' },
+      ],
+      nodes: [{ dir: 'data', yaml: nodeYaml('data', 'repository', ['src/data/**/*.ts']) }],
+    });
+    try {
+      const { issues } = await checkTypeWhenMismatch(graph, new FileContentCache());
+      const mismatch = issues.find(
+        (i) =>
+          i.code === 'type-when-mismatch' &&
+          i.messageData.what.includes('src/data/UserService.ts'),
+      );
+      expect(mismatch).toBeDefined();
+      expect(mismatch?.nodePath).toBe('data');
+    } finally {
+      await cleanup(root);
+    }
+  });
 });
 
 // ===========================================================================
@@ -489,6 +570,66 @@ describe('checkStrictBackwardCoverage — branch coverage', () => {
       const misplaced = issues.find((i) => i.code === 'type-strict-misplaced');
       expect(misplaced).toBeDefined();
       expect(misplaced?.nodePath).toBe('util');
+    } finally {
+      await cleanup(root);
+    }
+  });
+
+  it('CHILD-PRECEDENCE: a descendant node of the RIGHT type owns the file inside a parent glob → no misplaced (false-refuse guard)', async () => {
+    // Parent node (non-strict utility) globs the directory; a nested child node
+    // of the strict `command` type claims the specific file. Under child-precedence
+    // the child owns the file, so the strict rule is satisfied. The old first-match
+    // (insertion-order) owner loop resolved the ANCESTOR (utility) first and falsely
+    // raised type-strict-misplaced against a correct, supported layout.
+    const { root, graph } = await buildProject({
+      architecture: [
+        STRICT_ARCH,
+        '  utility:',
+        '    description: Utility',
+        '    when:',
+        '      path: "**"',
+      ].join('\n'),
+      files: [{ rel: 'src/cmd.ts', content: 'registerCommand("foo")' }],
+      nodes: [
+        { dir: 'feature', yaml: nodeYaml('feature', 'utility', ['src/*.ts']) },
+        { dir: 'feature/cmd', yaml: nodeYaml('feature/cmd', 'command', ['src/cmd.ts']) },
+      ],
+    });
+    try {
+      const { issues } = await checkStrictBackwardCoverage(graph, new FileContentCache());
+      expect(issues.find((i) => i.code === 'type-strict-misplaced')).toBeUndefined();
+      expect(issues.find((i) => i.code === 'type-strict-orphan')).toBeUndefined();
+    } finally {
+      await cleanup(root);
+    }
+  });
+
+  it('CHILD-PRECEDENCE: a descendant node of the WRONG type owns the file inside a parent glob → misplaced names the CHILD (false-pass guard)', async () => {
+    // Parent node is the strict `command` type and globs the directory; a nested
+    // child of a different type claims the specific file. The child is the real
+    // runtime owner, so its type governs — the strict rule is violated and the
+    // error must name the CHILD. The old first-match loop resolved the ancestor
+    // (command) first, matched the strict type, and silently PASSED over a file
+    // whose real owner has the wrong type (a green build that lies).
+    const { root, graph } = await buildProject({
+      architecture: [
+        STRICT_ARCH,
+        '  utility:',
+        '    description: Utility',
+        '    when:',
+        '      path: "**"',
+      ].join('\n'),
+      files: [{ rel: 'src/cmd.ts', content: 'registerCommand("foo")' }],
+      nodes: [
+        { dir: 'feature', yaml: nodeYaml('feature', 'command', ['src/*.ts']) },
+        { dir: 'feature/cmd', yaml: nodeYaml('feature/cmd', 'utility', ['src/cmd.ts']) },
+      ],
+    });
+    try {
+      const { issues } = await checkStrictBackwardCoverage(graph, new FileContentCache());
+      const misplaced = issues.find((i) => i.code === 'type-strict-misplaced');
+      expect(misplaced).toBeDefined();
+      expect(misplaced?.nodePath).toBe('feature/cmd');
     } finally {
       await cleanup(root);
     }

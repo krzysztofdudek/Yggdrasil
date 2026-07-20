@@ -2,7 +2,7 @@ import path from 'node:path';
 import { stat } from 'node:fs/promises';
 import chalk from 'chalk';
 import { buildIssueMessage } from '../formatters/message-builder.js';
-import { loadGraph, UnsupportedSchemaVersionError, OutdatedSchemaVersionError, FlowLoadError } from '../core/graph-loader.js';
+import { loadGraph, UnsupportedSchemaVersionError, OutdatedSchemaVersionError, MalformedSchemaVersionError, FlowLoadError } from '../core/graph-loader.js';
 import { LockInvalidError } from '../io/lock-store.js';
 import type { Graph } from '../model/graph.js';
 
@@ -63,6 +63,15 @@ export async function loadGraphOrAbort(
         what: `the .yggdrasil graph is at version ${err.detectedVersion}, older than this CLI (${err.minSupportedVersion}).`,
         why: `${err.minSupportedVersion} reads only the current on-disk format; older formats are upgraded by a migration, not parsed directly.`,
         next: `run \`yg init --upgrade\` to migrate the graph to ${err.minSupportedVersion}, then re-run.`,
+      });
+      process.stderr.write(chalk.red(`Error: ${formatted}\n`));
+      process.exit(1);
+    }
+    if (err instanceof MalformedSchemaVersionError) {
+      const formatted = buildIssueMessage({
+        what: `yg-config.yaml version "${err.detectedVersion}" is not valid semver.`,
+        why: 'The CLI cannot determine graph compatibility without a parseable version — reading the graph anyway could pass over a format it never confirmed it can read.',
+        next: 'Restore the version field in .yggdrasil/yg-config.yaml from version control, or re-run `yg init`, then re-run this command.',
       });
       process.stderr.write(chalk.red(`Error: ${formatted}\n`));
       process.exit(1);

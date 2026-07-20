@@ -318,6 +318,37 @@ describe('per-node derivation — honest states on synthetic inputs', () => {
     expect(out.get('p')!.rollupState).toBe('refused'); // but its subtree is refused
   });
 
+  it('rollupState bubbles a refused GRANDCHILD all the way up a 3-level chain (a -> a/b -> a/b/c)', () => {
+    // The roll-up must fold the WHOLE subtree, not just one level. `graph.nodes` is pre-order
+    // DFS (the loader inserts a node before recursing into its children), so a top ancestor is
+    // processed before its descendants — a forward roll-up would read children's still-seeded
+    // rollupState and stop one level short, leaving a green pill over a refusal two levels down.
+    const aRef = aspectDef('a-ref', 'deterministic');
+    const leaf = node('a/b/c', 'module', ['a-ref'], ['f.ts']);
+    const mid = node('a/b', 'module', [], [], [leaf]);
+    const root = node('a', 'module', [], [], [mid]);
+    leaf.parent = mid;
+    mid.parent = root;
+    const graph = {
+      // Insert in the SAME pre-order the real loader produces: parent before children.
+      nodes: new Map([['a', root], ['a/b', mid], ['a/b/c', leaf]]),
+      aspects: [aRef],
+      flows: [],
+      architecture: { node_types: {} },
+    } as unknown as Graph;
+    const verification: LockVerification = { pairs: [vp('a-ref', 'a/b/c', { kind: 'refused' })], unreadable: [] };
+    const out = new Map(
+      buildPortalNodes(graph, {} as never, verification, syntheticCheck([]), new Map(), { byFile: new Map() }).map((n) => [n.path, n]),
+    );
+    // Own states are unaffected: only the leaf owns a rule.
+    expect(out.get('a')!.state).toBe('no-rule');
+    expect(out.get('a/b')!.state).toBe('no-rule');
+    expect(out.get('a/b/c')!.state).toBe('refused');
+    // Roll-up must reach the top ancestor, not stop one level short.
+    expect(out.get('a/b')!.rollupState).toBe('refused');
+    expect(out.get('a')!.rollupState).toBe('refused');
+  });
+
   it('per-node suppressions are filtered to the node mapped files; the log is parsed', () => {
     const aDet = aspectDef('a', 'deterministic');
     const n = node('n', 'module', ['a'], ['src/x.ts']);

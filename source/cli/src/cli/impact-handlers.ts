@@ -432,8 +432,10 @@ export async function handleFlowImpact(
 }
 
 export async function handleTypeImpact(graph: Graph, typeId: string): Promise<void> {
-  const def = graph.architecture.node_types[typeId];
-  if (!def) {
+  // Own-key check before indexing: a raw bracket lookup would resolve inherited
+  // Object.prototype members (constructor, toString, valueOf, hasOwnProperty),
+  // fabricating a zero-impact report for a type that does not exist.
+  if (!Object.keys(graph.architecture.node_types).includes(typeId)) {
     process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
       what: `Type '${typeId}' not found in architecture.`,
       why: 'The type id must match a node_types key in .yggdrasil/yg-architecture.yaml.',
@@ -441,6 +443,7 @@ export async function handleTypeImpact(graph: Graph, typeId: string): Promise<vo
     })}\n`));
     process.exit(1);
   }
+  const def = graph.architecture.node_types[typeId];
 
   const projectRoot = join(graph.rootPath, '..');
 

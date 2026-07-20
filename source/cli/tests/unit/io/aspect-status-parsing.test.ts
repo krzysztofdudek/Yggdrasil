@@ -155,10 +155,15 @@ implies:
     }
   });
 
-  it('re-throws unrelated errors from implies parsing (unknown field)', async () => {
+  it('reports an unknown implies field as a structured error, not a throw', async () => {
     // An object entry under implies with an unknown key (not 'status_inherit')
-    // should not be remapped to 'implies-status-inherit-invalid'; the underlying
-    // parser error must propagate.
+    // must NOT be remapped to 'implies-status-inherit-invalid'. parseAspect's
+    // contract is a {ok}|{ok:false,errors} union that never throws for a
+    // validation failure — a malformed implies entry surfaces as the structured
+    // code 'aspect-implies-invalid' with the underlying "unknown field" detail
+    // preserved in the message (an uncaught throw here would abort the entire
+    // graph load with a generic "this is a bug" message). Mirrors the
+    // 'reports an implies object with an unknown field...' case in aspect-parser.test.ts.
     const { aspectDir, yamlPath } = await writeAspectFixture(`
 name: Example
 description: x
@@ -167,7 +172,12 @@ implies:
   - id: companion
     bogus: x
 `);
-    await expect(parseAspect(aspectDir, yamlPath, 'example')).rejects.toThrow(/unknown field 'bogus'/);
+    const r = await parseAspect(aspectDir, yamlPath, 'example');
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.errors.map(e => e.code)).toContain('aspect-implies-invalid');
+      expect(r.errors[0].messageData.what).toMatch(/unknown field 'bogus'/);
+    }
   });
 
 });

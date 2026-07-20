@@ -46,6 +46,22 @@ describe('config-parser', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
+  it('throws on a top-level YAML sequence (array) config', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-array');
+    await mkdir(tmpDir, { recursive: true });
+    const badConfigPath = path.join(tmpDir, 'yg-config.yaml');
+    // A paste/indent accident that makes the top level a YAML sequence rather
+    // than a mapping. This must be rejected, not silently coerced to defaults.
+    await writeFile(badConfigPath, '- reviewer:\n    tiers: {}\n- quality:\n    max_direct_relations: 5\n', 'utf-8');
+
+    await expect(parseConfig(badConfigPath)).rejects.toThrow(
+      'empty or not a valid YAML mapping',
+    );
+    await expect(parseConfig(badConfigPath)).rejects.toBeInstanceOf(ConfigParseError);
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
   it('parses minimal config', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-minimal');
     await mkdir(tmpDir, { recursive: true });

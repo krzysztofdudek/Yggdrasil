@@ -100,7 +100,7 @@ export async function parseConfig(
   const content = await readFile(filePath, 'utf-8');
   const baseRaw = parseYaml(content) as Record<string, unknown>;
 
-  if (!baseRaw || typeof baseRaw !== 'object') {
+  if (!baseRaw || typeof baseRaw !== 'object' || Array.isArray(baseRaw)) {
     throw new ConfigParseError({
       what: `${filename} is empty or not a valid YAML mapping`,
       why: 'the top-level structure must be a YAML mapping with keys like reviewer, quality, parallel',

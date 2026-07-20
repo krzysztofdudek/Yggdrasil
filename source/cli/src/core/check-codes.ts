@@ -126,6 +126,13 @@ export const APPROVE_GATING_CODES = new Set<string>([
   'aspect-tier-on-deterministic',
   'aspect-tier-on-aggregate',
   'aspect-tier-unknown',
+  // Defense-in-depth for the mapping path-traversal hole (belt-and-suspenders;
+  // the node-parser's parse-time escapesRepo guard is primary — an escaping
+  // mapping fails to load, so the node never reaches the fill stage). If an
+  // escaping mapping ever reaches a loaded graph another way, gate the fill
+  // stage here so it ABORTS before any subject-file read — an out-of-repo file's
+  // bytes must never flow into a reviewer prompt.
+  'mapping-escapes-repo',
 ]);
 
 /**

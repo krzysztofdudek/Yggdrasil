@@ -168,6 +168,50 @@ describe('incidents-store — append / read / count round-trip', () => {
     }
   });
 
+  it('separates the new entry when a hand-edited ledger has no trailing newline', () => {
+    const root = freshRoot();
+    try {
+      // The ledger is committed, human-editable testimony: a maintainer may hand-edit
+      // it and leave the last line WITHOUT a trailing newline. Appending must still land
+      // the new machine header on its own line — otherwise it glues onto the prose and
+      // stops parsing, silently losing the tower's only external oracle signal.
+      writeFileSync(
+        path.join(root, 'incidents.md'),
+        `# Incident ledger\n\n## [${T1}] no-rule\n\na hand-edited note without a trailing newline`,
+        'utf-8',
+      );
+
+      appendIncident(root, { tag: 'wrong-rule', reason: 'newly recorded escape', isoDatetime: T2 });
+
+      // The new header parses as a real, separate entry (not swallowed by the prose line).
+      const { entries } = readIncidents(root);
+      expect(entries).toEqual([
+        { datetime: T1, tag: 'no-rule' },
+        { datetime: T2, tag: 'wrong-rule' },
+      ]);
+      // On disk the header sits on its own line, and the original prose survives intact.
+      const raw = readFileSync(path.join(root, 'incidents.md'), 'utf-8');
+      expect(raw).toContain('a hand-edited note without a trailing newline\n## [');
+      expect(raw).toContain(`## [${T2}] wrong-rule`);
+    } finally {
+      rmSync(path.dirname(root), { recursive: true, force: true });
+    }
+  });
+
+  it('adds no extra separator when the ledger already ends in a newline (no over-fixing)', () => {
+    const root = freshRoot();
+    try {
+      // A normally-appended ledger already ends in "\n\n"; a second append must not
+      // introduce a spurious blank-line-only drift.
+      appendIncident(root, { tag: 'no-rule', reason: 'first', isoDatetime: T1 });
+      appendIncident(root, { tag: 'wrong-rule', reason: 'second', isoDatetime: T2 });
+      const raw = readFileSync(path.join(root, 'incidents.md'), 'utf-8');
+      expect(raw).not.toContain('\n\n\n');
+    } finally {
+      rmSync(path.dirname(root), { recursive: true, force: true });
+    }
+  });
+
   it('countIncidents tallies the total and the wrong-rule subset (absent ledger reads as 0/0)', () => {
     const root = freshRoot();
     try {

@@ -234,6 +234,15 @@ export function appendIncident(
     existing = '';
   }
   const block = formatIncidentEntry(entry.isoDatetime, entry.tag, entry.reason, entry.aspect);
-  const text = existing.trim() === '' ? LEDGER_PREAMBLE + block : block;
-  appendToDebugLog(filePath, text);
+  if (existing.trim() === '') {
+    appendToDebugLog(filePath, LEDGER_PREAMBLE + block);
+  } else {
+    // A hand-edited ledger may not end in a newline; without a separator the new
+    // machine-shaped `## [...]` header would glue onto the trailing prose line and
+    // stop parsing as an entry (a silent loss of the tower's only external oracle).
+    // Match ensureGitignoreLine's separator logic — use `endsWith('\n')`, not
+    // `trim()`, so a file ending in whitespace-but-no-newline is still separated.
+    const sep = existing.endsWith('\n') ? '' : '\n';
+    appendToDebugLog(filePath, sep + block);
+  }
 }

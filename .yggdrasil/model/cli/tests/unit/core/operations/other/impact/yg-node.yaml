@@ -6,7 +6,8 @@ aspects: []
 relations:
   [
     { target: cli/core/graph, type: uses },
-    { target: cli/impact-handlers, type: uses }
+    { target: cli/impact-handlers, type: uses },
+    { target: cli/core/loader, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/core/impact.test.ts

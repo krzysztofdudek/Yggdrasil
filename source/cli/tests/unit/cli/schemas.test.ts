@@ -87,4 +87,14 @@ describe('readSchema', () => {
     const { stderr } = captureOutput(() => readSchema('nonexistent-schema'));
     expect(stderr).toContain('node');
   });
+
+  it.each(['constructor', 'toString', 'hasOwnProperty', 'valueOf', '__proto__'])(
+    'treats inherited Object.prototype key %s as an unknown schema (no crash)',
+    (name) => {
+      const { stderr, exitCode } = captureOutput(() => readSchema(name));
+      expect(exitCode).toBe(1);
+      expect(stderr).toMatch(new RegExp(`Unknown schema`));
+      expect(stderr).toContain('Available:');
+    },
+  );
 });

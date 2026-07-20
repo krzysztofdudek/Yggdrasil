@@ -108,3 +108,11 @@ The verification-event appender gained a second, opt-in home. When a team turns 
 Two independent gitignore-matching behaviors had diverged: the repository-scan matcher queried only the bare candidate path, so a directory-only ignore pattern (trailing slash) failed to prune its directory, surfacing ignored files as uncovered. It now queries both the bare and the directory form, matching the already-correct sibling used for per-file hashing. Also adds an atomic (temp-file-plus-rename) text-write helper so committed-state rewrites cannot leave a half-written file after an interrupt.
 ## [2026-07-16T11:25:51.392Z]
 Removed a dead, unreferenced filesystem helper (lstatFile) and dropped the now-unused lstat import; it had no callers anywhere in the codebase.
+## [2026-07-20T04:43:33.698Z]
+Three fixes so the file-scanning and hashing layer covers exactly the tracked, in-repo files it should — no colliding file wrongly dropped, and nothing outside the repository ever surfaced.
+
+A directory-only ignore rule — one written to match a directory, such as a trailing-slash pattern — must prune only directories, never a file whose path happens to collide with that name. The scan and the subject-set hashing both queried the directory form of every candidate, including plain files, so a tracked file colliding with a directory-only rule was silently excluded from the scanned and hashed set, which can hide it from verification and produce a false green. Both now query the directory form only for actual directories; real directories are still pruned as before.
+
+A resolved mapped path that escapes the project root must never be handed back to a caller, including the assembler that gathers a reviewer prompt's subject files. Every path returned from mapping expansion is now funneled through a containment guard, as defense in depth behind the parse-time rejection of escaping mappings.
+
+The best-effort evidence dump written when the fill detects a divergence, together with its single rotated copy, must stay out of version control. The ignore entry covered only the exact primary filename, so the rotated copy could leak into the repository; the entry now covers the rotation as well.

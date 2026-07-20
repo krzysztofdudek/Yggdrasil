@@ -14,8 +14,12 @@ export function listSchemas(): void {
 }
 
 export function readSchema(name: string): void {
-  const topic = SCHEMA_TOPICS[name];
-  if (topic === undefined) {
+  // Own-property guard: an inherited Object.prototype key ('constructor',
+  // 'toString', '__proto__', …) is truthy on SCHEMA_TOPICS via the prototype
+  // chain, so a bare `SCHEMA_TOPICS[name] === undefined` check would let it
+  // through and then crash on `topic.content` with the generic "this is a bug"
+  // abort instead of the guided unknown-schema error. Mirror readKnowledge.
+  if (!Object.prototype.hasOwnProperty.call(SCHEMA_TOPICS, name)) {
     const available = Object.keys(SCHEMA_TOPICS).sort().join(', ');
     process.stderr.write(
       chalk.red(
@@ -28,6 +32,7 @@ export function readSchema(name: string): void {
     );
     process.exit(1);
   }
+  const topic = SCHEMA_TOPICS[name];
   process.stdout.write(topic.content);
 }
 

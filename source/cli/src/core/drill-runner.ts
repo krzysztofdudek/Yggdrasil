@@ -128,7 +128,7 @@ function drillBudgetLine(
 }
 
 function drillUnsupportedGraphCtxLine(aspectId: string): string {
-  return `unsupported: check '${aspectId}' reads graph context (node/graph/fs/parseYaml); drill v1 runs check.mjs over case files only. Recorded, not scored.`;
+  return `unsupported: check '${aspectId}' reads graph context (node/subject/graph/fs/parseAst/parseYaml/parseJson/parseToml); drill v1 runs check.mjs over case files only. Recorded, not scored.`;
 }
 
 function drillUnsupportedCompanionLine(aspectId: string): string {

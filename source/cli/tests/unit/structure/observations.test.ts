@@ -682,6 +682,38 @@ describe('runStructureAspect — observation recording', () => {
     expect(aEntry).toBeUndefined();
   });
 
+  // Bug 1 (AST field) — a non-subject sibling's `.ast` is content-derived, so
+  // reading it (without ever touching `.content`) must fold the same read:
+  // observation. Otherwise editing the sibling changes its AST but the pair
+  // stays stale-green.
+  it('per:file — sibling .ast access in ctx.node.files folds a read: observation', async () => {
+    await writeAspect('obs-sibling-ast', `
+      export function check(ctx) {
+        // Read a sibling's parsed AST via ctx.node.files (never its .content).
+        const sibling = ctx.node.files.find(f => f.path === 'src/b.ts');
+        void sibling.ast;
+        return [];
+      }
+    `);
+    const g = buildTestGraphForStructure({
+      nodes: [{ path: 'N', type: 'module', mapping: ['src/a.ts', 'src/b.ts'] }],
+    });
+    const r = await runStructureAspect({
+      aspectDir: path.join('.yggdrasil/aspects/obs-sibling-ast'),
+      aspectId: 'obs-sibling-ast', nodePath: 'N', graph: g, projectRoot,
+      subjectScope: ['src/a.ts'],
+    });
+    expect(r.succeeded).toBe(true);
+    // src/b.ts (non-subject) must be folded as a read: observation on the .ast read.
+    const bKey = observationKey('read', 'src/b.ts');
+    const bEntry = r.observations.find(([k]) => k === bKey);
+    expect(bEntry).toBeDefined();
+    expect(bEntry![1]).toBe(hashReadObservation(Buffer.from('export const y = 2;')));
+    // src/a.ts (the subject) must NOT be a read: observation.
+    const aEntry = r.observations.find(([k]) => k === observationKey('read', 'src/a.ts'));
+    expect(aEntry).toBeUndefined();
+  });
+
   it('per:node (no subjectScope) — own mapping files are NOT folded as read: observations', async () => {
     // Without a narrowed subject set, every mapped file is a subject and hashed as
     // a subject input — no duplicate read: observations for own files.

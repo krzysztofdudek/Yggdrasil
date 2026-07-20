@@ -310,6 +310,21 @@ describe('catalogue — tally + flow-state honest branches (synthetic)', () => {
     expect(flows[0].description).toBe('d');
   });
 
+  it('a flow whose only aspect-bearing participant produced zero real pairs is nothing-checked, never verified', () => {
+    // The participant carries a non-draft effective aspect (own enforced 'a') so
+    // hasNonDraftEffectiveAspects is true — yet the verification produced NO pair for it
+    // (empty mapping / all-vacuous subject set), so nodeStateOf returns undefined. `checked`
+    // must be driven by the presence of a REAL verdict-bearing pair, not by mere aspect
+    // effectiveness: with zero pairs the flow is honestly nothing-checked, never a fabricated
+    // green. (Mirrors derive-nodes.ts's real-pair-based `checked`.)
+    const a = detAspect('a');
+    const n = gnode('p', ['a'], []);
+    const flow: FlowDef = { path: 'f', name: 'F', nodes: ['p'], aspects: [] };
+    const graph = { nodes: new Map([['p', n]]), aspects: [a], flows: [flow], architecture: { node_types: {} } } as unknown as Graph;
+    const flows = buildFlows(graph, () => undefined);
+    expect(flows[0].state).toBe('nothing-checked');
+  });
+
   it('buildTypes surfaces a type description, allowed relations, parents, and node count', () => {
     const graph = {
       nodes: new Map([['n', gnode('n', [], [])]]),

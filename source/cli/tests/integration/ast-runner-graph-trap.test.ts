@@ -71,8 +71,13 @@ describe('ast runner — graph-access sentinel trap', () => {
     }
   });
 
-  it('the trap fires on ctx.graph / ctx.fs / ctx.parseYaml too, each naming its accessor', async () => {
-    for (const accessor of ['graph', 'fs', 'parseYaml']) {
+  it('the trap fires on every graph-context accessor of the production Ctx (minus files), each naming its accessor', async () => {
+    // Full complement of structure/types.ts `Ctx` minus `files`. A check reading
+    // subject / parseAst / parseJson / parseToml under a drill must be reported as
+    // a capability gap (AST_GRAPH_CTX_UNSUPPORTED → `unsupported`, exit 0), NOT as
+    // a check bug (AST_CHECK_THROWN → `unrun`, exit 2) which a missing trap would
+    // have produced via a plain TypeError on the absent property.
+    for (const accessor of ['node', 'subject', 'graph', 'fs', 'parseAst', 'parseYaml', 'parseJson', 'parseToml']) {
       const src = `export function check(ctx) { const _ = ctx.${accessor}; return []; }`;
       const { projectRoot, aspectDir, file } = stage(src);
       await expect(

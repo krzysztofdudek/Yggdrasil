@@ -33,7 +33,12 @@ import { tmpdir } from 'node:os';
 
 import { loadGraph } from '../../src/core/graph-loader.js';
 import { runFill } from '../../src/core/fill.js';
-import { writeFillDivergence, FILL_DIVERGENCE_FILENAME } from '../../src/io/debug-log-writer.js';
+import {
+  writeFillDivergence,
+  FILL_DIVERGENCE_FILENAME,
+  FILL_DIVERGENCE_GITIGNORE_LINE,
+} from '../../src/io/debug-log-writer.js';
+import { minimatch } from 'minimatch';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURES_ROOT = path.join(HERE, '../fixtures');
@@ -130,12 +135,17 @@ describe('writeFillDivergence — evidence-log writer (fire path)', () => {
       writeFillDivergence(yggRoot, 'first-dump\n');
       expect(existsSync(logPath)).toBe(true);
       expect(readFileSync(logPath, 'utf-8')).toBe('first-dump\n');
-      // G5: the writer guarantees its own ignore entry, exactly once.
+      // G5: the writer guarantees its own ignore entry, exactly once. The entry
+      // is the wildcard form so it also covers the `.1` rotation, not the bare
+      // filename (which fnmatch would match only exactly).
       expect(
         readFileSync(giPath, 'utf-8')
           .split('\n')
-          .filter((l) => l.trim() === FILL_DIVERGENCE_FILENAME),
+          .filter((l) => l.trim() === FILL_DIVERGENCE_GITIGNORE_LINE),
       ).toHaveLength(1);
+      // The written pattern must ignore BOTH the live dump and its rotation.
+      expect(minimatch(FILL_DIVERGENCE_FILENAME, FILL_DIVERGENCE_GITIGNORE_LINE)).toBe(true);
+      expect(minimatch(`${FILL_DIVERGENCE_FILENAME}.1`, FILL_DIVERGENCE_GITIGNORE_LINE)).toBe(true);
 
       // Second fire: the prior dump rotates to `.1`, the fresh dump replaces it,
       // and the gitignore line is NOT duplicated (idempotent ensure).
@@ -145,7 +155,7 @@ describe('writeFillDivergence — evidence-log writer (fire path)', () => {
       expect(
         readFileSync(giPath, 'utf-8')
           .split('\n')
-          .filter((l) => l.trim() === FILL_DIVERGENCE_FILENAME),
+          .filter((l) => l.trim() === FILL_DIVERGENCE_GITIGNORE_LINE),
       ).toHaveLength(1);
     } finally {
       rmSync(tmp, { recursive: true, force: true });

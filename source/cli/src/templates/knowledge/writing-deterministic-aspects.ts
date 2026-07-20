@@ -21,9 +21,10 @@ that \`ctx\` they touch. But \`ctx\` is not equally rich everywhere it runs (see
   \`yg aspect-test --node\` — hands the check the full \`ctx\`: \`files\`, \`fs\`, \`graph\`,
   \`node\`, \`subject\`, and the parsers (\`parseAst\`, \`parseYaml\`, \`parseJson\`, \`parseToml\`).
 - The **graphless AST runner** — \`yg drill\` and \`yg aspect-test --files\` — hands the
-  check only \`ctx.files\`. A check that reads \`ctx.node\`, \`ctx.graph\`, \`ctx.fs\`, or
-  \`ctx.parseYaml\` cannot run there; \`yg drill\` reports that as an unsupported-capability
-  gap (exit 0), not a check failure.
+  check only \`ctx.files\`. A check that reads any graph-context accessor —
+  \`ctx.node\`, \`ctx.subject\`, \`ctx.graph\`, \`ctx.fs\`, \`ctx.parseAst\`, \`ctx.parseYaml\`,
+  \`ctx.parseJson\`, or \`ctx.parseToml\` — cannot run there; \`yg drill\` reports that as an
+  unsupported-capability gap (exit 0), not a check failure.
 
 **Plain \`yg check\` never executes a deterministic check** — it validates the entry
 by hashing, exactly like an LLM entry. So CI executes no adopter code; check's cost

@@ -14,7 +14,8 @@ relations:
     { target: cli/formatters, type: calls },
     { target: cli/io/file-content-cache, type: calls },
     { target: cli/io/stores, type: calls },
-    { target: cli/utils, type: calls }
+    { target: cli/utils, type: calls },
+    { target: cli/relations/core, type: calls }
   ]
 mapping:
   - source/cli/src/core/checks/mapping.ts

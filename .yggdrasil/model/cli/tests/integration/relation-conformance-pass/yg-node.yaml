@@ -29,3 +29,4 @@ mapping:
   - source/cli/tests/integration/relation-fill.test.ts
   - source/cli/tests/integration/feature-hash-guard.test.ts
   - source/cli/tests/integration/feature-index-write.test.ts
+  - source/cli/tests/integration/relation-parse-infra-failclosed.test.ts

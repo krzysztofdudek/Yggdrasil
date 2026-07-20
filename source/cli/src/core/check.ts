@@ -32,6 +32,7 @@ import type { FileFacts } from '../relations/pass.js';
 import { extractorForLanguage } from '../relations/extractors/registry.js';
 import { astCacheDir } from '../relations/facts-cache.js';
 import { relationRefusedMessage } from '../relations/messages.js';
+import { getLanguageDisplayName } from '../utils/language-registry.js';
 import { makeResolvePathToFile } from '../relations/resolve-path.js';
 import { buildOwnerIndex } from '../relations/owner-index.js';
 // ── Silent feature-field deviation index (L3 attention) — the writer lives HERE ONLY,
@@ -636,6 +637,32 @@ export async function runCheck(
       });
     }
 
+    // Relation-conformance INFRASTRUCTURE failures: a mapped file could not be parsed
+    // because its tree-sitter grammar failed to load (missing/corrupt WASM, init/load
+    // rejection, or parser returned null). An unparsed file contributes NO detected
+    // dependencies, so if this were swallowed the relation check would silently pass
+    // over unanalyzed code — repo-wide for a whole language if its grammar is missing.
+    // Fail closed: surface each as a BLOCKING error (one per affected language), so the
+    // build stays red rather than going green over code no reviewer ever analyzed. This
+    // is live every run (no --approve required), exactly like the rest of the check.
+    for (const pf of relResult.parseFailures) {
+      const lang = getLanguageDisplayName(pf.language);
+      const scope =
+        pf.fileCount === 1
+          ? pf.examplePath
+          : `${pf.fileCount} ${lang} files, e.g. ${pf.examplePath}`;
+      lockIssues.push({
+        severity: 'error',
+        code: 'relation-parse-failed',
+        rule: 'relation-parse-failed',
+        messageData: {
+          what: `Could not load the ${lang} parser to check dependencies for ${scope}: ${pf.message}`,
+          why: `The relation-conformance check must parse every mapped source file to find its cross-node dependencies. A file that cannot be parsed contributes no detected dependencies, so treating this as "no dependencies" would let real, undeclared dependencies pass unchecked — for every ${lang} file at once when the grammar is unavailable. The check fails closed rather than passing over code it never analyzed.`,
+          next: `Reinstall the CLI to restore the bundled ${lang} language support, then re-run: yg check`,
+        },
+      });
+    }
+
     // Log integrity reads its baseline from the lock (spec §9).
     await classifyLogStateFromLock(graph, projectRoot, lock, lockIssues);
 
@@ -864,17 +891,50 @@ function countDraftAspectsAcrossGraph(graph: Graph): number {
  * Each lock issue carries its own kind-appropriate `next` in messageData
  * (cached three-exit for an LLM refusal, fix-violations for a deterministic
  * refusal, size remedies for prompt-too-large). When no error remains, surface
- * an advisory aspect-violation warning's `next` so a warnings-only run still
- * points somewhere.
+ * the highest-priority warning's `next` — an advisory aspect-violation first,
+ * otherwise the alphabetically-first remaining warning — so any warnings-only run
+ * still points somewhere.
  */
+/**
+ * Among the error issues carrying a given per-aspect `code`, pick the one whose
+ * `aspectId` sorts first by locale — the SAME tie-break groupIssues applies once
+ * rank and label are equal. Raw emission order (pair-iteration order) is NOT
+ * locale order, so a plain `.find()` here could name a different aspect than the
+ * group bare `yg check --top` renders. Returns undefined when no issue matches.
+ */
+function pickByAspectIdLocale(errors: CheckIssue[], code: string): CheckIssue | undefined {
+  const candidates = errors.filter(i => i.code === code);
+  if (candidates.length === 0) return undefined;
+  return [...candidates].sort((a, b) =>
+    (a.aspectId ?? '').localeCompare(b.aspectId ?? '', 'en'))[0];
+}
+
 export function computeSuggestedNext(issues: CheckIssue[]): string | null {
   const errors = issues.filter(i => i.severity === 'error');
   const ASPECT_WARNING_CODES = new Set(['aspect-violation-advisory']);
   if (errors.length === 0) {
-    const firstAspectWarning = issues.find(i =>
-      i.severity === 'warning' && ASPECT_WARNING_CODES.has(i.code),
-    );
-    return firstAspectWarning?.messageData.next ?? null;
+    const warnings = issues.filter(i => i.severity === 'warning');
+    if (warnings.length === 0) return null;
+    // Advisory aspect violations rank first among warnings (matching groupIssues'
+    // label sort, where the 'advisory' label precedes every other warning label).
+    // Among several advisory warnings, pick the alphabetically-first aspectId — the
+    // SAME tie-break groupIssues applies once rank and label are equal — so the
+    // surfaced `Next:` names the group bare `yg check --top` renders first.
+    const advisoryWarnings = warnings.filter(i => ASPECT_WARNING_CODES.has(i.code));
+    if (advisoryWarnings.length > 0) {
+      const first = [...advisoryWarnings].sort((a, b) =>
+        (a.aspectId ?? '').localeCompare(b.aspectId ?? '', 'en'))[0];
+      return first.messageData.next ?? null;
+    }
+    // No advisory violation: fall back to the highest-priority remaining warning
+    // (aspect-review-overdue, high-fan-out, orphaned-aspect, …) so a warnings-only
+    // run still points somewhere, per the agent-facing contract. Use the SAME
+    // (code, nodePath) tie-break as the structural / "any remaining error" branches
+    // below so the surfaced line stays consistent with what `--top` renders first.
+    const first = [...warnings].sort((a, b) =>
+      a.code.localeCompare(b.code, 'en') ||
+      (a.nodePath ?? '').localeCompare(b.nodePath ?? '', 'en'))[0];
+    return first.messageData.next ?? null;
   }
 
   // 1. lock-invalid — fail closed; restore-or-refill (its own next).
@@ -893,16 +953,16 @@ export function computeSuggestedNext(issues: CheckIssue[]): string | null {
 
   // 3. enforced refusal (LLM three-exit OR deterministic fix-violations — the
   //    correct text is already in each issue's messageData.next).
-  const enforcedRefusal = errors.find(i => i.code === 'aspect-violation-enforced');
+  const enforcedRefusal = pickByAspectIdLocale(errors, 'aspect-violation-enforced');
   if (enforcedRefusal) return enforcedRefusal.messageData.next;
 
   // 4. prompt-too-large — size remedies.
-  const promptTooLarge = errors.find(i => i.code === 'prompt-too-large');
+  const promptTooLarge = pickByAspectIdLocale(errors, 'prompt-too-large');
   if (promptTooLarge) return promptTooLarge.messageData.next;
 
   // 4b. companion-error — companion.mjs could not resolve during the size gate;
   //     its own next carries the fix (stabilize the tree / declare the relation).
-  const companionError = errors.find(i => i.code === 'aspect-companion-runtime-error');
+  const companionError = pickByAspectIdLocale(errors, 'aspect-companion-runtime-error');
   if (companionError) return companionError.messageData.next;
 
   // 5. log conflict — git conflict markers in log.md outrank integrity/format
