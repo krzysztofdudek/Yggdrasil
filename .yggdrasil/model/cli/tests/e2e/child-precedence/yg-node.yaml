@@ -6,3 +6,4 @@ relations: []
 mapping:
   - source/cli/tests/e2e/cli-child-precedence.test.ts
   - source/cli/tests/e2e/cli-child-precedence-relations.test.ts
+  - source/cli/tests/e2e/cli-owner-child-precedence.test.ts

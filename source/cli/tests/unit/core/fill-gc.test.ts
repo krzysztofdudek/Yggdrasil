@@ -2,14 +2,16 @@
  * Unit tests for core/fill-gc.ts — the fill stage's garbage collection and
  * canonical lock rewrite (spec §3.2).
  *
- * These exercise the three exported functions directly against in-memory graphs
+ * These exercise the exported functions directly against in-memory graphs
  * built with real on-disk files (so computeExpectedPairs / computeSourceFingerprint
  * resolve actual mappings):
  *
- *   ownerNodeForFile        — longest-mapping-wins attribution over overlapping
- *                             parent/child mappings; null for an unmapped file.
- *   owningNodeForUnitKey    — node:<path> pass-through; file:<path> via mappings;
- *                             null for a file mapped to no node.
+ *   buildOwnerIndex().ownerOf — the shared hierarchy-first (child-wins)
+ *                             attribution over overlapping parent/child mappings;
+ *                             undefined for an unmapped file. (fill-gc's own
+ *                             owner resolution now delegates here.)
+ *   owningNodeForUnitKey    — node:<path> pass-through; file:<path> via the
+ *                             shared resolver; null for a file mapped to no node.
  *   garbageCollectAndRewrite — prunes verdicts whose pair left the expected
  *                             universe and nodes[] entries for vanished node
  *                             paths, retains entries owned by an uncomputable
@@ -27,10 +29,10 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import {
-  ownerNodeForFile,
   owningNodeForUnitKey,
   garbageCollectAndRewrite,
 } from '../../../src/core/fill-gc.js';
+import { buildOwnerIndex } from '../../../src/relations/owner-index.js';
 import { LOCK_FORMAT_VERSION } from '../../../src/model/lock.js';
 import type { LockFile } from '../../../src/model/lock.js';
 import { fileUnit, nodeUnit } from '../../../src/model/lock.js';
@@ -132,13 +134,13 @@ function writeFile(relPath: string, content = 'content'): void {
 }
 
 // ===========================================================================
-// ownerNodeForFile — longest-mapping-wins attribution
+// buildOwnerIndex().ownerOf — the shared attribution fill-gc now delegates to
 // ===========================================================================
 
-describe('ownerNodeForFile', () => {
-  it('a file under the deeper of two overlapping mappings attributes to the longest mapping (child wins)', () => {
+describe('fill-gc file attribution (shared owner index)', () => {
+  it('a file under the deeper of two overlapping mappings attributes to the deeper node (child wins)', () => {
     // Node A maps `src` (whole dir); node B maps `src/sub` (deeper). A file under
-    // src/sub is covered by BOTH mappings; longest-mapping-wins must pick B.
+    // src/sub is covered by BOTH mappings; hierarchy-first (child-wins) picks B.
     const graph = buildGraph(
       tmpDir,
       [
@@ -147,7 +149,7 @@ describe('ownerNodeForFile', () => {
       ],
       [],
     );
-    expect(ownerNodeForFile(graph, 'src/sub/leaf.ts')).toBe('b');
+    expect(buildOwnerIndex(graph.nodes).ownerOf('src/sub/leaf.ts')).toBe('b');
   });
 
   it('a file under only the broad mapping attributes to that node (not the deeper one)', () => {
@@ -160,16 +162,16 @@ describe('ownerNodeForFile', () => {
       [],
     );
     // src/top.ts is under `src` but NOT under `src/sub` → owned by A only.
-    expect(ownerNodeForFile(graph, 'src/top.ts')).toBe('a');
+    expect(buildOwnerIndex(graph.nodes).ownerOf('src/top.ts')).toBe('a');
   });
 
-  it('an unmapped file attributes to no node (null)', () => {
+  it('an unmapped file attributes to no node (undefined)', () => {
     const graph = buildGraph(
       tmpDir,
       [{ path: 'a', mapping: ['src'] }],
       [],
     );
-    expect(ownerNodeForFile(graph, 'docs/readme.md')).toBeNull();
+    expect(buildOwnerIndex(graph.nodes).ownerOf('docs/readme.md')).toBeUndefined();
   });
 });
 
@@ -182,10 +184,11 @@ describe('owningNodeForUnitKey', () => {
     // The node path in the key need not even exist in the graph — node: keys are
     // returned verbatim by construction.
     const graph = buildGraph(tmpDir, [{ path: 'a', mapping: ['src'] }], []);
-    expect(owningNodeForUnitKey(graph, nodeUnit('some/deep/node'))).toBe('some/deep/node');
+    const ownerOf = buildOwnerIndex(graph.nodes).ownerOf;
+    expect(owningNodeForUnitKey(ownerOf, nodeUnit('some/deep/node'))).toBe('some/deep/node');
   });
 
-  it('a file:<mapped> key resolves through the node mappings to the owning node', () => {
+  it('a file:<mapped> key resolves through the shared owner index to the owning node', () => {
     const graph = buildGraph(
       tmpDir,
       [
@@ -194,13 +197,15 @@ describe('owningNodeForUnitKey', () => {
       ],
       [],
     );
-    // file: routes through ownerNodeForFile → longest mapping (b).
-    expect(owningNodeForUnitKey(graph, fileUnit('src/sub/leaf.ts'))).toBe('b');
+    // file: routes through the shared resolver → deeper node (b) wins.
+    const ownerOf = buildOwnerIndex(graph.nodes).ownerOf;
+    expect(owningNodeForUnitKey(ownerOf, fileUnit('src/sub/leaf.ts'))).toBe('b');
   });
 
   it('a file:<unmapped> key resolves to null (genuinely detached)', () => {
     const graph = buildGraph(tmpDir, [{ path: 'a', mapping: ['src'] }], []);
-    expect(owningNodeForUnitKey(graph, fileUnit('elsewhere/x.ts'))).toBeNull();
+    const ownerOf = buildOwnerIndex(graph.nodes).ownerOf;
+    expect(owningNodeForUnitKey(ownerOf, fileUnit('elsewhere/x.ts'))).toBeNull();
   });
 });
 

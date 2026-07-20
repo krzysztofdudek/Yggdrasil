@@ -58,7 +58,7 @@ node_types:
     log_required: true
     parents: [module]
     relations:
-      calls: [engine, parser-adapter, persistence-adapter, llm-shared, llm-subprocess-base, formatter, utility, ast-adapter, structure-adapter, template, command, command-support, knowledge-doc, schema-doc, migration, portal-pipeline, portal-engine-api, portal-server]
+      calls: [engine, parser-adapter, persistence-adapter, relations-adapter, llm-shared, llm-subprocess-base, formatter, utility, ast-adapter, structure-adapter, template, command, command-support, knowledge-doc, schema-doc, migration, portal-pipeline, portal-engine-api, portal-server]
       uses: [types, test-suite, portal-contract]
       default: deny
 

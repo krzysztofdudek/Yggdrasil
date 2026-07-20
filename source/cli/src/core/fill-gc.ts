@@ -10,38 +10,24 @@ import type { LockFile } from '../model/lock.js';
 import { LOCK_FORMAT_VERSION, nodeUnit, fileUnit } from '../model/lock.js';
 import { computeExpectedPairs, computeUncomputableNodes } from './pairs.js';
 import { toPosix } from '../utils/posix.js';
-import { isBetterMappingOwner } from '../utils/mapping-path.js';
-import { isPathInMapping } from '../structure/expand-mapping-sync.js';
-
-/**
- * Owning node path for a repo-relative POSIX file, resolved from the graph's node
- * mappings (longest-mapping wins). Returns null when no node maps the file. Used
- * only to attribute a `file:` verdict entry to a node during GC's
- * positively-detached proof — never for read scoping.
- */
-export function ownerNodeForFile(graph: Graph, file: string): string | null {
-  let best: { nodePath: string; len: number } | null = null;
-  for (const [nodePath, node] of graph.nodes) {
-    for (const m of (node.meta.mapping ?? []).map(toPosix)) {
-      if (
-        isPathInMapping(file, [m]) &&
-        (!best || isBetterMappingOwner({ nodePath, mappingLen: m.length }, { nodePath: best.nodePath, mappingLen: best.len }))
-      ) {
-        best = { nodePath, len: m.length };
-      }
-    }
-  }
-  return best ? best.nodePath : null;
-}
+import { buildOwnerIndex } from '../relations/owner-index.js';
 
 /**
  * The owning node path for a verdict entry's unit key. `node:<path>` resolves
- * directly; `file:<path>` resolves through the node mappings. Returns null only
- * for a `file:` key whose file maps to no node (genuinely detached).
+ * directly; `file:<path>` resolves through the canonical owner index. Returns
+ * null only for a `file:` key whose file maps to no node (genuinely detached).
+ *
+ * `ownerOf` is the shared hierarchy-first resolver (`buildOwnerIndex().ownerOf`);
+ * the caller builds it ONCE per GC run and passes it in, so attribution here
+ * matches the subject-set the gate actually verifies. Used only to attribute a
+ * `file:` verdict entry to a node during GC's positively-detached proof.
  */
-export function owningNodeForUnitKey(graph: Graph, unitKey: string): string | null {
+export function owningNodeForUnitKey(
+  ownerOf: (repoRelPosix: string) => string | undefined,
+  unitKey: string,
+): string | null {
   if (unitKey.startsWith('node:')) return unitKey.slice('node:'.length);
-  if (unitKey.startsWith('file:')) return ownerNodeForFile(graph, toPosix(unitKey.slice('file:'.length)));
+  if (unitKey.startsWith('file:')) return ownerOf(toPosix(unitKey.slice('file:'.length))) ?? null;
   /* v8 ignore next -- unit keys are always node:/file: by construction */
   return null;
 }
@@ -111,6 +97,10 @@ export async function garbageCollectAndRewrite(
     unreadableUnits.add(`${u.aspectId}\0${fileUnit(u.path)}`);
   }
 
+  // Build the canonical file→owner resolver ONCE for the whole prune loop below,
+  // outside the per-entry iteration.
+  const ownerOf = buildOwnerIndex(graph.nodes).ownerOf;
+
   // Prune verdicts ∉ universe, EXCEPT entries owned by an uncomputable node or
   // whose subject was unreadable this run.
   for (const aspectId of Object.keys(lock.verdicts)) {
@@ -118,7 +108,7 @@ export async function garbageCollectAndRewrite(
     for (const unitKey of Object.keys(unitMap)) {
       if (universe.has(`${aspectId}\0${unitKey}`)) continue;
       if (unreadableUnits.has(`${aspectId}\0${unitKey}`)) continue;
-      const owner = owningNodeForUnitKey(graph, unitKey);
+      const owner = owningNodeForUnitKey(ownerOf, unitKey);
       // Retain only when we can attribute the entry to a node that could not be
       // computed this run. Everything else (deleted node, detached aspect,
       // deleted/unmapped file) is positively detached → prune.

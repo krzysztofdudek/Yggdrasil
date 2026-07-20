@@ -7,9 +7,9 @@ import { initDebugLog, debugWrite } from '../utils/debug-log.js';
 import { appendToDebugLog } from '../io/debug-log-writer.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
 import type { Graph, OwnerResult } from '../model/graph.js';
-import { normalizeMappingPaths, normalizeProjectRelativePath, projectRootFromGraph, resolveFileArg } from '../io/paths.js';
+import { normalizeProjectRelativePath, projectRootFromGraph, resolveFileArg } from '../io/paths.js';
 import { toPosixPath } from '../utils/posix.js';
-import { mappingEntryMatchesFile, isGlobPattern } from '../utils/mapping-path.js';
+import { buildOwnerIndex } from '../relations/owner-index.js';
 
 function normalizeForMatch(inputPath: string): string {
   return toPosixPath(inputPath.trim());
@@ -17,45 +17,17 @@ function normalizeForMatch(inputPath: string): string {
 
 export function findOwner(graph: Graph, projectRoot: string, rawPath: string): OwnerResult {
   const file = normalizeForMatch(normalizeProjectRelativePath(projectRoot, rawPath));
-  let best: { nodePath: string; mappingPath: string; exact: boolean } | null = null;
 
-  for (const [nodePath, node] of graph.nodes) {
-    const mappingPaths = normalizeMappingPaths(node.meta.mapping)
-      .map(normalizeForMatch)
-      .filter((mappingPath) => mappingPath.length > 0);
+  // Node selection comes from the canonical hierarchy-first resolver so `yg
+  // owner` / `yg context --file` / `yg impact --file` name the SAME node the
+  // gate verifies the file under (a descendant wins even when it maps a
+  // shorter/broader pattern than its ancestor). The presentation fields are
+  // derived from the winning entry's kind: 'exact' and 'glob' both render as a
+  // direct mapping; 'directory' renders as coverage via an ancestor directory.
+  const entry = buildOwnerIndex(graph.nodes).ownerEntryOf(file);
+  if (!entry) return { file, nodePath: null };
 
-    for (const mappingPath of mappingPaths) {
-      if (isGlobPattern(mappingPath)) {
-        if (mappingEntryMatchesFile(mappingPath, file)) {
-          // Glob match: treat as direct (the pattern names the file explicitly)
-          if (
-            !best ||
-            mappingPath.length > best.mappingPath.length ||
-            (mappingPath.length === best.mappingPath.length && nodePath < best.nodePath)
-          ) {
-            best = { nodePath, mappingPath, exact: true };
-          }
-        }
-      } else {
-        if (file === mappingPath) {
-          return { file, nodePath, mappingPath, direct: true };
-        }
-        if (file.startsWith(mappingPath + '/')) {
-          if (
-            !best ||
-            mappingPath.length > best.mappingPath.length ||
-            (mappingPath.length === best.mappingPath.length && nodePath < best.nodePath)
-          ) {
-            best = { nodePath, mappingPath, exact: false };
-          }
-        }
-      }
-    }
-  }
-
-  return best
-    ? { file, nodePath: best.nodePath, mappingPath: best.mappingPath, direct: best.exact }
-    : { file, nodePath: null };
+  return { file, nodePath: entry.nodePath, mappingPath: entry.mapping, direct: entry.kind !== 'directory' };
 }
 
 export function registerOwnerCommand(program: Command): void {

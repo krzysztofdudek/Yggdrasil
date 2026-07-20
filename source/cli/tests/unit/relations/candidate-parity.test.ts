@@ -44,7 +44,11 @@ function stubPathResolver(table: Map<string, string>) {
 
 // An owner index that maps specific files to nodes; an UNMAPPED file (D7) returns undefined.
 function ownerIndexOf(map: Record<string, string>): OwnerIndex {
-  return { ownerOf: (f: string) => map[f] };
+  return {
+    ownerOf: (f: string) => map[f],
+    ownerEntryOf: (f: string) =>
+      map[f] === undefined ? undefined : { nodePath: map[f], mapping: f, kind: 'exact' },
+  };
 }
 
 /** The pre-change per-dep resolution: resolve the FIRST (and, for path languages, only)

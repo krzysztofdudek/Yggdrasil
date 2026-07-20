@@ -5,7 +5,7 @@ import type { Graph } from '../../model/graph.js';
 import type { LockFile } from '../../model/lock.js';
 import type { ExpectedPair } from '../pairs.js';
 import { toPosix } from '../../utils/posix.js';
-import { isBetterMappingOwner } from '../../utils/mapping-path.js';
+import { buildOwnerIndex } from '../../relations/owner-index.js';
 
 /**
  * Pure graph blast-radius / reverse-dependency algorithms for `yg impact`.
@@ -34,6 +34,9 @@ export function nodesWithRefusedVerdict(graph: Graph, lock: LockFile, aspectId: 
   const unitMap = lock.verdicts[aspectId];
   if (!unitMap) return refused;
 
+  // The canonical hierarchy-first file→owner resolver, built once for this scan.
+  const ownerOf = buildOwnerIndex(graph.nodes).ownerOf;
+
   for (const unitKey of Object.keys(unitMap)) {
     if (unitMap[unitKey].verdict !== 'refused') continue;
     if (unitKey.startsWith('node:')) {
@@ -42,30 +45,11 @@ export function nodesWithRefusedVerdict(graph: Graph, lock: LockFile, aspectId: 
     }
     if (unitKey.startsWith('file:')) {
       const f = toPosix(unitKey.slice('file:'.length));
-      const owner = ownerNodeForFile(graph, f);
+      const owner = ownerOf(f);
       if (owner) refused.add(owner);
     }
   }
   return refused;
-}
-
-/**
- * Owning node path for a repo-relative POSIX file, resolved from the graph's node
- * mappings (longest-mapping wins, mirroring findOwner without the cli dependency).
- */
-function ownerNodeForFile(graph: Graph, file: string): string | null {
-  let best: { nodePath: string; len: number } | null = null;
-  for (const [nodePath, node] of graph.nodes) {
-    for (const m of (node.meta.mapping ?? []).map(toPosix)) {
-      if (
-        isPathInMapping(file, [m]) &&
-        (!best || isBetterMappingOwner({ nodePath, mappingLen: m.length }, { nodePath: best.nodePath, mappingLen: best.len }))
-      ) {
-        best = { nodePath, len: m.length };
-      }
-    }
-  }
-  return best ? best.nodePath : null;
 }
 
 export function collectReverseDependents(

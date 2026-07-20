@@ -10,7 +10,8 @@ relations:
   [
     { target: cli/core/fill, type: uses },
     { target: cli/model/lock, type: uses },
-    { target: cli/model/graph, type: uses }
+    { target: cli/model/graph, type: uses },
+    { target: cli/relations/core, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/core/fill-gc.test.ts

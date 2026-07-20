@@ -1,0 +1,24 @@
+name: OwnerResolutionSingleSource
+description: >-
+  Keeps hierarchy-first file-ownership in exactly ONE place. The child-precedence
+  comparator isBetterMappingOwner (utils/mapping-path) may be imported or called
+  ONLY from relations/owner-index.ts — the single canonical owner resolver; every
+  other first-party module must resolve file ownership through ownerOf /
+  ownerEntryOf instead of re-implementing the comparator. WHY: a pre-release sweep
+  found "which node owns this file" re-implemented in four scattered resolvers that
+  had drifted apart — one of them length-first and buggy, naming the wrong node
+  when a descendant mapped a broader pattern than its ancestor. Consolidating on
+  one hierarchy-first resolver fixed it; this boundary keeps the comparator from
+  being pulled out and re-hand-rolled again. AST-based, alias-proof, and
+  binding-specific: it fires only on a provable static import- or export-from whose
+  named binding resolves to isBetterMappingOwner (judged by ORIGINAL name, so an
+  alias is still caught), or a namespace-member reference to it (import * as ns;
+  ns.isBetterMappingOwner). Importing a DIFFERENT symbol from mapping-path (e.g.
+  mappingEntryMatchesFile) never fires, and neither does a dynamic or unrelated
+  reference. Test code is outside the enforcement engine and is exempt. errs:
+  under — it fires only on a provable static reference, no false positives by
+  design.
+reviewer:
+  type: deterministic
+errs: under
+status: enforced

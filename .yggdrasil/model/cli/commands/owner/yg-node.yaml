@@ -8,6 +8,8 @@ relations:
     type: calls
   - target: cli/utils
     type: calls
+  - target: cli/relations/core
+    type: calls
   - target: cli/model/graph
     type: uses
   - target: cli/tests/unit/cli

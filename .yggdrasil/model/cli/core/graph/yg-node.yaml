@@ -17,6 +17,8 @@ relations:
     type: calls
   - target: cli/utils
     type: calls
+  - target: cli/relations/core
+    type: calls
 mapping:
   - source/cli/src/core/graph/aspects.ts
   - source/cli/src/core/graph/dependencies.ts
