@@ -449,7 +449,12 @@ function reverseLookupFor(language: string): Map<string, FeatureCategory> {
   const cached = reverseCache.get(language);
   if (cached !== undefined) return cached;
   const lookup = new Map<string, FeatureCategory>();
-  const vocab = FEATURE_VOCAB[language];
+  // Own-property guard: a reserved key inherited from Object.prototype
+  // ('constructor', 'toString', '__proto__', …) resolves to an inherited value
+  // on FEATURE_VOCAB, which would slip past the `!== undefined` check and then
+  // throw when iterated as a LanguageVocab. Treat a non-own key as absent — the
+  // same empty-lookup degradation an unlisted extractor language already gets.
+  const vocab = Object.hasOwn(FEATURE_VOCAB, language) ? FEATURE_VOCAB[language] : undefined;
   if (vocab !== undefined) {
     for (const category of ALL_FEATURE_CATEGORIES) {
       for (const nodeType of vocab[category]) lookup.set(nodeType, category);

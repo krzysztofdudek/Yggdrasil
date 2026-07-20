@@ -239,7 +239,12 @@ export function getExtensionsForLanguage(lang: string): string[] {
 export function getGrammarForExtension(ext: string): { wasmFile: string; wasmPackage: string } | null {
   const lang = getLanguageForExtension(ext.toLowerCase());
   if (lang === null) return null;
-  const def = LANGUAGES[lang];
+  // Own-property guard: a reserved key inherited from Object.prototype
+  // ('constructor', 'toString', '__proto__', …) resolves to an inherited value
+  // on LANGUAGES, which would slip past `if (!def)` and then read `def.wasmFile`
+  // off a non-LanguageDef. Treat a non-own key as absent — the same not-found
+  // return an unknown language already takes.
+  const def = Object.hasOwn(LANGUAGES, lang) ? LANGUAGES[lang] : undefined;
   if (!def) return null;
   return { wasmFile: def.wasmFile, wasmPackage: def.wasmPackage };
 }
@@ -270,7 +275,14 @@ const LANGUAGE_DISPLAY_NAMES: Record<string, string> = {
  * the function is total and never throws.
  */
 export function getLanguageDisplayName(languageId: string): string {
-  const explicit = LANGUAGE_DISPLAY_NAMES[languageId];
+  // Own-property guard: a reserved key inherited from Object.prototype
+  // ('constructor', 'toString', '__proto__', …) resolves to an inherited value
+  // on LANGUAGE_DISPLAY_NAMES, which would slip past `!== undefined` and be
+  // returned as a "display name". Treat a non-own key as absent — the same
+  // first-letter-capitalization fallback an unlisted id already takes.
+  const explicit = Object.hasOwn(LANGUAGE_DISPLAY_NAMES, languageId)
+    ? LANGUAGE_DISPLAY_NAMES[languageId]
+    : undefined;
   if (explicit !== undefined) return explicit;
   if (languageId.length === 0) return languageId;
   return languageId.charAt(0).toUpperCase() + languageId.slice(1);

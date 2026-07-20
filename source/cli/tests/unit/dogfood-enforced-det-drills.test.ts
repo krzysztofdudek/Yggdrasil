@@ -81,7 +81,11 @@ describe('every enforced deterministic aspect ships a violates drill (or is reas
       // Deterministic = ships a check.mjs.
       if (!existsSync(path.join(ASPECTS_ROOT, id, 'check.mjs'))) continue;
       if (status(id) === 'draft') continue; // draft rules produce no pairs
-      if (DRILL_EXEMPT[id]) continue;
+      // Own-property membership only: a reserved key inherited from
+      // Object.prototype ('constructor', 'toString', …) is truthy on DRILL_EXEMPT
+      // via the prototype chain, so a bare `DRILL_EXEMPT[id]` would falsely treat
+      // such an aspect id as exempt. Object.hasOwn treats a non-own key as absent.
+      if (Object.hasOwn(DRILL_EXEMPT, id)) continue;
       if (!hasViolatesDrill(id)) offenders.push(id);
     }
     expect(offenders, `enforced/advisory deterministic aspects lacking a violates-* drill (add one, or add a reasoned entry to DRILL_EXEMPT): ${offenders.join(', ')}`).toEqual([]);

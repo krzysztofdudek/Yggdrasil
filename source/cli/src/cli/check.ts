@@ -1010,7 +1010,14 @@ const CAP_NODES = 12;
 /** Jargon glosses: machine token first, human gloss in parentheses (parseable by tooling). */
 const LABEL_GLOSS: Record<string, string> = { unverified: 'unverified (not yet reviewed)' };
 
-function glossLabel(label: string): string { return LABEL_GLOSS[label] ?? label; }
+function glossLabel(label: string): string {
+  // Own-property guard: a reserved key inherited from Object.prototype
+  // ('constructor', 'toString', '__proto__', …) is present on LABEL_GLOSS via the
+  // prototype chain, so a bare `LABEL_GLOSS[label] ?? label` would surface the
+  // inherited value instead of the label itself. Treat a non-own key as absent —
+  // the same fall-through to `label` an unknown label already takes.
+  return Object.hasOwn(LABEL_GLOSS, label) ? LABEL_GLOSS[label] : label;
+}
 
 /**
  * Render a single IssueGroup as a unified block:

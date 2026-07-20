@@ -1,0 +1,22 @@
+name: PrototypeSafeRegistryLookup
+description: >-
+  A computed member READ OBJ[key] on a module-level `const OBJ = { ... }` object
+  literal used as a string-keyed lookup table — where `key` is a non-literal
+  identifier (a runtime, often user-supplied, value) — must be guarded before
+  use. Three separate real bugs shared one class: a value looked up in a plain
+  object literal by a runtime key WITHOUT an own-property guard. A reserved key
+  inherited from Object.prototype (constructor, toString, hasOwnProperty,
+  valueOf, __proto__) resolves to an inherited value instead of "not found", so
+  a `=== undefined` guard is bypassed and the code either crashes (dereferencing
+  the inherited function/value) or fabricates output. Guard the read with
+  Object.hasOwn(OBJ, key), Object.prototype.hasOwnProperty.call(OBJ, key), or a
+  `key in OBJ` branch — or back the registry with a Map or Object.create(null),
+  which has no prototype to inherit from. This check is deliberately file-local
+  and zero-false-positive: it flags only the clean, provable same-file shape (a
+  module-const object literal read by a bare identifier key, unguarded, in a
+  read position) and stays silent on everything it cannot prove from the file's
+  own syntax tree.
+reviewer:
+  type: deterministic
+errs: under
+status: enforced
