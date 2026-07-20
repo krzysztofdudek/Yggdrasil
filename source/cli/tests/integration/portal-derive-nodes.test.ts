@@ -365,6 +365,22 @@ describe('per-node derivation — honest states on synthetic inputs', () => {
     expect(portal.log[0].body).toContain('body text');
   });
 
+  it('per-node suppressions are collected for a glob/dir mapping, not only literal file mappings', () => {
+    const aDet = aspectDef('a', 'deterministic');
+    const n = node('n', 'module', ['a'], ['src/**/*.ts']);
+    const graph = { nodes: new Map([['n', n]]), aspects: [aDet], flows: [], architecture: { node_types: {} } } as unknown as Graph;
+    const verification: LockVerification = { pairs: [vp('a', 'n', { kind: 'verified' })], unreadable: [] };
+    const supp: PortalSuppression = { aspectId: 'a', file: 'src/a.ts', line: 3, reason: 'ok' };
+    const byFile = new Map<string, PortalSuppression[]>([
+      ['src/a.ts', [supp]],
+      ['other/b.ts', [{ ...supp, file: 'other/b.ts' }]],
+    ]);
+    const out = buildPortalNodes(graph, {} as never, verification, syntheticCheck([]), new Map(), { byFile });
+    const portal = out.find((x) => x.path === 'n')!;
+    expect(portal.suppressions).toHaveLength(1); // glob-aware ownership, not exact-string
+    expect(portal.suppressions[0].file).toBe('src/a.ts');
+  });
+
   it('an aggregate effective aspect yields an aggregate row with pairState n/a', () => {
     const agg = aspectDef('agg', 'aggregate');
     const child = aspectDef('child', 'deterministic');

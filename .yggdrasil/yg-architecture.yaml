@@ -582,7 +582,7 @@ node_types:
     log_required: true
     parents: [module]
     relations:
-      calls: [portal-engine-api, persistence-adapter]
+      calls: [portal-engine-api, persistence-adapter, utility]
       uses: [types, portal-contract]
       default: deny
 

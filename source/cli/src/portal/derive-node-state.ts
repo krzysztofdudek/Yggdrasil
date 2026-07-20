@@ -1,4 +1,5 @@
 import type { Graph, GraphNode } from '../model/graph.js';
+import { mappingEntryMatchesFile } from '../utils/mapping-path.js';
 import type { CheckIssue } from './engine-api.js';
 import type {
   PortalNode,
@@ -93,16 +94,14 @@ export function computeRollup(node: GraphNode, built: Map<string, PortalNode>): 
   return worst;
 }
 
-/** Suppressions whose file is one of the node's mapped files. */
+/** Suppressions whose file is one of the node's mapped files (glob/dir-aware ownership). */
 export function collectNodeSuppressions(
   mapping: string[],
   suppressions: SuppressionsByFile,
 ): PortalSuppression[] {
   const out: PortalSuppression[] = [];
-  const owned = new Set(mapping);
-  for (const file of owned) {
-    const hits = suppressions.byFile.get(file);
-    if (hits) out.push(...hits);
+  for (const [file, hits] of suppressions.byFile) {
+    if (mapping.some((entry) => mappingEntryMatchesFile(entry, file))) out.push(...hits);
   }
   return out;
 }

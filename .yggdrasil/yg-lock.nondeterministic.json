@@ -510,7 +510,7 @@
       "file:source/cli/tests/integration/portal-attestation-meta.test.ts": {"hash":"eaa004f7deab4d5bf369075afbc375191605592e94ca92fe9d25ff172e97315b","verdict":"approved"},
       "file:source/cli/tests/integration/portal-boundary.test.ts": {"hash":"25080a2e5ce000937a8e67688ec1091c498a9d567d9b596e042bcc0e6e03c382","verdict":"approved"},
       "file:source/cli/tests/integration/portal-derive-catalogue.test.ts": {"hash":"2a69b11d6abbecd373fab0ea5a902698a893bcf85cc92550f24019ce29ae0df4","verdict":"approved"},
-      "file:source/cli/tests/integration/portal-derive-nodes.test.ts": {"hash":"2f73dfd1b128606e7fb78f3e22a89655ca5b3f6a7e8b9194de35180e0fc2e640","verdict":"approved"},
+      "file:source/cli/tests/integration/portal-derive-nodes.test.ts": {"hash":"9cc2735026a3435c31d19361ec8ed8fef5f4440339c6b39af0f5279bda3466d0","verdict":"approved"},
       "file:source/cli/tests/integration/portal-derive-rest.test.ts": {"hash":"244912ba3d10e24c8d5cbba8c6804daf3681aff8e108a58b30a28104f8244321","verdict":"approved"},
       "file:source/cli/tests/integration/portal-engine-api-provenance.test.ts": {"hash":"a6acb7cd7ddcfebf01ab0c8fb1d44e99eb6bd2145ac21ca951e0cdb4ba32869f","verdict":"approved"},
       "file:source/cli/tests/integration/portal-extract.test.ts": {"hash":"779616b78c1c82a55b179951a132fe8489e044b279ad5b61f47070882005a70c","verdict":"approved"},
