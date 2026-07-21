@@ -2,8 +2,10 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { createCtxParsers, prewarmupAstCache } from '../../../src/structure/ctx-parsers.js';
+import { createCtxParsers, prewarmupAstCache, enrichFilesWithAst } from '../../../src/structure/ctx-parsers.js';
 import { UndeclaredFsReadError } from '../../../src/structure/ctx-fs.js';
+import { ObservationRecorder } from '../../../src/structure/observations.js';
+import { observationKey, MISSING_OBSERVATION } from '../../../src/core/pair-hash.js';
 
 describe('ctx parsers', () => {
   let root: string;
@@ -82,6 +84,96 @@ describe('ctx parsers', () => {
     writeFileSync(path.join(root, 'secret.json'), '{"s":1}');
     const p = createCtxParsers({ allowedSet, projectRoot: root, touchedFiles: touched, astCache: new Map() });
     expect(() => p.parseJson('secret.json')).toThrow(UndeclaredFsReadError);
+  });
+
+  // ── recorder wiring on a string-path read (spec §3.1) ──────────────────────
+
+  it('records a read: observation for a string-path parse when a recorder is supplied', () => {
+    writeFileSync(path.join(root, 'cfg.json'), '{"k":2}');
+    const recorder = new ObservationRecorder();
+    const p = createCtxParsers({ allowedSet, projectRoot: root, touchedFiles: touched, astCache: new Map(), recorder });
+    expect(p.parseJson('cfg.json')).toEqual({ k: 2 });
+    const snap = recorder.snapshot();
+    const key = observationKey('read', 'cfg.json');
+    expect(snap.some(([k, h]) => k === key && h !== MISSING_OBSERVATION)).toBe(true);
+  });
+
+  it('does NOT record an observation when the string path is already a subject file', () => {
+    writeFileSync(path.join(root, 'cfg.json'), '{"k":2}');
+    const recorder = new ObservationRecorder();
+    const p = createCtxParsers({
+      allowedSet,
+      projectRoot: root,
+      touchedFiles: touched,
+      astCache: new Map(),
+      recorder,
+      subjectFiles: new Set(['cfg.json']),
+    });
+    expect(p.parseJson('cfg.json')).toEqual({ k: 2 });
+    expect(recorder.snapshot()).toHaveLength(0);
+  });
+
+  it('over-records a MISSING read observation when an allowed string path throws on read', () => {
+    // 'ghost.json' passes the allow-check but is never written to disk — the read
+    // itself throws (ENOENT), and with a recorder present that throw must still
+    // fold an absent observation before rethrowing (over-record, spec §3.1).
+    const recorder = new ObservationRecorder();
+    const p = createCtxParsers({
+      allowedSet: new Set(['ghost.json']),
+      projectRoot: root,
+      touchedFiles: touched,
+      astCache: new Map(),
+      recorder,
+    });
+    expect(() => p.parseJson('ghost.json')).toThrow();
+    const snap = recorder.snapshot();
+    const key = observationKey('read', 'ghost.json');
+    expect(snap.some(([k, h]) => k === key && h === MISSING_OBSERVATION)).toBe(true);
+  });
+
+  it('does NOT record a MISSING observation on a throwing read when the path is a subject file', () => {
+    const recorder = new ObservationRecorder();
+    const p = createCtxParsers({
+      allowedSet: new Set(['ghost.json']),
+      projectRoot: root,
+      touchedFiles: touched,
+      astCache: new Map(),
+      recorder,
+      subjectFiles: new Set(['ghost.json']),
+    });
+    expect(() => p.parseJson('ghost.json')).toThrow();
+    expect(recorder.snapshot()).toHaveLength(0);
+  });
+});
+
+describe('enrichFilesWithAst', () => {
+  it('attaches language + the prewarmed ast when the cached content matches', async () => {
+    const astCache = new Map();
+    const files = [{ path: 'a.ts', content: 'const a = 1;' }];
+    await prewarmupAstCache({ astCache, projectRoot: '/tmp', files });
+
+    const enriched = enrichFilesWithAst(files, astCache);
+    expect(enriched).toHaveLength(1);
+    expect(enriched[0].language).toBe('typescript');
+    expect(enriched[0].ast).toBeDefined();
+  });
+
+  it('leaves ast undefined when the cached entry\'s content no longer matches (stale cache)', async () => {
+    const astCache = new Map();
+    const files = [{ path: 'a.ts', content: 'const a = 1;' }];
+    await prewarmupAstCache({ astCache, projectRoot: '/tmp', files });
+
+    // Re-enrich with DIFFERENT content for the same path — the cache entry is stale.
+    const changed = [{ path: 'a.ts', content: 'const a = 2; // changed' }];
+    const enriched = enrichFilesWithAst(changed, astCache);
+    expect(enriched[0].ast).toBeUndefined();
+    expect(enriched[0].language).toBe('typescript'); // language comes from the extension, not the cache
+  });
+
+  it('leaves both language and ast undefined for a file with no registered grammar', () => {
+    const enriched = enrichFilesWithAst([{ path: 'b.swift', content: 'let b = 1' }], new Map());
+    expect(enriched[0].language).toBeUndefined();
+    expect(enriched[0].ast).toBeUndefined();
   });
 });
 

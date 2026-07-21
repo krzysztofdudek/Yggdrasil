@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { withParsedFile, getParser } from '../../../src/ast/parser.js';
+import { withParsedFile, getParser, grammarWasmHash } from '../../../src/ast/parser.js';
 import { findComments } from '../../../src/ast/find-comments.js';
 
 describe('ast/parser', () => {
@@ -64,5 +64,20 @@ describe('ast/parser', () => {
 
   it('throws on a still-unsupported extension', async () => {
     await expect(withParsedFile('foo.swift', 'let x = 1', () => {})).rejects.toThrow(/no parser for extension/);
+  });
+
+  describe('grammarWasmHash', () => {
+    it('returns a stable sha256 hex digest, memoized on a second call for the same extension', () => {
+      const first = grammarWasmHash('.py');
+      expect(first).toMatch(/^[0-9a-f]{64}$/);
+      // Second call for the SAME extension hits the memoization cache (same value,
+      // no re-read of the wasm bytes).
+      const second = grammarWasmHash('.py');
+      expect(second).toBe(first);
+    });
+
+    it('throws for an extension with no registered grammar', () => {
+      expect(() => grammarWasmHash('.swift')).toThrow(/no grammar for extension/);
+    });
   });
 });

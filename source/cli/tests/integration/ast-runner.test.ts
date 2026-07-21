@@ -110,6 +110,36 @@ export function check(ctx) {
     expect(lines).not.toContain(3); // bar() suppressed
   });
 
+  it('AST_SUPPRESS_MARKER_MALFORMED when a marker is missing its required reason', async () => {
+    const { mkdtempSync, writeFileSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-test-')); tmpDirs.push(dir);
+    writeFileSync(path.join(dir, 'check.mjs'), 'export function check(ctx) { void ctx; return []; }');
+    const srcFile = path.join(dir, 'x.ts');
+    // A single-line yg-suppress marker with NO reason text after the aspect list
+    // is malformed — the fault is in the subject file's marker, not check.mjs.
+    writeFileSync(srcFile, '// yg-suppress(test)\nfoo();\n');
+    await expect(
+      runAstAspect({ aspectDir: dir, aspectId: 'test', files: [{ path: srcFile }], projectRoot: '/' }),
+    ).rejects.toMatchObject({ code: 'AST_SUPPRESS_MARKER_MALFORMED' });
+  });
+
+  it('AST_CHECK_THROWN falls back to String(e) when check.mjs throws a non-Error value', async () => {
+    const { mkdtempSync, writeFileSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-test-')); tmpDirs.push(dir);
+    writeFileSync(path.join(dir, 'check.mjs'), "export function check(ctx) { throw 'plain-string-boom'; }");
+    const tmpFile = path.join(dir, 'x.ts');
+    writeFileSync(tmpFile, 'const x = 1;');
+    try {
+      await runAstAspect({ aspectDir: dir, aspectId: 'test', files: [{ path: tmpFile }], projectRoot: '/' });
+      expect.fail('should have thrown');
+    } catch (e: any) {
+      expect(e.code).toBe('AST_CHECK_THROWN');
+      expect(e.message).toContain('plain-string-boom');
+    }
+  });
+
   it('AST_CHECK_ASYNC when check returns a Promise', async () => {
     const { mkdtempSync, writeFileSync } = await import('node:fs');
     const { tmpdir } = await import('node:os');

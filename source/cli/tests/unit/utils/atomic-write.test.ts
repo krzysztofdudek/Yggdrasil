@@ -67,6 +67,21 @@ describe('atomicWriteFile', () => {
     expect(entries).toEqual(['shard.json']); // no leftover temps from any writer
   });
 
+  it('cleans up its own temp file and rethrows when the final rename fails', async () => {
+    const dir = await tempDir();
+    // The target already exists as a DIRECTORY — renaming a regular file onto it
+    // fails with EISDIR (a genuine OS-level rename failure, not a fabricated one).
+    const target = path.join(dir, 'a.txt');
+    const { mkdir } = await import('node:fs/promises');
+    await mkdir(target);
+
+    await expect(atomicWriteFile(target, 'hello')).rejects.toMatchObject({ code: 'EISDIR' });
+
+    // The private temp file must not be left behind after the failed rename.
+    const entries = await readdir(dir);
+    expect(entries.filter((e) => e.endsWith('.tmp'))).toEqual([]);
+  });
+
   it('creates parent directory if missing', async () => {
     const dir = await tempDir();
     const target = path.join(dir, 'nested/sub/a.txt');

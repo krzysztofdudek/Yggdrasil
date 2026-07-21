@@ -135,6 +135,16 @@ describe('ruby extractor — uses() emits SYMBOL hints (constants)', () => {
     expect(uses).toHaveLength(0);
   });
 
+  it('emits NO use for a DYNAMIC superclass expression (e.g. `Struct.new(:x)`) — not a constant name', async () => {
+    // A common real-world idiom: the superclass is a method-call RESULT, not a
+    // constant-name node, so constantKey(expr) is undefined and the (unguarded)
+    // emitSymbol call at the superclass site must no-op rather than emit a
+    // hint keyed on 'undefined' or crash.
+    const { uses } = await run('class C < Struct.new(:x)\nend\n');
+    expect(symbolKeys(uses)).toHaveLength(0);
+    expect(uses).toHaveLength(0);
+  });
+
   it('DEDUPES the same constant referenced twice on ONE line (symbol+line key)', async () => {
     // `x = Helper; y = Helper` references `Helper` twice on the same line. The
     // emit dedup key is symbol+line, so the second occurrence is suppressed.

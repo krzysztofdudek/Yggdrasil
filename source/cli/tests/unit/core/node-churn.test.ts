@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { countChurnByNode } from '../../../src/core/node-churn.js';
+import { countChurnByNode, ownerOfForGraph } from '../../../src/core/node-churn.js';
+import type { Graph, GraphNode } from '../../../src/model/graph.js';
 
 // Pure churn counting over SYNTHETIC per-commit touch sets — no git, no fixture.
 // The owner resolver is a stand-in for buildOwnerIndex(...).ownerOf: it maps a
@@ -82,5 +83,22 @@ describe('countChurnByNode — per-node commit churn over parsed touch sets', ()
       churn: 3,
       files: ['src/a/x.ts'],
     });
+  });
+});
+
+describe('ownerOfForGraph — the real buildOwnerIndex-backed resolver', () => {
+  it('resolves a mapped file to its owning node path, and undefined for an unmapped one', () => {
+    const nodes = new Map<string, GraphNode>();
+    nodes.set('orders/service', {
+      meta: { name: 'service', type: 'service', description: 'x', mapping: ['src/orders/service.ts'] },
+      parent: undefined,
+      children: [],
+      aspects: [],
+    } as unknown as GraphNode);
+    const graph = { nodes } as Graph;
+
+    const ownerOf = ownerOfForGraph(graph);
+    expect(ownerOf('src/orders/service.ts')).toBe('orders/service');
+    expect(ownerOf('src/unmapped/other.ts')).toBeUndefined();
   });
 });

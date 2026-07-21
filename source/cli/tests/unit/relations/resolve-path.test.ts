@@ -129,6 +129,14 @@ describe('makeResolvePathToFile — per-language dispatch (disk-backed)', () => 
     expect(resolve('example.com/app/svc', 'cmd/main.go', 'go')).toBe('svc/handler.go');
   });
 
+  it('resolves a Go import from a TOP-LEVEL file (no directory component)', () => {
+    // 'root.go' (no directory) exercises the dirname-normalization branch in
+    // modulePathFor (posix.dirname returns '.' for a bare filename).
+    w('root.go', 'package main\n');
+    const resolve = makeResolvePathToFile(root);
+    expect(resolve('example.com/app/svc', 'root.go', 'go')).toBe('svc/handler.go');
+  });
+
   it('reads the Go module path once and serves a second file from the cache', () => {
     const resolve = makeResolvePathToFile(root);
     // cmd/main.go and cmd/extra.go share the same nearest go.mod (the repo root); the
@@ -143,6 +151,14 @@ describe('makeResolvePathToFile — per-language dispatch (disk-backed)', () => 
     // root); the second resolution hits the psr4For cache.
     expect(resolve('App\\Payment\\Gateway', 'app/start.php', 'php')).toBe('src/Payment/Gateway.php');
     expect(resolve('App\\Payment\\Gateway', 'app/run.php', 'php')).toBe('src/Payment/Gateway.php');
+  });
+
+  it('resolves a PHP FQN from a TOP-LEVEL file (no directory component)', () => {
+    // 'root.php' (no directory) exercises the dirname-normalization branch in
+    // psr4For (posix.dirname returns '.' for a bare filename).
+    w('root.php', '<?php\n');
+    const resolve = makeResolvePathToFile(root);
+    expect(resolve('App\\Payment\\Gateway', 'root.php', 'php')).toBe('src/Payment/Gateway.php');
   });
 
   it('resolves a Java type FQN to its package=dir file', () => {
@@ -190,6 +206,14 @@ describe('makeResolvePathToFile — per-language dispatch (disk-backed)', () => 
     expect(resolve('my_crate::a', 'src/lib.rs', 'rust')).toBe('src/a.rs');
   });
 
+  it('resolves crate-root-relative files from a TOP-LEVEL file (no directory component)', () => {
+    // 'main.rs' (no directory) exercises the dirname-normalization branch
+    // (posix.dirname returns '.' for a bare filename, normalized to '').
+    w('main.rs', 'fn main() {}\n');
+    const resolve = makeResolvePathToFile(root);
+    expect(resolve('crate::a', 'main.rs', 'rust')).toBe('src/a.rs');
+  });
+
   it('resolves a nested-crate path and serves the crate root from the cache on a second file', () => {
     const resolve = makeResolvePathToFile(root);
     // crates/core has its OWN Cargo.toml (not at the repo root), so crate-root
@@ -209,6 +233,48 @@ describe('makeResolvePathToFile — per-language dispatch (disk-backed)', () => 
   it('resolves a Ruby require_relative relative to the requiring file', () => {
     const resolve = makeResolvePathToFile(root);
     expect(resolve('order', 'lib/app.rb', 'ruby')).toBe('lib/order.rb');
+  });
+
+});
+
+describe('makeResolvePathToFile — a Cargo.toml [package] section with no `name` line', () => {
+  it('still resolves the plain `crate::` keyword via srcDir (crateName undefined, no crash)', () => {
+    // [package] is present (so the section-tracking `inPackage` flips true) but the
+    // ONLY line inside it is `version = "..."`, which the name regex attempts and
+    // misses — unlike a line outside [package] (skipped before the match is tried).
+    const bareRoot = mkdtempSync(path.join(tmpdir(), 'resolve-path-noname-'));
+    try {
+      mkdirSync(path.join(bareRoot, 'src'), { recursive: true });
+      writeFileSync(path.join(bareRoot, 'Cargo.toml'), '[package]\nversion = "0.1.0"\n', 'utf-8');
+      writeFileSync(path.join(bareRoot, 'src', 'lib.rs'), '// lib\n', 'utf-8');
+      writeFileSync(path.join(bareRoot, 'src', 'a.rs'), '// a\n', 'utf-8');
+      const resolve = makeResolvePathToFile(bareRoot);
+      expect(resolve('crate::a', 'src/lib.rs', 'rust')).toBe('src/a.rs');
+    } finally {
+      rmSync(bareRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('makeResolvePathToFile — a go.mod with no `module` directive (malformed manifest)', () => {
+  it('resolves to undefined rather than crashing when the nearest go.mod has no module line', () => {
+    // A go.mod that exists but carries only a comment — readModulePath's line scan
+    // reaches EOF without a `module <path>` match, so resolution falls through to
+    // undefined at this dir; with no OTHER go.mod anywhere up to the root, the walk
+    // exhausts the tree and resolution is undefined (never a guessed source root).
+    const bareRoot = mkdtempSync(path.join(tmpdir(), 'resolve-path-badmod-'));
+    try {
+      mkdirSync(path.join(bareRoot, 'vendor'), { recursive: true });
+      // A non-comment, non-empty line that is NOT a `module <path>` directive —
+      // the match attempt runs and misses, unlike a comment/blank line (skipped
+      // before the match is even attempted).
+      writeFileSync(path.join(bareRoot, 'vendor', 'go.mod'), 'go 1.21\n', 'utf-8');
+      writeFileSync(path.join(bareRoot, 'vendor', 'lib.go'), 'package lib\n', 'utf-8');
+      const resolve = makeResolvePathToFile(bareRoot);
+      expect(resolve('example.com/anything', 'vendor/lib.go', 'go')).toBeUndefined();
+    } finally {
+      rmSync(bareRoot, { recursive: true, force: true });
+    }
   });
 });
 

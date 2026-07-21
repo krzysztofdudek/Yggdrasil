@@ -639,6 +639,33 @@ describe('parseFamilyCandidates — present-or-omit freshness gate (pure)', () =
     expect(parseFamilyCandidates('nope')).toBeUndefined();
   });
 
+  it('drops a null (non-object) family entry but keeps the well-formed ones', () => {
+    const payload = fresh();
+    (payload.families as unknown[]).push(null);
+    const data = parseFamilyCandidates(payload);
+    expect(data).toBeDefined();
+    expect(data!.families).toHaveLength(1); // the null entry dropped
+  });
+
+  it('falls back to member count / zero tightness when the evidence object is missing', () => {
+    const payload = fresh();
+    const family = (payload.families as Record<string, unknown>[])[0];
+    delete family.evidence; // no evidence object at all
+    const data = parseFamilyCandidates(payload);
+    expect(data).toBeDefined();
+    expect(data!.families).toHaveLength(1);
+    expect(data!.families[0].clusterSize).toBe(data!.families[0].members.length); // fallback: member count
+    expect(data!.families[0].tightness).toBe(0); // fallback: zero
+  });
+
+  it('treats a missing `families` field as an empty (but still fresh) list', () => {
+    const payload = fresh();
+    delete (payload as Record<string, unknown>).families;
+    const data = parseFamilyCandidates(payload);
+    expect(data).toBeDefined();
+    expect(data!.families).toHaveLength(0);
+  });
+
   it('is anchored to the live shard schema by a build-time coupling (RZ-21 re-gate)', () => {
     // The candidates format is validated against one AST-shard schema. If the engine's
     // live schema ever advances past it, THIS assertion fails — reddening the build so a

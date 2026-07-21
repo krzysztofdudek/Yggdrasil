@@ -15,6 +15,8 @@ import { tmpdir } from 'node:os';
 import {
   mkdtemp, mkdir, writeFile, rm, readFile,
 } from 'node:fs/promises';
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
+import { readBytesOrEmpty } from '../../../src/core/fill-shared.js';
 
 import { loadGraph } from '../../../src/core/graph-loader.js';
 import { runFill, FillGatingError } from '../../../src/core/fill.js';
@@ -1023,6 +1025,53 @@ describe('--only-deterministic fill (in-process)', () => {
     if (logsExists) {
       const logs = JSON.parse(await readFile(logsLockPath, 'utf-8'));
       expect(logs.nodes?.['svc']?.source).toBeUndefined();
+    }
+  });
+});
+
+// =============================================================================
+// readBytesOrEmpty (core/fill-shared.ts) — the shared file-read helper both the
+// deterministic and LLM fillers use to hash subject files from current disk (a
+// deleted subject hashes to the empty-buffer hash, mirroring the verifier's
+// re-read so producer/verifier stay in sync). Colocated here as shared
+// fill-orchestration infra alongside the det fill tests this file already covers.
+// =============================================================================
+
+describe('readBytesOrEmpty', () => {
+  it('returns the real bytes of an existing file', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-fill-shared-'));
+    try {
+      const p = path.join(dir, 'a.txt');
+      writeFileSync(p, 'hello world');
+      const bytes = await readBytesOrEmpty(p);
+      expect(bytes.toString('utf-8')).toBe('hello world');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('returns an empty Buffer when the file does not exist (deleted subject)', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-fill-shared-'));
+    try {
+      const bytes = await readBytesOrEmpty(path.join(dir, 'does-not-exist.txt'));
+      expect(bytes).toEqual(Buffer.alloc(0));
+      expect(bytes.length).toBe(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('returns an empty Buffer when the path is unreadable (a directory, not a file)', async () => {
+    // A different failure shape than ENOENT (EISDIR) — both must fail closed to
+    // the same empty-buffer result, never throw.
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-fill-shared-'));
+    try {
+      const sub = path.join(dir, 'a-directory');
+      mkdirSync(sub);
+      const bytes = await readBytesOrEmpty(sub);
+      expect(bytes).toEqual(Buffer.alloc(0));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
     }
   });
 });

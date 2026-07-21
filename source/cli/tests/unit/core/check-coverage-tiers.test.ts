@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeRoot, matchesRoot, partitionByCoverageTier, buildCoverageIssue } from '../../../src/core/check.js';
+import {
+  normalizeRoot,
+  matchesRoot,
+  partitionByCoverageTier,
+  buildCoverageIssue,
+  buildCoverageAdvisoryIssue,
+} from '../../../src/core/check.js';
 
 describe('buildCoverageIssue', () => {
   it('returns null when nothing is uncovered', () => {
@@ -27,6 +33,43 @@ describe('buildCoverageIssue', () => {
     const many = Array.from({ length: 6 }, (_, i) => `src/f${i}.ts`);
     const issue = buildCoverageIssue(many, 100); // 94/100 covered → high
     expect(issue!.messageData.next).toContain('existing node mapping');
+  });
+
+  it('treats a zero-file git listing as 100% coverage (no division by zero)', () => {
+    // totalGitFiles === 0 → coveragePct falls back to 100, which (since 100 is not
+    // < 50) must select the incremental guidance, not the cold-start one.
+    const many = Array.from({ length: 6 }, (_, i) => `src/f${i}.ts`);
+    const issue = buildCoverageIssue(many, 0);
+    expect(issue!.messageData.next).toContain('existing node mapping');
+    expect(issue!.messageData.next).not.toContain('Establish coverage');
+  });
+});
+
+describe('buildCoverageAdvisoryIssue', () => {
+  it('returns null when nothing is in the middle tier', () => {
+    expect(buildCoverageAdvisoryIssue([])).toBeNull();
+  });
+
+  it('small count (<= 5): lists the files directly inline, singular/plural correct', () => {
+    const one = buildCoverageAdvisoryIssue(['src/a.ts']);
+    expect(one!.code).toBe('uncovered-advisory');
+    expect(one!.severity).toBe('warning');
+    expect(one!.messageData.what).toContain('1 tracked file outside any required coverage root');
+    expect(one!.messageData.what).toContain('src/a.ts');
+    expect(one!.messageData.what).not.toContain('... and');
+
+    const few = buildCoverageAdvisoryIssue(['src/a.ts', 'src/b.ts']);
+    expect(few!.messageData.what).toContain('2 tracked files outside any required coverage root');
+  });
+
+  it('large count (> 5): lists a 5-file sample plus a remaining-count tail', () => {
+    const many = Array.from({ length: 8 }, (_, i) => `src/f${i}.ts`);
+    const issue = buildCoverageAdvisoryIssue(many);
+    expect(issue!.messageData.what).toContain('8 tracked files outside any required coverage root');
+    expect(issue!.messageData.what).toContain('src/f0.ts');
+    expect(issue!.messageData.what).not.toContain('src/f5.ts'); // beyond the 5-file sample
+    expect(issue!.messageData.what).toContain('... and 3 more');
+    expect(issue!.uncoveredCount).toBe(8);
   });
 });
 

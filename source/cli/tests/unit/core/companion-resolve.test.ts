@@ -13,9 +13,21 @@ import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 
-import { resolveCompanionDescriptors, companionOutsideAllowedReads } from '../../../src/core/companion-resolve.js';
+import { resolveCompanionDescriptors, companionOutsideAllowedReads, resolveCompanionsForPair } from '../../../src/core/companion-resolve.js';
 import type { Graph, AspectDef } from '../../../src/model/graph.js';
 import type { ExpectedPair } from '../../../src/core/pairs.js';
+
+// ── Mock runCompanionHook — control the exact sequence of hook results across
+// the A6 taint-guard's two possible calls (resolveCompanionsForPair only). ──
+vi.mock('../../../src/structure/hook-loader.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../src/structure/hook-loader.js')>();
+  return {
+    ...actual,
+    runCompanionHook: vi.fn(),
+  };
+});
+import { runCompanionHook } from '../../../src/structure/hook-loader.js';
+const mockRunCompanionHook = vi.mocked(runCompanionHook);
 
 // ── Mock readFileBytes so we don't hit real disk in the allowed-reads tests ───
 vi.mock('../../../src/io/graph-fs.js', async (importOriginal) => {
@@ -129,6 +141,39 @@ describe('resolveCompanionDescriptors — happy path', () => {
     expect(result.companions[0].content).toBe('export const x = 1;');
     // observations should contain a read: entry for the companion
     expect(result.observations.some(([k]) => k.includes('lib/helper.ts'))).toBe(true);
+  });
+
+  it('sorts multiple companion paths and keeps the FIRST-seen label for a duplicate descriptor', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'yg-cr-'));
+    dirs.push(root);
+    await mkdir(path.join(root, 'lib'), { recursive: true });
+    await writeFile(path.join(root, 'lib', 'a.ts'), 'export const a = 1;');
+    await writeFile(path.join(root, 'lib', 'm.ts'), 'export const m = 1;');
+    await writeFile(path.join(root, 'lib', 'z.ts'), 'export const z = 1;');
+
+    mockCollectAllowedReads.mockReturnValue(new Set(['lib/a.ts', 'lib/m.ts', 'lib/z.ts']));
+    mockResolveAllowedReadPath.mockImplementation(() => 'ignored'); // return value unused; only "does it throw" matters
+    mockReadFileBytes.mockImplementation(async (abs: string) => Buffer.from(`content:${path.basename(abs)}`));
+
+    // Deliberately unsorted input (m, a, z) so the sort comparator is exercised in
+    // BOTH directions (a before m, and z after m) rather than a single pre-sorted
+    // pass. A duplicate descriptor for 'lib/a.ts' with a SECOND label must not
+    // overwrite the first-seen label (label lookup is first-wins).
+    const descriptors = [
+      { path: 'lib/m.ts', label: 'em' },
+      { path: 'lib/a.ts', label: 'first' },
+      { path: 'lib/a.ts', label: 'second' },
+      { path: 'lib/z.ts', label: 'zed' },
+    ];
+
+    const result = await resolveCompanionDescriptors(makeGraph(), root, makePair(), makeAspect(), descriptors, []);
+    expect(result.kind).toBe('ok');
+    if (result.kind !== 'ok') return;
+    expect(result.companions.map((c) => c.path)).toEqual(['lib/a.ts', 'lib/m.ts', 'lib/z.ts']); // sorted
+    expect(result.companions[0].label).toBe('first'); // first-wins, not overwritten by the duplicate
+    // Three distinct read: observations, sorted by key.
+    const readKeys = result.observations.map(([k]) => k).filter((k) => k.startsWith('read:lib'));
+    expect(readKeys).toEqual(['read:lib/a.ts', 'read:lib/m.ts', 'read:lib/z.ts']);
   });
 
   it('merges hook observations with per-companion read: observations', async () => {
@@ -264,5 +309,168 @@ describe('companionOutsideAllowedReads', () => {
 
     expect(result.messageData.next).toContain('unmapped');
     expect(result.messageData.next).toContain('orders/handler');
+  });
+});
+
+// =============================================================================
+// 5. resolveCompanionsForPair — A6 taint guard: tainted once, then a GENUINE
+//    infra failure on the retry (distinct from "tainted twice").
+// =============================================================================
+
+describe('resolveCompanionsForPair — A6 taint guard', () => {
+  /** A real on-disk root with a 'svc' node mapping ONE file (src/svc.ts) — the
+   *  common case where subjectFiles === the full mapping (subjectScope undefined). */
+  async function setupSingleFileNode(): Promise<{ root: string; graph: Graph; pair: ExpectedPair }> {
+    const root = await mkdtemp(path.join(tmpdir(), 'yg-cr-pair-'));
+    dirs.push(root);
+    await mkdir(path.join(root, 'src'), { recursive: true });
+    await writeFile(path.join(root, 'src', 'svc.ts'), 'export const x = 1;\n');
+
+    const nodes = new Map<string, import('../../../src/model/graph.js').GraphNode>();
+    nodes.set('svc', {
+      meta: { name: 'svc', type: 'service', description: 'x', mapping: ['src/svc.ts'] },
+      parent: undefined,
+      children: [],
+      aspects: [],
+    } as unknown as import('../../../src/model/graph.js').GraphNode);
+    const graph = makeGraph({ nodes, rootPath: path.join(root, '.yggdrasil') });
+
+    const pair: ExpectedPair = {
+      aspectId: 'my-aspect',
+      kind: 'llm',
+      unitKey: 'node:svc',
+      nodePath: 'svc',
+      status: 'enforced',
+      subjectFiles: ['src/svc.ts'],
+    };
+    return { root, graph, pair };
+  }
+
+  it('tainted on the first run, then a real infra failure on the retry → infra with the retry\'s own message', async () => {
+    const { root, graph, pair } = await setupSingleFileNode();
+
+    // Run 1: ok, but tainted (a file changed mid-resolution) → the guard retries.
+    mockRunCompanionHook.mockResolvedValueOnce({
+      kind: 'ok',
+      descriptors: [],
+      touchedFiles: [],
+      observations: [],
+      observationsTainted: true,
+    });
+    // Run 2 (the retry): a GENUINE infra failure — distinct from "still tainted".
+    mockRunCompanionHook.mockResolvedValueOnce({
+      kind: 'infra',
+      messageData: { what: 'boom on retry', why: 'y', next: 'n' },
+    });
+
+    const result = await resolveCompanionsForPair(graph, root, pair, makeAspect());
+    expect(mockRunCompanionHook).toHaveBeenCalledTimes(2);
+    expect(result.kind).toBe('infra');
+    if (result.kind !== 'infra') return;
+    // The retry's OWN infra message surfaces — never the "inconsistent across two
+    // runs" (still-tainted) message, which is a different failure mode.
+    expect(result.why).toContain('boom on retry');
+    expect(result.messageData.what).toBe('boom on retry');
+  });
+
+  it('returns infra immediately when the FIRST hook run fails outright (no retry)', async () => {
+    const { root, graph, pair } = await setupSingleFileNode();
+    mockRunCompanionHook.mockResolvedValueOnce({
+      kind: 'infra',
+      messageData: { what: 'boom on first run', why: 'y', next: 'n' },
+    });
+
+    const result = await resolveCompanionsForPair(graph, root, pair, makeAspect());
+    expect(mockRunCompanionHook).toHaveBeenCalledTimes(1); // no retry on an outright infra
+    expect(result.kind).toBe('infra');
+    if (result.kind !== 'infra') return;
+    expect(result.messageData.what).toBe('boom on first run');
+  });
+
+  it('succeeds after ONE retry when the first run was tainted but the retry settles', async () => {
+    const { root, graph, pair } = await setupSingleFileNode();
+    mockRunCompanionHook
+      .mockResolvedValueOnce({ kind: 'ok', descriptors: [], touchedFiles: [], observations: [], observationsTainted: true })
+      .mockResolvedValueOnce({ kind: 'ok', descriptors: [], touchedFiles: [], observations: [], observationsTainted: false });
+
+    const result = await resolveCompanionsForPair(graph, root, pair, makeAspect());
+    expect(mockRunCompanionHook).toHaveBeenCalledTimes(2);
+    expect(result.kind).toBe('ok');
+  });
+
+  it('returns infra when the observation set stays tainted across BOTH runs (a torn set, never cached)', async () => {
+    const { root, graph, pair } = await setupSingleFileNode();
+    mockRunCompanionHook.mockResolvedValue({
+      kind: 'ok',
+      descriptors: [],
+      touchedFiles: [],
+      observations: [],
+      observationsTainted: true, // always tainted
+    });
+
+    const result = await resolveCompanionsForPair(graph, root, pair, makeAspect());
+    expect(mockRunCompanionHook).toHaveBeenCalledTimes(2); // run once, retry once, stop
+    expect(result.kind).toBe('infra');
+    if (result.kind !== 'infra') return;
+    expect(result.why).toContain('inconsistent across two runs');
+  });
+
+  it('narrows subjectScope to the subject files when they are FEWER than the node\'s full mapping', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'yg-cr-pair-'));
+    dirs.push(root);
+    await mkdir(path.join(root, 'src'), { recursive: true });
+    await writeFile(path.join(root, 'src', 'svc.ts'), 'export const x = 1;\n');
+    await writeFile(path.join(root, 'src', 'other.ts'), 'export const y = 1;\n');
+
+    const nodes = new Map<string, import('../../../src/model/graph.js').GraphNode>();
+    nodes.set('svc', {
+      meta: { name: 'svc', type: 'service', description: 'x', mapping: ['src/svc.ts', 'src/other.ts'] },
+      parent: undefined,
+      children: [],
+      aspects: [],
+    } as unknown as import('../../../src/model/graph.js').GraphNode);
+    const graph = makeGraph({ nodes, rootPath: path.join(root, '.yggdrasil') });
+
+    // subjectFiles is a STRICT SUBSET of the node's full mapping (per:file scope).
+    const pair: ExpectedPair = {
+      aspectId: 'my-aspect',
+      kind: 'llm',
+      unitKey: 'file:src/svc.ts',
+      nodePath: 'svc',
+      status: 'enforced',
+      subjectFiles: ['src/svc.ts'],
+    };
+
+    mockRunCompanionHook.mockResolvedValueOnce({
+      kind: 'ok',
+      descriptors: [],
+      touchedFiles: [],
+      observations: [],
+      observationsTainted: false,
+    });
+
+    const result = await resolveCompanionsForPair(graph, root, pair, makeAspect());
+    expect(result.kind).toBe('ok');
+    // The hook must have been called with the NARROWED subjectScope, not undefined.
+    expect(mockRunCompanionHook).toHaveBeenCalledWith(expect.objectContaining({ subjectScope: ['src/svc.ts'] }));
+  });
+
+  it('resolves an unreadable-on-disk companion (path passes allowed-reads but the file cannot be read) to infra', async () => {
+    const { root, graph, pair } = await setupSingleFileNode();
+    mockCollectAllowedReads.mockReturnValue(new Set(['ghost.ts']));
+    mockResolveAllowedReadPath.mockReturnValue(path.join(root, 'ghost.ts')); // passes the guard
+    mockReadFileBytes.mockResolvedValue(null); // but the file is missing/unreadable at read time
+    mockRunCompanionHook.mockResolvedValueOnce({
+      kind: 'ok',
+      descriptors: [{ path: 'ghost.ts' }],
+      touchedFiles: [],
+      observations: [],
+      observationsTainted: false,
+    });
+
+    const result = await resolveCompanionsForPair(graph, root, pair, makeAspect());
+    expect(result.kind).toBe('infra');
+    if (result.kind !== 'infra') return;
+    expect(result.why).toContain('could not be read');
   });
 });

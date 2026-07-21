@@ -11,6 +11,8 @@ import { describe, it, expect, afterEach } from 'vitest';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 
 import {
@@ -23,6 +25,7 @@ import {
   expandMappingPathsExcluding,
   normalizeLineEndings,
 } from '../../../src/io/hash.js';
+import { readFileBytes, listDirEntries, statKind, probeUnreadable } from '../../../src/io/graph-fs.js';
 
 const dirs: string[] = [];
 afterEach(async () => {
@@ -136,17 +139,20 @@ describe('hashPath', () => {
   });
 
   it('rejects with a system error (ENOENT) when the target path does not exist', async () => {
-    // The guard "throw new Error(`Unsupported mapping path type: …`)" at the end of
-    // hashPath is only reached when stat() succeeds but the entry is neither a file
-    // nor a directory (e.g. FIFO, socket). Creating such entries portably in a unit
-    // test is impractical. The reachable rejection path is stat() throwing ENOENT for
-    // a missing path — this exercises the same promise-rejection contract the guard
-    // produces and pins the error type and message.
     const root = await tmpTree({});
     const missing = path.join(root, 'does-not-exist');
     await expect(hashPath(missing)).rejects.toMatchObject({
       code: 'ENOENT',
     });
+  });
+
+  it('rejects with "Unsupported mapping path type" when stat() succeeds but the entry is neither a file nor a directory', async () => {
+    // A FIFO is a real, portable (CI is Linux-only) way to reach the guard: stat()
+    // succeeds (it exists), but isFile() and isDirectory() are both false.
+    const root = await tmpTree({});
+    const fifoPath = path.join(root, 'a.fifo');
+    execFileSync('mkfifo', [fifoPath]);
+    await expect(hashPath(fifoPath)).rejects.toThrow(/Unsupported mapping path type/);
   });
 });
 
@@ -170,6 +176,13 @@ describe('perFileHashes', () => {
     const out = await perFileHashes(root, { paths: ['src'] });
     const paths = out.map((o) => o.path).sort();
     expect(paths).toEqual(['src/a.ts', 'src/sub/b.ts']);
+  });
+
+  it('silently skips a mapping entry that is neither a file nor a directory (e.g. a FIFO)', async () => {
+    const root = await tmpTree({ 'src/a.ts': 'a\n' });
+    execFileSync('mkfifo', [path.join(root, 'a.fifo')]);
+    const out = await perFileHashes(root, { paths: ['src/a.ts', 'a.fifo'] });
+    expect(out.map((o) => o.path)).toEqual(['src/a.ts']);
   });
 });
 
@@ -287,5 +300,120 @@ describe('expandMappingPathsExcluding', () => {
     const root = await tmpTree({ 'src/a.ts': 'a\n', 'src/child/c.ts': 'c\n' });
     const out = await expandMappingPathsExcluding(root, ['src'], ['src/child']);
     expect(out).toEqual(['src/a.ts']);
+  });
+});
+
+// =============================================================================
+// io/graph-fs.ts — the low-level file read / directory listing / stat-kind
+// helpers shared across the read-only ctx surfaces. Colocated here as sibling
+// I/O primitives alongside the content-hashing helpers this file already covers.
+// =============================================================================
+
+describe('readFileBytes', () => {
+  const gfsDirs: string[] = [];
+  afterEach(() => {
+    for (const d of gfsDirs.splice(0)) rmSync(d, { recursive: true, force: true });
+  });
+
+  it('returns the real bytes of an existing file', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-graph-fs-'));
+    gfsDirs.push(dir);
+    const p = path.join(dir, 'a.txt');
+    writeFileSync(p, 'hello');
+    const bytes = await readFileBytes(p);
+    expect(bytes).not.toBeNull();
+    expect(bytes!.toString('utf-8')).toBe('hello');
+  });
+
+  it('returns null when the file does not exist', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-graph-fs-'));
+    gfsDirs.push(dir);
+    expect(await readFileBytes(path.join(dir, 'nope.txt'))).toBeNull();
+  });
+});
+
+describe('listDirEntries', () => {
+  const gfsDirs: string[] = [];
+  afterEach(() => {
+    for (const d of gfsDirs.splice(0)) rmSync(d, { recursive: true, force: true });
+  });
+
+  it('lists files and subdirectories, classified correctly', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-graph-fs-'));
+    gfsDirs.push(dir);
+    writeFileSync(path.join(dir, 'a.txt'), 'x');
+    mkdirSync(path.join(dir, 'sub'));
+    const entries = await listDirEntries(dir);
+    expect(entries).not.toBeNull();
+    const byName = new Map(entries!.map((e) => [e.name, e.kind]));
+    expect(byName.get('a.txt')).toBe('file');
+    expect(byName.get('sub')).toBe('dir');
+  });
+
+  it('returns null when the directory does not exist', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-graph-fs-'));
+    gfsDirs.push(dir);
+    expect(await listDirEntries(path.join(dir, 'nope'))).toBeNull();
+  });
+});
+
+describe('statKind', () => {
+  const gfsDirs: string[] = [];
+  afterEach(() => {
+    for (const d of gfsDirs.splice(0)) rmSync(d, { recursive: true, force: true });
+  });
+
+  it('returns "file" for a regular file', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-graph-fs-'));
+    gfsDirs.push(dir);
+    const p = path.join(dir, 'a.txt');
+    writeFileSync(p, 'x');
+    expect(await statKind(p)).toBe('file');
+  });
+
+  it('returns "dir" for a directory', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-graph-fs-'));
+    gfsDirs.push(dir);
+    expect(await statKind(dir)).toBe('dir');
+  });
+
+  it('returns false when the path does not exist', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-graph-fs-'));
+    gfsDirs.push(dir);
+    expect(await statKind(path.join(dir, 'nope'))).toBe(false);
+  });
+
+  it('returns false for a non-regular, non-directory entry (a FIFO)', async () => {
+    // Mirrors ctx.fs.exists' three-token mapping: a socket/fifo/device is
+    // NEITHER 'file' nor 'dir' — folds to false so the exists: observation
+    // stays byte-symmetric between record and re-observe.
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-graph-fs-'));
+    gfsDirs.push(dir);
+    const fifoPath = path.join(dir, 'a.fifo');
+    execFileSync('mkfifo', [fifoPath]);
+    expect(await statKind(fifoPath)).toBe(false);
+  });
+});
+
+describe('probeUnreadable', () => {
+  const gfsDirs: string[] = [];
+  afterEach(() => {
+    for (const d of gfsDirs.splice(0)) rmSync(d, { recursive: true, force: true });
+  });
+
+  it('returns null (readable) for an existing, readable file', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-graph-fs-'));
+    gfsDirs.push(dir);
+    const p = path.join(dir, 'a.txt');
+    writeFileSync(p, 'x');
+    expect(await probeUnreadable(p)).toBeNull();
+  });
+
+  it('returns the OS error message for a vanished path', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-graph-fs-'));
+    gfsDirs.push(dir);
+    const msg = await probeUnreadable(path.join(dir, 'nope.txt'));
+    expect(msg).not.toBeNull();
+    expect(msg).toMatch(/ENOENT|no such file/i);
   });
 });

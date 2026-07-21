@@ -70,6 +70,22 @@ describe('drill-results-reader', () => {
     expect(r.firstTs).toBe('2026-07-01T00:00:00.000Z');
   });
 
+  it('drops a line that parses as valid JSON but is not a plain object (array / primitive)', () => {
+    // JSON.parse succeeds for these, but the result is not a record — a JSON
+    // array or a bare primitive (number/string/bool/null) — so the shape guard
+    // must drop it as a mis-shaped line, never crash on `.v` / `.ts` access.
+    write(DRILL_RESULTS_FILENAME, [
+      validLine('2026-07-01T00:00:00.000Z'),
+      '[1, 2, 3]',
+      '42',
+      '"just a string"',
+      'null',
+    ]);
+    const r = readDrillResults(tmpDir);
+    expect(r.results).toHaveLength(1);
+    expect(r.skipped).toBe(4);
+  });
+
   it('drops a MISS-shaped line missing `case` (fail-open — counted skipped, never thrown)', () => {
     // A corrupted / partially-written local line: valid JSON, a real MISS (expect
     // refused, got satisfied), but NO `case` field. The nomination engine reads

@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { execSync } from 'node:child_process';
 import path from 'node:path';
-import { mkdtemp, rm, writeFile, stat } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile, stat, unlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import {
   getMergeParents,
@@ -71,6 +71,28 @@ describe('git-introspect', () => {
     const { repo } = await setupRepoWithMerge();
     const content = await getFileAtRef(repo, 'HEAD', 'nonexistent.txt');
     expect(content).toBe('');
+  });
+
+  it('getMergeParents throws on a non-merge ref (single-parent commit)', async () => {
+    const { repo } = await setupRepoWithMerge();
+    // The 'feat1' branch tip has exactly one parent (the base commit) — not a
+    // merge — so the < 3 "ref + parents" token guard must reject it.
+    await expect(getMergeParents(repo, 'feat1')).rejects.toThrow(/not a merge commit/);
+  });
+
+  it('getFileAtRef rethrows the original error when the path exists at ref but its object is unreadable', async () => {
+    // A genuinely corrupted/incomplete object store (e.g. a partial fetch or GC
+    // race): the tree still lists the path (`git ls-tree` succeeds, non-empty), but
+    // the blob object itself is missing so `git show` fails. This is the "present
+    // but unreadable" branch — a real error, never coerced to the documented
+    // "absent at ref" empty string.
+    const { repo } = await setupRepoWithMerge();
+    const blobSha = execSync('git rev-parse HEAD:log.md', { cwd: repo, env: gitFixtureEnv(repo) })
+      .toString()
+      .trim();
+    const objectPath = path.join(repo, '.git', 'objects', blobSha.slice(0, 2), blobSha.slice(2));
+    await unlink(objectPath);
+    await expect(getFileAtRef(repo, 'HEAD', 'log.md')).rejects.toThrow();
   });
 
   it('getFileAtRef does NOT execute shell metacharacters in the file path (no injection)', async () => {

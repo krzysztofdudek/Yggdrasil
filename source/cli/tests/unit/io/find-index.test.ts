@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import path from 'node:path';
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, rm, chmod } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import MiniSearch from 'minisearch';
 import { loadGraph } from '../../../src/core/graph-loader.js';
@@ -149,5 +149,23 @@ describe('buildIndex', () => {
     const docs = await buildIndex(graph);
     const node = docs.find((d) => d.kind === 'node' && d.id === 'node:billing/cancel');
     expect(node!.body).not.toContain('symlinked content');
+  });
+
+  it('indexes a node without its log body (empty, not a crash) when log.md exists but is unreadable (non-ENOENT)', async () => {
+    const { projectRoot } = await setupGraph({ logContent: 'some log content' });
+    const logPath = path.join(projectRoot, '.yggdrasil', 'model', 'billing', 'cancel', 'log.md');
+    // A genuinely unreadable file (EACCES) — a real, non-ENOENT failure mode
+    // distinct from "missing", which the reader must surface a warning for
+    // rather than silently indexing without a body as if nothing were there.
+    await chmod(logPath, 0o000);
+    try {
+      const graph = await loadGraph(projectRoot);
+      const docs = await buildIndex(graph);
+      const node = docs.find((d) => d.kind === 'node' && d.id === 'node:billing/cancel');
+      expect(node).toBeDefined();
+      expect(node!.body).toBe('');
+    } finally {
+      await chmod(logPath, 0o644); // restore so afterEach's rm can clean up
+    }
   });
 });

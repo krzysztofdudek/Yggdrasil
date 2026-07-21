@@ -9,6 +9,14 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import type { LlmHashInput, DetHashInput } from '../../../src/core/pair-hash.js';
+import type { Graph, AspectDef } from '../../../src/model/graph.js';
+import {
+  contentFor,
+  ruleHashFor,
+  companionHashFor,
+  nodeDescriptionFor,
+  tierHashViewFromTier,
+} from '../../../src/core/pair-inputs.js';
 import {
   codePointCanonicalJson,
   computeLlmInputHash,
@@ -433,5 +441,81 @@ describe('references sort comparator', () => {
       references: [['docs/validation-catalogue.md', 'd'.repeat(64), 'Changed description']],
     });
     expect(changedDescHash).not.toBe(baseHash);
+  });
+});
+
+// =============================================================================
+// core/pair-inputs.ts — the shared verdict-hash INPUT ASSEMBLY helpers (rule
+// content/hash, companion hash, node description, tier hash view) both the fill
+// stage and the verify stage fold identically (spec §3.1). Colocated here
+// because both modules implement the frozen input-hash contract this file pins.
+// =============================================================================
+
+function aspectWith(artifacts: Array<{ filename: string; content: string }>): AspectDef {
+  return { id: 'a', name: 'a', description: 'a', reviewer: { type: 'llm' }, artifacts } as AspectDef;
+}
+
+describe('contentFor', () => {
+  it('returns the text content of a present artifact', () => {
+    const aspect = aspectWith([{ filename: 'content.md', content: '# Rule\nbody' }]);
+    expect(contentFor(aspect, 'content.md')).toBe('# Rule\nbody');
+  });
+
+  it('returns "" when the named artifact is absent (e.g. check.mjs on an LLM-only aspect)', () => {
+    const aspect = aspectWith([{ filename: 'content.md', content: '# Rule' }]);
+    expect(contentFor(aspect, 'check.mjs')).toBe('');
+  });
+});
+
+describe('ruleHashFor', () => {
+  it('is the sha256 hex digest of the artifact bytes (contract #1)', () => {
+    const aspect = aspectWith([{ filename: 'content.md', content: 'exact bytes' }]);
+    const expected = createHash('sha256').update('exact bytes').digest('hex');
+    expect(ruleHashFor(aspect, 'content.md')).toBe(expected);
+  });
+
+  it('hashes an absent artifact as the hash of the empty string (stable, not a crash)', () => {
+    const aspect = aspectWith([]);
+    const expected = createHash('sha256').update('').digest('hex');
+    expect(ruleHashFor(aspect, 'content.md')).toBe(expected);
+  });
+});
+
+describe('companionHashFor', () => {
+  it('is undefined when the aspect ships no companion.mjs', () => {
+    const aspect = aspectWith([{ filename: 'content.md', content: 'x' }]);
+    expect(companionHashFor(aspect)).toBeUndefined();
+  });
+
+  it('is the sha256 hex digest of companion.mjs when present (even a []-resolving one)', () => {
+    const aspect = aspectWith([
+      { filename: 'content.md', content: 'x' },
+      { filename: 'companion.mjs', content: 'export function companion() { return []; }' },
+    ]);
+    const expected = createHash('sha256')
+      .update('export function companion() { return []; }')
+      .digest('hex');
+    expect(companionHashFor(aspect)).toBe(expected);
+  });
+});
+
+describe('nodeDescriptionFor', () => {
+  it("returns the node's description when the node exists", () => {
+    const nodes = new Map([
+      ['svc', { meta: { description: 'the svc node' } } as unknown as ReturnType<Graph['nodes']['get']>],
+    ]) as Graph['nodes'];
+    const graph = { nodes } as Graph;
+    expect(nodeDescriptionFor(graph, 'svc')).toBe('the svc node');
+  });
+
+  it('returns "" when the node path is unknown', () => {
+    const graph = { nodes: new Map() } as unknown as Graph;
+    expect(nodeDescriptionFor(graph, 'nope')).toBe('');
+  });
+});
+
+describe('tierHashViewFromTier', () => {
+  it('folds ONLY the tier name — the resolved provider/model config is not a verdict input', () => {
+    expect(tierHashViewFromTier('standard')).toEqual({ name: 'standard' });
   });
 });

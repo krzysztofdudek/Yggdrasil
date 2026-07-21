@@ -84,6 +84,16 @@ describe('edgeUniverse', () => {
     expect(universe).toHaveLength(3);
   });
 
+  it('sorts two same-`from` edges into ascending `to` order regardless of insertion order', () => {
+    // Both edges share from='z'; the Set below iterates 'b' before 'a', so the
+    // pre-sort array is [z->b, z->a] — the comparator must actually reorder by
+    // `to` (not just by `from`, which is identical for this pair) to produce the
+    // documented ascending-(from,to) contract.
+    const detected = new Map<string, Set<string>>([['z', new Set(['b', 'a'])]]);
+    const universe = edgeUniverse([], detected);
+    expect(universe.map((e) => `${e.from}->${e.to}`)).toEqual(['z->a', 'z->b']);
+  });
+
   it('viaContract is true iff some declared relation for the pair carries non-empty consumes', () => {
     const universe = edgeUniverse(DECLARED, DETECTED);
     const withContract = universe.find((e) => e.from === 'b/y' && e.to === 'b');

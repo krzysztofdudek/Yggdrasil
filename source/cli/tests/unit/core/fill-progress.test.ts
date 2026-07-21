@@ -8,6 +8,8 @@
 
 import { describe, it, expect } from 'vitest';
 import { ProgressTracker } from '../../../src/core/fill-progress.js';
+import { runPairPool } from '../../../src/core/fill-pool.js';
+import type { LlmFillOutcome } from '../../../src/core/fill-shared.js';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -377,5 +379,83 @@ describe('ProgressTracker — state tracking', () => {
   it('total is set from constructor', () => {
     const tracker = new ProgressTracker(42, { isTTY: false, now: Date.now });
     expect(tracker.state.total).toBe(42);
+  });
+});
+
+// =============================================================================
+// runPairPool — the bounded-concurrency worker pool that runs LLM pair fills
+// with per-item throw isolation (core/fill-pool.ts, spec §7). Colocated here
+// because both modules are shared fill-orchestration infra consumed by the
+// same fill machinery this file already covers.
+// =============================================================================
+
+const okOutcome = (n: number): LlmFillOutcome => ({
+  kind: 'verdict',
+  entry: { hash: `h${n}` } as unknown as LlmFillOutcome extends { entry: infer E } ? E : never,
+  callsMade: 1,
+  votes: [],
+});
+
+describe('runPairPool', () => {
+  it('runs every item and preserves input order in the results', async () => {
+    const items = [1, 2, 3, 4, 5];
+    const results = await runPairPool(items, 2, async (n) => okOutcome(n));
+    expect(results).toHaveLength(5);
+    results.forEach((r, i) => {
+      expect(r.kind).toBe('verdict');
+      if (r.kind === 'verdict') expect((r.entry as unknown as { hash: string }).hash).toBe(`h${items[i]}`);
+    });
+  });
+
+  it('converts a thrown Error into an infra outcome, isolated from siblings', async () => {
+    const items = [1, 2, 3];
+    const results = await runPairPool(items, 3, async (n) => {
+      if (n === 2) throw new Error('boom');
+      return okOutcome(n);
+    });
+    expect(results[0].kind).toBe('verdict');
+    expect(results[1].kind).toBe('infra');
+    expect(results[2].kind).toBe('verdict');
+    if (results[1].kind === 'infra') {
+      expect(results[1].why).toContain('boom');
+      expect(results[1].callsMade).toBe(0);
+      expect(results[1].messageData?.what).toContain('boom');
+    }
+  });
+
+  it('converts a thrown non-Error value into an infra outcome via String(e)', async () => {
+    const results = await runPairPool([1], 1, async () => {
+      throw 'plain-string-boom';
+    });
+    expect(results[0].kind).toBe('infra');
+    if (results[0].kind === 'infra') {
+      expect(results[0].why).toContain('plain-string-boom');
+    }
+  });
+
+  it('never runs more than `concurrency` items at once', async () => {
+    let active = 0;
+    let maxActive = 0;
+    const items = Array.from({ length: 6 }, (_, i) => i);
+    await runPairPool(items, 2, async (n) => {
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      await new Promise((r) => setTimeout(r, 5));
+      active -= 1;
+      return okOutcome(n);
+    });
+    expect(maxActive).toBeLessThanOrEqual(2);
+    expect(maxActive).toBeGreaterThan(0);
+  });
+
+  it('clamps concurrency to at least 1 (a zero/negative concurrency still makes progress)', async () => {
+    const results = await runPairPool([1, 2], 0, async (n) => okOutcome(n));
+    expect(results).toHaveLength(2);
+    expect(results.every((r) => r.kind === 'verdict')).toBe(true);
+  });
+
+  it('returns an empty array for an empty item list (no division by zero on worker count)', async () => {
+    const results = await runPairPool([], 4, async (n: never) => okOutcome(n));
+    expect(results).toEqual([]);
   });
 });

@@ -180,6 +180,34 @@ describe('shrinkage + label + covenant', () => {
     const sig = computeAspectHealthSignals(graphOf(aspect('A')), inputs({})).get('A')!;
     expect(sig).toMatchObject({ catch: 0, exposure: 0, label: 'quiet', uncertaintyWide: false, demotionCorroborated: false });
   });
+
+  it('an aggregate aspect (no own reviewer) is excluded from kind pooling but still gets its own raw signal', () => {
+    const events = [
+      fill('A', 'node:a', 'refused', 'h1'), // llm
+      fill('AGG', 'node:agg', 'refused', 'h2'), // aggregate — must not join the llm pool
+    ];
+    const signals = computeAspectHealthSignals(
+      graphOf(aspect('A', 'llm'), aspect('AGG', 'aggregate')),
+      inputs({ verdictEvents: events }),
+    );
+    const agg = signals.get('AGG')!;
+    // The aggregate's own raw counts are still tallied (kindStratum only governs
+    // pooling, not per-aspect counting) ...
+    expect(agg.catch).toBe(1);
+    expect(agg.exposure).toBe(1);
+    // ... but its point estimate is shrunk toward a base rate of 0 (never pooled
+    // with any kind stratum), unlike a real llm/deterministic aspect.
+    expect(agg.pointEstimate).toBeCloseTo(betaBinomialShrink(1, 1, 0), 10);
+  });
+
+  it('falls back to an empty-string hash when a fill event carries none (still one distinct triple)', () => {
+    const events: VerdictEvent[] = [
+      { v: 1, ts: '2026-07-01T00:00:00.000Z', source: 'fill', aspectId: 'A', unitKey: 'node:u1', kind: 'llm', disposition: 'refused' },
+    ];
+    const sig = computeAspectHealthSignals(graphOf(aspect('A')), inputs({ verdictEvents: events })).get('A')!;
+    expect(sig.catch).toBe(1);
+    expect(sig.exposure).toBe(1);
+  });
 });
 
 describe('demotionCorroborated — true ONLY when all three independent signals agree', () => {
@@ -231,6 +259,19 @@ describe('demotionCorroborated — true ONLY when all three independent signals 
     expect(sig.label).toBe('quiet');
     expect(sig.demotionCorroborated).toBe(false);
   });
+
+  it('ignores a different-aspect event and a non-fill-source event while scanning for a shrunk unit (still corroborates)', () => {
+    const decoys: VerdictEvent[] = [
+      fill('OTHER', 'node:zzz', 'approved', 'hz1'), // a different aspect — must be skipped
+      { ...fill('A', 'node:detached', 'refused', 'ha-drill'), source: 'drill' }, // non-fill source — must be skipped
+    ];
+    const sig = computeAspectHealthSignals(
+      graphOf(aspect('A'), aspect('OTHER')),
+      inputs({ verdictEvents: [...decoys, ...decorativeEvents], currentUnitsByAspect: currentLive }),
+    ).get('A')!;
+    expect(sig.label).toBe('decorative?');
+    expect(sig.demotionCorroborated).toBe(true);
+  });
 });
 
 describe('computeDrillStatus / covenantLine', () => {
@@ -247,6 +288,24 @@ describe('computeDrillStatus / covenantLine', () => {
     const oldMiss: DrillResultLine = { ...passingDrill('A'), got: 'satisfied', ts: '2026-06-01T00:00:00.000Z' };
     const laterPass: DrillResultLine = { ...passingDrill('A'), got: 'refused', ts: '2026-07-02T00:00:00.000Z' };
     expect(computeDrillStatus('A', [oldMiss, laterPass])).toBe('proves-catch');
+  });
+
+  it('keeps the newest duplicate outcome even when it is NOT the last array element', () => {
+    const newer: DrillResultLine = { ...passingDrill('A'), got: 'satisfied', ts: '2026-07-05T00:00:00.000Z' }; // MISS
+    const olderPass: DrillResultLine = { ...passingDrill('A'), got: 'refused', ts: '2026-07-01T00:00:00.000Z' }; // pass, but OLDER
+    // Array order: newer FIRST, older duplicate SECOND — array order must not
+    // override recency by ts (the newer, still-a-MISS outcome wins).
+    expect(computeDrillStatus('A', [newer, olderPass])).toBe('miss');
+  });
+
+  it('ignores a case whose expect is not "refused" (a satisfies-* case carries no deterrence evidence)', () => {
+    const satisfiesCase: DrillResultLine = { ...passingDrill('A'), expect: 'satisfied', case: 'satisfies-x/ok' };
+    expect(computeDrillStatus('A', [satisfiesCase])).toBe('none');
+  });
+
+  it('a refusal-expecting case that has not run yet contributes no deterrence evidence (neither miss nor proves-catch)', () => {
+    const unrun: DrillResultLine = { ...passingDrill('A'), got: 'unrun' };
+    expect(computeDrillStatus('A', [unrun])).toBe('none');
   });
 });
 
@@ -392,5 +451,85 @@ describe('computeAspectFalsePositiveSignals (fp — refusals later waived or ove
       suppressedUnitsByAspect: covered({ A: ['node:OTHER'] }),
     }).get('A')!;
     expect(sig.fp).toBe(0);
+  });
+
+  it('excludes an infra-class disposition from block/fp counting entirely', () => {
+    const events: VerdictEvent[] = [
+      fill('A', 'node:u1', 'refused', 'h1', 'deterministic'),
+      { v: 1, ts: '2026-07-01T00:00:00.000Z', source: 'fill', aspectId: 'A', unitKey: 'node:u2', kind: 'deterministic', disposition: 'infra' },
+    ];
+    const sig = computeAspectFalsePositiveSignals(graphOf(aspect('A', 'deterministic')), {
+      verdictEvents: events,
+      suppressedUnitsByAspect: covered({ A: ['node:u1', 'node:u2'] }),
+    }).get('A')!;
+    expect(sig.blocks).toBe(1); // only the real refusal counts as a block
+  });
+
+  it('keeps the EARLIEST refusal timestamp when a later-processed refusal is not actually earlier', () => {
+    const events = [
+      fill('A', 'node:u1', 'refused', 'h1', 'deterministic', '2026-07-01T00:00:00.000Z'),
+      fill('A', 'node:u1', 'refused', 'h2', 'deterministic', '2026-07-03T00:00:00.000Z'), // later — must not overwrite the earliest
+      fill('A', 'node:u1', 'approved', 'h3', 'deterministic', '2026-07-02T00:00:00.000Z'), // between the two refusals
+    ];
+    const sig = computeAspectFalsePositiveSignals(graphOf(aspect('A', 'deterministic')), {
+      verdictEvents: events,
+      suppressedUnitsByAspect: covered({ A: ['node:u1'] }),
+    }).get('A')!;
+    expect(sig.blocks).toBe(1);
+    // Overturned iff the TRUE earliest refusal (07-01) precedes the approval
+    // (07-02). If the later refusal (07-03) had wrongly overwritten it, this
+    // would misclassify as "suppressed" instead (07-03 does not precede 07-02).
+    expect(sig.overturned).toBe(1);
+    expect(sig.suppressed).toBe(0);
+  });
+
+  it('keeps the LATEST approval timestamp when a later-processed approval is not actually later', () => {
+    const events = [
+      fill('B', 'node:u2', 'approved', 'h1', 'deterministic', '2026-07-03T00:00:00.000Z'),
+      fill('B', 'node:u2', 'approved', 'h2', 'deterministic', '2026-07-01T00:00:00.000Z'), // earlier — must not overwrite the latest
+      fill('B', 'node:u2', 'refused', 'h3', 'deterministic', '2026-07-02T00:00:00.000Z'), // between the two approvals
+    ];
+    const sig = computeAspectFalsePositiveSignals(graphOf(aspect('B', 'deterministic')), {
+      verdictEvents: events,
+      suppressedUnitsByAspect: covered({ B: ['node:u2'] }),
+    }).get('B')!;
+    expect(sig.blocks).toBe(1);
+    // Overturned iff the refusal (07-02) precedes the TRUE latest approval
+    // (07-03). If the earlier approval (07-01) had wrongly become "latest", this
+    // would misclassify as "suppressed" instead (07-02 does not precede 07-01).
+    expect(sig.overturned).toBe(1);
+    expect(sig.suppressed).toBe(0);
+  });
+
+  it('pools blocks across multiple aspects of the same kind (the second aspect reuses the pooled entry)', () => {
+    const events = [
+      fill('D1', 'node:d1', 'refused', 'h1', 'deterministic'),
+      fill('D2', 'node:d2', 'refused', 'h2', 'deterministic'),
+    ];
+    const sigs = computeAspectFalsePositiveSignals(
+      graphOf(aspect('D1', 'deterministic'), aspect('D2', 'deterministic')),
+      {
+        verdictEvents: events,
+        suppressedUnitsByAspect: covered({ D1: ['node:d1'], D2: ['node:d2'] }),
+      },
+    );
+    expect(sigs.get('D1')!.blocks).toBe(1);
+    expect(sigs.get('D2')!.blocks).toBe(1);
+    // Both are waived (fp) — pooled fp=2, blocks=2 → the shared det-stratum base
+    // rate is 1.0, so both aspects' shrunk rates agree despite being different aspects.
+    expect(sigs.get('D1')!.shrunkRate).toBeCloseTo(sigs.get('D2')!.shrunkRate, 10);
+    expect(sigs.get('D1')!.shrunkRate).toBeCloseTo(betaBinomialShrink(1, 1, 1.0), 10);
+  });
+
+  it('an aggregate aspect is excluded from fp kind pooling but still gets its own raw signal', () => {
+    const events = [fill('AGG', 'node:agg', 'refused', 'h1', 'deterministic')];
+    const sig = computeAspectFalsePositiveSignals(graphOf(aspect('AGG', 'aggregate')), {
+      verdictEvents: events,
+      suppressedUnitsByAspect: covered({ AGG: ['node:agg'] }),
+    }).get('AGG')!;
+    expect(sig.blocks).toBe(1);
+    expect(sig.fp).toBe(1);
+    // Never pooled (base rate 0), unlike a real llm/deterministic aspect.
+    expect(sig.shrunkRate).toBeCloseTo(betaBinomialShrink(1, 1, 0), 10);
   });
 });

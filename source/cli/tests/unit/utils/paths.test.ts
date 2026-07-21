@@ -77,6 +77,31 @@ describe('paths', () => {
         'src/b.ts',
       ]);
     });
+
+    it('skips a non-string entry within an otherwise-valid mapping array', () => {
+      // Malformed YAML like `mapping:\n  - foo.ts\n  - 123` — a stray non-string
+      // element must be skipped rather than crash the normalizer.
+      expect(normalizeMappingPaths(['src/a.ts', 123 as unknown as string, 'src/b.ts'])).toEqual([
+        'src/a.ts',
+        'src/b.ts',
+      ]);
+    });
+
+    it('drops an entry that normalizes to an empty string (a blank mapping line)', () => {
+      expect(normalizeMappingPaths(['src/a.ts', '', '   ', 'src/b.ts'])).toEqual([
+        'src/a.ts',
+        'src/b.ts',
+      ]);
+    });
+
+    it('returns empty array when mapping is not an array (malformed YAML: a bare string instead of a list)', () => {
+      // A user who writes `mapping: foo.ts` instead of `mapping:\n  - foo.ts`
+      // hands the loader a bare string at runtime, defeating the static
+      // `string[]` type. The guard must fail closed to an empty mapping rather
+      // than iterate the string's characters as if it were an array of paths.
+      expect(normalizeMappingPaths('foo.ts' as unknown as string[])).toEqual([]);
+      expect(normalizeMappingPaths({ path: 'foo.ts' } as unknown as string[])).toEqual([]);
+    });
   });
 
   describe('toGraphPath', () => {
