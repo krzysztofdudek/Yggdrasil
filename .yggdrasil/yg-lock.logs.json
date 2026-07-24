@@ -88,7 +88,7 @@
     "cli/portal/server": {"log":{"last_entry_datetime":"2026-07-16T12:58:03.595Z","prefix_hash":"a4322b53116228fb1abd8a2b9d671edfcc5380c2c113932814fc94800128e56d"},"source":"05a7527a4ff70f53bb320520e0689f331a6eec0f5ff80f4ed7d5278506d2d4b3"},
     "cli/preamble": {"log":{"last_entry_datetime":"2026-06-01T09:41:50.140Z","prefix_hash":"1169a24ada6cc37b8c4ab80c099f2848f81d29922465318ab0a60021c675085a"}},
     "cli/structure": {"log":{"last_entry_datetime":"2026-06-14T05:30:00.000Z","prefix_hash":"cc779352f6413c18fbf19e5712a4bd4afdcb5ea70106abd9be27dc46709d2a25"}},
-    "cli/templates": {"log":{"last_entry_datetime":"2026-07-24T14:33:37.837Z","prefix_hash":"737212782f7519cbe0f0cff4fef7b2f900fcc9bfd993a933b18e3edfa5c6bd89"},"source":"990f337615f4fbe8006758de84abcac380dfa3aa9ec908587b029b590854b338"},
+    "cli/templates": {"log":{"last_entry_datetime":"2026-07-24T19:40:14.861Z","prefix_hash":"ae0d35055de339e1da4979fdbf3842c9ad9773ec0c7b8c09eb5a47cb82703b1c"},"source":"fb60f584e35588d6bf8d014091525a95a2e3730f84ea9305766417c1c9e28c4b"},
     "cli/templates-platform": {"log":{"last_entry_datetime":"2026-07-24T18:31:34.468Z","prefix_hash":"07cb447605759d8d9f74de6be28baee3bd2944bbc60604e0c2152ddfe16af908"},"source":"3aca8d0482ca6a107db5fa5faa2c756d9fdf809a9ab193d0e66a6c72b524d8cf"},
     "cli/tests/e2e": {"log":{"last_entry_datetime":"2026-05-29T10:07:14.145Z","prefix_hash":"3430d92d98ab483edd4b7634b4cc7ab0206fd50357790981561c2c7f961f11bc"}},
     "cli/tests/e2e/architecture-classification": {"log":{"last_entry_datetime":"2026-05-31T08:36:51.917Z","prefix_hash":"f74cf86bba384d5a7beb84899f073b94b1621ffcb28148bcd75b0b2d16eaa8ae"}},

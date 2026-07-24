@@ -16,9 +16,10 @@ run_step() {
     cd "$cwd"
     eval "$command"
   ); then
-    : # ok
+    return 0
   else
     FAILED+=("$label")
+    return 1
   fi
 }
 
@@ -43,9 +44,35 @@ run_step "CLI: pack-smoke (A2)" "$REPO_ROOT/source/cli" "node scripts/pack-smoke
 # assertions fail. This is the free, keyless rebuild (no reviewer, writes only the
 # gitignored cache); the final "Graph: check" step below re-hashes it as the closing gate.
 run_step "Graph: deterministic cache (test prerequisite)" "$REPO_ROOT" "node source/cli/dist/bin.js check --approve --only-deterministic"
-run_step "CLI: test (with coverage)" "$REPO_ROOT/source/cli" "npm run test:coverage"
-run_step "CLI: coverage >= 90%" "$REPO_ROOT/source/cli" "node -e \"
-const j = require('./coverage/coverage-summary.json');
+if run_step "CLI: test (with coverage)" "$REPO_ROOT/source/cli" "npm run test:coverage"; then
+  run_step "CLI: coverage >= 90%" "$REPO_ROOT/source/cli" "node -e \"
+const fs = require('fs');
+const summaryPath = './coverage/coverage-summary.json';
+let reason = null;
+let j = null;
+if (!fs.existsSync(summaryPath)) {
+  reason = 'the file does not exist';
+} else {
+  try {
+    j = JSON.parse(fs.readFileSync(summaryPath, 'utf8'));
+  } catch (e) {
+    reason = 'the file exists but is not valid JSON (' + e.message + ')';
+  }
+  if (!reason) {
+    const t = j && j.total;
+    const need = ['lines', 'statements', 'functions', 'branches'];
+    const missing = !t || need.some(function (k) { return !t[k] || typeof t[k].pct !== 'number'; });
+    if (missing) {
+      reason = 'the file exists and parses but is missing the total.{lines,statements,functions,branches}.pct fields this assertion reads';
+    }
+  }
+}
+if (reason) {
+  console.error('WHAT: coverage/coverage-summary.json is missing or unreadable -- ' + reason + '.');
+  console.error('WHY: this is NOT a coverage threshold miss. The test step above reported success, so this step cannot tell whether coverage actually regressed -- only that the report it needs is not usable. Likely causes: a coverage reporter misconfigured, json-summary dropped from the reporter list, coverage/ cleaned between steps, or a --coverage flag lost from the npm script.');
+  console.error('NEXT: run npm run test:coverage directly and confirm coverage/coverage-summary.json is written with a valid total.{lines,statements,functions,branches}.pct shape; fix the reporter configuration, then re-run.');
+  process.exit(1);
+}
 const t = j.total;
 const lines = t.lines.pct;
 const stmts = t.statements.pct;
@@ -57,6 +84,19 @@ if (lines < 90 || stmts < 90 || funcs < 90 || br < 90) {
 }
 console.log('Coverage OK: lines=' + lines + '%, statements=' + stmts + '%, functions=' + funcs + '%, branches=' + br + '%');
 \""
+else
+  # WHAT: the test run above failed, so coverage-summary.json was never produced (or
+  # reflects a partial run cut short by the failure) — either way it is not a complete,
+  # trustworthy report of coverage.
+  # WHY: evaluating the threshold against that file would misreport a test failure as a
+  # coverage regression — a maintainer reading the failure line could spend real time
+  # chasing a coverage drop that never happened.
+  # NEXT: fix the failing test(s) named in "CLI: test (with coverage)" above, then re-run;
+  # coverage is only meaningful once the test step itself passes.
+  echo "[repo-check] CLI: coverage >= 90%"
+  echo "[repo-check] SKIPPED — cannot evaluate: CLI: test (with coverage) failed above, so coverage-summary.json is missing or incomplete. This is not a coverage threshold miss; fix the failing test(s) first."
+  FAILED+=("CLI: coverage >= 90% (skipped — no usable coverage data, see CLI: test (with coverage))")
+fi
 # Guard: the AST-extraction-cache false-green audit (warm, then cache-on vs cache-off,
 # asserting per-file facts AND violationsByNode deep-equal over a C# global-using +
 # global-using-alias corpus) is the standing proof that the cache never serves a stale

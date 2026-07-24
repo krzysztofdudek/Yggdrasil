@@ -325,7 +325,7 @@ node_types:
       default: deny
 
   utility:
-    description: "Pure helper utilities — no I/O, no side effects on import, no direct filesystem access (fs-touching helpers live in persistence-adapter)."
+    description: "Pure helper utilities — no I/O, no side effects on import, no direct filesystem access (fs-touching helpers live in persistence-adapter). It is the only type reachable from both the template layer and the engine — a consequence of the allowed relations below, not a preference — which makes it the sole legal home for logic those two must share."
     enforce: strict
     when:
       all_of:

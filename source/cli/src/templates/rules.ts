@@ -185,6 +185,8 @@ const DECISIONS = `## DECISIONS
 
 **After modifying code:** iterate edits with plain \`yg check\` (free by default — no LLM calls unless \`auto_approve\` is set in config) until the working tree is final, then run \`yg check --approve\` exactly ONCE at the end. Every source edit after an \`--approve\` invalidates the verdicts you just paid for, so verifying mid-edit double-pays. Before the final \`--approve\`, add a \`yg log add\` entry for each affected node whose type opts into the log gate. Verification is part of the change — the change is not done until \`yg check --approve\` passes and \`yg check\` is clean. Do not defer it.
 
+**Failing tests or checks:** Never write off a failure as pre-existing without evidence that actually establishes it — a single clean re-run is not that evidence, since a freshly introduced flake reproduces exactly the same result.
+
 **End of conversation:** \`yg check\` — resolve every unverified pair and refusal. \`yg check\` failures block CI. If any pair stays unverified or an enforced pair is refused, the build breaks.
 
 **Unmapped files:** \`yg context --file\` will say if a file has no owner and suggest candidates. Either add it to an existing node's mapping or create a new node. Code without graph coverage works but is not verified — inform the user and propose options.
