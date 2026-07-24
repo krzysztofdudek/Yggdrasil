@@ -22,6 +22,13 @@ ms-playwright/
 .yggdrasil-test/
 .yggdrasil/_build/
 
+# Hermetic temp projects a unit test builds beside the COMMITTED fixture
+# projects (it must live inside the source/cli package so a copied check.mjs
+# resolves the package's own `exports` self-reference). Swept at run start and
+# end; gitignored so a crashed run cannot leave a synthetic tree that looks like
+# a real fixture in `git status`.
+source/cli/tests/fixtures/.tmp-*/
+
 # VitePress build output
 docs/.vitepress/dist/
 docs/.vitepress/cache/

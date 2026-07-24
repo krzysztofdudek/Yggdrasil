@@ -1,0 +1,38 @@
+name: RulesArtifactNamesSingleSource
+description: >-
+  Keeps the three installed-artifact names (AGENTS.md, CLAUDE.md,
+  .clinerules/yggdrasil.md) in exactly ONE place: utils/rules-artifact-names.ts.
+  DIRECTORY-scoped like no-buildissuemessage-in-engine: it inspects EVERY file
+  under source/cli/src/ — including modules that do not exist yet — and is silent
+  everywhere else. Two exclusions: the owning module itself (which legitimately
+  holds all six literals as its own export const values), and the shipped test
+  tree, where these names appear as expected VALUES a fixture asserts on rather
+  than as a second definition that can drift. WHY: the committed-digest reader
+  once looked for the literal `AGENTS.md` while the installer resolved case
+  variants and wrote the block to whichever variant a repository already had
+  (`Agents.md`, etc.) — a repository whose file happened to be case-variant was
+  reported as having no rules installed at all, a warning `yg init --upgrade`
+  could never clear, because the two sides typed the same name out independently
+  and drifted. The three modules that drifted are fixed; the rule exists for the
+  FOURTH consumer that learns these names independently, which is why its scope
+  is the whole source tree rather than the three known files. AST-based: it flags
+  any string or template-string literal (no interpolation, no escape sequence)
+  whose value case-insensitively EQUALS `AGENTS.md`, `CLAUDE.md`, `.clinerules`,
+  `yggdrasil.md`, `.clinerules/yggdrasil.md`, or `@agents.md` — import the
+  corresponding constant from utils/rules-artifact-names.ts instead of re-typing
+  the name. Matching is by exact value, never substring, so a longer string that
+  merely CONTAINS one of these (a retired `.windsurf/rules/yggdrasil.md` path, a
+  human-facing label, a sentence of prose) is never a hit. One documented
+  per-file, per-value exemption is carried in the check: the base name
+  `.clinerules` in portal/api/suppress-eligibility.ts is Cline's LEGACY
+  single-file convention (a root file with no extension that `yg init` has never
+  written), the same bytes as the directory constant by coincidence rather than
+  by shared definition. errs: under — a literal whose whole value is one of these
+  six names, inside the shipped CLI source, is by construction about the
+  installed artifacts, so every hit is a provable re-typing of a name that has
+  exactly one legitimate home.
+reviewer:
+  type: deterministic
+errs: under
+status: enforced
+review_by: 2027-01-24

@@ -13,7 +13,11 @@ description: Shared helper functions — debug logging, git introspection, path
   awareness, start/end pair resolution) — the single parser shared by the
   installer that writes the block into a repo's agent-rules file and the
   committed-digest gate that judges it, which cannot import each other because
-  an engine module may not depend on a template one.
+  an engine module may not depend on a template one. It also owns the three
+  installed-artifact names (AGENTS.md, CLAUDE.md, .clinerules/yggdrasil.md) for
+  the same reason — the installer, the committed-digest reader, and the check
+  that labels findings with them cannot import each other, but all three may
+  call utility.
 aspects:
   - posix-paths-output
 relations: [ { target: cli/model/graph, type: uses } ]
@@ -32,3 +36,4 @@ mapping:
   - source/cli/src/utils/when-parser.ts
   - source/cli/src/utils/file-when-parser.ts
   - source/cli/src/utils/validate-check-module.ts
+  - source/cli/src/utils/rules-artifact-names.ts

@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import type { ValidationIssue, IssueMessage } from '../../model/validation.js';
 import { issueMsg } from './shared.js';
 import { findMarkerBlockRanges, unfencedLineIndices } from '../../utils/marker-block.js';
+import { AGENTS_FILENAME, CLAUDE_FILENAME, CLINERULES_RELATIVE_PATH, AGENTS_IMPORT_LINE_LOWER } from '../../utils/rules-artifact-names.js';
 
 /**
  * Injected snapshot of the three committed rules-distribution artifacts, plus
@@ -122,8 +123,13 @@ function firstDigestBlock(agentsMdLf: string): { inner: string; count: number } 
  * to surface it.
  */
 function hasAgentsImportLine(claudeMdLf: string): boolean {
-  return unfencedLineIndices(claudeMdLf, (l) => l.toLowerCase() === '@agents.md').length > 0;
+  return unfencedLineIndices(claudeMdLf, (l) => l.toLowerCase() === AGENTS_IMPORT_LINE_LOWER).length > 0;
 }
+
+/** Human-facing label for the AGENTS.md digest block, used in both `missing` findings and the anchor inspection. */
+const AGENTS_BLOCK_LABEL = `${AGENTS_FILENAME} digest block`;
+/** Human-facing label for the CLAUDE.md import-line finding. */
+const CLAUDE_IMPORT_LABEL = `${CLAUDE_FILENAME} @${AGENTS_FILENAME} import`;
 
 /**
  * Committed-digest staleness gate (WARNING, never blocking). Before this
@@ -163,26 +169,26 @@ export function checkDigestGate(a: RulesArtifacts): ValidationIssue[] {
   let duplicated = false;
 
   if (a.agentsMd === null) {
-    findings.push({ kind: 'missing', where: 'AGENTS.md digest block' });
+    findings.push({ kind: 'missing', where: AGENTS_BLOCK_LABEL });
   } else {
     const block = firstDigestBlock(lf(a.agentsMd));
     if (!block) {
-      findings.push({ kind: 'missing', where: 'AGENTS.md digest block' });
+      findings.push({ kind: 'missing', where: AGENTS_BLOCK_LABEL });
     } else {
       duplicated = block.count > 1;
-      inspectAnchoredBlock('AGENTS.md digest block', block.inner, a.canonicalDigestHash, findings);
+      inspectAnchoredBlock(AGENTS_BLOCK_LABEL, block.inner, a.canonicalDigestHash, findings);
     }
   }
 
   inspectAnchoredBlock(
-    '.clinerules/yggdrasil.md',
+    CLINERULES_RELATIVE_PATH,
     a.clinerules === null ? null : lf(a.clinerules),
     a.canonicalDigestHash,
     findings,
   );
 
   const claudeOk = a.claudeMd !== null && hasAgentsImportLine(lf(a.claudeMd));
-  if (!claudeOk) findings.push({ kind: 'missing', where: 'CLAUDE.md @AGENTS.md import' });
+  if (!claudeOk) findings.push({ kind: 'missing', where: CLAUDE_IMPORT_LABEL });
 
   if (findings.length === 0 && !duplicated) return [];
 
@@ -193,7 +199,7 @@ export function checkDigestGate(a: RulesArtifacts): ValidationIssue[] {
       case 'outdated': return `${f.where} is from an older CLI`;
     }
   });
-  if (duplicated) parts.push('AGENTS.md contains more than one yggdrasil block (first one is authoritative)');
+  if (duplicated) parts.push(`${AGENTS_FILENAME} contains more than one yggdrasil block (first one is authoritative)`);
 
   const msgData: IssueMessage = {
     what: `Committed agent-rules digest is out of sync: ${parts.join('; ')}.`,

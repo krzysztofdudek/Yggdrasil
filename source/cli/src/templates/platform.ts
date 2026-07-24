@@ -6,6 +6,7 @@ import {
   YGGDRASIL_START, YGGDRASIL_END, findMarkerBlockRanges, unfencedLineIndices,
   type MarkerBlockRange,
 } from '../utils/marker-block.js';
+import { AGENTS_FILENAME, CLAUDE_FILENAME, CLINERULES_DIR, CLINERULES_FILENAME } from '../utils/rules-artifact-names.js';
 
 // The marker constants and the block scanner live in utils/marker-block.ts so
 // that the committed-digest gate (an `engine` module, which may not import a
@@ -247,7 +248,7 @@ export async function installRules(projectRoot: string, cliVersion: string): Pro
   const rel = (p: string) => toPosixPath(path.relative(projectRoot, p));
 
   // 1. AGENTS.md — digest block (replace old block(s) in place, else append).
-  const agentsPath = await resolveCaseVariant(projectRoot, 'AGENTS.md');
+  const agentsPath = await resolveCaseVariant(projectRoot, AGENTS_FILENAME);
   const agentsRaw = await readIfExists(agentsPath);
   const agentsEol = eolOf(agentsRaw);
   let agents = agentsRaw === null ? '' : norm(agentsRaw);
@@ -270,7 +271,7 @@ export async function installRules(projectRoot: string, cliVersion: string): Pro
   // wrote (its case-variant spelling, not a hardcoded `@AGENTS.md`, which
   // would resolve to nothing on a case-sensitive filesystem); drop legacy import.
   const agentsImportLine = `@${path.basename(agentsPath)}`;
-  const claudePath = await resolveCaseVariant(projectRoot, 'CLAUDE.md');
+  const claudePath = await resolveCaseVariant(projectRoot, CLAUDE_FILENAME);
   const claudeRaw = await readIfExists(claudePath);
   const claudeEol = eolOf(claudeRaw);
   let claude = claudeRaw === null ? '' : norm(claudeRaw);
@@ -302,7 +303,7 @@ export async function installRules(projectRoot: string, cliVersion: string): Pro
   // 3. .clinerules/yggdrasil.md — wholly ours, overwrite. Compared EOL-aware:
   // a CRLF checkout holds the same content and must not be rewritten (and
   // re-reported as written) on every run.
-  const clinePath = path.join(projectRoot, '.clinerules', 'yggdrasil.md');
+  const clinePath = path.join(projectRoot, CLINERULES_DIR, CLINERULES_FILENAME);
   const clineRaw = await readIfExists(clinePath);
   const clineOut = withEol(digestBlockBody(cliVersion), eolOf(clineRaw));
   if (clineRaw !== clineOut) {

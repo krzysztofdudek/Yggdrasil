@@ -1,0 +1,22 @@
+name: Unit Tests — Rules-Artifact-Names Attach Set
+type: test-suite
+description: "Dogfood invariant pinning the ATTACH SET of the
+  rules-artifact-names-single-source aspect to the scope its check self-declares.
+  The guard inspects every file under the shipped CLI source tree, but a check
+  only ever sees the subject files of the nodes it is effective on — so detaching
+  the aspect from the CLI root would leave a correct rule inspecting nothing,
+  with every other test still green. This test collects every TypeScript file
+  under the guard's own scope prefix (read out of check.mjs, so the two cannot
+  drift apart), resolves each to its owning node through the repo's single owner
+  index, and asserts every such node carries the aspect under the full 7-channel
+  effective-aspect computation. It also fails on a file inside the scope that no
+  node maps — the guard would never be handed it."
+aspects: []
+relations:
+  [
+    { target: cli/core/loader, type: uses },
+    { target: cli/core/graph, type: uses },
+    { target: cli/relations/core, type: uses }
+  ]
+mapping:
+  - source/cli/tests/unit/dogfood-rules-artifact-names-attach.test.ts

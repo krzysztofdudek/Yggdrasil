@@ -4,6 +4,7 @@ import { debugWrite } from '../utils/debug-log.js';
 import type { RulesArtifacts } from '../core/checks/digest-gate.js';
 import { digestSha256 } from '../templates/digest.js';
 import { resolveCaseVariant } from '../templates/platform.js';
+import { AGENTS_FILENAME, CLAUDE_FILENAME, CLINERULES_DIR, CLINERULES_FILENAME } from '../utils/rules-artifact-names.js';
 
 /**
  * The BOUNDARY reader for the committed-digest staleness gate — the single
@@ -56,9 +57,9 @@ export async function readRulesArtifacts(projectRoot: string): Promise<RulesArti
   const readVariant = async (name: string): Promise<string | null> =>
     readAbs(await resolveCaseVariant(projectRoot, name));
   return {
-    agentsMd: await readVariant('AGENTS.md'),
-    claudeMd: await readVariant('CLAUDE.md'),
-    clinerules: await readAbs(path.join(projectRoot, '.clinerules', 'yggdrasil.md')),
+    agentsMd: await readVariant(AGENTS_FILENAME),
+    claudeMd: await readVariant(CLAUDE_FILENAME),
+    clinerules: await readAbs(path.join(projectRoot, CLINERULES_DIR, CLINERULES_FILENAME)),
     canonicalDigestHash: digestSha256(),
   };
 }

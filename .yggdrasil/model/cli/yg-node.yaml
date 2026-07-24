@@ -5,4 +5,5 @@ aspects:
   - wasm-tree-lifecycle
   - events-reader-boundary
   - instrument-import-fence
+  - rules-artifact-names-single-source
 relations: []
