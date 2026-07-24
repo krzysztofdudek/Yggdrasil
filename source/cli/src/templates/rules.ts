@@ -152,6 +152,7 @@ Full lock format, hash ingredients, caching policy, merge procedure, garbage-col
 | \`yg structure\` | Read-only structural dashboard — dependency tunnels, per-level module groups (and cycles), change reach. Never gates. |
 | \`yg incident add --tag <cause> --reason <text>\` | Record what escaped enforcement (human-signed, committed ledger) — the only signal from outside the graph. \`yg incident read\` lists them. |
 | \`yg portal [--static]\` | Local read-only web view of the graph and its verification state (loopback-only; one shelled Approve). |
+| \`yg prime\` [\`--digest\`] | Re-print this manual fresh from the installed CLI (\`--digest\` prints only the committed digest block). |
 
 Full command reference (\`yg aspects\`, \`yg flows\`, \`yg owner\`, \`yg suppressions\`, \`yg aspect-test\`, \`yg type-suggest\`, \`yg init\`, \`yg log merge-resolve\`, \`yg schemas\`, all option flags): \`yg knowledge read cli-reference\`.
 
@@ -508,7 +509,7 @@ demos use \`yg check --no-approve\`).
 Subagents don't inherit Yggdrasil knowledge. First instruction in every subagent prompt:
 
 \`\`\`
-BEFORE doing anything else: read .yggdrasil/agent-rules.md and follow its protocol.
+BEFORE doing anything else: run \`yg prime\` and follow its protocol.
 DELIVERABLES — all required, incomplete work will be rejected:
   1. Working source code
   2. Graph nodes for every new/modified source file
@@ -596,6 +597,7 @@ When you need to do X, run/read Y:
 | Map the graph dir itself (meta-modeling) | \`yg knowledge read meta-modeling\` |
 | Positive vs negative aspects; carve a type out of a negative aspect | \`yg knowledge read aspects-overview\` + \`yg knowledge read conditional-aspects\` |
 | Onboard a human into Yggdrasil (tutor playbook) | \`yg knowledge read onboarding\` |
+| Re-print this manual | \`yg prime\` |
 
 ### Operational Notes
 

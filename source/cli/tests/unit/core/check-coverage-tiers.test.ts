@@ -6,6 +6,48 @@ import {
   buildCoverageIssue,
   buildCoverageAdvisoryIssue,
 } from '../../../src/core/check.js';
+import { blockingUnmappedPaths } from '../../../src/core/check-coverage-tiers.js';
+
+// The question `yg init` asks after writing the agent-rules files into a
+// project: will THIS project's coverage settings turn them red? Answered
+// against the same primitives the check uses, so the prediction cannot drift
+// from the gate it predicts.
+describe('blockingUnmappedPaths', () => {
+  const MANAGED = ['AGENTS.md', 'CLAUDE.md', '.clinerules/yggdrasil.md', '.gitattributes'];
+
+  it('whole-repo required with nothing mapped → every managed file blocks', () => {
+    expect(blockingUnmappedPaths(MANAGED, [], { required: ['/'], excluded: [] })).toEqual(MANAGED);
+  });
+
+  it('excluded roots silence them, directory form included', () => {
+    const coverage = { required: ['/'], excluded: ['AGENTS.md', 'CLAUDE.md', '.clinerules/', '.gitattributes'] };
+    expect(blockingUnmappedPaths(MANAGED, [], coverage)).toEqual([]);
+  });
+
+  it('a node mapping over them counts as covered, exactly as the check sees it', () => {
+    const mappings = ['AGENTS.md', 'CLAUDE.md', '.clinerules/', '.gitattributes'];
+    expect(blockingUnmappedPaths(MANAGED, mappings, { required: ['/'], excluded: [] })).toEqual([]);
+  });
+
+  it('require-nothing coverage blocks none of them', () => {
+    expect(blockingUnmappedPaths(MANAGED, [], { required: [], excluded: [] })).toEqual([]);
+  });
+
+  it('required roots that do not reach the repo root leave them non-blocking', () => {
+    expect(blockingUnmappedPaths(MANAGED, [], { required: ['src/'], excluded: [] })).toEqual([]);
+  });
+
+  it('reports only the files that are actually still unmapped', () => {
+    const blocked = blockingUnmappedPaths(MANAGED, ['AGENTS.md'], { required: ['/'], excluded: ['.gitattributes'] });
+    expect(blocked).toEqual(['CLAUDE.md', '.clinerules/yggdrasil.md']);
+  });
+
+  it('tolerates mapping entries in the forms a node file may carry', () => {
+    // Trailing slash, leading ./ — normalized the same way node mappings are.
+    const mappings = ['./AGENTS.md', '.clinerules/', '', 'CLAUDE.md', '.gitattributes'];
+    expect(blockingUnmappedPaths(MANAGED, mappings, { required: ['/'], excluded: [] })).toEqual([]);
+  });
+});
 
 describe('buildCoverageIssue', () => {
   it('returns null when nothing is uncovered', () => {

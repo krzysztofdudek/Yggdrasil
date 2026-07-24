@@ -1,0 +1,7 @@
+name: E2E Tests — Universal Install & Digest Staleness Gate
+type: test-suite
+description: "Subprocess E2E for the universal agent-rules install (one identical AGENTS.md digest + CLAUDE.md @AGENTS.md import + .clinerules/yggdrasil.md for every agent, replacing the retired per-platform installers) and the committed-digest staleness gate in yg check — fresh/keyless bootstrap, a --provider bootstrap that needs no --platform, CRLF preservation, moved/duplicated block collapse, legacy import-line sweeps (CLAUDE.md and AGENTS.md), the full legacy-artifact sweep in one pass, upgrade idempotence, all four gate states (missing/modified/outdated/duplicated) with the never-blocks invariant, yg prime, and the aider/GEMINI.md decoy-avoidance edges."
+aspects: []
+relations: []
+mapping:
+  - source/cli/tests/e2e/cli-universal-install.test.ts

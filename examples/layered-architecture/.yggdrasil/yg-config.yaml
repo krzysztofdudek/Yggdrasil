@@ -6,11 +6,17 @@ quality:
 # The graph covers the source tree; every file under src/ must be mapped to a
 # node (an unmapped src file is a blocking error). The example's own README is
 # documentation, not source under enforcement, so it is excluded from the scan.
+# The Yggdrasil-managed agent-rules files and the gitattributes scaffold are repo
+# plumbing, not example source, so they are excluded too rather than mapped.
 coverage:
   required:
     - src
   excluded:
     - README.md
+    - AGENTS.md
+    - CLAUDE.md
+    - .clinerules/
+    - .gitattributes
 
 reviewer:
   tiers:

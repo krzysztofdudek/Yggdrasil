@@ -348,7 +348,7 @@ node_types:
     description: "Content template — generates agent-facing rules content and platform installation files."
     enforce: strict
     when:
-      path: "source/cli/src/templates/{default-config,platform,rules}.ts"
+      path: "source/cli/src/templates/{default-config,platform,rules,digest}.ts"
     aspects:
       - id: source-no-raw-control-chars
         status: enforced
@@ -464,6 +464,7 @@ node_types:
     when:
       any_of:
         - path: ".claude/**"
+        - path: ".clinerules/**"
         - path: ".cursor/**"
         - path: ".devcontainer/**"
         - path: ".editorconfig"

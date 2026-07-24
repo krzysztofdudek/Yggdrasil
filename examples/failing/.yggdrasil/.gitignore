@@ -3,3 +3,6 @@ yg-secrets.yaml
 .debug.log
 .yg-lock.deterministic.json
 .feature-field.json
+.ast-cache/
+.yg-events.jsonl
+.yg-fill-divergence.log*

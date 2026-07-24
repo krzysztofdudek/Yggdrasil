@@ -1,8 +1,9 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { mkdtemp, writeFile, mkdir, readFile, stat, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { runVersionUpgrade, ensureGitattributes, ensureYggdrasilGitignore } from '../../../src/cli/init.js';
+import { Command } from 'commander';
+import { runVersionUpgrade, ensureGitattributes, ensureYggdrasilGitignore, registerInitCommand } from '../../../src/cli/init.js';
 
 const LOCK_LINE = '/.yggdrasil/yg-lock.*.json linguist-generated=true';
 const ADVISE_LINE = '/.yggdrasil/advise-decisions.jsonl merge=union';
@@ -23,31 +24,170 @@ async function scaffoldExistingYgg(projectRoot: string, version: string): Promis
   return yggRoot;
 }
 
+/**
+ * Drive the ACTUAL registered `yg init` command action for the given args
+ * against a real on-disk project root — as opposed to calling an exported
+ * helper (e.g. runVersionUpgrade) directly, which bypasses the flag-parsing
+ * and dispatch logic inside the command's .action() callback entirely. The
+ * action reads process.cwd() internally, so this chdirs for the duration of
+ * the call and restores it afterward even on failure.
+ */
+async function runInitCommand(cwd: string, args: string[]): Promise<{ stdout: string; exitCode: number | undefined }> {
+  const originalCwd = process.cwd();
+  process.chdir(cwd);
+  let stdout = '';
+  const outSpy = vi.spyOn(process.stdout, 'write').mockImplementation((chunk) => {
+    stdout += String(chunk);
+    return true;
+  });
+  let exitCode: number | undefined;
+  const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+    exitCode = code;
+    throw new Error(`process.exit(${code})`);
+  }) as never);
+  try {
+    const program = new Command();
+    registerInitCommand(program);
+    await program.parseAsync(['node', 'yg', 'init', ...args]);
+  } catch (err) {
+    // Only swallow the exit shim's own throw; any other error is a real failure.
+    if (exitCode === undefined) throw err;
+  } finally {
+    process.chdir(originalCwd);
+    outSpy.mockRestore();
+    exitSpy.mockRestore();
+  }
+  return { stdout, exitCode };
+}
+
+describe('registerInitCommand action — non-interactive dispatch', () => {
+  const dirsToCleanup: string[] = [];
+  afterEach(async () => {
+    for (const d of dirsToCleanup.splice(0)) await rm(d, { recursive: true, force: true });
+  });
+
+  it('--upgrade alone succeeds and prints the artifact summary', async () => {
+    const projectRoot = await mkdtemp(path.join(tmpdir(), 'yg-init-cli-upgrade-'));
+    dirsToCleanup.push(projectRoot);
+    await scaffoldExistingYgg(projectRoot, '5.1.0');
+
+    const { stdout, exitCode } = await runInitCommand(projectRoot, ['--upgrade']);
+
+    expect(exitCode).toBeUndefined();
+    expect(stdout).toContain('Agent rules installed/updated');
+    // Plain completeness check only — NOT a finding-1 regression guard: this
+    // run never passes --provider, so the model/endpoint-required resolver
+    // (where finding 1 lived) is never invoked here, and that resolver
+    // writes to stderr anyway, which runInitCommand does not capture. The
+    // real finding-1 guards live in the resolveReviewerConfigFromFlags tests
+    // in init.test.ts.
+    expect(stdout).not.toContain('--platform');
+    const agentsMd = await readFile(path.join(projectRoot, 'AGENTS.md'), 'utf-8');
+    expect(agentsMd).toContain('<!-- yggdrasil:start -->');
+  });
+
+  it('--upgrade --platform codex prints the deprecation notice and still succeeds', async () => {
+    const projectRoot = await mkdtemp(path.join(tmpdir(), 'yg-init-cli-upgrade-platform-'));
+    dirsToCleanup.push(projectRoot);
+    await scaffoldExistingYgg(projectRoot, '5.1.0');
+
+    const { stdout, exitCode } = await runInitCommand(projectRoot, ['--upgrade', '--platform', 'codex']);
+
+    expect(exitCode).toBeUndefined();
+    expect(stdout).toContain('--platform codex is deprecated and was ignored');
+    expect(stdout).toContain('Agent rules installed/updated');
+    const agentsMd = await readFile(path.join(projectRoot, 'AGENTS.md'), 'utf-8');
+    expect(agentsMd).toContain('<!-- yggdrasil:start -->');
+  });
+
+  it('bare non-interactive fresh init (no flags, no TTY) performs the keyless universal bootstrap', async () => {
+    const projectRoot = await mkdtemp(path.join(tmpdir(), 'yg-init-cli-fresh-keyless-'));
+    dirsToCleanup.push(projectRoot);
+
+    // Force non-TTY deterministically — a locally-run vitest process can have
+    // a real TTY on stdout/stdin, which would silently route this into the
+    // interactive wizard instead of the path under test.
+    const stdoutTTY = Object.getOwnPropertyDescriptor(process.stdout, 'isTTY');
+    const stdinTTY = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY');
+    Object.defineProperty(process.stdout, 'isTTY', { value: false, configurable: true });
+    Object.defineProperty(process.stdin, 'isTTY', { value: false, configurable: true });
+    let result: { stdout: string; exitCode: number | undefined };
+    try {
+      result = await runInitCommand(projectRoot, []);
+    } finally {
+      if (stdoutTTY) Object.defineProperty(process.stdout, 'isTTY', stdoutTTY);
+      else delete (process.stdout as { isTTY?: boolean }).isTTY;
+      if (stdinTTY) Object.defineProperty(process.stdin, 'isTTY', stdinTTY);
+      else delete (process.stdin as { isTTY?: boolean }).isTTY;
+    }
+
+    expect(result.exitCode).toBeUndefined();
+    expect(result.stdout).toContain('initialized keyless');
+    const cfg = await readFile(path.join(projectRoot, '.yggdrasil', 'yg-config.yaml'), 'utf-8');
+    // Keyless bootstrap writes no reviewer section — the graph works with
+    // script rules and dependency control, no judge configured.
+    expect(cfg).not.toContain('reviewer:');
+    const agentsMd = await readFile(path.join(projectRoot, 'AGENTS.md'), 'utf-8');
+    expect(agentsMd).toContain('<!-- yggdrasil:start -->');
+  });
+
+  it('existing repo + deprecated --platform + no TTY refreshes the artifacts without needing --upgrade', async () => {
+    const projectRoot = await mkdtemp(path.join(tmpdir(), 'yg-init-cli-existing-platform-'));
+    dirsToCleanup.push(projectRoot);
+    await scaffoldExistingYgg(projectRoot, '5.1.0');
+
+    // Force non-TTY deterministically, same technique as the keyless-fresh-init
+    // test above — a locally-run vitest process can have a real TTY on
+    // stdout/stdin, which would silently route this into the interactive menu
+    // instead of the non-interactive dispatch branch under test.
+    const stdoutTTY = Object.getOwnPropertyDescriptor(process.stdout, 'isTTY');
+    const stdinTTY = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY');
+    Object.defineProperty(process.stdout, 'isTTY', { value: false, configurable: true });
+    Object.defineProperty(process.stdin, 'isTTY', { value: false, configurable: true });
+    let result: { stdout: string; exitCode: number | undefined };
+    try {
+      result = await runInitCommand(projectRoot, ['--platform', 'codex']);
+    } finally {
+      if (stdoutTTY) Object.defineProperty(process.stdout, 'isTTY', stdoutTTY);
+      else delete (process.stdout as { isTTY?: boolean }).isTTY;
+      if (stdinTTY) Object.defineProperty(process.stdin, 'isTTY', stdinTTY);
+      else delete (process.stdin as { isTTY?: boolean }).isTTY;
+    }
+
+    // No --upgrade and no --provider given, no TTY to open the menu: the
+    // deprecated --platform flag alone must still refresh the universal agent
+    // rules. Without this dispatch branch the run falls through to the
+    // "nothing to do" message instead.
+    expect(result.exitCode).toBeUndefined();
+    expect(result.stdout).toContain('--platform codex is deprecated and was ignored');
+    expect(result.stdout).toContain('Agent rules installed/updated');
+    const agentsMd = await readFile(path.join(projectRoot, 'AGENTS.md'), 'utf-8');
+    expect(agentsMd).toContain('<!-- yggdrasil:start -->');
+  });
+});
+
 describe('runVersionUpgrade', () => {
   const dirsToCleanup: string[] = [];
   afterEach(async () => {
     for (const d of dirsToCleanup.splice(0)) await rm(d, { recursive: true, force: true });
   });
 
-  it('removes schemas/, bumps version, installs rules for platform', async () => {
+  it('removes schemas/, bumps version, installs the universal agent rules', async () => {
     const projectRoot = await mkdtemp(path.join(tmpdir(), 'yg-init-upgrade-'));
     dirsToCleanup.push(projectRoot);
     const yggRoot = await scaffoldExistingYgg(projectRoot, '4.0.0');
 
-    const result = await runVersionUpgrade(
-      projectRoot,
-      yggRoot,
-      'claude-code',
-    );
+    const result = await runVersionUpgrade(projectRoot, yggRoot);
 
-    // installForClaudeCode returns the agentRulesPath (.yggdrasil/agent-rules.md)
-    // after writing the import line to CLAUDE.md
-    expect(result.rulesPath).toContain('agent-rules.md');
-    await expect(stat(result.rulesPath)).resolves.toBeTruthy();
+    // installRules writes AGENTS.md (digest block) and CLAUDE.md (@AGENTS.md
+    // import) at the project root, and reports both as written this run.
+    expect(result.rulesPaths).toEqual(expect.arrayContaining(['AGENTS.md', 'CLAUDE.md']));
+    await expect(stat(path.join(projectRoot, 'AGENTS.md'))).resolves.toBeTruthy();
 
-    // CLAUDE.md is created at project root with the import line
+    const agentsMd = await readFile(path.join(projectRoot, 'AGENTS.md'), 'utf-8');
+    expect(agentsMd).toContain('<!-- yggdrasil:start -->');
     const claudeMd = await readFile(path.join(projectRoot, 'CLAUDE.md'), 'utf-8');
-    expect(claudeMd).toContain('agent-rules.md');
+    expect(claudeMd).toContain('@AGENTS.md');
 
     // The to-5.1.0 migration applies to the 4.0.0 seed: it removes the
     // schemas/ directory and the runner lands the version at 5.1.0.
@@ -72,11 +212,7 @@ describe('runVersionUpgrade', () => {
     dirsToCleanup.push(projectRoot);
     const yggRoot = await scaffoldExistingYgg(projectRoot, '5.1.0');
 
-    const result = await runVersionUpgrade(
-      projectRoot,
-      yggRoot,
-      'claude-code',
-    );
+    const result = await runVersionUpgrade(projectRoot, yggRoot);
 
     // Version must stay at 5.1.0 — no write, no false 'Migrated' action.
     const cfg = await readFile(path.join(yggRoot, 'yg-config.yaml'), 'utf-8');
@@ -86,19 +222,15 @@ describe('runVersionUpgrade', () => {
     expect(result.withheld).toBe(false);
   });
 
-  it('installs the rules file for a different platform on re-run', async () => {
+  it('is idempotent: re-running after the artifacts already exist reports nothing written', async () => {
     const projectRoot = await mkdtemp(path.join(tmpdir(), 'yg-init-upgrade-'));
     dirsToCleanup.push(projectRoot);
     const yggRoot = await scaffoldExistingYgg(projectRoot, '4.0.0');
 
-    const result = await runVersionUpgrade(
-      projectRoot,
-      yggRoot,
-      'cursor',
-    );
+    await runVersionUpgrade(projectRoot, yggRoot);
+    const second = await runVersionUpgrade(projectRoot, yggRoot);
 
-    expect(result.rulesPath).toMatch(/\.cursor[/\\]rules[/\\]yggdrasil\.mdc$/);
-    await expect(stat(result.rulesPath)).resolves.toBeTruthy();
+    expect(second.rulesPaths).toEqual([]);
   });
 
   it('writes the .gitattributes lock line during upgrade', async () => {
@@ -106,7 +238,7 @@ describe('runVersionUpgrade', () => {
     dirsToCleanup.push(projectRoot);
     const yggRoot = await scaffoldExistingYgg(projectRoot, '4.0.0');
 
-    await runVersionUpgrade(projectRoot, yggRoot, 'claude-code');
+    await runVersionUpgrade(projectRoot, yggRoot);
 
     const ga = await readFile(path.join(projectRoot, '.gitattributes'), 'utf-8');
     expect(ga).toContain(LOCK_LINE);

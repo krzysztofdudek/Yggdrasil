@@ -1,5 +1,5 @@
 export const summary =
-  'Full yg command reference: check, check --approve, context, aspect-test, drill, impact, tree, aspects, flows, find, log, owner, type-suggest, init, knowledge, schemas, simulate, structure, advise, incident, suppressions, portal';
+  'Full yg command reference: check, check --approve, context, aspect-test, drill, impact, tree, aspects, flows, find, log, owner, type-suggest, init, prime, knowledge, schemas, simulate, structure, advise, incident, suppressions, portal';
 
 export const content = `# CLI reference
 
@@ -773,39 +773,81 @@ an interactive wizard; every flag combination below also runs non-interactively
 (Docker, devcontainer, CI) — flags are authoritative, so a fully-specified
 command never opens the wizard, even from a terminal.
 
+Agent rules install identically for every agent, in one universal set,
+regardless of which agent CLI or IDE is in use: a hash-anchored digest block
+inside markers in \`AGENTS.md\`, a \`@AGENTS.md\` import line added to
+\`CLAUDE.md\` (Claude Code does not read \`AGENTS.md\` natively), and
+\`.clinerules/yggdrasil.md\` (Cline's native rules location). There is no
+platform question anymore — a fresh init always writes all three artifacts;
+on an existing repo they are refreshed only on request (see below).
+
 \`\`\`bash
-yg init                        # interactive wizard (TTY only)
+yg init                        # interactive wizard (TTY only) — asks only for the reviewer
 \`\`\`
 
 **Fresh repo (no \`.yggdrasil/\` yet):**
 
 \`\`\`bash
-yg init --platform <name>                              # keyless bootstrap — no judge configured
-yg init --platform <name> --provider <name> [--model <m>] [--endpoint <url>]   # bootstrap with a judge
+yg init --provider <name> [--model <m>] [--endpoint <url>]   # non-interactive bootstrap with a judge (Docker/devcontainer/CI)
+yg init --no-reviewer                                        # non-interactive bootstrap with NO judge
 \`\`\`
 
-\`--platform <name>\` alone scaffolds the graph and installs that platform's
-rules file with no \`reviewer:\` section at all. Script rules, dependency
-control, and the CI gate all work immediately, at zero cost and with no API
-key. Add \`--provider\` (same command, or a later \`yg init --provider ...\` on
-the now-existing repo) to configure a judge once a judgment (LLM) rule exists.
-A non-interactive run naming no \`--platform\` errors with guidance rather than
-guessing which agent platform to install.
+\`--no-reviewer\` performs a keyless universal bootstrap: it scaffolds the
+graph and installs the agent rules with no \`reviewer:\` section at all. Script
+rules, dependency control, and the CI gate all work immediately, at zero cost
+and with no API key. It is flags-authoritative like every other combination
+here — it works in a terminal and out of one alike. The interactive wizard
+offers the same choice as the last option in its provider list ("None for
+now"), and a bare non-interactive run (no \`--provider\`, no
+\`--no-reviewer\`, no TTY) takes the keyless route by itself, since there is
+nobody to prompt. Add \`--provider\` later (same command, or \`yg init
+--provider ...\` on the now-existing repo) to configure a judge once a
+judgment (LLM) rule exists.
+
+\`--no-reviewer\` is REJECTED with a guided error when combined with
+\`--provider\`/\`--model\`/\`--endpoint\` (opposite requests), with
+\`--upgrade\` (which never touches reviewer configuration), or on a repo that
+already has a \`.yggdrasil/\` — it chooses how to bootstrap a NEW project and
+never removes a reviewer an existing one configured.
 
 **Existing repo (\`.yggdrasil/\` already present):**
 
 \`\`\`bash
 yg init --provider <name> [--model <m>] [--endpoint <url>]   # configure/replace the judge
-yg init --platform <name>                                    # switch the platform rules file
-yg init --upgrade --platform <name>                          # refresh rules/platform files + .gitattributes; lift version bookkeeping
+yg init --upgrade                                             # refresh agent rules + .gitattributes; lift version bookkeeping
 \`\`\`
 
-Any combination of \`--provider\` and \`--platform\` may be given together; each
-flag applies its own operation independently (configure the judge, switch the
-platform, or both). With neither flag and a TTY, the interactive
-reconfiguration menu opens (upgrade / configure reviewer / change platform);
-with neither flag and no TTY, the command reports that there is nothing to do
-and lists the available flags rather than guessing.
+\`--upgrade\` always refreshes the three agent-rules artifacts to the
+installed CLI's current content and sweeps away every artifact a retired
+per-platform installer used to write — the CLI used to install a different
+rules file per agent (13 installers in total); \`--upgrade\` removes all of
+those legacy files, reported as "Legacy per-platform artifacts cleaned up" in
+its output. With neither \`--provider\` nor \`--upgrade\` and a TTY, the
+interactive reconfiguration menu opens (refresh agent rules / configure
+reviewer); with neither and no TTY, the command reports that there is
+nothing to do and lists the available flags rather than guessing.
+
+\`--platform <name>\` no longer selects anything, but it is still accepted
+everywhere it used to be, purely for backward compatibility, and always
+prints a deprecation notice; its value (including any of the thirteen
+retired platform names) never affects which files get written. On a FRESH
+repo that notice is the only effect — the run proceeds exactly as if the
+flag had been omitted. On an ALREADY-ADOPTED repo, though, passing
+\`--platform\` non-interactively is still what triggers the same agent-rules
+refresh it always did — deliberately, so a script that used to pass
+\`--platform x\` to refresh the rules keeps working unchanged; dropping the
+flag from such a command with no other reconfiguration flag instead reports
+there is nothing to do. \`yg init --upgrade\` is the documented,
+flag-explicit way to refresh and no longer requires \`--platform\`.
+
+On a project that requires its whole tree to be mapped (an absent
+\`coverage:\` block, or a \`coverage.required\` covering the root),
+\`--upgrade\` additionally WARNS that the root files it maintains
+(\`AGENTS.md\`, \`CLAUDE.md\`, \`.clinerules/yggdrasil.md\`,
+\`.gitattributes\`) are unmapped and will block the next \`yg check\`, and
+prints the exact \`coverage.excluded\` stanza that resolves it. It reports
+only — it never edits \`yg-config.yaml\` — so the choice between excluding
+them and mapping them to a node stays the user's.
 
 \`--provider\` on an existing repo REPLACES the entire \`reviewer:\` section — it
 writes a single \`standard\` tier from the given flags, it does not merge into
@@ -836,6 +878,31 @@ flag-based alternative to set a credential, by design.
 (\`yg-lock.*.json\`) are marked \`linguist-generated\`. Run from repository root only.
 Never from a subdirectory.
 
+## yg prime
+
+Print the full agent operating manual, fresh from the installed CLI. This is
+the canonical source of the workflow, vocabulary, and protocol every agent
+follows in a Yggdrasil-managed repository — the manual no longer lives as a
+file committed to the repository, so this is how an agent (re-)reads it at
+any point in a session. Graph-independent: works without a \`.yggdrasil/\`
+present, and always reflects the CLI version installed right now.
+
+\`\`\`bash
+yg prime            # print the full manual
+yg prime --digest   # print only the canonical committed digest block
+\`\`\`
+
+\`--digest\` prints the exact standing summary that \`yg init\` commits inside
+the \`<!-- yggdrasil:digest ... -->\` markers in \`AGENTS.md\`, and as the full
+content of \`.clinerules/yggdrasil.md\`: a short block that mandates running
+\`yg prime\` before any change, plus the handful of invariants no reviewer can
+enforce (never write a suppression without approval, never change a
+\`review_by:\` date, treat \`yg advise\`/incident actions as proposals, and so
+on). \`yg check\` compares the committed digest's hash against this canonical
+value and reports \`rules-digest-stale\` — a warning — whenever a project's
+committed digest is missing, hand-edited, from an older CLI, or duplicated;
+the fix is always \`yg init --upgrade\`.
+
 ## Validator issue codes — verification and status
 
 The validator (\`yg check\`) emits the following issue codes:
@@ -859,6 +926,7 @@ The validator (\`yg check\`) emits the following issue codes:
 | \`aspect-status-downgrade\` | error | Declared status is lower than cascade would yield (bump up OK, downgrade is error) |
 | \`implies-status-inherit-invalid\` | error | \`status_inherit:\` value not one of \`strictest\\|own-default\` |
 | \`aspect-effective-nowhere\` | warning | Dead-attach linter: an aspect that ships a rule source (\`content.md\` or \`check.mjs\`) and is not draft, yet is effective on ZERO nodes after the full cascade + every \`when\` — a rule that looks enforced but is never verified anywhere. Silent while the model has no nodes. Next: \`yg impact --aspect <id>\`; fix the attach sites / \`when\`, or set \`status: draft\` until the node/type it targets exists. |
+| \`rules-digest-stale\` | warning | The committed agent-rules digest (\`AGENTS.md\` block, \`.clinerules/yggdrasil.md\`, or the \`CLAUDE.md\` \`@AGENTS.md\` import) is missing, was hand-edited, is from an older CLI, or is duplicated. Never cached, never suppressible — recomputed live on every \`yg check\`. Next: \`yg init --upgrade\`. |
 
 For detailed semantics of status: \`yg knowledge read aspect-status\`. For the lock,
 verification, and caching: \`yg knowledge read verification-and-lock\`.

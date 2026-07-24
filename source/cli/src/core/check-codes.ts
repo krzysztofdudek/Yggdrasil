@@ -164,6 +164,16 @@ export const APPROVE_GATING_CODES = new Set<string>([
  *     a pure read-only WARNING, deliberately outside every blocking set. Absence is
  *     tolerated (no file ⇒ no warning).
  *
+ *   - rules-digest-stale — committed agent-rules digest gate (fresh-rules
+ *     distribution): AGENTS.md's digest block / .clinerules/yggdrasil.md copy /
+ *     CLAUDE.md `@AGENTS.md` import is missing, hand-modified (a body no longer
+ *     matches its own sha256 anchor), duplicated, or older than the installed
+ *     CLI's canonical digest. Computed ONLY from injected
+ *     RunCheckOptions.rulesArtifacts (the CLI boundary reads the three files and
+ *     supplies the canonical hash; core does no fs of its own). Pure read-only
+ *     warning, deliberately outside every blocking set — it never writes the
+ *     lock, changes a verdict, or gates `--approve`. Emitted by checkDigestGate.
+ *
  * (Pre-existing warnings such as `orphaned-aspect`, `high-fan-out`, and
  * `aspect-references-empty-array` follow the same convention: warning severity,
  * outside every blocking set.)

@@ -3,6 +3,17 @@ version: "5.1.0"
 quality:
   max_direct_relations: 10
 
+# This example declares no coverage.required roots, so the default applies: the WHOLE
+# tree is required and any unmapped file is a blocking error. The Yggdrasil-managed
+# agent-rules files and the gitattributes scaffold are repo plumbing, not example
+# source, so they are excluded rather than mapped to a node.
+coverage:
+  excluded:
+    - AGENTS.md
+    - CLAUDE.md
+    - .clinerules/
+    - .gitattributes
+
 reviewer:
   tiers:
     standard:

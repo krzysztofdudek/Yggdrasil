@@ -1,0 +1,26 @@
+name: Digest Gate Check
+type: engine
+description: "Validation check for the committed agent-rules digest
+  distribution (AGENTS.md's hash-anchored block, .clinerules/yggdrasil.md, and
+  the CLAUDE.md @AGENTS.md import line): a non-blocking WARNING when any of the
+  three drifts from the installed CLI's canonical digest — missing,
+  hand-modified (body no longer matches its own sha256 anchor), duplicated in
+  AGENTS.md, or older than the installed CLI. Pure function over an INJECTED
+  RulesArtifacts snapshot (core does no fs of its own); the CLI boundary reads
+  the three files and supplies the canonical hash. Not composed by the
+  validate() orchestrator — wired directly into runCheck via
+  RunCheckOptions.rulesArtifacts, the same injected seam the review-cadence
+  clock uses (and, like that clock, threaded through the fill stage so an
+  --approve run reports the same drift a plain check does). Block detection is
+  delegated to the shared marker-block scanner in utils, so this gate and the
+  installer that writes the block can never disagree about what counts as one."
+aspects: []
+relations:
+  - target: cli/core/checks/architecture
+    type: calls
+  - target: cli/model/validation
+    type: uses
+  - target: cli/utils
+    type: calls
+mapping:
+  - source/cli/src/core/checks/digest-gate.ts

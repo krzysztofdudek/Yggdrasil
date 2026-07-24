@@ -347,15 +347,22 @@ describe.skipIf(!distExists)('CLI E2E — 7-channel aspect propagation (ancestor
       expect(fill.all).toContain('no-banned-word');
       // The advisory violation renders under the Warnings section as an
       // `advisory` group (the old per-issue "(advisory — not blocking)" suffix
-      // is not emitted by the grouped renderer); the node is listed there.
-      expect(fill.all).toContain('Warnings (1):');
+      // is not emitted by the grouped renderer); the node is listed there. A
+      // second warning group (`rules-digest-stale`) is always present too —
+      // this fixture never ran `yg init`, so it carries no AGENTS.md/CLAUDE.md/
+      // .clinerules digest artifacts, and the committed-digest staleness gate
+      // flags that on every `yg check`/`yg check --approve` here. It is
+      // unrelated to the aspect under test, so we assert its presence
+      // explicitly rather than let it silently inflate the count.
+      expect(fill.all).toContain('Warnings (2) in 2 groups:');
       expect(fill.all).toContain("advisory  1 pairs  1 nodes  aspect 'no-banned-word'");
       expect(fill.all).toContain('- services/orders');
+      expect(fill.all).toContain('rules-digest-stale');
 
       // `yg check` renders it as a non-blocking warning and PASSES.
       const check = run(['check'], dir);
       expect(check.status).toBe(0);
-      expect(check.stdout).toContain('PASS (1 warning)');
+      expect(check.stdout).toContain('PASS (2 warnings)');
       expect(check.all).toContain('advisory');
       expect(check.all).toContain('no-banned-word');
     } finally {

@@ -7,8 +7,8 @@ aspect for a piece of code. Use it for known tech debt or intentional
 exceptions — not to silence valid violations you intend to fix.
 
 Authorization rules (when you may write a suppress, who approves the reason)
-live in agent-rules.md, section "yg-suppress — Inline Aspect Waiver". This
-file documents only the on-the-line syntax.
+live in the agent operating manual (\`yg prime\`), section "yg-suppress —
+Inline Aspect Waiver". This file documents only the on-the-line syntax.
 
 ## When to suppress (briefly)
 
@@ -202,7 +202,8 @@ leading comment delimiter). Only fenced blocks are recognized as inert examples.
 
 The reason text after the aspect-id is permanent. Future maintainers and
 agents will read it to understand why the waiver exists. Do not invent
-reasons — see the authorization rules in agent-rules.md.
+reasons — see the authorization rules in the agent operating manual
+(\`yg prime\`).
 
 ## Effect on verification
 

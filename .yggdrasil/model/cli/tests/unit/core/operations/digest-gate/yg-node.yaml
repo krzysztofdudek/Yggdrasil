@@ -1,0 +1,14 @@
+name: Digest Gate Unit Tests
+type: test-suite
+description: "Unit tests for the committed-digest staleness gate — silent
+  when every artifact is aligned; one grouped warning for missing / modified
+  (including a deleted or mangled anchor line) / outdated / duplicated
+  AGENTS.md blocks; case-insensitive CLAUDE.md import matching; and CRLF
+  checkouts never tripping the gate."
+aspects: []
+relations:
+  [
+    { target: cli/core/checks/digest-gate, type: uses },
+  ]
+mapping:
+  - source/cli/tests/unit/core/digest-gate.test.ts

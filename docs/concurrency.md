@@ -27,7 +27,7 @@ The local activity record is safe too: Yggdrasil keeps a small note of what each
 **Why.** A few files are natural collision points — two sessions editing one of them at once clobber each other the same way any two writers to a single file would:
 
 - the **Unreleased** section of `CHANGELOG.md`
-- the generated agent-rules file, whenever it is regenerated
+- the generated agent-rules files (`AGENTS.md`, `CLAUDE.md`, `.clinerules/yggdrasil.md`), whenever `yg init --upgrade` refreshes them
 - the graph files under `.yggdrasil/`
 - the recorded results, written by `yg check --approve`
 

@@ -5,7 +5,6 @@ import {
   mkdtempSync,
   mkdirSync,
   rmSync,
-  readFileSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -16,12 +15,12 @@ import { fileURLToPath } from 'node:url';
 // Hermetic E2E — INSTALLER MATRIX & CONFIG remaining paths through the spawned
 // binary (dist/bin.js). Two live domains, none overlapping the existing suites:
 //
-//   GROUP P — the `yg init --upgrade --platform <x>` installer matrix for the
-//     seven platforms NOT already driven through the real binary by
-//     cli-greenfield-init (generic/cursor/codex/opencode/amp/claude-code) or
-//     cli-migrations (generic only): copilot, cline, roocode, windsurf, aider,
-//     gemini, codebuddy. Each writes its rules file to the path contracted in
-//     src/templates/platform.ts.
+//   GROUP P — DELETED. The seven-platform installer matrix this group covered
+//     (copilot, cline, roocode, windsurf, aider, gemini, codebuddy — each with
+//     its own rules path/co-write contract) is retired surface: every platform
+//     now installs the SAME universal artifacts. See the deletion note where
+//     the group stood; the surviving "every retired name still works, with a
+//     notice" coverage lives in cli-lifecycle.test.ts.
 //
 //   GROUP M — DELETED. The v4 → v5 migration edges this group covered (config
 //     bare/multi-provider→tiers transform, aspect reviewer string/mapping
@@ -72,23 +71,13 @@ function run(
   return { stdout, stderr, status: result.status, all: stdout + stderr };
 }
 
-/**
- * A bare repo for the --upgrade path: just .yggdrasil/yg-config.yaml carrying a
- * version field (the minimum --upgrade needs to detect a version and refresh
- * rules). No nodes, no architecture. Mirrors bareUpgradeRepo from
- * cli-greenfield-init.
- */
-function bareUpgradeRepo(label: string): string {
-  const dir = mkdtempSync(path.join(tmpdir(), `yg-mcx-${label}-`));
-  const yggRoot = path.join(dir, '.yggdrasil');
-  mkdirSync(yggRoot, { recursive: true });
-  writeFileSync(path.join(yggRoot, 'yg-config.yaml'), 'version: "5.1.0"\n', 'utf-8');
-  return dir;
-}
-
-// (makeV4Layout / configPath helpers removed with GROUP M — the v4→v5 migration
-// edges they served are deleted surface; the surviving GROUP P/C tests use
-// bareUpgradeRepo / scaffoldCheck instead.)
+// (bareUpgradeRepo — the bare --upgrade fixture helper GROUP P used — removed
+// along with GROUP P itself: the retired per-platform installer matrix was its
+// only caller in this file. Its "every retired platform name still works"
+// replacement coverage in cli-lifecycle.test.ts keeps its own copy. makeV4Layout
+// / configPath were likewise removed with GROUP M — the v4→v5 migration edges
+// they served are deleted surface. The surviving GROUP C tests use
+// scaffoldCheck instead.)
 
 /**
  * Scaffold a structurally-complete, fully-hermetic graph (config + architecture
@@ -145,121 +134,23 @@ const VALID_TIER = [
 
 describe.skipIf(!distExists)('CLI E2E — migrations & config remaining paths (platform matrix, migration edges, coercion edges)', () => {
   // =========================================================================
-  // GROUP P — platform installer matrix (the seven not E2E-covered elsewhere).
-  // Each asserts: exit 0, the "Rules refreshed: <path>" line names the
-  // platform's rules path, the file lands on disk, and (where it matters)
-  // whether the shared .yggdrasil/agent-rules.md is co-written.
+  // GROUP P — DELETED: per-platform installer matrix.
   // =========================================================================
-
-  it('P1: --platform copilot writes .github/copilot-instructions.md with the yggdrasil block', () => {
-    const dir = bareUpgradeRepo('copilot');
-    try {
-      const { status, stdout } = run(['init', '--upgrade', '--platform', 'copilot'], dir);
-      expect(status).toBe(0);
-      expect(stdout).toContain('.github/copilot-instructions.md');
-      const filePath = path.join(dir, '.github', 'copilot-instructions.md');
-      expect(existsSync(filePath)).toBe(true);
-      // copilot embeds the rules inside delimited markers (not an @import line).
-      const content = readFileSync(filePath, 'utf-8');
-      expect(content).toContain('<!-- yggdrasil:start -->');
-      expect(content).toContain('<!-- yggdrasil:end -->');
-      // It does NOT co-write the shared agent-rules.md (rules are inlined).
-      expect(existsSync(path.join(dir, '.yggdrasil', 'agent-rules.md'))).toBe(false);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  it('P2: --platform cline writes .clinerules/yggdrasil.md', () => {
-    const dir = bareUpgradeRepo('cline');
-    try {
-      const { status, stdout } = run(['init', '--upgrade', '--platform', 'cline'], dir);
-      expect(status).toBe(0);
-      expect(stdout).toContain('.clinerules/yggdrasil.md');
-      expect(existsSync(path.join(dir, '.clinerules', 'yggdrasil.md'))).toBe(true);
-      expect(existsSync(path.join(dir, '.yggdrasil', 'agent-rules.md'))).toBe(false);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  it('P3: --platform roocode writes .roo/rules/yggdrasil.md', () => {
-    const dir = bareUpgradeRepo('roocode');
-    try {
-      const { status, stdout } = run(['init', '--upgrade', '--platform', 'roocode'], dir);
-      expect(status).toBe(0);
-      expect(stdout).toContain('.roo/rules/yggdrasil.md');
-      expect(existsSync(path.join(dir, '.roo', 'rules', 'yggdrasil.md'))).toBe(true);
-      expect(existsSync(path.join(dir, '.yggdrasil', 'agent-rules.md'))).toBe(false);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  it('P4: --platform windsurf writes .windsurf/rules/yggdrasil.md', () => {
-    const dir = bareUpgradeRepo('windsurf');
-    try {
-      const { status, stdout } = run(['init', '--upgrade', '--platform', 'windsurf'], dir);
-      expect(status).toBe(0);
-      expect(stdout).toContain('.windsurf/rules/yggdrasil.md');
-      expect(existsSync(path.join(dir, '.windsurf', 'rules', 'yggdrasil.md'))).toBe(true);
-      expect(existsSync(path.join(dir, '.yggdrasil', 'agent-rules.md'))).toBe(false);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  it('P5: --platform aider writes .aider.conf.yml read-entry AND .yggdrasil/agent-rules.md', () => {
-    const dir = bareUpgradeRepo('aider');
-    try {
-      const { status, stdout } = run(['init', '--upgrade', '--platform', 'aider'], dir);
-      expect(status).toBe(0);
-      // aider's rules path is the shared agent-rules.md (the conf file only points at it).
-      expect(stdout).toContain('.yggdrasil/agent-rules.md');
-      const conf = path.join(dir, '.aider.conf.yml');
-      expect(existsSync(conf)).toBe(true);
-      const content = readFileSync(conf, 'utf-8');
-      expect(content).toContain('read:');
-      expect(content).toContain('.yggdrasil/agent-rules.md');
-      // aider DOES co-write the shared rules file (the conf references it).
-      expect(existsSync(path.join(dir, '.yggdrasil', 'agent-rules.md'))).toBe(true);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  it('P6: --platform gemini writes GEMINI.md (@import) AND .yggdrasil/agent-rules.md', () => {
-    const dir = bareUpgradeRepo('gemini');
-    try {
-      const { status, stdout } = run(['init', '--upgrade', '--platform', 'gemini'], dir);
-      expect(status).toBe(0);
-      expect(stdout).toContain('.yggdrasil/agent-rules.md');
-      const gemini = path.join(dir, 'GEMINI.md');
-      expect(existsSync(gemini)).toBe(true);
-      // gemini references the shared rules via an @import line.
-      expect(readFileSync(gemini, 'utf-8')).toContain('@.yggdrasil/agent-rules.md');
-      expect(existsSync(path.join(dir, '.yggdrasil', 'agent-rules.md'))).toBe(true);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  it('P7: --platform codebuddy writes .codebuddy/rules/yggdrasil/RULE.mdc with frontmatter', () => {
-    const dir = bareUpgradeRepo('codebuddy');
-    try {
-      const { status, stdout } = run(['init', '--upgrade', '--platform', 'codebuddy'], dir);
-      expect(status).toBe(0);
-      expect(stdout).toContain('.codebuddy/rules/yggdrasil/RULE.mdc');
-      const filePath = path.join(dir, '.codebuddy', 'rules', 'yggdrasil', 'RULE.mdc');
-      expect(existsSync(filePath)).toBe(true);
-      // codebuddy's RULE.mdc carries an alwaysApply frontmatter header.
-      expect(readFileSync(filePath, 'utf-8')).toContain('alwaysApply: true');
-      // It does NOT co-write the shared agent-rules.md (rules are inlined).
-      expect(existsSync(path.join(dir, '.yggdrasil', 'agent-rules.md'))).toBe(false);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
+  // The thirteen per-platform installers (and their distinct rules paths —
+  // .github/copilot-instructions.md, .clinerules/yggdrasil.md, .roo/rules/,
+  // .windsurf/rules/, .aider.conf.yml + shared agent-rules.md, GEMINI.md
+  // @import + shared agent-rules.md, .codebuddy/rules/.../RULE.mdc, ...) are
+  // RETIRED. `installRules()` now writes the SAME three universal artifacts
+  // (AGENTS.md digest block + CLAUDE.md @AGENTS.md import +
+  // .clinerules/yggdrasil.md) regardless of `--platform`, which is accepted
+  // only for backward compatibility and otherwise prints a deprecation notice.
+  // Every test in this group asserted a platform-distinct rules path or
+  // co-write decision that no longer exists, so all seven are deleted. The
+  // "every retired platform name still works, with a notice, producing the
+  // universal artifacts" contract is covered once, for the full name list, by
+  // cli-lifecycle.test.ts's `init --upgrade --platform %s ...` matrix; the
+  // fresh/prior-installation/CRLF/duplicated-block states of the universal
+  // install itself are covered by cli-universal-install.test.ts (E1-E9, E12).
 
   // =========================================================================
   // GROUP M — DELETED: v4 → v5 migration edges.

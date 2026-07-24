@@ -42,12 +42,22 @@ function run(
 describe.skipIf(!distExists)('CLI E2E — lifecycle (log, aspect-test, platform, init)', () => {
   // --- platform installation (black-box: drive `yg init --upgrade --platform <x>`) ---
   //
-  // `init --upgrade --platform <x>` is NON-interactive (no TTY needed) and refreshes
-  // the rules file for that platform on an existing graph. Each case seeds a tmpDir
-  // with a minimal valid .yggdrasil/yg-config.yaml, spawns the real binary, asserts
-  // a clean exit, and asserts the platform's expected rules file(s) landed on disk —
-  // the same install surface the old direct-import tests covered, now exercised purely
-  // as a black box through the public CLI (no import of the internal install module).
+  // Per-platform installers are RETIRED: every agent now reads the SAME three
+  // universal artifacts (AGENTS.md digest block + CLAUDE.md @AGENTS.md import
+  // + .clinerules/yggdrasil.md), installed identically regardless of platform.
+  // `--platform <x>` is still ACCEPTED for every one of the thirteen retired
+  // names, purely for backward compatibility — it prints a deprecation notice
+  // and otherwise changes nothing about what gets installed. Each case below
+  // seeds a tmpDir with a minimal valid .yggdrasil/yg-config.yaml, spawns the
+  // real binary, and asserts a clean exit, the notice, and the SAME universal
+  // artifacts on disk — the same "no import of the internal install module"
+  // black-box discipline the old per-platform matrix followed.
+  //
+  // DEPRECATED_PLATFORM_NAMES below is a hand-maintained MIRROR of
+  // `DEPRECATED_PLATFORMS` in src/templates/platform.ts — an e2e test must
+  // not import src/** (the enforced e2e-public-surface rule), so it cannot
+  // read the list itself. Keep the two in sync by hand when a name is added
+  // or removed there.
 
   /** Seed a tmpDir with a minimal upgradeable graph and return it. Caller owns cleanup. */
   function upgradeableRepo(label: string): string {
@@ -57,30 +67,27 @@ describe.skipIf(!distExists)('CLI E2E — lifecycle (log, aspect-test, platform,
     return dir;
   }
 
-  // [platform id, relative paths every install of that platform must produce]
-  const PLATFORM_CASES: ReadonlyArray<readonly [string, readonly string[]]> = [
-    ['cursor', ['.cursor/rules/yggdrasil.mdc']],
-    ['cline', ['.clinerules/yggdrasil.md']],
-    ['claude-code', ['CLAUDE.md', '.yggdrasil/agent-rules.md']],
-    ['copilot', ['.github/copilot-instructions.md']],
-    ['windsurf', ['.windsurf/rules/yggdrasil.md']],
-    ['aider', ['.aider.conf.yml', '.yggdrasil/agent-rules.md']],
-    ['gemini', ['GEMINI.md', '.yggdrasil/agent-rules.md']],
-    ['roocode', ['.roo/rules/yggdrasil.md']],
-    ['codex', ['AGENTS.md']],
-    ['generic', ['.yggdrasil/agent-rules.md']],
+  // Every retired per-platform name, still accepted for backward compatibility.
+  const DEPRECATED_PLATFORM_NAMES = [
+    'cursor', 'claude-code', 'copilot', 'cline', 'roocode', 'codex',
+    'windsurf', 'aider', 'gemini', 'amp', 'opencode', 'codebuddy', 'generic',
   ];
 
-  it.each(PLATFORM_CASES)(
-    'init --upgrade --platform %s installs its rules file(s) (exit 0)',
-    (platform, expectedPaths) => {
+  it.each(DEPRECATED_PLATFORM_NAMES)(
+    'init --upgrade --platform %s prints a deprecation notice and installs the universal artifacts (exit 0)',
+    (platform) => {
       const tmpDir = upgradeableRepo(platform);
       try {
-        const { status } = run(['init', '--upgrade', '--platform', platform], tmpDir);
+        const { status, stdout } = run(['init', '--upgrade', '--platform', platform], tmpDir);
         expect(status).toBe(0);
-        for (const rel of expectedPaths) {
-          expect(existsSync(path.join(tmpDir, ...rel.split('/')))).toBe(true);
-        }
+        expect(stdout).toContain(`--platform ${platform} is deprecated and was ignored`);
+        expect(existsSync(path.join(tmpDir, 'AGENTS.md'))).toBe(true);
+        expect(existsSync(path.join(tmpDir, 'CLAUDE.md'))).toBe(true);
+        expect(existsSync(path.join(tmpDir, '.clinerules', 'yggdrasil.md'))).toBe(true);
+        // No platform-specific artifact ever lands — e.g. cursor's old
+        // .cursor/rules/yggdrasil.mdc, or the shared .yggdrasil/agent-rules.md.
+        expect(existsSync(path.join(tmpDir, '.cursor', 'rules', 'yggdrasil.mdc'))).toBe(false);
+        expect(existsSync(path.join(tmpDir, '.yggdrasil', 'agent-rules.md'))).toBe(false);
       } finally {
         rmSync(tmpDir, { recursive: true, force: true });
       }
@@ -223,11 +230,14 @@ describe.skipIf(!distExists)('CLI E2E — lifecycle (log, aspect-test, platform,
 
   // --- init edge cases ---
 
-  it('yg init --upgrade without --platform returns exit 1', () => {
-    const { status, stderr } = run(['init', '--upgrade']);
-    expect(status).toBe(1);
-    expect(stderr).toContain('--upgrade requires --platform');
-  });
+  // Retired: `yg init --upgrade` with no `--platform` used to be rejected —
+  // that guard is gone (--platform is fully optional everywhere now, see the
+  // deprecation-notice matrix above). A bare `--upgrade` on a repo whose
+  // config carries a version now either upgrades cleanly or refreshes the
+  // universal artifacts, already covered by "bare init --upgrade scaffolds
+  // the universal artifacts on a bare repo (exit 0)" in
+  // cli-greenfield-init.test.ts and the deprecation-notice matrix above — no
+  // replacement case is added here.
 
   it('yg init --upgrade without .yggdrasil returns exit 1', () => {
     const emptyDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-init-no-ygg-'));

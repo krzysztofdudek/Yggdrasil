@@ -5,10 +5,12 @@ quality:
 
 # The pipeline source lives under src/. The README is documentation, not code, so
 # scope the coverage gate to src/ (where uncovered code is an error) and mark the
-# docs root silent. This keeps a keyless clone green out of the box.
+# docs root silent. This keeps a keyless clone green out of the box. The
+# Yggdrasil-managed agent-rules files and the gitattributes scaffold are repo
+# plumbing, not example source, so they are excluded too rather than mapped.
 coverage:
   required: ["src"]
-  excluded: ["README.md"]
+  excluded: ["README.md", "AGENTS.md", "CLAUDE.md", ".clinerules/", ".gitattributes"]
 
 # This example is fully KEYLESS: its only aspect is deterministic, so no reviewer
 # is ever contacted. The CLI still requires a reviewer section for future LLM

@@ -5,6 +5,7 @@ import { loadGraph } from '../../src/core/graph-loader.js';
 import { runCheck, type CheckResult } from '../../src/core/check.js';
 import { computeExpectedPairs, type ExpectedPair } from '../../src/core/pairs.js';
 import { walkRepoFiles } from '../../src/io/repo-scanner.js';
+import { readRulesArtifacts } from '../../src/cli/rules-artifacts.js';
 import { extractPortalData, buildCounts } from '../../src/portal/extract.js';
 import {
   computePortalBoundary,
@@ -25,6 +26,14 @@ const REPO_ROOT = path.resolve(__dirname, '../../../..');
 // repo graph: this is an integration test against a real .yggdrasil/ + real source.
 // runCheck over the whole repo (parse + relation pass) is heavy, so the extraction and
 // the independent recomputation are each done once and shared.
+//
+// The independent recomputation calls runCheck with the SAME boundary inputs the
+// `yg check` CLI boundary passes (CHECK_BOUNDARY_OPTIONS below), not with none. That
+// distinction is load-bearing: core SKIPS a boundary-injected check outright when its
+// input is absent, so an oracle built from a bare runCheck silently agrees with a portal
+// that forgot to inject the same input — the two would match at zero, and the whole class
+// of "the portal shows fewer warnings than the command line" would pass unnoticed. The
+// oracle must be the CLI boundary, not a subset of it.
 
 describe('portal extraction — count parity with yg check (the trust core)', () => {
   let data: PortalData;
@@ -44,10 +53,15 @@ describe('portal extraction — count parity with yg check (the trust core)', ()
   beforeAll(async () => {
     data = await extractPortalData(REPO_ROOT, { writeEnabled: false });
 
-    // Independent recomputation via the SAME read-only functions the portal reuses.
+    // Independent recomputation via the SAME read-only functions the portal reuses, driven
+    // with the CLI boundary's OWN option set (see the note above) so an input the portal
+    // fails to inject shows up as a mismatch instead of matching a matching omission.
     const graph = await loadGraph(REPO_ROOT);
     const gitFiles = await walkRepoFiles(REPO_ROOT);
-    const check = await runCheck(graph, gitFiles);
+    const check = await runCheck(graph, gitFiles, {
+      nowUtc: () => new Date(),
+      rulesArtifacts: await readRulesArtifacts(REPO_ROOT),
+    });
     const expected = await computeExpectedPairs(graph);
 
     errors = check.issues.filter((i) => i.severity === 'error').length;

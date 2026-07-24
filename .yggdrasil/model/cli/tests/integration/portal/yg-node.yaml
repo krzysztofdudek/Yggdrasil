@@ -83,6 +83,8 @@ relations:
     type: uses
   - target: cli/commands/structure
     type: uses
+  - target: cli/rules-artifacts
+    type: uses
 mapping:
   - source/cli/tests/integration/portal-extract.test.ts
   - source/cli/tests/integration/portal-derive-nodes.test.ts

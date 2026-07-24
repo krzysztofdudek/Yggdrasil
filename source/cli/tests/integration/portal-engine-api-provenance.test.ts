@@ -11,6 +11,7 @@ import {
   computePortalFreshness,
   runPortalCheck,
 } from '../../src/portal/engine-api.js';
+import { readRulesArtifacts } from '../../src/cli/rules-artifacts.js';
 import type { LockFile } from '../../src/model/lock.js';
 
 /**
@@ -233,7 +234,7 @@ describe('runPortalCheck — parity with `yg check` on the review-cadence signal
     writeFileSync(aspectYaml, readFileSync(aspectYaml, 'utf-8') + '\nreview_by: "2020-01-01"\n');
     const graph = await loadGraph(root);
 
-    const portalResult = await runPortalCheck(graph, []);
+    const portalResult = await runPortalCheck(graph, [], () => new Date());
     const overduePortal = portalResult.issues.filter((i) => i.code === 'aspect-review-overdue');
     expect(overduePortal.length).toBeGreaterThan(0);
 
@@ -246,5 +247,35 @@ describe('runPortalCheck — parity with `yg check` on the review-cadence signal
     // proving the portal's warnings come from the injected clock, not from runCheck by default.
     const noClock = await runCheck(graph, []);
     expect(noClock.issues.some((i) => i.code === 'aspect-review-overdue')).toBe(false);
+  });
+
+  it('surfaces rules-digest-stale warnings (portal injects the committed rules files like the CLI)', async () => {
+    // Same class of defect as the clock above, one input over: core skips the committed-digest
+    // staleness gate whenever the rules-artifacts snapshot is absent, so a facade that does not
+    // read those files renders a project with a drifted or absent agent-rules install as CLEAN
+    // while `yg check` warns about it — the browser surface reading greener than the command
+    // line. portal-basic ships no AGENTS.md / CLAUDE.md / .clinerules at all, so the gate has a
+    // real finding to make here.
+    const graph = await loadGraph(BASIC_FIXTURE);
+
+    const portalResult = await runPortalCheck(graph, [], () => new Date());
+    const stalePortal = portalResult.issues.filter((i) => i.code === 'rules-digest-stale');
+    expect(stalePortal.length).toBeGreaterThan(0);
+
+    // Oracle: the CLI boundary reads the artifacts through the SAME shared reader and injects
+    // them; the portal must match it exactly.
+    const cliResult = await runCheck(graph, [], {
+      rulesArtifacts: await readRulesArtifacts(BASIC_FIXTURE),
+    });
+    const staleCli = cliResult.issues.filter((i) => i.code === 'rules-digest-stale');
+    expect(stalePortal.length).toBe(staleCli.length);
+
+    // Guard against a self-referential oracle: with NO snapshot, core skips the gate entirely —
+    // proving the portal's warning comes from the injected artifacts, not from runCheck's default.
+    const noArtifacts = await runCheck(graph, []);
+    expect(noArtifacts.issues.some((i) => i.code === 'rules-digest-stale')).toBe(false);
+
+    // And the warning is non-blocking: it never turns into an error on either surface.
+    expect(stalePortal.every((i) => i.severity === 'warning')).toBe(true);
   });
 });

@@ -141,7 +141,7 @@ describe('feature-field index — real pass, byproduct-free elsewhere, best-effo
 
   it('the portal check writes NO index (byproduct-free call site)', async () => {
     const graph = await loadGraph(root);
-    await runPortalCheck(graph, []);
+    await runPortalCheck(graph, [], () => new Date());
     expect(existsSync(indexAbs())).toBe(false);
   });
 

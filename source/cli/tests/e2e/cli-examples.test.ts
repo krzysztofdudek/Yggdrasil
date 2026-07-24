@@ -14,11 +14,16 @@
 // either: the relation example is green on plain `yg check`, and the
 // deterministic examples reach green via the FREE, keyless
 // `yg check --approve --only-deterministic` fill (no reviewer, no network).
+//
+// NO module under source/cli/src/** is imported anywhere in this file. The
+// expected canonical digest hash (E11 below) is obtained by spawning
+// `yg prime --digest` — the same public command an adopter would run — never
+// by importing the template that generates it.
 // =============================================================================
 
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -28,12 +33,57 @@ const REPO_ROOT = path.join(CLI_ROOT, '..', '..');       // repo root
 const BIN_PATH = path.join(CLI_ROOT, 'dist', 'bin.js');
 const distExists = existsSync(BIN_PATH);
 
+/** Digest anchor line format — `<!-- yggdrasil:digest cli=<version>
+ *  sha256=<hex> -->` — a stable, documented part of the committed-artifact
+ *  contract: it is visible verbatim in AGENTS.md, .clinerules/yggdrasil.md,
+ *  and `yg prime --digest` output. Hand-duplicated here rather than imported
+ *  from templates/digest.js (mirrors cli-universal-install.test.ts). */
+const ANCHOR_RE = /<!-- yggdrasil:digest cli=(?<cli>[^ ]+) sha256=(?<sha256>[0-9a-f]{64}) -->/;
+
+// Every shipped example project, for the E11 universal-install check below.
+// Derived by listing examples/ and keeping only entries that carry a
+// .yggdrasil/ directory (i.e. are actual Yggdrasil-managed projects, not
+// stray files like README.md) — so a newly-added example is picked up
+// automatically instead of silently going uncovered by a hardcoded list.
+function listExampleDirs(): string[] {
+  const examplesRoot = path.join(REPO_ROOT, 'examples');
+  return readdirSync(examplesRoot, { withFileTypes: true })
+    .filter((e) => e.isDirectory())
+    .map((e) => e.name)
+    .filter((name) => existsSync(path.join(examplesRoot, name, '.yggdrasil')))
+    .sort();
+}
+const ALL_EXAMPLES = listExampleDirs();
+
 function ygCheck(exampleDir: string): { all: string; status: number | null } {
   const r = spawnSync('node', [BIN_PATH, 'check'], {
     cwd: path.join(REPO_ROOT, 'examples', exampleDir),
     encoding: 'utf-8',
   });
   return { all: (r.stdout ?? '') + (r.stderr ?? ''), status: r.status };
+}
+
+/**
+ * The canonical digest hash, obtained by spawning `yg prime --digest` (the
+ * public command) rather than importing the template that generates it.
+ * `prime --digest` does no project I/O, so CLI_ROOT works fine as `cwd`.
+ * Memoized — every case in this file targets the same build.
+ */
+let cachedCanonicalSha256: string | undefined;
+function canonicalDigestSha256(): string {
+  if (!cachedCanonicalSha256) {
+    const r = spawnSync('node', [BIN_PATH, 'prime', '--digest'], { cwd: CLI_ROOT, encoding: 'utf-8' });
+    if (r.status !== 0) {
+      throw new Error(`yg prime --digest failed unexpectedly (exit ${r.status}): ${(r.stdout ?? '') + (r.stderr ?? '')}`);
+    }
+    const anchorLine = (r.stdout ?? '').split('\n', 1)[0];
+    const m = anchorLine.match(ANCHOR_RE);
+    if (!m?.groups?.sha256) {
+      throw new Error(`yg prime --digest produced an unrecognized anchor line: ${anchorLine}`);
+    }
+    cachedCanonicalSha256 = m.groups.sha256;
+  }
+  return cachedCanonicalSha256;
 }
 
 // Free, keyless deterministic fill: runs the example's check.mjs locally and
@@ -83,6 +133,34 @@ describe.skipIf(!distExists)('CLI E2E — shipped examples are valid + reproduci
       const r = ygCheck(name);
       expect(r.status).toBe(0);
       expect(r.all).toContain('yg check: PASS');
+    });
+  }
+
+  // --- E11: every shipped example carries the CURRENT universal install ---
+  //
+  // The thirteen per-platform installers are retired; every example project
+  // must now carry the SAME three artifacts (AGENTS.md digest block matching
+  // the installed CLI's canonical hash, a CLAUDE.md @AGENTS.md import, and
+  // .clinerules/yggdrasil.md), and `yg check` must never flag them stale or
+  // uncovered. This goes green only once the examples are regenerated under
+  // the new install (a later task in this series) — until then it documents
+  // the target state, kept in its own per-example `it` so a red E11 case
+  // never masks this file's other (currently green) assertions.
+  for (const name of ALL_EXAMPLES) {
+    it(`examples/${name} — carries the universal install artifacts, and yg check never flags them stale or uncovered (E11)`, () => {
+      const dir = path.join(REPO_ROOT, 'examples', name);
+      expect(existsSync(path.join(dir, 'AGENTS.md'))).toBe(true);
+      expect(existsSync(path.join(dir, 'CLAUDE.md'))).toBe(true);
+      expect(existsSync(path.join(dir, '.clinerules', 'yggdrasil.md'))).toBe(true);
+
+      const agents = readFileSync(path.join(dir, 'AGENTS.md'), 'utf-8');
+      expect(agents).toMatch(ANCHOR_RE);
+      expect(agents.match(ANCHOR_RE)?.groups?.sha256).toBe(canonicalDigestSha256());
+
+      const r = ygCheck(name);
+      expect(r.all).not.toContain('rules-digest-stale');
+      expect(r.all).not.toContain('unmapped-files');
+      expect(r.all).not.toContain('uncovered-advisory');
     });
   }
 });

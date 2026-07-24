@@ -2,8 +2,10 @@ import { describe, it, expect } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { mkdtemp, cp, rm, writeFile, readFile, readdir, mkdir } from 'node:fs/promises';
+import { mkdtemp, cp, rm, writeFile, readFile, readdir, mkdir, appendFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
+import { digestBlockBody } from '../../../src/templates/digest.js';
+import { YGGDRASIL_START, YGGDRASIL_END } from '../../../src/templates/platform.js';
 
 /** Strip ANSI color codes so block counting / substring matching is stable. */
 function stripAnsi(s: string): string {
@@ -50,6 +52,28 @@ async function withFixtureCopy<T>(fn: (cwd: string) => Promise<T>): Promise<T> {
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+}
+
+/**
+ * Write AGENTS.md / CLAUDE.md / .clinerules/yggdrasil.md at `cwd`, all ALIGNED
+ * with the running CLI's canonical digest (built from the real templates, not
+ * hand-copied text), so the committed-digest staleness gate stays silent for
+ * tests whose focus is unrelated to it. Since these fixtures ship no coverage
+ * mapping for the three files, also excludes them from the graph's coverage
+ * scan (appended to yg-config.yaml) — otherwise they would surface as a
+ * SEPARATE unmapped-files error, trading one unrelated issue for another.
+ */
+async function writeAlignedDigestFiles(cwd: string): Promise<void> {
+  const body = digestBlockBody('0.0.0-test'); // the `cli=` token is never compared
+  await writeFile(path.join(cwd, 'AGENTS.md'), `${YGGDRASIL_START}\n${body}${YGGDRASIL_END}\n`, 'utf-8');
+  await writeFile(path.join(cwd, 'CLAUDE.md'), '@AGENTS.md\n', 'utf-8');
+  await mkdir(path.join(cwd, '.clinerules'), { recursive: true });
+  await writeFile(path.join(cwd, '.clinerules', 'yggdrasil.md'), body, 'utf-8');
+  await appendFile(
+    path.join(cwd, '.yggdrasil', 'yg-config.yaml'),
+    '\ncoverage:\n  required: ["/"]\n  excluded: ["AGENTS.md", "CLAUDE.md", ".clinerules/"]\n',
+    'utf-8',
+  );
 }
 
 describe('check command', () => {
@@ -369,6 +393,7 @@ describe('check command', () => {
 
     it('--top 99 → all 2 groups shown (4 total errors), no crash, exit 1', async () => {
       await withFixtureCopy(async (cwd) => {
+        await writeAlignedDigestFiles(cwd);
         const result = spawnSync('node', [BIN_PATH, 'check', '--top', '99'], { cwd, encoding: 'utf-8' });
         expect(result.status).toBe(1);
         const out = stripAnsi(result.stdout);
@@ -436,6 +461,10 @@ describe('check command', () => {
           'node_types:\n  module:\n    description: \'Organizational grouping.\'\n', 'utf-8');
         await writeFile(path.join(ygg, 'model', 'core', 'yg-node.yaml'),
           'name: core\ntype: module\ndescription: An organizational node with no mapping.\n', 'utf-8');
+        // Keep the committed-digest staleness gate silent too, so this stays a
+        // TRUE zero-issue fixture: aligned artifacts, and excluded from the
+        // (otherwise whole-repo-required) coverage scan since nothing maps them.
+        await writeAlignedDigestFiles(root);
 
         const result = spawnSync('node', [BIN_PATH, 'check', '--top', '1'], { cwd: root, encoding: 'utf-8' });
         expect(result.status).toBe(0);
@@ -499,8 +528,14 @@ describe('check command', () => {
         });
         // Banner on stderr only.
         expect(result.stderr).toContain("auto-approve: full — bare 'yg check' will call the reviewer.");
-        // Header on stdout marks the auto-fill.
-        expect(stripAnsi(result.stdout)).toContain('PASS (auto-filled)');
+        // Header on stdout marks the auto-fill. The fixture repo carries no
+        // agent-rules install, so the committed-digest gate contributes exactly
+        // one warning — and it must surface on the FILL path just as it does on
+        // the plain read. (Regression: the fill stage once dropped the gate's
+        // injected snapshot, so the same repo printed one fewer warning under a
+        // fill than under `yg check`.)
+        expect(stripAnsi(result.stdout)).toContain('PASS (auto-filled, 1 warning)');
+        expect(stripAnsi(result.stdout)).toContain('rules-digest-stale');
         // Banner must NOT appear in stdout.
         expect(result.stdout).not.toContain("auto-approve: full");
       });
@@ -515,8 +550,10 @@ describe('check command', () => {
         });
         // No banner — deterministic fill is free, no reviewer cost.
         expect(result.stderr).not.toContain("auto-approve: full");
-        // Header still marks the auto-fill.
-        expect(stripAnsi(result.stdout)).toContain('PASS (auto-filled)');
+        // Header still marks the auto-fill, and the committed-digest gate's
+        // warning reaches the deterministic fill path too (see above).
+        expect(stripAnsi(result.stdout)).toContain('PASS (auto-filled, 1 warning)');
+        expect(stripAnsi(result.stdout)).toContain('rules-digest-stale');
       });
     });
 

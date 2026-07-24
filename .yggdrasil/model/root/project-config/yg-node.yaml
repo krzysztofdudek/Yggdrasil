@@ -5,6 +5,7 @@ aspects: []
 relations: []
 mapping:
   - .claude/
+  - .clinerules/
   - .devcontainer/
   - .editorconfig
   - .gitattributes

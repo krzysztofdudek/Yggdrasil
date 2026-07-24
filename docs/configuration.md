@@ -4,12 +4,12 @@ title: Configuration
 
 Config file: `.yggdrasil/yg-config.yaml`
 
-`yg init` creates this file. `yg init --platform <name>` (with no `--provider`)
+`yg init` creates this file. A bare, non-interactive `yg init` (no `--provider`)
 writes it with no `reviewer:` section at all — a keyless, script-only start.
 A reviewer is configured separately, interactively or via `--provider [--model]
 [--endpoint]`, whenever the graph gains its first judgment (LLM) rule.
 `yg init --upgrade` lifts the graph's config version to the current one and
-refreshes the rules and platform files.
+refreshes the agent-rules files.
 
 ---
 
@@ -212,6 +212,17 @@ Controls which git-tracked files must be mapped to a node in `yg check`.
 - **`required`** — List of roots. Files under a required root that are not mapped to any node produce an `unmapped-files` error (blocks CI). Default: `["/"]` (the whole repo — reproduces the previous always-map-everything behavior). An explicit empty list `[]` means **require nothing** — every uncovered file (outside `excluded`/nested) becomes a non-blocking `uncovered-advisory` warning and nothing blocks (pure-advisory adoption: you still see the full uncovered surface, but CI stays green on coverage). The empty list only takes effect when written explicitly; omitting the whole `coverage` block keeps the `["/"]` default. `yg init` writes an explicit `required: []` into a fresh `yg-config.yaml`, so newly-initialized projects start in require-nothing mode (green from the first check) — add roots as you bring areas under enforcement.
 - **`excluded`** — List of roots. Files under an excluded root are silently ignored regardless of other rules.
 - **Roots accept the same forms as a node `mapping:` entry** — an exact file, a directory prefix (e.g. `src/`), or a [minimatch](https://github.com/isaacs/minimatch) glob (`*` within a path segment, `**` across segments). So `excluded: ["**/*.generated.ts"]` ignores generated files anywhere, and `required: ["services/*/api/**"]` scopes the blocking tier to a pattern. `/` still means the whole repo.
+- **The files Yggdrasil maintains at your repo root count like any other.** `yg init` writes and keeps up to date `AGENTS.md`, `CLAUDE.md`, `.clinerules/yggdrasil.md` and a `.gitattributes` entry. Under a whole-repo `required` (including the absent-block default) they are unmapped files like any other, so they become blocking errors the moment `yg init --upgrade` adds them to an existing project. They are repository plumbing rather than project source — the usual answer is to exclude them (`yg init --upgrade` prints this stanza whenever it applies to your project, and never edits the file itself), though mapping them to a node works equally well:
+
+  ```yaml
+  coverage:
+    excluded:
+      - AGENTS.md
+      - CLAUDE.md
+      - .clinerules/
+      - .gitattributes
+  ```
+
 - Files that match neither a required nor an excluded root produce a non-blocking `uncovered-advisory` warning.
 - Subtrees that contain their own nested `.yggdrasil/` are auto-skipped by all repo-walking checks — they are governed by their own graph, not the root graph.
 
@@ -298,15 +309,17 @@ nothing. The number and its justification are surfaced by `yg context --node` an
 ## Upgrading
 
 ```bash
-yg init --upgrade --platform <name>
+yg init --upgrade
 ```
 
-Lifts the graph's config version to the current one and refreshes the rules and
-platform files. `--platform` is required: the upgrade regenerates the agent-rules
-file, so it must know which platform's rules to write — run `yg init --upgrade`
-without it and the command exits with an error naming the supported platforms.
-(Upgrading a pre-5.1.0 graph also removes the now-retired on-disk `schemas/`
-directory; schemas are read with `yg schemas read <name>` instead.)
+Lifts the graph's config version to the current one and refreshes the
+agent-rules files (the `AGENTS.md` digest block, the `CLAUDE.md` import, and
+`.clinerules/yggdrasil.md`) to the installed CLI's current content — no flag
+needed to say which agent to write for, since the same files are written for
+every agent. It also sweeps away any file a retired per-platform installer
+left behind from an older CLI. (Upgrading a pre-5.1.0 graph also removes the
+now-retired on-disk `schemas/` directory; schemas are read with
+`yg schemas read <name>` instead.)
 
 The legacy single-section reviewer format (flat provider keys + `reviewer.active`)
 is **not** migrated — the upgrade leaves the `reviewer:` block untouched, so a

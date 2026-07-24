@@ -1,11 +1,24 @@
 name: InitCommand
 type: command
 description: Bootstraps Yggdrasil graph structure in a project or refreshes
-  platform rules via yg init
+  the universal agent rules (AGENTS.md digest + CLAUDE.md import +
+  .clinerules) via yg init. Reviewer setup is optional — --no-reviewer (and
+  the wizard's "None for now") bootstraps keyless, and the same keyless path
+  runs when there is no TTY to prompt in. After refreshing the rules it also
+  predicts, through the coverage engine's own primitives, whether the project's
+  coverage settings will now report the root files it maintains as unmapped
+  errors, and prints the exclude stanza — never editing the config itself.
+  --platform is accepted only for backward compatibility — it prints a
+  deprecation notice and is otherwise ignored, since rules now install
+  identically for every agent.
 aspects:
   - reviewer-secrets-not-from-flags
 relations:
   - target: cli/templates
+    type: calls
+  - target: cli/core/check-coverage-tiers
+    type: calls
+  - target: cli/io/parsers/config
     type: calls
   - target: cli/tests/unit/cli
     type: uses
@@ -16,6 +29,8 @@ relations:
   - target: cli/core/migrator
     type: calls
   - target: cli/core/migrator-runner
+    type: calls
+  - target: cli/cli-version
     type: calls
   - target: cli/formatters
     type: calls

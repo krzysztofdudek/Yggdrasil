@@ -496,6 +496,36 @@ describe('check render — renderGroup', () => {
     // Refused groups group by (code, aspectId) — aspect still in header.
     expect(out).toContain("enforced  2 pairs  2 nodes  aspect 'audit-logging'");
   });
+
+  // A finding about repository files, not about any component. Counting a
+  // missing node as one printed "1 pairs  1 nodes" and an empty `- ` bullet,
+  // reporting a component the graph does not contain and, in the web view,
+  // linking to a page that cannot exist.
+  it('a repo-level issue (no nodePath) renders with no pair/node counts and no node bullet', () => {
+    const issues: CheckIssue[] = [{
+      severity: 'warning',
+      code: 'rules-digest-stale',
+      rule: 'rules-digest-stale',
+      messageData: {
+        what: 'Committed agent-rules digest is out of sync: .clinerules/yggdrasil.md is missing.',
+        why: 'Agents read the committed digest before running yg prime.',
+        next: 'yg init --upgrade',
+      },
+    } as CheckIssue];
+    const [g] = groupIssues(issues);
+    expect(g.nodeCount).toBe(0);
+    const lines: string[] = [];
+    renderGroup(g, lines, { isTTY: false });
+    const out = stripAnsi(lines.join('\n'));
+    expect(out).not.toMatch(/\d+ pairs/);
+    expect(out).not.toMatch(/\d+ nodes/);
+    expect(out).not.toMatch(/^\s+- /m);
+    // The finding's own content, its rationale and its fix all still render.
+    expect(out).toContain('  rules-digest-stale');
+    expect(out).toContain('.clinerules/yggdrasil.md is missing');
+    expect(out).toContain('Why: Agents read the committed digest');
+    expect(out).toContain('Fix: yg init --upgrade');
+  });
 });
 
 // ── Fix 4: divergent per-node `next`/`why` renders per-member ──────────────────

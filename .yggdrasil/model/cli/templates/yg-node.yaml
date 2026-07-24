@@ -1,6 +1,12 @@
 name: Rules Template
 type: template
-description: The agent-facing rules content emitted by yg init (rules.ts). Config and platform-installer templates are in the templates-platform sibling node.
+description: The agent-facing rules content emitted by yg init (rules.ts) and the
+  canonical committed digest (digest.ts) — the small hash-anchored block yg init
+  writes into AGENTS.md and .clinerules/yggdrasil.md, whose anchor sha256 yg check
+  compares against the canonical body to detect a stale or hand-edited digest.
+  Config and platform-installer templates are in the templates-platform sibling
+  node.
 relations: []
 mapping:
   - source/cli/src/templates/rules.ts
+  - source/cli/src/templates/digest.ts

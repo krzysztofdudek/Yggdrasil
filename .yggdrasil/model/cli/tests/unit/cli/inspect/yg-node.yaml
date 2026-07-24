@@ -1,7 +1,8 @@
 name: CLI Inspection Command Tests
 type: test-suite
 description: Unit tests for inspection and aspect-test CLI commands — knowledge,
-  aspect-test, tree, type-suggest, and suppressions.
+  aspect-test, tree, type-suggest, suppressions, and prime (plus the shared
+  cli-version resolver prime uses to stamp its output).
 aspects: []
 relations:
   [
@@ -21,7 +22,10 @@ relations:
     { target: cli/preamble, type: uses },
     { target: cli/structure, type: uses },
     { target: cli/commands/structure, type: uses },
-    { target: cli/io/stores, type: uses }
+    { target: cli/io/stores, type: uses },
+    { target: cli/commands/prime, type: uses },
+    { target: cli/cli-version, type: uses },
+    { target: cli/templates, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/cli/knowledge.test.ts
@@ -35,3 +39,5 @@ mapping:
   - source/cli/tests/unit/cli/suppressions-disk-scan.test.ts
   - source/cli/tests/unit/cli/suppress-file-level.test.ts
   - source/cli/tests/unit/cli/structure.test.ts
+  - source/cli/tests/unit/cli/prime.test.ts
+  - source/cli/tests/unit/cli/cli-version.test.ts

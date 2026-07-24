@@ -170,7 +170,7 @@ cd your-project
 yg init
 ```
 
-The wizard walks you through platform selection and reviewer setup (provider, model, and where keys live in `yg-config.yaml` / `yg-secrets.yaml`).
+The wizard walks you through reviewer setup — provider, model, and where keys live in `yg-config.yaml` / `yg-secrets.yaml`. Agent rules install the same way for every agent, so there's nothing to choose there.
 
 Prefer to be taught? Tell your agent **"onboard me into Yggdrasil"** — agents in an adopted repo know the tutor playbook (`yg knowledge read onboarding`) and will teach you on your own repository, in your own language. Repo not adopted yet? Tell the agent: *"Install @chrisdudek/yg, then run `yg knowledge read onboarding` and follow it."*
 
@@ -201,9 +201,9 @@ The first step rebuilds the gitignored deterministic-verdict cache — free, no 
 
 ## Supported platforms
 
-Works with any AI coding agent. `yg init` sets up the rules file your agent expects and configures the reviewer.
+Works with any AI coding agent. `yg init` installs one universal set of rules files — the same for every agent — and configures the reviewer.
 
-**Agent platforms:** Cursor, Claude Code, GitHub Copilot, Codex, Cline, RooCode, Windsurf, Aider, Gemini CLI, Amp, OpenCode, CodeBuddy, plus a Generic fallback (`.yggdrasil/agent-rules.md`) for anything not listed. Codex, Amp, and OpenCode all write to a shared `AGENTS.md`, so don't initialize more than one of them at once.
+**Agent rules:** `yg init` writes a summary block into `AGENTS.md`, a `@AGENTS.md` import line into `CLAUDE.md` (Claude Code doesn't read `AGENTS.md` on its own), and `.clinerules/yggdrasil.md` (Cline's own location). Claude Code, Cline, Cursor, GitHub Copilot, Codex, OpenCode, Amp, Zed, and any other agent confirmed to read a repository's `AGENTS.md` all pick the rules up from these three files — there's no platform to choose. Windsurf, Aider, and CodeBuddy are not confirmed to read `AGENTS.md` on their own (Windsurf's status is in flux after being folded into another product; Aider needs an explicit `read:` entry that `yg init` no longer writes; CodeBuddy reads its own `CODEBUDDY.md`) — point one of those at `AGENTS.md` by hand, or have it run `yg prime` directly. Each agent's manual is printed fresh, on demand, by `yg prime`.
 
 **Reviewer providers:**
 

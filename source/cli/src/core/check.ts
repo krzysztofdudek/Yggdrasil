@@ -4,6 +4,8 @@ import { DEFAULT_COVERAGE } from '../io/config-parser.js';
 import { normalizeMappingPaths } from '../io/paths.js';
 import { validate } from './validator.js';
 import { checkReviewOverdue } from './checks/aspect-contracts.js';
+import { checkDigestGate } from './checks/digest-gate.js';
+import type { RulesArtifacts } from './checks/digest-gate.js';
 import { readTextFile } from '../io/graph-fs.js';
 import path from 'node:path';
 import { validateAppendOnly } from './log-integrity.js';
@@ -532,6 +534,16 @@ function buildGitignoredCoveredIssues(offending: string[]): CheckIssue[] {
  *        post-fill report forwards whatever its own caller set (true only under
  *        `yg check --approve`, which always sets it).
  * @param options.now -- INJECTED clock stamped into the index's `generatedAt`.
+ * @param options.rulesArtifacts -- INJECTED snapshot of the committed
+ *        rules-distribution artifacts (AGENTS.md, CLAUDE.md,
+ *        .clinerules/yggdrasil.md) plus the installed CLI's canonical digest
+ *        hash, for the committed-digest staleness gate. Same seam as `nowUtc`
+ *        in both respects: core reads no files itself, so when ABSENT the gate
+ *        is SKIPPED entirely; and, exactly like `nowUtc`, it is threaded
+ *        through fill.ts into the `--approve` reports as well, so the same
+ *        repo never prints one fewer warning under `yg check --approve` than
+ *        under plain `yg check`. Read-only warning; never writes the lock,
+ *        never gates `--approve`.
  */
 export interface RunCheckOptions {
   /** INJECTED clock for the review-cadence check (spec RZ-18). Absent ⇒ that check is skipped. */
@@ -540,6 +552,8 @@ export interface RunCheckOptions {
   writeFeatureIndex?: boolean;
   /** INJECTED clock for the index's `generatedAt`; defaults to `() => new Date()` when writing. */
   now?: () => Date;
+  /** INJECTED rules-artifacts snapshot for the committed-digest staleness gate. Absent ⇒ skipped. */
+  rulesArtifacts?: RulesArtifacts;
 }
 
 export async function runCheck(
@@ -562,6 +576,17 @@ export async function runCheck(
   // never touches the lock.
   const reviewOverdueIssues: CheckIssue[] = options?.nowUtc
     ? checkReviewOverdue(graph, options.nowUtc())
+        .filter(vi => vi.code)
+        .map(vi => ({ ...vi, code: vi.code! }))
+    : [];
+
+  // 1c. Committed-digest staleness gate: a read-only warning comparing the
+  // committed rules-distribution artifacts against the installed CLI's
+  // canonical digest. INJECTED snapshot, same seam as nowUtc — core reads no
+  // files itself, so an absent snapshot skips the gate entirely. Never blocks,
+  // never touches the lock.
+  const digestGateIssues: CheckIssue[] = options?.rulesArtifacts
+    ? checkDigestGate(options.rulesArtifacts)
         .filter(vi => vi.code)
         .map(vi => ({ ...vi, code: vi.code! }))
     : [];
@@ -718,6 +743,7 @@ export async function runCheck(
     ...lockIssues,
     ...validationIssues,
     ...reviewOverdueIssues,
+    ...digestGateIssues,
     ...coverageIssues,
   ];
 

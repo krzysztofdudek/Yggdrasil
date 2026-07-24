@@ -90,8 +90,9 @@ reaches closure.
 
 ## Self-contained entry — worked example
 
-The rules for self-contained entries are in agent-rules.md (Log management
-section). This example illustrates them in practice.
+The rules for self-contained entries are in the agent operating manual
+(\`yg prime\`, Log management section). This example illustrates them in
+practice.
 
 Avoid:
 

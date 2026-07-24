@@ -75,13 +75,22 @@ describe.skipIf(!distExists)('E2E — pure-CLI init', () => {
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 
-  it('non-interactive with no --platform exits 1 (no guessing)', () => {
-    const dir = freshDir('noplatform');
+  // Retired: a non-interactive fresh init with ZERO flags used to exit 1
+  // demanding --platform ("no guessing"). Universal agent rules install
+  // identically for every agent now, so there is nothing left to guess —
+  // a completely bare, non-TTY `yg init` bootstraps keyless instead.
+  it('non-interactive with ZERO flags bootstraps keyless (retired: used to require --platform)', () => {
+    const dir = freshDir('zero-flags');
     try {
-      const init = run(['init'], dir); // spawned → non-TTY
-      expect(init.status).toBe(1);
-      expect(init.stderr).toContain('no TTY');
-      expect(init.stderr).toContain('--platform');
+      const init = run(['init'], dir); // spawned → non-TTY, no flags at all
+      expect(init.status).toBe(0);
+      expect(init.stdout).toContain('keyless');
+      expect(existsSync(path.join(dir, 'AGENTS.md'))).toBe(true);
+      expect(existsSync(path.join(dir, 'CLAUDE.md'))).toBe(true);
+      expect(existsSync(path.join(dir, '.clinerules', 'yggdrasil.md'))).toBe(true);
+      const cfg = readFileSync(path.join(dir, '.yggdrasil', 'yg-config.yaml'), 'utf-8');
+      expect(cfg).not.toContain('reviewer:');
+      expect(run(['check'], dir).status).toBe(0);
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 
@@ -97,27 +106,38 @@ describe.skipIf(!distExists)('E2E — pure-CLI init', () => {
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 
-  it('existing repo: change platform via --platform', () => {
+  // Retired: `--platform cursor` used to swap the installed artifact to a
+  // cursor-specific file. Agent rules now install identically for every
+  // agent — `--platform` is accepted only for backward compatibility: it
+  // prints a deprecation notice and refreshes the SAME universal artifacts
+  // (AGENTS.md digest + CLAUDE.md import + .clinerules), never a per-platform
+  // file.
+  it('existing repo: --platform is deprecated — notice printed, universal artifacts refreshed, no per-platform file', () => {
     const dir = freshDir('change-platform');
     try {
       expect(run(['init', '--platform', 'claude-code'], dir).status).toBe(0);
       const swap = run(['init', '--platform', 'cursor'], dir);
       expect(swap.status).toBe(0);
-      expect(existsSync(path.join(dir, '.cursor', 'rules', 'yggdrasil.mdc'))).toBe(true);
+      expect(swap.all).toContain('--platform cursor is deprecated and was ignored');
+      expect(existsSync(path.join(dir, '.cursor', 'rules', 'yggdrasil.mdc'))).toBe(false);
+      expect(existsSync(path.join(dir, 'AGENTS.md'))).toBe(true);
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 
-  it('existing repo: --provider and --platform together apply BOTH in one call', () => {
+  it('existing repo: --provider and --platform together — the reviewer leg applies; the deprecated platform leg only refreshes universal artifacts', () => {
     const dir = freshDir('union');
     try {
-      // Start keyless with claude-code, then in ONE call add a reviewer AND switch platform.
+      // Start keyless with claude-code, then in ONE call add a reviewer AND pass
+      // the now-deprecated --platform.
       expect(run(['init', '--platform', 'claude-code'], dir).status).toBe(0);
       const both = run(['init', '--provider', 'claude-code', '--platform', 'cursor'], dir);
       expect(both.status).toBe(0);
+      expect(both.all).toContain('--platform cursor is deprecated and was ignored');
       const cfg = readFileSync(path.join(dir, '.yggdrasil', 'yg-config.yaml'), 'utf-8');
       expect(cfg).toContain('provider: claude-code'); // reviewer leg applied
       expect(cfg).toContain('model: sonnet');
-      expect(existsSync(path.join(dir, '.cursor', 'rules', 'yggdrasil.mdc'))).toBe(true); // platform leg applied
+      // The deprecated platform leg never writes a per-platform file.
+      expect(existsSync(path.join(dir, '.cursor', 'rules', 'yggdrasil.mdc'))).toBe(false);
       // And the merged graph still verifies clean.
       expect(run(['check'], dir).status).toBe(0);
     } finally { rmSync(dir, { recursive: true, force: true }); }

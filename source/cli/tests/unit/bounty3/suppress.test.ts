@@ -376,7 +376,7 @@ function write(root: string, rel: string, content: string | Buffer): void {
 }
 
 describe('bounty3: runSuppressionsScan noise + binary exclusion (live-waiver invariant)', () => {
-  it('excludes .yggdrasil/, generated rules mirrors, any log.md, prose docs, and binary files', async () => {
+  it('excludes .yggdrasil/, generated rules mirrors (legacy per-platform AND the current universal install), any log.md, prose docs, and binary files', async () => {
     const root = freshDir('noise');
     write(root, 'src/real.ts', '// yg-suppress(known) genuine waiver, tracked\nx();\n');
     write(root, 'README.md', '// yg-suppress(known) doc only mentions syntax\n');
@@ -384,12 +384,27 @@ describe('bounty3: runSuppressionsScan noise + binary exclusion (live-waiver inv
     write(root, 'notes.txt', '// yg-suppress(known) text note\n');
     write(root, 'rules.mdc', '// yg-suppress(known) mdc mention\n');
     write(root, 'src/deep/log.md', '// yg-suppress(known) nested per-node log\n');
+    // Legacy per-platform installer artifacts (retired, but pre-migration repos
+    // — including this repo's own example fixtures until the dogfood task runs
+    // — may still carry them).
     write(root, '.yggdrasil/agent-rules.md', '// yg-suppress(known) rules block\n');
     write(root, '.yggdrasil/model/x/yg-node.yaml', '# yg-suppress(known) yaml example\n');
     write(root, '.cursor/rules/yggdrasil.mdc', '// yg-suppress(known) cursor mirror\n');
     write(root, '.github/copilot-instructions.md', '// yg-suppress(known) copilot mirror\n');
     write(root, '.windsurfrules', '// yg-suppress(known) windsurf mirror\n');
-    write(root, '.clinerules', '// yg-suppress(known) cline mirror\n');
+    // The legacy single-FILE `.clinerules` mirror (old cline convention) and the
+    // current universal install's `.clinerules/` DIRECTORY are structurally
+    // exclusive on one filesystem (a real repo carries at most one), so the
+    // legacy file form is planted under a nested path here — the exclusion rule
+    // matches on basename, so this still exercises the same logic.
+    write(root, 'legacy/.clinerules', '// yg-suppress(known) cline mirror\n');
+    // Current universal-install artifacts: AGENTS.md digest block, CLAUDE.md
+    // @AGENTS.md import, and .clinerules/yggdrasil.md — all `.md`, so the same
+    // prose-doc exclusion covers them; a marker mentioned inside is noise, not
+    // a live waiver.
+    write(root, 'AGENTS.md', '<!-- yggdrasil:start -->\n// yg-suppress(known) digest block mention\n<!-- yggdrasil:end -->\n');
+    write(root, 'CLAUDE.md', '@AGENTS.md\n// yg-suppress(known) import mention\n');
+    write(root, '.clinerules/yggdrasil.md', '// yg-suppress(known) clinerules mirror\n');
     // Binary: a NUL byte in the first 8 KB even though it contains marker text.
     write(root, 'blob.bin', Buffer.concat([Buffer.from('// yg-suppress(known) inside binary\n'), Buffer.from([0])]));
 
@@ -397,7 +412,9 @@ describe('bounty3: runSuppressionsScan noise + binary exclusion (live-waiver inv
       'src/real.ts', 'README.md', 'CHANGELOG.markdown', 'notes.txt', 'rules.mdc',
       'src/deep/log.md', '.yggdrasil/agent-rules.md', '.yggdrasil/model/x/yg-node.yaml',
       '.cursor/rules/yggdrasil.mdc', '.github/copilot-instructions.md',
-      '.windsurfrules', '.clinerules', 'blob.bin',
+      '.windsurfrules', 'legacy/.clinerules',
+      'AGENTS.md', 'CLAUDE.md', '.clinerules/yggdrasil.md',
+      'blob.bin',
     ];
     const report = await runSuppressionsScan(root, files, new Set(['known']));
 

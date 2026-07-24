@@ -1,6 +1,6 @@
 import type { CoverageConfig } from '../model/graph.js';
 import { toPosixPath } from '../utils/posix.js';
-import { mappingEntryMatchesFile } from '../utils/mapping-path.js';
+import { mappingEntryMatchesFile, normalizeMappingPath } from '../utils/mapping-path.js';
 // type-only import — erased at runtime, no circular runtime dependency
 import type { CheckIssue } from './check.js';
 
@@ -44,6 +44,32 @@ export function partitionByCoverageTier(
     // 'excluded' → silent
   }
   return { required, middle };
+}
+
+/**
+ * Of `paths`, the ones a `yg check` would raise as BLOCKING unmapped-file
+ * errors: covered by no node mapping AND landing in the required coverage
+ * tier. Answered here, against the same two primitives the check itself uses,
+ * so a caller can never approximate the rule with its own copy and disagree
+ * with the gate it is predicting.
+ *
+ * Written for one caller with one question: `yg init`, having just written the
+ * agent-rules files into a project's root, asking whether THAT project's
+ * coverage settings will now turn them red. A project that requires its whole
+ * tree (the default when no coverage block is written) does exactly that, and
+ * before this the first sign of it was a failing check with a fix line pointing
+ * at node ownership rather than at excluding repository plumbing.
+ */
+export function blockingUnmappedPaths(
+  paths: readonly string[],
+  mappingEntries: readonly string[],
+  coverage: CoverageConfig,
+): string[] {
+  const entries = mappingEntries.map(normalizeMappingPath).filter((e) => e !== '');
+  const unmapped = paths
+    .map((p) => toPosixPath(p))
+    .filter((p) => !entries.some((entry) => mappingEntryMatchesFile(entry, p)));
+  return partitionByCoverageTier(unmapped, coverage).required;
 }
 
 /**

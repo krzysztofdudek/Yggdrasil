@@ -9,6 +9,7 @@ import { parseDryRunBudget } from '../../src/portal/server/approve.js';
 import { runCheck } from '../../src/core/check.js';
 import { loadGraph } from '../../src/core/graph-loader.js';
 import { walkRepoFiles } from '../../src/io/repo-scanner.js';
+import { readRulesArtifacts } from '../../src/cli/rules-artifacts.js';
 import type { PortalData } from '../../src/portal/contract.js';
 
 interface DryRunBody {
@@ -151,7 +152,15 @@ describe('portal loopback server — read-only surface + no-persist refresh', ()
 
     const graph = await loadGraph(FIXTURE_ROOT);
     const gitFiles = await walkRepoFiles(FIXTURE_ROOT);
-    const check = await runCheck(graph, gitFiles);
+    // The oracle is the CLI BOUNDARY's option set, not a bare runCheck: core skips a
+    // boundary-injected check when its input is absent, so an oracle that omits an input
+    // the CLI passes would agree with a portal that omits it too — both at zero — and the
+    // "portal shows fewer warnings than the command line" class would slip through. This
+    // fixture ships no agent-rules install, so the digest gate has a real finding to make.
+    const check = await runCheck(graph, gitFiles, {
+      nowUtc: () => new Date(),
+      rulesArtifacts: await readRulesArtifacts(FIXTURE_ROOT),
+    });
     const errors = check.issues.filter((i) => i.severity === 'error').length;
     const warnings = check.issues.filter((i) => i.severity === 'warning').length;
 

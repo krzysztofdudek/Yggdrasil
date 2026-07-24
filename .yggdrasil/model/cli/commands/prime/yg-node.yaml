@@ -1,0 +1,18 @@
+name: PrimeCommand
+type: command
+description: "Prints the agent operating manual fresh from the installed CLI —
+  the mandatory-read target of the committed AGENTS.md digest. --digest prints
+  the canonical anchored digest block used by the installer and the staleness
+  gate."
+aspects: []
+relations:
+  - target: cli/templates
+    type: calls
+  - target: cli/tests/unit/cli
+    type: uses
+  - target: cli/cli-version
+    type: calls
+  - target: cli/preamble
+    type: calls
+mapping:
+  - source/cli/src/cli/prime.ts

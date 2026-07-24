@@ -1,0 +1,12 @@
+name: CLI Version Resolver
+type: command-support
+description: "Command-layer support helper that resolves the CLI's own installed
+  version from its package.json, robust to both the bundled (dist/bin.js) and
+  direct-from-source (vitest) runtime layouts — walking up from this module's
+  own directory until it finds a package.json named @chrisdudek/yg, so it never
+  returns a consumer project's version. Used by the prime command to stamp the
+  digest anchor. (bin.ts resolves its own --version independently, by design —
+  see the entry-point node.) Registers no Commander subcommand. Imports only
+  Node built-ins, so it declares no relations."
+mapping:
+  - source/cli/src/cli/cli-version.ts

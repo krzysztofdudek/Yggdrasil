@@ -4,7 +4,7 @@ yg-secrets.yaml
 .yg-lock.deterministic.json
 .ast-cache/
 .yg-events.jsonl
-.yg-fill-divergence.log
 .drill-results.jsonl*
 .feature-field.json
 .family-candidates.json
+.yg-fill-divergence.log*

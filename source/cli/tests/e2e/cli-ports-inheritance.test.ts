@@ -400,10 +400,15 @@ mapping:
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(0);
       // The implied pair refuses but renders as a non-blocking advisory warning.
+      // A second warning group (`rules-digest-stale`) is always present too —
+      // this fixture never ran `yg init`, so it carries no AGENTS.md/CLAUDE.md/
+      // .clinerules digest artifacts, and the committed-digest staleness gate
+      // flags that on every `yg check`/`yg check --approve` here.
       expect(fill.all).toContain('[det] diag-advisory on node:services/orders — refused');
-      expect(fill.all).toContain('PASS (1 warning)');
+      expect(fill.all).toContain('PASS (2 warnings)');
       expect(fill.all).toContain('advisory');
       expect(fill.all).toContain('diag-advisory');
+      expect(fill.all).toContain('rules-digest-stale');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

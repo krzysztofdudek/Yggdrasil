@@ -167,112 +167,47 @@ function bareUpgradeRepo(label: string): string {
 
 describe.skipIf(!distExists)('CLI E2E — greenfield / init / platform-install', () => {
   // -------------------------------------------------------------------------
-  // 1. Scaffold via --upgrade on a bare repo (headless path)
+  // 1. Universal install via --upgrade on a bare repo (headless path).
   //
-  // cli-lifecycle covers claude-code via the installRulesForPlatform unit and
-  // covers the version-bump on --upgrade. Here we drive the FULL headless
-  // `yg init --upgrade --platform generic` end-to-end through the real binary
-  // on a bare repo, asserting the generic rules file lands on disk.
+  // The thirteen per-platform installers (and their platform-specific
+  // artifacts — .cursor/rules/yggdrasil.mdc, GEMINI.md, .yggdrasil/agent-
+  // rules.md, ...) are RETIRED. Every agent now reads the SAME three
+  // artifacts: an AGENTS.md digest block, a CLAUDE.md @AGENTS.md import, and
+  // .clinerules/yggdrasil.md — so there is no platform matrix left to drive.
+  // `--platform` is still ACCEPTED for backward compatibility (any value,
+  // including a name from the retired matrix): it only prints a deprecation
+  // notice and otherwise changes nothing about what gets installed. The full
+  // E1-E9/E12 matrix (fresh/upgrade/CRLF/duplicated-block/staleness-gate/prime)
+  // lives in cli-universal-install.test.ts; these two scenarios keep this
+  // suite's own bare-repo --upgrade coverage.
   // -------------------------------------------------------------------------
 
-  it('G1: init --upgrade --platform generic scaffolds agent-rules.md on a bare repo (exit 0)', () => {
-    const dir = bareUpgradeRepo('generic-scaffold');
+  it('bare init --upgrade scaffolds the universal artifacts on a bare repo (exit 0)', () => {
+    const dir = bareUpgradeRepo('universal-scaffold');
     try {
-      const { status, stdout } = run(['init', '--upgrade', '--platform', 'generic'], dir);
+      const { status, stdout } = run(['init', '--upgrade'], dir);
       expect(status).toBe(0);
-      expect(stdout).toContain('Rules refreshed');
-      // Generic rules file written (schemas/ is no longer created — schema
-      // references live in the `yg schemas` command).
-      expect(existsSync(path.join(dir, '.yggdrasil', 'agent-rules.md'))).toBe(true);
+      expect(stdout).toContain('Agent rules installed/updated: AGENTS.md, CLAUDE.md, .clinerules/yggdrasil.md');
+      expect(existsSync(path.join(dir, 'AGENTS.md'))).toBe(true);
+      expect(existsSync(path.join(dir, 'CLAUDE.md'))).toBe(true);
+      expect(existsSync(path.join(dir, '.clinerules', 'yggdrasil.md'))).toBe(true);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });
 
-  // -------------------------------------------------------------------------
-  // 2. Platform install matrix — distinct platforms NOT already E2E-covered
-  //    through the real `yg init --upgrade` binary path. (cli-lifecycle tests
-  //    installRulesForPlatform as a direct unit import; these drive the CLI.)
-  //
-  //    Path contracts from src/templates/platform.ts:
-  //      cursor   -> .cursor/rules/yggdrasil.mdc          (no agent-rules.md)
-  //      codex    -> AGENTS.md (yggdrasil:start block)     (no agent-rules.md)
-  //      opencode -> AGENTS.md (delegates to codex form)   (no agent-rules.md)
-  //      amp      -> AGENTS.md (@import line) + agent-rules.md
-  //      gemini   -> GEMINI.md (@import line) + agent-rules.md
-  // -------------------------------------------------------------------------
-
-  it('G2: --platform cursor writes .cursor/rules/yggdrasil.mdc', () => {
-    const dir = bareUpgradeRepo('cursor');
-    try {
-      const { status, stdout } = run(['init', '--upgrade', '--platform', 'cursor'], dir);
-      expect(status).toBe(0);
-      expect(stdout).toContain('.cursor/rules/yggdrasil.mdc');
-      expect(existsSync(path.join(dir, '.cursor', 'rules', 'yggdrasil.mdc'))).toBe(true);
-      // cursor does NOT write the shared agent-rules.md.
-      expect(existsSync(path.join(dir, '.yggdrasil', 'agent-rules.md'))).toBe(false);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  it('G3: --platform codex writes AGENTS.md with the yggdrasil block', () => {
-    const dir = bareUpgradeRepo('codex');
+  it('init --upgrade --platform codex prints a deprecation notice and still writes the SAME universal artifacts (no per-platform file)', () => {
+    const dir = bareUpgradeRepo('deprecated-platform');
     try {
       const { status, stdout } = run(['init', '--upgrade', '--platform', 'codex'], dir);
       expect(status).toBe(0);
-      expect(stdout).toContain('AGENTS.md');
-      const agentsPath = path.join(dir, 'AGENTS.md');
-      expect(existsSync(agentsPath)).toBe(true);
-      // codex embeds the rules inside delimited markers (not an @import line).
-      const content = readFileSync(agentsPath, 'utf-8');
-      expect(content).toContain('<!-- yggdrasil:start -->');
-      expect(content).toContain('<!-- yggdrasil:end -->');
-      // codex does NOT write the shared agent-rules.md.
+      expect(stdout).toContain('--platform codex is deprecated and was ignored');
+      expect(existsSync(path.join(dir, 'AGENTS.md'))).toBe(true);
+      expect(existsSync(path.join(dir, 'CLAUDE.md'))).toBe(true);
+      expect(existsSync(path.join(dir, '.clinerules', 'yggdrasil.md'))).toBe(true);
+      // No per-platform artifact — codex used to get its own embedded block
+      // with no shared rules file; now every agent reads the same files.
       expect(existsSync(path.join(dir, '.yggdrasil', 'agent-rules.md'))).toBe(false);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  it('G4: --platform opencode writes AGENTS.md (shares the codex form)', () => {
-    const dir = bareUpgradeRepo('opencode');
-    try {
-      const { status, stdout } = run(['init', '--upgrade', '--platform', 'opencode'], dir);
-      expect(status).toBe(0);
-      expect(stdout).toContain('AGENTS.md');
-      const agentsPath = path.join(dir, 'AGENTS.md');
-      expect(existsSync(agentsPath)).toBe(true);
-      expect(readFileSync(agentsPath, 'utf-8')).toContain('<!-- yggdrasil:start -->');
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  it('G5: --platform amp writes AGENTS.md (@import) AND .yggdrasil/agent-rules.md', () => {
-    const dir = bareUpgradeRepo('amp');
-    try {
-      const { status } = run(['init', '--upgrade', '--platform', 'amp'], dir);
-      expect(status).toBe(0);
-      const agentsPath = path.join(dir, 'AGENTS.md');
-      expect(existsSync(agentsPath)).toBe(true);
-      // amp references the shared rules via an @import line and writes the file.
-      expect(readFileSync(agentsPath, 'utf-8')).toContain('@.yggdrasil/agent-rules.md');
-      expect(existsSync(path.join(dir, '.yggdrasil', 'agent-rules.md'))).toBe(true);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  it('G6: --platform claude-code writes BOTH CLAUDE.md and .yggdrasil/agent-rules.md', () => {
-    const dir = bareUpgradeRepo('claude');
-    try {
-      const { status } = run(['init', '--upgrade', '--platform', 'claude-code'], dir);
-      expect(status).toBe(0);
-      const claudePath = path.join(dir, 'CLAUDE.md');
-      expect(existsSync(claudePath)).toBe(true);
-      expect(readFileSync(claudePath, 'utf-8')).toContain('@.yggdrasil/agent-rules.md');
-      expect(existsSync(path.join(dir, '.yggdrasil', 'agent-rules.md'))).toBe(true);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -388,14 +323,13 @@ describe.skipIf(!distExists)('CLI E2E — greenfield / init / platform-install',
   //      - --upgrade against a config with no `version:` field
   // -------------------------------------------------------------------------
 
-  it('G10: init --upgrade with an unknown --platform is rejected (exit 1)', () => {
+  it('G10: init --upgrade with an unrecognized --platform value is accepted — deprecation notice, upgrade proceeds (retired: used to be rejected)', () => {
     const dir = bareUpgradeRepo('bad-platform');
     try {
-      const { status, stderr } = run(['init', '--upgrade', '--platform', 'bogus-xyz'], dir);
-      expect(status).toBe(1);
-      expect(stderr).toContain("Unknown platform 'bogus-xyz'");
-      // The guard enumerates the supported platforms.
-      expect(stderr).toContain('generic');
+      const { status, stdout } = run(['init', '--upgrade', '--platform', 'bogus-xyz'], dir);
+      expect(status).toBe(0);
+      expect(stdout).toContain('--platform bogus-xyz is deprecated and was ignored');
+      expect(existsSync(path.join(dir, 'AGENTS.md'))).toBe(true);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -457,12 +391,17 @@ describe.skipIf(!distExists)('CLI E2E — greenfield / init / platform-install',
   // every assertion from both cases (stdout message, provider/model written,
   // and the "nothing written on rejection" check) is preserved there.
 
-  it('G14: non-interactive init with --provider but no --platform is rejected (exit 1)', () => {
+  it('G14: non-interactive init with --provider but no --platform now succeeds standalone (retired: used to require --platform)', () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'yg-noninteractive-noplatform-'));
     try {
-      const { status, stderr } = run(['init', '--provider', 'claude-code', '--model', 'haiku'], dir);
-      expect(status).toBe(1);
-      expect(stderr).toContain('--provider requires --platform');
+      const { status, stdout } = run(['init', '--provider', 'claude-code', '--model', 'haiku'], dir);
+      expect(status).toBe(0);
+      expect(stdout).toContain('Yggdrasil initialized');
+      const cfg = readFileSync(path.join(dir, '.yggdrasil', 'yg-config.yaml'), 'utf-8');
+      expect(cfg).toContain('provider: claude-code');
+      expect(cfg).toContain('model: haiku');
+      // The universal artifacts are installed too — no --platform required.
+      expect(existsSync(path.join(dir, 'AGENTS.md'))).toBe(true);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

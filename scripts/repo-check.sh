@@ -75,6 +75,66 @@ run_step "Portal: e2e Chromium present (guard)" "$REPO_ROOT/source/cli" "npx pla
 run_step "Portal: e2e (Playwright + Chromium)" "$REPO_ROOT/source/cli" "npm run test:e2e:portal"
 run_step "Docs: build" "$REPO_ROOT/docs" "npm run build"
 run_step "Markdown: lint" "$REPO_ROOT" "npx markdownlint-cli2 \"**/*.md\" \".markdownlint-cli2.jsonc\""
+# Digest freshness (hard gate in THIS repo; yg check's gate is warning-only).
+# Compares the sha256 anchor committed in each project root's agent-rules
+# artifacts against the canonical digest of the CLI built above.
+# Hash-comparison ONLY — examples/failing is red by design, so this loop must
+# never shell out to `yg check` inside an example.
+#
+# Three properties this step depends on, all asserted rather than assumed:
+#   1. The loop iterates project ROOTS (every directory holding a .yggdrasil/),
+#      not the AGENTS.md files that happen to exist. A glob over existing files
+#      never visits an example whose installer was never run — the single case
+#      the gate most needs to catch for a newly added example — and the loop
+#      would exit 0 over it.
+#   2. `canon` is validated to be a 64-char hex sha256 BEFORE any comparison.
+#      If `prime --digest` ever stops emitting a sha256= field, canon is empty,
+#      and an anchorless AGENTS.md would then compare empty-to-empty and pass —
+#      the gate would silently stop gating.
+#   3. BOTH anchored artifacts are inspected at each root — AGENTS.md and
+#      .clinerules/yggdrasil.md. Checking only the first left the second gated
+#      by nothing here, so this hard gate inspected strictly less than the
+#      warning-level one in `yg check`, which compares both.
+run_step "Rules: digest freshness (root + examples)" "$REPO_ROOT" "
+  canon=\$(node source/cli/dist/bin.js prime --digest | sed -n 's/.*sha256=\\([0-9a-f]*\\).*/\\1/p' | head -1)
+  if ! printf '%s' \"\$canon\" | grep -Eq '^[0-9a-f]{64}\$'; then
+    echo '[digest] Could not read a canonical sha256 digest from: node source/cli/dist/bin.js prime --digest'
+    echo '[digest] WHY: every committed anchor is compared against this hash. With no hash to compare against, a file carrying no anchor would compare empty-to-empty and pass — the gate would report green while checking nothing.'
+    echo '[digest] NEXT: rebuild the CLI ((cd source/cli && npm run build)), then re-run: node source/cli/dist/bin.js prime --digest'
+    exit 1
+  fi
+  verify_file() {
+    root=\"\$1\"
+    f=\"\$root/\$2\"
+    if [ ! -f \"\$f\" ]; then
+      echo \"[digest] \$f does not exist — this project root carries no agent-rules install.\"
+      echo '[digest] WHY: a directory with a .yggdrasil/ graph but a missing agent-rules artifact leaves the agents that read it with no rules at all; it is the exact state a newly added example lands in when the installer was never run there.'
+      echo \"[digest] NEXT: (cd \$root && node \\\"\$PWD/source/cli/dist/bin.js\\\" init --upgrade)\"
+      return 1
+    fi
+    got=\$(sed -n 's/.*yggdrasil:digest cli=[^ ]* sha256=\\([0-9a-f]*\\).*/\\1/p' \"\$f\" | head -1)
+    if [ \"\$got\" != \"\$canon\" ]; then
+      echo \"[digest] \$f is stale or missing its anchor.\"
+      echo '[digest] WHY: agents follow the committed digest; a stale one contradicts the installed CLI.'
+      echo \"[digest] NEXT: (cd \$root && node \\\"\$PWD/source/cli/dist/bin.js\\\" init --upgrade)\"
+      return 1
+    fi
+    return 0
+  }
+  verify_one() {
+    rc=0
+    verify_file \"\$1\" AGENTS.md || rc=1
+    verify_file \"\$1\" .clinerules/yggdrasil.md || rc=1
+    return \$rc
+  }
+  fail=0
+  verify_one . || fail=1
+  for d in examples/*/; do
+    [ -d \"\$d.yggdrasil\" ] || continue
+    verify_one \"\${d%/}\" || fail=1
+  done
+  exit \$fail
+"
 run_step "Graph: check" "$REPO_ROOT" "node source/cli/dist/bin.js check --approve --only-deterministic"
 
 if [ ${#FAILED[@]} -gt 0 ]; then

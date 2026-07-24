@@ -1,6 +1,6 @@
 name: E2E Tests — Shipped Examples
 type: test-suite
-description: "Subprocess E2E that spawns the built binary against the shipped examples/ projects (passing and failing) and asserts the README-documented outcome: examples/passing reports PASS and examples/failing reports the requires-audit refusal on payments. Each example ships a committed yg-lock.json, so yg check is a pure read reproducing the verdict with no API key — this pins the examples so they cannot silently rot against the verdict-lock model."
+description: "Subprocess E2E that spawns the built binary against the shipped examples/ projects (passing and failing) and asserts the README-documented outcome: examples/passing reports PASS and examples/failing reports the requires-audit refusal on payments. Each example ships a committed yg-lock.json, so yg check is a pure read reproducing the verdict with no API key — this pins the examples so they cannot silently rot against the verdict-lock model. Also asserts every example carries the current universal agent-rules install (AGENTS.md digest block matching the installed CLI's canonical hash, CLAUDE.md @AGENTS.md import, .clinerules/yggdrasil.md) and that yg check never flags them stale or uncovered."
 aspects: []
 relations: []
 mapping:

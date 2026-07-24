@@ -197,15 +197,24 @@
     id.appendChild(dom.el('span', 'cov-worow-reason', group.why));
     row.appendChild(id);
 
+    // A group with no components is a repository-level finding (the committed
+    // agent-rules digest, a flow naming a participant that does not exist).
+    // Saying "0 components" and offering an open button that cannot go
+    // anywhere would describe a dimension the finding does not have; name the
+    // scope instead.
     var meta = dom.el('span', 'cov-worow-meta');
-    meta.appendChild(dom.el('span', null, group.nodes.length + (group.nodes.length === 1 ? ' node' : ' nodes')));
-    var link = dom.el('button', 'cov-deeplink');
-    link.type = 'button';
-    link.textContent = 'open →';
-    link.addEventListener('click', function () {
-      if (group.nodes[0]) nav({ view: 'tree', node: group.nodes[0] });
-    });
-    meta.appendChild(link);
+    if (group.nodes.length === 0) {
+      meta.appendChild(dom.el('span', null, 'repository-level'));
+    } else {
+      meta.appendChild(dom.el('span', null, group.nodes.length + (group.nodes.length === 1 ? ' node' : ' nodes')));
+      var link = dom.el('button', 'cov-deeplink');
+      link.type = 'button';
+      link.textContent = 'open →';
+      link.addEventListener('click', function () {
+        nav({ view: 'tree', node: group.nodes[0] });
+      });
+      meta.appendChild(link);
+    }
     row.appendChild(meta);
 
     var ruleHdr = dom.el('button', 'cov-rulehdr');

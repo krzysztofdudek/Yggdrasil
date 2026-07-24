@@ -22,15 +22,25 @@ import type { Graph } from '../../model/graph.js';
  * invisible to `yg suppressions`.
  *
  * Excluded (only when NOT a mapped source):
- *  - everything under `.yggdrasil/` — the generated `agent-rules.md` rules block,
- *    every node's `log.md`, aspect `content.md`, and `yg-node.yaml` examples.
- *    (A meta-modeling doc mapped under `.yggdrasil/` is a mapped source, so it is
- *    exempt from this exclusion and IS inventoried.)
- *  - generated rules mirrors written by `yg init` for other agents
- *    (`.cursor/...`, `.windsurfrules`, `.clinerules`, `.github/copilot-*`).
+ *  - everything under `.yggdrasil/` — the graph's per-node `log.md`, aspect
+ *    `content.md`, and `yg-node.yaml` examples. (A meta-modeling doc mapped
+ *    under `.yggdrasil/` is a mapped source, so it is exempt from this
+ *    exclusion and IS inventoried.)
+ *  - a file whose base name is exactly `.clinerules` (Cline's legacy
+ *    single-file convention, no extension) — matched by base name only, so
+ *    this does NOT match `.clinerules/yggdrasil.md`, the directory form
+ *    `yg init` writes today; that file is excluded separately below, by the
+ *    `.md` prose filter. `.cursor/...`, `.windsurfrules`, and
+ *    `.github/copilot-*` are NOT written by `yg init` any more (that
+ *    per-platform installer set was retired); they are kept in the
+ *    exclusion only because a repo may still carry one from an older CLI or
+ *    from the other tool itself, and either way such a file is prose, never
+ *    a code waiver site.
  *  - any `log.md` anywhere (per-node history is prose, never a waiver site).
- *  - prose/doc files (`.md`, `.mdc`, `.markdown`, `.txt`) — documentation and
- *    changelogs describe markers; they are not code an aspect checks.
+ *  - prose/doc files (`.md`, `.mdc`, `.markdown`, `.txt`) — this also covers
+ *    the generated `AGENTS.md` digest block, the `CLAUDE.md` `@AGENTS.md`
+ *    import, and `.clinerules/yggdrasil.md` itself: documentation and
+ *    changelogs describe markers, they are not code an aspect checks.
  */
 export function isNoiseFile(relFile: string): boolean {
   const p = toPosixPath(relFile);
@@ -38,10 +48,16 @@ export function isNoiseFile(relFile: string): boolean {
   // .yggdrasil/ — generated rules, logs, aspect content, node yaml.
   if (p === '.yggdrasil' || p.startsWith('.yggdrasil/')) return true;
 
-  // Generated rules mirrors for other agents (written by `yg init`).
+  // Legacy per-platform rules mirrors — no longer written by `yg init` (that
+  // installer set was retired); kept only in case an older CLI or the other
+  // tool itself still leaves one behind.
   if (p.startsWith('.cursor/')) return true;
   if (p.startsWith('.github/copilot')) return true;
   const base = p.includes('/') ? p.slice(p.lastIndexOf('/') + 1) : p;
+  // A file named exactly `.clinerules` (Cline's legacy single-file
+  // convention) — not the `.clinerules/` directory `yg init` writes today;
+  // `.clinerules/yggdrasil.md` is excluded separately below, by the `.md`
+  // prose filter.
   if (base === '.windsurfrules' || base === '.clinerules') return true;
 
   // Per-node history is prose, never a real waiver site.

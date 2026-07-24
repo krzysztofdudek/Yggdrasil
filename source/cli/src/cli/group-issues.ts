@@ -7,6 +7,14 @@ export interface IssueGroup {
   severity: 'error' | 'warning';
   label: string;
   pairCount: number;
+  /**
+   * How many DISTINCT graph nodes the group's members name. Zero for a
+   * repo-level group — one whose members carry no node at all (the committed
+   * agent-rules digest, an unreadable lock): counting a missing node as one
+   * made those render "1 pairs · 1 nodes" and list an empty node bullet,
+   * reporting a component that does not exist. The renderer keys off zero to
+   * drop the node-shaped framing entirely.
+   */
   nodeCount: number;
   sharedWhy: string;
   sharedNext: string;
@@ -141,7 +149,9 @@ export function groupIssues(issues: CheckIssue[]): IssueGroup[] {
     const sorted = [...members].sort((a, b) =>
       (a.nodePath ?? '').localeCompare(b.nodePath ?? '', 'en'));
     const rep = sorted[0];
-    const nodes = new Set(sorted.map((m) => m.nodePath ?? ''));
+    // Only members that actually name a node count toward nodeCount; a
+    // repo-level group scores 0 rather than 1-for-nothing.
+    const nodes = new Set(sorted.filter((m) => m.nodePath).map((m) => m.nodePath));
     // For code-only groups the aspectId spans multiple aspects — set to
     // undefined so the group header does NOT print `aspect '<id>'`.
     const isCodeOnly = CODE_ONLY_GROUP_CODES.has(rep.code);

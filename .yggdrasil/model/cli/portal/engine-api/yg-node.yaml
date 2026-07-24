@@ -14,7 +14,7 @@ description: >-
   engine logic; it reuses an additive read-only detected-edge accessor on the relation
   pass.
 max_direct_relations:
-  limit: 21
+  limit: 22
   reason: >-
     Reviewed architectural seam. This node is the portal's SINGLE auditable
     read-only gateway to the engine — its whole purpose is to concentrate the
@@ -23,10 +23,19 @@ max_direct_relations:
     design: every engine call the portal needs is wrapped here, so all coupling is
     visible and reviewable in one place. Splitting this node would scatter the
     coupling into a spider of relations and defeat the single-seam guarantee. The
-    ceiling is set to the exact reviewed count (21), so any NEW engine dependency
-    beyond this pushes the node over its own ceiling and re-raises the warning.
+    ceiling is set to the exact reviewed count, so any NEW dependency beyond this
+    pushes the node over its own ceiling and re-raises the warning. Raised from 21
+    to 22 for the shared rules-artifacts boundary reader: the check engine skips a
+    boundary-injected check whenever its input is missing, so this facade must
+    inject every input the command-line boundary injects or the portal renders a
+    surface that is silently greener than the command line. The dependency is on
+    the ONE shared reader both boundaries use, which is the point — a second,
+    portal-local copy of that read is exactly the drift this ceiling is meant to
+    make visible.
 relations:
   - target: cli/preamble
+    type: calls
+  - target: cli/rules-artifacts
     type: calls
   - target: cli/io/stores
     type: calls

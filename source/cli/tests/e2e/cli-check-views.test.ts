@@ -258,9 +258,17 @@ describe.skipIf(!distExists)('CLI E2E — yg check Phase-2 view flags', () => {
 
     // --details renders ONE block per issue, not per group.
     // Default grouped view collapses the 4 unverified pairs into 1 group → 2 total blocks.
-    // --details emits 5 blocks (one per error).
+    // --details emits 5 error blocks (one per error) PLUS 1 warning block: this
+    // fixture never ran `yg init`, so it carries no AGENTS.md/CLAUDE.md/.clinerules
+    // digest artifacts, and the committed-digest staleness gate (a warning, not
+    // an error — the `Errors (5)` assertion above is unaffected) always fires
+    // here. --details renders that warning as its own block too, for 6 total.
     const blockCount = countBlocks(out);
-    expect(blockCount).toBe(5);
+    expect(blockCount).toBe(6);
+    // Pin WHICH warning contributes the 6th block — so a future change that
+    // removes this gate and happens to add some other warning cannot satisfy
+    // the count silently.
+    expect(out).toContain('rules-digest-stale');
 
     // Each unverified issue line includes the per-issue "unverified  <node>" pattern
     // (not the grouped header with "N pairs  M nodes").
@@ -544,9 +552,20 @@ describe.skipIf(!distExists)('CLI E2E — yg check --top empty-section annotatio
     expect(status).toBe(1);
 
     // GUARDRAIL: true aggregate counts for BOTH severities stay visible even
-    // though the slice renders no warning group.
+    // though the slice renders no warning group. The true warning count is 2,
+    // not 1: this fixture never ran `yg init`, so it carries no AGENTS.md/
+    // CLAUDE.md/.clinerules digest artifacts, and the committed-digest
+    // staleness gate (`rules-digest-stale`) always fires here alongside
+    // `aspect-soft`'s unverified warning.
     expect(out).toMatch(/Errors \(1\)/);
-    expect(out).toMatch(/Warnings \(1\)/);
+    expect(out).toMatch(/Warnings \(2\)/);
+    // Pin WHICH warning contributes the 2nd count. `--top 1` annotates the
+    // whole warnings section away (no group body), so `rules-digest-stale`
+    // cannot appear literally in `out` above — cross-check the untruncated
+    // listing instead, so a future change that removes this gate and adds
+    // some other 2nd warning cannot satisfy `Warnings (2)` silently.
+    const untruncated = run(['check'], dir);
+    expect(strip(untruncated.stdout)).toContain('rules-digest-stale');
 
     // Exactly ONE group block (the suggested-next error group).
     expect(countBlocks(out)).toBe(1);
@@ -565,8 +584,14 @@ describe.skipIf(!distExists)('CLI E2E — yg check --top empty-section annotatio
     const out = strip(stdout);
 
     expect(status).toBe(1);
+    // True warning count is 2 (aspect-soft + rules-digest-stale) — see the
+    // comment on the --top 1 case above.
     expect(out).toMatch(/Errors \(1\)/);
-    expect(out).toMatch(/Warnings \(1\)/);
+    expect(out).toMatch(/Warnings \(2\)/);
+    // Pin WHICH warning contributes the 2nd count — see the --top 1 case
+    // above for why the cross-check is against the untruncated listing.
+    const untruncated = run(['check'], dir);
+    expect(strip(untruncated.stdout)).toContain('rules-digest-stale');
     expect(countBlocks(out)).toBe(1);
     expect(out).toContain('    (no warning groups within --top 1 — run yg check for the full list)');
     expectNoDanglingSectionHeader(stdout);
@@ -689,12 +714,16 @@ describe.skipIf(!distExists)('CLI E2E — F3: bare --top group === the rule Next
     const fullOut = strip(full.stdout);
 
     // Sanity: BOTH structural codes AND coverage are present in the full wall.
-    expect(fullOut).toMatch(/^ {2}flow-node-broken {2}\d+ pairs/m);
+    // flow-node-broken names a FLOW, not a node — it carries no node path, so
+    // its header is the bare label with no pair/node counts (those would be
+    // fabricated). relation-broken does name a node and keeps its counts.
+    expect(fullOut).toMatch(/^ {2}flow-node-broken$/m);
     expect(fullOut).toMatch(/^ {2}relation-broken {2}\d+ pairs/m);
     expect(fullOut).toMatch(/^ {2}unmapped \(/m);
 
-    // The rule bare --top renders: the FIRST group header line's label token.
-    const topGroupMatch = topOut.match(/^ {2}(\S+) {2}\d+ pairs {2}\d+ nodes/m);
+    // The rule bare --top renders: the FIRST group header line's label token,
+    // whether or not that group's header carries node-scoped counts.
+    const topGroupMatch = topOut.match(/^ {2}(\S+)(?: {2}\d+ pairs {2}\d+ nodes.*)?$/m);
     expect(topGroupMatch).not.toBeNull();
     const topGroupRule = topGroupMatch![1];
 

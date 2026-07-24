@@ -6,6 +6,22 @@ description: "Unified check orchestrator — runs validation, coverage, the
   cached refusal, or unverified), then log integrity, and computes the suggested
   next command. Write-free: the lock is produced only by the fill stage behind
   yg check --approve."
+max_direct_relations:
+  limit: 23
+  reason: >-
+    Reviewed architectural seam. This node is the single read-only orchestrator of
+    `yg check`: it composes every check module and every source of facts one report
+    must reconcile — the structural/completeness validators, coverage and tiering,
+    lock verification, log integrity, the live relation-conformance pass, and the
+    standalone gates wired directly into runCheck (review cadence, committed-digest
+    drift). About half its edges are the check modules themselves; the rest are the
+    graph, lock and validation models, the formatters, and the io helpers those
+    checks and this node's own feature-index output require. The count grows by one
+    each time a new check is added, which is the intended shape: keeping the
+    composition in one auditable place is what lets a single run produce one
+    consistent issue set and exit code. The ceiling is the current count (21) plus modest headroom,
+    so a couple of future checks land without churning this allowance while a
+    larger jump still re-raises the warning for review.
 aspects:
   - posix-paths-output
   - what-why-next
@@ -27,6 +43,8 @@ relations:
   - target: cli/core/check-codes
     type: calls
   - target: cli/core/checks/aspects
+    type: calls
+  - target: cli/core/checks/digest-gate
     type: calls
   - target: cli/core/check-coverage-tiers
     type: calls

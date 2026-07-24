@@ -13,12 +13,12 @@ You work on the Yggdrasil repository: an open-source CLI that provides continuou
 
 ## Product Scope
 
-`rules.ts` and `agent-rules.md` are consumed by agents in ANY repository that adopts Yggdrasil — not just this one. When editing rules content, examples, or guidance: use domain-neutral examples (no Yggdrasil-specific types or commands). Think "what would help an agent working on an e-commerce app or a mobile game?" not "what would help an agent working on this CLI."
+`rules.ts` (printed by `yg prime`) and the committed AGENTS.md digest are consumed by agents in ANY repository that adopts Yggdrasil — not just this one. When editing rules content, examples, or guidance: use domain-neutral examples (no Yggdrasil-specific types or commands). Think "what would help an agent working on an e-commerce app or a mobile game?" not "what would help an agent working on this CLI."
 
 ## Constraints
 
-- Never edit generated rules files (e.g. `.yggdrasil/agent-rules.md`, `.cursor/rules/yggdrasil.mdc`). To change the rules content: edit `source/cli/src/templates/rules.ts` (content) or `source/cli/src/templates/platform.ts` (frontmatter), then build and regenerate: `node source/cli/dist/bin.js init --upgrade --platform claude-code`. **Always regenerate after changing rules.ts** — this repo dogfoods Yggdrasil, so stale rules mean the agent operating on this repo uses outdated instructions. `AGENTS.md` is hand-authored project context only — never inject the Yggdrasil rules block into it (only `claude-code` platform is used here; the rules reach the agent via `CLAUDE.md` → `@.yggdrasil/agent-rules.md`).
-- **Ignore generated rules files** for understanding: `.yggdrasil/agent-rules.md`, `.cursor/rules/yggdrasil.mdc`, etc. are auto-generated output. Never read or search them. The source of truth for rules content is `source/cli/src/templates/rules.ts`.
+- Never hand-edit the marker-delimited Yggdrasil digest block in `AGENTS.md` (or `.clinerules/yggdrasil.md`) — it is generated. To change rules content: edit `source/cli/src/templates/rules.ts` (full manual) or `source/cli/src/templates/digest.ts` (committed digest), then rebuild and regenerate: `node source/cli/dist/bin.js init --upgrade` from repo root (repo-check's digest assertion fails the commit otherwise — it tells you the exact command).
+- **Ignore the generated digest block** for understanding; the source of truth is `templates/rules.ts` + `templates/digest.ts`.
 - **Always reflect changes in corresponding documentation.** When modifying code behavior, algorithms, or data structures, identify and update all documentation that describes the changed behavior — `docs/` (user docs) and `.yggdrasil/` (graph metadata). Changes to behavior are not complete until every document describing that behavior is consistent.
 - **NEVER run `yg init` from a subdirectory.** Always run from the repository root. Running from `source/cli/` or any subdirectory creates a new `.yggdrasil/` there or corrupts the project config. Use `node source/cli/dist/bin.js` for local builds, not `npx yg` (which may use a cached global version).
 
@@ -28,7 +28,7 @@ All Yggdrasil-derived local/rebuildable state (caches, indexes, scratch state) M
 
 ## Adding Support for a New Agent
 
-To add a new platform (e.g. a new IDE or agent): add it to `source/cli/src/templates/platform.ts` — implement `installFor<Platform>` to write the rules file to the agent's expected location.
+Universal install covers every agent that reads AGENTS.md natively; Claude Code via the `CLAUDE.md` import; Cline via `.clinerules/`. A new agent needing a bespoke file is a design decision — open it with the maintainer before adding an installer.
 
 ## Version Bump & Changelog
 
@@ -80,6 +80,7 @@ Do NOT use the auto memory system. All persistent knowledge goes into CLAUDE.md 
 - **Never hardcode assumptions; derive and verify.** Establish facts from the real config/code and check them, rather than asserting "probably X" when X depends on configuration. (E.g. whether a reviewer costs money or needs an API key depends on the configured provider — a hosted API does; a local/CLI provider like `claude-code` does not — read the config, don't guess.)
 - **Don't expose internals in user-facing surfaces.** A person sees *what* is happening in plain terms — not the names of commands, flags, or internal mechanisms.
 - **Use multi-agent processes for substantive work** — opinion panels, adversarial review, research workflows — rather than a single pass. When external research is wanted, offer a ready-to-run research prompt in a code block so the maintainer can run it with their own agent.
+- **Subagents run on Sonnet or Opus only — set the model explicitly on every spawn.** Never launch a subagent that silently inherits the session model. Default to Sonnet for research/mechanical work, Opus for hard synthesis or judging. Instruct subagents not to spawn their own agents (nested spawns would bypass the model choice).
 - **Ground yourself before designing.** Read all of `yg knowledge` and `yg schemas` so you understand the engine completely before proposing a design.
 - **Graph before code, hierarchically; lock the design in.** Design the target architecture + aspects up front, then calibrate as work proceeds. Concrete ("betonuj") the intended rules, relations, and architecture in Yggdrasil — a hierarchical model + aspects — so a future session cannot build anything inconsistent with the design (`yg check` refuses the drift). Where a preference here is mechanically checkable, prefer encoding it as an **aspect**, not just prose.
 - **No artificial mocking.** Tests run against real on-disk fixture projects (a real `.yggdrasil/` graph + real source), never fabricated data. E2E tests use **only the public CLI surface** (spawn the built `bin.js`), drive the real output in **Playwright + Chromium** — every path, properly, not a token smoke test — and assert consistency with `yg check`. This matches the repo's existing `source/cli/tests/fixtures/**` + `source/cli/tests/e2e/` convention.
@@ -94,3 +95,40 @@ Consider both:
 
 1. **Product** — Is the command correct and useful for adopters?
 2. **Dogfood** — Is this repo's graph coverage correct and complete?
+
+<!-- yggdrasil:start -->
+<!-- yggdrasil:digest cli=5.5.1 sha256=a94d3f23a66367520d042063e75e36f6ef1ad1ab5d131592f5f34160912c506f -->
+## Yggdrasil
+
+This repository is managed by Yggdrasil — continuous architecture enforcement.
+An architecture graph in `.yggdrasil/` defines the rules; a reviewer verifies
+source code against them, and `yg check` blocks CI whenever an enforced rule
+is violated or unverified.
+
+**Required first step:** run `yg prime` and follow the protocol it prints
+before making any change. The full, current operating manual comes from the
+installed CLI — this block is only the standing summary. If `yg prime` is not
+a recognized command, the installed Yggdrasil CLI predates this integration:
+update the `@chrisdudek/yg` package before proceeding.
+
+Non-negotiable invariants (they hold even before reading the manual):
+
+- Never write a `yg-suppress` marker without the user's explicit
+  confirmation. The reviewer honors suppressions unconditionally — an
+  unauthorized suppress silently disables a rule.
+- Never change a rule's `review_by:` date; renewing or retiring a rule is
+  the user's decision.
+- Treat `yg advise` items and incidents as proposals: dismissing, deferring,
+  or recording one requires the user's approval. Never fabricate an incident.
+- Changes to `.yggdrasil/yg-architecture.yaml` require the user's
+  confirmation.
+- Log entries (`yg log add`) carry WHY in self-contained prose — no
+  references to plans, file paths, steps, or conversation state.
+- Never hand-edit `.yggdrasil/` lock files.
+- If the user explicitly requests a code-only change without graph updates,
+  comply but warn: the affected rules stay unverified and CI stays red. Do
+  not run `yg check --approve` — leave the rules unverified.
+
+Start every session with `yg check`; re-print the manual any time with
+`yg prime`.
+<!-- yggdrasil:end -->

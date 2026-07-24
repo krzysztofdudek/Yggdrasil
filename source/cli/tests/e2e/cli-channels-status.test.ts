@@ -245,14 +245,21 @@ describe.skipIf(!distExists)('CLI E2E — status propagation on cascading channe
       // The advisory violation renders under the Warnings section as an
       // `advisory` group (the grouped renderer drops the old per-issue
       // "(advisory — not blocking)" suffix; non-blocking is shown by the
-      // Warnings section + PASS verdict).
-      expect(fill.stdout).toContain('Warnings (1):');
+      // Warnings section + PASS verdict). A second warning group
+      // (`rules-digest-stale`) is always present too — this fixture never ran
+      // `yg init`, so it carries no AGENTS.md/CLAUDE.md/.clinerules digest
+      // artifacts, and the committed-digest staleness gate flags that on every
+      // `yg check`/`yg check --approve` here. It is unrelated to the aspect
+      // under test, so we assert its presence explicitly rather than let it
+      // silently inflate the count.
+      expect(fill.stdout).toContain('Warnings (2) in 2 groups:');
       expect(fill.stdout).toContain("advisory  1 pairs  1 nodes  aspect 'no-banned-word'");
+      expect(fill.stdout).toContain('rules-digest-stale');
 
       // `yg check` renders it as a non-blocking warning and PASSES.
       const check = run(['check'], dir);
       expect(check.status).toBe(0);
-      expect(check.stdout).toContain('PASS (1 warning)');
+      expect(check.stdout).toContain('PASS (2 warnings)');
       expect(check.stdout).toContain('advisory');
       expect(check.stdout).toContain('services/orders');
       expect(check.stdout).toContain('no-banned-word');
@@ -333,13 +340,16 @@ describe.skipIf(!distExists)('CLI E2E — status propagation on cascading channe
       // The advisory violation renders under the Warnings section as an
       // `advisory` group (the grouped renderer drops the old per-issue
       // "(advisory — not blocking)" suffix; non-blocking is shown by the
-      // Warnings section + PASS verdict).
-      expect(fill.stdout).toContain('Warnings (1):');
+      // Warnings section + PASS verdict). A second warning group
+      // (`rules-digest-stale`) is always present too — see the comment on the
+      // CH3 case above.
+      expect(fill.stdout).toContain('Warnings (2) in 2 groups:');
       expect(fill.stdout).toContain("advisory  1 pairs  1 nodes  aspect 'no-banned-word'");
+      expect(fill.stdout).toContain('rules-digest-stale');
 
       const check = run(['check'], dir);
       expect(check.status).toBe(0);
-      expect(check.stdout).toContain('PASS (1 warning)');
+      expect(check.stdout).toContain('PASS (2 warnings)');
       expect(check.stdout).toContain('advisory');
       expect(check.stdout).toContain('services/orders');
       expect(check.stdout).toContain('no-banned-word');

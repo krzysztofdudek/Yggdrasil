@@ -49,7 +49,7 @@ import path from 'node:path';
 
 import type { Graph, AspectDef, LlmConfig } from '../model/graph.js';
 import type { VerdictEntry } from '../model/lock.js';
-import type { CheckResult } from './check.js';
+import type { CheckResult, RunCheckOptions } from './check.js';
 import { runCheck } from './check.js';
 import { readLock, writeLock } from '../io/lock-store.js';
 import type { ExpectedPair } from './pairs.js';
@@ -203,6 +203,14 @@ export interface RunFillOptions {
    *  plain `yg check` does. Absent ⇒ the review-overdue check is skipped on this path too (core
    *  purity: no fabricated Date.now). Read-only — never writes the lock or gates the fill. */
   reviewNowUtc?: () => Date;
+  /** INJECTED snapshot of the committed rules-distribution artifacts for the committed-digest
+   *  staleness gate, threaded into both the dry-run cost-preview report and the final post-fill
+   *  report runCheck — exactly as `reviewNowUtc` above is. Without it the identical repo printed
+   *  one fewer warning under `--approve` than under plain `yg check`, because the fill's own
+   *  report never received the snapshot. Absent ⇒ the gate is skipped on this path too (core
+   *  purity: core reads no files). Read-only — never writes the lock or gates the fill.
+   *  Typed off RunCheckOptions so the field cannot drift from the option it forwards. */
+  rulesArtifacts?: RunCheckOptions['rulesArtifacts'];
   /** Whether the write sink is an interactive TTY. Defaults to process.stderr.isTTY ?? false.
    *  When true, the progress tracker rewrites a single line with \r instead of emitting
    *  milestone lines. */
@@ -440,7 +448,10 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
         `deterministic refusal has its LLM fills skipped this run, and a fresh refusal or ` +
         `infra disposition can leave a pair unfilled. Nothing was written; run yg check --approve to fill.\n`,
     );
-    const checkResult = await runCheck(graph, opts.gitTrackedFiles, { nowUtc: opts.reviewNowUtc });
+    const checkResult = await runCheck(graph, opts.gitTrackedFiles, {
+      nowUtc: opts.reviewNowUtc,
+      rulesArtifacts: opts.rulesArtifacts,
+    });
     return { checkResult, reviewerCallsMade: 0, infraFailures: 0, runtimeErrors: 0, companionRuntimeErrors: 0, malformedSuppressErrors: 0 };
   }
 
@@ -893,6 +904,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
     writeFeatureIndex: opts.writeFeatureIndex,
     now: opts.featureIndexNow,
     nowUtc: opts.reviewNowUtc,
+    rulesArtifacts: opts.rulesArtifacts,
   });
 
   // ── Convergence sentinel (C15) — READ-ONLY over the fill's own state. ──────

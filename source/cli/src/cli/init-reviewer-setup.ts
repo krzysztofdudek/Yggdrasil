@@ -129,18 +129,28 @@ async function promptModelText(provider: ReviewerProvider): Promise<string> {
   return model.trim();
 }
 
-export async function runReviewerConfigFlow(): Promise<{
+/**
+ * The answer "no reviewer for now" — a first-class outcome of the selection
+ * below, not a failure to choose. Script rules, dependency control and the CI
+ * gate all work with nothing configured, so a person who does not want to pick
+ * a judge yet must be able to say so and still land on a working project.
+ */
+const NO_REVIEWER = 'none';
+
+export interface ReviewerChoice {
   provider: ReviewerProvider;
   model: string;
   apiKey?: string;
   endpoint?: string;
-}> {
+}
+
+export async function runReviewerConfigFlow(): Promise<ReviewerChoice | null> {
   // 1. Provider selection.
   // Free, no-key options come first and the installed-agent path is the default:
   // most adopters already run an agent CLI (Claude Code / Codex / Gemini), so the
   // reviewer needs no separate API key or bill. API providers follow for those who
-  // want a dedicated key.
-  const provider = await p.select<ReviewerProvider>({
+  // want a dedicated key, and the deliberate "not yet" answer comes last.
+  const selection = await p.select<ReviewerProvider | typeof NO_REVIEWER>({
     message: 'Which provider should verify your code?',
     initialValue: 'claude-code' as ReviewerProvider,
     options: [
@@ -152,9 +162,12 @@ export async function runReviewerConfigFlow(): Promise<{
       { value: 'openai' as ReviewerProvider, label: 'OpenAI', hint: 'API key — GPT models' },
       { value: 'google' as ReviewerProvider, label: 'Google', hint: 'API key — Gemini models' },
       { value: 'openai-compatible' as ReviewerProvider, label: 'OpenAI-compatible', hint: 'API key — custom endpoint' },
+      { value: NO_REVIEWER, label: 'None for now', hint: 'Script rules, dependency control and the CI gate work without one' },
     ],
   });
-  assertNotCancelled(provider);
+  assertNotCancelled(selection);
+  if (selection === NO_REVIEWER) return null;
+  const provider: ReviewerProvider = selection;
 
   // CLI providers: no API key needed
   if (CLI_PROVIDERS.includes(provider)) {
@@ -356,13 +369,11 @@ export type ResolveReviewerResult =
  * result via buildIssueMessage so error emission stays in the `command` node.
  */
 export function resolveReviewerConfigFromFlags(opts: {
-  platform?: string;
   provider: ReviewerProvider;
   model?: string;
   endpoint?: string;
 }): ResolveReviewerResult {
   const { provider } = opts;
-  const platHint = opts.platform ? ` --platform ${opts.platform}` : ' --platform <name>';
 
   let model = opts.model?.trim();
   if (!model) {
@@ -372,7 +383,7 @@ export function resolveReviewerConfigFromFlags(opts: {
       return { ok: false, issue: {
         what: `--model is required for provider '${provider}'.`,
         why: 'Only claude-code has a built-in default model (sonnet); other providers must name the model explicitly.',
-        next: `Re-run naming a model: yg init --provider ${provider} --model <name>${platHint}.`,
+        next: `Re-run naming a model: yg init --provider ${provider} --model <name>.`,
       } };
     }
   }
@@ -385,7 +396,7 @@ export function resolveReviewerConfigFromFlags(opts: {
       return { ok: false, issue: {
         what: `--endpoint is required for provider '${provider}'.`,
         why: 'An OpenAI-compatible provider has no default base URL — the reviewer needs an endpoint to call.',
-        next: `Re-run naming an endpoint: yg init --provider ${provider} --model ${model} --endpoint <url>${platHint}.`,
+        next: `Re-run naming an endpoint: yg init --provider ${provider} --model ${model} --endpoint <url>.`,
       } };
     }
   }

@@ -1,6 +1,12 @@
 name: Entry
 type: entry-point
-description: CLI entry point that bootstraps Commander and registers all yg subcommands
+description: >-
+  CLI entry point that bootstraps Commander and registers all yg subcommands.
+  It resolves its own --version by reading the package manifest directly rather
+  than reusing the shared cli-version helper: the entry-point type may depend
+  only on command nodes, and that helper is command-support. The small
+  duplication is what the architecture requires, not an oversight — do not
+  "fix" it by importing the helper here.
 max_direct_relations:
   limit: 25
   reason: >-
@@ -53,6 +59,8 @@ relations:
   - target: cli/commands/portal
     type: calls
   - target: cli/commands/structure
+    type: calls
+  - target: cli/commands/prime
     type: calls
 mapping:
   - source/cli/src/bin.ts

@@ -1,0 +1,26 @@
+name: RulesArtifactsReader
+type: command-support
+description: >-
+  The single boundary reader for the committed rules-distribution artifacts — it
+  snapshots AGENTS.md, CLAUDE.md and .clinerules/yggdrasil.md off disk (through the
+  installer's own case-variant resolver, so reader and writer can never disagree about
+  which file was written) and pairs them with the installed CLI's canonical digest hash,
+  for the committed-digest staleness gate. It lives in shared command-layer support
+  because TWO boundaries must inject the identical snapshot into the check engine: the
+  `yg check` command and the portal's engine facade. The engine skips the gate outright
+  when the snapshot is absent, so a boundary that forgets to read would show that surface
+  as clean over the very drift the gate exists to surface — one shared reader makes that
+  divergence impossible to reintroduce by omission. Read-only: it opens three files and
+  returns their contents, treats a genuinely-absent file as an ordinary absence, and
+  records only failures that are NOT a plain missing file.
+relations:
+  - target: cli/core/checks/digest-gate
+    type: calls
+  - target: cli/templates
+    type: calls
+  - target: cli/templates-platform
+    type: calls
+  - target: cli/utils
+    type: calls
+mapping:
+  - source/cli/src/cli/rules-artifacts.ts

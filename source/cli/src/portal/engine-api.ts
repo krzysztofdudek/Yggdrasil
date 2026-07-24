@@ -3,6 +3,7 @@ import path from 'node:path';
 import type { Graph, GraphNode, AspectStatus } from '../model/graph.js';
 import type { LockFile } from '../model/lock.js';
 import { loadGraphOrAbort } from '../cli/preamble.js';
+import { readRulesArtifacts } from '../cli/rules-artifacts.js';
 import { walkRepoFiles } from '../io/repo-scanner.js';
 import { runCheck, scanUncoveredFiles, type CheckResult, type CheckIssue } from '../core/check.js';
 import { readLock, committedLockContentHash } from '../io/lock-store.js';
@@ -91,14 +92,41 @@ export async function walkPortalFiles(projectRoot: string): Promise<string[]> {
 // ── Engine read-only entry points (severities, coverage, pairs, lock) ─────────
 
 /**
- * Reuse the engine: severities + coverage come straight from runCheck. Injects the
- * wall clock the same way the `yg check` CLI boundary does (`() => new Date()`), so the
- * portal's issue set — and therefore `meta.counts.warnings` and the worklist — includes
- * aspect-review-overdue warnings and matches `yg check` exactly. Without the clock, the
- * review-cadence check is skipped in core and the portal would silently undercount.
+ * Reuse the engine: severities + coverage come straight from runCheck. This wrapper
+ * exists to supply EVERY boundary input the `yg check` CLI boundary supplies, because
+ * core skips a boundary-injected check outright when its input is absent — so anything
+ * missing here is not a shorter report, it is a warning the portal silently swallows
+ * while the command line prints it:
+ *
+ *   - the review clock, without which core skips the review-cadence check and the
+ *     portal undercounts aspect-review-overdue warnings;
+ *   - the committed rules-distribution snapshot, without which core skips the
+ *     committed-digest staleness gate and a repo with a stale, hand-edited, or missing
+ *     digest reads clean in the portal while `yg check` warns about it.
+ *
+ * The clock is a REQUIRED parameter, not something this module invents. Every other
+ * input to this facade (the graph, the file list) is supplied by the caller, and the
+ * wall clock is environment state exactly like those: reading it here would make this
+ * module's output depend on when it ran. A required parameter is also the stronger
+ * anti-omission guarantee — the compiler rejects a call that leaves it out, where a
+ * self-supplied default would just hide the decision.
+ *
+ * The rules snapshot IS read here, from the SAME shared boundary reader the CLI uses,
+ * and its root is derived from the graph (`graph.rootPath` is the `.yggdrasil/`
+ * directory; its parent is the project root) exactly as core derives it. That read is
+ * deterministic relative to the files on disk — the same repository state always yields
+ * the same snapshot — and keeping it here is what makes it impossible for the two
+ * boundaries to disagree about what the installer actually wrote.
  */
-export async function runPortalCheck(graph: Graph, gitFiles: string[]): Promise<CheckResult> {
-  return runCheck(graph, gitFiles, { nowUtc: () => new Date() });
+export async function runPortalCheck(
+  graph: Graph,
+  gitFiles: string[],
+  nowUtc: () => Date,
+): Promise<CheckResult> {
+  return runCheck(graph, gitFiles, {
+    nowUtc,
+    rulesArtifacts: await readRulesArtifacts(path.dirname(graph.rootPath)),
+  });
 }
 
 /** Read the lock and verify it in one read-only step — per-pair states for the portal. */

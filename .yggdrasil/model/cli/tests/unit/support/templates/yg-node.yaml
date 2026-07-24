@@ -18,3 +18,4 @@ mapping:
   - source/cli/tests/unit/templates/platform.test.ts
   - source/cli/tests/unit/templates/rules-sections.test.ts
   - source/cli/tests/unit/templates/rules.test.ts
+  - source/cli/tests/unit/templates/digest.test.ts

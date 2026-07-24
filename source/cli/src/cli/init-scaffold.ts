@@ -1,7 +1,7 @@
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { DEFAULT_CONFIG, DEFAULT_ARCHITECTURE } from '../templates/default-config.js';
-import { installRulesForPlatform, type Platform } from '../templates/platform.js';
+import { installRules } from '../templates/platform.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { FILL_DIVERGENCE_GITIGNORE_LINE } from '../io/debug-log-writer.js';
 
@@ -147,13 +147,21 @@ export async function ensureYggdrasilGitignore(yggRoot: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Fresh .yggdrasil/ structure + platform rules
+// Fresh .yggdrasil/ structure + universal agent rules
 // ---------------------------------------------------------------------------
 
+/**
+ * `cliVersionStr` is passed in rather than resolved here (via cli-version.ts's
+ * `cliVersion()`) because this module's node type (`command-support`) may only
+ * relate to [engine, parser-adapter, persistence-adapter, formatter, utility,
+ * llm-shared, template] — NOT to another `command-support` node, which is what
+ * cli-version.ts is. The caller (init.ts, a `command` node — allowed to call
+ * any command-support node) resolves the version once and threads it through.
+ */
 export async function createYggdrasilStructure(
   projectRoot: string,
   yggRoot: string,
-  platform: Platform,
+  cliVersionStr: string,
 ): Promise<void> {
   await mkdir(path.join(yggRoot, 'model'), { recursive: true });
   await mkdir(path.join(yggRoot, 'aspects'), { recursive: true });
@@ -164,5 +172,5 @@ export async function createYggdrasilStructure(
   await ensureYggdrasilGitignore(yggRoot);
   // yg-secrets.yaml is created by writeSecretsFile when user provides an API key
 
-  await installRulesForPlatform(projectRoot, platform);
+  await installRules(projectRoot, cliVersionStr);
 }

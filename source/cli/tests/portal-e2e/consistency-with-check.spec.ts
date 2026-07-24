@@ -31,6 +31,30 @@ function parseCheckWarnings(out: string): number {
   return m ? parseInt(m[1], 10) : 0;
 }
 
+/**
+ * The rule labels of every GROUP the grouped `yg check` output prints, errors and warnings
+ * alike, so the labels come from the CLI's own rendering — the page's worklist is then compared
+ * against that set instead of a hardcoded count, which would silently need editing (and could be
+ * edited to whatever the page happens to render) the next time a fixture's real state changes.
+ *
+ * Two header shapes, because there are two kinds of group. A NODE-SCOPED group's header ends
+ * `<N> pairs  <M> nodes`. A REPOSITORY-LEVEL group — one whose finding names no component, such
+ * as the committed agent-rules digest drifting from the installed CLI — prints its label alone:
+ * a pair and node count there would describe a component that does not exist. The bare form is
+ * matched narrowly (a lone kebab-case issue code) so the coverage blocks, which are also
+ * two-space-indented but carry a parenthesized file count, are never swept in.
+ */
+function parseCheckRuleGroups(out: string): string[] {
+  const labels: string[] = [];
+  for (const line of out.split('\n')) {
+    const scoped = line.match(/^ {2}(\S.*?)\s{2,}\d+ pairs\s+\d+ nodes\s*$/);
+    if (scoped) { labels.push(scoped[1]); continue; }
+    const repoLevel = line.match(/^ {2}([a-z][a-z0-9-]*)\s*$/);
+    if (repoLevel) labels.push(repoLevel[1]);
+  }
+  return labels;
+}
+
 test.describe('the page counts EQUAL `yg check` on the same fixture', () => {
   test('portal-basic: rendered errors / verified / unverified == yg check', async ({ page, t }) => {
     const fixtureCwd = (await import('./support/harness')).fixtureRoot('portal-basic');
@@ -60,10 +84,19 @@ test.describe('the page counts EQUAL `yg check` on the same fixture', () => {
     expect(renderedVerified).toBe(0);
     expect(renderedTotal).toBe(2);
 
-    // The worklist mirrors the same blocking truth: same-rule issues are grouped, so the 2
-    // unverified pairs collapse into ONE rule group covering 2 nodes (== yg check grouping).
-    await expect(page.locator('.cov-worow')).toHaveCount(1);
-    await expect(page.locator('.cov-worow-meta')).toContainText('2 nodes');
+    // The worklist mirrors the CLI's grouping exactly — the SAME rule groups, derived from the
+    // CLI's own output rather than pinned to a literal, so the page can neither drop a group the
+    // CLI reports nor invent one. On this fixture that is the blocking unverified group plus the
+    // non-blocking agent-rules-digest group (the fixture ships no agent-rules install, and the
+    // page must say so exactly as the CLI does — a page that showed only the blocking group would
+    // be reading greener than the command line).
+    const cliRules = parseCheckRuleGroups(check.out);
+    expect(cliRules).toContain('unverified (not yet reviewed)');
+    expect(cliRules).toContain('rules-digest-stale');
+    await expect(page.locator('.cov-worow')).toHaveCount(cliRules.length);
+    // The blocking group leads the priority cascade and still covers both unverified nodes.
+    await expect(page.locator('.cov-worow').first().locator('.cov-worow-meta')).toContainText('2 nodes');
+    await expect(page.locator('.cov-worow')).toContainText(['unverified', 'rules-digest-stale']);
   });
 
   test('after a real Approve the page follows the CLI to green (0 errors, all verified)', async ({ page, t }) => {

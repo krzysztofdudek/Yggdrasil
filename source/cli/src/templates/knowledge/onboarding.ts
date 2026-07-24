@@ -323,14 +323,17 @@ record a refusal.
    can't happen again"). Default: mini shop; override with THEIR world
    (their world beats the default — a game-mod economy, a newsletter tool,
    whatever they know). ~5 tiny plausible files, never executed.
-3. \`yg init --platform <theirs> --provider <their CLI provider> --model
-   <its default>\` — or keyless, config by hand (\`yg schemas read config\`);
-   in the hand-config path also write \`.yggdrasil/.gitignore\` with the lines
-   \`yg init\` ships (\`yg-secrets.yaml\`, \`.symbols-cache/\`, \`.ast-cache/\`,
-   \`.debug.log\`, \`.yg-lock.deterministic.json\`, \`.yg-events.jsonl\`,
-   \`.yg-fill-divergence.log\`, \`.feature-field.json\`) so the derived caches the
-   demos generate never surface as untracked files and break the porcelain
-   proof. Add the scaffold's side files (rules file, \`.gitattributes\`) to
+3. \`yg init --provider <their CLI provider> --model <its default>\` (agent
+   rules install the same universal way for every agent, so there's no
+   platform to name) — or keyless, config by hand (\`yg schemas read
+   config\`); in the hand-config path also write \`.yggdrasil/.gitignore\`
+   with the lines \`yg init\` ships (\`yg-secrets.yaml\`, \`.symbols-cache/\`,
+   \`.ast-cache/\`, \`.debug.log\`, \`.yg-lock.deterministic.json\`,
+   \`.yg-events.jsonl\`, \`.yg-fill-divergence.log\`, \`.feature-field.json\`)
+   so the derived caches the demos generate never surface as untracked files
+   and break the porcelain proof. Add the scaffold's side files (the three
+   agent-rules artifacts — \`AGENTS.md\`, the \`CLAUDE.md\` import,
+   \`.clinerules/yggdrasil.md\` — plus \`.gitattributes\`) to
    \`coverage.excluded\` so the learner's first green isn't blemished by a
    setup warning.
 4. Graph by hand per \`yg schemas read node|aspect|architecture\`: two nodes,

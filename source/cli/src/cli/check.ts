@@ -14,6 +14,7 @@ import { availableParallelism } from 'node:os';
 import { walkRepoFiles } from '../io/repo-scanner.js';
 import { groupIssues, type IssueGroup, getIssueLabel, FULL_WHAT_CODES, issuePriorityRank } from './group-issues.js';
 import type { YggConfig } from '../model/graph.js';
+import { readRulesArtifacts } from './rules-artifacts.js';
 
 /**
  * Resolve the effective approve mode from explicit CLI flags and graph config.
@@ -309,6 +310,12 @@ export function registerCheckCommand(program: Command): void {
               // the plain `yg check` path does (runCheck below). Core has no Date.now
               // of its own; read-only, never gates the fill.
               reviewNowUtc: () => new Date(),
+              // Injected snapshot for the committed-digest staleness gate, threaded on
+              // exactly the same seam as reviewNowUtc so `yg check --approve` surfaces
+              // the same digest-drift warning the plain `yg check` path does. Without
+              // it the identical repo printed one fewer warning under --approve. Core
+              // reads no files itself; read-only, never gates the fill.
+              rulesArtifacts: await readRulesArtifacts(projectRoot),
               // Core count resolved in the CLI layer (engine stays deterministic);
               // deterministic checks run across this many worker threads.
               detConcurrency: Math.max(1, availableParallelism() - 1),
@@ -367,6 +374,7 @@ export function registerCheckCommand(program: Command): void {
           nowUtc: () => new Date(),
           writeFeatureIndex: true,
           now: () => new Date(),
+          rulesArtifacts: await readRulesArtifacts(projectRoot),
         });
         process.stdout.write(formatOutput(result, view));
 
@@ -941,9 +949,11 @@ function renderIssueBlock(issue: CheckIssue, lines: string[], mode: 'error' | 'w
   const md = issue.messageData;
   const whatLines = md.what.split('\n');
   const label = getIssueLabel(issue);
-  const nodePath = issue.nodePath ?? '';
+  // A repo-level issue (no node) omits the node column entirely instead of
+  // leaving a blank one, which read as a stray double space before the summary.
+  const nodeSeg = issue.nodePath ? `  ${issue.nodePath}` : '';
 
-  lines.push(`  ${label}  ${nodePath}  ${whatLines[0]}`);
+  lines.push(`  ${label}${nodeSeg}  ${whatLines[0]}`);
   // Refusal codes: render the remaining `what` lines (reviewer reason /
   // violation list) indented under the header so the agent sees the full
   // refusal detail in plain `yg check`, not only via `yg aspect-test`.
@@ -1020,6 +1030,34 @@ function glossLabel(label: string): string {
 }
 
 /**
+ * Render a group whose members name no graph node — a repository-level finding
+ * (the committed agent-rules digest is stale; the lock could not be read):
+ *
+ *   <glossLabel(label)>
+ *            <each member's what, first line>
+ *            <sharedWhy>
+ *            Fix: <sharedNext>
+ *
+ * The node-shaped framing is dropped rather than filled with placeholders: a
+ * count of pairs and nodes, and a `- ` bullet with nothing after it, describe a
+ * component the graph does not contain. Every member's `what` is surfaced (it
+ * is the whole content of such a finding), and the shared why/fix render once,
+ * exactly as in the node case.
+ */
+function renderRepoLevelGroup(group: IssueGroup, lines: string[]): void {
+  lines.push(`  ${glossLabel(group.label)}`);
+  for (const m of group.members) {
+    for (const l of m.messageData.what.split('\n')) lines.push(`${BLOCK_INDENT}${l.replace(/\s+$/, '')}`);
+  }
+  if (group.sharedWhy && !group.divergentWhy) lines.push(`${BLOCK_INDENT}Why: ${group.sharedWhy}`);
+  if (group.sharedNext && !group.divergentNext) {
+    const nextLines = group.sharedNext.split('\n');
+    lines.push(`${BLOCK_INDENT}Fix: ${nextLines[0]}`);
+    for (const extra of nextLines.slice(1)) lines.push(`${BLOCK_INDENT}${extra}`);
+  }
+}
+
+/**
  * Render a single IssueGroup as a unified block:
  *   <glossLabel(label)>  <P> pairs  <M> nodes[  aspect '<id>']
  *   <sharedWhy>                         (only when `why` is shared across members)
@@ -1039,6 +1077,15 @@ function glossLabel(label: string): string {
  */
 export function renderGroup(group: IssueGroup, lines: string[], opts: { isTTY: boolean }): void {
   const aspectSeg = group.aspectId ? `  aspect '${group.aspectId}'` : '';
+  // A repo-level group names no node (the committed agent-rules digest, an
+  // unreadable lock). Pair/node counts would both be fabrications there — the
+  // finding is about repository files, not about any component — so the header
+  // carries just the label, and the members render as plain detail lines with
+  // no node bullet to leave empty.
+  if (group.nodeCount === 0) {
+    renderRepoLevelGroup(group, lines);
+    return;
+  }
   lines.push(`  ${glossLabel(group.label)}  ${group.pairCount} pairs  ${group.nodeCount} nodes${aspectSeg}`);
   // Shared why/fix render once ABOVE the member list — but only when they are
   // genuinely shared. A divergent why/next belongs per-member (below), so the

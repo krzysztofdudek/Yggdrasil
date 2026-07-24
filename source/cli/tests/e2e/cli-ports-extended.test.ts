@@ -282,10 +282,15 @@ mapping:
       // The advisory pair fills with a refused verdict; the headline still PASSes
       // (with the refusal surfaced as a non-blocking warning).
       // Fill-time progress ([det] line) goes to STDERR; final report to STDOUT.
+      // A second warning group (`rules-digest-stale`) is always present too —
+      // this fixture never ran `yg init`, so it carries no AGENTS.md/CLAUDE.md/
+      // .clinerules digest artifacts, and the committed-digest staleness gate
+      // flags that on every `yg check`/`yg check --approve` here.
       expect(stderr).toContain('[det] audit-required on node:services/orders — refused');
-      expect(stdout).toContain('PASS (1 warning)');
+      expect(stdout).toContain('PASS (2 warnings)');
       expect(stdout).toContain('advisory');
       expect(stdout).toContain('audit-required');
+      expect(stdout).toContain('rules-digest-stale');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -304,9 +309,11 @@ mapping:
       expect(run(['check', '--approve'], dir).status).toBe(0);
       const { status, stdout } = run(['check'], dir);
       expect(status).toBe(0); // advisory warning does NOT fail check
-      expect(stdout).toContain('PASS (1 warning)');
+      // Second warning group is `rules-digest-stale` — see the comment on C5.
+      expect(stdout).toContain('PASS (2 warnings)');
       expect(stdout).toContain('advisory');
       expect(stdout).toContain('audit-required');
+      expect(stdout).toContain('rules-digest-stale');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

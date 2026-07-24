@@ -48,29 +48,49 @@ describe('init command', () => {
     expect(options).toEqual(expect.arrayContaining(['--provider', '--model', '--endpoint']));
   });
 
-  it('init command still exposes --platform/--provider/--model/--endpoint', () => {
+  it('init command still exposes --platform (deprecated) plus --provider/--model/--endpoint', () => {
     const program = new Command();
     registerInitCommand(program);
     const cmd = program.commands.find(c => c.name() === 'init')!;
     const longs = cmd.options.map(o => o.long);
     for (const f of ['--platform', '--provider', '--model', '--endpoint', '--upgrade']) expect(longs).toContain(f);
   });
+
+  it('--platform option description marks it deprecated and lists the retired platform names', () => {
+    const program = new Command();
+    registerInitCommand(program);
+    const cmd = program.commands.find(c => c.name() === 'init')!;
+    const opt = cmd.options.find(o => o.long === '--platform')!;
+    expect(opt.description).toContain('Deprecated');
+    expect(opt.description).toContain('claude-code');
+  });
 });
 
 describe('freshInitKeyless', () => {
   it('scaffolds a keyless graph with NO reviewer section', async () => {
     const { root, ygg } = await freshDir('keyless');
-    await freshInitKeyless(root, ygg, 'claude-code');
+    await freshInitKeyless(root, ygg);
     const cfg = await readFile(path.join(ygg, 'yg-config.yaml'), 'utf-8');
     expect(cfg).toContain('coverage:');
     expect(cfg).not.toContain('reviewer:');
+  });
+
+  it('installs the universal agent rules artifacts', async () => {
+    const { root, ygg } = await freshDir('keyless-rules');
+    await freshInitKeyless(root, ygg);
+    const agents = await readFile(path.join(root, 'AGENTS.md'), 'utf-8');
+    expect(agents).toContain('<!-- yggdrasil:start -->');
+    const claude = await readFile(path.join(root, 'CLAUDE.md'), 'utf-8');
+    expect(claude).toContain('@AGENTS.md');
+    const { existsSync } = await import('node:fs');
+    expect(existsSync(path.join(root, '.clinerules', 'yggdrasil.md'))).toBe(true);
   });
 });
 
 describe('freshInitNonInteractive', () => {
   it('writes a require-nothing coverage baseline and the named reviewer tier (claude-code needs no key)', async () => {
     const { root, ygg } = await freshDir('happy');
-    await freshInitNonInteractive(root, ygg, { platform: 'claude-code', provider: 'claude-code', model: 'haiku' });
+    await freshInitNonInteractive(root, ygg, { provider: 'claude-code', model: 'haiku' });
     const cfg = await readFile(path.join(ygg, 'yg-config.yaml'), 'utf-8');
     // The fresh config opts into require-nothing coverage (green from the first check).
     expect(cfg).toContain('coverage:');
@@ -82,14 +102,14 @@ describe('freshInitNonInteractive', () => {
 
   it('defaults the Ollama endpoint when --endpoint is omitted', async () => {
     const { root, ygg } = await freshDir('ollama');
-    await freshInitNonInteractive(root, ygg, { platform: 'generic', provider: 'ollama', model: 'qwen3' });
+    await freshInitNonInteractive(root, ygg, { provider: 'ollama', model: 'qwen3' });
     const cfg = await readFile(path.join(ygg, 'yg-config.yaml'), 'utf-8');
     expect(cfg).toContain('endpoint: http://localhost:11434');
   });
 
   it('claude-code without --model defaults to sonnet and writes the tier', async () => {
     const { root, ygg } = await freshDir('default-model');
-    await freshInitNonInteractive(root, ygg, { platform: 'claude-code', provider: 'claude-code' });
+    await freshInitNonInteractive(root, ygg, { provider: 'claude-code' });
     const cfg = await readFile(path.join(ygg, 'yg-config.yaml'), 'utf-8');
     expect(cfg).toContain('model: sonnet');
   });
@@ -98,7 +118,7 @@ describe('freshInitNonInteractive', () => {
     const { root, ygg } = await freshDir('nomodel-codex');
     const exit = vi.spyOn(process, 'exit').mockImplementation((() => { throw new Error('exit'); }) as never);
     const err = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
-    await expect(freshInitNonInteractive(root, ygg, { platform: 'claude-code', provider: 'codex' })).rejects.toThrow('exit');
+    await expect(freshInitNonInteractive(root, ygg, { provider: 'codex' })).rejects.toThrow('exit');
     expect(exit).toHaveBeenCalledWith(1);
     expect(err.mock.calls.map(c => String(c[0])).join('')).toContain('--model is required');
   });
@@ -108,7 +128,7 @@ describe('freshInitNonInteractive', () => {
     const exit = vi.spyOn(process, 'exit').mockImplementation((() => { throw new Error('exit'); }) as never);
     const err = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     await expect(
-      freshInitNonInteractive(root, ygg, { platform: 'generic', provider: 'openai-compatible', model: 'gpt-x' }),
+      freshInitNonInteractive(root, ygg, { provider: 'openai-compatible', model: 'gpt-x' }),
     ).rejects.toThrow('exit');
     expect(exit).toHaveBeenCalledWith(1);
     expect(err.mock.calls.map(c => String(c[0])).join('')).toContain('--endpoint is required');
@@ -118,20 +138,24 @@ describe('freshInitNonInteractive', () => {
 describe('existingInitNonInteractive', () => {
   it('adds a reviewer to a keyless repo via flags', async () => {
     const { root, ygg } = await freshDir('add-reviewer');
-    await freshInitKeyless(root, ygg, 'claude-code');
+    await freshInitKeyless(root, ygg);
     await existingInitNonInteractive(root, ygg, { provider: 'claude-code' }); // model defaults sonnet
     const cfg = await readFile(path.join(ygg, 'yg-config.yaml'), 'utf-8');
     expect(cfg).toContain('provider: claude-code');
     expect(cfg).toContain('model: sonnet');
   });
 
-  it('changes the platform rules file via --platform', async () => {
-    const { root, ygg } = await freshDir('change-platform');
-    await freshInitKeyless(root, ygg, 'claude-code');
+  it('refreshes the universal agent rules via a deprecated --platform, printing a deprecation notice', async () => {
+    const { root, ygg } = await freshDir('deprecated-platform');
+    await freshInitKeyless(root, ygg);
+    const out = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
     await existingInitNonInteractive(root, ygg, { platform: 'cursor' });
-    // cursor writes .cursor/rules/yggdrasil.mdc — assert it now exists.
-    const { existsSync } = await import('node:fs');
-    expect(existsSync(path.join(root, '.cursor', 'rules', 'yggdrasil.mdc'))).toBe(true);
+    const written = out.mock.calls.map(c => String(c[0])).join('');
+    out.mockRestore();
+    // The universal artifacts (not a per-platform file) are what actually get refreshed.
+    const claude = await readFile(path.join(root, 'CLAUDE.md'), 'utf-8');
+    expect(claude).toContain('@AGENTS.md');
+    expect(written).toContain('is deprecated and was ignored');
   });
 });
 
@@ -146,7 +170,15 @@ describe('resolveReviewerConfigFromFlags', () => {
     for (const provider of ['codex', 'gemini-cli'] as const) {
       const r = resolveReviewerConfigFromFlags({ provider });
       expect(r.ok).toBe(false);
-      if (!r.ok) expect(r.issue.what).toContain('--model is required');
+      if (!r.ok) {
+        expect(r.issue.what).toContain('--model is required');
+        // Finding 1 regression guard: the suggested retry command must be
+        // immediately runnable as-is and must NOT mention --platform — the
+        // flag is deprecated and no caller forwards a value into this
+        // resolver, so suggesting it would point the user at a flag that
+        // only prints a deprecation notice.
+        expect(r.issue.next).not.toContain('--platform');
+      }
     }
   });
 
@@ -158,10 +190,12 @@ describe('resolveReviewerConfigFromFlags', () => {
     expect(bad.ok).toBe(false);
     if (!bad.ok) {
       expect(bad.issue.what).toContain('--endpoint is required');
-      // The suggested retry command must be immediately runnable — it must include
-      // --platform, not just --endpoint, or the user hits the separate
-      // "no --platform" guard on the very next retry.
-      expect(bad.issue.next).toContain('--platform <name>');
+      // The suggested retry command must be immediately runnable as-is and must
+      // NOT mention --platform: the flag is deprecated and no caller forwards a
+      // value into this resolver, so suggesting it would point the user at a
+      // flag that only prints a deprecation notice.
+      expect(bad.issue.next).toContain('--endpoint <url>');
+      expect(bad.issue.next).not.toContain('--platform');
     }
   });
 

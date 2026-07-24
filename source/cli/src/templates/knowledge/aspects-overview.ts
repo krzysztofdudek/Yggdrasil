@@ -23,8 +23,8 @@ input — it never invalidates a verdict. (Full mechanics:
 \`yg knowledge read verification-and-lock\`.)
 
 For HOW aspects reach a node (the 7 propagation channels with concrete
-example), see the SYSTEM section of agent-rules.md — that mental model is
-loaded by default and is not duplicated here.
+example), see the SYSTEM section of the agent operating manual (\`yg prime\`)
+— that mental model is loaded by default and is not duplicated here.
 
 ## When to create an aspect
 
@@ -35,9 +35,9 @@ Create an aspect when:
 Both conditions must hold. "Code should be readable" fails condition 2.
 "Every handler must log an audit trail" satisfies both.
 
-See agent-rules.md "Aspect Discovery" for the brownfield triggers
-(repeated patterns, "invisible" cross-cutting concerns) — also not
-duplicated here.
+See the agent operating manual (\`yg prime\`) "Aspect Discovery" section for
+the brownfield triggers (repeated patterns, "invisible" cross-cutting
+concerns) — also not duplicated here.
 
 While the rule is still being authored or is unclear, give the aspect
 \`status: draft\` — a draft aspect produces no expected pairs, so nothing is

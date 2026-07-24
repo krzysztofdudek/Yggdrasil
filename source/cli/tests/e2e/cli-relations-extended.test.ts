@@ -934,8 +934,12 @@ describe.skipIf(!distExists)('CLI E2E — relation-type matrix, event pairing, s
       // The grouped warning carries the shared fan-out WHY and the over-limit node.
       expect(stdout).toContain('High fan-out makes context packages large and suggests unclear separation of concerns.');
       expect(stdout).toContain('- app/p');
-      // A warning, not an error.
-      expect(stdout).toContain('Warnings (1)');
+      // A warning, not an error. A second warning group (`rules-digest-stale`)
+      // is always present too — this fixture never ran `yg init`, so it
+      // carries no AGENTS.md/CLAUDE.md/.clinerules digest artifacts, and the
+      // committed-digest staleness gate flags that on every `yg check` here.
+      expect(stdout).toContain('Warnings (2)');
+      expect(stdout).toContain('rules-digest-stale');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

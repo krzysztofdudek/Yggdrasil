@@ -54,8 +54,13 @@ export async function extractPortalData(
 
   const gitFiles = await walkPortalFiles(projectRoot);
 
-  // Reuse the engine: severities + coverage come straight from runCheck.
-  const checkResult = await runPortalCheck(graph, gitFiles);
+  // Reuse the engine: severities + coverage come straight from runCheck. The pipeline
+  // owns the portal's ONE reading of the wall clock — the facade takes it as an input
+  // rather than inventing it, so the engine seam stays a function of what it is given.
+  // The clock feeds the review-cadence check, which is why it must be a real clock and
+  // not a fixed instant: a rule past its review date has to surface here exactly as it
+  // does on the command line.
+  const checkResult = await runPortalCheck(graph, gitFiles, () => new Date());
 
   // Reuse the engine: per-pair states from lock verification, and the expected-pair
   // denominator from pair computation. (verifyLock computes the same expected set

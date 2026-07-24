@@ -2,10 +2,15 @@ name: Init Scaffold
 type: command-support
 description: "Filesystem scaffolding for yg init — creates the .yggdrasil/
   directory structure, writes the default config and architecture templates,
-  installs the platform rules file, and maintains the repo-root .gitattributes
-  and the .yggdrasil/.gitignore (both idempotent, run on fresh init and every
+  installs the universal agent rules (AGENTS.md digest + CLAUDE.md import +
+  .clinerules), and maintains the repo-root .gitattributes and the
+  .yggdrasil/.gitignore (both idempotent, run on fresh init and every
   --upgrade). Extracted from the init command handler so the large command file
-  carries only orchestration; registers no Commander subcommand."
+  carries only orchestration; registers no Commander subcommand. Takes the
+  CLI's own version as a plain string parameter rather than importing
+  cli-version.ts itself — a command-support node may not relate to another
+  command-support node, so the init command resolves the version once and
+  threads it through."
 relations:
   - target: cli/templates-platform
     type: calls

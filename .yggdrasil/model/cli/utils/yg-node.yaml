@@ -8,7 +8,12 @@ description: Shared helper functions — debug logging, git introspection, path
   availability probe (runs `<binary> --version` rather than the Unix-only
   `which`, so detection works on Windows), and the pure when-predicate parsers
   (file-level and aspect-level, plus the shared boolean-clause helper) that the
-  io layer imports without an io→engine boundary violation.
+  io layer imports without an io→engine boundary violation. It also owns the
+  yggdrasil marker-block scanner (whole-line marker qualification, fenced-code
+  awareness, start/end pair resolution) — the single parser shared by the
+  installer that writes the block into a repo's agent-rules file and the
+  committed-digest gate that judges it, which cannot import each other because
+  an engine module may not depend on a template one.
 aspects:
   - posix-paths-output
 relations: [ { target: cli/model/graph, type: uses } ]
@@ -20,6 +25,7 @@ mapping:
   - source/cli/src/utils/git.ts
   - source/cli/src/utils/known-providers.ts
   - source/cli/src/utils/mapping-path.ts
+  - source/cli/src/utils/marker-block.ts
   - source/cli/src/utils/node-path-validator.ts
   - source/cli/src/utils/posix.ts
   - source/cli/src/utils/predicate-boolean.ts

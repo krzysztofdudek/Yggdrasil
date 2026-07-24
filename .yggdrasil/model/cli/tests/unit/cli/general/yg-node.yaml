@@ -2,7 +2,10 @@ name: CLI Build & Check Command Tests
 type: test-suite
 description: Unit tests for build and check CLI commands — build-command,
   build-context, check, check-render, check-exit (the command-exit force-exit
-  path), init, init/upgrade, and the shared exit-after-flush command-exit helper.
+  path), init, init/upgrade, the shared exit-after-flush command-exit helper,
+  and the rules-artifacts reader that feeds the committed-digest gate — which
+  must see exactly what the installer wrote, including a repo whose agent-rules
+  file carries a non-canonical capitalization.
 aspects: []
 relations:
   [
@@ -18,7 +21,12 @@ relations:
     { target: cli/formatters, type: uses },
     { target: cli/exit-after-flush, type: uses },
     { target: cli/io/stores, type: uses },
-    { target: cli/core/check, type: uses }
+    { target: cli/core/check, type: uses },
+    { target: cli/templates, type: uses },
+    { target: cli/templates-platform, type: uses },
+    { target: cli/core/checks/digest-gate, type: uses },
+    { target: cli/rules-artifacts, type: uses },
+    { target: cli/utils, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/cli/build-command.test.ts
@@ -32,3 +40,4 @@ mapping:
   - source/cli/tests/unit/cli/check-disk-scan.test.ts
   - source/cli/tests/unit/cli/resolve-approve-mode.test.ts
   - source/cli/tests/unit/cli/group-issues.test.ts
+  - source/cli/tests/unit/cli/rules-artifacts.test.ts

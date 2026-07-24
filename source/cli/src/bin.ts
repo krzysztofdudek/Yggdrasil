@@ -21,6 +21,7 @@ import { registerSuppressionsCommand } from './cli/suppressions.js';
 import { registerSimulateCommand } from './cli/simulate.js';
 import { registerPortalCommand } from './cli/portal.js';
 import { registerStructureCommand } from './cli/structure.js';
+import { registerPrimeCommand } from './cli/prime.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -57,6 +58,7 @@ registerSuppressionsCommand(program);
 registerSimulateCommand(program);
 registerPortalCommand(program);
 registerStructureCommand(program);
+registerPrimeCommand(program);
 
 process.on('unhandledRejection', (reason) => {
   const msg = reason instanceof Error ? reason.message : String(reason);

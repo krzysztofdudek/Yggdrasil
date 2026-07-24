@@ -754,50 +754,76 @@ non-zero.
 
 ---
 
-## Setup (1)
+## Setup (2)
 
 | Command | Purpose |
 |---------|---------|
 | `yg init` | Initialize or reconfigure |
+| `yg prime` [`--digest`] | Print the full agent operating manual fresh from the installed CLI (`--digest` prints only the committed digest block) |
 
 ```bash
 yg init
 ```
 
 With no flags in a terminal, an interactive wizard: on a new project it walks
-you through platform selection and reviewer setup; on an existing project it
-offers upgrade, reviewer reconfiguration, or platform change. Every flag
+you through reviewer setup only (agent rules install the same universal way
+for every agent, so there is nothing to choose there); on an existing project
+it offers to refresh agent rules or reconfigure the reviewer. Every flag
 combination below also runs non-interactively (Docker, devcontainer, CI) —
 flags are authoritative, so a fully-specified command never opens the wizard,
 even from a terminal.
 
+A fresh `yg init` (no `.yggdrasil/` yet) always installs the same universal
+agent-rules artifacts: a summary block inside markers in `AGENTS.md`, a
+`@AGENTS.md` import line added to `CLAUDE.md`, and `.clinerules/yggdrasil.md`.
+On an already-adopted repo those artifacts are refreshed only when you ask for
+it — `yg init --upgrade` is the documented way; the interactive menu's
+"Refresh agent rules" option does the same thing. Running
+`yg init --provider <name>` alone on an existing repo reconfigures the
+reviewer only and leaves the rules files untouched.
+
 **Fresh repo (no `.yggdrasil/` yet):**
 
 ```bash
-yg init --platform <name>                              # keyless bootstrap — no judge configured
-yg init --platform <name> --provider <name> [--model <m>] [--endpoint <url>]   # bootstrap with a judge
+yg init --provider <name> [--model <m>] [--endpoint <url>]   # non-interactive bootstrap with a judge
+yg init --no-reviewer                                        # non-interactive bootstrap with none
 ```
 
-`--platform <name>` alone scaffolds the graph and installs that platform's
-rules file with no `reviewer:` section at all — script rules, dependency
-control, and the CI gate work immediately at zero cost, no API key needed. Add
+Both are flags-authoritative — they never open the wizard, terminal or not.
+`--no-reviewer` writes no `reviewer:` section at all: script rules, dependency
+control, and the CI gate work immediately at zero cost, no API key needed. The
+interactive wizard offers the same choice as its last provider option ("None
+for now"), and a bare non-interactive run (no `--provider`, no `--no-reviewer`,
+no TTY) takes that route by itself, since there is nobody to prompt. Add
 `--provider` (same command, or later against the now-existing repo) once the
-graph gains its first judgment (LLM) rule. A non-interactive run naming no
-`--platform` errors with guidance rather than guessing which agent platform to
-install.
+graph gains its first judgment (LLM) rule.
+
+`--no-reviewer` is rejected with an explanation when combined with
+`--provider` / `--model` / `--endpoint` (they ask for opposite things), with
+`--upgrade` (which never touches reviewer configuration), or on a project that
+already has a `.yggdrasil/` — it chooses how to bootstrap a new project and
+never removes a reviewer an existing one configured.
 
 **Existing repo:**
 
 ```bash
 yg init --provider <name> [--model <m>] [--endpoint <url>]   # configure/replace the judge
-yg init --platform <name>                                    # switch the platform rules file
-yg init --upgrade --platform <name>                          # refresh rules/platform files
+yg init --upgrade                                             # refresh agent rules
 ```
 
-`--provider` and `--platform` can be combined in one command; each applies its
-own operation. With neither flag and a TTY, the interactive reconfiguration
-menu opens; with neither flag and no TTY, the command reports there is
-nothing to do rather than guessing.
+With neither flag and a TTY, the interactive reconfiguration menu opens;
+with neither flag and no TTY, the command reports there is nothing to do
+rather than guessing.
+
+`--platform <name>` no longer selects anything, but it is still accepted
+anywhere it used to be, purely for backward compatibility, and always prints
+a deprecation notice. On a fresh repo that notice is the only effect: the run
+proceeds exactly as if the flag had been omitted. On an already-adopted repo,
+though, passing `--platform` non-interactively still triggers the same
+agent-rules refresh it always did — that carve-out is deliberate, so a script
+that used to pass `--platform x` to refresh the rules keeps working unchanged.
+`yg init --upgrade` is the documented, flag-explicit way to refresh and no
+longer requires naming a platform.
 
 **Defaults:** `--model` defaults to `sonnet` only for `claude-code`; every
 other provider requires `--model` explicitly. `--endpoint` defaults to
@@ -813,9 +839,31 @@ as generated (`linguist-generated=true`), adds the gitignored deterministic cach
 (`.yg-lock.deterministic.json`) to `.yggdrasil/.gitignore`, and writes
 `max_prompt_chars: 50000` into the generated reviewer tier.
 
-`--upgrade --platform <name>` lifts the config version to the current one and
-refreshes rules and platform files — without prompts. Useful in scripts and CI.
-On a project still using the older single-file `yg-lock.json`, `--upgrade` also
-splits it into the triad in place — relocating every verdict verbatim, with no
-re-verification — and gitignores the deterministic cache. See
-[The lock](/the-lock) for the file layout.
+`yg init --upgrade` lifts the config version to the current one and refreshes
+the agent-rules files — without prompts. Useful in scripts and CI. It also
+sweeps away any file a retired per-platform installer left behind from an
+older CLI. On a project still using the older single-file `yg-lock.json`,
+`--upgrade` also splits it into the triad in place — relocating every
+verdict verbatim, with no re-verification — and gitignores the deterministic
+cache. See [The lock](/the-lock) for the file layout.
+
+If the project requires its whole tree to be mapped, `--upgrade` also warns
+that the root files it maintains (`AGENTS.md`, `CLAUDE.md`,
+`.clinerules/yggdrasil.md`, `.gitattributes`) now count as unmapped errors,
+and prints the `coverage.excluded` stanza that settles it. It reports; it
+never edits your configuration. See [Coverage](/configuration#coverage-config).
+
+## yg prime
+
+```bash
+yg prime
+yg prime --digest
+```
+
+Prints the full agent operating manual, straight from the installed CLI —
+the same content an agent reads before working in a Yggdrasil-managed
+repository. There is no committed copy of the manual to go stale; run
+`yg prime` any time to see the current version. `--digest` prints only the
+short summary block that `yg init` commits inside `AGENTS.md` and
+`.clinerules/yggdrasil.md` — the piece `yg check`'s `rules-digest-stale`
+warning compares against the installed CLI.
