@@ -13,6 +13,8 @@ description: >-
   writer is imported and the graph is loaded committed-only. The boundary join changes no
   engine logic; it reuses an additive read-only detected-edge accessor on the relation
   pass.
+aspects:
+  - runcheck-injected-input-parity
 max_direct_relations:
   limit: 22
   reason: >-

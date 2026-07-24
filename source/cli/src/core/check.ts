@@ -545,6 +545,24 @@ function buildGitignoredCoveredIssues(offending: string[]): CheckIssue[] {
  *        under plain `yg check`. Read-only warning; never writes the lock,
  *        never gates `--approve`.
  */
+// NOT EVERY FIELD BELOW IS THE SAME KIND OF THING. `nowUtc` and `rulesArtifacts`
+// are ISSUE-GATING: written in the body above as `options?.<key> ? <issues> : []`,
+// so an absent value silently SKIPS a check rather than erroring. `writeFeatureIndex`
+// and `now` are side-effect switches deliberately set at only one call site and gate
+// no issue. Every call site that invokes runCheck() must pass every issue-gating
+// field — the `.yggdrasil/aspects/runcheck-injected-input-parity` deterministic
+// aspect enforces this on every node that owns a runCheck call site, deriving the
+// issue-gating key set straight from this file's `options?.<key> ? … : []` shape
+// (see that aspect's check.mjs), so a new issue-gating field added here is picked
+// up automatically without editing the aspect.
+//
+// ADDING AN OPTIONAL FIELD HERE? That aspect also requires every optional member
+// of this interface to be CLASSIFIED, so a new gate cannot hide in a shape the
+// derivation does not match. Either write the gate as the ternary above (it then
+// derives automatically, and every call site must pass it), or — only if the
+// field can never add, remove, or alter an ISSUE — add it to that check.mjs's
+// SIDE_EFFECT_ONLY allowlist with the reason. A field that is neither is refused
+// by name until someone decides which it is.
 export interface RunCheckOptions {
   /** INJECTED clock for the review-cadence check (spec RZ-18). Absent ⇒ that check is skipped. */
   nowUtc?: () => Date;

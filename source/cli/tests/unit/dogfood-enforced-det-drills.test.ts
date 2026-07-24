@@ -30,6 +30,7 @@ const DRILL_EXEMPT: Record<string, string> = {
   'instrument-import-fence': 'keys on exact engine file paths (cli/check.ts, core/check.ts, …); a fixture file cannot occupy those paths.',
   'no-buildissuemessage-in-engine': 'scoped to engine file paths (core/**, io/**, ast/**); a drill fixture is not under those paths.',
   'sibling-test-file': 'needs a declared graph relation to a test-suite node; a single-file drill has no graph.',
+  'runcheck-injected-input-parity': 'derives its rule by reading another node\'s file via ctx.graph/ctx.parseAst (a declared relation to cli/core/check); any read of ctx.graph throws GraphAccessTrap under yg drill, which the runner reclassifies as unsupported before the check\'s own logic ever runs, so a violates-* case could never produce a real refusal; regression-covered instead by the permanent negative-direction fixtures tests/fixtures/runcheck-parity + tests/fixtures/runcheck-parity-drift, driven through the real binary by tests/e2e/cli-runcheck-parity.test.ts.',
   'portal/count-parity-via-reuse': 'needs the pipeline node-id manifest and the count-parity integration; not expressible as one file.',
   'reference/doc-shape': 'needs the reference catalogue directory + its _reference-schema.yaml; not a single file.',
   'reference/layout': 'needs the reference catalogue directory layout; not a single file.',

@@ -1,0 +1,5 @@
+name: Cli
+type: module
+description: Root grouping for the fixture's engine and its callers.
+aspects: []
+relations: []

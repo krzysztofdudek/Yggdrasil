@@ -1,0 +1,12 @@
+name: Check
+type: engine
+description: >-
+  The fixture's engine core. Owns the runCheck seam the rule derives its option
+  set from: two issue-gating options written as the ternary the derivation
+  matches, one byproduct switch written as an if-statement, and a same-file
+  helper carrying its own gating ternary that must NOT leak into the derived
+  key set.
+aspects: []
+relations: []
+mapping:
+  - src/core/check.ts

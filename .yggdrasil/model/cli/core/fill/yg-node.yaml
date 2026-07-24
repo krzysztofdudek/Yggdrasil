@@ -32,6 +32,7 @@ aspects:
   - what-why-next
   - diagnostic-logging
   - provider-redaction-cascade
+  - runcheck-injected-input-parity
 relations:
   - target: cli/core/check
     type: calls

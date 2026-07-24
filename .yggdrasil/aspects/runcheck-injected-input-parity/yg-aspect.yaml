@@ -1,0 +1,38 @@
+name: RunCheckInjectedInputParity
+description: >-
+  runCheck() (core/check.ts) keeps no clock and reads no files itself: some of
+  its checks are gated on OPTIONAL fields of RunCheckOptions supplied by the
+  caller (the injected review-cadence clock `nowUtc`, the injected
+  rules-artifacts snapshot `rulesArtifacts`). When a caller omits one of these
+  fields, runCheck does not error — it silently SKIPS the corresponding check,
+  so the same repository reports a different issue set depending on which
+  surface calls runCheck, with no error anywhere. This has already happened
+  twice in this codebase: the committed-digest drift warning vanished under
+  `yg check --approve` because the fill stage's post-fill report forwarded
+  `nowUtc` but not `rulesArtifacts` to its own runCheck call, and the same
+  warning was then separately missing from the portal because the portal's
+  read-only gateway forwarded `rulesArtifacts` but had, at an earlier point,
+  been missing `nowUtc` for the same reason.
+
+  Two things are enforced. PARITY: every call site that invokes runCheck() must
+  pass every option that GATES an issue (an `options?.<key> ? <issues> : []`
+  field) — not every field of RunCheckOptions, since some fields
+  (`writeFeatureIndex`, `now`) are side-effect switches deliberately set at only
+  one call site and gate no issue. CLASSIFICATION: every OPTIONAL member of
+  RunCheckOptions must be accounted for — either derived as issue-gating from
+  runCheck's own body, or named in this rule's short side-effect allowlist with
+  a reason. Without that second half the rule silently under-enforces exactly as
+  before: a new gate written in any other shape (an `if (options?.x)` branch, a
+  ternary whose alternative is not a literal `[]`) would never be derived, never
+  be demanded at a call site, and never be noticed.
+
+  Everything except the seam's node id and the side-effect allowlist is derived
+  live from a single parse of core/check.ts — the runCheck declaration, the
+  options parameter's name and position, the options interface and its members,
+  and the issue-gating key set — so a fifth injected input added later is picked
+  up automatically without editing this rule, and a parameter reorder can never
+  move the positional half without the key half.
+reviewer:
+  type: deterministic
+errs: under
+status: enforced

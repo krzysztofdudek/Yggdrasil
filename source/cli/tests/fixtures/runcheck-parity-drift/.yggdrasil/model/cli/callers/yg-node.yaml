@@ -1,0 +1,13 @@
+name: Callers
+type: engine
+description: >-
+  A single, otherwise-compliant runCheck call site. It passes every DERIVED
+  issue-gating option, so a parity-only rule would pass it — the refusal here
+  comes entirely from the drifted seam it calls.
+aspects:
+  - runcheck-injected-input-parity
+relations:
+  - target: cli/core/check
+    type: calls
+mapping:
+  - src/callers/

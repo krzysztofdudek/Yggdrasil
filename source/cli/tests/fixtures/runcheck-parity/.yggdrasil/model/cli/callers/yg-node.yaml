@@ -1,0 +1,14 @@
+name: Callers
+type: engine
+description: >-
+  Every runCheck call-site shape the parity rule must judge, in one node so a
+  single run yields the complete violation set: three that provably omit an
+  issue-gating option (must be refused) and four that cannot be proven to omit
+  one (must stay silent).
+aspects:
+  - runcheck-injected-input-parity
+relations:
+  - target: cli/core/check
+    type: calls
+mapping:
+  - src/callers/

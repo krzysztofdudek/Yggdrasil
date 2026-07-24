@@ -1,0 +1,11 @@
+name: Check
+type: engine
+description: >-
+  A DRIFTED runCheck seam. Its options interface gained an issue-gating member
+  written as an if-statement rather than the ternary the derivation matches, and
+  lost a member the rule's side-effect allowlist still names — the two ways the
+  rule's own knowledge can silently fall behind the code it derives from.
+aspects: []
+relations: []
+mapping:
+  - src/core/check.ts

@@ -1,0 +1,19 @@
+name: E2E Tests — RunCheck Injected-Input Parity
+type: test-suite
+description: "Subprocess E2E that is the regression vehicle for the
+  runcheck-injected-input-parity aspect, which cannot be drilled: it derives its
+  rule by reading another node's file through the graph, and any graph read
+  throws under the single-file drill sandbox before the check's own logic runs.
+  Two committed fixture projects are driven through the real built binary with
+  the REAL aspect directory copied in per run (so no stale copy of the rule can
+  live in a fixture): one exercises every call shape the rule must judge —
+  three that provably omit an issue-gating option, including the two a
+  comment-blind matcher skipped in silence, and four that cannot be proven to
+  omit one and must stay silent — plus a same-file helper whose own gating
+  ternary must not leak into the derived key set; the other drifts an optional
+  member out from under the derivation so only the rule's classification half
+  can refuse it."
+aspects: []
+relations: []
+mapping:
+  - source/cli/tests/e2e/cli-runcheck-parity.test.ts

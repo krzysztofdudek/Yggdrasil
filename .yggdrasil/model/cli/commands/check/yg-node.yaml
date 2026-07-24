@@ -3,7 +3,8 @@ type: command
 description: Unified graph gate CLI command — combines drift, validation,
   coverage, and completeness into a single yg check entry point with grouped
   output and exit code
-aspects: []
+aspects:
+  - runcheck-injected-input-parity
 relations:
   - target: cli/core/loader
     type: calls

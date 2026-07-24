@@ -1,0 +1,24 @@
+name: Unit Tests — RunCheck Parity Attach Set
+type: test-suite
+description: "Dogfood invariant pinning the ATTACH SET of the
+  runcheck-injected-input-parity aspect to the code it guards. The aspect is
+  attached per node rather than by relation, so the attachment itself can drift:
+  a new runCheck call site introduced in a node that does not carry it would be
+  entirely unguarded — the rule's own failure mode, one level up. This test
+  parses every first-party TypeScript file for a real runCheck call, resolves
+  each hit to its owning node through the repo's single owner index, drops the
+  non-production node types (test suites deliberately call runCheck with partial
+  inputs; fixture projects are inert data), and asserts that set equals the set
+  of nodes on which the aspect is effective under the full 7-channel
+  computation. It also fails on a runCheck call site in a file no node maps."
+aspects: []
+relations:
+  [
+    { target: cli/core/loader, type: uses },
+    { target: cli/core/graph, type: uses },
+    { target: cli/relations/core, type: uses },
+    { target: cli/ast/runtime, type: uses },
+    { target: cli/ast/report, type: uses }
+  ]
+mapping:
+  - source/cli/tests/unit/dogfood-runcheck-parity-attach.test.ts
