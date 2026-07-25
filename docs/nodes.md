@@ -33,7 +33,7 @@ The fields:
 
 - **name** — display name, shown in CLI output.
 - **type** — must match a type defined in the architecture file (see [Node types](#node-types-the-architecture-file)). The type decides what rules apply by default and what this component is allowed to connect to.
-- **description** — one line on what the component does. It shows in CLI context output and helps your agent understand the component.
+- **description** — one line on what the component does. It shows in CLI context output and helps your agent understand the component. It is not optional: a node, rule, or flow with no description is a blocking `description-missing` error.
 - **aspects** — the rules this component must satisfy. Each name points to an aspect under `.yggdrasil/aspects/`. See [Aspects](/aspects).
 - **relations** — the other components this one depends on. See [Relations, flows, ports](/relations-flows-ports).
 - **mapping** — which source files this node owns.
@@ -57,7 +57,13 @@ mapping:
 
 `src/db/*Repository.ts` matches `OrderRepository.ts` but not `Helper.ts` and not anything in a subdirectory. `src/**/*.ts` matches every `.ts` file anywhere under `src/`.
 
-Each source file has exactly one owner node. That rule keeps verification unambiguous — there is always one component, and one set of rules, responsible for any given file. When a parent maps a directory and a child node maps a specific file inside it, the child wins: that file is carved out of the parent's set, so the two never conflict.
+Each source file has exactly one owner node. That rule keeps verification unambiguous — there is always one component, and one set of rules, responsible for any given file. When a parent maps a directory and a child node maps a specific file inside it, the child wins: that file is carved out of the parent's set, so the two never conflict. Two nodes mapping the same file any *other* way is an `overlapping-mapping` error.
+
+::: warning A gitignored file inside a mapping is a false green, so it blocks
+A directory or glob mapping entry expands over git-tracked files and skips anything `.gitignore` excludes. So a file that is *both* tracked and matched by a `.gitignore` pattern would be counted as covered while never producing a review subject — an enforced rule would pass over it with no reviewer ever seeing it. Rather than allow that, `yg check` blocks with `mapped-file-gitignored` and tells you the three ways out: un-ignore the file, name it **directly** in the mapping (a direct file entry bypasses gitignore), or stop tracking it.
+
+The mirror case blocks too: a mapping entry that names a file directly which is *not* tracked at all is `file-mapping-gitignored` — either the file belongs in the repository, or it does not belong in the mapping.
+:::
 
 ## Nesting and inheritance
 
@@ -85,10 +91,11 @@ Coverage — which files must be mapped, and how strictly — is configured sepa
 
 Every node declares a `type`, and every type is defined once in `.yggdrasil/yg-architecture.yaml`. Types are the vocabulary of your architecture. A type can:
 
-- **classify files** — a `when` predicate says which source files belong to this type, so your agent can place new files correctly. It is also enforced forward: every file a node of this type maps must match the type's `when`, or `yg check` reports a mismatch.
+- **classify files** — a `when` predicate says which source files belong to this type, so your agent can place new files correctly. It is also enforced forward: every file a node of this type maps must match the type's `when`, or `yg check` reports a `type-when-mismatch`.
 - **set default rules** — list aspects every node of the type must satisfy, so you attach a cross-cutting rule once instead of on every node.
 - **constrain structure** — `parents` limits where a node of this type may nest; `relations` limits which types it may depend on, and through which relation type.
-- **opt into the log gate** — `log_required: true` makes a change to a node of this type record a short note on *why* before it is verified — your agent writes it with `yg log add` (see the [CLI reference](/cli-reference)).
+- **opt into the log gate** — `log_required: true` makes a change to a node of this type record a short note on *why* before it is verified — your agent writes it with `yg log add`. See [the log gate](/the-lock#the-log-gate).
+- **close the type-shopping gap** — `enforce: strict` makes the classification bite in *both* directions. See below.
 
 A compact example:
 
@@ -117,6 +124,35 @@ node_types:
 ```
 
 A type with a `when` predicate classifies files. A type without `when` is organizational — usable as a parent in the hierarchy, but its nodes cannot map any files. The boolean combinators (`all_of` / `any_of` / `not`) are the same ones used for [conditional aspects](/conditional-aspects), but the atoms differ by site: a type's `when` classifies *files* and accepts only `path:` (a minimatch glob on the repo-relative path) and `content:` (a regular expression against the file's contents), whereas an aspect's `when` filters *nodes* and uses node atoms instead. Here, use `path` and `content`.
+
+### `enforce: strict` — both directions
+
+By default a type's `when` is checked **forward** only: every file a node of that type maps must match the predicate. Nothing stops the reverse — a file that matches `service`'s predicate can quietly live in a `library` node, or in no node at all, and never pick up the rules the `service` type carries. That is the type-shopping gap.
+
+`enforce: strict` closes it by also checking **backward**: every file in the repository matching the type's `when` must belong to exactly one node *of that type*.
+
+```yaml
+node_types:
+  service:
+    description: "Provides functionality to other components"
+    aspects: [requires-audit]
+    enforce: strict                  # both directions
+    when:
+      path: "src/**/*.service.ts"
+```
+
+Reach for it on the types where missing the type means missing a rule that matters — security, audit, anything regulatory. Do not reach for it while a predicate is still broad: `enforce: strict` on `path: "**"` demands that every file in the repository sit in that one type's mappings. Run `yg impact --type <id>` before you flip the flag; it previews which files would come out as orphans or misplaced, so you fix the gaps first rather than turning the build red to find them.
+
+Four errors are specific to strict types, and each blocks `yg check`:
+
+| Code | What it means |
+|---|---|
+| `enforce-strict-without-when` | The type declares `enforce: strict` with no `when` — there is no predicate to enforce backward against. |
+| `type-strict-orphan` | A file matches the predicate but belongs to no node at all. |
+| `type-strict-misplaced` | A file matches the predicate but belongs to a node of a *different* type. |
+| `strict-overlap-conflict` | A file matches the `when` of **two** strict types, so neither can own it unambiguously. Narrow one predicate. |
+
+They are reported alongside any `unmapped-files` coverage error, not folded into it — the symptoms are distinct and so are the fixes.
 
 The architecture file is the foundation of the graph, so changes to it ripple across every node of the affected type. Change it deliberately, and confirm the change before applying it.
 

@@ -88,6 +88,23 @@ but does NOT propagate the target's aspects. If the dependency also needs to
 carry a critical aspect across the boundary, model a port and \`consumes\` it (see
 below) in addition to declaring the relation.
 
+## Structural relations must form a DAG
+
+The four STRUCTURAL relation types (\`calls\`, \`uses\`, \`extends\`,
+\`implements\`) must form a directed acyclic graph. A separate always-blocking
+validator rejects any cycle among them with a \`structural-cycle\` error — a node
+declaring a structural relation to itself counts as a cycle too. Like
+\`relation-undeclared-dependency\` it is a built-in check, not an aspect: no
+\`status:\` applies, and it is not \`yg-suppress\`-able.
+
+So when the conformance check demands a relation and the reverse relation already
+exists, declaring the missing direction is NOT the fix — it trades one blocking
+error for another. Break the cycle instead: extract the shared piece into a third
+node both sides depend on, or move the dependency so it flows one way. The EVENT
+types (\`emits\` / \`listens\`) are outside this rule — they are the sanctioned way
+to model a genuinely bidirectional relationship, and they carry their own pairing
+requirement instead.
+
 ## Ports — named entry points with aspects
 
 A port on a node says: "consumers of this endpoint must satisfy these

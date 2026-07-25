@@ -55,7 +55,7 @@ node ../../source/cli/dist/bin.js check
 Expected final output (exit 0):
 
 ```
-yg check: PASS  1 nodes · 4/4 files · 1 aspects · 0 flows
+yg check: PASS  1 nodes · 8/8 files · 1 aspects · 0 flows · 1 verified (1 deterministic, 0 LLM)
 ```
 
 > The deterministic verdict is cached in the **gitignored**
@@ -83,7 +83,7 @@ You will see the refusal (exit 1), pointing at the exact line you added (the
 line number depends on where you inserted the import) — for example:
 
 ```
-yg check: FAIL  1 nodes · 4/4 files · 1 aspects · 0 flows
+yg check: FAIL  1 nodes · 8/8 files · 1 aspects · 0 flows
 
 Errors (1):
 

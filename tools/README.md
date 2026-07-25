@@ -13,6 +13,20 @@ session, so the output is curated. Keep it faithful to how the CLI actually
 behaves: real command names and real message shapes — `what / why / next`
 refusals, the `Filling N unverified pairs … (consensus included)` approve header,
 and the `yg check: PASS  N nodes · X/Y files · Z aspects · W flows` summary.
+That summary carries one more field whenever anything is verified, which is the
+case in both scenes: `· N verified (D deterministic, L LLM)`. Curated is fine;
+a shape the CLI would never print is not — and the whole claim of the demo is
+that the gate does not lie.
+
+> **Known drift — fix on the next regenerate.** Both PASS headers in the scene
+> script are missing that verified-pair field, and session 2 shows a plain
+> `yg check` passing immediately after a newly created file joined the component.
+> The CLI does not do that: a file entering a component's subject set changes the
+> pair's inputs, so the verdict is no longer valid and plain `yg check` reports
+> the pair unverified and points at `yg check --approve`. Verified by
+> reproduction. The claim survives intact — the agent writes to rules nobody
+> restated and the reviewer approves first try — but session 2 has to show the
+> `--approve` for that to be what the terminal would actually say.
 
 ### Narrative intent (read before editing the scene script)
 

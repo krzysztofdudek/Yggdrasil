@@ -9,7 +9,7 @@ This page is for inspecting or debugging your graph and enforcement state.
 
 ---
 
-## Core workflow (5)
+## Core workflow (4)
 
 | Command | Purpose |
 |---------|---------|
@@ -65,7 +65,9 @@ For `--file`, it ends with a precise `Total to re-verify:` block — billed
 reviewer calls, free deterministic pairs, and currently-green verdicts re-rolled —
 preceded by a per-node breakdown tagged with why each node is affected (own
 pairs / references this file / companion observes this file / deterministic check
-observes this file). To compute this precisely even before the first fill,
+observes this file / may observe this file (cold-start) — the last one for a
+deterministic pair with no lock entry yet, whose observation set is therefore not
+yet known). To compute this precisely even before the first fill,
 `yg impact` runs the companion resolver for cold companion-backed pairs — it
 makes no LLM call, never runs `check.mjs`, and writes nothing. A companion whose
 hook fails is listed under `Unresolved` (cost unknown; it will infra-fail at
@@ -82,7 +84,7 @@ yg impact --type <id>
 ```
 
 - `--node` — Reverse dependencies, descendants, structural dependents of descendants, flows, aspects, and co-aspect nodes
-- `--file` — Resolve owner, then report a precise `Total to re-verify` block for the edit (its own output, not the `--node` summary). Also reflects deterministic checks whose recorded observations touched this file (cross-node impact). Runs the companion resolver for cold companion-backed pairs (no LLM call). Editing a `.yggdrasil/` graph file redirects to `yg impact --aspect <id>`. A companion whose hook fails appears under `Unresolved`.
+- `--file` — Resolve owner, then report a precise `Total to re-verify` block for the edit (its own output, not the `--node` summary). Also reflects deterministic checks whose recorded observations touched this file (cross-node impact), and marks a pair with no lock entry yet as one that *may* observe it. Runs the companion resolver for cold companion-backed pairs (no LLM call). Editing a `.yggdrasil/` graph file redirects to `yg impact --aspect <id>`. A companion whose hook fails appears under `Unresolved`.
 - `--aspect` — All nodes where this aspect is effective (own, hierarchy, flow, or implied), plus structural dependents of affected nodes — the pairs an edit to its rule, description, references, scope, tier, or `companion.mjs` would re-verify. Editing `companion.mjs` re-verifies every pair of the aspect (billed, not free); editing a resolved companion file re-verifies only the pairs that read it (also billed). `--file <companion-file>` reflects this fan-out via the lock's `touched` observations.
 - `--flow` — All participants and their descendants, plus structural dependents of participants
 - `--type <id>` — All nodes of that architecture type and their source files. Useful
@@ -207,6 +209,27 @@ preview before committing to the cost, use `--dry-run` (below); use `yg impact` 
 predict cost before an edit, and `yg aspect-test --dry-run` to preview a single LLM
 prompt.
 
+When there was nothing to fill, the closing summary says so in full — `0 reviewer
+calls made — all expected pairs hold valid verdicts` — rather than printing a bare
+zero that could be read as a failure to run.
+
+#### Silent structural-deviation index
+
+As a byproduct, a plain `yg check` also refreshes a local, gitignored index
+(`.yggdrasil/.feature-field.json`) of source files that look structurally unusual
+among their node's other same-language files. It is pure attention: never an
+issue, never an exit code, never a suggested next step, computed from the parse
+cache the relation pass already warmed, and written best-effort — a failed write
+never fails a check. It is what makes the advisory line in `yg context --file`
+possible; see [Structural attention](/feature-field). Only the reporting read path
+maintains it — `--approve`, `--dry-run`, and the internal fill re-checks leave it
+alone.
+
+A hidden `yg check --attention-dump` prints the raw per-file measurements grouped
+by node and language, marks the outliers, and exits 0. It is a calibration
+instrument: it runs over the warm cache, writes nothing, and makes no reviewer
+calls.
+
 #### `--dry-run` — free cost preview, no writes
 
 `yg check --approve --dry-run` is a cost preview. It runs the same structural gate,
@@ -241,6 +264,12 @@ running this command rematerializes the cache for free and clears them, without 
 key and without touching a committed file. Use plain `yg check --approve` (no flag)
 when you also want the LLM pairs filled.
 
+It is also honest about what it did not do: the header and the closing summary name
+the LLM pairs left unverified — they were skipped by design, not reviewed — and
+point at a full `yg check --approve`. A deterministic-only run can never read as if
+it had verified everything. It does still re-hash the committed LLM verdicts, so a
+stale one is still caught in the trailing report.
+
 #### Verification and aspect-status issue codes
 
 The validator emits the following codes (see [Aspect Status](/aspect-status) for
@@ -254,6 +283,7 @@ status semantics):
 | `prompt-too-large` | error | Assembled LLM prompt exceeds the resolved tier's `max_prompt_chars`. Takes precedence over `unverified`; `--approve` skips the pair. |
 | `lock-invalid` | error | A lock file is unparseable, garbled, conflict-markered, or an unknown version — fail closed. |
 | `relation-undeclared-dependency` | error (always) | Built-in relation-conformance check — a component depends on another component's code without a declared relation. Not an aspect: no status, not suppressible. Fix by declaring the relation in `yg-node.yaml` or removing the dependency. |
+| `structural-cycle` | error (always) | The declared structural relations (`calls` / `uses` / `extends` / `implements`) form a cycle — including a component relating to itself. Not an aspect: no status, not suppressible. Break the cycle (extract the shared piece into a third component) rather than declaring a mutual dependency. |
 | `aspect-check-runtime-error` | error (`--approve` only) | A `check.mjs` failed to import or threw at fill time — fail closed, no verdict written. |
 | `aspect-companion-runtime-error` | error (`--approve` only) | A `companion.mjs` failed to resolve/run at fill time (threw, returned a bad shape, resolved a missing or out-of-reach path, or observations stayed inconsistent) — fail closed, no verdict written; plain `yg check` shows the pair as unverified. |
 | `aspect-companion-without-content` | error (structural) | An aspect ships `companion.mjs` without `content.md`. Companions are an add-on to LLM aspects; `companion.mjs` alone is invalid. |
@@ -262,6 +292,9 @@ status semantics):
 | `aspect-status-invalid` | error | Declared `status:` is not one of `draft`, `advisory`, `enforced`. |
 | `aspect-status-downgrade` | error | An attach site declares a status lower than the cascade would yield (bump up OK, downgrade is an error). |
 | `implies-status-inherit-invalid` | error | `status_inherit:` is not `strictest` or `own-default`. |
+| `aspect-review-by-malformed` | error | A rule's `review_by:` is present but not a calendar-valid bare `YYYY-MM-DD` date (`2027-13-01`, `2027-02-30`). Fired only on the rule that carries the field. |
+| `aspect-review-overdue` | warning | A rule's standing `review_by:` date has passed — it is running unreviewed. Status-independent; never writes a verdict and never blocks. Renew or retire the rule; never change the date without the owner's approval. |
+| `rules-digest-stale` | warning | The committed agent-rules digest (the `AGENTS.md` block, `.clinerules/yggdrasil.md`, or the `CLAUDE.md` `@AGENTS.md` import) is missing, hand-edited, from an older CLI, or duplicated. Never cached, never suppressible — recomputed live on every check. Fix: `yg init --upgrade`. |
 | `aspect-effective-nowhere` | warning | A rule that ships a rule source and is not draft is effective on zero components after the full cascade and every `when` — a rule that looks enforced but is never verified anywhere. Silent while the model has no components. Fix by correcting the attach sites / `when`, or set `status: draft` until the component or type it targets exists. |
 
 ### `yg log`
@@ -301,18 +334,21 @@ yg log merge-resolve --node <path>
 
 ---
 
-## Navigation (5)
+## Navigation (11)
 
 | Command | Purpose |
 |---------|---------|
 | `yg tree [--root <path>] [--depth <n>]` | Graph structure |
 | `yg structure` | Read-only structural dashboard: tunnels, module groups, change reach |
 | `yg find "<query>"` | Natural-language graph search |
-| `yg aspects` | List aspects |
+| `yg aspects` [`--health`] | List aspects; `--health` adds the per-rule health row |
+| `yg advise` [`--all`] [`--ids`] / `dismiss` / `defer` | Read-only attention feed; never gates |
+| `yg incident add` / `read` | The committed incident ledger — what escaped enforcement |
 | `yg flows` | List flows |
 | `yg owner --file <path>` | Quick ownership lookup |
 | `yg suppressions` | Inventory of active `yg-suppress` markers |
 | `yg type-suggest --file <path>` | Suggest architecture type for a file |
+| `yg portal` [`--static`] | Read-only web view of the graph and its verification state |
 
 ### `yg tree`
 
@@ -368,7 +404,8 @@ The `score` is **relative to the best match in this query** — the top result i
 always `1.00` and the rest are its fraction, not an absolute confidence. Read the
 gap: a large drop from `1.00` to the next result signals a confident winner;
 closely-clustered scores mean the query is ambiguous, so confirm the top
-candidate with `yg context` before relying on it.
+candidate with `yg context` before relying on it. Flows are not in the index — to
+find a flow, use `yg flows`.
 
 ### `yg aspects`
 
@@ -432,10 +469,28 @@ states what it found, why — with the underlying evidence quoted verbatim as da
 own words, a case name, a file and line, shown in quotes with their source, never echoed as an
 instruction) — and the exact next step, which always ends by noting it needs your approval.
 
+The nomination classes, highest priority first. The first five rest on the graph as it stands;
+the next four are read from local history and carry an honesty label while the evidence is thin;
+the last two are whole-codebase observations:
+
+1. **A regression case a rule no longer catches** — a `violates-*` drill case the rule now lets through.
+2. **A risky waiver** — a wildcard or unbounded `yg-suppress`, or one aimed at a check that cannot false-positive.
+3. **A rule effective nowhere** — it ships a rule source and is not draft, yet lands on no component.
+4. **An orphaned rule** — nothing references it at all.
+5. **A rule past its `review_by:` date** — it is running unreviewed.
+6. **Promote a clean-record advisory rule** — it has approvals and no refusals while advisory.
+7. **Sharpen an inconsistently-judged rule** — the reviewer disagrees with itself on it.
+8. **A rule that has never once caught a violation** — reported as *possibly deterring* what it would catch, never assumed useless.
+9. **An uncovered hot spot** — a component whose files change often yet carry no enforced rule: the code most in motion with the least protection.
+10. **A candidate rule family** — see below.
+11. **An architecture cut** — see below.
+
 The lowest-priority suggestions include two whole-codebase observations: a **candidate rule
-family** — a tight group of near-identical files sharing no rule of their own, found by the
-offline structural-clustering pass, offered with a ready-to-refine scope pattern (the rationale
-is always yours to supply) and shown only while its suggestions file is fresh — and an
+family** — a tight group of near-identical files sharing no rule of their own, offered with a
+ready-to-refine scope pattern (the rationale is always yours to supply) and shown only while its
+suggestions file is fresh. That file comes from an offline structural-clustering pass which is
+**not part of the installed package**, so this class stays silent unless you supply the file
+yourself; it is present-or-omit by design and its absence is not an error. And an
 **architecture cut** — two or more module groups that depend on each other in a loop, read
 straight from the committed graph's declared dependencies (reproducible on any machine),
 proposing a cut or a contract across the boundary. Both are data with evidence, both need your
@@ -542,6 +597,10 @@ It emits non-blocking warnings so accumulated waivers stay auditable:
 - **Unbounded range** — a `yg-suppress-disable` with no matching
   `yg-suppress-enable`, placed below the file head — usually a forgotten close, so
   the waiver runs to the end of the file by accident.
+- **Waiving a check that cannot false-positive** — the marker targets a rule
+  declared [`errs: under`](/aspects#two-more-fields-worth-knowing), which by
+  construction only ever fires on a provable violation. There is nothing about it
+  to waive, so the waiver is almost certainly hiding a real one.
 
 A bare `yg-suppress-disable` with no matching enable is the sanctioned way to
 waive an entire file, but only at the top: when it sits within the first five
@@ -569,6 +628,28 @@ match the path pattern. If the file exists, runs the full `when` predicate (path
 content). If multiple types match, the architecture has overlapping `when` rules that
 need disambiguating. If no type matches, shows the closest types by satisfied-fraction
 to help you choose where to move or refactor the file.
+
+### `yg portal`
+
+Opens a read-only web view of the graph and its verification state on a
+loopback-only address (default port 4317) and prints the link. Every component,
+every rule, and each one's honest state as of right now.
+
+```bash
+yg portal                        # serve the live view on http://127.0.0.1:4317
+yg portal --port 8080            # choose the loopback port
+yg portal --open                 # also open the browser at it
+yg portal --no-write             # disable the one Approve action (pure read-only)
+yg portal --static               # write a self-contained HTML file instead of serving
+yg portal --static --out x.html  # choose the static output path (default: yg-portal.html)
+```
+
+The served view is read-only except for one clearly-labelled Approve action that
+runs the same verification as `yg check --approve`; `--no-write` removes it. The
+requests that do real work are answered only for the portal's own page, and the
+server binds loopback only. `--static` needs no server and no network — hand the
+file to someone who has no checkout. See [The portal](/portal) for the views it
+offers and what each one answers.
 
 ---
 
@@ -637,6 +718,13 @@ a check error or an over-limit prompt), or `unsupported` (the rule needs context
 a single-file drill cannot supply). Deterministic drills run locally and free; an
 LLM aspect goes through the real reviewer and bills it (the call budget prints
 first). Exit `1` on any MISS/FALSE-ALARM, else `2` on any unrun, else `0`.
+
+Failure output shows only the case label, content hashes, and pass/fail — never
+the case source. `yg drill` writes one thing: a local, gitignored results log
+(`.yggdrasil/.drill-results.jsonl`), which is what lets the attention feed notice
+later that a rule has stopped catching one of its own cases. It never touches the
+verification lock. Keeping a corpus for every enforced rule is a convention, not a
+requirement — a missing corpus never blocks `yg check`.
 
 ### `yg aspect-test`
 
@@ -761,6 +849,8 @@ non-zero.
 | `yg init` | Initialize or reconfigure |
 | `yg prime` [`--digest`] | Print the full agent operating manual fresh from the installed CLI (`--digest` prints only the committed digest block) |
 
+### `yg init`
+
 ```bash
 yg init
 ```
@@ -853,7 +943,7 @@ that the root files it maintains (`AGENTS.md`, `CLAUDE.md`,
 and prints the `coverage.excluded` stanza that settles it. It reports; it
 never edits your configuration. See [Coverage](/configuration#coverage-config).
 
-## yg prime
+### `yg prime`
 
 ```bash
 yg prime
@@ -867,3 +957,6 @@ repository. There is no committed copy of the manual to go stale; run
 short summary block that `yg init` commits inside `AGENTS.md` and
 `.clinerules/yggdrasil.md` — the piece `yg check`'s `rules-digest-stale`
 warning compares against the installed CLI.
+
+Like `yg schemas`, it works without a `.yggdrasil/` present — an agent can read
+the manual before the project has a graph at all.

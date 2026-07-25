@@ -28,7 +28,7 @@ There are six relation types, in two families:
 
 The architecture file constrains which types may target which. Each node type either leaves a relation type unconstrained (the default — it may target any type) or lists the target node types it may reach; `yg check` rejects a relation whose target is not in a declared list. You can also lock a type down: `default: deny` forbids every relation type the node does not explicitly list (a sink), an empty list (`uses: []`) forbids a single relation type, and the wildcard (`uses: ['*']`) opens one to any target. An omitted `default` means allow, so this is fully backward-compatible. So if you decide a `service` may only `call` other services and `use` libraries, the graph holds every service to that.
 
-Event relations come in pairs. If A `emits` to B, then B must declare a `listens` from A. `yg check` enforces the pairing.
+Event relations come in pairs. If A `emits` to B, then B must declare a `listens` from A. `yg check` enforces the pairing with a blocking `event-unpaired` error. The pairing is matched by node path only — the optional `event_name` on the relation is documentation and is never compared.
 
 Relations earn their keep two ways: `yg impact` uses them to compute the blast radius of a change, and the architecture allow-list keeps dependencies inside the shape you designed.
 
@@ -58,6 +58,8 @@ There are two ways to clear a refusal:
 If no relation type is allowed between the two node types, that is an architecture decision. Your agent surfaces it for your confirmation — you either change a node's type so an allowed relation exists, or extend the allowed relations in `yg-architecture.yaml`.
 
 One caveat on declaring the relation: the four structural relation types (`calls`, `uses`, `extends`, `implements`) must form a DAG. If two components depend on each other, declaring both directions creates a cycle, which a separate always-blocking validator rejects with a `structural-cycle` error (a component relating to itself counts too). Break the cycle — extract the shared piece into a third component both depend on — rather than declaring a mutual dependency.
+
+It also never passes over code it could not read. If a language's parser cannot be loaded, every file in that language would contribute zero detected dependencies — which would look exactly like "this file depends on nothing". Rather than go green over unanalyzed code, the check fails closed with a blocking `relation-parse-failed` naming the language and an affected file.
 
 One detail worth knowing: this check runs on **every** `yg check`, not only `yg check --approve`. Its result is never cached: the resolve-and-verify join runs live on every call, so it is always the current truth of your code against the graph, at zero LLM cost. (Parsing a file is served from a content-addressed cache when its bytes are unchanged, but the resolution and the verdict are always recomputed.) That is what lets a keyless CI `yg check` catch an undeclared dependency even though it makes no LLM calls. When adopting Yggdrasil on an existing codebase, the first run names every file, target, and the exact `relations:` stanza to add.
 
@@ -93,7 +95,16 @@ Now `orders/order-service` must satisfy `correlation-tracking` for its own code,
 
 **Why this exists.** A rule attached to a parent node reaches all of its children automatically. But it does not cross a relation. A helper that lives outside the audited parent, yet gets called from inside it, would slip past the audit rule. Ports restore the boundary: the owner publishes the rule as a port, the caller declares `consumes`, and the rule reaches the caller's code along the call.
 
-If the target declares ports and the consumer's relation does not declare `consumes`, `yg check` fails with a blocking error (code `port-missing-consumes`). It names the relation, explains that the target's port rules will go unverified without a `consumes`, and tells you to add it. There is no "accept the gap" option: declare which ports you consume, or remove the ports from the target.
+Four blocking errors keep the port contract honest, and none of them has an "accept the gap" option:
+
+| Code | When it fires | Fix |
+|---|---|---|
+| `port-missing-consumes` | The target declares ports and the consumer's relation declares no `consumes`. | Declare which ports you consume, or remove the ports from the target. |
+| `consumes-without-ports` | A relation declares `consumes` naming a target that declares no ports at all. | Drop the `consumes`, or add the named port to the target. |
+| `port-undefined` | A relation's `consumes` names a port the target does not have. | Fix the port name, or add the missing port to the target. |
+| `port-missing-aspect` | A consumed port lists a rule that is not defined under `aspects/`. | Define the rule, or remove it from the port. (An undefined id is caught as `aspect-undefined` whether or not the port is consumed; this code is the "and it is actually being consumed" case.) |
+
+Each message names the relation, explains what would go unverified, and tells you what to add.
 
 ---
 

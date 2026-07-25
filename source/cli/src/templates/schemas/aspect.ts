@@ -161,7 +161,9 @@ status: enforced                   # optional — aspect-level default. enum: dr
                                    # Absent → equivalent to { per: node }.
                                    #
                                    # Fields:
-                                   #   per: node | file     REQUIRED. Default: node.
+                                   #   per: node | file     REQUIRED once a scope: block exists —
+                                   #     writing scope: with no per: is aspect-scope-invalid. The
+                                   #     'node' default applies only when scope: is absent entirely.
                                    #     node — one review over the whole subject set.
                                    #            LLM: one prompt with all subject files.
                                    #            Deterministic: one check(ctx) invocation; ctx.files = subject set.

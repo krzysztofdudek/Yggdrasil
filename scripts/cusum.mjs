@@ -1,11 +1,13 @@
 #!/usr/bin/env node
-// cusum (analysis b) — DOGFOOD calibration instrument. Read-only over LOCAL
+// cusum (analysis b) — DOGFOOD calibration instrument. Read-only over the verdict
 // telemetry. NEVER writes the lock, the events sidecar, or any graph file. Makes
 // ZERO reviewer/LLM calls. No deps.
 //
 // WHAT: a one-sided Bernoulli CUSUM per aspect over the fill telemetry. It reads
-// .yggdrasil/.yg-events.jsonl filtered to source:'fill' (the yg check --approve
-// stream), treats disposition:'refused' as 1 and 'approved' as 0, EXCLUDES every
+// the fill stream from EVERY home it can have — the local sidecar (and its rotation)
+// UNION the committed LLM stream, deduped by full line (see EVENTS_PATHS: reading
+// only the local file truncates the series the moment `events.committed_llm` is
+// turned on) — treats disposition:'refused' as 1 and 'approved' as 0, EXCLUDES every
 // no-write disposition (infra and other runtime failures — they are not an
 // approve/refuse Bernoulli trial), orders each aspect's trials by timestamp, and
 // accumulates the sequential-probability-ratio CUSUM statistic. When the statistic
@@ -43,7 +45,17 @@ function repoRoot() {
   return execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf-8' }).trim();
 }
 const ROOT = repoRoot();
-const EVENTS_PATH = path.join(ROOT, '.yggdrasil', '.yg-events.jsonl');
+// The fill stream has TWO possible homes and a rotation, so reading one file
+// silently truncates the series. Under `events.committed_llm: true` an LLM fill
+// event goes to the COMMITTED stream and NOT the local sidecar (single-home, no
+// double-count), so a local-only read stops dead at the moment that flag was
+// flipped while still printing a confident report. Mirror the CLI's own reader:
+// union(local rotated, local current, committed), deduped by FULL LINE.
+const EVENTS_PATHS = [
+  path.join(ROOT, '.yggdrasil', '.yg-events.jsonl.1'),
+  path.join(ROOT, '.yggdrasil', '.yg-events.jsonl'),
+  path.join(ROOT, '.yggdrasil', 'yg-events.llm.jsonl'),
+];
 
 function isTracked(absPath) {
   try {
@@ -57,27 +69,38 @@ function isTracked(absPath) {
   }
 }
 
-function readJsonl(absPath) {
-  let raw;
-  try {
-    raw = readFileSync(absPath, 'utf-8');
-  } catch {
-    return { missing: true, lines: [] };
-  }
+/** Union reader over every home of the fill stream. Dedupe is by FULL LINE before
+ *  parsing — a git `merge=union` on the committed stream can leave byte-identical
+ *  duplicates, and counting one twice would inflate a Bernoulli trial count. */
+function readEventsUnion(absPaths) {
+  const seen = new Set();
   const lines = [];
-  for (const line of raw.split('\n')) {
-    const t = line.trim();
-    if (!t) continue;
+  const present = [];
+  const absent = [];
+  for (const absPath of absPaths) {
+    let raw;
     try {
-      lines.push(JSON.parse(t));
+      raw = readFileSync(absPath, 'utf-8');
     } catch {
-      /* skip garbage line, never crash */
+      absent.push(absPath);
+      continue;
+    }
+    present.push(absPath);
+    for (const line of raw.split('\n')) {
+      const t = line.trim();
+      if (!t || seen.has(t)) continue;
+      seen.add(t);
+      try {
+        lines.push(JSON.parse(t));
+      } catch {
+        /* skip garbage line, never crash */
+      }
     }
   }
-  return { missing: false, lines };
+  return { missing: present.length === 0, lines, present, absent };
 }
 
-const eventsFile = readJsonl(EVENTS_PATH);
+const eventsFile = readEventsUnion(EVENTS_PATHS);
 
 // Collect fill trials per aspect. A trial is an approve/refuse Bernoulli outcome;
 // every no-write disposition is EXCLUDED (unknown ≠ zero — infra is not an approval).
@@ -189,13 +212,22 @@ if (totalTrials === 0) {
 // ---- Honesty footer -------------------------------------------------------------
 out('');
 out('— honesty labels —');
-const rel = path.relative(ROOT, EVENTS_PATH);
+const LOCAL_SIDECAR = path.join(ROOT, '.yggdrasil', '.yg-events.jsonl');
+const COMMITTED_STREAM = path.join(ROOT, '.yggdrasil', 'yg-events.llm.jsonl');
+const rels = (ps) => ps.map((p) => path.relative(ROOT, p)).join(', ');
 if (eventsFile.missing) {
-  out(`  ${rel}: absent — no fill telemetry recorded yet (unknown ≠ zero: an absent file is not a measurement of zero).`);
-} else if (isTracked(EVENTS_PATH)) {
-  out(`  ${rel}: local-telemetry label REFUSED — this file is TRACKED in git. Committed telemetry is not local/private, mixes machines and judge regimes, and can be hand-edited; treat the figures above as untrusted until it is gitignored again.`);
+  out(`  no fill telemetry recorded yet — none of ${rels(EVENTS_PATHS)} exists (unknown ≠ zero: an absent file is not a measurement of zero).`);
 } else {
-  out(`  local telemetry since ${firstTs ?? '(none observed)'} — ${rel} (append-only, gitignored, this machine only).`);
+  out(`  read as a union of ${rels(eventsFile.present)}, deduped by full line; first trial observed ${firstTs ?? '(none)'}.`);
+  if (eventsFile.absent.length > 0) {
+    out(`  absent (contributed nothing): ${rels(eventsFile.absent)}.`);
+  }
+  if (eventsFile.present.includes(COMMITTED_STREAM)) {
+    out('  committed-stream mix — part of this series comes from the SHARED, team-committed LLM-fill stream, so it spans machines and judge regimes rather than one machine; machines on older CLIs wrote only locally and do not contribute, so the shared part is never assumed complete.');
+  }
+  if (isTracked(LOCAL_SIDECAR)) {
+    out(`  ${path.relative(ROOT, LOCAL_SIDECAR)}: local-telemetry label REFUSED — the LOCAL sidecar is TRACKED in git, which it must never be. It can be hand-edited and mixes machines; treat the figures above as untrusted until it is gitignored again. (The committed LLM stream being tracked is by design and is not this problem.)`);
+  }
 }
 out('  small-N — refusals are rare; a CUSUM over a handful of them is indicative, not significant, and the alarm-rate (ARL) implied by H is order-of-magnitude at this scale.');
 out('  unknown ≠ zero — infra and other no-write dispositions are EXCLUDED trials, not approvals; a quiet aspect is one not yet exercised, not one proven safe.');

@@ -48,6 +48,18 @@ pairs on that node — a legitimate vacuous pass, no verdict, no entry.
 \`yg context --node\` shows the per-aspect subject-file count so a mis-written
 \`scope.files\` is observable.
 
+**The gitignore trap (blocking, by design).** Mapping expansion enumerates
+GIT-TRACKED files, so a directory/glob mapping entry SKIPS anything \`.gitignore\`
+excludes. A file that is both tracked AND gitignore-matched would therefore count
+as covered while producing no review subject — an enforced rule passing over code
+no reviewer ever saw. Rather than permit that false green, \`yg check\` blocks it:
+\`mapped-file-gitignored\` (tracked + glob-mapped + gitignored — un-ignore it, name
+it DIRECTLY in the mapping since a direct file entry bypasses gitignore, or stop
+tracking it) and the mirror case \`file-mapping-gitignored\` (a mapping entry names
+a file directly that is not tracked at all — either it belongs in the repo, or it
+does not belong in the mapping). Both are structural errors, live on every
+\`yg check\`, no \`--approve\` needed.
+
 ## Lock format
 
 \`\`\`jsonc

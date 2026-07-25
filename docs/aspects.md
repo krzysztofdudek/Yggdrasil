@@ -55,6 +55,14 @@ Every aspect has a status that controls how its results show up. You move a rule
 
 Status defaults to `enforced`. See [Aspect Status](/aspect-status) for the full lifecycle.
 
+## Two more fields worth knowing
+
+Both are optional, both live in `yg-aspect.yaml`, and neither is part of a verdict's identity — adding or changing either one re-verifies nothing.
+
+**`review_by:`** — a standing request to re-examine whether the rule still earns its place, written as a plain calendar day (`review_by: 2027-01-15`). Once the day has passed, `yg check` raises one warning per rule saying it is running unreviewed. That is all it does: it never blocks a build, never changes a verdict, and never moves the date by itself. Renewing or retiring the rule is a decision its owner makes. A date that is not a real day (`2027-02-30`) is a blocking error on that rule. Valid on any kind of rule.
+
+**`errs:`** — the honest error direction of a *script* rule, one of `over`, `under`, or `exact`. `under` means the check only ever fires on a provable violation, so it has no false positives by design; `over` means it may flag code the rule does not actually forbid; `exact` means neither. It is a label for readers and for reporting — the waiver inventory uses it to warn when someone waives an `under` check, which by definition has no false positive to waive. Declaring it on a judgment rule or an aggregating rule is an error.
+
 ## Retiring a rule that blocks wrongly
 
 A rule earns its place by catching real mistakes. But a rule can also block the *wrong* thing — refuse code that was actually fine — and when that happens often, the team stops trusting the rule and starts routing around it. To keep that visible, the rule-health view (`yg aspects --health`) has a **false-block** column: for each rule, how many of its past refusals a person later waived (with a `yg-suppress` marker) or overturned. A refusal that was fixed in the code never counts — only refusals a human decided were wrong. Where the history is thin the number is shown with a plain `(thin data)` label, never a precise-looking rate.

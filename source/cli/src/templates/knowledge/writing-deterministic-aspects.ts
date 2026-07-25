@@ -92,9 +92,12 @@ is an infra disposition: NO entry is written, the pair stays unverified, and the
 ## Iterating over the files
 
 A node's mapping may include non-parseable files (e.g. \`.md\`, \`.sh\`,
-\`.txt\`). For those files \`file.ast\` is \`undefined\`. (\`.json\` DOES have a
-registered grammar, so a JSON file is parseable and gets an AST.) **Always guard
-before touching \`file.ast\`**:
+\`.txt\`, \`.sql\`). For those files \`file.ast\` is \`undefined\`. Note that the
+DATA formats \`.json\`, \`.yaml\` / \`.yml\` and \`.toml\` all DO have registered
+grammars, so those files are parseable and get an AST — the shipped grammar set is
+TypeScript, TSX, JavaScript, Python, Go, Rust, Java, C#, C, C++, PHP, Ruby, Kotlin,
+JSON, YAML, and TOML, and \`file.language\` carries the registry id (undefined when
+there is no grammar). **Always guard before touching \`file.ast\`**:
 
 \`\`\`javascript
 import { walk, report, inFile, closest } from '@chrisdudek/yg/ast';

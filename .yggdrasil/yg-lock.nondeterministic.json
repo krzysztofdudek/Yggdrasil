@@ -167,7 +167,7 @@
       "file:source/cli/src/structure/observations.ts": {"hash":"61e66282785fa8d997c724b05286197d04cff24684f25eaf831c14cba5d8a3c5","verdict":"approved"},
       "file:source/cli/src/structure/runner.ts": {"hash":"d9dbd93a7274f123ec47a641d5c8e95dccc035bcb22dc68963a7ca4a66292bbb","verdict":"approved"},
       "file:source/cli/src/structure/suppress-ranges.ts": {"hash":"97fbcb31be1768b6751597bcf35cbf19f643a79d9558295bacab6e71e6af4ef2","verdict":"approved"},
-      "file:source/cli/src/structure/types.ts": {"hash":"ae33ba585a906187ead7bed2876178fd19d80c7deedd577bf66d90438c28ea07","verdict":"approved"}
+      "file:source/cli/src/structure/types.ts": {"hash":"e67bdc12656f555411445a1e9be6e470e9ff01ea8a5133b33c183793f52e5b08","verdict":"approved"}
     },
     "diagnostic-logging": {
       "file:source/cli/src/cli/advise.ts": {"hash":"06cb55a4b15aeac6d53bb33b389af9fbbd1a89c7a9b2d2e61b1aef534903866f","verdict":"approved"},
@@ -294,7 +294,7 @@
       "file:source/cli/src/migrations/to-5.1.0.ts": {"hash":"80f76af2b241d275af85ed2cc38583ee85a0b0cf194d4b3765df2a76fd4e1ca3","verdict":"approved"},
       "file:source/cli/src/portal/serializer.ts": {"hash":"93b42626df7744dc08cc2f51f88bd8024bdae16d4f5972d9c7597bb70276a4d6","verdict":"approved"},
       "file:source/cli/src/templates/digest.ts": {"hash":"dd9064eb465cb9d9ad7d4c310f0d1504b22249a0799c771f891047c20256d17a","verdict":"approved"},
-      "file:source/cli/src/templates/rules.ts": {"hash":"1d0836f17455ad2fddbafa66861e7b943da3cd0eb975ebb871a7928f89b83ca3","verdict":"approved"},
+      "file:source/cli/src/templates/rules.ts": {"hash":"cc74065f4f1a97aa489cf7a36b79cc4f921afa4858cee5a01eaf825d1d3233c8","verdict":"approved"},
       "file:source/cli/src/utils/binary-check.ts": {"hash":"9a901d564b54bfb64faf222f3d4a0df67bfc1e0198c7eed7c01bba1dbb2b49c7","verdict":"approved"},
       "file:source/cli/src/utils/binary-extensions.ts": {"hash":"e7db4d4c5ccbeeb221b6a2af9f5ff921c8b947f83afadc0f247428386025ab1b","verdict":"approved"},
       "file:source/cli/src/utils/debug-log.ts": {"hash":"ca46fb1782906ed2a79181156fdc603c25fa5ab5ae2614f7301c18ff11dc95b9","verdict":"approved"},
@@ -895,6 +895,7 @@
       "file:source/cli/src/cli/log.ts": {"hash":"a3fd95a6ebde32c915982f663927ac1fbecda41928e1162b3aecbc99a284a59e","verdict":"approved"},
       "file:source/cli/src/cli/owner.ts": {"hash":"5073c0bce56dae5e9855be4de2f8edf3bd6dcbabba8db041f3fbd766e931695d","verdict":"approved"},
       "file:source/cli/src/cli/portal.ts": {"hash":"fdd670f840a225afb615a4dd04a497a7421f91b2b48445ae5006021d0a119957","verdict":"approved"},
+      "file:source/cli/src/cli/prime.ts": {"hash":"c4d4dd85970d3260481e2c5d918b6948fdc5cdc9d0b6d5380fed430f99905bce","verdict":"approved"},
       "file:source/cli/src/cli/schemas.ts": {"hash":"4f82c0b02168b2c0b91295c4a9afb96a425f6cc955717cc75d0b5fbf5e5ead20","verdict":"approved"},
       "file:source/cli/src/cli/simulate.ts": {"hash":"468519904b289702575e497d78cf74fcc258d8e5f2db1f0f6192248b59e5b19f","verdict":"approved"},
       "file:source/cli/src/cli/structure.ts": {"hash":"5ff7091fdcce6ad0089cdec6963447aa044fcf3ec12e504019fb6b32ae45d2be","verdict":"approved"},
@@ -955,7 +956,7 @@
       "file:source/cli/src/templates/default-config.ts": {"hash":"e57560574caa90c8f4ccfe1f0669056e9e5cf44cb8e3e61370056d4f4024074b","verdict":"approved"},
       "file:source/cli/src/templates/digest.ts": {"hash":"70e163116b1e84a998b3a7d2417d571a552dae7f1e236deb690940a6ecf1dcbe","verdict":"approved"},
       "file:source/cli/src/templates/platform.ts": {"hash":"c15b8a75688a7af3cfb5f826ef50847535050f33df05771ac6cad0b27af2bba5","verdict":"approved"},
-      "file:source/cli/src/templates/rules.ts": {"hash":"84ecae9208bae126f541c381e9d6ded19a8e2fef181e59482d6efbdd8520c4ea","verdict":"approved"}
+      "file:source/cli/src/templates/rules.ts": {"hash":"af9d508387c1cff2fe12d0719c308414cc56b0c29d78c5d67b87a42428429599","verdict":"approved"}
     }
   },
   "nodes": {

@@ -33,7 +33,7 @@ node ../../source/cli/dist/bin.js check
 Expected final output:
 
 ```
-yg check: PASS  2 nodes · 4/4 files · 1 aspects · 0 flows
+yg check: PASS  2 nodes · 8/8 files · 1 aspects · 0 flows · 2 verified (2 deterministic, 0 LLM)
 ```
 
 ## The ONE edit that BREAKS the rule

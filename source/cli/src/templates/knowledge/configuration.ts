@@ -106,7 +106,14 @@ One of: \`ollama\`, \`anthropic\`, \`openai\`, \`google\`, \`openai-compatible\`
 \`claude-code\`, \`codex\`, \`gemini-cli\`.
 
 CLI providers (\`claude-code\`, \`codex\`, \`gemini-cli\`) do not require an API key —
-they delegate to the installed CLI tool.
+they delegate to the installed CLI tool. They are also the only providers with a
+built-in \`config.model\` fallback, applied when a tier omits it:
+\`claude-code\` → \`haiku\`, \`codex\` → \`o4-mini\`, \`gemini-cli\` → \`gemini-2.5-flash\`.
+Every other provider MUST declare \`config.model\` — a missing one is a hard
+\`config-tier-config-missing\`-class error. (Distinct from \`yg init --model\`, whose
+own default is \`sonnet\` for \`claude-code\` and required for every other provider:
+that is what init WRITES into the config, this is what the runtime reads when the
+field is absent.)
 
 ### reviewer.tiers.<name>.consensus
 

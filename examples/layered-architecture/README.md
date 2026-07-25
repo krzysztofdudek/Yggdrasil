@@ -44,7 +44,7 @@ yg check          # PASS — 3 nodes · 4/4 files · 0 aspects
 Expected output:
 
 ```
-yg check: PASS  3 nodes · 4/4 files · 0 aspects · 0 flows
+yg check: PASS  3 nodes · 8/8 files · 0 aspects · 0 flows
 ```
 
 ## The one edit that BREAKS it
@@ -69,7 +69,7 @@ export function getRide(req: HttpRequest): HttpResponse {
 Run `yg check` again and it refuses — live, with no key and no lock:
 
 ```
-yg check: FAIL  3 nodes · 4/4 files · 0 aspects · 0 flows
+yg check: FAIL  3 nodes · 8/8 files · 0 aspects · 0 flows
 
 Errors (1):
 

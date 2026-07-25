@@ -79,6 +79,27 @@ There are exactly three ways out of a refusal:
 
 A cosmetic edit to the rule or the source — a reworded comment, a whitespace change — would also re-roll the verdict. Don't. That is exactly the laundering the missing force command refuses to offer.
 
+## The log gate
+
+The third lock file, `yg-lock.logs.json`, exists for one mechanism: the log gate. A node type can opt in with `log_required: true` (see [Nodes](/nodes#node-types-the-architecture-file)), and a node of such a type must carry a fresh entry in its `log.md` — written with `yg log add` — before its work is verified. The entry records **why** a change was made; what changed is already in the diff.
+
+**When an entry is required.** Both of these have to hold: the node's type opts in, *and* the node's mapped source has changed since the node last reached positive closure (or this is its first verification and it owns source files). Notably it does **not** depend on the node's rules: a node that owns source but carries no rules at all still needs an entry when that source changes. A re-verification triggered by something other than the source — a rule was edited, the files untouched — needs no new entry.
+
+**Positive closure** is the moment a `yg check --approve` run ends with every *enforced* pair on that node approved. At that point the lock records two things for the node: a **source fingerprint** (one hash folded over its whole mapping) and the freshness baseline of its newest log entry. The fingerprint is what "the source changed" is measured against afterwards, which is why it is recorded only for `log_required` nodes — nowhere else does anything read it.
+
+Corollaries worth knowing:
+
+- An advisory refusal does not prevent closure. A red *enforced* pair keeps the cycle open — and the same log entry stays valid through every retry, because the intent behind the change did not move, only the execution. Iterate on the code without adding entries.
+- A node with no pairs, or only advisory ones, closes vacuously — but still only once its log requirement is satisfied.
+
+**The gate is read-only, and it is all-or-nothing.** A missing entry is a blocking `log-entry-missing` error on a plain `yg check`, computed live from the fingerprint at zero cost — not merely something `--approve` refuses. So CI catches an unlogged source change even on a node that produces no pairs to fill. And at `--approve`, if *any* `log_required` node is missing its entry, the run fills **nothing at all** — no pair on any node, related or not. Add the missing entries and re-run.
+
+**Correcting an entry.** Entries are append-only and integrity-checked; editing history breaks the check. To retract a decision, append a new entry whose body opens with `### Supersedes: <the prior entry's timestamp>`. Two narrow exceptions operate through git rather than by hand-editing: a typo in an entry the node has **not** yet closed over can be dropped with `git checkout` on that one `log.md` and re-added (the baseline has not recorded it yet), and reverting a change you regret means reverting the source *and* the log together, then logging the revert — never adding a "correction" entry that leaves the wrong code in place.
+
+**After a merge.** If both branches appended entries to the same node, run `yg log merge-resolve --node <path>` from the merge commit. It validates that the shared history is byte-identical on both sides and that the result is the union of both sets of new entries, then records the node's baseline — it reads your merge resolution, it never rewrites it. Never concatenate two log histories by hand. When a committed lock file conflicted *as well*, the order is: take one side of the lock file, then `merge-resolve` each conflicted log, then `yg check --approve`.
+
+`yg log add` never verifies anything and never invalidates a verdict, so entries can be appended freely between code changes.
+
 ## The relation check is not in the lock
 
 Alongside the aspect reviewers, every `yg check` runs one built-in check that confirms every real code dependency is declared as a relation. It's deterministic, but unlike an aspect verdict it is **never stored in the lock** — there is no relation verdict, no hash, and no section for it.

@@ -6,8 +6,10 @@ source code and its own `.yggdrasil/` graph. They fall into two groups: the
 `check.mjs` rules and the built-in relation check), and the **reviewer**
 examples show the LLM layer.
 
-Each example has its own `README.md` with the one edit that breaks the rule and
-the exact refusal you will see.
+Each of the four keyless examples has its own `README.md` with the one edit that
+breaks the rule and the exact refusal you will see. The two reviewer examples are
+described here on this page and have no separate README — their whole point is the
+pair of commands below.
 
 ## Keyless examples — no API key, run in seconds
 

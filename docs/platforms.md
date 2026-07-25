@@ -66,7 +66,8 @@ small step, once:
 
 - **Windsurf** — folded into another product; last we checked, its current
   status and whether that product reads `AGENTS.md` natively were both in
-  flux.
+  flux. `yg init` deletes the rules file the retired installer wrote at
+  `.windsurf/rules/yggdrasil.md`.
 - **Aider** — needs an explicit `read:` entry in `.aider.conf.yml` pointing at
   `AGENTS.md`. `yg init` no longer writes one; add the entry yourself if you
   use Aider. It also removes the entry an earlier version wrote, which pointed
@@ -75,7 +76,8 @@ small step, once:
   `.aider.conf.yml` for a `read:` line still pointing at
   `.yggdrasil/agent-rules.md` and repoint it at `AGENTS.md`.
 - **CodeBuddy** — reads its own `CODEBUDDY.md`, not `AGENTS.md`; we have no
-  confirmation of native `AGENTS.md` support.
+  confirmation of native `AGENTS.md` support. `yg init` deletes the rules file
+  the retired installer wrote at `.codebuddy/rules/yggdrasil/RULE.mdc`.
 - **Roo Code** — reported to have shut down, so this is here for anyone still
   running an older install. `yg init` deletes the rules file the retired
   installer wrote at `.roo/rules/yggdrasil.md`.
@@ -87,3 +89,9 @@ small step, once:
 For any of these, point the agent at `AGENTS.md` by hand — for the last two,
 in whichever file that agent reads — or have it run `yg prime` directly. Both
 give it the same rules every other agent gets.
+
+The same sweep covers every other file the retired per-platform installers used
+to write, whether or not the agent appears above: `.cursor/rules/yggdrasil.mdc`
+and the old single rules file at `.yggdrasil/agent-rules.md`. Whatever it
+removes is listed in the `yg init --upgrade` output as cleaned-up legacy
+artifacts, so nothing disappears silently.

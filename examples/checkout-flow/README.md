@@ -44,7 +44,7 @@ node ../../source/cli/dist/bin.js check
 Expected final output:
 
 ```
-yg check: PASS  4 nodes · 5/5 files · 1 aspects · 1 flows
+yg check: PASS  4 nodes · 9/9 files · 1 aspects · 1 flows · 3 verified (3 deterministic, 0 LLM)
 ```
 
 > On a fresh clone, step 1 is required: the deterministic verdict lives in the
@@ -74,7 +74,7 @@ node ../../source/cli/dist/bin.js check
 proving the flow-level rule reaches every participant independently:
 
 ```
-yg check: FAIL  4 nodes · 5/5 files · 1 aspects · 1 flows
+yg check: FAIL  4 nodes · 9/9 files · 1 aspects · 1 flows · 2 verified (2 deterministic, 0 LLM)
 
 Errors (1):
 
@@ -90,8 +90,7 @@ Errors (1):
 
 ## Do not commit the cache
 
-The deterministic verdict cache (`.yggdrasil/.yg-lock.deterministic.json`), the
-AST cache (`.yggdrasil/.ast-cache/`), and the symbol-index cache
-(`.yggdrasil/.symbols-cache/`) are rebuildable and **gitignored** (see
+The deterministic verdict cache (`.yggdrasil/.yg-lock.deterministic.json`) and
+the AST cache (`.yggdrasil/.ast-cache/`) are rebuildable and **gitignored** (see
 `.yggdrasil/.gitignore`). They are recreated for free by
 `yg check --approve --only-deterministic`.

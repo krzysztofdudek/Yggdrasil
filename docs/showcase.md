@@ -80,7 +80,7 @@ Before writing a single YAML file, we spent the equivalent of several days restr
 
 ### `aspects:` (type-level defaults — channel 3)
 
-**Used as:** `engine` type automatically applies `deterministic`, `no-direct-fs`, `no-direct-console`, `no-nondeterminism-direct`. `command` type applies `cli-command-contract`, `diagnostic-logging`, `command-contract-shape`. 31 types carry at least one default aspect.
+**Used as:** `engine` type automatically applies `source-no-raw-control-chars`, `deterministic`, `no-direct-fs`, `no-direct-console`, `no-nondeterminism-direct`, `source-hygiene`, and `single-source-graph-queries`. `command` type applies `source-no-raw-control-chars`, `cli-command-contract`, `diagnostic-logging`, `command-contract-shape`, `source-hygiene`, `command-error-via-buildissuemessage`, and `sibling-test-file`. 31 of 36 types carry at least one default aspect.
 
 **Earn-rate: high.** This is the architecture-as-policy layer. Adding one aspect to a type applies it to every node of that type, past and future. We used it to roll out `test-deterministic` to every test-suite node at once.
 
@@ -100,7 +100,7 @@ Before writing a single YAML file, we spent the equivalent of several days restr
 
 ### `implies:` chains
 
-**Used as:** Four chains: `cli-command-contract` → `[command-exit-codes, diagnostic-logging]`; `deterministic` → `[no-nondeterminism-direct]`; `top-level-error-handler` → `[command-exit-codes]`; `source-hygiene` → `[posix-paths-source, no-direct-minimatch, no-shell-injection]`. Implied aspects propagate automatically — no duplication in node or architecture defaults.
+**Used as:** Four chains: `cli-command-contract` → `[command-exit-codes, diagnostic-logging]`; `deterministic` → `[no-nondeterminism-direct]`; `top-level-error-handler` → `[command-exit-codes]`; `source-hygiene` → `[posix-paths-source, no-direct-minimatch, no-shell-injection, prototype-safe-registry-lookup, owner-resolution-single-source]`. Implied aspects propagate automatically — no duplication in node or architecture defaults.
 
 **Earn-rate: medium.** The `deterministic` → `no-nondeterminism-direct` chain is the best example: every node that must be deterministic also must not use `Math.random()` or `Date.now()` directly. Declaring this once in the implies chain beats repeating it across 30 engine nodes.
 
@@ -176,7 +176,7 @@ inherit its implier's level.
 
 ### Ports + `consumes:` (channel 6)
 
-**Used as:** `cli/io/atomic-write` declares a `write-atomic` port with `atomic-write-contract`. `cli/io/stores` declares `consumes: [write-atomic]` on its `calls` relation, pulling the contract into the consumer's effective aspects.
+**Used as:** `cli/io/atomic-write` declares a `write-atomic` port carrying `atomic-write-contract` — the graph's only port. Six consumers declare `consumes: [write-atomic]` on their relation to it (`cli/core/check`, `cli/io/lock-store`, `cli/io/stores`, `cli/portal/serializer`, `cli/relations/core`, and `cli/tests/unit/support/utils`), pulling the contract into each consumer's own effective aspects.
 
 **Earn-rate: medium.** The port closed a real gap: persistence-adapters could route raw `fs.writeFile` through a helper module and evade the atomic-write requirement. Channel 6 makes the aspect enforceable on the consumer's own code.
 

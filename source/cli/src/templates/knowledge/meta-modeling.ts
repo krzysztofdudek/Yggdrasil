@@ -66,6 +66,13 @@ graph citizens, with the obligations that implies:
   (its own, ancestors', architecture-type defaults, flow-attached) now reviews those
   rule files as subjects. Choose the node's type deliberately and use \`when\` /
   \`scope.files\` so a code-oriented aspect does not fire on a Markdown rule file.
+- **The type's \`when\` gives you no filtering here.** File classification
+  AUTO-EXEMPTS every path under the graph directory: the predicate returns true
+  without evaluating, so a graph-directory file may be mapped to a node of ANY type
+  without tripping \`type-when-mismatch\`. Convenient (no type contortions to model a
+  rule file) but load-bearing in the other direction — the type predicate cannot be
+  your filter, so \`scope.files\` on the aspect is the ONLY thing deciding whether a
+  given rule actually fires on a mapped rule file. Write it explicitly.
 - **Self-reference fans out invalidation.** A meta aspect that reviews another
   aspect's check means editing that check re-verifies BOTH the check's own pairs and
   the meta aspect's verdict over it. Density of invalidation grows; keep the meta

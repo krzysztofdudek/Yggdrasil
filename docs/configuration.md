@@ -34,6 +34,20 @@ refreshes the agent-rules files.
 - **signals** — Attention-layer switches (optional). Its only key today is `attention` (default `true`): the advisory "structurally unusual" note in `yg context --file`. Set `false` to silence it. See [Signals](#signals) below and [Structural attention](/feature-field).
 - **events** — Committed-events opt-in (optional). Its only key today is `committed_llm` (default `false`): opt into a committed, team-shared record of LLM verification events. See [Events](#events) below.
 
+Those nine are the whole of it — `version`, `reviewer`, `coverage`, `quality`,
+`parallel`, `debug`, `auto_approve`, `signals`, `events`.
+
+::: warning A typo at the top level is silent
+The parser reads the nine keys above and ignores anything else it finds at the top
+level, with no error and no warning. So `auto_aprove: full` does not enable
+auto-approval — it does nothing at all, and the check that would tell you so does
+not exist. Two nested places *are* guarded: a misspelled key directly under
+`reviewer:` or inside a tier is a hard `config-reviewer-unknown-key` /
+`config-tier-unknown-key` error, and `signals:` and `events:` reject unknown keys
+too. Copy the names from this page rather than typing them from memory, and confirm
+a setting took effect by watching the behaviour change.
+:::
+
 Node types are defined in the separate **architecture file** (`.yggdrasil/yg-architecture.yaml`),
 not in `yg-config.yaml`.
 
@@ -303,6 +317,37 @@ globally. Both fields are required; a partial or malformed override — includin
 check parameter only — never a verification input — so declaring it re-verifies
 nothing. The number and its justification are surfaced by `yg context --node` and
 `yg schemas read node`, keeping the exception explicit and auditable in the graph.
+
+---
+
+## Local state — what never gets committed
+
+Everything Yggdrasil derives locally lives under `.yggdrasil/` and is kept out of
+git by a single `.yggdrasil/.gitignore` that `yg init` writes and every
+`yg init --upgrade` tops up (missing lines are appended; lines already there, and
+any of your own, are left alone). There is no repo-root entry to maintain
+separately.
+
+| Entry | What it is |
+| --- | --- |
+| `yg-secrets.yaml` | Your local overlay — provider keys and machine-specific tier overrides. |
+| `.symbols-cache/` | A retired predecessor of the cache below. Nothing writes it any more; the entry stays so leftovers in an older checkout keep being ignored. |
+| `.ast-cache/` | The relation pass's content-addressed per-file parse cache — the live one. |
+| `.debug.log` | The opt-in command log written when `debug: true`. |
+| `.yg-lock.deterministic.json` | The script-rule verdict cache — rebuilt free and keyless by `yg check --approve --only-deterministic`. |
+| `.yg-events.jsonl` | The verdict-events telemetry sidecar (see [Verdict-events sidecar](/reviewers#verdict-events-sidecar)). |
+| `.yg-fill-divergence.log` | Forensic evidence, written only when a single run disagrees with itself because something outside Yggdrasil rewrote a tracked file mid-run (see [Running in parallel](/concurrency)). |
+| `.feature-field.json` | The silent structural-deviation index behind the [structural-attention](/feature-field) hint. |
+
+Every one of them is rebuildable, so a fresh clone missing all of them is a normal
+state, not a broken one. The only thing a fresh clone *notices* is the absent
+verdict cache: those pairs read as unverified until
+`yg check --approve --only-deterministic` rematerializes them.
+
+The committed side is the graph itself — `yg-config.yaml`, `yg-architecture.yaml`,
+the `model/`, `aspects/` and `flows/` trees, the two committed lock files, the
+incident ledger, the attention-decision record, and (when opted in) the shared
+events stream.
 
 ---
 

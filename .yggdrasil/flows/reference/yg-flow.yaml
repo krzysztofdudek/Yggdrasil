@@ -1,7 +1,8 @@
 name: Reference browsing
-description: "Browse the built-in reference material — yg knowledge lists and reads the deep-dive topics and yg schemas lists and reads the graph-element field references; both print bundled reference content and reject an unknown topic or schema name."
+description: "Browse the built-in reference material — yg knowledge lists and reads the deep-dive topics, yg schemas lists and reads the graph-element field references (both reject an unknown topic or schema name), and yg prime prints the agent operating manual (--digest prints only the canonical committed digest block). All three serve content bundled in the installed CLI, need no graph to be present, and write nothing."
 aspects:
   - what-why-next
 nodes:
   - cli/commands/knowledge
   - cli/commands/schemas
+  - cli/commands/prime

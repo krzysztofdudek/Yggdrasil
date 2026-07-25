@@ -244,7 +244,7 @@ reviewer:
   type: deterministic
 ```
 
-The `reviewer:` block is optional — the presence of `check.mjs` infers the deterministic kind. If you do declare it, `reviewer.type: deterministic` must agree with the inferred kind. The runner parses each source file by extension — built-in grammars cover TypeScript/TSX/JavaScript, Python, Go, Rust, Java, C#, C, C++, PHP, Ruby, Kotlin, JSON, YAML, and TOML — and passes all files to a single `check.mjs` invocation; a file whose extension has no registered grammar is still passed to the check, just without a parse tree. Per-language file filtering (a `language:` array on the aspect) is designed but not yet built. Everything else (`implies`, `when`, `aspects` on nodes) works identically across both reviewer types.
+The `reviewer:` block is optional — the presence of `check.mjs` infers the deterministic kind. If you do declare it, `reviewer.type: deterministic` must agree with the inferred kind. The runner parses each source file by extension — built-in grammars cover TypeScript/TSX/JavaScript, Python, Go, Rust, Java, C#, C, C++, PHP, Ruby, Kotlin, JSON, YAML, and TOML — and passes all files to a single `check.mjs` invocation; a file whose extension has no registered grammar is still passed to the check, just without a parse tree. There is no `language:` field on an aspect: the runner derives each file's language from its extension and exposes it as `file.language` (undefined when there is no grammar). To restrict a rule to a subset of files, narrow `scope.files` or filter on `file.path` inside the check. Everything else (`implies`, `when`, `aspects` on nodes) works identically across both reviewer types.
 
 #### Writing `check.mjs`
 
@@ -254,31 +254,30 @@ import { walk, report, inFile } from '@chrisdudek/yg/ast';
 
 export function check(ctx) {
   const violations = [];
-  // ctx.files — the node's source files, each with a tree-sitter parse tree
+  // ctx.files — the unit's subject files; each carries a tree-sitter parse tree
+  // in file.ast when its extension has a registered grammar (guard before use)
   // ... examine ctx.files ...
   return violations;   // return Violation[], synchronous
 }
 ```
 
-`ctx` has shape:
+There is one `ctx`, described in full under [graph-aware checks](#graph-aware-checks)
+below. A parse-tree check typically touches only `ctx.files`:
 
 ```typescript
-interface CheckContext {
-  files: SourceFile[];
-}
-
-interface SourceFile {
-  path: string;       // relative to project root
+interface File {
+  path: string;       // repo-relative POSIX path
   content: string;    // raw file content
   ast?: Tree;         // tree-sitter parse tree — undefined for a file whose
                       // extension has no registered grammar (.md, .sh, …); guard before use
+  language?: string;  // registry language id ('typescript', …) — undefined when no grammar
 }
 
 interface Violation {
-  file: string;       // relative to project root
-  line: number;       // 1-based
-  column: number;     // 0-based
   message: string;
+  file?: string;      // repo-relative POSIX path
+  line?: number;      // 1-based
+  column?: number;    // 0-based
 }
 ```
 
@@ -291,6 +290,7 @@ import { walk, report } from '@chrisdudek/yg/ast';
 export function check(ctx) {
   const violations = [];
   for (const file of ctx.files) {
+    if (!file.ast) continue;   // no grammar for this extension — nothing to walk
     walk(file.ast.rootNode, node => {
       if (node.type !== 'call_expression') return;
       const fn = node.childForFieldName('function');
@@ -436,7 +436,7 @@ reviewer:
   type: deterministic
 ```
 
-Graph-aware aspects do NOT declare a `language:` array — the runner invokes `check.mjs` once per affected node regardless of file types. Setting `reviewer.tier:` on a deterministic aspect is a validator error; tiers apply only to LLM aspects.
+There is no `language:` field on an aspect — the runner invokes `check.mjs` once per unit regardless of file types. Setting `reviewer.tier:` on a deterministic aspect is a validator error; tiers apply only to LLM aspects.
 
 #### Writing `check.mjs`
 
@@ -444,8 +444,12 @@ The `check(ctx)` function is synchronous and returns `Violation[]`. The `ctx` ob
 
 ```typescript
 interface Ctx {
-  node: GraphNode;     // the node being reviewed
-  files: File[];       // alias for node.files — own files with child carve-out applied
+  node: GraphNode;     // the node being reviewed; node.files is always the FULL mapping
+  files: File[];       // the unit's subject files — the scope-driven view, not an alias
+                       // for node.files: under per: file it is the single file, and a
+                       // scope.files filter narrows it. Equal to node.files only when
+                       // nothing narrows the subject set.
+  subject: File[];     // the unit's subject files — same array reference as files here
 
   fs: {
     exists(path: string): 'file' | 'dir' | false;
@@ -477,6 +481,10 @@ interface Violation {
 }
 ```
 
+On this graph-aware path `file` is optional — a graph-level violation that names
+no single file is accepted. On the ad-hoc path (`yg aspect-test --files`, and
+`yg drill`) every violation must carry a `file` that is one of the supplied files.
+
 The same helper exports available to parse-tree checks (`walk`, `report`, `inFile`, `closest`, `findComments`) are re-exported from `@chrisdudek/yg/structure` for checks that also inspect parsed trees via `ctx.parseAst`. Most graph-aware checks work purely with `ctx.graph` and `ctx.fs` without parsing any AST.
 
 #### Allowed reads
@@ -503,13 +511,29 @@ yg aspect-test --aspect sibling-test-file --node orders/order-service --check-de
 
 ---
 
+## Knowing whether a rule is any good
+
+A rule that has never refused anything is a rule on trust. Four instruments exist to earn that trust, and none of them writes the lock — you can run all of them while authoring.
+
+**`yg aspect-test`** — run the rule live, right now, against a node or an explicit file list. The everyday loop while writing a rule: try it on code that should pass and code that should fail, and confirm it says so. Covered above for both kinds.
+
+**A drill corpus** — the regression net. Put example files beside the rule in a `drills/` directory of the aspect folder, under directories whose prefix encodes the expected verdict: anything under a `violates-*` directory must be refused, anything under `satisfies-*` must pass. `yg drill --aspect <id>` replays the whole corpus and reports each case as `pass`, `MISS` (a violating case the rule failed to catch — a hole), `FALSE-ALARM` (a clean case it wrongly refused), `unrun` (infrastructure, not scored), or `unsupported` (the rule needs context a drill cannot supply — a check that reads graph topology, or an LLM aspect shipping `companion.mjs`). Script rules drill locally and free; a judgment rule goes through the real reviewer and bills it, with the call budget printed before the first call.
+
+`drills/` is a reserved directory name — it is never scanned as an aspect, so a fixture that happens to contain something resembling a rule file can never register a phantom rule. The corpus is a *regression* net, not a measurement of how good the rule is: you wrote the cases, so the rule passing them says it still behaves, not that it generalizes. Keeping one is a convention rather than a requirement — a missing corpus never blocks `yg check`, though the attention feed will point out a rule whose corpus has started failing.
+
+**`yg simulate`** — the "what would this have caught?" question, for script rules only. It replays a candidate `check.mjs` over recent commits in a throwaway clone, one commit at a time, and reports per commit whether it ran clean, how many files it would have refused, or that the commit could not be honestly compared. Read the result with its own caveat in mind: the rules already in place refused code that never landed, so a tightening replay is a *lower* bound on real catches. A judgment rule cannot be replayed this way — a model's verdict is point-in-time testimony, not a reproducible result — so use a drill corpus there instead.
+
+**`yg aspect-test --repeat <N>`** — for judgment rules, how consistently the reviewer judges the *same* prompt. It reports `k/N satisfied` per unit with each run forced to a single vote, which measures the reviewer's self-consistency and nothing else: a rule can be consistently wrong, and `3/3` only says the reviewer agreed with itself. A rule that flips its own verdict run to run is a rule whose text reads two ways — sharpen it.
+
+Before pointing a reviewer tier at a different model, there is a fifth thing: a paired before/after comparison, because a model swap invalidates no verdicts and therefore leaves no trace. See [the model-swap protocol](/model-swap-protocol).
+
 ## Suppression — shared across reviewer types
 
 Source code comments can carry a `yg-suppress` marker to waive a specific aspect. All reviewer types honor the same syntax **and the same scope**: a marker's scope is resolved once, deterministically, into exact line ranges, and both reviewer kinds honor those identical ranges.
 
 **Format:** `yg-suppress(<aspect-path>) <reason>`
 
-- `<aspect-path>` — full aspect path (e.g., `cqrs/single-responsibility`)
+- `<aspect-path>` — full aspect path (e.g., `cqrs/single-responsibility`). Several ids may share one marker, comma-separated — `yg-suppress(a, b) <reason>` (likewise `yg-suppress-disable(a, b)` / `yg-suppress-enable(a, b)`). They share the same waived range. This is not the wildcard: it waives exactly the ids you name and nothing added later.
 - `<reason>` — required free-text explanation. Empty or whitespace-only reasons fail with `SUPPRESS_MARKER_MISSING_REASON`.
 - Markers must live inside **comment nodes** — string literals are not matched.
 - The marker must begin its comment line (after the comment delimiter). A mid-sentence mention of `yg-suppress(...)` in a comment is not a marker.
@@ -538,7 +562,18 @@ const b = fs.readFileSync('b.json', 'utf-8');
 // yg-suppress-enable(async-fs)
 ```
 
-Applies to all lines between `disable` and `enable`. Reason is required on `disable`. Without a closing `enable`, the range extends to end of file. Block comments work too.
+Applies to all lines between `disable` and `enable`. Reason is required on `disable`. Without a closing `enable`, the range extends to end of file. Block comments work too. An `enable` with no open `disable` is ignored, and the matcher raises no error for an unmatched marker — so keep pairs explicit and read the resulting range yourself.
+
+### Whole-file waiver
+
+A bare `yg-suppress-disable(<id>) <reason>` with no closing marker runs to the end of the file. Where you put it decides how it reads:
+
+- **At the top** — within the first five lines that carry any non-whitespace text (blank lines do not count, but a shebang and each line of a header comment do) — it is the sanctioned whole-file form. `yg suppressions` lists it as `file-level` and does not warn.
+- **Lower down** — the same unclosed marker still waives everything below it, but `yg suppressions` flags it as an **unbounded range**, because a bare `disable` buried mid-file usually means someone forgot the closing `enable`.
+
+The distinction is classification and reporting only; what actually gets waived is identical. If you mean the whole file, move the marker to the top or add the closing marker to bound the range. Never reach for the single-line form to waive a file — it covers exactly the one line beneath it.
+
+`yg suppressions` also warns when a waiver targets a rule declared [`errs: under`](/aspects#two-more-fields-worth-knowing) — a check that by construction has no false positives, so there is nothing about it to waive.
 
 ### Wildcard
 

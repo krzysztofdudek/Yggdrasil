@@ -52,7 +52,14 @@ export interface FsEntry {
 
 export interface Ctx {
   node: GraphNode;
-  /** alias for node.files (own node files with child carve-out) */
+  /**
+   * the unit's SUBJECT files — the scope-driven view, NOT an alias for
+   * node.files: a per:file unit narrows it to the single file, and a
+   * scope.files filter narrows it further. It equals node.files (same array
+   * reference) only when nothing narrows the subject set. node.files is always
+   * the FULL mapping, child carve-out applied. See hook-loader's subjectScope
+   * branch — the two diverge exactly there.
+   */
   files: File[];
   /**
    * the unit's subject file(s): per:file → single; per:node → the node's

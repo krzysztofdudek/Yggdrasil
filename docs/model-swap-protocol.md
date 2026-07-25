@@ -76,11 +76,19 @@ the correct test for paired yes/no outcomes, and it is honest about small sample
    with the tier it ran under. This is local, private telemetry — it is never
    committed and never affects a verdict.
 
-4. **Run the paired comparison.** This repository ships a reference implementation
-   of the McNemar analysis over the local drill telemetry:
+4. **Run the paired comparison.** A reference implementation of the McNemar
+   analysis over the local drill telemetry lives in the Yggdrasil repository at
+   [`scripts/mcnemar.mjs`](https://github.com/krzysztofdudek/Yggdrasil/blob/main/scripts/mcnemar.mjs).
+
+   ::: warning It is not in the installed package
+   The npm package ships only the CLI itself. These two analyses are single-file
+   Node scripts with no dependencies — copy the file into your own repository and
+   run it there. They are deliberately not commands: they read your local drill
+   telemetry and are meant to be adapted, not treated as a fixed gate.
+   :::
 
    ```
-   node scripts/mcnemar.mjs --old standard --new standard-candidate
+   node mcnemar.mjs --old standard --new standard-candidate
    ```
 
    It pairs every case run under both tiers, builds the disagreement table, and
@@ -150,9 +158,21 @@ not that the rule is right; a variant that flips the verdict is a sign the rule 
 two ways, and a candidate to sharpen so the reading is forced. Every figure is
 small-sample — one flaky run is noise, not a measured wobble rate.
 
-This repository ships a reference implementation. Run it offline to self-check the
-rewrites (no reviewer calls — this is the CI smoke), or with `--run` to execute the
-pilot against the live reviewer:
+A reference implementation lives in the Yggdrasil repository at
+[`scripts/metamorphic.mjs`](https://github.com/krzysztofdudek/Yggdrasil/blob/main/scripts/metamorphic.mjs).
+
+::: warning Read this one as a worked example, not a tool
+Unlike the McNemar script, this one is written against the Yggdrasil repository's
+own layout: it loads the AST helpers and tree-sitter grammars from that repo's
+build output, spawns the CLI from a path inside it, and names specific source
+files as its fixture pair. It will not run elsewhere unchanged. Take it as a
+worked reference for the technique — the transform pair, the invariant/covariant
+split, and how the verdicts are compared — and implement the probe against your
+own rules and paths.
+:::
+
+In that repository it runs offline to self-check the rewrites (no reviewer calls),
+or with `--run` to execute the pilot against the live reviewer:
 
 ```
 node scripts/metamorphic.mjs          # offline: prove the rewrites are sound

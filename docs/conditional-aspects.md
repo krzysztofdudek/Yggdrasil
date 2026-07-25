@@ -60,6 +60,17 @@ when:
 
 Full grammar reference: `yg schemas read aspect`.
 
+Beyond the structural shape, `yg check` also checks that the names a predicate
+uses actually exist — a silent typo in a predicate would make it quietly never
+match, which is the worst possible failure for something whose whole job is to
+decide applicability. Three blocking errors cover it: `when-unknown-type` (an
+unknown `node.type`, `descendants.type`, or `target_type`), `when-unknown-node`
+(a relation `target` naming a component path that does not exist), and
+`when-unknown-port` (an unknown `consumes_port`). A malformed predicate itself is
+`when-predicate-invalid`; a malformed one on a rule or an `implies` edge is
+`aspect-when-invalid`. Writing a file atom (`path`/`content`) where node atoms
+belong is an error too, and the message points you at `scope.files` instead.
+
 ## Where to declare `when`
 
 - **Globally on the aspect** (`yg-aspect.yaml`, top-level `when:`) — the aspect
