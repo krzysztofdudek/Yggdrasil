@@ -4,6 +4,8 @@ title: How it works
 
 You lay the track. Your agent drives. The reviewer keeps it on the rails.
 
+The point of laying track rather than repeating directions is that it is still there tomorrow. A rule you write once governs every session after it, including the ones you have not started yet.
+
 The track is a set of rules and structure that live next to your code, in a `.yggdrasil/` directory in your repo. The rules say what your code must do: "every payment handler emits an audit event", "UI code never imports the database client". The agent writes code as usual. Before that code is done, the reviewer checks it against the rules and won't let the agent move on until it complies. When it drifts, the reviewer catches it and sends it back to fix course, in the same session, while the context is still fresh.
 
 ## Right now, you are the feedback loop
@@ -40,30 +42,11 @@ From the agent's point of view, every change runs this cycle:
 CI does not call the LLM reviewer and needs no API keys. Because the free local-script verdicts live in a gitignored cache, a fresh checkout first rebuilds that cache with `yg check --approve --only-deterministic` (free and keyless), then plain `yg check` confirms every recorded verdict still holds — and re-checks, live and for free, that the code's real dependencies match its declared relations. Each verdict is tied by hash to the exact code it checked, so a file that changed but was never re-verified turns the build red — a stale or unverified change can't ride through as green. The LLM verification happens locally while the agent works; CI just re-proves it was done. The mechanics live in [The lock](/the-lock).
 :::
 
-## See it catch a mistake
+## Nobody restates the rules
 
-The rule: every charge records an audit event. The agent writes a refund and skips it.
+The loop above runs the same way whether it is the first session on a file or the fortieth. The rules are attached to the code, not to a conversation, so a new session inherits them without being told. That is the difference between a rules file, which is re-read and half-applied each time, and a rule that is verified against the code it governs.
 
-::: code-group
-
-```ts [what the agent wrote]
-async function refund(req) {
-  await payments.refund(req.body.chargeId)
-  return { ok: true }
-}
-```
-
-```ts [after yg check refused it]
-async function refund(req) {
-  await payments.refund(req.body.chargeId)
-  await audit('refund', req.body.chargeId) // added
-  return { ok: true }
-}
-```
-
-:::
-
-`yg check` refused the first version: *"refund changes a charge with no audit event."* The agent added the call, re-ran, and passed. You reviewed nothing.
+There is a worked example of a refused change and the fix on the [home page](/).
 
 ## You never trace the rules by hand
 
@@ -99,7 +82,12 @@ The reviewer reads that and checks your code against it. Write rules the way you
 Delete `.yggdrasil/` and your project builds and runs exactly as before — no build dependencies, no runtime hooks. The few artifacts that live outside it are the agent-rules files `yg init` wrote (`AGENTS.md`'s summary block, the import line it added to `CLAUDE.md`, and `.clinerules/yggdrasil.md`); delete those too if you want no trace left.
 :::
 
+## What it costs before it pays
+
+On an existing codebase the first step is usually not writing rules, it is finding out that the code does not match the architecture you thought you had. That work is real and it comes first. [Phase 0](/showcase#the-phase-0-reality) is the honest account of it, along with a per-feature earn-rate: which parts of the schema paid for themselves in practice and which only start to matter once a project grows.
+
 ## Where next
 
 - [Getting started](/getting-started): install, init, and set up your first verified rule in five minutes.
 - [Aspects](/aspects): how a rule is written and reviewed.
+- [Phase 0 and earn-rates](/showcase): what adoption actually costs, feature by feature.

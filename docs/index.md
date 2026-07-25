@@ -3,8 +3,8 @@ layout: home
 title: Yggdrasil
 hero:
   name: Yggdrasil
-  text: Stop babysitting your agent.
-  tagline: Your rules become checks the agent can't skip, run on every change before it moves on. A script runs them for free, or a model reviews the call a script can't make.
+  text: Say it once.
+  tagline: Write a rule and it holds in every session after that, without you repeating yourself. The agent gets only the rules that touch the file it is editing, and has to satisfy them before it moves on.
   image:
     src: /logo.svg
     alt: Yggdrasil
@@ -22,25 +22,21 @@ features:
   - icon: 🎯
     title: Only the rules that matter
     details: Before the agent edits a file, it gets the handful of rules that touch it, not a 200-line dump it half-ignores.
-  - icon: 🛑
-    title: Caught before it moves on
-    details: Every change is reviewed inside the loop, by a free local script or a model. Violations have to be fixed to proceed.
+  - icon: 🔁
+    title: Still there next session
+    details: A rule you wrote last week applies to work you start today. Nobody restates it, and the agent does not get to quietly drop it.
   - icon: ⚡
     title: A green build can't lie
     details: Each verdict is tied by hash to the exact code it checked. CI re-proves every rule with no LLM calls and no keys, so a change that was never re-verified can't ride through green.
 ---
 
-## Right now, you are the feedback loop
+## The same rule, two sessions apart
 
-Your agent reads `CLAUDE.md` and applies maybe 70% of it. Tests pass, lint passes, the code compiles, but it skipped the audit log on a payment mutation. A rules file is a suggestion. There are three ways to work with an agent, and most people are stuck in the middle.
+**Monday.** You ask for a charge endpoint. Before writing anything, the agent pulls the rules that touch that file: audit events, input validation, no direct database access. It writes to them, and the check still catches a missing audit call. It fixes that and moves on.
 
-- **Autocomplete.** It suggests, you write the rest. One small use case.
-- **You are the loop.** It generates whole changes, and you check each one, send it back, check again. This is where the day goes.
-- **A full feedback loop.** It runs a real check, reads the failure, and fixes itself before you look.
+**The following week, new session.** You ask for a refund endpoint. You say nothing about audit events. The same three rules are still in force, the agent writes to them, and the check passes first time.
 
-::: tip Yggdrasil gives the agent a loop of its own.
-Before it edits, `yg context` hands it only the rules that touch the file. After it edits, `yg check --approve` verifies them, and the agent fixes any failure before it moves on. This is code review while the agent works, not after.
-:::
+That gap is the point. A rules file is re-read and half-applied every session. A rule here is attached to the code it governs and verified against it, so it survives the session boundary without you in the middle.
 
 ## A rule is plain text
 
@@ -54,7 +50,7 @@ auditLog.emit() before it returns. A mutation with no
 audit event is a refusal.
 ```
 
-When a script can decide it, you write the rule as a small local script instead — it runs for free, with no model at all.
+When a script can decide it, you write the rule as a small local script instead. It runs for free, with no model at all, on every single check.
 
 ## See it catch a mistake
 
@@ -81,6 +77,12 @@ async function refund(req) {
 
 The reviewer refused the first version at `yg check --approve`: *"refund changes a charge with no audit event."* The agent added the call, re-ran, and passed. You reviewed nothing.
 
+## Two limits, before you start
+
+**It enforces structure, not runtime behaviour.** It can require that you call the audit utility. It cannot prove the audit fired in production.
+
+**A green check is only as good as the rule behind it.** A shallow rule passes shallow code. The enforcement is real; deciding what is worth enforcing stays yours.
+
 ::: info Next
-New here? Read [How it works](/how-it-works) for the full picture, then [Get started](/getting-started) and set up your first verified rule in five minutes. Works with Claude Code, Cursor, Copilot, Codex, Cline, and more.
+New here? Read [How it works](/how-it-works) for the model, then [Get started](/getting-started). If you are adopting this on an existing codebase, read [Phase 0](/showcase#the-phase-0-reality) first — the honest version of what it costs before it pays.
 :::

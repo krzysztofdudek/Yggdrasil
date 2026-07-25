@@ -2,7 +2,7 @@
 title: Getting Started
 ---
 
-Install, bootstrap a graph that works keyless from the first command, then add a judge and watch it enforce a rule you wrote. About five minutes.
+Install, map your first component, and write a rule the reviewer enforces from then on. You can do the whole thing without an API key. About five minutes.
 
 ::: tip New here?
 Read [How it works](/how-it-works) first for the mental model. This page is the hands-on version.

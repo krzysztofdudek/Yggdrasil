@@ -1,6 +1,8 @@
 # Agent Instructions — Yggdrasil Repository
 
-You work on the Yggdrasil repository: an open-source CLI that provides continuous architecture enforcement for AI-assisted development. This repo both implements Yggdrasil and uses it on itself (dogfooding).
+You work on the Yggdrasil repository: an open-source CLI that makes a rule written once hold in every later session. A rule is attached to the code it governs, the agent editing a file gets only the rules that touch it, and a change has to satisfy them before it moves on. Some rules are local scripts that run for free; some are prose a separate model judges. Every verdict is tied by hash to the code it checked, so CI re-proves the set without a key.
+
+This repo both implements that tool and runs it on itself, so the graph under `.yggdrasil/` is a live example as well as the thing being enforced on your work here.
 
 ## Context — Where Things Live
 

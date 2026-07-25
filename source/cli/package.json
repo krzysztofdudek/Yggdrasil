@@ -1,7 +1,7 @@
 {
   "name": "@chrisdudek/yg",
   "version": "5.5.1",
-  "description": "Architecture rules your AI coding agent can't ignore. It gets the rules for a file before it edits, and every change is checked — by a free local script or an LLM reviewer — before it moves on. Works with Claude Code, Cursor, Copilot, Codex, Cline.",
+  "description": "Say it once: a rule you write holds in every session after. Your AI coding agent gets only the rules that touch the file it is editing, and must satisfy them before it moves on. Free local checks, keyless CI. Works with Claude Code, Cursor, Copilot, Codex, Cline.",
   "type": "module",
   "bin": {
     "yg": "dist/bin.js"

@@ -1,6 +1,10 @@
 # Contributing to Yggdrasil
 
-Thank you for your interest in contributing to Yggdrasil!
+Two things worth knowing before you start.
+
+**This repo runs its own tool on itself.** The graph under `.yggdrasil/` governs this codebase, so `yg check` is a real gate on your change, not a formality. If it refuses something, read the rule it names before you work around it: either the code is wrong or the rule is, and both are fixable.
+
+**Negative results are welcome.** If you measure something and it comes out against the tool, that is a contribution. Open an issue with what you ran and what you got.
 
 Questions? Email <me@chrisdudek.com>.
 

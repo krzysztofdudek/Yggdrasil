@@ -2,7 +2,7 @@
 
 ## Getting Help
 
-- **Documentation:** See [docs/](docs/) for user guides and [source/cli/README.md](source/cli/README.md) for CLI reference
+- **Documentation:** [krzysztofdudek.github.io/Yggdrasil](https://krzysztofdudek.github.io/Yggdrasil/) for the guides, and [docs/cli-reference.md](docs/cli-reference.md) for the full CLI reference
 - **Issues:** Open a [GitHub Issue](../../issues) for bugs, feature requests, or questions
 - **Discussions:** Use [GitHub Discussions](../../discussions) for general questions and ideas
 - **Email:** [me@chrisdudek.com](mailto:me@chrisdudek.com) for direct contact

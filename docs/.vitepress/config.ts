@@ -3,7 +3,7 @@ import { defineConfig } from "vitepress";
 export default defineConfig({
   base: "/Yggdrasil/",
   title: "Yggdrasil",
-  description: "Architecture guardrails your AI coding agent can't skip — policy-as-code for coding agents, enforced in the loop and re-checked free in CI. A drift gate for your architecture.",
+  description: "Rules for AI coding agents that survive the session. Write a rule once, the agent gets only the rules touching the file it edits, and every change is checked before it moves on. Free local checks, keyless re-proof in CI.",
   vite: {
     build: {
       // esbuild is force-upgraded to >= 0.28.1 via an npm `overrides` entry to patch two
