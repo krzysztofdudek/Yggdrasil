@@ -334,6 +334,21 @@ describe('suppress: trailing block-comment closers are comment syntax, not reaso
     expect(markers[0].reason).toBe('generated');
   });
 
+  it("'<!-- yg-suppress(my-aspect) generated --!>' → the spec's incorrectly-closed form strips too", () => {
+    const markers = scanSuppressionMarkers('<!-- yg-suppress(my-aspect) generated --!>');
+    expect(markers).toHaveLength(1);
+    expect(markers[0].kind).toBe('single');
+    expect(markers[0].reason).toBe('generated');
+  });
+
+  it("'<!-- yg-suppress(my-aspect) --!>' → reason is EMPTY after stripping, so the marker is rejected like the '-->' form", () => {
+    // Regression: while `--!>` went unstripped it became the reason, so a marker
+    // carrying NO justification passed the non-empty-reason gate. Markdown has no
+    // grammar, so this is the raw-scan honoring path (tree undefined + content).
+    const content = '<!-- yg-suppress(my-aspect) --!>\nline\n';
+    expect(() => collectSuppressions(undefined, 'x.md', 3, content)).toThrow(SuppressMarkerError);
+  });
+
   it("'/* yg-suppress(my-aspect) */' → reason is EMPTY after closer-stripping → SuppressMarkerError", async () => {
     const code = `/* yg-suppress(my-aspect) */\nconst x = 1;`;
     await withParsedFile('x.ts', code, (tree) => {

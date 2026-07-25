@@ -5,7 +5,7 @@
   "nodes": {
     "cli/ast": {"log":{"last_entry_datetime":"2026-05-26T10:52:08.726Z","prefix_hash":"9fbde98b0c903f19473c74f077b29fc098aef162424f6cf383c8fcfcaf361ea1"}},
     "cli/ast/report": {"log":{"last_entry_datetime":"2026-07-15T09:46:48.539Z","prefix_hash":"fb93ca835e2baa64fc803a6bbefc0da7d1467808c941b76af239a4ae91eeba67"},"source":"49b21c4d021ffc8459653f58c4f73961d2ac0b0cb6023c2d165000fc1fb5fcf9"},
-    "cli/ast/runtime": {"log":{"last_entry_datetime":"2026-07-20T04:43:27.845Z","prefix_hash":"9c37b91a95f49977874772e9aac422dc79cb2efad2977bb161b37e680537e488"},"source":"49f8f0157274a6d7f6859f2f275515ef1390d330d8e9a34766d6cb3a1c797d7b"},
+    "cli/ast/runtime": {"log":{"last_entry_datetime":"2026-07-25T07:06:59.315Z","prefix_hash":"78f3b4f0f49b50c51241bff1c0790230e7f63864e4c6965edbbee31d64bbebd3"},"source":"bd76c3276675a272cebf2908a33ef485bf62a0bc257a54aa7634801bec4a80bc"},
     "cli/commands/advise": {"log":{"last_entry_datetime":"2026-07-14T17:38:06.862Z","prefix_hash":"5eff25e6251793f5b2ef8fbbbefb4180f006371b73eb0fbfc92bee732a24f120"},"source":"be1e2b4c5f2b6352b8e8e6997c5a33559505f212aec8dfcb3053efe8598cb8dd"},
     "cli/commands/aspect-test": {"log":{"last_entry_datetime":"2026-07-13T12:50:06.053Z","prefix_hash":"c7ff469235ef299c5e7af336760758a08401dbbd1479e3f3bd63ecdad05b5412"},"source":"3b907aaaf2d1d75d8a655491d0c524c2867bf2f36e8f213e0d28f3c28c0c31b4"},
     "cli/commands/aspects": {"log":{"last_entry_datetime":"2026-07-16T13:50:52.281Z","prefix_hash":"3349f51089e96eb8226c114a7735062417d8426a10702960278c4877e55a68d9"},"source":"b851975c9d512c21a9b341e406ff90544ae5a409e9a8142bf81c96ed7b7f1587"},

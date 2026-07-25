@@ -87,9 +87,13 @@ const RE_ASPECT_ID = /^(?:\*|[A-Za-z0-9_][A-Za-z0-9_./-]*)$/;
 // reason text — but ONLY the terminator matching the leader that actually opened
 // the comment (see stripCloser). `RE_ANY_CLOSER` is the permissive union, used
 // only for a block-comment INTERIOR line that carries no leader of its own.
-const RE_ANY_CLOSER = /\s*(?:\*+\/|-->|-\}|\*\))\s*$/;
+const RE_ANY_CLOSER = /\s*(?:\*+\/|--!?>|-\}|\*\))\s*$/;
 const RE_CLOSER_CSTYLE = /\s*\*+\/\s*$/;   // `*/` after /*, /**, or a `*` continuation
-const RE_CLOSER_HTML = /\s*-->\s*$/;       // `-->` after <!--
+// `-->` after <!--, and the spec's "incorrectly closed comment" form `--!>`, which
+// HTML parsers accept as a terminator too. Missing it left the terminator sitting in
+// the reason text — and, worse, gave a reasonless marker a non-empty reason of `--!>`,
+// slipping past the empty-reason rejection that makes a waiver carry a justification.
+const RE_CLOSER_HTML = /\s*--!?>\s*$/;
 const RE_CLOSER_HASKELL = /\s*-\}\s*$/;    // `-}` after {-
 const RE_CLOSER_OCAML = /\s*\*\)\s*$/;     // `*)` after (*
 
