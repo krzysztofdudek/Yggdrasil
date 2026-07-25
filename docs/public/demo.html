@@ -114,179 +114,91 @@ async function typeCmd(text, prefix='<span class="pr">$</span> '){
 }
 
 // ===== TIMELINE =====
+// Mirrors tools/render-demo-gif.js. The claim is persistence across sessions:
+// session 1 shows the loop, session 2 shows that nobody restates anything.
+// Keep the two in sync when either changes.
 async function run(){
   const bar=document.getElementById('bar');
-  const DUR=75000,t0=performance.now();
+  const DUR=20000,t0=performance.now();
   (function tick(){bar.style.width=Math.min(100,((performance.now()-t0)/DUR)*100)+'%';if(performance.now()-t0<DUR)requestAnimationFrame(tick)})();
 
-  // ========== SCENE 1: INIT (0-12s) ==========
-  termTitle.textContent='~/my-project';
-  showScreen();
-  await wait(600);
-
-  await typeCmd('npm install -g @chrisdudek/yg');
-  await wait(400);
-  addLine('added 6 packages in 2s','output');
-  await wait(600);
-
-  addLine('','');
-  await typeCmd('yg init');
-  await wait(500);
-
-  addLine('','');
-  addLine('<span class="bold wh">Yggdrasil Setup</span>','');
-  await wait(300);
-  addLine('','');
-  addLine('Step 1: AI coding platform','output');
-  await wait(400);
-
-  // platform selection
-  const platforms=['cursor','<span class="green bold">claude-code</span>','copilot','codex','cline','windsurf','aider','gemini-cli'];
-  for(const p of platforms){
-    addLine('  '+p,'output');
-    await wait(80);
-  }
-  await wait(400);
-  addLine('  <span class="dim">\u25b6</span> <span class="green">claude-code</span>','');
-  await wait(600);
-
-  addLine('','');
-  addLine('Step 2: Reviewer provider','output');
-  await wait(300);
-  addLine('  <span class="dim">\u25b6</span> <span class="green">Claude Code</span> <span class="dim">CLI \u2014 uses installed claude</span>','');
-  await wait(400);
-  addLine('  <span class="dim">\u25b6</span> <span class="green">sonnet</span>','');
-  await wait(400);
-  addLine('  <span class="green">\u2713</span> claude found.','success');
-  await wait(600);
-
-  addLine('','');
-  addLine('<span class="green">\u2713</span> Yggdrasil initialized. Run <span class="wh">yg check</span> to get started.','success');
-  await wait(1200);
-
-  // ========== SCENE 2: USER GIVES TASK (12-18s) ==========
-  clearTerm();
+  // ========== SESSION 1: the task ==========
   termTitle.textContent='claude code';
-  await wait(400);
-
-  addLine('<span class="bl bold">You:</span> Add a payment endpoint to the API. All payment','');
-  addLine('     operations must emit audit events and validate input','');
-  addLine('     with zod schemas.','');
-  await wait(1500);
-
-  addLine('','');
-  addLine('<span class="pp bold">Agent:</span> I\'ll set up the architecture rules first, then implement.','agent');
-  await wait(1000);
-
-  // ========== SCENE 3: AGENT BUILDS GRAPH (18-32s) ==========
-  addLine('','separator');
-  addLine('','');
-
-  // Agent creates aspect
-  addLine('<span class="pp">\u25b6</span> Creating aspect: <span class="wh">requires-audit</span>','');
-  await wait(400);
-  addLine('  <span class="dim">aspects/requires-audit/content.md</span>','');
-  addLine('  <span class="ye">"Every mutation must emit an audit event with</span>','');
-  addLine('  <span class="ye"> operation, timestamp, and entity ID"</span>','');
-  await wait(600);
-
-  addLine('','');
-  addLine('<span class="pp">\u25b6</span> Creating aspect: <span class="wh">zod-validation</span>','');
-  await wait(400);
-  addLine('  <span class="dim">aspects/zod-validation/content.md</span>','');
-  addLine('  <span class="ye">"All endpoint handlers must validate input</span>','');
-  addLine('  <span class="ye"> using zod schemas before processing"</span>','');
-  await wait(600);
-
-  addLine('','');
-  addLine('<span class="pp">\u25b6</span> Creating node: <span class="wh">payments/service</span>','');
-  await wait(300);
-  addLine('  type: service','output');
-  addLine('  aspects: [requires-audit, zod-validation]','output');
-  addLine('  mapping: [src/payments/]','output');
-  await wait(600);
-
-  addLine('','');
-  addLine('<span class="pp">\u25b6</span> Implementing payment endpoint...','');
-  await wait(400);
-  addLine('  <span class="dim">src/payments/payment.service.ts</span>  <span class="green">created</span>','');
-  await wait(200);
-  addLine('  <span class="dim">src/payments/payment.controller.ts</span>  <span class="green">created</span>','');
-  await wait(200);
-  addLine('  <span class="dim">src/payments/payment.schema.ts</span>  <span class="green">created</span>','');
-  await wait(800);
-
-  // ========== SCENE 4: FIRST APPROVE - FAILS (32-45s) ==========
-  addLine('','separator');
-  addLine('','');
-
-  addLine('<span class="pp">\u25b6</span> Running <span class="wh">yg check --approve</span>','');
-  await wait(400);
-  addLine('  <span class="dim">Filling 2 unverified pairs across 1 nodes \u2014 0 deterministic (no cost), 2 reviewer calls (consensus included)</span>','');
-  await wait(1500);
-
-  addLine('','');
-  addLine('  <span class="green">[llm]</span> zod-validation on payments/service \u2014 <span class="green">approved</span>','success');
-  await wait(300);
-  addLine('  <span class="red">[llm]</span> requires-audit on payments/service \u2014 <span class="red bold">refused</span>','error');
-  addLine('    <span class="output">charge() and refund() mutate state but do not call</span>','');
-  addLine('    <span class="output">emitAudit(). Must emit audit events with operation,</span>','');
-  addLine('    <span class="output">timestamp, and entityId before returning.</span>','');
+  showScreen();
   await wait(500);
+
+  addLine('<span class="bl bold">You:</span> <span class="bl">Add a charge endpoint. Payments must emit an</span>','');
+  addLine('     <span class="bl">audit event and record to the ledger.</span>','');
+  await wait(1600);
+
+  // ---- the rules reach the agent BEFORE it writes ----
   addLine('','');
-  addLine('  <span class="red bold">yg check: FAIL</span>  <span class="output">1 node \u00b7 3/3 files \u00b7 2 aspects \u00b7 0 flows</span>','error');
+  addLine('<span class="pp bold">Agent:</span> Pulling the rules that touch this file first.','agent');
+  await wait(700);
+
+  addLine('','');
+  await typeCmd('yg context --file src/payments/charge.ts','<span class="pp">▶</span> ');
+  await wait(300);
+  addLine('  <span class="dim">node: payments/service</span>','');
+  addLine('  <span class="output">requires-audit    </span><span class="cy">[llm]</span><span class="output">  read: aspects/requires-audit/content.md</span>','');
+  addLine('  <span class="output">input-validation  </span><span class="cy">[llm]</span><span class="output">  read: aspects/input-validation/content.md</span>','');
+  addLine('  <span class="output">no-direct-db      </span><span class="green">[det]</span><span class="output">  read: aspects/no-direct-db/check.mjs</span>','');
+  await wait(1600);
+
+  addLine('','');
+  addLine('  <span class="dim">src/payments/charge.ts</span>  <span class="green">created</span>','');
+  await wait(900);
+
+  // ---- the check catches what a rules file would have let through ----
+  addLine('','');
+  await typeCmd('yg check --approve','<span class="pp">▶</span> ');
+  await wait(400);
+  addLine('  <span class="green">[det]</span> no-direct-db    <span class="green">approved</span>  <span class="dim">(no cost)</span>','success');
+  await wait(300);
+  addLine('  <span class="red">[llm]</span> requires-audit  <span class="red bold">refused</span>','error');
+  addLine('    <span class="output">charge() mutates state but never calls emitAudit().</span>','');
+  await wait(1800);
+
+  addLine('','');
+  addLine('<span class="pp bold">Agent:</span> Missing the audit event. Adding it.','agent');
+  await wait(700);
+  addLine('  <span class="dim">src/payments/charge.ts</span>  <span class="ye">modified</span>','');
+  await wait(500);
+  addLine('  <span class="green bold">yg check: PASS</span>  <span class="output">1 nodes · 2/2 files · 3 aspects · 0 flows</span>','success');
+  await wait(1600);
+
+  // ========== THE SESSION BOUNDARY ==========
+  hideScreen();
+  await wait(700);
+  showBig('<div class="line">Next week. New session.</div><div class="line sub" style="margin-top:12px">Nobody restates the rules.</div>');
+  await wait(2400);
+  hideBig();
+  await wait(500);
+
+  // ========== SESSION 2: it holds, first try, no key ==========
+  clearTerm();
+  showScreen();
+  await wait(400);
+
+  addLine('<span class="bl bold">You:</span> <span class="bl">Add a refund endpoint.</span>','');
+  await wait(1300);
+
+  addLine('','');
+  addLine('<span class="pp bold">Agent:</span> Same three rules apply here. Writing to them.','agent');
+  await wait(900);
+  addLine('  <span class="dim">src/payments/refund.ts</span>  <span class="green">created</span>','');
+  await wait(900);
+
+  addLine('','');
+  await typeCmd('yg check   <span class="dim"># the gate — no LLM, no keys</span>','<span class="pp">▶</span> ');
+  await wait(400);
+  addLine('  <span class="green bold">yg check: PASS</span>  <span class="output">1 nodes · 3/3 files · 3 aspects · 0 flows</span>','success');
   await wait(2000);
 
-  // ========== SCENE 5: AGENT FIXES (45-55s) ==========
-  addLine('','separator');
-  addLine('','');
-
-  addLine('<span class="pp bold">Agent:</span> Audit logging missing from payment mutations. Fixing.','agent');
-  await wait(800);
-
-  addLine('','');
-  addLine('<span class="pp">\u25b6</span> Adding audit events to payment service...','');
-  await wait(400);
-  addLine('  <span class="dim">src/payments/payment.service.ts</span>  <span class="ye">modified</span>','');
-  await wait(200);
-  addLine('  <span class="dim">src/payments/audit.ts</span>  <span class="green">created</span>','');
-  await wait(800);
-
-  // ========== SCENE 6: SECOND APPROVE - PASSES (55-65s) ==========
-  addLine('','');
-  addLine('<span class="pp">\u25b6</span> Running <span class="wh">yg check --approve</span>','');
-  await wait(400);
-  addLine('  <span class="dim">Filling 1 unverified pairs across 1 nodes \u2014 0 deterministic (no cost), 1 reviewer calls (consensus included)</span>','');
-  await wait(1200);
-
-  addLine('','');
-  addLine('  <span class="green">[llm]</span> requires-audit on payments/service \u2014 <span class="green">approved</span>','success');
-  await wait(500);
-  addLine('','');
-  addLine('  <span class="green bold">yg check: PASS</span>  <span class="output">1 node \u00b7 3/3 files \u00b7 2 aspects \u00b7 0 flows</span>','success');
-  await wait(800);
-
-  addLine('','');
-  addLine('<span class="pp">\u25b6</span> Running <span class="wh">yg check</span>','');
-  await wait(400);
-  addLine('  <span class="green bold">yg check: PASS</span>  <span class="output">1 node \u00b7 3/3 files \u00b7 2 aspects \u00b7 0 flows</span>','success');
-  await wait(1500);
-
-  // ========== SCENE 7: PUNCHLINE (65-75s) ==========
+  // ========== PUNCHLINE ==========
   hideScreen();
-  await wait(800);
-
-  showBig('<div class="line">Rules defined <span class="g">once</span>.</div><div class="line sub" style="margin-top:12px">Enforced on <span class="b">every change</span>, automatically.</div>');
-  await wait(3000);
-  hideBig();
-  await wait(500);
-
-  showBig('<div class="line" style="font-size:clamp(14px,2vw,22px);font-weight:400;color:#888">The agent caught its own mistake and fixed it</div><div class="line" style="margin-top:12px">before it reached your PR.</div>');
-  await wait(3500);
-  hideBig();
-  await wait(500);
-
-  showBig('<div class="line" style="font-size:clamp(28px,5vw,64px);font-weight:900;letter-spacing:4px">YGGDRASIL</div><div class="line sub" style="margin-top:16px">Your agent will ignore CLAUDE.md.</div><div class="line" style="margin-top:8px;font-size:clamp(16px,2.5vw,28px);font-weight:700;color:#fff">Yggdrasil makes sure it doesn\u2019t.</div><div class="line sub" style="margin-top:24px;font-family:JetBrains Mono,monospace;font-size:clamp(12px,1.3vw,16px);color:#7ee787">npm install -g @chrisdudek/yg</div>');
+  await wait(700);
+  showBig('<div class="line" style="font-size:clamp(26px,5vw,58px);font-weight:900">Say it once.</div><div class="line sub" style="margin-top:16px">The rule you wrote last week is still enforced today.</div><div class="line sub" style="margin-top:24px;font-family:JetBrains Mono,monospace;font-size:clamp(12px,1.3vw,16px);color:#7ee787">npm install -g @chrisdudek/yg</div>');
   await wait(5000);
 }
 

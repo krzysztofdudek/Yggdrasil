@@ -16,18 +16,26 @@ and the `yg check: PASS  N nodes · X/Y files · Z aspects · W flows` summary.
 
 ### Narrative intent (read before editing the scene script)
 
-Weighted toward the value real adopters actually get, in this order:
+The demo exists to show one claim, the same one the README leads with: **a rule
+you write once still holds in the next session, without you restating it.**
 
-1. **Prevention** — `yg context` hands the agent the few rules that touch the
-   file *before* it writes, so the code fits on the first draft.
-2. **Un-ignorable enforcement** — the deterministic checks and the built-in
-   relation-conformance check run live, for free, on every check, and cannot be
-   quietly optimized away the way a `CLAUDE.md` line can.
-3. **One LLM beat** — the reviewer catches a semantic rule (audit logging) a
-   script can't express. A single beat, not the spine.
+Two sessions, in this order:
 
-Do not re-center the demo on the LLM refusal loop — that is the least
-consistently-delivered part in practice.
+1. **Session 1 — the loop.** `yg context` hands the agent the few rules that
+   touch the file *before* it writes. The check then refuses something a rules
+   file would have let through (a missing audit event), and the agent fixes it.
+   The free deterministic layer is visible in that same output, labelled
+   `(no cost)`.
+2. **Session 2 — the payoff.** New task, nobody restates anything, the same
+   rules apply, and the keyless `yg check` gate passes first try.
+
+Two things to hold on to when editing:
+
+- **The LLM reviewer is one beat, never the axis.** It is the least
+  consistently-delivered part in practice. Do not re-center the demo on it.
+- **Keep it under ~15 seconds.** An earlier cut ran 35s with the payoff cards at
+  the 24-35s mark, which nobody reached. Install and `yg init` were dropped for
+  the same reason: everybody already knows what npm looks like.
 
 ### Regenerate
 
@@ -36,15 +44,24 @@ consistently-delivered part in practice.
 node tools/render-demo-gif.js
 ```
 
-Requires `canvas` and `gifencoder` (the native `canvas` build needs the usual
-cairo/pango system libs):
+Needs `canvas` and `gifencoder`. Plain `npm install canvas gifencoder` fails on
+current Node (24.x): `gifencoder` pulls in `canvas` 2.x, which has no prebuilt
+binary for that ABI and falls back to compiling against cairo/pango. Install
+them like this instead, in a scratch directory so nothing lands in this repo:
 
 ```bash
-npm install canvas gifencoder
+mkdir -p /tmp/ygdemo && cd /tmp/ygdemo && npm init -y
+npm install canvas@latest              # 3.x, has a prebuild for Node 24
+npm install gifencoder --ignore-scripts # pure JS at runtime; skips its canvas 2.x build
+cd -
+NODE_PATH=/tmp/ygdemo/node_modules node tools/render-demo-gif.js
 ```
 
-Output is written to `docs/public/demo.gif`; review it, then commit the
-regenerated GIF alongside the script change.
+Output is written to `docs/public/demo.gif`. Review it before committing:
+
+```bash
+ffmpeg -i docs/public/demo.gif -vf fps=1 /tmp/frame_%02d.png
+```
 
 > **Keep `docs/public/demo.html` in sync.** That file is a standalone HTML/CSS
 > animation of the same scene. When you change the scene script here, update the

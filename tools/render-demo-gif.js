@@ -130,99 +130,73 @@ function add(text, color, bold) { lines.push({ text, color: color || TEXT, bold:
 function clear() { lines = []; }
 
 // ===== SCENE SCRIPT =====
-// Narrative (rebalanced from real adopter feedback): the proven value is
-// (1) scoped rules BEFORE the agent writes — prevention via `yg context`, and
-// (2) the deterministic + relation gate that is free, live, and un-ignorable.
-// The LLM reviewer is ONE beat, not the axis. Keep this weighting on edits.
+// Narrative: the headline claim is persistence across sessions — "say it once".
+// Session 1 shows the loop: the rules reach the agent BEFORE it writes, the check
+// refuses something a rules file would have let through, the agent fixes it.
+// Session 2 shows the payoff: nobody restates anything, the same rules still hold,
+// and the keyless gate passes first try.
+//
+// Weighting, unchanged from real adopter feedback: prevention first, the free
+// deterministic layer visible, the LLM reviewer as ONE beat and never the axis.
+//
+// Keep it under ~15s. The old cut ran 35s and nobody reached the payoff.
 console.log('Rendering...');
 
-// Scene 1: Init
-termTitle = '~/payments-api';
-add('$ npm install -g @chrisdudek/yg', WHITE); frames(2);
-add('added 6 packages in 2s', OUTPUT_C); frames(3);
-add('', TEXT);
-add('$ yg init', WHITE); frames(2);
-add('  platform  > claude-code', GREEN); frames(2);
-add('  reviewer  > Claude Code  CLI (sonnet)', GREEN); frames(2);
-add('  ✓ Yggdrasil initialized.', GREEN); frames(5);
-
-// Scene 2: User task
-clear(); termTitle = 'claude code'; frames(2);
+// Session 1 — the task. No install, no init: nobody watches that.
+termTitle = 'claude code';
 add('You: Add a charge endpoint. Payments must emit an', BLUE, true);
-add('     audit event and record to the ledger.', BLUE); frames(8);
+add('     audit event and record to the ledger.', BLUE); frames(5);
 add('', TEXT);
 
-// Scene 3: Rules BEFORE writing — the prevention beat (the proven value)
-add('Agent: Pulling the rules for this file before I write.', PURPLE); frames(4);
+// The rules arrive before a line is written.
+add('Agent: Pulling the rules that touch this file first.', PURPLE); frames(2);
 add('', TEXT);
-add('▶ yg context --file src/payments/charge.ts', WHITE); frames(2);
+add('\u25b6 yg context --file src/payments/charge.ts', WHITE); frames(2);
 add('  node: payments/service', DIM);
 add('  requires-audit    [llm]  read: aspects/requires-audit/content.md', OUTPUT_C);
 add('  input-validation  [llm]  read: aspects/input-validation/content.md', OUTPUT_C);
-add('  no-direct-db      [det]  read: aspects/no-direct-db/check.mjs', OUTPUT_C); frames(9);
+add('  no-direct-db      [det]  read: aspects/no-direct-db/check.mjs', OUTPUT_C); frames(5);
 add('', TEXT);
-add('Agent: 3 rules. Writing to them up front.', PURPLE); frames(5);
+add('  src/payments/charge.ts  created', GREEN); frames(3);
 
-// Scene 4: Agent writes code that already fits the rules it was handed
+// The check catches what a rules file would have let through.
 add('', TEXT);
-add('  src/payments/charge.ts        created', GREEN); frames(1);
-add('  src/payments/charge.schema.ts created', GREEN); frames(3);
+add('\u25b6 yg check --approve', WHITE); frames(2);
+add('  [det] no-direct-db    approved  (no cost)', GREEN); frames(1);
+add('  [llm] requires-audit  refused', RED, true);
+add('    charge() mutates state but never calls emitAudit().', OUTPUT_C); frames(6);
+add('', TEXT);
+add('Agent: Missing the audit event. Adding it.', PURPLE); frames(2);
+add('  src/payments/charge.ts  modified', YELLOW); frames(2);
+add('  yg check: PASS  1 nodes \u00b7 2/2 files \u00b7 3 aspects \u00b7 0 flows', GREEN, true); frames(5);
 
-// Scene 5: The un-ignorable gate — deterministic relation check, live + FREE
-add('', TEXT);
-add('▶ yg check --approve', WHITE); frames(2);
-add('  relation-undeclared-dependency  payments/service', RED, true);
-add('    charge.ts:14 → undeclared dependency on ledger/service', OUTPUT_C);
-add('    Why: code calls another node it declares no relation to.', OUTPUT_C);
-add('    Fix: add the relation in payments/service/yg-node.yaml.', OUTPUT_C); frames(10);
-add('', TEXT);
-add('  (deterministic — no LLM, no cost, runs every check)', DIM); frames(5);
-add('', TEXT);
-add('Agent: Right — declaring the calls relation to ledger.', PURPLE); frames(3);
-add('  payments/service/yg-node.yaml  modified', YELLOW); frames(4);
-
-// Scene 6: One LLM beat — the semantic catch a script can't make
-add('', TEXT);
-add('▶ yg check --approve', WHITE); frames(2);
-add('  Filling 3 unverified pairs across 1 node —', DIM);
-add('  1 deterministic (no cost), 2 reviewer calls (consensus included)', DIM); frames(7);
-add('', TEXT);
-add('  [det] no-direct-db on payments/service — approved', GREEN); frames(1);
-add('  [llm] input-validation on payments/service — approved', GREEN); frames(1);
-add('  [llm] requires-audit on payments/service — refused', RED, true);
-add('    charge() mutates state but never calls emitAudit().', OUTPUT_C);
-add('    Every mutation must emit an audit event.', OUTPUT_C); frames(10);
-
-// Scene 7: Agent fixes, passes, CI green without keys
-add('', TEXT);
-add('Agent: Audit event missing. Adding it.', PURPLE); frames(3);
-add('  src/payments/charge.ts  modified', YELLOW); frames(3);
-add('', TEXT);
-add('▶ yg check --approve', WHITE); frames(2);
-add('  [llm] requires-audit on payments/service — approved', GREEN); frames(2);
-add('  yg check: PASS  2 nodes · 5/5 files · 3 aspects · 0 flows', GREEN, true); frames(7);
-add('', TEXT);
-add('$ yg check   # the CI gate — no LLM, no keys', WHITE); frames(2);
-add('  yg check: PASS  2 nodes · 5/5 files · 3 aspects · 0 flows', GREEN, true); frames(8);
-
-// Scene 8: Punchline — rebalanced toward prevention + un-ignorable enforcement
+// The session boundary. This is the whole point of the demo.
 clear();
 bigText = [
-  { text: 'The rules reach the agent before it writes a line.', color: GREEN, font: 'bold 29px sans-serif' },
-  { text: 'Not in a PR review, after.', color: '#888', font: '22px sans-serif' },
-]; frames(15);
+  { text: 'Next week. New session.', color: WHITE, font: 'bold 30px sans-serif' },
+  { text: 'Nobody restates the rules.', color: '#888', font: '20px sans-serif' },
+]; frames(7);
 
-bigText = [
-  { text: 'The checks run on every change.', color: WHITE, font: 'bold 30px sans-serif' },
-  { text: 'Your agent can’t optimize them away.', color: '#888', font: '22px sans-serif' },
-]; frames(16);
+// Session 2 — it holds, first try, with no key.
+// NOTE: bigText stays drawn until it is cleared, so reset it before any
+// terminal scene that follows a card.
+bigText = null;
+clear(); termTitle = 'claude code'; frames(1);
+add('You: Add a refund endpoint.', BLUE, true); frames(4);
+add('', TEXT);
+add('Agent: Same three rules apply here. Writing to them.', PURPLE); frames(3);
+add('  src/payments/refund.ts  created', GREEN); frames(3);
+add('', TEXT);
+add('\u25b6 yg check   # the gate \u2014 no LLM, no keys', WHITE); frames(2);
+add('  yg check: PASS  1 nodes \u00b7 3/3 files \u00b7 3 aspects \u00b7 0 flows', GREEN, true); frames(6);
 
+// Punchline.
+clear();
 bigText = [
-  { text: 'YGGDRASIL', color: WHITE, font: '900 52px sans-serif' },
-  { text: 'Your agent will ignore CLAUDE.md.', color: '#888', font: '20px sans-serif' },
-  { text: 'Yggdrasil makes sure it doesn’t.', color: WHITE, font: 'bold 22px sans-serif' },
+  { text: 'Say it once.', color: WHITE, font: '900 46px sans-serif' },
+  { text: 'The rule you wrote last week is still enforced today.', color: '#888', font: '20px sans-serif' },
   { text: 'npm install -g @chrisdudek/yg', color: GREEN, font: '14px monospace' },
-]; frames(20);
+]; frames(13);
 
 encoder.finish();
 console.log('Done. Waiting for file write...');
