@@ -1,9 +1,15 @@
 name: Reviewer Integration Tests
 type: test-suite
-description: End-to-end reviewer execution tests — multi-tier approve flow with
-  mocked providers and the external ollama-reviewer test gated by ollama
-  availability.
+description: >-
+  End-to-end reviewer execution tests — the multi-tier approve flow with mocked
+  providers, plus the two external provider round-trips that reach a real service
+  and therefore run only on request rather than in the gate: ollama, and the
+  claude-code CLI agent. The latter moved here from the unit tier, where a slow or
+  throttled provider failed the gate for reasons unrelated to the change under
+  test; the response shape it asserted is proven without a network by the
+  parse-level tests.
 aspects: []
 relations: [ { target: cli/llm/providers, type: uses } ]
 mapping:
   - source/cli/tests/integration/ollama-reviewer.external.test.ts
+  - source/cli/tests/integration/claude-code-reviewer.external.test.ts
