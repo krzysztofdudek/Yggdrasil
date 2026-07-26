@@ -234,5 +234,3 @@ if (drillFile.missing) {
 }
 out('  small-N — McNemar over a handful of discordant pairs is indicative, not significant; the exact binomial path is used precisely because b+c is small here.');
 out('  unknown ≠ zero — unrun/unsupported drill cases and any case missing under either tier are EXCLUDED from the pairing, never scored as agreement.');
-
-process.exit(0);

@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The repository's own analysis instruments no longer discard the end of their own reports.** Five of them ended by calling for an immediate exit, which on a pipe abandons output still queued for writing — so anything past roughly 26 KB vanished while the run still reported success. The part lost is the tail, and the tail is where each one prints its mandatory caveats: how small the sample was, that an unmeasurable value is not a zero, and which event streams were actually read. A truncated report was indistinguishable from a clean one that simply had nothing to qualify, which is the most dangerous shape this kind of output can take. Reaching the end of a script already exits successfully, so the call was removed.
+
 - **A suppression marker closed with the HTML spec's `--!>` form no longer keeps the terminator as its justification.** Only `-->` was stripped from a marker's reason text. In a Markdown file closed the other legal way, the terminator survived into the recorded reason — and a marker written with no justification at all ended up with `--!>` as its reason, which is non-empty, so it passed the check that exists to make every waiver carry one. Both closers are now recognised, restoring that rejection.
 
 ## [5.6.0] - 2026-07-25

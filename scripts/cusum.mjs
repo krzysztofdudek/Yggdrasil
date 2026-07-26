@@ -231,5 +231,3 @@ if (eventsFile.missing) {
 }
 out('  small-N — refusals are rare; a CUSUM over a handful of them is indicative, not significant, and the alarm-rate (ARL) implied by H is order-of-magnitude at this scale.');
 out('  unknown ≠ zero — infra and other no-write dispositions are EXCLUDED trials, not approvals; a quiet aspect is one not yet exercised, not one proven safe.');
-
-process.exit(0);

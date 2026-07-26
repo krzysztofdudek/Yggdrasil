@@ -288,5 +288,3 @@ if (eventsFile.missing) {
 }
 out(`  small-N — a +/- ${WINDOW_DAYS}-day window over rare refusals yields tiny per-sibling counts; a delta of 1/8 vs 0/6 is indicative, not significant.`);
 out('  unknown ≠ zero — a sibling with no decided trial in a window is UNKNOWN (rendered "insufficient"), never scored as a 0% refusal rate; a rule edit invalidates only its OWN pairs, so sibling movement is confounded by ordinary code churn.');
-
-process.exit(0);

@@ -227,5 +227,3 @@ for (const [p, f] of [
 }
 out('  small-N — at this repo\'s scale every split is indicative, not significant; one flaky run out of a handful is noise, not a measured ambiguity rate.');
 out('  unknown ≠ zero — no-write dispositions (infra), unrun/unsupported drills, and the total ABSENCE of a diagnostic-repeat corpus are UNKNOWNS excluded above, never counted as consistency.');
-
-process.exit(0);

@@ -241,6 +241,11 @@ if (total === 0) {
   out('No decision events in the visible history (a shallow clone shows only HEAD).');
   out('[RZ-16] Proxy meter: counts are a git-derived estimate, valid until the');
   out('        advise-decisions register records decisions directly.');
+  // Safe here, unlike a trailing exit after a long report: this branch has written
+  // a handful of lines, which the pipe accepts without queueing. process.exit does
+  // NOT drain a queued stdout pipe, so an exit placed after bulk output silently
+  // drops its tail — which is why the trailing exits in these scripts were removed
+  // rather than kept. Reaching the end of the file exits 0 on its own.
   process.exit(0);
 }
 
@@ -312,5 +317,3 @@ out('');
 out('[RZ-16] Proxy meter: every figure above is a git-derived ESTIMATE of decision');
 out('        load, valid until the advise-decisions register records decisions');
 out('        directly. The register is ground truth; this is the interim proxy.');
-
-process.exit(0);
