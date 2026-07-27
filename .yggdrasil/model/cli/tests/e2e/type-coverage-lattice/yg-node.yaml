@@ -1,0 +1,7 @@
+name: E2E Tests — Type-Level Classification Lattice
+type: test-suite
+description: "Subprocess E2E proving the type-level classification lattice (coverage.type_level) through the real built binary on the committed fixture tests/fixtures/type-coverage-basic/: an ambiguous file (two overlapping non-strict types) exits 1 (FAIL) and renders the ambiguous-node-type block naming both types, alongside the strict-claimed file's own type-strict-orphan error and with the excluded-root match muted entirely. Guards the CLI exit-code + render contract that the runCheck-level integration tests cannot reach."
+aspects: []
+relations: []
+mapping:
+  - source/cli/tests/e2e/cli-type-coverage-lattice.test.ts

@@ -3,7 +3,10 @@ type: engine
 description: "Validation checks for source-file mapping and coverage —
   gitignored mappings, duplicate mappings, strict backward coverage, mapping
   ownership overlap, mapping paths existing on disk, oversized/wide nodes, and
-  directories missing yg-node.yaml."
+  directories missing yg-node.yaml. When coverage.type_level is on, a strict
+  orphan's message also names any OTHER classifying type the same file
+  matches (via core/type-classifier), since that is exactly the fact an agent
+  needs when deciding which type the file should become."
 aspects:
   - posix-paths-output
   - what-why-next
@@ -15,7 +18,8 @@ relations:
     { target: cli/io/file-content-cache, type: calls },
     { target: cli/io/stores, type: calls },
     { target: cli/utils, type: calls },
-    { target: cli/relations/core, type: calls }
+    { target: cli/relations/core, type: calls },
+    { target: cli/core/type-classifier, type: calls }
   ]
 mapping:
   - source/cli/src/core/checks/mapping.ts

@@ -29,10 +29,10 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     data = await extractPortalData(REPO_ROOT, { writeEnabled: false });
   }, 180_000);
 
-  it('the top fan-out hub is cli/core/fill with 22 declared relations', () => {
+  it('the top fan-out hub is cli/core/check with 23 declared relations', () => {
     expect(data.hubs.fanOut.length).toBeGreaterThan(0);
-    expect(data.hubs.fanOut[0].path).toBe('cli/core/fill');
-    expect(data.hubs.fanOut[0].count).toBe(22);
+    expect(data.hubs.fanOut[0].path).toBe('cli/core/check');
+    expect(data.hubs.fanOut[0].count).toBe(23);
     // descending order invariant.
     for (let i = 1; i < data.hubs.fanOut.length; i++) {
       expect(data.hubs.fanOut[i - 1].count).toBeGreaterThanOrEqual(data.hubs.fanOut[i].count);

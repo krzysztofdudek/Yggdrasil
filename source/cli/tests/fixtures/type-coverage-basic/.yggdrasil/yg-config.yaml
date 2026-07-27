@@ -1,0 +1,12 @@
+version: "5.2.0"
+
+# type_level: true turns on the classification lattice this fixture exists to
+# exercise. Tests that need the pre-type-level ("flag off") behavior clone this
+# graph in memory and flip coverage.typeLevel to false rather than reading a
+# second committed config — see tests/unit/core/type-coverage.test.ts.
+coverage:
+  required:
+    - src/
+  excluded:
+    - vendor/
+  type_level: true

@@ -42,3 +42,5 @@ An out-of-repository file's bytes must never flow into a reviewer prompt. The pr
 A new category of non-blocking finding needed a single shared name so that the two places a repository's problems are tallied and grouped, the running summary counts and the detailed per-issue grouping, can never quietly diverge on how many of this kind of issue exist or how it gets labeled. Recording it once in the shared category list, rather than inline in each caller, is what keeps that guarantee automatic instead of something that has to be remembered every time a caller changes.
 ## [2026-07-27T14:26:40.134Z]
 Removes the retired coverage-conflict code from the structural code set now that its detector is gone. Its replacement varies in severity by where the offending file lives in the repository, so it does not belong in a set reserved for codes that always block regardless of state.
+## [2026-07-27T15:57:02.746Z]
+ambiguous-node-type joins the structural code set: it always blocks yg check, like the other architecture-shape codes, and the summary tally and the check command's error grouping now agree on that without either needing its own copy of the rule.

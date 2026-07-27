@@ -79,6 +79,12 @@ export const STRUCTURAL_CODES = new Set<string>([
   // a node depends on another node without a declared, sanctioned relation, or its
   // relation verdict could not be confirmed against the current tree.
   'relation-undeclared-dependency',
+  // Type-level coverage (coverage.type_level): an uncovered file matches 2+
+  // non-strict classifying types and no strict type. The classification
+  // lattice (core/type-coverage.ts) refuses to guess which type's rules
+  // apply — always blocking, independent of whether the file sits under a
+  // required or advisory coverage root.
+  'ambiguous-node-type',
 ]);
 
 /**

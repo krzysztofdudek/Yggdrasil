@@ -1,0 +1,2 @@
+## [2026-07-27T15:57:09.526Z]
+New pure module computing the type-level classification lattice over already-uncovered files: which ones are satisfied by a single matching type, which are ambiguous between two or more, which are already owned by the strict backward scan, which match no type at all, and which could not be classified because their matching type's rule could not be evaluated. It exists so the coverage section and the strict-orphan enrichment can share one classification of a file instead of each re-deriving it.

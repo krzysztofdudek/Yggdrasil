@@ -1,0 +1,43 @@
+# yg-architecture.yaml — fixture architecture for the type-level classification
+# lattice (coverage.type_level). Deliberately has NO nodes at all: every file
+# below is uncovered by any node mapping, which is exactly the input the
+# lattice classifies. Four types cover the five lattice rows:
+#   svc      — non-strict, matches src/svc/** (the "covered" row via handler.ts).
+#   util     — non-strict, matches src/util/** PLUS two deliberate extra files:
+#              src/svc/overlap.ts (the "ambiguous" row, overlapping svc) and
+#              vendor/tool.ts (the "excluded-root match" row — muted entirely
+#              because vendor/ is a coverage.excluded root, never because util
+#              fails to match it).
+#   special  — enforce: strict, matches only src/util/special.ts, which also
+#              matches util (the "strictClaimed" row — strict wins, and the
+#              strict scan's own type-strict-orphan WHAT lists util as an
+#              "Also matches").
+#   big      — non-strict, content-only (no path constraint) so it applies
+#              uniformly; a file too large for its content predicate to be
+#              evaluated at all is the "unreadable" row (written at test run
+#              time, not committed, to avoid a multi-megabyte fixture file).
+# src/misc/plain.ts matches none of the four — the "unmatched" row.
+node_types:
+  svc:
+    description: "Service-layer source under src/svc/. One of two non-strict classifying types in this fixture; deliberately overlaps with util on src/svc/overlap.ts to exercise the ambiguous-node-type lattice row."
+    when:
+      path: "src/svc/**"
+
+  util:
+    description: "Shared utility source under src/util/. Its when also matches src/svc/overlap.ts (the deliberate svc/util overlap) and vendor/tool.ts (the excluded-coverage-root match), via explicit any_of clauses beyond its own src/util/** directory."
+    when:
+      any_of:
+        - path: "src/util/**"
+        - path: "src/svc/overlap.ts"
+        - path: "vendor/tool.ts"
+
+  special:
+    description: "Narrowly-scoped enforce: strict type matching only src/util/special.ts. That file also matches util, exercising the type-strict-orphan 'Also matches' enrichment — strict claims the file, so no ambiguous-node-type fires for it."
+    enforce: strict
+    when:
+      path: "src/util/special.ts"
+
+  big:
+    description: "Content-classified type with no path constraint, so it is evaluated against every uncovered file. A file too large for the content scan (over the 5MB limit) exercises the type-coverage file-unreadable lattice row; every committed fixture file cleanly non-matches it (none contain BIGMARKER)."
+    when:
+      content: "BIGMARKER"

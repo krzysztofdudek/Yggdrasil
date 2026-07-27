@@ -9,6 +9,7 @@ import { readSortedDir, statPath, fileAccess } from '../../io/graph-fs.js';
 import { walkRepoFiles, isCoverageExcludedPath } from '../../io/repo-scanner.js';
 import { FileContentCache } from '../../io/file-content-cache.js';
 import { evaluateFileWhen } from '../file-when-evaluator.js';
+import { classifyFile } from '../type-classifier.js';
 import { renderTrace } from '../../formatters/predicate-trace.js';
 import { issueMsg } from './shared.js';
 import { toPosixPath } from '../../utils/posix.js';
@@ -45,7 +46,7 @@ export async function checkFileMappingGitignored(graph: Graph): Promise<Validati
         rule: 'file-mapping-gitignored',
         nodePath,
         ...issueMsg({
-          what: `File '${norm}' is in mapping of node '${nodePath}' but is excluded by .gitignore.`,
+          what: `File '${toPosixPath(norm)}' is in mapping of node '${nodePath}' but is excluded by .gitignore.`,
           why: `Mappings cannot contain .gitignored files — strict backward scan skips them, creating a gap where agent-created files matching a strict type's when could evade enforcement.`,
           next: `Either:\n  1. Remove the file from .gitignore (if it should be tracked code).\n  2. Remove the file from the mapping (if it's a generated artifact).`,
         }),
@@ -155,12 +156,29 @@ export async function checkStrictBackwardCoverage(
         ? { nodePath: ownerPath, nodeType: graph.nodes.get(ownerPath)!.meta.type }
         : undefined;
     if (owner === undefined) {
+      // Type-level coverage enrichment (flag-gated): the strict scan already
+      // owns this file (no ambiguous-node-type is ever raised for it — see
+      // core/type-coverage.ts), but naming any OTHER type it also matches is
+      // exactly the extra fact an agent needs when deciding which type this
+      // file should actually become. classifyFile is re-run for this one file
+      // only (matchingTypes already proves no other STRICT type matches, or
+      // this file would have hit the overlap-conflict branch above instead).
+      let what = `File '${relPath}' satisfies when of type '${typeId}' (enforce: strict):\n${trace}\nBut file is not in any node's mapping.`;
+      if (graph.config.coverage?.typeLevel) {
+        const classification = await classifyFile(absPath, relPath, graph, cache);
+        const alsoMatches = classification.matches
+          .filter((m) => m.typeId !== typeId)
+          .map((m) => m.typeId);
+        if (alsoMatches.length > 0) {
+          what += `\nAlso matches: ${alsoMatches.join(', ')}`;
+        }
+      }
       issues.push({
         severity: 'error',
         code: 'type-strict-orphan',
         rule: 'type-strict-orphan',
         ...issueMsg({
-          what: `File '${relPath}' satisfies when of type '${typeId}' (enforce: strict):\n${trace}\nBut file is not in any node's mapping.`,
+          what,
           why: `Type '${typeId}' has enforce: strict — every file satisfying its when must belong to a mapping of a node of type '${typeId}'. Otherwise the file looks like a ${typeId} but bypasses ${typeId}-level enforcement.`,
           next: `Create yg-node.yaml with type: ${typeId} and add '${relPath}' to its mapping.`,
         }),

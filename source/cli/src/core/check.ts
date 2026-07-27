@@ -2,6 +2,8 @@ import type { Graph } from '../model/graph.js';
 import type { ValidationIssue } from '../model/validation.js';
 import { DEFAULT_COVERAGE } from '../io/config-parser.js';
 import { normalizeMappingPaths } from '../io/paths.js';
+import { FileContentCache } from '../io/file-content-cache.js';
+import { computeTypeCoverage } from './type-coverage.js';
 import { validate } from './validator.js';
 import { checkReviewOverdue } from './checks/aspect-contracts.js';
 import { checkDigestGate } from './checks/digest-gate.js';
@@ -490,6 +492,31 @@ export async function scanTrackedButIgnored(
   return issues;
 }
 
+/**
+ * Type-level coverage (coverage.type_level) enrichment: a file matching no
+ * classifying type at all has no type-specific fix available — the plain
+ * "add it to a node mapping" advice is the only guidance there is, and it now
+ * says so explicitly, distinct from a file that matches a type but is
+ * ambiguous or strict-claimed (those get their own, more specific error
+ * elsewhere). Returns `issue` unchanged when null or when none of `files` is
+ * in `unmatched`.
+ */
+function enrichNoTypeMessage(
+  issue: CheckIssue | null,
+  files: string[],
+  unmatched: Set<string>,
+): CheckIssue | null {
+  if (issue === null) return issue;
+  if (!files.some((f) => unmatched.has(f))) return issue;
+  return {
+    ...issue,
+    messageData: {
+      ...issue.messageData,
+      why: `${issue.messageData.why} For files matching no type at all, your architecture has no type for this file yet — yg type-suggest can help design one before you decide where it belongs.`,
+    },
+  };
+}
+
 // ── Check orchestrator ────────────────────────────────────
 
 /**
@@ -730,7 +757,8 @@ export async function runCheck(
     }
   }
 
-  // 3. Coverage scan (unmapped-files / uncovered-advisory) — unchanged.
+  // 3. Coverage scan (unmapped-files / uncovered-advisory), plus the
+  // type-level classification lattice (coverage.type_level) when opted in.
   let coverageIssues: CheckIssue[] = [];
   let coveredFiles = 0;
   let totalFiles = 0;
@@ -744,11 +772,68 @@ export async function runCheck(
     const uncovered = scanUncoveredFiles(graph, gitTrackedFiles);
     const coverage = graph.config.coverage ?? DEFAULT_COVERAGE;
     const tiers = partitionByCoverageTier(uncovered, coverage);
+    // coveredFiles/totalFiles stay the file-mapping (node-ownership) ratio,
+    // unaffected by type-level coverage — a header that also surfaces
+    // type-covered files is later work; this counter must not silently
+    // change shape underneath it.
     coveredFiles = totalFiles - (tiers.required.length + tiers.middle.length);
-    coverageIssues = [
-      buildCoverageIssue(tiers.required, totalFiles),
-      buildCoverageAdvisoryIssue(tiers.middle),
-    ].filter((x): x is CheckIssue => x !== null);
+
+    // Type-level classification lattice: OFF (the default) ⇒ this block never
+    // runs and requiredForIssue/middleForIssue stay the untouched tiers with no
+    // extra issue added — byte-identical to pre-type-level output.
+    let requiredForIssue = tiers.required;
+    let middleForIssue = tiers.middle;
+    const typeLevelIssues: CheckIssue[] = [];
+    let unmatchedFiles: Set<string> | null = null;
+    if (coverage.typeLevel) {
+      const typeCoverage = await computeTypeCoverage(graph, uncovered, new FileContentCache());
+
+      // Exactly-one-non-strict-match files are satisfied for type-level
+      // coverage purposes: drop them from both tiers before the bulk
+      // unmapped/advisory issues are built. Everything else (ambiguous,
+      // strict-claimed, unmatched, unreadable) is reported ALONGSIDE the bulk
+      // issue exactly like the existing strict-scan codes are — additional,
+      // more specific errors, never a replacement for it.
+      requiredForIssue = tiers.required.filter((f) => !typeCoverage.covered.has(f));
+      middleForIssue = tiers.middle.filter((f) => !typeCoverage.covered.has(f));
+      unmatchedFiles = new Set(typeCoverage.unmatched);
+
+      for (const a of typeCoverage.ambiguous) {
+        typeLevelIssues.push({
+          severity: 'error',
+          code: 'ambiguous-node-type',
+          rule: 'ambiguous-node-type',
+          messageData: {
+            what: `File '${a.file}' matches ${a.typeIds.length} classifying types: ${a.typeIds.join(', ')}.`,
+            why: `Type-level coverage applies exactly one type's rules per file. Two matching types is a situation the machine refuses to guess — each type carries different rules.`,
+            next: `Two exits:\n  1. Create an explicit node declaring the intended type (yg-node.yaml with type: <one of: ${a.typeIds.join(' | ')}>) — its pairs re-key under the owner.\n  2. Narrow one of the overlapping when: predicates in yg-architecture.yaml so exactly one matches — existing verdicts revalidate free.`,
+          },
+        });
+      }
+
+      for (const u of typeCoverage.unreadable) {
+        typeLevelIssues.push({
+          severity: 'error',
+          code: 'file-unreadable',
+          rule: 'file-unreadable',
+          messageData: {
+            what: `Type-level coverage could not read '${u.file}' while classifying it against type '${u.typeId}'.\nOS error: ${u.reason}`,
+            why: `coverage.type_level requires reading file content to classify an uncovered file against its architecture type. A file that cannot be read cannot be classified — it must not be silently treated as covered, ambiguous, or unmatched.`,
+            next: `Fix file permissions, or add to .gitignore if it's a generated artifact.`,
+          },
+        });
+      }
+    }
+
+    let requiredIssue = buildCoverageIssue(requiredForIssue, totalFiles);
+    let middleIssue = buildCoverageAdvisoryIssue(middleForIssue);
+    if (unmatchedFiles) {
+      requiredIssue = enrichNoTypeMessage(requiredIssue, requiredForIssue, unmatchedFiles);
+      middleIssue = enrichNoTypeMessage(middleIssue, middleForIssue, unmatchedFiles);
+    }
+    coverageIssues = [requiredIssue, middleIssue, ...typeLevelIssues].filter(
+      (x): x is CheckIssue => x !== null,
+    );
 
     // Additive tracked∩gitignored anomaly detection: a git-tracked file positively
     // matched by .gitignore, independent of node mapping. INJECTED real

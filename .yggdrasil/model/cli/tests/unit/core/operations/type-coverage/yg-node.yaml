@@ -1,0 +1,19 @@
+name: Type Coverage Unit Tests
+type: test-suite
+description: "Unit tests for the type-level classification lattice: computeTypeCoverage's six rows (covered, ambiguous, strict-claimed, unmatched, excluded-root mute, unreadable) driven directly against the real committed fixture tests/fixtures/type-coverage-basic/, its wiring into runCheck's coverage section (ambiguous-node-type, the improved no-type-match message, the excluded-covered-file suppression), the flag-gated 'Also matches' enrichment checkStrictBackwardCoverage adds to a type-strict-orphan, and the HARD invariant that coverage.type_level: false reproduces pre-type-level output exactly."
+aspects: []
+relations:
+  - target: cli/core/loader
+    type: uses
+  - target: cli/core/check
+    type: uses
+  - target: cli/core/checks/mapping
+    type: uses
+  - target: cli/core/type-coverage
+    type: uses
+  - target: cli/io/file-content-cache
+    type: uses
+  - target: cli/io/stores
+    type: uses
+mapping:
+  - source/cli/tests/unit/core/type-coverage.test.ts

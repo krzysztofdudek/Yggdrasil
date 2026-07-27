@@ -1,0 +1,11 @@
+name: Type Coverage
+type: engine
+description: "Computes the type-level classification lattice (coverage.type_level) over a list of already-uncovered files: excluded-root files are skipped entirely before classification; a file whose matching type could not be evaluated (e.g. a content predicate on an oversized file) is unreadable; a file matching >=1 enforce:strict type is left to the strict backward scan (checkStrictBackwardCoverage owns it — never called ambiguous); exactly one non-strict match is covered (satisfied for coverage purposes); 2+ non-strict matches with no strict match is ambiguous — the caller (core/check.ts) turns that into the blocking ambiguous-node-type error. Pure: the only I/O is file-content reads through classifyFile/FileContentCache."
+aspects: []
+relations:
+  - target: cli/core/type-classifier
+    type: calls
+  - target: cli/core/check-coverage-tiers
+    type: calls
+mapping:
+  - source/cli/src/core/type-coverage.ts
