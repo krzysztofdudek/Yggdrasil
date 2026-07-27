@@ -169,7 +169,7 @@ describe('runCheck — type-level coverage wiring (flag on)', () => {
     expect(amb[0].messageData.next).toContain('2. Narrow one of the overlapping');
   });
 
-  it('a strict+non-strict file yields the enriched orphan WHAT and NO ambiguity issue for it', async () => {
+  it('a strict+non-strict file yields the enriched orphan WHAT, NO ambiguity issue, and is absent from unmapped-files', async () => {
     const dir = copyFixture();
     const result = await runOnFixture(dir);
     const orphan = result.issues.find((i) => i.code === 'type-strict-orphan');
@@ -177,6 +177,11 @@ describe('runCheck — type-level coverage wiring (flag on)', () => {
     const amb = result.issues.filter((i) => i.code === 'ambiguous-node-type');
     expect(amb).toHaveLength(1); // only overlap.ts — special.ts never becomes ambiguous
     expect(amb[0].messageData.what).not.toContain('special.ts');
+    // The lattice is one issue per file, most-binding wins: a strict-claimed
+    // file already has its own (more specific) error and must not ALSO
+    // inflate the generic bulk unmapped-files count.
+    const unmapped = result.issues.find((i) => i.code === 'unmapped-files');
+    expect(unmapped?.uncoveredFiles ?? []).not.toContain('src/util/special.ts');
   });
 
   it('an excluded-root file matching a type appears in no issue at all', async () => {
@@ -190,15 +195,44 @@ describe('runCheck — type-level coverage wiring (flag on)', () => {
     expect(mentionsVendor).toBe(false);
   });
 
-  it('an unmatched file falls through to unmapped-files with the improved "no type" message', async () => {
+  it('an unmatched file falls through to unmapped-files with the improved, unqualified "no type" message', async () => {
     const dir = copyFixture();
     const result = await runOnFixture(dir);
     const unmapped = result.issues.find((i) => i.code === 'unmapped-files');
     expect(unmapped?.uncoveredFiles).toContain('src/misc/plain.ts');
-    expect(unmapped?.messageData.why).toContain('your architecture has no type for this file');
+    expect(unmapped?.messageData.why).toContain('Your architecture has no type for this file');
+    // Every OTHER uncovered file in this fixture already has its own, more
+    // specific verdict (covered / ambiguous / strict-claimed) — none of them
+    // may also inflate this bulk listing or its count.
+    expect(unmapped?.uncoveredFiles).toEqual(['src/misc/plain.ts']);
+    expect(unmapped?.uncoveredCount).toBe(1);
   });
 
-  it('a file over the 5MB content-scan limit is a blocking file-unreadable error', async () => {
+  it('an ambiguous file appears in EXACTLY ONE issue — the lattice is one issue per file, most-binding wins', async () => {
+    const dir = copyFixture();
+    const result = await runOnFixture(dir);
+    const mentioning = result.issues.filter(
+      (i) =>
+        i.messageData.what.includes('src/svc/overlap.ts') ||
+        (i.uncoveredFiles ?? []).includes('src/svc/overlap.ts'),
+    );
+    expect(mentioning).toHaveLength(1);
+    expect(mentioning[0].code).toBe('ambiguous-node-type');
+  });
+
+  it('a strict-claimed file appears in EXACTLY ONE issue (type-strict-orphan)', async () => {
+    const dir = copyFixture();
+    const result = await runOnFixture(dir);
+    const mentioning = result.issues.filter(
+      (i) =>
+        i.messageData.what.includes('src/util/special.ts') ||
+        (i.uncoveredFiles ?? []).includes('src/util/special.ts'),
+    );
+    expect(mentioning).toHaveLength(1);
+    expect(mentioning[0].code).toBe('type-strict-orphan');
+  });
+
+  it('a file over the 5MB content-scan limit is a blocking file-unreadable error and appears in EXACTLY that one issue', async () => {
     const dir = copyFixture();
     writeFileSync(path.join(dir, 'src', 'huge.ts'), Buffer.alloc(5 * 1024 * 1024 + 1, 0x61));
     const result = await runOnFixture(dir);
@@ -207,6 +241,26 @@ describe('runCheck — type-level coverage wiring (flag on)', () => {
     );
     expect(unreadable).toBeDefined();
     expect(unreadable!.severity).toBe('error');
+    const mentioning = result.issues.filter(
+      (i) =>
+        i.messageData.what.includes('src/huge.ts') ||
+        (i.uncoveredFiles ?? []).includes('src/huge.ts'),
+    );
+    expect(mentioning).toHaveLength(1);
+    expect(mentioning[0].code).toBe('file-unreadable');
+  });
+
+  it('suggestedNext for an ambiguous file names the file and the two-exit guidance, not the generic ".yggdrasil" structural fallback', async () => {
+    const dir = copyFixture();
+    const result = await runOnFixture(dir);
+    expect(result.suggestedNext).not.toBeNull();
+    expect(result.suggestedNext).not.toContain('.yggdrasil');
+    expect(result.suggestedNext).toContain('Two exits');
+    expect(result.suggestedNext).toContain('svc');
+    expect(result.suggestedNext).toContain('util');
+    // Exactly the ambiguous issue's own messageData.next, verbatim.
+    const amb = result.issues.find((i) => i.code === 'ambiguous-node-type');
+    expect(result.suggestedNext).toBe(amb!.messageData.next);
   });
 });
 

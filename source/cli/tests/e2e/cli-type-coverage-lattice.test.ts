@@ -56,6 +56,13 @@ describe.skipIf(!distExists)('E2E: type-level classification lattice via the rea
       expect(out).toContain('type-strict-orphan');
       // The excluded-root match (vendor/tool.ts) is muted entirely.
       expect(out).not.toContain('vendor/tool.ts');
+      // The lattice is one issue per file, most-binding wins: the strict-claimed
+      // file must not ALSO inflate the generic bulk "unmapped" listing.
+      expect(out).not.toMatch(/unmapped[\s\S]{0,120}src\/util\/special\.ts/);
+      // suggestedNext names the ambiguous file's own two-exit guidance, not the
+      // generic structural fallback (`Next: Fix ambiguous-node-type in .yggdrasil`).
+      expect(out).toContain('Next: Two exits:');
+      expect(out).not.toContain('Next: Fix ambiguous-node-type in .yggdrasil');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

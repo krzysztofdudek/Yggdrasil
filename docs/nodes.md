@@ -152,9 +152,9 @@ Four errors are specific to strict types, and each blocks `yg check`:
 | `type-strict-misplaced` | A file matches the predicate but belongs to a node of a *different* type. |
 | `strict-overlap-conflict` | A file matches the `when` of **two** strict types, so neither can own it unambiguously. Narrow one predicate. |
 
-They are reported alongside any `unmapped-files` coverage error, not folded into it — the symptoms are distinct and so are the fixes.
+They are reported alongside any `unmapped-files` coverage error, not folded into it — the symptoms are distinct and so are the fixes. That changes only under [`coverage.type_level`](/configuration#coverage-config): once it is on, a file this table already accounts for (or one `ambiguous-node-type` accounts for) is dropped from the plain `unmapped-files`/`uncovered-advisory` listing — one issue per file, the most-binding one.
 
-A file that matches an `enforce: strict` type is never also reported as ambiguous by [`coverage.type_level`](/configuration#coverage-config) — the strict error above owns it, and (with `type_level` on) that error's message lists any other type the file also matches. `type_level`'s own ambiguity error, `ambiguous-node-type`, exists for the same shape of problem among ordinary (non-strict) types.
+A file that matches an `enforce: strict` type is never also reported as ambiguous by `coverage.type_level` — the strict error above owns it, and (with `type_level` on) that error's message lists any other type the file also matches. `type_level`'s own ambiguity error, `ambiguous-node-type`, exists for the same shape of problem among ordinary (non-strict) types.
 
 The architecture file is the foundation of the graph, so changes to it ripple across every node of the affected type. Change it deliberately, and confirm the change before applying it.
 

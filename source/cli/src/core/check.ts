@@ -496,23 +496,19 @@ export async function scanTrackedButIgnored(
  * Type-level coverage (coverage.type_level) enrichment: a file matching no
  * classifying type at all has no type-specific fix available — the plain
  * "add it to a node mapping" advice is the only guidance there is, and it now
- * says so explicitly, distinct from a file that matches a type but is
- * ambiguous or strict-claimed (those get their own, more specific error
- * elsewhere). Returns `issue` unchanged when null or when none of `files` is
- * in `unmatched`.
+ * says so explicitly. Callers feed this ONLY the unmatched-filtered issue (a
+ * file that is covered/ambiguous/strict-claimed/unreadable has already been
+ * dropped from the array that built it — see the coverage section below), so
+ * whenever `issue` is non-null every file it lists is genuinely unmatched;
+ * the sentence needs no per-file hedge. Returns `issue` unchanged when null.
  */
-function enrichNoTypeMessage(
-  issue: CheckIssue | null,
-  files: string[],
-  unmatched: Set<string>,
-): CheckIssue | null {
+function enrichNoTypeMessage(issue: CheckIssue | null): CheckIssue | null {
   if (issue === null) return issue;
-  if (!files.some((f) => unmatched.has(f))) return issue;
   return {
     ...issue,
     messageData: {
       ...issue.messageData,
-      why: `${issue.messageData.why} For files matching no type at all, your architecture has no type for this file yet — yg type-suggest can help design one before you decide where it belongs.`,
+      why: `${issue.messageData.why} Your architecture has no type for this file yet — yg type-suggest can help design one before you decide where it belongs.`,
     },
   };
 }
@@ -718,10 +714,11 @@ export async function runCheck(
     // is live every run (no --approve required), exactly like the rest of the check.
     for (const pf of relResult.parseFailures) {
       const lang = getLanguageDisplayName(pf.language);
+      const examplePath = toPosixPath(pf.examplePath);
       const scope =
         pf.fileCount === 1
-          ? pf.examplePath
-          : `${pf.fileCount} ${lang} files, e.g. ${pf.examplePath}`;
+          ? examplePath
+          : `${pf.fileCount} ${lang} files, e.g. ${examplePath}`;
       lockIssues.push({
         severity: 'error',
         code: 'relation-parse-failed',
@@ -784,19 +781,24 @@ export async function runCheck(
     let requiredForIssue = tiers.required;
     let middleForIssue = tiers.middle;
     const typeLevelIssues: CheckIssue[] = [];
-    let unmatchedFiles: Set<string> | null = null;
+    let sawTypeLevel = false;
     if (coverage.typeLevel) {
+      sawTypeLevel = true;
       const typeCoverage = await computeTypeCoverage(graph, uncovered, new FileContentCache());
 
-      // Exactly-one-non-strict-match files are satisfied for type-level
-      // coverage purposes: drop them from both tiers before the bulk
-      // unmapped/advisory issues are built. Everything else (ambiguous,
-      // strict-claimed, unmatched, unreadable) is reported ALONGSIDE the bulk
-      // issue exactly like the existing strict-scan codes are — additional,
-      // more specific errors, never a replacement for it.
-      requiredForIssue = tiers.required.filter((f) => !typeCoverage.covered.has(f));
-      middleForIssue = tiers.middle.filter((f) => !typeCoverage.covered.has(f));
-      unmatchedFiles = new Set(typeCoverage.unmatched);
+      // The lattice is one issue per file, most-binding wins: covered/
+      // ambiguous/strict-claimed/unreadable files each already have their own
+      // (silent, or more specific) verdict, so ALL four are dropped from the
+      // bulk unmapped/advisory listing and from its uncoveredCount — only
+      // genuinely-unmatched files remain in it. strictClaimed's own file is
+      // still the strict backward scan's business (type-strict-orphan /
+      // type-strict-misplaced), unaffected by this filter.
+      const spokenFor = new Set<string>(typeCoverage.covered.keys());
+      for (const a of typeCoverage.ambiguous) spokenFor.add(a.file);
+      for (const s of typeCoverage.strictClaimed) spokenFor.add(s.file);
+      for (const u of typeCoverage.unreadable) spokenFor.add(u.file);
+      requiredForIssue = tiers.required.filter((f) => !spokenFor.has(f));
+      middleForIssue = tiers.middle.filter((f) => !spokenFor.has(f));
 
       for (const a of typeCoverage.ambiguous) {
         typeLevelIssues.push({
@@ -827,9 +829,12 @@ export async function runCheck(
 
     let requiredIssue = buildCoverageIssue(requiredForIssue, totalFiles);
     let middleIssue = buildCoverageAdvisoryIssue(middleForIssue);
-    if (unmatchedFiles) {
-      requiredIssue = enrichNoTypeMessage(requiredIssue, requiredForIssue, unmatchedFiles);
-      middleIssue = enrichNoTypeMessage(middleIssue, middleForIssue, unmatchedFiles);
+    if (sawTypeLevel) {
+      // Every file left in requiredForIssue/middleForIssue at this point is
+      // genuinely unmatched (the filter above removed everything else), so the
+      // "no type for this file" sentence is unconditionally true here — no hedge.
+      requiredIssue = enrichNoTypeMessage(requiredIssue);
+      middleIssue = enrichNoTypeMessage(middleIssue);
     }
     coverageIssues = [requiredIssue, middleIssue, ...typeLevelIssues].filter(
       (x): x is CheckIssue => x !== null,
@@ -1116,6 +1121,20 @@ export function computeSuggestedNext(issues: CheckIssue[]): string | null {
     const count = errors.filter(i => i.code === 'log-format').length;
     return `Edit .yggdrasil/model/${node}/log.md to fix format violations\n  ${count} log format violation${count === 1 ? '' : 's'} — post-baseline edit OR git checkout for pre-baseline`;
   }
+
+  // 5c. ambiguous-node-type (coverage.type_level) — carries its own two-exit
+  //     guidance keyed to the FILE (the issue has no nodePath — the file has no
+  //     owning node, which is the whole problem). It IS a STRUCTURAL_CODES
+  //     member (for the summary tally / --top grouping), but the generic
+  //     structural fallback in step 6 below renders `Fix <code> in <nodePath>`,
+  //     which for a nodePath-less issue collapses to a useless
+  //     `Fix ambiguous-node-type in .yggdrasil` and discards the guidance — so
+  //     it is intercepted here first, exactly like the other node/file-specific
+  //     `next` codes above it. `.find()` already returns issues in emission
+  //     order, which is the alphabetical file order `scanUncoveredFiles` sorts
+  //     to, so this is deterministic without an extra tie-break sort.
+  const ambiguousNodeType = errors.find(i => i.code === 'ambiguous-node-type');
+  if (ambiguousNodeType) return ambiguousNodeType.messageData.next;
 
   // 6. structural. Pick the alphabetically-first structural CODE (then node),
   //    the SAME within-category tie-break groupIssues uses (label = code) — NOT
