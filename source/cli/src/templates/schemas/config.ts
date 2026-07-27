@@ -4,7 +4,7 @@ export const content = `# yg-config.yaml — Schema for the Yggdrasil project co
 # Located at .yggdrasil/yg-config.yaml — one per project.
 # Edit this after running yg init to describe your project.
 
-version: "5.1.0"                  # managed by CLI — do not edit manually. Records the graph SCHEMA
+version: "5.2.0"                  # managed by CLI — do not edit manually. Records the graph SCHEMA
                                   # version this config conforms to (advances only when the graph
                                   # format changes; NOT the CLI/package release version).
 

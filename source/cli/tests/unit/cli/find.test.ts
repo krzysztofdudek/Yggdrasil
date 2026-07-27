@@ -16,7 +16,7 @@ async function setupGraph(opts: { aspectStatus?: 'draft' | 'advisory' | 'enforce
   const yggRoot = path.join(root, '.yggdrasil');
   await mkdir(path.join(yggRoot, 'model', 'billing', 'cancel'), { recursive: true });
   await mkdir(path.join(yggRoot, 'aspects', 'end-of-period'), { recursive: true });
-  await writeFile(path.join(yggRoot, 'yg-config.yaml'), 'version: "5.1.0"\n');
+  await writeFile(path.join(yggRoot, 'yg-config.yaml'), 'version: "5.2.0"\n');
   await writeFile(path.join(yggRoot, 'yg-architecture.yaml'), 'node_types:\n  command:\n    description: cmd\n');
   await writeFile(
     path.join(yggRoot, 'model', 'billing', 'yg-node.yaml'),
@@ -101,7 +101,7 @@ describe('findCommand', () => {
     dirs.push(root);
     const yggRoot = path.join(root, '.yggdrasil');
     await mkdir(path.join(yggRoot, 'model'), { recursive: true });
-    await writeFile(path.join(yggRoot, 'yg-config.yaml'), 'version: "5.1.0"\n');
+    await writeFile(path.join(yggRoot, 'yg-config.yaml'), 'version: "5.2.0"\n');
     await writeFile(path.join(yggRoot, 'yg-architecture.yaml'), 'node_types:\n  command:\n    description: c\n');
     const out: string[] = [];
     vi.spyOn(process.stdout, 'write').mockImplementation((s: unknown) => { out.push(String(s)); return true; });

@@ -489,7 +489,7 @@ describe('yg flows (spawned binary) — lists participants and aspects', () => {
     mkdirSync(ygg, { recursive: true });
 
     // version marker so loadGraph does not reject on schema mismatch
-    writeFileSync(path.join(ygg, 'yg-config.yaml'), 'version: 5.1.0\n');
+    writeFileSync(path.join(ygg, 'yg-config.yaml'), 'version: 5.2.0\n');
     writeFileSync(
       path.join(ygg, 'yg-architecture.yaml'),
       'node_types:\n  service:\n    description: A service\n',

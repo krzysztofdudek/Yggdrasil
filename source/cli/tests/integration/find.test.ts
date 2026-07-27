@@ -17,7 +17,7 @@ async function richGraph(): Promise<string> {
   await mkdir(path.join(ygg, 'model', 'orders', 'place'), { recursive: true });
   await mkdir(path.join(ygg, 'model', 'billing', 'cancel'), { recursive: true });
   await mkdir(path.join(ygg, 'aspects', 'audit-logging'), { recursive: true });
-  await writeFile(path.join(ygg, 'yg-config.yaml'), 'version: "5.1.0"\n');
+  await writeFile(path.join(ygg, 'yg-config.yaml'), 'version: "5.2.0"\n');
   await writeFile(path.join(ygg, 'yg-architecture.yaml'), 'node_types:\n  command:\n    description: cmd\n');
   await writeFile(path.join(ygg, 'model', 'orders', 'yg-node.yaml'), 'name: orders\ntype: command\ndescription: Order management\n');
   await writeFile(path.join(ygg, 'model', 'orders', 'place', 'yg-node.yaml'), 'name: place\ntype: command\ndescription: Place a new order\n');

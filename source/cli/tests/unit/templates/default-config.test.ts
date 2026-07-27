@@ -9,8 +9,8 @@ describe('DEFAULT_CONFIG', () => {
     expect(typeof parsed).toBe('object');
   });
 
-  it('version is 5.1.0', () => {
-    expect(DEFAULT_CONFIG).toMatch(/version: "5\.1\.0"/);
+  it('version is 5.2.0', () => {
+    expect(DEFAULT_CONFIG).toMatch(/version: "5\.2\.0"/);
   });
 
   it('DEFAULT_CONFIG contains required keys', () => {

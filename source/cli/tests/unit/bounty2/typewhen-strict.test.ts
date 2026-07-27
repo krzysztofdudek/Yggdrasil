@@ -48,7 +48,7 @@ const FIXTURE = path.join(CLI_ROOT, 'tests', 'fixtures', 'e2e-lifecycle');
 const distExists = existsSync(BIN_PATH);
 
 /** Minimal yg-config with the schema version loadGraph expects. */
-const CONFIG = 'version: "5.1.0"\n';
+const CONFIG = 'version: "5.2.0"\n';
 
 type FileSpec = { rel: string; content: string; mode?: number };
 type NodeSpec = { dir: string; yaml: string };

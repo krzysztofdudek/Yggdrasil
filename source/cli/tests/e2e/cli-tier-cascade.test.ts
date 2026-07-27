@@ -130,7 +130,7 @@ function expectBothUnverified(all: string): void {
 // Two-tier config (default = standard) used to exercise the default-flip
 // scenario. BOTH tiers point at the same live mock endpoint, so the reviewer is
 // reachable no matter which one resolves.
-const twoTierConfig = (endpoint: string) => `version: "5.1.0"
+const twoTierConfig = (endpoint: string) => `version: "5.2.0"
 
 quality:
   max_direct_relations: 10
@@ -255,7 +255,7 @@ describe.skipIf(!distExists)('CLI E2E — tier-NAME identity (only the resolved 
       // body is byte-equivalent.
       writeConfig(
         dir,
-        `version: "5.1.0"
+        `version: "5.2.0"
 
 quality:
   max_direct_relations: 10
@@ -317,7 +317,7 @@ reviewer:
       // Author a config that carries an api_key, pointing at the live mock.
       writeConfig(
         dir,
-        `version: "5.1.0"
+        `version: "5.2.0"
 
 quality:
   max_direct_relations: 10
@@ -366,7 +366,7 @@ reviewer:
       // Author a config whose tier config carries a timeout, pointing at the mock.
       writeConfig(
         dir,
-        `version: "5.1.0"
+        `version: "5.2.0"
 
 quality:
   max_direct_relations: 10

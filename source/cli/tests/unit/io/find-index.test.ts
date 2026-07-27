@@ -18,7 +18,7 @@ async function setupGraph(opts: { logContent?: string; aspectContent?: string })
   const nodeDir = path.join(yggRoot, 'model', 'billing', 'cancel');
   await mkdir(nodeDir, { recursive: true });
   await mkdir(path.join(yggRoot, 'aspects', 'cancel-end-of-period'), { recursive: true });
-  await writeFile(path.join(yggRoot, 'yg-config.yaml'), 'version: "5.1.0"\n');
+  await writeFile(path.join(yggRoot, 'yg-config.yaml'), 'version: "5.2.0"\n');
   await writeFile(path.join(yggRoot, 'yg-architecture.yaml'), 'node_types:\n  command:\n    description: cmd\n');
   await writeFile(
     path.join(yggRoot, 'model', 'billing', 'yg-node.yaml'),
@@ -109,7 +109,7 @@ describe('buildIndex', () => {
     const yggRoot = path.join(root, '.yggdrasil');
     await mkdir(path.join(yggRoot, 'model', 'nodesc'), { recursive: true });
     await mkdir(path.join(yggRoot, 'aspects', 'nodesc-asp'), { recursive: true });
-    await writeFile(path.join(yggRoot, 'yg-config.yaml'), 'version: "5.1.0"\n');
+    await writeFile(path.join(yggRoot, 'yg-config.yaml'), 'version: "5.2.0"\n');
     await writeFile(path.join(yggRoot, 'yg-architecture.yaml'), 'node_types:\n  command:\n    description: cmd\n');
     await writeFile(path.join(yggRoot, 'model', 'nodesc', 'yg-node.yaml'), 'name: nodesc\ntype: command\n');
     await writeFile(path.join(yggRoot, 'aspects', 'nodesc-asp', 'yg-aspect.yaml'), 'name: nodesc-asp\nreviewer:\n  type: llm\n');

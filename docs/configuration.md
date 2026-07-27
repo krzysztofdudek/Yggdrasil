@@ -56,7 +56,7 @@ not in `yg-config.yaml`.
 ## Full annotated example
 
 ```yaml
-version: "5.1.0"
+version: "5.2.0"
 
 reviewer:
   default: standard                 # Required when more than one tier; optional with one

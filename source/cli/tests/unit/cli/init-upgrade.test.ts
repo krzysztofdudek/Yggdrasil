@@ -190,9 +190,11 @@ describe('runVersionUpgrade', () => {
     expect(claudeMd).toContain('@AGENTS.md');
 
     // The to-5.1.0 migration applies to the 4.0.0 seed: it removes the
-    // schemas/ directory and the runner lands the version at 5.1.0.
+    // schemas/ directory. No migration exists between 5.1.0 and the
+    // CLI-supported 5.2.0, so the runner's version-lift fallback carries the
+    // rest of the way and the runner lands the version at 5.2.0.
     const cfg = await readFile(path.join(yggRoot, 'yg-config.yaml'), 'utf-8');
-    expect(cfg).toContain('5.1.0');
+    expect(cfg).toContain('5.2.0');
     expect(result.migrationActions).toEqual(
       expect.arrayContaining([
         expect.stringContaining('schemas'),
@@ -210,16 +212,40 @@ describe('runVersionUpgrade', () => {
   it('is a clean no-op when config is already at the supported schema version', async () => {
     const projectRoot = await mkdtemp(path.join(tmpdir(), 'yg-init-upgrade-'));
     dirsToCleanup.push(projectRoot);
-    const yggRoot = await scaffoldExistingYgg(projectRoot, '5.1.0');
+    const yggRoot = await scaffoldExistingYgg(projectRoot, '5.2.0');
 
     const result = await runVersionUpgrade(projectRoot, yggRoot);
 
-    // Version must stay at 5.1.0 — no write, no false 'Migrated' action.
+    // Version must stay at 5.2.0 — no write, no false 'Migrated' action.
     const cfg = await readFile(path.join(yggRoot, 'yg-config.yaml'), 'utf-8');
-    expect(cfg).toContain('5.1.0');
+    expect(cfg).toContain('5.2.0');
     expect(result.migrationActions).toHaveLength(0);
     expect(result.migrationWarnings).toHaveLength(0);
     expect(result.withheld).toBe(false);
+  });
+
+  it('lifts a 5.1.0 project straight to 5.2.0 with a version-only config diff (no migration exists for this gap)', async () => {
+    const projectRoot = await mkdtemp(path.join(tmpdir(), 'yg-init-upgrade-lift-'));
+    dirsToCleanup.push(projectRoot);
+    const yggRoot = path.join(projectRoot, '.yggdrasil');
+    await mkdir(path.join(yggRoot, 'model'), { recursive: true });
+    const configPath = path.join(yggRoot, 'yg-config.yaml');
+    const before = 'version: "5.1.0"\n\nquality:\n  max_direct_relations: 10\n\ncoverage:\n  required: []\n  excluded: []\n';
+    await writeFile(configPath, before, 'utf-8');
+
+    const result = await runVersionUpgrade(projectRoot, yggRoot);
+
+    const after = await readFile(configPath, 'utf-8');
+    // The registered migration targets 5.1.0 (not strictly greater than the
+    // 5.1.0 seed), so no migration applies — the version-lift fallback is the
+    // only path that can advance a 5.1.0 project to 5.2.0, and it must touch
+    // nothing but the version line.
+    expect(after).not.toContain('5.1.0');
+    expect(after).toContain('5.2.0');
+    expect(after.replace(/^version:.*$/m, 'version: PLACEHOLDER')).toBe(
+      before.replace(/^version:.*$/m, 'version: PLACEHOLDER'),
+    );
+    expect(result.migrationActions.some((a) => a.includes('version updated to 5.2.0'))).toBe(true);
   });
 
   it('is idempotent: re-running after the artifacts already exist reports nothing written', async () => {

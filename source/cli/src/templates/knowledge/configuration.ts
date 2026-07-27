@@ -12,7 +12,7 @@ version bookkeeping to the current schema.
 Full annotated example:
 
 \`\`\`yaml
-version: "5.1.0"                   # Managed by the CLI — never set or edit by hand; not your concern.
+version: "5.2.0"                   # Managed by the CLI — never set or edit by hand; not your concern.
 
 reviewer:
   default: standard               # Tier name used when an aspect doesn't declare one.

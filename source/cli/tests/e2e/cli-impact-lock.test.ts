@@ -175,7 +175,7 @@ describe.skipIf(!distExists)('CLI E2E — yg impact re-sourced from the lock', (
     writeFileSync(
       configPath(dir),
       [
-        'version: "5.1.0"',
+        'version: "5.2.0"',
         '',
         'quality:',
         '  max_direct_relations: 10',
@@ -488,7 +488,7 @@ describe.skipIf(!distExists)('CLI E2E — yg impact --node/--file reviewer-call 
     writeFileSync(
       configPath(dir),
       [
-        'version: "5.1.0"',
+        'version: "5.2.0"',
         '',
         'quality:',
         '  max_direct_relations: 10',

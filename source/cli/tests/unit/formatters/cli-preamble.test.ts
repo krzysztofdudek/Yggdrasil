@@ -93,7 +93,7 @@ describe('loadGraphOrAbort', () => {
     expect(exitSpy).toHaveBeenCalledWith(1);
     const written = errSpy.mock.calls.map((c: unknown[]) => String(c[0])).join('');
     expect(written).toContain('newer than this CLI supports');
-    expect(written).toContain('max: 5.1.0');
+    expect(written).toContain('max: 5.2.0');
     expect(written).toContain('99.0.0');
     // Expected user error (upgrade your CLI), not an internal bug.
     expect(written).not.toContain('file an issue');

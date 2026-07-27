@@ -179,7 +179,7 @@ describe('validator', () => {
     await mkdir(badNodeDir, { recursive: true });
     await writeFile(
       path.join(yggRoot, 'yg-config.yaml'),
-      'version: "5.1.0"',
+      'version: "5.2.0"',
     );
     await writeFile(path.join(badNodeDir, 'yg-node.yaml'), 'type: service\n# missing name');
 
@@ -217,7 +217,7 @@ describe('validator', () => {
     await mkdir(serviceDir, { recursive: true });
     await writeFile(
       path.join(yggRoot, 'yg-config.yaml'),
-      'version: "5.1.0"',
+      'version: "5.2.0"',
     );
     await writeFile(path.join(serviceDir, 'yg-node.yaml'), 'name: Svc\ntype: service\n');
     await writeFile(path.join(orphanDir, 'readme.md'), '# orphan content');

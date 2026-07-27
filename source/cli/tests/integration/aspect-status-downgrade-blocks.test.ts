@@ -6,7 +6,7 @@ import { loadGraph } from '../../src/core/graph-loader.js';
 import { validate } from '../../src/core/validator.js';
 
 const YG_CONFIG = `
-version: "5.1.0"
+version: "5.2.0"
 reviewer:
   default: standard
   tiers:

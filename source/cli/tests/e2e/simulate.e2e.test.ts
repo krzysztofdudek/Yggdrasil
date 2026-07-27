@@ -8,9 +8,9 @@
 //
 // The fixture is a real git repo whose history spans exactly the cases that matter:
 //   C1  preinit-no-graph        — predates `yg init` (no .yggdrasil)  → non-comparable
-//   C2  graph-with-violation    — graph at schema 5.1.0, source trips the rule → violations
+//   C2  graph-with-violation    — graph at schema 5.2.0, source trips the rule → violations
 //   C3  schema-downgrade        — graph at schema 5.0.0 (would need migration) → non-comparable
-//   C4  clean-fix               — graph at 5.1.0, source fixed          → ran-clean
+//   C4  clean-fix               — graph at 5.2.0, source fixed          → ran-clean
 //
 // Asserted here: exit 0 (a report tool, findings never gate); each of the three
 // first-class per-commit outcomes; the pre-init commit is non-comparable and the
@@ -109,14 +109,14 @@ function buildHistoryFixture(): string {
   // C1 — predates `yg init`: source only, NO graph.
   w(dir, 'src/app.ts', SRC_BAD);
   commitAll(dir, 'preinit-no-graph');
-  // C2 — graph at 5.1.0, source still trips the rule.
-  writeGraph(dir, '5.1.0');
+  // C2 — graph at 5.2.0, source still trips the rule.
+  writeGraph(dir, '5.2.0');
   commitAll(dir, 'graph-with-violation');
   // C3 — graph downgraded to 5.0.0 (would need a migration → out of horizon).
   w(dir, '.yggdrasil/yg-config.yaml', `version: "5.0.0"\n`);
   commitAll(dir, 'schema-downgrade');
-  // C4 — graph back at 5.1.0, source fixed.
-  w(dir, '.yggdrasil/yg-config.yaml', `version: "5.1.0"\n`);
+  // C4 — graph back at 5.2.0, source fixed.
+  w(dir, '.yggdrasil/yg-config.yaml', `version: "5.2.0"\n`);
   w(dir, 'src/app.ts', SRC_GOOD);
   commitAll(dir, 'clean-fix');
   return dir;
@@ -196,7 +196,7 @@ describe.skipIf(!distExists)('CLI E2E — yg simulate', () => {
     try {
       // A loadable graph (the command loads the real project's graph first), plus an
       // LLM candidate to be refused.
-      w(dir, '.yggdrasil/yg-config.yaml', `version: "5.1.0"\n`);
+      w(dir, '.yggdrasil/yg-config.yaml', `version: "5.2.0"\n`);
       w(
         dir,
         '.yggdrasil/yg-architecture.yaml',

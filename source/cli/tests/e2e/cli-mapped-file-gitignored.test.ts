@@ -60,7 +60,7 @@ function scaffold(label: string, opts: { rescue?: boolean }): string {
   writeFileSync(
     path.join(ygRoot, 'yg-config.yaml'),
     [
-      'version: "5.1.0"',
+      'version: "5.2.0"',
       'coverage:',
       '  required:',
       '    - src/svc/',

@@ -15,7 +15,7 @@ async function setupProject(): Promise<string> {
   dirs.push(root);
   const yggRoot = path.join(root, '.yggdrasil');
   await mkdir(path.join(yggRoot, 'model'), { recursive: true });
-  await writeFile(path.join(yggRoot, 'yg-config.yaml'), 'version: "5.1.0"\n');
+  await writeFile(path.join(yggRoot, 'yg-config.yaml'), 'version: "5.2.0"\n');
   await writeFile(
     path.join(yggRoot, 'yg-architecture.yaml'),
     [

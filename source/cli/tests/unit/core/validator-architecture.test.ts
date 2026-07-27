@@ -227,7 +227,7 @@ describe('checkTypeWhenMismatch', () => {
       await mkdir(path.join(yggDir, 'model', 'svc'), { recursive: true });
       await mkdir(path.join(tmpDir, 'src'), { recursive: true });
       await writeFile(path.join(tmpDir, 'src', 'handler.ts'), 'export function handler() {}');
-      await writeFile(path.join(yggDir, 'yg-config.yaml'), 'version: "5.1.0"\n');
+      await writeFile(path.join(yggDir, 'yg-config.yaml'), 'version: "5.2.0"\n');
       await writeFile(path.join(yggDir, 'yg-architecture.yaml'), [
         'node_types:',
         '  service:',
@@ -257,7 +257,7 @@ describe('checkTypeWhenMismatch', () => {
       await mkdir(path.join(yggDir, 'model', 'svc'), { recursive: true });
       await mkdir(path.join(tmpDir, 'src'), { recursive: true });
       await writeFile(path.join(tmpDir, 'src', 'handler.ts'), '@Injectable()\nexport class SvcService {}');
-      await writeFile(path.join(yggDir, 'yg-config.yaml'), 'version: "5.1.0"\n');
+      await writeFile(path.join(yggDir, 'yg-config.yaml'), 'version: "5.2.0"\n');
       await writeFile(path.join(yggDir, 'yg-architecture.yaml'), [
         'node_types:',
         '  service:',
@@ -298,7 +298,7 @@ describe('checkTypeWhenMismatch', () => {
       const yggDir = path.join(tmpDir, '.yggdrasil');
       await mkdir(path.join(yggDir, 'model', 'svc'), { recursive: true });
       await mkdir(path.join(tmpDir, 'src'), { recursive: true });
-      await writeFile(path.join(yggDir, 'yg-config.yaml'), 'version: "5.1.0"\n');
+      await writeFile(path.join(yggDir, 'yg-config.yaml'), 'version: "5.2.0"\n');
       await writeFile(path.join(yggDir, 'yg-architecture.yaml'), [
         'node_types:',
         '  service:',
@@ -334,7 +334,7 @@ describe('checkFileMappingGitignored', () => {
       await mkdir(path.join(tmpDir, 'src'), { recursive: true });
       await writeFile(path.join(tmpDir, '.gitignore'), 'src/generated.ts\n');
       await writeFile(path.join(tmpDir, 'src', 'generated.ts'), 'export const x = 1;');
-      await writeFile(path.join(yggDir, 'yg-config.yaml'), 'version: "5.1.0"\n');
+      await writeFile(path.join(yggDir, 'yg-config.yaml'), 'version: "5.2.0"\n');
       await writeFile(path.join(yggDir, 'yg-architecture.yaml'), [
         'node_types:',
         '  service:',
@@ -365,7 +365,7 @@ describe('checkFileMappingGitignored', () => {
       await mkdir(path.join(tmpDir, 'src', 'sub'), { recursive: true });
       await writeFile(path.join(tmpDir, 'src', 'sub', '.gitignore'), 'local.ts\n');
       await writeFile(path.join(tmpDir, 'src', 'sub', 'local.ts'), 'export const y = 2;');
-      await writeFile(path.join(yggDir, 'yg-config.yaml'), 'version: "5.1.0"\n');
+      await writeFile(path.join(yggDir, 'yg-config.yaml'), 'version: "5.2.0"\n');
       await writeFile(path.join(yggDir, 'yg-architecture.yaml'), [
         'node_types:',
         '  service:',
@@ -395,7 +395,7 @@ describe('checkFileMappingGitignored', () => {
       await mkdir(path.join(yggDir, 'model', 'svc'), { recursive: true });
       await mkdir(path.join(tmpDir, 'src'), { recursive: true });
       await writeFile(path.join(tmpDir, 'src', 'handler.ts'), 'export function handle() {}');
-      await writeFile(path.join(yggDir, 'yg-config.yaml'), 'version: "5.1.0"\n');
+      await writeFile(path.join(yggDir, 'yg-config.yaml'), 'version: "5.2.0"\n');
       await writeFile(path.join(yggDir, 'yg-architecture.yaml'), [
         'node_types:',
         '  service:',
@@ -429,7 +429,7 @@ describe('checkFileMappingGitignored', () => {
       await mkdir(path.join(yggDir, 'model', 'svc'), { recursive: true });
       await mkdir(path.join(tmpDir, 'src'), { recursive: true });
       await writeFile(path.join(tmpDir, 'src', 'handler.ts'), 'export function handle() {}');
-      await writeFile(path.join(yggDir, 'yg-config.yaml'), 'version: "5.1.0"\n');
+      await writeFile(path.join(yggDir, 'yg-config.yaml'), 'version: "5.2.0"\n');
       await writeFile(path.join(yggDir, 'yg-architecture.yaml'), [
         'node_types:',
         '  service:',
@@ -464,7 +464,7 @@ describe('checkFileMappingGitignored', () => {
       await mkdir(path.join(yggDir, 'model', 'enforcers'), { recursive: true });
       await mkdir(path.join(yggDir, 'aspects', 'no-foo'), { recursive: true });
       await writeFile(path.join(yggDir, 'aspects', 'no-foo', 'check.mjs'), 'export function check() { return []; }\n');
-      await writeFile(path.join(yggDir, 'yg-config.yaml'), 'version: "5.1.0"\n');
+      await writeFile(path.join(yggDir, 'yg-config.yaml'), 'version: "5.2.0"\n');
       await writeFile(path.join(yggDir, 'yg-architecture.yaml'), [
         'node_types:',
         '  service:',
@@ -497,7 +497,7 @@ describe('checkStrictBackwardCoverage', () => {
     await mkdir(path.join(yggDir, 'model', 'svc'), { recursive: true });
     await mkdir(path.join(tmpDir, 'src'), { recursive: true });
     await writeFile(path.join(tmpDir, 'src', 'handler.ts'), opts.fileContent);
-    await writeFile(path.join(yggDir, 'yg-config.yaml'), 'version: "5.1.0"\n');
+    await writeFile(path.join(yggDir, 'yg-config.yaml'), 'version: "5.2.0"\n');
     const archLines = [
       'node_types:',
       '  command:',
@@ -561,7 +561,7 @@ describe('checkStrictBackwardCoverage', () => {
       await mkdir(path.join(yggDir, 'model', 'cmd'), { recursive: true });
       await mkdir(path.join(tmpDir, 'src'), { recursive: true });
       await writeFile(path.join(tmpDir, 'src', 'handler.ts'), 'registerCommand("baz");');
-      await writeFile(path.join(yggDir, 'yg-config.yaml'), 'version: "5.1.0"\n');
+      await writeFile(path.join(yggDir, 'yg-config.yaml'), 'version: "5.2.0"\n');
       await writeFile(path.join(yggDir, 'yg-architecture.yaml'), [
         'node_types:',
         '  command:',
@@ -593,7 +593,7 @@ describe('checkStrictOverlapConflict', () => {
     await mkdir(path.join(yggDir, 'model', 'dummy'), { recursive: true });
     await mkdir(path.join(tmpDir, 'src'), { recursive: true });
     await writeFile(path.join(tmpDir, 'src', 'foo.ts'), 'anything', 'utf-8');
-    await writeFile(path.join(yggDir, 'yg-config.yaml'), 'version: "5.1.0"\n');
+    await writeFile(path.join(yggDir, 'yg-config.yaml'), 'version: "5.2.0"\n');
     const lines = ['node_types:'];
     for (let i = 0; i < typeCount; i++) {
       lines.push(`  type${i}:`, '    description: x', '    enforce: strict', '    when:', '      path: "**"');
@@ -636,7 +636,7 @@ describe('checkStrictOverlapConflict', () => {
       await mkdir(path.join(tmpDir, 'src'), { recursive: true });
       await writeFile(path.join(tmpDir, 'src', 'a.ts'), 'aaa', 'utf-8');
       await writeFile(path.join(tmpDir, 'src', 'b.ts'), 'bbb', 'utf-8');
-      await writeFile(path.join(yggDir, 'yg-config.yaml'), 'version: "5.1.0"\n');
+      await writeFile(path.join(yggDir, 'yg-config.yaml'), 'version: "5.2.0"\n');
       await writeFile(path.join(yggDir, 'yg-architecture.yaml'), [
         'node_types:',
         '  typeA:', '    description: x', '    enforce: strict', '    when:', '      path: "**"',

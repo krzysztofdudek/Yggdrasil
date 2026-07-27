@@ -111,7 +111,7 @@ try {
   writeFileSync(path.join(proj, 'src', 'a.go'), 'package a\n// a\nvar a = 1\n');
   writeFileSync(
     path.join(ygg, 'yg-config.yaml'),
-    'version: "5.1.0"\nreviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: m\n        endpoint: "http://127.0.0.1:1"\n',
+    'version: "5.2.0"\nreviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: m\n        endpoint: "http://127.0.0.1:1"\n',
   );
   writeFileSync(
     path.join(ygg, 'yg-architecture.yaml'),

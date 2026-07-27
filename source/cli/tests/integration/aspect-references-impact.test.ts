@@ -20,7 +20,7 @@ describe('integration — yg impact --file with references', () => {
     mkdirSync(join(repo, 'docs'), { recursive: true });
     writeFileSync(join(repo, 'src', 'svc.ts'), 'x', 'utf-8');
     writeFileSync(join(repo, 'docs', 'codes.md'), 'CODE_1', 'utf-8');
-    writeFileSync(join(ygg, 'yg-config.yaml'), `version: "5.1.0"
+    writeFileSync(join(ygg, 'yg-config.yaml'), `version: "5.2.0"
 reviewer:
   default: standard
   tiers:
@@ -74,7 +74,7 @@ aspects:
     mkdirSync(join(repo, 'shared'), { recursive: true });
     writeFileSync(join(repo, 'src', 'svc.ts'), 'x', 'utf-8');
     writeFileSync(join(repo, 'shared', 'codes.ts'), 'export const C = 1;', 'utf-8');
-    writeFileSync(join(ygg, 'yg-config.yaml'), `version: "5.1.0"
+    writeFileSync(join(ygg, 'yg-config.yaml'), `version: "5.2.0"
 reviewer:
   default: standard
   tiers:

@@ -42,7 +42,7 @@ function run(
  * aspects, so the reviewer is never invoked. Including it keeps the config
  * schema-valid without introducing any external dependency.
  */
-const MINIMAL_CONFIG = `version: "5.1.0"
+const MINIMAL_CONFIG = `version: "5.2.0"
 quality:
   max_direct_relations: 10
 reviewer:
@@ -161,7 +161,7 @@ function bareUpgradeRepo(label: string): string {
   const dir = mkdtempSync(path.join(tmpdir(), `yg-upg-${label}-`));
   const yggRoot = path.join(dir, '.yggdrasil');
   mkdirSync(yggRoot, { recursive: true });
-  writeFileSync(path.join(yggRoot, 'yg-config.yaml'), 'version: "5.1.0"\n', 'utf-8');
+  writeFileSync(path.join(yggRoot, 'yg-config.yaml'), 'version: "5.2.0"\n', 'utf-8');
   return dir;
 }
 

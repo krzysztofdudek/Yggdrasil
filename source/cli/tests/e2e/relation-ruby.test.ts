@@ -68,7 +68,7 @@ function buildRepo(label: string, withRelation: boolean): string {
     root,
     '.yggdrasil/yg-config.yaml',
     [
-      'version: "5.1.0"',
+      'version: "5.2.0"',
       '',
       'quality:',
       '  max_direct_relations: 10',
@@ -168,7 +168,7 @@ describe.skipIf(!distExists)('CLI E2E — Ruby relation conformance (live, requi
         root,
         '.yggdrasil/yg-config.yaml',
         [
-          'version: "5.1.0"',
+          'version: "5.2.0"',
           '',
           'quality:',
           '  max_direct_relations: 10',
