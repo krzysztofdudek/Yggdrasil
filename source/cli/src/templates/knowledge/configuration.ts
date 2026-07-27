@@ -233,7 +233,7 @@ coverage:
     - "**/*.generated.ts"   # glob: drop generated files anywhere
 \`\`\`
 
-Controls which git-tracked files must be mapped to a node.
+Controls which coverage-visible files must be mapped to a node.
 
 - \`required\` — roots where unmapped files are a blocking \`unmapped-files\` error. Default: \`["/"]\` (whole repo — the previous always-map-everything behavior). An explicit empty list \`[]\` means require nothing: every uncovered file (outside \`excluded\`/nested) becomes a non-blocking \`uncovered-advisory\` warning and nothing blocks (pure-advisory adoption). Empty only counts when written explicitly; omitting the \`coverage\` block keeps the \`["/"]\` default.
 - \`excluded\` — roots that are silently ignored. Default: \`[]\`.

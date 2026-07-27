@@ -636,8 +636,11 @@ describe('scanUncoveredFiles + partitionByCoverageTier together', () => {
 // config is enough, so no makeProject/loadGraph fixture is needed here.
 // ──────────────────────────────────────────────────────────────────────────────
 
-function graphWithCoverage(required: string[]): Graph {
-  return { config: { coverage: { required, excluded: [], typeLevel: false } } } as unknown as Graph;
+function graphWithCoverage(required: string[], excluded: string[] = []): Graph {
+  return {
+    nodes: new Map(),
+    config: { coverage: { required, excluded, typeLevel: false } },
+  } as unknown as Graph;
 }
 
 // A real temp project directory (never touching this repo's own files), for the
@@ -661,10 +664,24 @@ async function withTempRepo(
   }
 }
 
-function graphAt(projectRoot: string, required: string[]): Graph {
+function graphAt(
+  projectRoot: string,
+  required: string[],
+  opts: { excluded?: string[]; mapping?: string[] } = {},
+): Graph {
+  const nodes = new Map<string, GraphNode>();
+  if (opts.mapping && opts.mapping.length > 0) {
+    nodes.set('n0', {
+      path: 'n0',
+      meta: { name: 'n0', type: 'service', mapping: opts.mapping },
+      children: [],
+      parent: null,
+    } as unknown as GraphNode);
+  }
   return {
     rootPath: path.join(projectRoot, '.yggdrasil'),
-    config: { coverage: { required, excluded: [], typeLevel: false } },
+    nodes,
+    config: { coverage: { required, excluded: opts.excluded ?? [], typeLevel: false } },
   } as unknown as Graph;
 }
 
@@ -781,5 +798,105 @@ describe('scanTrackedButIgnored — tracked∩gitignored anomaly', () => {
       const issues = await scanTrackedButIgnored(graph, ['src/svc/secret.ts'], []);
       expect(issues).toEqual([]);
     });
+  });
+
+  // ── C1 regression: one exclusion authority (partitionByCoverageTier), not a
+  // second, independent `required`-only test that ignored coverage.excluded ──
+
+  it('a force-tracked, gitignored file under a coverage.excluded root raises NO issue at all (the CRITICAL fix)', async () => {
+    // Before the fix, severity was computed via requiredRoots.some(matchesRoot)
+    // alone — coverage.excluded never entered the decision, so a gitignored
+    // file under an excluded root (e.g. vendor/) still came back as a
+    // non-blocking WARNING at worst, and as a blocking ERROR if `required`
+    // happened to be the whole-repo default (["/"]) — either way a flag-OFF
+    // repo's vendor/ blob could block CI. Routing through
+    // partitionByCoverageTier gives this check the exact same excluded-root
+    // exemption every other coverage check already has.
+    await withTempRepo(
+      { '.gitignore': 'vendor/blob.bin\n', 'vendor/blob.bin': 'binary-ish\n' },
+      async (root) => {
+        const graph = graphAt(root, ['/'], { excluded: ['vendor/'] });
+        const issues = await scanTrackedButIgnored(graph, ['vendor/blob.bin'], []);
+        expect(issues).toEqual([]);
+      },
+    );
+  });
+
+  it('nested-longest-match: a required root more specific than a broader excluded root still blocks (excluded does not always win)', async () => {
+    // Longest-match-wins, same as partitionByCoverageTier everywhere else:
+    // required 'src/api/' (normalized length 7) is more specific than
+    // excluded 'src/' (normalized length 3), so a file under src/api/ is
+    // required — the excluded ancestor does not silently swallow it.
+    await withTempRepo(
+      { '.gitignore': 'src/api/secret.ts\n', 'src/api/secret.ts': 'export const k = 1;\n' },
+      async (root) => {
+        const graph = graphAt(root, ['src/api/'], { excluded: ['src/'] });
+        const issues = await scanTrackedButIgnored(graph, ['src/api/secret.ts'], []);
+        expect(issues).toHaveLength(1);
+        expect(issues[0].severity).toBe('error');
+        expect(issues[0].code).toBe('tracked-file-gitignored');
+      },
+    );
+  });
+
+  it('a shallower required root loses to a more specific excluded root nested inside it (no issue)', async () => {
+    // Mirror of the previous case: excluded 'src/api/generated/' (length 17)
+    // is more specific than required 'src/' (length 3), so the file is
+    // excluded — required does not automatically win just by being declared.
+    await withTempRepo(
+      {
+        '.gitignore': 'src/api/generated/blob.ts\n',
+        'src/api/generated/blob.ts': 'export const k = 1;\n',
+      },
+      async (root) => {
+        const graph = graphAt(root, ['src/'], { excluded: ['src/api/generated/'] });
+        const issues = await scanTrackedButIgnored(graph, ['src/api/generated/blob.ts'], []);
+        expect(issues).toEqual([]);
+      },
+    );
+  });
+
+  // ── I4 regression: a file explicitly named in a node's mapping is enforced
+  // regardless of gitignore status (io/hash.ts hashes it unconditionally), so
+  // it was never actually invisible — file-mapping-gitignored owns that case ──
+
+  it('a file named DIRECTLY in a node mapping is exempt — file-mapping-gitignored already owns it, not this check', async () => {
+    await withTempRepo(
+      { '.gitignore': 'src/svc/secret.ts\n', 'src/svc/secret.ts': 'export const k = 1;\n' },
+      async (root) => {
+        const graph = graphAt(root, ['src/svc/'], { mapping: ['src/svc/secret.ts'] });
+        const issues = await scanTrackedButIgnored(graph, ['src/svc/secret.ts'], []);
+        expect(issues).toEqual([]);
+      },
+    );
+  });
+
+  it('a file only swept in via a DIRECTORY mapping entry is NOT exempt — only a literal, exact-path entry is', async () => {
+    // The exemption is narrow: expandMappingPaths only skips the gitignore
+    // filter for a literal, non-glob, exact-path entry (the else-branch that
+    // never touches gitignoreStack). A directory entry still expands through
+    // collectDirectoryFilePaths WITH the gitignore stack, so a gitignored file
+    // reached only via a directory mapping remains genuinely invisible.
+    await withTempRepo(
+      { '.gitignore': 'src/svc/secret.ts\n', 'src/svc/secret.ts': 'export const k = 1;\n' },
+      async (root) => {
+        const graph = graphAt(root, ['src/svc/'], { mapping: ['src/svc/'] });
+        const issues = await scanTrackedButIgnored(graph, ['src/svc/secret.ts'], []);
+        expect(issues).toHaveLength(1);
+        expect(issues[0].code).toBe('tracked-file-gitignored');
+      },
+    );
+  });
+
+  it('a glob mapping entry matching the file does NOT exempt it either', async () => {
+    await withTempRepo(
+      { '.gitignore': 'src/svc/secret.ts\n', 'src/svc/secret.ts': 'export const k = 1;\n' },
+      async (root) => {
+        const graph = graphAt(root, ['src/svc/'], { mapping: ['src/svc/*.ts'] });
+        const issues = await scanTrackedButIgnored(graph, ['src/svc/secret.ts'], []);
+        expect(issues).toHaveLength(1);
+        expect(issues[0].code).toBe('tracked-file-gitignored');
+      },
+    );
   });
 });

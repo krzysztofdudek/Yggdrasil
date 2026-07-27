@@ -131,7 +131,7 @@ export function buildCoverageAdvisoryIssue(uncoveredFiles: string[]): CheckIssue
     code: 'uncovered-advisory',
     rule: 'uncovered-advisory',
     messageData: {
-      what: `${uncoveredFiles.length} tracked file${uncoveredFiles.length === 1 ? '' : 's'} outside any required coverage root.\n${body}`,
+      what: `${uncoveredFiles.length} coverage-visible file${uncoveredFiles.length === 1 ? '' : 's'} outside any required coverage root.\n${body}`,
       why: 'Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it.',
       next: 'Map these files to a node, or add their root to coverage.required to make this an error.',
     },

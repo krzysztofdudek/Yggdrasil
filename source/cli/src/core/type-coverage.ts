@@ -23,8 +23,15 @@ export interface TypeCoverageResult {
   strictClaimed: Array<{ file: string; strictTypeId: string; alsoMatches: string[] }>;
   /** No type matched at all — falls through to the ordinary unmapped-files path. */
   unmatched: string[];
-  /** A matching type's `when` could not be evaluated on this file (e.g. a content predicate on an oversized file). */
-  unreadable: Array<{ file: string; typeId: string; reason: string }>;
+  /**
+   * A matching type's `when` could not be evaluated on this file (e.g. a
+   * content predicate on an oversized file) — one entry PER FILE (not per
+   * type: every unreadable type on the same file shares the same underlying
+   * FileContentCache read, so the readability verdict — and therefore
+   * `reason`/`kind` — is identical across all of them; `typeIds` names every
+   * type that could not be evaluated).
+   */
+  unreadable: Array<{ file: string; typeIds: string[]; reason: string; kind: 'read' | 'too-large' }>;
 }
 
 /**
@@ -39,7 +46,7 @@ export interface TypeCoverageResult {
  *      contributes to no other coverage issue today.
  *   2. classifyFile reports >=1 type whose `when` could not be evaluated
  *      (e.g. a content predicate on a file over the 5MB scan limit) ->
- *      `unreadable` (one entry per unreadable type). The file is never
+ *      `unreadable` (one entry per FILE, naming every unreadable type). The file is never
  *      silently treated as covered, ambiguous, or unmatched on the strength
  *      of whatever else it might have matched — mirroring the strict
  *      backward scan's own fail-closed handling of an unreadable file.
@@ -80,9 +87,13 @@ export async function computeTypeCoverage(
     const classification = await classifyFile(absPath, file, graph, cache);
 
     if (classification.unreadable.length > 0) {
-      for (const u of classification.unreadable) {
-        result.unreadable.push({ file, typeId: u.typeId, reason: u.reason });
-      }
+      const [first] = classification.unreadable;
+      result.unreadable.push({
+        file,
+        typeIds: classification.unreadable.map((u) => u.typeId),
+        reason: first.reason,
+        kind: first.kind,
+      });
       continue;
     }
 

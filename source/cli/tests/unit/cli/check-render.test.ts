@@ -1237,7 +1237,7 @@ describe('check render — header type-covered split (coverage.type_level)', () 
 
 describe('check render — zero-classifying-types notice', () => {
   const NOTICE =
-    "Type-level coverage is on, but no type in yg-architecture.yaml declares 'when:' — every file still needs an explicit node until you add classifying types.";
+    "Type-level coverage is on, but no type in yg-architecture.yaml declares 'when:' — no file can be type-covered until you add classifying types.";
 
   it('flag ON, zero classifying types: prints the standing notice', () => {
     const result: CheckResult = {

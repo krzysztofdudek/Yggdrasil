@@ -95,17 +95,17 @@ $ yg check
 
 yg check: PASS (1 warning)  0 nodes · 0/50 files (0 node-owned, 0 type-covered, 0 excluded) · 0 aspects · 0 flows
 
-Type-level coverage is on, but no type in yg-architecture.yaml declares 'when:' — every file still needs an explicit node until you add classifying types.
+Type-level coverage is on, but no type in yg-architecture.yaml declares 'when:' — no file can be type-covered until you add classifying types.
 
 Warnings (1):
 
   uncovered (50)
             src/…  (first 10 paths, then "... +40")
-            Why: Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it. Your architecture has no type for this file yet — yg type-suggest can help design one before you decide where it belongs.
-            Fix: Map these files to a node, or add their root to coverage.required to make this an error.
+            Why: Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it. Your architecture has no type for this file yet.
+            Fix: Map these files to a node, or add their root to coverage.required to make this an error. yg type-suggest --file <path> can help design one before you decide where it belongs.
 ```
 
-`yg init` turns `coverage.type_level` on by default (see [Configuration](/configuration#coverage)), and the fresh architecture starts with no classifying types — hence the notice line. Add a `when:` predicate to a type and matching files start satisfying coverage on their own, with no node required.
+`yg init` turns `coverage.type_level` on by default (see [Configuration](/configuration#coverage-config)), and the fresh architecture starts with no classifying types — hence the notice line. Add a `when:` predicate to a type and matching files start satisfying coverage on their own, with no node required.
 
 Nothing is enforced yet — the warnings are your to-do list. Tell your agent to
 create the first rule.

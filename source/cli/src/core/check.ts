@@ -16,7 +16,7 @@ import { validateFormat } from './log-format.js';
 import { toPosixPath } from '../utils/posix.js';
 import { excludeNestedGraphSubtrees, loadRootGitignoreStack, isIgnoredByStack } from '../io/repo-scanner.js';
 import type { GitignoreEntry } from '../io/repo-scanner.js';
-import { mappingEntryMatchesFile } from '../utils/mapping-path.js';
+import { mappingEntryMatchesFile, isGlobPattern, normalizeMappingPath } from '../utils/mapping-path.js';
 import { debugWrite } from '../utils/debug-log.js';
 // ── Verdict-lock live path (spec §6) ──────────────────────────
 import { readLock, LockInvalidError } from '../io/lock-store.js';
@@ -151,7 +151,7 @@ export interface CheckResult {
  * empty architecture) so the same fact reads identically on both surfaces.
  */
 export const ZERO_CLASSIFYING_TYPES_NOTICE =
-  "Type-level coverage is on, but no type in yg-architecture.yaml declares 'when:' — every file still needs an explicit node until you add classifying types.";
+  "Type-level coverage is on, but no type in yg-architecture.yaml declares 'when:' — no file can be type-covered until you add classifying types.";
 
 // ── Lock verification → issue emission (live path, spec §6) ──
 
@@ -417,10 +417,10 @@ export {
   buildCoverageIssue,
   buildCoverageAdvisoryIssue,
 } from './check-coverage-tiers.js';
-import { normalizeRoot, matchesRoot, partitionByCoverageTier, buildCoverageIssue, buildCoverageAdvisoryIssue } from './check-coverage-tiers.js';
+import { partitionByCoverageTier, buildCoverageIssue, buildCoverageAdvisoryIssue } from './check-coverage-tiers.js';
 
 /**
- * Find git-tracked files not covered by any node mapping.
+ * Find coverage-visible files not covered by any node mapping.
  * Accepts the coverage-visible file list — the CLI layer supplies `walkRepoFiles`
  * output; git is consulted only by the tracked∩gitignored anomaly check
  * (`scanTrackedButIgnored` below), the one remaining git consumer in this surface.
@@ -465,32 +465,36 @@ export function scanUncoveredFiles(graph: Graph, gitTrackedFiles: string[]): str
  * expansion are plain disk walks that skip anything `.gitignore` excludes; NEITHER
  * consults the git index. So a file that is git-tracked (legal: `git add -f`, or a
  * `.gitignore` rule added after the file was already tracked) but gitignored is
- * invisible to every layer that governs coverage, classification, and enforcement:
- * it ships in the repository, yet nothing that reads the disk walk ever sees it —
+ * invisible to every layer that governs coverage, classification, and enforcement —
  * a false green, independent of whether any node's mapping happens to match it.
  *
- * A tracked file absent from the walk is only a CANDIDATE, never proof by itself:
- * the walk also skips a symlink, anything under a `.git` segment, and (structurally,
- * not gitignore-related) the top-level `.yggdrasil/` graph directory — none of
- * those is this check's business, and `listGitTrackedFiles` already excludes the
- * symlink/non-regular-file case at the source. A candidate is only ever reported
- * after a POSITIVE match against the real root `.gitignore` stack (the same
- * mechanism `walkRepoFiles`/`expandMappingPaths` use); a candidate absent from the
- * walk for any OTHER reason (an unreadable directory, a Unicode-normalization
- * mismatch between the index and the filesystem) is silently skipped — nothing
- * truthful could be said about it here.
+ * A tracked file absent from the walk is only a CANDIDATE, never proof by itself
+ * (the walk also skips a symlink, a `.git` segment, and the top-level `.yggdrasil/`
+ * graph directory — none of that is this check's business). A candidate is only
+ * ever reported after a POSITIVE match against the real root `.gitignore` stack;
+ * a candidate absent from the walk for any OTHER reason is silently skipped —
+ * nothing truthful could be said about it here.
  *
- * `trackedFiles` is the ONE injected git-derived input in this whole surface
- * (real `git ls-files` output, supplied by the CLI layer — see
- * `io/repo-scanner.ts`'s `listGitTrackedFiles`); `walkedFiles` is the same
- * disk-walk output every other coverage check reads. `trackedFiles === null`
- * (git absent or the probe failed) silently skips this check — best-effort,
- * never a reason to fail `yg check` on its own. No root `.gitignore` at all means
- * nothing can be positively matched, so the check is skipped rather than guessing.
+ * `trackedFiles` is the ONE injected git-derived input in this surface (real
+ * `git ls-files` output, from `io/repo-scanner.ts`'s `listGitTrackedFiles`);
+ * `walkedFiles` is the same disk-walk output every other coverage check reads.
+ * `trackedFiles === null` (git absent or the probe failed) silently skips this
+ * check — best-effort, never a reason to fail `yg check` on its own. No root
+ * `.gitignore` at all means nothing can be positively matched, so the check is
+ * skipped rather than guessing.
  *
- * Severity: 'error' when the file falls under a `coverage.required` root (the
- * same tiering `scanUncoveredFiles`/`partitionByCoverageTier` use), 'warning'
- * otherwise.
+ * Severity mirrors the coverage tiers EXACTLY via `partitionByCoverageTier`'s
+ * longest-match authority — not a second, independent `required`-only test:
+ * error under `coverage.required`, warning otherwise, NO issue at all when the
+ * longest-matching root is `coverage.excluded` (same precedence, so a required
+ * root nested inside a broader excluded one still resolves correctly).
+ *
+ * One more exemption: a file named DIRECTLY (exact match, not a glob or a
+ * directory) in some node's mapping is hashed and reviewed regardless of
+ * gitignore status (`expandMappingPaths` only consults `.gitignore` when
+ * expanding a directory/glob), so it was never actually invisible —
+ * `file-mapping-gitignored` (checks/mapping.ts) already owns that shape;
+ * flagging it again here would give contradictory fixes for one file.
  */
 export async function scanTrackedButIgnored(
   graph: Graph,
@@ -500,12 +504,28 @@ export async function scanTrackedButIgnored(
   if (trackedFiles === null) return [];
   const walked = new Set(walkedFiles.map((f) => toPosixPath(f.trim())));
 
-  // Candidates: tracked, not walk-visible, and not the graph's own directory
-  // (walk-excluded by design, not by gitignore — every committed graph file
-  // would otherwise look "tracked but not walked" and false-positive).
+  // Files named DIRECTLY (non-glob, exact path match) in any node's mapping —
+  // exempt; see the doc comment above.
+  const literalMappingEntries = new Set<string>();
+  for (const node of graph.nodes.values()) {
+    for (const entry of node.meta.mapping ?? []) {
+      if (isGlobPattern(entry)) continue;
+      literalMappingEntries.add(normalizeMappingPath(entry));
+    }
+  }
+
+  // Candidates: tracked, not walk-visible, not the graph's own directory
+  // (walk-excluded by design, not by gitignore), and not directly mapped
+  // (already enforced regardless of gitignore status).
   const candidates = excludeNestedGraphSubtrees(trackedFiles)
     .map((file) => toPosixPath(file.trim()))
-    .filter((p) => !walked.has(p) && p !== '.yggdrasil' && !p.startsWith('.yggdrasil/'));
+    .filter(
+      (p) =>
+        !walked.has(p) &&
+        p !== '.yggdrasil' &&
+        !p.startsWith('.yggdrasil/') &&
+        !literalMappingEntries.has(p),
+    );
   if (candidates.length === 0) return [];
 
   const projectRoot = path.dirname(graph.rootPath);
@@ -518,10 +538,7 @@ export async function scanTrackedButIgnored(
   }
   if (gitignoreStack.length === 0) return [];
 
-  const coverage = graph.config.coverage ?? DEFAULT_COVERAGE;
-  const requiredRoots = coverage.required.map(normalizeRoot);
-
-  const issues: CheckIssue[] = [];
+  const ignoredFiles: string[] = [];
   for (const p of candidates) {
     let ignored: boolean;
     try {
@@ -531,39 +548,63 @@ export async function scanTrackedButIgnored(
       continue;
     }
     if (!ignored) continue; // walk-absent for some OTHER reason — not this check's business
-
-    const required = requiredRoots.some((r) => matchesRoot(p, r));
-    issues.push({
-      severity: required ? 'error' : 'warning',
-      code: 'tracked-file-gitignored',
-      rule: 'tracked-file-gitignored',
-      messageData: {
-        what: `File '${p}' is committed to git but matched by .gitignore — it is invisible to every coverage and enforcement layer.`,
-        why: 'The repository ships this file, yet the disk walk that feeds coverage, classification, and enforcement skips gitignored paths. Code that ships but nothing can see is a false green.',
-        next: `Either un-ignore the file (remove the .gitignore rule) or untrack it (git rm --cached '${p}').`,
-      },
-    });
+    ignoredFiles.push(p);
   }
-  return issues;
+  if (ignoredFiles.length === 0) return [];
+
+  // ONE exclusion authority: route through the same longest-match tier split
+  // every other coverage check uses, rather than a second, independent
+  // `required`-only test that (before this fix) ignored `coverage.excluded`.
+  const coverage = graph.config.coverage ?? DEFAULT_COVERAGE;
+  const tiers = partitionByCoverageTier(ignoredFiles, coverage);
+
+  const buildIssue = (p: string, severity: 'error' | 'warning'): CheckIssue => ({
+    severity,
+    code: 'tracked-file-gitignored',
+    rule: 'tracked-file-gitignored',
+    messageData: {
+      what: `File '${p}' is committed to git but matched by .gitignore — it is invisible to every coverage and enforcement layer.`,
+      why: 'The repository ships this file, yet the disk walk that feeds coverage, classification, and enforcement skips gitignored paths. Code that ships but nothing can see is a false green.',
+      next: `Either un-ignore the file (remove the .gitignore rule) or untrack it (git rm --cached '${p}').`,
+    },
+  });
+
+  return [
+    ...tiers.required.map((p) => buildIssue(p, 'error')),
+    ...tiers.middle.map((p) => buildIssue(p, 'warning')),
+  ];
 }
 
 /**
  * Type-level coverage (coverage.type_level) enrichment: a file matching no
  * classifying type at all has no type-specific fix available — the plain
  * "add it to a node mapping" advice is the only guidance there is, and it now
- * says so explicitly. Callers feed this ONLY the unmatched-filtered issue (a
- * file that is covered/ambiguous/strict-claimed/unreadable has already been
- * dropped from the array that built it — see the coverage section below), so
- * whenever `issue` is non-null every file it lists is genuinely unmatched;
- * the sentence needs no per-file hedge. Returns `issue` unchanged when null.
+ * says so explicitly, with the `yg type-suggest` pointer in NEXT (an
+ * actionable command, not folded into the factual WHY).
+ *
+ * Callers MUST call this only when every file the issue lists actually ran
+ * through the lattice and came back `unmatched` — never for a file the
+ * lattice MUTED before classification (the excluded-ancestor-of-required
+ * corner, still awaiting a maintainer ruling on exclusion semantics). A muted
+ * file was never checked against any type; asserting "your architecture has
+ * no type for this file" would be a claim the lattice never established. See
+ * the coverage section below for how the caller tells the two apart. Returns
+ * `issue` unchanged when null.
  */
 function enrichNoTypeMessage(issue: CheckIssue | null): CheckIssue | null {
   if (issue === null) return issue;
+  // Appended to the FIRST line of `next`, not a new trailing line: the
+  // renderer for this issue shape (renderUnmappedBlock, cli/check.ts) shows
+  // only next.split('\n')[0] — a later line would never reach the terminal.
+  const nextLines = issue.messageData.next.split('\n');
+  nextLines[0] =
+    `${nextLines[0]} yg type-suggest --file <path> can help design one before you decide where it belongs.`;
   return {
     ...issue,
     messageData: {
       ...issue.messageData,
-      why: `${issue.messageData.why} Your architecture has no type for this file yet — yg type-suggest can help design one before you decide where it belongs.`,
+      why: `${issue.messageData.why} Your architecture has no type for this file yet.`,
+      next: nextLines.join('\n'),
     },
   };
 }
@@ -856,10 +897,14 @@ export async function runCheck(
     let middleForIssue = tiers.middle;
     const typeLevelIssues: CheckIssue[] = [];
     let sawTypeLevel = false;
+    // Populated only when the lattice ran — lets the enrichment gate below
+    // tell a genuinely-unmatched file apart from a lattice-muted one.
+    let genuinelyUnmatched = new Set<string>();
     if (coverage.typeLevel) {
       sawTypeLevel = true;
       const typeCoverage = await computeTypeCoverage(graph, uncovered, new FileContentCache());
       typeCoveredCount = typeCoverage.covered.size;
+      genuinelyUnmatched = new Set(typeCoverage.unmatched);
 
       // The lattice is one issue per file, most-binding wins: covered/
       // ambiguous/strict-claimed/unreadable files each already have their own
@@ -888,28 +933,54 @@ export async function runCheck(
         });
       }
 
+      // One issue PER FILE, not per (file, type) pair. "too-large" is not an
+      // OS error, so its NEXT offers real exits instead of a permissions fix.
+      const unreadableWhy =
+        'coverage.type_level requires reading file content to classify an uncovered file — it must not be silently treated as covered, ambiguous, or unmatched.';
       for (const u of typeCoverage.unreadable) {
-        typeLevelIssues.push({
-          severity: 'error',
-          code: 'file-unreadable',
-          rule: 'file-unreadable',
-          messageData: {
-            what: `Type-level coverage could not read '${u.file}' while classifying it against type '${u.typeId}'.\nOS error: ${u.reason}`,
-            why: `coverage.type_level requires reading file content to classify an uncovered file against its architecture type. A file that cannot be read cannot be classified — it must not be silently treated as covered, ambiguous, or unmatched.`,
-            next: `Fix file permissions, or add to .gitignore if it's a generated artifact.`,
-          },
-        });
+        const n = u.typeIds.length;
+        const typeWord = n === 1 ? 'classifying type' : 'classifying types';
+        const typeList = u.typeIds.join(', ');
+        if (u.kind === 'too-large') {
+          typeLevelIssues.push({
+            severity: 'error',
+            code: 'file-unreadable',
+            rule: 'file-unreadable',
+            messageData: {
+              what: `Type-level coverage could not classify '${u.file}' against ${n} ${typeWord} (${typeList}) — the file exceeds the content-scan size limit.`,
+              why: unreadableWhy,
+              next: `Either gitignore the file, add its root to coverage.excluded, or drop the content: atom from ${n === 1 ? 'the type above' : 'the types above'}.`,
+            },
+          });
+        } else {
+          typeLevelIssues.push({
+            severity: 'error',
+            code: 'file-unreadable',
+            rule: 'file-unreadable',
+            messageData: {
+              what: `Type-level coverage could not read '${u.file}' while classifying it against ${n} ${typeWord} (${typeList}).\nOS error: ${u.reason}`,
+              why: unreadableWhy,
+              next: `Fix file permissions, or add to .gitignore if it's a generated artifact.`,
+            },
+          });
+        }
       }
     }
 
     let requiredIssue = buildCoverageIssue(requiredForIssue, totalFiles);
     let middleIssue = buildCoverageAdvisoryIssue(middleForIssue);
     if (sawTypeLevel) {
-      // Every file left in requiredForIssue/middleForIssue at this point is
-      // genuinely unmatched (the filter above removed everything else), so the
-      // "no type for this file" sentence is unconditionally true here — no hedge.
-      requiredIssue = enrichNoTypeMessage(requiredIssue);
-      middleIssue = enrichNoTypeMessage(middleIssue);
+      // Attach the "no type for this file" sentence only when EVERY listed
+      // file came back genuinely unmatched — never for one the lattice MUTED
+      // before classification (excluded-ancestor-of-required corner; see
+      // computeTypeCoverage). A muted file is in neither spokenFor nor
+      // unmatched, so this check alone tells the two apart.
+      if (requiredForIssue.every((f) => genuinelyUnmatched.has(f))) {
+        requiredIssue = enrichNoTypeMessage(requiredIssue);
+      }
+      if (middleForIssue.every((f) => genuinelyUnmatched.has(f))) {
+        middleIssue = enrichNoTypeMessage(middleIssue);
+      }
     }
     coverageIssues = [requiredIssue, middleIssue, ...typeLevelIssues].filter(
       (x): x is CheckIssue => x !== null,

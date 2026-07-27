@@ -105,7 +105,7 @@ describe.skipIf(!distExists)('E2E — pure-CLI init', () => {
       // anywhere), so the same standing notice `yg check` prints for a
       // zero-classifying-types graph appears in init's own closing summary.
       expect(init.stdout).toContain(
-        "Type-level coverage is on, but no type in yg-architecture.yaml declares 'when:' — every file still needs an explicit node until you add classifying types.",
+        "Type-level coverage is on, but no type in yg-architecture.yaml declares 'when:' — no file can be type-covered until you add classifying types.",
       );
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });

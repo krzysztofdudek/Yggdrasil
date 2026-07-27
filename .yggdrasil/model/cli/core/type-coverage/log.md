@@ -1,2 +1,4 @@
 ## [2026-07-27T15:57:09.526Z]
 New pure module computing the type-level classification lattice over already-uncovered files: which ones are satisfied by a single matching type, which are ambiguous between two or more, which are already owned by the strict backward scan, which match no type at all, and which could not be classified because their matching type's rule could not be evaluated. It exists so the coverage section and the strict-orphan enrichment can share one classification of a file instead of each re-deriving it.
+## [2026-07-27T19:29:38.997Z]
+computeTypeCoverage now records one unreadable entry per file, naming every classifying type that could not be evaluated against it, instead of one entry per file-type pair — every type unreadable on a given file shares the same underlying cached file read, so the readability verdict is identical across them and per-type duplication carried no extra information.

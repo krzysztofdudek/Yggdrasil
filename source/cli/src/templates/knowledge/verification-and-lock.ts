@@ -52,16 +52,25 @@ pairs on that node — a legitimate vacuous pass, no verdict, no entry.
 \`.gitignore\` excludes — like the coverage walk, it never consults the git
 index. So a file that is git-tracked AND gitignore-matched (e.g. force-added
 with \`git add -f\`, or gitignored only after it was tracked) is invisible to
-coverage and to mapping alike, no matter what mapping it falls under: it ships
-in the repository, yet nothing that reads the disk walk ever sees it. \`yg check\`
-catches this — the ONE remaining git consumer in the whole coverage surface,
-comparing real \`git ls-files\` output against the disk walk — as
-\`tracked-file-gitignored\`: error under a \`coverage.required\` root, warning
-otherwise; either un-ignore the file or untrack it (\`git rm --cached\`). The
-mirror case, \`file-mapping-gitignored\` (a mapping entry names a file directly
-that is not tracked at all — either it belongs in the repo, or it does not
-belong in the mapping), stays a blocking structural error. Both are live on
-every \`yg check\`, no \`--approve\` needed.
+coverage and to mapping alike, no matter what directory or glob mapping it
+falls under: it ships in the repository, yet nothing that reads the disk walk
+ever sees it. \`yg check\` catches this — the ONE remaining git consumer in the
+whole coverage surface, comparing real \`git ls-files\` output against the disk
+walk — as \`tracked-file-gitignored\`, mirroring the coverage tiers exactly
+(same longest-match authority, \`partitionByCoverageTier\`): error under a
+\`coverage.required\` root, warning otherwise, and no issue at all under a
+\`coverage.excluded\` root — the same exclusion authority every other coverage
+check honors, so an excluded area never gets flagged here either. Either
+un-ignore the file or untrack it (\`git rm --cached\`). One exemption beyond the
+tiers: a file named DIRECTLY in a mapping entry (not swept in via a directory
+or glob) is hashed and reviewed regardless of gitignore status — expansion
+only consults \`.gitignore\` when expanding a directory or glob, never for a
+literal file entry — so it was never actually invisible, and
+\`tracked-file-gitignored\` leaves it to the mirror case instead of also
+flagging it. The mirror case, \`file-mapping-gitignored\` (a mapping entry
+names a file directly that is not tracked at all — either it belongs in the
+repo, or it does not belong in the mapping), stays a blocking structural
+error. Both are live on every \`yg check\`, no \`--approve\` needed.
 
 ## Lock format
 

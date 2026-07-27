@@ -4,3 +4,5 @@ Add type-classifier.ts: classifies a repo file against all architecture node typ
 R0.4: file-content-cache import updated from ./file-content-cache to ../io/file-content-cache (no logic change)
 ## [2026-07-27T13:29:46.617Z]
 Classifying a file whose content predicate could not actually be evaluated (oversized file) used to fall through as a plain non-match, indistinguishable from a file that was genuinely inspected and failed the rule. The classifier now returns a distinct unreadable list so callers can tell 'rule was checked and failed' apart from 'rule was never checked'.
+## [2026-07-27T19:29:35.432Z]
+classifyFile now records why a type's predicate could not be evaluated on a file — a genuine read failure versus a file over the content-scan size limit — instead of only a reason string, so downstream consumers can give different, honest guidance for the two cases instead of one generic message that mislabeled a size limit as an OS error.

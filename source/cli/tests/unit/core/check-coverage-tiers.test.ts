@@ -96,18 +96,18 @@ describe('buildCoverageAdvisoryIssue', () => {
     const one = buildCoverageAdvisoryIssue(['src/a.ts']);
     expect(one!.code).toBe('uncovered-advisory');
     expect(one!.severity).toBe('warning');
-    expect(one!.messageData.what).toContain('1 tracked file outside any required coverage root');
+    expect(one!.messageData.what).toContain('1 coverage-visible file outside any required coverage root');
     expect(one!.messageData.what).toContain('src/a.ts');
     expect(one!.messageData.what).not.toContain('... and');
 
     const few = buildCoverageAdvisoryIssue(['src/a.ts', 'src/b.ts']);
-    expect(few!.messageData.what).toContain('2 tracked files outside any required coverage root');
+    expect(few!.messageData.what).toContain('2 coverage-visible files outside any required coverage root');
   });
 
   it('large count (> 5): lists a 5-file sample plus a remaining-count tail', () => {
     const many = Array.from({ length: 8 }, (_, i) => `src/f${i}.ts`);
     const issue = buildCoverageAdvisoryIssue(many);
-    expect(issue!.messageData.what).toContain('8 tracked files outside any required coverage root');
+    expect(issue!.messageData.what).toContain('8 coverage-visible files outside any required coverage root');
     expect(issue!.messageData.what).toContain('src/f0.ts');
     expect(issue!.messageData.what).not.toContain('src/f5.ts'); // beyond the 5-file sample
     expect(issue!.messageData.what).toContain('... and 3 more');

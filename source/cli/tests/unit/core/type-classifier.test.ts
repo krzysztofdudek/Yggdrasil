@@ -226,6 +226,7 @@ describe('classifyFile', () => {
     expect(result.matches).toHaveLength(0);
     expect(result.unreadable.map(u => u.typeId)).toContain('content-typed');
     expect(result.unreadable.find(u => u.typeId === 'content-typed')!.reason).toMatch(/5MB/);
+    expect(result.unreadable.find(u => u.typeId === 'content-typed')!.kind).toBe('too-large');
   });
 
   it('binary file under a content predicate stays a clean non-match, not unreadable (deliberate asymmetry)', async () => {
@@ -238,6 +239,21 @@ describe('classifyFile', () => {
     expect(result.matches).toHaveLength(0);
     expect(result.unreadable).toHaveLength(0);
     expect(result.closest.map(c => c.typeId)).toContain('content-typed');
+  });
+
+  it('a type whose path atom definitively fails is a clean non-match even when its content atom is unreadable for the same oversized file (I1a)', async () => {
+    const bigPath = join(tmpDir, 'huge.ts');
+    writeFileSync(bigPath, Buffer.alloc(5 * 1024 * 1024 + 1, 0x61));
+    const graph = makeGraph(
+      // 'src/**' never matches the flat repo-relative path 'huge.ts' — the
+      // all_of can never match regardless of the (also unreadable) content atom.
+      { 'scoped-content': { when: { path: 'src/**', content: 'a' } } },
+      join(tmpDir, '.yggdrasil'),
+    );
+    const result = await classifyFile(bigPath, 'huge.ts', graph, cache);
+    expect(result.matches).toHaveLength(0);
+    expect(result.unreadable).toHaveLength(0);
+    expect(result.closest.map((c) => c.typeId)).toContain('scoped-content');
   });
 
   it('a path-only type is unaffected by another type being unreadable for the same file', async () => {

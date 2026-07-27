@@ -18,6 +18,8 @@ export type ClosestType = {
 export type UnreadableType = {
   typeId: string;
   reason: string;
+  /** Why the file could not be evaluated: a genuine read failure, or over the content-scan size limit. */
+  kind: 'read' | 'too-large';
 };
 
 export type ClassificationResult = {
@@ -62,7 +64,11 @@ export async function classifyFile(
     if (def.when === undefined) continue;
     const result = await evaluateFileWhen(def.when, ctx);
     if (result.unreadable) {
-      unreadable.push({ typeId, reason: result.unreadableReason ?? 'unreadable' });
+      unreadable.push({
+        typeId,
+        reason: result.unreadableReason ?? 'unreadable',
+        kind: result.unreadableKind ?? 'read',
+      });
       continue;
     }
     if (result.result) {

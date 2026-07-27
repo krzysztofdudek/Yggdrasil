@@ -168,6 +168,59 @@ describe('evaluateFileWhen', () => {
     expect((result.trace as { detail?: string }).detail).toMatch(/5MB/);
   });
 
+  it('all_of short-circuits to a clean non-match when a definitively-false sibling makes the whole predicate unmatchable, even though another child is unreadable (I1a)', async () => {
+    const target = join(tmpDir, 'gone.ts');
+    const link = join(tmpDir, 'other.ts');
+    writeFileSync(target, '');
+    const fs = await import('node:fs');
+    fs.symlinkSync(target, link);
+    fs.unlinkSync(target);
+    // path 'src/**' does not match 'other.ts' — definitively false — so the
+    // all_of can never match regardless of what the (also unreadable) content
+    // atom would have resolved to.
+    const pred: FileWhenPredicate = { all_of: [{ path: 'src/**' }, { content: 'foo' }] };
+    const result = await evaluateFileWhen(pred, ctx('other.ts'));
+    expect(result.result).toBe(false);
+    expect(result.unreadable).toBeUndefined();
+  });
+
+  it('{ path, content } desugars to all_of, so a non-matching path also short-circuits an unreadable content atom to a clean non-match (I1a)', async () => {
+    const target = join(tmpDir, 'gone.ts');
+    const link = join(tmpDir, 'wrong-name.ts');
+    writeFileSync(target, '');
+    const fs = await import('node:fs');
+    fs.symlinkSync(target, link);
+    fs.unlinkSync(target);
+    const pred: FileWhenPredicate = { path: 'src/**', content: 'foo' };
+    const result = await evaluateFileWhen(pred, ctx('wrong-name.ts'));
+    expect(result.result).toBe(false);
+    expect(result.unreadable).toBeUndefined();
+  });
+
+  it('all_of still propagates unreadable when the ONLY definitively-resolved siblings are true (the match genuinely hinges on the unreadable atom)', async () => {
+    // Regression guard for the fix above: a TRUE sibling must not suppress
+    // propagation the way a FALSE one correctly does.
+    const target = join(tmpDir, 'gone.ts');
+    const link = join(tmpDir, 'src.ts');
+    writeFileSync(target, '');
+    const fs = await import('node:fs');
+    fs.symlinkSync(target, link);
+    fs.unlinkSync(target);
+    const pred: FileWhenPredicate = { all_of: [{ path: '*.ts' }, { content: 'foo' }] };
+    const result = await evaluateFileWhen(pred, ctx('src.ts')); // path matches — true
+    expect(result.unreadable).toBe(true);
+  });
+
+  it('a >5MB binary file under a content-only atom is a clean non-match, not unreadable (I1b, evaluator-level)', async () => {
+    const buf = Buffer.concat([Buffer.from([0x00, 0x01]), Buffer.alloc(5 * 1024 * 1024 + 1, 0x61)]);
+    writeFileSync(join(tmpDir, 'big.bin'), buf);
+    const pred: FileWhenPredicate = { content: 'a' };
+    const result = await evaluateFileWhen(pred, ctx('big.bin'));
+    expect(result.result).toBe(false);
+    expect(result.unreadable).toBeUndefined();
+    expect((result.trace as { detail?: string }).detail).toMatch(/binary/);
+  });
+
   it('any_of keeps the first unreadable reason when multiple children unreadable', async () => {
     const pred: FileWhenPredicate = {
       any_of: [{ content: 'a' }, { content: 'b' }],

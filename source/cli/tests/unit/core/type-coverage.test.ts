@@ -131,10 +131,78 @@ describe('computeTypeCoverage — classification lattice', () => {
     const result = await computeTypeCoverage(graph, [...UNCOVERED, 'src/huge.ts'], new FileContentCache());
     expect(result.unreadable).toHaveLength(1);
     expect(result.unreadable[0].file).toBe('src/huge.ts');
-    expect(result.unreadable[0].typeId).toBe('big');
+    // One entry per FILE (not per type) — typeIds names every unreadable type.
+    expect(result.unreadable[0].typeIds).toEqual(['big']);
     expect(result.unreadable[0].reason).toMatch(/5MB/);
+    expect(result.unreadable[0].kind).toBe('too-large');
     expect(result.covered.has('src/huge.ts')).toBe(false);
     expect(result.unmatched).not.toContain('src/huge.ts');
+  });
+
+  it('a file unreadable against MULTIPLE classifying types is ONE aggregated entry naming every type, not one per type (I1c)', async () => {
+    const dir = copyFixture();
+    const bigPath = path.join(dir, 'src', 'huge.ts');
+    writeFileSync(bigPath, Buffer.alloc(5 * 1024 * 1024 + 1, 0x61));
+    const graphOn = await loadGraph(dir);
+    // Add a second content-only classifying type in memory (never touching the
+    // committed fixture, which other tests pin at exactly 4 classifying types).
+    const graph: Graph = {
+      ...graphOn,
+      architecture: {
+        ...graphOn.architecture,
+        node_types: {
+          ...graphOn.architecture.node_types,
+          big2: { description: 'second content-only type', when: { content: 'BIGMARKER2' } },
+        },
+      },
+    };
+    const result = await computeTypeCoverage(graph, [...UNCOVERED, 'src/huge.ts'], new FileContentCache());
+    expect(result.unreadable).toHaveLength(1);
+    expect(result.unreadable[0].file).toBe('src/huge.ts');
+    expect([...result.unreadable[0].typeIds].sort()).toEqual(['big', 'big2']);
+    expect(result.unreadable[0].kind).toBe('too-large');
+  });
+
+  it('a >5MB BINARY file is a clean non-match everywhere in the lattice, never a blocking file-unreadable (I1b: binary wins over the size guard)', async () => {
+    const dir = copyFixture();
+    const bigBinaryPath = path.join(dir, 'src', 'huge.bin');
+    writeFileSync(
+      bigBinaryPath,
+      Buffer.concat([Buffer.from([0x00, 0x01]), Buffer.alloc(5 * 1024 * 1024 + 1, 0x61)]),
+    );
+    const graph = await loadGraph(dir);
+    const result = await computeTypeCoverage(graph, [...UNCOVERED, 'src/huge.bin'], new FileContentCache());
+    expect(result.unreadable.some((u) => u.file === 'src/huge.bin')).toBe(false);
+    expect(result.covered.has('src/huge.bin')).toBe(false);
+    // Matches no path-scoped type and 'big' correctly sees a clean binary
+    // non-match (not unreadable) — falls through to genuinely unmatched.
+    expect(result.unmatched).toContain('src/huge.bin');
+  });
+
+  it('a >5MB TEXT file short-circuits to a clean non-match for a type whose path atom definitively fails, even though its content atom is unreadable (I1a)', async () => {
+    const dir = copyFixture();
+    const bigPath = path.join(dir, 'src', 'huge.ts');
+    writeFileSync(bigPath, Buffer.alloc(5 * 1024 * 1024 + 1, 0x61));
+    const graphOn = await loadGraph(dir);
+    const graph: Graph = {
+      ...graphOn,
+      architecture: {
+        ...graphOn.architecture,
+        node_types: {
+          ...graphOn.architecture.node_types,
+          // path never matches src/huge.ts — the all_of can never match no
+          // matter what the (also unreadable) content atom would resolve to.
+          scoped: { description: 'path-scoped content type', when: { path: 'nomatch/**', content: 'BIGMARKER' } },
+        },
+      },
+    };
+    const result = await computeTypeCoverage(graph, [...UNCOVERED, 'src/huge.ts'], new FileContentCache());
+    const u = result.unreadable.find((x) => x.file === 'src/huge.ts');
+    expect(u).toBeDefined();
+    // Only 'big' (genuinely content-hinging, no path constraint) is unreadable;
+    // 'scoped' is short-circuited to a clean non-match by its failed path atom.
+    expect(u!.typeIds).toEqual(['big']);
+    expect(u!.typeIds).not.toContain('scoped');
   });
 });
 
@@ -201,6 +269,9 @@ describe('runCheck — type-level coverage wiring (flag on)', () => {
     const unmapped = result.issues.find((i) => i.code === 'unmapped-files');
     expect(unmapped?.uncoveredFiles).toContain('src/misc/plain.ts');
     expect(unmapped?.messageData.why).toContain('Your architecture has no type for this file');
+    // M4: the actionable yg type-suggest command belongs in NEXT, not WHY.
+    expect(unmapped?.messageData.why).not.toContain('type-suggest');
+    expect(unmapped?.messageData.next).toContain('yg type-suggest --file');
     // Every OTHER uncovered file in this fixture already has its own, more
     // specific verdict (covered / ambiguous / strict-claimed) — none of them
     // may also inflate this bulk listing or its count.
@@ -241,6 +312,15 @@ describe('runCheck — type-level coverage wiring (flag on)', () => {
     );
     expect(unreadable).toBeDefined();
     expect(unreadable!.severity).toBe('error');
+    // I1c: the too-large kind is not an "OS error" — the WHAT says what it
+    // actually is (exceeds the content-scan size limit) and NEXT is actionable
+    // (gitignore it, exclude its root, or drop the content: atom), not a
+    // permissions fix that would be the wrong advice for this file.
+    expect(unreadable!.messageData.what).not.toContain('OS error');
+    expect(unreadable!.messageData.what).toContain('exceeds the content-scan size limit');
+    expect(unreadable!.messageData.what).toContain('big');
+    expect(unreadable!.messageData.next).toContain('coverage.excluded');
+    expect(unreadable!.messageData.next).toContain('content:');
     const mentioning = result.issues.filter(
       (i) =>
         i.messageData.what.includes('src/huge.ts') ||
@@ -261,6 +341,44 @@ describe('runCheck — type-level coverage wiring (flag on)', () => {
     // Exactly the ambiguous issue's own messageData.next, verbatim.
     const amb = result.issues.find((i) => i.code === 'ambiguous-node-type');
     expect(result.suggestedNext).toBe(amb!.messageData.next);
+  });
+});
+
+// ===========================================================================
+// Excluded-ancestor-of-required corner (INDEPENDENT of the exclusion-
+// semantics ruling — type-coverage.ts:77's own excluded-mute test is left
+// untouched). computeTypeCoverage mutes a file the instant ANY coverage.
+// excluded root matches it, without applying partitionByCoverageTier's
+// longest-match precedence — so a file under a required root that is ALSO
+// under a broader excluded ancestor is muted (never classified at all), even
+// though partitionByCoverageTier (a different, longest-match authority) still
+// puts that same file in the required tier. This section only pins that the
+// resulting unmapped-files message never claims a fact the lattice never
+// established for a muted file — it takes no position on whether the file
+// SHOULD block.
+// ===========================================================================
+
+describe('runCheck — excluded-ancestor-of-required corner: no false "no type" claim on a lattice-muted file', () => {
+  it('a required-root file that also falls under a broader excluded root is lattice-muted, so it gets the PLAIN unmapped message, never the "no type" enrichment', async () => {
+    const dir = copyFixture();
+    const graphOn = await loadGraph(dir);
+    // required 'src/misc/' is nested inside excluded 'src/' — the fixture's
+    // only file under src/misc/ is src/misc/plain.ts.
+    const graph: Graph = {
+      ...graphOn,
+      config: {
+        ...graphOn.config,
+        coverage: { ...graphOn.config.coverage!, required: ['src/misc/'], excluded: ['src/'], typeLevel: true },
+      },
+    };
+    const files = await walkRepoFiles(dir);
+    const result = await runCheck(graph, files);
+    const unmapped = result.issues.find((i) => i.code === 'unmapped-files');
+    expect(unmapped?.uncoveredFiles).toContain('src/misc/plain.ts');
+    // The lattice never classified this file (muted before classification —
+    // it matches the excluded root 'src/'), so it must NOT be told its
+    // architecture "has no type" for it — that was never established.
+    expect(unmapped?.messageData.why).not.toContain('Your architecture has no type for this file');
   });
 });
 

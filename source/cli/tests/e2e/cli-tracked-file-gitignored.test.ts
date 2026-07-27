@@ -54,10 +54,16 @@ function run(args: string[], cwd: string): { status: number | null; out: string 
  * @param requiredRoot the `coverage.required` root — 'src/svc/' puts the
  *   anomaly under a required root (error); 'other/' puts it outside every
  *   required root (warning).
+ * @param excludedRoot optional `coverage.excluded` root — 'src/svc/' mutes the
+ *   anomaly entirely (C1: one exclusion authority, same as every other
+ *   coverage check), independent of `requiredRoot`.
  * @param initGit when false, the directory is never `git init`'d at all —
  *   `listGitTrackedFiles` then returns null and the check is silently skipped.
  */
-function scaffold(label: string, opts: { requiredRoot: string; initGit?: boolean }): string {
+function scaffold(
+  label: string,
+  opts: { requiredRoot: string; excludedRoot?: string; initGit?: boolean },
+): string {
   const dir = mkdtempSync(path.join(tmpdir(), `yg-trackedignored-e2e-${label}-`));
   const ygRoot = path.join(dir, '.yggdrasil');
   mkdirSync(path.join(ygRoot, 'model', 'svc'), { recursive: true });
@@ -73,6 +79,7 @@ function scaffold(label: string, opts: { requiredRoot: string; initGit?: boolean
       'coverage:',
       '  required:',
       `    - ${opts.requiredRoot}`,
+      ...(opts.excludedRoot !== undefined ? ['  excluded:', `    - ${opts.excludedRoot}`] : []),
       'reviewer:',
       '  tiers:',
       '    standard:',
@@ -175,6 +182,33 @@ describe('E2E: the tracked∩gitignored anomaly check (disk-walk visibility vs. 
         // i.ts falls under no required root either (only 'other/' is required),
         // so it is merely an uncovered-advisory warning too — no blocking error.
         expect(status).toBe(0);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it.skipIf(!distExists)(
+    'CRITICAL (C1): a force-tracked, gitignored file under a coverage.excluded root raises NO issue, even with a whole-repo required root',
+    () => {
+      // Mirrors the exact reproduction that motivated the fix: required: ["/"]
+      // (whole repo, the strictest possible setting) + excluded: ["src/svc/"].
+      // Before the fix, severity was computed via requiredRoots.some(matchesRoot)
+      // ALONE — coverage.excluded never entered the decision — so this would
+      // have come back a blocking ERROR (required: ["/"] matches everything)
+      // even though the file sits squarely under an excluded root a flag-OFF
+      // repo explicitly opted out of watching.
+      const dir = scaffold('excluded', { requiredRoot: '/', excludedRoot: 'src/svc/' });
+      try {
+        // Not asserting exit status: required: ["/"] also makes unrelated,
+        // unmapped repo-root plumbing (e.g. .gitignore itself) a blocking
+        // unmapped-files error in this minimal fixture — irrelevant to this
+        // check. The fix under test is specifically that secret.ts, despite
+        // being force-tracked and gitignored, raises NEITHER a warning NOR an
+        // error, because it sits under the excluded root.
+        const { out } = run(['check'], dir);
+        expect(out).not.toContain('tracked-file-gitignored');
+        expect(out).not.toContain('secret.ts');
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }
