@@ -57,12 +57,17 @@ function run(args: string[], cwd: string): { status: number | null; out: string 
  * @param excludedRoot optional `coverage.excluded` root — 'src/svc/' mutes the
  *   anomaly entirely (C1: one exclusion authority, same as every other
  *   coverage check), independent of `requiredRoot`.
+ * @param mapping optional node mapping override (default: the DIRECTORY
+ *   `src/svc/`). Pass literal file entries (e.g. `['src/svc/i.ts',
+ *   'src/svc/secret.ts']`) to exercise the I4 exemption: a file named
+ *   DIRECTLY in a mapping is hashed/reviewed regardless of gitignore status,
+ *   so `tracked-file-gitignored` must leave it to `file-mapping-gitignored`.
  * @param initGit when false, the directory is never `git init`'d at all —
  *   `listGitTrackedFiles` then returns null and the check is silently skipped.
  */
 function scaffold(
   label: string,
-  opts: { requiredRoot: string; excludedRoot?: string; initGit?: boolean },
+  opts: { requiredRoot: string; excludedRoot?: string; mapping?: string[]; initGit?: boolean },
 ): string {
   const dir = mkdtempSync(path.join(tmpdir(), `yg-trackedignored-e2e-${label}-`));
   const ygRoot = path.join(dir, '.yggdrasil');
@@ -92,9 +97,10 @@ function scaffold(
     ].join('\n'),
     'utf-8',
   );
+  const mapping = opts.mapping ?? ['src/svc/'];
   writeFileSync(
     path.join(ygRoot, 'model', 'svc', 'yg-node.yaml'),
-    'name: Svc\ntype: service\ndescription: demo\nmapping:\n  - src/svc/\n',
+    `name: Svc\ntype: service\ndescription: demo\nmapping:\n${mapping.map((m) => `  - ${m}\n`).join('')}`,
     'utf-8',
   );
   mkdirSync(path.join(dir, 'src', 'svc'), { recursive: true });
@@ -209,6 +215,33 @@ describe('E2E: the tracked∩gitignored anomaly check (disk-walk visibility vs. 
         const { out } = run(['check'], dir);
         expect(out).not.toContain('tracked-file-gitignored');
         expect(out).not.toContain('secret.ts');
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it.skipIf(!distExists)(
+    'I4 composite pin: a gitignored, force-tracked file named LITERALLY in a node mapping yields EXACTLY ONE issue — file-mapping-gitignored, never tracked-file-gitignored',
+    () => {
+      // secret.ts is simultaneously: git-tracked (force-added), gitignored,
+      // AND named directly (not via the src/svc/ directory) in the node's
+      // mapping. That last fact is what the I4 fix keys off: a literal
+      // mapping entry is hashed/reviewed regardless of gitignore status
+      // (io/hash.ts), so the file was never actually invisible — it is
+      // file-mapping-gitignored's business alone, and the anomaly check must
+      // stay silent rather than raising a second, contradictory error.
+      const dir = scaffold('i4-composite', {
+        requiredRoot: 'src/svc/',
+        mapping: ['src/svc/i.ts', 'src/svc/secret.ts'],
+      });
+      try {
+        const { out } = run(['check'], dir);
+        expect(out).toContain('file-mapping-gitignored');
+        expect(out).not.toContain('tracked-file-gitignored');
+        // Exactly one issue mentions the file — no double-reporting.
+        const mentions = out.split('secret.ts').length - 1;
+        expect(mentions).toBe(1);
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }

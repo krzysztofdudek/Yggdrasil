@@ -295,7 +295,7 @@
       "file:source/cli/src/migrations/to-5.1.0.ts": {"hash":"80f76af2b241d275af85ed2cc38583ee85a0b0cf194d4b3765df2a76fd4e1ca3","verdict":"approved"},
       "file:source/cli/src/portal/serializer.ts": {"hash":"93b42626df7744dc08cc2f51f88bd8024bdae16d4f5972d9c7597bb70276a4d6","verdict":"approved"},
       "file:source/cli/src/templates/digest.ts": {"hash":"dd9064eb465cb9d9ad7d4c310f0d1504b22249a0799c771f891047c20256d17a","verdict":"approved"},
-      "file:source/cli/src/templates/rules.ts": {"hash":"2e1ea9fea104a2588b8202c7f20466e9c4e26d332953ce39aa3c38bee93844fe","verdict":"approved"},
+      "file:source/cli/src/templates/rules.ts": {"hash":"c7ef57020afb4be1dc80bc4650a9039712cbd24dc30cb0173505a0ad4921c2bb","verdict":"approved"},
       "file:source/cli/src/utils/binary-check.ts": {"hash":"9a901d564b54bfb64faf222f3d4a0df67bfc1e0198c7eed7c01bba1dbb2b49c7","verdict":"approved"},
       "file:source/cli/src/utils/binary-extensions.ts": {"hash":"e7db4d4c5ccbeeb221b6a2af9f5ff921c8b947f83afadc0f247428386025ab1b","verdict":"approved"},
       "file:source/cli/src/utils/debug-log.ts": {"hash":"ca46fb1782906ed2a79181156fdc603c25fa5ab5ae2614f7301c18ff11dc95b9","verdict":"approved"},
@@ -474,7 +474,7 @@
       "file:source/cli/tests/e2e/cli-suppress-deterministic-remaining.test.ts": {"hash":"5aaa86434f17a678982de09761939a6debe2aef7df420074e9a423240a2b9c40","verdict":"approved"},
       "file:source/cli/tests/e2e/cli-suppress-forms.test.ts": {"hash":"6eea402b8d5a96c0858bee783a9b9f25480c092dbbe739796c9199efcd947982","verdict":"approved"},
       "file:source/cli/tests/e2e/cli-tier-cascade.test.ts": {"hash":"136165f43b6c77f6853a6f1730714c705b24cd3f6bcb782508954a74ba40db29","verdict":"approved"},
-      "file:source/cli/tests/e2e/cli-tracked-file-gitignored.test.ts": {"hash":"06286c77719c5879f714868575ceb32d3eab6fa69c7be68716a459ccd16bbb35","verdict":"approved"},
+      "file:source/cli/tests/e2e/cli-tracked-file-gitignored.test.ts": {"hash":"ec3445931b0d1de21c74083777ba51db7cd7c6a93351f63b56305b3ca2616aff","verdict":"approved"},
       "file:source/cli/tests/e2e/cli-type-coverage-lattice.test.ts": {"hash":"8fe2f8110b0ee772e7f3fcbef90c0135fea985476a32367f38174f40e3455b2f","verdict":"approved"},
       "file:source/cli/tests/e2e/cli-universal-install.test.ts": {"hash":"447920b33a50a9df20677256ac133aec6dd4e1ea365e3b1055050b0869a39f1c","verdict":"approved"},
       "file:source/cli/tests/e2e/cli-unreadable-pernode.test.ts": {"hash":"58e93b22b36173602e28c9ac18ea69399331792c43b921ecfed955192c420757","verdict":"approved"},
@@ -961,7 +961,7 @@
       "file:source/cli/src/templates/default-config.ts": {"hash":"9449c686f272320f60966e2f9ae38879ff72864b7d967ccb7547d5d0add250b2","verdict":"approved"},
       "file:source/cli/src/templates/digest.ts": {"hash":"70e163116b1e84a998b3a7d2417d571a552dae7f1e236deb690940a6ecf1dcbe","verdict":"approved"},
       "file:source/cli/src/templates/platform.ts": {"hash":"c15b8a75688a7af3cfb5f826ef50847535050f33df05771ac6cad0b27af2bba5","verdict":"approved"},
-      "file:source/cli/src/templates/rules.ts": {"hash":"ed5373e5a46bc7f3d3273b4927d7f5c23e0e8606a3a39cae61f94442b215d3b4","verdict":"approved"}
+      "file:source/cli/src/templates/rules.ts": {"hash":"ea01847fe141df024199b6ad9c40514086f3cc4169ef619e5f43e3fb9d9f09f0","verdict":"approved"}
     }
   },
   "nodes": {
