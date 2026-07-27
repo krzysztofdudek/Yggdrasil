@@ -53,8 +53,8 @@ function parseCoverage(raw: unknown, filename: string): CoverageConfig {
     if (!KNOWN_COVERAGE_KEYS.includes(key)) {
       throw new ConfigParseError({
         what: `${filename}: unknown key '${key}' under coverage.`,
-        why: `coverage accepts only: ${KNOWN_COVERAGE_KEYS.join(', ')}. A misspelled key (e.g. 'type_leval') would silently disable type-level coverage — files you believe are enforced would be enforced by nothing.`,
-        next: `Fix the key. To enable type-level coverage write: coverage.type_level: true`,
+        why: `coverage accepts only: ${KNOWN_COVERAGE_KEYS.join(', ')}. An unrecognized key is almost always a typo, and a silently ignored typo means coverage enforcement quietly differs from what the config appears to say.`,
+        next: `Fix the key to one of: ${KNOWN_COVERAGE_KEYS.join(', ')}.`,
       }, 'config-coverage-unknown-key');
     }
   }
@@ -297,10 +297,13 @@ export async function parseConfig(
     events = { committed_llm: ev.committed_llm as boolean | undefined };
   }
 
-  const coverage = parseCoverage(raw.coverage, filename);
-  // Force the committed value back, overwriting anything the merged/overlaid
-  // raw config produced — a secrets overlay can never flip type_level.
-  coverage.typeLevel = committedTypeLevel === true;
+  // A fresh object, never a mutation of whatever parseCoverage returned: when
+  // coverage: is absent, parseCoverage returns the shared DEFAULT_COVERAGE
+  // export BY REFERENCE (core/check.ts and cli/init.ts also fall back to that
+  // same export), so writing onto it here would corrupt a module-level
+  // singleton every other caller relies on. Spreading into a new object forces
+  // the committed value back without touching whatever was returned.
+  const coverage = { ...parseCoverage(raw.coverage, filename), typeLevel: committedTypeLevel === true };
 
   return {
     version,

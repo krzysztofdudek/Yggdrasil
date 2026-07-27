@@ -3,7 +3,7 @@ import { writeFile, mkdir, rm, readdir, mkdtemp } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
-import { parseConfig, ConfigParseError } from '../../../src/io/config-parser.js';
+import { parseConfig, ConfigParseError, DEFAULT_COVERAGE } from '../../../src/io/config-parser.js';
 import type { YggConfig, LlmConfig } from '../../../src/model/graph.js';
 
 /** Bridge: extract the first (and typically only) tier from the new ReviewerConfig structure */
@@ -992,6 +992,26 @@ quality:
         .rejects.toThrow(/type_leval/);
     });
 
+    it('the unknown-key message is key-generic, not type_level-specific, for an unrelated typo', async () => {
+      // A typo of `required` (e.g. `requird`) has nothing to do with type_level;
+      // the why/next must not name type-level coverage as if that were the
+      // mistake — they must name all three accepted keys instead.
+      let captured: ConfigParseError | undefined;
+      try {
+        await parseWith('coverage:\n  requird: []\n');
+      } catch (e) {
+        captured = e as ConfigParseError;
+      }
+      expect(captured).toBeInstanceOf(ConfigParseError);
+      expect(captured?.code).toBe('config-coverage-unknown-key');
+      expect(captured?.messageData.what).toContain("unknown key 'requird'");
+      expect(captured?.messageData.why).toBe(
+        'coverage accepts only: required, excluded, type_level. An unrecognized key is almost always a typo, and a silently ignored typo means coverage enforcement quietly differs from what the config appears to say.',
+      );
+      expect(captured?.messageData.next).toBe('Fix the key to one of: required, excluded, type_level.');
+      expect(captured?.messageData.why).not.toMatch(/type-level coverage/);
+    });
+
     it('rejects a non-boolean coverage.type_level', async () => {
       await expect(parseWith('coverage:\n  required: []\n  type_level: "yes"\n'))
         .rejects.toMatchObject({ code: 'config-invalid' });
@@ -1028,6 +1048,35 @@ quality:
         expect(cfg.coverage?.typeLevel).toBe(true);
       } finally {
         await rm(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('never mutates the shared DEFAULT_COVERAGE singleton', async () => {
+      // When coverage: is absent, the internal parseCoverage helper returns the
+      // DEFAULT_COVERAGE export BY REFERENCE. core/check.ts and cli/init.ts also
+      // fall back to that same export (`graph.config.coverage ?? DEFAULT_COVERAGE`),
+      // so parseConfig must never write onto the object it returns — it must
+      // build a fresh object instead. Pin both directions: the returned object
+      // is a different object from the export, and parsing a config that commits
+      // type_level: true never flips the shared default's own field.
+      const dir = await mkdtemp(path.join(FIXTURES_DIR, 'tmp-config-type-level-'));
+      const filePath = path.join(dir, 'yg-config.yaml');
+      try {
+        await writeFile(filePath, 'version: "5.1.0"\n', 'utf-8');
+        const cfg = await parseConfig(filePath, { skipSecretsOverlay: true });
+        expect(cfg.coverage).not.toBe(DEFAULT_COVERAGE);
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+
+      const dir2 = await mkdtemp(path.join(FIXTURES_DIR, 'tmp-config-type-level-'));
+      const filePath2 = path.join(dir2, 'yg-config.yaml');
+      try {
+        await writeFile(filePath2, 'version: "5.1.0"\ncoverage:\n  required: []\n  type_level: true\n', 'utf-8');
+        await parseConfig(filePath2, { skipSecretsOverlay: true });
+        expect(DEFAULT_COVERAGE.typeLevel).toBe(false);
+      } finally {
+        await rm(dir2, { recursive: true, force: true });
       }
     });
   });

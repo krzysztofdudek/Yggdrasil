@@ -41,11 +41,11 @@ Those nine are the whole of it — `version`, `reviewer`, `coverage`, `quality`,
 The parser reads the nine keys above and ignores anything else it finds at the top
 level, with no error and no warning. So `auto_aprove: full` does not enable
 auto-approval — it does nothing at all, and the check that would tell you so does
-not exist. Two nested places *are* guarded: a misspelled key directly under
+not exist. Several nested places *are* guarded: a misspelled key directly under
 `reviewer:` or inside a tier is a hard `config-reviewer-unknown-key` /
-`config-tier-unknown-key` error, and `signals:` and `events:` reject unknown keys
-too. Copy the names from this page rather than typing them from memory, and confirm
-a setting took effect by watching the behaviour change.
+`config-tier-unknown-key` error, and `signals:`, `events:`, and `coverage:` all
+reject unknown keys too. Copy the names from this page rather than typing them
+from memory, and confirm a setting took effect by watching the behaviour change.
 :::
 
 Node types are defined in the separate **architecture file** (`.yggdrasil/yg-architecture.yaml`),
@@ -225,6 +225,7 @@ Controls which git-tracked files must be mapped to a node in `yg check`.
 
 - **`required`** — List of roots. Files under a required root that are not mapped to any node produce an `unmapped-files` error (blocks CI). Default: `["/"]` (the whole repo — reproduces the previous always-map-everything behavior). An explicit empty list `[]` means **require nothing** — every uncovered file (outside `excluded`/nested) becomes a non-blocking `uncovered-advisory` warning and nothing blocks (pure-advisory adoption: you still see the full uncovered surface, but CI stays green on coverage). The empty list only takes effect when written explicitly; omitting the whole `coverage` block keeps the `["/"]` default. `yg init` writes an explicit `required: []` into a fresh `yg-config.yaml`, so newly-initialized projects start in require-nothing mode (green from the first check) — add roots as you bring areas under enforcement.
 - **`excluded`** — List of roots. Files under an excluded root are silently ignored regardless of other rules.
+- **`type_level`** — Boolean, default `false`. Turns on type-level coverage: a file matched by exactly one classifying type's `when` predicate counts as covered by that type even though it has no node of its own. Committed config only — the gitignored `yg-secrets.yaml` overlay can never change it, since the flag changes what counts as covered/uncovered for `yg check`, and that must be the same for everyone working on the repo rather than something a local override can silently flip. Omitting the key (or the whole `coverage` block) leaves today's file-only coverage exactly as it is.
 - **Roots accept the same forms as a node `mapping:` entry** — an exact file, a directory prefix (e.g. `src/`), or a [minimatch](https://github.com/isaacs/minimatch) glob (`*` within a path segment, `**` across segments). So `excluded: ["**/*.generated.ts"]` ignores generated files anywhere, and `required: ["services/*/api/**"]` scopes the blocking tier to a pattern. `/` still means the whole repo.
 - **The files Yggdrasil maintains at your repo root count like any other.** `yg init` writes and keeps up to date `AGENTS.md`, `CLAUDE.md`, `.clinerules/yggdrasil.md` and a `.gitattributes` entry. Under a whole-repo `required` (including the absent-block default) they are unmapped files like any other, so they become blocking errors the moment `yg init --upgrade` adds them to an existing project. They are repository plumbing rather than project source — the usual answer is to exclude them (`yg init --upgrade` prints this stanza whenever it applies to your project, and never edits the file itself), though mapping them to a node works equally well:
 
