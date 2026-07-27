@@ -15,17 +15,28 @@ export type ClosestType = {
   score: number;
 };
 
+export type UnreadableType = {
+  typeId: string;
+  reason: string;
+};
+
 export type ClassificationResult = {
   matches: TypeMatch[];
   closest: ClosestType[];
+  unreadable: UnreadableType[];
 };
 
 /**
  * Classify a file against all types in the architecture.
  *
  * Returns:
- *   matches  — types whose `when` evaluates to true on this file
- *   closest  — top 3 non-matching types ranked by satisfied-fraction (descending)
+ *   matches     — types whose `when` evaluates to true on this file
+ *   closest     — top 3 non-matching types ranked by satisfied-fraction (descending)
+ *   unreadable  — types whose `when` could not be evaluated on this file at all
+ *                 (e.g. a `content:` predicate on a file over the size limit).
+ *                 Distinct from a plain non-match: the predicate was never
+ *                 actually applied, so this file must not be silently treated
+ *                 as failing that type.
  *
  * Types without `when` (organizational) are skipped.
  * Files under `.yggdrasil/` are auto-exempt (evaluator returns vacuously true).
@@ -38,6 +49,7 @@ export async function classifyFile(
 ): Promise<ClassificationResult> {
   const matches: TypeMatch[] = [];
   const partialScores: ClosestType[] = [];
+  const unreadable: UnreadableType[] = [];
 
   const ctx: EvalContext = {
     absPath,
@@ -49,6 +61,10 @@ export async function classifyFile(
   for (const [typeId, def] of Object.entries(graph.architecture.node_types)) {
     if (def.when === undefined) continue;
     const result = await evaluateFileWhen(def.when, ctx);
+    if (result.unreadable) {
+      unreadable.push({ typeId, reason: result.unreadableReason ?? 'unreadable' });
+      continue;
+    }
     if (result.result) {
       matches.push({ typeId, trace: result.trace });
     } else {
@@ -60,7 +76,7 @@ export async function classifyFile(
   partialScores.sort((a, b) => b.score - a.score);
   const closest = partialScores.slice(0, 3);
 
-  return { matches, closest };
+  return { matches, closest, unreadable };
 }
 
 /**

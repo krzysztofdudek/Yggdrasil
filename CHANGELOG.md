@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **A suppression marker closed with the HTML spec's `--!>` form no longer keeps the terminator as its justification.** Only `-->` was stripped from a marker's reason text. In a Markdown file closed the other legal way, the terminator survived into the recorded reason — and a marker written with no justification at all ended up with `--!>` as its reason, which is non-empty, so it passed the check that exists to make every waiver carry one. Both closers are now recognised, restoring that rejection.
 
+- **`yg type-suggest` no longer reports a plain "no match" for a type whose classification rule couldn't actually be checked.** A file over the 5MB content-scan limit, evaluated against a type whose rule inspects file content, used to come back as an ordinary non-match — indistinguishable from a file that genuinely fails every rule. The command now lists such types separately, naming the reason the rule couldn't be applied, so it's clear the rule was never actually evaluated rather than evaluated and failed.
+
 ## [5.6.0] - 2026-07-25
 
 ### Documentation

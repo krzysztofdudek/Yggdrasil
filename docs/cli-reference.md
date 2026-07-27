@@ -629,6 +629,11 @@ content). If multiple types match, the architecture has overlapping `when` rules
 need disambiguating. If no type matches, shows the closest types by satisfied-fraction
 to help you choose where to move or refactor the file.
 
+If a type's `when` includes a `content:` predicate and the file is over the 5MB
+content-scan limit, that type's rule could not actually be checked at all — it is
+listed separately as "Could not be evaluated" rather than folded into an ordinary
+non-match, since the rule was never applied rather than applied and failed.
+
 ### `yg portal`
 
 Opens a read-only web view of the graph and its verification state on a

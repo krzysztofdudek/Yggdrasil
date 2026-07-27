@@ -2,8 +2,9 @@ name: TypeSuggestCommand
 type: command
 description: Suggests which node_type a file fits based on architecture `when`
   predicates. Returns matching types (✓), closest non-matching types ranked by
-  satisfied-fraction, or edge-case messages for .yggdrasil/ paths and
-  non-existent files.
+  satisfied-fraction, types whose when could not be evaluated at all (e.g. a
+  content predicate on a file over the size limit), or edge-case messages for
+  .yggdrasil/ paths and non-existent files.
 aspects:
   - posix-paths-output
 relations:

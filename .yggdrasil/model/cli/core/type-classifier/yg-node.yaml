@@ -1,6 +1,6 @@
 name: Type Classifier
 type: engine
-description: Classifies a file against all architecture node types that have a `when` predicate. Returns full matches (types whose when evaluates to true) and top-3 closest non-matching types ranked by satisfied-fraction (all_of average, any_of max, not invert, atom 0/1, exempt 1.0). Powers yg type-suggest.
+description: Classifies a file against all architecture node types that have a `when` predicate. Returns full matches (types whose when evaluates to true), top-3 closest non-matching types ranked by satisfied-fraction (all_of average, any_of max, not invert, atom 0/1, exempt 1.0), and types whose when could not be evaluated at all (e.g. a content predicate on a file over the size limit) so an unevaluated rule is never folded into an ordinary non-match. Powers yg type-suggest.
 aspects: []
 relations:
   - target: cli/model/file-when

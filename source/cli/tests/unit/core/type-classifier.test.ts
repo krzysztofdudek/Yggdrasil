@@ -214,4 +214,45 @@ describe('classifyFile', () => {
     expect(result.closest).toHaveLength(1);
     expect(result.closest[0].score).toBeCloseTo(0.5);
   });
+
+  it('reports content-predicate types as unreadable for a >5MB file instead of silently non-matching', async () => {
+    const bigPath = join(tmpDir, 'huge.ts');
+    writeFileSync(bigPath, Buffer.alloc(5 * 1024 * 1024 + 1, 0x61));
+    const graph = makeGraph(
+      { 'content-typed': { when: { content: 'a' } } },
+      join(tmpDir, '.yggdrasil'),
+    );
+    const result = await classifyFile(bigPath, 'huge.ts', graph, cache);
+    expect(result.matches).toHaveLength(0);
+    expect(result.unreadable.map(u => u.typeId)).toContain('content-typed');
+    expect(result.unreadable.find(u => u.typeId === 'content-typed')!.reason).toMatch(/5MB/);
+  });
+
+  it('binary file under a content predicate stays a clean non-match, not unreadable (deliberate asymmetry)', async () => {
+    writeFileSync(join(tmpDir, 'bin.dat'), Buffer.from([0x00, 0x01, 0x02, 0x61]));
+    const graph = makeGraph(
+      { 'content-typed': { when: { content: 'a' } } },
+      join(tmpDir, '.yggdrasil'),
+    );
+    const result = await classifyFile(join(tmpDir, 'bin.dat'), 'bin.dat', graph, cache);
+    expect(result.matches).toHaveLength(0);
+    expect(result.unreadable).toHaveLength(0);
+    expect(result.closest.map(c => c.typeId)).toContain('content-typed');
+  });
+
+  it('a path-only type is unaffected by another type being unreadable for the same file', async () => {
+    const bigPath = join(tmpDir, 'huge.ts');
+    writeFileSync(bigPath, Buffer.alloc(5 * 1024 * 1024 + 1, 0x61));
+    const graph = makeGraph(
+      {
+        'content-typed': { when: { content: 'a' } },
+        'path-typed': { when: { path: '*.ts' } },
+      },
+      join(tmpDir, '.yggdrasil'),
+    );
+    const result = await classifyFile(bigPath, 'huge.ts', graph, cache);
+    expect(result.matches.map(m => m.typeId)).toContain('path-typed');
+    expect(result.unreadable.map(u => u.typeId)).toContain('content-typed');
+    expect(result.unreadable.map(u => u.typeId)).not.toContain('path-typed');
+  });
 });

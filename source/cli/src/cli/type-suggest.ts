@@ -74,6 +74,7 @@ export async function typeSuggestCommand(file: string, projectRoot: string): Pro
         if (traced) process.stdout.write(traced + '\n');
       }
     }
+    printUnreadableTypes(result.unreadable);
     process.stdout.write(
       `\nNEXT\n  Three options:\n` +
         `  1. Move file under a path matching an existing type's when\n` +
@@ -88,6 +89,7 @@ export async function typeSuggestCommand(file: string, projectRoot: string): Pro
     process.stdout.write(`  ${chalk.green('✓')} ${result.matches[0].typeId}\n`);
     const traced = renderTrace(result.matches[0].trace, '      ');
     if (traced) process.stdout.write(traced + '\n');
+    printUnreadableTypes(result.unreadable);
     process.stdout.write('\n');
     return;
   }
@@ -96,10 +98,24 @@ export async function typeSuggestCommand(file: string, projectRoot: string): Pro
   for (const m of result.matches) {
     process.stdout.write(`  ${chalk.green('✓')} ${m.typeId} — full when satisfied\n`);
   }
+  printUnreadableTypes(result.unreadable);
   process.stdout.write(
     `\nNEXT\n  Architecture has overlapping when between types.\n` +
       `  Check each type's description and aspects in yg-architecture.yaml.\n\n`,
   );
+}
+
+/**
+ * Print types whose `when` could not be evaluated on this file at all (e.g. a
+ * `content:` predicate on a file over the size limit). Distinct from a plain
+ * non-match: the predicate was never actually applied to this file's content.
+ */
+function printUnreadableTypes(unreadable: { typeId: string; reason: string }[]): void {
+  if (unreadable.length === 0) return;
+  process.stdout.write(`\nCould not be evaluated (predicate unreadable):\n`);
+  for (const u of unreadable) {
+    process.stdout.write(`  ${chalk.yellow('?')} ${u.typeId} — ${u.reason}\n`);
+  }
 }
 
 export function registerTypeSuggestCommand(program: Command): void {

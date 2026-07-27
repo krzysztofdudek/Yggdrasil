@@ -97,6 +97,34 @@ describe('typeSuggestCommand', () => {
     expect(output).toMatch(/evaluating path predicates only/);
   });
 
+  it('surfaces a content-predicate type as unreadable for a file over the size limit, instead of silently non-matching', async () => {
+    const root = await setupProject();
+    await writeFile(
+      path.join(root, '.yggdrasil', 'yg-architecture.yaml'),
+      [
+        'node_types:',
+        '  command:',
+        '    description: CLI command handler',
+        '    when:',
+        '      path: "src/cli/*.ts"',
+        '  content-typed:',
+        '    description: Classified by content',
+        '    when:',
+        '      content: "abc"',
+      ].join('\n') + '\n',
+    );
+    await writeFile(
+      path.join(root, 'src', 'misc', 'huge.ts'),
+      Buffer.alloc(5 * 1024 * 1024 + 1, 0x61),
+    );
+    const output = await captureOutput(() =>
+      typeSuggestCommand('src/misc/huge.ts', root),
+    );
+    expect(output).toMatch(/Could not be evaluated/);
+    expect(output).toMatch(/content-typed/);
+    expect(output).toMatch(/5MB/);
+  });
+
   it('handles multiple matching types', async () => {
     const root = await setupProject();
     // Add a second type with overlapping when
