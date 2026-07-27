@@ -120,6 +120,25 @@ export interface CheckResult {
    * exactly the standing notice's trigger.
    */
   classifyingTypeCount?: number;
+  /**
+   * Count of files actually owned by a node mapping — `totalFiles minus`
+   * `scanUncoveredFiles(...).length`. Distinct from `coveredFiles` (above),
+   * which also folds in files under a `coverage.excluded` root: `coveredFiles`
+   * keeps its pre-existing conflated meaning for the flag-off header and for
+   * `portal/extract.ts`'s `meta.counts`, neither of which this field touches.
+   * This field exists so the flag-on header's "node-owned" term never claims
+   * ownership for a file no node actually maps.
+   */
+  nodeOwnedFiles?: number;
+  /**
+   * Count of uncovered files sitting under a `coverage.excluded` root —
+   * `scanUncoveredFiles(...).length minus (required tier + middle tier)`,
+   * the files `partitionByCoverageTier` drops silently. `coveredFiles ===`
+   * `nodeOwnedFiles + excludedFiles` always holds; kept as its own field
+   * (rather than derived by subtraction at render time) so a rendering bug
+   * can never manufacture a negative or otherwise inconsistent count.
+   */
+  excludedFiles?: number;
 }
 
 /**
@@ -796,6 +815,8 @@ export async function runCheck(
   let coveredFiles = 0;
   let totalFiles = 0;
   let typeCoveredCount = 0;
+  let nodeOwnedFiles = 0;
+  let excludedFiles = 0;
   const coverage = graph.config.coverage ?? DEFAULT_COVERAGE;
   const typeLevel = coverage.typeLevel === true;
   // Pure architecture fact — independent of the flag and of file-walk
@@ -815,11 +836,18 @@ export async function runCheck(
     totalFiles = sourceFiles.length;
     const uncovered = scanUncoveredFiles(graph, gitTrackedFiles);
     const tiers = partitionByCoverageTier(uncovered, coverage);
-    // coveredFiles/totalFiles stay the file-mapping (node-ownership) ratio —
-    // the CLI header adds typeCoveredCount to this on top of it (below) when
-    // the flag is on, rather than folding type-covered files into this count
-    // itself, so this counter's own meaning never silently changes shape.
+    // coveredFiles/totalFiles keep their pre-existing conflated meaning
+    // (node-mapped OR excluded, both counted "covered") — the flag-off
+    // header and portal/extract.ts's meta.counts both read this unchanged.
     coveredFiles = totalFiles - (tiers.required.length + tiers.middle.length);
+    // nodeOwnedFiles/excludedFiles split that same total honestly: a file is
+    // node-owned only if an actual node mapping covers it (not in `uncovered`
+    // at all); an excluded-root file is neither required nor middle tier but
+    // IS in `uncovered` — partitionByCoverageTier drops it silently, so it is
+    // recovered here by subtraction. nodeOwnedFiles + excludedFiles ===
+    // coveredFiles always.
+    nodeOwnedFiles = totalFiles - uncovered.length;
+    excludedFiles = uncovered.length - (tiers.required.length + tiers.middle.length);
 
     // Type-level classification lattice: OFF (the default) ⇒ this block never
     // runs and requiredForIssue/middleForIssue stay the untouched tiers with no
@@ -949,6 +977,8 @@ export async function runCheck(
     typeLevel,
     typeCoveredCount,
     classifyingTypeCount,
+    nodeOwnedFiles,
+    excludedFiles,
   };
 }
 

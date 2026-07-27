@@ -1143,21 +1143,29 @@ describe('check render — header type-covered split (coverage.type_level)', () 
     expect(out).not.toContain('type-covered');
   });
 
-  it('flag ON: the files metric names the node-owned/type-covered split, numerator folds in type-covered', () => {
+  it('flag ON: the files metric names the node-owned/type-covered/excluded split — "node-owned" comes from nodeOwnedFiles, NOT the conflated coveredFiles', () => {
     const result: CheckResult = {
       ...baseResult([]),
+      // coveredFiles (1) deliberately does NOT equal nodeOwnedFiles (0) here —
+      // this is the excluded-root case the header must never mislabel: a file
+      // sitting under coverage.excluded, in a graph with ZERO nodes, must never
+      // read as "node-owned" just because it is folded into the pre-existing
+      // conflated coveredFiles count.
       coveredFiles: 1,
       totalFiles: 5,
       typeLevel: true,
       typeCoveredCount: 1,
       classifyingTypeCount: 1,
+      nodeOwnedFiles: 0,
+      excludedFiles: 1,
     };
     const out = stripAnsi(formatOutput(result, { kind: 'full' }));
     // The old plain-percentage rendering is gone...
     expect(out).not.toContain('(20%)');
-    // ...replaced by the named split, with the numerator counting the
-    // type-covered file as covered (1 node-owned + 1 type-covered = 2/5).
-    expect(out).toContain('2/5 files (1 node-owned, 1 type-covered)');
+    // ...replaced by the named three-term split. The numerator counts every
+    // satisfied file (0 node-owned + 1 type-covered + 1 excluded = 2/5) —
+    // but "node-owned" itself names only the truly node-mapped file (zero).
+    expect(out).toContain('2/5 files (0 node-owned, 1 type-covered, 1 excluded)');
   });
 
   it('flag ON, fully covered: the split still renders (composition stays informative at 100%)', () => {
@@ -1168,12 +1176,30 @@ describe('check render — header type-covered split (coverage.type_level)', () 
       typeLevel: true,
       typeCoveredCount: 1,
       classifyingTypeCount: 1,
+      nodeOwnedFiles: 0,
+      excludedFiles: 1,
     };
     const out = stripAnsi(formatOutput(result, { kind: 'full' }));
-    expect(out).toContain('2/2 files (1 node-owned, 1 type-covered)');
+    expect(out).toContain('2/2 files (0 node-owned, 1 type-covered, 1 excluded)');
   });
 
-  it('flag ON, zero type-covered files: the split still names both buckets (0 type-covered)', () => {
+  it('flag ON, a real node mapping owns a file: "node-owned" names it, distinct from type-covered and excluded', () => {
+    const result: CheckResult = {
+      ...baseResult([]),
+      coveredFiles: 4,
+      totalFiles: 6,
+      typeLevel: true,
+      typeCoveredCount: 1,
+      classifyingTypeCount: 1,
+      nodeOwnedFiles: 3,
+      excludedFiles: 1,
+    };
+    const out = stripAnsi(formatOutput(result, { kind: 'full' }));
+    // Numerator: 3 node-owned + 1 type-covered + 1 excluded = 5/6.
+    expect(out).toContain('5/6 files (3 node-owned, 1 type-covered, 1 excluded)');
+  });
+
+  it('flag ON, zero excluded AND zero type-covered files: all three terms still print (always-three-term, not conditional)', () => {
     const result: CheckResult = {
       ...baseResult([]),
       coveredFiles: 3,
@@ -1181,9 +1207,29 @@ describe('check render — header type-covered split (coverage.type_level)', () 
       typeLevel: true,
       typeCoveredCount: 0,
       classifyingTypeCount: 1,
+      nodeOwnedFiles: 3,
+      excludedFiles: 0,
     };
     const out = stripAnsi(formatOutput(result, { kind: 'full' }));
-    expect(out).toContain('3/5 files (3 node-owned, 0 type-covered)');
+    expect(out).toContain('3/5 files (3 node-owned, 0 type-covered, 0 excluded)');
+  });
+
+  it('sum invariant: node-owned + type-covered + excluded === coveredFiles (the pre-existing conflated total)', () => {
+    // nodeOwnedFiles + excludedFiles must reconstitute coveredFiles exactly —
+    // this is the algebraic identity the split is built on (core/check.ts).
+    const result: CheckResult = {
+      ...baseResult([]),
+      coveredFiles: 4,
+      totalFiles: 7,
+      typeLevel: true,
+      typeCoveredCount: 2,
+      classifyingTypeCount: 1,
+      nodeOwnedFiles: 1,
+      excludedFiles: 3,
+    };
+    expect((result.nodeOwnedFiles ?? 0) + (result.excludedFiles ?? 0)).toBe(result.coveredFiles);
+    const out = stripAnsi(formatOutput(result, { kind: 'full' }));
+    expect(out).toContain('6/7 files (1 node-owned, 2 type-covered, 3 excluded)');
   });
 });
 

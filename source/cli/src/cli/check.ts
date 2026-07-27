@@ -815,15 +815,20 @@ function renderHeader(result: CheckResult, errorCount: number, warningCount: num
   const metrics: string[] = [`${result.nodeCount} nodes`];
 
   if (result.totalFiles > 0) {
-    const nodeOwned = result.coveredFiles;
     if (result.typeLevel) {
-      // Split, not a flat percentage; flag off is byte-identical below.
+      // Three honest terms, not a flat percentage. "node-owned" is
+      // nodeOwnedFiles (an actual node mapping), NEVER the legacy
+      // coveredFiles (which also folds in excluded-root files) — an
+      // excluded file gets its own term instead. Flag off is byte-identical
+      // below, using coveredFiles exactly as before.
+      const nodeOwned = result.nodeOwnedFiles ?? 0;
       const typeCovered = result.typeCoveredCount ?? 0;
-      metrics.push(`${nodeOwned + typeCovered}/${result.totalFiles} files (${nodeOwned} node-owned, ${typeCovered} type-covered)`);
-    } else if (nodeOwned < result.totalFiles) {
-      metrics.push(`${nodeOwned}/${result.totalFiles} files (${Math.round((nodeOwned / result.totalFiles) * 100)}%)`);
+      const excluded = result.excludedFiles ?? 0;
+      metrics.push(`${nodeOwned + typeCovered + excluded}/${result.totalFiles} files (${nodeOwned} node-owned, ${typeCovered} type-covered, ${excluded} excluded)`);
+    } else if (result.coveredFiles < result.totalFiles) {
+      metrics.push(`${result.coveredFiles}/${result.totalFiles} files (${Math.round((result.coveredFiles / result.totalFiles) * 100)}%)`);
     } else {
-      metrics.push(`${nodeOwned}/${result.totalFiles} files`);
+      metrics.push(`${result.coveredFiles}/${result.totalFiles} files`);
     }
   }
 

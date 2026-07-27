@@ -313,6 +313,39 @@ describe('runCheck — typeLevel / typeCoveredCount / classifyingTypeCount', () 
     expect(result.typeCoveredCount).toBe(1);
   });
 
+  it('nodeOwnedFiles/excludedFiles split honestly: the fixture has ZERO nodes, so nodeOwnedFiles is 0 even though vendor/tool.ts (excluded root) inflates the legacy coveredFiles count to 1', async () => {
+    const dir = copyFixture();
+    const result = await runOnFixture(dir);
+    // No node in this fixture owns anything — "node-owned" must read 0, never
+    // borrow from the excluded-root file that the legacy coveredFiles counter
+    // (kept unchanged for the flag-off header/portal) folds in as "covered".
+    expect(result.nodeOwnedFiles).toBe(0);
+    expect(result.excludedFiles).toBe(1); // vendor/tool.ts
+    expect(result.coveredFiles).toBe(1); // legacy conflated total, unchanged
+    expect((result.nodeOwnedFiles ?? 0) + (result.excludedFiles ?? 0)).toBe(result.coveredFiles);
+  });
+
+  it('sum invariant on the FAIL fixture: node-owned + type-covered + excluded + every issue-listed file === totalFiles', async () => {
+    const dir = copyFixture();
+    const result = await runOnFixture(dir);
+    // Every uncovered file in this fixture lands in exactly one bucket: the
+    // three header terms, or exactly one issue (ambiguous-node-type for
+    // overlap.ts, type-strict-orphan for special.ts, unmapped-files for
+    // plain.ts). None may be double-counted or dropped.
+    const headerTermsTotal =
+      (result.nodeOwnedFiles ?? 0) + (result.typeCoveredCount ?? 0) + (result.excludedFiles ?? 0);
+    const ambiguousCount = result.issues.filter((i) => i.code === 'ambiguous-node-type').length;
+    const strictOrphanCount = result.issues.filter((i) => i.code === 'type-strict-orphan').length;
+    const unmapped = result.issues.find((i) => i.code === 'unmapped-files');
+    const unmappedCount = unmapped?.uncoveredCount ?? 0;
+    expect(headerTermsTotal + ambiguousCount + strictOrphanCount + unmappedCount).toBe(result.totalFiles);
+    // Concretely: 0 node-owned + 1 type-covered + 1 excluded + 1 ambiguous +
+    // 1 strict-orphan + 1 unmapped = 5 total files.
+    expect(headerTermsTotal).toBe(2);
+    expect(ambiguousCount + strictOrphanCount + unmappedCount).toBe(3);
+    expect(result.totalFiles).toBe(5);
+  });
+
   it('flag off: typeLevel false, typeCoveredCount 0 (the lattice never ran), classifyingTypeCount unaffected (a pure architecture fact)', async () => {
     const dir = copyFixture();
     const graphOn = await loadGraph(dir);

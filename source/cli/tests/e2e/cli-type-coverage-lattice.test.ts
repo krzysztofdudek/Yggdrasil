@@ -64,6 +64,15 @@ describe.skipIf(!distExists)('E2E: type-level classification lattice via the rea
       // generic structural fallback (`Next: Fix ambiguous-node-type in .yggdrasil`).
       expect(out).toContain('Next: Two exits:');
       expect(out).not.toContain('Next: Fix ambiguous-node-type in .yggdrasil');
+      // Header split, corrected: this fixture has ZERO nodes, so "node-owned"
+      // must read 0 — vendor/tool.ts (the excluded-root file) is its own
+      // "excluded" term, never folded into "node-owned" just because the
+      // legacy coveredFiles counter (unrelated to this label) counts it.
+      // Sum invariant (core/check.ts is the source of truth; pinned again
+      // here through the real CLI process): 0 node-owned + 1 type-covered
+      // (handler.ts) + 1 excluded (vendor/tool.ts) + 1 ambiguous (overlap.ts)
+      // + 1 strict-orphan (special.ts) + 1 unmapped (plain.ts) = 5 files.
+      expect(out).toContain('2/5 files (0 node-owned, 1 type-covered, 1 excluded)');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -79,9 +88,10 @@ describe.skipIf(!distExists)('E2E: type-level classification lattice via the rea
       // is a blocking error.
       expect(status).toBe(0);
       expect(out).toContain('yg check: PASS');
-      // The split names both buckets: vendor/tool.ts (excluded root, counted
-      // node-owned) and src/svc/handler.ts (type-covered) — 2/2 total.
-      expect(out).toContain('2/2 files (1 node-owned, 1 type-covered)');
+      // This fixture also has ZERO nodes: vendor/tool.ts (excluded root) is
+      // its own "excluded" term, not "node-owned" — src/svc/handler.ts is
+      // the one type-covered file. 0 + 1 + 1 = 2/2.
+      expect(out).toContain('2/2 files (0 node-owned, 1 type-covered, 1 excluded)');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
