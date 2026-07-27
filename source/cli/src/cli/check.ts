@@ -11,7 +11,7 @@ import { runFill, FillGatingError } from '../core/fill.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
 import path from 'node:path';
 import { availableParallelism } from 'node:os';
-import { walkRepoFiles } from '../io/repo-scanner.js';
+import { walkRepoFiles, listGitTrackedFiles } from '../io/repo-scanner.js';
 import { groupIssues, type IssueGroup, getIssueLabel, FULL_WHAT_CODES, issuePriorityRank } from './group-issues.js';
 import type { YggConfig } from '../model/graph.js';
 import { readRulesArtifacts } from './rules-artifacts.js';
@@ -83,6 +83,8 @@ export function registerCheckCommand(program: Command): void {
         initDebugLog(graph.rootPath, graph.config.debug ?? false, appendToDebugLog);
         const projectRoot = path.dirname(graph.rootPath);
         const gitFiles = await walkRepoFiles(projectRoot);
+        // Tracked-file list for the anomaly check below; null (no git) skips it.
+        const tracked = listGitTrackedFiles(projectRoot);
 
         // Hidden calibration instrument. Bypasses the normal report entirely: run the
         // read-only attention dump over warm shards, print it, exit 0. Writes nothing. It is
@@ -298,6 +300,7 @@ export function registerCheckCommand(program: Command): void {
             const isQuiet = opts.quiet ?? false;
             const fill = await runFill(graph, {
               gitTrackedFiles: gitFiles,
+              trackedFiles: tracked, // mirrors reviewNowUtc/rulesArtifacts below
               onlyDeterministic: mode.onlyDeterministic,
               dryRun: isDryRun,
               // Maintain the silent feature-field index on the REAL post-fill report (the
@@ -374,6 +377,7 @@ export function registerCheckCommand(program: Command): void {
           nowUtc: () => new Date(),
           writeFeatureIndex: true,
           now: () => new Date(),
+          trackedFiles: tracked,
           rulesArtifacts: await readRulesArtifacts(projectRoot),
         });
         process.stdout.write(formatOutput(result, view));

@@ -48,17 +48,20 @@ pairs on that node — a legitimate vacuous pass, no verdict, no entry.
 \`yg context --node\` shows the per-aspect subject-file count so a mis-written
 \`scope.files\` is observable.
 
-**The gitignore trap (blocking, by design).** Mapping expansion enumerates
-GIT-TRACKED files, so a directory/glob mapping entry SKIPS anything \`.gitignore\`
-excludes. A file that is both tracked AND gitignore-matched would therefore count
-as covered while producing no review subject — an enforced rule passing over code
-no reviewer ever saw. Rather than permit that false green, \`yg check\` blocks it:
-\`mapped-file-gitignored\` (tracked + glob-mapped + gitignored — un-ignore it, name
-it DIRECTLY in the mapping since a direct file entry bypasses gitignore, or stop
-tracking it) and the mirror case \`file-mapping-gitignored\` (a mapping entry names
-a file directly that is not tracked at all — either it belongs in the repo, or it
-does not belong in the mapping). Both are structural errors, live on every
-\`yg check\`, no \`--approve\` needed.
+**The gitignore trap.** Mapping expansion is a disk walk that SKIPS anything
+\`.gitignore\` excludes — like the coverage walk, it never consults the git
+index. So a file that is git-tracked AND gitignore-matched (e.g. force-added
+with \`git add -f\`, or gitignored only after it was tracked) is invisible to
+coverage and to mapping alike, no matter what mapping it falls under: it ships
+in the repository, yet nothing that reads the disk walk ever sees it. \`yg check\`
+catches this — the ONE remaining git consumer in the whole coverage surface,
+comparing real \`git ls-files\` output against the disk walk — as
+\`tracked-file-gitignored\`: error under a \`coverage.required\` root, warning
+otherwise; either un-ignore the file or untrack it (\`git rm --cached\`). The
+mirror case, \`file-mapping-gitignored\` (a mapping entry names a file directly
+that is not tracked at all — either it belongs in the repo, or it does not
+belong in the mapping), stays a blocking structural error. Both are live on
+every \`yg check\`, no \`--approve\` needed.
 
 ## Lock format
 

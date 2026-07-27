@@ -30,5 +30,6 @@ mapping:
   - source/cli/tests/unit/io/hash.test.ts
   - source/cli/tests/unit/io/repo-scanner-nested.test.ts
   - source/cli/tests/unit/io/repo-scanner-exclusions.test.ts
+  - source/cli/tests/unit/io/repo-scanner-git-tracked.test.ts
   - source/cli/tests/unit/io/secrets-parser.test.ts
   - source/cli/tests/unit/io/read-or-default.test.ts

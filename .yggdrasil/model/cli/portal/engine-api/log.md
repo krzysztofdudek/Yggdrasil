@@ -40,3 +40,5 @@ This facade must supply the check engine with every boundary input the command-l
 The committed rules snapshot is therefore read here, alongside the wall clock, and both are read rather than accepted as parameters so that no caller can leave one out. The project root is derived from the graph itself, the same way the engine derives it, so there is no second place for the two to disagree.
 
 The declared ceiling on this node's direct dependencies was raised by one to admit the shared reader. That ceiling exists to make each new dependency on this seam a deliberate, recorded decision, and this one is: the alternative — a private copy of the same read living inside the portal — is precisely the drift the ceiling is meant to surface, because two readers can disagree about what was installed while one cannot.
+## [2026-07-27T14:26:51.561Z]
+Supplies the portal's read-only check with the same real git-tracked-file data the command-line check now uses, so the dashboard reports the same file-visibility anomaly instead of reading cleaner than the command line for the identical repository state.

@@ -59,8 +59,8 @@ mapping:
 
 Each source file has exactly one owner node. That rule keeps verification unambiguous — there is always one component, and one set of rules, responsible for any given file. When a parent maps a directory and a child node maps a specific file inside it, the child wins: that file is carved out of the parent's set, so the two never conflict. Two nodes mapping the same file any *other* way is an `overlapping-mapping` error.
 
-::: warning A gitignored file inside a mapping is a false green, so it blocks
-A directory or glob mapping entry expands over git-tracked files and skips anything `.gitignore` excludes. So a file that is *both* tracked and matched by a `.gitignore` pattern would be counted as covered while never producing a review subject — an enforced rule would pass over it with no reviewer ever seeing it. Rather than allow that, `yg check` blocks with `mapped-file-gitignored` and tells you the three ways out: un-ignore the file, name it **directly** in the mapping (a direct file entry bypasses gitignore), or stop tracking it.
+::: warning A file that is both tracked and gitignored is invisible everywhere, so it's flagged
+A directory or glob mapping entry expands over a plain directory walk that skips anything `.gitignore` excludes — it never consults git's index. So a file that is *both* tracked by git (for example force-added with `git add -f`) and matched by a `.gitignore` pattern is invisible to coverage and to mapping alike, no matter what mapping it falls under: it ships in your repository, yet nothing that governs coverage or enforcement ever sees it. `yg check` catches this as `tracked-file-gitignored` — an error when the file falls under a `coverage.required` root, a warning otherwise — and tells you the two ways out: un-ignore the file, or stop tracking it.
 
 The mirror case blocks too: a mapping entry that names a file directly which is *not* tracked at all is `file-mapping-gitignored` — either the file belongs in the repository, or it does not belong in the mapping.
 :::

@@ -30,19 +30,21 @@ vi.mock('../../../src/cli/exit-after-flush.js', () => ({
 }));
 vi.mock('../../../src/io/repo-scanner.js', () => ({
   walkRepoFiles: vi.fn(),
+  listGitTrackedFiles: vi.fn(),
 }));
 
 import { registerCheckCommand } from '../../../src/cli/check.js';
 import { loadGraphOrAbort } from '../../../src/cli/preamble.js';
 import { runFill } from '../../../src/core/fill.js';
 import { exitAfterFlush } from '../../../src/cli/exit-after-flush.js';
-import { walkRepoFiles } from '../../../src/io/repo-scanner.js';
+import { walkRepoFiles, listGitTrackedFiles } from '../../../src/io/repo-scanner.js';
 import type { CheckIssue, CheckResult } from '../../../src/core/check.js';
 
 const mockLoadGraph = vi.mocked(loadGraphOrAbort);
 const mockRunFill = vi.mocked(runFill);
 const mockExitAfterFlush = vi.mocked(exitAfterFlush);
 const mockWalkRepoFiles = vi.mocked(walkRepoFiles);
+const mockListGitTrackedFiles = vi.mocked(listGitTrackedFiles);
 
 class ExitSignal extends Error {
   constructor(public readonly code: number) {
@@ -81,12 +83,14 @@ describe('check --approve uses disk scan (walkRepoFiles), not git ls-files', () 
     mockRunFill.mockReset();
     mockExitAfterFlush.mockReset();
     mockWalkRepoFiles.mockReset();
+    mockListGitTrackedFiles.mockReset();
     mockExitAfterFlush.mockImplementation(((code: number) => process.exit(code)) as never);
     mockLoadGraph.mockResolvedValue({
       rootPath: '/fake-project/.yggdrasil',
       config: {},
     } as never);
     mockWalkRepoFiles.mockResolvedValue(['src/kept.ts', 'src/other.ts']);
+    mockListGitTrackedFiles.mockReturnValue(null);
     mockRunFill.mockResolvedValue({
       checkResult: makeCheckResult([]),
       reviewerCallsMade: 0,

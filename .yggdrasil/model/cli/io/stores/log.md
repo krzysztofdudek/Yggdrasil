@@ -116,3 +116,7 @@ A directory-only ignore rule — one written to match a directory, such as a tra
 A resolved mapped path that escapes the project root must never be handed back to a caller, including the assembler that gathers a reviewer prompt's subject files. Every path returned from mapping expansion is now funneled through a containment guard, as defense in depth behind the parse-time rejection of escaping mappings.
 
 The best-effort evidence dump written when the fill detects a divergence, together with its single rotated copy, must stay out of version control. The ignore entry covered only the exact primary filename, so the rotated copy could leak into the repository; the entry now covers the rotation as well.
+## [2026-07-27T14:26:48.182Z]
+Adds a helper that lists a project's real git-tracked files, filtered to those still present on disk so a file deleted outside git is never mistaken for a gitignore conflict, for the one remaining place the coverage surface needs to compare against git directly. Git being absent or the read failing degrades to a null result rather than raising an error, and a failing read no longer leaks git's own error text into the caller's error stream.
+## [2026-07-27T14:39:21.352Z]
+Removed a reference to another document from a code comment so the comment reads on its own without pointing elsewhere for the fact it states.

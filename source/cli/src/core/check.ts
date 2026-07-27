@@ -12,10 +12,8 @@ import { validateAppendOnly } from './log-integrity.js';
 import { STRUCTURAL_CODES, COMPLETENESS_CODES } from './check-codes.js';
 import { validateFormat } from './log-format.js';
 import { toPosixPath } from '../utils/posix.js';
-import { excludeNestedGraphSubtrees, loadRootGitignoreStack, isIgnoredByStack } from '../io/repo-scanner.js';
-import type { GitignoreEntry } from '../io/repo-scanner.js';
-import { mappingEntryMatchesFile, normalizeMappingPath, isGlobPattern } from '../utils/mapping-path.js';
-import { debugWrite } from '../utils/debug-log.js';
+import { excludeNestedGraphSubtrees } from '../io/repo-scanner.js';
+import { mappingEntryMatchesFile } from '../utils/mapping-path.js';
 // ── Verdict-lock live path (spec §6) ──────────────────────────
 import { readLock, LockInvalidError } from '../io/lock-store.js';
 import type { LockFile } from '../model/lock.js';
@@ -360,11 +358,13 @@ export {
   buildCoverageIssue,
   buildCoverageAdvisoryIssue,
 } from './check-coverage-tiers.js';
-import { partitionByCoverageTier, buildCoverageIssue, buildCoverageAdvisoryIssue } from './check-coverage-tiers.js';
+import { normalizeRoot, matchesRoot, partitionByCoverageTier, buildCoverageIssue, buildCoverageAdvisoryIssue } from './check-coverage-tiers.js';
 
 /**
  * Find git-tracked files not covered by any node mapping.
- * Accepts gitTrackedFiles as parameter for testability (CLI layer calls `git ls-files`).
+ * Accepts the coverage-visible file list — the CLI layer supplies `walkRepoFiles`
+ * output; git is consulted only by the tracked∩gitignored anomaly check
+ * (`scanTrackedButIgnored` below), the one remaining git consumer in this surface.
  * Excludes files under the bound graph's own .yggdrasil/ and under any nested-graph
  * subtree (a directory that contains its own .yggdrasil/).
  */
@@ -401,109 +401,59 @@ export function scanUncoveredFiles(graph: Graph, gitTrackedFiles: string[]): str
 }
 
 /**
- * Detect git-tracked files that the coverage scan counts as "covered" but that
- * are silently dropped from every node's expanded subject set — a false-green.
+ * Detect a git-tracked file that is invisible to the disk-based coverage walk —
+ * the tracked∩gitignored anomaly. Both `walkRepoFiles` (coverage) and
+ * `expandMappingPaths`' directory/glob expansion are plain disk walks that skip
+ * anything `.gitignore` excludes; NEITHER consults the git index. So a file that
+ * is git-tracked (legal: `git add -f`, or a `.gitignore` rule added after the
+ * file was already tracked) but gitignored is invisible to every layer that
+ * governs coverage, classification, and enforcement: it ships in the
+ * repository, yet nothing that reads the disk walk ever sees it — a false
+ * green, independent of whether any node's mapping happens to match it.
  *
- * `expandMappingPaths` gitignore-filters the results of a DIRECTORY/GLOB mapping
- * entry (a `.gitignore`-matched file is skipped), while a DIRECTLY-NAMED
- * single-file mapping entry bypasses gitignore and is always hashed. So a file
- * that is BOTH git-tracked AND gitignored (legal: `git add -f`, or a `.gitignore`
- * rule added after the file was tracked) and is reached ONLY through a
- * directory/glob entry is claimed as covered yet produces no review pair — an
- * enforced rule passes over it without any reviewer seeing it.
+ * `trackedFiles` is the ONE injected git-derived input in this whole surface
+ * (real `git ls-files` output, supplied by the CLI layer — see
+ * `io/repo-scanner.ts`'s `listGitTrackedFiles`); `walkedFiles` is the same
+ * disk-walk output every other coverage check reads. `trackedFiles === null`
+ * (git absent or the probe failed) silently skips this check — best-effort,
+ * never a reason to fail `yg check` on its own.
  *
- * A file is a "silent drop" when ALL FOUR hold:
- *   (1) it is git-tracked (in `gitTrackedFiles`), AND
- *   (2) it is matched by at least one node's mapping entry (treated as covered), AND
- *   (3) it is gitignored (root `.gitignore`, the same machinery the hash layer uses), AND
- *   (4) it is NOT matched by any DIRECTLY-NAMED single-file mapping entry anywhere in
- *       the graph (a directly-named entry bypasses gitignore and would include it → safe).
- *
- * A mapping entry is "directly-named" for a file when it is a concrete path with no
- * glob characters whose normalized form EQUALS the normalized file path. A directory
- * entry (prefix match) or a glob entry is NOT directly-named.
- *
- * Returns the offending repo-relative POSIX paths, sorted. This is PURELY ADDITIVE:
- * it does not touch `scanUncoveredFiles` or the mapping-expansion logic.
+ * Severity: 'error' when the file falls under a `coverage.required` root (the
+ * same tiering `scanUncoveredFiles`/`partitionByCoverageTier` use), 'warning'
+ * otherwise. The top-level `.yggdrasil/` graph directory is excluded — it is
+ * walk-excluded BY DESIGN (`walkRepoFiles` never descends into it at all), not
+ * because of `.gitignore`, so every committed graph file would otherwise look
+ * "tracked but not walked" and false-positive on the graph's own files. A
+ * nested graph's own subtree is excluded the same way `scanUncoveredFiles` does.
  */
-export async function scanGitignoredCoveredFiles(
+export function scanTrackedButIgnored(
   graph: Graph,
-  gitTrackedFiles: string[],
-): Promise<string[]> {
-  // Collect all mapping entries, and separately the set of directly-named (plain,
-  // non-glob) entries — the latter bypass gitignore in the hash layer.
-  const allMappings: string[] = [];
-  const directlyNamed = new Set<string>();
-  for (const node of graph.nodes.values()) {
-    for (const raw of normalizeMappingPaths(node.meta.mapping)) {
-      allMappings.push(raw);
-      if (!isGlobPattern(raw)) directlyNamed.add(normalizeMappingPath(raw));
-    }
+  trackedFiles: string[] | null,
+  walkedFiles: string[],
+): CheckIssue[] {
+  if (trackedFiles === null) return [];
+  const walked = new Set(walkedFiles.map((f) => toPosixPath(f.trim())));
+  const coverage = graph.config.coverage ?? DEFAULT_COVERAGE;
+  const requiredRoots = coverage.required.map(normalizeRoot);
+
+  const issues: CheckIssue[] = [];
+  for (const file of excludeNestedGraphSubtrees(trackedFiles)) {
+    const p = toPosixPath(file.trim());
+    if (walked.has(p) || p === '.yggdrasil' || p.startsWith('.yggdrasil/')) continue; // visible, or graph-internal
+
+    const required = requiredRoots.some((r) => matchesRoot(p, r));
+    issues.push({
+      severity: required ? 'error' : 'warning',
+      code: 'tracked-file-gitignored',
+      rule: 'tracked-file-gitignored',
+      messageData: {
+        what: `File '${p}' is committed to git but matched by .gitignore — it is invisible to every coverage and enforcement layer.`,
+        why: 'The repository ships this file, yet the disk walk that feeds coverage, classification, and enforcement skips gitignored paths. Code that ships but nothing can see is a false green.',
+        next: `Either un-ignore the file (remove the .gitignore rule) or untrack it (git rm --cached '${p}').`,
+      },
+    });
   }
-
-  const projectRoot = path.dirname(graph.rootPath);
-  const yggPrefix = toPosixPath(path.relative(projectRoot, graph.rootPath));
-
-  // Load the root .gitignore stack once (the same loader the hash/expand layer uses).
-  // A failure to read it is debug-logged inside the loader and yields an empty stack —
-  // no false positives (nothing is reported as gitignored).
-  let gitignoreStack: GitignoreEntry[];
-  try {
-    gitignoreStack = await loadRootGitignoreStack(projectRoot);
-  } catch (err) {
-    debugWrite(`[check] scanGitignoredCoveredFiles: gitignore load failed: ${(err as Error).message}`);
-    gitignoreStack = [];
-  }
-  if (gitignoreStack.length === 0) return [];
-
-  const offending: string[] = [];
-  const tracked = excludeNestedGraphSubtrees(gitTrackedFiles);
-  for (const file of tracked) {
-    const normalized = toPosixPath(file.trim());
-
-    // (graph-self exclusion, mirrors scanUncoveredFiles)
-    if (normalized.startsWith(yggPrefix + '/') || normalized === yggPrefix) continue;
-
-    // (2) matched by at least one node's mapping entry → counted as covered.
-    if (!allMappings.some((mp) => mappingEntryMatchesFile(mp, normalized))) continue;
-
-    // (4) a directly-named single-file entry pointing at this exact file rescues it.
-    if (directlyNamed.has(normalizeMappingPath(normalized))) continue;
-
-    // (3) gitignored under the root .gitignore (absolute path, like the hash layer).
-    let ignored: boolean;
-    try {
-      ignored = isIgnoredByStack(path.join(projectRoot, normalized), gitignoreStack);
-    } catch (err) {
-      debugWrite(`[check] scanGitignoredCoveredFiles: isIgnoredByStack threw for ${normalized}: ${(err as Error).message}`);
-      continue;
-    }
-    if (!ignored) continue;
-
-    offending.push(normalized);
-  }
-
-  return offending.sort();
-}
-
-/**
- * Build one blocking 'mapped-file-gitignored' CheckIssue per silent-drop file.
- * Distinct what/why/next from the plain "not covered" wording — the file IS
- * matched by a mapping; the problem is the gitignore conflict that excludes it
- * from review. Structured messageData only (no buildIssueMessage in the engine —
- * the CLI layer renders it, exactly like every other coverage/structural issue).
- */
-function buildGitignoredCoveredIssues(offending: string[]): CheckIssue[] {
-  return offending.map((file) => ({
-    severity: 'error' as const,
-    code: 'mapped-file-gitignored',
-    rule: 'mapped-file-gitignored',
-    messageData: {
-      what: `File '${file}' is git-tracked and matched by a node mapping, but is excluded from review because it matches a .gitignore pattern (and is only reached via a directory/glob mapping entry).`,
-      why: 'A directory/glob mapping entry skips gitignored files, so this tracked source file produces no review subject — an enforced rule would pass over it without any reviewer seeing it (a false green).',
-      next: `Un-ignore the file in .gitignore, name it directly in the node mapping (direct file entries bypass gitignore), or stop tracking it (git rm --cached ${file}), then re-run yg check.`,
-    },
-  }));
+  return issues;
 }
 
 // ── Check orchestrator ────────────────────────────────────
@@ -519,7 +469,17 @@ function buildGitignoredCoveredIssues(offending: string[]): CheckIssue[] {
  * (parse + resolve + verify), so the result is always the current truth. The
  * relation pass parses source locally but is keyless / makes no LLM calls.
  *
- * @param gitTrackedFiles -- pass null to skip unmapped-files check (no git available).
+ * @param gitTrackedFiles -- the coverage-visible file list (the CLI layer supplies
+ *        `walkRepoFiles` output — a disk walk, gitignore-aware but git-independent).
+ *        Pass null to skip the coverage section entirely (e.g. no filesystem walk
+ *        available). This is NOT git-derived — see `options.trackedFiles` below for
+ *        the one check that still consults git.
+ * @param options.trackedFiles -- INJECTED real `git ls-files` output (see
+ *        `io/repo-scanner.ts`'s `listGitTrackedFiles`), for the tracked∩gitignored
+ *        anomaly check (`scanTrackedButIgnored`) — the ONE remaining git consumer in
+ *        this whole surface. Absent or null (git absent or the probe failed) SKIPS
+ *        that one check; every other coverage check is unaffected, since none of
+ *        them read git at all any more.
  * @param options.nowUtc -- INJECTED clock for the review-cadence check (spec RZ-18).
  *        When ABSENT the aspect-review-overdue check is SKIPPED entirely: core
  *        keeps no `Date.now`, so with no clock supplied there is no overdue
@@ -545,8 +505,8 @@ function buildGitignoredCoveredIssues(offending: string[]): CheckIssue[] {
  *        under plain `yg check`. Read-only warning; never writes the lock,
  *        never gates `--approve`.
  */
-// NOT EVERY FIELD BELOW IS THE SAME KIND OF THING. `nowUtc` and `rulesArtifacts`
-// are ISSUE-GATING: written in the body above as `options?.<key> ? <issues> : []`,
+// NOT EVERY FIELD BELOW IS THE SAME KIND OF THING. `nowUtc`, `rulesArtifacts`, and
+// `trackedFiles` are ISSUE-GATING: written in the body above as `options?.<key> ? <issues> : []`,
 // so an absent value silently SKIPS a check rather than erroring. `writeFeatureIndex`
 // and `now` are side-effect switches deliberately set at only one call site and gate
 // no issue. Every call site that invokes runCheck() must pass every issue-gating
@@ -572,6 +532,13 @@ export interface RunCheckOptions {
   now?: () => Date;
   /** INJECTED rules-artifacts snapshot for the committed-digest staleness gate. Absent ⇒ skipped. */
   rulesArtifacts?: RulesArtifacts;
+  /**
+   * INJECTED real `git ls-files` output (null when git is absent or the probe
+   * failed), for the tracked∩gitignored anomaly check. Absent or null ⇒ that
+   * one check is skipped — core reads no git itself, and every other coverage
+   * check is fed entirely by `gitTrackedFiles` (the disk walk), unaffected.
+   */
+  trackedFiles?: string[] | null;
 }
 
 export async function runCheck(
@@ -749,11 +716,11 @@ export async function runCheck(
       buildCoverageAdvisoryIssue(tiers.middle),
     ].filter((x): x is CheckIssue => x !== null);
 
-    // Additive false-green detection: files counted as covered above but silently
-    // dropped from every node's subject set because they are gitignored and reached
-    // only through a directory/glob mapping entry. Blocking (mapped-file-gitignored).
-    const gitignoredCovered = await scanGitignoredCoveredFiles(graph, gitTrackedFiles);
-    coverageIssues.push(...buildGitignoredCoveredIssues(gitignoredCovered));
+    // Additive tracked∩gitignored anomaly detection: a git-tracked file invisible
+    // to the disk walk above, independent of node mapping. INJECTED real
+    // `git ls-files` output — the ONE remaining git consumer in this surface;
+    // absent (or the CLI's git probe having failed) SKIPS this check entirely.
+    coverageIssues.push(...(options?.trackedFiles ? scanTrackedButIgnored(graph, options.trackedFiles, gitTrackedFiles) : []));
   }
 
   // Combine all issues
@@ -929,8 +896,9 @@ function countDraftAspectsAcrossGraph(graph: Graph): number {
  * Suggest the next command based on the highest-priority error, in the §6 order:
  *   lock-invalid → unverified(enforced) → enforced refusal (three exits / fix
  *   violations, carried per-issue) → prompt-too-large → log conflict →
- *   log integrity/format → mapped-file-gitignored → structural → coverage →
- *   completeness.
+ *   log integrity/format → structural → coverage → completeness → any other
+ *   error (architecture/strict codes, and the tracked∩gitignored anomaly —
+ *   neither carries a dedicated branch; each surfaces its own `next` here).
  *
  * Each lock issue carries its own kind-appropriate `next` in messageData
  * (cached three-exit for an LLM refusal, fix-violations for a deterministic
@@ -1030,14 +998,7 @@ export function computeSuggestedNext(issues: CheckIssue[]): string | null {
     return `Edit .yggdrasil/model/${node}/log.md to fix format violations\n  ${count} log format violation${count === 1 ? '' : 's'} — post-baseline edit OR git checkout for pre-baseline`;
   }
 
-  // 6. mapped-file-gitignored — a false-green coverage conflict. It lives in
-  //    STRUCTURAL_CODES (renders as a blocking error block), but its own next
-  //    carries the file-specific remedy, so surface that directly rather than the
-  //    generic structural "Fix <code>" line.
-  const gitignoredCovered = errors.find(i => i.code === 'mapped-file-gitignored');
-  if (gitignoredCovered) return gitignoredCovered.messageData.next;
-
-  // 7. structural. Pick the alphabetically-first structural CODE (then node),
+  // 6. structural. Pick the alphabetically-first structural CODE (then node),
   //    the SAME within-category tie-break groupIssues uses (label = code) — NOT
   //    validator emission order — so the group bare `yg check --top` renders is
   //    exactly the rule this line names. Emission order let the two surfaces
@@ -1054,26 +1015,27 @@ export function computeSuggestedNext(issues: CheckIssue[]): string | null {
     return `Fix ${first.code} in ${toPosixPath(first.nodePath ?? '.yggdrasil')}\n  1 of ${structuralErrors.length} structural error${structuralErrors.length === 1 ? '' : 's'}${then}`;
   }
 
-  // 8. coverage.
+  // 7. coverage.
   if (coverageErrors.length > 0) {
     const count = coverageErrors[0].uncoveredCount ?? 0;
     return `yg context --file <uncovered-path>\n  ${count} file${count === 1 ? '' : 's'} need coverage — bootstrap workflow`;
   }
 
-  // 9. completeness.
+  // 8. completeness.
   const completenessErrors = errors.filter(i => COMPLETENESS_CODES.has(i.code));
   if (completenessErrors.length > 0) {
     const first = completenessErrors[0];
     return `Fix ${first.code} for ${toPosixPath(first.nodePath ?? '')}\n  1 of ${completenessErrors.length} completeness error${completenessErrors.length === 1 ? '' : 's'} — post-modify workflow`;
   }
 
-  // 10. Any remaining error — architecture/strict codes outside the categories
-  //     above (e.g. type-undefined, parent-type-forbidden, mapping-path-missing,
-  //     type-strict-*). Each carries its own actionable `next`. Pick the
-  //     alphabetically-first by code then node — the SAME tie-break groupIssues
-  //     uses — so the group bare `yg check --top` renders is the group this line
-  //     names even here. Without this the line would be null while `--top` still
-  //     rendered that group, breaking the bare-`--top` == `Next:` invariant.
+  // 9. Any remaining error — architecture/strict codes outside the categories
+  //    above (e.g. type-undefined, parent-type-forbidden, mapping-path-missing,
+  //    type-strict-*, tracked-file-gitignored). Each carries its own actionable
+  //    `next`. Pick the alphabetically-first by code then node — the SAME
+  //    tie-break groupIssues uses — so the group bare `yg check --top` renders is
+  //    the group this line names even here. Without this the line would be null
+  //    while `--top` still rendered that group, breaking the bare-`--top` ==
+  //    `Next:` invariant.
   const otherErrors = [...errors].sort((a, b) =>
     a.code.localeCompare(b.code, 'en') ||
     (a.nodePath ?? '').localeCompare(b.nodePath ?? '', 'en'));

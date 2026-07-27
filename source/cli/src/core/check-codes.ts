@@ -29,11 +29,6 @@ export const STRUCTURAL_CODES = new Set<string>([
   'type-without-when-with-mapping',
   'type-when-mismatch',
   'file-mapping-gitignored',
-  // A git-tracked file is matched by a directory/glob mapping entry (so the
-  // coverage scan counts it covered) but is gitignored — the hash layer drops it
-  // from the node's subject set, so no reviewer ever sees it (a false green).
-  // Blocking, distinct from the plain "not covered" coverage error.
-  'mapped-file-gitignored',
   'enforce-strict-without-when',
   'architecture-cycle',
   // A relation allow-list in yg-architecture.yaml names a target type that is

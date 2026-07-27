@@ -4,7 +4,7 @@ import type { Graph, GraphNode, AspectStatus } from '../model/graph.js';
 import type { LockFile } from '../model/lock.js';
 import { loadGraphOrAbort } from '../cli/preamble.js';
 import { readRulesArtifacts } from '../cli/rules-artifacts.js';
-import { walkRepoFiles } from '../io/repo-scanner.js';
+import { walkRepoFiles, listGitTrackedFiles } from '../io/repo-scanner.js';
 import { runCheck, scanUncoveredFiles, type CheckResult, type CheckIssue } from '../core/check.js';
 import { readLock, committedLockContentHash } from '../io/lock-store.js';
 import { verifyLock, type LockVerification, type VerifiedPair, type PairState } from '../core/verify-lock.js';
@@ -117,6 +117,12 @@ export async function walkPortalFiles(projectRoot: string): Promise<string[]> {
  * deterministic relative to the files on disk — the same repository state always yields
  * the same snapshot — and keeping it here is what makes it impossible for the two
  * boundaries to disagree about what the installer actually wrote.
+ *
+ *   - real `git ls-files` output, for the tracked∩gitignored anomaly check —
+ *     without it the portal misses this anomaly entirely while `yg check`
+ *     reports it. Derived here from the SAME projectRoot the rules snapshot
+ *     above uses, exactly like that read: git absent or the probe failing
+ *     degrades to null (skips that one check only), never throws.
  */
 export async function runPortalCheck(
   graph: Graph,
@@ -126,6 +132,7 @@ export async function runPortalCheck(
   return runCheck(graph, gitFiles, {
     nowUtc,
     rulesArtifacts: await readRulesArtifacts(path.dirname(graph.rootPath)),
+    trackedFiles: listGitTrackedFiles(path.dirname(graph.rootPath)),
   });
 }
 

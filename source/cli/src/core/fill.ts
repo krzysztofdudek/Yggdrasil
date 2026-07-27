@@ -169,6 +169,13 @@ export interface RunFillOptions {
   /** Git-tracked files for the final coverage scan (mirrors plain check). Pass
    *  null to skip the unmapped-files check (no git available). */
   gitTrackedFiles: string[] | null;
+  /** Real `git ls-files` output for the tracked∩gitignored anomaly check, threaded
+   *  into both the dry-run cost-preview report and the final post-fill report
+   *  runCheck — mirrors reviewNowUtc/rulesArtifacts below, so `yg check --approve`
+   *  surfaces the same anomaly the plain `yg check` path does. Absent or null (git
+   *  absent, or the CLI's git probe having failed) skips that one check only;
+   *  every other coverage check is unaffected. */
+  trackedFiles?: string[] | null;
   /** Sink for agent-facing fill PROGRESS (plain status lines). Defaults to
    *  process.stdout.write. */
   write?: (s: string) => void;
@@ -451,6 +458,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
     const checkResult = await runCheck(graph, opts.gitTrackedFiles, {
       nowUtc: opts.reviewNowUtc,
       rulesArtifacts: opts.rulesArtifacts,
+      trackedFiles: opts.trackedFiles,
     });
     return { checkResult, reviewerCallsMade: 0, infraFailures: 0, runtimeErrors: 0, companionRuntimeErrors: 0, malformedSuppressErrors: 0 };
   }
@@ -905,6 +913,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
     now: opts.featureIndexNow,
     nowUtc: opts.reviewNowUtc,
     rulesArtifacts: opts.rulesArtifacts,
+    trackedFiles: opts.trackedFiles,
   });
 
   // ── Convergence sentinel (C15) — READ-ONLY over the fill's own state. ──────

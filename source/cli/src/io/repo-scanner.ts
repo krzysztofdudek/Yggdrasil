@@ -1,8 +1,11 @@
 import { readFile, readdir } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { join, relative, sep } from 'node:path';
 import { createRequire } from 'node:module';
 import { type Ignore, type Options as IgnoreOptions } from 'ignore';
 import { debugWrite } from '../utils/debug-log.js';
+import { toPosixPath } from '../utils/posix.js';
 
 const require = createRequire(import.meta.url);
 const ignoreFactory = require('ignore') as (options?: IgnoreOptions) => Ignore;
@@ -142,4 +145,47 @@ export async function walkRepoFiles(projectRoot: string): Promise<string[]> {
   const stack = await loadRootGitignoreStack(projectRoot);
   const files = await collectFiles(projectRoot, projectRoot, stack);
   return excludeNestedGraphSubtrees(files);
+}
+
+/**
+ * List every git-TRACKED file that still exists on disk (repo-relative,
+ * POSIX), via `git ls-files` — the INDEX, which does not respect `.gitignore`
+ * for a path already tracked (e.g. force-added with `git add -f`, or
+ * gitignored only after it was tracked). This is the ONE remaining git
+ * consumer in the coverage surface: every other check (coverage,
+ * classification, enforcement) is fed by the disk-based `walkRepoFiles` walk
+ * above, which is gitignore-aware but git-independent. Comparing this list
+ * against that walk's output is what the tracked∩gitignored anomaly check
+ * (`core/check.ts`'s `scanTrackedButIgnored`) is for.
+ *
+ * The index also lists a file deleted from disk with `rm` (not `git rm`).
+ * Filtering to disk-existing paths excludes that case: a deleted-but-still-
+ * tracked file is a DIFFERENT anomaly (nothing to un-ignore or untrack — it is
+ * simply gone), out of scope for this check, and must never be reported as
+ * gitignored.
+ *
+ * Best-effort: git absent, the directory not a git repository, or any other
+ * failure all degrade to `null` (never throws) — the caller treats `null` as
+ * "skip this check", never as "no tracked files". `stdio` explicitly pipes
+ * both streams so a failing `git` (e.g. "not a git repository") never leaks
+ * its stderr into this process's own — the CLI's `--quiet` contract, and any
+ * caller's stderr, must stay exactly as clean as when git is simply absent.
+ */
+export function listGitTrackedFiles(projectRoot: string): string[] | null {
+  try {
+    const out = execFileSync('git', ['ls-files', '-z'], {
+      cwd: projectRoot,
+      maxBuffer: 64 * 1024 * 1024,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    return out
+      .toString('utf8')
+      .split('\0')
+      .filter(Boolean)
+      .map(toPosixPath)
+      .filter((relPath) => existsSync(join(projectRoot, relPath)));
+  } catch (err) {
+    debugWrite(`[repo-scanner] listGitTrackedFiles: git ls-files failed: ${(err as Error).message}`);
+    return null;
+  }
 }

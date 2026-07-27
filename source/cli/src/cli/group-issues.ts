@@ -92,20 +92,21 @@ const ERROR_CODE_PRIORITY: string[] = [
   'log-conflict',
   'log-integrity',
   'log-format',
-  'mapped-file-gitignored',
 ];
 
 export function issuePriorityRank(issue: CheckIssue): number {
   const idx = ERROR_CODE_PRIORITY.indexOf(issue.code);
   if (idx >= 0) return idx;
   // Unranked errors sub-rank by the SAME category cascade computeSuggestedNext
-  // uses (core/check.ts §6 steps 7→9): structural → coverage → completeness →
-  // any other error, so the group bare `--top` renders is the group the `Next:`
-  // line names. Within a category, groupIssues tie-breaks alphabetically by
-  // label (= code); computeSuggestedNext mirrors that same tie-break, so the two
-  // surfaces cannot drift. (lock-invalid / mapped-file-gitignored are structural
-  // AND explicitly ranked above — the idx>=0 branch already caught them, so they
-  // never fall into the structural bucket here.)
+  // uses (core/check.ts §6 steps 6→8): structural → coverage → completeness →
+  // any other error (this last bucket is where a variable-severity code like
+  // tracked-file-gitignored lands when it is an error — it carries no dedicated
+  // rank, same as unverified's non-ERROR_CODE_PRIORITY siblings), so the group
+  // bare `--top` renders is the group the `Next:` line names. Within a category,
+  // groupIssues tie-breaks alphabetically by label (= code); computeSuggestedNext
+  // mirrors that same tie-break, so the two surfaces cannot drift. (lock-invalid
+  // is structural AND explicitly ranked above — the idx>=0 branch already caught
+  // it, so it never falls into the structural bucket here.)
   const base = ERROR_CODE_PRIORITY.length;
   if (issue.severity === 'error') {
     if (STRUCTURAL_CODES.has(issue.code)) return base;       // structural
