@@ -640,48 +640,56 @@ function graphWithCoverage(required: string[]): Graph {
   return { config: { coverage: { required, excluded: [], typeLevel: false } } } as unknown as Graph;
 }
 
+// A real temp project directory (never touching this repo's own files), for the
+// cases that must reach scanTrackedButIgnored's POSITIVE .gitignore confirmation —
+// that confirmation reads a real root .gitignore off disk, so a fully in-memory
+// graph (no gitignore load possible) cannot exercise it.
+async function withTempRepo(
+  files: Record<string, string>,
+  fn: (projectRoot: string) => Promise<void>,
+): Promise<void> {
+  const projectRoot = await mkdtemp(path.join(tmpdir(), 'ygg-tracked-ignored-'));
+  try {
+    for (const [rel, content] of Object.entries(files)) {
+      const abs = path.join(projectRoot, rel);
+      await mkdir(path.dirname(abs), { recursive: true });
+      await writeFile(abs, content);
+    }
+    await fn(projectRoot);
+  } finally {
+    await rm(projectRoot, { recursive: true, force: true });
+  }
+}
+
+function graphAt(projectRoot: string, required: string[]): Graph {
+  return {
+    rootPath: path.join(projectRoot, '.yggdrasil'),
+    config: { coverage: { required, excluded: [], typeLevel: false } },
+  } as unknown as Graph;
+}
+
 describe('scanTrackedButIgnored — tracked∩gitignored anomaly', () => {
-  it('returns nothing when trackedFiles is null (no git available)', () => {
+  it('returns nothing when trackedFiles is null (no git available)', async () => {
     const graph = graphWithCoverage(['src/']);
-    const issues = scanTrackedButIgnored(graph, null, ['src/a.ts']);
+    const issues = await scanTrackedButIgnored(graph, null, ['src/a.ts']);
     expect(issues).toEqual([]);
   });
 
-  it('flags a tracked file invisible to the walk as an ERROR under a required root', () => {
-    const graph = graphWithCoverage(['src/svc/']);
-    const issues = scanTrackedButIgnored(
-      graph,
-      ['src/svc/i.ts', 'src/svc/secret.ts'], // git ls-files: secret.ts force-tracked
-      ['src/svc/i.ts'], // walkRepoFiles: secret.ts gitignored, never walked
-    );
-    expect(issues).toHaveLength(1);
-    expect(issues[0].severity).toBe('error');
-    expect(issues[0].code).toBe('tracked-file-gitignored');
-    expect(issues[0].rule).toBe('tracked-file-gitignored');
-    expect(issues[0].messageData.what).toContain('src/svc/secret.ts');
-    expect(issues[0].messageData.next).toMatch(/git rm --cached/);
-  });
-
-  it('flags the same anomaly as a WARNING when it falls outside every required root', () => {
-    const graph = graphWithCoverage(['other/']);
-    const issues = scanTrackedButIgnored(graph, ['src/svc/secret.ts'], []);
-    expect(issues).toHaveLength(1);
-    expect(issues[0].severity).toBe('warning');
-    expect(issues[0].code).toBe('tracked-file-gitignored');
-  });
-
-  it('does NOT flag a tracked file that IS visible in the walk', () => {
+  it('does NOT flag a tracked file that IS visible in the walk', async () => {
+    // Never reaches the gitignore read (candidates is empty) — a fully
+    // synthetic graph with no real rootPath is fine here.
     const graph = graphWithCoverage(['src/']);
-    const issues = scanTrackedButIgnored(graph, ['src/a.ts'], ['src/a.ts']);
+    const issues = await scanTrackedButIgnored(graph, ['src/a.ts'], ['src/a.ts']);
     expect(issues).toEqual([]);
   });
 
-  it('excludes the top-level .yggdrasil/ directory (walk-excluded by design, not by gitignore)', () => {
+  it('excludes the top-level .yggdrasil/ directory (walk-excluded by design, not by gitignore)', async () => {
     // walkRepoFiles never walks into the top-level .yggdrasil/ at all, so every
     // committed graph file would otherwise look "tracked but not walked" — a
-    // false positive on the graph's own files. Must stay silent.
+    // false positive on the graph's own files. Must stay silent (candidates
+    // empty — no real rootPath needed).
     const graph = graphWithCoverage(['/']);
-    const issues = scanTrackedButIgnored(
+    const issues = await scanTrackedButIgnored(
       graph,
       ['.yggdrasil/yg-architecture.yaml', 'src/a.ts'],
       ['src/a.ts'],
@@ -689,9 +697,11 @@ describe('scanTrackedButIgnored — tracked∩gitignored anomaly', () => {
     expect(issues).toEqual([]);
   });
 
-  it('excludes files under a nested-graph subtree', () => {
+  it('excludes files under a nested-graph subtree', async () => {
+    // Candidates empty (both paths dropped by excludeNestedGraphSubtrees) — no
+    // real rootPath needed.
     const graph = graphWithCoverage(['/']);
-    const issues = scanTrackedButIgnored(
+    const issues = await scanTrackedButIgnored(
       graph,
       ['pkg/.yggdrasil/yg-architecture.yaml', 'pkg/sub.ts'],
       [], // neither walked — pkg is a nested graph's own territory
@@ -699,13 +709,77 @@ describe('scanTrackedButIgnored — tracked∩gitignored anomaly', () => {
     expect(issues).toEqual([]);
   });
 
-  it('flags every offending file, independent of any node mapping', () => {
+  it('flags a tracked file POSITIVELY matched by .gitignore as an ERROR under a required root (regression pin)', async () => {
+    await withTempRepo(
+      { '.gitignore': 'src/svc/secret.ts\n', 'src/svc/i.ts': '', 'src/svc/secret.ts': 'export const k = 1;\n' },
+      async (root) => {
+        const graph = graphAt(root, ['src/svc/']);
+        const issues = await scanTrackedButIgnored(
+          graph,
+          ['src/svc/i.ts', 'src/svc/secret.ts'], // git ls-files: secret.ts force-tracked
+          ['src/svc/i.ts'], // walkRepoFiles: secret.ts gitignored, never walked
+        );
+        expect(issues).toHaveLength(1);
+        expect(issues[0].severity).toBe('error');
+        expect(issues[0].code).toBe('tracked-file-gitignored');
+        expect(issues[0].rule).toBe('tracked-file-gitignored');
+        expect(issues[0].messageData.what).toContain('src/svc/secret.ts');
+        expect(issues[0].messageData.next).toMatch(/git rm --cached/);
+      },
+    );
+  });
+
+  it('flags the same anomaly as a WARNING when it falls outside every required root', async () => {
+    await withTempRepo(
+      { '.gitignore': 'src/svc/secret.ts\n', 'src/svc/secret.ts': 'export const k = 1;\n' },
+      async (root) => {
+        const graph = graphAt(root, ['other/']);
+        const issues = await scanTrackedButIgnored(graph, ['src/svc/secret.ts'], []);
+        expect(issues).toHaveLength(1);
+        expect(issues[0].severity).toBe('warning');
+        expect(issues[0].code).toBe('tracked-file-gitignored');
+      },
+    );
+  });
+
+  it('flags every offending file, independent of any node mapping', async () => {
     // No mapping concept enters this check at all — unlike the retired
     // mapped-file-gitignored, a file need not be matched by any node mapping
     // to be flagged; "ships in the repo but nothing sees it" applies regardless.
-    const graph = graphWithCoverage(['src/']);
-    const issues = scanTrackedButIgnored(graph, ['src/a.ts', 'src/b.ts'], []);
-    expect(issues).toHaveLength(2);
-    expect(issues.every((i) => i.severity === 'error')).toBe(true);
+    await withTempRepo(
+      { '.gitignore': 'src/a.ts\nsrc/b.ts\n', 'src/a.ts': '', 'src/b.ts': '' },
+      async (root) => {
+        const graph = graphAt(root, ['src/']);
+        const issues = await scanTrackedButIgnored(graph, ['src/a.ts', 'src/b.ts'], []);
+        expect(issues).toHaveLength(2);
+        expect(issues.every((i) => i.severity === 'error')).toBe(true);
+      },
+    );
+  });
+
+  it('does NOT flag a walk-absent tracked file that is not POSITIVELY gitignored (the CRITICAL fix)', async () => {
+    // secret.ts is tracked and absent from the walk, exactly like the gitignore
+    // case — but the project's .gitignore matches something else entirely. A
+    // detector that inferred "gitignored" from absence alone would flag this;
+    // the real check must not, because it is not actually gitignored (this
+    // stands in for a symlink, a submodule gitlink, an unreadable-directory
+    // residue, or an index/filesystem Unicode-normalization mismatch — every
+    // shape the disk walk can skip a tracked path for OTHER than gitignore).
+    await withTempRepo(
+      { '.gitignore': 'unrelated/*.log\n', 'src/svc/secret.ts': 'export const k = 1;\n' },
+      async (root) => {
+        const graph = graphAt(root, ['src/svc/']);
+        const issues = await scanTrackedButIgnored(graph, ['src/svc/secret.ts'], []);
+        expect(issues).toEqual([]);
+      },
+    );
+  });
+
+  it('returns nothing when the project has no root .gitignore at all, even with a walk-absent tracked entry', async () => {
+    await withTempRepo({ 'src/svc/secret.ts': 'export const k = 1;\n' }, async (root) => {
+      const graph = graphAt(root, ['src/svc/']);
+      const issues = await scanTrackedButIgnored(graph, ['src/svc/secret.ts'], []);
+      expect(issues).toEqual([]);
+    });
   });
 });

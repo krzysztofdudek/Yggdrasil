@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -105,6 +105,47 @@ function scaffold(label: string, opts: { requiredRoot: string; initGit?: boolean
   return dir;
 }
 
+/**
+ * Scaffold a git repo with NO `.gitignore` at all, whose service node maps
+ * `src/`. Contains a tracked SYMLINK (`src/link.txt` → `src/real.txt`) and a
+ * fabricated submodule GITLINK (`vendor/lib`, index mode 160000, checked out
+ * as an empty directory) — both git-tracked, both absent from the disk walk,
+ * NEITHER gitignored (there is no .gitignore to match against). A detector
+ * that inferred "gitignored" from "tracked but walk-absent" alone would flag
+ * both; the real check must not, since nothing here is actually gitignored.
+ */
+function scaffoldSymlinkAndGitlink(): string {
+  const dir = mkdtempSync(path.join(tmpdir(), 'yg-trackedignored-e2e-symlink-'));
+  const ygRoot = path.join(dir, '.yggdrasil');
+  mkdirSync(path.join(ygRoot, 'model', 'svc'), { recursive: true });
+  writeFileSync(
+    path.join(ygRoot, 'yg-architecture.yaml'),
+    ['node_types:', '  service:', "    description: 'A service'", '    log_required: false', '    when:', '      path: "**"', ''].join('\n'),
+    'utf-8',
+  );
+  writeFileSync(
+    path.join(ygRoot, 'yg-config.yaml'),
+    ['version: "5.2.0"', 'coverage:', '  required:', '    - src/', ''].join('\n'),
+    'utf-8',
+  );
+  writeFileSync(
+    path.join(ygRoot, 'model', 'svc', 'yg-node.yaml'),
+    'name: Svc\ntype: service\ndescription: demo\nmapping:\n  - src/\n',
+    'utf-8',
+  );
+  mkdirSync(path.join(dir, 'src'), { recursive: true });
+  writeFileSync(path.join(dir, 'src', 'real.txt'), 'target\n', 'utf-8');
+  symlinkSync('real.txt', path.join(dir, 'src', 'link.txt'));
+  git(['init', '-q'], dir);
+  git(['config', 'user.email', 't@t.t'], dir);
+  git(['config', 'user.name', 't'], dir);
+  git(['add', '-A'], dir); // tracks .yggdrasil/**, src/real.txt, and the src/link.txt symlink itself
+  const fakeSha = 'a'.repeat(40);
+  git(['update-index', '--add', '--cacheinfo', `160000,${fakeSha},vendor/lib`], dir);
+  mkdirSync(path.join(dir, 'vendor', 'lib'), { recursive: true }); // checked-out submodule root: a directory
+  return dir;
+}
+
 describe('E2E: the tracked∩gitignored anomaly check (disk-walk visibility vs. the git index)', () => {
   it.skipIf(!distExists)(
     'a force-tracked, gitignored file under a coverage.required root is a blocking tracked-file-gitignored error',
@@ -134,6 +175,29 @@ describe('E2E: the tracked∩gitignored anomaly check (disk-walk visibility vs. 
         // i.ts falls under no required root either (only 'other/' is required),
         // so it is merely an uncovered-advisory warning too — no blocking error.
         expect(status).toBe(0);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it.skipIf(!distExists)(
+    'CRITICAL regression: a tracked symlink and a submodule gitlink in a repo with NO .gitignore produce ZERO findings',
+    () => {
+      // Both are git-tracked and absent from the disk walk, exactly like a
+      // gitignored file — but there is no .gitignore in this repo at all, so
+      // neither is actually gitignored. A detector inferring "gitignored" from
+      // walk-absence alone would flag both (the symlink's WHAT would falsely
+      // claim ".gitignore", and the gitlink's NEXT — `git rm --cached` — would
+      // be destructive advice for a submodule reference). The real check must
+      // stay silent on both.
+      const dir = scaffoldSymlinkAndGitlink();
+      try {
+        const { out } = run(['check'], dir);
+        expect(out).not.toContain('tracked-file-gitignored');
+        expect(out).not.toContain('mapped-file-gitignored');
+        expect(out).not.toContain('link.txt');
+        expect(out).not.toContain('vendor/lib');
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }

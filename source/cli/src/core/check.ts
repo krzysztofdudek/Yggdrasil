@@ -12,8 +12,10 @@ import { validateAppendOnly } from './log-integrity.js';
 import { STRUCTURAL_CODES, COMPLETENESS_CODES } from './check-codes.js';
 import { validateFormat } from './log-format.js';
 import { toPosixPath } from '../utils/posix.js';
-import { excludeNestedGraphSubtrees } from '../io/repo-scanner.js';
+import { excludeNestedGraphSubtrees, loadRootGitignoreStack, isIgnoredByStack } from '../io/repo-scanner.js';
+import type { GitignoreEntry } from '../io/repo-scanner.js';
 import { mappingEntryMatchesFile } from '../utils/mapping-path.js';
+import { debugWrite } from '../utils/debug-log.js';
 // ── Verdict-lock live path (spec §6) ──────────────────────────
 import { readLock, LockInvalidError } from '../io/lock-store.js';
 import type { LockFile } from '../model/lock.js';
@@ -401,45 +403,77 @@ export function scanUncoveredFiles(graph: Graph, gitTrackedFiles: string[]): str
 }
 
 /**
- * Detect a git-tracked file that is invisible to the disk-based coverage walk —
- * the tracked∩gitignored anomaly. Both `walkRepoFiles` (coverage) and
- * `expandMappingPaths`' directory/glob expansion are plain disk walks that skip
- * anything `.gitignore` excludes; NEITHER consults the git index. So a file that
- * is git-tracked (legal: `git add -f`, or a `.gitignore` rule added after the
- * file was already tracked) but gitignored is invisible to every layer that
- * governs coverage, classification, and enforcement: it ships in the
- * repository, yet nothing that reads the disk walk ever sees it — a false
- * green, independent of whether any node's mapping happens to match it.
+ * Detect a git-tracked file that is POSITIVELY gitignored — the tracked∩gitignored
+ * anomaly. Both `walkRepoFiles` (coverage) and `expandMappingPaths`' directory/glob
+ * expansion are plain disk walks that skip anything `.gitignore` excludes; NEITHER
+ * consults the git index. So a file that is git-tracked (legal: `git add -f`, or a
+ * `.gitignore` rule added after the file was already tracked) but gitignored is
+ * invisible to every layer that governs coverage, classification, and enforcement:
+ * it ships in the repository, yet nothing that reads the disk walk ever sees it —
+ * a false green, independent of whether any node's mapping happens to match it.
+ *
+ * A tracked file absent from the walk is only a CANDIDATE, never proof by itself:
+ * the walk also skips a symlink, anything under a `.git` segment, and (structurally,
+ * not gitignore-related) the top-level `.yggdrasil/` graph directory — none of
+ * those is this check's business, and `listGitTrackedFiles` already excludes the
+ * symlink/non-regular-file case at the source. A candidate is only ever reported
+ * after a POSITIVE match against the real root `.gitignore` stack (the same
+ * mechanism `walkRepoFiles`/`expandMappingPaths` use); a candidate absent from the
+ * walk for any OTHER reason (an unreadable directory, a Unicode-normalization
+ * mismatch between the index and the filesystem) is silently skipped — nothing
+ * truthful could be said about it here.
  *
  * `trackedFiles` is the ONE injected git-derived input in this whole surface
  * (real `git ls-files` output, supplied by the CLI layer — see
  * `io/repo-scanner.ts`'s `listGitTrackedFiles`); `walkedFiles` is the same
  * disk-walk output every other coverage check reads. `trackedFiles === null`
  * (git absent or the probe failed) silently skips this check — best-effort,
- * never a reason to fail `yg check` on its own.
+ * never a reason to fail `yg check` on its own. No root `.gitignore` at all means
+ * nothing can be positively matched, so the check is skipped rather than guessing.
  *
  * Severity: 'error' when the file falls under a `coverage.required` root (the
  * same tiering `scanUncoveredFiles`/`partitionByCoverageTier` use), 'warning'
- * otherwise. The top-level `.yggdrasil/` graph directory is excluded — it is
- * walk-excluded BY DESIGN (`walkRepoFiles` never descends into it at all), not
- * because of `.gitignore`, so every committed graph file would otherwise look
- * "tracked but not walked" and false-positive on the graph's own files. A
- * nested graph's own subtree is excluded the same way `scanUncoveredFiles` does.
+ * otherwise.
  */
-export function scanTrackedButIgnored(
+export async function scanTrackedButIgnored(
   graph: Graph,
   trackedFiles: string[] | null,
   walkedFiles: string[],
-): CheckIssue[] {
+): Promise<CheckIssue[]> {
   if (trackedFiles === null) return [];
   const walked = new Set(walkedFiles.map((f) => toPosixPath(f.trim())));
+
+  // Candidates: tracked, not walk-visible, and not the graph's own directory
+  // (walk-excluded by design, not by gitignore — every committed graph file
+  // would otherwise look "tracked but not walked" and false-positive).
+  const candidates = excludeNestedGraphSubtrees(trackedFiles)
+    .map((file) => toPosixPath(file.trim()))
+    .filter((p) => !walked.has(p) && p !== '.yggdrasil' && !p.startsWith('.yggdrasil/'));
+  if (candidates.length === 0) return [];
+
+  const projectRoot = path.dirname(graph.rootPath);
+  let gitignoreStack: GitignoreEntry[];
+  try {
+    gitignoreStack = await loadRootGitignoreStack(projectRoot);
+  } catch (err) {
+    debugWrite(`[check] scanTrackedButIgnored: gitignore load failed: ${(err as Error).message}`);
+    gitignoreStack = [];
+  }
+  if (gitignoreStack.length === 0) return [];
+
   const coverage = graph.config.coverage ?? DEFAULT_COVERAGE;
   const requiredRoots = coverage.required.map(normalizeRoot);
 
   const issues: CheckIssue[] = [];
-  for (const file of excludeNestedGraphSubtrees(trackedFiles)) {
-    const p = toPosixPath(file.trim());
-    if (walked.has(p) || p === '.yggdrasil' || p.startsWith('.yggdrasil/')) continue; // visible, or graph-internal
+  for (const p of candidates) {
+    let ignored: boolean;
+    try {
+      ignored = isIgnoredByStack(path.join(projectRoot, p), gitignoreStack);
+    } catch (err) {
+      debugWrite(`[check] scanTrackedButIgnored: isIgnoredByStack threw for ${p}: ${(err as Error).message}`);
+      continue;
+    }
+    if (!ignored) continue; // walk-absent for some OTHER reason — not this check's business
 
     const required = requiredRoots.some((r) => matchesRoot(p, r));
     issues.push({
@@ -716,11 +750,11 @@ export async function runCheck(
       buildCoverageAdvisoryIssue(tiers.middle),
     ].filter((x): x is CheckIssue => x !== null);
 
-    // Additive tracked∩gitignored anomaly detection: a git-tracked file invisible
-    // to the disk walk above, independent of node mapping. INJECTED real
+    // Additive tracked∩gitignored anomaly detection: a git-tracked file positively
+    // matched by .gitignore, independent of node mapping. INJECTED real
     // `git ls-files` output — the ONE remaining git consumer in this surface;
     // absent (or the CLI's git probe having failed) SKIPS this check entirely.
-    coverageIssues.push(...(options?.trackedFiles ? scanTrackedButIgnored(graph, options.trackedFiles, gitTrackedFiles) : []));
+    coverageIssues.push(...(options?.trackedFiles ? await scanTrackedButIgnored(graph, options.trackedFiles, gitTrackedFiles) : []));
   }
 
   // Combine all issues

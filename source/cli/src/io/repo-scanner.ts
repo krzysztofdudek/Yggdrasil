@@ -1,5 +1,5 @@
 import { readFile, readdir } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { lstatSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join, relative, sep } from 'node:path';
 import { createRequire } from 'node:module';
@@ -148,21 +148,33 @@ export async function walkRepoFiles(projectRoot: string): Promise<string[]> {
 }
 
 /**
- * List every git-TRACKED file that still exists on disk (repo-relative,
- * POSIX), via `git ls-files` — the INDEX, which does not respect `.gitignore`
- * for a path already tracked (e.g. force-added with `git add -f`, or
- * gitignored only after it was tracked). This is the ONE remaining git
- * consumer in the coverage surface: every other check (coverage,
- * classification, enforcement) is fed by the disk-based `walkRepoFiles` walk
- * above, which is gitignore-aware but git-independent. Comparing this list
- * against that walk's output is what the tracked∩gitignored anomaly check
- * (`core/check.ts`'s `scanTrackedButIgnored`) is for.
+ * List every git-TRACKED file that is a REGULAR file still present on disk
+ * (repo-relative, POSIX), via `git ls-files` — the INDEX, which does not
+ * respect `.gitignore` for a path already tracked (e.g. force-added with
+ * `git add -f`, or gitignored only after it was tracked). This is the ONE
+ * remaining git consumer in the coverage surface: every other check
+ * (coverage, classification, enforcement) is fed by the disk-based
+ * `walkRepoFiles` walk above, which is gitignore-aware but git-independent.
+ * Comparing this list against that walk's output is the STRUCTURAL half of
+ * the tracked∩gitignored anomaly check (`core/check.ts`'s
+ * `scanTrackedButIgnored`, which layers a POSITIVE gitignore confirmation on
+ * top — the walk skips a path for reasons other than gitignore too, so
+ * absence from the walk alone is never proof of a gitignore match).
  *
- * The index also lists a file deleted from disk with `rm` (not `git rm`).
- * Filtering to disk-existing paths excludes that case: a deleted-but-still-
- * tracked file is a DIFFERENT anomaly (nothing to un-ignore or untrack — it is
- * simply gone), out of scope for this check, and must never be reported as
- * gitignored.
+ * The index also lists entries this check must never treat as an ordinary
+ * missing-or-ignored file, because nothing truthful could be said about them:
+ *   - a file deleted from disk with `rm` (not `git rm`) — still indexed,
+ *     nothing to un-ignore or untrack, it is simply gone;
+ *   - a symlink — `lstat` (never followed) reports it as neither a regular
+ *     file nor absent, so a bare existence check would wrongly keep it;
+ *   - a submodule gitlink (index mode 160000) — a checked-out submodule's
+ *     root is a DIRECTORY on disk, and `git rm --cached` on it would drop the
+ *     submodule reference from the index, which is destructive advice for
+ *     something that was never a plain file to begin with.
+ * `lstatSync(...).isFile()` (never following symlinks) excludes all three in
+ * one guard, alongside a directory whose own permissions make it unreadable
+ * (the lstat throws, caught below) — every failure mode here degrades to
+ * "not a candidate" rather than a guess.
  *
  * Best-effort: git absent, the directory not a git repository, or any other
  * failure all degrade to `null` (never throws) — the caller treats `null` as
@@ -183,7 +195,13 @@ export function listGitTrackedFiles(projectRoot: string): string[] | null {
       .split('\0')
       .filter(Boolean)
       .map(toPosixPath)
-      .filter((relPath) => existsSync(join(projectRoot, relPath)));
+      .filter((relPath) => {
+        try {
+          return lstatSync(join(projectRoot, relPath)).isFile();
+        } catch {
+          return false;
+        }
+      });
   } catch (err) {
     debugWrite(`[repo-scanner] listGitTrackedFiles: git ls-files failed: ${(err as Error).message}`);
     return null;
