@@ -112,7 +112,10 @@ yg type-suggest --file src/orders/handler.ts
 \`\`\`
 
 Output shows matching types (✓), closest non-matching types ranked by
-predicate satisfaction fraction, or edge-case messages for files inside
+predicate satisfaction fraction, types whose \`content:\` predicate could not
+be evaluated at all (e.g. the file exceeds the content-scan size limit —
+listed separately as unreadable rather than folded into a non-match, and
+never implying the file is blocked), or edge-case messages for files inside
 \`.yggdrasil/\` or for non-existent files (path-only check).
 
 Run this whenever you add or modify a type's \`when\` predicate and want
