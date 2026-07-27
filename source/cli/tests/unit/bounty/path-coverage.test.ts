@@ -44,7 +44,7 @@ function graphWithMappings(mappings: string[][], rootPath = '/repo/.yggdrasil'):
   return { nodes, rootPath } as unknown as Graph;
 }
 
-const cov = (required: string[], excluded: string[]): CoverageConfig => ({ required, excluded });
+const cov = (required: string[], excluded: string[]): CoverageConfig => ({ required, excluded, typeLevel: false });
 
 // ──────────────────────────────────────────────────────────────────────────────
 // normalizeRoot

@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Resolved a high-severity denial-of-service advisory in a transitive dependency (`brace-expansion`).** Bumped it to 5.0.8 in the CLI. The advisory is an unbounded expansion length that can exhaust memory and crash the process; the package arrives through `minimatch`, which is a runtime dependency, so the code path shipped. It reaches the expander from glob patterns in a project's own graph and coverage configuration rather than from anything an outside party controls, which bounds the practical exposure — but the fix costs nothing and the pattern source is not something the CLI should be relying on for safety.
 
+### Changed
+
+- **`yg-config.yaml`'s `coverage:` section now rejects an unrecognized key instead of silently ignoring it.** A misspelled setting under `coverage:` no longer disappears without a trace — it now fails with a clear error naming the bad key. The section also gains a new recognized key, `coverage.type_level` (boolean, default `false`), settable only in the committed config — a local, gitignored overlay can never change it.
+
 ### Fixed
 
 - **The quality gate no longer refuses a correct commit at random.** One test in the unit tier made a live call to a model provider with a two-minute budget; whenever that provider was slow the test timed out, the whole test step failed, and a commit that was perfectly fine was rejected — passing on an immediate retry. It was also self-inflicting: the more verification a session did through that same provider, the likelier the next gate run failed for reasons unrelated to the change. The repository already had a tier for tests that need an external service, excluded from the default run and from CI, with two live-provider tests already in it; this one was simply in the wrong place. Nothing was lost by moving it — the response shape it asserted is proven without a network by the parse-level tests, twenty-four times over — and the unit tier went from a two-minute budget to under a second.

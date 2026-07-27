@@ -24,7 +24,7 @@ const DEFAULT_QUALITY: QualityConfig = {
   max_direct_relations: 10,
 };
 
-export const DEFAULT_COVERAGE: CoverageConfig = { required: ['/'], excluded: [] };
+export const DEFAULT_COVERAGE: CoverageConfig = { required: ['/'], excluded: [], typeLevel: false };
 
 function parseStringArray(raw: unknown, field: string, filename: string): string[] {
   if (raw === undefined) return [];
@@ -48,6 +48,23 @@ function parseCoverage(raw: unknown, filename: string): CoverageConfig {
     }, 'config-invalid');
   }
   const cov = raw as Record<string, unknown>;
+  const KNOWN_COVERAGE_KEYS = ['required', 'excluded', 'type_level'];
+  for (const key of Object.keys(cov)) {
+    if (!KNOWN_COVERAGE_KEYS.includes(key)) {
+      throw new ConfigParseError({
+        what: `${filename}: unknown key '${key}' under coverage.`,
+        why: `coverage accepts only: ${KNOWN_COVERAGE_KEYS.join(', ')}. A misspelled key (e.g. 'type_leval') would silently disable type-level coverage — files you believe are enforced would be enforced by nothing.`,
+        next: `Fix the key. To enable type-level coverage write: coverage.type_level: true`,
+      }, 'config-coverage-unknown-key');
+    }
+  }
+  if (cov.type_level !== undefined && typeof cov.type_level !== 'boolean') {
+    throw new ConfigParseError({
+      what: `${filename}: coverage.type_level must be a boolean`,
+      why: 'type_level switches type-level coverage on or off — a non-boolean value is a typo, and guessing would silently enable or disable enforcement.',
+      next: 'Set coverage.type_level: true or false (or remove the key; absent means false).',
+    }, 'config-invalid');
+  }
   const required = cov.required === undefined ? ['/'] : parseStringArray(cov.required, 'coverage.required', filename);
   const excluded = parseStringArray(cov.excluded, 'coverage.excluded', filename);
 
@@ -70,7 +87,7 @@ function parseCoverage(raw: unknown, filename: string): CoverageConfig {
     }
   }
 
-  return { required, excluded };
+  return { required, excluded, typeLevel: cov.type_level === true };
 }
 
 /** Validate the optional quality.max_direct_relations (positive integer). */
@@ -118,6 +135,18 @@ export async function parseConfig(
   // (e.g. a surface that must provably never touch local secrets) uses. The DEFAULT path
   // is unchanged — the overlay is loaded and merged exactly as before.
   const overlay = opts?.skipSecretsOverlay ? undefined : await loadConfigOverlay(path.dirname(filePath));
+
+  // coverage.type_level is committed-only: capture its value from baseRaw
+  // (the committed yg-config.yaml, before any overlay merge) so a gitignored
+  // yg-secrets.yaml overlay can never flip enforcement or invalidate lock
+  // contents that were computed against the committed value.
+  const committedCoverage = baseRaw.coverage;
+  const committedTypeLevel =
+    committedCoverage && typeof committedCoverage === 'object' && !Array.isArray(committedCoverage) &&
+    typeof (committedCoverage as Record<string, unknown>).type_level === 'boolean'
+      ? ((committedCoverage as Record<string, unknown>).type_level as boolean)
+      : undefined;
+
   const raw = overlay ? deepMerge(baseRaw, overlay) : baseRaw;
 
   const version = typeof raw.version === 'string' ? raw.version.trim() : undefined;
@@ -268,6 +297,11 @@ export async function parseConfig(
     events = { committed_llm: ev.committed_llm as boolean | undefined };
   }
 
+  const coverage = parseCoverage(raw.coverage, filename);
+  // Force the committed value back, overwriting anything the merged/overlaid
+  // raw config produced — a secrets overlay can never flip type_level.
+  coverage.typeLevel = committedTypeLevel === true;
+
   return {
     version,
     quality,
@@ -277,7 +311,7 @@ export async function parseConfig(
     auto_approve,
     signals,
     events,
-    coverage: parseCoverage(raw.coverage, filename),
+    coverage,
   };
 }
 

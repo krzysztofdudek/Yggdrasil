@@ -176,7 +176,7 @@ describe('partitionByCoverageTier', () => {
   it('file in REQUIRED only → required (error) tier', () => {
     const r = partitionByCoverageTier(
       ['services/a.ts'],
-      { required: ['services/'], excluded: [] },
+      { required: ['services/'], excluded: [], typeLevel: false },
     );
     expect(r.required).toEqual(['services/a.ts']);
     expect(r.middle).toEqual([]);
@@ -185,7 +185,7 @@ describe('partitionByCoverageTier', () => {
   it('file in EXCLUDED only → dropped (silent), not in either bucket', () => {
     const r = partitionByCoverageTier(
       ['vendor/c.ts'],
-      { required: [], excluded: ['vendor/'] },
+      { required: [], excluded: ['vendor/'], typeLevel: false },
     );
     expect(r.required).toEqual([]);
     expect(r.middle).toEqual([]);
@@ -194,7 +194,7 @@ describe('partitionByCoverageTier', () => {
   it('file in NEITHER → middle (warning) tier', () => {
     const r = partitionByCoverageTier(
       ['lib/b.ts'],
-      { required: ['services/'], excluded: ['vendor/'] },
+      { required: ['services/'], excluded: ['vendor/'], typeLevel: false },
     );
     expect(r.required).toEqual([]);
     expect(r.middle).toEqual(['lib/b.ts']);
@@ -205,7 +205,7 @@ describe('partitionByCoverageTier', () => {
     // 'services/' (len 9). The longer required root claims the file.
     const r = partitionByCoverageTier(
       ['services/legacy/x.ts'],
-      { required: ['services/legacy/'], excluded: ['services/'] },
+      { required: ['services/legacy/'], excluded: ['services/'], typeLevel: false },
     );
     expect(r.required).toEqual(['services/legacy/x.ts']);
     expect(r.middle).toEqual([]);
@@ -215,7 +215,7 @@ describe('partitionByCoverageTier', () => {
     // 'services/legacy/' is excluded and longer than required 'services/'.
     const r = partitionByCoverageTier(
       ['services/legacy/x.ts', 'services/a.ts'],
-      { required: ['services/'], excluded: ['services/legacy/'] },
+      { required: ['services/'], excluded: ['services/legacy/'], typeLevel: false },
     );
     // services/a.ts only matches required → error tier.
     expect(r.required).toEqual(['services/a.ts']);
@@ -229,7 +229,7 @@ describe('partitionByCoverageTier', () => {
     // and the file is silently dropped.
     const r = partitionByCoverageTier(
       ['foo/x.ts'],
-      { required: ['foo/'], excluded: ['foo/'] },
+      { required: ['foo/'], excluded: ['foo/'], typeLevel: false },
     );
     expect(r.required).toEqual([]);
     expect(r.middle).toEqual([]);
@@ -238,7 +238,7 @@ describe('partitionByCoverageTier', () => {
   it('EMPTY required → every non-excluded uncovered file falls to middle (warning)', () => {
     const r = partitionByCoverageTier(
       ['src/a.ts', 'lib/b.ts'],
-      { required: [], excluded: [] },
+      { required: [], excluded: [], typeLevel: false },
     );
     expect(r.required).toEqual([]);
     expect(r.middle.sort()).toEqual(['lib/b.ts', 'src/a.ts']);
@@ -247,7 +247,7 @@ describe('partitionByCoverageTier', () => {
   it('EMPTY required with excluded → excluded silent, the rest warn', () => {
     const r = partitionByCoverageTier(
       ['src/a.ts', 'vendor/c.ts'],
-      { required: [], excluded: ['vendor/'] },
+      { required: [], excluded: ['vendor/'], typeLevel: false },
     );
     expect(r.required).toEqual([]);
     expect(r.middle).toEqual(['src/a.ts']);
@@ -256,7 +256,7 @@ describe('partitionByCoverageTier', () => {
   it('whole-repo required ("/") → every uncovered file is in the error tier', () => {
     const r = partitionByCoverageTier(
       ['src/a.ts', 'lib/b.ts'],
-      { required: ['/'], excluded: [] },
+      { required: ['/'], excluded: [], typeLevel: false },
     );
     expect(r.required.sort()).toEqual(['lib/b.ts', 'src/a.ts']);
     expect(r.middle).toEqual([]);
@@ -265,7 +265,7 @@ describe('partitionByCoverageTier', () => {
   it('whole-repo required with a glob excluded → generated files dropped, rest blocked', () => {
     const r = partitionByCoverageTier(
       ['src/a.ts', 'src/x.generated.ts', 'lib/y.generated.ts'],
-      { required: ['/'], excluded: ['**/*.generated.ts'] },
+      { required: ['/'], excluded: ['**/*.generated.ts'], typeLevel: false },
     );
     // '' (whole-repo required) has length 0; the glob excluded root matches the
     // generated files with length > 0, so excluded wins for those.
@@ -279,7 +279,7 @@ describe('partitionByCoverageTier', () => {
     // root — the file lands in required either way, but this pins the guard.
     const r = partitionByCoverageTier(
       ['services/auth/x.ts'],
-      { required: ['services/auth/', 'services/'], excluded: [] },
+      { required: ['services/auth/', 'services/'], excluded: [], typeLevel: false },
     );
     expect(r.required).toEqual(['services/auth/x.ts']);
     expect(r.middle).toEqual([]);
@@ -288,7 +288,7 @@ describe('partitionByCoverageTier', () => {
   it('multi-required: a longer specific required root wins over a shorter one', () => {
     const r = partitionByCoverageTier(
       ['services/auth/x.ts', 'services/billing/y.ts'],
-      { required: ['services/', 'services/auth/'], excluded: [] },
+      { required: ['services/', 'services/auth/'], excluded: [], typeLevel: false },
     );
     expect(r.required.sort()).toEqual(['services/auth/x.ts', 'services/billing/y.ts']);
     expect(r.middle).toEqual([]);
@@ -297,7 +297,7 @@ describe('partitionByCoverageTier', () => {
   it('GLOB required scopes the error tier; non-matching files fall to warning', () => {
     const r = partitionByCoverageTier(
       ['services/auth/api/h.ts', 'services/auth/internal/x.ts'],
-      { required: ['services/*/api/**'], excluded: [] },
+      { required: ['services/*/api/**'], excluded: [], typeLevel: false },
     );
     expect(r.required).toEqual(['services/auth/api/h.ts']);
     expect(r.middle).toEqual(['services/auth/internal/x.ts']);
@@ -309,7 +309,7 @@ describe('partitionByCoverageTier', () => {
     // For a plain .ts file only required matches → error tier.
     const r = partitionByCoverageTier(
       ['src/a.ts', 'src/sub/b.gen.ts'],
-      { required: ['src/**'], excluded: ['src/**/*.gen.ts'] },
+      { required: ['src/**'], excluded: ['src/**/*.gen.ts'], typeLevel: false },
     );
     expect(r.required).toEqual(['src/a.ts']);
     expect(r.middle).toEqual([]);
@@ -319,20 +319,20 @@ describe('partitionByCoverageTier', () => {
     // '/services//' normalizes to 'services'; the file matches it as a dir prefix.
     const r = partitionByCoverageTier(
       ['services/a.ts'],
-      { required: ['/services//'], excluded: [] },
+      { required: ['/services//'], excluded: [], typeLevel: false },
     );
     expect(r.required).toEqual(['services/a.ts']);
     expect(r.middle).toEqual([]);
   });
 
   it('empty uncovered input → both buckets empty (loop never runs)', () => {
-    const r = partitionByCoverageTier([], { required: ['/'], excluded: [] });
+    const r = partitionByCoverageTier([], { required: ['/'], excluded: [], typeLevel: false });
     expect(r.required).toEqual([]);
     expect(r.middle).toEqual([]);
   });
 
   it('preserves input order within each bucket and partitions a mixed batch', () => {
-    const cov: CoverageConfig = { required: ['app/'], excluded: ['vendor/'] };
+    const cov: CoverageConfig = { required: ['app/'], excluded: ['vendor/'], typeLevel: false };
     const r = partitionByCoverageTier(
       ['app/one.ts', 'vendor/skip.ts', 'misc/two.ts', 'app/three.ts', 'misc/four.ts'],
       cov,

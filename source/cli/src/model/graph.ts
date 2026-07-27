@@ -33,6 +33,14 @@ export interface CoverageConfig {
   required: string[];
   /** Roots where an uncovered file is silent (no issue). */
   excluded: string[];
+  /**
+   * Opts the repo into type-level coverage enforcement (in addition to the
+   * existing file-level coverage above). Read from the COMMITTED config
+   * only — a gitignored secrets overlay can never change it, since the flag
+   * changes what counts as covered/uncovered and must not vary per developer.
+   * Default false (today's file-only coverage, unchanged).
+   */
+  typeLevel: boolean;
 }
 
 export interface YggConfig {

@@ -16,36 +16,36 @@ describe('blockingUnmappedPaths', () => {
   const MANAGED = ['AGENTS.md', 'CLAUDE.md', '.clinerules/yggdrasil.md', '.gitattributes'];
 
   it('whole-repo required with nothing mapped → every managed file blocks', () => {
-    expect(blockingUnmappedPaths(MANAGED, [], { required: ['/'], excluded: [] })).toEqual(MANAGED);
+    expect(blockingUnmappedPaths(MANAGED, [], { required: ['/'], excluded: [], typeLevel: false })).toEqual(MANAGED);
   });
 
   it('excluded roots silence them, directory form included', () => {
-    const coverage = { required: ['/'], excluded: ['AGENTS.md', 'CLAUDE.md', '.clinerules/', '.gitattributes'] };
+    const coverage = { required: ['/'], excluded: ['AGENTS.md', 'CLAUDE.md', '.clinerules/', '.gitattributes'], typeLevel: false };
     expect(blockingUnmappedPaths(MANAGED, [], coverage)).toEqual([]);
   });
 
   it('a node mapping over them counts as covered, exactly as the check sees it', () => {
     const mappings = ['AGENTS.md', 'CLAUDE.md', '.clinerules/', '.gitattributes'];
-    expect(blockingUnmappedPaths(MANAGED, mappings, { required: ['/'], excluded: [] })).toEqual([]);
+    expect(blockingUnmappedPaths(MANAGED, mappings, { required: ['/'], excluded: [], typeLevel: false })).toEqual([]);
   });
 
   it('require-nothing coverage blocks none of them', () => {
-    expect(blockingUnmappedPaths(MANAGED, [], { required: [], excluded: [] })).toEqual([]);
+    expect(blockingUnmappedPaths(MANAGED, [], { required: [], excluded: [], typeLevel: false })).toEqual([]);
   });
 
   it('required roots that do not reach the repo root leave them non-blocking', () => {
-    expect(blockingUnmappedPaths(MANAGED, [], { required: ['src/'], excluded: [] })).toEqual([]);
+    expect(blockingUnmappedPaths(MANAGED, [], { required: ['src/'], excluded: [], typeLevel: false })).toEqual([]);
   });
 
   it('reports only the files that are actually still unmapped', () => {
-    const blocked = blockingUnmappedPaths(MANAGED, ['AGENTS.md'], { required: ['/'], excluded: ['.gitattributes'] });
+    const blocked = blockingUnmappedPaths(MANAGED, ['AGENTS.md'], { required: ['/'], excluded: ['.gitattributes'], typeLevel: false });
     expect(blocked).toEqual(['CLAUDE.md', '.clinerules/yggdrasil.md']);
   });
 
   it('tolerates mapping entries in the forms a node file may carry', () => {
     // Trailing slash, leading ./ — normalized the same way node mappings are.
     const mappings = ['./AGENTS.md', '.clinerules/', '', 'CLAUDE.md', '.gitattributes'];
-    expect(blockingUnmappedPaths(MANAGED, mappings, { required: ['/'], excluded: [] })).toEqual([]);
+    expect(blockingUnmappedPaths(MANAGED, mappings, { required: ['/'], excluded: [], typeLevel: false })).toEqual([]);
   });
 });
 
@@ -141,24 +141,24 @@ describe('matchesRoot', () => {
 
 describe('partitionByCoverageTier', () => {
   it('default whole-repo required → all files are required (error tier)', () => {
-    const r = partitionByCoverageTier(['src/a.ts', 'lib/b.ts'], { required: ['/'], excluded: [] });
+    const r = partitionByCoverageTier(['src/a.ts', 'lib/b.ts'], { required: ['/'], excluded: [], typeLevel: false });
     expect(r.required.sort()).toEqual(['lib/b.ts', 'src/a.ts']);
     expect(r.middle).toEqual([]);
   });
   it('empty required ("require nothing") → every uncovered file is a non-blocking warning', () => {
-    const r = partitionByCoverageTier(['src/a.ts', 'lib/b.ts'], { required: [], excluded: [] });
+    const r = partitionByCoverageTier(['src/a.ts', 'lib/b.ts'], { required: [], excluded: [], typeLevel: false });
     expect(r.required).toEqual([]); // nothing blocks
     expect(r.middle.sort()).toEqual(['lib/b.ts', 'src/a.ts']); // all surface as advisory
   });
   it('empty required with excluded → excluded silent, the rest warn', () => {
-    const r = partitionByCoverageTier(['src/a.ts', 'vendor/c.ts'], { required: [], excluded: ['vendor/'] });
+    const r = partitionByCoverageTier(['src/a.ts', 'vendor/c.ts'], { required: [], excluded: ['vendor/'], typeLevel: false });
     expect(r.required).toEqual([]);
     expect(r.middle).toEqual(['src/a.ts']); // vendor/c.ts dropped (silent)
   });
   it('files outside required fall to middle (warning), excluded are dropped', () => {
     const r = partitionByCoverageTier(
       ['services/a.ts', 'lib/b.ts', 'vendor/c.ts'],
-      { required: ['services/'], excluded: ['vendor/'] },
+      { required: ['services/'], excluded: ['vendor/'], typeLevel: false },
     );
     expect(r.required).toEqual(['services/a.ts']);
     expect(r.middle).toEqual(['lib/b.ts']);
@@ -166,7 +166,7 @@ describe('partitionByCoverageTier', () => {
   it('longest match wins; excluded wins an equal-length tie', () => {
     const r = partitionByCoverageTier(
       ['services/legacy/x.ts', 'services/a.ts'],
-      { required: ['services/'], excluded: ['services/legacy/'] },
+      { required: ['services/'], excluded: ['services/legacy/'], typeLevel: false },
     );
     expect(r.required).toEqual(['services/a.ts']);
     expect(r.middle).toEqual([]);
@@ -177,7 +177,7 @@ describe('partitionByCoverageTier', () => {
     // so excluded wins the tie and foo/x.ts is silent
     const r = partitionByCoverageTier(
       ['foo/x.ts'],
-      { required: ['foo/'], excluded: ['foo/'] },
+      { required: ['foo/'], excluded: ['foo/'], typeLevel: false },
     );
     expect(r.required).toEqual([]);
     expect(r.middle).toEqual([]);
@@ -188,7 +188,7 @@ describe('partitionByCoverageTier', () => {
     // → longer match ('services/auth/') wins → required tier
     const r = partitionByCoverageTier(
       ['services/auth/x.ts', 'services/billing/y.ts'],
-      { required: ['services/', 'services/auth/'], excluded: [] },
+      { required: ['services/', 'services/auth/'], excluded: [], typeLevel: false },
     );
     expect(r.required.sort()).toEqual(['services/auth/x.ts', 'services/billing/y.ts']);
     expect(r.middle).toEqual([]);
@@ -215,7 +215,7 @@ describe('partitionByCoverageTier — glob roots', () => {
   it('excluded glob drops generated files anywhere; the rest stay in their tier', () => {
     const r = partitionByCoverageTier(
       ['src/a.ts', 'src/x.generated.ts', 'lib/y.generated.ts'],
-      { required: ['/'], excluded: ['**/*.generated.ts'] },
+      { required: ['/'], excluded: ['**/*.generated.ts'], typeLevel: false },
     );
     expect(r.required).toEqual(['src/a.ts']); // generated files dropped (silent)
     expect(r.middle).toEqual([]);
@@ -224,7 +224,7 @@ describe('partitionByCoverageTier — glob roots', () => {
   it('required glob scopes the blocking tier; non-matching files fall to warning', () => {
     const r = partitionByCoverageTier(
       ['services/auth/api/h.ts', 'services/auth/internal/x.ts'],
-      { required: ['services/*/api/**'], excluded: [] },
+      { required: ['services/*/api/**'], excluded: [], typeLevel: false },
     );
     expect(r.required).toEqual(['services/auth/api/h.ts']);
     expect(r.middle).toEqual(['services/auth/internal/x.ts']);

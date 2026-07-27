@@ -618,7 +618,7 @@ quality:
     const p = path.join(tmpDir, 'yg-config.yaml');
     await writeFile(p, 'version: "5.0.0"\n', 'utf-8');
     const config = await parseConfig(p);
-    expect(config.coverage).toEqual({ required: ['/'], excluded: [] });
+    expect(config.coverage).toEqual({ required: ['/'], excluded: [], typeLevel: false });
     await rm(tmpDir, { recursive: true, force: true });
   });
 
@@ -628,7 +628,7 @@ quality:
     const p = path.join(tmpDir, 'yg-config.yaml');
     await writeFile(p, 'version: "5.0.0"\ncoverage:\n  required:\n    - services/\n  excluded:\n    - vendor/\n', 'utf-8');
     const config = await parseConfig(p);
-    expect(config.coverage).toEqual({ required: ['services/'], excluded: ['vendor/'] });
+    expect(config.coverage).toEqual({ required: ['services/'], excluded: ['vendor/'], typeLevel: false });
     await rm(tmpDir, { recursive: true, force: true });
   });
 
@@ -649,7 +649,7 @@ quality:
       const config = await parseConfig(p);
       // Explicit [] is permitted (not an error) and means require nothing — the
       // absent-block default of ['/'] only applies when coverage.required is omitted.
-      expect(config.coverage).toEqual({ required: [], excluded: [] });
+      expect(config.coverage).toEqual({ required: [], excluded: [], typeLevel: false });
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -954,6 +954,81 @@ quality:
 
     it('events must be a mapping — a scalar value is rejected', async () => {
       await expect(parseWith('events: on\n')).rejects.toThrow(/events must be a mapping/);
+    });
+  });
+
+  // coverage.type_level — committed-only opt-in for type-level coverage.
+  // Absent ⇒ false (today's node-only coverage, unchanged). Strict: an unknown key under
+  // coverage is rejected (typo protection — a misspelled `type_level` must
+  // not silently leave type-level coverage disabled) and the value must be
+  // boolean. Committed-only: a gitignored yg-secrets.yaml overlay must never
+  // flip enforcement, since the flag changes what counts as covered/uncovered
+  // and therefore what a verdict hash was computed against.
+  describe('coverage.type_level', () => {
+    /** Write a config body (already including a version) to a fresh tmp dir and parse it. */
+    async function parseWith(body: string): Promise<YggConfig> {
+      const dir = await mkdtemp(path.join(FIXTURES_DIR, 'tmp-config-type-level-'));
+      const filePath = path.join(dir, 'yg-config.yaml');
+      await writeFile(filePath, `version: "5.1.0"\n${body}`, 'utf-8');
+      try {
+        return await parseConfig(filePath, { skipSecretsOverlay: true });
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    }
+
+    it('parses true/false and defaults to false when absent', async () => {
+      const on = await parseWith('coverage:\n  required: []\n  excluded: []\n  type_level: true\n');
+      expect(on.coverage?.typeLevel).toBe(true);
+
+      const off = await parseWith('coverage:\n  required: []\n  excluded: []\n');
+      expect(off.coverage?.typeLevel).toBe(false);
+    });
+
+    it('rejects unknown keys under coverage (typo protection)', async () => {
+      await expect(parseWith('coverage:\n  required: []\n  type_leval: true\n'))
+        .rejects.toMatchObject({ code: 'config-coverage-unknown-key' });
+      await expect(parseWith('coverage:\n  required: []\n  type_leval: true\n'))
+        .rejects.toThrow(/type_leval/);
+    });
+
+    it('rejects a non-boolean coverage.type_level', async () => {
+      await expect(parseWith('coverage:\n  required: []\n  type_level: "yes"\n'))
+        .rejects.toMatchObject({ code: 'config-invalid' });
+      await expect(parseWith('coverage:\n  required: []\n  type_level: "yes"\n'))
+        .rejects.toThrow(/coverage\.type_level must be a boolean/);
+    });
+
+    it('cannot be flipped by the secrets overlay (committed-only)', async () => {
+      const dir = await mkdtemp(path.join(FIXTURES_DIR, 'tmp-config-type-level-'));
+      const filePath = path.join(dir, 'yg-config.yaml');
+      try {
+        await writeFile(filePath, 'version: "5.1.0"\ncoverage:\n  required: []\n  excluded: []\n', 'utf-8');
+        await writeFile(path.join(dir, 'yg-secrets.yaml'), 'coverage:\n  type_level: true\n', 'utf-8');
+        // Default read: the overlay IS merged for everything else, but type_level
+        // must still come out false — committed-only enforcement.
+        const cfg = await parseConfig(filePath);
+        expect(cfg.coverage?.typeLevel).toBe(false);
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('the committed value of true survives an overlay that omits coverage entirely', async () => {
+      const dir = await mkdtemp(path.join(FIXTURES_DIR, 'tmp-config-type-level-'));
+      const filePath = path.join(dir, 'yg-config.yaml');
+      try {
+        await writeFile(
+          filePath,
+          'version: "5.1.0"\ncoverage:\n  required: []\n  excluded: []\n  type_level: true\n',
+          'utf-8',
+        );
+        await writeFile(path.join(dir, 'yg-secrets.yaml'), 'debug: true\n', 'utf-8');
+        const cfg = await parseConfig(filePath);
+        expect(cfg.coverage?.typeLevel).toBe(true);
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
     });
   });
 
