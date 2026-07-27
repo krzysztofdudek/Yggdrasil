@@ -35,6 +35,13 @@ describe('DEFAULT_CONFIG', () => {
     const parsed = parseYaml(DEFAULT_CONFIG) as Record<string, unknown>;
     expect(parsed.auto_approve).toBe(false);
   });
+
+  it('DEFAULT_CONFIG turns coverage.type_level on, with a self-contained comment explaining it does nothing until a type declares `when:`', () => {
+    const parsed = parseYaml(DEFAULT_CONFIG) as { coverage: { type_level: boolean } };
+    expect(parsed.coverage.type_level).toBe(true);
+    expect(DEFAULT_CONFIG).toMatch(/Type-level coverage:/);
+    expect(DEFAULT_CONFIG).toMatch(/Does\n\s*#\s*NOTHING until a type in yg-architecture\.yaml declares `when:`/);
+  });
 });
 
 describe('DEFAULT_ARCHITECTURE', () => {

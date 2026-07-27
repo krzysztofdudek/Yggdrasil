@@ -8,6 +8,7 @@ import { installRules, DEPRECATED_PLATFORMS, type InstallReport } from '../templ
 import { loadGraph, CLI_SUPPORTED_SCHEMA } from '../core/graph-loader.js';
 import { blockingUnmappedPaths } from '../core/check-coverage-tiers.js';
 import { DEFAULT_COVERAGE } from '../io/config-parser.js';
+import { ZERO_CLASSIFYING_TYPES_NOTICE } from '../core/check.js';
 import { cliVersion } from './cli-version.js';
 import type { ReviewerProvider } from '../model/graph.js';
 import { detectVersion } from '../core/migrator.js';
@@ -146,8 +147,8 @@ async function freshInit(projectRoot: string): Promise<void> {
 
   p.outro(chalk.green(
     reviewerConfig
-      ? 'Yggdrasil initialized. All changes are plain files — review them with git diff before committing. Run yg check to get started.'
-      : `Yggdrasil initialized keyless — no reviewer configured, no keys, nothing to pay.\n${KEYLESS_WORKING_NOW}\nAll changes are plain files — review them with git diff before committing. Run yg check to get started.`,
+      ? `Yggdrasil initialized.\n${ZERO_CLASSIFYING_TYPES_NOTICE}\nAll changes are plain files — review them with git diff before committing. Run yg check to get started.`
+      : `Yggdrasil initialized keyless — no reviewer configured, no keys, nothing to pay.\n${KEYLESS_WORKING_NOW}\n${ZERO_CLASSIFYING_TYPES_NOTICE}\nAll changes are plain files — review them with git diff before committing. Run yg check to get started.`,
   ));
 }
 
@@ -234,6 +235,7 @@ export async function freshInitNonInteractive(
 
   process.stdout.write(chalk.green(
     `Yggdrasil initialized (provider: ${resolved.config.provider}, model: ${resolved.config.model}).\n` +
+    `${ZERO_CLASSIFYING_TYPES_NOTICE}\n` +
     'All changes are plain files — review them with git diff before committing.\n' +
     'Run yg check to get started.\n',
   ));
@@ -271,6 +273,7 @@ export async function freshInitKeyless(
   await ensureGitattributes(projectRoot);
   process.stdout.write(chalk.green(
     `Yggdrasil initialized keyless — no reviewer configured, no keys, nothing to pay.\n${KEYLESS_WORKING_NOW}\n` +
+    `  ${ZERO_CLASSIFYING_TYPES_NOTICE}\n` +
     '  All changes are plain files — review them with git diff before committing.\n' +
     '  Run yg check to get started.\n',
   ));

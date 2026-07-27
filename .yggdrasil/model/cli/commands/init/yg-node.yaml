@@ -10,13 +10,18 @@ description: Bootstraps Yggdrasil graph structure in a project or refreshes
   errors, and prints the exclude stanza — never editing the config itself.
   --platform is accepted only for backward compatibility — it prints a
   deprecation notice and is otherwise ignored, since rules now install
-  identically for every agent.
+  identically for every agent. A fresh bootstrap turns coverage.type_level on
+  by default and, since the fresh architecture template starts with no
+  classifying types, prints the same zero-classifying-types notice yg check
+  shows for that state.
 aspects:
   - reviewer-secrets-not-from-flags
 relations:
   - target: cli/templates
     type: calls
   - target: cli/core/check-coverage-tiers
+    type: calls
+  - target: cli/core/check
     type: calls
   - target: cli/io/parsers/config
     type: calls

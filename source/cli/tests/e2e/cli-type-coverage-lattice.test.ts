@@ -26,11 +26,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../..');
 const BIN_PATH = path.join(CLI_ROOT, 'dist', 'bin.js');
 const FIXTURE = path.join(CLI_ROOT, 'tests', 'fixtures', 'type-coverage-basic');
+const PASS_FIXTURE = path.join(CLI_ROOT, 'tests', 'fixtures', 'type-coverage-basic-pass');
 const distExists = existsSync(BIN_PATH);
 
-function copyFixture(): string {
+function copyFixture(source: string = FIXTURE): string {
   const dir = mkdtempSync(path.join(tmpdir(), 'yg-type-coverage-e2e-'));
-  cpSync(FIXTURE, dir, { recursive: true });
+  cpSync(source, dir, { recursive: true });
   return dir;
 }
 
@@ -68,9 +69,21 @@ describe.skipIf(!distExists)('E2E: type-level classification lattice via the rea
     }
   });
 
-  // The grouped PASS header does not yet split out type-covered files from
-  // plain node-mapped ones, so there is nothing observable yet to assert here.
-  // Once it does, a fixture variant with no ambiguous file (flag still on)
-  // should print that split on a clean PASS run — placeholder until then.
-  it.todo('a PASS-twin fixture (no ambiguous file, flag on) prints the split PASS header');
+  it('a PASS-twin fixture (no ambiguous file, flag on) prints the split PASS header', () => {
+    const dir = copyFixture(PASS_FIXTURE);
+    try {
+      const { status, out } = run(['check', '--details'], dir);
+      // Clean run: the only file this fixture's architecture cannot resolve is
+      // the excluded-root vendor/tool.ts, muted entirely, and the digest-stale
+      // warning (no agent-rules artifacts installed in the fixture) — neither
+      // is a blocking error.
+      expect(status).toBe(0);
+      expect(out).toContain('yg check: PASS');
+      // The split names both buckets: vendor/tool.ts (excluded root, counted
+      // node-owned) and src/svc/handler.ts (type-covered) — 2/2 total.
+      expect(out).toContain('2/2 files (1 node-owned, 1 type-covered)');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });

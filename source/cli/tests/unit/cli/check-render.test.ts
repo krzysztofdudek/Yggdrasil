@@ -1130,6 +1130,100 @@ describe('check render — header verified-pair split', () => {
   });
 });
 
+// ── Header: type-covered split (coverage.type_level) ─────────────────────────
+
+describe('check render — header type-covered split (coverage.type_level)', () => {
+  // Same coveredFiles/totalFiles either way (1/5) — only `typeLevel` differs —
+  // so these two tests isolate the flag as the sole cause of the format change.
+  it('flag OFF: byte-identical to the pre-type-level header (ratio + percentage, no split)', () => {
+    const result: CheckResult = { ...baseResult([]), coveredFiles: 1, totalFiles: 5 };
+    const out = stripAnsi(formatOutput(result, { kind: 'full' }));
+    expect(out).toContain('1/5 files (20%)');
+    expect(out).not.toContain('node-owned');
+    expect(out).not.toContain('type-covered');
+  });
+
+  it('flag ON: the files metric names the node-owned/type-covered split, numerator folds in type-covered', () => {
+    const result: CheckResult = {
+      ...baseResult([]),
+      coveredFiles: 1,
+      totalFiles: 5,
+      typeLevel: true,
+      typeCoveredCount: 1,
+      classifyingTypeCount: 1,
+    };
+    const out = stripAnsi(formatOutput(result, { kind: 'full' }));
+    // The old plain-percentage rendering is gone...
+    expect(out).not.toContain('(20%)');
+    // ...replaced by the named split, with the numerator counting the
+    // type-covered file as covered (1 node-owned + 1 type-covered = 2/5).
+    expect(out).toContain('2/5 files (1 node-owned, 1 type-covered)');
+  });
+
+  it('flag ON, fully covered: the split still renders (composition stays informative at 100%)', () => {
+    const result: CheckResult = {
+      ...baseResult([]),
+      coveredFiles: 1,
+      totalFiles: 2,
+      typeLevel: true,
+      typeCoveredCount: 1,
+      classifyingTypeCount: 1,
+    };
+    const out = stripAnsi(formatOutput(result, { kind: 'full' }));
+    expect(out).toContain('2/2 files (1 node-owned, 1 type-covered)');
+  });
+
+  it('flag ON, zero type-covered files: the split still names both buckets (0 type-covered)', () => {
+    const result: CheckResult = {
+      ...baseResult([]),
+      coveredFiles: 3,
+      totalFiles: 5,
+      typeLevel: true,
+      typeCoveredCount: 0,
+      classifyingTypeCount: 1,
+    };
+    const out = stripAnsi(formatOutput(result, { kind: 'full' }));
+    expect(out).toContain('3/5 files (3 node-owned, 0 type-covered)');
+  });
+});
+
+// ── Zero-classifying-types notice (coverage.type_level on, no `when:` anywhere) ──
+
+describe('check render — zero-classifying-types notice', () => {
+  const NOTICE =
+    "Type-level coverage is on, but no type in yg-architecture.yaml declares 'when:' — every file still needs an explicit node until you add classifying types.";
+
+  it('flag ON, zero classifying types: prints the standing notice', () => {
+    const result: CheckResult = {
+      ...baseResult([]),
+      typeLevel: true,
+      classifyingTypeCount: 0,
+    };
+    const out = stripAnsi(formatOutput(result, { kind: 'full' }));
+    expect(out).toContain(NOTICE);
+  });
+
+  it('flag ON, at least one classifying type: no notice', () => {
+    const result: CheckResult = {
+      ...baseResult([]),
+      typeLevel: true,
+      classifyingTypeCount: 2,
+    };
+    const out = stripAnsi(formatOutput(result, { kind: 'full' }));
+    expect(out).not.toContain('Type-level coverage is on');
+  });
+
+  it('flag OFF: no notice even with zero classifying types', () => {
+    const result: CheckResult = {
+      ...baseResult([]),
+      typeLevel: false,
+      classifyingTypeCount: 0,
+    };
+    const out = stripAnsi(formatOutput(result, { kind: 'full' }));
+    expect(out).not.toContain('Type-level coverage is on');
+  });
+});
+
 // ── --top coverage issue dispatch (task 2.3 fix) ─────────────────────────────
 
 describe('check render — --top view: coverage issues (task 2.3 fix)', () => {

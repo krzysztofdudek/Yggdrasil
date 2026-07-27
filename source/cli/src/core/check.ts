@@ -96,7 +96,43 @@ export interface CheckResult {
   verifiedDet: number;
   /** Count of VERIFIED pairs whose reviewer kind is LLM (`pair.kind === 'llm'`). See `verifiedDet`. */
   verifiedLlm: number;
+  /**
+   * Whether `coverage.type_level` was on for this run. Gates the header's
+   * node-owned/type-covered split and the zero-classifying-types notice —
+   * both flag-on-only surfaces. Optional (absent/false = flag off) so every
+   * pre-existing `CheckResult` literal built before this field existed keeps
+   * rendering byte-identically to today.
+   */
+  typeLevel?: boolean;
+  /**
+   * Count of files silently satisfied by the type-level classification
+   * lattice (`TypeCoverageResult.covered.size`) — matched by exactly one
+   * classifying type's `when`, no node, no issue raised. 0 when the flag is
+   * off or the coverage scan did not run (`gitTrackedFiles === null`).
+   */
+  typeCoveredCount?: number;
+  /**
+   * Count of architecture types that declare `when:` (the classifying
+   * subset of `graph.architecture.node_types`) — computed regardless of the
+   * flag or file-walk availability, since it is a pure architecture fact.
+   * `typeLevel` on with this at 0 means `coverage.type_level` can never match
+   * a single file (classifyFile skips every type without `when`), which is
+   * exactly the standing notice's trigger.
+   */
+  classifyingTypeCount?: number;
 }
+
+/**
+ * Standing notice: `coverage.type_level` is on, but no type in the
+ * architecture declares `when:`, so the classification lattice can never
+ * match a single file (classifyFile skips every type without `when` —
+ * core/type-classifier.ts) — the flag is committed but does nothing yet.
+ * Shared verbatim between `yg check`'s coverage-section render and `yg
+ * init`'s closing summary (the fresh-init template always starts with an
+ * empty architecture) so the same fact reads identically on both surfaces.
+ */
+export const ZERO_CLASSIFYING_TYPES_NOTICE =
+  "Type-level coverage is on, but no type in yg-architecture.yaml declares 'when:' — every file still needs an explicit node until you add classifying types.";
 
 // ── Lock verification → issue emission (live path, spec §6) ──
 
@@ -759,6 +795,17 @@ export async function runCheck(
   let coverageIssues: CheckIssue[] = [];
   let coveredFiles = 0;
   let totalFiles = 0;
+  let typeCoveredCount = 0;
+  const coverage = graph.config.coverage ?? DEFAULT_COVERAGE;
+  const typeLevel = coverage.typeLevel === true;
+  // Pure architecture fact — independent of the flag and of file-walk
+  // availability — so the zero-classifying-types notice can fire even when
+  // gitTrackedFiles is null (no coverage scan ran this call). classifyFile
+  // skips every type without `when` (core/type-classifier.ts), so this count
+  // staying 0 with the flag on means the lattice can never match a file.
+  const classifyingTypeCount = Object.values(graph.architecture.node_types).filter(
+    (t) => t.when !== undefined,
+  ).length;
   if (gitTrackedFiles !== null) {
     const yggPrefix = toPosixPath(path.relative(projectRoot, graph.rootPath));
     const sourceFiles = excludeNestedGraphSubtrees(gitTrackedFiles).filter(f => {
@@ -767,12 +814,11 @@ export async function runCheck(
     });
     totalFiles = sourceFiles.length;
     const uncovered = scanUncoveredFiles(graph, gitTrackedFiles);
-    const coverage = graph.config.coverage ?? DEFAULT_COVERAGE;
     const tiers = partitionByCoverageTier(uncovered, coverage);
-    // coveredFiles/totalFiles stay the file-mapping (node-ownership) ratio,
-    // unaffected by type-level coverage — a header that also surfaces
-    // type-covered files is later work; this counter must not silently
-    // change shape underneath it.
+    // coveredFiles/totalFiles stay the file-mapping (node-ownership) ratio —
+    // the CLI header adds typeCoveredCount to this on top of it (below) when
+    // the flag is on, rather than folding type-covered files into this count
+    // itself, so this counter's own meaning never silently changes shape.
     coveredFiles = totalFiles - (tiers.required.length + tiers.middle.length);
 
     // Type-level classification lattice: OFF (the default) ⇒ this block never
@@ -785,6 +831,7 @@ export async function runCheck(
     if (coverage.typeLevel) {
       sawTypeLevel = true;
       const typeCoverage = await computeTypeCoverage(graph, uncovered, new FileContentCache());
+      typeCoveredCount = typeCoverage.covered.size;
 
       // The lattice is one issue per file, most-binding wins: covered/
       // ambiguous/strict-claimed/unreadable files each already have their own
@@ -899,6 +946,9 @@ export async function runCheck(
     draftSkipped,
     verifiedDet,
     verifiedLlm,
+    typeLevel,
+    typeCoveredCount,
+    classifyingTypeCount,
   };
 }
 

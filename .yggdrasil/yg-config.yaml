@@ -28,7 +28,10 @@ reviewer:
       # for even a one-line edit. Raised again to 68000: correctness fixes to the
       # check command file (a priority-ordered suggested-next pick, an injected
       # review clock) pushed its cli-command-contract / what-why-next prompts just
-      # past 64000. 68K stays comfortable under sonnet's 200K context.
-      max_prompt_chars: 68000
+      # past 64000. Raised again to 72000: the type-covered header split and the
+      # zero-classifying-types notice again pushed check.ts's what-why-next prompt
+      # past the cap. This file is a recurring hot spot for this ceiling; 72K keeps
+      # comfortable headroom under sonnet's 200K context for the next edit too.
+      max_prompt_chars: 72000
       config:
         model: sonnet

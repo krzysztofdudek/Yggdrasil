@@ -296,6 +296,58 @@ describe('runCheck — coverage.type_level OFF reproduces pre-type-level behavio
 });
 
 // ===========================================================================
+// CheckResult header-support fields (typeLevel / typeCoveredCount /
+// classifyingTypeCount) — the data the CLI header split and the
+// zero-classifying-types notice render from.
+// ===========================================================================
+
+describe('runCheck — typeLevel / typeCoveredCount / classifyingTypeCount', () => {
+  it('flag on: typeLevel true, classifyingTypeCount counts the four `when`-bearing types, typeCoveredCount counts only the silently-covered file', async () => {
+    const dir = copyFixture();
+    const result = await runOnFixture(dir);
+    expect(result.typeLevel).toBe(true);
+    // svc, util, special, big all declare `when:` in the fixture architecture.
+    expect(result.classifyingTypeCount).toBe(4);
+    // Only handler.ts lands in the lattice's `covered` bucket — overlap.ts is
+    // ambiguous, special.ts is strict-claimed, neither counts as type-covered.
+    expect(result.typeCoveredCount).toBe(1);
+  });
+
+  it('flag off: typeLevel false, typeCoveredCount 0 (the lattice never ran), classifyingTypeCount unaffected (a pure architecture fact)', async () => {
+    const dir = copyFixture();
+    const graphOn = await loadGraph(dir);
+    const graphOff = withTypeLevel(graphOn, false);
+    const files = await walkRepoFiles(dir);
+    const result = await runCheck(graphOff, files);
+    expect(result.typeLevel).toBe(false);
+    expect(result.typeCoveredCount).toBe(0);
+    expect(result.classifyingTypeCount).toBe(4);
+  });
+
+  it('flag on, zero classifying types (every `when:` stripped in memory): classifyingTypeCount 0, typeCoveredCount 0 — the lattice cannot match a single file', async () => {
+    const dir = copyFixture();
+    const graphOn = await loadGraph(dir);
+    const noClassifying: Graph = {
+      ...graphOn,
+      architecture: {
+        ...graphOn.architecture,
+        node_types: Object.fromEntries(
+          Object.entries(graphOn.architecture.node_types).map(([id, def]) => [
+            id,
+            { ...def, when: undefined, enforce: undefined },
+          ]),
+        ),
+      },
+    };
+    const files = await walkRepoFiles(dir);
+    const result = await runCheck(noClassifying, files);
+    expect(result.typeLevel).toBe(true);
+    expect(result.classifyingTypeCount).toBe(0);
+    expect(result.typeCoveredCount).toBe(0);
+  });
+});
+
+// ===========================================================================
 // checkStrictBackwardCoverage — orphan WHAT enrichment in isolation
 // ===========================================================================
 

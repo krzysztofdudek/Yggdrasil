@@ -5,7 +5,7 @@ import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { exitAfterFlush } from './exit-after-flush.js';
 import { initDebugLog, debugWrite } from '../utils/debug-log.js';
 import { appendToDebugLog, writeFillDivergence } from '../io/debug-log-writer.js';
-import { runCheck, runAttentionDump } from '../core/check.js';
+import { runCheck, runAttentionDump, ZERO_CLASSIFYING_TYPES_NOTICE } from '../core/check.js';
 import type { CheckIssue, CheckResult } from '../core/check.js';
 import { runFill, FillGatingError } from '../core/fill.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
@@ -497,6 +497,12 @@ export function formatOutput(result: CheckResult, view: CheckView = { kind: 'ful
   const header = renderHeader(result, errors.length, warnings.length, autoFilled, emoji);
   const sections: string[] = [header];
 
+  // Standing config fact, not an issue — printed ahead of every view.
+  if (result.typeLevel && (result.classifyingTypeCount ?? 0) === 0) {
+    sections.push('');
+    sections.push(chalk.dim(ZERO_CLASSIFYING_TYPES_NOTICE));
+  }
+
   if (view.kind === 'summary' || view.kind === 'top') {
     // Both triage views ALWAYS print the aggregate Errors(N)/Warnings(N)
     // subheaders with the TRUE totals — only the body beneath them changes
@@ -809,12 +815,15 @@ function renderHeader(result: CheckResult, errorCount: number, warningCount: num
   const metrics: string[] = [`${result.nodeCount} nodes`];
 
   if (result.totalFiles > 0) {
-    const ratio = `${result.coveredFiles}/${result.totalFiles} files`;
-    if (result.coveredFiles < result.totalFiles) {
-      const pct = Math.round((result.coveredFiles / result.totalFiles) * 100);
-      metrics.push(`${ratio} (${pct}%)`);
+    const nodeOwned = result.coveredFiles;
+    if (result.typeLevel) {
+      // Split, not a flat percentage; flag off is byte-identical below.
+      const typeCovered = result.typeCoveredCount ?? 0;
+      metrics.push(`${nodeOwned + typeCovered}/${result.totalFiles} files (${nodeOwned} node-owned, ${typeCovered} type-covered)`);
+    } else if (nodeOwned < result.totalFiles) {
+      metrics.push(`${nodeOwned}/${result.totalFiles} files (${Math.round((nodeOwned / result.totalFiles) * 100)}%)`);
     } else {
-      metrics.push(ratio);
+      metrics.push(`${nodeOwned}/${result.totalFiles} files`);
     }
   }
 

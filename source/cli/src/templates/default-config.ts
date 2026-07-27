@@ -14,6 +14,10 @@ quality:
 coverage:
   required: []
   excluded: []
+  # Type-level coverage: a file matched by exactly one classifying type's \`when\`
+  # is enforced by that type's per-file rules with no node required. Does
+  # NOTHING until a type in yg-architecture.yaml declares \`when:\`.
+  type_level: true
 
 # Reviewer configuration added by: yg init
 # (see yg schemas read config + yg knowledge read configuration)
