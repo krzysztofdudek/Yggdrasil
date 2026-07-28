@@ -2,6 +2,16 @@
 
 set -uo pipefail
 
+# The test step spawns the built CLI and asserts on its stdout/stderr BYTES —
+# exact "Errors (N):" headers, a literal unwrapped "✓" glyph, no stray ANSI escape
+# codes. FORCE_COLOR is a Node/chalk convention that OVERRIDES TTY auto-detection,
+# so a spawned child writing to a pipe (which would normally disable color) still
+# emits color codes when the invoking shell exports FORCE_COLOR — turning a clean
+# tree into a false-red gate failure that has nothing to do with the code under
+# test. Force it off here so the gate's outcome depends only on the code, never on
+# the calling shell's environment.
+export FORCE_COLOR=0
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 FAILED=()
