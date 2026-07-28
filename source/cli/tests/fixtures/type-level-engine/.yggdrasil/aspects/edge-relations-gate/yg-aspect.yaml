@@ -1,0 +1,13 @@
+name: Edge Relations Gate
+description: "Attached directly to consumer. Carries NO own when: of its own — isolated from own-when-relations-gate's row — so its implies edge's impliesWhens (a per-edge predicate, a DIFFERENT field from the aspect's own when:) is the only relations-gated thing about it. Implies implied-via-edge-when, gated by impliesWhens on that one edge, with status_inherit: own-default."
+reviewer:
+  type: deterministic
+scope:
+  per: file
+implies:
+  - id: implied-via-edge-when
+    status_inherit: own-default
+    when:
+      relations:
+        uses:
+          target_type: leaf

@@ -106,6 +106,19 @@ describe('the implicit parent chain', () => {
     const ids = computeTypeEffectiveAspects(graph, 'src/consumer/c.ts', 'consumer').map((a) => a.aspectId);
     expect(ids).toContain('classifying-parent-rule');
   });
+
+  it('an ancestor type\'s attach-site when: is evaluated against the SUBJECT, never against the ancestor view', async () => {
+    // mid-has-mapping-gated is attached to mid (an ancestor of leaf in the
+    // chain) with when: { node: { has_mapping: true } }. That reads true
+    // against the subject file (a file-level unit always maps itself) and
+    // false against the synthetic ancestor view standing in for mid (it
+    // carries no meta.mapping at all) — so this discriminates evaluating
+    // attachWhen against the subject from evaluating it against the
+    // ancestor.
+    const graph = await loadGraph(FIXTURE);
+    const ids = computeTypeEffectiveAspects(graph, 'src/leaf/a.ts', 'leaf').map((a) => a.aspectId);
+    expect(ids).toContain('mid-has-mapping-gated');
+  });
 });
 
 describe('expansion and status', () => {
@@ -169,6 +182,11 @@ describe('relation atoms derived from imports', () => {
       'src/consumer/c.ts': [{ toFile: 'src/owned/o.ts', toOwner: { kind: 'node', path: 'owned', type: 'leaf' } }],
     })).map((a) => a.aspectId);
     expect(ids).toContain('needs-leaf-dependency'); // when: { relations: { uses: { target_type: leaf } } }
+    // The positive target:-by-path row: a real component IS on the other end
+    // of this edge, named exactly 'owned', so the rule naming that exact path
+    // must be satisfied — the sibling test below only ever exercises the
+    // NEGATIVE case (no real component on the other end).
+    expect(ids).toContain('needs-owned-target'); // when: { relations: { uses: { target: owned } } }
   });
 
   it('is satisfied by an import into a file enforced by its type with no component of its own', async () => {
@@ -259,6 +277,68 @@ describe('relation atoms derived from imports', () => {
   });
 });
 
+describe('the derived-relation overrides reach every forwarding site, not only the attach-site path', () => {
+  // Step 5's needs-* rows all gate through an ATTACH-SITE when: (an
+  // architecture type's object-form aspects entry), which only exercises
+  // ONE of graph/aspects.ts's evaluateWhen call sites. These three tests
+  // exercise the other forwarding sites: an aspect's OWN aspect-global
+  // when: (checked on the direct channel-3 path AND again by the
+  // implies-expansion re-check every visited id goes through, AND by the
+  // status fix-point's own-when check for an id reached only via implies),
+  // a per-edge impliesWhens clause (checked by the implies-expansion and
+  // the status fix-point, each on their own per-edge code path), and the
+  // internal hand-off from computeEffectiveAspects into its own
+  // computeEffectiveAspectStatuses call (which the draft-propagation gate
+  // depends on). Each row below was verified to go RED under the matching
+  // local, reverted mutation — see the fix-round report for the mutation
+  // trail.
+  it('an aspect\'s OWN aspect-global when: is honoured both directly and through implies', async () => {
+    // A type-covered target (not a node-kind one) is essential here: a
+    // node-kind edge's target_type already resolves correctly through the
+    // ordinary graph lookup with NO override at all, so it can never
+    // discriminate a dropped override. Only a type-covered target (whose
+    // relation carries an empty target: and needs the identity-map override
+    // to answer target_type) actually depends on overrides reaching every
+    // forwarding site.
+    const graph = await loadGraph(FIXTURE);
+    const list = computeTypeEffectiveAspects(graph, 'src/consumer/c.ts', 'consumer', edges({
+      'src/consumer/c.ts': [{ toFile: 'src/leaf/a.ts', toOwner: { kind: 'type-covered', type: 'leaf' } }],
+    }));
+    const ids = list.map((a) => a.aspectId);
+    expect(ids).toContain('own-when-relations-gate');
+    // implied-own-when-relations is reached ONLY via implies, and its own
+    // when: is ALSO relations-gated — its status_inherit: own-default status
+    // (advisory) is distinct from the 'enforced' fallback a caller would see
+    // if its status fix-point entry silently went missing.
+    expect(list).toContainEqual({ aspectId: 'implied-own-when-relations', status: 'advisory', via: 'implies' });
+  });
+
+  it('a per-edge impliesWhens relations clause is honoured, distinct from an aspect\'s own when:', async () => {
+    // Type-covered target — see the note in the previous test.
+    const graph = await loadGraph(FIXTURE);
+    const list = computeTypeEffectiveAspects(graph, 'src/consumer/c.ts', 'consumer', edges({
+      'src/consumer/c.ts': [{ toFile: 'src/leaf/a.ts', toOwner: { kind: 'type-covered', type: 'leaf' } }],
+    }));
+    const ids = list.map((a) => a.aspectId);
+    expect(ids).toContain('edge-relations-gate');
+    expect(list).toContainEqual({ aspectId: 'implied-via-edge-when', status: 'advisory', via: 'implies' });
+  });
+
+  it('a relations-gated draft implier is recognized as draft and still blocks its own implies', async () => {
+    // draft-own-when-gate's own when: is relations-gated; recognizing it as
+    // draft (so it correctly blocks propagation into blocked-by-draft-gate)
+    // depends on computeEffectiveAspects's internal call to
+    // computeEffectiveAspectStatuses seeing the same overrides. Type-covered
+    // target — see the note in the first test of this block.
+    const graph = await loadGraph(FIXTURE);
+    const list = computeTypeEffectiveAspects(graph, 'src/consumer/c.ts', 'consumer', edges({
+      'src/consumer/c.ts': [{ toFile: 'src/leaf/a.ts', toOwner: { kind: 'type-covered', type: 'leaf' } }],
+    }));
+    expect(list).toContainEqual({ aspectId: 'draft-own-when-gate', status: 'draft', via: 'type' });
+    expect(list.map((a) => a.aspectId)).not.toContain('blocked-by-draft-gate');
+  });
+});
+
 describe('channels that must never deliver to a type-covered file', () => {
   it('a flow listing the file among its participants delivers nothing', async () => {
     const graph = await loadGraph(FIXTURE);
@@ -291,12 +371,14 @@ describe('regression: the new optional overrides parameter changes nothing on th
     'every node in this repo\'s own graph computes identically whether or not an overrides object is supplied, as long as it only reimplements the default lookup',
     async () => {
       const graph = await loadGraph(REPO_ROOT);
-      // An overrides object whose relationTargetType reimplements EXACTLY the
-      // default graph lookup matchesRelation falls back to when overrides is
-      // absent. If threading the optional parameter through the six
-      // evaluateWhen call sites changed anything about the two-argument path,
-      // this would diverge from the plain two-argument call somewhere across
-      // this repo's own (large, real) rule set.
+      // Asserts AGREEMENT between the plain two-argument call — the default
+      // path, the only calling convention every existing production caller
+      // uses — and the identical three-argument call whose override
+      // reimplements that exact default lookup, across every real node in
+      // this repo's own graph. This is not a claim that any possible
+      // threading bug would necessarily surface here; it demonstrates that
+      // the two calling conventions agree in practice over this repo's own
+      // large, real rule set.
       const identityOverrides: WhenEvalOverrides = {
         relationTargetType: (relation, g) => g.nodes.get(relation.target)?.meta.type,
       };

@@ -28,12 +28,19 @@ node_types:
       link that itself cannot classify any file, so its contribution to leaf's
       cascade proves an ordinary non-classifying ancestor participates. Also
       re-attaches two-level-rule with a bumped status, so the effective status
-      for that rule must be the max across both levels."
+      for that rule must be the max across both levels. mid-has-mapping-gated's
+      attach-site when: pins that an ANCESTOR type's when: is evaluated
+      against the SUBJECT file, never against the synthetic ancestor view
+      standing in for mid itself."
     parents: [top]
     aspects:
       - mid-file-rule
       - id: two-level-rule
         status: enforced
+      - id: mid-has-mapping-gated
+        when:
+          node:
+            has_mapping: true
 
   top:
     description: "No parents at all — the chain leaf -> mid -> top terminates
@@ -111,7 +118,16 @@ node_types:
       above). Its aspects are attached with conditional (object-form) `when:`
       entries keyed on relations: — the derived-relation-atom rows (a
       TypedEdgeIndex-supplied import edge is the only static evidence these
-      predicates can ever see)."
+      predicates can ever see). own-when-relations-gate/implied-own-when-
+      relations pin every forwarding site an aspect's OWN aspect-global when:
+      touches (direct channel-3 attach, the implies-expansion re-check, and
+      the status fix-point's own-when check for an implied id).
+      edge-relations-gate/implied-via-edge-when pin the SEPARATE per-edge
+      impliesWhens forwarding sites. draft-own-when-gate/blocked-by-draft-
+      gate pin the internal overrides hand-off from computeEffectiveAspects
+      into its own computeEffectiveAspectStatuses call, which the draft-
+      propagation gate depends on to correctly recognize a relations-gated
+      implier as draft."
     when:
       path: "src/consumer/**"
     parents: [classifying-parent]
@@ -156,3 +172,6 @@ node_types:
           relations:
             uses:
               consumes_port: some-port
+      - own-when-relations-gate
+      - edge-relations-gate
+      - draft-own-when-gate

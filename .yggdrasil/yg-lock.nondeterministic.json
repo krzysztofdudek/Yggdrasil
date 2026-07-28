@@ -710,7 +710,7 @@
       "file:source/cli/tests/unit/core/to-5.1.0.test.ts": {"hash":"91154dc70810342f8bdec236e1523cc7194d11e45eca66a09c03c22f4374446c","verdict":"approved"},
       "file:source/cli/tests/unit/core/type-classifier.test.ts": {"hash":"93c4023c7fbb95bbddb24b74cf5a633d49c4fe98c1c1760cbc981e74c3591364","verdict":"approved"},
       "file:source/cli/tests/unit/core/type-coverage.test.ts": {"hash":"1659d1ad6ca1ab13b9a2d3963e875a4a6876722fcdc697256c3a99ede220a1c4","verdict":"approved"},
-      "file:source/cli/tests/unit/core/type-effective.test.ts": {"hash":"bfd57ec92a89532c57925e53cc248e60391eeedc9aad9fe38c8528e5417657c6","verdict":"approved"},
+      "file:source/cli/tests/unit/core/type-effective.test.ts": {"hash":"dc3868432996a5d57c6d6b54d336b75d88e4b5b09db5ee3a77a47e020111a323","verdict":"approved"},
       "file:source/cli/tests/unit/core/type-relation-gate.test.ts": {"hash":"eb0ebaca9451f1cd260a28e1f1249c5bd8c00aeb69fe0aea62987a8d4359ac36","verdict":"approved"},
       "file:source/cli/tests/unit/core/validator-architecture.test.ts": {"hash":"9940a349529d3628d6b62f9ae7c97ab27e6459e5e66fb31e0b1fb979e5e3dc13","verdict":"approved"},
       "file:source/cli/tests/unit/core/validator-aspect-aggregate.test.ts": {"hash":"7d922428118bb81a77a284817ad64ba704177c3bb85de9f9cd16b3836a50407c","verdict":"approved"},
