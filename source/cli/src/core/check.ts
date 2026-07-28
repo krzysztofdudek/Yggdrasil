@@ -4,6 +4,7 @@ import { DEFAULT_COVERAGE } from '../io/config-parser.js';
 import { normalizeMappingPaths } from '../io/paths.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import { computeTypeCoverage } from './type-coverage.js';
+import type { TypeCoverageResult } from './type-coverage.js';
 import { validate } from './validator.js';
 import { checkReviewOverdue } from './checks/aspect-contracts.js';
 import { checkDigestGate } from './checks/digest-gate.js';
@@ -35,10 +36,11 @@ import { runRelationPass } from '../relations/pass.js';
 import type { FileFacts } from '../relations/pass.js';
 import { extractorForLanguage } from '../relations/extractors/registry.js';
 import { astCacheDir } from '../relations/facts-cache.js';
-import { relationRefusedMessage } from '../relations/messages.js';
+import { relationRefusedMessage, typeGateForbiddenMessage } from '../relations/messages.js';
 import { getLanguageDisplayName } from '../utils/language-registry.js';
 import { makeResolvePathToFile } from '../relations/resolve-path.js';
 import { buildOwnerIndex } from '../relations/owner-index.js';
+import { computeTypeGateFindings } from '../relations/type-gate.js';
 // ── Silent feature-field deviation index (L3 attention) — the writer lives HERE ONLY,
 //    behind the runCheck fence (G2). cli/check.ts calls runAttentionDump, never the writer. ──
 import {
@@ -350,17 +352,16 @@ async function classifyLogStateFromLock(
  *
  * Independently of any aspect or pair state, a node whose TYPE has
  * `log_required: true` and whose mapped source fingerprint differs from the
- * lock's stored baseline (or has none yet — first verification of a node with
- * mapped source) MUST carry a fresh log entry. The requirement is a property of
- * the node TYPE plus a source change, fully DECOUPLED from whether the node has
- * any aspects or pairs — so it is detected here, read-only and at zero LLM cost,
- * not only at `--approve` fill time. This is what makes the requirement bite on a
- * node that produces NO fill pairs (all aspects draft, no effective aspects, or a
- * change touching only non-subject files): such a node is never in the fill's
- * pair-scoped node set, so without this live check an unlogged source change
- * would pass `yg check` green. `--approve` writes nothing new for it — its
- * positive closure already refuses to advance the baseline until an entry exists,
- * and its final re-check surfaces this same error.
+ * lock's stored baseline (or has none yet) MUST carry a fresh log entry. The
+ * requirement is a property of node TYPE plus a source change, fully DECOUPLED
+ * from whether the node has any aspects or pairs — detected here, read-only and
+ * at zero LLM cost, not only at `--approve` fill time. This is what makes the
+ * requirement bite on a node that produces NO fill pairs (all aspects draft, no
+ * effective aspects, or a change touching only non-subject files): such a node
+ * is never in the fill's pair-scoped node set, so without this live check an
+ * unlogged source change would pass `yg check` green. `--approve` writes
+ * nothing new for it — positive closure already refuses to advance the
+ * baseline until an entry exists, and the final re-check surfaces this error.
  *
  * Reuses logGateBlocksNode — the single source of truth for the
  * freshness/fingerprint rule shared with the fill gate and positive closure.
@@ -454,41 +455,32 @@ export function scanUncoveredFiles(graph: Graph, coverageVisibleFiles: string[])
 
 /**
  * Detect a git-tracked file that is POSITIVELY gitignored — the tracked∩gitignored
- * anomaly. Both `walkRepoFiles` (coverage) and `expandMappingPaths`' directory/glob
- * expansion are plain disk walks that skip anything `.gitignore` excludes; NEITHER
- * consults the git index. So a file that is git-tracked (legal: `git add -f`, or a
- * `.gitignore` rule added after the file was already tracked) but gitignored is
- * invisible to every layer that governs coverage, classification, and enforcement —
- * a false green, independent of whether any node's mapping happens to match it.
+ * anomaly. `walkRepoFiles` and `expandMappingPaths`' directory/glob expansion are
+ * plain disk walks that skip anything `.gitignore` excludes; neither consults the
+ * git index. So a tracked-but-gitignored file (legal via `git add -f`, or a later
+ * `.gitignore` rule) is invisible to coverage/classification/enforcement — a false
+ * green, regardless of node mapping.
  *
- * A tracked file absent from the walk is only a CANDIDATE, never proof by itself
- * (the walk also skips a symlink, a `.git` segment, and the top-level `.yggdrasil/`
- * graph directory — none of that is this check's business). A candidate is only
- * ever reported after a POSITIVE match against the real root `.gitignore` stack;
- * a candidate absent from the walk for any OTHER reason is silently skipped —
- * nothing truthful could be said about it here.
+ * A tracked file absent from the walk is only a CANDIDATE (the walk also skips
+ * symlinks, `.git`, and the top-level `.yggdrasil/`, none of which are this
+ * check's business) — reported only after a POSITIVE match against the real root
+ * `.gitignore` stack; absent for any other reason is silently skipped.
  *
- * `trackedFiles` is the ONE injected git-derived input in this surface (real
- * `git ls-files` output, from `io/repo-scanner.ts`'s `listGitTrackedFiles`);
+ * `trackedFiles` is the ONE injected git-derived input here (`listGitTrackedFiles`);
  * `walkedFiles` is the same disk-walk output every other coverage check reads.
- * `trackedFiles === null` (git absent or the probe failed) silently skips this
- * check — best-effort, never a reason to fail `yg check` on its own. No root
- * `.gitignore` at all means nothing can be positively matched, so the check is
- * skipped rather than guessing.
+ * `trackedFiles === null` (git absent, or the probe failed) silently skips this
+ * check — best-effort, never a reason to fail `yg check`. No root `.gitignore` ⇒
+ * nothing to match, so skipped rather than guessing.
  *
- * Severity mirrors the coverage tiers EXACTLY via `partitionByCoverageTier`'s
- * absolute-exclusion authority (isExcludedByCoverage) — not a second,
- * independent `required`-only test: error under `coverage.required`, warning
- * otherwise, NO issue at all when `coverage.excluded` matches (exclusion is
- * absolute, so a required root nested inside a broader excluded one still
- * resolves correctly).
+ * Severity mirrors the coverage tiers via `partitionByCoverageTier`'s absolute-
+ * exclusion authority (isExcludedByCoverage): error under `coverage.required`,
+ * warning otherwise, NO issue when `coverage.excluded` matches.
  *
- * One more exemption: a file named DIRECTLY (exact match, not a glob or a
- * directory) in some node's mapping is hashed and reviewed regardless of
- * gitignore status (`expandMappingPaths` only consults `.gitignore` when
- * expanding a directory/glob), so it was never actually invisible —
- * `file-mapping-gitignored` (checks/mapping.ts) already owns that shape;
- * flagging it again here would give contradictory fixes for one file.
+ * Exemption: a file named DIRECTLY (exact, not glob/directory) in a mapping is
+ * reviewed regardless of gitignore status (`expandMappingPaths` only consults
+ * `.gitignore` for directory/glob expansion) — `file-mapping-gitignored`
+ * (checks/mapping.ts) already owns that shape; flagging it again would give
+ * contradictory fixes for one file.
  */
 export async function scanTrackedButIgnored(
   graph: Graph,
@@ -571,19 +563,17 @@ export async function scanTrackedButIgnored(
 
 /**
  * Type-level coverage (coverage.type_level) enrichment: a file matching no
- * classifying type at all has no type-specific fix available — the plain
- * "add it to a node mapping" advice is the only guidance there is, and it now
- * says so explicitly, with the `yg type-suggest` pointer in NEXT (an
- * actionable command, not folded into the factual WHY).
+ * classifying type has no type-specific fix — the plain "add it to a node
+ * mapping" advice is all there is, now said explicitly, with a `yg
+ * type-suggest` pointer in NEXT (actionable, not folded into WHY).
  *
- * Callers MUST call this only when every file the issue lists actually ran
- * through the lattice and came back `unmatched`. The excluded-ancestor-of-
- * required corner that once required checking this separately is now
- * impossible (exclusion is absolute, so a file can never be muted from
- * classification yet still land in a coverage tier — see the coverage
- * section below). A muted file was never checked against any type;
- * asserting "your architecture has no type for this file" would be a claim
- * the lattice never established. Returns `issue` unchanged when null.
+ * Callers MUST call this only when every listed file actually ran through the
+ * lattice and came back `unmatched`. The excluded-ancestor-of-required corner
+ * that once needed a separate check is now impossible (exclusion is absolute,
+ * so a file can never be muted from classification yet still land in a
+ * coverage tier). A muted file was never checked against any type; claiming
+ * "your architecture has no type for this file" would be unestablished.
+ * Returns `issue` unchanged when null.
  */
 function enrichNoTypeMessage(issue: CheckIssue | null): CheckIssue | null {
   if (issue === null) return issue;
@@ -606,70 +596,49 @@ function enrichNoTypeMessage(issue: CheckIssue | null): CheckIssue | null {
 // ── Check orchestrator ────────────────────────────────────
 
 /**
- * Run the full check (spec §6):
- *   structural validation → coverage → prompt-size gate → lock verification →
- *   relation conformance (computed LIVE) → log integrity → report.
+ * Run the full check (spec §6): structural validation → coverage → prompt-size
+ * gate → lock verification → relation conformance (LIVE) → log integrity → report.
  *
  * Aspect verdicts are validated by hashing against the lock (no LLM calls, no
  * writes — the lock is the only persisted aspect-verification state). Relation
- * conformance is NOT cached: the relation analyzer is run live every call
- * (parse + resolve + verify), so the result is always the current truth. The
- * relation pass parses source locally but is keyless / makes no LLM calls.
+ * conformance is NOT cached: it runs live every call (parse + resolve + verify,
+ * keyless, no LLM calls), so the result is always current.
  *
- * @param coverageVisibleFiles -- the coverage-visible file list (the CLI layer supplies
- *        `walkRepoFiles` output — a disk walk, gitignore-aware but git-independent).
- *        Pass null to skip the coverage section entirely (e.g. no filesystem walk
- *        available). This is NOT git-derived — see `options.trackedFiles` below for
- *        the one check that still consults git.
- * @param options.trackedFiles -- INJECTED real `git ls-files` output (see
- *        `io/repo-scanner.ts`'s `listGitTrackedFiles`), for the tracked∩gitignored
- *        anomaly check (`scanTrackedButIgnored`) — the ONE remaining git consumer in
- *        this whole surface. Absent or null (git absent or the probe failed) SKIPS
- *        that one check; every other coverage check is unaffected, since none of
- *        them read git at all any more.
- * @param options.nowUtc -- INJECTED clock for the review-cadence check (spec RZ-18).
- *        When ABSENT the aspect-review-overdue check is SKIPPED entirely: core
- *        keeps no `Date.now`, so with no clock supplied there is no overdue
- *        signal. The CLI boundary always passes `() => new Date()`; tests pin a
- *        fixed clock. It is a read-only warning — it never writes the lock,
- *        changes a verdict, or gates `--approve`.
- * @param options.writeFeatureIndex -- when true (set ONLY by cli/check.ts's report
- *        path, default false everywhere else), write the SILENT feature-field
- *        deviation index after the full issue set is computed. Best-effort and
- *        byproduct-free: it never changes the issue set or the exit code. The
- *        portal re-check and fill's dry-run pre-check never set it; fill's
- *        post-fill report forwards whatever its own caller set (true only under
- *        `yg check --approve`, which always sets it).
+ * @param coverageVisibleFiles -- coverage-visible file list (CLI's
+ *        `walkRepoFiles` output, gitignore-aware/git-independent). Null skips
+ *        the coverage section. NOT git-derived — see `options.trackedFiles`.
+ * @param options.trackedFiles -- INJECTED real `git ls-files` output, for the
+ *        tracked∩gitignored anomaly check (`scanTrackedButIgnored`), the ONE
+ *        remaining git consumer here. Absent/null skips just that check.
+ * @param options.nowUtc -- INJECTED clock for the review-cadence check (spec
+ *        RZ-18); absent skips it (core keeps no `Date.now`). Read-only —
+ *        never writes the lock, changes a verdict, or gates `--approve`.
+ * @param options.writeFeatureIndex -- true only from cli/check.ts's report
+ *        path: write the SILENT feature-field deviation index after the issue
+ *        set is computed. Best-effort, byproduct-free — never changes the
+ *        issue set or exit code.
  * @param options.now -- INJECTED clock stamped into the index's `generatedAt`.
- * @param options.rulesArtifacts -- INJECTED snapshot of the committed
- *        rules-distribution artifacts (AGENTS.md, CLAUDE.md,
- *        .clinerules/yggdrasil.md) plus the installed CLI's canonical digest
- *        hash, for the committed-digest staleness gate. Same seam as `nowUtc`
- *        in both respects: core reads no files itself, so when ABSENT the gate
- *        is SKIPPED entirely; and, exactly like `nowUtc`, it is threaded
- *        through fill.ts into the `--approve` reports as well, so the same
- *        repo never prints one fewer warning under `yg check --approve` than
- *        under plain `yg check`. Read-only warning; never writes the lock,
- *        never gates `--approve`.
+ * @param options.rulesArtifacts -- INJECTED snapshot of the committed rules-
+ *        distribution artifacts plus the installed CLI's canonical digest, for
+ *        the committed-digest staleness gate; same absence-skips seam as
+ *        `nowUtc`, also threaded through `--approve` reports. Read-only.
  */
 // NOT EVERY FIELD BELOW IS THE SAME KIND OF THING. `nowUtc`, `rulesArtifacts`, and
-// `trackedFiles` are ISSUE-GATING: written in the body above as `options?.<key> ? <issues> : []`,
-// so an absent value silently SKIPS a check rather than erroring. `writeFeatureIndex`
-// and `now` are side-effect switches deliberately set at only one call site and gate
-// no issue. Every call site that invokes runCheck() must pass every issue-gating
-// field — the `.yggdrasil/aspects/runcheck-injected-input-parity` deterministic
-// aspect enforces this on every node that owns a runCheck call site, deriving the
-// issue-gating key set straight from this file's `options?.<key> ? … : []` shape
-// (see that aspect's check.mjs), so a new issue-gating field added here is picked
-// up automatically without editing the aspect.
+// `trackedFiles` are ISSUE-GATING: written above as `options?.<key> ? <issues> :
+// []`, so an absent value silently SKIPS a check rather than erroring.
+// `writeFeatureIndex`/`now` are side-effect switches, set at only one call site,
+// gating no issue. Every runCheck() call site must pass every issue-gating field —
+// the `.yggdrasil/aspects/runcheck-injected-input-parity` deterministic aspect
+// enforces this on every node owning a call site, deriving the issue-gating key
+// set straight from this file's ternary shape (see that aspect's check.mjs), so a
+// new issue-gating field is picked up automatically, no aspect edit needed.
 //
-// ADDING AN OPTIONAL FIELD HERE? That aspect also requires every optional member
-// of this interface to be CLASSIFIED, so a new gate cannot hide in a shape the
-// derivation does not match. Either write the gate as the ternary above (it then
-// derives automatically, and every call site must pass it), or — only if the
-// field can never add, remove, or alter an ISSUE — add it to that check.mjs's
-// SIDE_EFFECT_ONLY allowlist with the reason. A field that is neither is refused
-// by name until someone decides which it is.
+// ADDING AN OPTIONAL FIELD HERE? That aspect requires every optional member of
+// this interface to be CLASSIFIED, so a new gate cannot hide in an unmatched
+// shape. Either write it as the ternary above (derives automatically, every call
+// site must pass it), or — only if it can never add/remove/alter an ISSUE — add
+// it to that check.mjs's SIDE_EFFECT_ONLY allowlist with the reason. A field that
+// is neither is refused by name until classified.
 export interface RunCheckOptions {
   /** INJECTED clock for the review-cadence check (spec RZ-18). Absent ⇒ that check is skipped. */
   nowUtc?: () => Date;
@@ -727,6 +696,24 @@ export async function runCheck(
         .map(vi => ({ ...vi, code: vi.code! }))
     : [];
 
+  // Coverage config, resolved here (moved up from section 3 below) so the type-level
+  // lattice can be computed before the relation pass runs, which needs to know which
+  // files are type-covered before it can widen its own file enumeration.
+  const coverage = graph.config.coverage ?? DEFAULT_COVERAGE;
+
+  // The type-level classification lattice (coverage.type_level), computed ONCE here —
+  // the single source every later consumer in this run reads: the relation pass below
+  // (widened file enumeration + the live type-relation gate's edge index) AND section
+  // 3's own coverage rendering, which reuses this SAME value instead of paying for a
+  // second full lattice pass over every uncovered file. Undefined at flag-off or when no
+  // file walk ran this call (coverageVisibleFiles === null) — both consumers already
+  // treat that as "nothing to do."
+  let earlyTypeCoverage: TypeCoverageResult | undefined;
+  if (coverageVisibleFiles !== null && coverage.typeLevel) {
+    const uncoveredForGate = scanUncoveredFiles(graph, coverageVisibleFiles);
+    earlyTypeCoverage = await computeTypeCoverage(graph, uncoveredForGate, sharedContentCache);
+  }
+
   // Captured from the relation pass (run once below) for the optional feature-field index
   // write. Stay null if the lock is invalid (the pass is skipped) — the best-effort index
   // simply is not written that run.
@@ -782,6 +769,9 @@ export async function runCheck(
       // Repurposed field: now the content-addressed AST fact cache root (.ast-cache), the
       // per-file parse cache that skips the tree-sitter re-parse of unchanged files.
       symbolIndexDir: astCacheDir(graph.rootPath),
+      // Undefined at flag-off or no-git (earlyTypeCoverage above) -> the pass's own
+      // type-covered enumeration loop does nothing, zero added parse cost (R3).
+      typeCoveredFiles: earlyTypeCoverage?.covered,
     });
     // Capture the per-file feature facts + content hashes for the optional feature-field
     // index write below (no extra parse — this is the same pass the relation check runs).
@@ -796,6 +786,24 @@ export async function runCheck(
         nodePath: nodeId,
         messageData: relationRefusedMessage(graph, nodeId, nv.violations),
       });
+    }
+
+    // Live type-to-type relation gate (coverage.type_level): a statically-resolved
+    // import edge between two classified endpoints (an explicit node and/or a
+    // type-covered file) has no allowed relation type under the architecture's
+    // allow-list. Computed only when the lattice actually ran this call
+    // (earlyTypeCoverage) — at flag-off there is nothing to gate. Live every run, same
+    // posture as relation-undeclared-dependency above: never cached, never in the lock.
+    if (earlyTypeCoverage) {
+      const gateFindings = computeTypeGateFindings(graph.architecture, relResult.typedEdges, relResult.fileOwnerType);
+      for (const finding of gateFindings) {
+        lockIssues.push({
+          severity: 'error',
+          code: 'type-relation-forbidden',
+          rule: 'type-relation-forbidden',
+          messageData: typeGateForbiddenMessage(finding),
+        });
+      }
     }
 
     // Relation-conformance INFRASTRUCTURE failures: a mapped file could not be parsed
@@ -855,7 +863,8 @@ export async function runCheck(
   let typeCoveredCount = 0;
   let nodeOwnedFiles = 0;
   let excludedFiles = 0;
-  const coverage = graph.config.coverage ?? DEFAULT_COVERAGE;
+  // `coverage` is resolved earlier (before section 2 / the relation pass) — see its
+  // declaration above and earlyTypeCoverage's own comment for why.
   // Pure config check — fires on EVERY run regardless of walk availability
   // or the type-level flag. Seeds coverageIssues (rather than an empty-array
   // declaration pushed into later): the coverageVisibleFiles branch below
@@ -900,9 +909,11 @@ export async function runCheck(
     let middleForIssue = tiers.middle;
     const typeLevelIssues: CheckIssue[] = [];
     let sawTypeLevel = false;
-    if (coverage.typeLevel) {
+    if (coverage.typeLevel && earlyTypeCoverage) {
       sawTypeLevel = true;
-      const typeCoverage = await computeTypeCoverage(graph, uncovered, sharedContentCache);
+      // Reuse the SAME lattice result computed earlier (before the relation pass) —
+      // no second full classification pass over every uncovered file.
+      const typeCoverage = earlyTypeCoverage;
       typeCoveredCount = typeCoverage.covered.size;
 
       // The lattice is one issue per file, most-binding wins: covered/
@@ -927,7 +938,7 @@ export async function runCheck(
           messageData: {
             what: `File '${a.file}' matches ${a.typeIds.length} classifying types: ${a.typeIds.join(', ')}.`,
             why: `Type-level coverage applies exactly one type's rules per file. Two matching types is a situation the machine refuses to guess — each type carries different rules.`,
-            next: `Two exits:\n  1. Create an explicit node declaring the intended type (yg-node.yaml with type: <one of: ${a.typeIds.join(' | ')}>) — its pairs re-key under the owner.\n  2. Narrow one of the overlapping when: predicates in yg-architecture.yaml so exactly one matches — existing verdicts revalidate free.`,
+            next: `Two exits:\n  1. Create an explicit node declaring the intended type (yg-node.yaml with type: <one of: ${a.typeIds.join(' | ')}>) — its pairs re-key under the owner.\n  2. Narrow one of the overlapping when: predicates in yg-architecture.yaml so exactly one matches — existing verdicts revalidate free.\nEither exit may surface new type-relation-forbidden findings for this file's own imports, now that they join the live gate.`,
           },
         });
       }
@@ -1067,17 +1078,18 @@ const DIM_LABEL: Record<string, string> = {
 };
 
 /**
- * The calibration instrument behind the hidden `--attention-dump` flag. Runs the relation
- * pass over WARM shards (no new parse — it HITs the AST fact cache), computes candidate
- * deviations at the CURRENT `Z_ADMIT`, and returns a plain-language report: each file's raw
- * structural counts grouped by family, with the outliers marked "worth a closer read". It
- * writes NOTHING and makes no LLM calls — it is a read-only lens used to re-calibrate the
- * threshold. Returns the formatted string; the CLI prints it and exits 0.
+ * The calibration instrument behind the hidden `--attention-dump` flag. Runs the
+ * relation pass over WARM shards (no new parse — an AST fact cache HIT), computes
+ * candidate deviations at the CURRENT `Z_ADMIT`, and returns a plain-language
+ * report: each file's raw structural counts grouped by family, outliers marked
+ * "worth a closer read". Writes NOTHING, no LLM calls — a read-only lens for
+ * re-calibrating the threshold. Returns the formatted string; the CLI prints it
+ * and exits 0.
  *
- * `coverageVisibleFiles` scopes the universe to the same tracked, graph-governed set the written
- * index uses (the CLI layer supplies it — the same `git ls-files`-equivalent walk the report
- * path uses — so core never shells out to git). A gitignored / scratch file that falls under a
- * mapped ancestor directory is never shown.
+ * `coverageVisibleFiles` scopes the universe to the same tracked, graph-governed
+ * set the written index uses (CLI-supplied, same walk the report path uses — core
+ * never shells out to git). A gitignored/scratch file under a mapped ancestor
+ * directory is never shown.
  */
 export async function runAttentionDump(graph: Graph, coverageVisibleFiles: string[]): Promise<string> {
   const projectRoot = path.dirname(graph.rootPath);
@@ -1166,17 +1178,17 @@ function countDraftAspectsAcrossGraph(graph: Graph): number {
 /**
  * Suggest the next command based on the highest-priority error, in the §6 order:
  *   lock-invalid → unverified(enforced) → enforced refusal (three exits / fix
- *   violations, carried per-issue) → prompt-too-large → log conflict →
- *   log integrity/format → structural → coverage → completeness → any other
- *   error (architecture/strict codes, and the tracked∩gitignored anomaly —
- *   neither carries a dedicated branch; each surfaces its own `next` here).
+ *   violations, per-issue) → prompt-too-large → log conflict → log
+ *   integrity/format → structural → coverage → completeness → any other error
+ *   (architecture/strict codes, tracked∩gitignored anomaly — neither has a
+ *   dedicated branch; each surfaces its own `next` here).
  *
  * Each lock issue carries its own kind-appropriate `next` in messageData
  * (cached three-exit for an LLM refusal, fix-violations for a deterministic
- * refusal, size remedies for prompt-too-large). When no error remains, surface
- * the highest-priority warning's `next` — an advisory aspect-violation first,
- * otherwise the alphabetically-first remaining warning — so any warnings-only run
- * still points somewhere.
+ * refusal, size remedies for prompt-too-large). With no error remaining,
+ * surface the highest-priority warning's `next` — advisory aspect-violation
+ * first, else the alphabetically-first warning — so a warnings-only run still
+ * points somewhere.
  */
 /**
  * Among the error issues carrying a given per-aspect `code`, pick the one whose

@@ -15,7 +15,9 @@ import {
   assembleCsharpCandidates,
   type CsharpExtract,
 } from './extractors/csharp.js';
-import { loadFacts, writeFacts, factsKey } from './facts-cache.js';
+import { loadFacts, writeFacts, factsKey, astCacheDir } from './facts-cache.js';
+import { extractorForLanguage } from './extractors/registry.js';
+import { makeResolvePathToFile } from './resolve-path.js';
 import { countFeatures, type FeatureVector } from './feature-vector.js';
 import { verifyNodeDeps, type ResolvedDep, type RelationGraphView, type Violation } from './verifier.js';
 import type {
@@ -77,6 +79,26 @@ export interface RelationParseFailure {
   message: string; // the underlying parseFile error text (e.g. resolveWasm's)
 }
 
+/**
+ * The one canonical declaration of the typed-edge shape the live type-relation gate
+ * (relations/type-gate.ts) reads. Declared HERE — the relation pass is the SOLE producer,
+ * built from the same per-file candidate resolution the pass already runs for every
+ * enumerated file (both node-owned and type-covered). `type-gate.ts` imports this TYPE
+ * only; it never redeclares or re-exports it.
+ *
+ * An edge appears here ONLY when its target resolved to a classified endpoint — an
+ * explicit node (`kind: 'node'`) or a type-covered file (`kind: 'type-covered'`). A
+ * candidate that resolves to no file, to an ambiguous symbol, or to an unmapped/
+ * unclassified file is excluded from the index entirely at this SOURCE, not filtered
+ * later — `type-gate.ts` never even sees such an edge.
+ */
+export interface TypedEdgeIndex {
+  edgesFrom(file: string): Array<{
+    toFile: string;
+    toOwner: { kind: 'node'; path: string; type: string } | { kind: 'type-covered'; type: string };
+  }>;
+}
+
 export interface RelationPassResult {
   violationsByNode: Map<string, NodeViolations>;
   /**
@@ -115,11 +137,40 @@ export interface RelationPassResult {
    * architecture matrix) without re-parsing.
    */
   detectedEdgesByNode: Map<string, Set<string>>;
+  /**
+   * ADDITIVE, read-only: the live type-to-type relation gate's edge index (coverage.
+   * type_level's import-edge check). Built from the SAME per-file candidate resolution
+   * this pass already runs, generalized across both node-owned and type-covered files —
+   * no extra parse. Empty (every `edgesFrom` call returns `[]`) when `deps.typeCoveredFiles`
+   * is undefined/empty AND the graph has no explicit nodes, but in practice this pass
+   * always populates it for node-owned files regardless of the type-level flag; the gate
+   * caller (`core/check.ts`) decides whether to act on it (R3 gates the DECISION, and —
+   * via `deps.typeCoveredFiles` — the type-covered half of the ENUMERATION, not this
+   * field's mere existence).
+   */
+  typedEdges: TypedEdgeIndex;
+  /**
+   * ADDITIVE, read-only: every enumerated file's OWN owner's type — a node-owned file's
+   * owning node's type, or a type-covered file's matched classifying type. Built from the
+   * same `fileRecords` this pass already enumerated (both node-owned and type-covered), no
+   * extra I/O. The live type-relation gate needs this to resolve an edge's SOURCE type,
+   * mirroring how each edge's own `toOwner` already carries the TARGET type.
+   */
+  fileOwnerType: Map<string, string>;
 } // key = nodeId (node.path)
 
 export interface RelationPassDeps {
   extractorFor: (language: string) => DependencyExtractor | undefined;
   resolvePathToFile: (specifier: string, fromFile: string, language: string, isPackage?: boolean) => string | undefined;
+  /**
+   * File → matched classifying typeId (coverage.type_level), e.g.
+   * `computeTypeCoverage(...).covered`. Undefined or empty ⇒ this pass's file enumeration
+   * ADDS NOTHING beyond the existing node-mapped files — zero added parse cost, byte-
+   * identical to today (R3). When populated, each entry is enumerated the SAME way a
+   * node-mapped file is (read, hash, detect language, extract facts) and attributed to its
+   * matched TYPE rather than a nodeId, feeding both `typedEdges` and `fileOwnerType` below.
+   */
+  typeCoveredFiles?: Map<string, string>;
   /**
    * Root of the content-addressed AST fact cache, e.g. `<root>/.yggdrasil/.ast-cache`.
    * The cache is SPEED-only: it caches the pure extractor facts (declarations / uses /
@@ -144,6 +195,12 @@ interface FileRecord {
   hash: string;
   language: string | null;
   nodeId: string;
+  /**
+   * Set (to its matched classifying type) for a type-covered record, undefined for a
+   * node-owned one. The two are mutually exclusive by construction: a type-covered file
+   * is, by definition, one `computeTypeCoverage` found no node mapping for.
+   */
+  typeId?: string;
 }
 
 // The exported `FileFacts` interface above is used directly throughout the pass body.
@@ -188,6 +245,24 @@ export async function runRelationPass(
     }
   }
 
+  // Type-covered files (coverage.type_level): enumerated the SAME way as node-mapped
+  // files (read, hash, detect language) but attributed to their matched TYPE, not a
+  // nodeId. Empty/undefined typeCoveredFiles (flag off, or no coverage scan ran) means
+  // this loop does nothing — zero added parse cost, byte-identical to today (R3).
+  for (const [rel, typeId] of deps.typeCoveredFiles ?? []) {
+    if (recordByPath.has(rel)) continue; // defensive; cannot actually overlap with a node mapping by construction
+    let content: string;
+    try {
+      content = await readFile(path.join(projectRoot, rel), 'utf-8');
+    } catch {
+      continue; // unreadable → skip
+    }
+    const language = getLanguageForExtension(path.extname(rel));
+    const record: FileRecord = { path: rel, content, hash: hashString(content), language, nodeId: '', typeId };
+    fileRecords.push(record);
+    recordByPath.set(rel, record);
+  }
+
   // 3. Owner index over the whole graph.
   const ownerIndex = buildOwnerIndex(graph.nodes);
 
@@ -197,7 +272,11 @@ export async function runRelationPass(
   // outgoing dependencies) must honor child-precedence, exactly as `yg owner` and the
   // pair-set carve-out do. Re-point every record at its true owner so a parent is
   // never blamed for a dependency the child node that actually owns the file declared.
+  // A type-covered record (typeId set) has no node owner to re-point to child-precedence
+  // — it is skipped here, not merely a no-op, since it never has a node's declared
+  // relations to sanction anything in the first place.
   for (const record of fileRecords) {
+    if (record.typeId !== undefined) continue;
     const trueOwner = ownerIndex.ownerOf(record.path);
     if (trueOwner !== undefined) record.nodeId = trueOwner;
   }
@@ -483,6 +562,14 @@ export async function runRelationPass(
   // for read-only consumers. Self / ancestor / descendant edges are not real edges between
   // two distinct nodes, so they are excluded here exactly as `verifyNodeDeps` skips them.
   const detectedEdgesByNode = new Map<string, Set<string>>();
+  // ADDITIVE: the live type-relation gate's per-FILE edge index (TypedEdgeIndex), keyed by
+  // source file rather than owning node — a type-covered file has no node to group under.
+  // Populated below from the SAME per-record candidate resolution both the node-owned loop
+  // and the type-covered loop already run; see `addTypedEdges`.
+  const typedEdgesByFile = new Map<
+    string,
+    Array<{ toFile: string; toOwner: { kind: 'node'; path: string; type: string } | { kind: 'type-covered'; type: string } }>
+  >();
 
   // Resolve one file's detected uses into cross-node edges (shared by both paths below).
   const resolveDetected = (record: FileRecord, detected: DetectedDep[], resolvedDeps: ResolvedDep[]): void => {
@@ -494,6 +581,53 @@ export async function runRelationPass(
       const ownerNode = resolveCandidateGroup(dep.candidates, resolver, record.path, record.language!);
       if (ownerNode !== undefined) {
         resolvedDeps.push({ fromFile: record.path, line: dep.line, ownerNode });
+      }
+    }
+  };
+
+  // Resolve one file's detected uses into the live type-relation gate's typed-edge index,
+  // generalized across node-owned and type-covered sources. Mirrors resolveDetected's
+  // nearest-candidate-first precedence (a resolved candidate stops the group; an ambiguous
+  // one silences it with no edge), extended with ONE new resolution path: a candidate that
+  // `classify` reports `absent` (no node owns its resolved file, or it resolves to nothing)
+  // may STILL name a TYPE-COVERED file — checked via `resolver.resolveFile`, which `classify`
+  // never consults (it only ever asks `ownerIndex`). An edge whose target is neither a node
+  // nor a type-covered file (ambiguous/unmatched) is excluded here entirely, matching the
+  // design's "not gated" rule at the SOURCE rather than filtering it out downstream.
+  const addTypedEdges = (record: FileRecord, detected: DetectedDep[]): void => {
+    for (const dep of detected) {
+      for (const cand of dep.candidates) {
+        const outcome = resolver.classify(cand, record.path, record.language!);
+        if (outcome.kind === 'resolved') {
+          const targetNode = graph.nodes.get(outcome.ownerNode);
+          if (targetNode) {
+            let list = typedEdgesByFile.get(record.path);
+            if (!list) {
+              list = [];
+              typedEdgesByFile.set(record.path, list);
+            }
+            list.push({ toFile: outcome.resolvedFile, toOwner: { kind: 'node', path: outcome.ownerNode, type: targetNode.meta.type } });
+          }
+          break; // nearest candidate bound — stop this dep's group
+        }
+        if (outcome.kind === 'ambiguous') break; // present-but-ambiguous → silence the group
+        // absent: the node-owner walk found nothing for this candidate. Check whether its
+        // raw resolved file (if any) is nonetheless a TYPE-COVERED file — invisible to
+        // `classify`, which only ever resolves against `ownerIndex`.
+        const file = resolver.resolveFile(cand, record.path, record.language!);
+        if (file) {
+          const targetRecord = recordByPath.get(file);
+          if (targetRecord?.typeId !== undefined) {
+            let list = typedEdgesByFile.get(record.path);
+            if (!list) {
+              list = [];
+              typedEdgesByFile.set(record.path, list);
+            }
+            list.push({ toFile: file, toOwner: { kind: 'type-covered', type: targetRecord.typeId } });
+            break; // bound to a type-covered target — stop this dep's group
+          }
+        }
+        // else continue to the next, farther candidate
       }
     }
   };
@@ -522,6 +656,7 @@ export async function runRelationPass(
           projectGlobalUsingAliases: csharpGlobalUsingAliases,
         });
         resolveDetected(record, detected, resolvedDeps);
+        addTypedEdges(record, detected);
         continue;
       }
 
@@ -530,6 +665,7 @@ export async function runRelationPass(
       const facts = factsByPath.get(record.path);
       if (!facts || facts.uses === null) continue;
       resolveDetected(record, facts.uses, resolvedDeps);
+      addTypedEdges(record, facts.uses);
     }
 
     // ADDITIVE read-only edge set: every uniquely-resolved cross-node target, declared or
@@ -556,11 +692,56 @@ export async function runRelationPass(
     }
   }
 
+  // 6.5 Type-covered records (coverage.type_level): NOT visited by the per-node loop above
+  //     (keyed by nodeId; a type-covered record's nodeId is '' by construction — it has no
+  //     node to group under). Each is resolved individually here for the SAME
+  //     typedEdgesByFile, reusing the SAME cached facts (no re-parse) — a type-covered file
+  //     is enumerated and its facts extracted exactly like a node-owned one (step 2 /
+  //     section 4 above already cover it); only this candidate-resolution walk needs a
+  //     dedicated loop since it has no shared per-node grouping to batch against. Empty when
+  //     no type-covered records were enumerated (flag off, or no coverage scan ran) — R3.
+  for (const record of fileRecords) {
+    if (record.typeId === undefined) continue; // node-owned — already handled above
+    if (!record.language) continue;
+    const extractor = deps.extractorFor(record.language);
+    if (!extractor) continue;
+
+    if (record.language === 'csharp') {
+      const facts = factsByPath.get(record.path);
+      if (!facts || facts.csharp === null) continue;
+      const detected = assembleCsharpCandidates(facts.csharp, {
+        projectGlobalUsings: csharpGlobalUsings,
+        projectGlobalUsingAliases: csharpGlobalUsingAliases,
+      });
+      addTypedEdges(record, detected);
+      continue;
+    }
+
+    const facts = factsByPath.get(record.path);
+    if (!facts || facts.uses === null) continue;
+    addTypedEdges(record, facts.uses);
+  }
+
   // ADDITIVE read-only: expose each enumerated file's raw content hash (computed once from
   // the freshly-read bytes at enumeration, independent of any AST-cache hit/miss). Lets the
   // silent feature-field index pin an entry to exact bytes without re-reading or re-hashing.
   const hashByPath = new Map<string, string>();
   for (const [rel, record] of recordByPath) hashByPath.set(rel, record.hash);
+
+  // ADDITIVE, read-only: every enumerated file's OWNER's type — a node-owned file's owning
+  // node's type, or a type-covered file's matched type. Built from the same fileRecords this
+  // pass already enumerated (both loops in step 2); no extra I/O. Consumed directly by the
+  // live type-relation gate to resolve an edge's SOURCE type — mirrors how each edge's own
+  // toOwner already carries the TARGET type.
+  const fileOwnerType = new Map<string, string>();
+  for (const [rel, record] of recordByPath) {
+    if (record.typeId !== undefined) {
+      fileOwnerType.set(rel, record.typeId);
+    } else if (record.nodeId) {
+      const node = graph.nodes.get(record.nodeId);
+      if (node) fileOwnerType.set(rel, node.meta.type);
+    }
+  }
 
   return {
     violationsByNode,
@@ -568,5 +749,33 @@ export async function runRelationPass(
     detectedEdgesByNode,
     hashByPath,
     parseFailures: [...parseFailuresByLanguage.values()],
+    typedEdges: { edgesFrom: (file: string) => typedEdgesByFile.get(file) ?? [] },
+    fileOwnerType,
   };
+}
+
+/**
+ * Convenience entry point for callers OUTSIDE runCheck (the yg find / yg structure
+ * navigation surfaces read derived edges without running a full check) that want the
+ * live type-relation edge index without assembling RelationPassDeps themselves. Runs
+ * the SAME live pass runRelationPass does — no separate implementation, no drift —
+ * and returns just the one field those callers need. `covered` is a type-covered
+ * file -> matched typeId map, e.g. computeTypeCoverage(...).covered. core/check.ts
+ * itself does NOT call this: it already holds a full RelationPassResult from its own
+ * direct runRelationPass call, and calling this too would re-run the whole pass a
+ * second time in the same check.
+ */
+export async function buildTypedEdgeIndex(
+  graph: Graph,
+  covered: Map<string, string>,
+): Promise<TypedEdgeIndex> {
+  const projectRoot = path.dirname(graph.rootPath);
+  const ownerIndex = buildOwnerIndex(graph.nodes);
+  const result = await runRelationPass(graph, projectRoot, {
+    extractorFor: extractorForLanguage,
+    resolvePathToFile: makeResolvePathToFile(projectRoot, ownerIndex.ownerOf),
+    symbolIndexDir: astCacheDir(graph.rootPath),
+    typeCoveredFiles: covered,
+  });
+  return result.typedEdges;
 }

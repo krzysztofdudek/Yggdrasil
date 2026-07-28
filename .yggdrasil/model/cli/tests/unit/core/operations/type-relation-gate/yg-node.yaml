@@ -1,0 +1,19 @@
+name: Type Relation Gate Unit Tests
+type: test-suite
+description: "Fixture-driven integration tests for the live type-to-type relation
+  gate (coverage.type_level's import-edge check), via runCheck on the dedicated
+  type-relation-gate/ fixture: the deny-default forbidden edge, an explicit
+  allow-list entry, a vacuous allow from a source type with no relations table
+  at all, an edge into a deliberately ambiguous file that must never be gated,
+  the flag-off no-op, and the R3 read-cost invariant (a type-covered-only file
+  is never parsed at flag-off, and a nested graph subtree is excluded from the
+  gate's enumeration even at flag-on)."
+aspects: []
+relations:
+  [
+    { target: cli/core/loader, type: uses },
+    { target: cli/core/check, type: uses },
+    { target: cli/io/stores, type: uses }
+  ]
+mapping:
+  - source/cli/tests/unit/core/type-relation-gate.test.ts

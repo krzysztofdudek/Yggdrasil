@@ -28,6 +28,21 @@ export type Classification =
 export interface TargetResolver {
   resolve(hint: TargetHint, fromFile: string, language: string): ResolvedTarget | undefined;
   classify(hint: TargetHint, fromFile: string, language: string): Classification;
+  /**
+   * The raw resolved file for a candidate hint, independent of node ownership: 0 or ≥2
+   * distinct files (unresolved or ambiguous) both yield undefined; exactly one file is
+   * returned regardless of whether `ownerIndex` maps it to a node. This is the SAME
+   * file-resolution computation `classify` runs internally, minus its final
+   * `ownerIndex.ownerOf` step — so a caller that already received `classify`'s `absent`
+   * outcome for this SAME hint (which collapses "no file resolved" and "resolved to an
+   * unmapped file" into one non-committal answer, by design — D7) can distinguish the two
+   * without a second, independent resolution algorithm. Used ONLY by the live
+   * type-relation gate's typed-edge construction (relations/pass.ts) to test whether an
+   * otherwise-unmapped candidate names a TYPE-COVERED file instead; the node-owned
+   * candidate walk (`resolveCandidateGroup`/`classify`) never calls this and is
+   * unaffected by its existence.
+   */
+  resolveFile(hint: TargetHint, fromFile: string, language: string): string | undefined;
 }
 
 /**
@@ -204,5 +219,14 @@ export function makeResolver(deps: ResolverDeps): TargetResolver {
     return ownerNode ? { kind: 'resolved', ownerNode, resolvedFile: file } : { kind: 'absent' };
   };
 
-  return { resolve, classify };
+  const resolveFile: TargetResolver['resolveFile'] = (hint, fromFile, language) => {
+    if (hint.kind === 'symbol') {
+      if (language === 'ruby' && rubyRootUnanchored(hint.symbolKey, deps.symbolTable)) return undefined;
+      const files = hintFiles(hint, language);
+      return files.size === 1 ? [...files][0] : undefined; // 0 → unresolved; ≥2 → ambiguous
+    }
+    return deps.resolvePathToFile(hint.specifier, fromFile, language, hint.isPackage);
+  };
+
+  return { resolve, classify, resolveFile };
 }

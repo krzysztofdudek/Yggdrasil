@@ -13,6 +13,7 @@ import type { IssueMessage } from '../model/validation.js';
 import type { Graph } from '../model/graph.js';
 import type { Violation } from './verifier.js';
 import { allowedRelationTypes } from './allowed-types.js';
+import type { TypeGateFinding } from './type-gate.js';
 
 /** The node-type of a graph node, or undefined if the node is unknown. */
 function typeOf(graph: Graph, nodeId: string): string | undefined {
@@ -82,5 +83,25 @@ export function relationUnverifiedMessage(nodeId: string): IssueMessage {
     what: `Relation conformance for node '${nodeId}' is unverified — its source, relations, or a dependency target changed since the last approval.`,
     why: 'A relation verdict is valid only while its inputs are unchanged; an input changed, so the verdict must be recomputed before it can be trusted.',
     next: 'Run: yg check --approve',
+  };
+}
+
+/**
+ * Forbidden: every statically-resolved import edge from `finding.fromType` to
+ * `finding.toType` — one message per distinct (fromType, toType) pair, aggregating
+ * every violating edge in that bucket rather than emitting one issue per edge. Samples
+ * the first five edges (with a remainder count) so a large bucket stays readable. NEXT
+ * lists exits cheapest-first: allow-listing the pair clears the whole group in one
+ * edit; graduating the target to an explicit node restores declared-edge semantics for
+ * just that file; removing the dependency is always available but the most costly.
+ */
+export function typeGateForbiddenMessage(finding: TypeGateFinding): IssueMessage {
+  const sample = finding.edges.slice(0, 5);
+  const rest = finding.edges.length - sample.length;
+  const sampleText = sample.map((e) => `  ${e.fromFile} -> ${e.toFile}`).join('\n');
+  return {
+    what: `${finding.edges.length} import${finding.edges.length === 1 ? '' : 's'} from type '${finding.fromType}' to type '${finding.toType}' — no relation type is allowed between them:\n${sampleText}${rest > 0 ? `\n... and ${rest} more` : ''}`,
+    why: `The architecture's relation allow-list governs every dependency between classified files, not just ones an explicit node declared — an unsanctioned import erodes the same boundary a declared relation protects.`,
+    next: `Cheapest first:\n  1. Allow it: add a relations entry for '${finding.fromType}' -> '${finding.toType}' in yg-architecture.yaml (clears this whole group).\n  2. Graduate the target: create an explicit node for the imported file(s) with a curated relation (restores declared-edge semantics; run yg impact --type ${finding.toType} to preview the cost).\n  3. Remove the dependency.`,
   };
 }

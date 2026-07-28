@@ -50,3 +50,5 @@ Documents the new coverage-required-shadowed warning code: it flags a required c
 Reworded the coverage-required-shadowed warning-code doc comment so it reads as a self-contained description of the absolute-exclusion rule rather than referencing an external planning label.
 ## [2026-07-28T13:56:14.420Z]
 Gained the zero-classifying-types standing notice constant, moved here from core/check.ts — it is a shared user-facing string read by two unrelated command files (yg check's coverage-section render and yg init's closing summary), which belongs beside the other shared issue-code constants rather than living inside the check orchestrator.
+## [2026-07-28T15:37:23.450Z]
+Registered the new live type-relation gate's blocking code in the structural set so the summary tally and the rendered error grouping count it consistently, the same single source every other blocking code already shares.

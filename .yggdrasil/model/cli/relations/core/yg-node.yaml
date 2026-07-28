@@ -4,7 +4,10 @@ description: Relation-conformance engine — the live pass orchestration, symbol
   table and owner index, path resolution, the resolver, allowed-type lookup,
   the content-addressed per-file extraction cache and its on/off audit, and the
   verifier. Deterministic static dependency analysis over the graph, computed
-  live on every check.
+  live on every check. Also runs the live type-relation gate for
+  coverage.type_level — a new phase of the same live pass that checks
+  statically-resolved import edges reaching a classified endpoint (an explicit
+  node or a type-covered file) against the architecture's relation allow-list.
 mapping:
   - source/cli/src/relations/allowed-types.ts
   - source/cli/src/relations/audit.ts
@@ -16,6 +19,7 @@ mapping:
   - source/cli/src/relations/resolve-path.ts
   - source/cli/src/relations/resolver.ts
   - source/cli/src/relations/symbol-table.ts
+  - source/cli/src/relations/type-gate.ts
   - source/cli/src/relations/verifier.ts
 relations:
   - target: cli/relations/extractors
@@ -34,4 +38,6 @@ relations:
   - target: cli/model/lock
     type: uses
   - target: cli/utils
+    type: calls
+  - target: cli/core/allowed-relation-types
     type: calls

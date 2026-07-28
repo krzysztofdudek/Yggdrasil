@@ -90,6 +90,11 @@ export const STRUCTURAL_CODES = new Set<string>([
   // a node depends on another node without a declared, sanctioned relation, or its
   // relation verdict could not be confirmed against the current tree.
   'relation-undeclared-dependency',
+  // Live type-to-type relation gate (coverage.type_level): a statically-resolved
+  // import edge between two classified endpoints (an explicit node and/or a
+  // type-covered file) has no allowed relation type under the architecture's
+  // allow-list. Always an error, independent of the endpoints' coverage tier.
+  'type-relation-forbidden',
   // Type-level coverage (coverage.type_level): an uncovered file matches 2+
   // non-strict classifying types and no strict type. The classification
   // lattice (core/type-coverage.ts) refuses to guess which type's rules
