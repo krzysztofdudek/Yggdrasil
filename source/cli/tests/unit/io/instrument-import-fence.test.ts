@@ -167,6 +167,30 @@ describe('instrument-import-fence — feature-field clause (c)', () => {
     expect(flagged.has('source/cli/src/cli/advise.ts')).toBe(false);
   });
 
+  it('gating clause (a) covers the check command\'s three render units (check-render-header/-groups/-views)', async () => {
+    // The check command was split into a slimmed orchestrator (cli/check.ts) plus
+    // three render files that jointly compute the SAME issue-emission/exit-code
+    // surface cli/check.ts used to compute inline (formatOutput's dispatch,
+    // residualAfterNext, issuePriorityRank-driven ordering) — the same reason
+    // group-issues.ts is gated. Each must be fenced individually.
+    const IMPORT_METRICS = `import { computeMetrics } from '../core/graph-metrics.js';\nexport const m = computeMetrics;\n`;
+    writeSource('source/cli/src/cli/check-render-header.ts', IMPORT_METRICS);
+    writeSource('source/cli/src/cli/check-render-groups.ts', IMPORT_METRICS);
+    writeSource('source/cli/src/cli/check-render-views.ts', IMPORT_METRICS);
+    const flagged = await runGuard([
+      'source/cli/src/cli/check-render-header.ts',
+      'source/cli/src/cli/check-render-groups.ts',
+      'source/cli/src/cli/check-render-views.ts',
+    ]);
+    expect(flagged).toEqual(
+      new Set([
+        'source/cli/src/cli/check-render-header.ts',
+        'source/cli/src/cli/check-render-groups.ts',
+        'source/cli/src/cli/check-render-views.ts',
+      ]),
+    );
+  });
+
   it('self-test: BOTH guarded modules exist in this repo (the guard globs are not dead)', () => {
     // If either module were renamed/removed without updating the guard, the fence would
     // be silently vacuous. Assert both real files exist AND that the guard flags a

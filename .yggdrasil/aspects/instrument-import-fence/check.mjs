@@ -43,11 +43,21 @@ import { walk, report } from '@chrisdudek/yg/ast';
  *       static import- or export-from; a statement-level type-only import is exempt.
  */
 
-/** Files whose imports decide the build outcome (exit code / issues / suggestedNext). */
+/**
+ * Files whose imports decide the build outcome (exit code / issues / suggestedNext).
+ * check-render-header.ts / check-render-groups.ts / check-render-views.ts are the
+ * check command's render units (split out of cli/check.ts) — check-render-views.ts
+ * in particular owns nextPointer/residualAfterNext and consumes issuePriorityRank,
+ * the same suggestedNext-shaping role that puts group-issues.ts on this list, so
+ * all three are gated for the same reason.
+ */
 const GATING_MODULES = new Set([
   'source/cli/src/cli/check.ts',
   'source/cli/src/core/check.ts',
   'source/cli/src/cli/group-issues.ts',
+  'source/cli/src/cli/check-render-header.ts',
+  'source/cli/src/cli/check-render-groups.ts',
+  'source/cli/src/cli/check-render-views.ts',
 ]);
 
 /** Module specifiers no gating module may import (resolved, alias-proof). */

@@ -759,7 +759,7 @@
       "file:source/cli/tests/unit/io/flow-parser-status.test.ts": {"hash":"1f8c59e1bfbef1f78b8d5b77ddf253c4c984d6b169fa6e2b73514cc5e4352d05","verdict":"approved"},
       "file:source/cli/tests/unit/io/flow-parser.test.ts": {"hash":"853b141bed5bab136f9515509b97dc13bf50931ded77c4078f83941381fe32b5","verdict":"approved"},
       "file:source/cli/tests/unit/io/hash.test.ts": {"hash":"b7ae40a1074483041a47974cddaf1971f7ebef9228c1e94f10b6f1c15f8d9b21","verdict":"approved"},
-      "file:source/cli/tests/unit/io/instrument-import-fence.test.ts": {"hash":"f87ad7fdcdbd019f702156800733d7ee93738b926f5a1e9b54afe13c0e0ec2e7","verdict":"approved"},
+      "file:source/cli/tests/unit/io/instrument-import-fence.test.ts": {"hash":"697c1a800efd569a42b18879c7aeade90c86818e86e3ed412ed93df6cdda56f7","verdict":"approved"},
       "file:source/cli/tests/unit/io/lock-store-migration.test.ts": {"hash":"c4e7d09fef2c802fa9aeb6787fdbd9305712207a934d8c43907dfd845315a6b3","verdict":"approved"},
       "file:source/cli/tests/unit/io/lock-store.test.ts": {"hash":"15fffa8b82c10440c529868e6d4a49366c4236fb65e0657cbdd2d1add1a01fcd","verdict":"approved"},
       "file:source/cli/tests/unit/io/log-parser.test.ts": {"hash":"d1de7f835eafbf697bda4d10d0dcbdff995da7fc18b5cab3a5349e2ac9ebd658","verdict":"approved"},

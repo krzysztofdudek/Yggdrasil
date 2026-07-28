@@ -4,7 +4,9 @@ description: >-
   and keeps the read-only presentation commands read-only (G2/G6). Two AST-based,
   alias-proof bans, both fired only on a provable static import- or export-from:
   (a) the modules that shape the build's exit code, issue emission, and
-  suggestedNext — cli/check.ts, core/check.ts, and cli/group-issues.ts — must NOT
+  suggestedNext — cli/check.ts, core/check.ts, cli/group-issues.ts, and the check
+  command's three render units (cli/check-render-header.ts,
+  cli/check-render-groups.ts, cli/check-render-views.ts) — must NOT
   import the structural-metrics core (core/graph-metrics), the verdict-events
   reader (io/events-reader), or the node-churn instrument (core/node-churn);
   pulling ranking, telemetry, or churn into the gate would let an instrument

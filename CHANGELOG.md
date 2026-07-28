@@ -25,6 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Graph schema bumped 5.1.0 → 5.2.0.** A content-free bump — it exists only to gate `coverage.type_level` to projects that have upgraded, so an old CLI can never silently ignore a setting a newer one enforces. An existing project sees no behavior change from the bump alone; run `yg init --upgrade` when the CLI reports the version mismatch.
 
+- **(Internal.) The "Also matches" hint's co-match filter on a `type-strict-orphan` error is now the same predicate the type-level classification lattice already used internally** (excludes every `enforce: strict` type, not just the one the error names), instead of a second, slightly different filter that happened to agree with it in every case reachable today — a file matching 2+ strict types is already fully intercepted by the separate strict-overlap-conflict check before this hint ever runs. No observable output changes; this is a consistency cleanup, not a bug fix.
+
 ### Removed
 
 - **The `mapped-file-gitignored` error is retired**, superseded by the broader `tracked-file-gitignored` check described above. If a project suppressed `mapped-file-gitignored` with a `yg-suppress` marker, that marker is now inert — remove it; the code it named will simply never fire again.
@@ -38,8 +40,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A suppression marker closed with the HTML spec's `--!>` form no longer keeps the terminator as its justification.** Only `-->` was stripped from a marker's reason text. In a Markdown file closed the other legal way, the terminator survived into the recorded reason — and a marker written with no justification at all ended up with `--!>` as its reason, which is non-empty, so it passed the check that exists to make every waiver carry one. Both closers are now recognised, restoring that rejection.
 
 - **`yg type-suggest` no longer reports a plain "no match" for a type whose classification rule couldn't actually be checked.** A file over the 5MB content-scan limit, evaluated against a type whose rule inspects file content, used to come back as an ordinary non-match — indistinguishable from a file that genuinely fails every rule. The command now lists such types separately, naming the reason the rule couldn't be applied, so it's clear the rule was never actually evaluated rather than evaluated and failed.
-
-- **The "Also matches" hint on a `type-strict-orphan` error could wrongly suggest another `enforce: strict` type instead of a genuine alternative.** When a file matched two or more strict types, the hint's filter excluded only the ONE type the error was already about, so a second strict type — itself a conflict the strict-overlap check reports separately, never a "consider this instead" suggestion — could still appear in the list. The filter now excludes every strict type, leaving only real non-strict alternatives.
 
 ## [5.6.0] - 2026-07-25
 
