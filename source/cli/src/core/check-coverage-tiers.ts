@@ -90,7 +90,7 @@ export function checkRequiredShadowedByExcluded(coverage: CoverageConfig): Check
         rule: 'coverage-required-shadowed',
         messageData: {
           what: `Required coverage root '${rawRequired}' is fully inside excluded root '${rawExcluded}'.`,
-          why: 'Exclusion is absolute: any file under this required root also matches the excluded root and is silenced before required/middle tiering ever runs. This required line can never make a file block.',
+          why: 'Exclusion is absolute: any file under this required root also matches the excluded root and is silenced before it is ever sorted into the blocking or advisory tier. This required line can never make a file block.',
           next: `Remove the required line for '${rawRequired}', or narrow the excluded root '${rawExcluded}' so it no longer contains it.`,
         },
       });

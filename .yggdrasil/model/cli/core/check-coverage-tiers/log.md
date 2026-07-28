@@ -16,3 +16,5 @@ The prediction lives here, beside the tier partitioning it depends on, rather th
 The uncovered-files advisory message now describes the affected files as coverage-visible rather than tracked — the universe this check governs is the disk walk, which it has always been, and the old wording implied a git-tracking distinction the check has never actually drawn.
 ## [2026-07-28T12:11:27.266Z]
 Coverage exclusion is now absolute: a file matching any excluded root is dropped before required/middle tiering is even considered, instead of the more specific of a matching required/excluded root pair winning. The exclusion test is extracted into its own predicate so every coverage consumer asks the same question the same way, and a new check flags a required root that can never match a file because an excluded root fully contains it — a config line that used to fail silently.
+## [2026-07-28T13:02:32.385Z]
+Reworded the coverage-required-shadowed warning's WHY sentence to plain language: it no longer names the internal middle tier, since that vocabulary appears in no other user-facing message.

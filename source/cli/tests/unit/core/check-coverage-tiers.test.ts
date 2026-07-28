@@ -257,6 +257,10 @@ describe('checkRequiredShadowedByExcluded', () => {
     expect(issues[0].code).toBe('coverage-required-shadowed');
     expect(issues[0].messageData.what).toContain('src/misc/');
     expect(issues[0].messageData.what).toContain('src/');
+    // Plain-language pin: WHY must never leak the internal "middle" tier name —
+    // no other user-facing text uses it, so this message must not either.
+    expect(issues[0].messageData.why).not.toContain('middle');
+    expect(issues[0].messageData.why).toContain('blocking or advisory tier');
   });
   it('warns on an EXACT match (required === excluded, both normalize equal)', () => {
     const issues = checkRequiredShadowedByExcluded({ required: ['foo/'], excluded: ['foo/'], typeLevel: false });
