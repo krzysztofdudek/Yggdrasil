@@ -1,0 +1,15 @@
+name: Type Effective Unit Tests
+type: test-suite
+description: "Fixture-driven unit tests for the type-effective-aspects engine (rules that apply to a file enforced by its architecture type alone), against the dedicated tests/fixtures/type-level-engine/ project: the transient-view total-facts contract (node.type, node.has_mapping, node.has_port, descendants:), the implicit parents: chain (unique-chain contribution, fork truncation, absent/empty parents, a cycle that terminates, a strict parent participating, a classifying parent contributing like a non-classifying one), implies expansion and status strength/inheritance, ordering, the derived-relation atoms a TypedEdgeIndex supplies for a file's outgoing imports, the channels that must never deliver to a type-covered file (flow, port, ancestor-component aspects), a same-graph regression pin that the new when-evaluator overrides parameter changes nothing on the plain two-argument path, and a grep-style count that WhenEvalOverrides never spreads beyond its declaring module and this cascade's own reuse of it."
+aspects: []
+relations:
+  - target: cli/core/loader
+    type: uses
+  - target: cli/core/type-effective
+    type: uses
+  - target: cli/core/graph
+    type: uses
+  - target: cli/relations/core
+    type: uses
+mapping:
+  - source/cli/tests/unit/core/type-effective.test.ts

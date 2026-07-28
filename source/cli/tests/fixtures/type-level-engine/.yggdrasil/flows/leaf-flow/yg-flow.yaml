@@ -1,0 +1,7 @@
+name: LeafFlow
+description: "Deliberately lists a type-covered file's own path (src/leaf/a.ts) as a flow participant — the transient subject view's path equals the file, so this would match channel 5's own-path check verbatim if the cascade ran against the real graph.flows. It exists to prove the transient view's blanked flows makes channel 5 deliver nothing structurally, rather than relying on a path string never colliding with a flow participant id."
+nodes:
+  - src/leaf/a.ts
+  - owned
+aspects:
+  - flow-only-rule

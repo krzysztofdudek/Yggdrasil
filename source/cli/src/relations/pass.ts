@@ -149,11 +149,11 @@ export interface RelationPassResult {
    * type_level's import-edge check). Built from the SAME per-file candidate resolution
    * this pass already runs, generalized across both node-owned and type-covered files —
    * no extra parse. Empty (every `edgesFrom` call returns `[]`) when `deps.typeCoveredFiles`
-   * is undefined/empty AND the graph has no explicit nodes, but in practice this pass
-   * always populates it for node-owned files regardless of the type-level flag; the gate
-   * caller (`core/check.ts`) decides whether to act on it (R3 gates the DECISION, and —
-   * via `deps.typeCoveredFiles` — the type-covered half of the ENUMERATION, not this
-   * field's mere existence).
+   * is undefined or empty: a node-owned source can only ever contribute an edge here by
+   * reaching a type-covered target (this interface's own invariant above excludes every
+   * node-to-node edge), so with none in the run it stays empty; the gate caller
+   * (`core/check.ts`) decides whether to act on it (R3 gates the DECISION, and — via
+   * `deps.typeCoveredFiles` — this field's very population).
    */
   typedEdges: TypedEdgeIndex;
   /**

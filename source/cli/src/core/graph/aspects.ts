@@ -1,7 +1,7 @@
 import type { Graph, GraphNode, AspectStatus, AspectDef, StatusInherit } from '../../model/graph.js';
 import { STATUS_ORDER } from '../../model/graph.js';
 import type { WhenPredicate } from '../../model/when.js';
-import { evaluateWhen } from '../when-evaluator.js';
+import { evaluateWhen, type WhenEvalOverrides } from '../when-evaluator.js';
 import { collectAncestors } from './traversal.js';
 import { debugWrite } from '../../utils/debug-log.js';
 
@@ -105,10 +105,10 @@ function* iterateAttachments(node: GraphNode, graph: Graph): Generator<Attachmen
 }
 
 /** An attachment passes iff both the aspect's global `when` and the attach-site `when` hold. */
-function attachmentPasses(att: Attachment, node: GraphNode, graph: Graph): boolean {
+function attachmentPasses(att: Attachment, node: GraphNode, graph: Graph, overrides?: WhenEvalOverrides): boolean {
   const aspectDef = graph.aspects.find((a) => a.id === att.aspectId);
-  if (aspectDef?.when && !evaluateWhen(aspectDef.when, node, graph)) return false;
-  if (att.attachWhen && !evaluateWhen(att.attachWhen, node, graph)) return false;
+  if (aspectDef?.when && !evaluateWhen(aspectDef.when, node, graph, overrides)) return false;
+  if (att.attachWhen && !evaluateWhen(att.attachWhen, node, graph, overrides)) return false;
   return true;
 }
 
@@ -127,16 +127,16 @@ function attachmentPasses(att: Attachment, node: GraphNode, graph: Graph): boole
  * Implies expansion applies aspect.global_when on B and implier.impliesWhens[B]
  * additionally.
  */
-export function computeEffectiveAspects(node: GraphNode, graph: Graph): Set<string> {
+export function computeEffectiveAspects(node: GraphNode, graph: Graph, overrides?: WhenEvalOverrides): Set<string> {
   const direct = new Set<string>();
   for (const att of iterateAttachments(node, graph)) {
-    if (attachmentPasses(att, node, graph)) direct.add(att.aspectId);
+    if (attachmentPasses(att, node, graph, overrides)) direct.add(att.aspectId);
   }
   // 7. Expand implies (filter global + per-implies when). A DRAFT (dormant)
   // implier must not propagate its implied aspect — so gate traversal on each
   // implier's effective status, mirroring computeEffectiveAspectStatuses.
-  const statuses = computeEffectiveAspectStatuses(node, graph);
-  return expandImpliesFiltered(direct, node, graph, statuses);
+  const statuses = computeEffectiveAspectStatuses(node, graph, overrides);
+  return expandImpliesFiltered(direct, node, graph, statuses, overrides);
 }
 
 function expandImpliesFiltered(
@@ -144,6 +144,7 @@ function expandImpliesFiltered(
   node: GraphNode,
   graph: Graph,
   statuses: Map<string, AspectStatus>,
+  overrides?: WhenEvalOverrides,
 ): Set<string> {
   const idToAspect = new Map<string, typeof graph.aspects[number]>();
   for (const a of graph.aspects) idToAspect.set(a.id, a);
@@ -159,7 +160,7 @@ function expandImpliesFiltered(
     if (visited.has(id)) return;
 
     const aspectDef = idToAspect.get(id);
-    if (aspectDef?.when && !evaluateWhen(aspectDef.when, node, graph)) {
+    if (aspectDef?.when && !evaluateWhen(aspectDef.when, node, graph, overrides)) {
       debugWrite(`[effective-aspects] node '${node.path}' aspect '${id}' filtered: global when=false (implies path)`);
       return;
     }
@@ -167,7 +168,7 @@ function expandImpliesFiltered(
     if (implierId) {
       const implierDef = idToAspect.get(implierId);
       const perImplies = implierDef?.impliesWhens?.[id];
-      if (perImplies && !evaluateWhen(perImplies, node, graph)) {
+      if (perImplies && !evaluateWhen(perImplies, node, graph, overrides)) {
         debugWrite(`[effective-aspects] node '${node.path}' aspect '${id}' filtered: impliesWhens from '${implierId}' is false`);
         return;
       }
@@ -270,11 +271,11 @@ function aspectDefaultStatus(graph: Graph, aspectId: string): AspectStatus {
  *
  * @see computeEffectiveAspects for the parallel id-only set
  */
-export function computeEffectiveAspectStatuses(node: GraphNode, graph: Graph): Map<string, AspectStatus> {
+export function computeEffectiveAspectStatuses(node: GraphNode, graph: Graph, overrides?: WhenEvalOverrides): Map<string, AspectStatus> {
   const result = new Map<string, AspectStatus>();
 
   for (const att of iterateAttachments(node, graph)) {
-    if (!attachmentPasses(att, node, graph)) continue;
+    if (!attachmentPasses(att, node, graph, overrides)) continue;
     const effective = att.declaredStatus ?? aspectDefaultStatus(graph, att.aspectId);
     result.set(att.aspectId, maxStatus(result.get(att.aspectId), effective));
   }
@@ -307,9 +308,9 @@ export function computeEffectiveAspectStatuses(node: GraphNode, graph: Graph): M
       for (const impliedId of implierDef.implies) {
         const impliedDef = idToAspect.get(impliedId);
         const globalWhen = impliedDef?.when;
-        if (globalWhen && !evaluateWhen(globalWhen, node, graph)) continue;
+        if (globalWhen && !evaluateWhen(globalWhen, node, graph, overrides)) continue;
         const perEdgeWhen = implierDef.impliesWhens?.[impliedId];
-        if (perEdgeWhen && !evaluateWhen(perEdgeWhen, node, graph)) continue;
+        if (perEdgeWhen && !evaluateWhen(perEdgeWhen, node, graph, overrides)) continue;
 
         const inheritMode: StatusInherit = implierDef.impliesStatusInherit?.[impliedId] ?? 'strictest';
         const impliedDefault: AspectStatus = impliedDef?.status ?? 'enforced';

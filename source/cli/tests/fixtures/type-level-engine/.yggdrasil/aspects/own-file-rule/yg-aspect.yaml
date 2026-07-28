@@ -1,0 +1,9 @@
+name: Own File Rule
+description: "leaf's own per-file default — pins that the matched type's own declared aspects come first in the effective list."
+reviewer:
+  type: deterministic
+scope:
+  per: file
+implies:
+  - id: implied-file-rule
+    status_inherit: own-default

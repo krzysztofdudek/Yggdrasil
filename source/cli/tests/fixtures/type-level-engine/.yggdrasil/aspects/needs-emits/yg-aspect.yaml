@@ -1,0 +1,6 @@
+name: Needs Emits
+description: "Attached to consumer with when { relations: { emits: { target_type: leaf } } } — an import is never evidence of an event; a derived relation never carries type 'emits', so this must always read false."
+reviewer:
+  type: deterministic
+scope:
+  per: file

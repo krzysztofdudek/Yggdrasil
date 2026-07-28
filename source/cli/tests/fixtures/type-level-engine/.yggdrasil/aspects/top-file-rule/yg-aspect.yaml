@@ -1,0 +1,6 @@
+name: Top File Rule
+description: "top's own default — reached by leaf two hops up the implicit parent chain (leaf -> mid -> top)."
+reviewer:
+  type: deterministic
+scope:
+  per: file

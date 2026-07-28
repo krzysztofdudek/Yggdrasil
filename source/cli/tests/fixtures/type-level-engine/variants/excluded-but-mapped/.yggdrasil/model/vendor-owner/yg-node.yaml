@@ -1,0 +1,5 @@
+name: Vendor Owner
+type: leaf
+description: "An explicit component whose mapping names a file under vendor/ — a root this variant's config excludes from coverage. Pins that an explicit mapping outranks a coverage exclusion: the file stays a real review subject."
+mapping:
+  - vendor/mapped.ts

@@ -1,0 +1,6 @@
+name: Whole Unit Rule
+description: "A per:node-scoped rule reached only through bundle's implies — pins that expansion runs in full before scope is considered (deciding whether a per-node rule can actually run on one file is the emission step's job, not this engine's)."
+reviewer:
+  type: deterministic
+scope:
+  per: node

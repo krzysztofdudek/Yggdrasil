@@ -1,0 +1,6 @@
+name: Flow Only Rule
+description: "Attached only through a flow that lists a type-covered file's own path among its participants. Exists to prove channel 5 (flow) never delivers to a type-covered file's cascade — the transient graph view blanks flows: entirely."
+reviewer:
+  type: deterministic
+scope:
+  per: file

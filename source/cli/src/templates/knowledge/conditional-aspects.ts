@@ -201,6 +201,35 @@ channel 1 regardless of whether channel 2's filter passes.
 An aspect silently skipped because \`when\` was false does not appear in the
 effective list — that is correct behavior.
 
+## Applicability for a file enforced only by its type
+
+A source file with no explicit component of its own — covered by \`coverage.type_level\`
+through its matched architecture type alone — still answers a \`when:\` predicate,
+against a fixed set of total facts:
+
+- \`node.type\` is the matched type id.
+- \`node.has_mapping\` is always \`true\` — the file maps exactly one subject, itself.
+- \`node.has_port\` is always \`false\` — a file-level unit cannot own a port, so any
+  aspect gated on \`has_port\` is attached-but-never-applicable for it, not silently
+  absent.
+- \`descendants:\` is always \`false\` — a file-level unit has no hierarchy below it.
+- A \`relations:\` atom is answered from a statically-resolved import leaving the
+  file, not from a declared node relation (a type-covered file has none). One
+  resolved import is evidence for \`uses\`, \`calls\`, \`extends\`, and \`implements\`
+  alike — dependency analysis cannot tell calling from using from extending from
+  implementing, so a single import satisfies a \`relations:\` clause naming any of
+  the four the same way. An import is never evidence of an \`emits\` or \`listens\`
+  relation, and never evidence of a \`consumes_port\` — those atoms always read
+  false for a type-covered file, regardless of what it imports.
+
+This makes applicability for such a file volatile in a way a declared component
+is not: a rule whose applicability depends on what a file imports can start or
+stop applying because the OTHER end changed — the imported file was re-typed, or
+gained or lost a component of its own — even though the file itself was not
+edited. When that happens the rule's stored result is discarded, the same way it
+is discarded when an applicability condition is edited. Nothing is lost silently:
+the run that discards it says so.
+
 ## Cost
 
 \`when\` evaluation is deterministic — no LLM call. It runs at \`yg check\` time

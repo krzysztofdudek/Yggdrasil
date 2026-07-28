@@ -1,0 +1,9 @@
+name: Gated On Type
+description: "Gated on node.type — must see the MATCHED type, not some other value, proving the transient subject view answers node.type correctly."
+reviewer:
+  type: deterministic
+scope:
+  per: file
+when:
+  node:
+    type: leaf
