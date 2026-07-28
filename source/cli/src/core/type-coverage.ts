@@ -20,7 +20,7 @@ export interface TypeCoverageResult {
    * 2+ strict types match) strict-overlap-conflict — so the lattice must never
    * additionally call it ambiguous or covered.
    */
-  strictClaimed: Array<{ file: string; strictTypeId: string; alsoMatches: string[] }>;
+  strictClaimed: Array<{ file: string; strictTypeId: string }>;
   /** No type matched at all — falls through to the ordinary unmapped-files path. */
   unmatched: string[];
   /**
@@ -101,10 +101,7 @@ export async function computeTypeCoverage(
       (m) => graph.architecture.node_types[m.typeId]?.enforce === 'strict',
     );
     if (strictMatches.length > 0) {
-      const alsoMatches = classification.matches
-        .filter((m) => graph.architecture.node_types[m.typeId]?.enforce !== 'strict')
-        .map((m) => m.typeId);
-      result.strictClaimed.push({ file, strictTypeId: strictMatches[0].typeId, alsoMatches });
+      result.strictClaimed.push({ file, strictTypeId: strictMatches[0].typeId });
       continue;
     }
 

@@ -144,3 +144,5 @@ Threads a real git-tracked-file list alongside the existing disk-walk file list 
 The check header counted a type-covered file as uncovered, so its coverage ratio contradicted the body listing that same file as silently satisfied. The header now names the split between node-owned and type-covered files and folds type-covered into the covered count, and prints a standing notice when type-level coverage is on but no architecture type can ever match a file, so turning the setting on never silently does nothing.
 ## [2026-07-27T18:23:45.668Z]
 The check header's flag-on split mislabeled every coverage-excluded file as node-owned, since it reused the pre-existing coveredFiles count (which already folded excluded-root files in as covered). The split now names three honest buckets: node-owned files an actual node mapping covers, type-covered files, and excluded files, each counted from its own primitive rather than borrowed from a count that conflates them.
+## [2026-07-28T13:55:59.595Z]
+The check command file shrank to command registration and orchestration only; its render logic moved into three new sibling command-support files, referenced here as new relations.

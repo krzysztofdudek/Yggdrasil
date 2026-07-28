@@ -95,7 +95,7 @@ describe('committed LLM-fill event stream (integration)', () => {
 
     const graph = await loadGraph(projectRoot);
     expect(graph.config.events?.committed_llm).toBe(true);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {}, onlyDeterministic: true });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {}, onlyDeterministic: true });
 
     // Byte-identical: deterministic events never graduate to the committed stream.
     const after = readFileSync(committedPath);
@@ -117,8 +117,8 @@ describe('committed LLM-fill event stream (integration)', () => {
     expect(gWith.config.events?.committed_llm).toBe(true);
     expect(gWithout.config.events).toBeUndefined();
 
-    await runFill(gWith, { gitTrackedFiles: null, write: () => {} });
-    await runFill(gWithout, { gitTrackedFiles: null, write: () => {} });
+    await runFill(gWith, { coverageVisibleFiles: null, write: () => {} });
+    await runFill(gWithout, { coverageVisibleFiles: null, write: () => {} });
 
     const hashesWith = lockHashes(gWith.rootPath);
     const hashesWithout = lockHashes(gWithout.rootPath);

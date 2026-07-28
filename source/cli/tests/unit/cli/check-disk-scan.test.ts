@@ -6,7 +6,7 @@ import { Command } from 'commander';
 // `git rm` must NOT appear in the coverage scan.
 //
 // The test pins the plumbing: walkRepoFiles result is the value passed to
-// runFill as gitTrackedFiles. Before the fix, git ls-files is used and
+// runFill as coverageVisibleFiles. Before the fix, git ls-files is used and
 // fails on a non-existent path → null is passed. After the fix, walkRepoFiles
 // is called and its result ([] for a non-existent path, or our mock value)
 // is passed.
@@ -117,12 +117,12 @@ describe('check --approve uses disk scan (walkRepoFiles), not git ls-files', () 
     }
   }
 
-  it('passes walkRepoFiles result to runFill as gitTrackedFiles (not null from failed git ls-files)', async () => {
+  it('passes walkRepoFiles result to runFill as coverageVisibleFiles (not null from failed git ls-files)', async () => {
     await runApprove();
 
     expect(mockWalkRepoFiles).toHaveBeenCalledOnce();
     const [, fillOpts] = mockRunFill.mock.calls[0] as Parameters<typeof runFill>;
-    expect((fillOpts as { gitTrackedFiles: unknown }).gitTrackedFiles).toEqual([
+    expect((fillOpts as { coverageVisibleFiles: unknown }).coverageVisibleFiles).toEqual([
       'src/kept.ts',
       'src/other.ts',
     ]);

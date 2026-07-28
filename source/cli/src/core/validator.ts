@@ -62,7 +62,11 @@ const ARCHITECTURE_FATAL_CODES = new Set<string>([
   'when-predicate-invalid',
 ]);
 
-export async function validate(graph: Graph, scope: string = 'all'): Promise<ValidationResult> {
+export async function validate(
+  graph: Graph,
+  scope: string = 'all',
+  suppliedCache?: FileContentCache,
+): Promise<ValidationResult> {
   const issues: ValidationIssue[] = [];
 
   if (graph.configError) {
@@ -160,8 +164,10 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
     return { issues, nodesScanned: 0 };
   }
 
-  // Shared cache for file-content reads in Stage 4/5.
-  const cache = new FileContentCache();
+  // Shared cache for file-content reads in Stage 4/5. A caller (runCheck) may
+  // supply its own cache so a file read here is not re-read by a sibling
+  // consumer (e.g. computeTypeCoverage) within the same check run.
+  const cache = suppliedCache ?? new FileContentCache();
 
   // Stage 4: per-node checks.
   issues.push(...checkTypeWithoutWhenWithMapping(graph));

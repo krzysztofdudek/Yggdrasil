@@ -108,7 +108,7 @@ export interface CheckResult {
    * Count of files silently satisfied by the type-level classification
    * lattice (`TypeCoverageResult.covered.size`) — matched by exactly one
    * classifying type's `when`, no node, no issue raised. 0 when the flag is
-   * off or the coverage scan did not run (`gitTrackedFiles === null`).
+   * off or the coverage scan did not run (`coverageVisibleFiles === null`).
    */
   typeCoveredCount?: number;
   /**
@@ -140,18 +140,6 @@ export interface CheckResult {
    */
   excludedFiles?: number;
 }
-
-/**
- * Standing notice: `coverage.type_level` is on, but no type in the
- * architecture declares `when:`, so the classification lattice can never
- * match a single file (classifyFile skips every type without `when` —
- * core/type-classifier.ts) — the flag is committed but does nothing yet.
- * Shared verbatim between `yg check`'s coverage-section render and `yg
- * init`'s closing summary (the fresh-init template always starts with an
- * empty architecture) so the same fact reads identically on both surfaces.
- */
-export const ZERO_CLASSIFYING_TYPES_NOTICE =
-  "Type-level coverage is on, but no type in yg-architecture.yaml declares 'when:' — no file can be type-covered until you add classifying types.";
 
 // ── Lock verification → issue emission (live path, spec §6) ──
 
@@ -432,7 +420,7 @@ import {
  * Excludes files under the bound graph's own .yggdrasil/ and under any nested-graph
  * subtree (a directory that contains its own .yggdrasil/).
  */
-export function scanUncoveredFiles(graph: Graph, gitTrackedFiles: string[]): string[] {
+export function scanUncoveredFiles(graph: Graph, coverageVisibleFiles: string[]): string[] {
   // Build list of all mapping paths (normalized)
   const allMappings: string[] = [];
   for (const node of graph.nodes.values()) {
@@ -446,7 +434,7 @@ export function scanUncoveredFiles(graph: Graph, gitTrackedFiles: string[]): str
 
   const uncovered: string[] = [];
 
-  const tracked = excludeNestedGraphSubtrees(gitTrackedFiles);
+  const tracked = excludeNestedGraphSubtrees(coverageVisibleFiles);
   for (const file of tracked) {
     const normalized = toPosixPath(file.trim());
 
@@ -628,7 +616,7 @@ function enrichNoTypeMessage(issue: CheckIssue | null): CheckIssue | null {
  * (parse + resolve + verify), so the result is always the current truth. The
  * relation pass parses source locally but is keyless / makes no LLM calls.
  *
- * @param gitTrackedFiles -- the coverage-visible file list (the CLI layer supplies
+ * @param coverageVisibleFiles -- the coverage-visible file list (the CLI layer supplies
  *        `walkRepoFiles` output — a disk walk, gitignore-aware but git-independent).
  *        Pass null to skip the coverage section entirely (e.g. no filesystem walk
  *        available). This is NOT git-derived — see `options.trackedFiles` below for
@@ -695,20 +683,24 @@ export interface RunCheckOptions {
    * INJECTED real `git ls-files` output (null when git is absent or the probe
    * failed), for the tracked∩gitignored anomaly check. Absent or null ⇒ that
    * one check is skipped — core reads no git itself, and every other coverage
-   * check is fed entirely by `gitTrackedFiles` (the disk walk), unaffected.
+   * check is fed entirely by `coverageVisibleFiles` (the disk walk), unaffected.
    */
   trackedFiles?: string[] | null;
 }
 
 export async function runCheck(
   graph: Graph,
-  gitTrackedFiles: string[] | null,
+  coverageVisibleFiles: string[] | null,
   options?: RunCheckOptions,
 ): Promise<CheckResult> {
   const projectRoot = path.dirname(graph.rootPath);
+  // Shared across validate() and computeTypeCoverage() below so an uncovered
+  // file's content is read at most once per check run, instead of once per
+  // consumer.
+  const sharedContentCache = new FileContentCache();
 
   // 1. Validation (structural + completeness)
-  const validation = await validate(graph);
+  const validation = await validate(graph, 'all', sharedContentCache);
   // Filter out issues without a code -- they are internal (e.g., invalid-scope).
   const validationIssues: CheckIssue[] = validation.issues
     .filter(vi => vi.code)
@@ -866,27 +858,27 @@ export async function runCheck(
   const coverage = graph.config.coverage ?? DEFAULT_COVERAGE;
   // Pure config check — fires on EVERY run regardless of walk availability
   // or the type-level flag. Seeds coverageIssues (rather than an empty-array
-  // declaration pushed into later): the gitTrackedFiles branch below
+  // declaration pushed into later): the coverageVisibleFiles branch below
   // reassigns coverageIssues wholesale, so a later push here would be
   // silently discarded.
   let coverageIssues: CheckIssue[] = checkRequiredShadowedByExcluded(coverage);
   const typeLevel = coverage.typeLevel === true;
   // Pure architecture fact — independent of the flag and of file-walk
   // availability — so the zero-classifying-types notice can fire even when
-  // gitTrackedFiles is null (no coverage scan ran this call). classifyFile
+  // coverageVisibleFiles is null (no coverage scan ran this call). classifyFile
   // skips every type without `when` (core/type-classifier.ts), so this count
   // staying 0 with the flag on means the lattice can never match a file.
   const classifyingTypeCount = Object.values(graph.architecture.node_types).filter(
     (t) => t.when !== undefined,
   ).length;
-  if (gitTrackedFiles !== null) {
+  if (coverageVisibleFiles !== null) {
     const yggPrefix = toPosixPath(path.relative(projectRoot, graph.rootPath));
-    const sourceFiles = excludeNestedGraphSubtrees(gitTrackedFiles).filter(f => {
+    const sourceFiles = excludeNestedGraphSubtrees(coverageVisibleFiles).filter(f => {
       const normalized = toPosixPath(f.trim());
       return !normalized.startsWith(yggPrefix + '/') && normalized !== yggPrefix;
     });
     totalFiles = sourceFiles.length;
-    const uncovered = scanUncoveredFiles(graph, gitTrackedFiles);
+    const uncovered = scanUncoveredFiles(graph, coverageVisibleFiles);
     const tiers = partitionByCoverageTier(uncovered, coverage);
     // coveredFiles/totalFiles keep their pre-existing conflated meaning
     // (node-mapped OR excluded, both counted "covered") — the flag-off
@@ -910,7 +902,7 @@ export async function runCheck(
     let sawTypeLevel = false;
     if (coverage.typeLevel) {
       sawTypeLevel = true;
-      const typeCoverage = await computeTypeCoverage(graph, uncovered, new FileContentCache());
+      const typeCoverage = await computeTypeCoverage(graph, uncovered, sharedContentCache);
       typeCoveredCount = typeCoverage.covered.size;
 
       // The lattice is one issue per file, most-binding wins: covered/
@@ -994,7 +986,7 @@ export async function runCheck(
     // matched by .gitignore, independent of node mapping. INJECTED real
     // `git ls-files` output — the ONE remaining git consumer in this surface;
     // absent (or the CLI's git probe having failed) SKIPS this check entirely.
-    coverageIssues.push(...(options?.trackedFiles ? await scanTrackedButIgnored(graph, options.trackedFiles, gitTrackedFiles) : []));
+    coverageIssues.push(...(options?.trackedFiles ? await scanTrackedButIgnored(graph, options.trackedFiles, coverageVisibleFiles) : []));
   }
 
   // Combine all issues
@@ -1025,10 +1017,10 @@ export async function runCheck(
   // Scope the index to the repository's tracked, graph-governed universe — EXACTLY the set the
   // coverage layer governs (tracked files minus nested-graph subtrees). This keeps attention off
   // gitignored scratch or a nested-worktree copy that falls under a mapped ancestor directory.
-  // With no git set available (gitTrackedFiles === null) NO index is written — honest scoping.
-  if (options?.writeFeatureIndex && featureFactsByPath && featureHashByPath && gitTrackedFiles !== null) {
+  // With no git set available (coverageVisibleFiles === null) NO index is written — honest scoping.
+  if (options?.writeFeatureIndex && featureFactsByPath && featureHashByPath && coverageVisibleFiles !== null) {
     const includedPaths = new Set(
-      excludeNestedGraphSubtrees(gitTrackedFiles).map((f) => toPosixPath(f.trim())),
+      excludeNestedGraphSubtrees(coverageVisibleFiles).map((f) => toPosixPath(f.trim())),
     );
     await writeFeatureIndex(graph, featureFactsByPath, featureHashByPath, includedPaths, {
       now: options.now ?? (() => new Date()),
@@ -1082,12 +1074,12 @@ const DIM_LABEL: Record<string, string> = {
  * writes NOTHING and makes no LLM calls — it is a read-only lens used to re-calibrate the
  * threshold. Returns the formatted string; the CLI prints it and exits 0.
  *
- * `gitTrackedFiles` scopes the universe to the same tracked, graph-governed set the written
+ * `coverageVisibleFiles` scopes the universe to the same tracked, graph-governed set the written
  * index uses (the CLI layer supplies it — the same `git ls-files`-equivalent walk the report
  * path uses — so core never shells out to git). A gitignored / scratch file that falls under a
  * mapped ancestor directory is never shown.
  */
-export async function runAttentionDump(graph: Graph, gitTrackedFiles: string[]): Promise<string> {
+export async function runAttentionDump(graph: Graph, coverageVisibleFiles: string[]): Promise<string> {
   const projectRoot = path.dirname(graph.rootPath);
   const ownerOf = buildOwnerIndex(graph.nodes).ownerOf;
   const relResult = await runRelationPass(graph, projectRoot, {
@@ -1096,7 +1088,7 @@ export async function runAttentionDump(graph: Graph, gitTrackedFiles: string[]):
     symbolIndexDir: astCacheDir(graph.rootPath),
   });
   const includedPaths = new Set(
-    excludeNestedGraphSubtrees(gitTrackedFiles).map((f) => toPosixPath(f.trim())),
+    excludeNestedGraphSubtrees(coverageVisibleFiles).map((f) => toPosixPath(f.trim())),
   );
   const deviations = computeFamilyDeviations(relResult.factsByPath, ownerOf, relResult.hashByPath, includedPaths);
   const dimGet = new Map(DIMS.map((d) => [d.dim, d.get] as const));

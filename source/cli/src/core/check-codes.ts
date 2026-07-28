@@ -7,6 +7,17 @@
  */
 
 /**
+ * Standing notice: coverage.type_level is on, but no type in the architecture
+ * declares when:, so the classification lattice can never match a single
+ * file (classifyFile skips every type without when — core/type-classifier.ts)
+ * — the flag is committed but does nothing yet. Shared verbatim between yg
+ * check's coverage-section render and yg init's closing summary so the same
+ * fact reads identically on both surfaces.
+ */
+export const ZERO_CLASSIFYING_TYPES_NOTICE =
+  "Type-level coverage is on, but no type in yg-architecture.yaml declares 'when:' — no file can be type-covered until you add classifying types.";
+
+/**
  * Structural validation codes — graph-shape and config errors that always block
  * `yg check` regardless of verification state. Both the summary tally and the
  * rendered grouping read this one set.

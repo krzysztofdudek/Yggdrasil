@@ -168,7 +168,7 @@ function emitGroupedDiagnostics(
 export interface RunFillOptions {
   /** Git-tracked files for the final coverage scan (mirrors plain check). Pass
    *  null to skip the unmapped-files check (no git available). */
-  gitTrackedFiles: string[] | null;
+  coverageVisibleFiles: string[] | null;
   /** Real `git ls-files` output for the tracked∩gitignored anomaly check, threaded
    *  into both the dry-run cost-preview report and the final post-fill report
    *  runCheck — mirrors reviewNowUtc/rulesArtifacts below, so `yg check --approve`
@@ -455,7 +455,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
         `deterministic refusal has its LLM fills skipped this run, and a fresh refusal or ` +
         `infra disposition can leave a pair unfilled. Nothing was written; run yg check --approve to fill.\n`,
     );
-    const checkResult = await runCheck(graph, opts.gitTrackedFiles, {
+    const checkResult = await runCheck(graph, opts.coverageVisibleFiles, {
       nowUtc: opts.reviewNowUtc,
       rulesArtifacts: opts.rulesArtifacts,
       trackedFiles: opts.trackedFiles,
@@ -908,7 +908,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   // reporting path for `--approve`, so it maintains the silent feature-field index when the
   // CLI asks (best-effort, byproduct-free elsewhere). The dry-run re-check above returns
   // before reaching here, so a cost preview never writes it regardless of the flag.
-  const checkResult = await runCheck(graph, opts.gitTrackedFiles, {
+  const checkResult = await runCheck(graph, opts.coverageVisibleFiles, {
     writeFeatureIndex: opts.writeFeatureIndex,
     now: opts.featureIndexNow,
     nowUtc: opts.reviewNowUtc,

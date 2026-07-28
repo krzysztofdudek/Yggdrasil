@@ -48,3 +48,5 @@ ambiguous-node-type joins the structural code set: it always blocks yg check, li
 Documents the new coverage-required-shadowed warning code: it flags a required coverage root that can never match a file because it is fully contained in an excluded root, a consequence of coverage exclusion becoming absolute rather than a longest-match comparison.
 ## [2026-07-28T12:25:31.449Z]
 Reworded the coverage-required-shadowed warning-code doc comment so it reads as a self-contained description of the absolute-exclusion rule rather than referencing an external planning label.
+## [2026-07-28T13:56:14.420Z]
+Gained the zero-classifying-types standing notice constant, moved here from core/check.ts — it is a shared user-facing string read by two unrelated command files (yg check's coverage-section render and yg init's closing summary), which belongs beside the other shared issue-code constants rather than living inside the check orchestrator.

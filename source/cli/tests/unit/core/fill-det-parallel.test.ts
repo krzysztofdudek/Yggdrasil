@@ -96,14 +96,14 @@ describe('deterministic fill parity: sequential vs worker pool', () => {
     const graphSeq = await loadGraph(rootSeq);
     const sinkSeq = makeSink();
     const resSeq = await runFill(graphSeq, {
-      gitTrackedFiles: null, onlyDeterministic: true, detConcurrency: 1,
+      coverageVisibleFiles: null, onlyDeterministic: true, detConcurrency: 1,
       write: () => {}, emitIssue: sinkSeq.emit,
     });
 
     const graphPar = await loadGraph(rootPar);
     const sinkPar = makeSink();
     const resPar = await runFill(graphPar, {
-      gitTrackedFiles: null, onlyDeterministic: true, detConcurrency: 4,
+      coverageVisibleFiles: null, onlyDeterministic: true, detConcurrency: 4,
       write: () => {}, emitIssue: sinkPar.emit,
     });
 
@@ -136,14 +136,14 @@ describe('deterministic fill parity: sequential vs worker pool', () => {
     const graphSeq = await loadGraph(rootSeq);
     const sinkSeq = makeSink();
     const resSeq = await runFill(graphSeq, {
-      gitTrackedFiles: null, onlyDeterministic: true, detConcurrency: 1,
+      coverageVisibleFiles: null, onlyDeterministic: true, detConcurrency: 1,
       write: () => {}, emitIssue: sinkSeq.emit,
     });
 
     const graphPar = await loadGraph(rootPar);
     const sinkPar = makeSink();
     const resPar = await runFill(graphPar, {
-      gitTrackedFiles: null, onlyDeterministic: true, detConcurrency: 4,
+      coverageVisibleFiles: null, onlyDeterministic: true, detConcurrency: 4,
       write: () => {}, emitIssue: sinkPar.emit,
     });
 

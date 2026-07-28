@@ -8,7 +8,7 @@ import { installRules, DEPRECATED_PLATFORMS, type InstallReport } from '../templ
 import { loadGraph, CLI_SUPPORTED_SCHEMA } from '../core/graph-loader.js';
 import { blockingUnmappedPaths } from '../core/check-coverage-tiers.js';
 import { DEFAULT_COVERAGE } from '../io/config-parser.js';
-import { ZERO_CLASSIFYING_TYPES_NOTICE } from '../core/check.js';
+import { ZERO_CLASSIFYING_TYPES_NOTICE } from '../core/check-codes.js';
 import { cliVersion } from './cli-version.js';
 import type { ReviewerProvider } from '../model/graph.js';
 import { detectVersion } from '../core/migrator.js';

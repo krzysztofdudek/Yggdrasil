@@ -1,0 +1,11 @@
+name: Check Render Header
+type: command-support
+description: "Renders the yg check verdict/metrics header line — PASS/FAIL, node
+  count, the flag-off coverage percentage or flag-on node-owned/type-covered/
+  excluded three-bucket split, aspect/flow counts, verified-pair split, draft
+  count. Owns the useEmoji accessibility gate every render file reads."
+mapping:
+  - source/cli/src/cli/check-render-header.ts
+relations:
+  - target: cli/core/check
+    type: calls

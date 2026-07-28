@@ -74,7 +74,7 @@ describe('SCOPE GUARD — an explicitly-mapped file under coverage.excluded stil
       const legacyPair = pairs.find((p) => p.nodePath === 'legacy' && p.subjectFiles.includes('src/legacy/thing.ts'));
       expect(legacyPair).toBeDefined(); // NOT dropped by coverage.excluded — mapping is stronger intent
 
-      await runFill(graph, { gitTrackedFiles: files, write: () => {} });
+      await runFill(graph, { coverageVisibleFiles: files, write: () => {} });
       const lockAfterFirst = readLock(graph.rootPath);
       const verdictAfterFirst = lockAfterFirst.verdicts['legacy-check']?.[legacyPair!.unitKey];
       expect(verdictAfterFirst).toBeDefined(); // the pair's verdict was actually written
@@ -84,7 +84,7 @@ describe('SCOPE GUARD — an explicitly-mapped file under coverage.excluded stil
       // isExcludedByCoverage leaked into computeExpectedPairs (or the GC
       // universe) somewhere it must never reach.
       const graphAgain = await loadGraph(dir);
-      await runFill(graphAgain, { gitTrackedFiles: files, write: () => {} });
+      await runFill(graphAgain, { coverageVisibleFiles: files, write: () => {} });
       const lockAfterSecond = readLock(graphAgain.rootPath);
       expect(lockAfterSecond.verdicts['legacy-check']?.[legacyPair!.unitKey]).toEqual(verdictAfterFirst);
     } finally {

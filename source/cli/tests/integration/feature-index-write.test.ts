@@ -147,20 +147,20 @@ describe('feature-field index — real pass, byproduct-free elsewhere, best-effo
 
   it("a fill's real internal re-check writes NO index (byproduct-free call site)", async () => {
     const graph = await loadGraph(root);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
     expect(existsSync(indexAbs())).toBe(false);
   });
 
   it("a fill's dry-run internal re-check writes NO index (byproduct-free call site)", async () => {
     const graph = await loadGraph(root);
-    await runFill(graph, { gitTrackedFiles: null, dryRun: true, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, dryRun: true, write: () => {} });
     expect(existsSync(indexAbs())).toBe(false);
   });
 
   it("a real fill with writeFeatureIndex:true maintains the index on its post-fill report", async () => {
     const graph = await loadGraph(root);
     await runFill(graph, {
-      gitTrackedFiles: SVC_TRACKED,
+      coverageVisibleFiles: SVC_TRACKED,
       write: () => {},
       writeFeatureIndex: true,
       featureIndexNow: () => new Date('2026-07-05T09:00:00.000Z'),
@@ -175,7 +175,7 @@ describe('feature-field index — real pass, byproduct-free elsewhere, best-effo
   it("a dry-run fill even WITH writeFeatureIndex:true writes NO index (returns before the report)", async () => {
     const graph = await loadGraph(root);
     await runFill(graph, {
-      gitTrackedFiles: SVC_TRACKED, // a valid tracked set, so the ONLY reason nothing is written is the dry-run early return
+      coverageVisibleFiles: SVC_TRACKED, // a valid tracked set, so the ONLY reason nothing is written is the dry-run early return
       dryRun: true,
       write: () => {},
       writeFeatureIndex: true,
@@ -199,7 +199,7 @@ describe('feature-field index — real pass, byproduct-free elsewhere, best-effo
     expect(existsSync(path.join(bogusParent, 'sub', FEATURE_FIELD_FILENAME))).toBe(false);
   });
 
-  it('scopes to the tracked set: an owned file NOT in gitTrackedFiles is excluded from the index', async () => {
+  it('scopes to the tracked set: an owned file NOT in coverageVisibleFiles is excluded from the index', async () => {
     const graph = await loadGraph(root);
     // Omit the outlier from the tracked set (it is owned by svc but "gitignored/scratch").
     const trackedWithoutOutlier = SVC_TRACKED.filter((p) => p !== OUTLIER_PATH);
@@ -209,7 +209,7 @@ describe('feature-field index — real pass, byproduct-free elsewhere, best-effo
     expect(Object.keys(readIndex().files)).not.toContain(OUTLIER_PATH); // …but never mentions the untracked file
   });
 
-  it('writes NO index when gitTrackedFiles is null (honest scoping — unknown ≠ unfiltered)', async () => {
+  it('writes NO index when coverageVisibleFiles is null (honest scoping — unknown ≠ unfiltered)', async () => {
     const graph = await loadGraph(root);
     await runCheck(graph, null, { writeFeatureIndex: true, now: () => new Date() });
     expect(existsSync(indexAbs())).toBe(false);

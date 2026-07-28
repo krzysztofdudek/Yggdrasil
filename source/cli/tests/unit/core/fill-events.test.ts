@@ -99,7 +99,7 @@ describe('verdict-events telemetry sidecar (integration)', () => {
     const { projectRoot } = await setupProject();
     dirs.push(projectRoot);
     const graph = await loadGraph(projectRoot);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
 
     const lock = readLock(graph.rootPath);
     const passEntry = lock.verdicts['det-pass']?.['node:svc'];
@@ -153,7 +153,7 @@ describe('verdict-events telemetry sidecar (integration)', () => {
     expect(gitignore).toContain(EVENTS_FILENAME);
 
     const graph = await loadGraph(projectRoot);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {}, onlyDeterministic: true });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {}, onlyDeterministic: true });
 
     // Telemetry is still recorded even in the free/keyless CI-gate mode.
     const eventsPath = path.join(graph.rootPath, EVENTS_FILENAME);
@@ -180,7 +180,7 @@ describe('verdict-events telemetry sidecar (integration)', () => {
     const { projectRoot } = await setupProjectWith([{ id: 'det-throw', rule: DET_THROW }]);
     dirs.push(projectRoot);
     const graph = await loadGraph(projectRoot);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
 
     const events = await readEvents(graph.rootPath);
     const throwEvents = events.filter((e) => e.aspectId === 'det-throw');
@@ -210,7 +210,7 @@ describe('verdict-events telemetry sidecar (integration)', () => {
     );
     dirs.push(projectRoot);
     const graph = await loadGraph(projectRoot);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
 
     const events = await readEvents(graph.rootPath);
     const flagEvents = events.filter((e) => e.aspectId === 'det-flag');

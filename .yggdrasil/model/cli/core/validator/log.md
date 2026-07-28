@@ -94,3 +94,5 @@ The structural validation pass now also composes the incident-ledger ordering ch
 Wires the new per-type dead-attach linter into the validation pass alongside the existing effective-nowhere linter, so a default aspect that its own when filters off its own type is surfaced as a warning during yg check.
 ## [2026-07-15T08:27:07.026Z]
 Wires the new relation-target-type integrity check into the architecture-level validation stage alongside the existing undefined-parent check, so a dangling relation target type blocks like the other architecture-shape errors.
+## [2026-07-28T13:56:15.998Z]
+validate() gained an optional third parameter accepting a caller-supplied FileContentCache, defaulting to a fresh instance when omitted — this lets a caller that already holds a cache (the check orchestrator) share it instead of paying a second read for a file both consumers need.

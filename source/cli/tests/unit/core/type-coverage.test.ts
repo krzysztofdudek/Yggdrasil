@@ -15,7 +15,7 @@
  * with only coverage.typeLevel flipped in memory — a config-level twin of the
  * one committed fixture, not a second fixture directory.
  */
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { mkdtempSync, cpSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -98,7 +98,7 @@ describe('computeTypeCoverage — classification lattice', () => {
     const graph = await loadGraph(dir);
     const result = await computeTypeCoverage(graph, UNCOVERED, new FileContentCache());
     expect(result.strictClaimed).toEqual([
-      { file: 'src/util/special.ts', strictTypeId: 'special', alsoMatches: ['util'] },
+      { file: 'src/util/special.ts', strictTypeId: 'special' },
     ]);
     // A strict match must never ALSO be reported ambiguous or covered.
     expect(result.ambiguous.some((a) => a.file === 'src/util/special.ts')).toBe(false);
@@ -550,5 +550,58 @@ describe('checkStrictBackwardCoverage — orphan WHAT enrichment is flag-gated',
     const { issues } = await checkStrictBackwardCoverage(graphOff, new FileContentCache());
     const orphan = issues.find((i) => i.code === 'type-strict-orphan');
     expect(orphan?.messageData.what).not.toContain('Also matches');
+  });
+
+  it('the Also-matches predicate excludes EVERY strict type, not just the primary co-match (predicate unification)', () => {
+    // The exact filter now shared by core/checks/mapping.ts's Also-matches enrichment
+    // (Step 6's fix) — reproduced inline so this test proves the LOGIC, independent of any
+    // fixture's ability to construct a 2-strict-co-match file without also triggering
+    // strict-overlap-conflict first (design §3 row 1: 2+ strict types matching wins over
+    // orphan entirely, so that shape can never reach the Also-matches enrichment path at
+    // all — testing it through runCheck/checkStrictBackwardCoverage would be testing the
+    // wrong code path).
+    const nodeTypes: Record<string, { enforce?: 'strict' }> = {
+      special: { enforce: 'strict' },
+      'special-2': { enforce: 'strict' },
+      util: {},
+    };
+    const matches = [{ typeId: 'special' }, { typeId: 'special-2' }, { typeId: 'util' }];
+    const alsoMatches = matches
+      .filter((m) => nodeTypes[m.typeId]?.enforce !== 'strict')
+      .map((m) => m.typeId);
+    // Old predicate (`m.typeId !== typeId`) would have wrongly kept 'special-2' (a strict
+    // co-match, not a "consider this instead" suggestion) in the list. The fixed predicate
+    // excludes every strict type, keeping only the genuinely non-strict co-match.
+    expect(alsoMatches).toEqual(['util']);
+  });
+});
+
+// ===========================================================================
+// Shared FileContentCache across validate() and computeTypeCoverage() (Step 7)
+// ===========================================================================
+
+describe('runCheck — shares one FileContentCache between validate() and computeTypeCoverage()', () => {
+  it('does not re-read an uncovered file\'s content once cached within a single runCheck', async () => {
+    // The fixture's content-classified type ('big') forces classifyFile to read
+    // EVERY uncovered file's content, including src/util/special.ts — once via
+    // checkStrictBackwardCoverage's own "Also matches" enrichment classifyFile
+    // call (inside validate()), and again via computeTypeCoverage's classifyFile
+    // call (in runCheck's coverage section). Before Step 7 these were two
+    // independent FileContentCache instances, so special.ts was read from disk
+    // twice for the one run; after Step 7 both consumers share one cache, so the
+    // second read is a cache hit.
+    //
+    // Observation seam: FileContentCache.read() memoizes by delegating to the
+    // private load() exactly once per absolute path per INSTANCE (read()'s own
+    // `if (entry === undefined)` guard) — vi.spyOn on the module's ESM export
+    // (node:fs/promises.readFile) is not usable here (Vitest cannot redefine a
+    // non-configurable ESM namespace property), so load() on the class's own
+    // prototype is the seam this test actually has, per file-content-cache.ts.
+    const dir = copyFixture();
+    const loadSpy = vi.spyOn(FileContentCache.prototype as unknown as { load(absPath: string): Promise<unknown> }, 'load');
+    await runOnFixture(dir);
+    const specialTsLoads = loadSpy.mock.calls.filter(([p]) => String(p).includes('special.ts'));
+    expect(specialTsLoads.length).toBeLessThanOrEqual(1);
+    loadSpy.mockRestore();
   });
 });

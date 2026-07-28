@@ -31,7 +31,7 @@ import type { Graph, GraphNode, CoverageConfig } from '../../../src/model/graph.
 
 // ── In-memory graph builder for scanUncoveredFiles ────────────────────────────
 // scanUncoveredFiles reads only: graph.nodes (node.meta.mapping), graph.rootPath
-// (string math: path.dirname + path.relative), and the gitTrackedFiles arg.
+// (string math: path.dirname + path.relative), and the coverageVisibleFiles arg.
 // No filesystem access, so a synthetic graph is exact and side-effect-free.
 function graphWithMappings(mappings: string[][], rootPath = '/repo/.yggdrasil'): Graph {
   const nodes = new Map<string, GraphNode>();

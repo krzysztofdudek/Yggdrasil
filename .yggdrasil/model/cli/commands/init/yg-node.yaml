@@ -21,7 +21,7 @@ relations:
     type: calls
   - target: cli/core/check-coverage-tiers
     type: calls
-  - target: cli/core/check
+  - target: cli/core/check-codes
     type: calls
   - target: cli/io/parsers/config
     type: calls

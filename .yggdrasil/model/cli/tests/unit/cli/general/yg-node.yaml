@@ -1,16 +1,30 @@
 name: CLI Build & Check Command Tests
 type: test-suite
 description: Unit tests for build and check CLI commands — build-command,
-  build-context, check, check-render, check-exit (the command-exit force-exit
-  path), init, init/upgrade, the shared exit-after-flush command-exit helper,
-  and the rules-artifacts reader that feeds the committed-digest gate — which
-  must see exactly what the installer wrote, including a repo whose agent-rules
-  file carries a non-canonical capitalization.
+  build-context, check, the check render layer split across
+  check-render-header/check-render-groups/check-render-views, check-exit (the
+  command-exit force-exit path), init, init/upgrade, the shared
+  exit-after-flush command-exit helper, and the rules-artifacts reader that
+  feeds the committed-digest gate — which must see exactly what the installer
+  wrote, including a repo whose agent-rules file carries a non-canonical
+  capitalization.
 aspects: []
+max_direct_relations:
+  limit: 25
+  reason: >-
+    Growth is honest, not accidental: this node is a shared test-suite umbrella
+    covering an entire command's test files (build, check, and now the
+    check-render-header/-groups/-views split, plus init and its shared
+    helpers), so its relation count tracks the real dependency surface of
+    everything it tests. The ceiling gives modest headroom above the current
+    count (21) without silencing a genuine future over-connection.
 relations:
   [
     { target: cli/commands/build-context, type: uses },
     { target: cli/commands/check, type: uses },
+    { target: cli/check-render-header, type: uses },
+    { target: cli/check-render-groups, type: uses },
+    { target: cli/check-render-views, type: uses },
     { target: cli/group-issues, type: uses },
     { target: cli/commands/init, type: uses },
     { target: cli/init-reviewer-setup, type: uses },
@@ -32,7 +46,9 @@ mapping:
   - source/cli/tests/unit/cli/build-command.test.ts
   - source/cli/tests/unit/cli/build-context.test.ts
   - source/cli/tests/unit/cli/check.test.ts
-  - source/cli/tests/unit/cli/check-render.test.ts
+  - source/cli/tests/unit/cli/check-render-header.test.ts
+  - source/cli/tests/unit/cli/check-render-groups.test.ts
+  - source/cli/tests/unit/cli/check-render-views.test.ts
   - source/cli/tests/unit/cli/init.test.ts
   - source/cli/tests/unit/cli/init-upgrade.test.ts
   - source/cli/tests/unit/cli/exit-after-flush.test.ts

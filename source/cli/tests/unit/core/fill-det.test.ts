@@ -196,7 +196,7 @@ describe('deterministic-first ordering + det gate', () => {
     }));
 
     const w = makeWriter();
-    const result = await runFill(graph, { gitTrackedFiles: null, write: w.write, emitIssue: w.emitIssue });
+    const result = await runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
 
     // The det check refused → the LLM reviewer was never asked.
     expect(verifyCalls).toBe(0);
@@ -219,7 +219,7 @@ describe('deterministic-first ordering + det gate', () => {
     // First run records the det refusal.
     let graph = await loadGraph(projectRoot);
     mockCreateLlmProvider.mockReturnValue(makeMockProvider());
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
 
     // Second run: the det refusal is cached-valid. The LLM pair is still skipped.
     graph = await loadGraph(projectRoot);
@@ -227,7 +227,7 @@ describe('deterministic-first ordering + det gate', () => {
     mockCreateLlmProvider.mockReturnValue(makeMockProvider({
       async verifyAspect() { verifyCalls++; return { satisfied: true, reason: 'ok', errorSource: 'codeViolation' as const }; },
     }));
-    const result = await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    const result = await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
     expect(verifyCalls).toBe(0);
     expect(result.reviewerCallsMade).toBe(0);
     const lock = readLock(graph.rootPath);
@@ -252,7 +252,7 @@ describe('positive closure', () => {
     });
     const graph = await loadGraph(projectRoot);
     mockCreateLlmProvider.mockReturnValue(makeMockProvider()); // approves
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
     const lock = readLock(graph.rootPath);
     expect(lock.nodes['svc']?.source).toBeDefined();
     expect(lock.nodes['svc']?.log?.last_entry_datetime).toBe('2026-05-11T10:00:00.000Z');
@@ -265,7 +265,7 @@ describe('positive closure', () => {
       logContent: '## [2026-05-11T10:00:00.000Z]\nfirst.\n',
     });
     const graph = await loadGraph(projectRoot);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
     const lock = readLock(graph.rootPath);
     expect(lock.nodes['svc']?.source).toBeUndefined();
   });
@@ -277,7 +277,7 @@ describe('positive closure', () => {
       logContent: '## [2026-05-11T10:00:00.000Z]\nfirst.\n',
     });
     const graph = await loadGraph(projectRoot);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
     const lock = readLock(graph.rootPath);
     // Advisory refusal does not block closure → fingerprint recorded.
     expect(lock.nodes['svc']?.source).toBeDefined();
@@ -301,7 +301,7 @@ describe('positive closure', () => {
     // Run 1: provider approves → pair approved, node closes.
     let graph = await loadGraph(projectRoot);
     mockCreateLlmProvider.mockReturnValue(makeMockProvider());
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
     const run1Fingerprint = readLock(graph.rootPath).nodes['svc']?.source;
     expect(run1Fingerprint).toBeDefined();
     expect(readLock(graph.rootPath).verdicts['llm-a']?.['node:svc']?.verdict).toBe('approved');
@@ -319,7 +319,7 @@ describe('positive closure', () => {
     graph = await loadGraph(projectRoot);
     // Run 2: provider unreachable → the LLM fill writes NOTHING (infra disposition).
     mockCreateLlmProvider.mockReturnValue(makeMockProvider({ isAvailable: async () => false }));
-    const result = await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    const result = await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
 
     const after = readLock(graph.rootPath);
     // The stored token is still 'approved' (run 1's verdict was never overwritten).
@@ -349,7 +349,7 @@ describe('positive closure', () => {
     });
     let graph = await loadGraph(projectRoot);
     mockCreateLlmProvider.mockReturnValue(makeMockProvider()); // approves
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
     const run1Fingerprint = readLock(graph.rootPath).nodes['svc']?.source;
     expect(run1Fingerprint).toBeDefined();
 
@@ -357,7 +357,7 @@ describe('positive closure', () => {
     // (subject = src/svc.ts, binary excluded) stays valid → zero unverified pairs.
     await writeFile(path.join(projectRoot, 'assets', 'logo.png'), 'PNGDATA-v2-CHANGED\n');
     graph = await loadGraph(projectRoot);
-    const result = await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    const result = await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
 
     // Zero reviewer calls (nothing was unverified) — proves the node never entered
     // the fill set, so the step-4 gate did not run for it.
@@ -384,14 +384,14 @@ describe('positive closure', () => {
     });
     let graph = await loadGraph(projectRoot);
     mockCreateLlmProvider.mockReturnValue(makeMockProvider()); // approves (advisory)
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
     const run1Fingerprint = readLock(graph.rootPath).nodes['svc']?.source;
     expect(run1Fingerprint).toBeDefined();
 
     // Edit ONLY the binary, no fresh log entry.
     await writeFile(path.join(projectRoot, 'assets', 'logo.png'), 'PNGDATA-v2-CHANGED\n');
     graph = await loadGraph(projectRoot);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
 
     // The fingerprint must NOT advance — vacuous closure (zero enforced pairs) is
     // refused for a drifted log_required node lacking a fresh entry.
@@ -412,7 +412,7 @@ describe('log gate (§9)', () => {
     });
     // First fill closes the node (records fingerprint + log baseline).
     let graph = await loadGraph(projectRoot);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
     const preEditFingerprint = readLock(graph.rootPath).nodes['svc']?.source;
     expect(preEditFingerprint).toBeDefined();
 
@@ -424,7 +424,7 @@ describe('log gate (§9)', () => {
     // (FillGatingError) — nothing is approved — but the per-node "no fresh log
     // entry" message is emitted first so the user knows what to add.
     await expect(
-      runFill(graph, { gitTrackedFiles: null, write: w.write, emitIssue: w.emitIssue }),
+      runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue }),
     ).rejects.toBeInstanceOf(FillGatingError);
     expect(w.text()).toMatch(/no fresh log entry|mandatory/i);
 
@@ -446,7 +446,7 @@ describe('log gate (§9)', () => {
       logContent: '## [2026-05-11T10:00:00.000Z]\nfirst.\n',
     });
     let graph = await loadGraph(projectRoot);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
 
     // Edit source + add a fresh log entry — the gate passes.
     await writeFile(path.join(projectRoot, 'src', 'svc.ts'), 'export const x = 2;\n');
@@ -455,7 +455,7 @@ describe('log gate (§9)', () => {
       '## [2026-05-11T10:00:00.000Z]\nfirst.\n## [2026-05-11T11:00:00.000Z]\nfix.\n',
     );
     graph = await loadGraph(projectRoot);
-    const result = await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    const result = await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
 
     // Gate passed → the pair re-filled and the node re-closed with the new entry.
     const lock = readLock(graph.rootPath);
@@ -470,7 +470,7 @@ describe('log gate (§9)', () => {
       logContent: '## [2026-05-11T10:00:00.000Z]\nfirst.\n',
     });
     let graph = await loadGraph(projectRoot);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
 
     // Edit the aspect's check.mjs (upstream cascade) — source fingerprint
     // UNCHANGED. The gate must NOT fire.
@@ -480,7 +480,7 @@ describe('log gate (§9)', () => {
     );
     graph = await loadGraph(projectRoot);
     const w = makeWriter();
-    const result = await runFill(graph, { gitTrackedFiles: null, write: w.write, emitIssue: w.emitIssue });
+    const result = await runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
 
     expect(w.text()).not.toMatch(/no fresh log entry|mandatory/i);
     // The det pair re-verified (free) and the check is clean.
@@ -501,7 +501,7 @@ describe('GC + canonical rewrite (§3.2)', () => {
       ],
     });
     let graph = await loadGraph(projectRoot);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
     expect(readLock(graph.rootPath).verdicts['det-b']?.['node:svc']).toBeDefined();
 
     // Detach det-b from the node mapping.
@@ -510,7 +510,7 @@ describe('GC + canonical rewrite (§3.2)', () => {
       'name: svc\ntype: service\ndescription: x\nmapping:\n  - src/svc.ts\naspects:\n  - det-a\n',
     );
     graph = await loadGraph(projectRoot);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
 
     const lock = readLock(graph.rootPath);
     // det-b's entry is pruned; det-a survives.
@@ -528,7 +528,7 @@ describe('GC + canonical rewrite (§3.2)', () => {
       ],
     });
     let graph = await loadGraph(projectRoot);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
     expect(readLock(graph.rootPath).verdicts['det-draft']?.['node:svc']).toBeDefined();
 
     // Flip det-draft to draft. Its pair leaves the non-draft universe but the GC
@@ -538,7 +538,7 @@ describe('GC + canonical rewrite (§3.2)', () => {
       'name: det-draft\ndescription: d\nreviewer:\n  type: deterministic\nstatus: draft\n',
     );
     graph = await loadGraph(projectRoot);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
 
     const lock = readLock(graph.rootPath);
     // The draft pair's entry survives GC (draft pairs are retained).
@@ -551,7 +551,7 @@ describe('GC + canonical rewrite (§3.2)', () => {
       logContent: '## [2026-05-11T10:00:00.000Z]\nfirst.\n',
     });
     let graph = await loadGraph(projectRoot);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
     // Closure recorded a nodes[] entry.
     expect(readLock(graph.rootPath).nodes['svc']).toBeDefined();
 
@@ -562,7 +562,7 @@ describe('GC + canonical rewrite (§3.2)', () => {
     raw.nodes['ghost/node'] = { source: 'deadbeef' };
     await writeFile(logsLockPath, JSON.stringify(raw));
     graph = await loadGraph(projectRoot);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
 
     const lock = readLock(graph.rootPath);
     expect(lock.nodes['ghost/node']).toBeUndefined();
@@ -587,7 +587,7 @@ describe('incremental writeLock', () => {
     const detLockPath = path.join(graph.rootPath, '.yg-lock.deterministic.json');
     // After a full run both det entries are on disk (the serialized writer
     // flushed each entry). Reading the file back proves the writes landed.
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
     const onDisk = JSON.parse(await readFile(detLockPath, 'utf-8'));
     expect(onDisk.verdicts['det-a']['node:svc'].verdict).toBe('approved');
     expect(onDisk.verdicts['det-b']['node:svc'].verdict).toBe('approved');
@@ -615,7 +615,7 @@ describe('tainted observation set', () => {
       files: { 'src/sibling.ts': 'export const x = 1;\n' },
     });
     const graph = await loadGraph(projectRoot);
-    const result = await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    const result = await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
     expect(result.runtimeErrors).toBe(0);
     const lock = readLock(graph.rootPath);
     expect(lock.verdicts['det-sib']?.['node:svc']?.verdict).toBe('approved');
@@ -640,7 +640,7 @@ describe('per-file deterministic pair — contract #8', () => {
       files: { 'src/other.ts': 'export const y = 2;\n' },
     });
     const graph = await loadGraph(projectRoot);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
 
     const lock = readLock(graph.rootPath);
     // One pair per subject file: file:src/svc.ts and file:src/other.ts.
@@ -655,7 +655,7 @@ describe('per-file deterministic pair — contract #8', () => {
     // (its observation changed), proving the fold is load-bearing.
     await writeFile(path.join(projectRoot, 'src', 'other.ts'), 'export const y = 999;\n');
     const graph2 = await loadGraph(projectRoot);
-    const result2 = await runFill(graph2, { gitTrackedFiles: null, write: () => {} });
+    const result2 = await runFill(graph2, { coverageVisibleFiles: null, write: () => {} });
     // The sibling change invalidated and re-filled the pair (no error remains).
     expect(result2.checkResult.issues.some((i) => i.code === 'unverified')).toBe(false);
     // The for-file pair for the OTHER file is its own subject — sanity.
@@ -704,7 +704,7 @@ describe('Bug 3 — per:node det aspect with scope.files excludes a read file', 
       files: { 'src/excluded.ts': 'export const ok = 1;\n' },
     });
     const graph = await loadGraph(projectRoot);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
 
     const entry = readLock(graph.rootPath).verdicts['det-scoped']?.['node:svc'];
     expect(entry).toBeDefined();
@@ -819,7 +819,7 @@ describe('Bug 2 — GC retains entries for an implies-cycle node', () => {
 
     // Run fill. The cycle node throws during effectiveness (skipped by the pair
     // engine); the clean node fills normally; GC then rewrites the lock.
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
 
     const lock = readLock(graph.rootPath);
     // The cycle node's entry MUST survive (uncomputable → not provably detached).
@@ -855,7 +855,7 @@ describe('tainted re-run-once → runtime-error fail-closed (unit-pinned)', () =
     mockRunStructureAspect.mockResolvedValue(taintedResult);
 
     const w = makeWriter();
-    const result = await runFill(graph, { gitTrackedFiles: null, write: w.write, emitIssue: w.emitIssue });
+    const result = await runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
 
     // The runner was called exactly twice for this pair (initial + re-run-once).
     expect(mockRunStructureAspect).toHaveBeenCalledTimes(2);
@@ -900,7 +900,7 @@ describe('dry-run cost preview (no writes)', () => {
 
     const w = makeWriter();
     const result = await runFill(graph, {
-      gitTrackedFiles: null, write: w.write, emitIssue: w.emitIssue, dryRun: true,
+      coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue, dryRun: true,
     });
 
     // No reviewer was ever invoked.
@@ -942,7 +942,7 @@ describe('dry-run cost preview (no writes)', () => {
 
     const w = makeWriter();
     const result = await runFill(graph, {
-      gitTrackedFiles: null, write: w.write, emitIssue: w.emitIssue,
+      coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue,
       dryRun: true, onlyDeterministic: true,
     });
 
@@ -968,7 +968,7 @@ describe('dry-run cost preview (no writes)', () => {
     });
     const graph = await loadGraph(projectRoot);
     const w = makeWriter();
-    await runFill(graph, { gitTrackedFiles: null, write: w.write, emitIssue: w.emitIssue, dryRun: true });
+    await runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue, dryRun: true });
 
     const out = w.text();
     expect(out).toContain('[det] det-a on node:svc — free');
@@ -1002,7 +1002,7 @@ describe('--only-deterministic fill (in-process)', () => {
       async verifyAspect() { verifyCalls++; return { satisfied: true, reason: 'ok', errorSource: 'codeViolation' as const }; },
     }));
 
-    const result = await runFill(graph, { gitTrackedFiles: null, write: () => {}, onlyDeterministic: true });
+    const result = await runFill(graph, { coverageVisibleFiles: null, write: () => {}, onlyDeterministic: true });
 
     // The reviewer was never asked — onlyDeterministic empties the LLM fill set.
     expect(verifyCalls).toBe(0);

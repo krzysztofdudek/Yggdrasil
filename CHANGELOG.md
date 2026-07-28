@@ -39,6 +39,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`yg type-suggest` no longer reports a plain "no match" for a type whose classification rule couldn't actually be checked.** A file over the 5MB content-scan limit, evaluated against a type whose rule inspects file content, used to come back as an ordinary non-match — indistinguishable from a file that genuinely fails every rule. The command now lists such types separately, naming the reason the rule couldn't be applied, so it's clear the rule was never actually evaluated rather than evaluated and failed.
 
+- **The "Also matches" hint on a `type-strict-orphan` error could wrongly suggest another `enforce: strict` type instead of a genuine alternative.** When a file matched two or more strict types, the hint's filter excluded only the ONE type the error was already about, so a second strict type — itself a conflict the strict-overlap check reports separately, never a "consider this instead" suggestion — could still appear in the list. The filter now excludes every strict type, leaving only real non-strict alternatives.
+
 ## [5.6.0] - 2026-07-25
 
 ### Documentation

@@ -4,3 +4,5 @@ New pure module computing the type-level classification lattice over already-unc
 computeTypeCoverage now records one unreadable entry per file, naming every classifying type that could not be evaluated against it, instead of one entry per file-type pair — every type unreadable on a given file shares the same underlying cached file read, so the readability verdict is identical across them and per-type duplication carried no extra information.
 ## [2026-07-28T12:11:30.745Z]
 The classification lattice's own excluded-root check is replaced by the shared absolute-exclusion predicate the coverage tiering already uses, so a file's excluded status can never disagree between the lattice and the tier split that consumes its results.
+## [2026-07-28T13:56:15.350Z]
+Deleted the dead alsoMatches field from TypeCoverageResult.strictClaimed — nothing in production ever read it (the equivalent enrichment the field was meant to feed lives independently in checks/mapping.ts's own type-strict-orphan message, which computes its own co-match list), so carrying it here was pure unread output.

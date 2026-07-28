@@ -167,7 +167,7 @@ export async function checkStrictBackwardCoverage(
       if (graph.config.coverage?.typeLevel) {
         const classification = await classifyFile(absPath, relPath, graph, cache);
         const alsoMatches = classification.matches
-          .filter((m) => m.typeId !== typeId)
+          .filter((m) => graph.architecture.node_types[m.typeId]?.enforce !== 'strict')
           .map((m) => m.typeId);
         if (alsoMatches.length > 0) {
           what += `\nAlso matches: ${alsoMatches.join(', ')}`;
