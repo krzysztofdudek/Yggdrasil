@@ -257,6 +257,20 @@ function renderRepoLevelGroup(group: IssueGroup, lines: string[]): void {
   lines.push(`  ${glossLabel(group.label)}`);
   for (const m of group.members) {
     for (const l of m.messageData.what.split('\n')) lines.push(`${BLOCK_INDENT}${l.replace(/\s+$/, '')}`);
+    // Divergent per-member why/fix — mirrors renderGroup's own per-member fallback
+    // (emitDivergentDetail). A repo-level group has no node bullet to hang the fix
+    // under, but suppressing it outright (the shared-line branches below only fire
+    // when NOT divergent) would leave the reader with NO fix at all once 2+ members
+    // carry genuinely different guidance — e.g. two distinct forbidden (fromType,
+    // toType) pairs, each naming its own allow-list edit.
+    if (group.divergentWhy && m.messageData.why) {
+      lines.push(`${BLOCK_INDENT}Why: ${m.messageData.why.split('\n')[0]}`);
+    }
+    if (group.divergentNext && m.messageData.next) {
+      const nextLines = m.messageData.next.split('\n');
+      lines.push(`${BLOCK_INDENT}Fix: ${nextLines[0]}`);
+      for (const extra of nextLines.slice(1)) lines.push(`${BLOCK_INDENT}${extra}`);
+    }
   }
   if (group.sharedWhy && !group.divergentWhy) lines.push(`${BLOCK_INDENT}Why: ${group.sharedWhy}`);
   if (group.sharedNext && !group.divergentNext) {

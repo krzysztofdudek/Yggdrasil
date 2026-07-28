@@ -86,11 +86,18 @@ export interface RelationParseFailure {
  * enumerated file (both node-owned and type-covered). `type-gate.ts` imports this TYPE
  * only; it never redeclares or re-exports it.
  *
- * An edge appears here ONLY when its target resolved to a classified endpoint — an
- * explicit node (`kind: 'node'`) or a type-covered file (`kind: 'type-covered'`). A
- * candidate that resolves to no file, to an ambiguous symbol, or to an unmapped/
- * unclassified file is excluded from the index entirely at this SOURCE, not filtered
- * later — `type-gate.ts` never even sees such an edge.
+ * An edge appears here ONLY when AT LEAST ONE of its two endpoints is type-covered.
+ * A candidate that resolves to no file, to an ambiguous symbol, or to an unmapped/
+ * unclassified file is excluded entirely — never gated at all. A candidate whose
+ * source AND target are BOTH node-owned (same node or different) is ALSO excluded —
+ * that shape is relation-conformance's exclusive territory (`violationsByNode`
+ * already evaluates every node-owned file's node-to-node edges, exempting a
+ * same-node self-edge outright and reporting a genuinely undeclared cross-node one
+ * as `relation-undeclared-dependency`); including it here too would let a same-node
+ * sibling import wrongly trip a type's own self-relation policy, and would
+ * double-report a genuine cross-node violation under two different codes. All of
+ * this is decided at the SOURCE, not filtered downstream — `type-gate.ts` never
+ * even sees an excluded edge.
  */
 export interface TypedEdgeIndex {
   edgesFrom(file: string): Array<{
@@ -585,6 +592,20 @@ export async function runRelationPass(
     }
   };
 
+  // Append one typed edge from `record.path`, creating its list on first use.
+  const pushTypedEdge = (
+    record: FileRecord,
+    toFile: string,
+    toOwner: { kind: 'node'; path: string; type: string } | { kind: 'type-covered'; type: string },
+  ): void => {
+    let list = typedEdgesByFile.get(record.path);
+    if (!list) {
+      list = [];
+      typedEdgesByFile.set(record.path, list);
+    }
+    list.push({ toFile, toOwner });
+  };
+
   // Resolve one file's detected uses into the live type-relation gate's typed-edge index,
   // generalized across node-owned and type-covered sources. Mirrors resolveDetected's
   // nearest-candidate-first precedence (a resolved candidate stops the group; an ambiguous
@@ -594,36 +615,46 @@ export async function runRelationPass(
   // never consults (it only ever asks `ownerIndex`). An edge whose target is neither a node
   // nor a type-covered file (ambiguous/unmatched) is excluded here entirely, matching the
   // design's "not gated" rule at the SOURCE rather than filtering it out downstream.
+  //
+  // A SECOND exclusion, equally at the source: an edge whose SOURCE is node-owned and whose
+  // TARGET resolves to a node (any node, same one or a different one) is EXCLUDED too — that
+  // shape is relation-conformance's exclusive territory. `verifyNodeDeps` already evaluates
+  // every node-owned file's node-to-node edges (exempting a same-node self-edge outright,
+  // `m === nodeId`, and reporting a genuinely undeclared cross-node one as
+  // `relation-undeclared-dependency`); the live type gate must never ALSO see that edge, or a
+  // same-node sibling import would wrongly trip a type's own self-relation policy (a node's
+  // internal file layout is not a "relation" at all), and a genuine cross-node violation would
+  // be reported TWICE under two different codes. The gate's rule is "at least one endpoint is
+  // type-covered" — a node-owned source only ever contributes an edge here when ITS target is
+  // type-covered (the `absent` branch below), never when the target is any node.
   const addTypedEdges = (record: FileRecord, detected: DetectedDep[]): void => {
     for (const dep of detected) {
       for (const cand of dep.candidates) {
         const outcome = resolver.classify(cand, record.path, record.language!);
         if (outcome.kind === 'resolved') {
-          const targetNode = graph.nodes.get(outcome.ownerNode);
-          if (targetNode) {
-            let list = typedEdgesByFile.get(record.path);
-            if (!list) {
-              list = [];
-              typedEdgesByFile.set(record.path, list);
+          // Node-owned source -> any node target: relation-undeclared-dependency's
+          // territory (same-node self-edges are its own exemption; cross-node ones are
+          // its own violation). Never double-covered by the type gate.
+          if (record.typeId !== undefined) {
+            const targetNode = graph.nodes.get(outcome.ownerNode);
+            if (targetNode) {
+              pushTypedEdge(record, outcome.resolvedFile, { kind: 'node', path: outcome.ownerNode, type: targetNode.meta.type });
             }
-            list.push({ toFile: outcome.resolvedFile, toOwner: { kind: 'node', path: outcome.ownerNode, type: targetNode.meta.type } });
           }
           break; // nearest candidate bound — stop this dep's group
         }
         if (outcome.kind === 'ambiguous') break; // present-but-ambiguous → silence the group
         // absent: the node-owner walk found nothing for this candidate. Check whether its
         // raw resolved file (if any) is nonetheless a TYPE-COVERED file — invisible to
-        // `classify`, which only ever resolves against `ownerIndex`.
+        // `classify`, which only ever resolves against `ownerIndex`. A type-covered target
+        // is ALWAYS gate-relevant regardless of the source's own kind: relation-undeclared-
+        // dependency never sees it either way (it only walks a NODE's resolved deps, and a
+        // type-covered file belongs to no node), so there is no double-coverage risk here.
         const file = resolver.resolveFile(cand, record.path, record.language!);
         if (file) {
           const targetRecord = recordByPath.get(file);
           if (targetRecord?.typeId !== undefined) {
-            let list = typedEdgesByFile.get(record.path);
-            if (!list) {
-              list = [];
-              typedEdgesByFile.set(record.path, list);
-            }
-            list.push({ toFile: file, toOwner: { kind: 'type-covered', type: targetRecord.typeId } });
+            pushTypedEdge(record, file, { kind: 'type-covered', type: targetRecord.typeId });
             break; // bound to a type-covered target — stop this dep's group
           }
         }
@@ -631,6 +662,16 @@ export async function runRelationPass(
       }
     }
   };
+
+  // R3 + I2: a node-owned source can only EVER contribute a gate-relevant edge by
+  // reaching a type-covered target (the CRITICAL exclusion above rules out every
+  // node-to-node edge from a node-owned source). With zero type-covered files there
+  // is no type-covered target to reach, so calling `addTypedEdges` for a node-owned
+  // record would be pure waste — a second `resolver.classify` pass over every
+  // dependency this run already resolved once via `resolveDetected`, for a result
+  // that can never differ from "nothing." Guarding on this flag keeps flag-off (and
+  // any run with an empty `covered` map) exactly as cheap as before this task.
+  const hasTypeCovered = (deps.typeCoveredFiles?.size ?? 0) > 0;
 
   for (const [nodeId] of graph.nodes) {
     const records = fileRecords.filter((r) => r.nodeId === nodeId);
@@ -656,7 +697,7 @@ export async function runRelationPass(
           projectGlobalUsingAliases: csharpGlobalUsingAliases,
         });
         resolveDetected(record, detected, resolvedDeps);
-        addTypedEdges(record, detected);
+        if (hasTypeCovered) addTypedEdges(record, detected);
         continue;
       }
 
@@ -665,7 +706,7 @@ export async function runRelationPass(
       const facts = factsByPath.get(record.path);
       if (!facts || facts.uses === null) continue;
       resolveDetected(record, facts.uses, resolvedDeps);
-      addTypedEdges(record, facts.uses);
+      if (hasTypeCovered) addTypedEdges(record, facts.uses);
     }
 
     // ADDITIVE read-only edge set: every uniquely-resolved cross-node target, declared or

@@ -9,6 +9,7 @@ import {
   unverifiedMessage,
   promptTooLargeMessage,
 } from '../../../src/formatters/lock-issue-messages.js';
+import { typeGateForbiddenMessage } from '../../../src/relations/messages.js';
 
 /** Strip ANSI color codes so block-line counting is deterministic. */
 function stripAnsi(s: string): string {
@@ -357,6 +358,42 @@ describe('check render — Fix 4: divergent per-node fix surfaces EACH node\'s c
     expect(out).toContain('reason-a');
     expect(out).toContain('reason-b');
     expect(out).toContain('reason-c');
+  });
+
+  // I3: type-relation-forbidden findings carry no nodePath (a finding is about a
+  // (fromType, toType) PAIR, not a graph node), so groupIssues scores them
+  // nodeCount === 0 and renderGroup dispatches to renderRepoLevelGroup — which,
+  // before this fix, suppressed `next` entirely whenever it diverged across
+  // members (no per-member fallback, unlike renderGroup's own emitDivergentDetail),
+  // leaving the agent with NO Fix line at all once 2+ distinct forbidden pairs
+  // were present in the same run.
+  it('TWO distinct forbidden type pairs (repo-level, no nodePath) each render their OWN Fix line', () => {
+    const issues: CheckIssue[] = [
+      {
+        severity: 'error', code: 'type-relation-forbidden', rule: 'type-relation-forbidden',
+        messageData: typeGateForbiddenMessage({
+          fromType: 'svc', toType: 'owner-type',
+          edges: [{ fromFile: 'src/svc/handler.ts', toFile: 'src/owner/target.ts' }],
+        }),
+      } as CheckIssue,
+      {
+        severity: 'error', code: 'type-relation-forbidden', rule: 'type-relation-forbidden',
+        messageData: typeGateForbiddenMessage({
+          fromType: 'web', toType: 'db',
+          edges: [{ fromFile: 'src/web/page.ts', toFile: 'src/db/store.ts' }],
+        }),
+      } as CheckIssue,
+    ];
+    const [g] = groupIssues(issues);
+    expect(g.nodeCount).toBe(0); // confirms the repo-level render path is the one under test
+    expect(g.divergentNext).toBe(true); // each pair's Fix names its own fromType/toType
+    const lines: string[] = [];
+    renderGroup(g, lines, { isTTY: false });
+    const out = stripAnsi(lines.join('\n'));
+    expect(out).toContain("'svc' -> 'owner-type'");
+    expect(out).toContain("'web' -> 'db'");
+    const fixLines = out.split('\n').filter((l) => /^ {12}Fix: /.test(l));
+    expect(fixLines).toHaveLength(2);
   });
 });
 

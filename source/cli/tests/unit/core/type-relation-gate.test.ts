@@ -22,8 +22,15 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadGraph } from '../../../src/core/graph-loader.js';
-import { runCheck } from '../../../src/core/check.js';
+import { runCheck, scanUncoveredFiles } from '../../../src/core/check.js';
 import { walkRepoFiles } from '../../../src/io/repo-scanner.js';
+import { computeTypeCoverage } from '../../../src/core/type-coverage.js';
+import { FileContentCache } from '../../../src/io/file-content-cache.js';
+import { runRelationPass, buildTypedEdgeIndex } from '../../../src/relations/pass.js';
+import { extractorForLanguage } from '../../../src/relations/extractors/registry.js';
+import { makeResolvePathToFile } from '../../../src/relations/resolve-path.js';
+import { astCacheDir } from '../../../src/relations/facts-cache.js';
+import { buildOwnerIndex } from '../../../src/relations/owner-index.js';
 
 // node:fs/promises' named exports are non-configurable in real Node ESM (vi.spyOn cannot
 // redefine them directly), so the R3 read-cost tests below track calls through a partial
@@ -168,5 +175,62 @@ describe('live type-relation gate — fixture rows', () => {
                                      // before computeTypeCoverage or the relation pass ever see it
     const mentionsNested = result.issues.some((i) => i.messageData.what.includes('nested-handler.ts'));
     expect(mentionsNested).toBe(false); // never appears in any finding's edge list either
+  });
+});
+
+// ── Direct tests of the public TypedEdgeIndex surface (I6) ──────────────────
+//
+// The gate-finding tests above only ever observe TypedEdgeIndex through
+// computeTypeGateFindings' own aggregation. These two tests instead read
+// runRelationPass's `typedEdges` field, and the buildTypedEdgeIndex convenience
+// wrapper (Tasks 11/12's own entry point), directly — pinning the exact edge
+// set the live pass produces for a real, parsed file, independent of how the
+// gate happens to consume it.
+describe('runRelationPass.typedEdges / buildTypedEdgeIndex — direct surface', () => {
+  /** The SAME covered map core/check.ts's earlyTypeCoverage assembles: every
+   *  uncovered file's matched classifying type. */
+  async function computeCovered(dir: string) {
+    const graph = await loadGraph(dir);
+    const files = await walkRepoFiles(dir);
+    const uncovered = scanUncoveredFiles(graph, files);
+    const typeCoverage = await computeTypeCoverage(graph, uncovered, new FileContentCache());
+    return { graph, covered: typeCoverage.covered };
+  }
+
+  it("runRelationPass(...).typedEdges.edgesFrom('src/svc/handler.ts') carries exactly the forbidden and allowed edges, and NOTHING for the ambiguous file (exclusion pinned at the SOURCE)", async () => {
+    const dir = copyFixture();
+    const { graph, covered } = await computeCovered(dir);
+    const projectRoot = path.dirname(graph.rootPath);
+    const result = await runRelationPass(graph, projectRoot, {
+      extractorFor: extractorForLanguage,
+      resolvePathToFile: makeResolvePathToFile(projectRoot, buildOwnerIndex(graph.nodes).ownerOf),
+      symbolIndexDir: astCacheDir(graph.rootPath),
+      typeCoveredFiles: covered,
+    });
+
+    const edges = result.typedEdges.edgesFrom('src/svc/handler.ts');
+    expect(edges).toEqual(
+      expect.arrayContaining([
+        { toFile: 'src/owner/target.ts', toOwner: { kind: 'node', path: 'owner', type: 'owner-type' } },
+        { toFile: 'src/util/plain-util.ts', toOwner: { kind: 'type-covered', type: 'util' } },
+      ]),
+    );
+    // Exactly those two — no ambiguous.ts entry, no phantom third edge.
+    expect(edges).toHaveLength(2);
+    expect(edges.some((e) => e.toFile.includes('ambiguous'))).toBe(false);
+  });
+
+  it('buildTypedEdgeIndex(graph, covered) returns the SAME edges as runRelationPass — the one implementation, no drift', async () => {
+    const dir = copyFixture();
+    const { graph, covered } = await computeCovered(dir);
+    const index = await buildTypedEdgeIndex(graph, covered);
+    const edges = index.edgesFrom('src/svc/handler.ts');
+    expect(edges).toEqual(
+      expect.arrayContaining([
+        { toFile: 'src/owner/target.ts', toOwner: { kind: 'node', path: 'owner', type: 'owner-type' } },
+        { toFile: 'src/util/plain-util.ts', toOwner: { kind: 'type-covered', type: 'util' } },
+      ]),
+    );
+    expect(edges).toHaveLength(2);
   });
 });

@@ -40,7 +40,8 @@ relations:
     { target: cli/templates-platform, type: uses },
     { target: cli/core/checks/digest-gate, type: uses },
     { target: cli/rules-artifacts, type: uses },
-    { target: cli/utils, type: uses }
+    { target: cli/utils, type: uses },
+    { target: cli/relations/core, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/cli/build-command.test.ts

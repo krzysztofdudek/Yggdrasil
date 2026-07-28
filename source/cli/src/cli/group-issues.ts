@@ -75,6 +75,11 @@ export const FULL_WHAT_CODES = new Set([
   // first; truncating to line 1 would hide which import in which file drives
   // the refusal — the very thing the agent needs to declare or remove.
   'relation-undeclared-dependency',
+  // The live type-relation gate's `what` carries its sample-edges list (each
+  // `<fromFile> -> <toFile>`, up to five, plus a remainder count) on lines
+  // after the first; truncating to line 1 would hide exactly which imports
+  // the agent needs to allow, graduate, or remove.
+  'type-relation-forbidden',
 ]);
 
 /**

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { groupIssues, CODE_ONLY_GROUP_CODES } from '../../../src/cli/group-issues.js';
+import { groupIssues, CODE_ONLY_GROUP_CODES, FULL_WHAT_CODES } from '../../../src/cli/group-issues.js';
 import { computeSuggestedNext } from '../../../src/core/check.js';
 import type { CheckIssue } from '../../../src/core/check.js';
 
@@ -39,6 +39,16 @@ describe('groupIssues', () => {
     ]);
     expect(g.perMemberReason).toBe(true);
     expect(g.label).toBe('enforced');
+  });
+
+  // I4: the type-relation gate's `what` carries its sample-edges list on lines
+  // after the first (mirroring relation-undeclared-dependency's own violation
+  // list) — truncating to line 1 in --details would hide exactly the edges the
+  // agent needs to allow, graduate, or remove.
+  it('marks type-relation-forbidden as a FULL_WHAT code (its sample-edges list must not be truncated)', () => {
+    expect(FULL_WHAT_CODES.has('type-relation-forbidden')).toBe(true);
+    const [g] = groupIssues([iss({ code: 'type-relation-forbidden' })]);
+    expect(g.perMemberReason).toBe(true);
   });
 
   // NEW: unverified issues with DIFFERENT aspectIds collapse into ONE group

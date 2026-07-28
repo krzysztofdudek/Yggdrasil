@@ -13,6 +13,7 @@ import type {
   ParsedFile,
 } from '../../src/relations/extractors/types.js';
 
+import { computeTypeGateFindings } from '../../src/relations/type-gate.js';
 import { CACHE_SCHEMA_VERSION, factsKey, writeFacts } from '../../src/relations/facts-cache.js';
 import { hashString } from '../../src/io/hash.js';
 import { grammarWasmHash } from '../../src/ast/parser.js';
@@ -191,6 +192,133 @@ const nestedStub: DependencyExtractor = {
     return [];
   },
 };
+
+// ---------------------------------------------------------------------------
+// Live type-relation gate — the TypedEdgeIndex must NEVER carry a node-owned ->
+// node-owned edge (same node OR cross-node): that shape is relation-conformance's
+// exclusive territory (violationsByNode/verifyNodeDeps already exempts a same-node
+// self-edge outright and reports a genuinely undeclared cross-node one as
+// relation-undeclared-dependency). Both nodes below share a type with a
+// DENY-DEFAULT relations table, so a self-edge or an undeclared cross-node edge
+// would be a live false positive (or a double-report) if TypedEdgeIndex ever
+// included it — this is not a vacuous-allow setup that would hide the bug.
+// ---------------------------------------------------------------------------
+describe('runRelationPass — TypedEdgeIndex excludes node-owned <-> node-owned edges', () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = mkdtempSync(path.join(tmpdir(), 'rel-pass-typededges-'));
+
+    // 'service' carries a DENY-DEFAULT relations table with an empty explicit
+    // list — every relation type is denied unless the target is named, which
+    // NEITHER a same-node sibling NOR the undeclared cross-node target is. If
+    // TypedEdgeIndex ever included either edge, computeTypeGateFindings would
+    // report it as forbidden — the exact false positive this test rules out.
+    mkdirSync(path.join(root, '.yggdrasil', 'model'), { recursive: true });
+    writeFileSync(
+      path.join(root, '.yggdrasil', 'yg-architecture.yaml'),
+      `node_types:\n  service:\n    description: 'unit'\n    log_required: false\n    when:\n      path: "**"\n    relations:\n      calls: []\n      default: deny\n`,
+      'utf-8',
+    );
+    writeFileSync(
+      path.join(root, '.yggdrasil', 'yg-config.yaml'),
+      `quality:\n  max_direct_relations: 10\n`,
+      'utf-8',
+    );
+
+    // Node 'a' owns TWO files (foo.ts, sibling.ts — the same-node pair) plus a
+    // third (foo2.ts) that imports into node 'b', undeclared. No relation from
+    // a to b is declared anywhere.
+    writeNode(root, 'a', 'A', 'src/a');
+    writeNode(root, 'b', 'B', 'src/b');
+    mkdirSync(path.join(root, 'src', 'a'), { recursive: true });
+    mkdirSync(path.join(root, 'src', 'b'), { recursive: true });
+    writeFileSync(path.join(root, 'src', 'a', 'foo' + EXT), 'export const foo = 1;\n', 'utf-8');
+    writeFileSync(path.join(root, 'src', 'a', 'sibling' + EXT), 'export const sibling = 1;\n', 'utf-8');
+    writeFileSync(path.join(root, 'src', 'a', 'foo2' + EXT), 'export const foo2 = 1;\n', 'utf-8');
+    writeFileSync(path.join(root, 'src', 'b', 'bar2' + EXT), 'export const bar2 = 1;\n', 'utf-8');
+    // An unmapped file, present so `typeCoveredFiles` below is genuinely non-empty
+    // (matching a real coverage.type_level: true run) — its own edges are not
+    // this test's concern; it exists only so the pass's node-owned-file
+    // TypedEdgeIndex construction (I2: skipped entirely when there are zero
+    // type-covered files) actually runs, which is what lets this test exercise
+    // the SAME code path a live run with the flag on would.
+    mkdirSync(path.join(root, 'src', 'other'), { recursive: true });
+    writeFileSync(path.join(root, 'src', 'other', 'leaf' + EXT), 'export const leaf = 1;\n', 'utf-8');
+  });
+
+  /** Non-empty on purpose — see the `src/other/leaf.ts` comment above. */
+  const typeCoveredFiles = new Map([['src/other/leaf' + EXT, 'service']]);
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  const selfAndCrossStub: DependencyExtractor = {
+    languages: new Set(['typescript']),
+    rev: 1,
+    declarations() {
+      return [];
+    },
+    uses(file: ParsedFile): DetectedDep[] {
+      if (file.path.endsWith('src/a/foo.ts')) {
+        // Same-node self-edge: a -> a (via a sibling file in the SAME node).
+        return [{ candidates: [{ kind: 'path', specifier: '../a/sibling' }], kind: 'import', line: 1 }];
+      }
+      if (file.path.endsWith('src/a/foo2.ts')) {
+        // Cross-node, undeclared edge: a -> b.
+        return [{ candidates: [{ kind: 'path', specifier: '../b/bar2' }], kind: 'import', line: 1 }];
+      }
+      return [];
+    },
+  };
+
+  it('(a) a same-node sibling import produces ZERO TypedEdgeIndex entries and ZERO gate findings', async () => {
+    const graph = await loadGraph(root);
+    const result = await runRelationPass(graph, root, {
+      extractorFor: (language) => (language === 'typescript' ? selfAndCrossStub : undefined),
+      resolvePathToFile: (specifier) => {
+        if (specifier === '../a/sibling') return 'src/a/sibling' + EXT;
+        if (specifier === '../b/bar2') return 'src/b/bar2' + EXT;
+        return undefined;
+      },
+      symbolIndexDir: path.join(root, '.yg-cache-typededges'),
+      typeCoveredFiles,
+    });
+
+    expect(result.typedEdges.edgesFrom('src/a/foo' + EXT)).toEqual([]);
+    const findings = computeTypeGateFindings(graph.architecture, result.typedEdges, result.fileOwnerType);
+    expect(findings).toEqual([]);
+  });
+
+  it('(b) a cross-node explicit edge is reported ONLY by relation-undeclared-dependency, never by the gate (no double-report)', async () => {
+    const graph = await loadGraph(root);
+    const result = await runRelationPass(graph, root, {
+      extractorFor: (language) => (language === 'typescript' ? selfAndCrossStub : undefined),
+      resolvePathToFile: (specifier) => {
+        if (specifier === '../a/sibling') return 'src/a/sibling' + EXT;
+        if (specifier === '../b/bar2') return 'src/b/bar2' + EXT;
+        return undefined;
+      },
+      symbolIndexDir: path.join(root, '.yg-cache-typededges'),
+      typeCoveredFiles,
+    });
+
+    // relation-undeclared-dependency's own channel still catches it — untouched
+    // by this task.
+    const a = result.violationsByNode.get('a');
+    expect(a).toBeDefined();
+    expect(a!.verdict).toBe('refused');
+    expect(a!.violations.some((v) => v.ownerNode === 'b')).toBe(true);
+
+    // The gate's own channel must NOT also carry this edge — no TypedEdgeIndex
+    // entry, hence no finding, for the source file that made the cross-node
+    // import.
+    expect(result.typedEdges.edgesFrom('src/a/foo2' + EXT)).toEqual([]);
+    const findings = computeTypeGateFindings(graph.architecture, result.typedEdges, result.fileOwnerType);
+    expect(findings).toEqual([]);
+  });
+});
 
 // ---------------------------------------------------------------------------
 // AST fact-cache wiring (Task 6): the second run over an UNCHANGED project must
