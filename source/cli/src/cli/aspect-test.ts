@@ -379,14 +379,20 @@ async function resolveCompanionsForTest(
 
   // subjectScope mirrors fill-llm: narrow iff the subject set is FEWER files
   // than the node's full mapping (per:file, or per:node with a scope.files filter).
-  const fullMapping = await computeNodeMappedFiles(graph, pair.nodePath);
-  const subjectScope = pair.subjectFiles.length < fullMapping.length ? pair.subjectFiles : undefined;
+  // A nodeless pair has no "whole component" to compare against — it ALWAYS
+  // narrows (mirrors companion-resolve.ts / fill-det.ts).
+  const subjectScope = pair.nodePath === undefined
+    ? pair.subjectFiles
+    : ((await computeNodeMappedFiles(graph, pair.nodePath)).length > pair.subjectFiles.length
+        ? pair.subjectFiles
+        : undefined);
 
   // No A6 taint guard (diagnostic only — we never hash or write observations).
   const run = await runCompanionHook({
     aspectDir: aspectDirAbs,
     aspectId: aspect.id,
-    nodePath: pair.nodePath,
+    // Empty component context for a nodeless pair (same convention as fill-det.ts).
+    nodePath: pair.nodePath ?? '',
     graph,
     projectRoot,
     subjectScope,

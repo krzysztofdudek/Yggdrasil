@@ -50,10 +50,13 @@ import path from 'node:path';
 import type { Graph, AspectDef, LlmConfig } from '../model/graph.js';
 import type { VerdictEntry } from '../model/lock.js';
 import type { CheckResult, RunCheckOptions } from './check.js';
-import { runCheck } from './check.js';
+import { runCheck, scanUncoveredFiles } from './check.js';
 import { readLock, writeLock } from '../io/lock-store.js';
-import type { ExpectedPair } from './pairs.js';
+import type { ExpectedPair, TypeCoverageInput } from './pairs.js';
 import { verifyLock } from './verify-lock.js';
+import { computeTypeCoverage } from './type-coverage.js';
+import { FileContentCache } from '../io/file-content-cache.js';
+import { DEFAULT_COVERAGE } from '../io/config-parser.js';
 import { selectTierForAspect } from './tier-selection.js';
 import { createLlmProvider } from '../llm/index.js';
 import { validate } from './validator.js';
@@ -70,6 +73,7 @@ import type { RunStructureAspectParams, RunStructureAspectResult } from '../stru
 import { logGateBlocks } from './fill-log-gate.js';
 import { applyPositiveClosure } from './fill-closure.js';
 import { garbageCollectAndRewrite } from './fill-gc.js';
+import type { PruneSummary } from './fill-gc.js';
 import { reportDivergenceIfDetected } from './fill-divergence.js';
 import { ProgressTracker } from './fill-progress.js';
 import { appendVerdictEvent, type VerdictEvent } from '../io/events-store.js';
@@ -97,6 +101,24 @@ const MIN_DET_PAIRS_PER_WORKER = 8;
  */
 function judgeIdentity(tier: LlmConfig): { provider: string; model: string } {
   return { provider: tier.provider, model: String(tier.model) };
+}
+
+/**
+ * Print the garbage collector's own prune summary (Step 5 — this wording IS the
+ * contract Task 10's end-to-end graduation pin asserts against; a later wording
+ * change is a coordinated edit across both, never a local cosmetic one).
+ * Printed by BOTH `--approve` (after the real prune) and `--dry-run` (a preview,
+ * computed over a disposable clone of the lock — see the dry-run call site).
+ * Prints NOTHING when nothing was pruned.
+ */
+function writePruneSummary(summary: PruneSummary, write: (s: string) => void): void {
+  if (summary.entries.length === 0) return;
+  write(
+    `Pruned ${summary.entries.length} stale verdict(s) — ${summary.billedCount} billed, ${summary.freeCount} free:\n`,
+  );
+  for (const e of summary.entries) {
+    write(`  [${e.kind}] ${e.aspectId} on ${toPosixPath(e.unitKey)} — ${e.reason}\n`);
+  }
 }
 
 /**
@@ -341,8 +363,24 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
     appendVerdictEvent(graph.rootPath, event, { committedLlm });
   };
 
+  // The type-level classification lattice (coverage.type_level), computed ONCE
+  // for this whole fill run (K15 — never a second classify) and threaded into
+  // every downstream consumer below: the structural gate's own reviewer-presence
+  // check (validate → checkReviewerPresence), pair classification (verifyLock —
+  // CRITICAL, R5's anti-prune lever), and GC (garbageCollectAndRewrite). Mirrors
+  // runCheck's own hoist. Undefined at flag-off or when no file walk ran this
+  // call (opts.coverageVisibleFiles === null) — every consumer already treats
+  // that as "nothing to do."
+  const coverage = graph.config.coverage ?? DEFAULT_COVERAGE;
+  let typeCoverageInput: TypeCoverageInput | undefined;
+  if (opts.coverageVisibleFiles !== null && coverage.typeLevel) {
+    const uncoveredForGate = scanUncoveredFiles(graph, opts.coverageVisibleFiles);
+    const result = await computeTypeCoverage(graph, uncoveredForGate, new FileContentCache());
+    typeCoverageInput = { covered: result.covered, ambiguousPaths: result.ambiguous.map((a) => a.file) };
+  }
+
   // ── Step 1: Structural gate. A gating code aborts the whole fill. ──────────
-  const validation = await validate(graph);
+  const validation = await validate(graph, 'all', undefined, typeCoverageInput);
   const gating = validation.issues.filter(
     (i) => i.code !== undefined && APPROVE_GATING_CODES.has(i.code),
   );
@@ -364,7 +402,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   // prompt-too-large pairs are skipped (gate precedence). Valid (verified or
   // refused) pairs are already final and never re-run.
   const lock = readLock(graph.rootPath);
-  const verification = await verifyLock(graph, lock);
+  const verification = await verifyLock(graph, lock, typeCoverageInput);
 
   const unverifiedPairs: ExpectedPair[] = [];
   for (const vp of verification.pairs) {
@@ -395,7 +433,16 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   );
 
   // ── Step 3: Pre-dispatch header (EXACT). ──────────────────────────────────
-  const nodeSet = new Set(unverifiedPairs.map((p) => p.nodePath));
+  // nodeSet counts only DEFINED owners — a nodeless (file-level) pair would
+  // otherwise inflate it by one phantom component. fileSet counts distinct
+  // type-covered files separately (several aspects can share one file's unit
+  // key, so it must be deduped by unitKey, not by pair count).
+  const nodeSet = new Set<string>();
+  const fileSet = new Set<string>();
+  for (const p of unverifiedPairs) {
+    if (p.nodePath !== undefined) nodeSet.add(p.nodePath);
+    else fileSet.add(p.unitKey);
+  }
   let reviewerCallBudget = 0;
   for (const p of llmPairs) {
     const aspect = aspectById.get(p.aspectId);
@@ -403,8 +450,15 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
     const tier = aspect && reviewer ? selectTierForAspect(aspect, reviewer) : undefined;
     reviewerCallBudget += tier?.ok ? tier.tier.consensus : 1;
   }
+  // Byte-identical to the pre-Task-6 header when no nodeless pair exists this
+  // run (this repo's own flag stays OFF, so `fileSet.size` is always 0 here) —
+  // only a repo with type-covered files sees the combined "components and files"
+  // wording; no phantom nodes rendered either way.
+  const acrossLabel = fileSet.size > 0
+    ? `${nodeSet.size} components and ${fileSet.size} files`
+    : `${nodeSet.size} nodes`;
   write(
-    `Filling ${unverifiedPairs.length} unverified pairs across ${nodeSet.size} nodes — ` +
+    `Filling ${unverifiedPairs.length} unverified pairs across ${acrossLabel} — ` +
       `${detPairs.length} deterministic (no cost), ${reviewerCallBudget} reviewer calls (consensus included)\n`,
   );
   // Deterministic-only mode fills the free deterministic pairs but leaves every
@@ -427,9 +481,14 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   if (dryRun) {
     // Group the fill set by node, then split each node's pairs by reviewer kind.
     // Within the LLM group, resolve each pair's consensus exactly as step 3 did
-    // so the per-aspect numbers reconcile with the header budget.
+    // so the per-aspect numbers reconcile with the header budget. Nodeless
+    // (file-level) pairs are collected separately and rendered AFTER every
+    // component section, in their own "Files enforced by their type" section —
+    // never inside byNode (no phantom component line).
     const byNode = new Map<string, ExpectedPair[]>();
+    const filePairs: ExpectedPair[] = [];
     for (const p of unverifiedPairs) {
+      if (p.nodePath === undefined) { filePairs.push(p); continue; }
       const list = byNode.get(p.nodePath) ?? [];
       list.push(p);
       byNode.set(p.nodePath, list);
@@ -450,11 +509,36 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
         write(`    [llm] ${p.aspectId} on ${toPosixPath(p.unitKey)} — ${calls} reviewer call(s)\n`);
       }
     }
+    if (filePairs.length > 0) {
+      write(`  Files enforced by their type\n`);
+      const sortByAspectThenFile = (a: ExpectedPair, b: ExpectedPair): number =>
+        a.aspectId.localeCompare(b.aspectId, 'en') || a.subjectFiles[0].localeCompare(b.subjectFiles[0], 'en');
+      const det = filePairs.filter((p) => p.kind === 'deterministic').sort(sortByAspectThenFile);
+      const llm = onlyDeterministic ? [] : filePairs.filter((p) => p.kind === 'llm').sort(sortByAspectThenFile);
+      for (const p of det) {
+        write(`    [det] ${p.aspectId} on ${toPosixPath(p.subjectFiles[0])} — free\n`);
+      }
+      for (const p of llm) {
+        const aspect = aspectById.get(p.aspectId);
+        const reviewer = graph.config.reviewer;
+        const tier = aspect && reviewer ? selectTierForAspect(aspect, reviewer) : undefined;
+        const calls = tier?.ok ? tier.tier.consensus : 1;
+        write(`    [llm] ${p.aspectId} on ${toPosixPath(p.subjectFiles[0])} — ${calls} reviewer call(s)\n`);
+      }
+    }
     write(
       `${reviewerCallBudget} reviewer call(s) is an UPPER BOUND — a node with an enforced ` +
         `deterministic refusal has its LLM fills skipped this run, and a fresh refusal or ` +
         `infra disposition can leave a pair unfilled. Nothing was written; run yg check --approve to fill.\n`,
     );
+    // Prune-summary PREVIEW: the same GC analysis a real --approve would run,
+    // over a disposable deep clone of the lock so the preview mutates and
+    // persists NOTHING (the no-write guarantee for --dry-run stays structural).
+    const previewLock = structuredClone(lock);
+    const prunePreview = await garbageCollectAndRewrite(graph, previewLock, async () => {}, {
+      typeCoverage: typeCoverageInput,
+    });
+    writePruneSummary(prunePreview, write);
     const checkResult = await runCheck(graph, opts.coverageVisibleFiles, {
       nowUtc: opts.reviewNowUtc,
       rulesArtifacts: opts.rulesArtifacts,
@@ -561,7 +645,20 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
 
   // ── Step 5: Deterministic fills FIRST (free). ─────────────────────────────
   // A node with an enforced det refusal (fresh OR cached-valid) skips its LLM
-  // fills this run. Track which nodes carry such a refusal across BOTH sources.
+  // fills this run. Track which GATE KEYS carry such a refusal across BOTH
+  // sources — the owning component's path when the pair has one, or the pair's
+  // own unit key when it does not (always `file:<path>` for a nodeless pair, so
+  // it can never collide with a real component path). This is K16: keying on
+  // `pair.nodePath` alone would make `undefined` a single shared bucket, so ONE
+  // refusing type-covered file would silently suppress paid LLM review for
+  // EVERY OTHER type-covered file in the repo — the gate stays per-component
+  // for components and per-file for files.
+  const detGateKey = (pair: ExpectedPair): string => pair.nodePath ?? pair.unitKey;
+  // A pair's component is blocked by the log gate — explicit, not implicit via
+  // `Set.has(undefined)`: a nodeless pair has no log obligation, so it can never
+  // be blocked (R7's never-channel family).
+  const nodeBlocked = (pair: ExpectedPair): boolean =>
+    pair.nodePath !== undefined && blockedNodes.has(pair.nodePath);
   const detEnforcedRefusedNodes = new Set<string>();
 
   // Seed from CACHED-valid enforced det refusals (verifyLock already classified
@@ -569,7 +666,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   for (const vp of verification.pairs) {
     if (vp.pair.kind !== 'deterministic') continue;
     if (vp.state.kind === 'refused' && vp.pair.status === 'enforced') {
-      detEnforcedRefusedNodes.add(vp.pair.nodePath);
+      detEnforcedRefusedNodes.add(detGateKey(vp.pair));
     }
   }
 
@@ -577,7 +674,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   // aspect def — the exact set the sequential loop's inline skips produced.
   const activeDetPairs: Array<{ pair: ExpectedPair; aspect: AspectDef }> = [];
   for (const pair of detPairs) {
-    if (blockedNodes.has(pair.nodePath)) continue;
+    if (nodeBlocked(pair)) continue;
     const aspect = aspectById.get(pair.aspectId);
     if (!aspect) continue;
     activeDetPairs.push({ pair, aspect });
@@ -612,7 +709,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
     await setEntry(pair, outcome.entry);
     tracker.onPairComplete('det', pair.aspectId, toPosixPath(pair.unitKey), outcome.entry.verdict, write);
     if (outcome.entry.verdict === 'refused' && pair.status === 'enforced') {
-      detEnforcedRefusedNodes.add(pair.nodePath);
+      detEnforcedRefusedNodes.add(detGateKey(pair));
     }
     return null;
   };
@@ -682,18 +779,27 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   //    runtime error so a marker-parse fault is never blamed on check.mjs. ──────
   emitGroupedDiagnostics(malformedSuppressItems, 'malformed-suppress', emitIssue);
 
-  // ── Deterministic gate: report nodes whose LLM fills are skipped. ──────────
+  // ── Deterministic gate: report units whose LLM fills are skipped. ──────────
+  // Keyed on detGateKey (K16) — one refusing FILE must skip only that file's
+  // paid review, never every other type-covered file's (the cross-contamination
+  // this gate must never reproduce).
   const llmSkippedByDetGate = new Set<string>();
   for (const pair of llmPairs) {
-    if (detEnforcedRefusedNodes.has(pair.nodePath)) {
-      llmSkippedByDetGate.add(pair.nodePath);
+    if (detEnforcedRefusedNodes.has(detGateKey(pair))) {
+      llmSkippedByDetGate.add(detGateKey(pair));
     }
   }
-  for (const nodePath of llmSkippedByDetGate) {
+  for (const key of llmSkippedByDetGate) {
+    // A gate key is either a real component path or a `file:<path>` unit key
+    // (never both) — the message names whichever it actually is, so the file
+    // case never claims a component that does not exist.
+    const isFile = key.startsWith('file:');
+    const posixSubject = toPosixPath(isFile ? key.slice('file:'.length) : key);
+    const subject = isFile ? `file '${posixSubject}'` : `node '${posixSubject}'`;
     emitIssue({
-      what: `LLM fills for node '${toPosixPath(nodePath)}' skipped — an enforced deterministic check already refused it.`,
-      why: 'A free deterministic check rejects this node, so paying the reviewer to read the same code would be wasted. Fix the deterministic violations first.',
-      next: `Fix the deterministic violations on '${toPosixPath(nodePath)}', then re-run: yg check --approve`,
+      what: `LLM fills for ${subject} skipped — an enforced deterministic check already refused it.`,
+      why: 'A free deterministic check rejects this unit, so paying the reviewer to read the same code would be wasted. Fix the deterministic violations first.',
+      next: `Fix the deterministic violations on '${posixSubject}', then re-run: yg check --approve`,
     });
   }
 
@@ -713,7 +819,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   const infraReport: Array<{ provider?: string; tier?: string }> = [];
 
   for (const pair of llmPairs) {
-    if (blockedNodes.has(pair.nodePath) || llmSkippedByDetGate.has(pair.nodePath)) continue;
+    if (nodeBlocked(pair) || llmSkippedByDetGate.has(detGateKey(pair))) continue;
     const aspect = aspectById.get(pair.aspectId);
     if (!aspect) continue;
     const reviewer = graph.config.reviewer;
@@ -845,10 +951,16 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
 
   // ── Step 8: GC + canonical rewrite (§3.2). ────────────────────────────────
   // Deliberate post-fill re-classification: must see freshly-written verdicts —
-  // do not thread step-2 (pre-fill verifyLock) results through.
-  await garbageCollectAndRewrite(graph, lock, persistLock);
+  // do not thread step-2 (pre-fill verifyLock) results through. typeCoverageInput
+  // IS threaded (computed once at the top of this run, K15) — this is R5's
+  // anti-prune lever: without it, the first --approve after enabling the
+  // feature would prune every file-level result as detached.
+  const pruneSummary = await garbageCollectAndRewrite(graph, lock, persistLock, {
+    typeCoverage: typeCoverageInput,
+  });
 
   // ── Step 9: Summaries + re-run the read. ──────────────────────────────────
+  writePruneSummary(pruneSummary, write);
   if (
     reviewerCallsMade === 0 &&
     infraFailures === 0 &&
@@ -935,7 +1047,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
       // names the divergent pairs; buildDivergenceDump attaches each pair's
       // already-stored lock hash — nothing is re-hashed and nothing is written.
       enumerate: async () => {
-        const postVerification = await verifyLock(graph, lock);
+        const postVerification = await verifyLock(graph, lock, typeCoverageInput);
         return postVerification.pairs
           .filter((vp) => vp.state.kind === 'unverified')
           .map((vp) => ({ aspectId: vp.pair.aspectId, unitKey: vp.pair.unitKey }));

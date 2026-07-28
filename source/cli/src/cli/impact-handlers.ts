@@ -255,7 +255,12 @@ export function summarizeImpact(set: ImpactSet, graph: Graph, lock: LockFile): I
   const rows = new Map<string, ImpactNodeRow>();
   let billed = 0, free = 0, greens = 0;
   for (const p of set.pairs) {
-    const row = rows.get(p.nodePath) ?? { nodePath: p.nodePath, llmPairs: 0, reviewerCalls: 0, detPairs: 0, reasons: [] };
+    // A nodeless (type-covered-file) pair has no component row to join — Task 9
+    // owns its own section; excluding it here keeps every existing component
+    // row byte-identical to before.
+    if (p.nodePath === undefined) continue;
+    const nodePath = p.nodePath;
+    const row = rows.get(nodePath) ?? { nodePath, llmPairs: 0, reviewerCalls: 0, detPairs: 0, reasons: [] };
     for (const r of p.reasons) if (!row.reasons.includes(r)) row.reasons.push(r);
     if (p.kind === 'llm') {
       const aspect = graph.aspects.find((a) => a.id === p.aspectId);
@@ -264,7 +269,7 @@ export function summarizeImpact(set: ImpactSet, graph: Graph, lock: LockFile): I
       row.llmPairs += 1; row.reviewerCalls += calls; billed += calls;
     } else { row.detPairs += 1; free += 1; }
     if (lock.verdicts[p.aspectId]?.[p.unitKey]?.verdict === 'approved') greens += 1;
-    rows.set(p.nodePath, row);
+    rows.set(nodePath, row);
   }
   const byNode = [...rows.values()].sort((a, b) => (a.nodePath < b.nodePath ? -1 : a.nodePath > b.nodePath ? 1 : 0));
   return { billedReviewerCalls: billed, freeDeterministic: free, greensReRolled: greens, byNode, unresolved: set.unresolved };

@@ -4,3 +4,5 @@ Producer and verifier must fold byte-identical hash ingredients or every recorde
 Same contract as the hash core: the tier hash view folds only the tier NAME. The resolved tier configuration is not a judgment input, so swapping the model or provider behind a named tier does not invalidate recorded verdicts.
 ## [2026-06-19T19:19:17.425Z]
 Derive the resolver-source fingerprint from the loaded aspect so the review producer and the verifier compute the paired-review identity from one shared definition and can never disagree, which would otherwise pin every paired verdict to a permanent unverified state.
+## [2026-07-28T19:45:51.929Z]
+The node-description helper now answers safely when there is no owning component (a file enforced by its architecture type alone) instead of assuming one always exists.

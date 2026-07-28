@@ -67,23 +67,30 @@ export async function fillDetPair(
   // mapping (pair.subjectFiles ⊆ full mapping always, so a length difference is
   // an exact set difference). Both per:file and per:node-with-scope.files can
   // narrow; a plain per:node aspect has subject == full mapping → undefined.
-  const fullMapping = await computeNodeMappedFiles(graph, pair.nodePath);
-  const subjectScope = pair.subjectFiles.length < fullMapping.length
+  // A nodeless pair has no "whole component" to compare against — its subject
+  // ALWAYS narrows (skip the mapped-files call entirely: computeNodeMappedFiles
+  // has no node to look up and would waste an I/O round-trip returning []).
+  const subjectScope = pair.nodePath === undefined
     ? pair.subjectFiles
-    : undefined;
+    : ((await computeNodeMappedFiles(graph, pair.nodePath)).length > pair.subjectFiles.length
+        ? pair.subjectFiles
+        : undefined);
 
   const runOnce = async () => {
     try {
       return { ok: true as const, result: await runStructure({
         aspectDir: aspectDirAbs,
         aspectId: aspect.id,
-        nodePath: pair.nodePath,
+        // The structure runner's own request shape is node-domain (Task 7's
+        // file); an absent owner passes the empty component context, matching
+        // the same convention verify-lock's re-observation seed uses.
+        nodePath: pair.nodePath ?? '',
         graph,
         projectRoot,
         subjectScope,
       }) };
     } catch (e) {
-      debugWrite(`[fill] det runtime error for ${aspect.id} on ${pair.nodePath}: ${e instanceof Error ? e.message : String(e)}`);
+      debugWrite(`[fill] det runtime error for ${aspect.id} on ${pair.nodePath ?? pair.unitKey}: ${e instanceof Error ? e.message : String(e)}`);
       // A malformed suppress marker is a fault in the SOURCE file's marker, not in
       // check.mjs — surface it as its OWN disposition (its self-describing
       // messageData), never as aspect-check-runtime-error.

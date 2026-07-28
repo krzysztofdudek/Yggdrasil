@@ -55,10 +55,15 @@ export function companionOutsideAllowedReads(
   const what = `Companion file '${rel}' for aspect '${aspect.id}' on ${toPosixPath(pair.unitKey)} is outside the node's allowed-reads.`;
   const why =
     'A companion must be relation-reachable from the reviewed node — the reviewer may only see files the graph permits the node to read, so an out-of-reach companion is an infrastructure fault and the fill fails closed (NOTHING written).';
+  // pair.nodePath is absent only for a nodeless (type-covered-file) pair; Task 9
+  // owns that prompt/message variant — this task only widens the type so a
+  // component pair's message stays byte-identical (nodePath ?? '' is a no-op
+  // when nodePath is defined).
+  const ownerNodePath = pair.nodePath ?? '';
   const next =
     owner === undefined
-      ? `The path '${rel}' is unmapped (no node owns it). Map it to a node and declare a relation from ${toPosixPath(pair.nodePath)} to that node in .yggdrasil/model/${toPosixPath(pair.nodePath)}/yg-node.yaml, or fix companion.mjs to return only relation-reachable paths.`
-      : `declare a relation from ${toPosixPath(pair.nodePath)} to ${toPosixPath(owner)} in .yggdrasil/model/${toPosixPath(pair.nodePath)}/yg-node.yaml, or fix companion.mjs to return only relation-reachable paths.`;
+      ? `The path '${rel}' is unmapped (no node owns it). Map it to a node and declare a relation from ${toPosixPath(ownerNodePath)} to that node in .yggdrasil/model/${toPosixPath(ownerNodePath)}/yg-node.yaml, or fix companion.mjs to return only relation-reachable paths.`
+      : `declare a relation from ${toPosixPath(ownerNodePath)} to ${toPosixPath(owner)} in .yggdrasil/model/${toPosixPath(ownerNodePath)}/yg-node.yaml, or fix companion.mjs to return only relation-reachable paths.`;
   return { why: `companion '${rel}' is outside the node's allowed-reads`, messageData: { what, why, next } };
 }
 
@@ -89,7 +94,10 @@ export async function resolveCompanionDescriptors(
   hookObservations: Extract<RunCompanionHookResult, { kind: 'ok' }>['observations'],
 ): Promise<ResolvedCompanionDescriptorsResult> {
   // ── Normalize each returned path to repo-root-relative POSIX, dedupe + sort. ──
-  const allowedSet = collectAllowedReadsForAspect(pair.nodePath, graph);
+  // A nodeless pair has no component whose allowed-reads apply; collectAllowedReadsForAspect
+  // already returns ∅ for an absent node path (allowed-reads.ts), the safe/conservative
+  // reading — Task 9 owns the real nodeless companion-allowance design.
+  const allowedSet = collectAllowedReadsForAspect(pair.nodePath ?? '', graph);
   const subjectSet = new Set(pair.subjectFiles.map((p) => toPosix(p)));
   const normalizedSet = new Set<string>();
   for (const d of descriptors) {
@@ -185,14 +193,21 @@ export async function resolveCompanionsForPair(
   // subjectScope mirrors fill-det: narrow iff the subject set is FEWER files than
   // the node's full mapping (per:file, or per:node with a scope.files filter). A
   // plain per:node aspect has subject == full mapping → undefined (legacy ctx).
-  const fullMapping = await computeNodeMappedFiles(graph, pair.nodePath);
-  const subjectScope = pair.subjectFiles.length < fullMapping.length ? pair.subjectFiles : undefined;
+  // A nodeless pair has no "whole component" to compare against — it ALWAYS
+  // narrows (mirrors fill-det.ts; skip the mapped-files call entirely).
+  const subjectScope = pair.nodePath === undefined
+    ? pair.subjectFiles
+    : ((await computeNodeMappedFiles(graph, pair.nodePath)).length > pair.subjectFiles.length
+        ? pair.subjectFiles
+        : undefined);
 
   const runOnce = (): ReturnType<typeof runCompanionHook> =>
     runCompanionHook({
       aspectDir: aspectDirAbs,
       aspectId: aspect.id,
-      nodePath: pair.nodePath,
+      // Empty component context for a nodeless pair — matches the same
+      // convention verify-lock's re-observation seed and fill-det's runner call use.
+      nodePath: pair.nodePath ?? '',
       graph,
       projectRoot,
       subjectScope,

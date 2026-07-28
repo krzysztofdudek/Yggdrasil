@@ -29,10 +29,14 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     data = await extractPortalData(REPO_ROOT, { writeEnabled: false });
   }, 180_000);
 
-  it('the top fan-out hub is cli/core/check with 23 declared relations', () => {
+  it('the top fan-out hub is cli/core/fill with 24 declared relations', () => {
+    // cli/core/fill overtook cli/core/check (23) when Task 6 raised its own
+    // reviewed max_direct_relations ceiling from 22 to 24 (two genuine new
+    // dependencies: cli/core/type-coverage, cli/io/file-content-cache — see
+    // that node's yg-node.yaml for the reviewed justification).
     expect(data.hubs.fanOut.length).toBeGreaterThan(0);
-    expect(data.hubs.fanOut[0].path).toBe('cli/core/check');
-    expect(data.hubs.fanOut[0].count).toBe(23);
+    expect(data.hubs.fanOut[0].path).toBe('cli/core/fill');
+    expect(data.hubs.fanOut[0].count).toBe(24);
     // descending order invariant.
     for (let i = 1; i < data.hubs.fanOut.length; i++) {
       expect(data.hubs.fanOut[i - 1].count).toBeGreaterThanOrEqual(data.hubs.fanOut[i].count);

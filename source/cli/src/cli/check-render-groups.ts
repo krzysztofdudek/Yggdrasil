@@ -300,16 +300,25 @@ function renderRepoLevelGroup(group: IssueGroup, lines: string[]): void {
  */
 export function renderGroup(group: IssueGroup, lines: string[], opts: { isTTY: boolean }): void {
   const aspectSeg = group.aspectId ? `  aspect '${group.aspectId}'` : '';
-  // A repo-level group names no node (the committed agent-rules digest, an
-  // unreadable lock). Pair/node counts would both be fabrications there — the
-  // finding is about repository files, not about any component — so the header
+  // A repo-level group names no node AND no type-covered file (the committed
+  // agent-rules digest, an unreadable lock). Pair/node counts would both be
+  // fabrications there — the finding is about repository files in general, not
+  // about any component or a specific type-covered file — so the header
   // carries just the label, and the members render as plain detail lines with
-  // no node bullet to leave empty.
-  if (group.nodeCount === 0) {
+  // no bullet to leave empty. A group that is ALL file-level (nodeCount === 0
+  // but fileCount > 0) is NOT repo-level — it has real per-file bullets to
+  // render, just no component among them.
+  if (group.nodeCount === 0 && group.fileCount === 0) {
     renderRepoLevelGroup(group, lines);
     return;
   }
-  lines.push(`  ${glossLabel(group.label)}  ${group.pairCount} pairs  ${group.nodeCount} nodes${aspectSeg}`);
+  // Byte-identical to before Task 6 when fileCount === 0 (this repo's own flag
+  // stays off, so that is always true here): "N pairs M nodes". Only a group
+  // that genuinely mixes or is all files gets the combined/files-only wording.
+  const countSeg = group.fileCount > 0
+    ? (group.nodeCount > 0 ? `${group.nodeCount} nodes, ${group.fileCount} files` : `${group.fileCount} files`)
+    : `${group.nodeCount} nodes`;
+  lines.push(`  ${glossLabel(group.label)}  ${group.pairCount} pairs  ${countSeg}${aspectSeg}`);
   // Shared why/fix render once ABOVE the member list — but only when they are
   // genuinely shared. A divergent why/next belongs per-member (below), so the
   // shared line is suppressed here to avoid naming only the first node.
@@ -333,11 +342,12 @@ export function renderGroup(group: IssueGroup, lines: string[], opts: { isTTY: b
       for (const extra of nextLines.slice(1)) lines.push(`${MEMBER_DETAIL_INDENT}${extra}`);
     }
   };
-  const members = group.members;
-  const truncate = opts.isTTY && members.length > CAP_NODES;
-  const shown = truncate ? members.slice(0, CAP_NODES) : members;
-  for (const m of shown) {
-    const node = m.nodePath ?? '';
+  /**
+   * Render one member's bullet + divergent detail. `subject` is what appears
+   * where the node path would — the real nodePath for a component member, or
+   * the FILE (never an empty bullet) for a nodeless one.
+   */
+  const renderMemberBullet = (m: CheckIssue, subject: string): void => {
     if (group.perMemberReason) {
       // Full what tail: every line AFTER line 0 (line 0 is the generic
       // "Aspect X refused on UNIT" header already conveyed by the group header).
@@ -346,21 +356,21 @@ export function renderGroup(group: IssueGroup, lines: string[], opts: { isTTY: b
       // Truncating to line 1 silently drops the actionable violation lines.
       const whatTail = m.messageData.what.split('\n').slice(1).map((l) => l.replace(/\s+$/, ''));
       if (whatTail.length === 0) {
-        lines.push(`${BLOCK_INDENT}- ${node}`);
+        lines.push(`${BLOCK_INDENT}- ${subject}`);
       } else {
-        lines.push(`${BLOCK_INDENT}- ${node}  ${whatTail[0].trim()}`);
+        lines.push(`${BLOCK_INDENT}- ${subject}  ${whatTail[0].trim()}`);
         for (const extra of whatTail.slice(1)) {
-          lines.push(`${BLOCK_INDENT}  ${extra}`);   // continuation, indented one level under the node bullet
+          lines.push(`${BLOCK_INDENT}  ${extra}`);   // continuation, indented one level under the bullet
         }
       }
-      // Divergent per-node why/fix (e.g. relation-undeclared-dependency, whose
+      // Divergent per-member why/fix (e.g. relation-undeclared-dependency, whose
       // `what` is the violation list AND whose `next` names the node's stanza).
       emitDivergentDetail(m);
     } else {
       // For code-only groups (e.g. `unverified`) group.aspectId is undefined
       // because the group spans multiple aspects. Annotate each member line
       // with the member's own aspectId so the agent can see which aspect is
-      // unverified on each node without repeating the shared why+fix.
+      // unverified on each subject without repeating the shared why+fix.
       const memberAspectSeg =
         group.aspectId === undefined && m.aspectId !== undefined
           ? `  aspect '${m.aspectId}'`
@@ -370,20 +380,47 @@ export function renderGroup(group: IssueGroup, lines: string[], opts: { isTTY: b
       // surface the first line of `what`, which carries the specific diagnostic
       // detail (e.g. "Invalid regex in content when:" or "No fresh log entry for
       // node '...'"). Without this, all members in the group look identical and
-      // the agent cannot distinguish which node or predicate is broken.
+      // the agent cannot distinguish which node/file/predicate is broken.
       const whatSeg =
         !memberAspectSeg && m.messageData.what
           ? `  ${m.messageData.what.split('\n')[0]}`
           : '';
-      lines.push(`${BLOCK_INDENT}- ${node}${memberAspectSeg || whatSeg}`);
-      // Divergent per-node why/fix (e.g. log-entry-missing → `yg log add --node X`,
+      lines.push(`${BLOCK_INDENT}- ${subject}${memberAspectSeg || whatSeg}`);
+      // Divergent per-member why/fix (e.g. log-entry-missing → `yg log add --node X`,
       // relation-target-forbidden → allow-list vs default-deny). Without this the
       // group would render only the first member's command/rationale.
       emitDivergentDetail(m);
     }
-  }
-  if (truncate) {
-    const drill = group.aspectId ? ` (yg check --aspect ${group.aspectId})` : '';
-    lines.push(`${BLOCK_INDENT}... and ${members.length - CAP_NODES} more${drill}`);
+  };
+  /** Render one block of members (its own bullets, its own truncation cap). */
+  const renderMemberBlock = (blockMembers: CheckIssue[], subjectFor: (m: CheckIssue) => string): void => {
+    const truncate = opts.isTTY && blockMembers.length > CAP_NODES;
+    const shown = truncate ? blockMembers.slice(0, CAP_NODES) : blockMembers;
+    for (const m of shown) renderMemberBullet(m, subjectFor(m));
+    if (truncate) {
+      const drill = group.aspectId ? ` (yg check --aspect ${group.aspectId})` : '';
+      lines.push(`${BLOCK_INDENT}... and ${blockMembers.length - CAP_NODES} more${drill}`);
+    }
+  };
+
+  if (group.fileCount === 0) {
+    // Byte-identical to before Task 6: one block, one cap, over every member
+    // (a stray member with neither nodePath nor a file: unitKey — never
+    // produced by any known issue path — still renders via the empty-subject
+    // fallback exactly as it always has, rather than silently vanishing).
+    renderMemberBlock(group.members, (m) => m.nodePath ?? '');
+  } else {
+    // Two blocks — components first, then files — each with its OWN cap, so a
+    // repo with hundreds of type-covered files can never fill the component
+    // cap with files and hide every component member.
+    const nodeMembers = group.members.filter((m) => m.nodePath !== undefined);
+    const fileMembers = group.members.filter((m) => m.nodePath === undefined && m.unitKey?.startsWith('file:'));
+    const otherMembers = group.members.filter(
+      (m) => m.nodePath === undefined && !m.unitKey?.startsWith('file:'),
+    );
+    renderMemberBlock([...nodeMembers, ...otherMembers], (m) => m.nodePath ?? '');
+    if (fileMembers.length > 0) {
+      renderMemberBlock(fileMembers, (m) => m.unitKey!.slice('file:'.length));
+    }
   }
 }

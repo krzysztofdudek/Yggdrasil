@@ -97,6 +97,10 @@ export async function extractPortalData(
   // the already-verified pairs. Per-node pair-state index for the honest flow state.
   const pairStatesByNode = new Map<string, PortalPairState[]>();
   for (const vp of verification.pairs) {
+    // A nodeless (type-covered-file) pair has no component to index under —
+    // Task 11 adds its own channel; skip here rather than letting `undefined`
+    // become a map key.
+    if (vp.pair.nodePath === undefined) continue;
     const list = pairStatesByNode.get(vp.pair.nodePath) ?? [];
     list.push(collapsePairState(vp));
     pairStatesByNode.set(vp.pair.nodePath, list);

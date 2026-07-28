@@ -16,3 +16,5 @@ relations:
     type: calls
   - target: cli/core/check
     type: calls
+  - target: cli/utils
+    type: calls

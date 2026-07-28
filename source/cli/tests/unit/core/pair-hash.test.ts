@@ -38,6 +38,9 @@ interface PairHashGolden {
   // BREAKING: changing any of these values is a deliberate decision (spec §3.1 frozen contract).
   llmInputHash: string;
   hashListObservationGolden: string;
+  /** Canonical form for a file enforced by its architecture type alone (Task 6). */
+  virtualDeterministic: string;
+  virtualLlm: string;
 }
 
 const golden: PairHashGolden = JSON.parse(readFileSync(GOLDEN_PATH, 'utf-8'));
@@ -411,6 +414,55 @@ describe('scope.files fold', () => {
     expect(codePointCanonicalJson(predicate)).toBe(
       '{"all_of":[{"path":"src/**/*.ts"},{"not":{"path":"**/*.test.ts"}}]}',
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Virtual pairs — a file enforced by its architecture type alone, no owning
+// component. `nodePath` is OPTIONAL on CommonHashInput; the ONLY change in this
+// module (Task 6) — codePointCanonicalJson already drops undefined-valued keys
+// (pre-existing behavior) and buildCommonCanonical already passes `input.nodePath`
+// straight through, so omitting the owner needs no new logic, only the type.
+// ---------------------------------------------------------------------------
+
+describe('canonical form for a file enforced by its type alone', () => {
+  it('omits the owning-component key entirely rather than writing a placeholder', () => {
+    // A placeholder value would be a made-up identity that a real component
+    // could later be given, and the two would then hash the same.
+    const canonical = codePointCanonicalJson({
+      aspect: 'a', files: [['src/x.ts', 'h']], node: undefined,
+      rule: 'r', scope: { per: 'file' }, verdict: 'approved',
+    });
+    expect(canonical).not.toContain('"node"');
+  });
+
+  it('pins the stored fingerprints for both reviewer kinds', () => {
+    const det = computeDetInputHash({
+      aspectId: 'own-file-rule', scope: { per: 'file' }, ruleHash: 'r'.repeat(64),
+      files: [['src/leaf/a.ts', 'f'.repeat(64)]], touched: [], verdict: 'approved',
+    });
+    const llm = computeLlmInputHash({
+      aspectId: 'own-llm-rule', scope: { per: 'file' }, ruleHash: 'r'.repeat(64),
+      files: [['src/leaf/a.ts', 'f'.repeat(64)]], verdict: 'approved',
+      aspectDescription: 'd', references: [], tier: { name: 't' },
+    });
+    expect(det).toBe(golden.virtualDeterministic);
+    expect(llm).toBe(golden.virtualLlm);
+  });
+
+  it('leaves every existing fingerprint untouched', () => {
+    // The stored results of every component in every adopting repository depend
+    // on this staying exactly as it is. The det side has no prior golden-JSON
+    // entry (this is its first pin — added here as a literal, not a new JSON
+    // key, since the brief's own load-bearing invariant names only the file's
+    // TWO existing keys, llmInputHash and hashListObservationGolden, as frozen).
+    const EXISTING_DET_HASH = 'a4835a7dd9f9135bcbe2ad8bd63978dd471ab361fb6e7b8b46c47bcef1f8c919';
+    expect(computeDetInputHash({
+      aspectId: 'no-direct-fs', scope: undefined, nodePath: 'billing/cancel',
+      ruleHash: 'e'.repeat(64), files: [['src/billing/cancel.ts', 'f'.repeat(64)]],
+      touched: [], verdict: 'approved',
+    })).toBe(EXISTING_DET_HASH);
+    expect(computeLlmInputHash({ ...BASE_LLM_INPUT })).toBe(golden.llmInputHash);
   });
 });
 

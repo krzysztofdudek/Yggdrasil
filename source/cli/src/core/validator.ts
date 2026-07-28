@@ -35,6 +35,7 @@ import {
   checkAspectEffectiveNowhere,
   checkArchitectureDefaultAspectUnreachable,
 } from './checks/aspect-contracts.js';
+import type { TypeCoverageInput } from './pairs.js';
 import { checkIncidentLedger } from './checks/incident-ledger.js';
 import {
   checkFileMappingGitignored,
@@ -66,6 +67,15 @@ export async function validate(
   graph: Graph,
   scope: string = 'all',
   suppliedCache?: FileContentCache,
+  /**
+   * The SAME type-coverage classification the caller computed once for this run
+   * (K15 — never a second classify). Threaded only into `checkReviewerPresence`,
+   * whose own `computeExpectedPairs` call would otherwise answer about a
+   * component-only universe. Absent ⇒ the feature is off or the caller has none
+   * (e.g. `runFill`'s structural gate, `yg context`'s validation) — behaves
+   * exactly as before the tier existed.
+   */
+  typeCoverage?: TypeCoverageInput,
 ): Promise<ValidationResult> {
   const issues: ValidationIssue[] = [];
 
@@ -140,7 +150,7 @@ export async function validate(
     issues.push(...checkImpliesNoCycles(graph));
     issues.push(...checkHighFanOut(graph));
     issues.push(...checkMissingDescriptions(graph));
-    issues.push(...(await checkReviewerPresence(graph)));
+    issues.push(...(await checkReviewerPresence(graph, typeCoverage)));
     // Incident-ledger integrity (spec §3.2): a NON-blocking WARNING when the
     // committed incidents.md datetimes are not strictly ascending. Config-
     // independent and absence-tolerant; never gates `yg check` (severity warning,

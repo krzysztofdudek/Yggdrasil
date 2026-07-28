@@ -5,6 +5,7 @@ import { normalizeMappingPaths } from '../io/paths.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import { computeTypeCoverage } from './type-coverage.js';
 import type { TypeCoverageResult } from './type-coverage.js';
+import type { TypeCoverageInput } from './pairs.js';
 import { validate } from './validator.js';
 import { checkReviewOverdue } from './checks/aspect-contracts.js';
 import { checkDigestGate } from './checks/digest-gate.js';
@@ -22,6 +23,7 @@ import { debugWrite } from '../utils/debug-log.js';
 // ── Verdict-lock live path (spec §6) ──────────────────────────
 import { readLock, LockInvalidError } from '../io/lock-store.js';
 import type { LockFile } from '../model/lock.js';
+import { fileUnit } from '../model/lock.js';
 import { verifyLock } from './verify-lock.js';
 import type { VerifiedPair } from './verify-lock.js';
 import { logGateBlocksNode } from './log/log-gate.js';
@@ -72,6 +74,9 @@ export interface CheckIssue extends Omit<ValidationIssue, 'code'> {
    * structural), which the summary buckets as "other".
    */
   pairKind?: 'llm' | 'deterministic';
+  /** Pair-derived issues only: `pair.unitKey`, so a nodeless member's FILE can
+   *  render even though `nodePath` is undefined (same as a repo-level issue). */
+  unitKey?: string;
 }
 
 export interface CheckResult {
@@ -90,55 +95,44 @@ export interface CheckResult {
   /** Count of (node, aspect) pairs where the aspect resolves to effective status 'draft'. */
   draftSkipped: number;
   /**
-   * Count of VERIFIED pairs whose reviewer kind is deterministic (`pair.kind === 'deterministic'`).
-   * Tallied from the same `verification.pairs` loop that emits per-pair issues — `emitPairIssue`
-   * emits nothing for a verified pair, so this is the only place the datum exists. Read-side only:
-   * does not fold into any lock hash (frozen contract — `core/pair-hash.ts` is untouched).
+   * Count of VERIFIED pairs whose reviewer kind is deterministic. Tallied from
+   * the same loop that emits per-pair issues (`emitPairIssue` emits nothing for
+   * a verified pair, the only place this datum exists). Read-side only — not a
+   * hash ingredient (`core/pair-hash.ts` is untouched).
    */
   verifiedDet: number;
-  /** Count of VERIFIED pairs whose reviewer kind is LLM (`pair.kind === 'llm'`). See `verifiedDet`. */
+  /** Count of VERIFIED LLM pairs. See `verifiedDet`. */
   verifiedLlm: number;
   /**
-   * Whether `coverage.type_level` was on for this run. Gates the header's
-   * node-owned/type-covered split and the zero-classifying-types notice —
-   * both flag-on-only surfaces. Optional (absent/false = flag off) so every
-   * pre-existing `CheckResult` literal built before this field existed keeps
-   * rendering byte-identically to today.
+   * Whether `coverage.type_level` was on this run — gates the header's
+   * node-owned/type-covered split and the zero-classifying-types notice.
+   * Optional so every pre-existing `CheckResult` literal renders unchanged.
    */
   typeLevel?: boolean;
   /**
-   * Count of files silently satisfied by the type-level classification
-   * lattice (`TypeCoverageResult.covered.size`) — matched by exactly one
-   * classifying type's `when`, no node, no issue raised. 0 when the flag is
-   * off or the coverage scan did not run (`coverageVisibleFiles === null`).
+   * Files silently satisfied by the type-level lattice (matched by exactly one
+   * classifying type's `when`, no node, no issue). 0 when the flag is off or
+   * the coverage scan did not run.
    */
   typeCoveredCount?: number;
   /**
-   * Count of architecture types that declare `when:` (the classifying
-   * subset of `graph.architecture.node_types`) — computed regardless of the
-   * flag or file-walk availability, since it is a pure architecture fact.
-   * `typeLevel` on with this at 0 means `coverage.type_level` can never match
-   * a single file (classifyFile skips every type without `when`), which is
-   * exactly the standing notice's trigger.
+   * Count of architecture types declaring `when:` — a pure architecture fact,
+   * computed regardless of the flag. `typeLevel` on with this at 0 means the
+   * lattice can never match a file — the standing notice's trigger.
    */
   classifyingTypeCount?: number;
   /**
-   * Count of files actually owned by a node mapping — `totalFiles minus`
-   * `scanUncoveredFiles(...).length`. Distinct from `coveredFiles` (above),
-   * which also folds in files under a `coverage.excluded` root: `coveredFiles`
-   * keeps its pre-existing conflated meaning for the flag-off header and for
-   * `portal/extract.ts`'s `meta.counts`, neither of which this field touches.
-   * This field exists so the flag-on header's "node-owned" term never claims
-   * ownership for a file no node actually maps.
+   * Files actually owned by a node mapping (`totalFiles` minus uncovered).
+   * Distinct from `coveredFiles` (also folds in `coverage.excluded` files,
+   * kept for the flag-off header / `portal/extract.ts`) so the flag-on
+   * header's "node-owned" term never claims a file no node maps.
    */
   nodeOwnedFiles?: number;
   /**
-   * Count of uncovered files sitting under a `coverage.excluded` root —
-   * `scanUncoveredFiles(...).length minus (required tier + middle tier)`,
-   * the files `partitionByCoverageTier` drops silently. `coveredFiles ===`
-   * `nodeOwnedFiles + excludedFiles` always holds; kept as its own field
-   * (rather than derived by subtraction at render time) so a rendering bug
-   * can never manufacture a negative or otherwise inconsistent count.
+   * Uncovered files under a `coverage.excluded` root — the ones
+   * `partitionByCoverageTier` drops silently. `coveredFiles ===
+   * nodeOwnedFiles + excludedFiles` always holds; its own field (not derived
+   * at render time) so a rendering bug can never go negative/inconsistent.
    */
   excludedFiles?: number;
 }
@@ -183,6 +177,7 @@ function emitPairIssue(vp: VerifiedPair): CheckIssue[] {
         nodePath: pair.nodePath,
         aspectId: pair.aspectId,
         pairKind: pair.kind,
+        unitKey: pair.unitKey,
       });
       break;
     }
@@ -195,6 +190,7 @@ function emitPairIssue(vp: VerifiedPair): CheckIssue[] {
         nodePath: pair.nodePath,
         aspectId: pair.aspectId,
         pairKind: pair.kind,
+        unitKey: pair.unitKey,
       });
       break;
     case 'prompt-too-large':
@@ -211,6 +207,7 @@ function emitPairIssue(vp: VerifiedPair): CheckIssue[] {
         }),
         nodePath: pair.nodePath,
         aspectId: pair.aspectId,
+        unitKey: pair.unitKey,
       });
       break;
     case 'companion-error':
@@ -224,6 +221,7 @@ function emitPairIssue(vp: VerifiedPair): CheckIssue[] {
         messageData: state.messageData,
         nodePath: pair.nodePath,
         aspectId: pair.aspectId,
+        unitKey: pair.unitKey,
       });
       break;
   }
@@ -244,6 +242,7 @@ function emitPairIssue(vp: VerifiedPair): CheckIssue[] {
       }),
       nodePath: pair.nodePath,
       aspectId: pair.aspectId,
+      unitKey: pair.unitKey,
     });
   }
 
@@ -668,8 +667,22 @@ export async function runCheck(
   // consumer.
   const sharedContentCache = new FileContentCache();
 
+  // Coverage config + the type-level lattice, computed ONCE — hoisted ahead of
+  // validate() (K15: one classify per run) so checkReviewerPresence (inside
+  // validate()) sees the SAME value, not a component-only universe. Undefined
+  // at flag-off / coverageVisibleFiles === null. Section 3 reads it too.
+  const coverage = graph.config.coverage ?? DEFAULT_COVERAGE;
+  let earlyTypeCoverage: TypeCoverageResult | undefined;
+  if (coverageVisibleFiles !== null && coverage.typeLevel) {
+    const uncoveredForGate = scanUncoveredFiles(graph, coverageVisibleFiles);
+    earlyTypeCoverage = await computeTypeCoverage(graph, uncoveredForGate, sharedContentCache);
+  }
+  const typeCoverageInput: TypeCoverageInput | undefined = earlyTypeCoverage
+    ? { covered: earlyTypeCoverage.covered, ambiguousPaths: earlyTypeCoverage.ambiguous.map((a) => a.file) }
+    : undefined;
+
   // 1. Validation (structural + completeness)
-  const validation = await validate(graph, 'all', sharedContentCache);
+  const validation = await validate(graph, 'all', sharedContentCache, typeCoverageInput);
   // Filter out issues without a code -- they are internal (e.g., invalid-scope).
   const validationIssues: CheckIssue[] = validation.issues
     .filter(vi => vi.code)
@@ -696,23 +709,7 @@ export async function runCheck(
         .map(vi => ({ ...vi, code: vi.code! }))
     : [];
 
-  // Coverage config, resolved here (moved up from section 3 below) so the type-level
-  // lattice can be computed before the relation pass runs, which needs to know which
-  // files are type-covered before it can widen its own file enumeration.
-  const coverage = graph.config.coverage ?? DEFAULT_COVERAGE;
-
-  // The type-level classification lattice (coverage.type_level), computed ONCE here —
-  // the single source every later consumer in this run reads: the relation pass below
-  // (widened file enumeration + the live type-relation gate's edge index) AND section
-  // 3's own coverage rendering, which reuses this SAME value instead of paying for a
-  // second full lattice pass over every uncovered file. Undefined at flag-off or when no
-  // file walk ran this call (coverageVisibleFiles === null) — both consumers already
-  // treat that as "nothing to do."
-  let earlyTypeCoverage: TypeCoverageResult | undefined;
-  if (coverageVisibleFiles !== null && coverage.typeLevel) {
-    const uncoveredForGate = scanUncoveredFiles(graph, coverageVisibleFiles);
-    earlyTypeCoverage = await computeTypeCoverage(graph, uncoveredForGate, sharedContentCache);
-  }
+  // `coverage`/`earlyTypeCoverage` moved above section 1 (K15); read again below.
 
   // Captured from the relation pass (run once below) for the optional feature-field index
   // write. Stay null if the lock is invalid (the pass is skipped) — the best-effort index
@@ -733,7 +730,7 @@ export async function runCheck(
   let verifiedLlm = 0;
   try {
     const lock = readLock(graph.rootPath);
-    const verification = await verifyLock(graph, lock);
+    const verification = await verifyLock(graph, lock, typeCoverageInput);
 
     // Unreadable subjects → blocking file-unreadable errors (A4 fail-closed).
     // messageData is pre-populated on UnreadableSubject by computeExpectedPairs.
@@ -745,6 +742,8 @@ export async function runCheck(
         messageData: u.messageData,
         nodePath: u.nodePath,
         aspectId: u.aspectId,
+        // Nodeless: the unit IS the file (see computeSuggestedNext's fallback).
+        unitKey: u.nodePath === undefined ? fileUnit(u.path) : undefined,
       });
     }
 
@@ -840,7 +839,10 @@ export async function runCheck(
     // source changed with no fresh entry, enforced LIVE here so it bites even on
     // a node that produces no fill pairs. Skip nodes with an unreadable subject
     // (already a blocking file-unreadable error; fingerprint uncomputable).
-    const unreadableNodes = new Set(verification.unreadable.map((u) => u.nodePath));
+    // Nodeless entries have no node to skip here; filtering keeps this a Set<string>.
+    const unreadableNodes = new Set(
+      verification.unreadable.map((u) => u.nodePath).filter((p): p is string => p !== undefined),
+    );
     await classifyLogRequirement(graph, projectRoot, lock, unreadableNodes, lockIssues);
   } catch (err) {
     if (err instanceof LockInvalidError) {
@@ -1309,7 +1311,12 @@ export function computeSuggestedNext(issues: CheckIssue[]): string | null {
     const then = coverageErrors.length > 0
       ? `\n  Then: ${coverageErrors[0].uncoveredCount ?? 0} files need coverage`
       : '';
-    return `Fix ${first.code} in ${toPosixPath(first.nodePath ?? '.yggdrasil')}\n  1 of ${structuralErrors.length} structural error${structuralErrors.length === 1 ? '' : 's'}${then}`;
+    // Nodeless: name the FILE from the unit key, not the graph dir; only a
+    // genuinely repo-level issue (neither) falls back to '.yggdrasil'.
+    const subject = first.nodePath
+      ?? (first.unitKey?.startsWith('file:') ? first.unitKey.slice('file:'.length) : undefined)
+      ?? '.yggdrasil';
+    return `Fix ${first.code} in ${toPosixPath(subject)}\n  1 of ${structuralErrors.length} structural error${structuralErrors.length === 1 ? '' : 's'}${then}`;
   }
 
   // 7. coverage.

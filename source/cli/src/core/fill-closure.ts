@@ -76,6 +76,9 @@ export async function applyPositiveClosure(
   const verification = await verifyLock(graph, lock);
   const byNode = new Map<string, typeof verification.pairs>();
   for (const vp of verification.pairs) {
+    // A file with no component has no fingerprint and no log baseline to close —
+    // skip nodeless pairs when building the per-node grouping below.
+    if (vp.pair.nodePath === undefined) continue;
     const list = byNode.get(vp.pair.nodePath) ?? [];
     list.push(vp);
     byNode.set(vp.pair.nodePath, list);

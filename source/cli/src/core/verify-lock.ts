@@ -50,7 +50,7 @@ import {
 import { computeAllowedNodePaths } from '../structure/ctx-graph.js';
 import { resolveSuppressedRangesForPrompt, SuppressMarkerError } from '../structure/index.js';
 import { ruleHashFor, contentFor, nodeDescriptionFor, tierHashViewFromTier, companionHashFor } from './pair-inputs.js';
-import type { ExpectedPair, UnreadableSubject } from './pairs.js';
+import type { ExpectedPair, UnreadableSubject, TypeCoverageInput } from './pairs.js';
 import { computeExpectedPairs } from './pairs.js';
 import { selectTierForAspect } from './tier-selection.js';
 import { assembledPromptChars, DEFAULT_MAX_PROMPT_CHARS } from '../llm/prompt.js';
@@ -102,9 +102,20 @@ export interface LockVerification {
  * Verify a loaded graph against a lock file. Pure read — no writes, no LLM
  * calls, no check.mjs execution. Returns a per-pair classification plus the
  * unreadable-subject list from pair computation.
+ *
+ * `typeCoverage` (CRITICAL — R5): the SAME `earlyTypeCoverage` classification
+ * `runCheck` computed once for this run (spec K15 — never a second classify
+ * here). Without it, this builds a component-only pair universe while the lock
+ * may already hold `file:` verdict entries: those entries would have no pair to
+ * attach to, so they render as unexpected and the run goes red even though it
+ * should be green.
  */
-export async function verifyLock(graph: Graph, lock: LockFile): Promise<LockVerification> {
-  const { pairs, unreadable } = await computeExpectedPairs(graph);
+export async function verifyLock(
+  graph: Graph,
+  lock: LockFile,
+  typeCoverage?: TypeCoverageInput,
+): Promise<LockVerification> {
+  const { pairs, unreadable } = await computeExpectedPairs(graph, { typeCoverage });
   const projectRoot = path.dirname(graph.rootPath);
 
   // Index aspect defs by id for O(1) lookup.
@@ -215,11 +226,16 @@ async function verifyLlmPair(
   //    disk/graph exactly as verifyDetPair does (seeded with pair.nodePath so the
   //    two runners agree on graph visibility). A changed/vanished value yields a
   //    mismatch ⇒ unverified, never a throw. A plain aspect stored no touched, so
-  //    touchedNow stays [] and is NOT folded (the hash guards on length). ──
+  //    touchedNow stays [] and is NOT folded (the hash guards on length). A
+  //    nodeless unit seeds reObserve with the empty component context (''); its
+  //    stored set can never carry a graph-bytype/-children/-flow key (Task 7
+  //    forbids the calls that would produce one for a nodeless unit), so
+  //    reObserve's component-scoped branches are unreachable here — pinned by a
+  //    test, no new branch needed. ──
   const stored = storedEntry?.touched ?? [];
   const touchedNow: Array<[string, string]> = [];
   for (const [key] of stored) {
-    touchedNow.push([key, await reObserve(key, graph, pair.nodePath, projectRoot, readBytes)]);
+    touchedNow.push([key, await reObserve(key, graph, pair.nodePath ?? '', projectRoot, readBytes)]);
   }
 
   // ── Prompt-size gate (§4): active whenever a tier resolves (an omitted
@@ -339,7 +355,8 @@ async function verifyDetPair(
     const stored = storedEntry.touched ?? [];
     const touchedNow: Array<[string, string]> = [];
     for (const [key] of stored) {
-      const nowHash = await reObserve(key, graph, pair.nodePath, projectRoot, readBytes);
+      // Empty component context for a nodeless unit — see verifyLlmPair's twin comment.
+      const nowHash = await reObserve(key, graph, pair.nodePath ?? '', projectRoot, readBytes);
       touchedNow.push([key, nowHash]);
     }
 

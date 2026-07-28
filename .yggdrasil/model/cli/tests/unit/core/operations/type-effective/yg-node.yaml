@@ -13,3 +13,4 @@ relations:
     type: uses
 mapping:
   - source/cli/tests/unit/core/type-effective.test.ts
+  - source/cli/tests/unit/core/type-effective-cascade-guard.test.ts

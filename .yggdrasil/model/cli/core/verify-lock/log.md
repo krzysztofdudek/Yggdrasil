@@ -12,3 +12,5 @@ The read-only verification's prompt-size gate measured a companion-bearing aspec
 The stored-verdict re-check now applies the same built-in default prompt-size ceiling as the fill path when a tier omits its own limit, so a previously-passing oversized unit is consistently flagged as too large on both sides rather than silently skipped on re-check.
 ## [2026-06-21T18:03:23.315Z]
 The stored-verdict re-check now resolves a unit's waived line ranges the same way the fill path does and includes them when measuring the assembled reviewer prompt, so the size guard sees the identical prompt the reviewer would receive. Without this, a unit whose waiver text tipped it over the size limit could slip past the guard on the read-only check path and be sent to the reviewer over-length.
+## [2026-07-28T19:45:58.607Z]
+Verification now accepts the same file-type classification the read-only check computes once per run, so a stored result for a file enforced by its type alone is checked against the correct, current set of rules instead of silently reading as unexpected.

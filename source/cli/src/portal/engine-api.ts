@@ -8,7 +8,7 @@ import { walkRepoFiles, listGitTrackedFiles } from '../io/repo-scanner.js';
 import { runCheck, scanUncoveredFiles, type CheckResult, type CheckIssue } from '../core/check.js';
 import { readLock, committedLockContentHash } from '../io/lock-store.js';
 import { verifyLock, type LockVerification, type VerifiedPair, type PairState } from '../core/verify-lock.js';
-import { computeExpectedPairs, computeSourceFingerprint, type PairComputation } from '../core/pairs.js';
+import { computeExpectedPairs, computeSourceFingerprint, type PairComputation, type TypeCoverageInput } from '../core/pairs.js';
 import { readLogContent } from '../core/log/log-gate.js';
 import { CLI_SUPPORTED_SCHEMA } from '../core/graph-loader.js';
 import {
@@ -142,9 +142,19 @@ export function readAndVerifyLock(graph: Graph): { lock: LockFile; verification:
   return { lock, verification: verifyLock(graph, lock) };
 }
 
-/** Reuse the engine: the expected-pair denominator + the LLM/deterministic split. */
-export async function computePortalPairs(graph: Graph): Promise<PairComputation> {
-  return computeExpectedPairs(graph);
+/**
+ * Reuse the engine: the expected-pair denominator + the LLM/deterministic split.
+ *
+ * `typeCoverage` reaches this function's signature so a future caller (Task 11's
+ * own surface work) can thread the SAME classification the CLI's `yg check`
+ * counts, without this facade needing another signature change — the portal
+ * must count the same universe the CLI counts, or its coverage numbers
+ * contradict the header. Absent today (the extraction pipeline computes no
+ * type-coverage classification yet); byte-identical to before at the current
+ * call site.
+ */
+export async function computePortalPairs(graph: Graph, typeCoverage?: TypeCoverageInput): Promise<PairComputation> {
+  return computeExpectedPairs(graph, { typeCoverage });
 }
 
 /** Reuse the engine's coverage scan: repo files mapped to no node. */

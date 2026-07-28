@@ -1,7 +1,8 @@
 import type { AspectStatus, Graph, GraphNode, Relation, RelationType } from '../model/graph.js';
 import type { WhenEvalOverrides } from './when-evaluator.js';
-import { computeEffectiveAspects, computeEffectiveAspectStatuses } from './graph/aspects.js';
+import { computeEffectiveAspects, computeEffectiveAspectStatuses, ImpliesCycleError } from './graph/aspects.js';
 import type { TypedEdgeIndex } from '../relations/pass.js';
+import { debugWrite } from '../utils/debug-log.js';
 
 /**
  * Rules that apply to a source file enforced by its architecture type alone,
@@ -85,6 +86,17 @@ export function computeTypeEffectiveAspects(
  * One cascade pass producing both halves: what enforces, and what was
  * attached but does not. Callers that need both must use this — running the
  * two public halves separately pays the cascade twice.
+ *
+ * Exception contract (narrowed, Task 6 fix-round): an aspect `implies` cycle
+ * (`ImpliesCycleError`) is absorbed, yielding an empty result for this one
+ * file — the static validator already reports the cycle on its own path, and
+ * re-throwing would abort a caller iterating over many type-covered files over
+ * one bad aspect definition. Any OTHER failure is NOT swallowed: it is a
+ * genuine bug in this cascade or its inputs, so it is recorded to the debug
+ * log and rethrown rather than hidden forever behind a silent empty result.
+ * Callers that iterate many files (`computeExpectedPairs`) wrap this call in
+ * their OWN per-file catch, mirroring the same containment their per-node loop
+ * already uses for a real component.
  */
 export function computeTypeAspectCascade(
   graph: Graph,
@@ -183,15 +195,26 @@ export function computeTypeAspectCascade(
   try {
     effectiveIds = computeEffectiveAspects(subject, view, overrides);
     statuses = computeEffectiveAspectStatuses(subject, view, overrides);
-  } catch {
+  } catch (e) {
     // A cycle in the aspect `implies` graph (ImpliesCycleError) is a
     // structural fault the static validator (checkImpliesNoCycles) already
     // reports on its own path; re-throwing here would abort a caller
-    // iterating over many type-covered files over one bad aspect definition.
-    // This engine's contract is total — never throw, never drop the caller's
-    // run — so ANY unexpected failure is absorbed the same way, yielding an
-    // empty result for this one file rather than aborting the run.
-    return { effective: [], drops: [] };
+    // iterating over many type-covered files over one bad aspect definition,
+    // so it is the ONE failure this cascade absorbs, yielding an empty result
+    // for this one file rather than aborting the run.
+    //
+    // Narrowed (not a blanket catch-all): an unexpected failure that is NOT
+    // ImpliesCycleError is a genuine bug in this cascade or its inputs, and
+    // swallowing it silently would hide that bug from every caller forever —
+    // debugWrite records it (so it is visible with debug logging on) and
+    // rethrows, so the caller's own containment (mirroring the node-loop's
+    // per-node catch in computeExpectedPairs) decides whether to skip just
+    // this one file or fail the run.
+    if (e instanceof ImpliesCycleError) {
+      return { effective: [], drops: [] };
+    }
+    debugWrite(`[type-effective] unexpected failure computing the cascade for '${file}' (type '${typeId}'): ${e instanceof Error ? e.message : String(e)}`);
+    throw e;
   }
 
   // `via` is decided declaratively, without a second cascade run: 'type' if

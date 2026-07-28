@@ -8,6 +8,7 @@ import { aspectStatusDowngradeMessage } from '../../formatters/aspect-status-mes
 import { issueMsg } from './shared.js';
 import { toPosixPath } from '../../utils/posix.js';
 import { computeExpectedPairs } from '../pairs.js';
+import type { TypeCoverageInput } from '../pairs.js';
 
 // --- aspect-rule-sources: content.md vs check.mjs mutual exclusion ---
 
@@ -207,7 +208,10 @@ export function checkAspectRuleSources(graph: Graph): ValidationIssue[] {
 
 // --- config-reviewer-missing: reviewer section must exist in yg-config.yaml ---
 
-export async function checkReviewerPresence(graph: Graph): Promise<ValidationIssue[]> {
+export async function checkReviewerPresence(
+  graph: Graph,
+  typeCoverage?: TypeCoverageInput,
+): Promise<ValidationIssue[]> {
   if (graph.configError) return [];
   if (graph.config.reviewer) return [];
   // Cheap necessary-condition guard: with no LLM aspect defined at all there can
@@ -221,7 +225,10 @@ export async function checkReviewerPresence(graph: Graph): Promise<ValidationIss
   // effective. Compute effective, non-draft pairs through the canonical
   // single-source query (draft is excluded by default) and stay silent when no
   // LLM pair exists — a script-only / empty graph is a legal keyless state.
-  const { pairs } = await computeExpectedPairs(graph);
+  // `typeCoverage` (the SAME earlyTypeCoverage runCheck classified once, K15):
+  // a repo with reviewer unconfigured and an LLM rule effective ONLY on
+  // type-covered files (zero component LLM pairs) must still be caught here.
+  const { pairs } = await computeExpectedPairs(graph, { typeCoverage });
   if (!pairs.some((p) => p.kind === 'llm')) return [];
   const msgData: IssueMessage = {
     what: 'A judgment rule has no judge: yg-config.yaml has no reviewer: section.',

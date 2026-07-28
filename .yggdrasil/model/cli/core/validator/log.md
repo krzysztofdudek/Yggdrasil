@@ -96,3 +96,5 @@ Wires the new per-type dead-attach linter into the validation pass alongside the
 Wires the new relation-target-type integrity check into the architecture-level validation stage alongside the existing undefined-parent check, so a dangling relation target type blocks like the other architecture-shape errors.
 ## [2026-07-28T13:56:15.998Z]
 validate() gained an optional third parameter accepting a caller-supplied FileContentCache, defaulting to a fresh instance when omitted — this lets a caller that already holds a cache (the check orchestrator) share it instead of paying a second read for a file both consumers need.
+## [2026-07-28T19:45:58.963Z]
+Validation now accepts the same file-type classification the read-only check computes once per run, so the reviewer-required check correctly counts a judgment rule that only ever runs on files enforced by their architecture type, not only rules attached to components.

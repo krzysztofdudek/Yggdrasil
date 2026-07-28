@@ -295,6 +295,38 @@ describe('check render — --summary view', () => {
     expect(out).toMatch(/lib\/widgets\s+.*1 other/);
     expect(out).not.toContain('7 other');
   });
+
+  // Task 6: a file-level (nodeless) pair-derived issue must row under its own
+  // file path, never collapse into '(repo)' — that would fold the entire
+  // type-covered tier into one undifferentiated row.
+  it('a nodeless (type-covered-file) issue rows under its own file path, not (repo)', () => {
+    const fileIssue: CheckIssue = {
+      severity: 'error',
+      code: 'unverified',
+      rule: 'unverified',
+      aspectId: 'own-file-rule',
+      pairKind: 'deterministic',
+      nodePath: undefined,
+      unitKey: 'file:src/leaf/a.ts',
+      messageData: unverifiedMessage({ aspectId: 'own-file-rule', unitKey: 'file:src/leaf/a.ts' }),
+    } as CheckIssue;
+    const out = stripAnsi(formatOutput(baseResult([fileIssue]), { kind: 'summary' }));
+    expect(out).toMatch(/src\/leaf\/a\.ts\s+1 unverified \(1 deterministic-free, 0 LLM\)/);
+    expect(out).not.toContain('(repo)');
+  });
+
+  // '(repo)' keeps its pre-existing meaning: an issue with NEITHER a component
+  // NOR a file unit (a stale digest, an unreadable lock).
+  it('a genuinely repo-level issue (neither nodePath nor a file unitKey) still rows under (repo)', () => {
+    const repoIssue: CheckIssue = {
+      severity: 'warning',
+      code: 'rules-digest-stale',
+      rule: 'rules-digest-stale',
+      messageData: { what: 'stale', why: 'y', next: 'yg init --upgrade' },
+    } as CheckIssue;
+    const out = stripAnsi(formatOutput(baseResult([repoIssue]), { kind: 'summary' }));
+    expect(out).toContain('(repo)');
+  });
 });
 
 describe('check render — Next: residual annotation (task 1.4)', () => {

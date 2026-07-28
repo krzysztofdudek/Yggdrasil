@@ -16,6 +16,17 @@ export interface IssueGroup {
    * drop the node-shaped framing entirely.
    */
   nodeCount: number;
+  /**
+   * How many DISTINCT type-covered FILES the group's members name — a member
+   * with no `nodePath` but a `file:`-prefixed `unitKey` (a nodeless pair-derived
+   * issue; core/check.ts's emitPairIssue sets `unitKey` from `pair.unitKey`).
+   * Deduped by unitKey (several aspects can share one file's unit key), so a
+   * shared file counts once, not once per aspect. Zero when the feature is off
+   * or no member is file-level — the header then keeps its pre-existing
+   * "N pairs  M nodes" wording untouched (see the renderer's own byte-identical
+   * contract).
+   */
+  fileCount: number;
   sharedWhy: string;
   sharedNext: string;
   perMemberReason: boolean;
@@ -152,12 +163,21 @@ export function groupIssues(issues: CheckIssue[]): IssueGroup[] {
   }
   const groups: IssueGroup[] = [];
   for (const members of byKey.values()) {
+    // Sort key: nodePath when present, else the nodeless member's OWN unitKey
+    // (never collapsed to '' — file members then sort among themselves by
+    // path, rather than all comparing equal and falling back to insertion
+    // order). A genuinely repo-level member (neither) still sorts to ''.
     const sorted = [...members].sort((a, b) =>
-      (a.nodePath ?? '').localeCompare(b.nodePath ?? '', 'en'));
+      (a.nodePath ?? a.unitKey ?? '').localeCompare(b.nodePath ?? b.unitKey ?? '', 'en'));
     const rep = sorted[0];
     // Only members that actually name a node count toward nodeCount; a
     // repo-level group scores 0 rather than 1-for-nothing.
     const nodes = new Set(sorted.filter((m) => m.nodePath).map((m) => m.nodePath));
+    // Nodeless members with a `file:`-prefixed unitKey count toward fileCount
+    // instead — deduped by unitKey (several aspects can share one file).
+    const files = new Set(
+      sorted.filter((m) => m.nodePath === undefined && m.unitKey?.startsWith('file:')).map((m) => m.unitKey),
+    );
     // For code-only groups the aspectId spans multiple aspects — set to
     // undefined so the group header does NOT print `aspect '<id>'`.
     const isCodeOnly = CODE_ONLY_GROUP_CODES.has(rep.code);
@@ -173,6 +193,7 @@ export function groupIssues(issues: CheckIssue[]): IssueGroup[] {
       label: getIssueLabel(rep),
       pairCount: sorted.length,
       nodeCount: nodes.size,
+      fileCount: files.size,
       sharedWhy: rep.messageData.why,
       sharedNext: rep.messageData.next,
       perMemberReason: FULL_WHAT_CODES.has(rep.code),

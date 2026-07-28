@@ -139,6 +139,10 @@ export interface AspectHealthRow {
   status: AspectStatus;
   /** Distinct nodes that have a review pair for this aspect. */
   nodes: number;
+  /** Distinct type-covered files (nodeless pairs) that have a review pair for
+   *  this aspect. 0 when the feature is off or no file matched. Not yet its
+   *  own table column — the count exists so a later surface can render it. */
+  files: number;
   /** Total review pairs for this aspect. */
   pairs: number;
   /** Rendered refusal cell — an integer, EMPTY_CELL, or the UNVERIFIED word. */
@@ -436,12 +440,17 @@ export function computeAspectHealth(
     refused: number;
     unknown: number;
     nodes: Set<string>;
+    /** Distinct type-covered files (nodeless pairs) — tracked separately so a
+     *  file never inflates the "nodes" count by a phantom component. Not yet
+     *  rendered into a table column (a future task's job); the data exists so
+     *  it can be. */
+    files: Set<string>;
   }
   const byAspect = new Map<string, Agg>();
   const aggFor = (id: string): Agg => {
     let a = byAspect.get(id);
     if (!a) {
-      a = { pairs: 0, refused: 0, unknown: 0, nodes: new Set<string>() };
+      a = { pairs: 0, refused: 0, unknown: 0, nodes: new Set<string>(), files: new Set<string>() };
       byAspect.set(id, a);
     }
     return a;
@@ -450,7 +459,8 @@ export function computeAspectHealth(
   for (const vp of verifiedPairs) {
     const a = aggFor(vp.pair.aspectId);
     a.pairs++;
-    a.nodes.add(vp.pair.nodePath);
+    if (vp.pair.nodePath !== undefined) a.nodes.add(vp.pair.nodePath);
+    else a.files.add(vp.pair.unitKey);
     if (vp.state.kind === 'refused') a.refused++;
     else if (vp.state.kind !== 'verified') a.unknown++;
   }
@@ -488,6 +498,7 @@ export function computeAspectHealth(
       kind: inferAspectDisplayKind(aspect),
       status: aspect.status ?? 'enforced',
       nodes: agg?.nodes.size ?? 0,
+      files: agg?.files.size ?? 0,
       pairs,
       refused,
       suppresses: suppressByAspect.get(aspect.id) ?? 0,

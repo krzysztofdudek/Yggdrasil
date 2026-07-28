@@ -1,5 +1,7 @@
 {
-  "_comment": "FROZEN CONTRACT (spec §3.1). Changing any value below is a deliberate breaking decision — it invalidates every stored verdict entry in yg-lock.json across all repos. Update the corresponding test comments and CHANGELOG when changing.",
+  "_comment": "FROZEN CONTRACT (spec §3.1). Changing any value below is a deliberate breaking decision — it invalidates every stored verdict entry in yg-lock.json across all repos. Update the corresponding test comments and CHANGELOG when changing. llmInputHash and hashListObservationGolden are the two pre-existing pins and must never change; virtualDeterministic/virtualLlm (added by Task 6) pin the canonical form for a file enforced by its architecture type alone (no owning component — the node: key is omitted, never a placeholder).",
   "llmInputHash": "64a81a3e9fea4a63641e5fbff61fca30e69dc4a39bddf66488eade37556734da",
-  "hashListObservationGolden": "f70f5dc6b123438093400e0efeae96b21af6650a11da03123f46f35fcbbc37f0"
+  "hashListObservationGolden": "f70f5dc6b123438093400e0efeae96b21af6650a11da03123f46f35fcbbc37f0",
+  "virtualDeterministic": "7513e2aa0c2177e5296507fbcc292994e7f43ff4b8356e16582004c2d8eaf8d0",
+  "virtualLlm": "ab04233b08f7876994ae15c6533cf0900f16ccd9835149b9dede13d34cf4d33b"
 }

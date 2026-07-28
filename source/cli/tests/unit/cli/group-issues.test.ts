@@ -143,6 +143,54 @@ describe('groupIssues', () => {
   });
 });
 
+// ── Task 6: fileCount — nodeless (type-covered-file) pair-derived members ─────
+// A pair-derived issue with no nodePath carries its unitKey instead (set by
+// core/check.ts's emitPairIssue). nodeCount must count ONLY members with a
+// real component; fileCount counts nodeless members by their DISTINCT file
+// unit key, so the group header can say "3 components, 7 files" without
+// double-counting a file that several aspects share.
+function fileIss(p: Partial<CheckIssue>): CheckIssue {
+  return iss({ nodePath: undefined, ...p });
+}
+
+describe('groupIssues — fileCount (Task 6)', () => {
+  it('a nodeless member is excluded from nodeCount and counted in fileCount instead', () => {
+    const [g] = groupIssues([
+      iss({ aspectId: 'a', nodePath: 'svc' }),
+      fileIss({ aspectId: 'a', unitKey: 'file:src/leaf/a.ts' }),
+    ]);
+    expect(g.nodeCount).toBe(1);
+    expect(g.fileCount).toBe(1);
+  });
+
+  it('several aspects sharing the SAME file unit key count as ONE file, not one per aspect', () => {
+    const [g] = groupIssues([
+      fileIss({ code: 'unverified', aspectId: 'a', unitKey: 'file:src/leaf/a.ts' }),
+      fileIss({ code: 'unverified', aspectId: 'b', unitKey: 'file:src/leaf/a.ts' }),
+    ]);
+    // Both are code-only ('unverified') so they collapse into one group.
+    expect(g.fileCount).toBe(1);
+    expect(g.nodeCount).toBe(0);
+  });
+
+  it('a genuinely repo-level member (neither nodePath nor unitKey) counts toward neither', () => {
+    const [g] = groupIssues([
+      { severity: 'warning', code: 'rules-digest-stale', rule: 'rules-digest-stale', messageData: { what: 'w', why: 'y', next: 'n' } } as CheckIssue,
+    ]);
+    expect(g.nodeCount).toBe(0);
+    expect(g.fileCount).toBe(0);
+  });
+
+  it('sort key falls back to unitKey for a nodeless member (not collapsed to empty string)', () => {
+    const [g] = groupIssues([
+      fileIss({ aspectId: 'a', unitKey: 'file:src/leaf/z.ts' }),
+      fileIss({ aspectId: 'a', unitKey: 'file:src/leaf/a.ts' }),
+    ]);
+    // Sorted: file:src/leaf/a.ts before file:src/leaf/z.ts.
+    expect(g.members.map((m) => m.unitKey)).toEqual(['file:src/leaf/a.ts', 'file:src/leaf/z.ts']);
+  });
+});
+
 // ── F3: bare `--top` group === the rule `Next:` names (single ordering) ───────
 // issuePriorityRank (drives which group bare `--top` renders, via groupIssues)
 // and computeSuggestedNext (drives the `Next:` line) must order UNRANKED errors
@@ -217,5 +265,38 @@ describe('bare --top group === the rule Next names (F3 invariant)', () => {
     const next = computeSuggestedNext(errors);
     expect(topGroup.code).toBe('mapping-path-missing');
     expect(next).toBe('yg fix mapping on broken'); // the issue's own next, alphabetically-first
+  });
+});
+
+// ── Task 6: computeSuggestedNext's structural fallback names the FILE for a
+//    nodeless (type-covered-file) structural issue, never '.yggdrasil'. ──────
+describe('computeSuggestedNext — nodeless structural fallback (Task 6)', () => {
+  it('names the subject FILE (from the unit key) when the chosen structural issue has no component', () => {
+    const errors: CheckIssue[] = [{
+      severity: 'error',
+      code: 'file-unreadable',
+      rule: 'file-unreadable',
+      nodePath: undefined,
+      unitKey: 'file:src/leaf/a.ts',
+      messageData: {
+        what: "Aspect 'own-file-rule' could not read its subject file 'src/leaf/a.ts': EACCES.",
+        why: 'y',
+        next: 'Fix permissions.',
+      },
+    } as CheckIssue];
+    const next = computeSuggestedNext(errors);
+    expect(next).toContain('Fix file-unreadable in src/leaf/a.ts');
+    expect(next).not.toContain('.yggdrasil');
+  });
+
+  it('still falls back to .yggdrasil for a genuinely repo-level structural issue (neither nodePath nor a file unitKey)', () => {
+    const errors: CheckIssue[] = [{
+      severity: 'error',
+      code: 'config-invalid',
+      rule: 'config-invalid',
+      messageData: { what: 'bad config', why: 'y', next: 'fix it' },
+    } as CheckIssue];
+    const next = computeSuggestedNext(errors);
+    expect(next).toContain('Fix config-invalid in .yggdrasil');
   });
 });

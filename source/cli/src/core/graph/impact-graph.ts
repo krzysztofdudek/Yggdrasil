@@ -286,13 +286,14 @@ export type ImpactReason =
 export interface InvalidatedPair {
   aspectId: string;
   unitKey: string;
-  nodePath: string;
+  /** Absent for a nodeless (type-covered-file) pair — follows ExpectedPair's optionality. */
+  nodePath?: string;
   kind: 'llm' | 'deterministic';
   reasons: ImpactReason[];
   mode: 'precise' | 'potential';
 }
 
-export interface UnresolvedUnit { aspectId: string; unitKey: string; nodePath: string; why: string }
+export interface UnresolvedUnit { aspectId: string; unitKey: string; nodePath?: string; why: string }
 
 export interface ImpactSet { pairs: InvalidatedPair[]; unresolved: UnresolvedUnit[] }
 
@@ -323,8 +324,13 @@ export function classifyInvalidations(
       if (touchedReferencesFile(entry.touched, repoRelative)) {
         reasons.push(p.kind === 'llm' ? 'observe-companion' : 'observe-deterministic');
       }
-    } else if (reasons.length === 0) {
-      // cold (no lock entry) and not yet admitted by subject/reference
+    } else if (reasons.length === 0 && p.nodePath !== undefined) {
+      // cold (no lock entry) and not yet admitted by subject/reference. Skipped
+      // entirely for a nodeless pair: there is no component whose allowed-reads
+      // apply (collectAllowedReadsForAspect would return ∅ for an absent path —
+      // the safe reading — but this makes the skip explicit rather than relying
+      // on that fall-through). A nodeless pair can still be admitted above
+      // (own/reference/observe), just never through this cold-start estimate.
       if (p.kind === 'deterministic') {
         const allowed = collectAllowedReadsForAspect(p.nodePath, graph);
         if (isPathInMapping(repoRelative, [...allowed])) { reasons.push('cold-potential-deterministic'); mode = 'potential'; }

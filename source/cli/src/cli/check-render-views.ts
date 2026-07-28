@@ -5,6 +5,7 @@ import { ZERO_CLASSIFYING_TYPES_NOTICE } from '../core/check-codes.js';
 import { groupIssues, issuePriorityRank, type IssueGroup } from './group-issues.js';
 import { renderHeader, useEmoji } from './check-render-header.js';
 import { renderErrorSection, renderWarningSection, renderDetailsSection, renderUnmappedBlock, renderGroup } from './check-render-groups.js';
+import { toPosixPath } from '../utils/posix.js';
 
 // ── Output formatting ──────────────────────────────────────
 
@@ -321,7 +322,12 @@ function renderSummaryRows(issues: CheckIssue[]): string {
   };
 
   for (const issue of issues) {
-    const node = issue.nodePath ?? '(repo)';
+    // A file-level (nodeless) pair-derived issue rows under its OWN file path —
+    // collapsing it into '(repo)' would fold the whole type-covered tier into
+    // one undifferentiated row. '(repo)' keeps its meaning for an issue with
+    // NEITHER a component nor a file unit (a stale digest, an unreadable lock).
+    const node = issue.nodePath
+      ?? (issue.unitKey?.startsWith('file:') ? toPosixPath(issue.unitKey.slice('file:'.length)) : '(repo)');
     const a = agg(node);
     if (issue.code === 'unverified') {
       if (issue.pairKind === 'deterministic') a.unverifiedDet++;

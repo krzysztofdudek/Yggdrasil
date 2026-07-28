@@ -10,7 +10,7 @@ description: "Fill stage behind yg check --approve — the single producer of
   (provider unreachable, tier-resolution error, reference-load failure,
   unparseable response) or a tainted/failed deterministic result."
 max_direct_relations:
-  limit: 22
+  limit: 24
   reason: >-
     Reviewed architectural seam. This node is the SINGLE producer of verdict-lock
     entries and the fill orchestrator — it fans out to every subsystem a
@@ -20,12 +20,18 @@ max_direct_relations:
     direct-relation count concentrates that orchestration in one auditable place
     by design; a split was deliberately deferred by the maintainer because
     dividing the single write chokepoint would weaken the fail-closed guarantee.
-    The ceiling is set to the exact reviewed count (22), so any NEW dependency
-    beyond this pushes the node over its own ceiling and re-raises the warning.
+    The ceiling is set to the exact reviewed count, so any NEW dependency beyond
+    it pushes the node over its own ceiling and re-raises the warning.
     Raised from 21 to 22 for a reviewed dependency on the log-history validator:
     the closure step records a node's log baseline, and a correctness fix now
     validates that baseline against tampering before recording it, rather than
     trusting a working-tree log that a merge or hand-edit could have rewritten.
+    Raised from 22 to 24 (Task 6, type-level coverage) for two more genuine
+    dependencies: cli/core/type-coverage (the SAME type-coverage classification
+    runCheck computes once per run, threaded into this stage's own
+    verifyLock/GC calls — the R5 anti-prune lever) and cli/io/file-content-cache
+    (the shared content cache that classification reads through). Both are real
+    calls this stage's own code makes, not incidental coupling.
 aspects:
   - deterministic
   - posix-paths-output
@@ -77,6 +83,10 @@ relations:
   - target: cli/utils
     type: calls
   - target: cli/core/companion-resolve
+    type: calls
+  - target: cli/core/type-coverage
+    type: calls
+  - target: cli/io/file-content-cache
     type: calls
 mapping:
   - source/cli/src/core/fill.ts

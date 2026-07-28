@@ -466,3 +466,97 @@ describe('check render — --details view (task 2.1)', () => {
   });
 });
 
+
+// ── Task 6: nodeless (type-covered-file) members — two-block rendering ───────
+
+describe('renderGroup — nodeless members (Task 6)', () => {
+  function fileIssue(unitKey: string, aspectId = 'own-file-rule'): CheckIssue {
+    return {
+      severity: 'error',
+      code: 'unverified',
+      rule: 'unverified',
+      aspectId,
+      pairKind: 'deterministic',
+      nodePath: undefined,
+      unitKey,
+      messageData: unverifiedMessage({ aspectId, unitKey }),
+    } as CheckIssue;
+  }
+  function nodeIssue(nodePath: string, aspectId = 'own-file-rule'): CheckIssue {
+    return {
+      severity: 'error',
+      code: 'unverified',
+      rule: 'unverified',
+      aspectId,
+      pairKind: 'deterministic',
+      nodePath,
+      unitKey: `node:${nodePath}`,
+      messageData: unverifiedMessage({ aspectId, unitKey: `node:${nodePath}` }),
+    } as CheckIssue;
+  }
+
+  it('a nodeless member renders its FILE, never an empty bullet or the literal word "undefined"', () => {
+    const [g] = groupIssues([fileIssue('file:src/leaf/a.ts')]);
+    const lines: string[] = [];
+    renderGroup(g, lines, { isTTY: false });
+    const out = stripAnsi(lines.join('\n'));
+    expect(out).toContain('- src/leaf/a.ts');
+    expect(out).not.toMatch(/undefined/);
+    expect(out).not.toMatch(/^\s*-\s*$/m); // no bare empty bullet line
+  });
+
+  it('renders components in one block and files in a SEPARATE block after them', () => {
+    const [g] = groupIssues([
+      nodeIssue('svc-a'),
+      fileIssue('file:src/leaf/a.ts'),
+      nodeIssue('svc-b'),
+      fileIssue('file:src/leaf/b.ts'),
+    ]);
+    expect(g.nodeCount).toBe(2);
+    expect(g.fileCount).toBe(2);
+    const lines: string[] = [];
+    renderGroup(g, lines, { isTTY: false });
+    const out = stripAnsi(lines.join('\n'));
+    const svcAIdx = out.indexOf('- svc-a');
+    const svcBIdx = out.indexOf('- svc-b');
+    const fileAIdx = out.indexOf('- src/leaf/a.ts');
+    const fileBIdx = out.indexOf('- src/leaf/b.ts');
+    expect([svcAIdx, svcBIdx, fileAIdx, fileBIdx].every((i) => i >= 0)).toBe(true);
+    // Every component bullet precedes every file bullet.
+    expect(Math.max(svcAIdx, svcBIdx)).toBeLessThan(Math.min(fileAIdx, fileBIdx));
+  });
+
+  it('the group header names BOTH components and files when the group mixes them', () => {
+    const [g] = groupIssues([nodeIssue('svc-a'), fileIssue('file:src/leaf/a.ts')]);
+    const lines: string[] = [];
+    renderGroup(g, lines, { isTTY: false });
+    const out = stripAnsi(lines.join('\n'));
+    expect(out).toContain('2 pairs  1 nodes, 1 files');
+  });
+
+  it('a group that is ALL file-level (zero real components) is not treated as repo-level — it still gets per-file bullets', () => {
+    const [g] = groupIssues([fileIssue('file:src/leaf/a.ts'), fileIssue('file:src/leaf/b.ts')]);
+    expect(g.nodeCount).toBe(0);
+    expect(g.fileCount).toBe(2);
+    const lines: string[] = [];
+    renderGroup(g, lines, { isTTY: false });
+    const out = stripAnsi(lines.join('\n'));
+    expect(out).toContain('2 pairs  2 files');
+    expect(out).toContain('- src/leaf/a.ts');
+    expect(out).toContain('- src/leaf/b.ts');
+  });
+
+  it('a file member never consumes the component block’s cap (independent caps, TTY truncation)', () => {
+    const nodeMembers = Array.from({ length: 13 }, (_, i) => nodeIssue(`svc-${i}`));
+    const fileMembers = [fileIssue('file:src/leaf/only-file.ts')];
+    const [g] = groupIssues([...nodeMembers, ...fileMembers]);
+    const lines: string[] = [];
+    renderGroup(g, lines, { isTTY: true });
+    const out = stripAnsi(lines.join('\n'));
+    // 13 components > CAP_NODES(12) → component block truncates ("... and 1 more").
+    expect(out).toContain('... and 1 more');
+    // The lone file member still renders — it was never displaced by the
+    // component overflow, because it lives in its own block with its own cap.
+    expect(out).toContain('- src/leaf/only-file.ts');
+  });
+});

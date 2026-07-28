@@ -288,6 +288,17 @@ entries**, which is what makes a draft round-trip free. Under
 \`--only-deterministic\` the rewrite is scoped to the gitignored cache, so a
 deterministic-only / CI run never rewrites (or GC-prunes) the committed files.
 
+An entry is pruned only when it can be POSITIVELY proven detached — the retain
+family covers every case where the graph cannot prove that this run: a node
+whose own rule set could not be computed (e.g. an implies cycle, reported
+separately), a file whose subject was unreadable this run, and a file the
+type-level classifier could not decide a type for this run (reported
+ambiguous). Every entry in that family keeps its stored result untouched.
+\`--approve\` and \`--dry-run\` (a preview, computed over a disposable copy — it
+writes nothing) both print a summary whenever something is actually pruned:
+a count split into billed (LLM) vs free (deterministic), with the reason
+listed per entry; nothing prints when nothing was pruned.
+
 ## Merge conflict in a committed lock file
 
 Only the COMMITTED files can conflict (\`yg-lock.nondeterministic.json\`,

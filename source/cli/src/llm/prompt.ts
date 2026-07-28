@@ -40,7 +40,13 @@ export interface PromptSuppressedRangesInput {
 export interface PairPromptInput {
   aspect: PromptAspectInput;
   references: PromptReferenceInput[];
-  nodePath: string;
+  /**
+   * Absent for a nodeless (type-covered-file) pair — there is no component to
+   * name. Rendered as the empty string in `<node path="" .../>` (Task 9 owns the
+   * real per-file prompt framing); a component pair's rendering is byte-identical
+   * to before (nodePath is always defined there).
+   */
+  nodePath?: string;
   nodeDescription: string;
   files: PromptFileInput[];           // per-node: whole subject set; per-file: exactly one
   companions?: PromptCompanionInput[];   // resolved per-unit by companion.mjs; absent for plain aspects
@@ -137,7 +143,7 @@ Respond with EXACTLY this JSON, nothing else:
 {"satisfied": true|false, "reason": "explanation with file:line references"}
 </task>
 
-<node path="${escapeXmlText(nodePath, { attribute: true })}" description="${escapeXmlText(nodeDescription, { attribute: true })}" />
+<node path="${escapeXmlText(nodePath ?? '', { attribute: true })}" description="${escapeXmlText(nodeDescription, { attribute: true })}" />
 
 <aspect id="${escapeXmlText(aspect.id, { attribute: true })}" description="${escapeXmlText(aspect.description, { attribute: true })}">
 ${aspect.content}
