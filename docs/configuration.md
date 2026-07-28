@@ -224,7 +224,7 @@ coverage:
 Controls which coverage-visible files must be mapped to a node in `yg check`.
 
 - **`required`** — List of roots. Files under a required root that are not mapped to any node produce an `unmapped-files` error (blocks CI). Default: `["/"]` (the whole repo — reproduces the previous always-map-everything behavior). An explicit empty list `[]` means **require nothing** — every uncovered file (outside `excluded`/nested) becomes a non-blocking `uncovered-advisory` warning and nothing blocks (pure-advisory adoption: you still see the full uncovered surface, but CI stays green on coverage). The empty list only takes effect when written explicitly; omitting the whole `coverage` block keeps the `["/"]` default. `yg init` writes an explicit `required: []` into a fresh `yg-config.yaml`, so newly-initialized projects start in require-nothing mode (green from the first check) — add roots as you bring areas under enforcement.
-- **`excluded`** — List of roots. Files under an excluded root are silently ignored regardless of other rules.
+- **`excluded`** — List of roots. Files under an excluded root are silently ignored regardless of other rules — this holds even when a MORE SPECIFIC required root also matches the same file; exclusion always wins once it matches at all.
 - **`type_level`** — Boolean, default `false`. Turns on type-level coverage: a file matched by exactly one classifying type's `when` predicate counts as covered by that type even though it has no node of its own. Committed config only — the gitignored `yg-secrets.yaml` overlay can never change it, since the flag changes what counts as covered/uncovered for `yg check`, and that must be the same for everyone working on the repo rather than something a local override can silently flip. Omitting the key (or the whole `coverage` block) leaves today's file-only coverage exactly as it is.
 
   With it on, every uncovered file is classified against every type that has a `when` predicate, and lands in exactly one outcome — one issue per file, the most-binding outcome wins, and none of the first four ever also shows up in the plain `unmapped-files`/`uncovered-advisory` listing (each already has its own, more specific verdict):
@@ -252,7 +252,7 @@ Controls which coverage-visible files must be mapped to a node in `yg check`.
 - Files that match neither a required nor an excluded root produce a non-blocking `uncovered-advisory` warning.
 - Subtrees that contain their own nested `.yggdrasil/` are auto-skipped by all repo-walking checks — they are governed by their own graph, not the root graph.
 
-Each file is scored against all roots independently; the longest matching root (or pattern, by length) wins, and on an equal-length tie between a required and an excluded root, excluded wins.
+A file matching ANY excluded root is dropped entirely, before required/middle tiering ever runs — exclusion is absolute, independent of whether a required root also matches it and independent of how specific either root is. Among the files that match no excluded root, any matching required root puts the file in the blocking tier. A required root fully contained inside an excluded root can therefore never match anything; `yg check` warns (`coverage-required-shadowed`) when both roots are plain (non-glob) paths.
 
 ---
 

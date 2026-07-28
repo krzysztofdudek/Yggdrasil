@@ -44,3 +44,7 @@ A new category of non-blocking finding needed a single shared name so that the t
 Removes the retired coverage-conflict code from the structural code set now that its detector is gone. Its replacement varies in severity by where the offending file lives in the repository, so it does not belong in a set reserved for codes that always block regardless of state.
 ## [2026-07-27T15:57:02.746Z]
 ambiguous-node-type joins the structural code set: it always blocks yg check, like the other architecture-shape codes, and the summary tally and the check command's error grouping now agree on that without either needing its own copy of the rule.
+## [2026-07-28T12:11:38.315Z]
+Documents the new coverage-required-shadowed warning code: it flags a required coverage root that can never match a file because it is fully contained in an excluded root, a consequence of coverage exclusion becoming absolute rather than a longest-match comparison.
+## [2026-07-28T12:25:31.449Z]
+Reworded the coverage-required-shadowed warning-code doc comment so it reads as a self-contained description of the absolute-exclusion rule rather than referencing an external planning label.

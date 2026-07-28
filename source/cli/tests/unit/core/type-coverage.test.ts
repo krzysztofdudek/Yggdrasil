@@ -345,25 +345,20 @@ describe('runCheck — type-level coverage wiring (flag on)', () => {
 });
 
 // ===========================================================================
-// Excluded-ancestor-of-required corner (INDEPENDENT of the exclusion-
-// semantics ruling — type-coverage.ts:77's own excluded-mute test is left
-// untouched). computeTypeCoverage mutes a file the instant ANY coverage.
-// excluded root matches it, without applying partitionByCoverageTier's
-// longest-match precedence — so a file under a required root that is ALSO
-// under a broader excluded ancestor is muted (never classified at all), even
-// though partitionByCoverageTier (a different, longest-match authority) still
-// puts that same file in the required tier. This section only pins that the
-// resulting unmapped-files message never claims a fact the lattice never
-// established for a muted file — it takes no position on whether the file
-// SHOULD block.
+// Excluded-ancestor-of-required corner — Q1 (absolute exclusion) resolution.
+// Before Q1, computeTypeCoverage's own excluded-mute (independent, already
+// absolute) disagreed with partitionByCoverageTier's longest-match: the SAME
+// file could be lattice-muted yet still land in the required tier. Q1 unifies
+// both onto isExcludedByCoverage, so the corner is now fully closed: a file
+// under this fixture's src/misc/ required root, ALSO under a broader src/
+// excluded root, is silenced everywhere — AND the required root itself is now
+// a detectable dead config line (coverage-required-shadowed).
 // ===========================================================================
 
-describe('runCheck — excluded-ancestor-of-required corner: no false "no type" claim on a lattice-muted file', () => {
-  it('a required-root file that also falls under a broader excluded root is lattice-muted, so it gets the PLAIN unmapped message, never the "no type" enrichment', async () => {
+describe('runCheck — excluded-ancestor-of-required corner is now fully closed (Q1)', () => {
+  it('every src/** file is silenced by the broader excluded root; the shadowed required root is warned; vendor/tool.ts (no longer excluded under this config) becomes type-covered', async () => {
     const dir = copyFixture();
     const graphOn = await loadGraph(dir);
-    // required 'src/misc/' is nested inside excluded 'src/' — the fixture's
-    // only file under src/misc/ is src/misc/plain.ts.
     const graph: Graph = {
       ...graphOn,
       config: {
@@ -373,12 +368,44 @@ describe('runCheck — excluded-ancestor-of-required corner: no false "no type" 
     };
     const files = await walkRepoFiles(dir);
     const result = await runCheck(graph, files);
-    const unmapped = result.issues.find((i) => i.code === 'unmapped-files');
-    expect(unmapped?.uncoveredFiles).toContain('src/misc/plain.ts');
-    // The lattice never classified this file (muted before classification —
-    // it matches the excluded root 'src/'), so it must NOT be told its
-    // architecture "has no type" for it — that was never established.
-    expect(unmapped?.messageData.why).not.toContain('Your architecture has no type for this file');
+
+    // No src/** file appears in the coverage-nodeless-tier issues — plain.ts,
+    // handler.ts, and overlap.ts are all under excluded 'src/', silenced before
+    // classification and before required/middle tiering both run through the
+    // same absolute authority (isExcludedByCoverage).
+    for (const f of ['src/misc/plain.ts', 'src/svc/handler.ts', 'src/svc/overlap.ts']) {
+      const mentions = result.issues.some(
+        (i) => i.messageData.what.includes(f) || (i.uncoveredFiles ?? []).includes(f),
+      );
+      expect(mentions).toBe(false);
+    }
+    expect(result.issues.some((i) => i.code === 'unmapped-files')).toBe(false);
+    expect(result.issues.some((i) => i.code === 'ambiguous-node-type')).toBe(false);
+    // special.ts is DIFFERENT from the other three: checkStrictBackwardCoverage
+    // (core/checks/mapping.ts) is a structural, mapping-ownership validator that
+    // never consults coverage.excluded at all — it scans every repo file via its
+    // own walk and flags any file satisfying a strict type's `when` with no owning
+    // node, independent of coverage tiering. Q1's absolute-exclusion authority
+    // (isExcludedByCoverage) governs only the coverage NODELESS tier
+    // (partitionByCoverageTier / computeTypeCoverage / scanTrackedButIgnored, per
+    // this task's own scope) — it does not reach the strict backward scan, so
+    // special.ts still surfaces as type-strict-orphan here, exactly as it would
+    // with any other coverage config. This is unrelated to and unaffected by Q1.
+    expect(result.issues.some((i) => i.code === 'type-strict-orphan')).toBe(true);
+
+    // The dead required line is now a visible, actionable warning instead of a
+    // silent no-op — this is the "coverage-required-shadowed" this task adds.
+    const shadowed = result.issues.find((i) => i.code === 'coverage-required-shadowed');
+    expect(shadowed).toBeDefined();
+    expect(shadowed!.severity).toBe('warning');
+
+    // vendor/tool.ts is NOT under this test's excluded root ('src/' only, not
+    // 'vendor/'), so it is classified for the first time in this test — and the
+    // fixture's `util` type explicitly names it in an any_of clause (see the
+    // fixture's own yg-architecture.yaml comment), so it becomes type-covered.
+    const advisory = result.issues.find((i) => i.code === 'uncovered-advisory');
+    expect(advisory).toBeUndefined(); // vendor/tool.ts is covered, not advisory
+    expect(result.typeCoveredCount).toBe(1); // vendor/tool.ts alone
   });
 });
 
@@ -410,6 +437,11 @@ describe('runCheck — coverage.type_level OFF reproduces pre-type-level behavio
     expect(unmapped!.uncoveredFiles).toContain('src/svc/overlap.ts');
     expect(unmapped!.uncoveredFiles).toContain('src/util/special.ts');
     expect(unmapped!.uncoveredFiles).toContain('src/misc/plain.ts');
+    // Insurance against drift: this fixture's required ('src/') and excluded
+    // ('vendor/') roots do not nest, so checkRequiredShadowedByExcluded (a
+    // pure config check, unrelated to the type-level flag) must stay silent
+    // here regardless of whether the flag is on or off.
+    expect(result.issues.some((i) => i.code === 'coverage-required-shadowed')).toBe(false);
   });
 });
 

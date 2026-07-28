@@ -6,7 +6,11 @@ import {
   buildCoverageIssue,
   buildCoverageAdvisoryIssue,
 } from '../../../src/core/check.js';
-import { blockingUnmappedPaths } from '../../../src/core/check-coverage-tiers.js';
+import {
+  blockingUnmappedPaths,
+  isExcludedByCoverage,
+  checkRequiredShadowedByExcluded,
+} from '../../../src/core/check-coverage-tiers.js';
 
 // The question `yg init` asks after writing the agent-rules files into a
 // project: will THIS project's coverage settings turn them red? Answered
@@ -46,6 +50,13 @@ describe('blockingUnmappedPaths', () => {
     // Trailing slash, leading ./ — normalized the same way node mappings are.
     const mappings = ['./AGENTS.md', '.clinerules/', '', 'CLAUDE.md', '.gitattributes'];
     expect(blockingUnmappedPaths(MANAGED, mappings, { required: ['/'], excluded: [], typeLevel: false })).toEqual([]);
+  });
+
+  it('K1: a nested config now silences a file blockingUnmappedPaths used to flag — yg init advice shifts for free (no code change in blockingUnmappedPaths itself)', () => {
+    // Before Q1: required '.clinerules/' (more specific, wins) made this file blocking.
+    // After Q1: excluded '.clinerules' (broader ancestor) silences it outright.
+    const coverage = { required: ['.clinerules/yggdrasil.md'], excluded: ['.clinerules/'], typeLevel: false };
+    expect(blockingUnmappedPaths(['.clinerules/yggdrasil.md'], [], coverage)).toEqual([]);
   });
 });
 
@@ -192,6 +203,80 @@ describe('partitionByCoverageTier', () => {
     );
     expect(r.required.sort()).toEqual(['services/auth/x.ts', 'services/billing/y.ts']);
     expect(r.middle).toEqual([]);
+  });
+});
+
+describe('partitionByCoverageTier — absolute exclusion (post-Q1)', () => {
+  it('a required root nested inside a broader excluded root is silenced entirely — required no longer wins on specificity', () => {
+    const r = partitionByCoverageTier(
+      ['services/api/h.ts', 'services/other/x.ts'],
+      { required: ['services/api/'], excluded: ['services/'], typeLevel: false },
+    );
+    // Before Q1: services/api/h.ts landed in `required` (longer match wins).
+    // After Q1: ANY excluded match silences the file outright, regardless of
+    // whether a more specific required root also matches it.
+    expect(r.required).toEqual([]);
+    expect(r.middle).toEqual([]);
+  });
+
+  it('equal-length tie still resolves to excluded (unchanged outcome, now for a structural reason: excluded is checked FIRST, not because it "wins a tie")', () => {
+    const r = partitionByCoverageTier(['foo/x.ts'], { required: ['foo/'], excluded: ['foo/'], typeLevel: false });
+    expect(r.required).toEqual([]);
+    expect(r.middle).toEqual([]);
+  });
+
+  it('a required root NOT contained in any excluded root is unaffected', () => {
+    const r = partitionByCoverageTier(
+      ['services/x.ts'],
+      { required: ['services/'], excluded: ['vendor/'], typeLevel: false },
+    );
+    expect(r.required).toEqual(['services/x.ts']);
+  });
+});
+
+describe('isExcludedByCoverage', () => {
+  it('true for a file under a plain excluded root', () => {
+    expect(isExcludedByCoverage('vendor/lib.ts', { required: [], excluded: ['vendor/'], typeLevel: false })).toBe(true);
+  });
+  it('true for a file under a glob excluded root', () => {
+    expect(isExcludedByCoverage('src/x.generated.ts', { required: [], excluded: ['**/*.generated.ts'], typeLevel: false })).toBe(true);
+  });
+  it('false when no excluded root matches', () => {
+    expect(isExcludedByCoverage('src/a.ts', { required: [], excluded: ['vendor/'], typeLevel: false })).toBe(false);
+  });
+  it('true regardless of a required root also matching (the SCOPE GUARD fact, at the predicate level)', () => {
+    expect(isExcludedByCoverage('services/api/h.ts', { required: ['services/api/'], excluded: ['services/'], typeLevel: false })).toBe(true);
+  });
+});
+
+describe('checkRequiredShadowedByExcluded', () => {
+  it('warns when a plain required root is fully inside a plain excluded root', () => {
+    const issues = checkRequiredShadowedByExcluded({ required: ['src/misc/'], excluded: ['src/'], typeLevel: false });
+    expect(issues).toHaveLength(1);
+    expect(issues[0].severity).toBe('warning');
+    expect(issues[0].code).toBe('coverage-required-shadowed');
+    expect(issues[0].messageData.what).toContain('src/misc/');
+    expect(issues[0].messageData.what).toContain('src/');
+  });
+  it('warns on an EXACT match (required === excluded, both normalize equal)', () => {
+    const issues = checkRequiredShadowedByExcluded({ required: ['foo/'], excluded: ['foo/'], typeLevel: false });
+    expect(issues).toHaveLength(1);
+  });
+  it('does NOT warn when the required root is not contained in any excluded root', () => {
+    const issues = checkRequiredShadowedByExcluded({ required: ['services/'], excluded: ['vendor/'], typeLevel: false });
+    expect(issues).toEqual([]);
+  });
+  it('does NOT warn on a glob required or excluded root — glob-vs-glob shadowing is undecidable, documented not warned', () => {
+    expect(checkRequiredShadowedByExcluded({ required: ['src/**'], excluded: ['src/'], typeLevel: false })).toEqual([]);
+    expect(checkRequiredShadowedByExcluded({ required: ['src/misc/'], excluded: ['**/misc/**'], typeLevel: false })).toEqual([]);
+  });
+  it('one warning per shadowed required root, not one per excluded root it happens to match', () => {
+    const issues = checkRequiredShadowedByExcluded({
+      required: ['src/misc/'],
+      excluded: ['src/', 'src/misc/'], // both would shadow it
+      typeLevel: false,
+    });
+    expect(issues).toHaveLength(1);
   });
 });
 

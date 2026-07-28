@@ -175,6 +175,15 @@ export const APPROVE_GATING_CODES = new Set<string>([
  *     warning, deliberately outside every blocking set — it never writes the
  *     lock, changes a verdict, or gates `--approve`. Emitted by checkDigestGate.
  *
+ *   - coverage-required-shadowed — dead-config-line linter: coverage exclusion is
+ *     absolute, so a coverage.required root that is fully contained in a
+ *     coverage.excluded root can never match a file (exclusion always wins once
+ *     it matches at all), so the required line is dead. Only decided for plain
+ *     roots on both sides — glob-vs-glob containment is not statically
+ *     decidable and is documented rather than warned. Emitted by
+ *     checkRequiredShadowedByExcluded. Pure config check (no file list needed),
+ *     read-only, never blocks, never gates --approve.
+ *
  * (Pre-existing warnings such as `orphaned-aspect`, `high-fan-out`, and
  * `aspect-references-empty-array` follow the same convention: warning severity,
  * outside every blocking set.)

@@ -57,7 +57,7 @@ falls under: it ships in the repository, yet nothing that reads the disk walk
 ever sees it. \`yg check\` catches this — the ONE remaining git consumer in the
 whole coverage surface, comparing real \`git ls-files\` output against the disk
 walk — as \`tracked-file-gitignored\`, mirroring the coverage tiers exactly
-(same longest-match authority, \`partitionByCoverageTier\`): error under a
+(same absolute-exclusion authority, \`partitionByCoverageTier\`): error under a
 \`coverage.required\` root, warning otherwise, and no issue at all under a
 \`coverage.excluded\` root — the same exclusion authority every other coverage
 check honors, so an excluded area never gets flagged here either. Either

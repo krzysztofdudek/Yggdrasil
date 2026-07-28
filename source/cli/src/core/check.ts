@@ -417,7 +417,12 @@ export {
   buildCoverageIssue,
   buildCoverageAdvisoryIssue,
 } from './check-coverage-tiers.js';
-import { partitionByCoverageTier, buildCoverageIssue, buildCoverageAdvisoryIssue } from './check-coverage-tiers.js';
+import {
+  partitionByCoverageTier,
+  buildCoverageIssue,
+  buildCoverageAdvisoryIssue,
+  checkRequiredShadowedByExcluded,
+} from './check-coverage-tiers.js';
 
 /**
  * Find coverage-visible files not covered by any node mapping.
@@ -484,10 +489,11 @@ export function scanUncoveredFiles(graph: Graph, gitTrackedFiles: string[]): str
  * skipped rather than guessing.
  *
  * Severity mirrors the coverage tiers EXACTLY via `partitionByCoverageTier`'s
- * longest-match authority — not a second, independent `required`-only test:
- * error under `coverage.required`, warning otherwise, NO issue at all when the
- * longest-matching root is `coverage.excluded` (same precedence, so a required
- * root nested inside a broader excluded one still resolves correctly).
+ * absolute-exclusion authority (isExcludedByCoverage) — not a second,
+ * independent `required`-only test: error under `coverage.required`, warning
+ * otherwise, NO issue at all when `coverage.excluded` matches (exclusion is
+ * absolute, so a required root nested inside a broader excluded one still
+ * resolves correctly).
  *
  * One more exemption: a file named DIRECTLY (exact match, not a glob or a
  * directory) in some node's mapping is hashed and reviewed regardless of
@@ -552,8 +558,8 @@ export async function scanTrackedButIgnored(
   }
   if (ignoredFiles.length === 0) return [];
 
-  // ONE exclusion authority: route through the same longest-match tier split
-  // every other coverage check uses, rather than a second, independent
+  // ONE exclusion authority: route through the same absolute-exclusion tier
+  // split every other coverage check uses, rather than a second, independent
   // `required`-only test that (before this fix) ignored `coverage.excluded`.
   const coverage = graph.config.coverage ?? DEFAULT_COVERAGE;
   const tiers = partitionByCoverageTier(ignoredFiles, coverage);
@@ -583,13 +589,13 @@ export async function scanTrackedButIgnored(
  * actionable command, not folded into the factual WHY).
  *
  * Callers MUST call this only when every file the issue lists actually ran
- * through the lattice and came back `unmatched` — never for a file the
- * lattice MUTED before classification (the excluded-ancestor-of-required
- * corner, still awaiting a maintainer ruling on exclusion semantics). A muted
- * file was never checked against any type; asserting "your architecture has
- * no type for this file" would be a claim the lattice never established. See
- * the coverage section below for how the caller tells the two apart. Returns
- * `issue` unchanged when null.
+ * through the lattice and came back `unmatched`. The excluded-ancestor-of-
+ * required corner that once required checking this separately is now
+ * impossible (exclusion is absolute, so a file can never be muted from
+ * classification yet still land in a coverage tier — see the coverage
+ * section below). A muted file was never checked against any type;
+ * asserting "your architecture has no type for this file" would be a claim
+ * the lattice never established. Returns `issue` unchanged when null.
  */
 function enrichNoTypeMessage(issue: CheckIssue | null): CheckIssue | null {
   if (issue === null) return issue;
@@ -852,13 +858,18 @@ export async function runCheck(
 
   // 3. Coverage scan (unmapped-files / uncovered-advisory), plus the
   // type-level classification lattice (coverage.type_level) when opted in.
-  let coverageIssues: CheckIssue[] = [];
   let coveredFiles = 0;
   let totalFiles = 0;
   let typeCoveredCount = 0;
   let nodeOwnedFiles = 0;
   let excludedFiles = 0;
   const coverage = graph.config.coverage ?? DEFAULT_COVERAGE;
+  // Pure config check — fires on EVERY run regardless of walk availability
+  // or the type-level flag. Seeds coverageIssues (rather than an empty-array
+  // declaration pushed into later): the gitTrackedFiles branch below
+  // reassigns coverageIssues wholesale, so a later push here would be
+  // silently discarded.
+  let coverageIssues: CheckIssue[] = checkRequiredShadowedByExcluded(coverage);
   const typeLevel = coverage.typeLevel === true;
   // Pure architecture fact — independent of the flag and of file-walk
   // availability — so the zero-classifying-types notice can fire even when
@@ -897,14 +908,10 @@ export async function runCheck(
     let middleForIssue = tiers.middle;
     const typeLevelIssues: CheckIssue[] = [];
     let sawTypeLevel = false;
-    // Populated only when the lattice ran — lets the enrichment gate below
-    // tell a genuinely-unmatched file apart from a lattice-muted one.
-    let genuinelyUnmatched = new Set<string>();
     if (coverage.typeLevel) {
       sawTypeLevel = true;
       const typeCoverage = await computeTypeCoverage(graph, uncovered, new FileContentCache());
       typeCoveredCount = typeCoverage.covered.size;
-      genuinelyUnmatched = new Set(typeCoverage.unmatched);
 
       // The lattice is one issue per file, most-binding wins: covered/
       // ambiguous/strict-claimed/unreadable files each already have their own
@@ -970,19 +977,16 @@ export async function runCheck(
     let requiredIssue = buildCoverageIssue(requiredForIssue, totalFiles);
     let middleIssue = buildCoverageAdvisoryIssue(middleForIssue);
     if (sawTypeLevel) {
-      // Attach the "no type for this file" sentence only when EVERY listed
-      // file came back genuinely unmatched — never for one the lattice MUTED
-      // before classification (excluded-ancestor-of-required corner; see
-      // computeTypeCoverage). A muted file is in neither spokenFor nor
-      // unmatched, so this check alone tells the two apart.
-      if (requiredForIssue.every((f) => genuinelyUnmatched.has(f))) {
-        requiredIssue = enrichNoTypeMessage(requiredIssue);
-      }
-      if (middleForIssue.every((f) => genuinelyUnmatched.has(f))) {
-        middleIssue = enrichNoTypeMessage(middleIssue);
-      }
+      // Every file left in requiredForIssue/middleForIssue after the
+      // spokenFor filter is, by construction, one computeTypeCoverage
+      // evaluated and found no type for — the corner that once needed a
+      // separate genuinely-unmatched guard is now impossible, since
+      // isExcludedByCoverage is the one authority both this tiering and the
+      // lattice's own mute go through.
+      requiredIssue = enrichNoTypeMessage(requiredIssue);
+      middleIssue = enrichNoTypeMessage(middleIssue);
     }
-    coverageIssues = [requiredIssue, middleIssue, ...typeLevelIssues].filter(
+    coverageIssues = [...coverageIssues, requiredIssue, middleIssue, ...typeLevelIssues].filter(
       (x): x is CheckIssue => x !== null,
     );
 

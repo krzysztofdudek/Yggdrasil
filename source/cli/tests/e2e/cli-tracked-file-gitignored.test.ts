@@ -222,6 +222,22 @@ describe('E2E: the tracked∩gitignored anomaly check (disk-walk visibility vs. 
   );
 
   it.skipIf(!distExists)(
+    'Q1 nested case: a MORE SPECIFIC required root inside a broader excluded root is now silenced too (absolute exclusion beats specificity)',
+    () => {
+      // Before Q1: requiredRoot more specific than excludedRoot -> required won (blocking
+      // error). After Q1: excluded wins outright once it matches at all.
+      const dir = scaffold('nested-q1', { requiredRoot: 'src/svc/', excludedRoot: 'src/' });
+      try {
+        const { out } = run(['check'], dir);
+        expect(out).not.toContain('tracked-file-gitignored');
+        expect(out).not.toContain('secret.ts');
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it.skipIf(!distExists)(
     'I4 composite pin: a gitignored, force-tracked file named LITERALLY in a node mapping yields EXACTLY ONE issue — file-mapping-gitignored, never tracked-file-gitignored',
     () => {
       // secret.ts is simultaneously: git-tracked (force-added), gitignored,

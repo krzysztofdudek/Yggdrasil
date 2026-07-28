@@ -2,7 +2,7 @@ import path from 'node:path';
 import type { Graph } from '../model/graph.js';
 import type { FileContentCache } from '../io/file-content-cache.js';
 import { classifyFile } from './type-classifier.js';
-import { normalizeRoot, matchesRoot } from './check-coverage-tiers.js';
+import { isExcludedByCoverage } from './check-coverage-tiers.js';
 
 /**
  * Result of classifying every uncovered file against the type-level
@@ -77,11 +77,11 @@ export async function computeTypeCoverage(
     unreadable: [],
   };
 
-  const excludedRoots = (graph.config.coverage?.excluded ?? []).map(normalizeRoot);
+  const coverage = graph.config.coverage!; // caller contract: only invoked when typeLevel is true, which requires a coverage block
   const projectRoot = path.dirname(graph.rootPath);
 
   for (const file of uncoveredFiles) {
-    if (excludedRoots.some((r) => matchesRoot(file, r))) continue;
+    if (isExcludedByCoverage(file, coverage)) continue;
 
     const absPath = path.join(projectRoot, file);
     const classification = await classifyFile(absPath, file, graph, cache);

@@ -200,14 +200,16 @@ describe('partitionByCoverageTier', () => {
     expect(r.middle).toEqual(['lib/b.ts']);
   });
 
-  it('file in BOTH, longer match in required → required wins', () => {
-    // 'services/legacy/' (len 16) is required and longer than excluded
-    // 'services/' (len 9). The longer required root claims the file.
+  it('file in BOTH, required more specific than excluded → excluded wins anyway (Q1: absolute exclusion)', () => {
+    // 'services/legacy/' is required and more specific than excluded
+    // 'services/' — under the retired longest-match rule the more specific
+    // required root would have claimed the file. Exclusion is now absolute:
+    // it silences the file regardless of specificity.
     const r = partitionByCoverageTier(
       ['services/legacy/x.ts'],
       { required: ['services/legacy/'], excluded: ['services/'], typeLevel: false },
     );
-    expect(r.required).toEqual(['services/legacy/x.ts']);
+    expect(r.required).toEqual([]);
     expect(r.middle).toEqual([]);
   });
 
@@ -223,10 +225,11 @@ describe('partitionByCoverageTier', () => {
     expect(r.middle).toEqual([]);
   });
 
-  it('EQUAL-LENGTH tie between required and excluded → excluded wins (>= in excluded loop)', () => {
-    // required ['foo/'] and excluded ['foo/'] normalize to the same 'foo' (len
-    // 3). The excluded loop uses >=, so on the equal-length tie excluded wins
-    // and the file is silently dropped.
+  it('EQUAL-LENGTH tie between required and excluded → excluded wins (absolute exclusion, checked first)', () => {
+    // required ['foo/'] and excluded ['foo/'] normalize to the same 'foo'.
+    // Exclusion is checked BEFORE required/middle tiering ever runs, so
+    // excluded wins here for the same structural reason it always wins —
+    // not because of any length comparison.
     const r = partitionByCoverageTier(
       ['foo/x.ts'],
       { required: ['foo/'], excluded: ['foo/'], typeLevel: false },
@@ -273,10 +276,10 @@ describe('partitionByCoverageTier', () => {
     expect(r.middle).toEqual([]);
   });
 
-  it('multi-required: shorter root after a longer one does NOT downgrade (the > guard false branch)', () => {
-    // 'services/auth/' (len 13) is checked, then 'services/' (len 8). The second
-    // iteration's `r.length > best.len` is FALSE, so best stays at the longer
-    // root — the file lands in required either way, but this pins the guard.
+  it('multi-required: a file matching more than one required root still lands in required (any match suffices)', () => {
+    // 'services/auth/x.ts' matches both 'services/auth/' and 'services/' —
+    // required/required precedence needs no length comparison at all: ANY
+    // matching required root is sufficient once the file survives exclusion.
     const r = partitionByCoverageTier(
       ['services/auth/x.ts'],
       { required: ['services/auth/', 'services/'], excluded: [], typeLevel: false },

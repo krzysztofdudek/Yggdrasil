@@ -1,6 +1,6 @@
 import type { CoverageConfig } from '../model/graph.js';
 import { toPosixPath } from '../utils/posix.js';
-import { mappingEntryMatchesFile, normalizeMappingPath } from '../utils/mapping-path.js';
+import { mappingEntryMatchesFile, normalizeMappingPath, isGlobPattern } from '../utils/mapping-path.js';
 // type-only import — erased at runtime, no circular runtime dependency
 import type { CheckIssue } from './check.js';
 
@@ -23,27 +23,81 @@ export function matchesRoot(file: string, normRoot: string): boolean {
 }
 
 /**
- * Split uncovered files into the error tier (longest match in `required`) and the
- * warning tier (no match). Files whose longest match is in `excluded` are dropped.
- * On an equal-length tie between required and excluded, excluded wins.
+ * True iff `file` matches ANY normalized root in `coverage.excluded` (plain or
+ * glob). Exclusion is ABSOLUTE: this predicate is the ONE authority every
+ * nodeless-tier consumer asks the same question through, so a file's excluded
+ * status can never disagree between them — directly for the classification
+ * lattice, coverage tiering, and the tracked∩gitignored anomaly check; INDIRECTLY
+ * for the live type-relation gate (Task 4), which never calls this predicate
+ * itself but consumes `computeTypeCoverage`'s already-filtered `covered` map —
+ * an excluded file is never a member of that map, so it can never become a gate
+ * endpoint either, without the gate needing its own exclusion check. It has NO
+ * opinion on a required root also matching — exclusion wins regardless. An
+ * EXPLICITLY-MAPPED file (a node's own `mapping:` entry) never reaches this
+ * function at all — mapping is stronger intent than exclusion, and pair
+ * enumeration for explicit nodes (core/pairs.ts) has no dependency on
+ * coverage.excluded.
+ */
+export function isExcludedByCoverage(file: string, coverage: CoverageConfig): boolean {
+  return coverage.excluded.map(normalizeRoot).some((r) => matchesRoot(file, r));
+}
+
+/**
+ * Split uncovered files into the error tier (matches a `required` root) and the
+ * warning tier (matches none). A file matching ANY `excluded` root is dropped
+ * BEFORE this split runs at all — exclusion is absolute, independent of whether
+ * a required root also matches and independent of how specific either root is.
+ * Required/middle among the surviving files needs no length comparison: ANY
+ * required-root match is sufficient (there is nothing left to break a tie
+ * against, since excluded files never reach this point).
  */
 export function partitionByCoverageTier(
   uncovered: string[],
   coverage: CoverageConfig,
 ): { required: string[]; middle: string[] } {
   const req = coverage.required.map(normalizeRoot);
-  const exc = coverage.excluded.map(normalizeRoot);
   const required: string[] = [];
   const middle: string[] = [];
   for (const f of uncovered) {
-    let best = { len: -1, tier: 'middle' as 'required' | 'excluded' | 'middle' };
-    for (const r of req) if (matchesRoot(f, r) && r.length > best.len) best = { len: r.length, tier: 'required' };
-    for (const r of exc) if (matchesRoot(f, r) && r.length >= best.len) best = { len: r.length, tier: 'excluded' };
-    if (best.tier === 'required') required.push(f);
-    else if (best.tier === 'middle') middle.push(f);
-    // 'excluded' → silent
+    if (isExcludedByCoverage(f, coverage)) continue;
+    if (req.some((r) => matchesRoot(f, r))) required.push(f);
+    else middle.push(f);
   }
   return { required, middle };
+}
+
+/**
+ * A required root that can never match a file, because every file it could
+ * match also matches an excluded root — a dead config line. Only decided for
+ * PLAIN roots on both sides (glob-vs-glob containment is not statically
+ * decidable from the pattern text alone; documented in configuration.md
+ * instead of guessed here). One warning per shadowed required root, even if
+ * multiple excluded roots would each independently shadow it.
+ */
+export function checkRequiredShadowedByExcluded(coverage: CoverageConfig): CheckIssue[] {
+  const issues: CheckIssue[] = [];
+  for (const rawRequired of coverage.required) {
+    const req = normalizeRoot(rawRequired);
+    if (isGlobPattern(req)) continue;
+    for (const rawExcluded of coverage.excluded) {
+      const exc = normalizeRoot(rawExcluded);
+      if (isGlobPattern(exc)) continue;
+      const shadowed = exc === '' || req === exc || req.startsWith(exc + '/');
+      if (!shadowed) continue;
+      issues.push({
+        severity: 'warning',
+        code: 'coverage-required-shadowed',
+        rule: 'coverage-required-shadowed',
+        messageData: {
+          what: `Required coverage root '${rawRequired}' is fully inside excluded root '${rawExcluded}'.`,
+          why: 'Exclusion is absolute: any file under this required root also matches the excluded root and is silenced before required/middle tiering ever runs. This required line can never make a file block.',
+          next: `Remove the required line for '${rawRequired}', or narrow the excluded root '${rawExcluded}' so it no longer contains it.`,
+        },
+      });
+      break;
+    }
+  }
+  return issues;
 }
 
 /**

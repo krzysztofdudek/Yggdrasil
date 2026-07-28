@@ -6,7 +6,9 @@
  *   - normalizeRoot ("/" → "", leading/trailing/double-slash, trim, backslash)
  *   - matchesRoot (whole-repo "", plain exact/prefix/sibling, glob ** and *)
  *   - partitionByCoverageTier (required/excluded, plain + glob roots,
- *     longest-match-wins, excluded-wins-equal-tie, require-nothing)
+ *     required-vs-required longest-match-wins, absolute exclusion (excluded
+ *     always wins once it matches at all, independent of specificity),
+ *     require-nothing)
  *
  * These functions are pure (string math only — no filesystem I/O for the tier
  * helpers and scanUncoveredFiles), so in-memory graphs are used where possible.
@@ -291,7 +293,7 @@ describe('partitionByCoverageTier — scoped required + excluded', () => {
   });
 });
 
-describe('partitionByCoverageTier — longest-match-wins', () => {
+describe('partitionByCoverageTier — required vs excluded precedence (absolute exclusion)', () => {
   it('a more specific required root beats a broader required root', () => {
     const r = partitionByCoverageTier(
       ['services/auth/x.ts', 'services/billing/y.ts'],
@@ -310,14 +312,17 @@ describe('partitionByCoverageTier — longest-match-wins', () => {
     expect(r.middle).toEqual([]);
   });
 
-  it('a more specific required root beats a broader excluded root (file required)', () => {
-    // excluded 'services/' (len 8), required 'services/api/' (len 12) → longer required wins
+  // RENAMED from 'longest-match-wins' framing — absolute exclusion means excluded ALWAYS
+  // wins once it matches at all, independent of how specific the required root is.
+  it('excluded wins even when a MORE SPECIFIC required root also matches (Q1: absolute exclusion)', () => {
+    // excluded 'services/' (broader), required 'services/api/' (more specific, would have
+    // won under the retired longest-match rule) — now BOTH files are silenced: the
+    // excluded-root file 'services/other/x.ts' as before, AND 'services/api/h.ts' too.
     const r = partitionByCoverageTier(
       ['services/api/h.ts', 'services/other/x.ts'],
       cov(['services/api/'], ['services/']),
     );
-    expect(r.required).toEqual(['services/api/h.ts']);
-    // services/other/x.ts matches only excluded → dropped
+    expect(r.required).toEqual([]);
     expect(r.middle).toEqual([]);
   });
 });
@@ -388,8 +393,8 @@ describe('partitionByCoverageTier — glob roots', () => {
   });
 
   it('a glob excluded root longer than the matching required plain root drops the file', () => {
-    // required 'src' (len 3) matches src/x.gen.ts; excluded 'src/*.gen.ts' (len 12) also
-    // matches → longer (excluded) wins → dropped
+    // required 'src' matches src/x.gen.ts; excluded 'src/*.gen.ts' also matches →
+    // excluded wins because it matches at all (absolute exclusion), independent of length.
     const r = partitionByCoverageTier(
       ['src/x.gen.ts', 'src/x.ts'],
       cov(['src'], ['src/*.gen.ts']),
@@ -822,19 +827,17 @@ describe('scanTrackedButIgnored — tracked∩gitignored anomaly', () => {
     );
   });
 
-  it('nested-longest-match: a required root more specific than a broader excluded root still blocks (excluded does not always win)', async () => {
-    // Longest-match-wins, same as partitionByCoverageTier everywhere else:
-    // required 'src/api/' (normalized length 7) is more specific than
-    // excluded 'src/' (normalized length 3), so a file under src/api/ is
-    // required — the excluded ancestor does not silently swallow it.
+  it('Q1: a required root more specific than a broader excluded root is now silenced too (absolute exclusion beats specificity)', async () => {
+    // Absolute exclusion, same authority (isExcludedByCoverage) as every other
+    // coverage check: required 'src/api/' is more specific than excluded
+    // 'src/' and would have won under the retired longest-match rule, but
+    // exclusion now wins once it matches at all, regardless of specificity.
     await withTempRepo(
       { '.gitignore': 'src/api/secret.ts\n', 'src/api/secret.ts': 'export const k = 1;\n' },
       async (root) => {
         const graph = graphAt(root, ['src/api/'], { excluded: ['src/'] });
         const issues = await scanTrackedButIgnored(graph, ['src/api/secret.ts'], []);
-        expect(issues).toHaveLength(1);
-        expect(issues[0].severity).toBe('error');
-        expect(issues[0].code).toBe('tracked-file-gitignored');
+        expect(issues).toEqual([]);
       },
     );
   });
