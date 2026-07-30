@@ -65,6 +65,13 @@ describe.skipIf(!distExists)("CLI E2E — a type-covered file's read allowance m
         "Deterministic check 'reach-child-file-rule' failed to run on file:src/reach/leaf/a.ts — left unverified (aspect-check-runtime-error).",
       );
       expect(fill.all).toContain("Aspect tried to read undeclared path 'src/reach/parent/child.ts'");
+      // The real remedy is an architecture or graph change — widen the type's
+      // relations, or give the file a component of its own — never "fix
+      // check.mjs" (there is nothing wrong with the check).
+      expect(fill.all).toContain(
+        "Allow 'reach-leaf' to depend on whatever owns 'src/reach/parent/child.ts' in yg-architecture.yaml, or give 'src/reach/leaf/a.ts' a component of its own (a yg-node.yaml mapping it) so it can declare an explicit relation instead.",
+      );
+      expect(fill.all).not.toContain('Fix the check.mjs, then re-run: yg check --approve');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

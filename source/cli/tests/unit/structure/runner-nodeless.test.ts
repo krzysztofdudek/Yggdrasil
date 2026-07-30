@@ -96,21 +96,27 @@ describe('deterministic runner — nodeless unit (unit.kind === "file")', () => 
     expect(after).not.toBe(before);
   });
 
-  it('reads-forbidden: refused as infrastructure, naming both exits (widen the architecture, or give the file a component)', async () => {
-    const r = await runStructureAspect({
-      aspectDir: aspectDir('reads-forbidden'),
-      aspectId: 'reads-forbidden',
-      // 'src/forbidden/x.ts' deliberately absent from the allowance.
-      unit: fileUnit(['src/leaf/a.ts']),
-      graph: emptyGraph(),
-      projectRoot,
-    });
-    expect(r.succeeded).toBe(false);
-    expect(r.violations[0].kind).toBe('structure-aspect-undeclared-fs-read');
-    const message = r.violations[0].message;
-    expect(message).toContain('src/forbidden/x.ts');
-    expect(message).toMatch(/architecture/i);
-    expect(message).toMatch(/component/i);
+  it('reads-forbidden: thrown as infrastructure, naming both exits (widen the architecture, or give the file a component)', async () => {
+    let caught: unknown;
+    try {
+      await runStructureAspect({
+        aspectDir: aspectDir('reads-forbidden'),
+        aspectId: 'reads-forbidden',
+        // 'src/forbidden/x.ts' deliberately absent from the allowance.
+        unit: fileUnit(['src/leaf/a.ts']),
+        graph: emptyGraph(),
+        projectRoot,
+      });
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(StructureRunnerError);
+    const err = caught as StructureRunnerError;
+    expect(err.code).toBe('STRUCTURE_UNDECLARED_FS_READ');
+    const rendered = err.messageData.what + err.messageData.why + err.messageData.next;
+    expect(rendered).toContain('src/forbidden/x.ts');
+    expect(rendered).toMatch(/architecture/i);
+    expect(rendered).toMatch(/component/i);
   });
 
   it('touches-node: a typed, fail-closed infra disposition naming both exits (file-local, or give it a component)', async () => {
@@ -218,17 +224,22 @@ describe('deterministic runner — nodeless unit (unit.kind === "file")', () => 
     expect(permissive.succeeded).toBe(true);
     expect(permissive.violations).toHaveLength(0);
 
-    const restrictive = await runStructureAspect({
-      aspectDir: aspectDir('reads-permitted-sibling'),
-      aspectId: 'reads-permitted-sibling',
-      // fromType 'restricted-leaf': same rule, same check.mjs — but this
-      // file's type is not permitted to reach the helper, so its own
-      // allowance never includes it.
-      unit: fileUnit(['src/leaf/other.ts'], 'src/leaf/other.ts', 'restricted-leaf'),
-      graph: emptyGraph(),
-      projectRoot,
-    });
-    expect(restrictive.succeeded).toBe(false);
-    expect(restrictive.violations[0].kind).toBe('structure-aspect-undeclared-fs-read');
+    let caught: unknown;
+    try {
+      await runStructureAspect({
+        aspectDir: aspectDir('reads-permitted-sibling'),
+        aspectId: 'reads-permitted-sibling',
+        // fromType 'restricted-leaf': same rule, same check.mjs — but this
+        // file's type is not permitted to reach the helper, so its own
+        // allowance never includes it.
+        unit: fileUnit(['src/leaf/other.ts'], 'src/leaf/other.ts', 'restricted-leaf'),
+        graph: emptyGraph(),
+        projectRoot,
+      });
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(StructureRunnerError);
+    expect((caught as StructureRunnerError).code).toBe('STRUCTURE_UNDECLARED_FS_READ');
   });
 });

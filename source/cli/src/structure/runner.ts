@@ -96,19 +96,26 @@ export async function runStructureAspect(
     raw = checkFn(ctx);
   } catch (err) {
     if (err instanceof UndeclaredFsReadError) {
-      return {
-        violations: [{
-          message: unit.kind === 'file'
-            ? `Aspect tried to read undeclared path '${err.path}'. This file has no component of its own — its only reads beyond its own content are files the architecture's relations: allow-list permits '${unit.typeId}' to depend on. Allow '${unit.typeId}' to depend on whatever owns '${err.path}' in yg-architecture.yaml, or give '${unit.file}' a component of its own (a yg-node.yaml mapping it) so it can declare an explicit relation instead.`
-            : `Aspect tried to read undeclared path '${err.path}'. Add a relation in yg-node.yaml to the node owning this path.`,
-          kind: 'structure-aspect-undeclared-fs-read',
-          file: `.yggdrasil/aspects/${aspectId}/check.mjs`,
-        }],
-        touchedFiles: [],
-        succeeded: false,
-        observations: recorder.snapshot(),
-        observationsTainted: recorder.tainted,
-      };
+      // An undeclared read is never a bug IN check.mjs — the remedy is always
+      // an architecture or graph change (widen a relation, or give the file/
+      // node a component of its own), never a code fix. Throw a structured
+      // StructureRunnerError (like STRUCTURE_NODE_CONTEXT_UNAVAILABLE below)
+      // so that real remedy reaches the printed output through fill-det.ts's
+      // originalMessageData thread, instead of being returned as a Violation
+      // whose `next` the caller can only guess at (and guesses "fix check.mjs",
+      // which is wrong here). Split at the SAME sentence boundaries the prior
+      // single-string message used, so the wording an agent sees is unchanged.
+      throw new StructureRunnerError('STRUCTURE_UNDECLARED_FS_READ', unit.kind === 'file'
+        ? {
+            what: `Aspect tried to read undeclared path '${err.path}'.`,
+            why: `This file has no component of its own — its only reads beyond its own content are files the architecture's relations: allow-list permits '${unit.typeId}' to depend on.`,
+            next: `Allow '${unit.typeId}' to depend on whatever owns '${err.path}' in yg-architecture.yaml, or give '${unit.file}' a component of its own (a yg-node.yaml mapping it) so it can declare an explicit relation instead.`,
+          }
+        : {
+            what: `Aspect tried to read undeclared path '${err.path}'.`,
+            why: `check.mjs may only read files inside the node's allowed reads set (its own mapping, declared relation targets, ancestors, and descendants) — this path is outside all of them.`,
+            next: `Add a relation in yg-node.yaml to the node owning this path.`,
+          });
     }
     if (err instanceof UndeclaredGraphReadError) {
       return {

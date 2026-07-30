@@ -319,8 +319,9 @@ structured data files, prefer \`ctx.parseYaml\`, \`ctx.parseJson\`, or
 
 ## Allowed reads set (D9=A)
 
-The runner enforces a strict read boundary. Attempting to read outside it throws
-a runtime violation instead of returning data.
+The runner enforces a strict read boundary. Attempting to read outside it raises
+a runtime fault instead of returning data — a \`Violation\` for a graph read or a
+non-prewarmed parse, or an infra fault for an \`fs\` read (see the table below).
 
 This boundary is a read **discipline**, not a security sandbox. \`check.mjs\` runs
 in-process (on an auto-sized worker-thread pool during \`--approve\`, for speed) with
@@ -336,13 +337,21 @@ Paths in the allowed reads set for a node:
 - **Ancestor mappings** — files belonging to parent and grandparent nodes.
 - **Own descendant mappings** — files belonging to any child or deeper descendant node.
 
-Accessing anything outside this set produces:
+Accessing anything outside this set is handled two different ways, depending
+on which accessor is involved:
 
 | Violation kind | Trigger |
 |---|---|
-| \`structure-aspect-undeclared-fs-read\` | \`ctx.fs.exists/list/read\` on a path outside the allowed set |
 | \`structure-aspect-undeclared-graph-read\` | \`ctx.graph.node(path)\` returning a node outside the allowed read set (\`nodesByType\` never triggers this — it only ever returns nodes already within the set) |
 | \`structure-aspect-parseast-not-prewarmed\` | \`ctx.parseAst\` on a file not in the pre-warmed set |
+
+An undeclared \`ctx.fs.exists/list/read\` is different: it is NOT a \`Violation\`.
+The runner throws before your check ever returns, so no verdict entry is
+written and the pair stays unverified — \`yg check --approve\` reports it under
+\`aspect-check-runtime-error\`, naming the real remedy (widen the architecture's
+\`relations:\` so the reachable type may depend on whatever owns the path, add a
+relation in \`yg-node.yaml\`, or give the file a component of its own) instead of
+"fix check.mjs" — there is nothing to fix in the check itself.
 
 If your check needs to reach a node not currently in scope, add an explicit
 relation in \`yg-node.yaml\` pointing to that node. Relations are the contract
@@ -365,11 +374,12 @@ purely by its architecture type (\`coverage.type_level\`). There is no
   allow-list permits THIS file's type to depend on — whether that file belongs
   to a declared component or is itself enforced by its type alone. There is no
   per-component narrowing to apply (there is no component), so the
-  architecture's allow-list is the only authority. Reading outside it produces
-  the same \`structure-aspect-undeclared-fs-read\` violation as the node case,
-  naming the same two exits: widen the architecture's \`relations:\` so this
-  type may depend on the type that owns the file you need, or give your own
-  file a component so it can declare an explicit relation instead. Honest
+  architecture's allow-list is the only authority. Reading outside it is the
+  same infra fault as the node case (no \`Violation\`; the pair stays
+  unverified), naming the same two exits: widen the architecture's
+  \`relations:\` so this type may depend on the type that owns the file you
+  need, or give your own file a component so it can declare an explicit
+  relation instead. Honest
   caveat: with no \`relations:\` table declared for this type at all — the
   default a fresh \`yg init\` produces — every relation type is unconstrained,
   so this "allowance" is, in practice, the whole covered repository; it only
@@ -439,9 +449,12 @@ code must NOT emit violations with this prefix. Use a plain \`kind\` or omit
 
 Common runtime kinds (for reference, not for author use):
 
-- \`structure-aspect-undeclared-fs-read\`
 - \`structure-aspect-undeclared-graph-read\`
 - \`structure-aspect-parseast-not-prewarmed\`
+
+An undeclared \`ctx.fs\` read is NOT among these — it is never a \`Violation\`
+(see "Allowed reads set" above), so it carries no \`kind\` at all: the runner
+throws before your check returns.
 
 ## Common helpers
 

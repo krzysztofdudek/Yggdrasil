@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises';
+import * as path from 'node:path';
 import type { ArchitectureDef, Graph, GraphNode } from '../model/graph.js';
 import { normalizeMappingPath } from './expand-mapping-sync.js';
 import { allowedRelationTypes } from '../core/allowed-relation-types.js';
@@ -213,6 +215,19 @@ export async function collectArchitectureReach(subjectFile: string, input: Archi
       const ownerNode = ownerPath !== undefined ? graph.nodes.get(ownerPath) : undefined;
       if (!ownerNode) continue;
       if (allowedRelationTypes(architecture, fromType, ownerNode.meta.type).length === 0) continue;
+      // Mirror the live dependency gate's own enumeration (relations/pass.ts):
+      // a mapped file it cannot read is skipped BEFORE it ever earns an
+      // owner-type entry in fileOwnerType, so the gate treats it as though it
+      // does not exist. Admitting it into this allowance anyway would be a
+      // needless divergence from the one authority (child-wins ownership +
+      // the architecture's relations:) this allowance exists to mirror — even
+      // though an actual ctx.fs.read would fail regardless (conservative
+      // either way).
+      try {
+        await readFile(path.join(projectRoot, file), 'utf-8');
+      } catch {
+        continue;
+      }
       reach.add(file);
     }
   }

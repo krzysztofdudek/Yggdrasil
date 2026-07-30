@@ -269,17 +269,25 @@ describe('runStructureAspect', () => {
     expect(r.violations).toHaveLength(0);
   });
 
-  it('undeclared fs read → structured violation (succeeded: false)', async () => {
+  it('undeclared fs read throws a structured STRUCTURE_UNDECLARED_FS_READ, never a returned violation', async () => {
     await writeAspect('a14', `export function check(ctx) { ctx.fs.read('src/not-allowed.ts'); return []; }`);
     const g = buildTestGraphForStructure({
       nodes: [{ path: 'N', type: 'module', mapping: ['src/a.ts'] }],
     });
-    const r = await runStructureAspect({
-      aspectDir: path.join('.yggdrasil/aspects/a14'),
-      aspectId: 'a14', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
-    });
-    expect(r.succeeded).toBe(false);
-    expect(r.violations[0].kind).toBe('structure-aspect-undeclared-fs-read');
+    let caught: unknown;
+    try {
+      await runStructureAspect({
+        aspectDir: path.join('.yggdrasil/aspects/a14'),
+        aspectId: 'a14', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
+      });
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(StructureRunnerError);
+    const err = caught as StructureRunnerError;
+    expect(err.code).toBe('STRUCTURE_UNDECLARED_FS_READ');
+    expect(err.messageData.what).toContain("src/not-allowed.ts");
+    expect(err.messageData.next).toMatch(/relation/i);
   });
 
   it('bad violation entry shape → STRUCTURE_CHECK_RETURN_SHAPE', async () => {

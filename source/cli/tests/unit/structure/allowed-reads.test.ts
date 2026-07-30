@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, chmodSync, readFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { collectAllowedReadsForAspect, collectArchitectureReach } from '../../../src/structure/allowed-reads.js';
 import type { ArchitectureReachInput } from '../../../src/structure/allowed-reads.js';
@@ -16,6 +17,30 @@ function writeRealFile(graph: Graph, relPath: string, content = ''): void {
   mkdirSync(path.dirname(abs), { recursive: true });
   writeFileSync(abs, content);
 }
+
+/**
+ * CRITICAL privileged-runtime guard (mirrors tests/e2e/cli-scope-unreadable.test.ts):
+ * under root (CI / container) chmod 0o000 is ignored and readFileSync still
+ * succeeds, so a test relying on EACCES would either fail for the wrong reason
+ * or silently run zero real assertions. Probed once at module load; the
+ * affected test is skipped via `it.skipIf` in that environment.
+ */
+function probeEnforcesFilePermissions(): boolean {
+  const dir = mkdtempSync(path.join(tmpdir(), 'yg-permcheck-'));
+  const probe = path.join(dir, 'probe.txt');
+  writeFileSync(probe, 'x');
+  chmodSync(probe, 0o000);
+  let enforced = false;
+  try {
+    readFileSync(probe, 'utf8');
+  } catch {
+    enforced = true;
+  }
+  chmodSync(probe, 0o644); // restore so rmSync can remove it
+  rmSync(dir, { recursive: true, force: true });
+  return enforced;
+}
+const ENFORCES_FILE_PERMISSIONS = probeEnforcesFilePermissions();
 
 describe('collectAllowedReadsForAspect', () => {
   afterEach(() => cleanupTestGraphs());
@@ -190,6 +215,51 @@ describe('what a rule running on a single file may read', () => {
     expect(reachA.has('src/leaf/b.ts')).toBe(false);
     expect(reachB.has('src/leaf/a.ts')).toBe(false);
   });
+
+  it.skipIf(!ENFORCES_FILE_PERMISSIONS)(
+    "excludes a declared component's mapped file the gate itself could never read (mirrors relations/pass.ts's own \"unreadable → skip\")",
+    async () => {
+      const ARCH: ArchitectureDef = {
+        node_types: {
+          leaf: { description: 'A file classified by its own type, no component.', relationDefault: 'deny', relations: { uses: ['owned-type'] } },
+          'owned-type': { description: 'A component whose directory mapping includes a file this allowance cannot read.' },
+        },
+      };
+      const g = buildTestGraphForStructure({
+        nodes: [{ path: 'owned', type: 'owned-type', mapping: ['src/owned'] }],
+      });
+      g.architecture = ARCH;
+      writeRealFile(g, 'src/owned/readable.ts', 'export const r = 1;\n');
+      writeRealFile(g, 'src/owned/locked.ts', 'export const l = 1;\n');
+      const lockedAbs = path.join(path.dirname(g.rootPath), 'src/owned/locked.ts');
+      chmodSync(lockedAbs, 0o000);
+      try {
+        const reach = await collectArchitectureReach('src/leaf/a.ts', {
+          fromType: 'leaf',
+          typeCovered: new Map(),
+          architecture: ARCH,
+          graph: g,
+          projectRoot: path.dirname(g.rootPath),
+          ownerIndex: buildOwnerIndex(g.nodes),
+        });
+        // The readable sibling in the SAME directory mapping stays reachable —
+        // the readability check must exclude only the file it applies to,
+        // never the whole owning component.
+        expect(reach.has('src/owned/readable.ts')).toBe(true);
+        // relations/pass.ts (the live dependency gate) skips a mapped file it
+        // cannot read BEFORE that file ever earns an owner-type entry in
+        // fileOwnerType — the gate treats it as though it does not exist. This
+        // allowance must treat it the same way: an actual ctx.fs.read would
+        // fail regardless, but admitting the path into the permission set
+        // anyway is a needless divergence from the one authority (child-wins
+        // ownership + the architecture's relations:) this allowance exists to
+        // mirror.
+        expect(reach.has('src/owned/locked.ts')).toBe(false);
+      } finally {
+        chmodSync(lockedAbs, 0o644); // restore so cleanupTestGraphs can remove the tree
+      }
+    },
+  );
 });
 
 // =============================================================================

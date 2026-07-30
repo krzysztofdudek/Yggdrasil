@@ -332,16 +332,22 @@ describe('runStructureAspect — observation recording', () => {
   });
 
   it('snapshot is sorted in code-point order', async () => {
+    // Calls run READ before EXISTS — the opposite of code-point order
+    // ('exists:' < 'read:') — so a snapshot that merely preserved insertion
+    // order would fail this assertion; only an actually-sorted snapshot passes.
+    // 'src/missing.ts' is in N's OWN mapping (declared, so inside the allowed
+    // set) but never written to disk, so exists() returns false without
+    // throwing — an undeclared path would throw before recording anything.
     await writeAspect('obs-sort', `
       export function check(ctx) {
-        ctx.fs.exists('src/nonexistent.ts');
         ctx.fs.read('src/b.ts');
+        ctx.fs.exists('src/missing.ts');
         return [];
       }
     `);
     const g = buildTestGraphForStructure({
       nodes: [
-        { path: 'N', type: 'module', mapping: ['src/a.ts'], relations: [{ type: 'uses', target: 'Dep' }] },
+        { path: 'N', type: 'module', mapping: ['src/a.ts', 'src/missing.ts'], relations: [{ type: 'uses', target: 'Dep' }] },
         { path: 'Dep', type: 'module', mapping: ['src/b.ts'] },
       ],
     });
