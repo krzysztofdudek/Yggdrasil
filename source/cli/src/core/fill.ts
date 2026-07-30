@@ -51,7 +51,7 @@ import type { Graph, AspectDef, LlmConfig } from '../model/graph.js';
 import type { VerdictEntry } from '../model/lock.js';
 import type { CheckResult, RunCheckOptions } from './check.js';
 import { runCheck, scanUncoveredFiles } from './check.js';
-import { readLock, writeLock } from '../io/lock-store.js';
+import { readLock, writeLock, readDetLockAspectIds } from '../io/lock-store.js';
 import type { ExpectedPair, TypeCoverageInput } from './pairs.js';
 import { verifyLock } from './verify-lock.js';
 import { computeTypeCoverage } from './type-coverage.js';
@@ -104,17 +104,21 @@ function judgeIdentity(tier: LlmConfig): { provider: string; model: string } {
 }
 
 /**
- * Print the garbage collector's own prune summary (Step 5 — this wording IS the
- * contract Task 10's end-to-end graduation pin asserts against; a later wording
- * change is a coordinated edit across both, never a local cosmetic one).
+ * Print the garbage collector's own prune summary — this exact wording is a
+ * contract another CLI-driven end-to-end test asserts against, so a later
+ * change here is a coordinated edit across both, never a local cosmetic one.
  * Printed by BOTH `--approve` (after the real prune) and `--dry-run` (a preview,
  * computed over a disposable clone of the lock — see the dry-run call site).
- * Prints NOTHING when nothing was pruned.
+ * Prints NOTHING when nothing was pruned. An entry whose reviewer kind could
+ * not be determined (see PruneSummary's own doc) adds a third ", U unknown"
+ * clause rather than silently folding into billed or free; omitted entirely
+ * when there are none, so the common case's wording is unchanged.
  */
 function writePruneSummary(summary: PruneSummary, write: (s: string) => void): void {
   if (summary.entries.length === 0) return;
+  const unknownClause = summary.unknownCount > 0 ? `, ${summary.unknownCount} unknown` : '';
   write(
-    `Pruned ${summary.entries.length} stale verdict(s) — ${summary.billedCount} billed, ${summary.freeCount} free:\n`,
+    `Pruned ${summary.entries.length} stale verdict(s) — ${summary.billedCount} billed, ${summary.freeCount} free${unknownClause}:\n`,
   );
   for (const e of summary.entries) {
     write(`  [${e.kind}] ${e.aspectId} on ${toPosixPath(e.unitKey)} — ${e.reason}\n`);
@@ -290,6 +294,22 @@ export class FillGatingError extends Error {
   }
 }
 
+/**
+ * The deterministic gate's key for a pair: the owning component's path when
+ * the pair has one, or the pair's own unit key when it does not — always
+ * `file:<path>` for a pair with no component, so it can never collide with a
+ * real component path. Used to key `detEnforcedRefusedNodes` /
+ * `llmSkippedByDetGate` so a refusal on one unit skips paid review for that
+ * unit alone.
+ *
+ * Keying on `pair.nodePath` alone would make `undefined` a single shared
+ * bucket across every unit with no component: ONE refusing file would
+ * silently suppress paid review for every OTHER such file in the repo. A pure
+ * function of the pair — exported so its per-pair behavior is pinned directly,
+ * independent of a full fill run.
+ */
+export const detGateKey = (pair: ExpectedPair): string => pair.nodePath ?? pair.unitKey;
+
 // ============================================================
 // runFill
 // ============================================================
@@ -431,6 +451,12 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   const deterministicAspectIds = new Set(
     graph.aspects.filter((a) => a.reviewer.type === 'deterministic').map((a) => a.id),
   );
+  // The SAME partition, read back from disk rather than derived from the
+  // current graph — fed to GC so a pruned entry whose aspect no longer exists
+  // in the graph at all (deleted, not just detached) can still be classified
+  // billed vs free from where its verdicts actually live, instead of
+  // defaulting to a guess.
+  const detAspectIdsOnDisk = readDetLockAspectIds(graph.rootPath);
 
   // ── Step 3: Pre-dispatch header (EXACT). ──────────────────────────────────
   // nodeSet counts only DEFINED owners — a nodeless (file-level) pair would
@@ -537,6 +563,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
     const previewLock = structuredClone(lock);
     const prunePreview = await garbageCollectAndRewrite(graph, previewLock, async () => {}, {
       typeCoverage: typeCoverageInput,
+      detAspectIdsOnDisk,
     });
     writePruneSummary(prunePreview, write);
     const checkResult = await runCheck(graph, opts.coverageVisibleFiles, {
@@ -645,15 +672,8 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
 
   // ── Step 5: Deterministic fills FIRST (free). ─────────────────────────────
   // A node with an enforced det refusal (fresh OR cached-valid) skips its LLM
-  // fills this run. Track which GATE KEYS carry such a refusal across BOTH
-  // sources — the owning component's path when the pair has one, or the pair's
-  // own unit key when it does not (always `file:<path>` for a nodeless pair, so
-  // it can never collide with a real component path). This is K16: keying on
-  // `pair.nodePath` alone would make `undefined` a single shared bucket, so ONE
-  // refusing type-covered file would silently suppress paid LLM review for
-  // EVERY OTHER type-covered file in the repo — the gate stays per-component
-  // for components and per-file for files.
-  const detGateKey = (pair: ExpectedPair): string => pair.nodePath ?? pair.unitKey;
+  // fills this run. Track which GATE KEYS (detGateKey, above) carry such a
+  // refusal across BOTH sources.
   // A pair's component is blocked by the log gate — explicit, not implicit via
   // `Set.has(undefined)`: a nodeless pair has no log obligation, so it can never
   // be blocked (R7's never-channel family).
@@ -957,6 +977,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   // feature would prune every file-level result as detached.
   const pruneSummary = await garbageCollectAndRewrite(graph, lock, persistLock, {
     typeCoverage: typeCoverageInput,
+    detAspectIdsOnDisk,
   });
 
   // ── Step 9: Summaries + re-run the read. ──────────────────────────────────

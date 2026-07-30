@@ -56,12 +56,15 @@ async function setupProject(): Promise<string> {
   return root;
 }
 
-describe('GC prune summary — Step 5 wording', () => {
+describe('GC prune summary — wording', () => {
   it('prints "Pruned N stale verdict(s) — B billed, F free:" plus one [kind] line per entry, when something is pruned', async () => {
     const projectRoot = await setupProject();
     const graph = await loadGraph(projectRoot);
     // Seed a stale entry for an aspect id that no longer exists at all — a
-    // genuinely detached verdict, positively prunable.
+    // genuinely detached verdict, positively prunable. Written via writeLock
+    // with 'ghost-aspect' absent from deterministicAspectIds, so it lands in
+    // the COMMITTED (LLM) file, not the gitignored deterministic one — real
+    // committed/gitignored partitioning, not a hand-picked kind.
     const lock = readLock(graph.rootPath);
     lock.verdicts['ghost-aspect'] = { 'node:svc': { verdict: 'approved', hash: 'stale-hash' } };
     await writeLock(graph.rootPath, lock, { scope: 'all', deterministicAspectIds: new Set(['det-a']) });
@@ -69,8 +72,11 @@ describe('GC prune summary — Step 5 wording', () => {
     let out = '';
     await runFill(graph, { coverageVisibleFiles: null, write: (s) => { out += s; } });
 
-    expect(out).toContain('Pruned 1 stale verdict(s) — 0 billed, 1 free:');
-    expect(out).toContain('[deterministic] ghost-aspect on node:svc — aspect removed');
+    // The aspect no longer exists in the graph, so its kind cannot be read off
+    // reviewer.type — but its verdicts live in the COMMITTED file, so the
+    // summary correctly reports it billed, never silently free.
+    expect(out).toContain('Pruned 1 stale verdict(s) — 1 billed, 0 free:');
+    expect(out).toContain('[llm] ghost-aspect on node:svc — aspect removed');
   });
 
   it('prints NOTHING about pruning when nothing was pruned', async () => {
@@ -94,9 +100,32 @@ describe('GC prune summary — Step 5 wording', () => {
     let out = '';
     await runFill(graph, { coverageVisibleFiles: null, dryRun: true, write: (s) => { out += s; } });
 
-    expect(out).toContain('Pruned 1 stale verdict(s) — 0 billed, 1 free:');
+    expect(out).toContain('Pruned 1 stale verdict(s) — 1 billed, 0 free:');
     // The REAL committed lock is untouched — the stale entry is still there.
     const stillThere = readLock(graph.rootPath);
     expect(stillThere.verdicts['ghost-aspect']?.['node:svc']).toBeDefined();
+  });
+
+  it('reports an entry it cannot classify at all (no on-disk lock partition to consult) as "unknown", never silently "free"', async () => {
+    // garbageCollectAndRewrite called directly (the engine seam, not through
+    // runFill): an aspect absent from the graph, no detAspectIdsOnDisk opt
+    // passed. The old behavior defaulted this straight to 'deterministic'
+    // (free) — under-reporting a possibly-billed entry. The fix must neither
+    // guess nor drop it: 'unknown', counted in neither billedCount nor
+    // freeCount.
+    const { garbageCollectAndRewrite } = await import('../../../src/core/fill-gc.js');
+    const projectRoot = await setupProject();
+    const graph = await loadGraph(projectRoot);
+    const lock = readLock(graph.rootPath);
+    lock.verdicts['ghost-aspect'] = { 'node:svc': { verdict: 'approved', hash: 'stale-hash' } };
+
+    const summary = await garbageCollectAndRewrite(graph, lock, async () => {});
+
+    expect(summary.entries).toEqual([
+      { aspectId: 'ghost-aspect', unitKey: 'node:svc', kind: 'unknown', reason: 'aspect removed' },
+    ]);
+    expect(summary.billedCount).toBe(0);
+    expect(summary.freeCount).toBe(0);
+    expect(summary.unknownCount).toBe(1);
   });
 });

@@ -12,20 +12,28 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
+import { fileURLToPath } from 'node:url';
 import {
   mkdtemp, mkdir, writeFile, rm, readFile,
 } from 'node:fs/promises';
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync, cpSync, appendFileSync } from 'node:fs';
 import { readBytesOrEmpty } from '../../../src/core/fill-shared.js';
 
 import { loadGraph } from '../../../src/core/graph-loader.js';
-import { runFill, FillGatingError } from '../../../src/core/fill.js';
+import { runFill, FillGatingError, detGateKey } from '../../../src/core/fill.js';
+import type { ExpectedPair } from '../../../src/core/pairs.js';
 import { buildIssueMessage } from '../../../src/formatters/message-builder.js';
 import type { IssueMessage } from '../../../src/model/validation.js';
 import { readLock, writeLock } from '../../../src/io/lock-store.js';
 import { verifyLock } from '../../../src/core/verify-lock.js';
 import type { LlmProvider } from '../../../src/llm/types.js';
 import type { RunStructureAspectResult } from '../../../src/structure/runner.js';
+import { walkRepoFiles } from '../../../src/io/repo-scanner.js';
+import { FIXTURE_TWO_COVERED_FILES } from '../../fixtures/type-level-engine/variants/index.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+/** Base type-level-engine fixture the two-covered-files variant is merged over. */
+const TWO_COVERED_FILES_BASE = path.join(__dirname, '..', '..', 'fixtures', 'type-level-engine');
 
 // ── Mock the LLM provider factory (no real reviewer) ──────────────────────────
 vi.mock('../../../src/llm/index.js', () => ({
@@ -232,6 +240,133 @@ describe('deterministic-first ordering + det gate', () => {
     expect(result.reviewerCallsMade).toBe(0);
     const lock = readLock(graph.rootPath);
     expect(lock.verdicts['llm-a']?.['node:svc']).toBeUndefined();
+  });
+});
+
+// =============================================================================
+// 2b. detGateKey (K16) — the det-gate keying function, pinned directly
+// =============================================================================
+//
+// detGateKey is a pure function of one pair: the owning component's path when
+// the pair has one, or the pair's own unit key when it does not. These tests
+// exercise it directly, independent of a full fill run, so a regression back
+// to keying on `pair.nodePath` alone (which makes `undefined` a single shared
+// bucket across every unit with no component) is caught here even when no
+// fixture happens to drive a full fill through the affected branch.
+
+describe('detGateKey (K16) — pure-function pin', () => {
+  const base = { aspectId: 'a', kind: 'deterministic' as const, status: 'enforced' as const, subjectFiles: ['x'] };
+
+  it('keys a component pair by its owning node path', () => {
+    const pair: ExpectedPair = { ...base, unitKey: 'node:svc', nodePath: 'svc' };
+    expect(detGateKey(pair)).toBe('svc');
+  });
+
+  it('keys a pair with no owning component by its file unit key', () => {
+    const pair: ExpectedPair = { ...base, unitKey: 'file:src/leaf/a.ts', nodePath: undefined };
+    expect(detGateKey(pair)).toBe('file:src/leaf/a.ts');
+  });
+
+  it('gives two componentless pairs on DIFFERENT files different keys', () => {
+    const a: ExpectedPair = { ...base, unitKey: 'file:src/leaf/a.ts', nodePath: undefined };
+    const b: ExpectedPair = { ...base, unitKey: 'file:src/leaf/b.ts', nodePath: undefined };
+    expect(detGateKey(a)).not.toBe(detGateKey(b));
+  });
+
+  it('never collides a componentless pair with a component pair, even for the same base name', () => {
+    // The componentless key is always `file:<path>`-prefixed (the pair's own
+    // unit key); the component key is the bare node path — the prefix alone
+    // keeps the two key spaces disjoint even when the names otherwise match.
+    const componentless: ExpectedPair = { ...base, unitKey: 'file:svc', nodePath: undefined };
+    const component: ExpectedPair = { ...base, unitKey: 'node:svc', nodePath: 'svc' };
+    expect(detGateKey(componentless)).not.toBe(detGateKey(component));
+  });
+});
+
+// =============================================================================
+// 2c. K16 cross-contamination, driven through a real fill run
+// =============================================================================
+//
+// The pure-function tests above pin detGateKey in isolation; this test pins
+// that runFill actually WIRES detEnforcedRefusedNodes/llmSkippedByDetGate
+// through it. It targets a pair with no owning component specifically —
+// before this fix, `pair.nodePath` alone (always undefined for such a pair)
+// would make every componentless unit in the run share ONE gate bucket, so a
+// refusal on one file would silently skip paid review on every other one.
+//
+// A fresh deterministic fill for a componentless pair cannot be driven
+// through this repo's structure runner today (it resolves the owning
+// component by path before it builds anything else, so a request with no
+// component fails before check.mjs ever runs) — so this test pre-seeds a
+// CACHED, correctly-hashed refusal instead of relying on a fresh one. That
+// cached refusal is exactly what populates detEnforcedRefusedNodes
+// (core/fill.ts's own cached-refusal seed loop), so the gate this test pins
+// is exercised for real, without needing a working fresh fill for a
+// componentless deterministic pair.
+
+describe('K16 cross-contamination — real fill run, componentless pairs', () => {
+  it('a cached refusal on one file does not stop the LLM fill of an unrelated file matching the same type', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-k16-gate-'));
+    dirs.push(dir);
+    cpSync(TWO_COVERED_FILES_BASE, dir, { recursive: true });
+    cpSync(FIXTURE_TWO_COVERED_FILES, dir, { recursive: true });
+    // The fixture ships no reviewer config — LLM aspects need a resolvable
+    // tier even though createLlmProvider itself is mocked below.
+    appendFileSync(path.join(dir, '.yggdrasil', 'yg-config.yaml'), `\n${V5_REVIEWER_CONFIG}`);
+
+    const graph = await loadGraph(dir);
+    const projectRoot = path.dirname(graph.rootPath);
+    const { computeDetInputHash } = await import('../../../src/core/pair-hash.js');
+    const { ruleHashFor } = await import('../../../src/core/pair-inputs.js');
+    const { hashFile } = await import('../../../src/io/hash.js');
+
+    const refusesOnA = graph.aspects.find((a) => a.id === 'refuses-on-a')!;
+    const ruleHash = ruleHashFor(refusesOnA, 'check.mjs');
+    const hashFor = async (rel: string, verdict: 'approved' | 'refused'): Promise<string> =>
+      computeDetInputHash({
+        aspectId: 'refuses-on-a',
+        scope: refusesOnA.scope,
+        ruleHash,
+        files: [[rel, await hashFile(path.join(projectRoot, rel))]],
+        touched: [],
+        verdict,
+      });
+
+    // Pre-seed refuses-on-a as CACHED-valid for both files: refused on a.ts
+    // (matching check.mjs's own real behavior), approved on b.ts. Only
+    // refuses-on-a is seeded — every other deterministic aspect this fixture
+    // attaches to leaf/mid/top is left unverified and will infra-error at
+    // fill time (the known limitation this suite's E2E documents); that
+    // noise is orthogonal to the gate this test pins, which only depends on
+    // refuses-on-a's own cached verdicts.
+    let lock = readLock(graph.rootPath);
+    lock.verdicts['refuses-on-a'] = {
+      'file:src/leaf/a.ts': { verdict: 'refused', hash: await hashFor('src/leaf/a.ts', 'refused'), reason: 'Deliberately refuses only on a.ts.' },
+      'file:src/leaf/b.ts': { verdict: 'approved', hash: await hashFor('src/leaf/b.ts', 'approved') },
+    };
+    await writeLock(graph.rootPath, lock, {
+      scope: 'all',
+      deterministicAspectIds: new Set(graph.aspects.filter((a) => a.reviewer.type === 'deterministic').map((a) => a.id)),
+    });
+
+    const seenPrompts: string[] = [];
+    mockCreateLlmProvider.mockReturnValue(makeMockProvider({
+      async verifyAspect(prompt) { seenPrompts.push(prompt); return { satisfied: true, reason: 'ok', errorSource: 'codeViolation' as const }; },
+    }));
+
+    const w = makeWriter();
+    const visibleFiles = await walkRepoFiles(dir);
+    await runFill(await loadGraph(dir), { coverageVisibleFiles: visibleFiles, write: w.write, emitIssue: w.emitIssue });
+
+    lock = readLock(graph.rootPath);
+    // b.ts's llm-leaf-rule was filled — its own file's cached refusal never
+    // applied to it, and a.ts's cached refusal did not leak onto it either.
+    expect(lock.verdicts['llm-leaf-rule']?.['file:src/leaf/b.ts']?.verdict).toBe('approved');
+    // a.ts's llm-leaf-rule was correctly skipped by ITS OWN file's refusal.
+    expect(lock.verdicts['llm-leaf-rule']?.['file:src/leaf/a.ts']).toBeUndefined();
+    // The skip notice names the FILE, never a phantom component.
+    expect(w.text()).toContain("LLM fills for file 'src/leaf/a.ts' skipped — an enforced deterministic check already refused it.");
+    expect(w.text()).not.toMatch(/component 'undefined'|node 'undefined'/);
   });
 });
 

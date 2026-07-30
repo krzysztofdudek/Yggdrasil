@@ -17,12 +17,21 @@ import { buildOwnerIndex } from '../relations/owner-index.js';
  * The writer's own report of what it pruned this run — printed by `--approve`
  * and `--dry-run` whenever entries are pruned, split into billed (LLM — a
  * re-verify would cost a reviewer call) vs free (deterministic), with a reason
- * per entry. Empty (both counts 0, empty `entries`) whenever nothing was pruned.
+ * per entry. Empty (all counts 0, empty `entries`) whenever nothing was pruned.
+ *
+ * A pruned entry's aspect can be gone from the graph entirely (the reason
+ * `'aspect removed'`), which means its reviewer kind cannot be read off
+ * `graph.aspects` any more. `'unknown'` is that honest third state: an entry
+ * neither the graph nor the caller-supplied on-disk lock partition (see
+ * `garbageCollectAndRewrite`'s `detAspectIdsOnDisk` option) could classify.
+ * It is never folded into `billedCount` or `freeCount` — a caller that cannot
+ * prove an entry was free must not report it as free.
  */
 export interface PruneSummary {
-  entries: Array<{ aspectId: string; unitKey: string; kind: 'llm' | 'deterministic'; reason: string }>;
+  entries: Array<{ aspectId: string; unitKey: string; kind: 'llm' | 'deterministic' | 'unknown'; reason: string }>;
   billedCount: number;
   freeCount: number;
+  unknownCount: number;
 }
 
 /**
@@ -90,14 +99,24 @@ export function owningNodeForUnitKey(
  * those keys in `universe`, not `owningNodeForUnitKey`'s attribution (unchanged,
  * still node-domain only), is the anti-prune lever for a file enforced by its
  * architecture type. Returns a `PruneSummary` of every entry actually deleted.
+ *
+ * `opts.detAspectIdsOnDisk` (optional): the aspectIds whose verdicts live in
+ * the gitignored deterministic file, read directly from disk
+ * (`readDetLockAspectIds`) rather than off the current graph. Used ONLY to
+ * classify a pruned entry whose aspect no longer exists in `graph.aspects` —
+ * `reviewer.type` cannot answer for a deleted aspect, but the file its
+ * verdicts were last written to still can, and that provenance never changes
+ * just because the aspect's definition is gone. Absent (a caller with no
+ * on-disk lock to consult, e.g. a pure in-memory test) means such an entry is
+ * reported with kind `'unknown'` rather than guessed.
  */
 export async function garbageCollectAndRewrite(
   graph: Graph,
   lock: LockFile,
   persistLock: () => Promise<void>,
-  opts?: { typeCoverage?: TypeCoverageInput },
+  opts?: { typeCoverage?: TypeCoverageInput; detAspectIdsOnDisk?: Set<string> },
 ): Promise<PruneSummary> {
-  const emptySummary: PruneSummary = { entries: [], billedCount: 0, freeCount: 0 };
+  const emptySummary: PruneSummary = { entries: [], billedCount: 0, freeCount: 0, unknownCount: 0 };
 
   // A node/aspect that failed to parse hides itself (and, for a node, its whole
   // subtree) from the graph, so its pairs never reach the universe. While the
@@ -153,6 +172,7 @@ export async function garbageCollectAndRewrite(
   const prunedEntries: PruneSummary['entries'] = [];
   let billedCount = 0;
   let freeCount = 0;
+  let unknownCount = 0;
 
   // Prune verdicts ∉ universe, EXCEPT entries owned by an uncomputable node, whose
   // subject was unreadable this run, or whose file was reported ambiguous.
@@ -168,14 +188,27 @@ export async function garbageCollectAndRewrite(
       // deleted/unmapped file, re-typed-away file) is positively detached → prune.
       if (owner !== null && uncomputable.has(owner)) continue;
 
-      const kind = aspectKindById.get(aspectId) ?? 'deterministic';
+      // The aspect is still in the graph → its CURRENT reviewer.type is the
+      // kind, exactly as before. Gone from the graph entirely (the 'aspect
+      // removed' reason below) → reviewer.type cannot answer any more; fall
+      // back to where its verdicts physically live on disk (billed/free are
+      // still knowable — the aspect's definition is gone, not its history),
+      // and only report 'unknown' when even that provenance is unavailable.
+      // Never default a classification failure to 'deterministic' — that
+      // would silently under-report billed (LLM) work as free.
+      const kind: 'llm' | 'deterministic' | 'unknown' = aspectKindById.get(aspectId) ??
+        (opts?.detAspectIdsOnDisk === undefined
+          ? 'unknown'
+          : opts.detAspectIdsOnDisk.has(aspectId) ? 'deterministic' : 'llm');
       const reason = unitKey.startsWith('node:') && !graph.nodes.has(unitKey.slice('node:'.length))
         ? 'node deleted'
         : !aspectKindById.has(aspectId)
           ? 'aspect removed'
           : 'no longer in the expected pair set';
       prunedEntries.push({ aspectId, unitKey, kind, reason });
-      if (kind === 'llm') billedCount++; else freeCount++;
+      if (kind === 'llm') billedCount++;
+      else if (kind === 'deterministic') freeCount++;
+      else unknownCount++;
 
       delete unitMap[unitKey];
     }
@@ -190,5 +223,5 @@ export async function garbageCollectAndRewrite(
   lock.version = LOCK_FORMAT_VERSION;
   await persistLock();
 
-  return { entries: prunedEntries, billedCount, freeCount };
+  return { entries: prunedEntries, billedCount, freeCount, unknownCount };
 }

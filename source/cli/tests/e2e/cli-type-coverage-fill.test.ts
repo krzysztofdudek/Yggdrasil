@@ -1,15 +1,37 @@
 // =============================================================================
-// Task 6 E2E — nodeless (type-covered-file) pairs driven through the real
-// fill stage: the pre-dispatch header, the dry-run files section, and the K16
-// cross-contamination case (the mandatory Step 6 test — one refusing file
-// must not suppress the LLM fill of an unrelated file matching the same type).
+// E2E — nodeless (type-covered-file) pairs driven through the real fill
+// stage: the pre-dispatch header and the dry-run "files enforced by their
+// type" section.
+//
+// LIMITATION — read before extending this suite or trusting its first test's
+// green: a deterministic (or companion-backed) check for a file with no
+// owning component currently INFRA-ERRORS at fill time with "Node '' not in
+// graph." — the structure runner resolves the owning component by path and
+// builds the rest of its ctx from it BEFORE a check ever sees ctx.files
+// (verified directly: `buildUnitCtx` in structure/hook-loader.ts throws that
+// error as its very first step, so check.mjs never runs at all for such a
+// file). Until the runner accepts a request with no owning component, the
+// deterministic-gate cross-contamination guarantee — one refusing file must
+// not suppress the LLM review of an unrelated file matching the same type —
+// cannot be exercised end-to-end here: the det check that is supposed to
+// refuse never reaches a verdict, so the gate it is meant to arm is never
+// armed. The first test below pins only what is actually true today: the
+// infra failure is reported cleanly (the file name surfaces, no phantom
+// `undefined` node/component appears anywhere) and an unrelated file's plain
+// LLM review still runs (which does not depend on the same node-resolving
+// path, so it is not itself evidence the gate did anything). A real
+// cross-file gate pin for this case lives at the unit level instead
+// (tests/unit/core/fill-det.test.ts), seeded with a cached, correctly-hashed
+// refusal so it never needs the broken runner path. Re-enable a genuine
+// end-to-end version of the first test here once a fresh deterministic fill
+// for a file with no owning component actually reaches a verdict.
 //
 // Real spawned binary + in-process mock reviewer (support/mock-reviewer.ts),
-// against the REAL committed tests/fixtures/type-level-engine/ project (Task 5)
-// merged with its `two-covered-files` variant (Task 5, authored FOR this test):
-// a deterministic rule (refuses-on-a) that refuses ONLY on src/leaf/a.ts, and
-// an LLM rule (llm-leaf-rule) attached to the SAME type, alongside the base
-// fixture's src/leaf/a.ts and the variant's src/leaf/b.ts.
+// against the REAL committed tests/fixtures/type-level-engine/ project merged
+// with its `two-covered-files` variant: a deterministic rule (refuses-on-a)
+// that targets src/leaf/a.ts, and an LLM rule (llm-leaf-rule) attached to the
+// SAME type, alongside the base fixture's src/leaf/a.ts and the variant's
+// src/leaf/b.ts.
 //
 // HERMETIC: fresh mkdtemp merge (base + variant) per test, mutated in place,
 // rmSync'd in finally. No fixed ports. Strong observables: stdout/stderr text,
@@ -70,8 +92,8 @@ function reviewedLlmUnits(dir: string): string[] {
   return units;
 }
 
-describe.skipIf(!distExists)('CLI E2E — type-covered-file fill (Task 6)', () => {
-  it('one refusing file does not stop the reviewer from reading the other files (K16)', async () => {
+describe.skipIf(!distExists)('CLI E2E — type-covered-file fill', () => {
+  it('NOT A GATE PIN (see file header): refuses-on-a infra-errors before it can refuse, so this only shows the infra failure is reported cleanly and does not block an unrelated file\'s review', async () => {
     const dir = copyMergedFixture();
     const mock = await startMockReviewer({ respond: () => ({ satisfied: true, reason: 'mock-approve' }) });
     try {
@@ -79,12 +101,16 @@ describe.skipIf(!distExists)('CLI E2E — type-covered-file fill (Task 6)', () =
 
       const fill = await runAsync(['check', '--approve'], dir);
 
-      // The deterministic refusal on a.ts is surfaced.
+      // refuses-on-a never reaches a verdict on a.ts — it infra-errors before
+      // check.mjs runs at all (see the file header). This confirms only that
+      // the file name surfaces in the infra-error text, not that the check ran
+      // or that anything was refused.
       expect(fill.all).toContain('src/leaf/a.ts');
-      // K16's own negative assertion: no phantom component anywhere in output.
+      // No phantom component/node identity leaks into the output either way.
       expect(fill.all).not.toMatch(/component 'undefined'|node 'undefined'/);
-      // b.ts's LLM rule was still reviewed — the det refusal on a.ts's own file
-      // unit must never suppress review of the UNRELATED file unit b.ts.
+      // b.ts's plain LLM rule does not depend on node resolution, so it is
+      // reviewed regardless of a.ts's outcome — this is NOT evidence that a
+      // deterministic refusal was isolated to its own file by the gate.
       expect(reviewedLlmUnits(dir)).toContain('file:src/leaf/b.ts');
     } finally {
       await mock.close();
