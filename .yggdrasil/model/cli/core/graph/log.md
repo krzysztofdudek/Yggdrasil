@@ -129,3 +129,5 @@ The blast-radius analysis carried its own byte-identical copy of the file-owners
 Both the when-predicate evaluator and the aspect cascade gain one optional resolution override, letting a caller answer a relation's target type from something other than a declared graph node — specifically, from an import edge whose other end is a source file enforced purely by its type and therefore has no node entry of its own to look up. Left unsupplied, every existing caller's behavior is unchanged: the override is consulted only when a caller explicitly hands one in.
 ## [2026-07-28T19:46:04.370Z]
 The impact-estimate types now admit a subject with no owning component, and the estimate skips the cold-start read-set check for such a subject explicitly rather than relying on an empty result falling through.
+## [2026-07-30T23:24:03.209Z]
+Corrected a stale doc-comment: the async companion resolution it deferred to already exists (collectInvalidatedPairs in cli/impact-handlers.ts), so the comment now names that caller instead of pointing at unspecified future work.

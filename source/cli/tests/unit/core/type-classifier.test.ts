@@ -241,7 +241,7 @@ describe('classifyFile', () => {
     expect(result.closest.map(c => c.typeId)).toContain('content-typed');
   });
 
-  it('a type whose path atom definitively fails is a clean non-match even when its content atom is unreadable for the same oversized file (I1a)', async () => {
+  it('a type whose path atom definitively fails is a clean non-match even when its content atom is unreadable for the same oversized file', async () => {
     const bigPath = join(tmpDir, 'huge.ts');
     writeFileSync(bigPath, Buffer.alloc(5 * 1024 * 1024 + 1, 0x61));
     const graph = makeGraph(

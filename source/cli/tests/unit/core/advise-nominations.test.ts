@@ -476,7 +476,7 @@ describe('buildNominations — injection hygiene (repo text is quoted data, neve
     const noms = buildNominations(graph, { todayUtc: TODAY, suppressAnomalies: [anomaly] });
     const supp = noms.find((n) => n.id === 'suppress-anomaly:src/x.ts:5')!;
     expect(supp).toBeDefined();
-    // Provenance-quoted, exactly as the brief specifies.
+    // Provenance-quoted: names the marker, its file:line, and the reason text.
     expect(supp.why).toContain("marker '*' at src/x.ts:5");
     expect(supp.why).toContain('suppress reason: "');
     // The hostile payload is neutralized: no raw newline, no ESC byte survives into

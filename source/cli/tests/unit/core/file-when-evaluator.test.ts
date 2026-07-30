@@ -168,7 +168,7 @@ describe('evaluateFileWhen', () => {
     expect((result.trace as { detail?: string }).detail).toMatch(/5MB/);
   });
 
-  it('all_of short-circuits to a clean non-match when a definitively-false sibling makes the whole predicate unmatchable, even though another child is unreadable (I1a)', async () => {
+  it('all_of short-circuits to a clean non-match when a definitively-false sibling makes the whole predicate unmatchable, even though another child is unreadable', async () => {
     const target = join(tmpDir, 'gone.ts');
     const link = join(tmpDir, 'other.ts');
     writeFileSync(target, '');
@@ -184,7 +184,7 @@ describe('evaluateFileWhen', () => {
     expect(result.unreadable).toBeUndefined();
   });
 
-  it('{ path, content } desugars to all_of, so a non-matching path also short-circuits an unreadable content atom to a clean non-match (I1a)', async () => {
+  it('{ path, content } desugars to all_of, so a non-matching path also short-circuits an unreadable content atom to a clean non-match', async () => {
     const target = join(tmpDir, 'gone.ts');
     const link = join(tmpDir, 'wrong-name.ts');
     writeFileSync(target, '');
@@ -211,7 +211,7 @@ describe('evaluateFileWhen', () => {
     expect(result.unreadable).toBe(true);
   });
 
-  it('a >5MB binary file under a content-only atom is a clean non-match, not unreadable (I1b, evaluator-level)', async () => {
+  it('a >5MB binary file under a content-only atom is a clean non-match, not unreadable, at the raw evaluator level', async () => {
     const buf = Buffer.concat([Buffer.from([0x00, 0x01]), Buffer.alloc(5 * 1024 * 1024 + 1, 0x61)]);
     writeFileSync(join(tmpDir, 'big.bin'), buf);
     const pred: FileWhenPredicate = { content: 'a' };

@@ -13,12 +13,14 @@
  *     `draft`.
  *   - `runtimeRows` — the reasons only running the rule can decide (a
  *     deterministic check reading beyond the architecture's allowance,
- *     touching ctx.node/ctx.graph with no component behind it, or — from a
- *     later task — a companion that could not resolve a dependency). These
- *     three are FILL-ONLY: neither `yg check` nor `yg context --file` ever
- *     re-executes check.mjs (see the module-level note below `RUNTIME_
- *     DISPOSITION_REASONS`), so `runtimeRows` is `[]` at both call sites today
- *     — never fabricated to look populated.
+ *     touching ctx.node/ctx.graph with no component behind it, or a
+ *     companion that could not resolve a dependency — this third reason has
+ *     no `StructureRunnerError` code wired to it yet, see the note below
+ *     `RUNTIME_DISPOSITION_REASONS`). These three are FILL-ONLY: neither `yg
+ *     check` nor `yg context --file` ever re-executes check.mjs (see the
+ *     module-level note below `RUNTIME_DISPOSITION_REASONS`), so
+ *     `runtimeRows` is `[]` at both call sites today — never fabricated to
+ *     look populated.
  *   - `appliedPairs` — the (file, aspectId, status) rows that ACTUALLY
  *     produced a pair (`core/pairs.ts`'s own nodeless enumeration output,
  *     filtered to `nodePath === undefined`). This is the ONLY source of truth
@@ -92,8 +94,9 @@ export function describeChainTermination(t: ChainTermination): string {
  * typed dispositions, not the raw codes themselves: 'read-beyond-architecture'
  * for a `StructureRunnerError` coded `STRUCTURE_UNDECLARED_FS_READ`,
  * 'node-context-required' for one coded `STRUCTURE_NODE_CONTEXT_UNAVAILABLE`.
- * 'companion-context-failed' has no producer yet — a later task's companion
- * failure feeds it; until then no caller ever constructs a row with it.
+ * 'companion-context-failed' has no producer yet: no `StructureRunnerError`
+ * code maps to it in `RUNTIME_DISPOSITION_REASONS` below, so no caller ever
+ * constructs a row with it.
  *
  * All three runtime reasons are FILL-ONLY today: `yg check` and `yg context
  * --file` both compute this report with `runtimeRows: []` (see `check.ts` and

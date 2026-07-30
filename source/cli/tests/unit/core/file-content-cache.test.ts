@@ -58,7 +58,7 @@ describe('FileContentCache', () => {
     expect(result.content).toBeUndefined();
   });
 
-  it('detects binary via null bytes even when the file is over 5MB — binary wins over the size guard (I1b)', async () => {
+  it('detects binary via null bytes even when the file is over 5MB — binary wins over the size guard', async () => {
     // Before the fix, the size check ran BEFORE binary detection, so a >5MB
     // binary was reported tooLarge (blocking, unreadable) instead of isBinary
     // (a deliberate, never-blocking non-match). The null byte sits within the

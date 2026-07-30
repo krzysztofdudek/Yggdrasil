@@ -400,6 +400,7 @@ node_types:
       - id: source-no-raw-control-chars
         status: enforced
       - test-deterministic
+      - self-contained-references
     parents: [module, test-suite]
 
   doc-page:

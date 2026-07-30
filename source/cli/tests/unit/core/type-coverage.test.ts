@@ -139,7 +139,7 @@ describe('computeTypeCoverage — classification lattice', () => {
     expect(result.unmatched).not.toContain('src/huge.ts');
   });
 
-  it('a file unreadable against MULTIPLE classifying types is ONE aggregated entry naming every type, not one per type (I1c)', async () => {
+  it('a file unreadable against MULTIPLE classifying types is ONE aggregated entry naming every type, not one per type', async () => {
     const dir = copyFixture();
     const bigPath = path.join(dir, 'src', 'huge.ts');
     writeFileSync(bigPath, Buffer.alloc(5 * 1024 * 1024 + 1, 0x61));
@@ -179,7 +179,7 @@ describe('computeTypeCoverage — classification lattice', () => {
     expect(result.unmatched).toContain('src/huge.bin');
   });
 
-  it('a >5MB TEXT file short-circuits to a clean non-match for a type whose path atom definitively fails, even though its content atom is unreadable (I1a)', async () => {
+  it('a >5MB TEXT file short-circuits to a clean non-match for a type whose path atom definitively fails, even though its content atom is unreadable', async () => {
     const dir = copyFixture();
     const bigPath = path.join(dir, 'src', 'huge.ts');
     writeFileSync(bigPath, Buffer.alloc(5 * 1024 * 1024 + 1, 0x61));

@@ -157,7 +157,7 @@ describe('installRules — legacy sweep', () => {
   });
 });
 
-// --- Additional edge cases beyond the brief's suite ------------------------
+// --- Additional edge cases not covered by the scenarios above ---------------
 
 describe('installRules — additional edge cases', () => {
   it('aider: removes the marked entry when it sits in the middle of the read: list', async () => {

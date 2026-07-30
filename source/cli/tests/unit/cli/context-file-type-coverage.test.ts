@@ -132,11 +132,11 @@ describe.skipIf(!distExists)('yg context --file — typed view for a type-covere
     }
   });
 
-  // src/unclassified/x.ts matches no architecture type's when: at all — this
-  // task must not change its behavior: the real, live "no graph coverage"
-  // error (not context-file.ts's own long-dead "This file is not covered by
-  // any node." branch, which no build-context.ts call site has ever reached)
-  // still fires, unchanged.
+  // src/unclassified/x.ts matches no architecture type's when: at all, so
+  // the real, live "no graph coverage" error (not context-file.ts's own
+  // long-dead "This file is not covered by any node." branch, which no
+  // build-context.ts call site has ever reached) still fires, unchanged —
+  // pinned here so type-level coverage work can never silently change it.
   it('an ordinary unmapped, unclassified file keeps today\'s "no graph coverage" error unchanged', () => {
     const dir = copyFixture();
     try {

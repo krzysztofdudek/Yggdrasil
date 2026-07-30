@@ -100,7 +100,7 @@ Before writing a single YAML file, we spent the equivalent of several days restr
 
 ### `implies:` chains
 
-**Used as:** Four chains: `cli-command-contract` → `[command-exit-codes, diagnostic-logging]`; `deterministic` → `[no-nondeterminism-direct]`; `top-level-error-handler` → `[command-exit-codes]`; `source-hygiene` → `[posix-paths-source, no-direct-minimatch, no-shell-injection, prototype-safe-registry-lookup, owner-resolution-single-source]`. Implied aspects propagate automatically — no duplication in node or architecture defaults.
+**Used as:** Four chains: `cli-command-contract` → `[command-exit-codes, diagnostic-logging]`; `deterministic` → `[no-nondeterminism-direct]`; `top-level-error-handler` → `[command-exit-codes]`; `source-hygiene` → `[posix-paths-source, no-direct-minimatch, no-shell-injection, prototype-safe-registry-lookup, owner-resolution-single-source, self-contained-references]`. Implied aspects propagate automatically — no duplication in node or architecture defaults.
 
 **Earn-rate: medium.** The `deterministic` → `no-nondeterminism-direct` chain is the best example: every node that must be deterministic also must not use `Math.random()` or `Date.now()` directly. Declaring this once in the implies chain beats repeating it across 30 engine nodes.
 

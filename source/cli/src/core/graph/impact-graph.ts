@@ -298,9 +298,11 @@ export interface UnresolvedUnit { aspectId: string; unitKey: string; nodePath?: 
 export interface ImpactSet { pairs: InvalidatedPair[]; unresolved: UnresolvedUnit[] }
 
 /**
- * Sync classification. Returns admitted pairs + the cold companion-LLM pairs that need
- * async resolution (a later task). A pair is a cold candidate ONLY if nothing else already
- * admitted it (no point running the resolver for a pair already known invalidated).
+ * Sync classification. Returns admitted pairs + the cold companion-LLM pairs that still need
+ * async companion resolution — the caller (`collectInvalidatedPairs`, cli/impact-handlers.ts)
+ * resolves each one and folds a hit back into admitted pairs. A pair is a cold candidate ONLY
+ * if nothing else already admitted it (no point running the resolver for a pair already known
+ * invalidated).
  */
 export function classifyInvalidations(
   pairs: ExpectedPair[],
