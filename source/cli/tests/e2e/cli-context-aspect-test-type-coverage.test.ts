@@ -6,30 +6,33 @@
  * LLM pair lookup (aspect-test.ts) each filter pairs by `p.nodePath ===
  * nodePath` — a componentless pair's `nodePath` is `undefined`, which can
  * never equal a real component path, so it can never enter either filtered
- * set. This suite pins that claim directly rather than leaving it as
- * unverified prose: a real node's `context`/`aspect-test` output is
- * byte-identical whether or not unrelated componentless files exist
- * alongside it in the same graph.
+ * set. This suite pins that claim directly, with real output on both sides
+ * (not two empty error pages that happen to match): a real node's
+ * `context`/`aspect-test` output is byte-identical whether or not unrelated
+ * plain, componentless files exist alongside it in the same graph.
  *
- * Real fixture (tests/fixtures/type-level-engine/ merged with its
- * two-covered-files variant), real spawned binary, twin comparison —
- * WITH src/leaf/{a,b}.ts present (componentless pairs exist) vs WITHOUT them
- * (removed from an otherwise-identical copy), both against the SAME real
- * node (`owned`, type `leaf`, which independently gets its own file-level
- * pair from `llm-leaf-rule` since it shares that type).
+ * The fixture (tests/fixtures/type-coverage-node-twin/) is a small, dedicated
+ * graph — not an overlay on tests/fixtures/type-level-engine/, whose
+ * architecture deliberately carries an unrelated parents: cycle and a
+ * strict-without-when type (both exist there to pin cascade-engine cycle
+ * termination, nothing to do with this suite). Those make `validate()` fail
+ * before `yg context` ever reaches attachLockObservability, so both twin runs
+ * would exit 1 with the same validation error regardless of whether the
+ * threaded call does anything at all — a match that proves nothing. This
+ * fixture's graph validates cleanly, so the command reaches the real,
+ * threaded code path on both sides.
  */
 import { describe, it, expect } from 'vitest';
-import { existsSync, mkdtempSync, rmSync, cpSync, appendFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, cpSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { FIXTURE_TWO_COVERED_FILES } from '../fixtures/type-level-engine/variants/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '..', '..');
 const BIN_PATH = path.join(CLI_ROOT, 'dist', 'bin.js');
-const BASE_FIXTURE = path.join(CLI_ROOT, 'tests', 'fixtures', 'type-level-engine');
+const FIXTURE = path.join(CLI_ROOT, 'tests', 'fixtures', 'type-coverage-node-twin');
 const distExists = existsSync(BIN_PATH);
 
 function run(args: string[], cwd: string): { stdout: string; stderr: string; status: number | null } {
@@ -37,19 +40,12 @@ function run(args: string[], cwd: string): { stdout: string; stderr: string; sta
   return { stdout: r.stdout ?? '', stderr: r.stderr ?? '', status: r.status };
 }
 
-/** Merged fixture (base + two-covered-files), with a reviewer tier added so
- *  llm-leaf-rule (which the variant attaches) resolves a tier for --dry-run. */
-function mergedFixtureCopy(withLeafFiles: boolean): string {
+/** Fresh mkdtemp copy of the fixture, optionally stripped of its two plain
+ *  leaf siblings (src/leaf/{a,b}.ts) — the twin comparison this suite runs. */
+function twinFixtureCopy(withLeafFiles: boolean): string {
   const dir = mkdtempSync(path.join(tmpdir(), 'yg-ctx-aspecttest-typecov-'));
-  cpSync(BASE_FIXTURE, dir, { recursive: true });
-  cpSync(FIXTURE_TWO_COVERED_FILES, dir, { recursive: true });
-  appendFileSync(
-    path.join(dir, '.yggdrasil', 'yg-config.yaml'),
-    '\nreviewer:\n  default: standard\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: "mock-model"\n        endpoint: "http://127.0.0.1:1"\n',
-  );
+  cpSync(FIXTURE, dir, { recursive: true });
   if (!withLeafFiles) {
-    // Both leaf files removed: `leaf` no longer matches anything uncovered, so
-    // NO componentless pair exists anywhere in this graph — the twin.
     rmSync(path.join(dir, 'src', 'leaf', 'a.ts'), { force: true });
     rmSync(path.join(dir, 'src', 'leaf', 'b.ts'), { force: true });
   }
@@ -57,24 +53,29 @@ function mergedFixtureCopy(withLeafFiles: boolean): string {
 }
 
 describe.skipIf(!distExists)('yg context / yg aspect test — type-level threading is a no-op for a real node', () => {
-  it('yg context --node owned is byte-identical with and without componentless files present', () => {
-    const withFiles = mergedFixtureCopy(true);
-    const withoutFiles = mergedFixtureCopy(false);
+  it('yg context --node owned is byte-identical, and real, with and without plain leaf files present', () => {
+    const withFiles = twinFixtureCopy(true);
+    const withoutFiles = twinFixtureCopy(false);
     try {
       const a = run(['context', '--node', 'owned'], withFiles);
       const b = run(['context', '--node', 'owned'], withoutFiles);
-      expect(a.status).toBe(b.status);
+      expect(a.status).toBe(0);
+      expect(b.status).toBe(0);
       expect(a.stdout).toBe(b.stdout);
       expect(a.stderr).toBe(b.stderr);
+      // Sanity: this is the real node-context body, not an early validation
+      // error both sides would share regardless of the threaded call.
+      expect(a.stdout).toContain('Must satisfy (1 aspect)');
+      expect(a.stdout).toContain('llm-leaf-rule');
     } finally {
       rmSync(withFiles, { recursive: true, force: true });
       rmSync(withoutFiles, { recursive: true, force: true });
     }
   });
 
-  it('yg aspect test --node owned --aspect llm-leaf-rule --dry-run is byte-identical with and without componentless files present', () => {
-    const withFiles = mergedFixtureCopy(true);
-    const withoutFiles = mergedFixtureCopy(false);
+  it('yg aspect test --node owned --aspect llm-leaf-rule --dry-run is byte-identical, and real, with and without plain leaf files present', () => {
+    const withFiles = twinFixtureCopy(true);
+    const withoutFiles = twinFixtureCopy(false);
     try {
       const a = run(['aspect-test', '--node', 'owned', '--aspect', 'llm-leaf-rule', '--dry-run'], withFiles);
       const b = run(['aspect-test', '--node', 'owned', '--aspect', 'llm-leaf-rule', '--dry-run'], withoutFiles);
@@ -83,7 +84,7 @@ describe.skipIf(!distExists)('yg context / yg aspect test — type-level threadi
       expect(a.stdout).toBe(b.stdout);
       expect(a.stderr).toBe(b.stderr);
       // Sanity: this is a real prompt preview, not an early error both sides share.
-      expect(a.stdout).toContain('prompt for file:src/owned/o.ts');
+      expect(a.stdout).toContain('prompt for file:src/leaf/owned.ts');
     } finally {
       rmSync(withFiles, { recursive: true, force: true });
       rmSync(withoutFiles, { recursive: true, force: true });

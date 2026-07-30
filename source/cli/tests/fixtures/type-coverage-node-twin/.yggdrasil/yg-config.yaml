@@ -1,0 +1,22 @@
+version: "5.2.0"
+
+# Deliberately minimal — a fresh, self-contained fixture (not an overlay on
+# tests/fixtures/type-level-engine/, whose architecture carries a cycle and a
+# strict-without-when type that make `validate()` fail before it ever reaches
+# per-node checks). Every file here is either the one explicit node's own
+# mapped file or a plain type-covered sibling — the whole graph validates
+# cleanly, so a command gated on validation passing actually runs.
+coverage:
+  required:
+    - src/
+  type_level: true
+
+reviewer:
+  default: standard
+  tiers:
+    standard:
+      provider: ollama
+      consensus: 1
+      config:
+        model: "mock-model"
+        endpoint: "http://127.0.0.1:1"
