@@ -5,6 +5,11 @@ import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { initDebugLog } from '../utils/debug-log.js';
 import { appendToDebugLog } from '../io/debug-log-writer.js';
 import { computeEffectiveAspects, inferAspectDisplayKind } from '../core/graph/aspects.js';
+import { computeTypeAspectCascade, isReachableForTypeCoveredFile } from '../core/type-effective.js';
+import type { TypeCoverageInput } from '../core/pairs.js';
+import { scanUncoveredFiles } from '../core/check.js';
+import { computeTypeCoverage } from '../core/type-coverage.js';
+import { FileContentCache } from '../io/file-content-cache.js';
 import type { Graph, AspectStatus, AspectDef } from '../model/graph.js';
 import { readLock } from '../io/lock-store.js';
 import { verifyLock } from '../core/verify-lock.js';
@@ -37,13 +42,30 @@ interface AspectUsage {
   own: number;
   implied: number;
   flow: number;
+  /** Real component nodes using this aspect — architecture + own + implied + flow. Never includes typeCovered below (a file is not a node). */
   total: number;
+  /**
+   * Files enforced by their architecture type alone (no owning component) —
+   * counted separately from `total` so a caller never mislabels a FILE as a
+   * "node" the way `total` names them. A rule live only through this count is
+   * still real, enforced law (`yg check` reports it enforced); it must never
+   * read as unused just because `total` (node usage) is zero.
+   */
+  typeCovered: number;
 }
 
-export function computeAspectUsage(graph: Graph): Map<string, AspectUsage> {
+/**
+ * `typeCoverage`: the type-level classification (coverage.type_level),
+ * optional — absent ⇒ today's behavior exactly (typeCovered stays 0 on every
+ * aspect, byte-identical to before the tier existed). Present ⇒ a file
+ * enforced by its architecture type alone is counted too, so a rule reachable
+ * ONLY that way is never reported as unused (0 nodes) when `yg check` already
+ * treats it as live.
+ */
+export function computeAspectUsage(graph: Graph, typeCoverage?: TypeCoverageInput): Map<string, AspectUsage> {
   const usage = new Map<string, AspectUsage>();
   for (const aspect of graph.aspects) {
-    usage.set(aspect.id, { architecture: 0, own: 0, implied: 0, flow: 0, total: 0 });
+    usage.set(aspect.id, { architecture: 0, own: 0, implied: 0, flow: 0, total: 0, typeCovered: 0 });
   }
 
   for (const [, node] of graph.nodes) {
@@ -73,15 +95,44 @@ export function computeAspectUsage(graph: Graph): Map<string, AspectUsage> {
     }
   }
 
+  // Files enforced by their architecture type alone: the SAME reachability
+  // rule the dead-attach linters use (isReachableForTypeCoveredFile) — a
+  // whole-unit (per: node) rule is cascade-effective yet has no component to
+  // run on for a nodeless file, so it must not count as used there. A cascade
+  // that could not be resolved at all (an implies cycle) contributes nothing
+  // here; the dead-attach linters name that cause on their own path.
+  for (const [file, typeId] of typeCoverage?.covered ?? []) {
+    let cascade;
+    try {
+      cascade = computeTypeAspectCascade(graph, file, typeId, typeCoverage?.edges);
+    } catch (error) {
+      // An unexpected structural error (not an implies cycle — that is
+      // absorbed inside computeTypeAspectCascade itself and returned as
+      // cascade.cycle below) must not abort usage counting for every OTHER
+      // type-covered file in the run.
+      debugWrite(
+        `[aspects] type-covered usage skipped for '${file}' (type '${typeId}'): ${(error as Error).message}`,
+      );
+      continue;
+    }
+    if (cascade.cycle) continue;
+    for (const { aspectId } of cascade.effective) {
+      if (!isReachableForTypeCoveredFile(graph, aspectId)) continue;
+      const u = usage.get(aspectId);
+      if (!u) continue;
+      u.typeCovered++;
+    }
+  }
+
   return usage;
 }
 
-export function formatAspectsOutput(graph: Graph): string {
-  const usage = computeAspectUsage(graph);
+export function formatAspectsOutput(graph: Graph, typeCoverage?: TypeCoverageInput): string {
+  const usage = computeAspectUsage(graph, typeCoverage);
   const lines: string[] = [];
 
   for (const aspect of graph.aspects.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))) {
-    const u = usage.get(aspect.id) ?? { architecture: 0, own: 0, implied: 0, flow: 0, total: 0 };
+    const u = usage.get(aspect.id) ?? { architecture: 0, own: 0, implied: 0, flow: 0, total: 0, typeCovered: 0 };
     const displayName = aspect.description ?? aspect.name;
     const status = aspect.status ?? 'enforced';
     lines.push(`${aspect.id} [${status}] — ${displayName}`);
@@ -93,15 +144,21 @@ export function formatAspectsOutput(graph: Graph): string {
       lines.push(`  Reviewer: ${reviewerType}`);
     }
 
-    if (u.total === 0) {
+    if (u.total === 0 && u.typeCovered === 0) {
       lines.push(chalk.yellow(`  Used by: 0 nodes — orphaned`));
+    } else if (u.total === 0) {
+      // No component uses it, but files enforced by its architecture type
+      // alone do — live law, never orphaned just because no node declares it.
+      lines.push(`  Used by: 0 nodes, ${u.typeCovered} type-covered file${u.typeCovered === 1 ? '' : 's'}`);
     } else {
       const parts: string[] = [];
       if (u.architecture) parts.push(`architecture: ${u.architecture}`);
       if (u.own) parts.push(`direct: ${u.own}`);
       if (u.implied) parts.push(`implied: ${u.implied}`);
       if (u.flow) parts.push(`flow: ${u.flow}`);
-      lines.push(`  Used by: ${u.total} node${u.total === 1 ? '' : 's'} (${parts.join(', ')})`);
+      if (u.typeCovered) parts.push(`type-covered: ${u.typeCovered}`);
+      const fileSuffix = u.typeCovered > 0 ? ` + ${u.typeCovered} type-covered file${u.typeCovered === 1 ? '' : 's'}` : '';
+      lines.push(`  Used by: ${u.total} node${u.total === 1 ? '' : 's'}${fileSuffix} (${parts.join(', ')})`);
     }
 
     if (aspect.implies && aspect.implies.length > 0) {
@@ -718,6 +775,21 @@ async function buildAspectsHealthOutput(graph: Graph, nowMs: number): Promise<st
   return formatAspectsHealthOutput(health);
 }
 
+/**
+ * The type-level classification lattice (coverage.type_level), classified for
+ * this one `yg aspects` invocation — mirrors the same per-command hoist
+ * `yg impact`/`yg advise` each do their own. Undefined when the flag is off,
+ * so computeAspectUsage counts exactly the component-only universe it always
+ * has.
+ */
+async function computeTypeCoverageForAspects(graph: Graph, projectRoot: string): Promise<TypeCoverageInput | undefined> {
+  if (!graph.config.coverage?.typeLevel) return undefined;
+  const gitFiles = await walkRepoFiles(projectRoot);
+  const uncovered = scanUncoveredFiles(graph, gitFiles);
+  const result = await computeTypeCoverage(graph, uncovered, new FileContentCache());
+  return { covered: result.covered, ambiguousPaths: result.ambiguous.map((a) => a.file) };
+}
+
 export function registerAspectsCommand(program: Command): void {
   program
     .command('aspects')
@@ -737,7 +809,8 @@ export function registerAspectsCommand(program: Command): void {
           // threaded down so the pure renderers never read the clock themselves.
           process.stdout.write(await buildAspectsHealthOutput(graph, Date.now()));
         } else {
-          process.stdout.write(formatAspectsOutput(graph));
+          const typeCoverage = await computeTypeCoverageForAspects(graph, path.dirname(graph.rootPath));
+          process.stdout.write(formatAspectsOutput(graph, typeCoverage));
         }
       } catch (error) {
         abortOnUnexpectedError(error, 'listing aspects');

@@ -9,7 +9,19 @@ import { issueMsg } from './shared.js';
 import { toPosixPath } from '../../utils/posix.js';
 import { computeExpectedPairs } from '../pairs.js';
 import type { TypeCoverageInput } from '../pairs.js';
-import { computeTypeEffectiveAspects, isReachableForTypeCoveredFile } from '../type-effective.js';
+import {
+  computeTypeAspectCascade,
+  isReachableForTypeCoveredFile,
+  walkTypeParentChain,
+  computeDeclaredAttachedAspects,
+  describeCascadeCycle,
+  type TypeEffectiveAspect,
+  type TypeAspectDrop,
+  type TypeCascadeCycle,
+} from '../type-effective.js';
+
+/** Shared `next` clause for a dead-attach warning whose real cause is an absorbed aspect `implies` cycle — points at the SAME blocking error and fix every other cycle-naming surface (`yg owner --file`, `yg context --file`, `yg check`'s own rollup) already points at. */
+const CYCLE_NEXT = 'Run yg check to see the blocking aspect-implies-cycle error, then remove one implies edge in .yggdrasil/aspects/.';
 
 // --- aspect-rule-sources: content.md vs check.mjs mutual exclusion ---
 
@@ -276,18 +288,44 @@ export function checkAspectEffectiveNowhere(graph: Graph, typeCoverage?: TypeCov
   // message this check emits when the type's only instances are type-covered
   // files, never a nonexistent `when` predicate.
   const wholeUnitBlockedType = new Map<string, string>(); // aspectId -> a type it was blocked on
+  // A type whose cascade absorbed an implies cycle for a type-covered file —
+  // keyed by type id (first cycle seen), since the cycle aborts resolution for
+  // the WHOLE file, not one aspect: every id declared-attached to that type
+  // (below) is equally unresolved, never narrowed by a `when` that was never
+  // evaluated.
+  const cycleByType = new Map<string, TypeCascadeCycle>();
   for (const [file, typeId] of typeCoverage?.covered ?? []) {
+    let cascade: { effective: TypeEffectiveAspect[]; drops: TypeAspectDrop[]; cycle?: TypeCascadeCycle };
     try {
-      for (const { aspectId } of computeTypeEffectiveAspects(graph, file, typeId, typeCoverage?.edges)) {
-        if (isReachableForTypeCoveredFile(graph, aspectId)) {
-          effectiveSomewhere.add(aspectId);
-        } else if (!typeHasRealNode.has(typeId) && !wholeUnitBlockedType.has(aspectId)) {
-          wholeUnitBlockedType.set(aspectId, typeId);
-        }
-      }
+      cascade = computeTypeAspectCascade(graph, file, typeId, typeCoverage?.edges);
     } catch {
-      // Mirrors the node loop's own catch above — computeTypeAspectCascade
-      // absorbs an implies cycle internally; this guards the boundary.
+      // An unexpected structural error (NOT an implies cycle — that is absorbed
+      // inside computeTypeAspectCascade itself, handled via cascade.cycle
+      // below) must not abort enumeration for every OTHER type-covered file.
+      continue;
+    }
+    if (cascade.cycle) {
+      if (!typeHasRealNode.has(typeId) && !cycleByType.has(typeId)) cycleByType.set(typeId, cascade.cycle);
+      continue;
+    }
+    for (const { aspectId } of cascade.effective) {
+      if (isReachableForTypeCoveredFile(graph, aspectId)) {
+        effectiveSomewhere.add(aspectId);
+      } else if (!typeHasRealNode.has(typeId) && !wholeUnitBlockedType.has(aspectId)) {
+        wholeUnitBlockedType.set(aspectId, typeId);
+      }
+    }
+  }
+  // Expand each cycle-blocked type's declared-attached closure (own defaults +
+  // chain + implies) ONCE, so an aspect reachable only through that type is
+  // named by the real cause (the cycle) below, instead of falling through to
+  // the genuine-predicate message — which a type with no real node could never
+  // actually have produced, since there was no node for a `when` to filter.
+  const cycleBlockedType = new Map<string, string>(); // aspectId -> the type its cycle was attributed to
+  for (const typeId of cycleByType.keys()) {
+    const { chainTypeIds } = walkTypeParentChain(graph, typeId);
+    for (const id of computeDeclaredAttachedAspects(graph, typeId, chainTypeIds)) {
+      if (!cycleBlockedType.has(id)) cycleBlockedType.set(id, typeId);
     }
   }
 
@@ -311,17 +349,29 @@ export function checkAspectEffectiveNowhere(graph: Graph, typeCoverage?: TypeCov
     // its only instances are type-covered files, so there is no `when` to
     // have filtered it off; it is whole-unit with nothing to run on.
     const blockedOnType = wholeUnitBlockedType.get(aspect.id);
+    // Distinct from the whole-unit case above: here the type's ONLY instance's
+    // cascade never resolved at all (an implies cycle), so there is no `when`
+    // outcome to report either way — the real cause is the cycle, not a
+    // predicate that filtered a (nonexistent) real node off.
+    const cycleType = blockedOnType ? undefined : cycleBlockedType.get(aspect.id);
+    const cycleInfo = cycleType ? cycleByType.get(cycleType) : undefined;
     const msgData: IssueMessage = blockedOnType
       ? {
           what: `Aspect '${aspect.id}' has a rule source but is effective on zero nodes.`,
           why: `It is whole-unit (scope: { per: 'node' }), and the only instances of type '${blockedOnType}' are files enforced by their type alone (no component of their own) — there is no component for it to run on, so it can never verify anywhere.`,
           next: `Give a file of type '${blockedOnType}' a component of its own, or make the rule file-level (scope: { per: 'file' }) in .yggdrasil/aspects/${aspect.id}/yg-aspect.yaml.`,
         }
-      : {
-          what: `Aspect '${aspect.id}' has a rule source but is effective on zero nodes.`,
-          why: `Its attach sites plus 'when' predicates match nothing, so the rule is never verified anywhere — dead law that looks enforced.`,
-          next: `Check the attach sites and 'when' predicate (yg impact --aspect ${aspect.id}). While authoring graph-before-code this is expected: create the node/type it targets, or set status: draft until the code lands.`,
-        };
+      : cycleInfo
+        ? {
+            what: `Aspect '${aspect.id}' has a rule source but is effective on zero nodes.`,
+            why: `${describeCascadeCycle(cycleInfo)} The only instances of type '${cycleType}' are files enforced by their type alone (no component of their own), so there is no real node this rule could have been filtered off of — it was never resolved.`,
+            next: CYCLE_NEXT,
+          }
+        : {
+            what: `Aspect '${aspect.id}' has a rule source but is effective on zero nodes.`,
+            why: `Its attach sites plus 'when' predicates match nothing, so the rule is never verified anywhere — dead law that looks enforced.`,
+            next: `Check the attach sites and 'when' predicate (yg impact --aspect ${aspect.id}). While authoring graph-before-code this is expected: create the node/type it targets, or set status: draft until the code lands.`,
+          };
     issues.push({
       severity: 'warning',
       code: 'aspect-effective-nowhere',
@@ -401,6 +451,11 @@ export function checkArchitectureDefaultAspectUnreachable(graph: Graph, typeCove
   // (`wholeUnitBlockedByType`) — the real cause the message below needs to
   // tell apart from a `when` mismatch.
   const wholeUnitBlockedByType = new Map<string, Set<string>>();
+  // A type whose cascade absorbed an implies cycle for a type-covered file —
+  // keyed by type name (first cycle seen). Recorded unconditionally (mirrors
+  // wholeUnitBlockedByType above); the message loop below gates its READ on
+  // the type having no real node, same as the whole-unit map.
+  const cycleByType = new Map<string, TypeCascadeCycle>();
   for (const [file, typeId] of typeCoverage?.covered ?? []) {
     typeHasNodes.add(typeId);
     let set = effectiveByType.get(typeId);
@@ -408,21 +463,29 @@ export function checkArchitectureDefaultAspectUnreachable(graph: Graph, typeCove
       set = new Set<string>();
       effectiveByType.set(typeId, set);
     }
+    let cascade: { effective: TypeEffectiveAspect[]; drops: TypeAspectDrop[]; cycle?: TypeCascadeCycle };
     try {
-      for (const { aspectId } of computeTypeEffectiveAspects(graph, file, typeId, typeCoverage?.edges)) {
-        if (isReachableForTypeCoveredFile(graph, aspectId)) {
-          set.add(aspectId);
-        } else {
-          let blocked = wholeUnitBlockedByType.get(typeId);
-          if (!blocked) {
-            blocked = new Set<string>();
-            wholeUnitBlockedByType.set(typeId, blocked);
-          }
-          blocked.add(aspectId);
-        }
-      }
+      cascade = computeTypeAspectCascade(graph, file, typeId, typeCoverage?.edges);
     } catch {
-      // Mirrors the component loop's own catch above.
+      // Mirrors the component loop's own catch above: an unexpected structural
+      // error must not abort enumeration for every OTHER type-covered file.
+      continue;
+    }
+    if (cascade.cycle) {
+      if (!cycleByType.has(typeId)) cycleByType.set(typeId, cascade.cycle);
+      continue;
+    }
+    for (const { aspectId } of cascade.effective) {
+      if (isReachableForTypeCoveredFile(graph, aspectId)) {
+        set.add(aspectId);
+      } else {
+        let blocked = wholeUnitBlockedByType.get(typeId);
+        if (!blocked) {
+          blocked = new Set<string>();
+          wholeUnitBlockedByType.set(typeId, blocked);
+        }
+        blocked.add(aspectId);
+      }
     }
   }
 
@@ -435,6 +498,9 @@ export function checkArchitectureDefaultAspectUnreachable(graph: Graph, typeCove
     // there is no `when` that could have filtered a real node off, so an
     // aspect this type blocked for being whole-unit is the real cause.
     const wholeUnitOnly = !typesWithRealNodes.has(typeName) ? wholeUnitBlockedByType.get(typeName) : undefined;
+    // Same gate: only a type with no real node can ever hit this branch,
+    // since a real node's cascade never goes through this loop at all.
+    const cascadeCycle = !typesWithRealNodes.has(typeName) ? cycleByType.get(typeName) : undefined;
     for (const aspectId of defaults) {
       if (!definedAspectIds.has(aspectId)) continue; // aspect-undefined handles this.
       if (effective.has(aspectId)) continue;
@@ -444,11 +510,17 @@ export function checkArchitectureDefaultAspectUnreachable(graph: Graph, typeCove
             why: `It is whole-unit (scope: { per: 'node' }), and the only instances of '${typeName}' are files enforced by their type alone (no component of their own) — there is no component for it to run on, so it can never enforce here.`,
             next: `Give a file of type '${typeName}' a component of its own, or make the rule file-level (scope: { per: 'file' }) in .yggdrasil/aspects/${aspectId}/yg-aspect.yaml.`,
           }
-        : {
-            what: `Aspect '${aspectId}' is a default aspect of type '${typeName}' but is effective on zero nodes of that type.`,
-            why: `The architecture attaches it to '${typeName}', but its own 'when' (or the attach-site 'when') filters it back off every '${typeName}' node — so the rule looks enforced for this type yet verifies nothing there.`,
-            next: `Widen or remove the aspect's 'when' so it reaches '${typeName}' nodes (yg impact --aspect ${aspectId}), or drop the default from the '${typeName}' type in yg-architecture.yaml if it should not apply there.`,
-          };
+        : cascadeCycle
+          ? {
+              what: `Aspect '${aspectId}' is a default aspect of type '${typeName}' but is effective on zero nodes of that type.`,
+              why: `${describeCascadeCycle(cascadeCycle)} The only instances of '${typeName}' are files enforced by their type alone (no component of their own), so there is no real node this default could have been filtered off of — it was never resolved.`,
+              next: CYCLE_NEXT,
+            }
+          : {
+              what: `Aspect '${aspectId}' is a default aspect of type '${typeName}' but is effective on zero nodes of that type.`,
+              why: `The architecture attaches it to '${typeName}', but its own 'when' (or the attach-site 'when') filters it back off every '${typeName}' node — so the rule looks enforced for this type yet verifies nothing there.`,
+              next: `Widen or remove the aspect's 'when' so it reaches '${typeName}' nodes (yg impact --aspect ${aspectId}), or drop the default from the '${typeName}' type in yg-architecture.yaml if it should not apply there.`,
+            };
       issues.push({
         severity: 'warning',
         code: 'architecture-default-aspect-unreachable',

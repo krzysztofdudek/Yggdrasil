@@ -387,14 +387,15 @@ describe('runCheck — excluded-ancestor-of-required corner is now fully closed 
     // own walk and flags any file satisfying a strict type's `when` with no owning
     // node, independent of coverage tiering. Q1's absolute-exclusion authority
     // (isExcludedByCoverage) governs only the coverage NODELESS tier
-    // (partitionByCoverageTier / computeTypeCoverage / scanTrackedButIgnored, per
-    // this task's own scope) — it does not reach the strict backward scan, so
-    // special.ts still surfaces as type-strict-orphan here, exactly as it would
-    // with any other coverage config. This is unrelated to and unaffected by Q1.
+    // (partitionByCoverageTier / computeTypeCoverage / scanTrackedButIgnored,
+    // the type-level coverage tier's own scope) — it does not reach the strict
+    // backward scan, so special.ts still surfaces as type-strict-orphan here,
+    // exactly as it would with any other coverage config. This is unrelated to
+    // and unaffected by Q1.
     expect(result.issues.some((i) => i.code === 'type-strict-orphan')).toBe(true);
 
     // The dead required line is now a visible, actionable warning instead of a
-    // silent no-op — this is the "coverage-required-shadowed" this task adds.
+    // silent no-op — this is what the "coverage-required-shadowed" warning reports.
     const shadowed = result.issues.find((i) => i.code === 'coverage-required-shadowed');
     expect(shadowed).toBeDefined();
     expect(shadowed!.severity).toBe('warning');

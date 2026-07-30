@@ -658,7 +658,7 @@ describe('type-visibility block — an uncomputable file is never folded into th
     expect(out).toContain('2 files matched by a type could not have their rules worked out:');
   });
 
-  it('--summary / --top still count an unresolved rule honestly, never silently as zero', () => {
+  it('--summary / --top still count an unresolved file honestly, never silently as zero', () => {
     const report: TypeVisibilityReport = {
       byType: [block({
         typeId: 'cyclic',
@@ -670,9 +670,30 @@ describe('type-visibility block — an uncomputable file is never folded into th
       rows: [],
     };
     const out = renderTypeVisibilityBlock(typeVisibilityResult(report), { countsOnly: true });
-    expect(out).toContain('1 rule unresolved (aspect implies cycle)');
+    expect(out).toContain('1 file could not have its rules worked out (aspect implies cycle)');
     // The counts-only posture holds: no file name, no cycle-naming sentence.
     expect(out).not.toContain('src/cyclic/z.ts');
     expect(out).not.toContain('Rules could not be worked out:');
+  });
+
+  // The single-file case above cannot distinguish a FILE count from a RULE
+  // count — both read "1" regardless of which the number means. This type has
+  // one declared rule (cyclic-a) but TWO files whose cascade cycled on it: the
+  // number of rules left unresolved is unknowable (resolution never ran), so
+  // only a file count is honest here — "2" must read as files, never rules.
+  it('--summary / --top count files, never rules, when one rule leaves several files unresolved', () => {
+    const report: TypeVisibilityReport = {
+      byType: [block({
+        typeId: 'cyclic',
+        files: ['src/cyclic/y.ts', 'src/cyclic/z.ts'],
+        uncomputable: [{ aspectId: 'cyclic-a', files: ['src/cyclic/y.ts', 'src/cyclic/z.ts'] }],
+      })],
+      zeroEnforcement: { count: 0, samples: [] },
+      uncomputable: { count: 2, groups: [{ aspectId: 'cyclic-a', files: ['src/cyclic/y.ts', 'src/cyclic/z.ts'] }] },
+      rows: [],
+    };
+    const out = renderTypeVisibilityBlock(typeVisibilityResult(report), { countsOnly: true });
+    expect(out).toContain('2 files could not have their rules worked out (aspect implies cycle)');
+    expect(out).not.toMatch(/\d+ rules? unresolved/);
   });
 });

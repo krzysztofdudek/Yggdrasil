@@ -55,10 +55,10 @@ export function companionOutsideAllowedReads(
   const what = `Companion file '${rel}' for aspect '${aspect.id}' on ${toPosixPath(pair.unitKey)} is outside the node's allowed-reads.`;
   const why =
     'A companion must be relation-reachable from the reviewed node — the reviewer may only see files the graph permits the node to read, so an out-of-reach companion is an infrastructure fault and the fill fails closed (NOTHING written).';
-  // pair.nodePath is absent only for a nodeless (type-covered-file) pair; Task 9
-  // owns that prompt/message variant — this task only widens the type so a
-  // component pair's message stays byte-identical (nodePath ?? '' is a no-op
-  // when nodePath is defined).
+  // pair.nodePath is absent only for a nodeless (type-covered-file) pair, which
+  // has no dedicated message variant here yet — nodePath ?? '' falls back to an
+  // empty owner path for it, while a component pair's message stays
+  // byte-identical (nodePath ?? '' is a no-op when nodePath is defined).
   const ownerNodePath = pair.nodePath ?? '';
   const next =
     owner === undefined
@@ -95,8 +95,9 @@ export async function resolveCompanionDescriptors(
 ): Promise<ResolvedCompanionDescriptorsResult> {
   // ── Normalize each returned path to repo-root-relative POSIX, dedupe + sort. ──
   // A nodeless pair has no component whose allowed-reads apply; collectAllowedReadsForAspect
-  // already returns ∅ for an absent node path (allowed-reads.ts), the safe/conservative
-  // reading — Task 9 owns the real nodeless companion-allowance design.
+  // already returns ∅ for an absent node path (allowed-reads.ts) — the safe/conservative
+  // reading until a nodeless pair has its own allowed-reads design: an absent node path
+  // can never wrongly widen what a companion may read, only narrow it to nothing.
   const allowedSet = collectAllowedReadsForAspect(pair.nodePath ?? '', graph);
   const subjectSet = new Set(pair.subjectFiles.map((p) => toPosix(p)));
   const normalizedSet = new Set<string>();

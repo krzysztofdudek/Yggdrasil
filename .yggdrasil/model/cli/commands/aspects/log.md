@@ -40,3 +40,5 @@ The per-aspect health view's regression cross-reference now consults only action
 Narrowed this command's module surface as part of a cleanup pass. A health-report assembly helper that is only ever called inside this module carried an unnecessary export marker, which misrepresented it as part of the module's public interface. Removing the marker makes the exported surface honestly reflect what other modules actually consume. Purely a visibility change — the function, its single in-module call site, and all behavior are unchanged.
 ## [2026-07-28T19:46:11.398Z]
 The rule-health table now counts a distinct file enforced by its architecture type alone separately from a component, so such a file can never inflate the reported component count by one.
+## [2026-07-30T19:19:24.535Z]
+The usage listing counted only real component nodes, so a rule enforced solely through files matching an architecture type, with no owning component, was reported as unused even though the structural check already treated it as enforced. Usage now also counts such files, shown under their own label, so a genuinely enforced rule is never called unused.

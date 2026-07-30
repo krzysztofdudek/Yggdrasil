@@ -30,6 +30,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../../..');
 const BIN_PATH = path.join(CLI_ROOT, 'dist', 'bin.js');
 const FIXTURE = path.join(CLI_ROOT, 'tests', 'fixtures', 'sample-project');
+const TYPE_LEVEL_FIXTURE = path.join(CLI_ROOT, 'tests', 'fixtures', 'type-level-engine');
 const distExists = existsSync(BIN_PATH);
 
 // The always-live nomination the fixture is rigged to produce (a far-past
@@ -311,6 +312,33 @@ function writeHostileDrillCase(projectRoot: string): string {
   );
   return `drill-miss:requires-audit/${caseLabel}`;
 }
+
+describe.skipIf(!distExists)('yg advise agrees with yg check on a rule enforced only through type coverage (spawned)', () => {
+  let projectRoot: string;
+
+  beforeEach(() => {
+    projectRoot = mkdtempSync(path.join(tmpdir(), 'yg-advise-typelevel-'));
+    cpSync(TYPE_LEVEL_FIXTURE, projectRoot, { recursive: true });
+  });
+  afterEach(() => rmSync(projectRoot, { recursive: true, force: true }));
+
+  it('never nominates dead-attach for a rule yg check reports enforced through a type with no real component node', () => {
+    // Ground truth from yg check: type 'forked' (tests/fixtures/type-level-engine)
+    // has no real component node anywhere — src/forked/f.ts is enforced by its
+    // architecture type alone — yet forked-own-rule is live there.
+    const checked = run(['check'], projectRoot);
+    expect(checked.stdout).toMatch(/'forked'[\s\S]*?Enforced: forked-own-rule \(1\)/);
+
+    // yg advise classifies the SAME graph for its own dead-attach nomination. It
+    // must reach the same verdict yg check just did, not report the identical
+    // rule as effective nowhere and offer to park it as draft.
+    const advised = run(['advise', '--all'], projectRoot);
+    expect(advised.status).toBe(0);
+    expect(advised.stdout).not.toContain(
+      "Aspect 'forked-own-rule' has a rule source but is effective on zero nodes.",
+    );
+  });
+});
 
 describe.skipIf(!distExists)('yg advise — id-surface injection hygiene (spawned)', () => {
   let projectRoot: string;

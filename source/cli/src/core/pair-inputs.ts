@@ -56,8 +56,8 @@ export function companionHashFor(aspect: AspectDef): string | undefined {
 
 /**
  * The node's description (prompt garnish — not hashed; spec §3.1). Absent
- * `nodePath` (a nodeless, type-covered-file pair — Task 9 owns its real prompt
- * variant) reads as '', the same as any other unknown path.
+ * `nodePath` (a nodeless, type-covered-file pair — no dedicated prompt variant
+ * exists for it here yet) reads as '', the same as any other unknown path.
  */
 export function nodeDescriptionFor(graph: Graph, nodePath: string | undefined): string {
   return (nodePath !== undefined ? graph.nodes.get(nodePath) : undefined)?.meta.description ?? '';

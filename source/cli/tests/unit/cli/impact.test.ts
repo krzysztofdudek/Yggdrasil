@@ -687,8 +687,9 @@ describe('yg impact — type-level coverage threading', () => {
       // type) contributes its own one pair; src/leaf/a.ts and src/leaf/b.ts
       // (componentless, matched by the same type) contribute one pair each —
       // 3 total, not 1. Without threading, computeAspectFillCost would only
-      // ever see the 1 node-owned pair.
-      expect(result.stdout).toContain('(3 pair(s))');
+      // ever see the 1 node-owned pair. The other 2 are named as file-only
+      // (no owning component) right alongside the total, not folded in silently.
+      expect(result.stdout).toContain('3 pair(s) (2 of them from files enforced by');
       expect(result.stdout).toContain('3 reviewer call(s)');
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -710,6 +711,28 @@ describe('yg impact — type-level coverage threading', () => {
       expect(ownAspectIds).toContain('llm-leaf-rule');
       expect(ownAspectIds).toContain('refuses-on-a');
       expect(own.every((p) => p.nodePath === undefined)).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('--aspect never claims zero impact for a rule with no owning node, when files enforced by its architecture type alone would still be re-verified', () => {
+    // The base fixture's own 'forked' type (src/forked/f.ts) has no real
+    // component node anywhere — forked-own-rule is enforced by that type
+    // alone. "Directly affected" only ever walks graph.nodes, so before this
+    // fix it read "(0): (none)" while the cost line beneath it, in the SAME
+    // output, said a pair WOULD become unverified — a self-contradiction.
+    const dir = mkdtempSync(path.join(tmpdir(), 'ygg-impact-typeonly-'));
+    cpSync(TYPE_LEVEL_BASE, dir, { recursive: true });
+    try {
+      const result = spawnSync('node', [BIN_PATH, 'impact', '--aspect', 'forked-own-rule'], { cwd: dir, encoding: 'utf-8' });
+      expect(result.status).toBe(0);
+      // Never a bare "(none)" here — that would claim literally nothing is
+      // affected, false when a type-covered file is.
+      expect(result.stdout).not.toMatch(/Directly affected \(0\):\s*\n\s*\(none\)\s*\n/);
+      expect(result.stdout).toContain('1 file');
+      expect(result.stdout).toContain("architecture type alone");
+      expect(result.stdout).toContain('(1 pair(s)');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

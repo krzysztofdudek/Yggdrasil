@@ -266,10 +266,12 @@ async function gatherSuppressData(graph: Graph, projectRoot: string): Promise<Su
 }
 
 /**
- * The type-level classification lattice (coverage.type_level), classified for
- * this one `yg advise` invocation. Undefined when the flag is off, so
- * computeExpectedPairs enumerates exactly the component-only universe it
- * always has.
+ * The type-level classification lattice (coverage.type_level), classified ONCE
+ * for this one `yg advise` invocation and shared by every source that needs it
+ * (the decorative-rule signal's expected-pairs pass, and the dead-attach source
+ * — K15: never a second classify here). Undefined when the flag is off, so a
+ * caller's own computeExpectedPairs/checkAspectEffectiveNowhere call enumerates
+ * exactly the component-only universe it always has.
  */
 async function computeTypeCoverageForAdvise(graph: Graph, projectRoot: string): Promise<TypeCoverageInput | undefined> {
   if (!graph.config.coverage?.typeLevel) return undefined;
@@ -280,13 +282,29 @@ async function computeTypeCoverageForAdvise(graph: Graph, projectRoot: string): 
 }
 
 /**
+ * `computeTypeCoverageForAdvise`, fail-safe: classification is best-effort at
+ * this boundary, so a failure degrades to undefined (the component-only
+ * universe) rather than aborting the whole `yg advise` run — mirroring
+ * `gatherCurrentUnits`'s own degrade-on-failure contract below.
+ */
+async function gatherTypeCoverageForAdvise(graph: Graph, projectRoot: string): Promise<TypeCoverageInput | undefined> {
+  try {
+    return await computeTypeCoverageForAdvise(graph, projectRoot);
+  } catch (error) {
+    debugWrite(`[advise] type coverage classification degraded to component-only: ${(error as Error).message}`);
+    return undefined;
+  }
+}
+
+/**
  * The current expected units per aspect (aspectId → unit keys) — the decorative-rule
  * shrinking-attach-set signal compares this against the units the fill telemetry
  * recorded. Fail-safe: any failure degrades to undefined so no demotion is nominated.
+ * `typeCoverage` is the SAME classification the caller already gathered
+ * (`gatherTypeCoverageForAdvise`) — never reclassified here.
  */
-async function gatherCurrentUnits(graph: Graph, projectRoot: string): Promise<Map<string, Set<string>> | undefined> {
+async function gatherCurrentUnits(graph: Graph, typeCoverage: TypeCoverageInput | undefined): Promise<Map<string, Set<string>> | undefined> {
   try {
-    const typeCoverage = await computeTypeCoverageForAdvise(graph, projectRoot);
     const { pairs } = await computeExpectedPairs(graph, { typeCoverage });
     return groupUnitsByAspect(pairs);
   } catch (error) {
@@ -407,7 +425,9 @@ async function gatherNominationSources(graph: Graph, todayUtc: Date): Promise<No
   const suppressData = await gatherSuppressData(graph, projectRoot);
   const drillResults = await gatherInCorpusDrillResults(graph, projectRoot);
   const verdictEvents = readVerdictEvents(graph.rootPath).events;
-  const currentUnitsByAspect = await gatherCurrentUnits(graph, projectRoot);
+  // Classified ONCE (K15) and shared by every source below that needs it.
+  const typeCoverage = await gatherTypeCoverageForAdvise(graph, projectRoot);
+  const currentUnitsByAspect = await gatherCurrentUnits(graph, typeCoverage);
   const churnByNode = gatherChurnByNode(graph, projectRoot);
   const familyCandidates = readFamilyCandidatesSource(graph);
   const architectureCutCycles = computeArchitectureCutCycles(graph);
@@ -417,6 +437,7 @@ async function gatherNominationSources(graph: Graph, todayUtc: Date): Promise<No
     suppressAnomalies: suppressData?.anomalies ?? [],
     drillResults,
     verdictEvents,
+    typeCoverage,
   };
   // The decorative-rule source needs BOTH the current attach sets and the suppress
   // counts; supply them only when both resolved, so an unknown suppress state or an

@@ -320,9 +320,9 @@ describe('type-coverage tier-awareness (Step 5)', () => {
     expect(on.map((i) => i.messageData.what.match(/'([^']+)'/)?.[1])).not.toContain('own-file-rule');
   });
 
-  // The brief's own illustrative twin re-used this SAME zero-node fixture for
-  // the flag-off case; that cannot hold: the bootstrap carve-out (silent while
-  // the model tree has zero nodes) already existed before this task and is
+  // A naive flag-off twin of the test above would reuse this SAME zero-node
+  // fixture; that cannot hold: the bootstrap carve-out (silent while the model
+  // tree has zero nodes) already existed before type coverage did, and is
   // UNCONDITIONAL for a one-argument call — "absent -> today's behavior
   // exactly" pins that this genuinely-nodeless graph stays silent, one-arg,
   // regardless of what a SECOND argument would have revealed. Verified real:
@@ -338,14 +338,15 @@ describe('type-coverage tier-awareness (Step 5)', () => {
     expect(checkAspectEffectiveNowhere(graph)).toHaveLength(0);
   });
 
-  // The brief's own illustrative snippet expected toHaveLength(0) here — FALSE
-  // against this fixture, confirmed by running it: 'leaf' declares two aspects
+  // A naive expectation would be toHaveLength(0) here — FALSE against this
+  // fixture, confirmed by running it: 'leaf' declares two aspects
   // (gated-on-descendants, never-here) whose own doc comments state they must
   // ALWAYS read when-not-satisfied for a file-level unit (a file can never own
   // a port or have descendants) — genuinely unreachable BY DESIGN, the same
   // way they are already unreachable today for the fixture's real 'owned' node
   // (verified: checkArchitectureDefaultAspectUnreachable(loadGraph(BASE_FIXTURE))
-  // one-arg already reports these same two, with zero Task-8 code in play).
+  // one-arg already reports these same two, with no type-coverage-aware code
+  // in play).
   // "Has instances" is proven precisely by these two findings REAPPEARING for
   // a type with zero real components once its only instance is a type-covered
   // file — not by the type going silent.
@@ -466,6 +467,47 @@ describe('type-coverage tier-awareness (Step 5)', () => {
     expect(issue.messageData.next).not.toMatch(/Widen or remove/);
   });
 
+  // A third direction: the type's only instance's cascade could not be
+  // resolved AT ALL — an aspect `implies` cycle, not a `when` mismatch and not
+  // a whole-unit/no-component gap. 'leafy' has zero real components, so there
+  // is no real node the genuine-predicate wording's "filters it back off"
+  // could ever describe; the actual cause is the cycle the blocking
+  // aspect-implies-cycle validator error reports elsewhere in the same run.
+  function typeCycleTwinGraph(rootPath: string): { graph: Graph; typeCoverage: TypeCoverageInput } {
+    const arch: ArchitectureDef = {
+      node_types: {
+        module: { description: 'A module', aspects: [] },
+        leafy: { description: 'Classifies src/leafy/**', aspects: ['cyclic-rule'], when: { path: 'src/leafy/**' } },
+      },
+    };
+    const cyclicRule = detAspect('cyclic-rule', { implies: ['cyclic-partner'] });
+    const cyclicPartner = detAspect('cyclic-partner', { implies: ['cyclic-rule'] });
+    const otherNode = moduleNode('other', []);
+    const graph: Graph = { config: {}, architecture: arch, nodes: new Map([['other', otherNode]]), aspects: [cyclicRule, cyclicPartner], flows: [], rootPath };
+    const typeCoverage: TypeCoverageInput = { covered: new Map([['src/leafy/f.ts', 'leafy']]), ambiguousPaths: [] };
+    return { graph, typeCoverage };
+  }
+
+  it('names the real cause (an aspect implies cycle) instead of a nonexistent when predicate', async () => {
+    const rootPath = await createTempYggdrasil();
+    await createRuleSource(rootPath, 'cyclic-rule', 'check.mjs');
+    const { graph, typeCoverage } = typeCycleTwinGraph(rootPath);
+    const issues = checkAspectEffectiveNowhere(graph, typeCoverage);
+    const issue = issues.find((i) => i.messageData.what.includes("'cyclic-rule'"));
+    expect(issue).toBeDefined();
+    expect(issue!.messageData.why).toBe(
+      "The aspect graph has an implies cycle at 'cyclic-rule' — the cascade cannot tell which of the type's rules apply until that cycle is broken. The only instances of type 'leafy' are files enforced by their type alone (no component of their own), so there is no real node this rule could have been filtered off of — it was never resolved.",
+    );
+    expect(issue!.messageData.next).toBe(
+      "Run yg check to see the blocking aspect-implies-cycle error, then remove one implies edge in .yggdrasil/aspects/.",
+    );
+    // Never the predicate-remedy wording — there is no `when` to widen or remove,
+    // and never the whole-unit wording — this is not a scope.per gap.
+    expect(issue!.messageData.why).not.toMatch(/'when'/);
+    expect(issue!.messageData.next).not.toMatch(/Widen or remove/);
+    expect(issue!.messageData.why).not.toMatch(/whole-unit/);
+  });
+
   // Same non-bootstrap discrimination for checkArchitectureDefaultAspectUnreachable:
   // ONE real node (a different type) keeps graph.nodes.size > 0 throughout, so
   // whether 'leafy' is reported as having an unreachable default hinges ENTIRELY
@@ -574,5 +616,43 @@ describe('type-coverage tier-awareness (Step 5)', () => {
     );
     expect(issue.messageData.why).not.toMatch(/'when'/);
     expect(issue.messageData.next).not.toMatch(/Widen or remove/);
+  });
+
+  // Same real-cause requirement as checkAspectEffectiveNowhere's cycle twin
+  // above: 'leafy' has zero real components, so there is no `when` that could
+  // have filtered 'cyclic-default' off — the cascade for its only instance
+  // could not be resolved at all (an aspect implies cycle), not narrowed by a
+  // predicate.
+  function typeCycleDefaultTwinGraph(rootPath: string): { graph: Graph; typeCoverage: TypeCoverageInput } {
+    const arch: ArchitectureDef = {
+      node_types: {
+        module: { description: 'A module', aspects: [] },
+        leafy: { description: 'Classifies src/leafy/**', aspects: ['cyclic-default'], when: { path: 'src/leafy/**' } },
+      },
+    };
+    const cyclicDefault = detAspect('cyclic-default', { implies: ['cyclic-default-partner'] });
+    const cyclicPartner = detAspect('cyclic-default-partner', { implies: ['cyclic-default'] });
+    const otherNode = moduleNode('other', []);
+    const graph: Graph = { config: {}, architecture: arch, nodes: new Map([['other', otherNode]]), aspects: [cyclicDefault, cyclicPartner], flows: [], rootPath };
+    const typeCoverage: TypeCoverageInput = { covered: new Map([['src/leafy/f.ts', 'leafy']]), ambiguousPaths: [] };
+    return { graph, typeCoverage };
+  }
+
+  it('names the real cause (an aspect implies cycle) instead of a nonexistent when predicate', async () => {
+    const rootPath = await createTempYggdrasil();
+    await createRuleSource(rootPath, 'cyclic-default', 'check.mjs');
+    const { graph, typeCoverage } = typeCycleDefaultTwinGraph(rootPath);
+    const issues = checkArchitectureDefaultAspectUnreachable(graph, typeCoverage);
+    expect(issues).toHaveLength(1);
+    const issue = issues[0];
+    expect(issue.messageData.why).toBe(
+      "The aspect graph has an implies cycle at 'cyclic-default' — the cascade cannot tell which of the type's rules apply until that cycle is broken. The only instances of 'leafy' are files enforced by their type alone (no component of their own), so there is no real node this default could have been filtered off of — it was never resolved.",
+    );
+    expect(issue.messageData.next).toBe(
+      "Run yg check to see the blocking aspect-implies-cycle error, then remove one implies edge in .yggdrasil/aspects/.",
+    );
+    expect(issue.messageData.why).not.toMatch(/'when'/);
+    expect(issue.messageData.next).not.toMatch(/Widen or remove/);
+    expect(issue.messageData.why).not.toMatch(/whole-unit/);
   });
 });

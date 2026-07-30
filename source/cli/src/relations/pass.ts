@@ -670,7 +670,8 @@ export async function runRelationPass(
   // record would be pure waste — a second `resolver.classify` pass over every
   // dependency this run already resolved once via `resolveDetected`, for a result
   // that can never differ from "nothing." Guarding on this flag keeps flag-off (and
-  // any run with an empty `covered` map) exactly as cheap as before this task.
+  // any run with an empty `covered` map) exactly as cheap as before the
+  // type-relation gate existed.
   const hasTypeCovered = (deps.typeCoveredFiles?.size ?? 0) > 0;
 
   for (const [nodeId] of graph.nodes) {

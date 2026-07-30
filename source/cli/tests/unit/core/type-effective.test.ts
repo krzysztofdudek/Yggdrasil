@@ -492,7 +492,7 @@ describe('WhenEvalOverrides never leaks into anything hashed', () => {
     // serialized, never cross the worker boundary. A grep-style count over the
     // real committed source keeps that a checked fact rather than a hopeful
     // comment: a THIRD source file referencing it would mean it started
-    // leaking somewhere this task never intended.
+    // leaking somewhere it was never meant to reach.
     const tsFiles = readdirSync(CLI_SRC, { recursive: true } as { recursive: true })
       .filter((f): f is string => typeof f === 'string' && f.endsWith('.ts'))
       .map((f) => path.join(CLI_SRC, f));

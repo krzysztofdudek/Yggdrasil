@@ -50,6 +50,7 @@ import type { Graph } from '../model/graph.js';
 import type { AspectDef } from '../model/graph.js';
 import type { ValidationIssue } from '../model/validation.js';
 import { checkReviewOverdue, checkAspectEffectiveNowhere } from './checks/aspect-contracts.js';
+import type { TypeCoverageInput } from './pairs.js';
 import { checkOrphanedAspects } from './checks/aspects.js';
 import { hasNonDraftEffectiveAspects } from './graph/aspects.js';
 import { ruleHashFor } from './pair-inputs.js';
@@ -196,6 +197,18 @@ export interface NominationSources {
    * reproducible across machines). Absent / empty → no architecture-cut items.
    */
   architectureCutCycles?: ArchitectureCutCycle[];
+  /**
+   * The type-level classification lattice (coverage.type_level), classified once
+   * for this `yg advise` invocation — the SAME object `gatherCurrentUnits` feeds
+   * into its own `computeExpectedPairs` call. Threaded into the dead-attach
+   * source (`checkAspectEffectiveNowhere`) so it agrees with `yg check`: a rule
+   * effective only on files enforced by their architecture type (no owning
+   * component) is live law, not a false dead-attach nomination that would offer
+   * to park a rule `yg check` reports enforced. Absent (flag off, or
+   * classification failed) ⇒ the one-argument call every existing caller made,
+   * unchanged.
+   */
+  typeCoverage?: TypeCoverageInput;
 }
 
 /**
@@ -914,7 +927,10 @@ export function buildNominations(graph: Graph, sources: NominationSources): Nomi
   }
 
   // --- dead-attach: a rule source effective on zero nodes (looks enforced, isn't) ---
-  for (const issue of checkAspectEffectiveNowhere(graph)) {
+  // sources.typeCoverage is the SAME classification `yg check` and `gatherCurrentUnits`
+  // use — without it, a rule effective ONLY on files enforced by their architecture
+  // type would read as dead here while yg check reports it enforced.
+  for (const issue of checkAspectEffectiveNowhere(graph, sources.typeCoverage)) {
     const aspectId = aspectIdFromIssue(issue);
     if (aspectId === undefined) continue;
     nominations.push({

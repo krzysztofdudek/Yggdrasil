@@ -42,9 +42,9 @@ export interface PairPromptInput {
   references: PromptReferenceInput[];
   /**
    * Absent for a nodeless (type-covered-file) pair — there is no component to
-   * name. Rendered as the empty string in `<node path="" .../>` (Task 9 owns the
-   * real per-file prompt framing); a component pair's rendering is byte-identical
-   * to before (nodePath is always defined there).
+   * name. Rendered as the empty string in `<node path="" .../>` (no dedicated
+   * per-file prompt framing exists here yet); a component pair's rendering is
+   * byte-identical to before (nodePath is always defined there).
    */
   nodePath?: string;
   nodeDescription: string;

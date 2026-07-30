@@ -69,11 +69,13 @@ export async function validate(
   suppliedCache?: FileContentCache,
   /**
    * The SAME type-coverage classification the caller computed once for this run
-   * (K15 — never a second classify). Threaded only into `checkReviewerPresence`,
-   * whose own `computeExpectedPairs` call would otherwise answer about a
-   * component-only universe. Absent ⇒ the feature is off or the caller has none
-   * (e.g. `runFill`'s structural gate, `yg context`'s validation) — behaves
-   * exactly as before the tier existed.
+   * (K15 — never a second classify). Threaded into `checkReviewerPresence` (whose
+   * own `computeExpectedPairs` call would otherwise answer about a component-only
+   * universe) and into the two dead-attach linters, `checkAspectEffectiveNowhere`
+   * / `checkArchitectureDefaultAspectUnreachable` (so a rule effective only on
+   * files enforced by their architecture type reads as live, not dead). Absent ⇒
+   * the feature is off or the caller has none (e.g. `runFill`'s structural gate,
+   * `yg context`'s validation) — behaves exactly as before the tier existed.
    */
   typeCoverage?: TypeCoverageInput,
 ): Promise<ValidationResult> {

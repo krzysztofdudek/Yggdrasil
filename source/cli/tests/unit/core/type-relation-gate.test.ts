@@ -129,7 +129,7 @@ describe('live type-relation gate — fixture rows', () => {
     // Port-contract machinery reads ONLY a node's own declared relations
     // (graph.nodes[*].meta.relations); this fixture declares none against the owner
     // node's port, so a derived (never-declared) edge is invisible to it by
-    // construction — not a special case this task's code had to add.
+    // construction — not a special case the gate's own code had to add.
     expect(result.issues.some((i) => i.code === 'port-missing-consumes')).toBe(false);
     expect(result.issues.some((i) => i.code === 'port-undefined')).toBe(false);
     expect(result.issues.some((i) => i.code === 'port-missing-aspect')).toBe(false);
@@ -150,11 +150,11 @@ describe('live type-relation gate — fixture rows', () => {
 
   it('nested-graph subtrees are excluded from the gate enumeration even at flag-on (R3 highest-value fixture)', async () => {
     // Reuses the SAME walk exclusions walkRepoFiles already applies (excludeNestedGraphSubtrees,
-    // the top-level .yggdrasil/ skip) — the type-covered file list this task feeds into
+    // the top-level .yggdrasil/ skip) — the type-covered file list fed into
     // runRelationPass is DERIVED from walkRepoFiles output (via computeTypeCoverage's
     // `covered` map), never a second, independent enumeration, so this exclusion is inherited
     // by construction. This test is a REGRESSION PIN against a future refactor accidentally
-    // reintroducing a parallel walk (the master plan's own named trap), not a fresh mechanism.
+    // reintroducing a parallel file walk, not a fresh mechanism.
     const dir = copyFixture();
     // Nest the subtree UNDER src/svc/ (not anywhere else) so its relative path WOULD match
     // svc's when: "src/svc/**" if the nested-graph exclusion did not apply — a nested

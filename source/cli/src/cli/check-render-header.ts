@@ -155,11 +155,16 @@ export function renderTypeVisibilityBlock(result: CheckResult, opts?: { countsOn
   const countsOnly = opts?.countsOnly ?? false;
   const lines: string[] = ['Type coverage:'];
   for (const block of report.byType) {
+    // A FILE count, never a rule count: resolution never ran for these files,
+    // so how many of the type's declared rules would have ended up unresolved
+    // is unknowable — only how many files hit the cycle is. `g.aspectId`
+    // groups by the aspect at which each file's cascade cycled, but summing
+    // `g.files.length` across groups counts FILES, not distinct rules.
     const uncomputableTotal = block.uncomputable.reduce((n, g) => n + g.files.length, 0);
     if (countsOnly) {
       const droppedTotal = block.dropped.reduce((n, d) => n + d.count, 0);
       const uncomputableSuffix = uncomputableTotal > 0
-        ? `, ${uncomputableTotal} rule${uncomputableTotal === 1 ? '' : 's'} unresolved (aspect implies cycle)`
+        ? `, ${uncomputableTotal} file${uncomputableTotal === 1 ? '' : 's'} could not have ${uncomputableTotal === 1 ? 'its' : 'their'} rules worked out (aspect implies cycle)`
         : '';
       lines.push(
         `  '${block.typeId}' — ${block.files.length} file${block.files.length === 1 ? '' : 's'} covered — ` +

@@ -10,6 +10,7 @@ import {
   resolveRuleAges,
 } from '../../../src/cli/aspects.js';
 import type { VerifiedPair, PairState } from '../../../src/core/verify-lock.js';
+import type { TypeCoverageInput } from '../../../src/core/pairs.js';
 import type { SuppressionsReport } from '../../../src/portal/api/suppress-scan.js';
 import { nodeUnit } from '../../../src/model/lock.js';
 import type {
@@ -234,6 +235,58 @@ describe('formatAspectsOutput', () => {
     const output = formatAspectsOutput(graph);
     expect(output).toContain('advisory-aspect [advisory]');
     expect(output).toContain('draft-aspect [draft]');
+  });
+});
+
+// A rule reachable ONLY through an architecture type (no real component node
+// anywhere) is live law — `yg check` reports it enforced — so `yg aspects`
+// must never call it orphaned. Mirrors the same class of gap the dead-attach
+// linters were fixed for: usage computed from graph.nodes alone cannot see a
+// type-covered file's enforcement.
+function graphWithTypeOnlyDefault(): Graph {
+  return {
+    rootPath: '/fake',
+    config: { version: '1' },
+    architecture: {
+      node_types: {
+        module: { description: 'Module', aspects: [] },
+        leafy: { description: 'Classifies src/leafy/**', aspects: ['type-only-rule'], when: { path: 'src/leafy/**' } },
+      },
+    },
+    nodes: new Map(),
+    aspects: [makeAspect('type-only-rule', { reviewer: 'deterministic', scope: { per: 'file' } })],
+    flows: [],
+  } as Graph;
+}
+
+const TYPE_ONLY_COVERAGE: TypeCoverageInput = { covered: new Map([['src/leafy/f.ts', 'leafy']]), ambiguousPaths: [] };
+
+describe('computeAspectUsage — a rule enforced only through an architecture type', () => {
+  it('counts the type-covered file as usage, separate from node usage', () => {
+    const usage = computeAspectUsage(graphWithTypeOnlyDefault(), TYPE_ONLY_COVERAGE);
+    expect(usage.get('type-only-rule')?.total).toBe(0);
+    expect(usage.get('type-only-rule')?.typeCovered).toBe(1);
+  });
+
+  it('without typeCoverage, stays exactly as before (no typeCovered count)', () => {
+    const usage = computeAspectUsage(graphWithTypeOnlyDefault());
+    expect(usage.get('type-only-rule')?.total).toBe(0);
+    expect(usage.get('type-only-rule')?.typeCovered).toBe(0);
+  });
+});
+
+describe('formatAspectsOutput — a rule enforced only through an architecture type', () => {
+  it('never calls it orphaned, and names the type-covered file count', () => {
+    const output = formatAspectsOutput(graphWithTypeOnlyDefault(), TYPE_ONLY_COVERAGE);
+    const section = output.split('\n\n').find((s) => s.includes('type-only-rule'))!;
+    expect(section).not.toContain('orphaned');
+    expect(section).toContain('1 type-covered file');
+  });
+
+  it('without typeCoverage (flag off), the SAME rule is still reported orphaned — byte-identical to before the tier existed', () => {
+    const output = formatAspectsOutput(graphWithTypeOnlyDefault());
+    const section = output.split('\n\n').find((s) => s.includes('type-only-rule'))!;
+    expect(section).toContain('orphaned');
   });
 });
 

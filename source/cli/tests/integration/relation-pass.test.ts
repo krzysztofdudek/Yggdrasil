@@ -305,7 +305,7 @@ describe('runRelationPass — TypedEdgeIndex excludes node-owned <-> node-owned 
     });
 
     // relation-undeclared-dependency's own channel still catches it — untouched
-    // by this task.
+    // by the type-relation gate.
     const a = result.violationsByNode.get('a');
     expect(a).toBeDefined();
     expect(a!.verdict).toBe('refused');

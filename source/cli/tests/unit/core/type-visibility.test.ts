@@ -115,7 +115,7 @@ function applied(pairs: ExpectedPair[]): TypeVisibilityAppliedPair[] {
 }
 
 // ---------------------------------------------------------------------------
-// Step 1 — one row per reason (9 its; 8 real, 1 .todo for Task 9)
+// Step 1 — one row per reason (9 its; 8 real, 1 .todo — see its own comment below)
 // ---------------------------------------------------------------------------
 
 describe('buildTypeVisibility — one row per reason (Step 1)', () => {
@@ -307,8 +307,8 @@ describe('buildTypeVisibility — one row per reason (Step 1)', () => {
     });
   });
 
-  // Task 9 owns the companion-hook failure this reason represents; until then
-  // no producer ever constructs a row with it. Unskip there.
+  // No producer constructs a row with this reason yet — a nodeless pair has no
+  // companion-hook failure path here to resolve it against. Unskip once one does.
   it.todo('companion-context-failed: a companion.mjs that could not resolve a dependency for a type-covered file');
 });
 

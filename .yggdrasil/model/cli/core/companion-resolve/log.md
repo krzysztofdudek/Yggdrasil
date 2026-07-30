@@ -6,3 +6,5 @@ Now hosts the shared per-pair companion resolver so both the approve path and th
 The paired-file resolver's inputs now admit a review subject with no owning component, so its type-checking no longer assumes every subject belongs to one.
 ## [2026-07-30T09:19:30.416Z]
 The companion-hook call now passes an explicit unit descriptor instead of a bare node path, matching the runner boundary it calls into. A pair with no owning component still resolves through an empty node path and fails closed exactly as before — companion resolution for such a pair is a separate, not-yet-built design, and this change deliberately preserves its current behavior rather than extending it.
+## [2026-07-30T19:19:36.189Z]
+Comment text referenced a planning label that only makes sense with access to material outside the repository, which conflicts with this project's own rule that a source comment must stand on its own. Reworded the affected comments to state what the code does and why in their own terms; no behavior changed.

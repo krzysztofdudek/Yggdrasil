@@ -100,3 +100,5 @@ validate() gained an optional third parameter accepting a caller-supplied FileCo
 Validation now accepts the same file-type classification the read-only check computes once per run, so the reviewer-required check correctly counts a judgment rule that only ever runs on files enforced by their architecture type, not only rules attached to components.
 ## [2026-07-30T13:40:12.688Z]
 Threads the same type-coverage classification already used for the reviewer-presence check into the two dead-law linters, so both see a rule or a type instance that exists only through type coverage.
+## [2026-07-30T19:19:44.912Z]
+A parameter's doc comment claimed the shared enforcement classification was threaded into only one check, but it has also fed two dead-attach warnings for some time, letting them tell a rule reachable through an architecture type apart from one that is genuinely never enforced. The comment was stale; it now names all three consumers.

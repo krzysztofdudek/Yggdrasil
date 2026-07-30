@@ -46,3 +46,5 @@ The stamp recording when the report was generated is deliberately left as its ow
 The portal's per-node and per-flow indexing now explicitly skips a review subject with no owning component instead of letting it become an invalid map key.
 ## [2026-07-30T07:13:53.055Z]
 Threads the portal's once-per-run type-coverage classification into the check, lock-verification, and pair-count calls, so the reported counts include a file enforced by its architecture type alone instead of silently excluding it from the denominator.
+## [2026-07-30T19:19:48.579Z]
+Comment text in two files under this pipeline referenced planning labels that only make sense with access to material outside the repository, conflicting with this project's own rule that a source comment must stand on its own. Reworded the affected comments to state what the code does and why in their own terms; no behavior changed.

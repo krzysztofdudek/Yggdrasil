@@ -178,7 +178,15 @@ export async function handleAspectImpact(
   process.stdout.write(`Impact of changes in aspect ${aspectId}:\n\n`);
   process.stdout.write(`Directly affected (${affected.length}):\n`);
   if (affected.length === 0) {
-    process.stdout.write('  (none)\n');
+    // "(none)" alone would claim literally nothing is affected — false when
+    // this list's own graph.nodes walk misses a file this aspect's
+    // architecture type enforces with no owning component (cost.fileUnits,
+    // named honestly below in the cost line too).
+    process.stdout.write(
+      cost.fileUnits > 0
+        ? `  (none among components — ${cost.fileUnits} file${cost.fileUnits === 1 ? '' : 's'} enforced by its architecture type alone would still be affected; see the cost below)\n`
+        : '  (none)\n',
+    );
   } else {
     for (const { path: p, source, status, refused } of affected) {
       const refusedTag = refused ? ' [refused]' : '';
@@ -211,6 +219,14 @@ interface FillCost {
   kind: 'llm' | 'deterministic' | 'unknown';
   units: number;        // expected pairs of the aspect (per: file → one per file)
   reviewerCalls: number; // units × resolved consensus (0 for deterministic)
+  /**
+   * Of `units`, how many belong to a file enforced by its architecture type
+   * alone (no owning node) — never counted in the "Directly affected" list or
+   * `affectedNodes` above it, since that list only ever walks graph.nodes. A
+   * change that touches ONLY such files must never be reported as costing
+   * nothing just because no component appears in that list.
+   */
+  fileUnits: number;
 }
 
 /**
@@ -223,19 +239,21 @@ async function computeAspectFillCost(graph: Graph, aspectId: string, projectRoot
   const aspect = graph.aspects.find((a) => a.id === aspectId);
   const typeCoverage = await computeTypeCoverageForImpact(graph, projectRoot);
   const { pairs } = await computeExpectedPairs(graph, { typeCoverage });
-  const units = pairs.filter((p) => p.aspectId === aspectId).length;
+  const aspectPairs = pairs.filter((p) => p.aspectId === aspectId);
+  const units = aspectPairs.length;
+  const fileUnits = aspectPairs.filter((p) => p.nodePath === undefined).length;
 
   if (!aspect || aspect.reviewer.type === 'deterministic') {
-    return { kind: 'deterministic', units, reviewerCalls: 0 };
+    return { kind: 'deterministic', units, fileUnits, reviewerCalls: 0 };
   }
   if (aspect.reviewer.type !== 'llm') {
-    return { kind: 'unknown', units, reviewerCalls: 0 };
+    return { kind: 'unknown', units, fileUnits, reviewerCalls: 0 };
   }
 
   const reviewer = graph.config.reviewer;
   const tier = reviewer ? selectTierForAspect(aspect, reviewer) : undefined;
   const consensus = tier?.ok ? tier.tier.consensus : 1;
-  return { kind: 'llm', units, reviewerCalls: units * consensus };
+  return { kind: 'llm', units, fileUnits, reviewerCalls: units * consensus };
 }
 
 /** Render the cost lines for an aspect change in lock vocabulary (no drift words). */
@@ -243,14 +261,22 @@ function renderFillCost(cost: FillCost, affectedNodes: number): string {
   if (cost.units === 0) {
     return `  No verified pairs of this aspect exist yet — a change re-verifies them on the next yg check --approve.\n`;
   }
+  // Files enforced by the aspect's architecture type alone (no owning node)
+  // are counted in `cost.units` but never in `affectedNodes` — named here so
+  // "N affected node(s)" can never read as the whole cost when it is not.
+  const fileNote = cost.fileUnits > 0
+    ? cost.fileUnits === 1
+      ? ` (1 of them from a file enforced by this aspect's architecture type alone, no owning component)`
+      : ` (${cost.fileUnits} of them from files enforced by this aspect's architecture type alone, no owning component)`
+    : '';
   if (cost.kind === 'deterministic') {
     return (
-      `  All ${affectedNodes} affected node(s) (${cost.units} pair(s)) would become unverified if this aspect changes — ` +
+      `  All ${affectedNodes} affected node(s) (${cost.units} pair(s)${fileNote}) would become unverified if this aspect changes — ` +
       `re-verified for free by yg check --approve (deterministic, no reviewer calls).\n`
     );
   }
   return (
-    `  All ${affectedNodes} affected node(s) (${cost.units} pair(s)) would become unverified if this aspect changes — ` +
+    `  All ${affectedNodes} affected node(s) (${cost.units} pair(s)${fileNote}) would become unverified if this aspect changes — ` +
     `re-verified by yg check --approve at ${cost.reviewerCalls} reviewer call(s) (consensus included).\n`
   );
 }
@@ -276,9 +302,9 @@ export function summarizeImpact(set: ImpactSet, graph: Graph, lock: LockFile): I
   const rows = new Map<string, ImpactNodeRow>();
   let billed = 0, free = 0, greens = 0;
   for (const p of set.pairs) {
-    // A nodeless (type-covered-file) pair has no component row to join — Task 9
-    // owns its own section; excluding it here keeps every existing component
-    // row byte-identical to before.
+    // A nodeless (type-covered-file) pair has no component row to join — this
+    // summary reports per-component impact only, so excluding it here keeps
+    // every existing component row byte-identical to before.
     if (p.nodePath === undefined) continue;
     const nodePath = p.nodePath;
     const row = rows.get(nodePath) ?? { nodePath, llmPairs: 0, reviewerCalls: 0, detPairs: 0, reasons: [] };

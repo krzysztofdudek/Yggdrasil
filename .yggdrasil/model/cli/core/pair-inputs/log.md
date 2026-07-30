@@ -6,3 +6,5 @@ Same contract as the hash core: the tier hash view folds only the tier NAME. The
 Derive the resolver-source fingerprint from the loaded aspect so the review producer and the verifier compute the paired-review identity from one shared definition and can never disagree, which would otherwise pin every paired verdict to a permanent unverified state.
 ## [2026-07-28T19:45:51.929Z]
 The node-description helper now answers safely when there is no owning component (a file enforced by its architecture type alone) instead of assuming one always exists.
+## [2026-07-30T19:19:39.512Z]
+Comment text referenced a planning label that only makes sense with access to material outside the repository, which conflicts with this project's own rule that a source comment must stand on its own. Reworded the affected comment to state what the code does and why in its own terms; no behavior changed.

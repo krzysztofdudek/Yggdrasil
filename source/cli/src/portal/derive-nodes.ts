@@ -152,8 +152,8 @@ function indexPairsByNode(pairs: VerifiedPair[]): Map<string, Map<string, PairRe
   const out = new Map<string, Map<string, PairRecord[]>>();
   for (const vp of pairs) {
     // A nodeless (type-covered-file) pair has no component to index under —
-    // Task 11 adds its own channel; skip here rather than letting `undefined`
-    // become a map key.
+    // this index is per-component only; skip here rather than letting
+    // `undefined` become a map key.
     if (vp.pair.nodePath === undefined) continue;
     const np = vp.pair.nodePath;
     let byAspect = out.get(np);
