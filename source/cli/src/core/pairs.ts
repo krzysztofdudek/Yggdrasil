@@ -68,11 +68,24 @@ export interface ExpectedPair {
 /**
  * Why a rule attached to a file's type does not run on that file. A widening of
  * the cascade's own reasons (`TypeAspectDropReason`, `./type-effective.js`) with
- * the two that only enumeration can decide — the cascade has no concept of
- * `scope.per` / `scope.files`, since those are pair-enumeration concepts, not
- * cascade concepts.
+ * the ones only enumeration can decide — the cascade has no concept of
+ * `scope.per` / `scope.files` / binary subjects / a missing aspect definition,
+ * since those are pair-enumeration concepts, not cascade concepts.
+ *
+ * Every one of these MUST be recorded wherever the nodeless enumeration below
+ * decides an (aspect, file) pair will not exist: a silent `continue` with no
+ * drop row leaves nothing to distinguish "does not apply" from "was never
+ * checked", and a caller deriving "enforced" from the absence of a drop (never
+ * done here — see `type-visibility.ts`'s own contract) would misread the gap
+ * as enforcement.
  */
-export type PairDropReason = TypeAspectDropReason | 'whole-unit-rule' | 'scope.files-excluded';
+export type PairDropReason =
+  | TypeAspectDropReason
+  | 'whole-unit-rule'
+  | 'scope.files-excluded'
+  | 'aspect-undefined'
+  | 'unreadable'
+  | 'binary-subject';
 
 /**
  * A cascade drop with the file it happened on attached. `TypeAspectDrop` is
@@ -298,16 +311,25 @@ export function computeUncomputableNodes(graph: Graph): Set<string> {
  * architecture type alone (`typeCoverage.covered`), unless the file sits under a
  * `coverage.excluded` root (the one exclusion authority, `isExcludedByCoverage` —
  * an explicit node mapping is never subject to it, so the node loop above never
- * consults it), run `computeTypeAspectCascade` once for the whole file and, for
- * each of its effective aspects: skip aggregates and binary-subject LLM aspects
- * silently (no reviewer / no valid subject either way); skip a whole-unit rule
- * (`scope.per !== 'file'` — there is no component to run it on) recording
- * `whole-unit-rule`; skip a file excluded by the aspect's own `scope.files`
- * recording `scope.files-excluded`; route an unreadable scope.files evaluation or
- * unreadable subject through the same `unreadable` channel the node loop uses.
- * Every surviving (aspect, file) emits one `file:` pair with `nodePath` omitted.
- * `drops` collects every cascade drop (`when-not-satisfied` / `draft`) PLUS the
- * two enumeration-only reasons above, each with the file it happened on attached.
+ * consults it — this is the ONE step in this loop that stays silent: the file
+ * was never really "covered" to begin with, so there is nothing to have a
+ * reason about), run `computeTypeAspectCascade` once for the whole file and,
+ * for each of its effective aspects: skip aggregates silently (no reviewer, no
+ * own verdict — the bundle they belong to is reported separately, never as a
+ * bare drop); an id with no matching aspect definition records
+ * `aspect-undefined`; skip a whole-unit rule (`scope.per !== 'file'` — there is
+ * no component to run it on) recording `whole-unit-rule`; skip a file excluded
+ * by the aspect's own `scope.files` recording `scope.files-excluded`; an
+ * unreadable scope.files evaluation or unreadable subject records `unreadable`
+ * (in addition to routing through the same blocking `unreadable` channel the
+ * node loop uses); an LLM aspect over a binary subject records `binary-subject`
+ * (a prose rule cannot review bytes it cannot read as text). Every one of these
+ * is recorded — this loop never silently decides an (aspect, file) pair will
+ * not exist without leaving a reason for it, so a caller can never mistake "no
+ * drop was recorded" for "therefore enforced". Every surviving (aspect, file)
+ * emits one `file:` pair with `nodePath` omitted. `drops` collects every
+ * cascade drop (`when-not-satisfied` / `draft`) PLUS every enumeration-only
+ * reason above, each with the file it happened on attached.
  */
 export async function computeExpectedPairs(
   graph: Graph,
@@ -522,7 +544,15 @@ export async function computeExpectedPairs(
       if (!includeDraft && status === 'draft') continue; // recorded via cascade.drops above
 
       const aspectDef = graph.aspects.find((a) => a.id === aspectId);
-      if (!aspectDef) continue;
+      if (!aspectDef) {
+        // The architecture attaches an id with no matching aspect definition —
+        // a graph a real loader rejects (checkDanglingAspectRefs), reachable
+        // only via a hand-built Graph that bypasses that validation. Still
+        // recorded: a caller deriving "enforced" from the absence of a drop
+        // must never read this gap as enforcement.
+        drops.push({ file, aspectId, reason: 'aspect-undefined' });
+        continue;
+      }
       const kind = aspectDef.reviewer.type as 'llm' | 'deterministic';
       const scope = aspectDef.scope;
 
@@ -558,6 +588,11 @@ export async function computeExpectedPairs(
               : `Fix the file permissions, or add its root to coverage.excluded, then re-run yg check.`;
             unreadableMap.set(key, { aspectId, path: file, reason, messageData: { what, why, next } });
           }
+          // Recorded on both channels: `unreadable` for the blocking error, AND
+          // a drop row here — the aspect still does not enforce on this file,
+          // and a caller deriving "enforced" from the absence of a drop must
+          // never read this gap (unreadable is not "attach condition satisfied").
+          drops.push({ file, aspectId, reason: 'unreadable' });
           continue;
         }
         if (!result.result) {
@@ -566,9 +601,14 @@ export async function computeExpectedPairs(
         }
       }
 
-      // LLM aspects never review a binary — a binary can never be a review
-      // subject, silent exactly like the node loop's own binary exclusion.
-      if (kind === 'llm' && BINARY_EXTENSIONS.has(path.extname(file).toLowerCase())) continue;
+      // LLM aspects never review a binary — a prose rule cannot review bytes
+      // it cannot read as text. Recorded (never silent, unlike the node loop's
+      // own binary exclusion): a type-covered file has no owning component to
+      // fall back on, so this is the only place this fact is ever surfaced.
+      if (kind === 'llm' && BINARY_EXTENSIONS.has(path.extname(file).toLowerCase())) {
+        drops.push({ file, aspectId, reason: 'binary-subject' });
+        continue;
+      }
 
       // Final unreadable probe — a file written into typeCoverage.covered MUST be
       // readable to be reviewed (mirrors the node loop's own step 2.5).
@@ -592,6 +632,7 @@ export async function computeExpectedPairs(
             },
           });
         }
+        drops.push({ file, aspectId, reason: 'unreadable' });
         continue;
       }
 

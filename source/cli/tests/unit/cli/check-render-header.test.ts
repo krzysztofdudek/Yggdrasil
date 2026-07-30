@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { formatOutput } from '../../../src/cli/check-render-views.js';
-import { useEmoji } from '../../../src/cli/check-render-header.js';
+import { useEmoji, renderTypeVisibilityBlock } from '../../../src/cli/check-render-header.js';
 import type { CheckResult, CheckIssue } from '../../../src/core/check.js';
+import type { TypeVisibilityReport } from '../../../src/core/type-visibility.js';
 
 /** Strip ANSI color codes so block-line counting is deterministic. */
 function stripAnsi(s: string): string {
@@ -422,5 +423,149 @@ describe('check render — emoji decoration', () => {
     expect(out).toContain('❌ Errors (1):');
     expect(out).toContain('⚠');
     expect(out).toContain('Warnings (1):');
+  });
+});
+
+// ── Type-visibility block: fix round 1 (advisory heading, cap discipline,
+// counts-only triage views, singular grammar) — constructed CheckResult, no
+// fixture, so every scenario is exact and controllable. ─────────────────────
+
+function typeVisibilityResult(report: TypeVisibilityReport): CheckResult {
+  return { ...baseResult([]), typeLevel: true, typeVisibility: report };
+}
+
+function block(overrides: Partial<TypeVisibilityReport['byType'][number]> = {}): TypeVisibilityReport['byType'][number] {
+  return {
+    typeId: 't',
+    files: ['a.ts'],
+    enforced: [],
+    enforcedCounts: [],
+    advisory: [],
+    advisoryCounts: [],
+    dropped: [],
+    halfExpandedBundles: [],
+    chainTermination: { reason: 'no-parents', candidates: ['t'] },
+    ...overrides,
+  };
+}
+
+describe('type-visibility block — advisory heading never claims enforcement (fix round 1)', () => {
+  it('an advisory rule is listed under its own heading, never under "Enforced"', () => {
+    const report: TypeVisibilityReport = {
+      byType: [block({
+        advisory: ['warn-only'],
+        advisoryCounts: [{ aspectId: 'warn-only', count: 1 }],
+      })],
+      zeroEnforcement: { count: 0, samples: [] },
+      rows: [],
+    };
+    const out = renderTypeVisibilityBlock(typeVisibilityResult(report));
+    expect(out).toContain('Enforced: (none)');
+    expect(out).not.toMatch(/Enforced:.*warn-only/);
+    expect(out).toMatch(/Advisory.*warn-only \(1\)/);
+  });
+
+  it('a type with no advisory rules never renders an Advisory line', () => {
+    const report: TypeVisibilityReport = {
+      byType: [block({ enforced: ['own-rule'], enforcedCounts: [{ aspectId: 'own-rule', count: 1 }] })],
+      zeroEnforcement: { count: 0, samples: [] },
+      rows: [],
+    };
+    const out = renderTypeVisibilityBlock(typeVisibilityResult(report));
+    expect(out).not.toContain('Advisory');
+  });
+});
+
+describe('type-visibility block — the attached-but-not-enforced line is capped (fix round 1)', () => {
+  it('caps the dropped-reason list at 12 entries, with a count of the rest — never ~1300 uncapped characters', () => {
+    const dropped = Array.from({ length: 20 }, (_, i) => ({
+      aspectId: `rule-${String(i).padStart(2, '0')}`,
+      reason: 'whole-unit-rule' as const,
+      count: 1,
+    }));
+    const report: TypeVisibilityReport = {
+      byType: [block({ dropped })],
+      zeroEnforcement: { count: 0, samples: [] },
+      rows: [],
+    };
+    const out = renderTypeVisibilityBlock(typeVisibilityResult(report));
+    const line = out.split('\n').find((l) => l.includes('Attached but not enforced'))!;
+    expect(line).toContain('rule-00');
+    expect(line).toContain('rule-11');
+    expect(line).not.toContain('rule-12');
+    expect(line).toContain('... and 8 more');
+  });
+});
+
+describe('type-visibility block — counts-only under the triage views (fix round 1)', () => {
+  function reportWithDetail(): TypeVisibilityReport {
+    return {
+      byType: [block({
+        enforced: ['own-rule'],
+        enforcedCounts: [{ aspectId: 'own-rule', count: 1 }],
+        advisory: ['warn-only'],
+        advisoryCounts: [{ aspectId: 'warn-only', count: 1 }],
+        dropped: [{ aspectId: 'dead-rule', reason: 'whole-unit-rule', count: 1 }],
+        halfExpandedBundles: [{ bundleId: 'bundle', enforced: ['own-rule'], dropped: ['dead-rule'] }],
+      })],
+      zeroEnforcement: { count: 1, samples: ['z.ts'] },
+      rows: [],
+    };
+  }
+
+  it('the full view shows the per-aspect reason breakdown, bundle name, chain line, and zero-enforcement samples', () => {
+    const out = renderTypeVisibilityBlock(typeVisibilityResult(reportWithDetail()));
+    expect(out).toContain('own-rule (1)');
+    expect(out).toContain('warn-only (1)');
+    expect(out).toContain('dead-rule (it is whole-unit');
+    expect(out).toContain('bundle: file-level part applies');
+    expect(out).toContain("inherited rules stop at 't'");
+    expect(out).toContain('z.ts');
+  });
+
+  it('--summary / --top keep this block to counts only — never the per-aspect reason text, bundle names, chain line, or file samples', () => {
+    const out = renderTypeVisibilityBlock(typeVisibilityResult(reportWithDetail()), { countsOnly: true });
+    expect(out).toContain('1 rule enforced');
+    expect(out).toContain('1 advisory');
+    expect(out).toContain('1 attached-but-not-enforced instance');
+    expect(out).not.toContain('dead-rule');
+    expect(out).not.toContain('bundle:');
+    expect(out).not.toContain("inherited rules stop at");
+    expect(out).not.toContain('z.ts');
+  });
+
+  it('formatOutput wires countsOnly for --summary and --top, but not for --details / full', () => {
+    const report = reportWithDetail();
+    const summaryOut = formatOutput(typeVisibilityResult(report), { kind: 'summary' });
+    const topOut = formatOutput(typeVisibilityResult(report), { kind: 'top', n: 1 });
+    const fullOut = formatOutput(typeVisibilityResult(report));
+    const detailsOut = formatOutput(typeVisibilityResult(report), { kind: 'details' });
+    expect(summaryOut).not.toContain('dead-rule');
+    expect(topOut).not.toContain('dead-rule');
+    expect(fullOut).toContain('dead-rule');
+    expect(detailsOut).toContain('dead-rule');
+  });
+});
+
+describe('type-visibility block — the zero-enforcement line agrees in number (fix round 1)', () => {
+  it('a SINGLE zero-enforcement file reads "it satisfies", never the plural "they satisfy"', () => {
+    const report: TypeVisibilityReport = {
+      byType: [],
+      zeroEnforcement: { count: 1, samples: ['only.ts'] },
+      rows: [],
+    };
+    const out = renderTypeVisibilityBlock(typeVisibilityResult(report));
+    expect(out).toContain('1 file matched by a type has no rules that apply to it — it satisfies coverage with no enforcement:');
+    expect(out).not.toContain('they satisfy');
+  });
+
+  it('multiple zero-enforcement files keep the plural "they satisfy"', () => {
+    const report: TypeVisibilityReport = {
+      byType: [],
+      zeroEnforcement: { count: 2, samples: ['a.ts', 'b.ts'] },
+      rows: [],
+    };
+    const out = renderTypeVisibilityBlock(typeVisibilityResult(report));
+    expect(out).toContain('2 files matched by a type have no rules that apply to them — they satisfy coverage with no enforcement:');
   });
 });

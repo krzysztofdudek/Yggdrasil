@@ -63,7 +63,7 @@ describe.skipIf(!distExists)('yg check / yg context --file — type-visibility (
       const { stdout, status } = run(['context', '--file', 'src/leaf/a.ts'], dir);
       expect(status).toBe(0);
       expect(stdout).toContain('Matched type: leaf');
-      expect(stdout).toMatch(/inherited rules stop at 'top' — no parents declared/);
+      expect(stdout).toMatch(/inherited rules stop at 'top' — it has no parent type to inherit from/);
       expect(stdout).toContain('own-file-rule');
       expect(stdout).toMatch(/worked out from this file's own imports/);
       expect(stdout).toMatch(/give this file a component of its own/);

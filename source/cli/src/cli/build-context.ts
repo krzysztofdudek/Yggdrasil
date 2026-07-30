@@ -24,7 +24,7 @@ import type { TypeCoverageInput } from '../core/pairs.js';
 import { scanUncoveredFiles } from '../core/check.js';
 import { computeTypeCoverage, classifySingleFile } from '../core/type-coverage.js';
 import { isExcludedByCoverage } from '../core/check-coverage-tiers.js';
-import { buildTypeVisibility, describeTypeVisibilityReason, describeChainTermination } from '../core/type-visibility.js';
+import { buildTypeVisibility, describeTypeVisibilityReason, describeChainTermination, toAppliedPairs } from '../core/type-visibility.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import { readLock } from '../io/lock-store.js';
 import { readLogContent, hasFreshLogEntry } from '../core/log/log-gate.js';
@@ -128,22 +128,32 @@ function ruleSourcePathFor(aspectId: string, reviewerType: 'llm' | 'deterministi
  */
 async function buildTypeCoveredFileContextData(graph: Graph, file: string, typeId: string): Promise<FileContextData> {
   const covered = new Map([[file, typeId]]);
-  const { drops } = await computeExpectedPairs(graph, { typeCoverage: { covered, ambiguousPaths: [] } });
-  const report = buildTypeVisibility(graph, covered, drops, []);
+  const { drops, pairs } = await computeExpectedPairs(graph, { typeCoverage: { covered, ambiguousPaths: [] } });
+  // toAppliedPairs narrows to nodeless pairs — `pairs` also carries every REAL
+  // node's own pairs (the ordinary per-node loop still runs over the whole
+  // project), which must never leak into this one file's applied-rules list.
+  const report = buildTypeVisibility(graph, covered, drops, [], toAppliedPairs(pairs));
   // covered has exactly one (file, typeId) entry, so buildTypeVisibility always
   // produces exactly one byType block, keyed by that same typeId.
   const block = report.byType.find((b) => b.typeId === typeId)!;
 
   const aspectById = new Map(graph.aspects.map((a) => [a.id, a] as const));
-  const toFileAspect = (aspectId: string): FileContextAspect => {
+  const toFileAspect = (aspectId: string, status: 'enforced' | 'advisory'): FileContextAspect => {
     const def = aspectById.get(aspectId);
     return {
       aspectId,
       aspectDescription: def?.description ?? def?.name ?? aspectId,
       verifiedAgainst: ruleSourcePathFor(aspectId, def?.reviewer.type ?? 'deterministic'),
-      status: 'enforced',
+      status,
     };
   };
+
+  // Real status, never hardcoded: an advisory rule is listed as advisory, not
+  // silently folded under the same [enforced] tag a blocking rule gets.
+  const applied = [
+    ...block.enforced.map((id) => toFileAspect(id, 'enforced')),
+    ...block.advisory.map((id) => toFileAspect(id, 'advisory')),
+  ].sort((a, b) => (a.aspectId < b.aspectId ? -1 : a.aspectId > b.aspectId ? 1 : 0));
 
   return {
     filePath: toPosixPath(file),
@@ -153,7 +163,7 @@ async function buildTypeCoveredFileContextData(graph: Graph, file: string, typeI
     typeCoverage: {
       typeId,
       chainTerminationText: describeChainTermination(block.chainTermination),
-      applied: block.enforced.map(toFileAspect),
+      applied,
       dropped: block.dropped.map((d) => ({ aspectId: d.aspectId, reasonText: describeTypeVisibilityReason(d.reason) })),
     },
   };
@@ -326,7 +336,7 @@ export function registerBuildCommand(program: Command): void {
                 const data = await buildTypeCoveredFileContextData(graph, result.file, typeMatch.typeId);
                 process.stdout.write(formatFileContext(data));
                 if (graph.config.signals?.attention !== false) {
-                  await maybeAppendAttentionLine(graph, result.file);
+                  await maybeAppendAttentionLine(graph, displayFile);
                 }
                 process.exit(0);
               }

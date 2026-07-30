@@ -4,40 +4,65 @@
  * Honesty artifact for the type-level coverage tier: for every file enforced
  * by its architecture type alone, records not just what a rule attached to
  * that type ENFORCES on it, but every rule that is attached and does NOT —
- * with the reason. Assembled from two producers, never a third:
+ * with the reason. Assembled from three producers, never a fourth:
  *   - `staticDrops` (`PairComputation.drops`, core/pairs.ts) — the reasons
  *     decided while working out which rules apply: a whole-unit rule with no
  *     component to run on, a file excluded by the rule's own `scope.files`,
- *     the cascade's own `when-not-satisfied` / `draft`.
+ *     an unreadable subject, an LLM rule over a binary subject, an id with no
+ *     matching aspect definition, or the cascade's own `when-not-satisfied` /
+ *     `draft`.
  *   - `runtimeRows` — the reasons only running the rule can decide (a
  *     deterministic check reading beyond the architecture's allowance,
  *     touching ctx.node/ctx.graph with no component behind it, or — from a
- *     later task — a companion that could not resolve a dependency).
+ *     later task — a companion that could not resolve a dependency). These
+ *     three are FILL-ONLY: neither `yg check` nor `yg context --file` ever
+ *     re-executes check.mjs (see the module-level note below `RUNTIME_
+ *     DISPOSITION_REASONS`), so `runtimeRows` is `[]` at both call sites today
+ *     — never fabricated to look populated.
+ *   - `appliedPairs` — the (file, aspectId, status) rows that ACTUALLY
+ *     produced a pair (`core/pairs.ts`'s own nodeless enumeration output,
+ *     filtered to `nodePath === undefined`). This is the ONLY source of truth
+ *     for "enforced" / "advisory": it is never inferred from the absence of a
+ *     drop row. A silent gap in the enumeration that forgets to record a drop
+ *     must never be read back as "therefore enforced" — that inference is
+ *     exactly the failure mode this artifact exists to rule out, so it is not
+ *     reintroduced here as a shortcut.
  *
  * This module builds NO reason of its own: it groups, counts, and renders
- * what the two producers already decided. The one thing it DOES compute
- * itself is which of a type's declared law is enforced ANYWHERE (a plain
- * structural "not dropped everywhere" derivation over the SAME drop rows),
- * and where the type's implicit parent chain stops — both pure graph facts,
- * no file I/O, independent of whether a relation-edge index is available.
+ * what the producers already decided. The two things it DOES compute itself
+ * are which of a type's declared law is enforced ANYWHERE (a plain group-by
+ * over `appliedPairs`) and where the type's implicit parent chain stops —
+ * both pure graph facts, no file I/O, independent of whether a relation-edge
+ * index is available.
  */
 import type { Graph } from '../model/graph.js';
-import type { PairDrop } from './pairs.js';
+import type { AspectStatus } from '../model/graph.js';
+import type { PairDrop, ExpectedPair } from './pairs.js';
 import type { TypeAspectDropReason } from './type-effective.js';
-import { walkTypeParentChain, computeDeclaredAttachedAspects } from './type-effective.js';
+import { walkTypeParentChain } from './type-effective.js';
 import type { ChainTermination } from './type-effective.js';
-import { isAggregateAspect } from './graph/aspects.js';
 
 /**
  * Plain-language sentence for where a type's inherited chain stops and why —
  * shared verbatim between `yg check`'s per-type block and `yg context --file`
  * so the wording never drifts between the two surfaces.
+ *
+ * 'no-parents' phrasing deliberately does NOT claim whether the type omitted
+ * `parents:` or wrote an explicit `parents: []`: the graph loader normalizes
+ * both to the identical absent-parents state before either ever reaches this
+ * function (`architecture-parser.ts` turns a YAML `parents: []` into
+ * `undefined` at load time), so a real, loaded graph can never tell the two
+ * apart here. Claiming "no parents declared" would be false for an author who
+ * wrote the explicit empty list; this phrasing is true either way.
+ * 'empty-parents' keeps its own distinct, accurate text — reachable only via
+ * a hand-built Graph that bypasses the parser (never a real loaded project;
+ * see type-effective.test.ts) — so it is not merged into 'no-parents'.
  */
 export function describeChainTermination(t: ChainTermination): string {
   const reasonPhrase: Record<ChainTermination['reason'], string> = {
     fork: `a fork (${t.candidates.join(' | ')})`,
     cycle: `a cycle back to '${t.candidates[0]}'`,
-    'no-parents': `'${t.candidates[0]}' — no parents declared`,
+    'no-parents': `'${t.candidates[0]}' — it has no parent type to inherit from`,
     'empty-parents': `'${t.candidates[0]}' — an explicit empty parents list`,
   };
   return `inherited rules stop at ${reasonPhrase[t.reason]}`;
@@ -56,11 +81,25 @@ export function describeChainTermination(t: ChainTermination): string {
  * 'node-context-required' for one coded `STRUCTURE_NODE_CONTEXT_UNAVAILABLE`.
  * 'companion-context-failed' has no producer yet — a later task's companion
  * failure feeds it; until then no caller ever constructs a row with it.
+ *
+ * All three runtime reasons are FILL-ONLY today: `yg check` and `yg context
+ * --file` both compute this report with `runtimeRows: []` (see `check.ts` and
+ * `build-context.ts`) because neither ever re-executes a deterministic
+ * check.mjs — only `yg check --approve`'s fill stage does, and nothing
+ * persists a runtime disposition's code across runs for either shipped
+ * surface to read back. `describeTypeVisibilityReason` still describes them
+ * (a caller that DOES observe one live, during a fill, must have real
+ * wording ready), but do not expect to see them in rendered `yg check` or `yg
+ * context --file` output — that would require wiring a same-process
+ * fill→check handoff, which is a distinct, larger change.
  */
 export type TypeVisibilityReason =
   | TypeAspectDropReason         // 'when-not-satisfied' | 'draft'
   | 'whole-unit-rule'
   | 'scope.files-excluded'
+  | 'aspect-undefined'
+  | 'unreadable'
+  | 'binary-subject'
   | 'read-beyond-architecture'
   | 'node-context-required'
   | 'companion-context-failed';
@@ -71,32 +110,63 @@ export interface TypeVisibilityRow {
   reason: TypeVisibilityReason;
 }
 
+/**
+ * One (file, aspectId) pair that ACTUALLY produced a pair — `core/pairs.ts`'s
+ * nodeless enumeration output, narrowed to the fields this artifact needs.
+ * The one and only input `buildTypeVisibility` treats as ground truth for
+ * "enforced" / "advisory"; never derived from anything else.
+ */
+export interface TypeVisibilityAppliedPair {
+  file: string;
+  aspectId: string;
+  status: AspectStatus;
+}
+
+/** Narrows a pairs array (component + nodeless) to the nodeless rows this artifact treats as ground truth. */
+export function toAppliedPairs(pairs: ExpectedPair[]): TypeVisibilityAppliedPair[] {
+  return pairs
+    .filter((p) => p.nodePath === undefined)
+    .map((p) => ({ file: p.subjectFiles[0], aspectId: p.aspectId, status: p.status }));
+}
+
 export interface TypeVisibilityReport {
   /** One block per matched type, ordered by type id (code-point). */
   byType: Array<{
     typeId: string;
     /** Covered files matched to this type, sorted. */
     files: string[];
-    /** Aspect ids enforced on AT LEAST ONE file of this type. */
+    /** Aspect ids whose effective status is 'enforced' on AT LEAST ONE file of this type — a real pair exists; never inferred from the absence of a drop. */
     enforced: string[];
     /** Same aspect ids as `enforced`, each with the file count it actually runs on — a rule live on one accidental file reads as a count of 1, never just a bare name. */
     enforcedCounts: Array<{ aspectId: string; count: number }>;
+    /** Aspect ids whose effective status is 'advisory' on AT LEAST ONE file of this type — it runs (a real pair exists) but never blocks. Kept separate from `enforced`/`enforcedCounts`: a rule that only warns must never be reported under a heading that claims enforcement. */
+    advisory: string[];
+    /** Same aspect ids as `advisory`, each with its file count. */
+    advisoryCounts: Array<{ aspectId: string; count: number }>;
     /** Aspect ids attached to this type that do not enforce on some or all of its files, with the reason and a file count. */
     dropped: Array<{ aspectId: string; reason: TypeVisibilityReason; count: number }>;
-    /** Named when a bundle's file-level half applies and its whole-unit half cannot. */
+    /** Named when a bundle's file-level half applies (enforced OR advisory) and its whole-unit half cannot. */
     halfExpandedBundles: Array<{ bundleId: string; enforced: string[]; dropped: string[] }>;
     /** Where the inherited chain stops, and why. */
     chainTermination: ChainTermination;
   }>;
-  /** Files with a matched type and no applicable rule at all. */
+  /** Files with a matched type and no applicable rule at all (zero pairs, any status). */
   zeroEnforcement: { count: number; samples: string[] };
-  /** Every (file, aspectId, reason) row, static and runtime, sorted code-point stable. */
+  /** Every (file, aspectId, reason) drop row, static and runtime, sorted code-point stable. */
   rows: TypeVisibilityRow[];
 }
 
 /** Matches the rest of `yg check`'s own sample/member truncation (CAP_NODES). Counts are never capped — only the sample list. */
 const SAMPLE_CAP = 12;
 
+/**
+ * Code-point order, never locale: this list is RENDERED verbatim (`yg check`,
+ * `yg context --file`), so its ordering must be identical on every platform
+ * and locale — `.localeCompare()` (or any Intl collation) would make the
+ * order depend on the runtime's configured locale, which is neither stable
+ * across environments nor deterministic in the way a rendered artifact
+ * requires.
+ */
 function compareRows(a: TypeVisibilityRow, b: TypeVisibilityRow): number {
   if (a.file !== b.file) return a.file < b.file ? -1 : 1;
   if (a.aspectId !== b.aspectId) return a.aspectId < b.aspectId ? -1 : 1;
@@ -132,6 +202,7 @@ export function buildTypeVisibility(
   covered: Map<string, string>,
   staticDrops: PairDrop[],
   runtimeRows: TypeVisibilityRow[],
+  appliedPairs: TypeVisibilityAppliedPair[],
 ): TypeVisibilityReport {
   const filesByType = new Map<string, string[]>();
   for (const [file, typeId] of covered) {
@@ -146,12 +217,17 @@ export function buildTypeVisibility(
     ...runtimeRows,
   ].sort(compareRows);
 
-  // file -> set of aspect ids dropped for ANY reason (used to derive "enforced").
-  const droppedAspectsByFile = new Map<string, Set<string>>();
-  for (const r of rows) {
-    const s = droppedAspectsByFile.get(r.file);
-    if (s) s.add(r.aspectId);
-    else droppedAspectsByFile.set(r.file, new Set([r.aspectId]));
+  // file -> aspectId -> status, for every (file, aspectId) that ACTUALLY
+  // produced a pair. The one and only source of truth for "enforced" /
+  // "advisory" — see the module doc-comment.
+  const statusByFile = new Map<string, Map<string, AspectStatus>>();
+  for (const p of appliedPairs) {
+    let m = statusByFile.get(p.file);
+    if (!m) {
+      m = new Map();
+      statusByFile.set(p.file, m);
+    }
+    m.set(p.aspectId, p.status);
   }
 
   const byType: TypeVisibilityReport['byType'] = [];
@@ -160,25 +236,30 @@ export function buildTypeVisibility(
   for (const typeId of [...filesByType.keys()].sort()) {
     const files = filesByType.get(typeId)!;
     const fileSet = new Set(files);
-    const { chainTypeIds, termination } = walkTypeParentChain(graph, typeId);
-    const declaredAttached = computeDeclaredAttachedAspects(graph, typeId, chainTypeIds);
+    const { termination } = walkTypeParentChain(graph, typeId);
 
-    // Per-aspect enforced-on-N-files tally (K2 mitigation): a rule live on only
-    // one accidental file must be visible as a count of 1, not just a bare name.
     const enforcedSet = new Set<string>();
     const enforcedFileCounts = new Map<string, number>();
+    const advisorySet = new Set<string>();
+    const advisoryFileCounts = new Map<string, number>();
+
     for (const file of files) {
-      const droppedHere = droppedAspectsByFile.get(file);
-      let fileEnforced = false;
-      for (const aspectId of declaredAttached) {
-        if (isAggregateAspect(graph, aspectId)) continue;
-        if (!droppedHere?.has(aspectId)) {
+      const statuses = statusByFile.get(file);
+      if (!statuses || statuses.size === 0) {
+        zeroEnforcementFiles.push(file);
+        continue;
+      }
+      for (const [aspectId, status] of statuses) {
+        if (status === 'enforced') {
           enforcedSet.add(aspectId);
           enforcedFileCounts.set(aspectId, (enforcedFileCounts.get(aspectId) ?? 0) + 1);
-          fileEnforced = true;
+        } else if (status === 'advisory') {
+          advisorySet.add(aspectId);
+          advisoryFileCounts.set(aspectId, (advisoryFileCounts.get(aspectId) ?? 0) + 1);
         }
+        // 'draft' never reaches here: computeExpectedPairs excludes draft
+        // pairs by default, and both shipped callers never pass includeDraft.
       }
-      if (!fileEnforced) zeroEnforcementFiles.push(file);
     }
 
     // Dropped counts, grouped by (aspectId, reason), scoped to this type's files.
@@ -195,11 +276,16 @@ export function buildTypeVisibility(
     );
     const wholeUnitDropped = new Set(dropped.filter((d) => d.reason === 'whole-unit-rule').map((d) => d.aspectId));
 
+    // "Applies" for bundle-half-expansion purposes: ANY status that produced a
+    // real pair (enforced or advisory) counts as the file-level half running —
+    // only a genuinely missing pair (a drop) is the whole-unit half's absence.
+    const appliedSet = new Set<string>([...enforcedSet, ...advisorySet]);
+
     const halfExpandedBundles: Array<{ bundleId: string; enforced: string[]; dropped: string[] }> = [];
     for (const aspect of graph.aspects) {
       if (aspect.reviewer.type !== 'aggregate') continue;
       const implies = aspect.implies ?? [];
-      const enforcedMembers = implies.filter((id) => enforcedSet.has(id));
+      const enforcedMembers = implies.filter((id) => appliedSet.has(id));
       const droppedMembers = implies.filter((id) => wholeUnitDropped.has(id));
       if (enforcedMembers.length > 0 && droppedMembers.length > 0) {
         halfExpandedBundles.push({ bundleId: aspect.id, enforced: enforcedMembers, dropped: droppedMembers });
@@ -208,11 +294,14 @@ export function buildTypeVisibility(
     halfExpandedBundles.sort((a, b) => (a.bundleId < b.bundleId ? -1 : a.bundleId > b.bundleId ? 1 : 0));
 
     const enforced = [...enforcedSet].sort();
+    const advisory = [...advisorySet].sort();
     byType.push({
       typeId,
       files,
       enforced,
       enforcedCounts: enforced.map((aspectId) => ({ aspectId, count: enforcedFileCounts.get(aspectId) ?? 0 })),
+      advisory,
+      advisoryCounts: advisory.map((aspectId) => ({ aspectId, count: advisoryFileCounts.get(aspectId) ?? 0 })),
       dropped,
       halfExpandedBundles,
       chainTermination: termination,
@@ -232,6 +321,9 @@ export function describeTypeVisibilityReason(reason: TypeVisibilityReason): stri
     case 'draft': return 'the rule is still draft (reviewer skipped)';
     case 'whole-unit-rule': return 'it is whole-unit (per: node) and this file has no component to run it on';
     case 'scope.files-excluded': return "excluded by the rule's own scope.files filter";
+    case 'aspect-undefined': return 'the architecture attaches an aspect id with no matching aspect definition';
+    case 'unreadable': return 'the file could not be read, so it cannot be reviewed';
+    case 'binary-subject': return 'a binary file cannot be reviewed by a prose rule';
     case 'read-beyond-architecture': return "it tried to read a file outside what the architecture allows this file's type to depend on";
     case 'node-context-required': return 'it needs component context (ctx.node / ctx.graph) that a type-covered file does not have';
     case 'companion-context-failed': return 'its companion could not resolve a dependency for this file';

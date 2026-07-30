@@ -16,7 +16,7 @@ import { loadGraph } from '../../../src/core/graph-loader.js';
 import { runCheck } from '../../../src/core/check.js';
 import { walkRepoFiles } from '../../../src/io/repo-scanner.js';
 import { formatOutput } from '../../../src/cli/check-render-views.js';
-import { FIXTURE_ZERO_ENFORCEMENT } from '../../fixtures/type-level-engine/variants/index.js';
+import { FIXTURE_ZERO_ENFORCEMENT, FIXTURE_BINARY_SUBJECT } from '../../fixtures/type-level-engine/variants/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../../..');
@@ -58,6 +58,45 @@ describe('yg check — type-visibility block (Step 2)', () => {
     const dir = copyFixture();
     const out = await renderCheck(dir);
     expect(out.match(/inherited rules stop at a fork \(mid \| top\)/g)).toHaveLength(1);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  // Fix round 1, Critical: a binary file matched by a type whose only rule is
+  // an LLM (prose) aspect must never be counted as enforced — the reviewer's
+  // own exact case. Before the fix, the binary-subject skip in pairs.ts's
+  // nodeless enumeration recorded no drop, so "enforced" (derived by
+  // subtracting drops from declared-attached) wrongly counted logo.png too:
+  // `prose-rule (2)` when only ONE real pair (readme.md) exists, and
+  // logo.png never appeared in the zero-enforcement line even though nothing
+  // runs on it.
+  it('a binary file whose only attached rule is an LLM (prose) aspect is never counted as enforced, and is named in the zero-enforcement line', async () => {
+    const dir = copyFixture(FIXTURE_BINARY_SUBJECT);
+    const out = await renderCheck(dir);
+    // Exactly one real pair (readme.md) exists — the count must say so, never
+    // the pre-fix "2" a silent binary-subject skip used to produce.
+    expect(out).toContain('prose-rule (1)');
+    expect(out).not.toContain('prose-rule (2)');
+    // logo.png is named alongside the base fixture's own pre-existing
+    // zero-enforcement file (src/ep/e.ts, unrelated to this variant) — both
+    // real, both honestly reported, never silently merged or dropped.
+    expect(out).toMatch(/2 files matched by a type have no rules that apply to them — they satisfy coverage with no enforcement:/);
+    expect(out).toContain('src/pics/logo.png');
+    expect(out).toContain('src/ep/e.ts');
+    // The reason is visible right where the count lives, not just implied by
+    // its absence from "Enforced:".
+    expect(out).toContain("prose-rule (a binary file cannot be reviewed by a prose rule, 1)");
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  // Fix round 1, Important: an advisory rule must not be reported under the
+  // "Enforced" heading. src/leaf/a.ts's own-file-rule implies
+  // implied-file-rule (status: advisory) — it genuinely runs (a real pair
+  // exists) but only warns; the check-summary heading must say so honestly.
+  it('an advisory rule is named under its own heading, never counted under "Enforced"', async () => {
+    const dir = copyFixture();
+    const out = await renderCheck(dir);
+    expect(out).not.toMatch(/Enforced:.*implied-file-rule/);
+    expect(out).toMatch(/Advisory[^\n]*implied-file-rule \(1\)/);
     rmSync(dir, { recursive: true, force: true });
   });
 });

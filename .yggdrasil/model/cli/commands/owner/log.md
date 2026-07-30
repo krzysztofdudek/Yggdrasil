@@ -36,3 +36,5 @@ Answering "which component owns this file" used a home-grown rule that picked th
 yg owner on an unmapped file with a matched architecture type now answers with the type instead of reporting no graph coverage, since the file is genuinely covered through its type alone; a path under the graph's own directory stays exempt from this classification.
 ## [2026-07-30T14:04:56.851Z]
 Also exempts a file under a coverage.excluded root from the new type classification, matching the exclusion authority yg check itself already applies -- without this guard, an excluded file could still be reported as type-covered, contradicting the rule that exclusion is absolute.
+## [2026-07-30T15:20:39.331Z]
+For a type-covered file, yg owner now computes that one file's real expected pairs before answering, so it only claims the type enforces something when at least one rule genuinely produces a pair there. Previously it asserted enforcement for every type-covered file unconditionally, which was false for a file whose matched type has nothing that can run at file granularity — it now states that plainly instead.

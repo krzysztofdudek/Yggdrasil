@@ -5,9 +5,12 @@ description: "Renders the yg check verdict/metrics header line — PASS/FAIL, no
   excluded three-bucket split, aspect/flow counts, verified-pair split, draft
   count. Owns the useEmoji accessibility gate every render file reads. Also
   renders the per-type visibility block: which rules a type-covered file's
-  type enforces, which are attached but do not (with reason counts), a
-  half-expanded bundle, where the inherited chain stops, and the repo-wide
-  zero-applicable-rules honesty line."
+  type enforces, which run but only warn (their own heading, never folded
+  into 'Enforced'), which are attached but do not (with reason counts, capped
+  the same way the rest of the summary caps a long list), a half-expanded
+  bundle, where the inherited chain stops, and the repo-wide zero-applicable-
+  rules honesty line (grammatically singular/plural, and reduced to counts
+  only under the --summary/--top triage views)."
 mapping:
   - source/cli/src/cli/check-render-header.ts
 relations:

@@ -83,20 +83,60 @@ export function renderHeader(result: CheckResult, errorCount: number, warningCou
 /** Matches the rest of the check summary's own list-truncation cap. */
 const FILE_LIST_CAP = 12;
 
+/** Same cap discipline as FILE_LIST_CAP: a type with many distinct (aspectId, reason) drops must not render an unbounded line — one fixture type alone has been observed producing ~1300 characters here, repeating the same reason phrase per aspect. */
+const DROPPED_LIST_CAP = 12;
+
 function renderReasonCounts(dropped: TypeVisibilityReport['byType'][number]['dropped']): string {
-  return dropped.map((d) => `${d.aspectId} (${describeTypeVisibilityReason(d.reason)}, ${d.count})`).join(', ');
+  const shown = dropped.slice(0, DROPPED_LIST_CAP);
+  const rendered = shown.map((d) => `${d.aspectId} (${describeTypeVisibilityReason(d.reason)}, ${d.count})`).join(', ');
+  const overflow = dropped.length > DROPPED_LIST_CAP ? ` ... and ${dropped.length - DROPPED_LIST_CAP} more` : '';
+  return `${rendered}${overflow}`;
 }
 
-export function renderTypeVisibilityBlock(result: CheckResult): string {
+/**
+ * Grammar for the zero-enforcement sentence, singular vs. plural — every word
+ * that agrees with `count` lives here so a singular file never reads "they
+ * satisfy" (an earlier defect: the verb-and-pronoun clause was hardcoded to
+ * the plural form regardless of `count`).
+ */
+function zeroEnforcementGrammar(count: number): { has: string; it: string; subject: string; satisfy: string } {
+  return count === 1
+    ? { has: 'has', it: 'it', subject: 'it', satisfy: 'satisfies' }
+    : { has: 'have', it: 'them', subject: 'they', satisfy: 'satisfy' };
+}
+
+/**
+ * `countsOnly`: the counts-only triage views (--summary, --top) print this
+ * block ahead of their own narrowed body (same posture as the zero-
+ * classifying-types notice), so it must stay to COUNTS there — never the
+ * per-aspect reason breakdown, half-expanded-bundle names, chain-termination
+ * text, or zero-enforcement file samples a full `yg check` shows. Those views
+ * exist specifically to keep the wall short; this block must not undo that.
+ */
+export function renderTypeVisibilityBlock(result: CheckResult, opts?: { countsOnly?: boolean }): string {
   const report = result.typeVisibility;
   if (!report) return '';
+  const countsOnly = opts?.countsOnly ?? false;
   const lines: string[] = ['Type coverage:'];
   for (const block of report.byType) {
+    if (countsOnly) {
+      const droppedTotal = block.dropped.reduce((n, d) => n + d.count, 0);
+      lines.push(
+        `  '${block.typeId}' — ${block.files.length} file${block.files.length === 1 ? '' : 's'} covered — ` +
+        `${block.enforcedCounts.length} rule${block.enforcedCounts.length === 1 ? '' : 's'} enforced, ` +
+        `${block.advisoryCounts.length} advisory, ${droppedTotal} attached-but-not-enforced instance${droppedTotal === 1 ? '' : 's'}`,
+      );
+      continue;
+    }
     const shown = block.files.slice(0, FILE_LIST_CAP);
     const overflow = block.files.length > FILE_LIST_CAP ? ` ... and ${block.files.length - FILE_LIST_CAP} more` : '';
     lines.push(`  '${block.typeId}' — ${block.files.length} file${block.files.length === 1 ? '' : 's'} covered: ${shown.join(', ')}${overflow}`);
     const enforcedList = block.enforcedCounts.map((e) => `${e.aspectId} (${e.count})`).join(', ');
     lines.push(`    Enforced: ${enforcedList.length > 0 ? enforcedList : '(none)'}`);
+    if (block.advisoryCounts.length > 0) {
+      const advisoryList = block.advisoryCounts.map((e) => `${e.aspectId} (${e.count})`).join(', ');
+      lines.push(`    Advisory (runs, never blocks): ${advisoryList}`);
+    }
     if (block.dropped.length > 0) {
       lines.push(`    Attached but not enforced: ${renderReasonCounts(block.dropped)}`);
     }
@@ -107,11 +147,14 @@ export function renderTypeVisibilityBlock(result: CheckResult): string {
   }
   const zc = report.zeroEnforcement;
   if (zc.count > 0) {
-    const plural = zc.count === 1 ? { v: 'has', it: 'it' } : { v: 'have', it: 'them' };
+    const g = zeroEnforcementGrammar(zc.count);
     lines.push('');
-    lines.push(`${zc.count} file${zc.count === 1 ? '' : 's'} matched by a type ${plural.v} no rules that apply to ${plural.it} — they satisfy coverage with no enforcement:`);
-    for (const f of zc.samples) lines.push(`  - ${f}`);
-    if (zc.count > zc.samples.length) lines.push(`  ... and ${zc.count - zc.samples.length} more`);
+    const suffix = countsOnly ? '.' : ':';
+    lines.push(`${zc.count} file${zc.count === 1 ? '' : 's'} matched by a type ${g.has} no rules that apply to ${g.it} — ${g.subject} ${g.satisfy} coverage with no enforcement${suffix}`);
+    if (!countsOnly) {
+      for (const f of zc.samples) lines.push(`  - ${f}`);
+      if (zc.count > zc.samples.length) lines.push(`  ... and ${zc.count - zc.samples.length} more`);
+    }
   }
   return lines.join('\n');
 }

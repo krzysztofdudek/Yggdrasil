@@ -1,0 +1,6 @@
+name: Prose Rule
+description: "pics's own per-file LLM default — a prose rule can never review a binary subject."
+reviewer:
+  type: llm
+scope:
+  per: file

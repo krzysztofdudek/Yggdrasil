@@ -14,6 +14,7 @@ import { isCoverageExcludedPath } from '../io/repo-scanner.js';
 import { classifySingleFile } from '../core/type-coverage.js';
 import { isExcludedByCoverage } from '../core/check-coverage-tiers.js';
 import { FileContentCache } from '../io/file-content-cache.js';
+import { computeExpectedPairs } from '../core/pairs.js';
 
 function normalizeForMatch(inputPath: string): string {
   return toPosixPath(inputPath.trim());
@@ -76,14 +77,29 @@ export function registerOwnerCommand(program: Command): void {
             ? await classifySingleFile(graph, result.file, new FileContentCache())
             : undefined;
           if (typeMatch?.bucket === 'covered') {
+            // K9: classifies and enumerates pairs scoped to THIS ONE FILE (a
+            // single-entry covered map), never the whole-repo classification
+            // map — mirrors build-context.ts's own typed-file path.
+            const { pairs } = await computeExpectedPairs(graph, {
+              typeCoverage: { covered: new Map([[result.file, typeMatch.typeId]]), ambiguousPaths: [] },
+            });
+            const hasEnforcement = pairs.some((p) => p.nodePath === undefined);
             process.stdout.write(`${result.file} -> type:${typeMatch.typeId}\n`);
             process.stdout.write(
               '  ' +
-                buildIssueMessage({
-                  what: 'Enforced by its architecture type, not by a component.',
-                  why: 'No node maps this file; every rule its matched type attaches still applies, or is honestly reported as attached but not enforced.',
-                  next: `yg context --file ${result.file}`,
-                }) +
+                buildIssueMessage(
+                  hasEnforcement
+                    ? {
+                        what: 'Enforced by its architecture type, not by a component.',
+                        why: 'No node maps this file; every rule its matched type attaches still applies, or is honestly reported as attached but not enforced.',
+                        next: `yg context --file ${result.file}`,
+                      }
+                    : {
+                        what: 'Covered by its architecture type, but nothing from it enforces on this file.',
+                        why: 'No node maps this file, and every rule the matched type attaches is either not a file-level rule or does not apply here — the file satisfies coverage with no enforcement.',
+                        next: `yg context --file ${result.file}`,
+                      },
+                ) +
                 '\n',
             );
           } else if (exists) {

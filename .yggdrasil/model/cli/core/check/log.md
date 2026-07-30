@@ -176,3 +176,13 @@ Hoisted the file-type classification earlier so the reviewer-required check can 
 Accepts an already-computed type-coverage classification so a caller that classified once for its own use this run can reuse it here instead of paying for a second classify pass over the same uncovered files.
 ## [2026-07-30T13:40:04.689Z]
 Assembles a per-type report of what the type-level tier enforces on a covered file and what it does not, with the reason, so a reader can no longer mistake type coverage for full enforcement when a rule attached to a type cannot actually run against a given file.
+## [2026-07-30T15:20:29.319Z]
+Threads the real verified pairs (not just the static drops) into the type-visibility report, so enforced/advisory are derived from what actually ran rather than inferred from the absence of a drop. The per-type block now separates advisory rules from enforced ones under their own heading, since a rule that only warns must never be reported the same way as one that blocks.
+## [2026-07-30T15:29:45.917Z]
+Shrank the type-visibility wiring added here to a single-line call into the new shared toAppliedPairs helper (type-visibility.ts), instead of restating the filter/map inline — this file's own reviewer prompt has little headroom, so the derivation logic itself now lives next to the type it produces rather than being duplicated at each call site.
+## [2026-07-30T15:33:11.729Z]
+Replaced the intermediate applied-pairs variable with a direct verifiedPairs: VerifiedPair[] (a type already imported here) and moved the toAppliedPairs call to the single call site that needs it — this file's own reviewer prompt has almost no headroom, so every added line here costs real margin against the tier limit.
+## [2026-07-30T15:36:43.556Z]
+Moved the type-visibility assembly inside the lock-verification try block, reading verification.drops/pairs directly instead of copying them into two separate outer variables first — this eliminates the intermediate staticDrops/verifiedPairs bookkeeping entirely (one hoisted typeVisibility variable, same lock-invalid-safe undefined default, replaces both). This file's own reviewer prompt has almost no headroom against the tier limit, so every avoidable line here matters.
+## [2026-07-30T15:40:23.848Z]
+Trimmed two inline comments to reclaim reviewer-prompt margin on this file — it has almost none against the tier limit, so a few extra words here are the difference between a prompt fitting and not.

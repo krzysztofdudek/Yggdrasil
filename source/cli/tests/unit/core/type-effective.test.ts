@@ -6,6 +6,7 @@ import { loadGraph } from '../../../src/core/graph-loader.js';
 import {
   computeTypeEffectiveAspects,
   computeTypeAspectCascade,
+  computeTypeReachableAspects,
   walkTypeParentChain,
   computeDeclaredAttachedAspects,
 } from '../../../src/core/type-effective.js';
@@ -185,6 +186,30 @@ describe('computeDeclaredAttachedAspects — declared law before when: narrows i
   it('a type with no chain and no own aspects declares nothing', async () => {
     const graph = await loadGraph(FIXTURE);
     expect(computeDeclaredAttachedAspects(graph, 'emptyparents', [])).toEqual(new Set());
+  });
+});
+
+describe('computeTypeReachableAspects — only the ids that could actually produce a pair (fix round 1)', () => {
+  it('excludes a per:node (whole-unit) rule reached only through implies, but keeps its file-level sibling and the aggregate itself', async () => {
+    const graph = await loadGraph(FIXTURE);
+    const all = computeTypeEffectiveAspects(graph, 'src/leaf/a.ts', 'leaf').map((a) => a.aspectId);
+    const reachable = computeTypeReachableAspects(graph, 'src/leaf/a.ts', 'leaf').map((a) => a.aspectId);
+    // whole-unit-rule (per: node) is cascade-effective (via bundle's implies)
+    // but has no component to run on for a nodeless file.
+    expect(all).toContain('whole-unit-rule');
+    expect(reachable).not.toContain('whole-unit-rule');
+    // Its file-level sibling still counts as reachable, and the aggregate
+    // itself passes through (no scope of its own — see the function's doc).
+    expect(reachable).toContain('own-file-rule');
+    expect(reachable).toContain('bundle');
+  });
+
+  it('keeps every id when nothing in the effective set is whole-unit', async () => {
+    const graph = await loadGraph(FIXTURE);
+    // 'classifying-parent' attaches only classifying-parent-rule, a per:file
+    // (default per:node absent — declared file-level) default with no chain.
+    const reachable = computeTypeReachableAspects(graph, 'src/helper/h.ts', 'classifying-parent').map((a) => a.aspectId);
+    expect(reachable).toEqual(['classifying-parent-rule']);
   });
 });
 

@@ -6,10 +6,12 @@ description: "Validation checks for aspect definitions and contracts — danglin
   presence, tier references, reference files, and status-downgrade detection.
   The two dead-attach linters (checkAspectEffectiveNowhere,
   checkArchitectureDefaultAspectUnreachable) take an optional type-coverage
-  classification: a rule effective only on files enforced by their
-  architecture type is live law, not dead, and a type with no components but
-  a matching file has instances too. Absent ⇒ unchanged, one-argument
-  behavior."
+  classification: a type with no components but a matching file has instances
+  too, and a rule reaching that file is live law, not dead, ONLY when it could
+  actually produce a pair there (computeTypeReachableAspects) — a whole-unit
+  (per: node) rule has no component to run on for a type-covered file, so it
+  stays reported dead even once a file matches its type. Absent ⇒ unchanged,
+  one-argument behavior."
 aspects:
   - posix-paths-output
   - what-why-next

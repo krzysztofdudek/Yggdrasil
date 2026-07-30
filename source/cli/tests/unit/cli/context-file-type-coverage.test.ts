@@ -16,11 +16,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../../..');
 const BIN_PATH = path.join(CLI_ROOT, 'dist', 'bin.js');
 const FIXTURE = path.join(CLI_ROOT, 'tests', 'fixtures', 'type-level-engine');
+const FIXTURE_BINARY_SUBJECT = path.join(FIXTURE, 'variants', 'binary-subject');
+const FIXTURE_ZERO_ENFORCEMENT = path.join(FIXTURE, 'variants', 'zero-enforcement');
 const distExists = existsSync(BIN_PATH);
 
-function copyFixture(): string {
+function copyFixture(...overlays: string[]): string {
   const dir = mkdtempSync(path.join(tmpdir(), 'yg-context-file-typecov-'));
   cpSync(FIXTURE, dir, { recursive: true });
+  for (const overlay of overlays) cpSync(overlay, dir, { recursive: true });
   return dir;
 }
 
@@ -38,7 +41,7 @@ describe.skipIf(!distExists)('yg context --file — typed view for a type-covere
       // The matched type.
       expect(stdout).toContain('Matched type: leaf');
       // The inherited chain, where and why it stops (leaf -> mid -> top, absent parents).
-      expect(stdout).toMatch(/inherited rules stop at 'top' — no parents declared/);
+      expect(stdout).toMatch(/inherited rules stop at 'top' — it has no parent type to inherit from/);
       // A rule that DOES apply.
       expect(stdout).toContain('own-file-rule');
       // A rule attached to the type that does NOT apply, with its reason.
@@ -51,6 +54,75 @@ describe.skipIf(!distExists)('yg context --file — typed view for a type-covere
       expect(stdout).toMatch(/give this file a component of its own/);
       // The OLD not-covered text must be gone for this file.
       expect(stdout).not.toContain('This file is not covered by any node.');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // Fix round 1, Critical: the reviewer's own exact case. A binary file whose
+  // only attached rule is an LLM (prose) aspect must show the SAME reason
+  // context-file.ts's "Attached but not enforced" section already gives every
+  // other drop — before the fix, prose-rule had no drop recorded here at all,
+  // so it rendered as [enforced] with no reason.
+  it('a binary file whose only attached rule is an LLM aspect reports it as not enforced, with the binary-subject reason — never [enforced]', () => {
+    const dir = copyFixture(FIXTURE_BINARY_SUBJECT);
+    try {
+      const { stdout, status } = run(['context', '--file', 'src/pics/logo.png'], dir);
+      expect(status).toBe(0);
+      expect(stdout).toContain('Matched type: pics');
+      // Never listed as a rule this file must satisfy.
+      expect(stdout).not.toContain('Must satisfy:');
+      expect(stdout).not.toMatch(/prose-rule \[enforced\]/);
+      // Listed under "attached but not enforced", with the real reason.
+      expect(stdout).toContain('Attached to this type but not enforced here:');
+      expect(stdout).toMatch(/prose-rule — a binary file cannot be reviewed by a prose rule/);
+      // The zero-rules statement fires for this file (fix round 1, Important).
+      expect(stdout).toContain('No rules from this type apply to this file — it satisfies coverage with no enforcement.');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // The SAME type's text file: prose-rule genuinely enforces there.
+  it('the same type\'s text file shows prose-rule as a rule that DOES apply', () => {
+    const dir = copyFixture(FIXTURE_BINARY_SUBJECT);
+    try {
+      const { stdout, status } = run(['context', '--file', 'src/pics/readme.md'], dir);
+      expect(status).toBe(0);
+      expect(stdout).toContain('Must satisfy:');
+      expect(stdout).toMatch(/prose-rule \[enforced\]/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // Fix round 1, Important: an advisory rule must render its real status, not
+  // a hardcoded [enforced]. src/leaf/a.ts's own-file-rule implies
+  // implied-file-rule (status: advisory, status_inherit: own-default) — a
+  // rule that genuinely runs on this file but only warns.
+  it('an advisory rule shows [advisory], never a hardcoded [enforced]', () => {
+    const dir = copyFixture();
+    try {
+      const { stdout, status } = run(['context', '--file', 'src/leaf/a.ts'], dir);
+      expect(status).toBe(0);
+      expect(stdout).toMatch(/implied-file-rule \[advisory\]/);
+      expect(stdout).not.toMatch(/implied-file-rule \[enforced\]/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // Fix round 1, Important: a type-covered file with ZERO applicable rules
+  // said NOTHING at all before the fix — a silent gap, not a warning, in the
+  // one surface an agent actually consults for this file.
+  it('a type-covered file with zero applicable rules states the zero case plainly', () => {
+    const dir = copyFixture(FIXTURE_ZERO_ENFORCEMENT);
+    try {
+      const { stdout, status } = run(['context', '--file', 'src/ep/e.ts'], dir);
+      expect(status).toBe(0);
+      expect(stdout).toContain('Matched type: emptyparents');
+      expect(stdout).not.toContain('Must satisfy:');
+      expect(stdout).toContain('No rules from this type apply to this file — it satisfies coverage with no enforcement.');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

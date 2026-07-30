@@ -5,7 +5,7 @@ import { normalizeMappingPaths } from '../io/paths.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import { computeTypeCoverage } from './type-coverage.js';
 import type { TypeCoverageResult } from './type-coverage.js';
-import type { TypeCoverageInput, PairDrop } from './pairs.js';
+import type { TypeCoverageInput } from './pairs.js';
 import { validate } from './validator.js';
 import { checkReviewOverdue } from './checks/aspect-contracts.js';
 import { checkDigestGate } from './checks/digest-gate.js';
@@ -43,8 +43,7 @@ import { getLanguageDisplayName } from '../utils/language-registry.js';
 import { makeResolvePathToFile } from '../relations/resolve-path.js';
 import { buildOwnerIndex } from '../relations/owner-index.js';
 import { computeTypeGateFindings } from '../relations/type-gate.js';
-import { buildTypeVisibility } from './type-visibility.js';
-import type { TypeVisibilityReport } from './type-visibility.js';
+import { buildTypeVisibility, toAppliedPairs, type TypeVisibilityReport } from './type-visibility.js';
 // ── Silent feature-field deviation index (L3 attention) — the writer lives HERE ONLY,
 //    behind the runCheck fence (G2). cli/check.ts calls runAttentionDump, never the writer. ──
 import {
@@ -724,12 +723,15 @@ export async function runCheck(
   // 0/0 rather than leaving the fields undefined.
   let verifiedDet = 0;
   let verifiedLlm = 0;
-  // Static half of type-visibility; same lock-invalid posture as verifiedDet.
-  let staticDrops: PairDrop[] = [];
+  // Same lock-invalid posture as verifiedDet.
+  let typeVisibility: TypeVisibilityReport | undefined;
   try {
     const lock = readLock(graph.rootPath);
     const verification = await verifyLock(graph, lock, typeCoverageInput);
-    staticDrops = verification.drops;
+    // runtimeRows is [] — a plain check never re-executes check.mjs.
+    typeVisibility = earlyTypeCoverage
+      ? buildTypeVisibility(graph, earlyTypeCoverage.covered, verification.drops, [], toAppliedPairs(verification.pairs.map((vp) => vp.pair)))
+      : undefined;
 
     // Unreadable subjects → blocking file-unreadable errors (A4 fail-closed).
     // messageData is pre-populated on UnreadableSubject by computeExpectedPairs.
@@ -1038,11 +1040,6 @@ export async function runCheck(
       now: options.now ?? (() => new Date()),
     });
   }
-
-  // No runtime dispositions here: a plain check never re-executes check.mjs.
-  const typeVisibility = earlyTypeCoverage
-    ? buildTypeVisibility(graph, earlyTypeCoverage.covered, staticDrops, [])
-    : undefined;
 
   return {
     projectName: path.basename(projectRoot),

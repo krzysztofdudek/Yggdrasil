@@ -7,6 +7,7 @@ import { Command } from 'commander';
 import { findOwner } from '../../../src/cli/owner.js';
 import type { Graph } from '../../../src/model/graph.js';
 import { tmpdir } from 'node:os';
+import { FIXTURE_ZERO_ENFORCEMENT } from '../../fixtures/type-level-engine/variants/index.js';
 
 // Keep the real abortOnUnexpectedError (so an unclassified error still renders
 // the generic "file an issue" text) but stub loadGraphOrAbort so the owner
@@ -40,9 +41,10 @@ async function withFixtureCopy<T>(fn: (cwd: string) => Promise<T>): Promise<T> {
   }
 }
 
-async function withTypeLevelFixtureCopy<T>(fn: (cwd: string) => Promise<T>): Promise<T> {
+async function withTypeLevelFixtureCopy<T>(fn: (cwd: string) => Promise<T>, ...overlays: string[]): Promise<T> {
   const root = await mkdtemp(path.join(tmpdir(), 'ygg-owner-typelevel-'));
   await cp(TYPE_LEVEL_FIXTURE, root, { recursive: true });
+  for (const overlay of overlays) await cp(overlay, root, { recursive: true });
   try {
     return await fn(root);
   } finally {
@@ -276,6 +278,36 @@ describe('owner — a typed answer for a type-covered file (Step 4)', () => {
       expect(result.status).toBe(0);
       expect(result.stdout).toContain('no graph coverage');
       expect(result.stdout).not.toContain('type:');
+    });
+  });
+
+  // Fix round 1, Important: for a type-covered file with ZERO applicable
+  // rules, `yg owner` must not assert the opposite of the truth ("Enforced by
+  // its architecture type"). src/ep/e.ts's only attached rule is whole-unit
+  // (per: node) — it can never produce a pair for a nodeless file.
+  it('a type-covered file with zero applicable rules says so, never "Enforced by its architecture type"', async () => {
+    await withTypeLevelFixtureCopy(async (cwd) => {
+      const result = spawnSync(
+        'node',
+        [BIN_PATH, 'owner', '--file', 'src/ep/e.ts'],
+        { cwd, encoding: 'utf-8' },
+      );
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain('type:emptyparents');
+      expect(result.stdout).not.toContain('Enforced by its architecture type');
+      expect(result.stdout).toContain('nothing from it enforces on this file');
+    }, FIXTURE_ZERO_ENFORCEMENT);
+  });
+
+  it('a type-covered file WITH applicable rules keeps saying "Enforced by its architecture type"', async () => {
+    await withTypeLevelFixtureCopy(async (cwd) => {
+      const result = spawnSync(
+        'node',
+        [BIN_PATH, 'owner', '--file', 'src/leaf/a.ts'],
+        { cwd, encoding: 'utf-8' },
+      );
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain('Enforced by its architecture type, not by a component.');
     });
   });
 });

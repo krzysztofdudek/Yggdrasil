@@ -79,6 +79,9 @@ export function formatFileContext(data: FileContextData): string {
           lines.push(`      read: ${posixPath(aspect.verifiedAgainst)}`);
         }
         lines.push('');
+      } else {
+        lines.push('  No rules from this type apply to this file — it satisfies coverage with no enforcement.');
+        lines.push('');
       }
       if (tc.dropped.length > 0) {
         lines.push('  Attached to this type but not enforced here:');

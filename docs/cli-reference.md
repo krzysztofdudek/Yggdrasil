@@ -37,9 +37,12 @@ yg context --file <file-path>
   Exits 1 if no coverage. Mutually exclusive with `--node`. Under `coverage.type_level`, a
   file with no owning component but a matched architecture type gets a typed view instead
   of the not-covered error (exit 0): the matched type, where its inherited chain stops and
-  why, the rules that apply, the rules attached to the type that do not (each with its
-  reason), a note that dependency conditions come from imports (never events, listens, or
-  ports), and how to give the file a component of its own.
+  why, the rules that apply (each tagged with its real status — `[enforced]` or
+  `[advisory]`, never a blanket `[enforced]` for a rule that only warns), the rules attached
+  to the type that do not (each with its reason), a note that dependency conditions come
+  from imports (never events, listens, or ports), and how to give the file a component of
+  its own. When literally nothing applies, it says so plainly instead of silently omitting
+  the "Must satisfy" section.
 
 The node view also reports, per effective aspect, how many files form its subject
 set (including `0 files — vacuous` when a `scope.files` filter excludes everything),
@@ -300,8 +303,8 @@ status semantics):
 | `aspect-review-by-malformed` | error | A rule's `review_by:` is present but not a calendar-valid bare `YYYY-MM-DD` date (`2027-13-01`, `2027-02-30`). Fired only on the rule that carries the field. |
 | `aspect-review-overdue` | warning | A rule's standing `review_by:` date has passed — it is running unreviewed. Status-independent; never writes a verdict and never blocks. Renew or retire the rule; never change the date without the owner's approval. |
 | `rules-digest-stale` | warning | The committed agent-rules digest (the `AGENTS.md` block, `.clinerules/yggdrasil.md`, or the `CLAUDE.md` `@AGENTS.md` import) is missing, hand-edited, from an older CLI, or duplicated. Never cached, never suppressible — recomputed live on every check. Fix: `yg init --upgrade`. |
-| `aspect-effective-nowhere` | warning | A rule that ships a rule source and is not draft is effective on zero components after the full cascade and every `when` — a rule that looks enforced but is never verified anywhere. Silent while the model has no components, OR — under `coverage.type_level` — while it is effective on at least one file enforced by its architecture type alone. Fix by correcting the attach sites / `when`, or set `status: draft` until the component or type it targets exists. |
-| `architecture-default-aspect-unreachable` | warning | An architecture type's own default rule is effective on zero instances OF THAT TYPE, even though the rule may be live on other types — its own `when` (or the attach-site `when`) filters it back off the exact type that declares it. Silent while the type has no instances at all; under `coverage.type_level`, a file enforced by the type alone counts as an instance too. Fix by widening/removing the `when` so it reaches the type, or dropping the default if it should not apply there. |
+| `aspect-effective-nowhere` | warning | A rule that ships a rule source and is not draft is effective on zero components after the full cascade and every `when` — a rule that looks enforced but is never verified anywhere. Silent while the model has no components, OR — under `coverage.type_level` — while it could actually run (a `per: file` rule, not a whole-unit one) on at least one file enforced by its architecture type alone; a whole-unit rule stays reported dead even once a file matches its type, since it can never produce a verdict there. Fix by correcting the attach sites / `when`, or set `status: draft` until the component or type it targets exists. |
+| `architecture-default-aspect-unreachable` | warning | An architecture type's own default rule is effective on zero instances OF THAT TYPE, even though the rule may be live on other types — its own `when` (or the attach-site `when`) filters it back off the exact type that declares it. Silent while the type has no instances at all; under `coverage.type_level`, a file enforced by the type alone counts as an instance, but only lets a `per: file` default count as reached there — a whole-unit default stays reported unreachable. Fix by widening/removing the `when` so it reaches the type, or dropping the default if it should not apply there. |
 
 ### `yg log`
 
@@ -580,7 +583,10 @@ Output: a custom human-readable line format (not YAML) with fields: `name`, `nod
 Finds which node owns a given file. Path is relative to repository root.
 Quick ownership check — use `yg context --file` when you need the full context package.
 Under `coverage.type_level`, an unmapped file with a matched architecture type answers
-with the type instead of reporting no graph coverage.
+with the type instead of reporting no graph coverage — and, when that type attaches at
+least one rule that actually runs on this file, says it is enforced by the type rather than
+a component. When the matched type has nothing that can run at file granularity, it says
+that plainly instead — never the enforcement claim.
 
 ```bash
 yg owner --file <path>

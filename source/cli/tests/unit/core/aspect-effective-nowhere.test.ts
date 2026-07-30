@@ -372,7 +372,10 @@ describe('type-coverage tier-awareness (Step 5)', () => {
   // A non-bootstrap twin: ONE real node (of a DIFFERENT type) keeps
   // graph.nodes.size > 0, so the carve-out never applies either way — the
   // only thing that can make 'own-rule' live is the type-coverage union
-  // itself, discriminating flag-on from flag-off for real.
+  // itself, discriminating flag-on from flag-off for real. `own-rule` is
+  // file-level (scope: { per: 'file' }): a per:node (whole-unit) rule has no
+  // component to run on for a nodeless file, so it could never be genuinely
+  // "live" there — see the dedicated whole-unit twin below for that direction.
   function typeOnlyTwinGraph(rootPath: string): { graph: Graph; typeCoverage: TypeCoverageInput } {
     const arch: ArchitectureDef = {
       node_types: {
@@ -380,14 +383,14 @@ describe('type-coverage tier-awareness (Step 5)', () => {
         leafy: { description: 'Classifies src/leafy/**', aspects: ['own-rule'], when: { path: 'src/leafy/**' } },
       },
     };
-    const ownRule = detAspect('own-rule');
+    const ownRule = detAspect('own-rule', { scope: { per: 'file' } });
     const otherNode = moduleNode('other', []);
     const graph: Graph = { config: {}, architecture: arch, nodes: new Map([['other', otherNode]]), aspects: [ownRule], flows: [], rootPath };
     const typeCoverage: TypeCoverageInput = { covered: new Map([['src/leafy/f.ts', 'leafy']]), ambiguousPaths: [] };
     return { graph, typeCoverage };
   }
 
-  it('flag-on: a rule live only on a type-covered file (real node exists for another type) is not dead', async () => {
+  it('flag-on: a file-level rule live only on a type-covered file (real node exists for another type) is not dead', async () => {
     const rootPath = await createTempYggdrasil();
     await createRuleSource(rootPath, 'own-rule', 'check.mjs');
     const { graph, typeCoverage } = typeOnlyTwinGraph(rootPath);
@@ -401,6 +404,33 @@ describe('type-coverage tier-awareness (Step 5)', () => {
     const { graph } = typeOnlyTwinGraph(rootPath);
     const issues = checkAspectEffectiveNowhere(graph);
     expect(issues.some((i) => i.messageData.what.includes("'own-rule'"))).toBe(true);
+  });
+
+  // The other direction of the dead-law relaxation (fix round 1): a
+  // WHOLE-UNIT (per: node) rule reachable ONLY through a type-covered file
+  // must STILL be reported dead — it can never produce a pair there (no
+  // component to run it on), so counting the file as making it "live" would
+  // hide a rule that genuinely never verifies anything.
+  function typeOnlyWholeUnitTwinGraph(rootPath: string): { graph: Graph; typeCoverage: TypeCoverageInput } {
+    const arch: ArchitectureDef = {
+      node_types: {
+        module: { description: 'A module', aspects: [] },
+        leafy: { description: 'Classifies src/leafy/**', aspects: ['whole-unit-only-rule'], when: { path: 'src/leafy/**' } },
+      },
+    };
+    const wholeUnitRule = detAspect('whole-unit-only-rule'); // no scope -> per: node (whole-unit) default
+    const otherNode = moduleNode('other', []);
+    const graph: Graph = { config: {}, architecture: arch, nodes: new Map([['other', otherNode]]), aspects: [wholeUnitRule], flows: [], rootPath };
+    const typeCoverage: TypeCoverageInput = { covered: new Map([['src/leafy/f.ts', 'leafy']]), ambiguousPaths: [] };
+    return { graph, typeCoverage };
+  }
+
+  it('flag-on: a whole-unit rule reachable only through a type-covered file is still reported dead — it can never produce a pair there', async () => {
+    const rootPath = await createTempYggdrasil();
+    await createRuleSource(rootPath, 'whole-unit-only-rule', 'check.mjs');
+    const { graph, typeCoverage } = typeOnlyWholeUnitTwinGraph(rootPath);
+    const issues = checkAspectEffectiveNowhere(graph, typeCoverage);
+    expect(issues.some((i) => i.messageData.what.includes("'whole-unit-only-rule'"))).toBe(true);
   });
 
   // Same non-bootstrap discrimination for checkArchitectureDefaultAspectUnreachable:
@@ -436,5 +466,57 @@ describe('type-coverage tier-awareness (Step 5)', () => {
     await createRuleSource(rootPath, 'dead-default', 'check.mjs');
     const { graph } = unreachableDefaultTwinGraph(rootPath);
     expect(checkArchitectureDefaultAspectUnreachable(graph)).toHaveLength(0);
+  });
+
+  // The dead-law relaxation, pinned directly on checkArchitectureDefaultAspectUnreachable
+  // (fix round 1): a file-level default reachable only through a type-covered
+  // file is genuinely reachable there and must NOT be reported unreachable.
+  function reachableFileDefaultTwinGraph(rootPath: string): { graph: Graph; typeCoverage: TypeCoverageInput } {
+    const arch: ArchitectureDef = {
+      node_types: {
+        module: { description: 'A module', aspects: [] },
+        leafy: { description: 'Classifies src/leafy/**', aspects: ['file-level-default'], when: { path: 'src/leafy/**' } },
+      },
+    };
+    const fileLevelDefault = detAspect('file-level-default', { scope: { per: 'file' } }); // no when -> always cascade-effective
+    const otherNode = moduleNode('other', []);
+    const graph: Graph = { config: {}, architecture: arch, nodes: new Map([['other', otherNode]]), aspects: [fileLevelDefault], flows: [], rootPath };
+    const typeCoverage: TypeCoverageInput = { covered: new Map([['src/leafy/f.ts', 'leafy']]), ambiguousPaths: [] };
+    return { graph, typeCoverage };
+  }
+
+  it('flag-on: a file-level default reachable through a type-covered file is not reported unreachable', async () => {
+    const rootPath = await createTempYggdrasil();
+    await createRuleSource(rootPath, 'file-level-default', 'check.mjs');
+    const { graph, typeCoverage } = reachableFileDefaultTwinGraph(rootPath);
+    const issues = checkArchitectureDefaultAspectUnreachable(graph, typeCoverage);
+    expect(issues.some((i) => i.messageData.what.includes("'file-level-default'"))).toBe(false);
+  });
+
+  // The other direction: a WHOLE-UNIT (per: node) default, with no `when` at
+  // all restricting it, is still reported unreachable when its only instance
+  // is a type-covered file — it can never produce a pair there regardless of
+  // `when`, so counting the file as an instance for it would hide a rule that
+  // genuinely never verifies anything for this type.
+  function wholeUnitDefaultTwinGraph(rootPath: string): { graph: Graph; typeCoverage: TypeCoverageInput } {
+    const arch: ArchitectureDef = {
+      node_types: {
+        module: { description: 'A module', aspects: [] },
+        leafy: { description: 'Classifies src/leafy/**', aspects: ['whole-unit-default'], when: { path: 'src/leafy/**' } },
+      },
+    };
+    const wholeUnitDefault = detAspect('whole-unit-default'); // no scope -> per: node; no when -> would be cascade-effective everywhere
+    const otherNode = moduleNode('other', []);
+    const graph: Graph = { config: {}, architecture: arch, nodes: new Map([['other', otherNode]]), aspects: [wholeUnitDefault], flows: [], rootPath };
+    const typeCoverage: TypeCoverageInput = { covered: new Map([['src/leafy/f.ts', 'leafy']]), ambiguousPaths: [] };
+    return { graph, typeCoverage };
+  }
+
+  it('flag-on: a whole-unit default reachable only through a type-covered file is still reported unreachable — it can never produce a pair there', async () => {
+    const rootPath = await createTempYggdrasil();
+    await createRuleSource(rootPath, 'whole-unit-default', 'check.mjs');
+    const { graph, typeCoverage } = wholeUnitDefaultTwinGraph(rootPath);
+    const issues = checkArchitectureDefaultAspectUnreachable(graph, typeCoverage);
+    expect(issues.some((i) => i.messageData.what.includes("'whole-unit-default'"))).toBe(true);
   });
 });

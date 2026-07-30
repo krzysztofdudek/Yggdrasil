@@ -103,10 +103,14 @@ export function formatOutput(result: CheckResult, view: CheckView = { kind: 'ful
   }
 
   // Type-visibility: a statement of fact about the type tier's own coverage,
-  // not an issue — printed ahead of every view, same posture as the notice above.
+  // not an issue — printed ahead of every view, same posture as the notice
+  // above. The two triage views (--summary, --top) exist to keep the wall
+  // short, so this block stays to counts there too — never the full per-
+  // aspect reason breakdown a narrowed view is supposed to avoid.
   if (result.typeVisibility && result.typeVisibility.byType.length > 0) {
     sections.push('');
-    sections.push(renderTypeVisibilityBlock(result));
+    const countsOnly = view.kind === 'summary' || view.kind === 'top';
+    sections.push(renderTypeVisibilityBlock(result, { countsOnly }));
   }
 
   if (view.kind === 'summary' || view.kind === 'top') {

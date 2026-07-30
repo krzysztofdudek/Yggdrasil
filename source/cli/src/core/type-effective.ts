@@ -83,6 +83,48 @@ export function computeTypeEffectiveAspects(
 }
 
 /**
+ * The subset of `computeTypeEffectiveAspects`'s result that could actually
+ * produce a pair for a file enforced by its type alone: a `per: node`
+ * (whole-unit) aspect is excluded, since there is no component for it to run
+ * on for a nodeless file — it is cascade-effective (attached, `when`
+ * satisfied) but structurally unreachable there, forever.
+ *
+ * The dead-law linters (`checkAspectEffectiveNowhere`,
+ * `checkArchitectureDefaultAspectUnreachable`) union THIS set in for their
+ * type-covered files, not the raw cascade-effective set: unioning the raw set
+ * would count a whole-unit rule reachable only through type coverage as live,
+ * even though it can never produce a verdict there — "dead law that looks
+ * enforced" would silently stop being reported the moment a single file
+ * matched the type. `scope.files` / binary-subject exclusions are NOT applied
+ * here (unlike `pairs.ts`'s own nodeless enumeration): those depend on this
+ * one file's content, and a DIFFERENT file of the same type might satisfy
+ * them, so they must not disqualify the aspect from ever counting as reachable
+ * for the type as a whole — only the file-invariant `per: node` gate does.
+ */
+export function computeTypeReachableAspects(
+  graph: Graph,
+  file: string,
+  typeId: string,
+  edges?: TypedEdgeIndex,
+): TypeEffectiveAspect[] {
+  return computeTypeEffectiveAspects(graph, file, typeId, edges).filter((e) => {
+    const aspectDef = graph.aspects.find((a) => a.id === e.aspectId);
+    if (!aspectDef) return false; // aspect-undefined is a separate error; never a reachability route.
+    // An aggregate declares no scope of its own (it is a bundle container,
+    // never itself a review subject) and the ordinary per-node cascade
+    // already includes an aggregate's own id in its effective set
+    // unconditionally — so it always passes through here too. Filtering it
+    // out while a real node's cascade keeps including it would newly flag a
+    // bundle whose file-level half genuinely runs (reported instead,
+    // non-alarmingly, by halfExpandedBundles in core/type-visibility.ts) as
+    // flatly "unreachable" the moment its only instance became a
+    // type-covered file — a regression this filter must not introduce.
+    if (aspectDef.reviewer.type === 'aggregate') return true;
+    return (aspectDef.scope?.per ?? 'node') === 'file';
+  });
+}
+
+/**
  * One cascade pass producing both halves: what enforces, and what was
  * attached but does not. Callers that need both must use this — running the
  * two public halves separately pays the cascade twice.

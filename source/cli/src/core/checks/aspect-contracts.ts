@@ -9,7 +9,7 @@ import { issueMsg } from './shared.js';
 import { toPosixPath } from '../../utils/posix.js';
 import { computeExpectedPairs } from '../pairs.js';
 import type { TypeCoverageInput } from '../pairs.js';
-import { computeTypeEffectiveAspects } from '../type-effective.js';
+import { computeTypeReachableAspects } from '../type-effective.js';
 
 // --- aspect-rule-sources: content.md vs check.mjs mutual exclusion ---
 
@@ -251,12 +251,15 @@ export function checkAspectEffectiveNowhere(graph: Graph, typeCoverage?: TypeCov
       // ImpliesCycleError or similar structural error — skip this node.
     }
   }
-  // Files enforced by their architecture type alone (no component): the same
-  // per-file cascade computeExpectedPairs runs, unioned in exactly like the
-  // node loop above. Absent typeCoverage ⇒ this loop never runs at all.
+  // Files enforced by their architecture type alone (no component): unioned in
+  // exactly like the node loop above, but ONLY the ids that could actually
+  // produce a pair there (computeTypeReachableAspects) — a whole-unit (per:
+  // node) rule is cascade-effective yet has no component to run on for a
+  // nodeless file, so it must not count as "live" just because a file matched
+  // its type. Absent typeCoverage ⇒ this loop never runs at all.
   for (const [file, typeId] of typeCoverage?.covered ?? []) {
     try {
-      for (const { aspectId } of computeTypeEffectiveAspects(graph, file, typeId, typeCoverage?.edges)) {
+      for (const { aspectId } of computeTypeReachableAspects(graph, file, typeId, typeCoverage?.edges)) {
         effectiveSomewhere.add(aspectId);
       }
     } catch {
@@ -347,7 +350,10 @@ export function checkArchitectureDefaultAspectUnreachable(graph: Graph, typeCove
     }
   }
   // A type with zero components but at least one matching file has instances
-  // too — union its per-file cascade in exactly like the node loop above.
+  // too — union its per-file cascade in exactly like the node loop above, but
+  // ONLY the ids computeTypeReachableAspects says could actually produce a
+  // pair there (see that function's own doc for why the raw cascade-effective
+  // set overstates reachability for a nodeless file).
   for (const [file, typeId] of typeCoverage?.covered ?? []) {
     typeHasNodes.add(typeId);
     let set = effectiveByType.get(typeId);
@@ -356,7 +362,7 @@ export function checkArchitectureDefaultAspectUnreachable(graph: Graph, typeCove
       effectiveByType.set(typeId, set);
     }
     try {
-      for (const { aspectId } of computeTypeEffectiveAspects(graph, file, typeId, typeCoverage?.edges)) {
+      for (const { aspectId } of computeTypeReachableAspects(graph, file, typeId, typeCoverage?.edges)) {
         set.add(aspectId);
       }
     } catch {

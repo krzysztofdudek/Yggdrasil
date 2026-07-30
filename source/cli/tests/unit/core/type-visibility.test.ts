@@ -1,12 +1,9 @@
 /**
  * Unit tests for core/type-visibility.ts: the artifact that records, per
  * (file, aspectId), why a rule attached to a type-covered file's type does
- * not enforce on it — assembled from Task 6's static pair-enumeration drops
- * and the deterministic runner's own typed dispositions. Pure assembler: no
- * I/O of its own, so every scenario either drives the REAL producers
- * (computeExpectedPairs, runStructureAspect) against real on-disk fixtures,
- * or hand-builds a minimal Graph the same way pairs-type-coverage.test.ts
- * does, for the one reason (scope.files-excluded) no fixture aspect declares.
+ * not enforce on it — assembled from core/pairs.ts's static drops, the
+ * deterministic runner's own typed dispositions, and the REAL applied-pair
+ * set (the one and only ground truth for "enforced" / "advisory").
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, cpSync, rmSync } from 'node:fs';
@@ -19,9 +16,9 @@ import {
   classifyRunnerDisposition,
   describeTypeVisibilityReason,
 } from '../../../src/core/type-visibility.js';
-import type { TypeVisibilityRow } from '../../../src/core/type-visibility.js';
+import type { TypeVisibilityRow, TypeVisibilityAppliedPair } from '../../../src/core/type-visibility.js';
 import { computeExpectedPairs } from '../../../src/core/pairs.js';
-import type { TypeCoverageInput } from '../../../src/core/pairs.js';
+import type { TypeCoverageInput, ExpectedPair } from '../../../src/core/pairs.js';
 import { loadGraph } from '../../../src/core/graph-loader.js';
 import { runStructureAspect, StructureRunnerError } from '../../../src/structure/runner.js';
 import type { StructureUnit } from '../../../src/structure/runner.js';
@@ -110,8 +107,15 @@ function tc(covered: Array<[string, string]>): TypeCoverageInput {
   return { covered: new Map(covered), ambiguousPaths: [] };
 }
 
+/** The real, nodeless (file-only) pairs computeExpectedPairs produced — the ONLY ground truth buildTypeVisibility's enforced/advisory derivation may use. */
+function applied(pairs: ExpectedPair[]): TypeVisibilityAppliedPair[] {
+  return pairs
+    .filter((p) => p.nodePath === undefined)
+    .map((p) => ({ file: p.subjectFiles[0], aspectId: p.aspectId, status: p.status }));
+}
+
 // ---------------------------------------------------------------------------
-// Step 1 — one row per reason (7 its; 6 real, 1 .todo for Task 9)
+// Step 1 — one row per reason (9 its; 8 real, 1 .todo for Task 9)
 // ---------------------------------------------------------------------------
 
 describe('buildTypeVisibility — one row per reason (Step 1)', () => {
@@ -129,8 +133,8 @@ describe('buildTypeVisibility — one row per reason (Step 1)', () => {
     // the aspect's own global `when` instead — same effect (never true here).
     (graph.aspects[0] as AspectDef).when = { node: { has_port: 'x' } };
     const typeCoverage = tc([['src/leaf/a.ts', 'leaf']]);
-    const { drops } = await computeExpectedPairs(graph, { typeCoverage });
-    const report = buildTypeVisibility(graph, typeCoverage.covered, drops, []);
+    const { drops, pairs } = await computeExpectedPairs(graph, { typeCoverage });
+    const report = buildTypeVisibility(graph, typeCoverage.covered, drops, [], applied(pairs));
     expect(report.rows).toEqual<TypeVisibilityRow[]>([
       { file: 'src/leaf/a.ts', aspectId: 'port-gated-rule', reason: 'when-not-satisfied' },
     ]);
@@ -143,8 +147,8 @@ describe('buildTypeVisibility — one row per reason (Step 1)', () => {
       aspects: [{ id: 'draft-rule', kind: 'deterministic', scope: { per: 'file' }, status: 'draft' }],
     });
     const typeCoverage = tc([['src/leaf/a.ts', 'leaf']]);
-    const { drops } = await computeExpectedPairs(graph, { typeCoverage });
-    const report = buildTypeVisibility(graph, typeCoverage.covered, drops, []);
+    const { drops, pairs } = await computeExpectedPairs(graph, { typeCoverage });
+    const report = buildTypeVisibility(graph, typeCoverage.covered, drops, [], applied(pairs));
     expect(report.rows).toEqual<TypeVisibilityRow[]>([
       { file: 'src/leaf/a.ts', aspectId: 'draft-rule', reason: 'draft' },
     ]);
@@ -157,8 +161,8 @@ describe('buildTypeVisibility — one row per reason (Step 1)', () => {
       aspects: [{ id: 'comp-rule', kind: 'deterministic' }], // no scope -> per: node default
     });
     const typeCoverage = tc([['src/leaf/a.ts', 'leaf']]);
-    const { drops } = await computeExpectedPairs(graph, { typeCoverage });
-    const report = buildTypeVisibility(graph, typeCoverage.covered, drops, []);
+    const { drops, pairs } = await computeExpectedPairs(graph, { typeCoverage });
+    const report = buildTypeVisibility(graph, typeCoverage.covered, drops, [], applied(pairs));
     expect(report.rows).toEqual<TypeVisibilityRow[]>([
       { file: 'src/leaf/a.ts', aspectId: 'comp-rule', reason: 'whole-unit-rule' },
     ]);
@@ -175,10 +179,58 @@ describe('buildTypeVisibility — one row per reason (Step 1)', () => {
       }],
     });
     const typeCoverage = tc([['src/leaf/a.ts', 'leaf']]);
-    const { drops } = await computeExpectedPairs(graph, { typeCoverage });
-    const report = buildTypeVisibility(graph, typeCoverage.covered, drops, []);
+    const { drops, pairs } = await computeExpectedPairs(graph, { typeCoverage });
+    const report = buildTypeVisibility(graph, typeCoverage.covered, drops, [], applied(pairs));
     expect(report.rows).toEqual<TypeVisibilityRow[]>([
       { file: 'src/leaf/a.ts', aspectId: 'narrow-rule', reason: 'scope.files-excluded' },
+    ]);
+  });
+
+  it('aspect-undefined: the architecture attaches an id no aspect defines — never silently dropped', async () => {
+    writeFile('src/leaf/a.ts');
+    // A graph a real loader rejects (checkDanglingAspectRefs) — reachable here
+    // only via a hand-built Graph that bypasses the parser, mirroring the
+    // 'empty-parents' precedent for the same reason.
+    const graph = buildTypeCoverageGraph(tmpDir, {
+      nodeTypes: [{ id: 'leaf', aspects: ['ghost-rule'] }],
+      aspects: [],
+    });
+    const typeCoverage = tc([['src/leaf/a.ts', 'leaf']]);
+    const { drops, pairs } = await computeExpectedPairs(graph, { typeCoverage });
+    expect(pairs).toEqual([]);
+    const report = buildTypeVisibility(graph, typeCoverage.covered, drops, [], applied(pairs));
+    expect(report.rows).toEqual<TypeVisibilityRow[]>([
+      { file: 'src/leaf/a.ts', aspectId: 'ghost-rule', reason: 'aspect-undefined' },
+    ]);
+  });
+
+  it('unreadable: a subject file that vanished from disk is dropped, not silently read as enforced', async () => {
+    const graph = buildTypeCoverageGraph(tmpDir, {
+      nodeTypes: [{ id: 'leaf', aspects: ['own-file-rule'] }],
+      aspects: [{ id: 'own-file-rule', kind: 'deterministic', scope: { per: 'file' } }],
+    });
+    const typeCoverage = tc([['src/leaf/missing.ts', 'leaf']]);
+    const { drops, pairs, unreadable } = await computeExpectedPairs(graph, { typeCoverage });
+    expect(pairs).toEqual([]);
+    expect(unreadable).toHaveLength(1);
+    const report = buildTypeVisibility(graph, typeCoverage.covered, drops, [], applied(pairs));
+    expect(report.rows).toEqual<TypeVisibilityRow[]>([
+      { file: 'src/leaf/missing.ts', aspectId: 'own-file-rule', reason: 'unreadable' },
+    ]);
+  });
+
+  it('binary-subject: an LLM rule over a binary file records a reason, never a silent gap', async () => {
+    writeFile('src/leaf/logo.png', 'binary-ish content');
+    const graph = buildTypeCoverageGraph(tmpDir, {
+      nodeTypes: [{ id: 'leaf', aspects: ['llm-rule'] }],
+      aspects: [{ id: 'llm-rule', kind: 'llm', scope: { per: 'file' } }],
+    });
+    const typeCoverage = tc([['src/leaf/logo.png', 'leaf']]);
+    const { drops, pairs } = await computeExpectedPairs(graph, { typeCoverage });
+    expect(pairs).toEqual([]);
+    const report = buildTypeVisibility(graph, typeCoverage.covered, drops, [], applied(pairs));
+    expect(report.rows).toEqual<TypeVisibilityRow[]>([
+      { file: 'src/leaf/logo.png', aspectId: 'llm-rule', reason: 'binary-subject' },
     ]);
   });
 
@@ -222,6 +274,7 @@ describe('buildTypeVisibility — one row per reason (Step 1)', () => {
         new Map([['src/leaf/a.ts', 'leaf']]),
         [],
         [row],
+        [],
       );
       expect(report.rows).toEqual<TypeVisibilityRow[]>([row]);
     });
@@ -248,6 +301,7 @@ describe('buildTypeVisibility — one row per reason (Step 1)', () => {
         new Map([['src/leaf/a.ts', 'leaf']]),
         [],
         [row],
+        [],
       );
       expect(report.rows).toEqual<TypeVisibilityRow[]>([row]);
     });
@@ -259,16 +313,16 @@ describe('buildTypeVisibility — one row per reason (Step 1)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// The report shape: zero-enforcement, half-expanded bundles, chain
-// termination, dropped counts — driven by the REAL base fixture.
+// The report shape: enforced/advisory (from real pairs, never inferred),
+// zero-enforcement, half-expanded bundles, chain termination, dropped counts.
 // ---------------------------------------------------------------------------
 
 describe('buildTypeVisibility — report shape (real type-level-engine fixture)', () => {
   it('names a half-expanded bundle: the file-level half enforces, the whole-unit half is dropped', async () => {
     const graph = await loadGraph(BASE_FIXTURE);
     const typeCoverage = tc([['src/leaf/a.ts', 'leaf']]);
-    const { drops } = await computeExpectedPairs(graph, { typeCoverage });
-    const report = buildTypeVisibility(graph, typeCoverage.covered, drops, []);
+    const { drops, pairs } = await computeExpectedPairs(graph, { typeCoverage });
+    const report = buildTypeVisibility(graph, typeCoverage.covered, drops, [], applied(pairs));
     const leafBlock = report.byType.find((b) => b.typeId === 'leaf')!;
     expect(leafBlock.halfExpandedBundles).toEqual([
       { bundleId: 'bundle', enforced: ['own-file-rule'], dropped: ['whole-unit-rule'] },
@@ -278,8 +332,8 @@ describe('buildTypeVisibility — report shape (real type-level-engine fixture)'
   it('reports the fork chain termination for the "forked" type, candidates sorted', async () => {
     const graph = await loadGraph(BASE_FIXTURE);
     const typeCoverage = tc([['src/forked/f.ts', 'forked']]);
-    const { drops } = await computeExpectedPairs(graph, { typeCoverage });
-    const report = buildTypeVisibility(graph, typeCoverage.covered, drops, []);
+    const { drops, pairs } = await computeExpectedPairs(graph, { typeCoverage });
+    const report = buildTypeVisibility(graph, typeCoverage.covered, drops, [], applied(pairs));
     const forkedBlock = report.byType.find((b) => b.typeId === 'forked')!;
     expect(forkedBlock.chainTermination).toEqual({ reason: 'fork', candidates: ['mid', 'top'] });
   });
@@ -287,8 +341,8 @@ describe('buildTypeVisibility — report shape (real type-level-engine fixture)'
   it('a type whose only attached rule is enforced has an empty dropped list and a non-empty enforced list', async () => {
     const graph = await loadGraph(BASE_FIXTURE);
     const typeCoverage = tc([['src/helper/h.ts', 'classifying-parent']]);
-    const { drops } = await computeExpectedPairs(graph, { typeCoverage });
-    const report = buildTypeVisibility(graph, typeCoverage.covered, drops, []);
+    const { drops, pairs } = await computeExpectedPairs(graph, { typeCoverage });
+    const report = buildTypeVisibility(graph, typeCoverage.covered, drops, [], applied(pairs));
     const block = report.byType.find((b) => b.typeId === 'classifying-parent')!;
     expect(block.enforced).toEqual(['classifying-parent-rule']);
     expect(block.dropped).toEqual([]);
@@ -302,21 +356,62 @@ describe('buildTypeVisibility — report shape (real type-level-engine fixture)'
       nodeTypes: [{ id: 'leaf', aspects: ['own-rule'] }],
       aspects: [{ id: 'own-rule', kind: 'deterministic', scope: { per: 'file' } }],
     });
+    // own-rule enforces on a.ts only; b.ts and c.ts are dropped for some OTHER
+    // reason (a stand-in — the exact reason does not matter to this pin) and
+    // correspondingly carry no applied pair.
     const covered = new Map([
       ['src/leaf/a.ts', 'leaf'],
       ['src/leaf/b.ts', 'leaf'],
       ['src/leaf/c.ts', 'leaf'],
     ]);
-    // own-rule is dropped (when-not-satisfied, a stand-in reason) for b.ts and
-    // c.ts only -- it actually enforces on exactly ONE of the three files.
     const staticDrops = [
       { file: 'src/leaf/b.ts', aspectId: 'own-rule', reason: 'when-not-satisfied' as const },
       { file: 'src/leaf/c.ts', aspectId: 'own-rule', reason: 'when-not-satisfied' as const },
     ];
-    const report = buildTypeVisibility(graph, covered, staticDrops, []);
+    const appliedPairs: TypeVisibilityAppliedPair[] = [
+      { file: 'src/leaf/a.ts', aspectId: 'own-rule', status: 'enforced' },
+    ];
+    const report = buildTypeVisibility(graph, covered, staticDrops, [], appliedPairs);
     const block = report.byType.find((b) => b.typeId === 'leaf')!;
     expect(block.enforced).toEqual(['own-rule']);
     expect(block.enforcedCounts).toEqual([{ aspectId: 'own-rule', count: 1 }]);
+  });
+
+  it('advisory rules are counted and named separately from enforced — never folded under the same heading', () => {
+    const graph = buildTypeCoverageGraph(tmpDir, {
+      nodeTypes: [{ id: 'leaf', aspects: ['warn-only'] }],
+      aspects: [{ id: 'warn-only', kind: 'deterministic', scope: { per: 'file' }, status: 'advisory' }],
+    });
+    const covered = new Map([['src/leaf/a.ts', 'leaf']]);
+    const appliedPairs: TypeVisibilityAppliedPair[] = [
+      { file: 'src/leaf/a.ts', aspectId: 'warn-only', status: 'advisory' },
+    ];
+    const report = buildTypeVisibility(graph, covered, [], [], appliedPairs);
+    const block = report.byType.find((b) => b.typeId === 'leaf')!;
+    expect(block.enforced).toEqual([]);
+    expect(block.enforcedCounts).toEqual([]);
+    expect(block.advisory).toEqual(['warn-only']);
+    expect(block.advisoryCounts).toEqual([{ aspectId: 'warn-only', count: 1 }]);
+    // An advisory-only file still HAS enforcement running on it (a real pair
+    // exists) — it must never be counted as zero-enforcement.
+    expect(report.zeroEnforcement).toEqual({ count: 0, samples: [] });
+  });
+
+  it('enforced/advisory disagreeing with the absence of a drop can never happen: a missing drop row does not manufacture enforcement', () => {
+    // No staticDrops recorded for 'ghost-rule' AND no applied pair for it —
+    // exactly the shape a silent `continue` used to produce. The old
+    // subtraction-based derivation ("declared minus dropped") would have
+    // wrongly counted this as enforced; the real-pairs derivation does not.
+    const graph = buildTypeCoverageGraph(tmpDir, {
+      nodeTypes: [{ id: 'leaf', aspects: ['ghost-rule'] }],
+      aspects: [], // never defined — nothing can ever produce a pair for it
+    });
+    const covered = new Map([['src/leaf/a.ts', 'leaf']]);
+    const report = buildTypeVisibility(graph, covered, [], [], []);
+    const block = report.byType.find((b) => b.typeId === 'leaf')!;
+    expect(block.enforced).toEqual([]);
+    expect(block.advisory).toEqual([]);
+    expect(report.zeroEnforcement).toEqual({ count: 1, samples: ['src/leaf/a.ts'] });
   });
 
   it('zero-enforcement: a file whose only attached rule is whole-unit has zero applicable rules', async () => {
@@ -328,16 +423,16 @@ describe('buildTypeVisibility — report shape (real type-level-engine fixture)'
     });
     writeFile('src/ep/e.ts');
     const typeCoverage = tc([['src/ep/e.ts', 'emptyparents']]);
-    const { drops } = await computeExpectedPairs(graph, { typeCoverage });
-    const report = buildTypeVisibility(graph, typeCoverage.covered, drops, []);
+    const { drops, pairs } = await computeExpectedPairs(graph, { typeCoverage });
+    const report = buildTypeVisibility(graph, typeCoverage.covered, drops, [], applied(pairs));
     expect(report.zeroEnforcement).toEqual({ count: 1, samples: ['src/ep/e.ts'] });
   });
 
   it('a file with at least one enforced rule is never counted as zero-enforcement', async () => {
     const graph = await loadGraph(BASE_FIXTURE);
     const typeCoverage = tc([['src/leaf/a.ts', 'leaf']]);
-    const { drops } = await computeExpectedPairs(graph, { typeCoverage });
-    const report = buildTypeVisibility(graph, typeCoverage.covered, drops, []);
+    const { drops, pairs } = await computeExpectedPairs(graph, { typeCoverage });
+    const report = buildTypeVisibility(graph, typeCoverage.covered, drops, [], applied(pairs));
     expect(report.zeroEnforcement).toEqual({ count: 0, samples: [] });
   });
 
@@ -351,7 +446,7 @@ describe('buildTypeVisibility — report shape (real type-level-engine fixture)'
       { file: 'src/leaf/a.ts', aspectId: 'comp-rule', reason: 'whole-unit-rule' as const },
       { file: 'src/leaf/b.ts', aspectId: 'comp-rule', reason: 'whole-unit-rule' as const },
     ];
-    const report = buildTypeVisibility(graph, covered, staticDrops, []);
+    const report = buildTypeVisibility(graph, covered, staticDrops, [], []);
     const block = report.byType.find((b) => b.typeId === 'leaf')!;
     expect(block.dropped).toEqual([{ aspectId: 'comp-rule', reason: 'whole-unit-rule', count: 2 }]);
   });
@@ -364,27 +459,90 @@ describe('buildTypeVisibility — report shape (real type-level-engine fixture)'
     const files = Array.from({ length: 20 }, (_, i) => `src/ep/e${String(i).padStart(2, '0')}.ts`);
     const covered = new Map(files.map((f) => [f, 'emptyparents']));
     const staticDrops = files.map((f) => ({ file: f, aspectId: 'whole-unit-rule', reason: 'whole-unit-rule' as const }));
-    const report = buildTypeVisibility(graph, covered, staticDrops, []);
+    const report = buildTypeVisibility(graph, covered, staticDrops, [], []);
     expect(report.zeroEnforcement.count).toBe(20);
     expect(report.zeroEnforcement.samples).toHaveLength(12);
     expect(report.zeroEnforcement.samples).toEqual(files.slice(0, 12));
   });
 
+  // Mixed-case identifiers so a reversion to locale-sensitive (.localeCompare)
+  // collation actually produces a DIFFERENT order than code-point (<) —
+  // plain lowercase ascii names collate identically either way and would
+  // leave a comparator swap undetected. Verified in this exact Node runtime:
+  // code-point sorts ['Beta.ts', 'alpha.ts', 'bravo.ts'] ('B'=0x42 < 'a'=0x61
+  // < 'b'=0x62); .localeCompare (en-US) sorts ['alpha.ts', 'Beta.ts',
+  // 'bravo.ts'] (case is a tertiary difference, so base letters a < b decide
+  // first) — a genuinely different order, not just a coincidentally-identical
+  // one.
   it('rows are sorted by (file, aspectId, reason) in code-point order, never locale', () => {
     const graph = buildTypeCoverageGraph(tmpDir, { nodeTypes: [{ id: 't', aspects: [] }], aspects: [] });
-    const covered = new Map([['b.ts', 't'], ['a.ts', 't']]);
+    const covered = new Map([['bravo.ts', 't'], ['alpha.ts', 't'], ['Beta.ts', 't']]);
     const staticDrops = [
-      { file: 'b.ts', aspectId: 'zeta', reason: 'draft' as const },
-      { file: 'a.ts', aspectId: 'omega', reason: 'draft' as const },
-      { file: 'a.ts', aspectId: 'alpha', reason: 'draft' as const },
+      { file: 'bravo.ts', aspectId: 'z', reason: 'draft' as const },
+      { file: 'alpha.ts', aspectId: 'Bravo', reason: 'draft' as const },
+      { file: 'alpha.ts', aspectId: 'alpha', reason: 'draft' as const },
+      { file: 'Beta.ts', aspectId: 'z', reason: 'draft' as const },
     ];
-    const report = buildTypeVisibility(graph, covered, staticDrops, []);
-    expect(report.rows.map((r) => `${r.file}:${r.aspectId}`)).toEqual(['a.ts:alpha', 'a.ts:omega', 'b.ts:zeta']);
+    const report = buildTypeVisibility(graph, covered, staticDrops, [], []);
+    expect(report.rows.map((r) => `${r.file}:${r.aspectId}`)).toEqual([
+      'Beta.ts:z',
+      'alpha.ts:Bravo',
+      'alpha.ts:alpha',
+      'bravo.ts:z',
+    ]);
+  });
+
+  // Same divergence, applied to the dropped-list comparator (grouped by
+  // aspectId within one type's block) — a distinct comparator from rows'.
+  it('dropped rows are grouped and sorted by (aspectId, reason) in code-point order, never locale', () => {
+    const graph = buildTypeCoverageGraph(tmpDir, {
+      nodeTypes: [{ id: 'leaf', aspects: ['bravo-rule', 'alpha-rule', 'Beta-rule'] }],
+      aspects: [
+        { id: 'bravo-rule', kind: 'deterministic' },
+        { id: 'alpha-rule', kind: 'deterministic' },
+        { id: 'Beta-rule', kind: 'deterministic' },
+      ],
+    });
+    const covered = new Map([['src/leaf/a.ts', 'leaf']]);
+    const staticDrops = [
+      { file: 'src/leaf/a.ts', aspectId: 'bravo-rule', reason: 'whole-unit-rule' as const },
+      { file: 'src/leaf/a.ts', aspectId: 'alpha-rule', reason: 'whole-unit-rule' as const },
+      { file: 'src/leaf/a.ts', aspectId: 'Beta-rule', reason: 'whole-unit-rule' as const },
+    ];
+    const report = buildTypeVisibility(graph, covered, staticDrops, [], []);
+    const block = report.byType.find((b) => b.typeId === 'leaf')!;
+    expect(block.dropped.map((d) => d.aspectId)).toEqual(['Beta-rule', 'alpha-rule', 'bravo-rule']);
+  });
+
+  // Same divergence again, applied to the half-expanded-bundle comparator
+  // (sorted by bundleId) — a third, independent comparator.
+  it('half-expanded bundles are ordered by bundleId in code-point order, never locale', async () => {
+    writeFile('src/leaf/a.ts');
+    const graph = buildTypeCoverageGraph(tmpDir, {
+      nodeTypes: [{ id: 'leaf', aspects: ['bravo-bundle', 'alpha-bundle', 'Beta-bundle'] }],
+      aspects: [
+        { id: 'bravo-bundle', kind: 'aggregate', implies: ['bravo-file-rule', 'bravo-node-rule'] },
+        { id: 'alpha-bundle', kind: 'aggregate', implies: ['alpha-file-rule', 'alpha-node-rule'] },
+        { id: 'Beta-bundle', kind: 'aggregate', implies: ['beta-file-rule', 'beta-node-rule'] },
+        { id: 'bravo-file-rule', kind: 'deterministic', scope: { per: 'file' } },
+        { id: 'bravo-node-rule', kind: 'deterministic' },
+        { id: 'alpha-file-rule', kind: 'deterministic', scope: { per: 'file' } },
+        { id: 'alpha-node-rule', kind: 'deterministic' },
+        { id: 'beta-file-rule', kind: 'deterministic', scope: { per: 'file' } },
+        { id: 'beta-node-rule', kind: 'deterministic' },
+      ],
+    });
+    const typeCoverage = tc([['src/leaf/a.ts', 'leaf']]);
+    const { drops, pairs } = await computeExpectedPairs(graph, { typeCoverage });
+    const report = buildTypeVisibility(graph, typeCoverage.covered, drops, [], applied(pairs));
+    const block = report.byType.find((b) => b.typeId === 'leaf')!;
+    expect(block.halfExpandedBundles.map((b) => b.bundleId)).toEqual(['Beta-bundle', 'alpha-bundle', 'bravo-bundle']);
   });
 
   it('describeTypeVisibilityReason gives a distinct, non-empty phrase for every reason', () => {
     const reasons = [
       'when-not-satisfied', 'draft', 'whole-unit-rule', 'scope.files-excluded',
+      'aspect-undefined', 'unreadable', 'binary-subject',
       'read-beyond-architecture', 'node-context-required', 'companion-context-failed',
     ] as const;
     const phrases = reasons.map(describeTypeVisibilityReason);

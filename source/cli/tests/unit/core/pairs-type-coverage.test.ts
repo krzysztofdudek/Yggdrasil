@@ -210,7 +210,7 @@ describe('computeExpectedPairs — nodeless enumeration (Step 2)', () => {
     expect(drops).toEqual([]);
   });
 
-  it('an LLM aspect over a binary file yields nothing (silent — a binary can never be a review subject)', async () => {
+  it('an LLM aspect over a binary file yields no pair, and records binary-subject (never silent — a binary can never be a review subject, and a type-covered file has no owning component to fall back on)', async () => {
     writeFile('src/leaf/logo.png', 'binary-ish content');
     const graph = buildTypeCoverageGraph(tmpDir, {
       nodeTypes: [{ id: 'leaf', aspects: ['llm-rule'] }],
@@ -218,7 +218,7 @@ describe('computeExpectedPairs — nodeless enumeration (Step 2)', () => {
     });
     const { pairs, drops } = await computeExpectedPairs(graph, { typeCoverage: tc([['src/leaf/logo.png', 'leaf']]) });
     expect(pairs).toEqual([]);
-    expect(drops).toEqual([]);
+    expect(drops).toEqual([{ file: 'src/leaf/logo.png', aspectId: 'llm-rule', reason: 'binary-subject' }]);
   });
 
   it('an aggregate rule contributes no pair and no drop', async () => {
@@ -232,15 +232,31 @@ describe('computeExpectedPairs — nodeless enumeration (Step 2)', () => {
     expect(drops).toEqual([]);
   });
 
-  it('an unreadable subject file is recorded on the SAME unreadable channel the node loop uses, with no owning node', async () => {
+  it('an aspect id the architecture attaches with no matching aspect definition yields no pair, and records aspect-undefined (never silent)', async () => {
+    writeFile('src/leaf/a.ts');
+    // A graph a real loader rejects (checkDanglingAspectRefs) — reachable here
+    // only via a hand-built Graph that bypasses the parser, mirroring the
+    // existing 'empty-parents' precedent for the identical reason.
+    const graph = buildTypeCoverageGraph(tmpDir, {
+      nodeTypes: [{ id: 'leaf', aspects: ['ghost-rule'] }],
+      aspects: [],
+    });
+    const { pairs, drops } = await computeExpectedPairs(graph, { typeCoverage: tc([['src/leaf/a.ts', 'leaf']]) });
+    expect(pairs).toEqual([]);
+    expect(drops).toEqual([{ file: 'src/leaf/a.ts', aspectId: 'ghost-rule', reason: 'aspect-undefined' }]);
+  });
+
+  it('an unreadable subject file is recorded on the SAME unreadable channel the node loop uses, with no owning node, PLUS a drop row (never silent)', async () => {
     // A file listed in typeCoverage.covered but that has since vanished from
     // disk is unreadable — probeUnreadable must report it, and the resulting
-    // UnreadableSubject carries no nodePath.
+    // UnreadableSubject carries no nodePath. A caller deriving "enforced" from
+    // the absence of a drop must never read this gap as enforcement, so a
+    // drop row is recorded alongside the blocking error.
     const graph = buildTypeCoverageGraph(tmpDir, {
       nodeTypes: [{ id: 'leaf', aspects: ['own-file-rule'] }],
       aspects: [{ id: 'own-file-rule', kind: 'deterministic', scope: { per: 'file' } }],
     });
-    const { pairs, unreadable } = await computeExpectedPairs(graph, {
+    const { pairs, unreadable, drops } = await computeExpectedPairs(graph, {
       typeCoverage: tc([['src/leaf/missing.ts', 'leaf']]),
     });
     expect(pairs).toEqual([]);
@@ -248,6 +264,7 @@ describe('computeExpectedPairs — nodeless enumeration (Step 2)', () => {
     expect(unreadable[0].nodePath).toBeUndefined();
     expect(unreadable[0].path).toBe('src/leaf/missing.ts');
     expect(unreadable[0].aspectId).toBe('own-file-rule');
+    expect(drops).toEqual([{ file: 'src/leaf/missing.ts', aspectId: 'own-file-rule', reason: 'unreadable' }]);
   });
 
   it('multiple attached aspects on one covered file each emit their own pair, sorted with component pairs', async () => {
