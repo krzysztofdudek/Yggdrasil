@@ -29,3 +29,6 @@ export const FIXTURE_REACH_PARITY = path.join(__dirname, 'reach-parity');
 
 /** An LLM rule dropped as binary-subject must never be silently counted as enforced (fix round 1). */
 export const FIXTURE_BINARY_SUBJECT = path.join(__dirname, 'binary-subject');
+
+/** A type-covered file whose type's rules hit an implies cycle must be told the cycle, never "nothing applies". */
+export const FIXTURE_CYCLIC_TYPE = path.join(__dirname, 'cyclic-type');

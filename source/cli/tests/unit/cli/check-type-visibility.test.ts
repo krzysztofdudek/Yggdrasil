@@ -83,8 +83,9 @@ describe('yg check — type-visibility block (Step 2)', () => {
     expect(out).toContain('src/pics/logo.png');
     expect(out).toContain('src/ep/e.ts');
     // The reason is visible right where the count lives, not just implied by
-    // its absence from "Enforced:".
-    expect(out).toContain("prose-rule (a binary file cannot be reviewed by a prose rule, 1)");
+    // its absence from "Enforced:" — grouped by reason, so the phrase is
+    // stated once and the affected aspect id follows it with its count.
+    expect(out).toMatch(/A binary file cannot be reviewed by a prose rule: prose-rule \(1\)/);
     rmSync(dir, { recursive: true, force: true });
   });
 

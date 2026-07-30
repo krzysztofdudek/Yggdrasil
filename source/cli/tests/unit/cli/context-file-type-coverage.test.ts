@@ -18,6 +18,7 @@ const BIN_PATH = path.join(CLI_ROOT, 'dist', 'bin.js');
 const FIXTURE = path.join(CLI_ROOT, 'tests', 'fixtures', 'type-level-engine');
 const FIXTURE_BINARY_SUBJECT = path.join(FIXTURE, 'variants', 'binary-subject');
 const FIXTURE_ZERO_ENFORCEMENT = path.join(FIXTURE, 'variants', 'zero-enforcement');
+const FIXTURE_CYCLIC_TYPE = path.join(FIXTURE, 'variants', 'cyclic-type');
 const distExists = existsSync(BIN_PATH);
 
 function copyFixture(...overlays: string[]): string {
@@ -139,6 +140,35 @@ describe.skipIf(!distExists)('yg context --file — typed view for a type-covere
       const { stderr, status } = run(['context', '--file', 'src/unclassified/x.ts'], dir);
       expect(status).toBe(1);
       expect(stderr).toContain('has no graph coverage.');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // A type-covered file whose matched type's rules hit an implies cycle
+  // (cyclic-a <-> cyclic-b, variants/cyclic-type) must never be told "No
+  // rules from this type apply to this file — it satisfies coverage with no
+  // enforcement": that reads as a clean, verified state, but the rules could
+  // not be worked out at all. yg check independently reports the cycle as
+  // aspect-implies-cycle and exits non-zero — this pins that the per-file
+  // surface an agent actually consults for src/cyclic/z.ts tells the truth
+  // too, naming the cycle instead of asserting nothing applies.
+  it('a type-covered file whose type hit an implies cycle says so, naming it — never "nothing applies"', () => {
+    const dir = copyFixture(FIXTURE_CYCLIC_TYPE);
+    try {
+      const { stdout, stderr, status } = run(['context', '--file', 'src/cyclic/z.ts'], dir);
+      expect(status).toBe(1);
+      expect(stdout).not.toContain('No rules from this type apply to this file');
+      expect(stdout).not.toContain('it satisfies coverage with no enforcement');
+      expect(stderr).toContain("matches type 'cyclic'");
+      expect(stderr).toMatch(/implies cycle/);
+      expect(stderr).toMatch(/cyclic-a|cyclic-b/);
+
+      // yg check independently reports the SAME structural fault and stays red —
+      // this fix must not touch that path.
+      const checked = run(['check'], dir);
+      expect(checked.status).toBe(1);
+      expect(checked.stdout).toContain('aspect-implies-cycle');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

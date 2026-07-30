@@ -476,8 +476,8 @@ describe('type-visibility block — advisory heading never claims enforcement (f
   });
 });
 
-describe('type-visibility block — the attached-but-not-enforced line is capped (fix round 1)', () => {
-  it('caps the dropped-reason list at 12 entries, with a count of the rest — never ~1300 uncapped characters', () => {
+describe('type-visibility block — the attached-but-not-enforced line is grouped by reason, not capped duplicates', () => {
+  it('states a shared reason ONCE, followed by every aspect id it applies to, capped at 12 with a count of the rest', () => {
     const dropped = Array.from({ length: 20 }, (_, i) => ({
       aspectId: `rule-${String(i).padStart(2, '0')}`,
       reason: 'whole-unit-rule' as const,
@@ -489,11 +489,47 @@ describe('type-visibility block — the attached-but-not-enforced line is capped
       rows: [],
     };
     const out = renderTypeVisibilityBlock(typeVisibilityResult(report));
-    const line = out.split('\n').find((l) => l.includes('Attached but not enforced'))!;
-    expect(line).toContain('rule-00');
-    expect(line).toContain('rule-11');
-    expect(line).not.toContain('rule-12');
-    expect(line).toContain('... and 8 more');
+    const lines = out.split('\n');
+    const headerIdx = lines.findIndex((l) => l.includes('Attached but not enforced'));
+    expect(headerIdx).toBeGreaterThanOrEqual(0);
+    // Exactly one reason present among all 20 drops -> exactly one reason line beneath the header.
+    const reasonLine = lines[headerIdx + 1];
+    expect(reasonLine).toContain('rule-00');
+    expect(reasonLine).toContain('rule-11');
+    expect(reasonLine).not.toContain('rule-12');
+    expect(reasonLine).toContain('... and 8 more');
+    // The (long) reason phrase is stated ONCE on this one line, never once per aspect.
+    expect((reasonLine.match(/no component to run it on/g) ?? []).length).toBe(1);
+    // Grouping must actually shrink the render, not merely re-cap the same flat
+    // list: this exact 20-aspect/one-reason shape previously rendered ~1072
+    // characters even after the fix-round-1 cap (every entry still repeated the
+    // full reason phrase).
+    expect(out.length).toBeLessThan(500);
+  });
+
+  it('two distinct reasons among the drops each get their own line, the reason stated once per line', () => {
+    const dropped = [
+      { aspectId: 'a1', reason: 'draft' as const, count: 1 },
+      { aspectId: 'a2', reason: 'draft' as const, count: 2 },
+      { aspectId: 'b1', reason: 'unreadable' as const, count: 1 },
+    ];
+    const report: TypeVisibilityReport = {
+      byType: [block({ dropped })],
+      zeroEnforcement: { count: 0, samples: [] },
+      rows: [],
+    };
+    const out = renderTypeVisibilityBlock(typeVisibilityResult(report));
+    const draftLine = out.split('\n').find((l) => l.includes('still draft'))!;
+    const unreadableLine = out.split('\n').find((l) => l.includes('could not be read'))!;
+    expect(draftLine).not.toBe(unreadableLine);
+    expect(draftLine).toContain('a1 (1)');
+    expect(draftLine).toContain('a2 (2)');
+    expect(draftLine).not.toContain('b1');
+    expect(unreadableLine).toContain('b1 (1)');
+    expect(unreadableLine).not.toContain('a1');
+    // Each reason phrase appears exactly once across the whole block.
+    expect((out.match(/still draft/g) ?? []).length).toBe(1);
+    expect((out.match(/could not be read/g) ?? []).length).toBe(1);
   });
 });
 
@@ -517,7 +553,8 @@ describe('type-visibility block — counts-only under the triage views (fix roun
     const out = renderTypeVisibilityBlock(typeVisibilityResult(reportWithDetail()));
     expect(out).toContain('own-rule (1)');
     expect(out).toContain('warn-only (1)');
-    expect(out).toContain('dead-rule (it is whole-unit');
+    // The reason is grouped: stated once, followed by the aspect id it applies to.
+    expect(out).toMatch(/whole-unit.*dead-rule \(1\)/);
     expect(out).toContain('bundle: file-level part applies');
     expect(out).toContain("inherited rules stop at 't'");
     expect(out).toContain('z.ts');

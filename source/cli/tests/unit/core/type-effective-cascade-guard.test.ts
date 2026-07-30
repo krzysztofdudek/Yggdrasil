@@ -45,12 +45,12 @@ describe('computeTypeAspectCascade exception guard', () => {
     mockComputeEffectiveAspectStatuses.mockReset();
   });
 
-  it('absorbs ImpliesCycleError — yields an empty result rather than aborting the caller', () => {
+  it('absorbs ImpliesCycleError — yields an empty result, plus the cycle it absorbed, rather than aborting the caller', () => {
     mockComputeEffectiveAspects.mockImplementation(() => {
       throw new ImpliesCycleError('cycle detected', 'some-aspect');
     });
     const result = computeTypeAspectCascade(MINIMAL_GRAPH, 'src/leaf/a.ts', 'leaf');
-    expect(result).toEqual({ effective: [], drops: [] });
+    expect(result).toEqual({ effective: [], drops: [], cycle: { aspectId: 'some-aspect' } });
   });
 
   it('rethrows any OTHER unexpected error rather than silently swallowing a real bug', () => {

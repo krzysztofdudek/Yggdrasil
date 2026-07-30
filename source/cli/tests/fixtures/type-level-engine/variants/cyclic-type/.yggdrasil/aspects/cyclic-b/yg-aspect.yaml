@@ -1,0 +1,6 @@
+name: Cyclic B
+description: "The other half of the mutual implies cycle with cyclic-a. Never attached anywhere directly — reachable only by closing the cycle back from cyclic-a."
+reviewer:
+  type: deterministic
+implies:
+  - cyclic-a

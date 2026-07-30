@@ -261,6 +261,15 @@ describe('checkArchitectureDefaultAspectUnreachable (per-type dead-attach linter
     expect(issues[0].severity).toBe('warning');
     expect(issues[0].messageData.what).toContain("'pinned'");
     expect(issues[0].messageData.what).toContain("'module'");
+    // A real node of type 'module' exists (svc) — the genuine predicate case,
+    // never the whole-unit/no-component wording (that requires the type's ONLY
+    // instances to be type-covered files, not true here).
+    expect(issues[0].messageData.why).toBe(
+      "The architecture attaches it to 'module', but its own 'when' (or the attach-site 'when') filters it back off every 'module' node — so the rule looks enforced for this type yet verifies nothing there.",
+    );
+    expect(issues[0].messageData.next).toBe(
+      "Widen or remove the aspect's 'when' so it reaches 'module' nodes (yg impact --aspect pinned), or drop the default from the 'module' type in yg-architecture.yaml if it should not apply there.",
+    );
   });
 
   it('stays silent when the default aspect is effective on at least one node of the type', async () => {
@@ -433,6 +442,30 @@ describe('type-coverage tier-awareness (Step 5)', () => {
     expect(issues.some((i) => i.messageData.what.includes("'whole-unit-only-rule'"))).toBe(true);
   });
 
+  // The real cause here is NOT a `when` predicate filtering the rule off —
+  // there is no `when` on 'whole-unit-only-rule' at all. The rule is
+  // whole-unit (scope: { per: node }) and 'leafy' has zero real components,
+  // only a type-covered file — there is no component for it to ever run on.
+  // The generic "its own 'when' ... filters it back off" wording would be
+  // false here (no predicate exists to widen or remove), so this case must
+  // get its own honest why/next naming the real cause and the real remedies.
+  it('names the real cause (whole-unit, no component) instead of a nonexistent when predicate', async () => {
+    const rootPath = await createTempYggdrasil();
+    await createRuleSource(rootPath, 'whole-unit-only-rule', 'check.mjs');
+    const { graph, typeCoverage } = typeOnlyWholeUnitTwinGraph(rootPath);
+    const issues = checkAspectEffectiveNowhere(graph, typeCoverage);
+    const issue = issues.find((i) => i.messageData.what.includes("'whole-unit-only-rule'"))!;
+    expect(issue.messageData.why).toBe(
+      "It is whole-unit (scope: { per: 'node' }), and the only instances of type 'leafy' are files enforced by their type alone (no component of their own) — there is no component for it to run on, so it can never verify anywhere.",
+    );
+    expect(issue.messageData.next).toBe(
+      "Give a file of type 'leafy' a component of its own, or make the rule file-level (scope: { per: 'file' }) in .yggdrasil/aspects/whole-unit-only-rule/yg-aspect.yaml.",
+    );
+    // Never the predicate-remedy wording — there is no predicate to widen or remove.
+    expect(issue.messageData.why).not.toMatch(/'when'/);
+    expect(issue.messageData.next).not.toMatch(/Widen or remove/);
+  });
+
   // Same non-bootstrap discrimination for checkArchitectureDefaultAspectUnreachable:
   // ONE real node (a different type) keeps graph.nodes.size > 0 throughout, so
   // whether 'leafy' is reported as having an unreachable default hinges ENTIRELY
@@ -518,5 +551,28 @@ describe('type-coverage tier-awareness (Step 5)', () => {
     const { graph, typeCoverage } = wholeUnitDefaultTwinGraph(rootPath);
     const issues = checkArchitectureDefaultAspectUnreachable(graph, typeCoverage);
     expect(issues.some((i) => i.messageData.what.includes("'whole-unit-default'"))).toBe(true);
+  });
+
+  // Same real-cause requirement as checkAspectEffectiveNowhere's twin above:
+  // 'leafy' has zero real components (only a type-covered file), so there is
+  // no `when` filtering 'whole-unit-default' off — it is simply whole-unit
+  // with nothing to run on. The generic "its own 'when' ... filters it back
+  // off" / "Widen or remove the aspect's 'when'" wording is false in this
+  // case and must not appear.
+  it('names the real cause (whole-unit, no component) instead of a nonexistent when predicate', async () => {
+    const rootPath = await createTempYggdrasil();
+    await createRuleSource(rootPath, 'whole-unit-default', 'check.mjs');
+    const { graph, typeCoverage } = wholeUnitDefaultTwinGraph(rootPath);
+    const issues = checkArchitectureDefaultAspectUnreachable(graph, typeCoverage);
+    expect(issues).toHaveLength(1);
+    const issue = issues[0];
+    expect(issue.messageData.why).toBe(
+      "It is whole-unit (scope: { per: 'node' }), and the only instances of 'leafy' are files enforced by their type alone (no component of their own) — there is no component for it to run on, so it can never enforce here.",
+    );
+    expect(issue.messageData.next).toBe(
+      "Give a file of type 'leafy' a component of its own, or make the rule file-level (scope: { per: 'file' }) in .yggdrasil/aspects/whole-unit-default/yg-aspect.yaml.",
+    );
+    expect(issue.messageData.why).not.toMatch(/'when'/);
+    expect(issue.messageData.next).not.toMatch(/Widen or remove/);
   });
 });

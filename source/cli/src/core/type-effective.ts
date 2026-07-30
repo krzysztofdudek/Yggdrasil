@@ -101,27 +101,37 @@ export function computeTypeEffectiveAspects(
  * them, so they must not disqualify the aspect from ever counting as reachable
  * for the type as a whole — only the file-invariant `per: node` gate does.
  */
+/**
+ * Whether `aspectId`'s cascade-effective outcome could still produce a pair
+ * for a nodeless (type-covered) subject — the one predicate
+ * `computeTypeReachableAspects` filters its raw list by. Extracted so a
+ * caller that already holds the raw `computeTypeEffectiveAspects` list in
+ * hand (for example to also tell "excluded because whole-unit" apart from
+ * "never cascade-effective at all") applies the SAME rule without forcing a
+ * second cascade run just to get it from `computeTypeReachableAspects` itself.
+ *
+ * false for an aspect id with no matching definition (aspect-undefined is a
+ * separate error, never a reachability route), true unconditionally for an
+ * aggregate (never itself a review subject, so scope never applies), else
+ * true only for `scope.per === 'file'` — a whole-unit (`per: node`, the
+ * default) rule has no component to run on for a nodeless file.
+ */
+export function isReachableForTypeCoveredFile(graph: Graph, aspectId: string): boolean {
+  const aspectDef = graph.aspects.find((a) => a.id === aspectId);
+  if (!aspectDef) return false;
+  if (aspectDef.reviewer.type === 'aggregate') return true;
+  return (aspectDef.scope?.per ?? 'node') === 'file';
+}
+
 export function computeTypeReachableAspects(
   graph: Graph,
   file: string,
   typeId: string,
   edges?: TypedEdgeIndex,
 ): TypeEffectiveAspect[] {
-  return computeTypeEffectiveAspects(graph, file, typeId, edges).filter((e) => {
-    const aspectDef = graph.aspects.find((a) => a.id === e.aspectId);
-    if (!aspectDef) return false; // aspect-undefined is a separate error; never a reachability route.
-    // An aggregate declares no scope of its own (it is a bundle container,
-    // never itself a review subject) and the ordinary per-node cascade
-    // already includes an aggregate's own id in its effective set
-    // unconditionally — so it always passes through here too. Filtering it
-    // out while a real node's cascade keeps including it would newly flag a
-    // bundle whose file-level half genuinely runs (reported instead,
-    // non-alarmingly, by halfExpandedBundles in core/type-visibility.ts) as
-    // flatly "unreachable" the moment its only instance became a
-    // type-covered file — a regression this filter must not introduce.
-    if (aspectDef.reviewer.type === 'aggregate') return true;
-    return (aspectDef.scope?.per ?? 'node') === 'file';
-  });
+  return computeTypeEffectiveAspects(graph, file, typeId, edges).filter((e) =>
+    isReachableForTypeCoveredFile(graph, e.aspectId),
+  );
 }
 
 /**
@@ -129,17 +139,30 @@ export function computeTypeReachableAspects(
  * attached but does not. Callers that need both must use this — running the
  * two public halves separately pays the cascade twice.
  *
- * Exception contract (narrowed, Task 6 fix-round): an aspect `implies` cycle
- * (`ImpliesCycleError`) is absorbed, yielding an empty result for this one
- * file — the static validator already reports the cycle on its own path, and
- * re-throwing would abort a caller iterating over many type-covered files over
- * one bad aspect definition. Any OTHER failure is NOT swallowed: it is a
- * genuine bug in this cascade or its inputs, so it is recorded to the debug
- * log and rethrown rather than hidden forever behind a silent empty result.
- * Callers that iterate many files (`computeExpectedPairs`) wrap this call in
- * their OWN per-file catch, mirroring the same containment their per-node loop
- * already uses for a real component.
+ * Exception contract: an aspect `implies` cycle (`ImpliesCycleError`) is
+ * absorbed, yielding an empty `effective`/`drops` for this one file — the
+ * static validator already reports the cycle on its own path (`yg check`'s
+ * blocking `aspect-implies-cycle`), and re-throwing would abort a caller
+ * iterating over many type-covered files over one bad aspect definition. The
+ * absorbed cycle is NOT hidden entirely, though: it is also returned as
+ * `cycle`, so a caller that answers about ONE specific file (`yg context
+ * --file`'s type-covered path) can say plainly that this type's rules could
+ * not be worked out, instead of reading the empty `effective` as "nothing
+ * applies" — a caller that iterates many files and already has its own
+ * cycle-reporting path (`computeExpectedPairs`) is free to ignore it. Any
+ * OTHER failure is NOT swallowed: it is a genuine bug in this cascade or its
+ * inputs, so it is recorded to the debug log and rethrown rather than hidden
+ * forever behind a silent empty result. Callers that iterate many files
+ * (`computeExpectedPairs`) wrap this call in their OWN per-file catch,
+ * mirroring the same containment their per-node loop already uses for a real
+ * component.
  */
+
+/** An aspect `implies` cycle absorbed by `computeTypeAspectCascade` — see its exception contract above. */
+export interface TypeCascadeCycle {
+  /** The aspect id at which the cycle was detected (best-effort — the underlying `ImpliesCycleError`'s own field; absent for the rare iteration-bound-exceeded variant). */
+  aspectId: string | undefined;
+}
 /**
  * Why the implicit parent-chain walk (below) stopped where it did, computed
  * once per type — independent of any one file. `candidates` names the parent
@@ -213,7 +236,7 @@ export function computeTypeAspectCascade(
   file: string,
   typeId: string,
   edges?: TypedEdgeIndex,
-): { effective: TypeEffectiveAspect[]; drops: TypeAspectDrop[] } {
+): { effective: TypeEffectiveAspect[]; drops: TypeAspectDrop[]; cycle?: TypeCascadeCycle } {
   const matchedType = graph.architecture.node_types[typeId];
   if (!matchedType) return { effective: [], drops: [] };
 
@@ -305,7 +328,7 @@ export function computeTypeAspectCascade(
     // per-node catch in computeExpectedPairs) decides whether to skip just
     // this one file or fail the run.
     if (e instanceof ImpliesCycleError) {
-      return { effective: [], drops: [] };
+      return { effective: [], drops: [], cycle: { aspectId: e.aspectId } };
     }
     debugWrite(`[type-effective] unexpected failure computing the cascade for '${file}' (type '${typeId}'): ${e instanceof Error ? e.message : String(e)}`);
     throw e;

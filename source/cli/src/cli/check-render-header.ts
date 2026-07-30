@@ -83,14 +83,30 @@ export function renderHeader(result: CheckResult, errorCount: number, warningCou
 /** Matches the rest of the check summary's own list-truncation cap. */
 const FILE_LIST_CAP = 12;
 
-/** Same cap discipline as FILE_LIST_CAP: a type with many distinct (aspectId, reason) drops must not render an unbounded line — one fixture type alone has been observed producing ~1300 characters here, repeating the same reason phrase per aspect. */
+/** Cap on how many aspect ids one reason group lists before summarizing the rest — a type where many aspects share ONE reason must not render an unbounded line. */
 const DROPPED_LIST_CAP = 12;
 
-function renderReasonCounts(dropped: TypeVisibilityReport['byType'][number]['dropped']): string {
-  const shown = dropped.slice(0, DROPPED_LIST_CAP);
-  const rendered = shown.map((d) => `${d.aspectId} (${describeTypeVisibilityReason(d.reason)}, ${d.count})`).join(', ');
-  const overflow = dropped.length > DROPPED_LIST_CAP ? ` ... and ${dropped.length - DROPPED_LIST_CAP} more` : '';
-  return `${rendered}${overflow}`;
+/**
+ * One line per DISTINCT reason among `dropped`, the reason phrase stated
+ * ONCE, followed by every aspect id it applies to (capped, with a count of
+ * the rest). Reason text repeats for every (aspectId, reason) pair; capping
+ * that flat list only trimmed a fixture type observed producing ~1300
+ * characters down to ~1072 — still every entry paying for the same long
+ * phrase again. Grouping by reason instead pays for the phrase once per
+ * distinct reason (at most nine, the full width of `TypeVisibilityReason`)
+ * regardless of how many aspects share it.
+ */
+function renderReasonGroups(dropped: TypeVisibilityReport['byType'][number]['dropped']): string[] {
+  const reasons = [...new Set(dropped.map((d) => d.reason))].sort();
+  return reasons.map((reason) => {
+    const entries = dropped.filter((d) => d.reason === reason);
+    const shown = entries.slice(0, DROPPED_LIST_CAP);
+    const rendered = shown.map((e) => `${e.aspectId} (${e.count})`).join(', ');
+    const overflow = entries.length > DROPPED_LIST_CAP ? ` ... and ${entries.length - DROPPED_LIST_CAP} more` : '';
+    const phrase = describeTypeVisibilityReason(reason);
+    const capitalized = phrase.charAt(0).toUpperCase() + phrase.slice(1);
+    return `${capitalized}: ${rendered}${overflow}`;
+  });
 }
 
 /**
@@ -138,7 +154,8 @@ export function renderTypeVisibilityBlock(result: CheckResult, opts?: { countsOn
       lines.push(`    Advisory (runs, never blocks): ${advisoryList}`);
     }
     if (block.dropped.length > 0) {
-      lines.push(`    Attached but not enforced: ${renderReasonCounts(block.dropped)}`);
+      lines.push('    Attached but not enforced:');
+      for (const reasonLine of renderReasonGroups(block.dropped)) lines.push(`      ${reasonLine}`);
     }
     for (const b of block.halfExpandedBundles) {
       lines.push(`    ${b.bundleId}: file-level part applies; whole-unit part needs a component`);
