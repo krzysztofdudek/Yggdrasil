@@ -3,7 +3,7 @@ import chalk from 'chalk';
 import type { CheckIssue, CheckResult } from '../core/check.js';
 import { ZERO_CLASSIFYING_TYPES_NOTICE } from '../core/check-codes.js';
 import { groupIssues, issuePriorityRank, type IssueGroup } from './group-issues.js';
-import { renderHeader, useEmoji } from './check-render-header.js';
+import { renderHeader, useEmoji, renderTypeVisibilityBlock } from './check-render-header.js';
 import { renderErrorSection, renderWarningSection, renderDetailsSection, renderUnmappedBlock, renderGroup } from './check-render-groups.js';
 import { toPosixPath } from '../utils/posix.js';
 
@@ -100,6 +100,13 @@ export function formatOutput(result: CheckResult, view: CheckView = { kind: 'ful
   if (result.typeLevel && (result.classifyingTypeCount ?? 0) === 0) {
     sections.push('');
     sections.push(chalk.dim(ZERO_CLASSIFYING_TYPES_NOTICE));
+  }
+
+  // Type-visibility: a statement of fact about the type tier's own coverage,
+  // not an issue — printed ahead of every view, same posture as the notice above.
+  if (result.typeVisibility && result.typeVisibility.byType.length > 0) {
+    sections.push('');
+    sections.push(renderTypeVisibilityBlock(result));
   }
 
   if (view.kind === 'summary' || view.kind === 'top') {

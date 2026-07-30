@@ -3,7 +3,13 @@ type: engine
 description: "Validation checks for aspect definitions and contracts — dangling
   refs, id uniqueness, implied-aspect existence and acyclicity, orphaned
   aspects, when-predicate references, rule-source exclusivity, reviewer
-  presence, tier references, reference files, and status-downgrade detection."
+  presence, tier references, reference files, and status-downgrade detection.
+  The two dead-attach linters (checkAspectEffectiveNowhere,
+  checkArchitectureDefaultAspectUnreachable) take an optional type-coverage
+  classification: a rule effective only on files enforced by their
+  architecture type is live law, not dead, and a type with no components but
+  a matching file has instances too. Absent ⇒ unchanged, one-argument
+  behavior."
 aspects:
   - posix-paths-output
   - what-why-next
@@ -15,7 +21,8 @@ relations:
     { target: cli/formatters, type: calls },
     { target: cli/io/stores, type: calls },
     { target: cli/model/graph, type: uses },
-    { target: cli/utils, type: calls }
+    { target: cli/utils, type: calls },
+    { target: cli/core/type-effective, type: calls }
   ]
 mapping:
   - source/cli/src/core/checks/aspects.ts

@@ -10,6 +10,10 @@ import type { Graph, OwnerResult } from '../model/graph.js';
 import { normalizeProjectRelativePath, projectRootFromGraph, resolveFileArg } from '../io/paths.js';
 import { toPosixPath } from '../utils/posix.js';
 import { buildOwnerIndex } from '../relations/owner-index.js';
+import { isCoverageExcludedPath } from '../io/repo-scanner.js';
+import { classifySingleFile } from '../core/type-coverage.js';
+import { isExcludedByCoverage } from '../core/check-coverage-tiers.js';
+import { FileContentCache } from '../io/file-content-cache.js';
 
 function normalizeForMatch(inputPath: string): string {
   return toPosixPath(inputPath.trim());
@@ -62,7 +66,27 @@ export function registerOwnerCommand(program: Command): void {
           const absPath = path.resolve(repoRoot, result.file);
           let exists = true;
           try { await access(absPath); } catch (e: unknown) { debugWrite(`[owner] access check failed: ${e instanceof Error ? e.message : String(e)}`); exists = false; }
-          if (exists) {
+          // A typed answer, not "no graph coverage": the graph directory itself
+          // stays exempt (isCoverageExcludedPath, a path under .yggdrasil/ is
+          // never classified) and a coverage.excluded root stays exempt too
+          // (isExcludedByCoverage) — both fall through to the plain message
+          // below regardless of the flag.
+          const coverage = graph.config.coverage;
+          const typeMatch = exists && coverage?.typeLevel && !isCoverageExcludedPath(result.file) && !isExcludedByCoverage(result.file, coverage)
+            ? await classifySingleFile(graph, result.file, new FileContentCache())
+            : undefined;
+          if (typeMatch?.bucket === 'covered') {
+            process.stdout.write(`${result.file} -> type:${typeMatch.typeId}\n`);
+            process.stdout.write(
+              '  ' +
+                buildIssueMessage({
+                  what: 'Enforced by its architecture type, not by a component.',
+                  why: 'No node maps this file; every rule its matched type attaches still applies, or is honestly reported as attached but not enforced.',
+                  next: `yg context --file ${result.file}`,
+                }) +
+                '\n',
+            );
+          } else if (exists) {
             process.stdout.write(
               buildIssueMessage({
                 what: `${result.file} -> no graph coverage`,

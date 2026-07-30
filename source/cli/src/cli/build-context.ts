@@ -7,6 +7,7 @@ import { appendToDebugLog } from '../io/debug-log-writer.js';
 import { collectAncestors, buildNodeContextData, buildFileContextData } from '../core/context-builder.js';
 import { formatNodeContext } from '../formatters/context-node.js';
 import { formatFileContext } from '../formatters/context-file.js';
+import type { FileContextData, FileContextAspect } from '../formatters/context-file.js';
 import { validate } from '../core/validator.js';
 import { findOwner } from './owner.js';
 import { normalizeMappingPaths, projectRootFromGraph, resolveFileArg } from '../io/paths.js';
@@ -21,7 +22,9 @@ import { buildIssueMessage } from '../formatters/message-builder.js';
 import { computeExpectedPairs, computeSourceFingerprint, FileUnreadableError } from '../core/pairs.js';
 import type { TypeCoverageInput } from '../core/pairs.js';
 import { scanUncoveredFiles } from '../core/check.js';
-import { computeTypeCoverage } from '../core/type-coverage.js';
+import { computeTypeCoverage, classifySingleFile } from '../core/type-coverage.js';
+import { isExcludedByCoverage } from '../core/check-coverage-tiers.js';
+import { buildTypeVisibility, describeTypeVisibilityReason, describeChainTermination } from '../core/type-visibility.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import { readLock } from '../io/lock-store.js';
 import { readLogContent, hasFreshLogEntry } from '../core/log/log-gate.js';
@@ -98,6 +101,62 @@ async function computeTypeCoverageForContext(graph: Graph): Promise<TypeCoverage
   const uncovered = scanUncoveredFiles(graph, gitFiles);
   const result = await computeTypeCoverage(graph, uncovered, new FileContentCache());
   return { covered: result.covered, ambiguousPaths: result.ambiguous.map((a) => a.file) };
+}
+
+/** The read-path (deterministic/aggregate/llm) home for one aspect's rule source, same convention buildNodeContextData/buildFileContextData already use. */
+function ruleSourcePathFor(aspectId: string, reviewerType: 'llm' | 'deterministic' | 'aggregate'): string {
+  return reviewerType === 'deterministic'
+    ? `.yggdrasil/aspects/${aspectId}/check.mjs`
+    : reviewerType === 'aggregate'
+      ? `.yggdrasil/aspects/${aspectId}/yg-aspect.yaml`
+      : `.yggdrasil/aspects/${aspectId}/content.md`;
+}
+
+/**
+ * Assemble `yg context --file`'s typed view for a file enforced by its
+ * architecture type alone (no owning component) — the surface that replaces
+ * "not covered by any node" for such a file.
+ *
+ * K9: classifies and enumerates pairs/drops scoped to THIS ONE FILE (a
+ * single-entry `covered` map), never the whole-repo classification map —
+ * `yg context --file` answers about one file, so it must not pay for
+ * classifying every uncovered file in the repo to do it. No relation-edge
+ * index is built either (that is a whole-repo parse); a `relations:` atom on
+ * this file's attached rules therefore reads the conservative false, exactly
+ * the documented contract for any caller running before the relation pass —
+ * DERIVED_RELATIONS_NOTE says so on the rendered page itself.
+ */
+async function buildTypeCoveredFileContextData(graph: Graph, file: string, typeId: string): Promise<FileContextData> {
+  const covered = new Map([[file, typeId]]);
+  const { drops } = await computeExpectedPairs(graph, { typeCoverage: { covered, ambiguousPaths: [] } });
+  const report = buildTypeVisibility(graph, covered, drops, []);
+  // covered has exactly one (file, typeId) entry, so buildTypeVisibility always
+  // produces exactly one byType block, keyed by that same typeId.
+  const block = report.byType.find((b) => b.typeId === typeId)!;
+
+  const aspectById = new Map(graph.aspects.map((a) => [a.id, a] as const));
+  const toFileAspect = (aspectId: string): FileContextAspect => {
+    const def = aspectById.get(aspectId);
+    return {
+      aspectId,
+      aspectDescription: def?.description ?? def?.name ?? aspectId,
+      verifiedAgainst: ruleSourcePathFor(aspectId, def?.reviewer.type ?? 'deterministic'),
+      status: 'enforced',
+    };
+  };
+
+  return {
+    filePath: toPosixPath(file),
+    aspects: [],
+    dependencies: [],
+    dependentCount: 0,
+    typeCoverage: {
+      typeId,
+      chainTerminationText: describeChainTermination(block.chainTermination),
+      applied: block.enforced.map(toFileAspect),
+      dropped: block.dropped.map((d) => ({ aspectId: d.aspectId, reasonText: describeTypeVisibilityReason(d.reason) })),
+    },
+  };
 }
 
 /**
@@ -255,6 +314,22 @@ export function registerBuildCommand(program: Command): void {
               });
               process.stdout.write(`${excludedMsg}\n`);
               process.exit(0);
+            }
+            // A typed answer, not "not covered by any node": classifies ONLY
+            // this one file (K9 — never the whole-repo classification map)
+            // and, when it matches exactly one non-strict type, replaces the
+            // not-covered error with the matched type, its chain, and both
+            // halves of what the type attaches.
+            if (graph.config.coverage?.typeLevel && !isExcludedByCoverage(result.file, graph.config.coverage)) {
+              const typeMatch = await classifySingleFile(graph, result.file, new FileContentCache());
+              if (typeMatch.bucket === 'covered') {
+                const data = await buildTypeCoveredFileContextData(graph, result.file, typeMatch.typeId);
+                process.stdout.write(formatFileContext(data));
+                if (graph.config.signals?.attention !== false) {
+                  await maybeAppendAttentionLine(graph, result.file);
+                }
+                process.exit(0);
+              }
             }
             const candidates = findCandidateNodes(graph, result.file);
             if (candidates.length > 0) {

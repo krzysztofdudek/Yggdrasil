@@ -1,6 +1,10 @@
 name: OwnerCommand
 type: command
-description: Resolves a file path to its owning graph node via yg owner
+description: Resolves a file path to its owning graph node via yg owner. For
+  an unmapped file with a matched architecture type, classifies ONLY that one
+  file (never the whole-repo classification map) and answers with the type
+  instead of "no graph coverage" — the graph directory itself and a
+  coverage.excluded root both stay exempt.
 aspects:
   - posix-paths-output
 relations:
@@ -19,6 +23,12 @@ relations:
   - target: cli/io/stores
     type: calls
   - target: cli/preamble
+    type: calls
+  - target: cli/core/type-coverage
+    type: calls
+  - target: cli/io/file-content-cache
+    type: calls
+  - target: cli/core/check-coverage-tiers
     type: calls
 mapping:
   - source/cli/src/cli/owner.ts

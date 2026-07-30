@@ -9,7 +9,10 @@ description: "Unified check orchestrator — runs validation, coverage, the
   runs the type-level classification lattice (core/type-coverage.ts) over every
   uncovered file: a single classifying-type match is silently satisfied, 2+
   non-strict matches raise a blocking ambiguous-node-type error, and a match
-  with no type at all gets a message saying so."
+  with no type at all gets a message saying so. Also assembles
+  CheckResult.typeVisibility (core/type-visibility.ts) from the lock
+  verification's static drops: what a type-covered file's type enforces on it
+  and what it does not, and why."
 max_direct_relations:
   limit: 25
   reason: >-
@@ -76,6 +79,8 @@ relations:
   - target: cli/io/file-content-cache
     type: calls
   - target: cli/core/type-coverage
+    type: calls
+  - target: cli/core/type-visibility
     type: calls
 mapping:
   - source/cli/src/core/check.ts

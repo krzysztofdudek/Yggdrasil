@@ -6,3 +6,5 @@ computeTypeCoverage now records one unreadable entry per file, naming every clas
 The classification lattice's own excluded-root check is replaced by the shared absolute-exclusion predicate the coverage tiering already uses, so a file's excluded status can never disagree between the lattice and the tier split that consumes its results.
 ## [2026-07-28T13:56:15.350Z]
 Deleted the dead alsoMatches field from TypeCoverageResult.strictClaimed — nothing in production ever read it (the equivalent enrichment the field was meant to feed lives independently in checks/mapping.ts's own type-strict-orphan message, which computes its own co-match list), so carrying it here was pure unread output.
+## [2026-07-30T13:40:11.663Z]
+Adds a single-file classification entry point so a command answering about one file, not the whole repository, can classify it against the architecture without paying for a full-repo classification pass.

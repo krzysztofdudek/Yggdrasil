@@ -34,6 +34,53 @@ export interface TypeCoverageResult {
   unreadable: Array<{ file: string; typeIds: string[]; reason: string; kind: 'read' | 'too-large' }>;
 }
 
+/** classifySingleFile's outcome for one file — the same five buckets computeTypeCoverage sorts a whole file list into, named here so a caller answering about ONE file (yg owner, yg context --file) never needs the whole-repo classification map just to get its own answer. */
+export type SingleFileClassification =
+  | { bucket: 'covered'; typeId: string }
+  | { bucket: 'ambiguous'; typeIds: string[] }
+  | { bucket: 'strict'; strictTypeId: string }
+  | { bucket: 'unmatched' }
+  | { bucket: 'unreadable'; typeIds: string[]; reason: string; readKind: 'read' | 'too-large' };
+
+/**
+ * Classify ONE file against the architecture (K9): the per-file body of
+ * `computeTypeCoverage`'s own loop, extracted so a caller that only needs one
+ * file's answer never pays for classifying every uncovered file in the repo.
+ * Does not consult `coverage.excluded` — that is a whole-repo-scan concern;
+ * a caller answering about one path (already resolved against a real file)
+ * applies its own exclusion guard first.
+ */
+export async function classifySingleFile(
+  graph: Graph,
+  file: string,
+  cache: FileContentCache,
+): Promise<SingleFileClassification> {
+  const projectRoot = path.dirname(graph.rootPath);
+  const absPath = path.join(projectRoot, file);
+  const classification = await classifyFile(absPath, file, graph, cache);
+
+  if (classification.unreadable.length > 0) {
+    const [first] = classification.unreadable;
+    return {
+      bucket: 'unreadable',
+      typeIds: classification.unreadable.map((u) => u.typeId),
+      reason: first.reason,
+      readKind: first.kind,
+    };
+  }
+
+  const strictMatches = classification.matches.filter(
+    (m) => graph.architecture.node_types[m.typeId]?.enforce === 'strict',
+  );
+  if (strictMatches.length > 0) return { bucket: 'strict', strictTypeId: strictMatches[0].typeId };
+
+  if (classification.matches.length === 1) return { bucket: 'covered', typeId: classification.matches[0].typeId };
+  if (classification.matches.length >= 2) {
+    return { bucket: 'ambiguous', typeIds: classification.matches.map((m) => m.typeId) };
+  }
+  return { bucket: 'unmatched' };
+}
+
 /**
  * Compute the type-level classification lattice over a list of already-
  * uncovered files (files no node mapping owns). Pure: the only I/O is file
@@ -78,39 +125,27 @@ export async function computeTypeCoverage(
   };
 
   const coverage = graph.config.coverage!; // caller contract: only invoked when typeLevel is true, which requires a coverage block
-  const projectRoot = path.dirname(graph.rootPath);
 
   for (const file of uncoveredFiles) {
     if (isExcludedByCoverage(file, coverage)) continue;
 
-    const absPath = path.join(projectRoot, file);
-    const classification = await classifyFile(absPath, file, graph, cache);
-
-    if (classification.unreadable.length > 0) {
-      const [first] = classification.unreadable;
-      result.unreadable.push({
-        file,
-        typeIds: classification.unreadable.map((u) => u.typeId),
-        reason: first.reason,
-        kind: first.kind,
-      });
-      continue;
-    }
-
-    const strictMatches = classification.matches.filter(
-      (m) => graph.architecture.node_types[m.typeId]?.enforce === 'strict',
-    );
-    if (strictMatches.length > 0) {
-      result.strictClaimed.push({ file, strictTypeId: strictMatches[0].typeId });
-      continue;
-    }
-
-    if (classification.matches.length === 1) {
-      result.covered.set(file, classification.matches[0].typeId);
-    } else if (classification.matches.length >= 2) {
-      result.ambiguous.push({ file, typeIds: classification.matches.map((m) => m.typeId) });
-    } else {
-      result.unmatched.push(file);
+    const c = await classifySingleFile(graph, file, cache);
+    switch (c.bucket) {
+      case 'unreadable':
+        result.unreadable.push({ file, typeIds: c.typeIds, reason: c.reason, kind: c.readKind });
+        break;
+      case 'strict':
+        result.strictClaimed.push({ file, strictTypeId: c.strictTypeId });
+        break;
+      case 'covered':
+        result.covered.set(file, c.typeId);
+        break;
+      case 'ambiguous':
+        result.ambiguous.push({ file, typeIds: c.typeIds });
+        break;
+      case 'unmatched':
+        result.unmatched.push(file);
+        break;
     }
   }
 

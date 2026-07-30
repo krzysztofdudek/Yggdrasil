@@ -3,9 +3,15 @@ type: command-support
 description: "Renders the yg check verdict/metrics header line — PASS/FAIL, node
   count, the flag-off coverage percentage or flag-on node-owned/type-covered/
   excluded three-bucket split, aspect/flow counts, verified-pair split, draft
-  count. Owns the useEmoji accessibility gate every render file reads."
+  count. Owns the useEmoji accessibility gate every render file reads. Also
+  renders the per-type visibility block: which rules a type-covered file's
+  type enforces, which are attached but do not (with reason counts), a
+  half-expanded bundle, where the inherited chain stops, and the repo-wide
+  zero-applicable-rules honesty line."
 mapping:
   - source/cli/src/cli/check-render-header.ts
 relations:
   - target: cli/core/check
+    type: calls
+  - target: cli/core/type-visibility
     type: calls

@@ -174,3 +174,5 @@ The coverage section's type-level classification now runs earlier in the check s
 Hoisted the file-type classification earlier so the reviewer-required check can see it too, and issue reporting now carries a review subject's own identifying key so a finding with no owning component can still name the exact file it is about — in a summary row, in the suggested next command, and in a blocking unreadable-file error — instead of collapsing it into a generic repository-level bucket or pointing the fix at the graph directory.
 ## [2026-07-30T07:13:52.111Z]
 Accepts an already-computed type-coverage classification so a caller that classified once for its own use this run can reuse it here instead of paying for a second classify pass over the same uncovered files.
+## [2026-07-30T13:40:04.689Z]
+Assembles a per-type report of what the type-level tier enforces on a covered file and what it does not, with the reason, so a reader can no longer mistake type coverage for full enforcement when a rule attached to a type cannot actually run against a given file.

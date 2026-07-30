@@ -28,10 +28,21 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../../..');
 const BIN_PATH = path.join(CLI_ROOT, 'dist', 'bin.js');
 const FIXTURE = path.join(CLI_ROOT, 'tests', 'fixtures', 'sample-project');
+const TYPE_LEVEL_FIXTURE = path.join(CLI_ROOT, 'tests', 'fixtures', 'type-level-engine');
 
 async function withFixtureCopy<T>(fn: (cwd: string) => Promise<T>): Promise<T> {
   const root = await mkdtemp(path.join(tmpdir(), 'ygg-owner-'));
   await cp(FIXTURE, root, { recursive: true });
+  try {
+    return await fn(root);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+async function withTypeLevelFixtureCopy<T>(fn: (cwd: string) => Promise<T>): Promise<T> {
+  const root = await mkdtemp(path.join(tmpdir(), 'ygg-owner-typelevel-'));
+  await cp(TYPE_LEVEL_FIXTURE, root, { recursive: true });
   try {
     return await fn(root);
   } finally {
@@ -221,5 +232,50 @@ describe('findOwner tie-break determinism', () => {
     expect(resultA.nodePath).toBe(resultB.nodePath);
     // And that node must be the lexicographically smaller one
     expect(resultA.nodePath).toBe('aaa');
+  });
+});
+
+describe('owner — a typed answer for a type-covered file (Step 4)', () => {
+  it('answers with the type instead of "no graph coverage"', async () => {
+    await withTypeLevelFixtureCopy(async (cwd) => {
+      const result = spawnSync(
+        'node',
+        [BIN_PATH, 'owner', '--file', 'src/leaf/a.ts'],
+        { cwd, encoding: 'utf-8' },
+      );
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain('type:leaf');
+      expect(result.stdout).not.toContain('no graph coverage');
+    });
+  });
+
+  it('the graph directory itself is still exempt — never classified as a type', async () => {
+    await withTypeLevelFixtureCopy(async (cwd) => {
+      const result = spawnSync(
+        'node',
+        [BIN_PATH, 'owner', '--file', '.yggdrasil/yg-config.yaml'],
+        { cwd, encoding: 'utf-8' },
+      );
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain('no graph coverage');
+      expect(result.stdout).not.toContain('type:');
+    });
+  });
+
+  it('a file under a coverage.excluded root is never classified either — exclusion is absolute', async () => {
+    await withTypeLevelFixtureCopy(async (cwd) => {
+      const configPath = path.join(cwd, '.yggdrasil', 'yg-config.yaml');
+      const { readFileSync, writeFileSync } = await import('node:fs');
+      const config = readFileSync(configPath, 'utf-8').replace('excluded: []', 'excluded:\n    - src/leaf/');
+      writeFileSync(configPath, config, 'utf-8');
+      const result = spawnSync(
+        'node',
+        [BIN_PATH, 'owner', '--file', 'src/leaf/a.ts'],
+        { cwd, encoding: 'utf-8' },
+      );
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain('no graph coverage');
+      expect(result.stdout).not.toContain('type:');
+    });
   });
 });

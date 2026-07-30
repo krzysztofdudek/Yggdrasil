@@ -1,0 +1,19 @@
+name: Type Visibility Unit Tests
+type: test-suite
+description: "Unit tests for the type-visibility honesty artifact (core/type-visibility.ts): one row per drop reason (the four static ones driven by a real computeExpectedPairs run, the two runtime ones driven by a real deterministic-runner disposition against the nodeless-runner fixture), and the report shape — half-expanded bundles, chain termination, zero-enforcement count/samples (capped, never the count), dropped-count grouping, and code-point row ordering — against the real tests/fixtures/type-level-engine/ project."
+aspects: []
+relations:
+  - target: cli/core/loader
+    type: uses
+  - target: cli/core/type-visibility
+    type: uses
+  - target: cli/core/pairs
+    type: uses
+  - target: cli/structure
+    type: uses
+  - target: cli/tests/unit/helpers
+    type: uses
+  - target: cli/tests/fixtures
+    type: uses
+mapping:
+  - source/cli/tests/unit/core/type-visibility.test.ts

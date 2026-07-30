@@ -1,0 +1,15 @@
+name: Type Visibility
+type: engine
+description: "Assembles the honesty artifact for the type-level coverage tier: for every file enforced by its architecture type alone, which rules attached to that type enforce on it, which do not, and why — merging the static pair-enumeration drops (when-not-satisfied, draft, whole-unit-rule, scope.files-excluded) with the deterministic runner's own typed dispositions (reading beyond the architecture's allowance, touching component-only context) into one per-type report: files covered, rules enforced, rules attached-but-dropped with counts, half-expanded bundles, where the inherited chain stops, and the files left with zero applicable rules. Builds no reason of its own — a pure assembler over what the two producers already decided, plus two pure graph facts it computes directly: which declared law is enforced anywhere, and where a type's implicit parent chain stops."
+aspects: []
+relations:
+  - target: cli/model/graph
+    type: uses
+  - target: cli/core/pairs
+    type: calls
+  - target: cli/core/type-effective
+    type: calls
+  - target: cli/core/graph
+    type: calls
+mapping:
+  - source/cli/src/core/type-visibility.ts

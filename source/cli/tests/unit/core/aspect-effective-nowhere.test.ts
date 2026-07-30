@@ -2,12 +2,51 @@ import { describe, it, expect, afterEach } from 'vitest';
 import path from 'node:path';
 import os from 'node:os';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { mkdtempSync, cpSync, rmSync, readdirSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { fileURLToPath } from 'node:url';
 import {
   checkAspectEffectiveNowhere,
   checkArchitectureDefaultAspectUnreachable,
 } from '../../../src/core/checks/aspect-contracts.js';
 import type { Graph, AspectDef, GraphNode, ArchitectureDef } from '../../../src/model/graph.js';
 import type { WhenPredicate } from '../../../src/model/when.js';
+import type { TypeCoverageInput } from '../../../src/core/pairs.js';
+import { loadGraph } from '../../../src/core/graph-loader.js';
+import { walkRepoFiles } from '../../../src/io/repo-scanner.js';
+import { scanUncoveredFiles } from '../../../src/core/check.js';
+import { computeTypeCoverage } from '../../../src/core/type-coverage.js';
+import { FileContentCache } from '../../../src/io/file-content-cache.js';
+import { FIXTURE_TYPE_ONLY } from '../../fixtures/type-level-engine/variants/index.js';
+
+const __dirname2 = path.dirname(fileURLToPath(import.meta.url));
+const BASE_FIXTURE = path.join(__dirname2, '..', '..', 'fixtures', 'type-level-engine');
+
+/** Real classification pipeline (walkRepoFiles + scanUncoveredFiles + computeTypeCoverage) — never a hand-built map. */
+async function classify(graph: Graph): Promise<TypeCoverageInput> {
+  const projectRoot = path.dirname(graph.rootPath);
+  const files = await walkRepoFiles(projectRoot);
+  const uncovered = scanUncoveredFiles(graph, files);
+  const result = await computeTypeCoverage(graph, uncovered, new FileContentCache());
+  return { covered: result.covered, ambiguousPaths: result.ambiguous.map((a) => a.file) };
+}
+
+/**
+ * Copy the base type-level-engine fixture, overlay variants/type-only (a
+ * README only — no architecture override needed, per its own doc), then
+ * empty .yggdrasil/model/'s children so the resulting project has ZERO
+ * explicit components — only src/leaf/a.ts, enforced purely by its type.
+ */
+function buildTypeOnlyProject(): string {
+  const dir = mkdtempSync(path.join(tmpdir(), 'yg-type-only-'));
+  cpSync(BASE_FIXTURE, dir, { recursive: true });
+  cpSync(FIXTURE_TYPE_ONLY, dir, { recursive: true });
+  const modelDir = path.join(dir, '.yggdrasil', 'model');
+  for (const child of readdirSync(modelDir)) {
+    rmSync(path.join(modelDir, child), { recursive: true, force: true });
+  }
+  return dir;
+}
 
 const tempDirs: string[] = [];
 
@@ -247,6 +286,155 @@ describe('checkArchitectureDefaultAspectUnreachable (per-type dead-attach linter
     };
     const graph = graphWith(rootPath, [pinned], new Map([['g', ghostNode]]), ARCH_PINNED);
 
+    expect(checkArchitectureDefaultAspectUnreachable(graph)).toHaveLength(0);
+  });
+});
+
+describe('type-coverage tier-awareness (Step 5)', () => {
+  const typeOnlyDirs: string[] = [];
+  afterEach(() => {
+    for (const d of typeOnlyDirs.splice(0)) rmSync(d, { recursive: true, force: true });
+  });
+
+  // FIXTURE_TYPE_ONLY: zero explicit components anywhere in the graph — only
+  // src/leaf/a.ts, enforced purely by its 'leaf' architecture type. The base
+  // fixture attaches own-file-rule to 'leaf' and nowhere else, so this is the
+  // MOST extreme case: a rule live only on files, no component anywhere.
+  it('does not call a rule dead when it applies only to files that have no component', async () => {
+    const dir = buildTypeOnlyProject();
+    typeOnlyDirs.push(dir);
+    const graph = await loadGraph(dir);
+    const typeCoverage = await classify(graph);
+    expect(typeCoverage.covered.get('src/leaf/a.ts')).toBe('leaf');
+
+    const on = checkAspectEffectiveNowhere(graph, typeCoverage);
+    expect(on.map((i) => i.messageData.what.match(/'([^']+)'/)?.[1])).not.toContain('own-file-rule');
+  });
+
+  // The brief's own illustrative twin re-used this SAME zero-node fixture for
+  // the flag-off case; that cannot hold: the bootstrap carve-out (silent while
+  // the model tree has zero nodes) already existed before this task and is
+  // UNCONDITIONAL for a one-argument call — "absent -> today's behavior
+  // exactly" pins that this genuinely-nodeless graph stays silent, one-arg,
+  // regardless of what a SECOND argument would have revealed. Verified real:
+  // reverting the two-argument threading, the two-argument call in the test
+  // above fails (own-file-rule reported dead) while THIS one-arg call is
+  // unaffected either way — proving the carve-out, not the new union, is what
+  // this test pins. The MEANINGFUL flag-off/flag-on twin (a non-bootstrap
+  // graph where the distinction is not vacuous) follows below.
+  it('the bootstrap carve-out still applies one-arg on a genuinely nodeless graph', async () => {
+    const dir = buildTypeOnlyProject();
+    typeOnlyDirs.push(dir);
+    const graph = await loadGraph(dir);
+    expect(checkAspectEffectiveNowhere(graph)).toHaveLength(0);
+  });
+
+  // The brief's own illustrative snippet expected toHaveLength(0) here — FALSE
+  // against this fixture, confirmed by running it: 'leaf' declares two aspects
+  // (gated-on-descendants, never-here) whose own doc comments state they must
+  // ALWAYS read when-not-satisfied for a file-level unit (a file can never own
+  // a port or have descendants) — genuinely unreachable BY DESIGN, the same
+  // way they are already unreachable today for the fixture's real 'owned' node
+  // (verified: checkArchitectureDefaultAspectUnreachable(loadGraph(BASE_FIXTURE))
+  // one-arg already reports these same two, with zero Task-8 code in play).
+  // "Has instances" is proven precisely by these two findings REAPPEARING for
+  // a type with zero real components once its only instance is a type-covered
+  // file — not by the type going silent.
+  it('treats a type with matching files as having instances (checkArchitectureDefaultAspectUnreachable)', async () => {
+    const dir = buildTypeOnlyProject();
+    typeOnlyDirs.push(dir);
+    const graph = await loadGraph(dir);
+    // Scoped to 'leaf' alone (not the fixture's full classification) so the
+    // assertion is not entangled with 'consumer's relation-gated aspects,
+    // which read false for an unrelated reason (no edge index supplied here).
+    const typeCoverage: TypeCoverageInput = { covered: new Map([['src/leaf/a.ts', 'leaf']]), ambiguousPaths: [] };
+    const issues = checkArchitectureDefaultAspectUnreachable(graph, typeCoverage);
+    expect(issues.map((i) => i.messageData.what.match(/'([^']+)'/)?.[1]).sort()).toEqual([
+      'gated-on-descendants', 'never-here',
+    ]);
+    // Confirms these are not new false positives Task 8 introduced: the SAME
+    // two findings already fire for the real 'owned' node (type leaf) in the
+    // ordinary, fully-populated fixture, one-arg, with no typeCoverage at all.
+    const baseGraph = await loadGraph(BASE_FIXTURE);
+    const baseline = checkArchitectureDefaultAspectUnreachable(baseGraph);
+    expect(baseline.map((i) => i.messageData.what.match(/'([^']+)'/)?.[1]).sort()).toEqual([
+      'gated-on-descendants', 'never-here',
+    ]);
+  });
+
+  it('the bootstrap carve-out still applies one-arg on a genuinely nodeless graph (checkArchitectureDefaultAspectUnreachable)', async () => {
+    const dir = buildTypeOnlyProject();
+    typeOnlyDirs.push(dir);
+    const graph = await loadGraph(dir);
+    expect(checkArchitectureDefaultAspectUnreachable(graph)).toHaveLength(0);
+  });
+
+  // A non-bootstrap twin: ONE real node (of a DIFFERENT type) keeps
+  // graph.nodes.size > 0, so the carve-out never applies either way — the
+  // only thing that can make 'own-rule' live is the type-coverage union
+  // itself, discriminating flag-on from flag-off for real.
+  function typeOnlyTwinGraph(rootPath: string): { graph: Graph; typeCoverage: TypeCoverageInput } {
+    const arch: ArchitectureDef = {
+      node_types: {
+        module: { description: 'A module', aspects: [] },
+        leafy: { description: 'Classifies src/leafy/**', aspects: ['own-rule'], when: { path: 'src/leafy/**' } },
+      },
+    };
+    const ownRule = detAspect('own-rule');
+    const otherNode = moduleNode('other', []);
+    const graph: Graph = { config: {}, architecture: arch, nodes: new Map([['other', otherNode]]), aspects: [ownRule], flows: [], rootPath };
+    const typeCoverage: TypeCoverageInput = { covered: new Map([['src/leafy/f.ts', 'leafy']]), ambiguousPaths: [] };
+    return { graph, typeCoverage };
+  }
+
+  it('flag-on: a rule live only on a type-covered file (real node exists for another type) is not dead', async () => {
+    const rootPath = await createTempYggdrasil();
+    await createRuleSource(rootPath, 'own-rule', 'check.mjs');
+    const { graph, typeCoverage } = typeOnlyTwinGraph(rootPath);
+    const issues = checkAspectEffectiveNowhere(graph, typeCoverage);
+    expect(issues.some((i) => i.messageData.what.includes("'own-rule'"))).toBe(false);
+  });
+
+  it('flag-off: the SAME rule, one-arg, is still reported dead — byte-identical to before the tier existed', async () => {
+    const rootPath = await createTempYggdrasil();
+    await createRuleSource(rootPath, 'own-rule', 'check.mjs');
+    const { graph } = typeOnlyTwinGraph(rootPath);
+    const issues = checkAspectEffectiveNowhere(graph);
+    expect(issues.some((i) => i.messageData.what.includes("'own-rule'"))).toBe(true);
+  });
+
+  // Same non-bootstrap discrimination for checkArchitectureDefaultAspectUnreachable:
+  // ONE real node (a different type) keeps graph.nodes.size > 0 throughout, so
+  // whether 'leafy' is reported as having an unreachable default hinges ENTIRELY
+  // on typeCoverage granting it an instance, never on the bootstrap carve-out.
+  function unreachableDefaultTwinGraph(rootPath: string): { graph: Graph; typeCoverage: TypeCoverageInput } {
+    const arch: ArchitectureDef = {
+      node_types: {
+        module: { description: 'A module', aspects: [] },
+        leafy: { description: 'Classifies src/leafy/**', aspects: ['dead-default'], when: { path: 'src/leafy/**' } },
+      },
+    };
+    const deadDefault = detAspect('dead-default', { when: NEVER_MATCHES });
+    const otherNode = moduleNode('other', []);
+    const graph: Graph = { config: {}, architecture: arch, nodes: new Map([['other', otherNode]]), aspects: [deadDefault], flows: [], rootPath };
+    const typeCoverage: TypeCoverageInput = { covered: new Map([['src/leafy/f.ts', 'leafy']]), ambiguousPaths: [] };
+    return { graph, typeCoverage };
+  }
+
+  it('flag-on: a type with zero components but one type-covered file is checked for reachability', async () => {
+    const rootPath = await createTempYggdrasil();
+    await createRuleSource(rootPath, 'dead-default', 'check.mjs');
+    const { graph, typeCoverage } = unreachableDefaultTwinGraph(rootPath);
+    const issues = checkArchitectureDefaultAspectUnreachable(graph, typeCoverage);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].messageData.what).toContain("'dead-default'");
+    expect(issues[0].messageData.what).toContain("'leafy'");
+  });
+
+  it('flag-off: the SAME type, one-arg, has no known instance so nothing is checked — byte-identical to before the tier existed', async () => {
+    const rootPath = await createTempYggdrasil();
+    await createRuleSource(rootPath, 'dead-default', 'check.mjs');
+    const { graph } = unreachableDefaultTwinGraph(rootPath);
     expect(checkArchitectureDefaultAspectUnreachable(graph)).toHaveLength(0);
   });
 });

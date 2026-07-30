@@ -98,6 +98,74 @@ export function computeTypeEffectiveAspects(
  * their OWN per-file catch, mirroring the same containment their per-node loop
  * already uses for a real component.
  */
+/**
+ * Why the implicit parent-chain walk (below) stopped where it did, computed
+ * once per type — independent of any one file. `candidates` names the parent
+ * ids at a fork (sorted, code-point order), the single type the walk cannot
+ * revisit at a cycle, or the type the chain ends AT for the other two reasons.
+ */
+export interface ChainTermination {
+  reason: 'fork' | 'no-parents' | 'empty-parents' | 'cycle';
+  candidates: string[];
+}
+
+export interface ChainWalkResult {
+  /** Nearest-parent-first reachable prefix — exactly what the cascade below walks. */
+  chainTypeIds: string[];
+  termination: ChainTermination;
+}
+
+/**
+ * Walk the implicit parent chain: from `typeId`, follow `parents` while the
+ * entry names exactly one type that exists, stopping at a fork (2+ entries),
+ * at absent/empty `parents`, or on revisiting a type already on the chain
+ * (cycle). Extracted from `computeTypeAspectCascade` so a caller that needs to
+ * report WHERE and WHY the chain stops (not just the reachable prefix, which
+ * is all the cascade itself consumes) does not re-derive this walk.
+ */
+export function walkTypeParentChain(graph: Graph, typeId: string): ChainWalkResult {
+  const chainTypeIds: string[] = [];
+  const onChain = new Set<string>([typeId]);
+  let cur = typeId;
+  for (;;) {
+    const parents = graph.architecture.node_types[cur]?.parents;
+    if (!parents) return { chainTypeIds, termination: { reason: 'no-parents', candidates: [cur] } };
+    if (parents.length === 0) return { chainTypeIds, termination: { reason: 'empty-parents', candidates: [cur] } };
+    if (parents.length >= 2) return { chainTypeIds, termination: { reason: 'fork', candidates: [...parents].sort() } };
+    const [parentId] = parents;
+    // A dangling parent reference is validated away elsewhere (checkTypeUnknownParent) —
+    // a graph that passed validation can never take this branch. Defensive only, so it
+    // is folded into 'no-parents' rather than given its own public reason.
+    if (!graph.architecture.node_types[parentId]) return { chainTypeIds, termination: { reason: 'no-parents', candidates: [cur] } };
+    if (onChain.has(parentId)) return { chainTypeIds, termination: { reason: 'cycle', candidates: [parentId] } };
+    onChain.add(parentId);
+    chainTypeIds.push(parentId);
+    cur = parentId;
+  }
+}
+
+/**
+ * The full set of aspect ids reachable from `typeId` and its chain by
+ * declared attachment (`aspects:`) closed under `implies` — no `when`, no
+ * status, no channel logic, so it is an enumeration of declared attachment,
+ * not a second cascade. Extracted from `computeTypeAspectCascade` so a caller
+ * that needs "what could this type ever enforce" (before `when` narrows it)
+ * does not re-derive the walk.
+ */
+export function computeDeclaredAttachedAspects(graph: Graph, typeId: string, chainTypeIds: string[]): Set<string> {
+  const declaredAttached = new Set<string>();
+  const idToAspect = new Map(graph.aspects.map((a) => [a.id, a] as const));
+  const seedTypeIds = [typeId, ...chainTypeIds];
+  const stack = seedTypeIds.flatMap((t) => graph.architecture.node_types[t]?.aspects ?? []);
+  while (stack.length > 0) {
+    const id = stack.pop()!;
+    if (declaredAttached.has(id)) continue;
+    declaredAttached.add(id);
+    for (const implied of idToAspect.get(id)?.implies ?? []) stack.push(implied);
+  }
+  return declaredAttached;
+}
+
 export function computeTypeAspectCascade(
   graph: Graph,
   file: string,
@@ -107,25 +175,9 @@ export function computeTypeAspectCascade(
   const matchedType = graph.architecture.node_types[typeId];
   if (!matchedType) return { effective: [], drops: [] };
 
-  // 1. Walk the implicit parent chain: from the matched type, follow `parents`
-  // while the entry names exactly one type that exists, stopping at a fork
-  // (2+ entries), at absent/empty `parents`, or on revisiting a type already
-  // on the chain (cycle). `chainTypeIds` is ordered nearest-parent-first.
-  const chainTypeIds: string[] = [];
-  {
-    const onChain = new Set<string>([typeId]);
-    let cur = typeId;
-    for (;;) {
-      const parents = graph.architecture.node_types[cur]?.parents;
-      if (!parents || parents.length !== 1) break; // fork, or absent/empty parents
-      const [parentId] = parents;
-      if (!graph.architecture.node_types[parentId]) break; // dangling reference — never a real ancestor
-      if (onChain.has(parentId)) break; // cycle — stop; the reachable prefix built so far stands
-      onChain.add(parentId);
-      chainTypeIds.push(parentId);
-      cur = parentId;
-    }
-  }
+  // 1. Walk the implicit parent chain (nearest-parent-first reachable prefix) —
+  // see walkTypeParentChain's own doc for the stop conditions.
+  const { chainTypeIds } = walkTypeParentChain(graph, typeId);
 
   // 2. Build the ancestor views deepest-first, linking each to the next via
   // `parent`, so `collectAncestors(subject)` (channel 4's own traversal)
@@ -241,22 +293,7 @@ export function computeTypeAspectCascade(
 
   // `drops`: declaredAttached \ effective (reason: when-not-satisfied), plus
   // every effective id whose status is 'draft' (reason: draft).
-  // `declaredAttached` is a plain reachability walk over `aspects:` (matched
-  // type + its implicit ancestor chain) closed under `implies` — no `when`,
-  // no status, no channel logic, so it is an enumeration of declared
-  // attachment, not a second cascade.
-  const declaredAttached = new Set<string>();
-  {
-    const idToAspect = new Map(graph.aspects.map((a) => [a.id, a] as const));
-    const seedTypeIds = [typeId, ...chainTypeIds];
-    const stack = seedTypeIds.flatMap((t) => graph.architecture.node_types[t]?.aspects ?? []);
-    while (stack.length > 0) {
-      const id = stack.pop()!;
-      if (declaredAttached.has(id)) continue;
-      declaredAttached.add(id);
-      for (const implied of idToAspect.get(id)?.implies ?? []) stack.push(implied);
-    }
-  }
+  const declaredAttached = computeDeclaredAttachedAspects(graph, typeId, chainTypeIds);
 
   const drops: TypeAspectDrop[] = [];
   for (const id of declaredAttached) {
@@ -265,7 +302,9 @@ export function computeTypeAspectCascade(
   for (const id of effectiveIds) {
     if (statuses.get(id) === 'draft') drops.push({ aspectId: id, reason: 'draft' });
   }
-  drops.sort((a, b) => (a.aspectId === b.aspectId ? a.reason.localeCompare(b.reason) : a.aspectId.localeCompare(b.aspectId)));
+  // Code-point order (never locale): a caller now RENDERS this list, so its
+  // ordering must be stable and identical on every platform/locale.
+  drops.sort((a, b) => (a.aspectId !== b.aspectId ? (a.aspectId < b.aspectId ? -1 : 1) : (a.reason < b.reason ? -1 : a.reason > b.reason ? 1 : 0)));
 
   return { effective, drops };
 }

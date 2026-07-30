@@ -205,8 +205,10 @@ export async function validate(
   // Dead-attach linter (warning): a rule source effective on zero nodes after
   // the full cascade + when. Runs here (post arch-fatal short-circuit) because it
   // evaluates `when` predicates, which require a structurally-valid architecture.
-  issues.push(...checkAspectEffectiveNowhere(graph));
-  issues.push(...checkArchitectureDefaultAspectUnreachable(graph));
+  // `typeCoverage`: the SAME K15 classification threaded into checkReviewerPresence
+  // above — a rule effective only on files enforced by their type is live law too.
+  issues.push(...checkAspectEffectiveNowhere(graph, typeCoverage));
+  issues.push(...checkArchitectureDefaultAspectUnreachable(graph, typeCoverage));
 
   // Stage 5: global checks.
   issues.push(...checkFileDuplicateMapping(graph));

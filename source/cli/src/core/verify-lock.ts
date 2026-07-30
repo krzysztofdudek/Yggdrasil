@@ -50,7 +50,7 @@ import {
 import { computeAllowedNodePaths } from '../structure/ctx-graph.js';
 import { resolveSuppressedRangesForPrompt, SuppressMarkerError } from '../structure/index.js';
 import { ruleHashFor, contentFor, nodeDescriptionFor, tierHashViewFromTier, companionHashFor } from './pair-inputs.js';
-import type { ExpectedPair, UnreadableSubject, TypeCoverageInput } from './pairs.js';
+import type { ExpectedPair, UnreadableSubject, TypeCoverageInput, PairDrop } from './pairs.js';
 import { computeExpectedPairs } from './pairs.js';
 import { selectTierForAspect } from './tier-selection.js';
 import { assembledPromptChars, DEFAULT_MAX_PROMPT_CHARS } from '../llm/prompt.js';
@@ -92,6 +92,8 @@ export interface LockVerification {
   pairs: VerifiedPair[];
   /** From PairComputation — callers MUST render as blocking file-unreadable errors. */
   unreadable: UnreadableSubject[];
+  /** From PairComputation — every reason a rule attached to a type-covered file does not run on it (core/type-visibility.ts's static half). */
+  drops: PairDrop[];
 }
 
 // ============================================================
@@ -115,7 +117,7 @@ export async function verifyLock(
   lock: LockFile,
   typeCoverage?: TypeCoverageInput,
 ): Promise<LockVerification> {
-  const { pairs, unreadable } = await computeExpectedPairs(graph, { typeCoverage });
+  const { pairs, unreadable, drops } = await computeExpectedPairs(graph, { typeCoverage });
   const projectRoot = path.dirname(graph.rootPath);
 
   // Index aspect defs by id for O(1) lookup.
@@ -162,7 +164,7 @@ export async function verifyLock(
     }
   }
 
-  return { pairs: verified, unreadable };
+  return { pairs: verified, unreadable, drops };
 }
 
 // ============================================================

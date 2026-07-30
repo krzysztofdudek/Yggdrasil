@@ -41,7 +41,8 @@ relations:
     { target: cli/core/checks/digest-gate, type: uses },
     { target: cli/rules-artifacts, type: uses },
     { target: cli/utils, type: uses },
-    { target: cli/relations/core, type: uses }
+    { target: cli/relations/core, type: uses },
+    { target: cli/tests/fixtures, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/cli/build-command.test.ts
@@ -50,6 +51,8 @@ mapping:
   - source/cli/tests/unit/cli/check-render-header.test.ts
   - source/cli/tests/unit/cli/check-render-groups.test.ts
   - source/cli/tests/unit/cli/check-render-views.test.ts
+  - source/cli/tests/unit/cli/check-type-visibility.test.ts
+  - source/cli/tests/unit/cli/context-file-type-coverage.test.ts
   - source/cli/tests/unit/cli/init.test.ts
   - source/cli/tests/unit/cli/init-upgrade.test.ts
   - source/cli/tests/unit/cli/exit-after-flush.test.ts

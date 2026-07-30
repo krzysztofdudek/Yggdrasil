@@ -16,3 +16,5 @@ The stored-verdict re-check now resolves a unit's waived line ranges the same wa
 Verification now accepts the same file-type classification the read-only check computes once per run, so a stored result for a file enforced by its type alone is checked against the correct, current set of rules instead of silently reading as unexpected.
 ## [2026-07-30T09:19:40.370Z]
 Comment-only correction: an internal note about why a nodeless unit's stored observation set can never include a graph-membership key now describes the actual mechanism directly (its graph context refuses every call, so nothing graph-shaped is ever recorded) instead of pointing at unrelated internal state. No behavior changed.
+## [2026-07-30T13:40:13.033Z]
+Returns the pair-enumeration drop reasons alongside the verified pairs, so a caller can report not just what verified but why an attached rule did not run on a given file.

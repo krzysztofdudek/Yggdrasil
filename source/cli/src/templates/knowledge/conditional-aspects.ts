@@ -230,6 +230,18 @@ edited. When that happens the rule's stored result is discarded, the same way it
 is discarded when an applicability condition is edited. Nothing is lost silently:
 the run that discards it says so.
 
+Matching a type satisfies coverage; it does not by itself mean anything runs.
+A type's whole-unit (\`scope: { per: node }\`) rules can never run on a file
+with no component, a rule's own \`when:\` can still fail against the facts
+above, and a rule can still be draft. \`yg check\` names all of this per
+matched type — files covered, rules actually enforced, rules attached but
+not (with the reason and a count), and — the one state that must never be
+found by accident — every file that matches a type yet has nothing at all
+that can run against it. \`yg context --file\` on such a file answers the
+same way for that one file, in place of a not-covered error: the matched
+type, where its inherited chain stops and why, and both the rules that
+apply and the ones that do not.
+
 ## Cost
 
 \`when\` evaluation is deterministic — no LLM call. It runs at \`yg check\` time

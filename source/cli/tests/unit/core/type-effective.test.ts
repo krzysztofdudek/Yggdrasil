@@ -6,6 +6,8 @@ import { loadGraph } from '../../../src/core/graph-loader.js';
 import {
   computeTypeEffectiveAspects,
   computeTypeAspectCascade,
+  walkTypeParentChain,
+  computeDeclaredAttachedAspects,
 } from '../../../src/core/type-effective.js';
 import type { TypedEdgeIndex } from '../../../src/relations/pass.js';
 import {
@@ -118,6 +120,71 @@ describe('the implicit parent chain', () => {
     const graph = await loadGraph(FIXTURE);
     const ids = computeTypeEffectiveAspects(graph, 'src/leaf/a.ts', 'leaf').map((a) => a.aspectId);
     expect(ids).toContain('mid-has-mapping-gated');
+  });
+});
+
+describe('walkTypeParentChain — where and why the chain stops', () => {
+  it('fork: 2+ parents stops immediately, naming both candidates sorted', async () => {
+    const graph = await loadGraph(FIXTURE);
+    const { chainTypeIds, termination } = walkTypeParentChain(graph, 'forked');
+    expect(chainTypeIds).toEqual([]);
+    expect(termination).toEqual({ reason: 'fork', candidates: ['mid', 'top'] });
+  });
+
+  it('no-parents: an absent parents: field ends the chain at that type', async () => {
+    const graph = await loadGraph(FIXTURE);
+    const { chainTypeIds, termination } = walkTypeParentChain(graph, 'top');
+    expect(chainTypeIds).toEqual([]);
+    expect(termination).toEqual({ reason: 'no-parents', candidates: ['top'] });
+  });
+
+  it('empty-parents: an explicit parents: [] ends the chain at that type, distinct from absent', () => {
+    // Not loadGraph(FIXTURE): io/architecture-parser.ts:140 normalizes a YAML
+    // `parents: []` to `undefined` at load time (parents && parents.length > 0
+    // ? parents : undefined) — a real graph can never carry a literal `[]`
+    // here, so this branch is exercised with a hand-built Graph instead, the
+    // same way pairs-type-coverage.test.ts's buildTypeCoverageGraph does for
+    // the identical reason. The fixture's own 'emptyparents' type, once loaded
+    // for real, is behaviorally 'no-parents' — see the no-parents case above.
+    const graph = {
+      architecture: { node_types: { emptyparents: { description: '', parents: [] } } },
+    } as unknown as Parameters<typeof walkTypeParentChain>[0];
+    const { chainTypeIds, termination } = walkTypeParentChain(graph, 'emptyparents');
+    expect(chainTypeIds).toEqual([]);
+    expect(termination).toEqual({ reason: 'empty-parents', candidates: ['emptyparents'] });
+  });
+
+  it('cycle: a two-type parents cycle stops on revisit, keeping the reachable prefix', async () => {
+    const graph = await loadGraph(FIXTURE);
+    const { chainTypeIds, termination } = walkTypeParentChain(graph, 'cyc-a');
+    expect(chainTypeIds).toEqual(['cyc-b']); // the reachable prefix before the revisit
+    expect(termination).toEqual({ reason: 'cycle', candidates: ['cyc-a'] });
+  });
+
+  it('a unique multi-level chain never stops early', async () => {
+    const graph = await loadGraph(FIXTURE);
+    const { chainTypeIds, termination } = walkTypeParentChain(graph, 'leaf');
+    expect(chainTypeIds).toEqual(['mid', 'top']);
+    expect(termination).toEqual({ reason: 'no-parents', candidates: ['top'] });
+  });
+});
+
+describe('computeDeclaredAttachedAspects — declared law before when: narrows it', () => {
+  it('closes over implies and includes the whole chain, independent of any file', async () => {
+    const graph = await loadGraph(FIXTURE);
+    const declared = computeDeclaredAttachedAspects(graph, 'leaf', ['mid', 'top']);
+    // leaf's own bundle expands to both halves; mid/top contribute their own defaults.
+    expect(declared).toEqual(new Set([
+      'own-file-rule', 'bundle', 'gated-on-type', 'gated-on-has-mapping',
+      'gated-on-descendants', 'never-here', 'drafty', 'two-level-rule',
+      'implied-file-rule', 'whole-unit-rule', 'mid-file-rule', 'mid-has-mapping-gated',
+      'top-file-rule',
+    ]));
+  });
+
+  it('a type with no chain and no own aspects declares nothing', async () => {
+    const graph = await loadGraph(FIXTURE);
+    expect(computeDeclaredAttachedAspects(graph, 'emptyparents', [])).toEqual(new Set());
   });
 });
 

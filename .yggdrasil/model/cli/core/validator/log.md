@@ -98,3 +98,5 @@ Wires the new relation-target-type integrity check into the architecture-level v
 validate() gained an optional third parameter accepting a caller-supplied FileContentCache, defaulting to a fresh instance when omitted — this lets a caller that already holds a cache (the check orchestrator) share it instead of paying a second read for a file both consumers need.
 ## [2026-07-28T19:45:58.963Z]
 Validation now accepts the same file-type classification the read-only check computes once per run, so the reviewer-required check correctly counts a judgment rule that only ever runs on files enforced by their architecture type, not only rules attached to components.
+## [2026-07-30T13:40:12.688Z]
+Threads the same type-coverage classification already used for the reviewer-presence check into the two dead-law linters, so both see a rule or a type instance that exists only through type coverage.

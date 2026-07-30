@@ -1,6 +1,14 @@
 import { truncateDescription } from './truncate.js';
 import { toPosixPath } from '../utils/posix.js';
 
+/** Honesty note for a type-covered file's own `relations:` atoms — see conditional-aspects.ts's own "Applicability for a file enforced only by its type" section, which this restates for one file rather than the whole doc. */
+export const DERIVED_RELATIONS_NOTE =
+  "Dependency conditions here are worked out from this file's own imports, not a declared relation: one resolved import satisfies uses/calls/extends/implements alike, and can never satisfy emits/listens/consumes_port — those always read false for a type-covered file.";
+
+/** Next step for a type-covered file that wants component-level control (log gating, explicit relations, its own aspects). */
+export const GRADUATION_NEXT =
+  'To give this file a component of its own: add a yg-node.yaml mapping it, then run yg check --approve.';
+
 export interface FileContextData {
   filePath: string;
   ownerPath?: string;
@@ -9,6 +17,23 @@ export interface FileContextData {
   dependencies: FileContextDep[];
   dependentCount: number;
   candidates?: Array<{ nodePath: string; mappingPrefix: string }>;
+  /**
+   * A file enforced by its architecture type alone (no component of its own).
+   * Present ONLY when `ownerPath` is absent — replaces the plain "not covered
+   * by any node" text with the matched type, the chain, and both halves of
+   * what the type attaches: what runs and what does not, with the reason.
+   */
+  typeCoverage?: FileTypeCoverageView;
+}
+
+export interface FileTypeCoverageView {
+  typeId: string;
+  /** Pre-rendered "inherited rules stop at ..." sentence — a formatter renders already-decided text, never a business-logic enum (that decision belongs to the caller assembling this data). */
+  chainTerminationText: string;
+  /** Rules that DO apply, same shape as a node's own aspect list. */
+  applied: FileContextAspect[];
+  /** Rules attached to the type that do NOT apply here, with a pre-rendered reason phrase. */
+  dropped: Array<{ aspectId: string; reasonText: string }>;
 }
 
 export interface FileContextAspect {
@@ -41,6 +66,33 @@ export function formatFileContext(data: FileContextData): string {
   } else {
     lines.push('  Owner: unmapped');
     lines.push('');
+    if (data.typeCoverage) {
+      const tc = data.typeCoverage;
+      lines.push(`  Matched type: ${tc.typeId}`);
+      lines.push(`  ${tc.chainTerminationText}`);
+      lines.push('');
+      if (tc.applied.length > 0) {
+        lines.push('  Must satisfy:');
+        lines.push('');
+        for (const aspect of tc.applied) {
+          lines.push(`    ${aspect.aspectId} [${aspect.status ?? 'enforced'}] — ${aspect.aspectDescription}`);
+          lines.push(`      read: ${posixPath(aspect.verifiedAgainst)}`);
+        }
+        lines.push('');
+      }
+      if (tc.dropped.length > 0) {
+        lines.push('  Attached to this type but not enforced here:');
+        for (const d of tc.dropped) {
+          lines.push(`    ${d.aspectId} — ${d.reasonText}`);
+        }
+        lines.push('');
+      }
+      lines.push(`  ${DERIVED_RELATIONS_NOTE}`);
+      lines.push('');
+      lines.push(`  ${GRADUATION_NEXT}`);
+      lines.push('');
+      return lines.join('\n');
+    }
     if (data.candidates && data.candidates.length > 0) {
       lines.push('  This file is not covered by any node.');
       lines.push('  Candidate nodes (by directory):');

@@ -5,7 +5,7 @@ import { normalizeMappingPaths } from '../io/paths.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import { computeTypeCoverage } from './type-coverage.js';
 import type { TypeCoverageResult } from './type-coverage.js';
-import type { TypeCoverageInput } from './pairs.js';
+import type { TypeCoverageInput, PairDrop } from './pairs.js';
 import { validate } from './validator.js';
 import { checkReviewOverdue } from './checks/aspect-contracts.js';
 import { checkDigestGate } from './checks/digest-gate.js';
@@ -43,6 +43,8 @@ import { getLanguageDisplayName } from '../utils/language-registry.js';
 import { makeResolvePathToFile } from '../relations/resolve-path.js';
 import { buildOwnerIndex } from '../relations/owner-index.js';
 import { computeTypeGateFindings } from '../relations/type-gate.js';
+import { buildTypeVisibility } from './type-visibility.js';
+import type { TypeVisibilityReport } from './type-visibility.js';
 // ── Silent feature-field deviation index (L3 attention) — the writer lives HERE ONLY,
 //    behind the runCheck fence (G2). cli/check.ts calls runAttentionDump, never the writer. ──
 import {
@@ -135,6 +137,8 @@ export interface CheckResult {
    * at render time) so a rendering bug can never go negative/inconsistent.
    */
   excludedFiles?: number;
+  /** Per-file type-tier enforcement report. Undefined at flag-off. */
+  typeVisibility?: TypeVisibilityReport;
 }
 
 // ── Lock verification → issue emission (live path, spec §6) ──
@@ -610,34 +614,27 @@ function enrichNoTypeMessage(issue: CheckIssue | null): CheckIssue | null {
  *        tracked∩gitignored anomaly check (`scanTrackedButIgnored`), the ONE
  *        remaining git consumer here. Absent/null skips just that check.
  * @param options.nowUtc -- INJECTED clock for the review-cadence check (spec
- *        RZ-18); absent skips it (core keeps no `Date.now`). Read-only —
- *        never writes the lock, changes a verdict, or gates `--approve`.
+ *        RZ-18); absent skips it. Read-only — never writes the lock, changes
+ *        a verdict, or gates `--approve`.
  * @param options.writeFeatureIndex -- true only from cli/check.ts's report
- *        path: write the SILENT feature-field deviation index after the issue
- *        set is computed. Best-effort, byproduct-free — never changes the
- *        issue set or exit code.
+ *        path: write the SILENT feature-field deviation index after issues
+ *        are computed. Best-effort — never changes the issue set or exit code.
  * @param options.now -- INJECTED clock stamped into the index's `generatedAt`.
- * @param options.rulesArtifacts -- INJECTED snapshot of the committed rules-
- *        distribution artifacts plus the installed CLI's canonical digest, for
- *        the committed-digest staleness gate; same absence-skips seam as
- *        `nowUtc`, also threaded through `--approve` reports. Read-only.
+ * @param options.rulesArtifacts -- INJECTED snapshot of the committed
+ *        rules-distribution artifacts plus the installed CLI's canonical
+ *        digest, for the committed-digest staleness gate; same absence-skips
+ *        seam as `nowUtc`. Read-only.
  */
-// NOT EVERY FIELD BELOW IS THE SAME KIND OF THING. `nowUtc`, `rulesArtifacts`, and
-// `trackedFiles` are ISSUE-GATING: written above as `options?.<key> ? <issues> :
-// []`, so an absent value silently SKIPS a check rather than erroring.
-// `writeFeatureIndex`/`now` are side-effect switches, set at only one call site,
-// gating no issue. Every runCheck() call site must pass every issue-gating field —
-// the `.yggdrasil/aspects/runcheck-injected-input-parity` deterministic aspect
-// enforces this on every node owning a call site, deriving the issue-gating key
-// set straight from this file's ternary shape (see that aspect's check.mjs), so a
-// new issue-gating field is picked up automatically, no aspect edit needed.
+// Not every field below is the same kind of thing. `nowUtc`/`rulesArtifacts`/
+// `trackedFiles` are ISSUE-GATING: written above as `options?.<key> ? <issues>
+// : []`, so absence silently skips a check. `writeFeatureIndex`/`now` are
+// side-effect switches, gating no issue. Every call site must pass every
+// issue-gating field — `.yggdrasil/aspects/runcheck-injected-input-parity`
+// enforces this per node, deriving the key set from this file's ternary shape.
 //
-// ADDING AN OPTIONAL FIELD HERE? That aspect requires every optional member of
-// this interface to be CLASSIFIED, so a new gate cannot hide in an unmatched
-// shape. Either write it as the ternary above (derives automatically, every call
-// site must pass it), or — only if it can never add/remove/alter an ISSUE — add
-// it to that check.mjs's SIDE_EFFECT_ONLY allowlist with the reason. A field that
-// is neither is refused by name until classified.
+// New optional field here? That aspect requires it CLASSIFIED: write it as the
+// ternary above, or (only if it can never add/remove/alter an issue) list it in
+// that check.mjs's SIDE_EFFECT_ONLY allowlist with a reason. Neither ⇒ refused.
 export interface RunCheckOptions {
   /** INJECTED clock for the review-cadence check (spec RZ-18). Absent ⇒ that check is skipped. */
   nowUtc?: () => Date;
@@ -713,26 +710,26 @@ export async function runCheck(
 
   // `coverage`/`earlyTypeCoverage` moved above section 1 (K15); read again below.
 
-  // Captured from the relation pass (run once below) for the optional feature-field index
-  // write. Stay null if the lock is invalid (the pass is skipped) — the best-effort index
-  // simply is not written that run.
+  // Captured from the relation pass (run once below) for the optional feature-
+  // field index write. Stays null if the lock is invalid (pass skipped).
   let featureFactsByPath: Map<string, FileFacts> | null = null;
   let featureHashByPath: Map<string, string> | null = null;
 
   // 2. Lock verification (replaces drift classification). Read the lock once.
-  // A garbled/version/conflict-markered lock fails closed: emit one blocking
-  // lock-invalid issue and SKIP lock verification + log integrity (the baseline
-  // home is untrustworthy). The prompt-size gate is folded into verifyLock.
+  // A garbled/version/conflict-markered lock fails closed: one blocking
+  // lock-invalid issue, SKIPPING verification + log integrity.
   const lockIssues: CheckIssue[] = [];
-  // Verified-pair tally, split by reviewer kind (read-side projection — see
-  // CheckResult.verifiedDet/verifiedLlm). Declared outside the try so a
-  // lock-invalid failure (which skips verification entirely) legitimately
-  // reports 0/0 rather than leaving the fields undefined.
+  // Verified-pair tally, split by reviewer kind (see CheckResult.verifiedDet/
+  // verifiedLlm). Declared outside the try so a lock-invalid failure reports
+  // 0/0 rather than leaving the fields undefined.
   let verifiedDet = 0;
   let verifiedLlm = 0;
+  // Static half of type-visibility; same lock-invalid posture as verifiedDet.
+  let staticDrops: PairDrop[] = [];
   try {
     const lock = readLock(graph.rootPath);
     const verification = await verifyLock(graph, lock, typeCoverageInput);
+    staticDrops = verification.drops;
 
     // Unreadable subjects → blocking file-unreadable errors (A4 fail-closed).
     // messageData is pre-populated on UnreadableSubject by computeExpectedPairs.
@@ -1042,6 +1039,11 @@ export async function runCheck(
     });
   }
 
+  // No runtime dispositions here: a plain check never re-executes check.mjs.
+  const typeVisibility = earlyTypeCoverage
+    ? buildTypeVisibility(graph, earlyTypeCoverage.covered, staticDrops, [])
+    : undefined;
+
   return {
     projectName: path.basename(projectRoot),
     nodeCount: graph.nodes.size,
@@ -1061,6 +1063,7 @@ export async function runCheck(
     classifyingTypeCount,
     nodeOwnedFiles,
     excludedFiles,
+    typeVisibility,
   };
 }
 
