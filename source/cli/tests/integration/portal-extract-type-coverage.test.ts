@@ -49,7 +49,8 @@ describe('portal extraction — type-level coverage threading', () => {
       const data = await extractPortalData(dir, { writeEnabled: false });
 
       // Independent oracle — classify + enumerate directly, mirroring runCheck's
-      // own K15 hoist, never reusing extractPortalData's own internal call.
+      // own once-per-run classification, never reusing extractPortalData's own
+      // internal call.
       const graph = await loadGraph(dir);
       const gitFiles = await walkRepoFiles(dir);
       const uncovered = scanUncoveredFiles(graph, gitFiles);

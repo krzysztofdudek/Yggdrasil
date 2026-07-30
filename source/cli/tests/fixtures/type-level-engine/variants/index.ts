@@ -9,16 +9,16 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-/** An explicit mapping outranks a coverage exclusion (T6). */
+/** An explicit mapping outranks a coverage exclusion. */
 export const FIXTURE_EXCLUDED_BUT_MAPPED = path.join(__dirname, 'excluded-but-mapped');
 
-/** One refusing file must not suppress review of another (T6). */
+/** One refusing file must not suppress review of another. */
 export const FIXTURE_TWO_COVERED_FILES = path.join(__dirname, 'two-covered-files');
 
-/** A file can be covered by its type with nothing applicable per-file (T8). */
+/** A file can be covered by its type with nothing applicable per-file. */
 export const FIXTURE_ZERO_ENFORCEMENT = path.join(__dirname, 'zero-enforcement');
 
-/** A rule live only on files, with no component anywhere, is not dead law (T8). */
+/** A rule live only on files, with no component anywhere, is not dead law. */
 export const FIXTURE_TYPE_ONLY = path.join(__dirname, 'type-only');
 
 /** Real check.mjs fixtures driving the deterministic runner's nodeless (component-free) unit directly. */

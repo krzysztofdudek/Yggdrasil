@@ -1,6 +1,6 @@
 name: Owned
 type: leaf
-description: "The one explicit node in this fixture. Typed 'leaf' (an ordinary type-attached node coexisting with type-covered leaf files) so a derived edge into it exercises the 'node' half of TypedEdgeIndex — a real component with a declared type, distinct from a type-covered file with none. Carries a port whose aspect must never reach a type-covered consumer (K4): no derived relation ever declares consumes:, so channel 6 can never deliver it."
+description: "The one explicit node in this fixture. Typed 'leaf' (an ordinary type-attached node coexisting with type-covered leaf files) so a derived edge into it exercises the 'node' half of TypedEdgeIndex — a real component with a declared type, distinct from a type-covered file with none. Carries a port whose aspect must never reach a type-covered consumer: no derived relation ever declares consumes:, so channel 6 can never deliver it."
 mapping:
   - src/owned/o.ts
 ports:

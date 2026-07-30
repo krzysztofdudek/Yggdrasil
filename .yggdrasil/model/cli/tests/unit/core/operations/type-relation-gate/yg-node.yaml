@@ -5,7 +5,7 @@ description: "Fixture-driven integration tests for the live type-to-type relatio
   type-relation-gate/ fixture: the deny-default forbidden edge, an explicit
   allow-list entry, a vacuous allow from a source type with no relations table
   at all, an edge into a deliberately ambiguous file that must never be gated,
-  the flag-off no-op, the R3 read-cost invariant (a type-covered-only file is
+  the flag-off no-op, the read-cost invariant (a type-covered-only file is
   never parsed at flag-off, and a nested graph subtree is excluded from the
   gate's enumeration even at flag-on), and direct tests of the runRelationPass
   typedEdges field plus the buildTypedEdgeIndex convenience wrapper against the

@@ -314,7 +314,7 @@ describe('partitionByCoverageTier — required vs excluded precedence (absolute 
 
   // RENAMED from 'longest-match-wins' framing — absolute exclusion means excluded ALWAYS
   // wins once it matches at all, independent of how specific the required root is.
-  it('excluded wins even when a MORE SPECIFIC required root also matches (Q1: absolute exclusion)', () => {
+  it('excluded wins even when a MORE SPECIFIC required root also matches (absolute exclusion)', () => {
     // excluded 'services/' (broader), required 'services/api/' (more specific, would have
     // won under the retired longest-match rule) — now BOTH files are silenced: the
     // excluded-root file 'services/other/x.ts' as before, AND 'services/api/h.ts' too.
@@ -827,7 +827,7 @@ describe('scanTrackedButIgnored — tracked∩gitignored anomaly', () => {
     );
   });
 
-  it('Q1: a required root more specific than a broader excluded root is now silenced too (absolute exclusion beats specificity)', async () => {
+  it('a required root more specific than a broader excluded root is now silenced too (absolute exclusion beats specificity)', async () => {
     // Absolute exclusion, same authority (isExcludedByCoverage) as every other
     // coverage check: required 'src/api/' is more specific than excluded
     // 'src/' and would have won under the retired longest-match rule, but
@@ -859,9 +859,9 @@ describe('scanTrackedButIgnored — tracked∩gitignored anomaly', () => {
     );
   });
 
-  // ── I4 regression: a file explicitly named in a node's mapping is enforced
-  // regardless of gitignore status (io/hash.ts hashes it unconditionally), so
-  // it was never actually invisible — file-mapping-gitignored owns that case ──
+  // ── A file explicitly named in a node's mapping is enforced regardless of
+  // gitignore status (io/hash.ts hashes it unconditionally), so it was never
+  // actually invisible — file-mapping-gitignored owns that case ──
 
   it('a file named DIRECTLY in a node mapping is exempt — file-mapping-gitignored already owns it, not this check', async () => {
     await withTempRepo(

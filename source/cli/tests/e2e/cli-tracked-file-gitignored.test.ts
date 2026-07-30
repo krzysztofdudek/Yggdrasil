@@ -59,8 +59,8 @@ function run(args: string[], cwd: string): { status: number | null; out: string 
  *   coverage check), independent of `requiredRoot`.
  * @param mapping optional node mapping override (default: the DIRECTORY
  *   `src/svc/`). Pass literal file entries (e.g. `['src/svc/i.ts',
- *   'src/svc/secret.ts']`) to exercise the I4 exemption: a file named
- *   DIRECTLY in a mapping is hashed/reviewed regardless of gitignore status,
+ *   'src/svc/secret.ts']`) to exercise the direct-mapping exemption: a file
+ *   named DIRECTLY in a mapping is hashed/reviewed regardless of gitignore status,
  *   so `tracked-file-gitignored` must leave it to `file-mapping-gitignored`.
  * @param initGit when false, the directory is never `git init`'d at all —
  *   `listGitTrackedFiles` then returns null and the check is silently skipped.
@@ -222,10 +222,10 @@ describe('E2E: the tracked∩gitignored anomaly check (disk-walk visibility vs. 
   );
 
   it.skipIf(!distExists)(
-    'Q1 nested case: a MORE SPECIFIC required root inside a broader excluded root is now silenced too (absolute exclusion beats specificity)',
+    'nested case: a MORE SPECIFIC required root inside a broader excluded root is now silenced too (absolute exclusion beats specificity)',
     () => {
-      // Before Q1: requiredRoot more specific than excludedRoot -> required won (blocking
-      // error). After Q1: excluded wins outright once it matches at all.
+      // Before: requiredRoot more specific than excludedRoot -> required won (blocking
+      // error). After: excluded wins outright once it matches at all.
       const dir = scaffold('nested-q1', { requiredRoot: 'src/svc/', excludedRoot: 'src/' });
       try {
         const { out } = run(['check'], dir);
@@ -238,12 +238,12 @@ describe('E2E: the tracked∩gitignored anomaly check (disk-walk visibility vs. 
   );
 
   it.skipIf(!distExists)(
-    'I4 composite pin: a gitignored, force-tracked file named LITERALLY in a node mapping yields EXACTLY ONE issue — file-mapping-gitignored, never tracked-file-gitignored',
+    'composite pin: a gitignored, force-tracked file named LITERALLY in a node mapping yields EXACTLY ONE issue — file-mapping-gitignored, never tracked-file-gitignored',
     () => {
       // secret.ts is simultaneously: git-tracked (force-added), gitignored,
       // AND named directly (not via the src/svc/ directory) in the node's
-      // mapping. That last fact is what the I4 fix keys off: a literal
-      // mapping entry is hashed/reviewed regardless of gitignore status
+      // mapping. That last fact is what the direct-mapping exemption keys off:
+      // a literal mapping entry is hashed/reviewed regardless of gitignore status
       // (io/hash.ts), so the file was never actually invisible — it is
       // file-mapping-gitignored's business alone, and the anomaly check must
       // stay silent rather than raising a second, contradictory error.

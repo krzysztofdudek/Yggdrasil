@@ -460,9 +460,11 @@ per-rule incident join: how many committed `wrong-rule` incidents name **this** 
 because incident testimony is sparse and qualitative (there is no exposure denominator to grow out of
 thin-ness). A `wrong-rule` incident recorded **without** `--aspect` counts in the `yg advise`
 aggregate but never surfaces per-rule here — the ledger read runs only in this view and never
-influences a verdict. The final column, `files`, is how many distinct type-covered files — files
-enforced by the aspect's architecture type alone, with no owning component — have a review pair
-for the rule under `coverage.type_level`; 0 when the tier is off or none matched. `nodes` above
+influences a verdict. A `files` column appears after `wrong-rule` only once `coverage.type_level`
+is on: how many distinct type-covered files — files enforced by the aspect's architecture type
+alone, with no owning component — have a review pair for the rule. With the tier off, the column
+is absent entirely (not a column of zeros or dashes) — the question was never asked, so no cell
+claims an answer. With the tier on, the count is real and may legitimately read `0`. `nodes` above
 counts only real components, but `pairs` and `refused` already count node-owned and type-covered
 pairs together, matching the same universe `yg check` reports on — `files` is that breakdown, not
 a separate universe. When

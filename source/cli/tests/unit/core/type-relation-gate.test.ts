@@ -14,7 +14,7 @@
  *   - an edge into the deliberately ambiguous src/svc/ambiguous.ts: NOT gated at all —
  *     ambiguous/unmatched files are excluded from the typed-edge index at the source.
  *   - flag-off (coverage.typeLevel: false): the gate produces zero findings and never
- *     even parses a type-covered-only file (R3).
+ *     even parses a type-covered-only file.
  */
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { mkdtempSync, cpSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
@@ -33,7 +33,7 @@ import { astCacheDir } from '../../../src/relations/facts-cache.js';
 import { buildOwnerIndex } from '../../../src/relations/owner-index.js';
 
 // node:fs/promises' named exports are non-configurable in real Node ESM (vi.spyOn cannot
-// redefine them directly), so the R3 read-cost tests below track calls through a partial
+// redefine them directly), so the read-cost tests below track calls through a partial
 // mock instead: wrap ONLY readFile in a vi.fn that still delegates to the real
 // implementation (every other export, and readFile's own behavior, is untouched — this is
 // a call-tracking wrapper, not a behavior fake).
@@ -114,7 +114,7 @@ describe('live type-relation gate — fixture rows', () => {
     expect(result.issues.some((i) => i.code === 'type-relation-forbidden')).toBe(false);
   });
 
-  it('K4: derived edges never trip port machinery — a ported target reached only via a DERIVED edge triggers no port-missing-consumes and no port-aspect delivery', async () => {
+  it('derived edges never trip port machinery — a ported target reached only via a DERIVED edge triggers no port-missing-consumes and no port-aspect delivery', async () => {
     const dir = copyFixture();
     const graph = await loadGraph(dir);
     const files = await walkRepoFiles(dir);
@@ -135,7 +135,7 @@ describe('live type-relation gate — fixture rows', () => {
     expect(result.issues.some((i) => i.code === 'port-missing-aspect')).toBe(false);
   });
 
-  it('R3: at flag-off, runRelationPass never receives/parses the extra type-covered files (enumeration itself is gated, not just the gate decision)', async () => {
+  it('at flag-off, runRelationPass never receives/parses the extra type-covered files (enumeration itself is gated, not just the gate decision)', async () => {
     const dir = copyFixture();
     const graphOn = await loadGraph(dir);
     const graphOff = { ...graphOn, config: { ...graphOn.config, coverage: { ...graphOn.config.coverage!, typeLevel: false } } };
@@ -148,7 +148,7 @@ describe('live type-relation gate — fixture rows', () => {
     expect(readPlainUtil).toBe(false);
   });
 
-  it('nested-graph subtrees are excluded from the gate enumeration even at flag-on (R3 highest-value fixture)', async () => {
+  it('nested-graph subtrees are excluded from the gate enumeration even at flag-on', async () => {
     // Reuses the SAME walk exclusions walkRepoFiles already applies (excludeNestedGraphSubtrees,
     // the top-level .yggdrasil/ skip) — the type-covered file list fed into
     // runRelationPass is DERIVED from walkRepoFiles output (via computeTypeCoverage's
@@ -178,7 +178,7 @@ describe('live type-relation gate — fixture rows', () => {
   });
 });
 
-// ── Direct tests of the public TypedEdgeIndex surface (I6) ──────────────────
+// ── Direct tests of the public TypedEdgeIndex surface ────────────────────────
 //
 // The gate-finding tests above only ever observe TypedEdgeIndex through
 // computeTypeGateFindings' own aggregation. These two tests instead read

@@ -359,9 +359,9 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: lifecycle / closure / GC'
       expect(lock.verdicts['no-todo-comments']?.['node:services/payments']).toBeUndefined();
       // No leftover UNVERIFIED reference to the deleted node (the original
       // failure mode this test guards against — a dangling pair the run
-      // thinks still needs review). The writer's own prune summary (Task 6)
-      // DOES name the deleted node's pruned entries — that is the intended,
-      // informative report of what GC just did, not a leftover.
+      // thinks still needs review). The writer's own prune summary DOES name
+      // the deleted node's pruned entries — that is the intended, informative
+      // report of what GC just did, not a leftover.
       expect(refill.all).not.toMatch(/unverified[^\n]*services\/payments|services\/payments[^\n]*unverified/);
       expect(refill.all).toContain('node:services/payments — node deleted');
     } finally {

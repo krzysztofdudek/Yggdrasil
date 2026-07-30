@@ -4,8 +4,8 @@ description: "Unit tests for the fill stage's garbage collection and canonical
   lock rewrite (fill-gc) — owner-node attribution by longest-mapping-wins,
   node:/file: unit-key routing, pruning of detached verdicts and vanished
   nodes[] entries, retention of uncomputable (implies-cycle) and draft pairs,
-  lock-version stamping, single-persist, and (Task 6) type-coverage threading:
-  the nodeless universe, the ambiguous-path retain family, the prune summary,
+  lock-version stamping, single-persist, and type-coverage threading: the
+  nodeless universe, the ambiguous-path retain family, the prune summary,
   and the graduation twin proving a unit key survives a file gaining a real
   owning component."
 aspects: []

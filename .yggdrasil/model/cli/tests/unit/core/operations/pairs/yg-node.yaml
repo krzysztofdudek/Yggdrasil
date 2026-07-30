@@ -5,10 +5,10 @@ description: "Unit tests for expected-pair computation and source fingerprints �
   binary exclusion for LLM aspects (deterministic aspects keep binaries),
   empty-subject vacuous pass, draft aspect inclusion/exclusion, aggregate aspect
   exclusion, child carve-out, deterministic output ordering, fingerprint
-  stability/sensitivity properties, and (Task 6) the nodeless enumeration pass
-  for files enforced by their architecture type alone — the PairDrop channel,
-  the explicit-mapping-outranks-exclusion guard against the real
-  type-level-engine fixture, and the K13 shared-record merge at the unit level."
+  stability/sensitivity properties, and the nodeless enumeration pass for files
+  enforced by their architecture type alone — the PairDrop channel, the
+  explicit-mapping-outranks-exclusion guard against the real type-level-engine
+  fixture, and the shared-record merge at the unit level."
 aspects: []
 relations:
   [

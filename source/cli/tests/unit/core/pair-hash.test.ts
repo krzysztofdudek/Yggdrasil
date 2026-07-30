@@ -38,7 +38,7 @@ interface PairHashGolden {
   // BREAKING: changing any of these values is a deliberate decision (spec §3.1 frozen contract).
   llmInputHash: string;
   hashListObservationGolden: string;
-  /** Canonical form for a file enforced by its architecture type alone (Task 6). */
+  /** Canonical form for a file enforced by its architecture type alone. */
   virtualDeterministic: string;
   virtualLlm: string;
 }
@@ -420,7 +420,7 @@ describe('scope.files fold', () => {
 // ---------------------------------------------------------------------------
 // Virtual pairs — a file enforced by its architecture type alone, no owning
 // component. `nodePath` is OPTIONAL on CommonHashInput; the ONLY change in this
-// module (Task 6) — codePointCanonicalJson already drops undefined-valued keys
+// module — codePointCanonicalJson already drops undefined-valued keys
 // (pre-existing behavior) and buildCommonCanonical already passes `input.nodePath`
 // straight through, so omitting the owner needs no new logic, only the type.
 // ---------------------------------------------------------------------------
@@ -454,8 +454,9 @@ describe('canonical form for a file enforced by its type alone', () => {
     // The stored results of every component in every adopting repository depend
     // on this staying exactly as it is. The det side has no prior golden-JSON
     // entry (this is its first pin — added here as a literal, not a new JSON
-    // key, since the brief's own load-bearing invariant names only the file's
-    // TWO existing keys, llmInputHash and hashListObservationGolden, as frozen).
+    // key, since the golden file's own load-bearing invariant names only its
+    // TWO pre-existing keys, llmInputHash and hashListObservationGolden, as
+    // frozen).
     const EXISTING_DET_HASH = 'a4835a7dd9f9135bcbe2ad8bd63978dd471ab361fb6e7b8b46c47bcef1f8c919';
     expect(computeDetInputHash({
       aspectId: 'no-direct-fs', scope: undefined, nodePath: 'billing/cancel',

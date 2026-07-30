@@ -1,5 +1,5 @@
 /**
- * R1 relocation test: allowedRelationTypes/RELATION_TYPES moved out of
+ * Relocation test: allowedRelationTypes/RELATION_TYPES moved out of
  * relations/allowed-types.ts into this engine module (core/allowed-relation-types.ts)
  * so both the relation-conformance pass and the live type-relation gate can share one
  * implementation without a relations-adapter-to-relations-adapter edge for logic that
@@ -193,7 +193,7 @@ describe('allowedRelationTypes — mixed wildcard list (FIX D, relocated)', () =
 });
 
 describe('allowedRelationTypes — compat re-export identity', () => {
-  it('re-exports the SAME function object the engine module defines (R1 relocation, compat shim)', async () => {
+  it('re-exports the SAME function object the engine module defines (relocation compat shim)', async () => {
     const fromRelations = await import('../../../src/relations/allowed-types.js');
     const fromCore = await import('../../../src/core/allowed-relation-types.js');
     expect(fromRelations.allowedRelationTypes).toBe(fromCore.allowedRelationTypes);

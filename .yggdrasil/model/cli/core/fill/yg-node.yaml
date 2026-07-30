@@ -26,12 +26,14 @@ max_direct_relations:
     the closure step records a node's log baseline, and a correctness fix now
     validates that baseline against tampering before recording it, rather than
     trusting a working-tree log that a merge or hand-edit could have rewritten.
-    Raised from 22 to 24 (Task 6, type-level coverage) for two more genuine
-    dependencies: cli/core/type-coverage (the SAME type-coverage classification
-    runCheck computes once per run, threaded into this stage's own
-    verifyLock/GC calls — the R5 anti-prune lever) and cli/io/file-content-cache
-    (the shared content cache that classification reads through). Both are real
-    calls this stage's own code makes, not incidental coupling.
+    Raised from 22 to 24 for two more genuine dependencies, added when
+    type-level coverage classification was threaded into this stage's own
+    verifyLock/GC calls (the anti-prune lever that keeps a type-covered file's
+    already-stored verdict from being garbage-collected once its type
+    classification is known): cli/core/type-coverage (the SAME classification
+    runCheck computes once per run) and cli/io/file-content-cache (the shared
+    content cache that classification reads through). Both are real calls this
+    stage's own code makes, not incidental coupling.
 aspects:
   - deterministic
   - posix-paths-output

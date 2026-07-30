@@ -1,7 +1,6 @@
 /**
- * Tests for computeTypeAspectCascade's exception guard (Task 6, binding minor
- * from the Task 5 coordinator review): the original guard caught EVERYTHING
- * from computeEffectiveAspects/computeEffectiveAspectStatuses and always
+ * Tests for computeTypeAspectCascade's exception guard: the original guard
+ * caught EVERYTHING from computeEffectiveAspects/computeEffectiveAspectStatuses and always
  * yielded an empty result. Narrowed here to catch ONLY ImpliesCycleError (a
  * known, already-separately-reported structural fault) and rethrow anything
  * else — a genuine unexpected bug must not be silently hidden behind an empty

@@ -244,7 +244,7 @@ describe('deterministic-first ordering + det gate', () => {
 });
 
 // =============================================================================
-// 2b. detGateKey (K16) — the det-gate keying function, pinned directly
+// 2b. detGateKey — the det-gate keying function, pinned directly
 // =============================================================================
 //
 // detGateKey is a pure function of one pair: the owning component's path when
@@ -254,7 +254,7 @@ describe('deterministic-first ordering + det gate', () => {
 // bucket across every unit with no component) is caught here even when no
 // fixture happens to drive a full fill through the affected branch.
 
-describe('detGateKey (K16) — pure-function pin', () => {
+describe('detGateKey — pure-function pin', () => {
   const base = { aspectId: 'a', kind: 'deterministic' as const, status: 'enforced' as const, subjectFiles: ['x'] };
 
   it('keys a component pair by its owning node path', () => {
@@ -284,7 +284,7 @@ describe('detGateKey (K16) — pure-function pin', () => {
 });
 
 // =============================================================================
-// 2c. K16 cross-contamination, driven through a real fill run
+// 2c. detGateKey cross-contamination, driven through a real fill run
 // =============================================================================
 //
 // The pure-function tests above pin detGateKey in isolation; this test pins
@@ -304,9 +304,9 @@ describe('detGateKey (K16) — pure-function pin', () => {
 // is exercised for real, without needing a working fresh fill for a
 // componentless deterministic pair.
 
-describe('K16 cross-contamination — real fill run, componentless pairs', () => {
+describe('detGateKey cross-contamination — real fill run, componentless pairs', () => {
   it('a cached refusal on one file does not stop the LLM fill of an unrelated file matching the same type', async () => {
-    const dir = mkdtempSync(path.join(tmpdir(), 'yg-k16-gate-'));
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-det-gate-'));
     dirs.push(dir);
     cpSync(TWO_COVERED_FILES_BASE, dir, { recursive: true });
     cpSync(FIXTURE_TWO_COVERED_FILES, dir, { recursive: true });

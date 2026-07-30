@@ -52,9 +52,9 @@ describe('blockingUnmappedPaths', () => {
     expect(blockingUnmappedPaths(MANAGED, mappings, { required: ['/'], excluded: [], typeLevel: false })).toEqual([]);
   });
 
-  it('K1: a nested config now silences a file blockingUnmappedPaths used to flag — yg init advice shifts for free (no code change in blockingUnmappedPaths itself)', () => {
-    // Before Q1: required '.clinerules/' (more specific, wins) made this file blocking.
-    // After Q1: excluded '.clinerules' (broader ancestor) silences it outright.
+  it('a nested config now silences a file blockingUnmappedPaths used to flag — yg init advice shifts for free (no code change in blockingUnmappedPaths itself)', () => {
+    // Before: required '.clinerules/' (more specific, wins) made this file blocking.
+    // After: excluded '.clinerules' (broader ancestor, now always wins) silences it outright.
     const coverage = { required: ['.clinerules/yggdrasil.md'], excluded: ['.clinerules/'], typeLevel: false };
     expect(blockingUnmappedPaths(['.clinerules/yggdrasil.md'], [], coverage)).toEqual([]);
   });
@@ -206,14 +206,14 @@ describe('partitionByCoverageTier', () => {
   });
 });
 
-describe('partitionByCoverageTier — absolute exclusion (post-Q1)', () => {
+describe('partitionByCoverageTier — absolute exclusion', () => {
   it('a required root nested inside a broader excluded root is silenced entirely — required no longer wins on specificity', () => {
     const r = partitionByCoverageTier(
       ['services/api/h.ts', 'services/other/x.ts'],
       { required: ['services/api/'], excluded: ['services/'], typeLevel: false },
     );
-    // Before Q1: services/api/h.ts landed in `required` (longer match wins).
-    // After Q1: ANY excluded match silences the file outright, regardless of
+    // Before: services/api/h.ts landed in `required` (longer match wins).
+    // After: ANY excluded match silences the file outright, regardless of
     // whether a more specific required root also matches it.
     expect(r.required).toEqual([]);
     expect(r.middle).toEqual([]);

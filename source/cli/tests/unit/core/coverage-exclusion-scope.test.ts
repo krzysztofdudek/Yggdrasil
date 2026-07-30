@@ -1,14 +1,15 @@
 /**
  * SCOPE GUARD regression pin: `coverage.excluded` gates the NODELESS tier
  * only. An explicitly-mapped file (a node's own `mapping:` entry) keeps
- * enforcing exactly as before Q1 (absolute exclusion), because mapping is
- * stronger intent than exclusion — `computeExpectedPairs` (explicit-node pair
- * enumeration) has no dependency on `coverage.excluded` at all.
+ * enforcing exactly as before `coverage.excluded` became absolute, because
+ * mapping is stronger intent than exclusion — `computeExpectedPairs`
+ * (explicit-node pair enumeration) has no dependency on `coverage.excluded`
+ * at all.
  *
  * This is a regression guard, not a RED-then-GREEN behavior change: it must
- * pass identically before and after Task 2's implementation. If it ever
- * fails, `isExcludedByCoverage` has leaked into `core/pairs.ts` or the
- * fill/GC path somewhere it must never reach.
+ * pass identically before and after that change. If it ever fails,
+ * `isExcludedByCoverage` has leaked into `core/pairs.ts` or the fill/GC path
+ * somewhere it must never reach.
  */
 import { describe, it, expect } from 'vitest';
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
@@ -63,7 +64,7 @@ function scaffoldScopeGuardProject(): string {
   return dir;
 }
 
-describe('SCOPE GUARD — an explicitly-mapped file under coverage.excluded still enforces (Q1 gates the NODELESS tier only)', () => {
+describe('SCOPE GUARD — an explicitly-mapped file under coverage.excluded still enforces (absolute exclusion gates the NODELESS tier only)', () => {
   it('a node mapping a file under an excluded root produces a pair and keeps its verdict across --approve', async () => {
     const dir = scaffoldScopeGuardProject();
     try {

@@ -362,9 +362,10 @@ describe('type-coverage tier-awareness (Step 5)', () => {
     expect(issues.map((i) => i.messageData.what.match(/'([^']+)'/)?.[1]).sort()).toEqual([
       'gated-on-descendants', 'never-here',
     ]);
-    // Confirms these are not new false positives Task 8 introduced: the SAME
-    // two findings already fire for the real 'owned' node (type leaf) in the
-    // ordinary, fully-populated fixture, one-arg, with no typeCoverage at all.
+    // Confirms these are not new false positives introduced by threading
+    // typeCoverage through this check: the SAME two findings already fire for
+    // the real 'owned' node (type leaf) in the ordinary, fully-populated
+    // fixture, one-arg, with no typeCoverage at all.
     const baseGraph = await loadGraph(BASE_FIXTURE);
     const baseline = checkArchitectureDefaultAspectUnreachable(baseGraph);
     expect(baseline.map((i) => i.messageData.what.match(/'([^']+)'/)?.[1]).sort()).toEqual([

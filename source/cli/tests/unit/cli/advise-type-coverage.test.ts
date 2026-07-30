@@ -1,5 +1,5 @@
 /**
- * `yg advise`'s decorative-rule demotion signal (T1) is corroborated in part by
+ * `yg advise`'s decorative-rule demotion signal is corroborated in part by
  * a "shrinking attach set" check: an aspect is flagged only when the CURRENT
  * expected-pair universe no longer contains a unit it was fill-verified on in
  * the past. That universe comes from computeExpectedPairs — which, with

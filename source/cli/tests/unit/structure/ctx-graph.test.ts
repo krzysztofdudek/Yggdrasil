@@ -405,7 +405,7 @@ describe('ctx.graph', () => {
   });
 });
 
-describe('createNodelessCtxGraph — every entry point refuses (Task 7)', () => {
+describe('createNodelessCtxGraph — every entry point refuses', () => {
   // A unit reviewing a file with no owning component has no yg-node.yaml to
   // resolve any of these calls against, so every CtxGraph method throws the
   // SAME typed error rather than silently narrowing to an empty result — a

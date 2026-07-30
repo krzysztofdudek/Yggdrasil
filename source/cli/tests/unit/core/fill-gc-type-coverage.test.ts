@@ -1,5 +1,5 @@
 /**
- * Tests for core/fill-gc.ts's type-coverage threading (Task 6): nodeless
+ * Tests for core/fill-gc.ts's type-coverage threading: nodeless
  * (`file:`) verdict entries join the GC universe when `opts.typeCoverage` is
  * threaded through, the ambiguous-path retain family, and the PruneSummary
  * the writer now returns.
@@ -128,7 +128,7 @@ function emptyLockWith(verdicts: LockFile['verdicts']): LockFile {
 // ---------------------------------------------------------------------------
 
 describe('garbageCollectAndRewrite — nodeless universe (Step 4a)', () => {
-  it('a stored file-level verdict survives GC when typeCoverage is threaded (R5 anti-prune lever)', async () => {
+  it('a stored file-level verdict survives GC when typeCoverage is threaded (the anti-prune lever)', async () => {
     writeFile('src/leaf/a.ts');
     const graph = buildGraph(tmpDir, [], [{ id: 'own-file-rule', scope: { per: 'file' } }], [
       { id: 'leaf', aspects: ['own-file-rule'] },
@@ -225,12 +225,12 @@ describe('garbageCollectAndRewrite — feature turned back off (Step 4c)', () =>
 });
 
 // ---------------------------------------------------------------------------
-// (e) K3 target-side: re-typing an IMPORTED file removes an applicability
-//     condition on the IMPORTING file; its pair leaves the universe; the
-//     entry is pruned and the summary names it.
+// (e) Target-side re-typing: re-typing an IMPORTED file removes an
+//     applicability condition on the IMPORTING file; its pair leaves the
+//     universe; the entry is pruned and the summary names it.
 // ---------------------------------------------------------------------------
 
-describe('garbageCollectAndRewrite — K3 target-side re-typing (Step 4e)', () => {
+describe('garbageCollectAndRewrite — target-side re-typing (Step 4e)', () => {
   it('re-typing the imported file removes the relation-gated rule from the importing file’s universe', async () => {
     writeFile('src/consumer/c.ts');
     // consumerType's rule is gated on relations.uses.target_type === 'ownerType'.
@@ -268,7 +268,7 @@ describe('garbageCollectAndRewrite — K3 target-side re-typing (Step 4e)', () =
 });
 
 // ---------------------------------------------------------------------------
-// (f) the component-deletion twin (R7): deleting a component whose files then
+// (f) the component-deletion twin: deleting a component whose files then
 //     match a type leaves the same `file:` keys in the universe, so nothing
 //     is pruned that should not be.
 // ---------------------------------------------------------------------------
@@ -312,8 +312,9 @@ describe('garbageCollectAndRewrite — component-deletion twin (Step 4f)', () =>
 // fingerprint differs once a real owner exists — verifyLock (not GC) is what
 // detects that mismatch and asks for a re-fill, which is what "replaced, not
 // orphaned" means in practice: the old entry is overwritten by the next
-// --approve, never deleted out from under the unit key.
-// (Task 10 owns the end-to-end version driven through the built binary.)
+// --approve, never deleted out from under the unit key. This is a unit-level
+// pin only; an end-to-end version driven through the built binary is not yet
+// covered.
 // ---------------------------------------------------------------------------
 
 describe('garbageCollectAndRewrite — graduation twin, UNIT level (Step 4d)', () => {

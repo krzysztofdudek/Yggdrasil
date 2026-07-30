@@ -1,6 +1,6 @@
 /**
- * Tests for core/pairs.ts's NODELESS enumeration pass (Task 6): the set of
- * pairs added after the ordinary per-node loop for files enforced by their
+ * Tests for core/pairs.ts's NODELESS enumeration pass: the set of pairs
+ * added after the ordinary per-node loop for files enforced by their
  * architecture type alone (`opts.typeCoverage`), plus the `PairDrop[]`
  * channel that records why an attached rule does not run on such a file.
  *
@@ -9,9 +9,9 @@
  *   - A lightweight hand-built Graph (mirrors pairs.test.ts's own
  *     buildPairsGraph) for the enumeration algorithm itself — fast,
  *     self-contained, no fixture-project dependency.
- *   - The REAL committed tests/fixtures/type-level-engine/ project (Task 5)
- *     plus its `excluded-but-mapped` variant for Step 3 (the explicit-mapping
- *     guard), copied into a mkdtemp per test — never mutated in place.
+ *   - The REAL committed tests/fixtures/type-level-engine/ project plus its
+ *     `excluded-but-mapped` variant for Step 3 (the explicit-mapping guard),
+ *     copied into a mkdtemp per test — never mutated in place.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, cpSync, rmSync } from 'node:fs';
@@ -191,9 +191,9 @@ describe('computeExpectedPairs — nodeless enumeration (Step 2)', () => {
     expect(pairs).toHaveLength(1);
     expect(pairs[0].status).toBe('draft');
     // The cascade's own 'draft' drop is STILL present even though a pair was
-    // ALSO emitted — Task 5's contract: draft is simultaneously effective and
-    // dropped, so a caller can tell "attached but dormant" apart from "attached
-    // but its when: failed."
+    // ALSO emitted — draft is simultaneously effective and dropped, so a
+    // caller can tell "attached but dormant" apart from "attached but its
+    // when: failed."
     expect(drops).toEqual([{ file: 'src/leaf/a.ts', aspectId: 'draft-rule', reason: 'draft' }]);
   });
 
@@ -349,23 +349,24 @@ describe('computeExpectedPairs — explicit mapping outranks coverage.excluded (
   it('the node loop never consults isExcludedByCoverage at all (explicit mapping is unconditional)', async () => {
     const graph = await loadGraph(projectDir);
     // No typeCoverage supplied at all — the node's own pair must still exist;
-    // proves the guard the brief names ("the component loop must never
-    // consult isExcludedByCoverage") holds independent of the feature.
+    // proves that the component loop never consults isExcludedByCoverage,
+    // independent of the feature.
     const { pairs } = await computeExpectedPairs(graph);
     expect(pairs.some((p) => p.nodePath === 'vendor-owner' && p.subjectFiles.includes('vendor/mapped.ts'))).toBe(true);
   });
 });
 
 // ---------------------------------------------------------------------------
-// Step 8 — K13: the shared-record merge, UNIT level. Two file-level entries
-// under the SAME aspect (as if reconciled from two branches, each adding a
+// Step 8 — the shared-record merge, UNIT level. Two file-level entries under
+// the SAME aspect (as if reconciled from two branches, each adding a
 // different covered file) coexist and each self-validates independently — no
 // cross-contamination, no special merge caveat needed for the nodeless case.
-// (Task 10 owns the GIT-level end-to-end version — a real branch merge with a
-// real conflict. This is the reconciliation logic itself, exercised directly.)
+// This is the reconciliation logic itself, exercised directly; a GIT-level
+// end-to-end version — a real branch merge with a real conflict — is not yet
+// covered.
 // ---------------------------------------------------------------------------
 
-describe('verifyLock — K13 shared-record merge at the UNIT level (Step 8)', () => {
+describe('verifyLock — shared-record merge at the UNIT level (Step 8)', () => {
   it('two file-level entries under one aspect, for two different files, both verify independently after a take-a-side union', async () => {
     writeFile('src/leaf/a.ts', 'export const a = 1;\n');
     writeFile('src/leaf/b.ts', 'export const b = 1;\n');

@@ -483,10 +483,10 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
     const tier = aspect && reviewer ? selectTierForAspect(aspect, reviewer) : undefined;
     reviewerCallBudget += tier?.ok ? tier.tier.consensus : 1;
   }
-  // Byte-identical to the pre-Task-6 header when no nodeless pair exists this
-  // run (this repo's own flag stays OFF, so `fileSet.size` is always 0 here) —
-  // only a repo with type-covered files sees the combined "components and files"
-  // wording; no phantom nodes rendered either way.
+  // Byte-identical to the plain node-only header when no nodeless pair exists
+  // this run (this repo's own flag stays OFF, so `fileSet.size` is always 0
+  // here) — only a repo with type-covered files sees the combined "components
+  // and files" wording; no phantom nodes rendered either way.
   const acrossLabel = fileSet.size > 0
     ? `${nodeSet.size} components and ${fileSet.size} files`
     : `${nodeSet.size} nodes`;

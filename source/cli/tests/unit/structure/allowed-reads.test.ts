@@ -127,7 +127,7 @@ describe('collectAllowedReadsForAspect', () => {
 
 // =============================================================================
 // collectArchitectureReach — the allowance for a rule on a file with no
-// component of its own (Task 7). The architecture's relation allow-list is the
+// component of its own. The architecture's relation allow-list is the
 // ONLY authority: 'leaf' may `uses` a component typed 'owned-type' or a
 // type-covered file typed 'helper-type', but every other relation type
 // defaults to deny, so a file typed 'forbidden-type' is out of reach.
@@ -198,10 +198,10 @@ describe('what a rule running on a single file may read', () => {
   it('cache-by-fromType is safe across different subject files of the same type (no cross-file leakage)', async () => {
     // Two files share type 'leaf'. Computing reach for one first must not make
     // the OTHER file's own reach miss its own self-inclusion, and must not gain
-    // the first file's identity as a side effect (K9's caching note: a caller
-    // memoizing this by fromType alone must still union the subject in fresh
-    // per file — this test pins that the function's own OUTPUT is correct
-    // whichever file is asked about, independent of any caller-side cache).
+    // the first file's identity as a side effect: a caller memoizing this by
+    // fromType alone must still union the subject in fresh per file — this
+    // test pins that the function's own OUTPUT is correct whichever file is
+    // asked about, independent of any caller-side cache.
     const input = buildInput();
     input.typeCovered.set('src/leaf/b.ts', 'leaf');
     const reachA = await collectArchitectureReach('src/leaf/a.ts', input);

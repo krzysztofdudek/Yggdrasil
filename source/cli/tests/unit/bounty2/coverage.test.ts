@@ -200,7 +200,7 @@ describe('partitionByCoverageTier', () => {
     expect(r.middle).toEqual(['lib/b.ts']);
   });
 
-  it('file in BOTH, required more specific than excluded → excluded wins anyway (Q1: absolute exclusion)', () => {
+  it('file in BOTH, required more specific than excluded → excluded wins anyway (absolute exclusion)', () => {
     // 'services/legacy/' is required and more specific than excluded
     // 'services/' — under the retired longest-match rule the more specific
     // required root would have claimed the file. Exclusion is now absolute:

@@ -190,7 +190,7 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () 
       const headerCols = header!.trim().split(/\s{2,}/);
       expect(headerCols).toEqual([
         'aspect', 'kind', 'status', 'nodes', 'pairs', 'refused', 'suppresses', 'errs', 'age',
-        'catch', 'exposure', 'signal', 'fp', 'wrong-rule', 'files',
+        'catch', 'exposure', 'signal', 'fp', 'wrong-rule',
       ]);
 
       // no-todo-comments: one hash-valid refusal (orders), one approved (payments).
@@ -351,7 +351,7 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () 
         const header = health.stdout.split('\n').find((l) => l.includes('aspect') && l.includes('age'));
         expect(header!.trim().split(/\s{2,}/)).toEqual([
           'aspect', 'kind', 'status', 'nodes', 'pairs', 'refused', 'suppresses', 'errs', 'age',
-          'catch', 'exposure', 'signal', 'fp', 'wrong-rule', 'files',
+          'catch', 'exposure', 'signal', 'fp', 'wrong-rule',
         ]);
 
         // A deterministic rule (ships check.mjs) committed in 2015 reads a coarse,
@@ -414,11 +414,12 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () 
       expect(health.status).toBe(0); // informational, never blocks
       const out = health.stdout;
 
-      // Header carries the fp column, followed by wrong-rule and files.
+      // Header carries the fp column, followed by wrong-rule; this fixture never
+      // turns coverage.type_level on, so files stays absent from the header too.
       const header = out.split('\n').find((l) => l.includes('aspect') && l.includes('fp'));
       expect(header!.trim().split(/\s{2,}/)).toEqual([
         'aspect', 'kind', 'status', 'nodes', 'pairs', 'refused', 'suppresses', 'errs', 'age',
-        'catch', 'exposure', 'signal', 'fp', 'wrong-rule', 'files',
+        'catch', 'exposure', 'signal', 'fp', 'wrong-rule',
       ]);
 
       // no-todo-comments: one block, now waived → fp = 1, thin sample labelled honestly.
@@ -547,11 +548,12 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () 
       expect(health.status).toBe(0); // informational, never blocks
       const out = health.stdout;
 
-      // Header carries the wrong-rule column, followed only by files.
+      // Header carries the wrong-rule column, and stops there — this fixture never
+      // turns coverage.type_level on, so files stays absent from the header too.
       const header = out.split('\n').find((l) => l.includes('aspect') && l.includes('wrong-rule'));
       expect(header!.trim().split(/\s{2,}/)).toEqual([
         'aspect', 'kind', 'status', 'nodes', 'pairs', 'refused', 'suppresses', 'errs', 'age',
-        'catch', 'exposure', 'signal', 'fp', 'wrong-rule', 'files',
+        'catch', 'exposure', 'signal', 'fp', 'wrong-rule',
       ]);
 
       // no-todo-comments: exactly the ONE attributed incident, thin-data labelled.

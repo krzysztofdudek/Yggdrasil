@@ -296,8 +296,8 @@ describe('check render — --summary view', () => {
     expect(out).not.toContain('7 other');
   });
 
-  // Task 6: a file-level (nodeless) pair-derived issue must row under its own
-  // file path, never collapse into '(repo)' — that would fold the entire
+  // A file-level (nodeless) pair-derived issue must row under its own file
+  // path, never collapse into '(repo)' — that would fold the entire
   // type-covered tier into one undifferentiated row.
   it('a nodeless (type-covered-file) issue rows under its own file path, not (repo)', () => {
     const fileIssue: CheckIssue = {

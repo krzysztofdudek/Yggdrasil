@@ -1,16 +1,15 @@
 /**
- * Tests for the GC prune summary (Task 6, Step 5) — the text `--approve` and
+ * Tests for the GC prune summary (Step 5) — the text `--approve` and
  * `--dry-run` print whenever entries are pruned, split into billed (LLM) vs
  * free (deterministic) with a reason per entry, and print NOTHING when
- * nothing is pruned. This wording is the contract Task 10's end-to-end
- * graduation pin asserts against.
+ * nothing is pruned.
  *
  * Real on-disk project (mkdtemp), real runFill — mirrors fill-closure.test.ts's
  * own setup convention. The prune scenario itself does not need a real
  * type-covered file: any positively-detached verdict entry (here, a stale
  * entry for an aspect id that no longer exists) exercises the SAME
- * garbageCollectAndRewrite → writePruneSummary code path Task 6 threads
- * type-coverage input through.
+ * garbageCollectAndRewrite → writePruneSummary code path type-coverage input
+ * is threaded through.
  */
 import { describe, it, expect, afterEach } from 'vitest';
 import path from 'node:path';

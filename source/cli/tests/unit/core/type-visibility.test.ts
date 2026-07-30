@@ -234,7 +234,7 @@ describe('buildTypeVisibility — one row per reason (Step 1)', () => {
     ]);
   });
 
-  describe('runtime reasons — real Task 7 fixtures (nodeless-runner)', () => {
+  describe('runtime reasons — real nodeless-runner fixtures', () => {
     let projectRoot: string;
     beforeEach(() => {
       projectRoot = mkdtempSync(path.join(tmpdir(), 'yg-type-visibility-runtime-'));
@@ -349,8 +349,8 @@ describe('buildTypeVisibility — report shape (real type-level-engine fixture)'
     expect(block.files).toEqual(['src/helper/h.ts']);
   });
 
-  // K2 mitigation (dead-law relaxation): a rule live on only ONE accidental
-  // file must be visible as a count of 1, never just a bare, uncounted name.
+  // Dead-law relaxation: a rule live on only ONE accidental file must be
+  // visible as a count of 1, never just a bare, uncounted name.
   it('enforcedCounts names how many files of the type each enforced rule actually runs on', () => {
     const graph = buildTypeCoverageGraph(tmpDir, {
       nodeTypes: [{ id: 'leaf', aspects: ['own-rule'] }],

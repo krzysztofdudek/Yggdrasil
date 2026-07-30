@@ -2,9 +2,9 @@ name: Core Infrastructure Tests
 type: test-suite
 description: Unit tests for low-level core infrastructure — file-content
   caching, when-predicate evaluation, type classification, and the
-  (fromType, toType) allowed-relation-types lookup (R1 relocation from the
-  relations pass into this engine layer, verified here identically at its
-  new home plus a compat-identity check against the old re-export).
+  (fromType, toType) allowed-relation-types lookup, relocated here from the
+  relations pass into this engine layer and verified identically at its new
+  home, plus a compat-identity check against the old re-export.
 aspects: []
 relations:
   [

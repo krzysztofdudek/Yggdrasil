@@ -41,7 +41,7 @@ describe('groupIssues', () => {
     expect(g.label).toBe('enforced');
   });
 
-  // I4: the type-relation gate's `what` carries its sample-edges list on lines
+  // The type-relation gate's `what` carries its sample-edges list on lines
   // after the first (mirroring relation-undeclared-dependency's own violation
   // list) — truncating to line 1 in --details would hide exactly the edges the
   // agent needs to allow, graduate, or remove.
@@ -143,7 +143,7 @@ describe('groupIssues', () => {
   });
 });
 
-// ── Task 6: fileCount — nodeless (type-covered-file) pair-derived members ─────
+// ── fileCount — nodeless (type-covered-file) pair-derived members ────────────
 // A pair-derived issue with no nodePath carries its unitKey instead (set by
 // core/check.ts's emitPairIssue). nodeCount must count ONLY members with a
 // real component; fileCount counts nodeless members by their DISTINCT file
@@ -153,7 +153,7 @@ function fileIss(p: Partial<CheckIssue>): CheckIssue {
   return iss({ nodePath: undefined, ...p });
 }
 
-describe('groupIssues — fileCount (Task 6)', () => {
+describe('groupIssues — fileCount', () => {
   it('a nodeless member is excluded from nodeCount and counted in fileCount instead', () => {
     const [g] = groupIssues([
       iss({ aspectId: 'a', nodePath: 'svc' }),
@@ -268,9 +268,9 @@ describe('bare --top group === the rule Next names (F3 invariant)', () => {
   });
 });
 
-// ── Task 6: computeSuggestedNext's structural fallback names the FILE for a
+// ── computeSuggestedNext's structural fallback names the FILE for a
 //    nodeless (type-covered-file) structural issue, never '.yggdrasil'. ──────
-describe('computeSuggestedNext — nodeless structural fallback (Task 6)', () => {
+describe('computeSuggestedNext — nodeless structural fallback', () => {
   it('names the subject FILE (from the unit key) when the chosen structural issue has no component', () => {
     const errors: CheckIssue[] = [{
       severity: 'error',

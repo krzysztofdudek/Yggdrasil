@@ -360,7 +360,7 @@ describe('check render — Fix 4: divergent per-node fix surfaces EACH node\'s c
     expect(out).toContain('reason-c');
   });
 
-  // I3: type-relation-forbidden findings carry no nodePath (a finding is about a
+  // type-relation-forbidden findings carry no nodePath (a finding is about a
   // (fromType, toType) PAIR, not a graph node), so groupIssues scores them
   // nodeCount === 0 and renderGroup dispatches to renderRepoLevelGroup — which,
   // before this fix, suppressed `next` entirely whenever it diverged across
@@ -467,9 +467,9 @@ describe('check render — --details view (task 2.1)', () => {
 });
 
 
-// ── Task 6: nodeless (type-covered-file) members — two-block rendering ───────
+// ── Nodeless (type-covered-file) members — two-block rendering ───────────────
 
-describe('renderGroup — nodeless members (Task 6)', () => {
+describe('renderGroup — nodeless members', () => {
   function fileIssue(unitKey: string, aspectId = 'own-file-rule'): CheckIssue {
     return {
       severity: 'error',

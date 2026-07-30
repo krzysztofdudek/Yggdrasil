@@ -240,7 +240,7 @@ describe('runRelationPass — TypedEdgeIndex excludes node-owned <-> node-owned 
     // An unmapped file, present so `typeCoveredFiles` below is genuinely non-empty
     // (matching a real coverage.type_level: true run) — its own edges are not
     // this test's concern; it exists only so the pass's node-owned-file
-    // TypedEdgeIndex construction (I2: skipped entirely when there are zero
+    // TypedEdgeIndex construction (skipped entirely when there are zero
     // type-covered files) actually runs, which is what lets this test exercise
     // the SAME code path a live run with the flag on would.
     mkdirSync(path.join(root, 'src', 'other'), { recursive: true });

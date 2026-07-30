@@ -1,6 +1,6 @@
 name: Owner
 type: owner-type
-description: "The one explicit node in this fixture — an edge target whose type (owner-type) never classifies any OTHER file, so every edge into this node is an explicit-node endpoint, never a type-covered one. Carries a port with no consumer (K4) — every edge into it from the type-covered svc/util universe is DERIVED (static import resolution), never a declared node relation, so it can never reach port-contract machinery, which only ever reads a node's own declared relations."
+description: "The one explicit node in this fixture — an edge target whose type (owner-type) never classifies any OTHER file, so every edge into this node is an explicit-node endpoint, never a type-covered one. Carries a port with no consumer — every edge into it from the type-covered svc/util universe is DERIVED (static import resolution), never a declared node relation, so it can never reach port-contract machinery, which only ever reads a node's own declared relations."
 mapping:
   - src/owner/target.ts
 ports:

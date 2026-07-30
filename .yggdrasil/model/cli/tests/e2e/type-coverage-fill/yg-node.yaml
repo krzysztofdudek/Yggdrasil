@@ -1,8 +1,8 @@
-name: E2E Tests — Type-Coverage Fill (Task 6)
+name: E2E Tests — Type-Coverage Fill
 type: test-suite
 description: "Subprocess E2E for nodeless (type-covered-file) pairs driven
   through the real fill stage: the pre-dispatch header's components-and-files
-  wording, the --dry-run 'Files enforced by their type' section, and the K16
+  wording, the --dry-run 'Files enforced by their type' section, and a
   cross-contamination case — one refusing file's deterministic check must
   never suppress the LLM review of an unrelated file matching the same
   architecture type. Real spawned binary with the in-process mock reviewer,

@@ -204,12 +204,12 @@ describe('deterministic runner — nodeless unit (unit.kind === "file")', () => 
     expect(r2.succeeded).toBe(r1.succeeded);
   });
 
-  // K6: the SAME rule (reads-permitted-sibling) run for two subject files whose
+  // The SAME rule (reads-permitted-sibling) run for two subject files whose
   // reach differs because their MATCHED TYPE differs — reach is a property of
   // the file's type, not of the rule. A permissive type's file passes; a
   // restrictive type's file (whose allowance omits the sibling) fails as
   // infrastructure — asserted together so the asymmetry is visible in one place.
-  it('K6 — the same rule has different reach on two files, because reach comes from each file\'s type', async () => {
+  it('the same rule has different reach on two files, because reach comes from each file\'s type', async () => {
     writeFileSync(path.join(projectRoot, 'src/leaf/other.ts'), 'export const other = 1;\n');
 
     const permissive = await runStructureAspect({

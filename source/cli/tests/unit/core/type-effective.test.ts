@@ -437,7 +437,7 @@ describe('channels that must never deliver to a type-covered file', () => {
     expect(ids).not.toContain('flow-only-rule');
   });
 
-  it('a port on a real component reached by a derived edge delivers no aspect and no drop (K4)', async () => {
+  it('a port on a real component reached by a derived edge delivers no aspect and no drop', async () => {
     const graph = await loadGraph(FIXTURE);
     const { effective, drops } = computeTypeAspectCascade(graph, 'src/consumer/c.ts', 'consumer', edges({
       'src/consumer/c.ts': [{ toFile: 'src/owned/o.ts', toOwner: { kind: 'node', path: 'owned', type: 'leaf' } }],

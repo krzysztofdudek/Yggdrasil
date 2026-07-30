@@ -196,10 +196,18 @@ export interface AspectHealthRow {
   status: AspectStatus;
   /** Distinct nodes that have a review pair for this aspect. */
   nodes: number;
-  /** Distinct type-covered files (nodeless pairs) that have a review pair for
-   *  this aspect. 0 when the feature is off or no file matched. Rendered as
-   *  its own table column (HEALTH_HEADERS), appended after wrong-rule. */
-  files: number;
+  /**
+   * Distinct type-covered files (nodeless pairs) that have a review pair for
+   * this aspect, as a rendered cell: EMPTY_CELL when `coverage.type_level` is
+   * off (the question was never asked — `verifyLock` never enumerated a
+   * file-level pair to count), otherwise the real count, which may legitimately
+   * be `'0'`. Never conflate the two: an unasked question and a zero answer are
+   * different facts. Rendered as its own table column (HEALTH_HEADERS), appended
+   * after wrong-rule, and OMITTED from the header entirely when the tier is off
+   * (see `formatAspectsHealthOutput`) so a flag-off repository's output stays
+   * byte-identical to before this column existed.
+   */
+  filesCell: string;
   /** Total review pairs for this aspect. */
   pairs: number;
   /** Rendered refusal cell — an integer, EMPTY_CELL, or the UNVERIFIED word. */
@@ -268,6 +276,14 @@ export interface AspectHealth {
    * never here).
    */
   hasWrongRuleAttribution: boolean;
+  /**
+   * `coverage.type_level` as read from the graph this health run was built for.
+   * Gates whether `formatAspectsHealthOutput` renders the `files` column at
+   * all: off ⇒ the column (header and every row's cell) is omitted outright,
+   * not merely em-dashed, so a repository that never turned the tier on keeps
+   * byte-identical `--health` output to before the column existed.
+   */
+  typeLevelEnabled: boolean;
 }
 
 /**
@@ -537,6 +553,11 @@ export function computeAspectHealth(
     }
   }
 
+  // Whether the `files` question was even askable this run. Read once, from the
+  // same graph field `verifyLock`'s own caller (`computeTypeCoverageForAspects`)
+  // gates on — never per-row, since it is a whole-run fact, not a per-aspect one.
+  const typeLevelEnabled = graph.config.coverage?.typeLevel === true;
+
   const rows: AspectHealthRow[] = [];
   let hasUnverified = false;
   let hasWrongRuleAttribution = false;
@@ -554,7 +575,7 @@ export function computeAspectHealth(
       kind: inferAspectDisplayKind(aspect),
       status: aspect.status ?? 'enforced',
       nodes: agg?.nodes.size ?? 0,
-      files: agg?.files.size ?? 0,
+      filesCell: typeLevelEnabled ? String(agg?.files.size ?? 0) : EMPTY_CELL,
       pairs,
       refused,
       suppresses: suppressByAspect.get(aspect.id) ?? 0,
@@ -570,7 +591,7 @@ export function computeAspectHealth(
 
   const signalNotes = buildSignalNotes(sorted, signals, drillStatuses);
   const fpNotes = buildFpNotes(sorted, fpSignals, telemetrySince, committedNote);
-  return { rows, wildcardMarkers, hasUnverified, signalNotes, fpNotes, hasWrongRuleAttribution };
+  return { rows, wildcardMarkers, hasUnverified, signalNotes, fpNotes, hasWrongRuleAttribution, typeLevelEnabled };
 }
 
 /** Column order is fixed by contract; other waves append columns to the right. */
@@ -589,34 +610,43 @@ const HEALTH_HEADERS = [
   'signal',
   'fp',
   'wrong-rule',
-  'files',
 ] as const;
 
-/** Render the health rows as a left-aligned, two-space-gap text table. */
+/**
+ * `files` is appended after `wrong-rule` (contract: other waves append columns
+ * to the right) ONLY once `coverage.type_level` is on. A repository that never
+ * turns the tier on gets exactly `HEALTH_HEADERS` — no trailing column at all —
+ * so its `--health` output stays byte-identical to before this column existed,
+ * rather than a whole column of fabricated em-dashes or zeros.
+ */
 export function formatAspectsHealthOutput(health: AspectHealth): string {
+  const headers = health.typeLevelEnabled ? [...HEALTH_HEADERS, 'files'] : [...HEALTH_HEADERS];
   const table: string[][] = [
-    [...HEALTH_HEADERS],
-    ...health.rows.map((r) => [
-      r.aspectId,
-      r.kind,
-      r.status,
-      String(r.nodes),
-      String(r.pairs),
-      r.refused,
-      String(r.suppresses),
-      r.errs,
-      r.age,
-      r.catchCell,
-      r.exposureCell,
-      r.signalCell,
-      r.fpCellValue,
-      r.wrongRuleCell,
-      String(r.files),
-    ]),
+    headers,
+    ...health.rows.map((r) => {
+      const row = [
+        r.aspectId,
+        r.kind,
+        r.status,
+        String(r.nodes),
+        String(r.pairs),
+        r.refused,
+        String(r.suppresses),
+        r.errs,
+        r.age,
+        r.catchCell,
+        r.exposureCell,
+        r.signalCell,
+        r.fpCellValue,
+        r.wrongRuleCell,
+      ];
+      if (health.typeLevelEnabled) row.push(r.filesCell);
+      return row;
+    }),
   ];
 
-  const widths = HEALTH_HEADERS.map((_, c) => Math.max(...table.map((row) => row[c].length)));
-  const lastCol = HEALTH_HEADERS.length - 1;
+  const widths = headers.map((_, c) => Math.max(...table.map((row) => row[c].length)));
+  const lastCol = headers.length - 1;
 
   const lines = table.map((row) =>
     row.map((cell, c) => (c === lastCol ? cell : cell.padEnd(widths[c]))).join('  '),
