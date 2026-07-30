@@ -5,9 +5,10 @@
  * runcheck-injected-input-parity rule derives from:
  *   - two ISSUE-GATING options written as `options?.<key> ? <issues> : []`
  *     (nowUtc, rulesArtifacts) — absent input silently skips a check;
- *   - two SIDE-EFFECT switches (writeFeatureIndex, now) written as an
- *     if-statement, so they never derive as gating and must be classified by
- *     the rule's allowlist instead;
+ *   - three SIDE-EFFECT members (writeFeatureIndex, now, precomputedTypeCoverage)
+ *     — the first two written as an if-statement, the third referenced nowhere
+ *     in the body at all — so none of them derive as gating and all three must
+ *     be classified by the rule's allowlist instead;
  *   - a same-file helper carrying its OWN `options?.<key> ? … : []` ternary,
  *     which a derivation scoped to the whole file (rather than to runCheck's
  *     own body) would wrongly turn into a required call-site key.
@@ -22,6 +23,8 @@ export interface RunCheckOptions {
   now?: () => Date;
   /** INJECTED artifacts snapshot. Absent ⇒ the digest gate is skipped. */
   rulesArtifacts?: string[];
+  /** INJECTED already-classified result — reused instead of a fresh classify; never reaches the issue set. */
+  precomputedTypeCoverage?: unknown;
 }
 
 export interface HelperOptions {

@@ -16,3 +16,4 @@ relations:
   ]
 mapping:
   - source/cli/tests/e2e/cli-type-coverage-fill.test.ts
+  - source/cli/tests/e2e/cli-context-aspect-test-type-coverage.test.ts

@@ -44,3 +44,5 @@ The declared ceiling on this node's direct dependencies was raised by one to adm
 Supplies the portal's read-only check with the same real git-tracked-file data the command-line check now uses, so the dashboard reports the same file-visibility anomaly instead of reading cleaner than the command line for the identical repository state.
 ## [2026-07-28T19:46:11.774Z]
 The portal's pair-count helper now accepts the same file-type classification the CLI's own check can be given, so a future caller can keep the portal's counts from disagreeing with the command line's.
+## [2026-07-30T07:13:52.748Z]
+Adds a facade that classifies type coverage once per portal extraction and exposes both the full result and its reduced lock-verification shape, so every portal call that needs the classification shares one computation instead of each answering about a component-only universe.

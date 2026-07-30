@@ -3,6 +3,8 @@ import {
   loadPortalGraph,
   walkPortalFiles,
   runPortalCheck,
+  computePortalTypeCoverage,
+  toPortalTypeCoverageInput,
   readAndVerifyLock,
   computePortalPairs,
   scanPortalUncovered,
@@ -54,20 +56,29 @@ export async function extractPortalData(
 
   const gitFiles = await walkPortalFiles(projectRoot);
 
+  // The type-level classification lattice (coverage.type_level), classified ONCE
+  // for this extraction run (mirrors runCheck's / runFill's own K15 hoist) and
+  // threaded into every consumer below, so runPortalCheck, lock verification, and
+  // the pair denominator all count the SAME universe instead of the portal
+  // silently reporting a component-only one when the tier is on. Undefined at
+  // flag-off — every consumer already treats that as "nothing to do."
+  const typeCoverageResult = await computePortalTypeCoverage(graph, gitFiles);
+  const typeCoverageInput = toPortalTypeCoverageInput(typeCoverageResult);
+
   // Reuse the engine: severities + coverage come straight from runCheck. The pipeline
   // owns the portal's ONE reading of the wall clock — the facade takes it as an input
   // rather than inventing it, so the engine seam stays a function of what it is given.
   // The clock feeds the review-cadence check, which is why it must be a real clock and
   // not a fixed instant: a rule past its review date has to surface here exactly as it
   // does on the command line.
-  const checkResult = await runPortalCheck(graph, gitFiles, () => new Date());
+  const checkResult = await runPortalCheck(graph, gitFiles, () => new Date(), typeCoverageResult);
 
   // Reuse the engine: per-pair states from lock verification, and the expected-pair
   // denominator from pair computation. (verifyLock computes the same expected set
   // internally; computeExpectedPairs is called for the denominator and the LLM/det split.)
-  const { lock, verification: verificationPromise } = readAndVerifyLock(graph);
+  const { lock, verification: verificationPromise } = readAndVerifyLock(graph, typeCoverageInput);
   const verification = await verificationPromise;
-  const expected = await computePortalPairs(graph);
+  const expected = await computePortalPairs(graph, typeCoverageInput);
 
   const counts = buildCounts(graph, checkResult, verification.pairs, expected.pairs);
 

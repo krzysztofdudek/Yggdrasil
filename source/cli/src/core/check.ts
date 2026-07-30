@@ -654,6 +654,8 @@ export interface RunCheckOptions {
    * check is fed entirely by `coverageVisibleFiles` (the disk walk), unaffected.
    */
   trackedFiles?: string[] | null;
+  /** INJECTED already-classified result — skips a second classify when a caller (runFill) already ran one. Absent ⇒ classified here. */
+  precomputedTypeCoverage?: TypeCoverageResult;
 }
 
 export async function runCheck(
@@ -669,11 +671,11 @@ export async function runCheck(
 
   // Coverage config + the type-level lattice, computed ONCE — hoisted ahead of
   // validate() (K15: one classify per run) so checkReviewerPresence (inside
-  // validate()) sees the SAME value, not a component-only universe. Undefined
-  // at flag-off / coverageVisibleFiles === null. Section 3 reads it too.
+  // validate()) sees the SAME value. Reused from options.precomputedTypeCoverage
+  // when supplied; else undefined at flag-off / coverageVisibleFiles === null.
   const coverage = graph.config.coverage ?? DEFAULT_COVERAGE;
-  let earlyTypeCoverage: TypeCoverageResult | undefined;
-  if (coverageVisibleFiles !== null && coverage.typeLevel) {
+  let earlyTypeCoverage: TypeCoverageResult | undefined = options?.precomputedTypeCoverage;
+  if (earlyTypeCoverage === undefined && coverageVisibleFiles !== null && coverage.typeLevel) {
     const uncoveredForGate = scanUncoveredFiles(graph, coverageVisibleFiles);
     earlyTypeCoverage = await computeTypeCoverage(graph, uncoveredForGate, sharedContentCache);
   }

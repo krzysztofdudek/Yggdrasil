@@ -6,6 +6,7 @@ import { mkdtemp, mkdir, writeFile, readFile, rm, chmod } from 'node:fs/promises
 import { loadGraph } from '../../../src/core/graph-loader.js';
 import { runFill } from '../../../src/core/fill.js';
 import { readLock, writeLock } from '../../../src/io/lock-store.js';
+import { walkRepoFiles } from '../../../src/io/repo-scanner.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Positive-closure unit tests for the log_required-gated source fingerprint and
@@ -184,5 +185,93 @@ describe('positive closure — log_required source fingerprint + minimal logs lo
     // source; with no log.md the whole entry is removed.
     await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
     expect(readLock(graph.rootPath).nodes['svc']).toBeUndefined();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Closure byte-identity with a nodeless (type-covered, componentless) pair
+// present in the SAME run. fill-closure.ts's byNode grouping explicitly skips a
+// pair with no owning component ("a file with no component has no fingerprint
+// and no log baseline to close") — this pins that the skip is TOTAL: a
+// log_required node's own closure outcome does not change by one byte whether
+// or not an unrelated componentless file shares the run.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * `svc` (log_required, one deterministic aspect) plus, optionally, a second
+ * file (src/leaf.ts) mapped by no node. With coverage.type_level on and an
+ * architecture type matching it, that file becomes a nodeless pair. Its own
+ * attached rule need not succeed for this test — a nodeless deterministic
+ * check infra-errors today (structure/hook-loader.ts resolves node identity
+ * before the check body runs, a known, separately-owned limitation) — which is
+ * itself part of what this test proves svc's own closure is indifferent to.
+ */
+async function setupSvcWithOptionalLeaf(withLeaf: boolean): Promise<string> {
+  const root = await mkdtemp(path.join(tmpdir(), 'yg-closure-nodeless-'));
+  dirs.push(root);
+  const ygg = path.join(root, '.yggdrasil');
+  const nodeDir = path.join(ygg, 'model', 'svc');
+  await mkdir(nodeDir, { recursive: true });
+  await mkdir(path.join(root, 'src'), { recursive: true });
+  await writeFile(path.join(ygg, 'yg-config.yaml'), REVIEWER_CONFIG + 'coverage:\n  type_level: true\n');
+  const leafType = withLeaf
+    ? '\n  leaf:\n    description: a type-classified leaf file\n    when:\n      path: "src/leaf.ts"\n    aspects:\n      - own-file-rule\n'
+    : '';
+  await writeFile(
+    path.join(ygg, 'yg-architecture.yaml'),
+    `node_types:\n  service:\n    description: s\n    log_required: true${leafType}\n`,
+  );
+  await writeFile(
+    path.join(nodeDir, 'yg-node.yaml'),
+    'name: svc\ntype: service\ndescription: x\nmapping:\n  - src/svc.ts\naspects:\n  - det-a\n',
+  );
+  await writeFile(path.join(root, 'src', 'svc.ts'), 'export const x = 1;\n');
+  // log_required needs a fresh log entry before the FIRST fill (the all-or-
+  // nothing gate); a fixed timestamp keeps both twin runs' entries byte-equal.
+  await writeFile(path.join(nodeDir, 'log.md'), '## [2026-05-11T10:00:00.000Z]\nfirst.\n');
+  const aspDir = path.join(ygg, 'aspects', 'det-a');
+  await mkdir(aspDir, { recursive: true });
+  await writeFile(
+    path.join(aspDir, 'yg-aspect.yaml'),
+    'name: det-a\ndescription: det-a rule\nreviewer:\n  type: deterministic\nstatus: enforced\n',
+  );
+  await writeFile(path.join(aspDir, 'check.mjs'), DET_PASS);
+  if (withLeaf) {
+    await writeFile(path.join(root, 'src', 'leaf.ts'), 'export const y = 1;\n');
+    const leafAspDir = path.join(ygg, 'aspects', 'own-file-rule');
+    await mkdir(leafAspDir, { recursive: true });
+    await writeFile(
+      path.join(leafAspDir, 'yg-aspect.yaml'),
+      'name: own-file-rule\ndescription: a per-file rule attached to the leaf type\nreviewer:\n  type: deterministic\nstatus: enforced\nscope:\n  per: file\n',
+    );
+    await writeFile(path.join(leafAspDir, 'check.mjs'), DET_PASS);
+  }
+  return root;
+}
+
+describe('positive closure — byte-identical with a nodeless pair present', () => {
+  it("a log_required node's closure entry is identical whether or not a componentless file shares the run", async () => {
+    const withLeafRoot = await setupSvcWithOptionalLeaf(true);
+    const withoutLeafRoot = await setupSvcWithOptionalLeaf(false);
+
+    const withLeafGraph = await loadGraph(withLeafRoot);
+    await runFill(withLeafGraph, {
+      coverageVisibleFiles: await walkRepoFiles(withLeafRoot),
+      write: () => {},
+    });
+    const withLeafEntry = readLock(withLeafGraph.rootPath).nodes['svc'];
+
+    const withoutLeafGraph = await loadGraph(withoutLeafRoot);
+    await runFill(withoutLeafGraph, {
+      coverageVisibleFiles: await walkRepoFiles(withoutLeafRoot),
+      write: () => {},
+    });
+    const withoutLeafEntry = readLock(withoutLeafGraph.rootPath).nodes['svc'];
+
+    // Sanity: svc actually closed (recorded a fingerprint) in both runs — a
+    // false pass below would otherwise be comparing two undefineds.
+    expect(withLeafEntry?.source).toBeDefined();
+    expect(withoutLeafEntry?.source).toBeDefined();
+    expect(withLeafEntry).toEqual(withoutLeafEntry);
   });
 });

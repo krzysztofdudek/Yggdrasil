@@ -9,6 +9,7 @@ import { runCheck, scanUncoveredFiles, type CheckResult, type CheckIssue } from 
 import { readLock, committedLockContentHash } from '../io/lock-store.js';
 import { verifyLock, type LockVerification, type VerifiedPair, type PairState } from '../core/verify-lock.js';
 import { computeExpectedPairs, computeSourceFingerprint, type PairComputation, type TypeCoverageInput } from '../core/pairs.js';
+import type { TypeCoverageResult } from '../core/type-coverage.js';
 import { readLogContent } from '../core/log/log-gate.js';
 import { CLI_SUPPORTED_SCHEMA } from '../core/graph-loader.js';
 import {
@@ -26,6 +27,7 @@ import type { BoundaryInput, SuppressionMarkerInput, FreshnessMarkerInput } from
 import { computePortalBoundary as computeBoundaryImpl } from './api/boundary.js';
 import { runSuppressionsScan, scanPortalSuppressions as adaptSuppressions } from './api/suppress-scan.js';
 import { collectMappingEntries } from './api/suppress-eligibility.js';
+import { computePortalTypeCoverage as computeTypeCoverageImpl, toPortalTypeCoverageInput as toTypeCoverageInputImpl } from './api/type-coverage.js';
 
 /**
  * engine-api — the portal's SOLE gateway to engine internals.
@@ -104,19 +106,14 @@ export async function walkPortalFiles(projectRoot: string): Promise<string[]> {
  *     committed-digest staleness gate and a repo with a stale, hand-edited, or missing
  *     digest reads clean in the portal while `yg check` warns about it.
  *
- * The clock is a REQUIRED parameter, not something this module invents. Every other
- * input to this facade (the graph, the file list) is supplied by the caller, and the
- * wall clock is environment state exactly like those: reading it here would make this
- * module's output depend on when it ran. A required parameter is also the stronger
- * anti-omission guarantee — the compiler rejects a call that leaves it out, where a
- * self-supplied default would just hide the decision.
+ * The clock is a REQUIRED parameter — reading it here would make output depend on
+ * when the module ran, and a required param is a stronger anti-omission guarantee
+ * than a self-supplied default that could silently hide the decision.
  *
- * The rules snapshot IS read here, from the SAME shared boundary reader the CLI uses,
- * and its root is derived from the graph (`graph.rootPath` is the `.yggdrasil/`
- * directory; its parent is the project root) exactly as core derives it. That read is
- * deterministic relative to the files on disk — the same repository state always yields
- * the same snapshot — and keeping it here is what makes it impossible for the two
- * boundaries to disagree about what the installer actually wrote.
+ * The rules snapshot is read here via the SAME shared boundary reader the CLI uses,
+ * rooted the same way core derives it (parent of `graph.rootPath`) — deterministic
+ * relative to on-disk files, so the two boundaries can never disagree about what the
+ * installer wrote.
  *
  *   - real `git ls-files` output, for the tracked∩gitignored anomaly check —
  *     without it the portal misses this anomaly entirely while `yg check`
@@ -128,31 +125,31 @@ export async function runPortalCheck(
   graph: Graph,
   gitFiles: string[],
   nowUtc: () => Date,
+  precomputedTypeCoverage?: TypeCoverageResult,
 ): Promise<CheckResult> {
   return runCheck(graph, gitFiles, {
     nowUtc,
     rulesArtifacts: await readRulesArtifacts(path.dirname(graph.rootPath)),
     trackedFiles: listGitTrackedFiles(path.dirname(graph.rootPath)),
+    precomputedTypeCoverage,
   });
 }
 
-/** Read the lock and verify it in one read-only step — per-pair states for the portal. */
-export function readAndVerifyLock(graph: Graph): { lock: LockFile; verification: Promise<LockVerification> } {
-  const lock = readLock(graph.rootPath);
-  return { lock, verification: verifyLock(graph, lock) };
+/** Classify type-level coverage ONCE per run, and its reduced lock-verification shape (see portal/api/type-coverage.ts). */
+export async function computePortalTypeCoverage(graph: Graph, gitFiles: string[]): Promise<TypeCoverageResult | undefined> {
+  return computeTypeCoverageImpl(graph, gitFiles);
+}
+export function toPortalTypeCoverageInput(result: TypeCoverageResult | undefined): TypeCoverageInput | undefined {
+  return toTypeCoverageInputImpl(result);
 }
 
-/**
- * Reuse the engine: the expected-pair denominator + the LLM/deterministic split.
- *
- * `typeCoverage` reaches this function's signature so a future caller (Task 11's
- * own surface work) can thread the SAME classification the CLI's `yg check`
- * counts, without this facade needing another signature change — the portal
- * must count the same universe the CLI counts, or its coverage numbers
- * contradict the header. Absent today (the extraction pipeline computes no
- * type-coverage classification yet); byte-identical to before at the current
- * call site.
- */
+/** Read the lock and verify it in one read-only step — per-pair states for the portal. */
+export function readAndVerifyLock(graph: Graph, typeCoverage?: TypeCoverageInput): { lock: LockFile; verification: Promise<LockVerification> } {
+  const lock = readLock(graph.rootPath);
+  return { lock, verification: verifyLock(graph, lock, typeCoverage) };
+}
+
+/** Reuse the engine: the expected-pair denominator + the LLM/deterministic split. `typeCoverage` is computePortalTypeCoverage's own output, reduced — keeps this in the same universe `yg check` counts. */
 export async function computePortalPairs(graph: Graph, typeCoverage?: TypeCoverageInput): Promise<PairComputation> {
   return computeExpectedPairs(graph, { typeCoverage });
 }

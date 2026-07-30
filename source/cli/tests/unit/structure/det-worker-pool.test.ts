@@ -115,4 +115,33 @@ describe('DetWorkerPool', () => {
     await pool.destroy();
     await expect(pool.destroy()).resolves.toBeUndefined();
   });
+
+  it('receives and returns a reply for a nodeless task (nodePath: "") exactly like any other task', async () => {
+    // core/fill-det.ts's interim convention for a file enforced by its type alone
+    // (no owning component) is `nodePath: ''` with the pair's own subjectFiles as
+    // subjectScope — the pool itself has no opinion on that value; it dispatches
+    // whatever request it is given and returns a reply correlated by id, so a
+    // nodeless task must round-trip exactly like a component-owned one: never
+    // dropped, never merged with another task's reply. The check underneath still
+    // infra-errors on an empty nodePath (structure/hook-loader.ts resolves the
+    // node BEFORE the check body runs — a known, separately-tracked limitation),
+    // so this pins the pool's OWN contract (one reply per task, correctly
+    // correlated), not that a nodeless check can complete yet.
+    const dir = writeCheck('nodeless', 'export function check(ctx) { void ctx; return []; }\n');
+    const pool = newPool(2);
+    const tasks = [
+      { aspectDir: dir, aspectId: 'nodeless', nodePath: 'N' },
+      { aspectDir: dir, aspectId: 'nodeless', nodePath: '', subjectScope: ['src/a.ts'] },
+      { aspectDir: dir, aspectId: 'nodeless', nodePath: '', subjectScope: ['src/a.ts'] },
+    ];
+    const replies = await Promise.all(tasks.map((t) => pool.run(t)));
+    // Count: every submitted task got exactly one reply back.
+    expect(replies).toHaveLength(tasks.length);
+    expect(new Set(replies.map((r) => r.id)).size).toBe(tasks.length);
+    expect(replies[0].ok).toBe(true);
+    // The nodeless tasks round-trip too (not silently dropped) even though the
+    // check underneath cannot succeed yet.
+    expect(replies[1].ok).toBe(false);
+    expect(replies[2].ok).toBe(false);
+  });
 });

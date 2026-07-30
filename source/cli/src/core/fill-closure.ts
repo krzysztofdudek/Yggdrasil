@@ -15,6 +15,7 @@
 import type { Graph } from '../model/graph.js';
 import type { LockFile, LockNodeEntry } from '../model/lock.js';
 import { computeSourceFingerprint, FileUnreadableError } from './pairs.js';
+import type { TypeCoverageInput } from './pairs.js';
 import { verifyLock } from './verify-lock.js';
 import { computeLogBaselineFromContent, readLogContent } from './log/log-gate.js';
 import { validateAppendOnly } from './log-integrity.js';
@@ -69,11 +70,15 @@ export async function applyPositiveClosure(
   lock: LockFile,
   blockedNodes: Set<string>,
   persistLock: () => Promise<void>,
+  typeCoverage?: TypeCoverageInput,
 ): Promise<void> {
   // Single post-fill verification pass: the authoritative per-pair validity for
   // THIS run, computed against the freshly-written lock. This is the ONLY source
-  // of truth for closure — never the raw stored verdict token.
-  const verification = await verifyLock(graph, lock);
+  // of truth for closure — never the raw stored verdict token. typeCoverage is
+  // the SAME classification the rest of this run threads (fill.ts computes it
+  // once); without it a nodeless pair could never reach the byNode skip below,
+  // which would make that skip dead code rather than a real guarantee.
+  const verification = await verifyLock(graph, lock, typeCoverage);
   const byNode = new Map<string, typeof verification.pairs>();
   for (const vp of verification.pairs) {
     // A file with no component has no fingerprint and no log baseline to close —

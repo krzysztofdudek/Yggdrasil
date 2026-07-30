@@ -72,6 +72,22 @@ describe('context CLI exit codes', () => {
     expect(result.stderr).toContain("Node 'nonexistent/node' does not exist in the graph.");
   });
 
+  it('POSIX-normalizes a backslash-separated --node path in the not-found error message', async () => {
+    const { spawnSync } = await import('node:child_process');
+    const distBin = path.join(__dirname, '../../../dist/bin.js');
+    const result = spawnSync('node', [distBin, 'context', '--node', 'nonexistent\\node'], {
+      cwd: FIXTURE_PROJECT,
+      encoding: 'utf-8',
+    });
+
+    expect(result.status).toBe(1);
+    // The sibling "outside project root" error path already ran its path through
+    // toPosixPath; this one silently didn't — a raw Windows-style path would have
+    // been echoed to stderr unconverted.
+    expect(result.stderr).toContain("Node 'nonexistent/node' does not exist in the graph.");
+    expect(result.stderr).not.toContain('nonexistent\\node');
+  });
+
   it('exit code 1 for broken relation', async () => {
     const { spawnSync } = await import('node:child_process');
     const distBin = path.join(__dirname, '../../../dist/bin.js');

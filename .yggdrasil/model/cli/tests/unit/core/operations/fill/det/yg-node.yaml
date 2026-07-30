@@ -21,6 +21,7 @@ relations:
     { target: cli/commands/init, type: uses },
     { target: cli/core/pair-hash, type: uses },
     { target: cli/core/pair-inputs, type: uses },
+    { target: cli/core/type-coverage, type: uses },
     { target: cli/tests/fixtures, type: uses }
   ]
 mapping:
@@ -33,3 +34,4 @@ mapping:
   - source/cli/tests/unit/core/fill-det-parallel.test.ts
   - source/cli/tests/unit/core/fill-review-overdue.test.ts
   - source/cli/tests/unit/core/fill-prune-summary.test.ts
+  - source/cli/tests/unit/core/fill-classify-once.test.ts

@@ -21,6 +21,10 @@ import { countChurnByNode, ownerOfForGraph } from '../core/node-churn.js';
 import { applyDecisions, type VisibleNomination } from '../core/advise-feed.js';
 import { groupUnitsByAspect } from '../core/aspect-health-signals.js';
 import { computeExpectedPairs } from '../core/pairs.js';
+import type { TypeCoverageInput } from '../core/pairs.js';
+import { scanUncoveredFiles } from '../core/check.js';
+import { computeTypeCoverage } from '../core/type-coverage.js';
+import { FileContentCache } from '../io/file-content-cache.js';
 import { appendDecision, readDecisions, type AdviseDecision } from '../io/advise-decisions-store.js';
 import { readDrillResults } from '../io/drill-results-reader.js';
 import { filterInCorpusDevDrills } from '../core/drill-runner.js';
@@ -262,13 +266,28 @@ async function gatherSuppressData(graph: Graph, projectRoot: string): Promise<Su
 }
 
 /**
+ * The type-level classification lattice (coverage.type_level), classified for
+ * this one `yg advise` invocation. Undefined when the flag is off, so
+ * computeExpectedPairs enumerates exactly the component-only universe it
+ * always has.
+ */
+async function computeTypeCoverageForAdvise(graph: Graph, projectRoot: string): Promise<TypeCoverageInput | undefined> {
+  if (!graph.config.coverage?.typeLevel) return undefined;
+  const gitFiles = await walkRepoFiles(projectRoot);
+  const uncovered = scanUncoveredFiles(graph, gitFiles);
+  const result = await computeTypeCoverage(graph, uncovered, new FileContentCache());
+  return { covered: result.covered, ambiguousPaths: result.ambiguous.map((a) => a.file) };
+}
+
+/**
  * The current expected units per aspect (aspectId → unit keys) — the decorative-rule
  * shrinking-attach-set signal compares this against the units the fill telemetry
  * recorded. Fail-safe: any failure degrades to undefined so no demotion is nominated.
  */
-async function gatherCurrentUnits(graph: Graph): Promise<Map<string, Set<string>> | undefined> {
+async function gatherCurrentUnits(graph: Graph, projectRoot: string): Promise<Map<string, Set<string>> | undefined> {
   try {
-    const { pairs } = await computeExpectedPairs(graph);
+    const typeCoverage = await computeTypeCoverageForAdvise(graph, projectRoot);
+    const { pairs } = await computeExpectedPairs(graph, { typeCoverage });
     return groupUnitsByAspect(pairs);
   } catch (error) {
     debugWrite(`[advise] expected-pairs degraded to empty: ${(error as Error).message}`);
@@ -388,7 +407,7 @@ async function gatherNominationSources(graph: Graph, todayUtc: Date): Promise<No
   const suppressData = await gatherSuppressData(graph, projectRoot);
   const drillResults = await gatherInCorpusDrillResults(graph, projectRoot);
   const verdictEvents = readVerdictEvents(graph.rootPath).events;
-  const currentUnitsByAspect = await gatherCurrentUnits(graph);
+  const currentUnitsByAspect = await gatherCurrentUnits(graph, projectRoot);
   const churnByNode = gatherChurnByNode(graph, projectRoot);
   const familyCandidates = readFamilyCandidatesSource(graph);
   const architectureCutCycles = computeArchitectureCutCycles(graph);

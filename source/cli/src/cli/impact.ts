@@ -154,7 +154,7 @@ export function registerImpactCommand(program: Command): void {
           }
 
           if (options.aspect) {
-            await handleAspectImpact(graph, options.aspect.trim(), lock);
+            await handleAspectImpact(graph, options.aspect.trim(), lock, projectRootFromGraph(graph.rootPath));
             return;
           }
           if (options.flow) {

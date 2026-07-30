@@ -10,6 +10,17 @@ description: "Runs an aspect against a node or ad-hoc files WITHOUT touching the
   the stored verdict."
 aspects:
   - provider-redaction-cascade
+max_direct_relations:
+  limit: 21
+  reason: >-
+    Raised from the project default of 20 to 21, the exact reviewed count,
+    for three dependencies the file-level `yg aspect test` lookup needs to
+    thread real type-coverage classification into computeExpectedPairs
+    instead of leaving it silently unwired: cli/core/check (scanUncoveredFiles),
+    cli/core/type-coverage (computeTypeCoverage), and cli/io/file-content-cache
+    (the cache the classifier reads through). Without these the LLM-mode pair
+    lookup this command runs would always answer about a component-only
+    universe, never the file-level tier a future --file mode resolves through.
 relations:
   - target: cli/ast/runtime
     type: calls
@@ -21,6 +32,10 @@ relations:
     type: calls
   - target: cli/core/pair-inputs
     type: calls
+  - target: cli/core/check
+    type: calls
+  - target: cli/core/type-coverage
+    type: calls
   - target: cli/core/reviewer-tiers
     type: calls
   - target: cli/llm/shared
@@ -30,6 +45,8 @@ relations:
   - target: cli/io/parsers/config
     type: calls
   - target: cli/io/stores
+    type: calls
+  - target: cli/io/file-content-cache
     type: calls
   - target: cli/tests/unit/cli
     type: uses

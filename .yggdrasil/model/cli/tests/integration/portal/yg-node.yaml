@@ -69,6 +69,12 @@ relations:
     type: uses
   - target: cli/core/verify-lock
     type: uses
+  - target: cli/core/type-coverage
+    type: uses
+  - target: cli/io/file-content-cache
+    type: uses
+  - target: cli/tests/fixtures
+    type: uses
   - target: cli/core/log
     type: uses
   - target: cli/io/stores
@@ -87,6 +93,7 @@ relations:
     type: uses
 mapping:
   - source/cli/tests/integration/portal-extract.test.ts
+  - source/cli/tests/integration/portal-extract-type-coverage.test.ts
   - source/cli/tests/integration/portal-derive-nodes.test.ts
   - source/cli/tests/integration/portal-derive-catalogue.test.ts
   - source/cli/tests/integration/portal-derive-rest.test.ts

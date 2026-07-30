@@ -16,9 +16,13 @@ import { readTextFile } from '../io/graph-fs.js';
 import { readFeatureFieldEntry } from '../core/feature-index-read.js';
 import { FAMILY_SEP } from '../core/feature-field-schema.js';
 import { getLanguageDisplayName } from '../utils/language-registry.js';
-import { isCoverageExcludedPath } from '../io/repo-scanner.js';
+import { isCoverageExcludedPath, walkRepoFiles } from '../io/repo-scanner.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
 import { computeExpectedPairs, computeSourceFingerprint, FileUnreadableError } from '../core/pairs.js';
+import type { TypeCoverageInput } from '../core/pairs.js';
+import { scanUncoveredFiles } from '../core/check.js';
+import { computeTypeCoverage } from '../core/type-coverage.js';
+import { FileContentCache } from '../io/file-content-cache.js';
 import { readLock } from '../io/lock-store.js';
 import { readLogContent, hasFreshLogEntry } from '../core/log/log-gate.js';
 import type { NodeContextData, NodeAspectSubjects, NodeLogState } from '../formatters/context-node.js';
@@ -84,6 +88,19 @@ function collectRelevantNodePaths(graph: Graph, nodePath: string): Set<string> {
 }
 
 /**
+ * The type-level classification lattice (coverage.type_level), classified for
+ * this one `yg context` invocation. Undefined when the flag is off.
+ */
+async function computeTypeCoverageForContext(graph: Graph): Promise<TypeCoverageInput | undefined> {
+  if (!graph.config.coverage?.typeLevel) return undefined;
+  const projectRoot = projectRootFromGraph(graph.rootPath);
+  const gitFiles = await walkRepoFiles(projectRoot);
+  const uncovered = scanUncoveredFiles(graph, gitFiles);
+  const result = await computeTypeCoverage(graph, uncovered, new FileContentCache());
+  return { covered: result.covered, ambiguousPaths: result.ambiguous.map((a) => a.file) };
+}
+
+/**
  * Populate the node-view's read-only lock observability fields (spec §8):
  *   - aspectSubjects: per-aspect subject-file count (or unit count for per:file),
  *     so the reader sees vacuous (0-file) aspects and per-file fan-out at a glance.
@@ -101,7 +118,12 @@ async function attachLockObservability(
 ): Promise<void> {
   // ── Per-aspect subject counts from the expected-pair set (this node only) ──
   // includeDraft so draft aspects (also listed in the node view) get a count.
-  const { pairs } = await computeExpectedPairs(graph, { includeDraft: true });
+  // typeCoverage is real classification data (below), threaded for correctness;
+  // it changes nothing here today — the `p.nodePath === nodePath` filter two
+  // lines down can never match a nodeless pair — but keeps this call site from
+  // silently answering about a component-only universe.
+  const typeCoverage = await computeTypeCoverageForContext(graph);
+  const { pairs } = await computeExpectedPairs(graph, { includeDraft: true, typeCoverage });
   const subjects: Record<string, NodeAspectSubjects> = {};
   for (const aspect of data.aspects) {
     const aspectPairs = pairs.filter((p) => p.nodePath === nodePath && p.aspectId === aspect.id);
@@ -318,7 +340,7 @@ export function registerBuildCommand(program: Command): void {
         const notFound = msg.match(/^Node not found: (.+)$/);
         if (notFound) {
           process.stderr.write(chalk.red('Error: ' + buildIssueMessage({
-            what: `Node '${notFound[1]}' does not exist in the graph.`,
+            what: `Node '${toPosixPath(notFound[1])}' does not exist in the graph.`,
             why: `The --node path must name an existing node — a directory under .yggdrasil/model/, written without the model/ prefix.`,
             next: `Browse the graph with 'yg tree', or locate one with 'yg find "<keywords>"', then retry with a valid --node path.`,
           }) + '\n'));

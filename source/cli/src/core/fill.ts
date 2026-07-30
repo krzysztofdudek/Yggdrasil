@@ -55,6 +55,7 @@ import { readLock, writeLock, readDetLockAspectIds } from '../io/lock-store.js';
 import type { ExpectedPair, TypeCoverageInput } from './pairs.js';
 import { verifyLock } from './verify-lock.js';
 import { computeTypeCoverage } from './type-coverage.js';
+import type { TypeCoverageResult } from './type-coverage.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import { DEFAULT_COVERAGE } from '../io/config-parser.js';
 import { selectTierForAspect } from './tier-selection.js';
@@ -387,16 +388,22 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   // for this whole fill run (K15 — never a second classify) and threaded into
   // every downstream consumer below: the structural gate's own reviewer-presence
   // check (validate → checkReviewerPresence), pair classification (verifyLock —
-  // CRITICAL, R5's anti-prune lever), and GC (garbageCollectAndRewrite). Mirrors
-  // runCheck's own hoist. Undefined at flag-off or when no file walk ran this
-  // call (opts.coverageVisibleFiles === null) — every consumer already treats
-  // that as "nothing to do."
+  // CRITICAL, R5's anti-prune lever), GC (garbageCollectAndRewrite), and both of
+  // this run's own runCheck calls below (as precomputedTypeCoverage — otherwise
+  // runCheck would classify a second time from scratch, reading every uncovered
+  // file's bytes twice). Undefined at flag-off or when no file walk ran this call
+  // (opts.coverageVisibleFiles === null) — every consumer already treats that as
+  // "nothing to do."
   const coverage = graph.config.coverage ?? DEFAULT_COVERAGE;
   let typeCoverageInput: TypeCoverageInput | undefined;
+  let typeCoverageResult: TypeCoverageResult | undefined;
   if (opts.coverageVisibleFiles !== null && coverage.typeLevel) {
     const uncoveredForGate = scanUncoveredFiles(graph, opts.coverageVisibleFiles);
-    const result = await computeTypeCoverage(graph, uncoveredForGate, new FileContentCache());
-    typeCoverageInput = { covered: result.covered, ambiguousPaths: result.ambiguous.map((a) => a.file) };
+    typeCoverageResult = await computeTypeCoverage(graph, uncoveredForGate, new FileContentCache());
+    typeCoverageInput = {
+      covered: typeCoverageResult.covered,
+      ambiguousPaths: typeCoverageResult.ambiguous.map((a) => a.file),
+    };
   }
 
   // ── Step 1: Structural gate. A gating code aborts the whole fill. ──────────
@@ -570,6 +577,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
       nowUtc: opts.reviewNowUtc,
       rulesArtifacts: opts.rulesArtifacts,
       trackedFiles: opts.trackedFiles,
+      precomputedTypeCoverage: typeCoverageResult,
     });
     return { checkResult, reviewerCallsMade: 0, infraFailures: 0, runtimeErrors: 0, companionRuntimeErrors: 0, malformedSuppressErrors: 0 };
   }
@@ -966,7 +974,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   // Skipped under --only-deterministic: closure records source + log baseline to the
   // COMMITTED logs file, which a deterministic-only / CI run must never write.
   if (!onlyDeterministic) {
-    await applyPositiveClosure(graph, projectRoot, lock, blockedNodes, persistLock);
+    await applyPositiveClosure(graph, projectRoot, lock, blockedNodes, persistLock, typeCoverageInput);
   }
 
   // ── Step 8: GC + canonical rewrite (§3.2). ────────────────────────────────
@@ -1047,6 +1055,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
     nowUtc: opts.reviewNowUtc,
     rulesArtifacts: opts.rulesArtifacts,
     trackedFiles: opts.trackedFiles,
+    precomputedTypeCoverage: typeCoverageResult,
   });
 
   // ── Convergence sentinel (C15) — READ-ONLY over the fill's own state. ──────

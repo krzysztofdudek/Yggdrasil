@@ -10,6 +10,11 @@ import { buildIssueMessage } from '../formatters/message-builder.js';
 import type { Violation as AstViolation } from '../ast/types.js';
 import type { Violation as StructureViolation } from '../structure/types.js';
 import { computeExpectedPairs, computeNodeMappedFiles } from '../core/pairs.js';
+import type { TypeCoverageInput } from '../core/pairs.js';
+import { scanUncoveredFiles } from '../core/check.js';
+import { computeTypeCoverage } from '../core/type-coverage.js';
+import { walkRepoFiles } from '../io/repo-scanner.js';
+import { FileContentCache } from '../io/file-content-cache.js';
 import { computeEffectiveAspects } from '../core/graph/aspects.js';
 import { buildPairPrompt, PROMPT_FORMAT_REV } from '../llm/prompt.js';
 import type { PromptReferenceInput, PromptFileInput, PromptCompanionInput, PromptSuppressedRangesInput } from '../llm/prompt.js';
@@ -448,6 +453,26 @@ async function resolveSuppressedRangesForTest(
 }
 
 /**
+ * The type-level classification lattice (coverage.type_level), classified for
+ * this one `yg aspect test` invocation. Undefined when the flag is off, so
+ * computeExpectedPairs enumerates exactly the component-only universe it
+ * always has. Threading it here changes nothing for a `--node`-scoped lookup
+ * (nodeless pairs never match a `nodePath` filter) — it is real classification
+ * data so the file-addressed lookup a future `--file` mode adds finds it
+ * already wired, rather than needing this call site touched again.
+ */
+async function computeTypeCoverageForAspectTest(
+  graph: import('../model/graph.js').Graph,
+  projectRoot: string,
+): Promise<TypeCoverageInput | undefined> {
+  if (!graph.config.coverage?.typeLevel) return undefined;
+  const gitFiles = await walkRepoFiles(projectRoot);
+  const uncovered = scanUncoveredFiles(graph, gitFiles);
+  const result = await computeTypeCoverage(graph, uncovered, new FileContentCache());
+  return { covered: result.covered, ambiguousPaths: result.ambiguous.map((a) => a.file) };
+}
+
+/**
  * Run (or dry-run) an LLM aspect against a graph node. Builds pair prompts via
  * computeExpectedPairs filtered to the given aspect+node, runs verifyWithConsensus
  * per prompt, and prints results. The lock is NEVER written. Returns the exit
@@ -530,7 +555,8 @@ async function runLlmAspectTest(
   // Compute the expected pairs filtered to this aspect+node. Drafts are
   // included: status gates the lock/fill, never this diagnostic — a draft
   // aspect runs here exactly like an enforced one.
-  const { pairs } = await computeExpectedPairs(graph, { includeDraft: true });
+  const typeCoverage = await computeTypeCoverageForAspectTest(graph, projectRoot);
+  const { pairs } = await computeExpectedPairs(graph, { includeDraft: true, typeCoverage });
   const myPairs = pairs.filter(
     (p) => p.aspectId === aspect.id && p.nodePath === nodePath && p.kind === 'llm',
   );

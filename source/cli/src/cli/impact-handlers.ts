@@ -14,10 +14,28 @@ import { FileContentCache } from '../io/file-content-cache.js';
 import { walkRepoFiles } from '../io/repo-scanner.js';
 import { evaluateFileWhen } from '../core/file-when-evaluator.js';
 import { computeExpectedPairs } from '../core/pairs.js';
+import type { TypeCoverageInput } from '../core/pairs.js';
+import { scanUncoveredFiles } from '../core/check.js';
+import { computeTypeCoverage } from '../core/type-coverage.js';
 import { resolveCompanionsForPair } from '../core/companion-resolve.js';
 import { selectTierForAspect } from '../core/tier-selection.js';
 import type { Graph } from '../model/graph.js';
 import type { LockFile } from '../model/lock.js';
+
+/**
+ * The type-level classification lattice (coverage.type_level), classified for
+ * this one command invocation — mirrors runCheck's own hoist (core/check.ts),
+ * but at the scale of a single `yg impact` call rather than a whole check run.
+ * Undefined when the flag is off, so computeExpectedPairs enumerates exactly
+ * the component-only universe it always has.
+ */
+async function computeTypeCoverageForImpact(graph: Graph, projectRoot: string): Promise<TypeCoverageInput | undefined> {
+  if (!graph.config.coverage?.typeLevel) return undefined;
+  const gitFiles = await walkRepoFiles(projectRoot);
+  const uncovered = scanUncoveredFiles(graph, gitFiles);
+  const result = await computeTypeCoverage(graph, uncovered, new FileContentCache());
+  return { covered: result.covered, ambiguousPaths: result.ambiguous.map((a) => a.file) };
+}
 
 // ============================================================
 // collectInvalidatedPairs — async, runs cold companion resolver
@@ -40,7 +58,8 @@ export async function collectInvalidatedPairs(
   lock: LockFile,
   projectRoot: string,
 ): Promise<ImpactSet> {
-  const { pairs } = await computeExpectedPairs(graph);
+  const typeCoverage = await computeTypeCoverageForImpact(graph, projectRoot);
+  const { pairs } = await computeExpectedPairs(graph, { typeCoverage });
   const { pairs: admitted, coldCompanionCandidates } = classifyInvalidations(pairs, graph, repoRelative, lock);
   const unresolved: UnresolvedUnit[] = [];
 
@@ -85,6 +104,7 @@ export async function handleAspectImpact(
   graph: Graph,
   aspectId: string,
   lock: LockFile,
+  projectRoot: string,
 ): Promise<void> {
   const aspect = graph.aspects.find((a) => a.id === aspectId);
   if (!aspect) {
@@ -153,7 +173,7 @@ export async function handleAspectImpact(
   // Cost: how many pairs of THIS aspect would become unverified, and (for an LLM
   // aspect) the reviewer calls a re-fill would cost. per: file scope produces one
   // unit per subject file, so count from the expected-pair set, not node count.
-  const cost = await computeAspectFillCost(graph, aspectId);
+  const cost = await computeAspectFillCost(graph, aspectId, projectRoot);
 
   process.stdout.write(`Impact of changes in aspect ${aspectId}:\n\n`);
   process.stdout.write(`Directly affected (${affected.length}):\n`);
@@ -199,9 +219,10 @@ interface FillCost {
  * re-fill would dispatch (units × the resolved tier consensus). Deterministic
  * aspects are free (0 reviewer calls).
  */
-async function computeAspectFillCost(graph: Graph, aspectId: string): Promise<FillCost> {
+async function computeAspectFillCost(graph: Graph, aspectId: string, projectRoot: string): Promise<FillCost> {
   const aspect = graph.aspects.find((a) => a.id === aspectId);
-  const { pairs } = await computeExpectedPairs(graph);
+  const typeCoverage = await computeTypeCoverageForImpact(graph, projectRoot);
+  const { pairs } = await computeExpectedPairs(graph, { typeCoverage });
   const units = pairs.filter((p) => p.aspectId === aspectId).length;
 
   if (!aspect || aspect.reviewer.type === 'deterministic') {

@@ -3,9 +3,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { mkdtemp, cp, rm, writeFile } from 'node:fs/promises';
+import { mkdtempSync, cpSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import type { Graph } from '../../../src/model/graph.js';
-import { summarizeImpact, renderImpactTotal } from '../../../src/cli/impact-handlers.js';
+import { summarizeImpact, renderImpactTotal, collectInvalidatedPairs } from '../../../src/cli/impact-handlers.js';
+import { loadGraph } from '../../../src/core/graph-loader.js';
+import { readLock } from '../../../src/io/lock-store.js';
+import { FIXTURE_TWO_COVERED_FILES } from '../../fixtures/type-level-engine/variants/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -62,6 +66,22 @@ function makeGraphWithReviewer(): Graph {
 const CLI_ROOT = path.join(__dirname, '../../..');
 const BIN_PATH = path.join(CLI_ROOT, 'dist', 'bin.js');
 const FIXTURE = path.join(CLI_ROOT, 'tests', 'fixtures', 'sample-project');
+const TYPE_LEVEL_BASE = path.join(CLI_ROOT, 'tests', 'fixtures', 'type-level-engine');
+
+/**
+ * The base type-level-engine fixture merged with its two-covered-files variant:
+ * one real node (`owned`, type `leaf`) alongside two componentless files
+ * (src/leaf/{a,b}.ts) matching the SAME type, which also carries llm-leaf-rule
+ * and refuses-on-a. Used to prove computeExpectedPairs is threaded real
+ * type-coverage classification at the `yg impact` call sites, not left
+ * answering about a component-only universe.
+ */
+function mergedTypeLevelFixtureCopy(): string {
+  const dir = mkdtempSync(path.join(tmpdir(), 'ygg-impact-typelevel-'));
+  cpSync(TYPE_LEVEL_BASE, dir, { recursive: true });
+  cpSync(FIXTURE_TWO_COVERED_FILES, dir, { recursive: true });
+  return dir;
+}
 
 async function withFixtureCopy<T>(fn: (cwd: string) => Promise<T>): Promise<T> {
   const root = await mkdtemp(path.join(tmpdir(), 'ygg-impact-'));
@@ -647,5 +667,51 @@ describe('summarizeImpact + renderImpactTotal', () => {
     const out = renderImpactTotal(s, 'apps/x/a.ts', { isTTY: false });
     expect(out).toContain('Unresolved');
     expect(out).toContain('scenarios');
+  });
+});
+
+// ===========================================================================
+// Type-level coverage threading — `yg impact --aspect` and `--file` must count
+// the SAME expected-pair universe `yg check` counts, including a file enforced
+// by its architecture type alone (no owning component). Real fixture, real
+// binary / real function call — no fabricated pair data.
+// ===========================================================================
+
+describe('yg impact — type-level coverage threading', () => {
+  it('--aspect counts a componentless file-level pair sharing the aspect-holding type, not just the one node that also has it', () => {
+    const dir = mergedTypeLevelFixtureCopy();
+    try {
+      const result = spawnSync('node', [BIN_PATH, 'impact', '--aspect', 'llm-leaf-rule'], { cwd: dir, encoding: 'utf-8' });
+      expect(result.status).toBe(0);
+      // llm-leaf-rule is attached to type `leaf`. `owned` (a real node of that
+      // type) contributes its own one pair; src/leaf/a.ts and src/leaf/b.ts
+      // (componentless, matched by the same type) contribute one pair each —
+      // 3 total, not 1. Without threading, computeAspectFillCost would only
+      // ever see the 1 node-owned pair.
+      expect(result.stdout).toContain('(3 pair(s))');
+      expect(result.stdout).toContain('3 reviewer call(s)');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('--file (collectInvalidatedPairs) admits a componentless file-level pair by "own" reason, with no owning node', async () => {
+    const dir = mergedTypeLevelFixtureCopy();
+    try {
+      const graph = await loadGraph(dir);
+      const lock = readLock(graph.rootPath);
+      const set = await collectInvalidatedPairs(graph, 'src/leaf/a.ts', lock, dir);
+      const own = set.pairs.filter((p) => p.reasons.includes('own'));
+      const ownAspectIds = own.map((p) => p.aspectId);
+      // The two-covered-files variant's own aspects (the deterministic
+      // refuses-on-a and the LLM llm-leaf-rule) are among the file-level pairs
+      // admitted for src/leaf/a.ts, alongside the base fixture's own leaf-type
+      // attachments (own-file-rule etc.) — none of them have an owning node.
+      expect(ownAspectIds).toContain('llm-leaf-rule');
+      expect(ownAspectIds).toContain('refuses-on-a');
+      expect(own.every((p) => p.nodePath === undefined)).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

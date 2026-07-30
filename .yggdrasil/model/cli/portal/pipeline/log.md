@@ -44,3 +44,5 @@ The wall clock the report is built against is now created here, at the pipeline 
 The stamp recording when the report was generated is deliberately left as its own separate reading taken after generation finishes, so it continues to say when the work ended rather than when it began.
 ## [2026-07-28T19:46:12.134Z]
 The portal's per-node and per-flow indexing now explicitly skips a review subject with no owning component instead of letting it become an invalid map key.
+## [2026-07-30T07:13:53.055Z]
+Threads the portal's once-per-run type-coverage classification into the check, lock-verification, and pair-count calls, so the reported counts include a file enforced by its architecture type alone instead of silently excluding it from the denominator.

@@ -107,6 +107,10 @@ const SIDE_EFFECT_ONLY = new Map([
     'now',
     "supplies the clock stamped into that byproduct index's generatedAt; never reaches the issue set.",
   ],
+  [
+    'precomputedTypeCoverage',
+    'supplies a type-coverage classification the caller already ran this run (e.g. runFill, before its own fill/GC steps); only decides whether runCheck classifies again or reuses it, never which issues appear — the classified result is identical either way for an unchanged file set.',
+  ],
 ]);
 
 /** tree-sitter counts `comment` as a NAMED child of argument lists, parameter

@@ -16,11 +16,15 @@ relations:
     type: calls
   - target: cli/core/pairs
     type: calls
+  - target: cli/core/type-coverage
+    type: calls
   - target: cli/core/graph
     type: calls
   - target: cli/io/stores
     type: calls
   - target: cli/io/incident-ledger
+    type: calls
+  - target: cli/io/file-content-cache
     type: calls
   - target: cli/io/parsers/aspect
     type: calls
