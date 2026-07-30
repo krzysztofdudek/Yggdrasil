@@ -228,8 +228,9 @@ async function verifyLlmPair(
   //    mismatch ⇒ unverified, never a throw. A plain aspect stored no touched, so
   //    touchedNow stays [] and is NOT folded (the hash guards on length). A
   //    nodeless unit seeds reObserve with the empty component context (''); its
-  //    stored set can never carry a graph-bytype/-children/-flow key (Task 7
-  //    forbids the calls that would produce one for a nodeless unit), so
+  //    stored set can never carry a graph-bytype/-children/-flow key (a
+  //    nodeless unit's ctx.graph refuses every call, so those observation
+  //    kinds can never be recorded for one in the first place), so
   //    reObserve's component-scoped branches are unreachable here — pinned by a
   //    test, no new branch needed. ──
   const stored = storedEntry?.touched ?? [];

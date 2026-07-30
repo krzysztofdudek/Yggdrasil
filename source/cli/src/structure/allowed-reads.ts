@@ -1,5 +1,6 @@
-import type { Graph, GraphNode } from '../model/graph.js';
+import type { ArchitectureDef, Graph, GraphNode } from '../model/graph.js';
 import { normalizeMappingPath } from './expand-mapping-sync.js';
+import { allowedRelationTypes } from '../core/allowed-relation-types.js';
 
 /**
  * Computes the set of repo-relative paths a structure aspect on `nodePath`
@@ -105,4 +106,74 @@ export function collectAllowedReadsForAspect(nodePath: string, graph: Graph): Se
   }
 
   return allowed;
+}
+
+// ============================================================
+// collectArchitectureReach — the allowance for a component-free unit
+// ============================================================
+
+/**
+ * Input to {@link collectArchitectureReach}. All four fields describe ONE run's
+ * worth of shared, run-constant facts — never anything that varies per pair —
+ * so a caller computes this once and reuses it across every nodeless file this
+ * run reviews.
+ */
+export interface ArchitectureReachInput {
+  /** The matched type of the subject file. */
+  fromType: string;
+  /** file → matched type, for every file enforced by its type alone. */
+  typeCovered: Map<string, string>;
+  architecture: ArchitectureDef;
+  graph: Graph;
+}
+
+/**
+ * The files a rule running on one file — with no component of its own — may
+ * read. The subject file itself, plus every file whose type the subject's type
+ * is permitted to depend on under the architecture's relation allow-list —
+ * whether that file belongs to a declared component or is itself enforced by
+ * its type alone. There is no per-component narrowing to apply here (there is
+ * no component), so the architecture's allow-list is the ONLY statement of
+ * what may reach what — the SAME authority {@link allowedRelationTypes} gives
+ * the live type-relation gate over derived edges.
+ *
+ * `allowedRelationTypes(architecture, fromType, toType) !== []` is the
+ * membership test for both declared-component targets (`toType` = the
+ * component's own node type) and other type-covered files (`toType` = the
+ * file's matched type) — any ONE permitted relation kind admits the read; the
+ * exact kind is never inspected.
+ *
+ * `fromType` unknown to the architecture makes `allowedRelationTypes` return
+ * `[]` for every target, so the reach degrades to `{ subjectFile }` alone —
+ * fail-closed by construction, never a throw.
+ *
+ * This is a fill-time guard only, exactly like a component's own allowed-reads
+ * set: it is computed once, at fill time, from the architecture and graph as
+ * they stand THEN. A later narrowing of the architecture's relation allow-list
+ * does not retroactively invalidate an already-stored result — nothing that
+ * was actually observed changed. There is no continuous re-enforcement of this
+ * boundary the way `yg check` continuously re-verifies a live import graph.
+ */
+export function collectArchitectureReach(subjectFile: string, input: ArchitectureReachInput): Set<string> {
+  const { fromType, typeCovered, architecture, graph } = input;
+  const reach = new Set<string>([subjectFile]);
+
+  // Declared components: every file of a component whose own node type this
+  // subject's type may depend on (any permitted relation kind admits it).
+  for (const node of graph.nodes.values()) {
+    const toType = node.meta.type;
+    if (allowedRelationTypes(architecture, fromType, toType).length === 0) continue;
+    for (const raw of node.meta.mapping ?? []) {
+      const p = normalizeMappingPath(raw);
+      if (p) reach.add(p);
+    }
+  }
+
+  // Other files enforced by their type alone (no component of their own).
+  for (const [file, toType] of typeCovered) {
+    if (allowedRelationTypes(architecture, fromType, toType).length === 0) continue;
+    reach.add(file);
+  }
+
+  return reach;
 }

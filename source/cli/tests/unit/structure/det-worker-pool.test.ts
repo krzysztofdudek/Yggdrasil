@@ -53,7 +53,7 @@ describe('DetWorkerPool', () => {
 
   it('runs a check on a worker and matches the in-process result exactly', async () => {
     const dir = writeCheck('a1', `export function check(ctx) { void ctx; return [{ message: 'bad', file: 'src/a.ts', line: 1 }]; }\n`);
-    const task = { aspectDir: dir, aspectId: 'a1', nodePath: 'N' };
+    const task = { aspectDir: dir, aspectId: 'a1', unit: { kind: 'node' as const, nodePath: 'N' } };
     const pool = newPool(2);
     const reply = await pool.run(task);
     expect(reply.ok).toBe(true);
@@ -70,7 +70,7 @@ describe('DetWorkerPool', () => {
     const dir = writeCheck('a2', 'export function check(ctx) { void ctx; return []; }\n');
     const pool = newPool(3);
     const replies = await Promise.all(
-      Array.from({ length: 12 }, () => pool.run({ aspectDir: dir, aspectId: 'a2', nodePath: 'N' })),
+      Array.from({ length: 12 }, () => pool.run({ aspectDir: dir, aspectId: 'a2', unit: { kind: 'node', nodePath: 'N' } })),
     );
     expect(replies).toHaveLength(12);
     expect(replies.every((r) => r.ok)).toBe(true);
@@ -81,7 +81,7 @@ describe('DetWorkerPool', () => {
   it('fails closed when the check errors (ok:false, not a throw)', async () => {
     const dir = writeCheck('a3', 'export async function check(ctx) { void ctx; return []; }\n');
     const pool = newPool(1);
-    const reply = await pool.run({ aspectDir: dir, aspectId: 'a3', nodePath: 'N' });
+    const reply = await pool.run({ aspectDir: dir, aspectId: 'a3', unit: { kind: 'node', nodePath: 'N' } });
     expect(reply.ok).toBe(false);
     if (!reply.ok) expect(reply.error.message).toContain('STRUCTURE_CHECK_ASYNC');
   });
@@ -92,19 +92,19 @@ describe('DetWorkerPool', () => {
     const crashDir = writeCheck('crash', 'export function check(ctx) { void ctx; process.exit(1); }\n');
     const okDir = writeCheck('ok', 'export function check(ctx) { void ctx; return []; }\n');
     const pool = newPool(1);
-    const crashed = await pool.run({ aspectDir: crashDir, aspectId: 'crash', nodePath: 'N' });
+    const crashed = await pool.run({ aspectDir: crashDir, aspectId: 'crash', unit: { kind: 'node', nodePath: 'N' } });
     expect(crashed.ok).toBe(false);
     if (!crashed.ok) expect(crashed.error.message).toContain('exited');
     expect(pool.workerCount).toBe(1); // respawned
     // The replacement worker serves the next task normally.
-    const after = await pool.run({ aspectDir: okDir, aspectId: 'ok', nodePath: 'N' });
+    const after = await pool.run({ aspectDir: okDir, aspectId: 'ok', unit: { kind: 'node', nodePath: 'N' } });
     expect(after.ok).toBe(true);
   });
 
   it('returns an error reply when run after destroy', async () => {
     const pool = newPool(1);
     await pool.destroy();
-    const reply = await pool.run({ aspectDir: path.join(projectRoot, '.yggdrasil/aspects/x'), aspectId: 'x', nodePath: 'N' });
+    const reply = await pool.run({ aspectDir: path.join(projectRoot, '.yggdrasil/aspects/x'), aspectId: 'x', unit: { kind: 'node', nodePath: 'N' } });
     expect(reply.ok).toBe(false);
     if (!reply.ok) expect(reply.error.message).toContain('destroyed');
     expect(pool.workerCount).toBe(0);
@@ -116,32 +116,31 @@ describe('DetWorkerPool', () => {
     await expect(pool.destroy()).resolves.toBeUndefined();
   });
 
-  it('receives and returns a reply for a nodeless task (nodePath: "") exactly like any other task', async () => {
-    // core/fill-det.ts's interim convention for a file enforced by its type alone
-    // (no owning component) is `nodePath: ''` with the pair's own subjectFiles as
-    // subjectScope — the pool itself has no opinion on that value; it dispatches
-    // whatever request it is given and returns a reply correlated by id, so a
-    // nodeless task must round-trip exactly like a component-owned one: never
-    // dropped, never merged with another task's reply. The check underneath still
-    // infra-errors on an empty nodePath (structure/hook-loader.ts resolves the
-    // node BEFORE the check body runs — a known, separately-tracked limitation),
-    // so this pins the pool's OWN contract (one reply per task, correctly
-    // correlated), not that a nodeless check can complete yet.
-    const dir = writeCheck('nodeless', 'export function check(ctx) { void ctx; return []; }\n');
+  it('receives and returns a reply for a nodeless task (unit.kind === "file") exactly like a component-owned one', async () => {
+    // The pool has no opinion on unit.kind — it dispatches whatever request it
+    // is given and returns a reply correlated by id, so a nodeless task
+    // (a file with no owning component, carrying its own allowedReads instead
+    // of a component's mapping) round-trips exactly like a node-owned one:
+    // never dropped, never merged with another task's reply, and its check
+    // actually runs and reaches a real verdict — the pool classifies nothing
+    // of its own; the request already carries everything the check needs.
+    const dir = writeCheck('nodeless', `export function check(ctx) {
+      return [{ message: 'subject=' + ctx.subject[0].path }];
+    }`);
     const pool = newPool(2);
     const tasks = [
-      { aspectDir: dir, aspectId: 'nodeless', nodePath: 'N' },
-      { aspectDir: dir, aspectId: 'nodeless', nodePath: '', subjectScope: ['src/a.ts'] },
-      { aspectDir: dir, aspectId: 'nodeless', nodePath: '', subjectScope: ['src/a.ts'] },
+      { aspectDir: dir, aspectId: 'nodeless', unit: { kind: 'node' as const, nodePath: 'N' } },
+      { aspectDir: dir, aspectId: 'nodeless', unit: { kind: 'file' as const, file: 'src/a.ts', typeId: 'leaf', allowedReads: ['src/a.ts'] } },
+      { aspectDir: dir, aspectId: 'nodeless', unit: { kind: 'file' as const, file: 'src/a.ts', typeId: 'leaf', allowedReads: ['src/a.ts'] } },
     ];
     const replies = await Promise.all(tasks.map((t) => pool.run(t)));
     // Count: every submitted task got exactly one reply back.
     expect(replies).toHaveLength(tasks.length);
     expect(new Set(replies.map((r) => r.id)).size).toBe(tasks.length);
-    expect(replies[0].ok).toBe(true);
-    // The nodeless tasks round-trip too (not silently dropped) even though the
-    // check underneath cannot succeed yet.
-    expect(replies[1].ok).toBe(false);
-    expect(replies[2].ok).toBe(false);
+    // Every task — component-owned AND nodeless alike — reaches a real verdict.
+    for (const reply of replies) {
+      expect(reply.ok).toBe(true);
+      if (reply.ok) expect(reply.result.violations[0]?.message).toBe('subject=src/a.ts');
+    }
   });
 });

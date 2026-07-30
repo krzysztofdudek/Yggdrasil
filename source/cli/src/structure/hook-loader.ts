@@ -3,7 +3,10 @@ import * as path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { ensureLoaderRegistered } from '../ast/loader-hook.js';
 import { createCtxFs, UndeclaredFsReadError } from './ctx-fs.js';
-import { createCtxGraph, UndeclaredGraphReadError, computeAllowedNodePaths, recordNodeGraphObservation } from './ctx-graph.js';
+import {
+  createCtxGraph, createNodelessCtxGraph, UndeclaredGraphReadError, StructureNodeContextUnavailableError,
+  computeAllowedNodePaths, recordNodeGraphObservation,
+} from './ctx-graph.js';
 import { createCtxParsers, prewarmupAstCache, enrichFilesWithAst, ParseAstNotPrewarmedError } from './ctx-parsers.js';
 import { collectAllowedReadsForAspect } from './allowed-reads.js';
 import { normalizeMappingPath, isPathInMapping } from './expand-mapping-sync.js';
@@ -190,19 +193,35 @@ export async function loadHookModule(params: LoadHookModuleParams): Promise<Reco
   }
 }
 
+/**
+ * How a deterministic/companion unit addresses its subject. A `node` unit is
+ * owned by a real component (today's behavior, byte-identical). A `file` unit
+ * has NO owning component — a file enforced by its architecture type alone
+ * (coverage.type_level) — and carries its own allowance (`allowedReads`,
+ * computed once per run by the caller via `collectArchitectureReach`) instead
+ * of one derived from a component's mapping. `typeId` is the file's matched
+ * architecture type — carried for diagnostics; the runner does not re-derive
+ * anything from it.
+ */
+export type StructureUnit =
+  | { kind: 'node'; nodePath: string }
+  | { kind: 'file'; file: string; typeId: string; allowedReads: string[] };
+
 export interface BuildUnitCtxParams {
   aspectId: string;
-  nodePath: string;
+  unit: StructureUnit;
   graph: Graph;
   projectRoot: string;
   astCache: ParseCache;
   touchedFiles: string[];
   /**
-   * Subject-scope override for a `per: file` unit. When present it overrides BOTH
-   * `ctx.files` (the unit sees only these subject files) AND the observation-
-   * EXCLUSION set (a read of any OTHER node file folds as a recorded `read:`
-   * observation, since it is no longer hashed as a subject input). Repo-relative
-   * POSIX paths. Absent → byte-identical legacy whole-node behavior.
+   * Subject-scope override for a `per: file` unit owned by a component. When
+   * present it overrides BOTH `ctx.files` (the unit sees only these subject
+   * files) AND the observation-EXCLUSION set (a read of any OTHER node file
+   * folds as a recorded `read:` observation, since it is no longer hashed as a
+   * subject input). Repo-relative POSIX paths. Absent → byte-identical legacy
+   * whole-node behavior. Ignored for a `unit.kind === 'file'` unit — its
+   * single subject is `unit.file`, never narrowed or widened by this.
    */
   subjectScope?: string[];
 }
@@ -210,8 +229,8 @@ export interface BuildUnitCtxParams {
 export interface BuildUnitCtxResult {
   ctx: Ctx;
   recorder: ObservationRecorder;
-  /** The resolved model node (already confirmed present). */
-  node: ModelNode;
+  /** The resolved model node — undefined for a `unit.kind === 'file'` unit (no owning component). */
+  node: ModelNode | undefined;
   /** The unit's subject-exclusion set (paths hashed as subject inputs). */
   subjectFiles: Set<string>;
   /** Own-mapping files (child carve-out applied), without AST enrichment. */
@@ -232,8 +251,14 @@ export interface BuildUnitCtxResult {
  * graph-bytype/graph-children observations and must reproduce identical hashes.
  */
 export async function buildUnitCtx(params: BuildUnitCtxParams): Promise<BuildUnitCtxResult> {
-  const { aspectId, nodePath, graph, projectRoot, astCache, touchedFiles, subjectScope } = params;
+  const { aspectId, unit, graph, projectRoot, astCache, touchedFiles, subjectScope } = params;
+  void aspectId; // unused here — the loader threads it through unchanged; callers use it for messaging
 
+  if (unit.kind === 'file') {
+    return buildNodelessUnitCtx({ unit, projectRoot, astCache, touchedFiles });
+  }
+
+  const nodePath = unit.nodePath;
   const node = graph.nodes.get(nodePath);
   if (!node) {
     throw new StructureRunnerError('STRUCTURE_NODE_MISSING', {
@@ -242,7 +267,6 @@ export async function buildUnitCtx(params: BuildUnitCtxParams): Promise<BuildUni
       next: `Pass an existing node path, or add the node to the graph.`,
     });
   }
-  void aspectId;
 
   const allowedSet = collectAllowedReadsForAspect(nodePath, graph);
 
@@ -374,10 +398,97 @@ export async function buildUnitCtx(params: BuildUnitCtxParams): Promise<BuildUni
   return { ctx, recorder, node, subjectFiles, ownFiles, astInputSet };
 }
 
+/**
+ * Build the ctx for a unit with NO owning component — a file enforced by its
+ * architecture type alone (coverage.type_level). `unit.allowedReads` (computed
+ * once per run by the caller via `collectArchitectureReach`, structure/allowed-reads.ts)
+ * stands in for the component-derived allow-set `ctx.fs` / `ctx.parseAst` enforce
+ * identically (no logic change there — only the allowance SET differs).
+ *
+ * `ctx.node` and `ctx.graph` are unavailable: there is no yg-node.yaml backing
+ * either, so every property access on `ctx.node` and every `ctx.graph.*` call
+ * raises `StructureNodeContextUnavailableError` — translated to the typed,
+ * fail-closed `STRUCTURE_NODE_CONTEXT_UNAVAILABLE` disposition at the runner
+ * boundary (structure/runner.ts) — rather than a silent empty/undefined result
+ * an author could mistake for "reachable, but nothing there."
+ *
+ * The observation seed starts empty and STAYS empty for anything graph-shaped:
+ * because ctx.graph refuses every call, the graph:/graph-children:/graph-bytype:/
+ * graph-flow: observation kinds can never be recorded here — precisely why
+ * re-verification needs no component (verify-lock.ts's `reObserve` never has to
+ * resolve any of those keys for a nodeless pair).
+ */
+async function buildNodelessUnitCtx(params: {
+  unit: Extract<StructureUnit, { kind: 'file' }>;
+  projectRoot: string;
+  astCache: ParseCache;
+  touchedFiles: string[];
+}): Promise<BuildUnitCtxResult> {
+  const { unit, projectRoot, astCache, touchedFiles } = params;
+
+  const allowedSet = new Set<string>(unit.allowedReads);
+  const recorder = new ObservationRecorder();
+  // The subject is the file itself, so its own content is a subject input and
+  // is not double-recorded — mirrors the whole-node per:file case exactly.
+  const subjectFiles = new Set<string>([unit.file]);
+
+  const ctxFs = createCtxFs({ allowedSet, projectRoot, touchedFiles, recorder, subjectFiles });
+  const parsers = createCtxParsers({ allowedSet, projectRoot, touchedFiles, astCache, recorder, subjectFiles });
+
+  // Read the subject file directly — there is no mapping to expand and no
+  // children to carve out (there is no component). Binary-by-extension and
+  // unreadable are both skipped silently, mirroring buildOwnFiles' own
+  // per-file policy; ctx.subject simply reads back empty in that case, same
+  // as a vanished own-file does for a real node.
+  const ownFiles: File[] = [];
+  if (!BINARY_EXTENSIONS.has(path.extname(unit.file).toLowerCase())) {
+    try {
+      const content = fs.readFileSync(path.resolve(projectRoot, unit.file), 'utf8');
+      ownFiles.push({ path: unit.file, content });
+      touchedFiles.push(unit.file);
+    } catch {/* unreadable — skip, mirrors buildOwnFiles */}
+  }
+
+  // Eagerly parse the subject file so ctx.subject carries .ast + .language
+  // (AST-aspect parity) — exactly as the whole-node path does for ctx.files.
+  await prewarmupAstCache({ astCache, projectRoot, files: ownFiles });
+  const ownFilesEnriched = enrichFilesWithAst(ownFiles, astCache);
+
+  const ctxNode = new Proxy({} as Ctx['node'], {
+    get(_target, prop): never {
+      throw new StructureNodeContextUnavailableError(`node.${String(prop)}`);
+    },
+  });
+  const ctxGraph = createNodelessCtxGraph();
+
+  const ctx: Ctx = {
+    node: ctxNode,
+    files: ownFilesEnriched,
+    // ctx.subject === ctx.files: the same array reference (the documented
+    // alias contract), there being no ctx.node.files to alias to instead.
+    subject: ownFilesEnriched,
+    fs: ctxFs,
+    graph: ctxGraph,
+    parseAst: parsers.parseAst,
+    parseYaml: parsers.parseYaml,
+    parseJson: parsers.parseJson,
+    parseToml: parsers.parseToml,
+  };
+
+  return {
+    ctx,
+    recorder,
+    node: undefined,
+    subjectFiles,
+    ownFiles: ownFilesEnriched,
+    astInputSet: ownFilesEnriched,
+  };
+}
+
 export interface RunCompanionHookParams {
   aspectDir: string;
   aspectId: string;
-  nodePath: string;
+  unit: StructureUnit;
   graph: Graph;
   projectRoot: string;
   parseCache?: ParseCache;
@@ -408,7 +519,7 @@ function companionInfra(what: string, why: string, next: string): CompanionInfra
  * out-of-subject observations into the LLM pair hash (`touched`).
  */
 export async function runCompanionHook(params: RunCompanionHookParams): Promise<RunCompanionHookResult> {
-  const { aspectDir, aspectId, nodePath, graph, projectRoot, subjectScope } = params;
+  const { aspectDir, aspectId, unit, graph, projectRoot, subjectScope } = params;
   const ownCache = !params.parseCache;
   const astCache: ParseCache = params.parseCache ?? new Map();
   const touchedFiles: string[] = [];
@@ -447,7 +558,7 @@ export async function runCompanionHook(params: RunCompanionHookParams): Promise<
   // Build the unit-scoped ctx (shared with the deterministic runner).
   let built: BuildUnitCtxResult;
   try {
-    built = await buildUnitCtx({ aspectId, nodePath, graph, projectRoot, astCache, touchedFiles, subjectScope });
+    built = await buildUnitCtx({ aspectId, unit, graph, projectRoot, astCache, touchedFiles, subjectScope });
   } catch (err) {
     if (err instanceof StructureRunnerError) {
       return { kind: 'infra', messageData: err.messageData };

@@ -71,3 +71,5 @@ The aspect diagnostic decides whether the rule under test is genuinely in force 
 The companion-resolution helper this command uses now handles a subject with no owning component explicitly instead of assuming one exists, matching the same fix already made to the shared fill-time resolver.
 ## [2026-07-30T07:13:40.299Z]
 Threads real type-coverage classification into the pair lookup this command filters, so the universe it searches is complete rather than silently excluding files enforced only by their architecture type.
+## [2026-07-30T09:19:26.144Z]
+Ad-hoc runs against a graph node, and companion resolution for a pair, now address their subject through an explicit unit descriptor instead of a bare node path, so the same request shape can later carry a file with no owning component. Behavior for --node and --files testing is unchanged; this only widens the addressing type the underlying runner accepts.

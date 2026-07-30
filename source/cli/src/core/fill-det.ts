@@ -10,15 +10,60 @@ import path from 'node:path';
 import type { Graph, AspectDef } from '../model/graph.js';
 import type { VerdictEntry, Verdict } from '../model/lock.js';
 import type { IssueMessage } from '../model/validation.js';
-import type { ExpectedPair } from './pairs.js';
+import type { ExpectedPair, TypeCoverageInput } from './pairs.js';
 import { computeNodeMappedFiles } from './pairs.js';
 import { computeDetInputHash } from './pair-hash.js';
 import { ruleHashFor } from './pair-inputs.js';
 import { hashBytes } from '../io/hash.js';
 import { runStructureAspect, StructureRunnerError, SUPPRESS_MARKER_MALFORMED_CODE } from '../structure/runner.js';
+import type { StructureUnit } from '../structure/runner.js';
+import { collectArchitectureReach } from '../structure/allowed-reads.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { toPosixPath } from '../utils/posix.js';
 import { readBytesOrEmpty, type DetFillOutcome } from './fill-shared.js';
+
+/**
+ * A subject-file-INDEPENDENT sentinel repo-relative path, used only as the
+ * throwaway `subjectFile` argument when computing the type-dependent part of
+ * an architecture reach (declared-component and type-covered files the
+ * architecture permits `fromType` to depend on) once per type, cacheable
+ * across every nodeless file of that type this run. A real repo-relative path
+ * is never empty and never contains NUL, so this can never collide with one;
+ * the sentinel itself is deleted from the result before caching, so the cached
+ * set holds only the type-dependent part — never a specific file's own
+ * identity, which the caller re-adds per file (see `reachExtraForType`).
+ */
+const REACH_SENTINEL_FILE = '\0';
+
+/**
+ * The type-dependent part of `collectArchitectureReach` for `fromType`
+ * (declared-component files and other type-covered files the architecture
+ * permits `fromType` to depend on) — cached by `fromType` so a run reviewing
+ * many files of the same type computes this ONCE (K9: a per-pair recomputation
+ * over a repo with thousands of files would dominate the run). The caller
+ * unions in its OWN subject file afterward (cheap, O(1) per file) — never
+ * cached here, since a DIFFERENT file's own identity must never leak into
+ * another file's allowance when the architecture does not itself permit
+ * `fromType` to depend on `fromType`.
+ */
+function reachExtraForType(
+  fromType: string,
+  typeCoverage: TypeCoverageInput | undefined,
+  graph: Graph,
+  reachCache: Map<string, Set<string>>,
+): Set<string> {
+  const cached = reachCache.get(fromType);
+  if (cached) return cached;
+  const full = collectArchitectureReach(REACH_SENTINEL_FILE, {
+    fromType,
+    typeCovered: typeCoverage?.covered ?? new Map<string, string>(),
+    architecture: graph.architecture,
+    graph,
+  });
+  full.delete(REACH_SENTINEL_FILE);
+  reachCache.set(fromType, full);
+  return full;
+}
 
 /**
  * Fill one deterministic pair. Runs check.mjs through the structure runner with a
@@ -61,6 +106,14 @@ export async function fillDetPair(
   // StructureRunnerError on the parent so the catch below is byte-for-byte
   // unchanged. Only SPEED differs — the verdict is identical either way.
   runStructure: typeof runStructureAspect = runStructureAspect,
+  // Type-level coverage facts for this run (absent ⇒ no nodeless pairs exist,
+  // the feature-off contract every other type-coverage consumer already
+  // follows). Only consulted for a pair with no owning component.
+  typeCoverage?: TypeCoverageInput,
+  // Shared across every fillDetPair call THIS RUN (the caller constructs one
+  // Map and passes it to every call) — the reach cache the K9 note requires:
+  // computed once per fromType, never once per pair.
+  reachCache: Map<string, Set<string>> = new Map(),
 ): Promise<DetFillOutcome> {
   const aspectDirAbs = path.join(projectRoot, '.yggdrasil', 'aspects', aspect.id);
   // The subject is narrowed iff it covers FEWER files than the node's full
@@ -76,15 +129,26 @@ export async function fillDetPair(
         ? pair.subjectFiles
         : undefined);
 
+  // Addressing: a component pair runs the node branch unchanged; a nodeless
+  // pair (no owning component) carries its OWN architecture-derived allowance
+  // instead of one derived from a component's mapping — the matched type's own
+  // relation allow-list is the only authority, since there is no per-component
+  // narrowing to apply with no component (structure/allowed-reads.ts).
+  const unit: StructureUnit = pair.nodePath !== undefined
+    ? { kind: 'node', nodePath: pair.nodePath }
+    : (() => {
+        const file = pair.subjectFiles[0];
+        const fromType = typeCoverage?.covered.get(file) ?? '';
+        const reachExtra = reachExtraForType(fromType, typeCoverage, graph, reachCache);
+        return { kind: 'file' as const, file, typeId: fromType, allowedReads: [...reachExtra, file] };
+      })();
+
   const runOnce = async () => {
     try {
       return { ok: true as const, result: await runStructure({
         aspectDir: aspectDirAbs,
         aspectId: aspect.id,
-        // The structure runner's own request shape is node-domain (Task 7's
-        // file); an absent owner passes the empty component context, matching
-        // the same convention verify-lock's re-observation seed uses.
-        nodePath: pair.nodePath ?? '',
+        unit,
         graph,
         projectRoot,
         subjectScope,

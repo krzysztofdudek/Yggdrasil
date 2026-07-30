@@ -53,7 +53,7 @@ function run(aspectId: string, nodePath: string, graph: ReturnType<typeof buildT
   return runStructureAspect({
     aspectDir: path.join('.yggdrasil/aspects', aspectId),
     aspectId,
-    nodePath,
+    unit: { kind: 'node', nodePath },
     graph,
     projectRoot,
   });
@@ -366,7 +366,7 @@ describe('allowed reads: ctx.fs boundary', () => {
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/s-anc'),
       aspectId: 's-anc',
-      nodePath: 'Parent/Child',
+      unit: { kind: 'node', nodePath: 'Parent/Child' },
       graph: g,
       projectRoot,
     });
@@ -421,7 +421,7 @@ describe('allowed reads: ctx.graph boundary', () => {
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/s-children'),
       aspectId: 's-children',
-      nodePath: 'P',
+      unit: { kind: 'node', nodePath: 'P' },
       graph: g,
       projectRoot,
     });
@@ -677,7 +677,7 @@ describe('cookbook: child-type composition via ctx.graph.children', () => {
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/cb-compose'),
       aspectId: 'cb-compose',
-      nodePath: 'E',
+      unit: { kind: 'node', nodePath: 'E' },
       graph: g,
       projectRoot,
     });

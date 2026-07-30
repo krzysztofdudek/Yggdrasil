@@ -69,7 +69,7 @@ import { fillDetPair } from './fill-det.js';
 import { fillLlmPair } from './fill-llm.js';
 import { runPairPool } from './fill-pool.js';
 import { DetWorkerPool } from '../structure/det-worker-pool.js';
-import { StructureRunnerError } from '../structure/runner.js';
+import { StructureRunnerError, runStructureAspect } from '../structure/runner.js';
 import type { RunStructureAspectParams, RunStructureAspectResult } from '../structure/runner.js';
 import { logGateBlocks } from './fill-log-gate.js';
 import { applyPositiveClosure } from './fill-closure.js';
@@ -747,6 +747,13 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
     else malformedSuppressItems.push(diag.item);
   };
 
+  // The architecture-reach cache for nodeless (component-free) pairs — shared
+  // across EVERY fillDetPair call this run (both the pooled and the in-process
+  // branch below dispatch from the same activeDetPairs list), computed once
+  // per matched type rather than once per pair (K9: a per-pair recomputation
+  // over a repo with thousands of files would dominate the run).
+  const detReachCache = new Map<string, Set<string>>();
+
   // The deterministic phase is CPU-bound (tree-sitter parsing), so it CAN run
   // across a persistent worker-thread pool — but each worker pays a one-time
   // tree-sitter/WASM warmup, so parallelism only wins once there is enough work
@@ -768,7 +775,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
       const reply = await pool.run({
         aspectDir: params.aspectDir,
         aspectId: params.aspectId,
-        nodePath: params.nodePath,
+        unit: params.unit,
         subjectScope: params.subjectScope,
       });
       if (reply.ok) return reply.result;
@@ -785,7 +792,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
       await Promise.all(
         activeDetPairs.map(async ({ pair, aspect }, i) => {
           tracker.onPairStart('det', pair.aspectId, toPosixPath(pair.unitKey), write);
-          const outcome = await fillDetPair(graph, projectRoot, pair, aspect, runViaPool);
+          const outcome = await fillDetPair(graph, projectRoot, pair, aspect, runViaPool, typeCoverageInput, detReachCache);
           diagSlots[i] = await applyDetOutcome(pair, outcome);
         }),
       );
@@ -796,7 +803,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   } else {
     for (const { pair, aspect } of activeDetPairs) {
       tracker.onPairStart('det', pair.aspectId, toPosixPath(pair.unitKey), write);
-      const outcome = await fillDetPair(graph, projectRoot, pair, aspect);
+      const outcome = await fillDetPair(graph, projectRoot, pair, aspect, runStructureAspect, typeCoverageInput, detReachCache);
       collectDetDiag(await applyDetOutcome(pair, outcome));
     }
   }

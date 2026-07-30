@@ -158,7 +158,7 @@ describe('runStructureAspect — observation recording', () => {
     });
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/obs-read'),
-      aspectId: 'obs-read', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'obs-read', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     });
     expect(r.succeeded).toBe(true);
     const expectedKey = observationKey('read', 'src/b.ts');
@@ -183,7 +183,7 @@ describe('runStructureAspect — observation recording', () => {
 
     const r1 = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/obs-list'),
-      aspectId: 'obs-list', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'obs-list', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     });
     const listKey = observationKey('list', 'src');
     const entry1 = r1.observations.find(([k]) => k === listKey);
@@ -193,7 +193,7 @@ describe('runStructureAspect — observation recording', () => {
     writeFileSync(path.join(projectRoot, 'src', 'c.ts'), 'export const z = 3;');
     const r2 = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/obs-list'),
-      aspectId: 'obs-list', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'obs-list', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     });
     const entry2 = r2.observations.find(([k]) => k === listKey);
     expect(entry2).toBeDefined();
@@ -219,7 +219,7 @@ describe('runStructureAspect — observation recording', () => {
     });
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/obs-exists-false'),
-      aspectId: 'obs-exists-false', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'obs-exists-false', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     });
     const existsKey = observationKey('exists', 'src/missing.ts');
     const entry = r.observations.find(([k]) => k === existsKey);
@@ -245,7 +245,7 @@ describe('runStructureAspect — observation recording', () => {
     });
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/obs-exists-file'),
-      aspectId: 'obs-exists-file', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'obs-exists-file', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     });
     // src/b.ts is an out-of-subject file — must be recorded as 'file'
     const existsKey = observationKey('exists', 'src/b.ts');
@@ -275,7 +275,7 @@ describe('runStructureAspect — observation recording', () => {
     });
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/obs-graph-node'),
-      aspectId: 'obs-graph-node', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'obs-graph-node', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     });
     const graphKey = observationKey('graph', 'N');
     const entry = r.observations.find(([k]) => k === graphKey);
@@ -300,7 +300,7 @@ describe('runStructureAspect — observation recording', () => {
     });
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/obs-nodes-by-type'),
-      aspectId: 'obs-nodes-by-type', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'obs-nodes-by-type', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     });
     // Both N and Dep are type 'module' and in the allowed set (via relation)
     const graphObs = r.observations.filter(([k]) => k.startsWith('graph:'));
@@ -324,7 +324,7 @@ describe('runStructureAspect — observation recording', () => {
     });
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/obs-subject-skip'),
-      aspectId: 'obs-subject-skip', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'obs-subject-skip', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     });
     const readKey = observationKey('read', 'src/a.ts');
     const entry = r.observations.find(([k]) => k === readKey);
@@ -347,7 +347,7 @@ describe('runStructureAspect — observation recording', () => {
     });
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/obs-sort'),
-      aspectId: 'obs-sort', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'obs-sort', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     });
     const keys = r.observations.map(([k]) => k);
     expect(keys).toEqual([...keys].sort());
@@ -370,7 +370,7 @@ describe('runStructureAspect — observation recording', () => {
     });
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/obs-notainted'),
-      aspectId: 'obs-notainted', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'obs-notainted', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     });
     expect(r.observationsTainted).toBe(false);
   });
@@ -422,7 +422,7 @@ describe('runStructureAspect — observation recording', () => {
     });
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/obs-relations-from'),
-      aspectId: 'obs-relations-from', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'obs-relations-from', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     });
     const graphKey = observationKey('graph', 'N');
     const entry = r.observations.find(([k]) => k === graphKey);
@@ -463,7 +463,7 @@ describe('runStructureAspect — observation recording', () => {
     });
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/obs-relations-to'),
-      aspectId: 'obs-relations-to', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'obs-relations-to', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     });
     const graphObs = r.observations.filter(([k]) => k.startsWith('graph:'));
     const keys = graphObs.map(([k]) => k);
@@ -506,7 +506,7 @@ describe('runStructureAspect — observation recording', () => {
     });
     const r1 = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/obs-relations-to-hash-change'),
-      aspectId: 'obs-relations-to-hash-change', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'obs-relations-to-hash-change', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     });
     const depKey = observationKey('graph', 'Dep');
     const entry1 = r1.observations.find(([k]) => k === depKey);
@@ -525,7 +525,7 @@ describe('runStructureAspect — observation recording', () => {
     });
     const r2 = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/obs-relations-to-hash-change'),
-      aspectId: 'obs-relations-to-hash-change', nodePath: 'N', graph: g2, projectRoot,
+      aspectId: 'obs-relations-to-hash-change', unit: { kind: 'node', nodePath: 'N' }, graph: g2, projectRoot,
     });
     const entry2 = r2.observations.find(([k]) => k === depKey);
     expect(entry2).toBeDefined();
@@ -551,7 +551,7 @@ describe('runStructureAspect — observation recording', () => {
     });
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/obs-absent-node'),
-      aspectId: 'obs-absent-node', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'obs-absent-node', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     });
     expect(r.succeeded).toBe(true);
     const entry = r.observations.find(([k]) => k === observationKey('graph', 'Ghost'));
@@ -576,7 +576,7 @@ describe('runStructureAspect — observation recording', () => {
     });
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/obs-children'),
-      aspectId: 'obs-children', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'obs-children', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     });
     const key = observationKey('graph-children', 'N');
     const entry = r.observations.find(([k]) => k === key);
@@ -600,7 +600,7 @@ describe('runStructureAspect — observation recording', () => {
     });
     const r1 = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/obs-bytype'),
-      aspectId: 'obs-bytype', nodePath: 'N', graph: before, projectRoot,
+      aspectId: 'obs-bytype', unit: { kind: 'node', nodePath: 'N' }, graph: before, projectRoot,
     });
     const key = observationKey('graph-bytype', 'module');
     const e1 = r1.observations.find(([k]) => k === key);
@@ -616,7 +616,7 @@ describe('runStructureAspect — observation recording', () => {
     });
     const r2 = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/obs-bytype'),
-      aspectId: 'obs-bytype', nodePath: 'N', graph: after, projectRoot,
+      aspectId: 'obs-bytype', unit: { kind: 'node', nodePath: 'N' }, graph: after, projectRoot,
     });
     const e2 = r2.observations.find(([k]) => k === key);
     expect(e2).toBeDefined();
@@ -640,7 +640,7 @@ describe('runStructureAspect — observation recording', () => {
     });
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/obs-flow'),
-      aspectId: 'obs-flow', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'obs-flow', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     });
     const key = observationKey('graph-flow', 'checkout');
     const entry = r.observations.find(([k]) => k === key);
@@ -668,7 +668,7 @@ describe('runStructureAspect — observation recording', () => {
     });
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/obs-sibling'),
-      aspectId: 'obs-sibling', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'obs-sibling', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
       subjectScope: ['src/a.ts'],
     });
     expect(r.succeeded).toBe(true);
@@ -700,7 +700,7 @@ describe('runStructureAspect — observation recording', () => {
     });
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/obs-sibling-ast'),
-      aspectId: 'obs-sibling-ast', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'obs-sibling-ast', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
       subjectScope: ['src/a.ts'],
     });
     expect(r.succeeded).toBe(true);
@@ -728,7 +728,7 @@ describe('runStructureAspect — observation recording', () => {
     });
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/obs-no-dup'),
-      aspectId: 'obs-no-dup', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'obs-no-dup', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     });
     const reads = r.observations.filter(([k]) => k.startsWith('read:'));
     expect(reads).toHaveLength(0);

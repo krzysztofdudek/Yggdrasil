@@ -282,7 +282,7 @@ export function registerAspectTestCommand(program: Command): void {
           // Return type is inferred from the runner (RunStructureAspectResult);
           // do not re-annotate it, so the shape stays in sync with the runner.
           const runOnce = () =>
-            runStructureAspect({ aspectDir, aspectId: aspect.id, nodePath, graph, projectRoot });
+            runStructureAspect({ aspectDir, aspectId: aspect.id, unit: { kind: 'node', nodePath }, graph, projectRoot });
           const result = await runOnce();
           if (opts.checkDeterminism) {
             const result2 = await runOnce();
@@ -396,8 +396,10 @@ async function resolveCompanionsForTest(
   const run = await runCompanionHook({
     aspectDir: aspectDirAbs,
     aspectId: aspect.id,
-    // Empty component context for a nodeless pair (same convention as fill-det.ts).
-    nodePath: pair.nodePath ?? '',
+    // A nodeless pair has no component to address — an empty node path
+    // resolves to no node and fails closed (companion resolution over a
+    // component-free unit is a separate, not-yet-built design).
+    unit: { kind: 'node', nodePath: pair.nodePath ?? '' },
     graph,
     projectRoot,
     subjectScope,

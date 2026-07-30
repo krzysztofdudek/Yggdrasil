@@ -1,0 +1,8 @@
+name: Reads Permitted Sibling
+description: "A rule with no owning component that reads a sibling file inside
+  its architecture-derived allowance via ctx.fs.read — pins that the read is
+  recorded and a later edit to the sibling re-verifies."
+reviewer:
+  type: deterministic
+scope:
+  per: file

@@ -1,0 +1,9 @@
+name: Reads Forbidden
+description: "A rule with no owning component that reads a file OUTSIDE its
+  architecture-derived allowance — pins the refusal and its two named exits:
+  widen the architecture's relation allow-list, or give the file a component
+  of its own."
+reviewer:
+  type: deterministic
+scope:
+  per: file

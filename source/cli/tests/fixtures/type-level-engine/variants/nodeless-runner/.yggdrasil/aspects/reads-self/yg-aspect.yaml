@@ -1,0 +1,8 @@
+name: Reads Self
+description: "A rule with no owning component that reads only its own subject
+  file (ctx.subject), never ctx.fs — the baseline nodeless case: nothing beyond
+  the subject touched, nothing to re-verify."
+reviewer:
+  type: deterministic
+scope:
+  per: file

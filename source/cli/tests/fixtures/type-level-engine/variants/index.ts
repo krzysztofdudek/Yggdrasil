@@ -20,3 +20,6 @@ export const FIXTURE_ZERO_ENFORCEMENT = path.join(__dirname, 'zero-enforcement')
 
 /** A rule live only on files, with no component anywhere, is not dead law (T8). */
 export const FIXTURE_TYPE_ONLY = path.join(__dirname, 'type-only');
+
+/** Real check.mjs fixtures driving the deterministic runner's nodeless (component-free) unit directly. */
+export const FIXTURE_NODELESS_RUNNER = path.join(__dirname, 'nodeless-runner');

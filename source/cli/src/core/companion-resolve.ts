@@ -205,9 +205,14 @@ export async function resolveCompanionsForPair(
     runCompanionHook({
       aspectDir: aspectDirAbs,
       aspectId: aspect.id,
-      // Empty component context for a nodeless pair — matches the same
-      // convention verify-lock's re-observation seed and fill-det's runner call use.
-      nodePath: pair.nodePath ?? '',
+      // A companion.mjs resolution still addresses only a real component: a
+      // nodeless pair passes an empty node path (the same interim convention
+      // verify-lock's re-observation seed uses), which resolves to no node and
+      // fails closed exactly as it does today. Giving a nodeless pair its own
+      // real, non-empty unit here is a separate, not-yet-built companion
+      // allowance design — the deterministic runner's own unit (built in
+      // fill-det.ts) does not stand in for it.
+      unit: { kind: 'node', nodePath: pair.nodePath ?? '' },
       graph,
       projectRoot,
       subjectScope,

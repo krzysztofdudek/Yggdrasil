@@ -48,7 +48,7 @@ describe('runStructureAspect — directory-mapped nodes (fix 3b)', () => {
     });
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/dir1'),
-      aspectId: 'dir1', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'dir1', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     });
     expect(r.succeeded).toBe(true);
     expect(r.violations).toHaveLength(0);
@@ -74,7 +74,7 @@ describe('runStructureAspect — directory-mapped nodes (fix 3b)', () => {
     });
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/dir2'),
-      aspectId: 'dir2', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'dir2', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     });
     expect(r.succeeded).toBe(true);
     expect(r.violations).toHaveLength(1);
@@ -101,7 +101,7 @@ describe('runStructureAspect — directory-mapped nodes (fix 3b)', () => {
     });
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/dir3'),
-      aspectId: 'dir3', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'dir3', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     });
     expect(r.succeeded).toBe(true);
     expect(r.violations).toHaveLength(0);
@@ -135,7 +135,7 @@ describe('runStructureAspect — directory-mapped nodes (fix 3b)', () => {
     });
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/dir4'),
-      aspectId: 'dir4', nodePath: 'Parent', graph: g, projectRoot,
+      aspectId: 'dir4', unit: { kind: 'node', nodePath: 'Parent' }, graph: g, projectRoot,
     });
     expect(r.succeeded).toBe(true);
     expect(r.violations).toHaveLength(0);
@@ -162,7 +162,7 @@ describe('runStructureAspect — directory-mapped nodes (fix 3b)', () => {
     });
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/dir5'),
-      aspectId: 'dir5', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'dir5', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     });
     expect(r.succeeded).toBe(true);
     expect(r.violations).toHaveLength(0);

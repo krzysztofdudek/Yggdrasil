@@ -342,6 +342,59 @@ If your check needs to reach a node not currently in scope, add an explicit
 relation in \`yg-node.yaml\` pointing to that node. Relations are the contract
 that widens the allowed reads set.
 
+## Rules on a file with no component
+
+A check can also run on a file that has no node of its own — one enforced
+purely by its architecture type (\`coverage.type_level\`). There is no
+\`yg-node.yaml\` behind such a file, so the ctx surface is narrower:
+
+- \`ctx.node\` and \`ctx.graph\` are **unavailable**. Touching any property of
+  \`ctx.node\`, or calling any \`ctx.graph.*\` method, throws immediately — never a
+  silent empty result. The two ways out: rewrite the check to use only
+  \`ctx.subject\` / \`ctx.fs\` over files the architecture already permits this
+  file's type to reach, or give the file a component of its own (a
+  \`yg-node.yaml\` mapping it) so \`ctx.node\` / \`ctx.graph\` become available.
+- \`ctx.fs\` still works, but the allowed reads set is different: the file
+  itself, plus every file whose type the architecture's \`relations:\`
+  allow-list permits THIS file's type to depend on — whether that file belongs
+  to a declared component or is itself enforced by its type alone. There is no
+  per-component narrowing to apply (there is no component), so the
+  architecture's allow-list is the only authority. Reading outside it produces
+  the same \`structure-aspect-undeclared-fs-read\` violation as the node case,
+  naming the same two exits: widen the architecture's \`relations:\` so this
+  type may depend on the type that owns the file you need, or give your own
+  file a component so it can declare an explicit relation instead.
+- \`ctx.fs.list(dir)\` still returns the RAW, unfiltered directory listing, and
+  the whole listing is still remembered — adding or renaming ANY entry in a
+  listed directory makes the result need re-checking, including a file your
+  check could never itself read. A rule that wants one specific file should
+  ask for that file, not list its directory.
+
+**The declarative/imperative asymmetry.** An aspect's *applicability* — which
+types it attaches to, any \`when:\` condition gating that attachment — MAY
+depend on the file's type, because applicability is worked out FRESH on every
+run from the current architecture and the file's current classification. The
+check's OWN CODE may not lean on that same fact once it has run: a verdict is
+CACHED, and nothing about a file's type is re-checked when a stored verdict is
+reused, only the observations the check itself made. A check that assumes "I
+only ever run on type X" without actually reading anything that would change if
+that stopped being true can go stale-green silently.
+
+**The same rule, different reach on two files.** Because reach comes from each
+file's OWN type, not from the rule, one aspect attached to two different types
+can see two different allowances: a file of a permissive type reaches a
+sibling; a file of a more restrictive type does not, and a check that tries
+anyway is refused as infrastructure on that file alone — the other file's run
+is unaffected.
+
+**This is a fill-time guard only** — exactly like a component's own allowed
+reads set. The allowance is computed once, when the check actually runs, from
+the architecture and graph as they stand then. A later edit narrowing the
+architecture's \`relations:\` allow-list does not retroactively invalidate an
+already-stored verdict; nothing that was actually observed changed. There is no
+continuous re-enforcement of this boundary the way \`yg check\` continuously
+re-verifies a live import graph.
+
 ## Observation = invalidation surface
 
 The verdict's reusability rests on the observation fold. The runner records every

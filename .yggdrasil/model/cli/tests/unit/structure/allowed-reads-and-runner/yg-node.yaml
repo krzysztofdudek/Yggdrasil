@@ -6,11 +6,13 @@ aspects: []
 relations:
   [
     { target: cli/structure, type: uses },
-    { target: cli/tests/unit/helpers, type: uses }
+    { target: cli/tests/unit/helpers, type: uses },
+    { target: cli/tests/fixtures, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/structure/allowed-reads.test.ts
   - source/cli/tests/unit/structure/runner.test.ts
+  - source/cli/tests/unit/structure/runner-nodeless.test.ts
   - source/cli/tests/unit/structure/enrich-files.test.ts
   - source/cli/tests/unit/structure/runner-eager-ast.test.ts
   - source/cli/tests/unit/structure/runner-suppress.test.ts
