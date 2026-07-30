@@ -40,8 +40,8 @@ const REACH_SENTINEL_FILE = '\0';
  * The type-dependent part of `collectArchitectureReach` for `fromType`
  * (declared-component files and other type-covered files the architecture
  * permits `fromType` to depend on) — cached by `fromType` so a run reviewing
- * many files of the same type computes this ONCE (K9: a per-pair recomputation
- * over a repo with thousands of files would dominate the run). The caller
+ * many files of the same type computes this ONCE per type: recomputing it per
+ * pair over a repo with thousands of files would dominate the run. The caller
  * unions in its OWN subject file afterward (cheap, O(1) per file) — never
  * cached here, since a DIFFERENT file's own identity must never leak into
  * another file's allowance when the architecture does not itself permit
@@ -118,7 +118,7 @@ export async function fillDetPair(
   // follows). Only consulted for a pair with no owning component.
   typeCoverage?: TypeCoverageInput,
   // Shared across every fillDetPair call THIS RUN (the caller constructs one
-  // Map and passes it to every call) — the reach cache the K9 note requires:
+  // Map and passes it to every call) so the per-type reach set above is
   // computed once per fromType, never once per pair.
   reachCache: Map<string, Set<string>> = new Map(),
 ): Promise<DetFillOutcome> {

@@ -118,7 +118,7 @@ function ruleSourcePathFor(aspectId: string, reviewerType: 'llm' | 'deterministi
  * architecture type alone (no owning component) — the surface that replaces
  * "not covered by any node" for such a file.
  *
- * K9: classifies and enumerates pairs/drops scoped to THIS ONE FILE (a
+ * Classifies and enumerates pairs/drops scoped to THIS ONE FILE (a
  * single-entry `covered` map), never the whole-repo classification map —
  * `yg context --file` answers about one file, so it must not pay for
  * classifying every uncovered file in the repo to do it. No relation-edge
@@ -327,8 +327,8 @@ export function registerBuildCommand(program: Command): void {
               process.exit(0);
             }
             // A typed answer, not "not covered by any node": classifies ONLY
-            // this one file (K9 — never the whole-repo classification map)
-            // and, when it matches exactly one non-strict type, replaces the
+            // this one file, never the whole-repo classification map, and,
+            // when it matches exactly one non-strict type, replaces the
             // not-covered error with the matched type, its chain, and both
             // halves of what the type attaches.
             if (graph.config.coverage?.typeLevel && !isExcludedByCoverage(result.file, graph.config.coverage)) {

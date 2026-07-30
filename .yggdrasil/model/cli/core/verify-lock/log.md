@@ -20,3 +20,5 @@ Comment-only correction: an internal note about why a nodeless unit's stored obs
 Returns the pair-enumeration drop reasons alongside the verified pairs, so a caller can report not just what verified but why an attached rule did not run on a given file.
 ## [2026-07-30T18:00:59.070Z]
 Threads the new uncomputableTypeCoverage list from pair computation through LockVerification, alongside the existing unreadable and drops channels, so a caller building the type-visibility honesty report can tell a type-covered file whose rules were never resolved (an absorbed implies cycle) apart from one that resolved to genuinely nothing.
+## [2026-07-30T21:02:16.217Z]
+Reworded the docstring on the typeCoverage parameter so it explains, in its own words, that the classification is computed once by the caller and threaded through rather than recomputed, instead of leaning on a short internal code with no meaning to a reader of this repository.

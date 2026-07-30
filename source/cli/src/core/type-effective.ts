@@ -295,7 +295,7 @@ export function computeTypeAspectCascade(
   // 4. The transient subject view. `meta.mapping = [file]` makes
   // `node.has_mapping` read true; the absence of `meta.ports` makes
   // `node.has_port` read false and starves channel 6 (no derived relation
-  // ever carries `consumes`, so port matching would starve either way — K4).
+  // ever carries `consumes`, so port matching would starve either way).
   // `children: []` makes `descendants:` read false. `meta.aspects` /
   // `aspectWhens` / `aspectStatus` are absent, so channel 1 delivers nothing.
   const subject: GraphNode = {

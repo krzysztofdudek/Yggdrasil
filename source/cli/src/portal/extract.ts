@@ -57,11 +57,12 @@ export async function extractPortalData(
   const gitFiles = await walkPortalFiles(projectRoot);
 
   // The type-level classification lattice (coverage.type_level), classified ONCE
-  // for this extraction run (mirrors runCheck's / runFill's own K15 hoist) and
-  // threaded into every consumer below, so runPortalCheck, lock verification, and
-  // the pair denominator all count the SAME universe instead of the portal
-  // silently reporting a component-only one when the tier is on. Undefined at
-  // flag-off — every consumer already treats that as "nothing to do."
+  // for this extraction run — mirroring the same single-classification-per-run
+  // discipline `yg check` and the fill stage each follow — and threaded into
+  // every consumer below, so runPortalCheck, lock verification, and the pair
+  // denominator all count the SAME universe instead of the portal silently
+  // reporting a component-only one when the tier is on. Undefined at flag-off —
+  // every consumer already treats that as "nothing to do."
   const typeCoverageResult = await computePortalTypeCoverage(graph, gitFiles);
   const typeCoverageInput = toPortalTypeCoverageInput(typeCoverageResult);
 

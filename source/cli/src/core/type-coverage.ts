@@ -43,7 +43,7 @@ export type SingleFileClassification =
   | { bucket: 'unreadable'; typeIds: string[]; reason: string; readKind: 'read' | 'too-large' };
 
 /**
- * Classify ONE file against the architecture (K9): the per-file body of
+ * Classify ONE file against the architecture: the per-file body of
  * `computeTypeCoverage`'s own loop, extracted so a caller that only needs one
  * file's answer never pays for classifying every uncovered file in the repo.
  * Does not consult `coverage.excluded` — that is a whole-repo-scan concern;

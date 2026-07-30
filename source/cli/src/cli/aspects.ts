@@ -197,8 +197,8 @@ export interface AspectHealthRow {
   /** Distinct nodes that have a review pair for this aspect. */
   nodes: number;
   /** Distinct type-covered files (nodeless pairs) that have a review pair for
-   *  this aspect. 0 when the feature is off or no file matched. Not yet its
-   *  own table column — the count exists so a later surface can render it. */
+   *  this aspect. 0 when the feature is off or no file matched. Rendered as
+   *  its own table column (HEALTH_HEADERS), appended after wrong-rule. */
   files: number;
   /** Total review pairs for this aspect. */
   pairs: number;
@@ -498,9 +498,8 @@ export function computeAspectHealth(
     unknown: number;
     nodes: Set<string>;
     /** Distinct type-covered files (nodeless pairs) — tracked separately so a
-     *  file never inflates the "nodes" count by a phantom component. Not yet
-     *  rendered into a table column (a future task's job); the data exists so
-     *  it can be. */
+     *  file never inflates the "nodes" count by a phantom component. Rendered
+     *  as its own table column, appended after wrong-rule. */
     files: Set<string>;
   }
   const byAspect = new Map<string, Agg>();
@@ -590,6 +589,7 @@ const HEALTH_HEADERS = [
   'signal',
   'fp',
   'wrong-rule',
+  'files',
 ] as const;
 
 /** Render the health rows as a left-aligned, two-space-gap text table. */
@@ -611,6 +611,7 @@ export function formatAspectsHealthOutput(health: AspectHealth): string {
       r.signalCell,
       r.fpCellValue,
       r.wrongRuleCell,
+      String(r.files),
     ]),
   ];
 
@@ -709,7 +710,14 @@ async function buildAspectsHealthOutput(graph: Graph, nowMs: number): Promise<st
   const projectRoot = path.dirname(graph.rootPath);
 
   const lock = readLock(graph.rootPath);
-  const verification = await verifyLock(graph, lock);
+  // Same per-command hoist `formatAspectsOutput`'s branch below already does
+  // (computeTypeCoverageForAspects): without threading this through, verifyLock
+  // enumerates a component-only pair universe, so a file enforced by its
+  // architecture type alone (no owning component) is invisible here — its
+  // pairs are never counted and a real refusal recorded against it can never
+  // read as refused.
+  const typeCoverage = await computeTypeCoverageForAspects(graph, projectRoot);
+  const verification = await verifyLock(graph, lock, typeCoverage);
 
   const repoFiles = await walkRepoFiles(projectRoot);
   const knownAspectIds = new Set(graph.aspects.map((a) => a.id));

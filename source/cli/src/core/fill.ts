@@ -385,15 +385,15 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   };
 
   // The type-level classification lattice (coverage.type_level), computed ONCE
-  // for this whole fill run (K15 — never a second classify) and threaded into
-  // every downstream consumer below: the structural gate's own reviewer-presence
-  // check (validate → checkReviewerPresence), pair classification (verifyLock —
-  // CRITICAL, R5's anti-prune lever), GC (garbageCollectAndRewrite), and both of
-  // this run's own runCheck calls below (as precomputedTypeCoverage — otherwise
-  // runCheck would classify a second time from scratch, reading every uncovered
-  // file's bytes twice). Undefined at flag-off or when no file walk ran this call
-  // (opts.coverageVisibleFiles === null) — every consumer already treats that as
-  // "nothing to do."
+  // for this whole fill run and threaded into every downstream consumer below:
+  // the structural gate's own reviewer-presence check (validate →
+  // checkReviewerPresence), pair classification (verifyLock — critically, the
+  // one thing that keeps a nodeless pair from being pruned as detached), GC
+  // (garbageCollectAndRewrite), and both of this run's own runCheck calls below
+  // (as precomputedTypeCoverage — otherwise runCheck would classify a second
+  // time from scratch, reading every uncovered file's bytes twice). Undefined
+  // at flag-off or when no file walk ran this call (opts.coverageVisibleFiles
+  // === null) — every consumer already treats that as "nothing to do."
   const coverage = graph.config.coverage ?? DEFAULT_COVERAGE;
   let typeCoverageInput: TypeCoverageInput | undefined;
   let typeCoverageResult: TypeCoverageResult | undefined;
@@ -545,7 +545,8 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
     if (filePairs.length > 0) {
       write(`  Files enforced by their type\n`);
       const sortByAspectThenFile = (a: ExpectedPair, b: ExpectedPair): number =>
-        a.aspectId.localeCompare(b.aspectId, 'en') || a.subjectFiles[0].localeCompare(b.subjectFiles[0], 'en');
+        a.aspectId.localeCompare(b.aspectId, 'en') ||
+        toPosixPath(a.subjectFiles[0]).localeCompare(toPosixPath(b.subjectFiles[0]), 'en');
       const det = filePairs.filter((p) => p.kind === 'deterministic').sort(sortByAspectThenFile);
       const llm = onlyDeterministic ? [] : filePairs.filter((p) => p.kind === 'llm').sort(sortByAspectThenFile);
       for (const p of det) {
@@ -684,7 +685,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   // refusal across BOTH sources.
   // A pair's component is blocked by the log gate — explicit, not implicit via
   // `Set.has(undefined)`: a nodeless pair has no log obligation, so it can never
-  // be blocked (R7's never-channel family).
+  // be blocked by it.
   const nodeBlocked = (pair: ExpectedPair): boolean =>
     pair.nodePath !== undefined && blockedNodes.has(pair.nodePath);
   const detEnforcedRefusedNodes = new Set<string>();
@@ -750,8 +751,8 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   // The architecture-reach cache for nodeless (component-free) pairs — shared
   // across EVERY fillDetPair call this run (both the pooled and the in-process
   // branch below dispatch from the same activeDetPairs list), computed once
-  // per matched type rather than once per pair (K9: a per-pair recomputation
-  // over a repo with thousands of files would dominate the run).
+  // per matched type rather than once per pair: recomputing it per pair over a
+  // repo with thousands of files would dominate the run.
   const detReachCache = new Map<string, Set<string>>();
 
   // The deterministic phase is CPU-bound (tree-sitter parsing), so it CAN run
@@ -815,7 +816,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   emitGroupedDiagnostics(malformedSuppressItems, 'malformed-suppress', emitIssue);
 
   // ── Deterministic gate: report units whose LLM fills are skipped. ──────────
-  // Keyed on detGateKey (K16) — one refusing FILE must skip only that file's
+  // Keyed on detGateKey — one refusing FILE must skip only that file's
   // paid review, never every other type-covered file's (the cross-contamination
   // this gate must never reproduce).
   const llmSkippedByDetGate = new Set<string>();
@@ -987,9 +988,9 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   // ── Step 8: GC + canonical rewrite (§3.2). ────────────────────────────────
   // Deliberate post-fill re-classification: must see freshly-written verdicts —
   // do not thread step-2 (pre-fill verifyLock) results through. typeCoverageInput
-  // IS threaded (computed once at the top of this run, K15) — this is R5's
-  // anti-prune lever: without it, the first --approve after enabling the
-  // feature would prune every file-level result as detached.
+  // IS threaded (computed once at the top of this run) — this is the anti-prune
+  // lever: without it, the first --approve after enabling the feature would
+  // prune every file-level result as detached.
   const pruneSummary = await garbageCollectAndRewrite(graph, lock, persistLock, {
     typeCoverage: typeCoverageInput,
     detAspectIdsOnDisk,

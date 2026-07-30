@@ -192,9 +192,10 @@ export async function checkReviewerPresence(
   // effective. Compute effective, non-draft pairs through the canonical
   // single-source query (draft is excluded by default) and stay silent when no
   // LLM pair exists — a script-only / empty graph is a legal keyless state.
-  // `typeCoverage` (the SAME earlyTypeCoverage runCheck classified once, K15):
-  // a repo with reviewer unconfigured and an LLM rule effective ONLY on
-  // type-covered files (zero component LLM pairs) must still be caught here.
+  // `typeCoverage` is the SAME classification the caller already computed once
+  // for this run, threaded through rather than recomputed: a repo with
+  // reviewer unconfigured and an LLM rule effective ONLY on type-covered files
+  // (zero component LLM pairs) must still be caught here.
   const { pairs } = await computeExpectedPairs(graph, { typeCoverage });
   if (!pairs.some((p) => p.kind === 'llm')) return [];
   const msgData: IssueMessage = {
@@ -235,11 +236,11 @@ export async function checkReviewerPresence(
  * type-covered file exists, and every rule source would otherwise light up
  * at once.
  *
- * `typeCoverage` (optional, R6): the SAME classification `runCheck` computed
- * once this run (K15 — never a second classify here). With the feature on, a
- * rule effective SOLELY on files enforced by their type is live law and must
- * not be reported dead; absent ⇒ today's behavior exactly (the one-argument
- * call every existing caller makes stays byte-identical).
+ * `typeCoverage` (optional): the classification the caller already computed
+ * once for this run, threaded through rather than recomputed here. With the
+ * feature on, a rule effective SOLELY on files enforced by their type is live
+ * law and must not be reported dead; absent ⇒ today's behavior exactly (the
+ * one-argument call every existing caller makes stays byte-identical).
  */
 export function checkAspectEffectiveNowhere(graph: Graph, typeCoverage?: TypeCoverageInput): ValidationIssue[] {
   // Bootstrap carve-out: with no real nodes and nothing type-covered either,
@@ -407,8 +408,9 @@ export function checkAspectEffectiveNowhere(graph: Graph, typeCoverage?: TypeCov
  *   - A is in the effective-aspect set of NO instance of type T.
  * Non-blocking (warning): it surfaces a graph-authoring mistake without failing CI.
  *
- * `typeCoverage` (optional, R6): same K15 classification as
- * `checkAspectEffectiveNowhere`; absent ⇒ today's behavior exactly.
+ * `typeCoverage` (optional): the same already-computed classification
+ * `checkAspectEffectiveNowhere` accepts above, threaded through rather than
+ * recomputed; absent ⇒ today's behavior exactly.
  */
 export function checkArchitectureDefaultAspectUnreachable(graph: Graph, typeCoverage?: TypeCoverageInput): ValidationIssue[] {
   if (graph.nodes.size === 0 && (!typeCoverage || typeCoverage.covered.size === 0)) return [];

@@ -312,9 +312,10 @@ export function renderGroup(group: IssueGroup, lines: string[], opts: { isTTY: b
     renderRepoLevelGroup(group, lines);
     return;
   }
-  // Byte-identical to before Task 6 when fileCount === 0 (this repo's own flag
-  // stays off, so that is always true here): "N pairs M nodes". Only a group
-  // that genuinely mixes or is all files gets the combined/files-only wording.
+  // Byte-identical to the plain node-only rendering when fileCount === 0 (this
+  // repo's own flag stays off, so that is always true here): "N pairs M
+  // nodes". Only a group that genuinely mixes or is all files gets the
+  // combined/files-only wording.
   const countSeg = group.fileCount > 0
     ? (group.nodeCount > 0 ? `${group.nodeCount} nodes, ${group.fileCount} files` : `${group.fileCount} files`)
     : `${group.nodeCount} nodes`;
@@ -404,10 +405,11 @@ export function renderGroup(group: IssueGroup, lines: string[], opts: { isTTY: b
   };
 
   if (group.fileCount === 0) {
-    // Byte-identical to before Task 6: one block, one cap, over every member
-    // (a stray member with neither nodePath nor a file: unitKey — never
-    // produced by any known issue path — still renders via the empty-subject
-    // fallback exactly as it always has, rather than silently vanishing).
+    // Byte-identical to the plain node-only rendering: one block, one cap,
+    // over every member (a stray member with neither nodePath nor a file:
+    // unitKey — never produced by any known issue path — still renders via
+    // the empty-subject fallback exactly as it always has, rather than
+    // silently vanishing).
     renderMemberBlock(group.members, (m) => m.nodePath ?? '');
   } else {
     // Two blocks — components first, then files — each with its OWN cap, so a

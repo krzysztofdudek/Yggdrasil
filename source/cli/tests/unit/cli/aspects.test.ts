@@ -446,7 +446,7 @@ describe('formatAspectsHealthOutput', () => {
     const header = out.split('\n')[0].trim().split(/\s{2,}/);
     expect(header).toEqual([
       'aspect', 'kind', 'status', 'nodes', 'pairs', 'refused', 'suppresses', 'errs', 'age',
-      'catch', 'exposure', 'signal', 'fp', 'wrong-rule',
+      'catch', 'exposure', 'signal', 'fp', 'wrong-rule', 'files',
     ]);
   });
 
@@ -498,10 +498,11 @@ describe('formatAspectsHealthOutput', () => {
     const out = formatAspectsHealthOutput(health);
     const dataRow = out.split('\n').find((l) => l.trim().split(/\s{2,}/)[0] === 'a1')!;
     const cells = dataRow.trim().split(/\s{2,}/);
-    // age holds its fixed position; the catch/exposure/signal/fp columns follow it,
-    // reading em-dash for a rule with no recorded telemetry.
+    // age holds its fixed position; the catch/exposure/signal/fp/wrong-rule columns
+    // follow it, reading em-dash for a rule with no recorded telemetry, then the
+    // files column reads a literal 0 (a real count, not an absence of data).
     expect(cells[8]).toBe('3mo');
-    expect(cells.slice(9)).toEqual(['—', '—', '—', '—', '—']);
+    expect(cells.slice(9)).toEqual(['—', '—', '—', '—', '—', '0']);
   });
 });
 
@@ -650,14 +651,14 @@ describe('computeAspectHealth — wrong-rule attribution cell + note', () => {
     expect(rows.find((r) => r.aspectId === 'clean-x')!.wrongRuleCell).toBe('—');
   });
 
-  it('renders the wrong-rule cell in the last column and emits the attribution disclosure note', () => {
+  it('renders the wrong-rule cell in its fixed column and emits the attribution disclosure note', () => {
     const graph = makeGraph([makeAspect('named-x', { reviewer: 'deterministic' })]);
     const health = withWrongRule(graph, new Map([['named-x', 1]]));
     expect(health.hasWrongRuleAttribution).toBe(true);
     const out = formatAspectsHealthOutput(health);
     const dataRow = out.split('\n').find((l) => l.trim().split(/\s{2,}/)[0] === 'named-x')!;
     const cells = dataRow.trim().split(/\s{2,}/);
-    expect(cells[13]).toBe('1 (thin data)'); // wrong-rule is the last column (index 13)
+    expect(cells[13]).toBe('1 (thin data)'); // wrong-rule, index 13 — files (index 14) follows it
     // The disclosure states the honesty boundary: unattributed incidents count in advise, not here.
     expect(out).toContain('Wrong-rule attribution');
     expect(out).toContain('yg incident add --aspect');

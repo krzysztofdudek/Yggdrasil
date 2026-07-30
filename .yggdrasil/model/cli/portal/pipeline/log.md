@@ -48,3 +48,5 @@ The portal's per-node and per-flow indexing now explicitly skips a review subjec
 Threads the portal's once-per-run type-coverage classification into the check, lock-verification, and pair-count calls, so the reported counts include a file enforced by its architecture type alone instead of silently excluding it from the denominator.
 ## [2026-07-30T19:19:48.579Z]
 Comment text in two files under this pipeline referenced planning labels that only make sense with access to material outside the repository, conflicting with this project's own rule that a source comment must stand on its own. Reworded the affected comments to state what the code does and why in their own terms; no behavior changed.
+## [2026-07-30T21:02:23.172Z]
+Reworded a comment on the portal extraction pipeline's once-per-run type-coverage classification so it explains, in its own words, why the classification mirrors the same single-pass discipline the check and fill commands each already follow, instead of leaning on a short internal code with no meaning to a reader of this repository.

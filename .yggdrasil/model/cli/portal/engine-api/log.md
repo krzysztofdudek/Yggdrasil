@@ -46,3 +46,5 @@ Supplies the portal's read-only check with the same real git-tracked-file data t
 The portal's pair-count helper now accepts the same file-type classification the CLI's own check can be given, so a future caller can keep the portal's counts from disagreeing with the command line's.
 ## [2026-07-30T07:13:52.748Z]
 Adds a facade that classifies type coverage once per portal extraction and exposes both the full result and its reduced lock-verification shape, so every portal call that needs the classification shares one computation instead of each answering about a component-only universe.
+## [2026-07-30T21:02:19.792Z]
+Reworded a comment on the portal's once-per-extraction type-coverage classification so it explains, in its own words, why the classification is computed once and shared across every consumer, instead of leaning on a short internal code with no meaning to a reader of this repository.

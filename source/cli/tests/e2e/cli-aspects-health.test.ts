@@ -15,6 +15,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runGitFixture } from '../support/git-fixture.js';
 import { detLockPath } from './support/read-lock.js';
+import { FIXTURE_TWO_COVERED_FILES } from '../fixtures/type-level-engine/variants/index.js';
 
 // ---------------------------------------------------------------------------
 // CLI E2E — `yg aspects --health` (C3 slice 1).
@@ -90,10 +91,10 @@ function healthRow(output: string, aspectId: string): string[] {
 }
 
 // Column indices for the fixed order:
-//   aspect | kind | status | nodes | pairs | refused | suppresses | errs | age | catch | exposure | signal | fp | wrong-rule
+//   aspect | kind | status | nodes | pairs | refused | suppresses | errs | age | catch | exposure | signal | fp | wrong-rule | files
 const COL = {
   aspect: 0, kind: 1, status: 2, nodes: 3, pairs: 4, refused: 5, suppresses: 6, errs: 7, age: 8,
-  catch: 9, exposure: 10, signal: 11, fp: 12, wrongRule: 13,
+  catch: 9, exposure: 10, signal: 11, fp: 12, wrongRule: 13, files: 14,
 };
 
 /** Append well-formed synthetic telemetry lines to a gitignored sidecar under `.yggdrasil/`. */
@@ -189,7 +190,7 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () 
       const headerCols = header!.trim().split(/\s{2,}/);
       expect(headerCols).toEqual([
         'aspect', 'kind', 'status', 'nodes', 'pairs', 'refused', 'suppresses', 'errs', 'age',
-        'catch', 'exposure', 'signal', 'fp', 'wrong-rule',
+        'catch', 'exposure', 'signal', 'fp', 'wrong-rule', 'files',
       ]);
 
       // no-todo-comments: one hash-valid refusal (orders), one approved (payments).
@@ -350,7 +351,7 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () 
         const header = health.stdout.split('\n').find((l) => l.includes('aspect') && l.includes('age'));
         expect(header!.trim().split(/\s{2,}/)).toEqual([
           'aspect', 'kind', 'status', 'nodes', 'pairs', 'refused', 'suppresses', 'errs', 'age',
-          'catch', 'exposure', 'signal', 'fp', 'wrong-rule',
+          'catch', 'exposure', 'signal', 'fp', 'wrong-rule', 'files',
         ]);
 
         // A deterministic rule (ships check.mjs) committed in 2015 reads a coarse,
@@ -413,11 +414,11 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () 
       expect(health.status).toBe(0); // informational, never blocks
       const out = health.stdout;
 
-      // Header gains fp as the LAST column.
+      // Header carries the fp column, followed by wrong-rule and files.
       const header = out.split('\n').find((l) => l.includes('aspect') && l.includes('fp'));
       expect(header!.trim().split(/\s{2,}/)).toEqual([
         'aspect', 'kind', 'status', 'nodes', 'pairs', 'refused', 'suppresses', 'errs', 'age',
-        'catch', 'exposure', 'signal', 'fp', 'wrong-rule',
+        'catch', 'exposure', 'signal', 'fp', 'wrong-rule', 'files',
       ]);
 
       // no-todo-comments: one block, now waived → fp = 1, thin sample labelled honestly.
@@ -546,11 +547,11 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () 
       expect(health.status).toBe(0); // informational, never blocks
       const out = health.stdout;
 
-      // Header gains wrong-rule as the LAST column.
+      // Header carries the wrong-rule column, followed only by files.
       const header = out.split('\n').find((l) => l.includes('aspect') && l.includes('wrong-rule'));
       expect(header!.trim().split(/\s{2,}/)).toEqual([
         'aspect', 'kind', 'status', 'nodes', 'pairs', 'refused', 'suppresses', 'errs', 'age',
-        'catch', 'exposure', 'signal', 'fp', 'wrong-rule',
+        'catch', 'exposure', 'signal', 'fp', 'wrong-rule', 'files',
       ]);
 
       // no-todo-comments: exactly the ONE attributed incident, thin-data labelled.
@@ -572,6 +573,84 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () 
       const advise = run(['advise'], dir);
       expect(advise.status).toBe(0);
       expect(advise.stdout).toContain('2 wrong-rule incidents recorded — rules may be miscalibrated; see incidents.md');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+// ── type-level coverage threading: `--health` must count the SAME expected-pair
+// universe `yg check` counts, including a file enforced by its architecture type
+// alone (no owning component) — real fixture, real binary, no fabricated pair
+// data. Uses the shared tests/fixtures/type-level-engine/ project merged with its
+// two-covered-files variant (the same real fixture cli-type-coverage-fill.test.ts
+// drives through the fill stage): one real node (`owned`, type `leaf`) alongside
+// two componentless files matching the same type (src/leaf/{a,b}.ts), carrying a
+// deterministic rule that refuses ONLY on a.ts (refuses-on-a) and an LLM rule
+// attached to the whole type (llm-leaf-rule).
+const TYPE_LEVEL_BASE = path.join(CLI_ROOT, 'tests', 'fixtures', 'type-level-engine');
+
+function copyMergedTypeLevelFixture(): string {
+  const dir = mkdtempSync(path.join(tmpdir(), 'yg-aspects-health-typelevel-'));
+  cpSync(TYPE_LEVEL_BASE, dir, { recursive: true });
+  cpSync(FIXTURE_TWO_COVERED_FILES, dir, { recursive: true });
+  return dir;
+}
+
+/**
+ * Append a reviewer: block so tier resolution succeeds (the base fixture ships
+ * none, and `yg check --approve` refuses to run at all without one). The
+ * endpoint is never actually dialed — every pinning run below stays
+ * `--only-deterministic`, so the LLM tier is resolved but not called.
+ */
+function addUnusedReviewer(dir: string): void {
+  appendFileSync(
+    path.join(dir, '.yggdrasil', 'yg-config.yaml'),
+    '\nreviewer:\n  default: standard\n  tiers:\n    standard:\n      provider: ollama\n' +
+      '      consensus: 1\n      config:\n        model: "unused"\n        endpoint: "http://127.0.0.1:1"\n',
+  );
+}
+
+describe.skipIf(!distExists)('CLI E2E — yg aspects --health counts type-covered files', () => {
+  it("a refusal on a type-covered file shows in --health's refused column, and pairs/files match the universe yg check counts", () => {
+    const dir = copyMergedTypeLevelFixture();
+    try {
+      addUnusedReviewer(dir);
+
+      // Populate the lock for free: refuses-on-a (deterministic) is attached to
+      // type `leaf`, live on the real node `owned` AND the two componentless
+      // files matching the same type — a real refusal on a.ts, no reviewer call.
+      const fill = run(['check', '--approve', '--only-deterministic'], dir);
+      expect(fill.all).toContain('[det] refuses-on-a on file:src/leaf/a.ts — refused');
+
+      // `yg check` itself still fails on that refusal — the ground truth
+      // `--health` must agree with.
+      const check = run(['check'], dir);
+      expect(check.status).toBe(1);
+      expect(check.stdout).toContain("src/leaf/a.ts  Violations:");
+
+      const health = run(['aspects', '--health'], dir);
+      expect(health.status).toBe(0); // informational, never blocks
+
+      // refuses-on-a: 1 real node (owned) + 2 type-covered files (a.ts, b.ts) —
+      // the SAME universe `yg check` just failed on — 3 pairs total, ONE of
+      // them refused (a.ts). Before threading the type-coverage classification
+      // into verifyLock, --health read nodes=1, pairs=1, refused=0: the
+      // node-only universe, with the type-covered file's own refusal invisible.
+      const refusesOnA = healthRow(health.stdout, 'refuses-on-a');
+      expect(refusesOnA[COL.nodes]).toBe('1');
+      expect(refusesOnA[COL.pairs]).toBe('3');
+      expect(refusesOnA[COL.refused]).toBe('1');
+      expect(refusesOnA[COL.files]).toBe('2');
+
+      // llm-leaf-rule shares the same 3-pair universe (1 node + 2 files); none
+      // of its pairs were touched by --only-deterministic, so all 3 read
+      // unverified — never a `0`, and never a `1` that silently drops the two
+      // type-covered files from the count.
+      const llmLeafRule = healthRow(health.stdout, 'llm-leaf-rule');
+      expect(llmLeafRule[COL.pairs]).toBe('3');
+      expect(llmLeafRule[COL.refused]).toBe('unverified');
+      expect(llmLeafRule[COL.files]).toBe('2');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

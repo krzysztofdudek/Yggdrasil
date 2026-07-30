@@ -449,18 +449,23 @@ plain-words read of how confident that ratio is (few observations reads as a wid
 range, never a false-precise number), and a `label` — `active`, `quiet`, or `decorative?`. A
 `decorative?` rule whose own examples still pass is reported as *possibly deterring the very
 violations it would catch* rather than assumed useless; a demotion is only ever suggested when
-several independent signals agree, never on the catch count alone. The last column, `fp`, is the
+several independent signals agree, never on the catch count alone. The `fp` column is the
 false-block signal — how many of the rule's refusals a human later waived or overturned (a live
 `yg-suppress` waiver now covers the refused code, or the block was re-approved after a waiver moved
 rather than a genuine code fix; a real fix, with no waiver, never counts). It is a count with a
 plain-words small-sample label, never a bare rate, and it never gates — it feeds a human retirement
-ritual (the false-block budget), never an automatic block. The final column, `wrong-rule`, is the
+ritual (the false-block budget), never an automatic block. The `wrong-rule` column is the
 per-rule incident join: how many committed `wrong-rule` incidents name **this** rule via
 [`yg incident add --aspect`](#yg-incident), rendered as an honest count with a `(thin data)` label
 because incident testimony is sparse and qualitative (there is no exposure denominator to grow out of
 thin-ness). A `wrong-rule` incident recorded **without** `--aspect` counts in the `yg advise`
 aggregate but never surfaces per-rule here — the ledger read runs only in this view and never
-influences a verdict. When
+influences a verdict. The final column, `files`, is how many distinct type-covered files — files
+enforced by the aspect's architecture type alone, with no owning component — have a review pair
+for the rule under `coverage.type_level`; 0 when the tier is off or none matched. `nodes` above
+counts only real components, but `pairs` and `refused` already count node-owned and type-covered
+pairs together, matching the same universe `yg check` reports on — `files` is that breakdown, not
+a separate universe. When
 units have no valid result on record the `refused` cell reads `unverified`, never `0`, so an
 unchecked aspect is never shown as clean; likewise `age` reads `unknown` when that history is
 unavailable (a shallow clone or no repository), never a fabricated `0`. These lookups run

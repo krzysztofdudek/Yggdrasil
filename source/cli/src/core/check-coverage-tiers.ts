@@ -28,7 +28,7 @@ export function matchesRoot(file: string, normRoot: string): boolean {
  * nodeless-tier consumer asks the same question through, so a file's excluded
  * status can never disagree between them — directly for the classification
  * lattice, coverage tiering, and the tracked∩gitignored anomaly check; INDIRECTLY
- * for the live type-relation gate (Task 4), which never calls this predicate
+ * for the live type-relation gate, which never calls this predicate
  * itself but consumes `computeTypeCoverage`'s already-filtered `covered` map —
  * an excluded file is never a member of that map, so it can never become a gate
  * endpoint either, without the gate needing its own exclusion check. It has NO

@@ -86,8 +86,8 @@ export function owningNodeForUnitKey(
  *     already red from the blocking file-unreadable error). This mirrors the
  *     protection fill-closure applies for the same root cause.
  *
- * A third retain family (R3/K3, Task 6): a file the type-level classification
- * lattice reported AMBIGUOUS this run (`opts.typeCoverage.ambiguousPaths`) — the
+ * A third retain family covers a file the type-level classification lattice
+ * reported AMBIGUOUS this run (`opts.typeCoverage.ambiguousPaths`) — the
  * machine could not decide its type, so nothing about it is positively detached
  * either. Aspect-agnostic and PATH-keyed (unlike the other two families, which
  * are keyed per aspect+unit): every verdict entry under that file's `file:` unit
@@ -95,7 +95,7 @@ export function owningNodeForUnitKey(
  * is a property of the FILE, not of any one rule.
  *
  * `opts.typeCoverage`, threaded straight into `computeExpectedPairs`, is what
- * puts nodeless (`file:`) pairs into the universe at all (R5) — the presence of
+ * puts nodeless (`file:`) pairs into the universe at all — the presence of
  * those keys in `universe`, not `owningNodeForUnitKey`'s attribution (unchanged,
  * still node-domain only), is the anti-prune lever for a file enforced by its
  * architecture type. Returns a `PruneSummary` of every entry actually deleted.
@@ -150,7 +150,7 @@ export async function garbageCollectAndRewrite(
     unreadableUnits.add(`${u.aspectId}\0${fileUnit(u.path)}`);
   }
 
-  // Ambiguous-file retain family (R3/K3): aspect-agnostic, keyed by the file's
+  // Ambiguous-file retain family: aspect-agnostic, keyed by the file's
   // OWN `file:` unit key — every aspect's entry for that file is retained.
   const ambiguousFileUnits = new Set(
     (opts?.typeCoverage?.ambiguousPaths ?? []).map((p) => fileUnit(p)),

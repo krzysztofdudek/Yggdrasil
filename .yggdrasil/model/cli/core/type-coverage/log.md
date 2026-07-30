@@ -8,3 +8,5 @@ The classification lattice's own excluded-root check is replaced by the shared a
 Deleted the dead alsoMatches field from TypeCoverageResult.strictClaimed — nothing in production ever read it (the equivalent enrichment the field was meant to feed lives independently in checks/mapping.ts's own type-strict-orphan message, which computes its own co-match list), so carrying it here was pure unread output.
 ## [2026-07-30T13:40:11.663Z]
 Adds a single-file classification entry point so a command answering about one file, not the whole repository, can classify it against the architecture without paying for a full-repo classification pass.
+## [2026-07-30T21:02:06.660Z]
+Reworded a comment describing the single-file classification helper so it explains, in its own words, that it is the per-file body of the whole-repo classifier, instead of leaning on a short internal code with no meaning to a reader of this repository.

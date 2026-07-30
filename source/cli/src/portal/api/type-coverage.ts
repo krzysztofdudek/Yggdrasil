@@ -8,10 +8,10 @@ import type { TypeCoverageInput } from '../../core/pairs.js';
  * portal/api/type-coverage — the type-level classification lattice
  * (coverage.type_level), behind the portal facade.
  *
- * Classifies ONCE for a whole portal extraction run — the pipeline's own K15
- * hoist, mirroring runCheck's and runFill's — so every consumer counts the SAME
- * universe instead of the portal running an independent classify per call.
- * Undefined when the flag is off.
+ * Classifies ONCE for a whole portal extraction run — mirroring the same
+ * single-classification-per-run discipline runCheck and runFill each follow —
+ * so every consumer counts the SAME universe instead of the portal running an
+ * independent classify per call. Undefined when the flag is off.
  */
 export async function computePortalTypeCoverage(graph: Graph, gitFiles: string[]): Promise<TypeCoverageResult | undefined> {
   if (!graph.config.coverage?.typeLevel) return undefined;

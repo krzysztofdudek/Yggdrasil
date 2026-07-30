@@ -152,8 +152,9 @@ export interface RelationPassResult {
    * is undefined or empty: a node-owned source can only ever contribute an edge here by
    * reaching a type-covered target (this interface's own invariant above excludes every
    * node-to-node edge), so with none in the run it stays empty; the gate caller
-   * (`core/check.ts`) decides whether to act on it (R3 gates the DECISION, and — via
-   * `deps.typeCoveredFiles` — this field's very population).
+   * (`core/check.ts`) decides whether to act on it — the same coverage.type_level
+   * flag governs both that decision and, via `deps.typeCoveredFiles`, whether
+   * this field is ever populated at all.
    */
   typedEdges: TypedEdgeIndex;
   /**
@@ -173,9 +174,10 @@ export interface RelationPassDeps {
    * File → matched classifying typeId (coverage.type_level), e.g.
    * `computeTypeCoverage(...).covered`. Undefined or empty ⇒ this pass's file enumeration
    * ADDS NOTHING beyond the existing node-mapped files — zero added parse cost, byte-
-   * identical to today (R3). When populated, each entry is enumerated the SAME way a
-   * node-mapped file is (read, hash, detect language, extract facts) and attributed to its
-   * matched TYPE rather than a nodeId, feeding both `typedEdges` and `fileOwnerType` below.
+   * identical to today when the flag is off. When populated, each entry is enumerated
+   * the SAME way a node-mapped file is (read, hash, detect language, extract facts) and
+   * attributed to its matched TYPE rather than a nodeId, feeding both `typedEdges` and
+   * `fileOwnerType` below.
    */
   typeCoveredFiles?: Map<string, string>;
   /**
@@ -255,7 +257,8 @@ export async function runRelationPass(
   // Type-covered files (coverage.type_level): enumerated the SAME way as node-mapped
   // files (read, hash, detect language) but attributed to their matched TYPE, not a
   // nodeId. Empty/undefined typeCoveredFiles (flag off, or no coverage scan ran) means
-  // this loop does nothing — zero added parse cost, byte-identical to today (R3).
+  // this loop does nothing — zero added parse cost, byte-identical to today when the
+  // flag is off.
   for (const [rel, typeId] of deps.typeCoveredFiles ?? []) {
     if (recordByPath.has(rel)) continue; // defensive; cannot actually overlap with a node mapping by construction
     let content: string;
@@ -663,7 +666,7 @@ export async function runRelationPass(
     }
   };
 
-  // R3 + I2: a node-owned source can only EVER contribute a gate-relevant edge by
+  // A node-owned source can only EVER contribute a gate-relevant edge by
   // reaching a type-covered target (the CRITICAL exclusion above rules out every
   // node-to-node edge from a node-owned source). With zero type-covered files there
   // is no type-covered target to reach, so calling `addTypedEdges` for a node-owned
@@ -741,7 +744,7 @@ export async function runRelationPass(
   //     is enumerated and its facts extracted exactly like a node-owned one (step 2 /
   //     section 4 above already cover it); only this candidate-resolution walk needs a
   //     dedicated loop since it has no shared per-node grouping to batch against. Empty when
-  //     no type-covered records were enumerated (flag off, or no coverage scan ran) — R3.
+  //     no type-covered records were enumerated (flag off, or no coverage scan ran).
   for (const record of fileRecords) {
     if (record.typeId === undefined) continue; // node-owned — already handled above
     if (!record.language) continue;

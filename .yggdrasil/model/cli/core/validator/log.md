@@ -102,3 +102,5 @@ Validation now accepts the same file-type classification the read-only check com
 Threads the same type-coverage classification already used for the reviewer-presence check into the two dead-law linters, so both see a rule or a type instance that exists only through type coverage.
 ## [2026-07-30T19:19:44.912Z]
 A parameter's doc comment claimed the shared enforcement classification was threaded into only one check, but it has also fed two dead-attach warnings for some time, letting them tell a rule reachable through an architecture type apart from one that is genuinely never enforced. The comment was stale; it now names all three consumers.
+## [2026-07-30T21:02:13.136Z]
+Reworded two comments describing the threaded type-coverage classification parameter so each explains, in its own words, that it is computed once by the caller and passed through to the dead-attach checks rather than recomputed, instead of leaning on a short internal code with no meaning to a reader of this repository.

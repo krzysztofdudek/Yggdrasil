@@ -268,10 +268,11 @@ async function gatherSuppressData(graph: Graph, projectRoot: string): Promise<Su
 /**
  * The type-level classification lattice (coverage.type_level), classified ONCE
  * for this one `yg advise` invocation and shared by every source that needs it
- * (the decorative-rule signal's expected-pairs pass, and the dead-attach source
- * — K15: never a second classify here). Undefined when the flag is off, so a
- * caller's own computeExpectedPairs/checkAspectEffectiveNowhere call enumerates
- * exactly the component-only universe it always has.
+ * (the decorative-rule signal's expected-pairs pass, and the dead-attach
+ * source), so no downstream caller classifies the repo's files a second time.
+ * Undefined when the flag is off, so a caller's own
+ * computeExpectedPairs/checkAspectEffectiveNowhere call enumerates exactly the
+ * component-only universe it always has.
  */
 async function computeTypeCoverageForAdvise(graph: Graph, projectRoot: string): Promise<TypeCoverageInput | undefined> {
   if (!graph.config.coverage?.typeLevel) return undefined;
@@ -425,7 +426,8 @@ async function gatherNominationSources(graph: Graph, todayUtc: Date): Promise<No
   const suppressData = await gatherSuppressData(graph, projectRoot);
   const drillResults = await gatherInCorpusDrillResults(graph, projectRoot);
   const verdictEvents = readVerdictEvents(graph.rootPath).events;
-  // Classified ONCE (K15) and shared by every source below that needs it.
+  // Classified once here, then shared by every source below that needs it —
+  // no downstream helper repeats the classification pass.
   const typeCoverage = await gatherTypeCoverageForAdvise(graph, projectRoot);
   const currentUnitsByAspect = await gatherCurrentUnits(graph, typeCoverage);
   const churnByNode = gatherChurnByNode(graph, projectRoot);

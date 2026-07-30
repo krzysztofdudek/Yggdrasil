@@ -107,10 +107,10 @@ export interface LockVerification {
  * calls, no check.mjs execution. Returns a per-pair classification plus the
  * unreadable-subject list from pair computation.
  *
- * `typeCoverage` (CRITICAL — R5): the SAME `earlyTypeCoverage` classification
- * `runCheck` computed once for this run (spec K15 — never a second classify
- * here). Without it, this builds a component-only pair universe while the lock
- * may already hold `file:` verdict entries: those entries would have no pair to
+ * `typeCoverage` (CRITICAL): the SAME classification the caller already
+ * computed once for this run, threaded through rather than recomputed here.
+ * Without it, this builds a component-only pair universe while the lock may
+ * already hold `file:` verdict entries: those entries would have no pair to
  * attach to, so they render as unexpected and the run goes red even though it
  * should be green.
  */

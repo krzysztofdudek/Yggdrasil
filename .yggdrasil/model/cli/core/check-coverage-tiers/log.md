@@ -18,3 +18,5 @@ The uncovered-files advisory message now describes the affected files as coverag
 Coverage exclusion is now absolute: a file matching any excluded root is dropped before required/middle tiering is even considered, instead of the more specific of a matching required/excluded root pair winning. The exclusion test is extracted into its own predicate so every coverage consumer asks the same question the same way, and a new check flags a required root that can never match a file because an excluded root fully contains it — a config line that used to fail silently.
 ## [2026-07-28T13:02:32.385Z]
 Reworded the coverage-required-shadowed warning's WHY sentence to plain language: it no longer names the internal middle tier, since that vocabulary appears in no other user-facing message.
+## [2026-07-30T21:01:53.090Z]
+Reworded a comment naming the live type-to-type relation gate so it stands on its own, dropping a short internal code with no meaning to a reader of this repository.

@@ -68,8 +68,8 @@ export async function validate(
   scope: string = 'all',
   suppliedCache?: FileContentCache,
   /**
-   * The SAME type-coverage classification the caller computed once for this run
-   * (K15 — never a second classify). Threaded into `checkReviewerPresence` (whose
+   * The SAME type-coverage classification the caller computed once for this run,
+   * threaded through rather than recomputed. Passed into `checkReviewerPresence` (whose
    * own `computeExpectedPairs` call would otherwise answer about a component-only
    * universe) and into the two dead-attach linters, `checkAspectEffectiveNowhere`
    * / `checkArchitectureDefaultAspectUnreachable` (so a rule effective only on
@@ -207,7 +207,7 @@ export async function validate(
   // Dead-attach linter (warning): a rule source effective on zero nodes after
   // the full cascade + when. Runs here (post arch-fatal short-circuit) because it
   // evaluates `when` predicates, which require a structurally-valid architecture.
-  // `typeCoverage`: the SAME K15 classification threaded into checkReviewerPresence
+  // `typeCoverage`: the SAME classification threaded into checkReviewerPresence
   // above — a rule effective only on files enforced by their type is live law too.
   issues.push(...checkAspectEffectiveNowhere(graph, typeCoverage));
   issues.push(...checkArchitectureDefaultAspectUnreachable(graph, typeCoverage));

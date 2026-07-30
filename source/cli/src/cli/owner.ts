@@ -100,7 +100,7 @@ export function registerOwnerCommand(program: Command): void {
               process.stderr.write(chalk.red(`Error: ${cycleMsg}\n`));
               process.exit(1);
             }
-            // K9: classifies and enumerates pairs scoped to THIS ONE FILE (a
+            // Classifies and enumerates pairs scoped to THIS ONE FILE (a
             // single-entry covered map), never the whole-repo classification
             // map — mirrors build-context.ts's own typed-file path.
             const { pairs } = await computeExpectedPairs(graph, {
