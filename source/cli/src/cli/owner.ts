@@ -15,6 +15,7 @@ import { classifySingleFile } from '../core/type-coverage.js';
 import { isExcludedByCoverage } from '../core/check-coverage-tiers.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import { computeExpectedPairs } from '../core/pairs.js';
+import { computeTypeAspectCascade } from '../core/type-effective.js';
 
 function normalizeForMatch(inputPath: string): string {
   return toPosixPath(inputPath.trim());
@@ -77,6 +78,27 @@ export function registerOwnerCommand(program: Command): void {
             ? await classifySingleFile(graph, result.file, new FileContentCache())
             : undefined;
           if (typeMatch?.bucket === 'covered') {
+            // An aspect `implies` cycle reachable from this type stops the
+            // cascade before it can decide what applies — computeTypeAspectCascade
+            // absorbs the cycle into a `cycle` marker rather than an empty
+            // "nothing applies" result (see its own doc). Say so plainly,
+            // naming the cycle, instead of computing hasEnforcement below and
+            // reporting the file as covered with zero enforcement, which would
+            // be false: the type's rules were never resolved, not
+            // resolved-and-absent. yg check's own static aspect-implies-cycle
+            // error is unaffected — it still fires and still blocks, on its
+            // own separate path. Same wording as yg context --file's identical
+            // check, so the two surfaces cannot disagree about this case.
+            const cascadeCycle = computeTypeAspectCascade(graph, result.file, typeMatch.typeId).cycle;
+            if (cascadeCycle) {
+              const cycleMsg = buildIssueMessage({
+                what: `${result.file} matches type '${typeMatch.typeId}', but its rules could not be worked out.`,
+                why: `The aspect graph has an implies cycle${cascadeCycle.aspectId ? ` at '${cascadeCycle.aspectId}'` : ''} — the cascade cannot tell which of the type's rules apply until that cycle is broken.`,
+                next: `Run yg check to see the blocking aspect-implies-cycle error, then remove one implies edge in .yggdrasil/aspects/. This file's rules cannot be evaluated until the cycle is fixed.`,
+              });
+              process.stderr.write(chalk.red(`Error: ${cycleMsg}\n`));
+              process.exit(1);
+            }
             // K9: classifies and enumerates pairs scoped to THIS ONE FILE (a
             // single-entry covered map), never the whole-repo classification
             // map — mirrors build-context.ts's own typed-file path.

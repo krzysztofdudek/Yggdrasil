@@ -7,7 +7,7 @@ import { Command } from 'commander';
 import { findOwner } from '../../../src/cli/owner.js';
 import type { Graph } from '../../../src/model/graph.js';
 import { tmpdir } from 'node:os';
-import { FIXTURE_ZERO_ENFORCEMENT } from '../../fixtures/type-level-engine/variants/index.js';
+import { FIXTURE_ZERO_ENFORCEMENT, FIXTURE_CYCLIC_TYPE } from '../../fixtures/type-level-engine/variants/index.js';
 
 // Keep the real abortOnUnexpectedError (so an unclassified error still renders
 // the generic "file an issue" text) but stub loadGraphOrAbort so the owner
@@ -309,5 +309,34 @@ describe('owner — a typed answer for a type-covered file (Step 4)', () => {
       expect(result.status).toBe(0);
       expect(result.stdout).toContain('Enforced by its architecture type, not by a component.');
     });
+  });
+
+  // A type-covered file whose matched type's rules hit an implies cycle
+  // (cyclic-a <-> cyclic-b, variants/cyclic-type) must never be told "Covered
+  // by its architecture type, but nothing from it enforces on this file": the
+  // rules were never resolved, not resolved-and-absent. `yg context --file`
+  // already tells this truth for the same fixture — this pins that `yg owner
+  // --file`, which computes the identical "does anything enforce" answer
+  // independently, tells it too, instead of asserting zero enforcement.
+  it('a type-covered file whose type hit an implies cycle says so, naming it — never "nothing enforces"', async () => {
+    await withTypeLevelFixtureCopy(async (cwd) => {
+      const result = spawnSync(
+        'node',
+        [BIN_PATH, 'owner', '--file', 'src/cyclic/z.ts'],
+        { cwd, encoding: 'utf-8' },
+      );
+      expect(result.status).toBe(1);
+      expect(result.stdout).not.toContain('nothing from it enforces on this file');
+      expect(result.stdout).not.toContain('Covered by its architecture type');
+      expect(result.stderr).toContain("matches type 'cyclic'");
+      expect(result.stderr).toMatch(/implies cycle/);
+      expect(result.stderr).toMatch(/cyclic-a|cyclic-b/);
+
+      // yg check independently reports the SAME structural fault and stays red —
+      // this fix must not touch that path.
+      const checked = spawnSync('node', [BIN_PATH, 'check'], { cwd, encoding: 'utf-8' });
+      expect(checked.status).toBe(1);
+      expect(checked.stdout).toContain('aspect-implies-cycle');
+    }, FIXTURE_CYCLIC_TYPE);
   });
 });

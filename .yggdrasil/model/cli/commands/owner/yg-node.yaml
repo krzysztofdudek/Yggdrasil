@@ -4,9 +4,13 @@ description: "Resolves a file path to its owning graph node via yg owner. For
   an unmapped file with a matched architecture type, classifies ONLY that one
   file (never the whole-repo classification map) and answers with the type
   instead of 'no graph coverage' — the graph directory itself and a
-  coverage.excluded root both stay exempt. Also computes ONLY this one file's
-  expected pairs (never the whole-repo enumeration) to decide whether the
-  matched type actually enforces anything here, saying so only when at least
+  coverage.excluded root both stay exempt. Before computing enforcement,
+  checks whether the matched type's aspect cascade hit an implies cycle; if
+  so it reports the cycle by name and stops, instead of computing this one
+  file's expected pairs (never the whole-repo enumeration) and saying nothing
+  enforces — that claim would be false when the cascade never actually ran.
+  With no cycle, it decides whether the matched type actually enforces
+  anything here from the real computed pairs, saying so only when at least
   one real pair exists; with zero it says that plainly instead, never
   claiming enforcement that is not there."
 aspects:
@@ -35,6 +39,8 @@ relations:
   - target: cli/core/check-coverage-tiers
     type: calls
   - target: cli/core/pairs
+    type: calls
+  - target: cli/core/type-effective
     type: calls
 mapping:
   - source/cli/src/cli/owner.ts
