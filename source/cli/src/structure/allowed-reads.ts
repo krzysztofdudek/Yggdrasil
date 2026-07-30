@@ -1,6 +1,13 @@
 import type { ArchitectureDef, Graph, GraphNode } from '../model/graph.js';
 import { normalizeMappingPath } from './expand-mapping-sync.js';
 import { allowedRelationTypes } from '../core/allowed-relation-types.js';
+// Type-only: relations/owner-index.ts's buildOwnerIndex() call itself stays
+// with the CALLER (core/fill-det.ts, which already declares a relation to
+// cli/relations/core) — a whole-statement `import type` here creates no code
+// edge for the relation-conformance pass to see, so this module never needs
+// its own relation to relations-adapter just to spell the resolver's type.
+import type { OwnerIndex } from '../relations/owner-index.js';
+import { expandMappingPaths } from '../io/hash.js';
 
 /**
  * Computes the set of repo-relative paths a structure aspect on `nodePath`
@@ -125,23 +132,51 @@ export interface ArchitectureReachInput {
   typeCovered: Map<string, string>;
   architecture: ArchitectureDef;
   graph: Graph;
+  /**
+   * Repo root the graph's mappings resolve against. Needed to expand a
+   * declared component's directory/glob mapping entries to the real, on-disk
+   * files they cover — the SAME expansion `structure/hook-loader.ts`'s
+   * `buildUnitCtx` already performs for a component's own files (via
+   * `expandMappingPaths`) — so ownership can be resolved file-by-file instead
+   * of trusting the raw mapping entry alone.
+   */
+  projectRoot: string;
+  /**
+   * Child-wins file-ownership resolver — the SAME authority the live type
+   * gate's `fileOwnerType` is built from (`buildOwnerIndex(graph.nodes)`,
+   * relations/owner-index.ts). Built by the caller (pure and graph-only, no
+   * I/O — cheap to build once per run) so this module only ever needs the
+   * TYPE, never a value import of the builder itself.
+   */
+  ownerIndex: OwnerIndex;
 }
 
 /**
  * The files a rule running on one file — with no component of its own — may
- * read. The subject file itself, plus every file whose type the subject's type
- * is permitted to depend on under the architecture's relation allow-list —
- * whether that file belongs to a declared component or is itself enforced by
- * its type alone. There is no per-component narrowing to apply here (there is
- * no component), so the architecture's allow-list is the ONLY statement of
- * what may reach what — the SAME authority {@link allowedRelationTypes} gives
- * the live type-relation gate over derived edges.
+ * read. The subject file itself, plus every file whose TRUE OWNER's type the
+ * subject's type is permitted to depend on under the architecture's relation
+ * allow-list — whether that owner is a declared component or the file is
+ * itself enforced by its type alone. There is no per-component narrowing to
+ * apply here (there is no component), so the architecture's allow-list is the
+ * ONLY statement of what may reach what — the SAME authority
+ * {@link allowedRelationTypes} gives the live type-relation gate over derived
+ * edges.
+ *
+ * Ownership of a declared component's mapped files is resolved with the SAME
+ * child-wins authority the gate's own `fileOwnerType` is built from
+ * (`buildOwnerIndex`, relations/owner-index.ts) — never the raw mapping entry
+ * alone. A parent component's mapping can name a whole directory a deeper
+ * child component maps one specific file inside of; textually, the parent's
+ * entry covers that file too, but the child owns it (child-wins), so a type
+ * permitted to depend on the PARENT's type must not thereby gain the CHILD's
+ * file if the child's own type is not itself permitted. Distinguishing the two
+ * requires the real, expanded, on-disk file list and the graph's ownership
+ * resolution — a raw mapping entry cannot tell them apart on its own.
  *
  * `allowedRelationTypes(architecture, fromType, toType) !== []` is the
- * membership test for both declared-component targets (`toType` = the
- * component's own node type) and other type-covered files (`toType` = the
- * file's matched type) — any ONE permitted relation kind admits the read; the
- * exact kind is never inspected.
+ * membership test for both a file's true-owner component type and a
+ * type-covered file's matched type — any ONE permitted relation kind admits
+ * the read; the exact kind is never inspected.
  *
  * `fromType` unknown to the architecture makes `allowedRelationTypes` return
  * `[]` for every target, so the reach degrades to `{ subjectFile }` alone —
@@ -154,22 +189,37 @@ export interface ArchitectureReachInput {
  * was actually observed changed. There is no continuous re-enforcement of this
  * boundary the way `yg check` continuously re-verifies a live import graph.
  */
-export function collectArchitectureReach(subjectFile: string, input: ArchitectureReachInput): Set<string> {
-  const { fromType, typeCovered, architecture, graph } = input;
+export async function collectArchitectureReach(subjectFile: string, input: ArchitectureReachInput): Promise<Set<string>> {
+  const { fromType, typeCovered, architecture, graph, projectRoot, ownerIndex } = input;
   const reach = new Set<string>([subjectFile]);
 
-  // Declared components: every file of a component whose own node type this
-  // subject's type may depend on (any permitted relation kind admits it).
+  // Declared components. Only a node whose OWN type this fromType may depend
+  // on is worth expanding — a node of an unreachable type contributes nothing:
+  // any file ownerIndex later attributes to IT is excluded regardless, and any
+  // file a DEEPER, reachable descendant genuinely owns is independently
+  // discovered when THIS SAME loop reaches that descendant's own entry (every
+  // node in the graph is visited, not just direct children).
   for (const node of graph.nodes.values()) {
-    const toType = node.meta.type;
-    if (allowedRelationTypes(architecture, fromType, toType).length === 0) continue;
-    for (const raw of node.meta.mapping ?? []) {
-      const p = normalizeMappingPath(raw);
-      if (p) reach.add(p);
+    if (allowedRelationTypes(architecture, fromType, node.meta.type).length === 0) continue;
+    const rawMapping = (node.meta.mapping ?? [])
+      .map(normalizeMappingPath)
+      .filter((p): p is string => p !== '');
+    if (rawMapping.length === 0) continue;
+    const expanded = await expandMappingPaths(projectRoot, rawMapping);
+    for (const file of expanded) {
+      // Re-resolve the file's TRUE owner (child-wins) — never assume the
+      // enumerating node still owns it once expanded to a real path.
+      const ownerPath = ownerIndex.ownerOf(file);
+      const ownerNode = ownerPath !== undefined ? graph.nodes.get(ownerPath) : undefined;
+      if (!ownerNode) continue;
+      if (allowedRelationTypes(architecture, fromType, ownerNode.meta.type).length === 0) continue;
+      reach.add(file);
     }
   }
 
-  // Other files enforced by their type alone (no component of their own).
+  // Other files enforced by their type alone (no component of their own) — a
+  // pure map lookup: computeTypeCoverage has already established each entry is
+  // a real, individually-classified file, so no expansion is needed here.
   for (const [file, toType] of typeCovered) {
     if (allowedRelationTypes(architecture, fromType, toType).length === 0) continue;
     reach.add(file);

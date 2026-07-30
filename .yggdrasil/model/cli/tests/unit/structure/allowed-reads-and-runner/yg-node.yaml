@@ -7,7 +7,8 @@ relations:
   [
     { target: cli/structure, type: uses },
     { target: cli/tests/unit/helpers, type: uses },
-    { target: cli/tests/fixtures, type: uses }
+    { target: cli/tests/fixtures, type: uses },
+    { target: cli/relations/core, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/structure/allowed-reads.test.ts

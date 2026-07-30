@@ -14,6 +14,33 @@ import { fileUnit, nodeUnit } from '../../../src/model/lock.js';
 import { computeExpectedPairs, computeSourceFingerprint, getChildMappingExclusions, FileUnreadableError } from '../../../src/core/pairs.js';
 import type { Graph, GraphNode, AspectDef, ScopeDef } from '../../../src/model/graph.js';
 
+/**
+ * Whether this runtime actually enforces a chmod(0o000) restriction on a file
+ * readable by its owner. A privileged process (root, or certain containers)
+ * ignores file mode bits entirely, so a test relying on readFileSync genuinely
+ * failing under 0o000 cannot execute there. Probed ONCE at module load — never
+ * per-test, never inside an assertion — so a test depending on it is marked
+ * SKIPPED for this environment via `it.skipIf`, an honest, explicit
+ * non-execution rather than an early `return` that lets vitest report a test
+ * that ran zero assertions as passed.
+ */
+function probeEnforcesFilePermissions(): boolean {
+  const dir = mkdtempSync(path.join(tmpdir(), 'yg-permcheck-'));
+  const probe = path.join(dir, 'probe.txt');
+  writeFileSync(probe, 'x');
+  chmodSync(probe, 0o000);
+  let enforced = false;
+  try {
+    readFileSync(probe, 'utf8');
+  } catch {
+    enforced = true;
+  }
+  chmodSync(probe, 0o644); // restore so rmSync can remove it
+  rmSync(dir, { recursive: true, force: true });
+  return enforced;
+}
+const ENFORCES_FILE_PERMISSIONS = probeEnforcesFilePermissions();
+
 // ---------------------------------------------------------------------------
 // Minimal inline graph builder (extends buildTestGraph with mapping + scope)
 // ---------------------------------------------------------------------------
@@ -336,7 +363,7 @@ describe('computeExpectedPairs', () => {
   // We keep an explicit restore array so cleanup works before rmSync is called.
   // ---------------------------------------------------------------------------
 
-  it('content-filter aspect: unreadable file lands in unreadable[], readable sibling still produces a pair', async () => {
+  it.skipIf(!ENFORCES_FILE_PERMISSIONS)('content-filter aspect: unreadable file lands in unreadable[], readable sibling still produces a pair', async () => {
     // src/readable.ts is readable and matches the content filter.
     // src/locked.ts exists but chmod 0o000 → readFile EACCES → evaluateFileWhen
     // reports unreadable: true — it must land in unreadable[], not be silently dropped.
@@ -344,22 +371,6 @@ describe('computeExpectedPairs', () => {
     writeFile('src/locked.ts', 'export function secret() {}');
     const lockedAbs = path.join(tmpDir, 'src/locked.ts');
     chmodSync(lockedAbs, 0o000);
-
-    // Privileged-runtime guard: under root (CI or container), chmod 0o000 is ignored
-    // and readFileSync still succeeds. The EACCES branch is unreachable in that
-    // environment, so assertions that depend on it would fail for the wrong reason.
-    // Detect this by probing readability after locking and skip cleanly if privileged.
-    let privileged = false;
-    try {
-      readFileSync(lockedAbs);
-      privileged = true;
-    } catch {
-      // expected: EACCES in a normal (non-root) runtime
-    }
-    if (privileged) {
-      chmodSync(lockedAbs, 0o644);
-      return;
-    }
 
     const graph = buildPairsGraph(
       tmpDir,
@@ -387,29 +398,13 @@ describe('computeExpectedPairs', () => {
     expect(unreadable[0].reason).toMatch(/EACCES/i);
   });
 
-  it('content-filter aspect: only matching file is unreadable → zero pairs AND non-empty unreadable (vacuous-green guard)', async () => {
+  it.skipIf(!ENFORCES_FILE_PERMISSIONS)('content-filter aspect: only matching file is unreadable → zero pairs AND non-empty unreadable (vacuous-green guard)', async () => {
     // src/locked.ts is the only mapped file. chmod 0o000 makes it unreadable.
     // Without the fix this produced zero pairs silently (vacuous green).
     // With the fix: zero pairs AND non-empty unreadable surfaces the problem.
     writeFile('src/locked.ts', 'export function secret() {}');
     const lockedAbs = path.join(tmpDir, 'src/locked.ts');
     chmodSync(lockedAbs, 0o000);
-
-    // Privileged-runtime guard: under root (CI or container), chmod 0o000 is ignored
-    // and readFileSync still succeeds. The EACCES branch is unreachable in that
-    // environment, so assertions that depend on it would fail for the wrong reason.
-    // Detect this by probing readability after locking and skip cleanly if privileged.
-    let privileged = false;
-    try {
-      readFileSync(lockedAbs);
-      privileged = true;
-    } catch {
-      // expected: EACCES in a normal (non-root) runtime
-    }
-    if (privileged) {
-      chmodSync(lockedAbs, 0o644);
-      return;
-    }
 
     const graph = buildPairsGraph(
       tmpDir,
@@ -493,7 +488,7 @@ describe('computeExpectedPairs', () => {
     expect(unreadable[0].reason).toMatch(/5MB/);
   });
 
-  it('path-filter aspect: an unreadable subject file IS flagged unreadable and excluded (a mapped file must be readable)', async () => {
+  it.skipIf(!ENFORCES_FILE_PERMISSIONS)('path-filter aspect: an unreadable subject file IS flagged unreadable and excluded (a mapped file must be readable)', async () => {
     // A path-only filter never reads content, but readability is now probed for
     // EVERY subject file: a file written into the mapping must be readable, or it
     // surfaces as a blocking unreadable record and is dropped from the subject
@@ -503,20 +498,6 @@ describe('computeExpectedPairs', () => {
     writeFile('src/locked.ts', 'code');
     const lockedAbs = path.join(tmpDir, 'src/locked.ts');
     chmodSync(lockedAbs, 0o000);
-
-    // Privileged-runtime guard: under root (CI / container) chmod 0o000 is ignored
-    // and the read still succeeds — skip cleanly, mirroring the content-filter case.
-    let privileged = false;
-    try {
-      readFileSync(lockedAbs);
-      privileged = true;
-    } catch {
-      // expected: EACCES in a normal (non-root) runtime
-    }
-    if (privileged) {
-      chmodSync(lockedAbs, 0o644);
-      return;
-    }
 
     const graph = buildPairsGraph(
       tmpDir,
@@ -660,24 +641,11 @@ describe('computeSourceFingerprint', () => {
     expect(parentFp).not.toBe(noCarveOutFp);
   });
 
-  it('throws FileUnreadableError for an unreadable mapped file (no partial fold)', async () => {
+  it.skipIf(!ENFORCES_FILE_PERMISSIONS)('throws FileUnreadableError for an unreadable mapped file (no partial fold)', async () => {
     writeFile('src/a.ts', 'readable');
     writeFile('src/locked.ts', 'secret');
     const lockedAbs = path.join(tmpDir, 'src/locked.ts');
     chmodSync(lockedAbs, 0o000);
-
-    // Privileged-runtime guard: under root chmod 0o000 is ignored — skip cleanly.
-    let privileged = false;
-    try {
-      readFileSync(lockedAbs);
-      privileged = true;
-    } catch {
-      // expected: EACCES in a normal (non-root) runtime
-    }
-    if (privileged) {
-      chmodSync(lockedAbs, 0o644);
-      return;
-    }
 
     const graph = buildPairsGraph(
       tmpDir,

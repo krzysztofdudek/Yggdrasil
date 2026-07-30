@@ -18,8 +18,12 @@ that \`ctx\` they touch. But \`ctx\` is not equally rich everywhere it runs (see
 \`check.mjs\` executes in three places, split across TWO runners with different \`ctx\`:
 
 - The **graph-aware runner** — the \`yg check --approve\` fill stage and
-  \`yg aspect-test --node\` — hands the check the full \`ctx\`: \`files\`, \`fs\`, \`graph\`,
-  \`node\`, \`subject\`, and the parsers (\`parseAst\`, \`parseYaml\`, \`parseJson\`, \`parseToml\`).
+  \`yg aspect-test --node\` — always hands the check \`files\`, \`fs\`, \`subject\`, and
+  the parsers (\`parseAst\`, \`parseYaml\`, \`parseJson\`, \`parseToml\`); \`graph\` and
+  \`node\` are ALSO present, but only when the unit has an owning component. A
+  file enforced purely by its architecture type (\`coverage.type_level\`, no
+  component of its own) gets everything except \`graph\`/\`node\` — see "Rules on
+  a file with no component" below.
 - The **graphless AST runner** — \`yg drill\` and \`yg aspect-test --files\` — hands the
   check only \`ctx.files\`. A check that reads any graph-context accessor —
   \`ctx.node\`, \`ctx.subject\`, \`ctx.graph\`, \`ctx.fs\`, \`ctx.parseAst\`, \`ctx.parseYaml\`,
@@ -281,9 +285,11 @@ interface Violation {
 }
 \`\`\`
 
-Note \`ctx.files\` (the scope-driven subject view) vs \`ctx.node.files\` (always the
-full mapped set). Under \`scope.per: file\`, \`ctx.files\` is the single file; under
-\`per: node\` it is the whole subject set.
+Note \`ctx.files\` (the scope-driven subject view) vs \`ctx.node.files\` (the full
+mapped set — but only when the unit has an owning component; \`ctx.node\`
+itself, \`.files\` included, is absent entirely for a file with none — see
+"Rules on a file with no component" below). Under \`scope.per: file\`,
+\`ctx.files\` is the single file; under \`per: node\` it is the whole subject set.
 
 \`file\` is optional on the graph-aware path, where a file-less (graph-level)
 violation is accepted. On the graphless AST runner (\`yg drill\`,
@@ -363,7 +369,12 @@ purely by its architecture type (\`coverage.type_level\`). There is no
   the same \`structure-aspect-undeclared-fs-read\` violation as the node case,
   naming the same two exits: widen the architecture's \`relations:\` so this
   type may depend on the type that owns the file you need, or give your own
-  file a component so it can declare an explicit relation instead.
+  file a component so it can declare an explicit relation instead. Honest
+  caveat: with no \`relations:\` table declared for this type at all — the
+  default a fresh \`yg init\` produces — every relation type is unconstrained,
+  so this "allowance" is, in practice, the whole covered repository; it only
+  narrows once you actually declare a \`relations:\` table that restricts
+  something.
 - \`ctx.fs.list(dir)\` still returns the RAW, unfiltered directory listing, and
   the whole listing is still remembered — adding or renaming ANY entry in a
   listed directory makes the result need re-checking, including a file your

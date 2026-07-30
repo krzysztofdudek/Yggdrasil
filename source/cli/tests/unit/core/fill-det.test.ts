@@ -58,7 +58,7 @@ vi.mock('../../../src/structure/runner.js', async (importOriginal) => {
     runStructureAspect: vi.fn(actual.runStructureAspect),
   };
 });
-import { runStructureAspect } from '../../../src/structure/runner.js';
+import { runStructureAspect, StructureRunnerError } from '../../../src/structure/runner.js';
 const mockRunStructureAspect = vi.mocked(runStructureAspect);
 
 function makeMockProvider(overrides: Partial<LlmProvider> = {}): LlmProvider {
@@ -1004,6 +1004,82 @@ describe('tainted re-run-once → runtime-error fail-closed (unit-pinned)', () =
 
     // The runtime-error class notice line was printed.
     expect(w.text()).toContain('deterministic check(s) failed to run at fill time');
+  });
+});
+
+// =============================================================================
+// 12b. Every StructureRunnerError thrown at fill time must surface its OWN
+//      `next` in the actual printed diagnostic, not a generic "fix check.mjs"
+//      fallback that is often simply wrong for the failure it names. This is a
+//      RENDERER-level fix (detRuntimeNotice threads the original messageData
+//      through), not a per-error-code special case, so it covers every code
+//      the structure runner can throw — not only the one below.
+// =============================================================================
+
+describe('a check with no owning component that touches ctx.node — the printed notice names both exits', () => {
+  it('prints the rewrite-to-ctx.subject/ctx.fs exit AND the give-it-a-component exit, not just what/why', async () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'yg-nodeless-render-'));
+    dirs.push(root);
+    const yggRoot = path.join(root, '.yggdrasil');
+    mkdirSync(path.join(yggRoot, 'aspects', 'touches-ctx-node'), { recursive: true });
+    mkdirSync(path.join(yggRoot, 'model'), { recursive: true });
+    mkdirSync(path.join(root, 'src', 'leafy'), { recursive: true });
+    writeFileSync(
+      path.join(yggRoot, 'yg-config.yaml'),
+      `${V5_REVIEWER_CONFIG}\ncoverage:\n  required:\n    - src/\n  excluded: []\n  type_level: true\n`,
+    );
+    writeFileSync(
+      path.join(yggRoot, 'yg-architecture.yaml'),
+      'node_types:\n  leafy:\n    description: x\n    when:\n      path: "src/leafy/**"\n    aspects:\n      - touches-ctx-node\n',
+    );
+    writeFileSync(
+      path.join(yggRoot, 'aspects', 'touches-ctx-node', 'yg-aspect.yaml'),
+      'name: touches-ctx-node\ndescription: touches ctx.node on a file with no owning component\nreviewer:\n  type: deterministic\nscope:\n  per: file\n',
+    );
+    writeFileSync(
+      path.join(yggRoot, 'aspects', 'touches-ctx-node', 'check.mjs'),
+      'export function check(ctx) { void ctx.node.id; return []; }\n',
+    );
+    writeFileSync(path.join(root, 'src', 'leafy', 'a.ts'), 'export const a = 1;\n');
+
+    const graph = await loadGraph(root);
+    const w = makeWriter();
+    await runFill(graph, { coverageVisibleFiles: ['src/leafy/a.ts'], write: w.write, emitIssue: w.emitIssue });
+
+    // Infra disposition: no verdict entry written, pair stays unverified.
+    const lock = readLock(graph.rootPath);
+    expect(lock.verdicts['touches-ctx-node']?.['file:src/leafy/a.ts']).toBeUndefined();
+
+    // The RENDERED text an agent actually sees names both exits — not merely
+    // what broke (ctx.node is unavailable), but how to fix it either way.
+    expect(w.text()).toMatch(/ctx\.subject|ctx\.fs/);
+    expect(w.text()).toMatch(/component of its own/);
+  });
+
+  it('a component-missing failure (STRUCTURE_NODE_MISSING) prints its OWN next, never the generic "fix check.mjs" fallback', async () => {
+    // The check.mjs content is irrelevant — the structure runner is mocked to
+    // reject with the SAME error the real runner throws when a pair's node
+    // path no longer resolves in the graph (structure/hook-loader.ts), so this
+    // pins the renderer's handling of that disposition directly.
+    const { projectRoot } = await setupProject({
+      aspects: [{ id: 'det-node-missing', kind: 'deterministic', status: 'enforced', rule: DET_PASS }],
+    });
+    const graph = await loadGraph(projectRoot);
+
+    mockRunStructureAspect.mockRejectedValueOnce(new StructureRunnerError('STRUCTURE_NODE_MISSING', {
+      what: `Node 'svc' not in graph.`,
+      why: `The runner resolves the node by path to load its mapped files and aspects.`,
+      next: `Pass an existing node path, or add the node to the graph.`,
+    }));
+
+    const w = makeWriter();
+    await runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
+
+    const lock = readLock(graph.rootPath);
+    expect(lock.verdicts['det-node-missing']?.['node:svc']).toBeUndefined();
+
+    expect(w.text()).toMatch(/pass an existing node path/i);
+    expect(w.text()).not.toContain('Fix the check.mjs, then re-run: yg check --approve');
   });
 });
 

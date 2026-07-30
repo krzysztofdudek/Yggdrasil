@@ -2,11 +2,40 @@ import { describe, it, expect, afterEach } from 'vitest';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { mkdtemp, mkdir, writeFile, readFile, rm, chmod } from 'node:fs/promises';
+import { mkdtempSync, writeFileSync, readFileSync, chmodSync, rmSync } from 'node:fs';
 
 import { loadGraph } from '../../../src/core/graph-loader.js';
 import { runFill } from '../../../src/core/fill.js';
 import { readLock, writeLock } from '../../../src/io/lock-store.js';
 import { walkRepoFiles } from '../../../src/io/repo-scanner.js';
+
+/**
+ * Whether this runtime actually enforces a chmod(0o000) restriction on a file
+ * readable by its owner. A privileged process (root, or certain containers)
+ * ignores file mode bits entirely, so a test relying on a chmod(0o000)'d file
+ * genuinely becoming unreadable cannot execute there — the file would stay
+ * readable, its content (and hence its fingerprint) unchanged, and the
+ * assertion below would pass for that mundane reason instead of exercising the
+ * FileUnreadableError hold-back it claims to pin. Probed ONCE at module load
+ * so the affected test can be marked SKIPPED for this environment via
+ * `it.skipIf`.
+ */
+function probeEnforcesFilePermissions(): boolean {
+  const dir = mkdtempSync(path.join(tmpdir(), 'yg-permcheck-'));
+  const probe = path.join(dir, 'probe.txt');
+  writeFileSync(probe, 'x');
+  chmodSync(probe, 0o000);
+  let enforced = false;
+  try {
+    readFileSync(probe, 'utf8');
+  } catch {
+    enforced = true;
+  }
+  chmodSync(probe, 0o644); // restore so rmSync can remove it
+  rmSync(dir, { recursive: true, force: true });
+  return enforced;
+}
+const ENFORCES_FILE_PERMISSIONS = probeEnforcesFilePermissions();
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Positive-closure unit tests for the log_required-gated source fingerprint and
@@ -95,7 +124,7 @@ describe('positive closure — log_required source fingerprint + minimal logs lo
     expect(lock.nodes['svc']?.log?.last_entry_datetime).toBe('2026-05-11T10:00:00.000Z');
   });
 
-  it('a log_required node with an unreadable mapped file is held back at closure (no false-green)', async () => {
+  it.skipIf(!ENFORCES_FILE_PERMISSIONS)('a log_required node with an unreadable mapped file is held back at closure (no false-green)', async () => {
     const projectRoot = await setupDetNode({
       logRequired: true,
       logContent: '## [2026-05-11T10:00:00.000Z]\nfirst.\n',

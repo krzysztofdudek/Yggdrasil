@@ -1,9 +1,21 @@
 import { describe, it, expect, afterEach } from 'vitest';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 import { collectAllowedReadsForAspect, collectArchitectureReach } from '../../../src/structure/allowed-reads.js';
 import type { ArchitectureReachInput } from '../../../src/structure/allowed-reads.js';
+import { buildOwnerIndex } from '../../../src/relations/owner-index.js';
 import { buildTestGraphForStructure } from '../helpers/build-test-graph-structure.js';
 import { cleanupTestGraphs } from '../helpers/build-test-graph.js';
-import type { ArchitectureDef } from '../../../src/model/graph.js';
+import type { ArchitectureDef, Graph } from '../../../src/model/graph.js';
+
+/** Write a real on-disk file under a graph's project root — collectArchitectureReach
+ * now expands declared-component mappings via the filesystem (expandMappingPaths),
+ * so a component's mapped files must genuinely exist for it to contribute anything. */
+function writeRealFile(graph: Graph, relPath: string, content = ''): void {
+  const abs = path.join(path.dirname(graph.rootPath), relPath);
+  mkdirSync(path.dirname(abs), { recursive: true });
+  writeFileSync(abs, content);
+}
 
 describe('collectAllowedReadsForAspect', () => {
   afterEach(() => cleanupTestGraphs());
@@ -118,6 +130,8 @@ describe('what a rule running on a single file may read', () => {
       ],
     });
     g.architecture = ARCHITECTURE;
+    writeRealFile(g, 'src/owned/o.ts', 'export const o = 1;\n');
+    writeRealFile(g, 'src/forbidden/f.ts', 'export const f = 1;\n');
     return {
       fromType: 'leaf',
       typeCovered: new Map([
@@ -126,35 +140,37 @@ describe('what a rule running on a single file may read', () => {
       ]),
       architecture: ARCHITECTURE,
       graph: g,
+      projectRoot: path.dirname(g.rootPath),
+      ownerIndex: buildOwnerIndex(g.nodes),
     };
   }
 
   afterEach(() => cleanupTestGraphs());
 
-  it('always includes the file itself', () => {
-    const reach = collectArchitectureReach('src/leaf/a.ts', buildInput());
+  it('always includes the file itself', async () => {
+    const reach = await collectArchitectureReach('src/leaf/a.ts', buildInput());
     expect(reach.has('src/leaf/a.ts')).toBe(true);
   });
 
-  it('includes files of a type the architecture permits this type to depend on', () => {
+  it('includes files of a type the architecture permits this type to depend on', async () => {
     // The architecture says leaf may use helper-type, so a rule on a leaf file
     // may read helper-type files — whether or not those helpers have a component.
-    const reach = collectArchitectureReach('src/leaf/a.ts', buildInput());
+    const reach = await collectArchitectureReach('src/leaf/a.ts', buildInput());
     expect(reach.has('src/helper/h.ts')).toBe(true); // enforced by its type alone
     expect(reach.has('src/owned/o.ts')).toBe(true);  // belongs to a declared component
   });
 
-  it('excludes files of a type the architecture forbids', () => {
-    const reach = collectArchitectureReach('src/leaf/a.ts', buildInput());
+  it('excludes files of a type the architecture forbids', async () => {
+    const reach = await collectArchitectureReach('src/leaf/a.ts', buildInput());
     expect(reach.has('src/forbidden/f.ts')).toBe(false);
   });
 
-  it('reaches nothing but the subject when the type is not in the architecture', () => {
-    const reach = collectArchitectureReach('src/leaf/a.ts', { ...buildInput(), fromType: 'ghost' });
+  it('reaches nothing but the subject when the type is not in the architecture', async () => {
+    const reach = await collectArchitectureReach('src/leaf/a.ts', { ...buildInput(), fromType: 'ghost' });
     expect([...reach]).toEqual(['src/leaf/a.ts']);
   });
 
-  it('cache-by-fromType is safe across different subject files of the same type (no cross-file leakage)', () => {
+  it('cache-by-fromType is safe across different subject files of the same type (no cross-file leakage)', async () => {
     // Two files share type 'leaf'. Computing reach for one first must not make
     // the OTHER file's own reach miss its own self-inclusion, and must not gain
     // the first file's identity as a side effect (K9's caching note: a caller
@@ -163,8 +179,8 @@ describe('what a rule running on a single file may read', () => {
     // whichever file is asked about, independent of any caller-side cache).
     const input = buildInput();
     input.typeCovered.set('src/leaf/b.ts', 'leaf');
-    const reachA = collectArchitectureReach('src/leaf/a.ts', input);
-    const reachB = collectArchitectureReach('src/leaf/b.ts', input);
+    const reachA = await collectArchitectureReach('src/leaf/a.ts', input);
+    const reachB = await collectArchitectureReach('src/leaf/b.ts', input);
     expect(reachA.has('src/leaf/a.ts')).toBe(true);
     expect(reachB.has('src/leaf/b.ts')).toBe(true);
     // leaf -> leaf has no permitted relation type in this architecture (only
@@ -173,5 +189,61 @@ describe('what a rule running on a single file may read', () => {
     // the unconditional subject-file clause.
     expect(reachA.has('src/leaf/b.ts')).toBe(false);
     expect(reachB.has('src/leaf/a.ts')).toBe(false);
+  });
+});
+
+// =============================================================================
+// Ownership resolution must match the live type gate's child-wins authority —
+// a raw mapping-entry prefix match is NOT good enough. Reproduces the
+// reviewer's exact shape: a permitted-type component maps a whole DIRECTORY,
+// and a forbidden-type CHILD component maps one specific FILE inside it.
+// =============================================================================
+
+describe('child-wins ownership resolution for a directory mapping', () => {
+  const ARCHITECTURE: ArchitectureDef = {
+    node_types: {
+      leaf: {
+        description: 'A file classified by its own type, no component.',
+        relationDefault: 'deny',
+        relations: { uses: ['parent-type'] },
+      },
+      'parent-type': { description: 'A component whose mapping is a whole directory.' },
+      'child-type': { description: 'A component nested under a parent-type node, owning one specific file inside the directory the parent maps. leaf may NOT depend on this type.' },
+    },
+  };
+
+  afterEach(() => cleanupTestGraphs());
+
+  it("excludes a forbidden child component's file even though a permitted parent's directory mapping textually covers it", async () => {
+    const g = buildTestGraphForStructure({
+      nodes: [
+        { path: 'parent', type: 'parent-type', mapping: ['src/parent'] },
+        { path: 'parent/child', type: 'child-type', parent: 'parent', mapping: ['src/parent/child.ts'] },
+      ],
+    });
+    g.architecture = ARCHITECTURE;
+    writeRealFile(g, 'src/parent/foo.ts', 'export const foo = 1;\n');
+    writeRealFile(g, 'src/parent/child.ts', 'export const child = 1;\n');
+
+    const reach = await collectArchitectureReach('src/leaf/a.ts', {
+      fromType: 'leaf',
+      typeCovered: new Map(),
+      architecture: ARCHITECTURE,
+      graph: g,
+      projectRoot: path.dirname(g.rootPath),
+      ownerIndex: buildOwnerIndex(g.nodes),
+    });
+
+    // The parent's OWN file — leaf may depend on parent-type — is reachable.
+    // (A stale implementation that never expands the directory at all would
+    // fail THIS assertion: the raw mapping entry 'src/parent' is a literal
+    // directory string, never equal to the real file path.)
+    expect(reach.has('src/parent/foo.ts')).toBe(true);
+    // The child's file belongs to child-type (leaf may NOT depend on it). The
+    // parent's directory mapping textually covers it, but ownership
+    // (child-wins — the SAME resolution the live type gate's fileOwnerType
+    // uses) reassigns it to the child, so it must stay out of reach even
+    // though it sits inside a directory a PERMITTED type maps.
+    expect(reach.has('src/parent/child.ts')).toBe(false);
   });
 });

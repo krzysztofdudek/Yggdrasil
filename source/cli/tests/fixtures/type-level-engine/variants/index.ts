@@ -23,3 +23,6 @@ export const FIXTURE_TYPE_ONLY = path.join(__dirname, 'type-only');
 
 /** Real check.mjs fixtures driving the deterministic runner's nodeless (component-free) unit directly. */
 export const FIXTURE_NODELESS_RUNNER = path.join(__dirname, 'nodeless-runner');
+
+/** A type-covered file's read allowance must resolve ownership with child-wins, the same as the live type gate. */
+export const FIXTURE_REACH_PARITY = path.join(__dirname, 'reach-parity');

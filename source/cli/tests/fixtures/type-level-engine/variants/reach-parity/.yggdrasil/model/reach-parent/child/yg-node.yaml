@@ -1,0 +1,9 @@
+name: Reach Parent Child
+type: reach-child-type
+description: "Owns one specific file inside the directory its parent
+  (reach-parent) maps — child-wins means THIS node owns
+  src/reach/parent/child.ts, not its parent. reach-leaf may not depend on
+  reach-child-type, so a rule reading this file must be refused even though
+  the parent's directory mapping textually covers it."
+mapping:
+  - src/reach/parent/child.ts
