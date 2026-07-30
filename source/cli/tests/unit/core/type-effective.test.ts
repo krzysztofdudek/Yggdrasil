@@ -189,7 +189,7 @@ describe('computeDeclaredAttachedAspects — declared law before when: narrows i
   });
 });
 
-describe('computeTypeReachableAspects — only the ids that could actually produce a pair (fix round 1)', () => {
+describe('computeTypeReachableAspects — only the ids that could actually produce a pair', () => {
   it('excludes a per:node (whole-unit) rule reached only through implies, but keeps its file-level sibling and the aggregate itself', async () => {
     const graph = await loadGraph(FIXTURE);
     const all = computeTypeEffectiveAspects(graph, 'src/leaf/a.ts', 'leaf').map((a) => a.aspectId);
@@ -381,9 +381,8 @@ describe('the derived-relation overrides reach every forwarding site, not only t
   // the status fix-point, each on their own per-edge code path), and the
   // internal hand-off from computeEffectiveAspects into its own
   // computeEffectiveAspectStatuses call (which the draft-propagation gate
-  // depends on). Each row below was verified to go RED under the matching
-  // local, reverted mutation — see the fix-round report for the mutation
-  // trail.
+  // depends on). Each row below was verified to go RED when its matching
+  // forwarding site was disabled in isolation, one at a time.
   it('an aspect\'s OWN aspect-global when: is honoured both directly and through implies', async () => {
     // A type-covered target (not a node-kind one) is essential here: a
     // node-kind edge's target_type already resolves correctly through the

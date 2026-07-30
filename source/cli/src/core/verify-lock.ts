@@ -50,7 +50,7 @@ import {
 import { computeAllowedNodePaths } from '../structure/ctx-graph.js';
 import { resolveSuppressedRangesForPrompt, SuppressMarkerError } from '../structure/index.js';
 import { ruleHashFor, contentFor, nodeDescriptionFor, tierHashViewFromTier, companionHashFor } from './pair-inputs.js';
-import type { ExpectedPair, UnreadableSubject, TypeCoverageInput, PairDrop } from './pairs.js';
+import type { ExpectedPair, UnreadableSubject, TypeCoverageInput, PairDrop, UncomputableTypeCoverage } from './pairs.js';
 import { computeExpectedPairs } from './pairs.js';
 import { selectTierForAspect } from './tier-selection.js';
 import { assembledPromptChars, DEFAULT_MAX_PROMPT_CHARS } from '../llm/prompt.js';
@@ -94,6 +94,8 @@ export interface LockVerification {
   unreadable: UnreadableSubject[];
   /** From PairComputation — every reason a rule attached to a type-covered file does not run on it (core/type-visibility.ts's static half). */
   drops: PairDrop[];
+  /** From PairComputation — type-covered files an aspect `implies` cycle stopped from being resolved at all (core/type-visibility.ts's "could not be worked out" half — distinct from `drops`). */
+  uncomputableTypeCoverage: UncomputableTypeCoverage[];
 }
 
 // ============================================================
@@ -117,7 +119,7 @@ export async function verifyLock(
   lock: LockFile,
   typeCoverage?: TypeCoverageInput,
 ): Promise<LockVerification> {
-  const { pairs, unreadable, drops } = await computeExpectedPairs(graph, { typeCoverage });
+  const { pairs, unreadable, drops, uncomputableTypeCoverage } = await computeExpectedPairs(graph, { typeCoverage });
   const projectRoot = path.dirname(graph.rootPath);
 
   // Index aspect defs by id for O(1) lookup.
@@ -164,7 +166,7 @@ export async function verifyLock(
     }
   }
 
-  return { pairs: verified, unreadable, drops };
+  return { pairs: verified, unreadable, drops, uncomputableTypeCoverage };
 }
 
 // ============================================================

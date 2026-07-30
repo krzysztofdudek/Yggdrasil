@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import type { CheckResult } from '../core/check.js';
 import type { TypeVisibilityReport } from '../core/type-visibility.js';
 import { describeTypeVisibilityReason, describeChainTermination } from '../core/type-visibility.js';
+import { describeCascadeCycle } from '../core/type-effective.js';
 
 // ── Emoji gate ─────────────────────────────────────────────
 
@@ -76,7 +77,10 @@ export function renderHeader(result: CheckResult, errorCount: number, warningCou
 //
 // Honesty surface for the type-level tier (core/type-visibility.ts): per
 // matched type, which rules enforce, which are attached but do not (with
-// counts), a half-expanded bundle, where the inherited chain stops, plus the
+// counts), a half-expanded bundle, where the inherited chain stops, which of
+// the type's own files could not have their rules worked out at all (an
+// aspect implies cycle — named the same way `yg owner --file` / `yg context
+// --file` already name it, never a bare "nothing applies"), plus the
 // repo-wide zero-applicable-rules line. A statement of fact, not a warning —
 // printed in every view, same posture as the zero-classifying-types notice.
 
@@ -110,6 +114,22 @@ function renderReasonGroups(dropped: TypeVisibilityReport['byType'][number]['dro
 }
 
 /**
+ * One line per uncomputable group: the files sharing ONE cascade cycle,
+ * followed by the SAME `why` sentence `yg owner --file` / `yg context --file`
+ * already print for the identical fact (`describeCascadeCycle` — never
+ * restated here, so the three surfaces cannot disagree). Shares its file-list
+ * cap with `renderReasonGroups` (`DROPPED_LIST_CAP`) — a type whose cycle
+ * spans many files must not render an unbounded line either.
+ */
+function renderUncomputableGroups(groups: TypeVisibilityReport['uncomputable']['groups']): string[] {
+  return groups.map((group) => {
+    const shown = group.files.slice(0, DROPPED_LIST_CAP);
+    const overflow = group.files.length > DROPPED_LIST_CAP ? ` ... and ${group.files.length - DROPPED_LIST_CAP} more` : '';
+    return `${shown.join(', ')}${overflow} — ${describeCascadeCycle({ aspectId: group.aspectId })}`;
+  });
+}
+
+/**
  * Grammar for the zero-enforcement sentence, singular vs. plural — every word
  * that agrees with `count` lives here so a singular file never reads "they
  * satisfy" (an earlier defect: the verb-and-pronoun clause was hardcoded to
@@ -135,18 +155,26 @@ export function renderTypeVisibilityBlock(result: CheckResult, opts?: { countsOn
   const countsOnly = opts?.countsOnly ?? false;
   const lines: string[] = ['Type coverage:'];
   for (const block of report.byType) {
+    const uncomputableTotal = block.uncomputable.reduce((n, g) => n + g.files.length, 0);
     if (countsOnly) {
       const droppedTotal = block.dropped.reduce((n, d) => n + d.count, 0);
+      const uncomputableSuffix = uncomputableTotal > 0
+        ? `, ${uncomputableTotal} rule${uncomputableTotal === 1 ? '' : 's'} unresolved (aspect implies cycle)`
+        : '';
       lines.push(
         `  '${block.typeId}' — ${block.files.length} file${block.files.length === 1 ? '' : 's'} covered — ` +
         `${block.enforcedCounts.length} rule${block.enforcedCounts.length === 1 ? '' : 's'} enforced, ` +
-        `${block.advisoryCounts.length} advisory, ${droppedTotal} attached-but-not-enforced instance${droppedTotal === 1 ? '' : 's'}`,
+        `${block.advisoryCounts.length} advisory, ${droppedTotal} attached-but-not-enforced instance${droppedTotal === 1 ? '' : 's'}${uncomputableSuffix}`,
       );
       continue;
     }
     const shown = block.files.slice(0, FILE_LIST_CAP);
     const overflow = block.files.length > FILE_LIST_CAP ? ` ... and ${block.files.length - FILE_LIST_CAP} more` : '';
     lines.push(`  '${block.typeId}' — ${block.files.length} file${block.files.length === 1 ? '' : 's'} covered: ${shown.join(', ')}${overflow}`);
+    if (block.uncomputable.length > 0) {
+      lines.push('    Rules could not be worked out:');
+      for (const line of renderUncomputableGroups(block.uncomputable)) lines.push(`      ${line}`);
+    }
     const enforcedList = block.enforcedCounts.map((e) => `${e.aspectId} (${e.count})`).join(', ');
     lines.push(`    Enforced: ${enforcedList.length > 0 ? enforcedList : '(none)'}`);
     if (block.advisoryCounts.length > 0) {
@@ -161,6 +189,15 @@ export function renderTypeVisibilityBlock(result: CheckResult, opts?: { countsOn
       lines.push(`    ${b.bundleId}: file-level part applies; whole-unit part needs a component`);
     }
     lines.push(`    ${describeChainTermination(block.chainTermination)}`);
+  }
+  const uc = report.uncomputable;
+  if (uc.count > 0) {
+    lines.push('');
+    const suffix = countsOnly ? '.' : ':';
+    lines.push(`${uc.count} file${uc.count === 1 ? '' : 's'} matched by a type could not have ${uc.count === 1 ? 'its' : 'their'} rules worked out${suffix}`);
+    if (!countsOnly) {
+      for (const line of renderUncomputableGroups(uc.groups)) lines.push(`  ${line}`);
+    }
   }
   const zc = report.zeroEnforcement;
   if (zc.count > 0) {

@@ -361,6 +361,7 @@ describe('aspect-test command behavior (mocked runners)', () => {
       pairs: [{ aspectId: 'llm-a', kind: 'llm' as const, unitKey: 'node:N', nodePath: 'N', status: 'enforced' as const, subjectFiles: [] }],
       unreadable: [],
       drops: [],
+      uncomputableTypeCoverage: [],
     });
     let verifyCalls = 0;
     mockCreateLlmProvider.mockReturnValue(makeMockProvider({
@@ -389,6 +390,7 @@ describe('aspect-test command behavior (mocked runners)', () => {
       pairs: [{ aspectId: 'llm-a', kind: 'llm' as const, unitKey: 'node:N', nodePath: 'N', status: 'enforced' as const, subjectFiles: [] }],
       unreadable: [],
       drops: [],
+      uncomputableTypeCoverage: [],
     });
     let verifyCalls = 0;
     mockCreateLlmProvider.mockReturnValue(makeMockProvider({
@@ -435,6 +437,7 @@ describe('aspect-test command behavior (mocked runners)', () => {
       pairs: [{ aspectId: 'llm-companion', kind: 'llm' as const, unitKey: 'node:N', nodePath: 'N', status: 'enforced' as const, subjectFiles: [] }],
       unreadable: [],
       drops: [],
+      uncomputableTypeCoverage: [],
     });
     // Companion hook returns one companion descriptor.
     mockRunCompanionHook.mockResolvedValue({
@@ -479,6 +482,7 @@ describe('aspect-test command behavior (mocked runners)', () => {
       pairs: [{ aspectId: 'llm-companion', kind: 'llm' as const, unitKey: 'node:N', nodePath: 'N', status: 'enforced' as const, subjectFiles: [] }],
       unreadable: [],
       drops: [],
+      uncomputableTypeCoverage: [],
     });
     mockRunCompanionHook.mockResolvedValue({
       kind: 'ok' as const,
@@ -515,6 +519,7 @@ describe('aspect-test command behavior (mocked runners)', () => {
       pairs: [{ aspectId: 'llm-companion', kind: 'llm' as const, unitKey: 'node:N', nodePath: 'N', status: 'enforced' as const, subjectFiles: [] }],
       unreadable: [],
       drops: [],
+      uncomputableTypeCoverage: [],
     });
     // Hook fails.
     mockRunCompanionHook.mockResolvedValue({
@@ -627,6 +632,7 @@ describe('aspect-test command behavior (mocked runners)', () => {
       pairs: [{ aspectId: 'llm-a', kind: 'llm' as const, unitKey: 'node:N', nodePath: 'N', status: 'enforced' as const, subjectFiles: [] }],
       unreadable: [],
       drops: [],
+      uncomputableTypeCoverage: [],
     });
     mockCreateLlmProvider.mockReturnValue(makeMockProvider({
       async verifyAspect() { return { satisfied: false, reason: 'nope', errorSource: 'codeViolation' as const }; },
@@ -652,6 +658,7 @@ describe('aspect-test command behavior (mocked runners)', () => {
       pairs: [{ aspectId: 'llm-a', kind: 'llm' as const, unitKey: 'node:N', nodePath: 'N', status: 'enforced' as const, subjectFiles: [] }],
       unreadable: [],
       drops: [],
+      uncomputableTypeCoverage: [],
     });
     mockCreateLlmProvider.mockReturnValue(makeMockProvider());
     await runCommand(['--aspect', 'llm-a', '--node', 'N']);
@@ -671,6 +678,7 @@ describe('aspect-test command behavior (mocked runners)', () => {
       pairs: [{ aspectId: 'llm-a', kind: 'llm' as const, unitKey: 'node:N', nodePath: 'N', status: 'enforced' as const, subjectFiles: [] }],
       unreadable: [],
       drops: [],
+      uncomputableTypeCoverage: [],
     });
     mockCreateLlmProvider.mockReturnValue(makeMockProvider({
       async verifyAspect() { throw new Error('boom'); },
@@ -693,6 +701,7 @@ describe('aspect-test command behavior (mocked runners)', () => {
       pairs: [{ aspectId: 'llm-a', kind: 'llm' as const, unitKey: 'node:N', nodePath: 'N', status: 'enforced' as const, subjectFiles: [] }],
       unreadable: [],
       drops: [],
+      uncomputableTypeCoverage: [],
     });
     mockCreateLlmProvider.mockReturnValue(makeMockProvider());
     await runCommand(['--aspect', 'llm-a', '--node', 'N', '--dry-run']);
@@ -740,7 +749,7 @@ describe('aspect-test command behavior (mocked runners)', () => {
         nodes: [['N', nodeEntry]],
       }) as never,
     );
-    mockComputeExpectedPairs.mockResolvedValue({ pairs: [], unreadable: [], drops: [] });
+    mockComputeExpectedPairs.mockResolvedValue({ pairs: [], unreadable: [], drops: [], uncomputableTypeCoverage: [] });
     await runCommand(['--aspect', 'llm-a', '--node', 'N']);
     expect(mockComputeExpectedPairs).toHaveBeenCalledWith(expect.anything(), { includeDraft: true });
   });
@@ -757,6 +766,7 @@ describe('aspect-test command behavior (mocked runners)', () => {
       pairs: [{ aspectId: 'llm-a', kind: 'llm' as const, unitKey: 'node:N', nodePath: 'N', status: 'draft' as const, subjectFiles: [] }],
       unreadable: [],
       drops: [],
+      uncomputableTypeCoverage: [],
     });
     mockCreateLlmProvider.mockReturnValue(makeMockProvider());
     await runCommand(['--aspect', 'llm-a', '--node', 'N', '--dry-run']);
@@ -773,7 +783,7 @@ describe('aspect-test command behavior (mocked runners)', () => {
         nodes: [['N', nodeEntry]],
       }) as never,
     );
-    mockComputeExpectedPairs.mockResolvedValue({ pairs: [], unreadable: [], drops: [] });
+    mockComputeExpectedPairs.mockResolvedValue({ pairs: [], unreadable: [], drops: [], uncomputableTypeCoverage: [] });
     await runCommand(['--aspect', 'llm-a', '--node', 'N']);
     expect(stdout).toContain(
       "No pairs for aspect 'llm-a' on node 'N' — the aspect has an empty subject set or does not apply to this node.",
@@ -795,6 +805,7 @@ describe('aspect-test command behavior (mocked runners)', () => {
       pairs: [{ aspectId: 'llm-a', kind: 'llm' as const, unitKey: 'node:N', nodePath: 'N', status: 'enforced' as const, subjectFiles: [] }],
       unreadable: [],
       drops: [],
+      uncomputableTypeCoverage: [],
     });
     mockCreateLlmProvider.mockReturnValue(makeMockProvider());
     await runCommand(['--aspect', 'llm-a', '--node', 'N', '--dry-run']);
@@ -837,6 +848,7 @@ describe('aspect-test command behavior (mocked runners)', () => {
       pairs: [{ aspectId: 'llm-a', kind: 'llm' as const, unitKey: 'node:N', nodePath: 'N', status: 'enforced' as const, subjectFiles: [] }],
       unreadable: [],
       drops: [],
+      uncomputableTypeCoverage: [],
     });
   }
 
@@ -991,6 +1003,7 @@ describe('aspect-test: lock file not written after LLM run', () => {
       pairs: [{ aspectId: 'llm-x', kind: 'llm' as const, unitKey: 'node:svc', nodePath: 'svc', status: 'enforced' as const, subjectFiles: [] }],
       unreadable: [],
       drops: [],
+      uncomputableTypeCoverage: [],
     });
     mockCreateLlmProvider.mockReturnValue(makeMockProvider());
 

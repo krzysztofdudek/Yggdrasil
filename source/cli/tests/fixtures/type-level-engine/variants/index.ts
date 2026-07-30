@@ -27,7 +27,7 @@ export const FIXTURE_NODELESS_RUNNER = path.join(__dirname, 'nodeless-runner');
 /** A type-covered file's read allowance must resolve ownership with child-wins, the same as the live type gate. */
 export const FIXTURE_REACH_PARITY = path.join(__dirname, 'reach-parity');
 
-/** An LLM rule dropped as binary-subject must never be silently counted as enforced (fix round 1). */
+/** An LLM rule dropped as binary-subject must never be silently counted as enforced. */
 export const FIXTURE_BINARY_SUBJECT = path.join(__dirname, 'binary-subject');
 
 /** A type-covered file whose type's rules hit an implies cycle must be told the cycle, never "nothing applies". */

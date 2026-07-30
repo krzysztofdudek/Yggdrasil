@@ -7,14 +7,21 @@ description: "Renders the yg check verdict/metrics header line — PASS/FAIL, no
   renders the per-type visibility block: which rules a type-covered file's
   type enforces, which run but only warn (their own heading, never folded
   into 'Enforced'), which are attached but do not (with reason counts, capped
-  the same way the rest of the summary caps a long list), a half-expanded
-  bundle, where the inherited chain stops, and the repo-wide zero-applicable-
-  rules honesty line (grammatically singular/plural, and reduced to counts
-  only under the --summary/--top triage views)."
+  the same way the rest of the summary caps a long list), which of the type's
+  own files could not have their rules worked out at all (an aspect implies
+  cycle — named via type-effective's shared describeCascadeCycle, never a
+  restated wording, so it cannot disagree with yg owner/yg context --file's
+  identical report of the same fact; kept out of the zero-applicable-rules
+  line, since that line means resolution ran and found nothing, not that it
+  never ran), a half-expanded bundle, where the inherited chain stops, and the
+  repo-wide zero-applicable-rules honesty line (grammatically singular/plural,
+  and reduced to counts only under the --summary/--top triage views)."
 mapping:
   - source/cli/src/cli/check-render-header.ts
 relations:
   - target: cli/core/check
     type: calls
   - target: cli/core/type-visibility
+    type: calls
+  - target: cli/core/type-effective
     type: calls

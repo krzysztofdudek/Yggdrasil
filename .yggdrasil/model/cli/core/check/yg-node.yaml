@@ -11,8 +11,9 @@ description: "Unified check orchestrator — runs validation, coverage, the
   non-strict matches raise a blocking ambiguous-node-type error, and a match
   with no type at all gets a message saying so. Also assembles
   CheckResult.typeVisibility (core/type-visibility.ts) from the lock
-  verification's drops: what a type-covered file's type enforces on it and
-  what it does not, and why."
+  verification's drops and uncomputable-type-coverage list: what a
+  type-covered file's type enforces, does not, or could never resolve (an
+  implies cycle), and why."
 max_direct_relations:
   limit: 25
   reason: >-

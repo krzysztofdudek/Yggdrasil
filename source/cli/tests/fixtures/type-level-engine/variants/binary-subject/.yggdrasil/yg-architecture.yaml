@@ -181,7 +181,7 @@ node_types:
     description: "Matches src/pics/**. Attaches exactly one LLM per-file rule
       (prose-rule) and nothing else — a binary file matched by this type has
       NOTHING that can enforce on it once prose-rule is (correctly) dropped as
-      binary-subject, the fix-round-1 critical case."
+      binary-subject."
     when:
       path: "src/pics/**"
     aspects:

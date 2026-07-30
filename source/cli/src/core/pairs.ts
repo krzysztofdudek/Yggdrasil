@@ -44,7 +44,7 @@ import { mappingEntryMatchesFile } from '../utils/mapping-path.js';
 import { DEFAULT_COVERAGE } from '../io/config-parser.js';
 import { isExcludedByCoverage } from './check-coverage-tiers.js';
 import { computeTypeAspectCascade } from './type-effective.js';
-import type { TypeAspectDrop, TypeAspectDropReason, TypeEffectiveAspect } from './type-effective.js';
+import type { TypeAspectDrop, TypeAspectDropReason, TypeEffectiveAspect, TypeCascadeCycle } from './type-effective.js';
 import type { TypedEdgeIndex } from '../relations/pass.js';
 
 // ============================================================
@@ -142,6 +142,22 @@ export interface UnreadableSubject {
 }
 
 /**
+ * One type-covered file whose rules could not be worked out at all: the
+ * nodeless enumeration's `computeTypeAspectCascade` call absorbed an aspect
+ * `implies` cycle for it (see that function's own exception contract). This
+ * file contributes ZERO pairs and ZERO drops — not because nothing applies,
+ * but because resolution never ran to completion. A caller that folds a file
+ * with no pairs/drops into "zero applicable rules" (as `core/type-visibility.ts`
+ * did before this type existed) reports a false "satisfies coverage with no
+ * enforcement" for a file whose coverage was never actually assessed.
+ */
+export interface UncomputableTypeCoverage {
+  file: string;
+  typeId: string;
+  cycle: TypeCascadeCycle;
+}
+
+/**
  * Return shape of computeExpectedPairs.
  *
  * Callers MUST surface a non-empty `unreadable` array as a blocking error.
@@ -154,6 +170,8 @@ export interface PairComputation {
   unreadable: UnreadableSubject[];
   /** Rules attached to a file's type that do not run on it, with the reason. */
   drops: PairDrop[];
+  /** Type-covered files an aspect `implies` cycle stopped from being resolved at all — see `UncomputableTypeCoverage`'s own doc. */
+  uncomputableTypeCoverage: UncomputableTypeCoverage[];
 }
 
 export interface ComputePairsOptions {
@@ -330,6 +348,14 @@ export function computeUncomputableNodes(graph: Graph): Set<string> {
  * emits one `file:` pair with `nodePath` omitted. `drops` collects every
  * cascade drop (`when-not-satisfied` / `draft`) PLUS every enumeration-only
  * reason above, each with the file it happened on attached.
+ *
+ * Before any of that: when `computeTypeAspectCascade` itself absorbed an
+ * aspect `implies` cycle for this file (its own `cycle` result), the file
+ * contributes NEITHER a pair NOR a drop — its rules were never resolved, so
+ * there is nothing to classify one way or the other. That fact is recorded on
+ * its own channel, `uncomputableTypeCoverage`, never folded into `drops`: a
+ * caller that reads "no pairs, no drops" as "genuinely zero applicable rules"
+ * (as `core/type-visibility.ts` used to) must consult this channel first.
  */
 export async function computeExpectedPairs(
   graph: Graph,
@@ -515,6 +541,7 @@ export async function computeExpectedPairs(
   // absent opts.typeCoverage ⇒ this loop does not run at all (zero added cost,
   // zero behavior change — the feature-off contract).
   const drops: PairDrop[] = [];
+  const uncomputableTypeCoverage: UncomputableTypeCoverage[] = [];
   const coverageConfig = graph.config.coverage ?? DEFAULT_COVERAGE;
   for (const [file, typeId] of opts?.typeCoverage?.covered ?? []) {
     // The one exclusion authority (isExcludedByCoverage) — a file under an
@@ -525,14 +552,26 @@ export async function computeExpectedPairs(
     // a stronger statement of intent than an exclusion, per Step 3's guard).
     if (isExcludedByCoverage(file, coverageConfig)) continue;
 
-    let cascade: { effective: TypeEffectiveAspect[]; drops: TypeAspectDrop[] };
+    let cascade: { effective: TypeEffectiveAspect[]; drops: TypeAspectDrop[]; cycle?: TypeCascadeCycle };
     try {
       cascade = computeTypeAspectCascade(graph, file, typeId, opts?.typeCoverage?.edges);
     } catch {
       // Mirrors the node loop's own catch above: an unexpected structural error
       // must not abort enumeration for every OTHER type-covered file in the run.
       // (computeTypeAspectCascade's own contract already absorbs an implies
-      // cycle internally; this guards the boundary, not a known failure mode.)
+      // cycle internally — see the branch below — so this guards the boundary
+      // against some OTHER, genuinely unexpected failure, not a known one.)
+      continue;
+    }
+    if (cascade.cycle) {
+      // The cascade absorbed an implies cycle instead of resolving this
+      // file's rules — record it on its OWN channel, never as a drop or a
+      // silent skip. A drop means "this specific rule does not run here"; an
+      // implies cycle means "nothing about this file's type could be
+      // resolved at all". Conflating the two is exactly what used to make
+      // this file read as "zero applicable rules" (genuinely nothing
+      // attached) when its rules were simply never worked out.
+      uncomputableTypeCoverage.push({ file, typeId, cycle: cascade.cycle });
       continue;
     }
     for (const d of cascade.drops) drops.push({ file, ...d });
@@ -655,7 +694,7 @@ export async function computeExpectedPairs(
     return 0;
   });
 
-  return { pairs, unreadable: Array.from(unreadableMap.values()), drops };
+  return { pairs, unreadable: Array.from(unreadableMap.values()), drops, uncomputableTypeCoverage };
 }
 
 // ============================================================

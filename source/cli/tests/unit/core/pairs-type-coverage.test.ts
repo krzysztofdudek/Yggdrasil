@@ -232,6 +232,33 @@ describe('computeExpectedPairs — nodeless enumeration (Step 2)', () => {
     expect(drops).toEqual([]);
   });
 
+  // An aspect `implies` cycle stops the cascade before it can decide what
+  // applies (computeTypeAspectCascade's own exception contract). Before this
+  // was tracked, the file contributed NEITHER a pair NOR a drop — indistinguishable
+  // from a file whose type genuinely attaches nothing at all — so a caller
+  // reading "no pairs, no drops" as "zero applicable rules" (core/type-visibility.ts
+  // did, until this fix) reported the file as satisfying coverage with no
+  // enforcement, when its rules were simply never worked out. This pins that
+  // the cycle now lands on its own channel instead.
+  it('an aspect implies cycle contributes no pair and no drop, and is recorded on uncomputableTypeCoverage instead', async () => {
+    writeFile('src/leaf/a.ts');
+    const graph = buildTypeCoverageGraph(tmpDir, {
+      nodeTypes: [{ id: 'leaf', aspects: ['loop-a'] }],
+      aspects: [
+        { id: 'loop-a', kind: 'deterministic', implies: ['loop-b'] },
+        { id: 'loop-b', kind: 'deterministic', implies: ['loop-a'] },
+      ],
+    });
+    const { pairs, drops, uncomputableTypeCoverage } = await computeExpectedPairs(graph, {
+      typeCoverage: tc([['src/leaf/a.ts', 'leaf']]),
+    });
+    expect(pairs).toEqual([]);
+    expect(drops).toEqual([]);
+    expect(uncomputableTypeCoverage).toEqual([
+      { file: 'src/leaf/a.ts', typeId: 'leaf', cycle: { aspectId: 'loop-a' } },
+    ]);
+  });
+
   it('an aspect id the architecture attaches with no matching aspect definition yields no pair, and records aspect-undefined (never silent)', async () => {
     writeFile('src/leaf/a.ts');
     // A graph a real loader rejects (checkDanglingAspectRefs) — reachable here

@@ -60,11 +60,11 @@ describe.skipIf(!distExists)('yg context --file — typed view for a type-covere
     }
   });
 
-  // Fix round 1, Critical: the reviewer's own exact case. A binary file whose
-  // only attached rule is an LLM (prose) aspect must show the SAME reason
-  // context-file.ts's "Attached but not enforced" section already gives every
-  // other drop — before the fix, prose-rule had no drop recorded here at all,
-  // so it rendered as [enforced] with no reason.
+  // A binary file whose only attached rule is an LLM (prose) aspect must show
+  // the SAME reason context-file.ts's "Attached but not enforced" section
+  // already gives every other drop — a silently missing drop here would
+  // render the rule as [enforced] with no reason, which is false: a prose
+  // rule can never review bytes it cannot read as text.
   it('a binary file whose only attached rule is an LLM aspect reports it as not enforced, with the binary-subject reason — never [enforced]', () => {
     const dir = copyFixture(FIXTURE_BINARY_SUBJECT);
     try {
@@ -77,7 +77,9 @@ describe.skipIf(!distExists)('yg context --file — typed view for a type-covere
       // Listed under "attached but not enforced", with the real reason.
       expect(stdout).toContain('Attached to this type but not enforced here:');
       expect(stdout).toMatch(/prose-rule — a binary file cannot be reviewed by a prose rule/);
-      // The zero-rules statement fires for this file (fix round 1, Important).
+      // The zero-rules statement fires for this file too — a binary subject
+      // dropping its only attached rule still leaves it with no applicable
+      // rule at all.
       expect(stdout).toContain('No rules from this type apply to this file — it satisfies coverage with no enforcement.');
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -97,8 +99,8 @@ describe.skipIf(!distExists)('yg context --file — typed view for a type-covere
     }
   });
 
-  // Fix round 1, Important: an advisory rule must render its real status, not
-  // a hardcoded [enforced]. src/leaf/a.ts's own-file-rule implies
+  // An advisory rule must render its real status, not a hardcoded [enforced].
+  // src/leaf/a.ts's own-file-rule implies
   // implied-file-rule (status: advisory, status_inherit: own-default) — a
   // rule that genuinely runs on this file but only warns.
   it('an advisory rule shows [advisory], never a hardcoded [enforced]', () => {
@@ -113,9 +115,10 @@ describe.skipIf(!distExists)('yg context --file — typed view for a type-covere
     }
   });
 
-  // Fix round 1, Important: a type-covered file with ZERO applicable rules
-  // said NOTHING at all before the fix — a silent gap, not a warning, in the
-  // one surface an agent actually consults for this file.
+  // A type-covered file with ZERO applicable rules must state the zero case
+  // plainly, not say nothing at all — a silent gap here reads as "not worth
+  // mentioning" rather than the honest "nothing enforces here" fact an agent
+  // needs from the one surface it actually consults for this file.
   it('a type-covered file with zero applicable rules states the zero case plainly', () => {
     const dir = copyFixture(FIXTURE_ZERO_ENFORCEMENT);
     try {

@@ -214,7 +214,7 @@ describe('per-node derivation — honest states on synthetic inputs', () => {
         // a prompt-too-large gate state must collapse to unverified (never green, never a "no").
         vp('a-gate', 'gate', { kind: 'prompt-too-large', chars: 9, limit: 4, tierName: 't' }, 'llm'),
       ],
-      unreadable: [], drops: [],
+      unreadable: [], drops: [], uncomputableTypeCoverage: [],
     };
     const out = new Map(
       buildPortalNodes(graph, {} as never, verification, syntheticCheck([]), new Map(), { byFile: new Map() }).map((n) => [n.path, n]),
@@ -247,7 +247,7 @@ describe('per-node derivation — honest states on synthetic inputs', () => {
     };
     const verification: LockVerification = {
       pairs: [advRefused, vp('a-enf', 'enf', { kind: 'refused', reason: 'enforced no' })],
-      unreadable: [], drops: [],
+      unreadable: [], drops: [], uncomputableTypeCoverage: [],
     };
     const out = new Map(
       buildPortalNodes(graph, {} as never, verification, syntheticCheck([]), new Map(), { byFile: new Map() }).map((n) => [n.path, n]),
@@ -282,7 +282,7 @@ describe('per-node derivation — honest states on synthetic inputs', () => {
         vp('a-ok', 'ok', { kind: 'verified' }),
         vp('a-ref', 'ref', { kind: 'refused', reason: 'rule X violated on line 7' }),
       ],
-      unreadable: [], drops: [],
+      unreadable: [], drops: [], uncomputableTypeCoverage: [],
     };
     const out = new Map(
       buildPortalNodes(graph, {} as never, verification, syntheticCheck([]), new Map(), { byFile: new Map() }).map((n) => [n.path, n]),
@@ -310,7 +310,7 @@ describe('per-node derivation — honest states on synthetic inputs', () => {
       flows: [],
       architecture: { node_types: {} },
     } as unknown as Graph;
-    const verification: LockVerification = { pairs: [vp('a-ref', 'p/c', { kind: 'refused' })], unreadable: [], drops: [] };
+    const verification: LockVerification = { pairs: [vp('a-ref', 'p/c', { kind: 'refused' })], unreadable: [], drops: [], uncomputableTypeCoverage: [] };
     const out = new Map(
       buildPortalNodes(graph, {} as never, verification, syntheticCheck([]), new Map(), { byFile: new Map() }).map((n) => [n.path, n]),
     );
@@ -336,7 +336,7 @@ describe('per-node derivation — honest states on synthetic inputs', () => {
       flows: [],
       architecture: { node_types: {} },
     } as unknown as Graph;
-    const verification: LockVerification = { pairs: [vp('a-ref', 'a/b/c', { kind: 'refused' })], unreadable: [], drops: [] };
+    const verification: LockVerification = { pairs: [vp('a-ref', 'a/b/c', { kind: 'refused' })], unreadable: [], drops: [], uncomputableTypeCoverage: [] };
     const out = new Map(
       buildPortalNodes(graph, {} as never, verification, syntheticCheck([]), new Map(), { byFile: new Map() }).map((n) => [n.path, n]),
     );
@@ -353,7 +353,7 @@ describe('per-node derivation — honest states on synthetic inputs', () => {
     const aDet = aspectDef('a', 'deterministic');
     const n = node('n', 'module', ['a'], ['src/x.ts']);
     const graph = { nodes: new Map([['n', n]]), aspects: [aDet], flows: [], architecture: { node_types: {} } } as unknown as Graph;
-    const verification: LockVerification = { pairs: [vp('a', 'n', { kind: 'verified' })], unreadable: [], drops: [] };
+    const verification: LockVerification = { pairs: [vp('a', 'n', { kind: 'verified' })], unreadable: [], drops: [], uncomputableTypeCoverage: [] };
     const supp: PortalSuppression = { aspectId: 'a', file: 'src/x.ts', line: 3, reason: 'ok' };
     const byFile = new Map<string, PortalSuppression[]>([['src/x.ts', [supp]], ['other.ts', [{ ...supp, file: 'other.ts' }]]]);
     const logs = new Map([['n', '## [2026-01-01T00:00:00.000Z]\nbody text\n']]);
@@ -369,7 +369,7 @@ describe('per-node derivation — honest states on synthetic inputs', () => {
     const aDet = aspectDef('a', 'deterministic');
     const n = node('n', 'module', ['a'], ['src/**/*.ts']);
     const graph = { nodes: new Map([['n', n]]), aspects: [aDet], flows: [], architecture: { node_types: {} } } as unknown as Graph;
-    const verification: LockVerification = { pairs: [vp('a', 'n', { kind: 'verified' })], unreadable: [], drops: [] };
+    const verification: LockVerification = { pairs: [vp('a', 'n', { kind: 'verified' })], unreadable: [], drops: [], uncomputableTypeCoverage: [] };
     const supp: PortalSuppression = { aspectId: 'a', file: 'src/a.ts', line: 3, reason: 'ok' };
     const byFile = new Map<string, PortalSuppression[]>([
       ['src/a.ts', [supp]],
@@ -387,7 +387,7 @@ describe('per-node derivation — honest states on synthetic inputs', () => {
     const n = node('n', 'module', ['agg'], ['f.ts']);
     const graph = { nodes: new Map([['n', n]]), aspects: [agg, child], flows: [], architecture: { node_types: {} } } as unknown as Graph;
     // child gets a verified pair; agg has no pair (no own verdict).
-    const verification: LockVerification = { pairs: [vp('child', 'n', { kind: 'verified' })], unreadable: [], drops: [] };
+    const verification: LockVerification = { pairs: [vp('child', 'n', { kind: 'verified' })], unreadable: [], drops: [], uncomputableTypeCoverage: [] };
     const out = buildPortalNodes(graph, {} as never, verification, syntheticCheck([]), new Map(), { byFile: new Map() });
     const portal = out.find((x) => x.path === 'n')!;
     const aggRow = portal.effectiveAspects.find((a) => a.aspectId === 'agg')!;
@@ -416,7 +416,7 @@ describe('per-node derivation — notApplicable + implied-channel origin (synthe
       flows: [],
       architecture: { node_types: {} },
     } as unknown as Graph;
-    const verification: LockVerification = { pairs: [], unreadable: [], drops: [] };
+    const verification: LockVerification = { pairs: [], unreadable: [], drops: [], uncomputableTypeCoverage: [] };
     const out = buildPortalNodes(graph, {} as never, verification, syntheticCheck([]), new Map(), { byFile: new Map() });
     const portal = out.find((x) => x.path === 'n')!;
     expect(portal.notApplicable.map((x) => x.aspectId)).toContain('a-when');
@@ -435,7 +435,7 @@ describe('per-node derivation — notApplicable + implied-channel origin (synthe
     const graph = { nodes: new Map([['n', n]]), aspects: [parent, kid], flows: [], architecture: { node_types: {} } } as unknown as Graph;
     const verification: LockVerification = {
       pairs: [vp('parent', 'n', { kind: 'verified' }), vp('kid', 'n', { kind: 'verified' })],
-      unreadable: [], drops: [],
+      unreadable: [], drops: [], uncomputableTypeCoverage: [],
     };
     const out = buildPortalNodes(graph, {} as never, verification, syntheticCheck([]), new Map(), { byFile: new Map() });
     const portal = out.find((x) => x.path === 'n')!;

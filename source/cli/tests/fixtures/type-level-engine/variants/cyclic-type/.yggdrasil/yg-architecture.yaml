@@ -1,9 +1,11 @@
 # yg-architecture.yaml — overlay for variants/cyclic-type. A full copy of the
 # base fixture's architecture with one new type, 'cyclic', appended: matches
 # src/cyclic/** with no component ever mapping it, and declares an aspect
-# that is one half of a mutual implies cycle. Pins that yg context --file,
-# for a type-covered file whose type's rules cannot be worked out because of
-# an implies cycle, says so honestly instead of claiming zero enforcement.
+# that is one half of a mutual implies cycle. Pins that every surface
+# answering about a type-covered file whose type's rules cannot be worked out
+# because of the cycle — yg context --file, yg owner --file, and yg check's
+# own per-type block / repo-wide rollup — says so honestly instead of
+# claiming zero enforcement.
 node_types:
   leaf:
     description: "Matches src/leaf/**. Carries its own defaults (own-file-rule,
@@ -182,9 +184,10 @@ node_types:
     description: "Matches src/cyclic/**. No component ever maps this type —
       the only way a file can be enforced by it is through type-level
       coverage. Declares cyclic-a, one half of a mutual implies cycle with
-      cyclic-b: pins that yg context --file, for this file, says its rules
-      could not be worked out because of the cycle instead of claiming zero
-      enforcement."
+      cyclic-b: pins that yg context --file, yg owner --file, and yg check
+      (both its per-type block and its repo-wide rollup) all say, for this
+      file, that its rules could not be worked out because of the cycle,
+      instead of claiming zero enforcement."
     when:
       path: "src/cyclic/**"
     aspects:

@@ -61,14 +61,12 @@ describe('yg check — type-visibility block (Step 2)', () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  // Fix round 1, Critical: a binary file matched by a type whose only rule is
-  // an LLM (prose) aspect must never be counted as enforced — the reviewer's
-  // own exact case. Before the fix, the binary-subject skip in pairs.ts's
-  // nodeless enumeration recorded no drop, so "enforced" (derived by
-  // subtracting drops from declared-attached) wrongly counted logo.png too:
-  // `prose-rule (2)` when only ONE real pair (readme.md) exists, and
-  // logo.png never appeared in the zero-enforcement line even though nothing
-  // runs on it.
+  // A binary file matched by a type whose only rule is an LLM (prose) aspect
+  // must never be counted as enforced. A silently missing drop for the
+  // binary-subject skip would let "enforced" (derived by subtracting drops
+  // from declared-attached) wrongly count logo.png too: `prose-rule (2)` when
+  // only ONE real pair (readme.md) exists, and logo.png would never appear in
+  // the zero-enforcement line even though nothing runs on it.
   it('a binary file whose only attached rule is an LLM (prose) aspect is never counted as enforced, and is named in the zero-enforcement line', async () => {
     const dir = copyFixture(FIXTURE_BINARY_SUBJECT);
     const out = await renderCheck(dir);
@@ -89,8 +87,8 @@ describe('yg check — type-visibility block (Step 2)', () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  // Fix round 1, Important: an advisory rule must not be reported under the
-  // "Enforced" heading. src/leaf/a.ts's own-file-rule implies
+  // An advisory rule must not be reported under the "Enforced" heading.
+  // src/leaf/a.ts's own-file-rule implies
   // implied-file-rule (status: advisory) — it genuinely runs (a real pair
   // exists) but only warns; the check-summary heading must say so honestly.
   it('an advisory rule is named under its own heading, never counted under "Enforced"', async () => {

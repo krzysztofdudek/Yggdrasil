@@ -1,5 +1,5 @@
 name: Cyclic A
-description: "Half of a mutual implies cycle (cyclic-a <-> cyclic-b) attached to a type with no component of its own — pins that yg context --file names the cycle instead of claiming zero enforcement."
+description: "Half of a mutual implies cycle (cyclic-a <-> cyclic-b) attached to a type with no component of its own — pins that yg context --file, yg owner --file, and yg check all name the cycle instead of claiming zero enforcement."
 reviewer:
   type: deterministic
 implies:

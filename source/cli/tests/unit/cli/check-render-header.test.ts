@@ -426,9 +426,9 @@ describe('check render — emoji decoration', () => {
   });
 });
 
-// ── Type-visibility block: fix round 1 (advisory heading, cap discipline,
-// counts-only triage views, singular grammar) — constructed CheckResult, no
-// fixture, so every scenario is exact and controllable. ─────────────────────
+// ── Type-visibility block: advisory heading, cap discipline, counts-only
+// triage views, singular grammar — constructed CheckResult, no fixture, so
+// every scenario is exact and controllable. ─────────────────────
 
 function typeVisibilityResult(report: TypeVisibilityReport): CheckResult {
   return { ...baseResult([]), typeLevel: true, typeVisibility: report };
@@ -444,12 +444,16 @@ function block(overrides: Partial<TypeVisibilityReport['byType'][number]> = {}):
     advisoryCounts: [],
     dropped: [],
     halfExpandedBundles: [],
+    uncomputable: [],
     chainTermination: { reason: 'no-parents', candidates: ['t'] },
     ...overrides,
   };
 }
 
-describe('type-visibility block — advisory heading never claims enforcement (fix round 1)', () => {
+/** Every report literal below leaves this empty — the uncomputable-group render itself is pinned separately, in its own describe block. */
+const NO_UNCOMPUTABLE = { count: 0, groups: [] };
+
+describe('type-visibility block — advisory heading never claims enforcement', () => {
   it('an advisory rule is listed under its own heading, never under "Enforced"', () => {
     const report: TypeVisibilityReport = {
       byType: [block({
@@ -457,6 +461,7 @@ describe('type-visibility block — advisory heading never claims enforcement (f
         advisoryCounts: [{ aspectId: 'warn-only', count: 1 }],
       })],
       zeroEnforcement: { count: 0, samples: [] },
+      uncomputable: NO_UNCOMPUTABLE,
       rows: [],
     };
     const out = renderTypeVisibilityBlock(typeVisibilityResult(report));
@@ -469,6 +474,7 @@ describe('type-visibility block — advisory heading never claims enforcement (f
     const report: TypeVisibilityReport = {
       byType: [block({ enforced: ['own-rule'], enforcedCounts: [{ aspectId: 'own-rule', count: 1 }] })],
       zeroEnforcement: { count: 0, samples: [] },
+      uncomputable: NO_UNCOMPUTABLE,
       rows: [],
     };
     const out = renderTypeVisibilityBlock(typeVisibilityResult(report));
@@ -486,6 +492,7 @@ describe('type-visibility block — the attached-but-not-enforced line is groupe
     const report: TypeVisibilityReport = {
       byType: [block({ dropped })],
       zeroEnforcement: { count: 0, samples: [] },
+      uncomputable: NO_UNCOMPUTABLE,
       rows: [],
     };
     const out = renderTypeVisibilityBlock(typeVisibilityResult(report));
@@ -502,8 +509,8 @@ describe('type-visibility block — the attached-but-not-enforced line is groupe
     expect((reasonLine.match(/no component to run it on/g) ?? []).length).toBe(1);
     // Grouping must actually shrink the render, not merely re-cap the same flat
     // list: this exact 20-aspect/one-reason shape previously rendered ~1072
-    // characters even after the fix-round-1 cap (every entry still repeated the
-    // full reason phrase).
+    // characters even after capping the flat list (every entry still repeated
+    // the full reason phrase).
     expect(out.length).toBeLessThan(500);
   });
 
@@ -516,6 +523,7 @@ describe('type-visibility block — the attached-but-not-enforced line is groupe
     const report: TypeVisibilityReport = {
       byType: [block({ dropped })],
       zeroEnforcement: { count: 0, samples: [] },
+      uncomputable: NO_UNCOMPUTABLE,
       rows: [],
     };
     const out = renderTypeVisibilityBlock(typeVisibilityResult(report));
@@ -533,7 +541,7 @@ describe('type-visibility block — the attached-but-not-enforced line is groupe
   });
 });
 
-describe('type-visibility block — counts-only under the triage views (fix round 1)', () => {
+describe('type-visibility block — counts-only under the triage views', () => {
   function reportWithDetail(): TypeVisibilityReport {
     return {
       byType: [block({
@@ -545,6 +553,7 @@ describe('type-visibility block — counts-only under the triage views (fix roun
         halfExpandedBundles: [{ bundleId: 'bundle', enforced: ['own-rule'], dropped: ['dead-rule'] }],
       })],
       zeroEnforcement: { count: 1, samples: ['z.ts'] },
+      uncomputable: NO_UNCOMPUTABLE,
       rows: [],
     };
   }
@@ -584,11 +593,12 @@ describe('type-visibility block — counts-only under the triage views (fix roun
   });
 });
 
-describe('type-visibility block — the zero-enforcement line agrees in number (fix round 1)', () => {
+describe('type-visibility block — the zero-enforcement line agrees in number', () => {
   it('a SINGLE zero-enforcement file reads "it satisfies", never the plural "they satisfy"', () => {
     const report: TypeVisibilityReport = {
       byType: [],
       zeroEnforcement: { count: 1, samples: ['only.ts'] },
+      uncomputable: NO_UNCOMPUTABLE,
       rows: [],
     };
     const out = renderTypeVisibilityBlock(typeVisibilityResult(report));
@@ -600,9 +610,69 @@ describe('type-visibility block — the zero-enforcement line agrees in number (
     const report: TypeVisibilityReport = {
       byType: [],
       zeroEnforcement: { count: 2, samples: ['a.ts', 'b.ts'] },
+      uncomputable: NO_UNCOMPUTABLE,
       rows: [],
     };
     const out = renderTypeVisibilityBlock(typeVisibilityResult(report));
     expect(out).toContain('2 files matched by a type have no rules that apply to them — they satisfy coverage with no enforcement:');
+  });
+});
+
+describe('type-visibility block — an uncomputable file is never folded into the zero-enforcement line', () => {
+  it('names the cycle in its own section, distinct from (and never inside) "Attached but not enforced" or the zero-enforcement line', () => {
+    const report: TypeVisibilityReport = {
+      byType: [block({
+        typeId: 'cyclic',
+        files: ['src/cyclic/z.ts'],
+        uncomputable: [{ aspectId: 'cyclic-a', files: ['src/cyclic/z.ts'] }],
+      })],
+      zeroEnforcement: { count: 0, samples: [] },
+      uncomputable: { count: 1, groups: [{ aspectId: 'cyclic-a', files: ['src/cyclic/z.ts'] }] },
+      rows: [],
+    };
+    const out = renderTypeVisibilityBlock(typeVisibilityResult(report));
+    expect(out).toContain('Rules could not be worked out:');
+    expect(out).toMatch(/src\/cyclic\/z\.ts.*implies cycle at 'cyclic-a'/);
+    expect(out).toContain('1 file matched by a type could not have its rules worked out:');
+    // Never counted as "zero applicable rules" — that would claim resolution
+    // ran and found nothing, which is false: it never ran at all.
+    expect(out).not.toMatch(/no rules that apply/);
+    expect(out).not.toContain('Attached but not enforced');
+    // Still honestly "Enforced: (none)" (a true statement — no pair exists),
+    // never fabricated as enforced just because it is unresolved.
+    expect(out).toContain('Enforced: (none)');
+  });
+
+  it('the plural rollup sentence agrees in number with multiple uncomputable files', () => {
+    const report: TypeVisibilityReport = {
+      byType: [block({
+        typeId: 'cyclic',
+        files: ['a.ts', 'b.ts'],
+        uncomputable: [{ aspectId: 'cyclic-a', files: ['a.ts', 'b.ts'] }],
+      })],
+      zeroEnforcement: { count: 0, samples: [] },
+      uncomputable: { count: 2, groups: [{ aspectId: 'cyclic-a', files: ['a.ts', 'b.ts'] }] },
+      rows: [],
+    };
+    const out = renderTypeVisibilityBlock(typeVisibilityResult(report));
+    expect(out).toContain('2 files matched by a type could not have their rules worked out:');
+  });
+
+  it('--summary / --top still count an unresolved rule honestly, never silently as zero', () => {
+    const report: TypeVisibilityReport = {
+      byType: [block({
+        typeId: 'cyclic',
+        files: ['src/cyclic/z.ts'],
+        uncomputable: [{ aspectId: 'cyclic-a', files: ['src/cyclic/z.ts'] }],
+      })],
+      zeroEnforcement: { count: 0, samples: [] },
+      uncomputable: { count: 1, groups: [{ aspectId: 'cyclic-a', files: ['src/cyclic/z.ts'] }] },
+      rows: [],
+    };
+    const out = renderTypeVisibilityBlock(typeVisibilityResult(report), { countsOnly: true });
+    expect(out).toContain('1 rule unresolved (aspect implies cycle)');
+    // The counts-only posture holds: no file name, no cycle-naming sentence.
+    expect(out).not.toContain('src/cyclic/z.ts');
+    expect(out).not.toContain('Rules could not be worked out:');
   });
 });

@@ -23,7 +23,7 @@ import { computeExpectedPairs, computeSourceFingerprint, FileUnreadableError } f
 import type { TypeCoverageInput } from '../core/pairs.js';
 import { scanUncoveredFiles } from '../core/check.js';
 import { computeTypeCoverage, classifySingleFile } from '../core/type-coverage.js';
-import { computeTypeAspectCascade } from '../core/type-effective.js';
+import { computeTypeAspectCascade, describeCascadeCycle } from '../core/type-effective.js';
 import { isExcludedByCoverage } from '../core/check-coverage-tiers.js';
 import { buildTypeVisibility, describeTypeVisibilityReason, describeChainTermination, toAppliedPairs } from '../core/type-visibility.js';
 import { FileContentCache } from '../io/file-content-cache.js';
@@ -343,12 +343,15 @@ export function registerBuildCommand(program: Command): void {
                 // enforcement, which would be false: the type's rules were never
                 // resolved, not resolved-and-absent. yg check's own static
                 // aspect-implies-cycle error is unaffected — it still fires and
-                // still blocks, on its own separate path.
+                // still blocks, on its own separate path. Shares its wording
+                // with yg owner --file's identical check (and yg check's own
+                // report of the same fact) via describeCascadeCycle, so the
+                // surfaces cannot disagree.
                 const cascadeCycle = computeTypeAspectCascade(graph, result.file, typeMatch.typeId).cycle;
                 if (cascadeCycle) {
                   const cycleMsg = buildIssueMessage({
                     what: `${displayFile} matches type '${typeMatch.typeId}', but its rules could not be worked out.`,
-                    why: `The aspect graph has an implies cycle${cascadeCycle.aspectId ? ` at '${cascadeCycle.aspectId}'` : ''} — the cascade cannot tell which of the type's rules apply until that cycle is broken.`,
+                    why: describeCascadeCycle(cascadeCycle),
                     next: `Run yg check to see the blocking aspect-implies-cycle error, then remove one implies edge in .yggdrasil/aspects/. This file's rules cannot be evaluated until the cycle is fixed.`,
                   });
                   process.stderr.write(chalk.red(`Error: ${cycleMsg}\n`));

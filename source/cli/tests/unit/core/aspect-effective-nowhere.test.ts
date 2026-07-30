@@ -415,8 +415,8 @@ describe('type-coverage tier-awareness (Step 5)', () => {
     expect(issues.some((i) => i.messageData.what.includes("'own-rule'"))).toBe(true);
   });
 
-  // The other direction of the dead-law relaxation (fix round 1): a
-  // WHOLE-UNIT (per: node) rule reachable ONLY through a type-covered file
+  // The other direction of the dead-law relaxation: a WHOLE-UNIT (per: node)
+  // rule reachable ONLY through a type-covered file
   // must STILL be reported dead — it can never produce a pair there (no
   // component to run it on), so counting the file as making it "live" would
   // hide a rule that genuinely never verifies anything.
@@ -501,9 +501,9 @@ describe('type-coverage tier-awareness (Step 5)', () => {
     expect(checkArchitectureDefaultAspectUnreachable(graph)).toHaveLength(0);
   });
 
-  // The dead-law relaxation, pinned directly on checkArchitectureDefaultAspectUnreachable
-  // (fix round 1): a file-level default reachable only through a type-covered
-  // file is genuinely reachable there and must NOT be reported unreachable.
+  // The dead-law relaxation, pinned directly on checkArchitectureDefaultAspectUnreachable:
+  // a file-level default reachable only through a type-covered file is
+  // genuinely reachable there and must NOT be reported unreachable.
   function reachableFileDefaultTwinGraph(rootPath: string): { graph: Graph; typeCoverage: TypeCoverageInput } {
     const arch: ArchitectureDef = {
       node_types: {

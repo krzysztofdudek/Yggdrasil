@@ -18,3 +18,5 @@ Verification now accepts the same file-type classification the read-only check c
 Comment-only correction: an internal note about why a nodeless unit's stored observation set can never include a graph-membership key now describes the actual mechanism directly (its graph context refuses every call, so nothing graph-shaped is ever recorded) instead of pointing at unrelated internal state. No behavior changed.
 ## [2026-07-30T13:40:13.033Z]
 Returns the pair-enumeration drop reasons alongside the verified pairs, so a caller can report not just what verified but why an attached rule did not run on a given file.
+## [2026-07-30T18:00:59.070Z]
+Threads the new uncomputableTypeCoverage list from pair computation through LockVerification, alongside the existing unreadable and drops channels, so a caller building the type-visibility honesty report can tell a type-covered file whose rules were never resolved (an absorbed implies cycle) apart from one that resolved to genuinely nothing.

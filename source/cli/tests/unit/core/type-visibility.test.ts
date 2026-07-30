@@ -24,7 +24,7 @@ import { runStructureAspect, StructureRunnerError } from '../../../src/structure
 import type { StructureUnit } from '../../../src/structure/runner.js';
 import { buildTestGraphForStructure } from '../helpers/build-test-graph-structure.js';
 import { cleanupTestGraphs } from '../helpers/build-test-graph.js';
-import { FIXTURE_NODELESS_RUNNER } from '../../fixtures/type-level-engine/variants/index.js';
+import { FIXTURE_NODELESS_RUNNER, FIXTURE_CYCLIC_TYPE } from '../../fixtures/type-level-engine/variants/index.js';
 import type { Graph, GraphNode, AspectDef, ScopeDef, WhenPredicate } from '../../../src/model/graph.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -426,6 +426,66 @@ describe('buildTypeVisibility — report shape (real type-level-engine fixture)'
     const { drops, pairs } = await computeExpectedPairs(graph, { typeCoverage });
     const report = buildTypeVisibility(graph, typeCoverage.covered, drops, [], applied(pairs));
     expect(report.zeroEnforcement).toEqual({ count: 1, samples: ['src/ep/e.ts'] });
+  });
+
+  it('a type-covered file whose type hit an implies cycle is excluded from zero-enforcement and reported as uncomputable instead, grouped by the cycle aspect id (real fixture)', async () => {
+    // Combines the base fixture's own genuine zero-enforcement file
+    // (src/ep/e.ts — 'emptyparents' declares no aspects at all) with the
+    // cyclic-type variant's file (src/cyclic/z.ts — the cascade absorbs an
+    // implies cycle) in the SAME run, so the two honest-but-distinct outcomes
+    // ("resolution ran and found nothing" vs. "resolution never ran") are
+    // pinned side by side, never folded into one bucket.
+    const projectRoot = mkdtempSync(path.join(tmpdir(), 'yg-type-visibility-cyclic-'));
+    cpSync(BASE_FIXTURE, projectRoot, { recursive: true });
+    cpSync(FIXTURE_CYCLIC_TYPE, projectRoot, { recursive: true });
+    try {
+      const graph = await loadGraph(projectRoot);
+      const typeCoverage = tc([
+        ['src/cyclic/z.ts', 'cyclic'],
+        ['src/ep/e.ts', 'emptyparents'],
+      ]);
+      const { drops, pairs, uncomputableTypeCoverage } = await computeExpectedPairs(graph, { typeCoverage });
+      const report = buildTypeVisibility(graph, typeCoverage.covered, drops, [], applied(pairs), uncomputableTypeCoverage);
+      expect(report.zeroEnforcement).toEqual({ count: 1, samples: ['src/ep/e.ts'] });
+      expect(report.uncomputable).toEqual({
+        count: 1,
+        groups: [{ aspectId: 'cyclic-a', files: ['src/cyclic/z.ts'] }],
+      });
+      const cyclicBlock = report.byType.find((b) => b.typeId === 'cyclic')!;
+      expect(cyclicBlock.uncomputable).toEqual([{ aspectId: 'cyclic-a', files: ['src/cyclic/z.ts'] }]);
+      // No pair was ever produced for it, so 'Enforced' stays empty too — but
+      // this block's own `uncomputable` entry is what tells the two apart,
+      // never an absence a caller could misread as "nothing applies".
+      expect(cyclicBlock.enforced).toEqual([]);
+    } finally {
+      rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('buildTypeVisibility groups uncomputable files by their cycle aspect id, files sorted within a group', () => {
+    const graph = buildTypeCoverageGraph(tmpDir, { nodeTypes: [{ id: 'leaf', aspects: [] }], aspects: [] });
+    const covered = new Map([['src/leaf/b.ts', 'leaf'], ['src/leaf/a.ts', 'leaf'], ['src/leaf/c.ts', 'leaf']]);
+    const uncomputable = [
+      { file: 'src/leaf/b.ts', typeId: 'leaf', cycle: { aspectId: 'loop-a' } },
+      { file: 'src/leaf/a.ts', typeId: 'leaf', cycle: { aspectId: 'loop-a' } },
+      { file: 'src/leaf/c.ts', typeId: 'leaf', cycle: { aspectId: 'loop-x' } },
+    ];
+    const report = buildTypeVisibility(graph, covered, [], [], [], uncomputable);
+    const block = report.byType.find((b) => b.typeId === 'leaf')!;
+    expect(block.uncomputable).toEqual([
+      { aspectId: 'loop-a', files: ['src/leaf/a.ts', 'src/leaf/b.ts'] },
+      { aspectId: 'loop-x', files: ['src/leaf/c.ts'] },
+    ]);
+    expect(report.uncomputable).toEqual({
+      count: 3,
+      groups: [
+        { aspectId: 'loop-a', files: ['src/leaf/a.ts', 'src/leaf/b.ts'] },
+        { aspectId: 'loop-x', files: ['src/leaf/c.ts'] },
+      ],
+    });
+    // None of these three files count toward zero-enforcement — their rules
+    // were never resolved, not resolved-and-empty.
+    expect(report.zeroEnforcement).toEqual({ count: 0, samples: [] });
   });
 
   it('a file with at least one enforced rule is never counted as zero-enforcement', async () => {

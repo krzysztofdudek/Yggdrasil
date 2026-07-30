@@ -730,7 +730,7 @@ export async function runCheck(
     const verification = await verifyLock(graph, lock, typeCoverageInput);
     // runtimeRows is [] — a plain check never re-executes check.mjs.
     typeVisibility = earlyTypeCoverage
-      ? buildTypeVisibility(graph, earlyTypeCoverage.covered, verification.drops, [], toAppliedPairs(verification.pairs.map((vp) => vp.pair)))
+      ? buildTypeVisibility(graph, earlyTypeCoverage.covered, verification.drops, [], toAppliedPairs(verification.pairs.map((vp) => vp.pair)), verification.uncomputableTypeCoverage)
       : undefined;
 
     // Unreadable subjects → blocking file-unreadable errors (A4 fail-closed).

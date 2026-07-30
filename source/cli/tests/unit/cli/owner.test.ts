@@ -281,10 +281,10 @@ describe('owner — a typed answer for a type-covered file (Step 4)', () => {
     });
   });
 
-  // Fix round 1, Important: for a type-covered file with ZERO applicable
-  // rules, `yg owner` must not assert the opposite of the truth ("Enforced by
-  // its architecture type"). src/ep/e.ts's only attached rule is whole-unit
-  // (per: node) — it can never produce a pair for a nodeless file.
+  // For a type-covered file with ZERO applicable rules, `yg owner` must not
+  // assert the opposite of the truth ("Enforced by its architecture type").
+  // src/ep/e.ts's only attached rule is whole-unit (per: node) — it can never
+  // produce a pair for a nodeless file.
   it('a type-covered file with zero applicable rules says so, never "Enforced by its architecture type"', async () => {
     await withTypeLevelFixtureCopy(async (cwd) => {
       const result = spawnSync(

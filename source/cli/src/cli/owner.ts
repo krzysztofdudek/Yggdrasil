@@ -15,7 +15,7 @@ import { classifySingleFile } from '../core/type-coverage.js';
 import { isExcludedByCoverage } from '../core/check-coverage-tiers.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import { computeExpectedPairs } from '../core/pairs.js';
-import { computeTypeAspectCascade } from '../core/type-effective.js';
+import { computeTypeAspectCascade, describeCascadeCycle } from '../core/type-effective.js';
 
 function normalizeForMatch(inputPath: string): string {
   return toPosixPath(inputPath.trim());
@@ -87,13 +87,14 @@ export function registerOwnerCommand(program: Command): void {
             // be false: the type's rules were never resolved, not
             // resolved-and-absent. yg check's own static aspect-implies-cycle
             // error is unaffected — it still fires and still blocks, on its
-            // own separate path. Same wording as yg context --file's identical
-            // check, so the two surfaces cannot disagree about this case.
+            // own separate path. Shares its wording with yg context --file's
+            // identical check (and yg check's own report of the same fact)
+            // via describeCascadeCycle, so the surfaces cannot disagree.
             const cascadeCycle = computeTypeAspectCascade(graph, result.file, typeMatch.typeId).cycle;
             if (cascadeCycle) {
               const cycleMsg = buildIssueMessage({
                 what: `${result.file} matches type '${typeMatch.typeId}', but its rules could not be worked out.`,
-                why: `The aspect graph has an implies cycle${cascadeCycle.aspectId ? ` at '${cascadeCycle.aspectId}'` : ''} — the cascade cannot tell which of the type's rules apply until that cycle is broken.`,
+                why: describeCascadeCycle(cascadeCycle),
                 next: `Run yg check to see the blocking aspect-implies-cycle error, then remove one implies edge in .yggdrasil/aspects/. This file's rules cannot be evaluated until the cycle is fixed.`,
               });
               process.stderr.write(chalk.red(`Error: ${cycleMsg}\n`));

@@ -163,6 +163,17 @@ export interface TypeCascadeCycle {
   /** The aspect id at which the cycle was detected (best-effort — the underlying `ImpliesCycleError`'s own field; absent for the rare iteration-bound-exceeded variant). */
   aspectId: string | undefined;
 }
+
+/**
+ * The `why` clause for an absorbed cascade cycle, shared VERBATIM by every
+ * surface that reports one — `yg owner --file`, `yg context --file`, and `yg
+ * check`'s per-type block/zero-enforcement rollup — so the wording can never
+ * drift between them. Each surface still writes its own `what`/`next` around
+ * this, since those differ (a single-file error vs. a repo-wide summary).
+ */
+export function describeCascadeCycle(cycle: TypeCascadeCycle): string {
+  return `The aspect graph has an implies cycle${cycle.aspectId ? ` at '${cycle.aspectId}'` : ''} — the cascade cannot tell which of the type's rules apply until that cycle is broken.`;
+}
 /**
  * Why the implicit parent-chain walk (below) stopped where it did, computed
  * once per type — independent of any one file. `candidates` names the parent

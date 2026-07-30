@@ -4,7 +4,7 @@
  * Honesty artifact for the type-level coverage tier: for every file enforced
  * by its architecture type alone, records not just what a rule attached to
  * that type ENFORCES on it, but every rule that is attached and does NOT —
- * with the reason. Assembled from three producers, never a fourth:
+ * with the reason. Assembled from four producers, never a fifth:
  *   - `staticDrops` (`PairComputation.drops`, core/pairs.ts) — the reasons
  *     decided while working out which rules apply: a whole-unit rule with no
  *     component to run on, a file excluded by the rule's own `scope.files`,
@@ -27,17 +27,30 @@
  *     must never be read back as "therefore enforced" — that inference is
  *     exactly the failure mode this artifact exists to rule out, so it is not
  *     reintroduced here as a shortcut.
+ *   - `uncomputable` (`PairComputation.uncomputableTypeCoverage`, core/pairs.ts)
+ *     — files whose type's rules were never resolved at all: the nodeless
+ *     enumeration's cascade call absorbed an aspect `implies` cycle for them,
+ *     so they contribute NEITHER a static drop NOR an applied pair. A file
+ *     with no drop and no applied pair is otherwise indistinguishable from one
+ *     whose type genuinely attaches nothing — this producer is what keeps the
+ *     two apart: `byType[].uncomputable` / the top-level `uncomputable` report
+ *     one, both excluded from `zeroEnforcement`, so "resolution never ran" is
+ *     never rendered as "resolution ran and found nothing".
  *
- * This module builds NO reason of its own: it groups, counts, and renders
- * what the producers already decided. The two things it DOES compute itself
- * are which of a type's declared law is enforced ANYWHERE (a plain group-by
- * over `appliedPairs`) and where the type's implicit parent chain stops —
- * both pure graph facts, no file I/O, independent of whether a relation-edge
- * index is available.
+ * This module builds NO reason of its own: it groups, counts, and shapes what
+ * the producers already decided (the render layer, `check-render-header.ts`,
+ * turns a cascade-cycle group's `aspectId` into the same `why` sentence
+ * `yg owner --file` / `yg context --file` already print, via
+ * `type-effective.ts#describeCascadeCycle` — never restated here, so the
+ * wording cannot drift between the three surfaces). The two things this
+ * module DOES compute itself are which of a type's declared law is enforced
+ * ANYWHERE (a plain group-by over `appliedPairs`) and where the type's
+ * implicit parent chain stops — both pure graph facts, no file I/O,
+ * independent of whether a relation-edge index is available.
  */
 import type { Graph } from '../model/graph.js';
 import type { AspectStatus } from '../model/graph.js';
-import type { PairDrop, ExpectedPair } from './pairs.js';
+import type { PairDrop, ExpectedPair, UncomputableTypeCoverage } from './pairs.js';
 import type { TypeAspectDropReason } from './type-effective.js';
 import { walkTypeParentChain } from './type-effective.js';
 import type { ChainTermination } from './type-effective.js';
@@ -129,6 +142,20 @@ export function toAppliedPairs(pairs: ExpectedPair[]): TypeVisibilityAppliedPair
     .map((p) => ({ file: p.subjectFiles[0], aspectId: p.aspectId, status: p.status }));
 }
 
+/**
+ * Files whose rules could not be worked out at all, grouped by the cascade
+ * cycle's aspect id (files sharing the SAME cycle) — the same shape `dropped`
+ * groups by reason, applied to a distinct kind of fact: a `dropped` row means
+ * "this rule does not run here"; a group here means "this type's rules were
+ * never resolved for these files". `files` is sorted; a group with an
+ * `undefined` aspectId is the rare iteration-bound-exceeded variant of
+ * `TypeCascadeCycle` (no specific aspect to name).
+ */
+export interface TypeVisibilityUncomputableGroup {
+  aspectId: string | undefined;
+  files: string[];
+}
+
 export interface TypeVisibilityReport {
   /** One block per matched type, ordered by type id (code-point). */
   byType: Array<{
@@ -147,11 +174,15 @@ export interface TypeVisibilityReport {
     dropped: Array<{ aspectId: string; reason: TypeVisibilityReason; count: number }>;
     /** Named when a bundle's file-level half applies (enforced OR advisory) and its whole-unit half cannot. */
     halfExpandedBundles: Array<{ bundleId: string; enforced: string[]; dropped: string[] }>;
+    /** This type's own files an aspect `implies` cycle stopped from being resolved at all — see `TypeVisibilityUncomputableGroup`'s own doc. Disjoint from `files` used for `enforced`/`advisory`/`dropped`/`zeroEnforcement`: a file here contributes to NONE of those, since its rules were never worked out. */
+    uncomputable: TypeVisibilityUncomputableGroup[];
     /** Where the inherited chain stops, and why. */
     chainTermination: ChainTermination;
   }>;
-  /** Files with a matched type and no applicable rule at all (zero pairs, any status). */
+  /** Files with a matched type and no applicable rule at all (zero pairs, any status) — NEVER includes a file counted under `uncomputable` below: "resolution ran and found nothing" and "resolution never ran" are mutually exclusive outcomes for the same file. */
   zeroEnforcement: { count: number; samples: string[] };
+  /** Every type-covered file (any type) an aspect `implies` cycle stopped from being resolved at all, grouped the same way each `byType[].uncomputable` is — see `TypeVisibilityUncomputableGroup`'s own doc. `count` is the total file count across every group, never capped (matches `zeroEnforcement.count`'s own contract; only the per-group `files` list is subject to the renderer's own display cap). */
+  uncomputable: { count: number; groups: TypeVisibilityUncomputableGroup[] };
   /** Every (file, aspectId, reason) drop row, static and runtime, sorted code-point stable. */
   rows: TypeVisibilityRow[];
 }
@@ -197,13 +228,34 @@ export function classifyRunnerDisposition(code: string): TypeVisibilityReason | 
   return RUNTIME_DISPOSITION_REASONS.get(code);
 }
 
+/**
+ * Group uncomputable entries by their cascade cycle's aspect id (files
+ * sharing the SAME cycle) — the same shape `dropped` groups by reason. `[]`
+ * in ⇒ `[]` out, so a type/report with no uncomputable files renders no
+ * group at all (never a stray empty-group line).
+ */
+function groupUncomputable(entries: UncomputableTypeCoverage[]): TypeVisibilityUncomputableGroup[] {
+  const byAspect = new Map<string, string[]>(); // key: aspectId, or '' for the undefined (iteration-bound-exceeded) variant
+  for (const e of entries) {
+    const key = e.cycle.aspectId ?? '';
+    const arr = byAspect.get(key);
+    if (arr) arr.push(e.file);
+    else byAspect.set(key, [e.file]);
+  }
+  return [...byAspect.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([key, files]) => ({ aspectId: key === '' ? undefined : key, files: [...files].sort() }));
+}
+
 export function buildTypeVisibility(
   graph: Graph,
   covered: Map<string, string>,
   staticDrops: PairDrop[],
   runtimeRows: TypeVisibilityRow[],
   appliedPairs: TypeVisibilityAppliedPair[],
+  uncomputable: UncomputableTypeCoverage[] = [],
 ): TypeVisibilityReport {
+  const uncomputableFiles = new Set(uncomputable.map((u) => u.file));
   const filesByType = new Map<string, string[]>();
   for (const [file, typeId] of covered) {
     const arr = filesByType.get(typeId);
@@ -244,6 +296,11 @@ export function buildTypeVisibility(
     const advisoryFileCounts = new Map<string, number>();
 
     for (const file of files) {
+      // Rules never resolved for this file (an absorbed implies cycle) — it
+      // is neither enforced/advisory/dropped NOR zero-enforcement (both of
+      // those mean resolution RAN); it is reported via `uncomputable` below
+      // instead, on its own honest channel.
+      if (uncomputableFiles.has(file)) continue;
       const statuses = statusByFile.get(file);
       if (!statuses || statuses.size === 0) {
         zeroEnforcementFiles.push(file);
@@ -304,6 +361,7 @@ export function buildTypeVisibility(
       advisoryCounts: advisory.map((aspectId) => ({ aspectId, count: advisoryFileCounts.get(aspectId) ?? 0 })),
       dropped,
       halfExpandedBundles,
+      uncomputable: groupUncomputable(uncomputable.filter((u) => u.typeId === typeId)),
       chainTermination: termination,
     });
   }
@@ -311,7 +369,12 @@ export function buildTypeVisibility(
   zeroEnforcementFiles.sort();
   const zeroEnforcement = { count: zeroEnforcementFiles.length, samples: zeroEnforcementFiles.slice(0, SAMPLE_CAP) };
 
-  return { byType, zeroEnforcement, rows };
+  return {
+    byType,
+    zeroEnforcement,
+    uncomputable: { count: uncomputable.length, groups: groupUncomputable(uncomputable) },
+    rows,
+  };
 }
 
 /** Short, plain-language phrase for a reason — shared by every render surface so the vocabulary never drifts between them. */
