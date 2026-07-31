@@ -77,6 +77,17 @@ test.describe('§3a SHELL-panel — Node Attestation + global transitions', () =
     await expect(page).toHaveURL(new RegExp('#/node/' + encodeURIComponent(target)));
   });
 
+  test('the panel meta line names a mapping-entry count, not a file count', async ({ page, repoPage }) => {
+    // cli/tests/fixtures maps ONE directory entry (source/cli/tests/fixtures/) that expands
+    // to hundreds of real files on disk — the panel must say what it actually counted
+    // (mapping entries), never claim that number is a count of source files.
+    await page.goto(repoPage + '#/node/cli%2Ftests%2Ffixtures');
+    const panel = page.locator('.app-panel');
+    await expect(panel).toHaveClass(/open/);
+    await expect(panel.locator('.pan-meta')).toContainText('1 mapping entry');
+    await expect(panel.locator('.pan-meta')).not.toContainText('source files');
+  });
+
   test('a no-rule node panel routes to V6 Type Model (never a terminal shrug)', async ({ page, basicPage }) => {
     // The fixture's `api` node is a no-rule module (no effective aspect).
     await page.goto(basicPage + '#/node/api');

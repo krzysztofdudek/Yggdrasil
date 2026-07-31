@@ -58,8 +58,20 @@ export function makeResolvePathToFile(
         // comment for the full reasoning). Exactly one distinct owner among
         // what remains → attribute one of its (non-excluded, by construction)
         // files; 2+ distinct owners among what remains → still split →
-        // silence; nothing remains (every file excluded) → no owner decided
-        // here, undefined (the same silence a wholly-unmapped package gets).
+        // silence.
+        //
+        // No `sole` owner found covers TWO different situations: nothing
+        // remains (every file excluded — `remaining[0]` is naturally
+        // `undefined`, the same silence a wholly-unmapped package gets), or
+        // `remaining` is non-empty but no node owns any of it (a package that
+        // is type-covered only, under `coverage.type_level`, has no node
+        // owner for ANY file — the ordinary case, not the exception). The
+        // fallback picks `remaining[0]` either way rather than returning
+        // `undefined` outright: a caller that is not the node owner index
+        // (the type-coverage lookup) still needs a live, non-excluded file to
+        // find the package's matched type — silencing unconditionally here
+        // made every wildcard import into a nodeless package invisible to
+        // that lookup, exclusion or not.
         const files = resolveJavaPackageFiles(specifier, fromFile, javaDeps);
         const remaining = files.filter((f) => !(isExcluded?.(f) ?? false));
         let sole: string | undefined;
@@ -72,7 +84,7 @@ export function makeResolvePathToFile(
             return undefined; // 2+ distinct owners among what remains → split package → silence
           }
         }
-        if (sole === undefined) return undefined;
+        if (sole === undefined) return remaining[0];
         const soleOwned = remaining.filter((f) => ownerOf?.(f) === sole);
         return soleOwned[0];
       }

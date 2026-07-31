@@ -181,6 +181,12 @@ describe('owner — a file inside a nested project is never reported as owned', 
       // appear for an excluded path — following it verbatim would write a
       // mapping entry file-mapping-excluded immediately refuses.
       expect(result.stdout).not.toContain("Add '");
+      // Names the actual cause (a separate project's own boundary) instead of
+      // the three-way disjunction — the coverage.excluded wording and the
+      // structural git-internals/graph-directory wording must both be absent.
+      expect(result.stdout).toContain("it sits inside a separate project's own boundary");
+      expect(result.stdout).not.toContain('coverage.excluded root in yg-config.yaml');
+      expect(result.stdout).not.toContain('git internals or the graph');
     });
   });
 
@@ -223,6 +229,12 @@ describe('owner — a file inside a nested project is never reported as owned', 
       expect(result.stdout).toContain('No action needed.');
       expect(result.stdout).not.toContain('-> excl\n');
       expect(result.stdout).not.toContain("Add '");
+      // Names the actual cause (a coverage.excluded config root) instead of
+      // the three-way disjunction — the nested-project and structural
+      // wordings must both be absent.
+      expect(result.stdout).toContain('it matches a coverage.excluded root in yg-config.yaml');
+      expect(result.stdout).not.toContain("separate project's own boundary");
+      expect(result.stdout).not.toContain('git internals or the graph');
 
       // Mirror: the node's OWN (non-excluded) file is still reported as owned.
       const own = spawnSync(
@@ -369,6 +381,12 @@ describe('owner — a typed answer for a type-covered file', () => {
       expect(result.status).toBe(0);
       expect(result.stdout).toContain('is excluded from graph coverage by design.');
       expect(result.stdout).not.toContain('type:');
+      // Names the structural cause (git internals / the graph's own directory)
+      // instead of the three-way disjunction — the two config-driven wordings
+      // must both be absent.
+      expect(result.stdout).toContain("it sits inside git internals or the graph's own .yggdrasil/ directory");
+      expect(result.stdout).not.toContain("separate project's own boundary");
+      expect(result.stdout).not.toContain('coverage.excluded root in yg-config.yaml');
     });
   });
 

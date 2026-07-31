@@ -10,7 +10,14 @@ import type { Graph, OwnerResult } from '../model/graph.js';
 import { normalizeProjectRelativePath, projectRootFromGraph, resolveFileArg } from '../io/paths.js';
 import { toPosixPath } from '../utils/posix.js';
 import { buildOwnerIndex } from '../relations/owner-index.js';
-import { resolveGraphExclusionSet, isExcludedFromGraph, isCoverageExcludedPath, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
+import {
+  resolveGraphExclusionSet,
+  isExcludedFromGraph,
+  isCoverageExcludedPath,
+  describeExclusionSource,
+  describeExclusionCause,
+  NO_COVERAGE_EXCLUDED,
+} from '../io/repo-scanner.js';
 import { classifySingleFile } from '../core/type-coverage.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import { computeExpectedPairs } from '../core/pairs.js';
@@ -118,7 +125,7 @@ export function registerOwnerCommand(program: Command): void {
               && !isCoverageExcludedPath(result.file) && !isExcludedFromGraph(result.file, exclusionSet)
             ? await classifySingleFile(graph, result.file, new FileContentCache())
             : undefined;
-          if (isCoverageExcludedPath(result.file) || isExcludedFromGraph(result.file, exclusionSet)) {
+          if (isCoverageExcludedPath(result.file)) {
             // Same fact `yg context --file` already reports for the identical
             // path, in the same words: an excluded file is gone from this
             // graph's coverage, not "unmapped" — advising the adopter to add
@@ -126,11 +133,30 @@ export function registerOwnerCommand(program: Command): void {
             // that `file-mapping-excluded` immediately refuses, a contradiction
             // between the two commands' NEXT lines that this branch removes by
             // answering the truth up front instead of falling into the generic
-            // unmapped message below.
+            // unmapped message below. This structural exemption (git internals,
+            // or the graph's own directory) is unconditional — it has nothing to
+            // do with an adopter's config, so it is named on its own rather than
+            // folded into the config-driven disjunction below.
             process.stdout.write(
               buildIssueMessage({
                 what: `${result.file} is excluded from graph coverage by design.`,
-                why: `This path is never scanned for coverage (git internals / the graph directory itself), sits inside a separate project's own boundary, or matches a coverage.excluded root, so it cannot and need not be mapped to a node here.`,
+                why: `This path is never scanned for coverage because it sits inside git internals or the graph's own .yggdrasil/ directory, so it cannot and need not be mapped to a node here.`,
+                next: `No action needed.`,
+              }) + '\n',
+            );
+          } else if (isExcludedFromGraph(result.file, exclusionSet)) {
+            // Names WHICH of the two independent config/filesystem-derived
+            // sources caused this — the same distinction `yg type-suggest
+            // --file` and `file-mapping-excluded` already draw — instead of
+            // asking the reader to check both against their own config and
+            // their own filesystem. `describeExclusionSource` cannot return
+            // null here: `isExcludedFromGraph` just confirmed this path is
+            // excluded by one of exactly the two sources it covers.
+            const cause = describeExclusionCause(describeExclusionSource(result.file, exclusionSet)!);
+            process.stdout.write(
+              buildIssueMessage({
+                what: `${result.file} is excluded from graph coverage by design.`,
+                why: `This path is never scanned for coverage because ${cause}, so it cannot and need not be mapped to a node here.`,
                 next: `No action needed.`,
               }) + '\n',
             );

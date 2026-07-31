@@ -147,7 +147,17 @@ export interface PortalNode {
   description?: string;
   parent: string | null;
   mapping: string[];
-  sourceFileCount: number;
+  /**
+   * The number of entries in `mapping` — a count of DECLARATIONS (each a directory, a
+   * glob, or an exact file path), never a count of the files those declarations resolve
+   * to on disk. One directory or glob entry can expand to any number of real files (a
+   * node whose mapping is a single directory covering hundreds of files still has
+   * `mappingEntryCount === 1`), and a node whose one mapped file is excluded from graph
+   * coverage still has `mappingEntryCount === 1` even though nothing enforces it. Neither
+   * shape is what "how many source files does this node have" would answer — this field
+   * intentionally does not claim to answer that question.
+   */
+  mappingEntryCount: number;
   isTest: boolean;
   /**
    * true = the node has at least one REAL verdict-bearing pair (an effective-aspect row

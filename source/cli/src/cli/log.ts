@@ -3,20 +3,29 @@ import chalk from 'chalk';
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
+import { findOwnerWithinOwnGraph } from './owner.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
 import { logAdd } from '../core/log/log-add.js';
 import { logRead } from '../core/log/log-read.js';
 import { logMergeResolve } from '../core/log/log-merge-resolve.js';
-import { mappingEntryMatchesFile, normalizeMappingPath } from '../utils/mapping-path.js';
+import { projectRootFromGraph } from '../io/paths.js';
 import { readVerdictEvents } from '../io/events-reader.js';
 import type { VerdictEvent } from '../io/events-store.js';
+import type { Graph } from '../model/graph.js';
 
-/** True when a `file:` unit-key path is covered by one of the node's mapping entries. */
-function fileInNodeMapping(filePath: string, mapping: string[]): boolean {
-  const c = normalizeMappingPath(filePath);
-  if (c === '') return false;
-  return mapping.some((raw) => mappingEntryMatchesFile(raw, c));
+/**
+ * True when `filePath` (a `file:` unit-key path) is REALLY owned by `nodePath` —
+ * the same hierarchy-first, exclusion-aware answer `yg owner --file` gives, not a
+ * raw textual "does this appear inside one of the node's mapping entries" check.
+ * A directory-mapping ancestor's mapping entry textually contains every path
+ * under a descendant node's own, more specific mapping too, and textual
+ * containment has no idea a path is excluded — either one would misattribute a
+ * verdict event to a node the graph does not actually consider its owner.
+ */
+async function verdictBelongsToNode(graph: Graph, projectRoot: string, filePath: string, nodePath: string): Promise<boolean> {
+  const owner = await findOwnerWithinOwnGraph(graph, projectRoot, filePath);
+  return owner.nodePath === nodePath;
 }
 
 /** One-line render of a fill verdict event for the interleaved --with-verdicts view. */
@@ -141,19 +150,34 @@ export function registerLogCommand(program: Command): void {
           // telemetry: a fill outcome for this node keyed either by the node
           // itself (node:<path>) or by one of its mapped subject files
           // (file:<p>). Only 'fill'-sourced events are shown here; other
-          // diagnostic sources are out of scope for the log view.
-          const nodeMeta = graph.nodes.get(nodePath);
-          const mapping = nodeMeta?.meta.mapping ?? [];
+          // diagnostic sources are out of scope for the log view. A `file:`
+          // event is attributed by REAL ownership (hierarchy-first, exclusion-
+          // aware — the same answer `yg owner --file` gives), never by whether
+          // the path merely falls inside one of this node's mapping strings: a
+          // directory-mapping ancestor's mapping text covers a descendant's own
+          // file too, and text has no notion of an exclusion.
+          const projectRoot = projectRootFromGraph(graph.rootPath);
           const nodeKey = `node:${nodePath}`;
           const evResult = readVerdictEvents(graph.rootPath);
-          const matched = evResult.events.filter((e) => {
-            if (e.source !== 'fill') return false;
-            if (e.unitKey === nodeKey) return true;
-            if (e.unitKey.startsWith('file:')) {
-              return fileInNodeMapping(e.unitKey.slice('file:'.length), mapping);
+          const ownershipCache = new Map<string, boolean>();
+          const belongsHere = async (filePath: string): Promise<boolean> => {
+            const cached = ownershipCache.get(filePath);
+            if (cached !== undefined) return cached;
+            const owns = await verdictBelongsToNode(graph, projectRoot, filePath, nodePath);
+            ownershipCache.set(filePath, owns);
+            return owns;
+          };
+          const matched: VerdictEvent[] = [];
+          for (const e of evResult.events) {
+            if (e.source !== 'fill') continue;
+            if (e.unitKey === nodeKey) {
+              matched.push(e);
+              continue;
             }
-            return false;
-          });
+            if (e.unitKey.startsWith('file:') && (await belongsHere(e.unitKey.slice('file:'.length)))) {
+              matched.push(e);
+            }
+          }
 
           // Honesty label: the sidecar is meant to be gitignored local telemetry.
           // If it is git-tracked it is shared history for the whole team — refuse

@@ -1161,3 +1161,199 @@ describe('runRelationPass — a single-file Go package', () => {
     expect(b!.violations.some((v) => v.ownerNode === 'a')).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// The live type-relation gate (coverage.type_level) resolves a Go package import
+// through the SAME representative-file pick go-resolve.ts uses for a node-owned
+// package — but here NEITHER package member has a node owner at all (a nodeless,
+// type-covered package), so the owner-set loop never finds a `sole` owner and
+// falls through to the plain pick. That pick must still land on a NON-EXCLUDED
+// file when one remains: it must not depend on where the excluded file happens
+// to sort among its siblings, or a forbidden cross-type import silently
+// disappears purely because of a filename's alphabetical position.
+// ---------------------------------------------------------------------------
+describe('runRelationPass + computeTypeGateFindings — an excluded Go package member must never hide a forbidden type-to-type edge', () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = mkdtempSync(path.join(tmpdir(), 'rel-pass-typegate-pkg-'));
+    mkdirSync(path.join(root, '.yggdrasil', 'model'), { recursive: true });
+    // svc (pkg/b/**) is deny-default with no explicit allow list at all, so ANY
+    // edge it forms into another type is forbidden; lib (pkg/a/**) is the
+    // target. No nodes map either directory — both packages are nodeless and
+    // type-covered only, exactly like a real `coverage.type_level: true` run
+    // over source no yg-node.yaml claims.
+    writeFileSync(
+      path.join(root, '.yggdrasil', 'yg-architecture.yaml'),
+      `node_types:\n  svc:\n    description: 'deny-default service type'\n    when:\n      path: "pkg/b/**"\n    relations:\n      default: deny\n  lib:\n    description: 'library type'\n    when:\n      path: "pkg/a/**"\n`,
+      'utf-8',
+    );
+    writeFileSync(path.join(root, 'go.mod'), 'module example.com/m\n\ngo 1.22\n', 'utf-8');
+    mkdirSync(path.join(root, 'pkg', 'a'), { recursive: true });
+    mkdirSync(path.join(root, 'pkg', 'b'), { recursive: true });
+    // Two files in package a, one sorting FIRST and one sorting LAST.
+    writeFileSync(path.join(root, 'pkg', 'a', 'aaa_gen.go'), 'package a\n\nfunc Gen() int { return 0 }\n', 'utf-8');
+    writeFileSync(path.join(root, 'pkg', 'a', 'zzz_kept.go'), 'package a\n\nfunc Kept() int { return 1 }\n', 'utf-8');
+    writeFileSync(
+      path.join(root, 'pkg', 'b', 'b.go'),
+      'package b\n\nimport "example.com/m/pkg/a"\n\nfunc Use() int { return a.Kept() }\n',
+      'utf-8',
+    );
+  });
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  /** The svc -> lib forbidden finding, if any, among a gate run's results. */
+  function findSvcToLib(findings: ReturnType<typeof computeTypeGateFindings>) {
+    return findings.find((f) => f.fromType === 'svc' && f.toType === 'lib');
+  }
+
+  it('control: nothing excluded — the forbidden edge is reported, attributed to the lexicographically-first file', async () => {
+    writeFileSync(path.join(root, '.yggdrasil', 'yg-config.yaml'), `quality:\n  max_direct_relations: 10\n`, 'utf-8');
+    const graph = await loadGraph(root);
+    const typeCoveredFiles = new Map([
+      ['pkg/a/aaa_gen.go', 'lib'],
+      ['pkg/a/zzz_kept.go', 'lib'],
+      ['pkg/b/b.go', 'svc'],
+    ]);
+    const result = await runRelationPass(graph, root, {
+      extractorFor: extractorForLanguage,
+      resolvePathToFile: await guardedResolve(root, graph),
+      symbolIndexDir: path.join(root, '.yg-cache-typegate-pkg-none'),
+      typeCoveredFiles,
+    });
+    const finding = findSvcToLib(computeTypeGateFindings(graph.architecture, result.typedEdges, result.fileOwnerType));
+    expect(finding).toBeDefined();
+    expect(finding!.edges.some((e) => e.toFile === 'pkg/a/aaa_gen.go')).toBe(true);
+  });
+
+  it('excluding the FIRST-sorting member (aaa_gen.go) still reports the forbidden edge, attributed to zzz_kept.go — the file that remains', async () => {
+    writeFileSync(
+      path.join(root, '.yggdrasil', 'yg-config.yaml'),
+      `quality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - pkg/a/aaa_gen.go\n`,
+      'utf-8',
+    );
+    const graph = await loadGraph(root);
+    // The excluded file is never itself type-covered — matching a real
+    // computeTypeCoverage run, which classifies an excluded path as excluded,
+    // never as covered by any type.
+    const typeCoveredFiles = new Map([
+      ['pkg/a/zzz_kept.go', 'lib'],
+      ['pkg/b/b.go', 'svc'],
+    ]);
+    const result = await runRelationPass(graph, root, {
+      extractorFor: extractorForLanguage,
+      resolvePathToFile: await guardedResolve(root, graph),
+      symbolIndexDir: path.join(root, '.yg-cache-typegate-pkg-first'),
+      typeCoveredFiles,
+    });
+    const finding = findSvcToLib(computeTypeGateFindings(graph.architecture, result.typedEdges, result.fileOwnerType));
+    expect(finding).toBeDefined();
+    expect(finding!.edges.some((e) => e.toFile === 'pkg/a/zzz_kept.go')).toBe(true);
+  });
+
+  it('control: excluding the LAST-sorting member (zzz_kept.go) still reports the forbidden edge, attributed to aaa_gen.go — the file that remains', async () => {
+    writeFileSync(
+      path.join(root, '.yggdrasil', 'yg-config.yaml'),
+      `quality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - pkg/a/zzz_kept.go\n`,
+      'utf-8',
+    );
+    const graph = await loadGraph(root);
+    const typeCoveredFiles = new Map([
+      ['pkg/a/aaa_gen.go', 'lib'],
+      ['pkg/b/b.go', 'svc'],
+    ]);
+    const result = await runRelationPass(graph, root, {
+      extractorFor: extractorForLanguage,
+      resolvePathToFile: await guardedResolve(root, graph),
+      symbolIndexDir: path.join(root, '.yg-cache-typegate-pkg-last'),
+      typeCoveredFiles,
+    });
+    const finding = findSvcToLib(computeTypeGateFindings(graph.architecture, result.typedEdges, result.fileOwnerType));
+    expect(finding).toBeDefined();
+    expect(finding!.edges.some((e) => e.toFile === 'pkg/a/aaa_gen.go')).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A Java WILDCARD import (`import com.a.*;`) into a nodeless, type-covered-only
+// package used to be invisible to the live type-relation gate unconditionally —
+// no exclusion needed. The package resolver's owner-set fallback returned
+// `undefined` outright whenever no candidate had a component owner, which is
+// the ordinary case for a type-covered package (it has no component to own
+// anything). A precise single-type import (`import com.a.Zzz;`) never went
+// through that fallback at all, so it was gated correctly the whole time —
+// the split below is the same forbidden dependency, expressed both ways.
+// ---------------------------------------------------------------------------
+describe('runRelationPass + computeTypeGateFindings — a Java wildcard import into a nodeless package is gated exactly like a precise import', () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = mkdtempSync(path.join(tmpdir(), 'rel-pass-typegate-java-wild-'));
+    mkdirSync(path.join(root, '.yggdrasil', 'model'), { recursive: true });
+    writeFileSync(
+      path.join(root, '.yggdrasil', 'yg-architecture.yaml'),
+      `node_types:\n  svc:\n    description: 'deny-default service type'\n    when:\n      path: "src/com/b/**"\n    relations:\n      default: deny\n  lib:\n    description: 'library type'\n    when:\n      path: "src/com/a/**"\n`,
+      'utf-8',
+    );
+    writeFileSync(path.join(root, '.yggdrasil', 'yg-config.yaml'), `quality:\n  max_direct_relations: 10\n`, 'utf-8');
+    mkdirSync(path.join(root, 'src', 'com', 'a'), { recursive: true });
+    mkdirSync(path.join(root, 'src', 'com', 'b'), { recursive: true });
+    writeFileSync(
+      path.join(root, 'src', 'com', 'a', 'Zzz.java'),
+      'package com.a;\n\npublic class Zzz {\n  public static int kept() { return 1; }\n}\n',
+      'utf-8',
+    );
+  });
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  const typeCoveredFiles = new Map([
+    ['src/com/a/Zzz.java', 'lib'],
+    ['src/com/b/B.java', 'svc'],
+  ]);
+
+  function findSvcToLib(findings: ReturnType<typeof computeTypeGateFindings>) {
+    return findings.find((f) => f.fromType === 'svc' && f.toType === 'lib');
+  }
+
+  it('a wildcard import reports the same forbidden edge a precise import does', async () => {
+    writeFileSync(
+      path.join(root, 'src', 'com', 'b', 'B.java'),
+      'package com.b;\n\nimport com.a.*;\n\npublic class B {\n  public int use() { return Zzz.kept(); }\n}\n',
+      'utf-8',
+    );
+    const graph = await loadGraph(root);
+    const result = await runRelationPass(graph, root, {
+      extractorFor: extractorForLanguage,
+      resolvePathToFile: await guardedResolve(root, graph),
+      symbolIndexDir: path.join(root, '.yg-cache-typegate-java-wildcard'),
+      typeCoveredFiles,
+    });
+    const finding = findSvcToLib(computeTypeGateFindings(graph.architecture, result.typedEdges, result.fileOwnerType));
+    expect(finding).toBeDefined();
+    expect(finding!.edges.some((e) => e.toFile === 'src/com/a/Zzz.java')).toBe(true);
+  });
+
+  it('control: a precise import reports the identical forbidden edge', async () => {
+    writeFileSync(
+      path.join(root, 'src', 'com', 'b', 'B.java'),
+      'package com.b;\n\nimport com.a.Zzz;\n\npublic class B {\n  public int use() { return Zzz.kept(); }\n}\n',
+      'utf-8',
+    );
+    const graph = await loadGraph(root);
+    const result = await runRelationPass(graph, root, {
+      extractorFor: extractorForLanguage,
+      resolvePathToFile: await guardedResolve(root, graph),
+      symbolIndexDir: path.join(root, '.yg-cache-typegate-java-precise'),
+      typeCoveredFiles,
+    });
+    const finding = findSvcToLib(computeTypeGateFindings(graph.architecture, result.typedEdges, result.fileOwnerType));
+    expect(finding).toBeDefined();
+    expect(finding!.edges.some((e) => e.toFile === 'src/com/a/Zzz.java')).toBe(true);
+  });
+});

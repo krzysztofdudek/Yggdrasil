@@ -274,7 +274,7 @@ function buildOne(
     ...(node.meta.description ? { description: node.meta.description } : {}),
     parent: node.parent ? node.parent.path : null,
     mapping,
-    sourceFileCount: mapping.length,
+    mappingEntryCount: mapping.length,
     isTest: node.meta.type === 'test-suite',
     checked,
     fresh,

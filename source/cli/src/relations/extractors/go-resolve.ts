@@ -73,11 +73,12 @@ export interface GoResolveDeps {
    * real mappings, just fewer files), and it can never bury a real dependency
    * reached through a file that is still there merely because some other,
    * now-excluded file used to make the package look split. When every file in
-   * the package is excluded, nothing remains to decide from — the plain
-   * lexicographically-first pick below hands that (excluded) file to the
-   * caller's own, separately guarded owner lookup, which answers "no owner"
-   * for it, the same silence a wholly-unmapped package already gets. Absent →
-   * no file is ever dropped (today's behavior, unaffected).
+   * the package is excluded, nothing remains to decide from — the fallback
+   * pick below has no non-excluded candidate left either, so it hands back
+   * the (excluded) file anyway, and the caller's own, separately guarded
+   * owner/type lookup answers "no owner" for it, the same silence a
+   * wholly-unmapped package already gets. Absent → no file is ever dropped
+   * (today's behavior, unaffected).
    */
   isExcluded?(repoRelPosix: string): boolean;
 }
@@ -142,11 +143,19 @@ export function resolveGoImport(
   // (non-excluded, by construction) file that owner maps; 2+ distinct owners
   // among what remains → still split → silence (undefined). Files no node
   // maps do not contribute an owner (a wholly-unmapped package falls through
-  // to the D7 unmapped-target silence downstream, unchanged). When nothing
-  // remains (every candidate is excluded), the loop below never runs and
-  // `sole` stays undefined, so control falls through to the plain
-  // lexicographically-first pick at the end of this function — see
-  // `isExcluded`'s own doc comment above for why that is still correct.
+  // to the D7 unmapped-target silence downstream, unchanged).
+  //
+  // No `sole` owner is found in TWO distinct situations this loop cannot
+  // itself tell apart: every candidate was excluded (`remaining` is empty),
+  // or `remaining` is non-empty but none of its files is node-mapped (a
+  // package that is type-covered only, under `coverage.type_level`, has no
+  // node owner for ANY file). Either way the representative pick below must
+  // still prefer a NON-EXCLUDED candidate when one exists — `remaining[0]`,
+  // not the raw `candidates[0]` — because a caller that is not the node owner
+  // index (the type-coverage lookup) still needs a live file to find the
+  // package's matched type. Only when `remaining` is itself empty does the
+  // pick fall back to `candidates[0]`, an excluded file, which is exactly the
+  // "every file excluded" case both consumers correctly silence.
   if (deps.ownerOf) {
     const ownerOf = deps.ownerOf;
     const isExcluded = deps.isExcluded ?? ((): boolean => false);
@@ -165,6 +174,7 @@ export function resolveGoImport(
       const soleOwned = remaining.filter((f) => ownerOf(f) === sole);
       if (soleOwned.length > 0) return soleOwned[0];
     }
+    return remaining[0] ?? candidates[0];
   }
 
   return candidates[0];

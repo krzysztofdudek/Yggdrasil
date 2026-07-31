@@ -260,6 +260,31 @@ describe('makeResolvePathToFile — per-language dispatch (disk-backed)', () => 
     expect(resolve('com.foo', 'src/Main.java', 'java', true)).toBe('com/foo/Bar.java');
   });
 
+  it('a Java wildcard package with NO node owner among its files still resolves to a representative file, not undefined', () => {
+    // No `ownerOf` mapping owns anything here — the shape a type-covered-only
+    // (nodeless) package always has under `coverage.type_level`. The caller
+    // that asked for this file is not always the node-owner index: it can be
+    // the type-coverage lookup, which has no owner to find at all and instead
+    // needs a LIVE file to check the package's matched architecture type
+    // against. Silencing unconditionally here — as if nothing could ever
+    // consume this answer but the owner index — makes every wildcard import
+    // into a nodeless package invisible to that lookup, whether anything is
+    // excluded or not.
+    const ownerOf = (): string | undefined => undefined;
+    const resolve = makeResolvePathToFile(root, ownerOf);
+    expect(resolve('com.foo', 'src/Main.java', 'java', true)).toBe('com/foo/App.java');
+  });
+
+  it('control: a Java wildcard package where EVERY file is excluded still resolves to no owner, even with the no-node-owner fallback', () => {
+    // The fallback above must stop at "no candidate remains" — it must never
+    // hand back an excluded file merely because no node happens to own
+    // anything either.
+    const ownerOf = (): string | undefined => undefined;
+    const isExcluded = (f: string): boolean => f.startsWith('com/foo/') && f.endsWith('.java');
+    const resolve = makeResolvePathToFile(root, ownerOf, isExcluded);
+    expect(resolve('com.foo', 'src/Main.java', 'java', true)).toBeUndefined();
+  });
+
   it('resolves a Rust crate path through the nearest Cargo.toml src dir', () => {
     const resolve = makeResolvePathToFile(root);
     expect(resolve('crate::orders', 'src/lib.rs', 'rust')).toBe('src/orders/mod.rs');

@@ -205,7 +205,11 @@
     title.appendChild(dom.el('b', null, node.name || node.path));
     head.appendChild(title);
     head.appendChild(dom.el('div', 'pan-path mono', node.path));
-    head.appendChild(dom.el('div', 'pan-meta', node.type + ' · ' + node.sourceFileCount + ' source files'));
+    // `mappingEntryCount` counts mapping DECLARATIONS (a directory, a glob, or an exact
+    // path), never resolved files — one directory entry can cover any number of files,
+    // so this must never be rendered as a file count.
+    var entryWord = node.mappingEntryCount === 1 ? ' mapping entry' : ' mapping entries';
+    head.appendChild(dom.el('div', 'pan-meta', node.type + ' · ' + node.mappingEntryCount + entryWord));
     if (node.description) head.appendChild(dom.el('p', 'pan-desc', node.description));
 
     // The file-aware loop: a node whose source changed since the last reviewer pass reads

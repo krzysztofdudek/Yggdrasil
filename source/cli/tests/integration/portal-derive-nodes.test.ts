@@ -43,6 +43,17 @@ describe('portal per-node derivation (honest state, effective aspects, relations
     byPath = new Map(nodes.map((n) => [n.path, n]));
   }, 180_000);
 
+  it('cli/tests/fixtures maps ONE directory entry covering hundreds of files — mappingEntryCount counts the ENTRY, never the files it resolves to', () => {
+    const fixtures = byPath.get('cli/tests/fixtures');
+    expect(fixtures).toBeDefined();
+    expect(fixtures!.mapping).toEqual(['source/cli/tests/fixtures/']);
+    // Exactly the mapping array's length, regardless of how many real files that one
+    // directory entry expands to on disk (hundreds, in this repo) — this field answers
+    // "how many entries did the node declare", never "how many files does it own".
+    expect(fixtures!.mappingEntryCount).toBe(fixtures!.mapping.length);
+    expect(fixtures!.mappingEntryCount).toBe(1);
+  });
+
   it('cli/core/fill is checked and fully verified (its reviewed-seam allowance clears the fan-out warning)', () => {
     const fill = byPath.get('cli/core/fill');
     expect(fill).toBeDefined();

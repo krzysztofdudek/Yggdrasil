@@ -54,3 +54,5 @@ Reworded a comment on the portal extraction pipeline's once-per-run type-coverag
 Passes the extraction run's own type-coverage classification into the live suppression scan so a file covered by the architecture type-level lattice is never treated as noise there either, matching the same fix made to the yg suppressions command.
 ## [2026-07-31T08:26:18.849Z]
 Every extraction now resets the separate-project boundary cache before deriving anything, so a project whose git or graph layout changed between two portal refreshes is re-read rather than served the first refresh's stale answer for the lifetime of the server process.
+## [2026-07-31T22:10:21.922Z]
+A node mapping-entry count was labeled and rendered as a source-file count, which read wrong in both directions: a single directory entry covering hundreds of files showed as 1, and a node whose only mapped file is excluded also showed as 1. The field is renamed to what it actually counts (mapping declarations, never resolved files) and the panel label follows suit.

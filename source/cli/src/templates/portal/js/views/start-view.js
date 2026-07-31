@@ -63,7 +63,7 @@
     var withRules = nodes.filter(function (n) {
       return n.checked && (n.effectiveAspects || []).length > 0;
     });
-    return withRules[0] || nodes.filter(function (n) { return n.sourceFileCount > 0; })[0] || nodes[0] || null;
+    return withRules[0] || nodes.filter(function (n) { return n.mappingEntryCount > 0; })[0] || nodes[0] || null;
   }
 
   function stepRail(step) {
