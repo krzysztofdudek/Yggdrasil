@@ -26,7 +26,7 @@ import { readTextFile } from '../io/graph-fs.js';
 import { toPosixPath } from '../utils/posix.js';
 import { runCompanionHook } from '../structure/hook-loader.js';
 import { resolveCompanionDescriptors } from '../core/companion-resolve.js';
-import { findOwner } from './owner.js';
+import { findOwnerWithinOwnGraph } from './owner.js';
 import { resolveFileArg, projectRootFromGraph } from '../io/paths.js';
 import {
   classifyAspectTestFileTarget,
@@ -564,11 +564,18 @@ async function resolveSuppressedRangesForTest(
  * module cannot legally make itself: it is `engine`-typed (so it may call
  * structure-adapter/relations-adapter for the reach computation) but the
  * architecture forbids an `engine` file from calling a `command`-typed one,
- * and `findOwner`'s single canonical source is `owner.ts`, a `command` file
- * (owner-resolution-single-source). Order matters and is preserved exactly:
- * existence is checked BEFORE ownership, so a nonexistent path whose pattern
- * happens to match an owning node's mapping still reports "does not exist,"
- * never "has a component of its own."
+ * and `findOwnerWithinOwnGraph`'s single canonical source is `owner.ts`, a
+ * `command` file (owner-resolution-single-source). Ownership goes through the
+ * exclusion-aware wrapper, not the raw text-only `findOwner`, so a file a
+ * mapping textually names but the graph excludes (a nested project's own
+ * boundary, or a `coverage.excluded` root) is reported as having no owner
+ * here too, and falls through to `classifyAspectTestFileTarget` below —
+ * matching what `yg owner --file` / `yg context --file` already say about the
+ * same path, instead of naming a component whose rules never run against it.
+ * Order matters and is preserved exactly: existence is checked BEFORE
+ * ownership, so a nonexistent path whose pattern happens to match an owning
+ * node's mapping still reports "does not exist," never "has a component of
+ * its own."
  */
 async function resolveAspectTestFileTarget(
   graph: import('../model/graph.js').Graph,
@@ -599,7 +606,7 @@ async function resolveAspectTestFileTarget(
     };
   }
 
-  const ownerResult = findOwner(graph, projectRoot, repoRelative);
+  const ownerResult = await findOwnerWithinOwnGraph(graph, projectRoot, repoRelative);
   if (ownerResult.nodePath) {
     return {
       kind: 'refused',

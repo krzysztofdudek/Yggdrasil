@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, cpSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, cpSync, rmSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -92,6 +92,55 @@ describe.skipIf(!distExists)('E2E: type-level classification lattice via the rea
       // its own "excluded" term, not "node-owned" — src/svc/handler.ts is
       // the one type-covered file. 0 + 1 + 1 = 2/2.
       expect(out).toContain('2/2 files (0 node-owned, 1 type-covered, 1 excluded)');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('a node whose directory mapping sweeps in an excluded subdirectory counts those files as excluded, never node-owned', () => {
+    // The PASS-twin fixture has zero nodes; add one here whose mapping sweeps
+    // a real (kept) file plus two more that a coverage.excluded root removes
+    // from enforcement — the shape an adopter creates by excluding a vendored
+    // copy that lives INSIDE an already-mapped directory. Before the header
+    // counted these honestly, all three (not just the one real file) read as
+    // "node-owned" because the mapping textually names them; the fix moves the
+    // two excluded ones into the "excluded" term instead.
+    const dir = copyFixture(PASS_FIXTURE);
+    try {
+      const archPath = path.join(dir, '.yggdrasil', 'yg-architecture.yaml');
+      writeFileSync(
+        archPath,
+        readFileSync(archPath, 'utf-8') +
+          '\n  plainnode:\n    description: "Matches src/svcnode/**, for the node-owned/excluded header split test."\n    when:\n      path: "src/svcnode/**"\n',
+      );
+      mkdirSync(path.join(dir, '.yggdrasil', 'model', 'svcnode'), { recursive: true });
+      writeFileSync(
+        path.join(dir, '.yggdrasil', 'model', 'svcnode', 'yg-node.yaml'),
+        'name: Svcnode\ndescription: x\ntype: plainnode\nmapping:\n  - src/svcnode\n',
+      );
+      mkdirSync(path.join(dir, 'src', 'svcnode', 'vendor'), { recursive: true });
+      writeFileSync(path.join(dir, 'src', 'svcnode', 'kept.ts'), 'export const kept = 1;\n');
+      writeFileSync(path.join(dir, 'src', 'svcnode', 'vendor', 'a.ts'), 'export const a = 1;\n');
+      writeFileSync(path.join(dir, 'src', 'svcnode', 'vendor', 'b.ts'), 'export const b = 1;\n');
+      const configPath = path.join(dir, '.yggdrasil', 'yg-config.yaml');
+      writeFileSync(
+        configPath,
+        readFileSync(configPath, 'utf-8').replace('excluded:\n    - vendor/', 'excluded:\n    - vendor/\n    - src/svcnode/vendor/'),
+      );
+
+      const { out } = run(['check', '--details'], dir);
+      // 5 files total: handler.ts (type-covered), vendor/tool.ts (excluded),
+      // svcnode/kept.ts (the one genuinely node-owned file), and the two
+      // svcnode/vendor/*.ts files — mapped by svcnode's directory entry, but
+      // excluded, so they must land in "excluded", not "node-owned".
+      expect(out).toContain('5/5 files (1 node-owned, 1 type-covered, 3 excluded)');
+      // Agreement across surfaces, on the SAME run: yg context --node names
+      // only the one real subject file this node actually enforces.
+      const context = run(['context', '--node', 'svcnode'], dir);
+      expect(context.out).toContain('Source files (1)');
+      expect(context.out).toContain('src/svcnode/kept.ts');
+      expect(context.out).not.toContain('vendor/a.ts');
+      expect(context.out).not.toContain('vendor/b.ts');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -645,6 +645,13 @@ describe('checkFileMappingGitignored', () => {
       // ("is excluded by .gitignore") must not appear anywhere in this issue.
       expect(excluded?.messageData?.what).not.toMatch(/excluded by \.gitignore/i);
       expect(excluded?.messageData?.next).not.toMatch(/\.gitignore/i);
+      // Names the SOURCE — the nested project's own boundary — not the OTHER
+      // possible cause (an adopter's coverage.excluded config), so the fix
+      // instruction points at something real instead of making the adopter
+      // check both.
+      expect(excluded?.messageData?.why).toContain("separate project's own boundary");
+      expect(excluded?.messageData?.why).not.toContain('coverage.excluded root in yg-config.yaml');
+      expect(excluded?.messageData?.next).toContain('move the file outside the separate project');
     } finally {
       await rm(tmpDir, { recursive: true, force: true });
     }
@@ -685,6 +692,13 @@ describe('checkFileMappingGitignored', () => {
       const excluded = result.issues.find((i) => i.code === 'file-mapping-excluded');
       expect(excluded).toBeDefined();
       expect(excluded?.messageData?.what).toContain('services/vendor/lib.py');
+      // Names the SOURCE — the adopter's own coverage.excluded config — not
+      // the OTHER possible cause (a nested project's own boundary), the
+      // mirror of the assertion in the nested-project case above.
+      expect(excluded?.messageData?.why).toContain('root in yg-config.yaml');
+      expect(excluded?.messageData?.why).toContain('coverage.excluded');
+      expect(excluded?.messageData?.why).not.toContain("separate project's own boundary");
+      expect(excluded?.messageData?.next).toContain('remove the matching');
     } finally {
       await rm(tmpDir, { recursive: true, force: true });
     }

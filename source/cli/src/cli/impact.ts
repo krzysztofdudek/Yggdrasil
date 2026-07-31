@@ -25,11 +25,12 @@ import {
   renderImpactTotal,
 } from './impact-handlers.js';
 import type { ImpactSummary } from './impact-handlers.js';
-import { findOwner } from './owner.js';
+import { findOwnerWithinOwnGraph } from './owner.js';
 import { projectRootFromGraph, resolveFileArg } from '../io/paths.js';
 import { readLock, LockInvalidError } from '../io/lock-store.js';
 import type { LockFile } from '../model/lock.js';
 import { toPosixPath } from '../utils/posix.js';
+import { resolveGraphExclusionSet, isExcludedFromGraph, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
 
 export function registerImpactCommand(program: Command): void {
   program
@@ -123,7 +124,31 @@ export function registerImpactCommand(program: Command): void {
               return;
             }
 
-            const ownerResult = findOwner(graph, repoRoot, repoRelative);
+            // Exclusion redirect — answered BEFORE ownership or the invalidated-
+            // pair set are even computed. An excluded path (a nested project's
+            // own boundary, or a coverage.excluded root) is invisible to every
+            // enforcement surface this graph has: no pair ever admits it as a
+            // subject, and no aspect can actually read it (structure/ctx-fs.ts's
+            // resolveAllowedReadPath refuses the read at runtime), so editing it
+            // can never invalidate a verdict. Deciding this first — rather than
+            // falling through to collectInvalidatedPairs and trusting whatever it
+            // reports — means the answer stays true even where that set's own
+            // "cold-start" estimate (an allowed-reads text match with no runtime
+            // confirmation) would otherwise admit a pair nothing can really touch.
+            const exclusion = await resolveGraphExclusionSet(repoRoot, graph.config.coverage ?? NO_COVERAGE_EXCLUDED);
+            if (isExcludedFromGraph(repoRelative, exclusion)) {
+              process.stdout.write(
+                buildIssueMessage({
+                  what: `${repoRelative} is excluded from graph coverage by design.`,
+                  why: 'This path sits inside a separate project\'s own boundary, or matches a coverage.excluded root — no node enforces it and no aspect can read it, so editing it invalidates nothing.',
+                  next: 'No action needed.',
+                }) + '\n',
+              );
+              await exitAfterFlush(0);
+              return;
+            }
+
+            const ownerResult = await findOwnerWithinOwnGraph(graph, repoRoot, repoRelative);
             const set = await collectInvalidatedPairs(graph, repoRelative, lock, repoRoot);
 
             // No coverage at all — not mapped, not referenced, not observed.

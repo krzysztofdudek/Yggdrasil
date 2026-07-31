@@ -145,6 +145,8 @@ node_types:
 
 Reach for it on the types where missing the type means missing a rule that matters — security, audit, anything regulatory. Do not reach for it while a predicate is still broad: `enforce: strict` on `path: "**"` demands that every file in the repository sit in that one type's mappings. Run `yg impact --type <id>` before you flip the flag; it previews which files would come out as orphans or misplaced, so you fix the gaps first rather than turning the build red to find them.
 
+The backward scan honors [`coverage.excluded`](/configuration#coverage-config) like every other coverage question does: a file under an excluded root is never a candidate for `type-strict-orphan` or `type-strict-misplaced`, even when it satisfies the type's `when`. A path you have excluded is gone from this graph's coverage entirely — not merely from the ordinary tiering — so the backward scan has nothing to say about it either.
+
 Four errors are specific to strict types, and each blocks `yg check`:
 
 | Code | What it means |

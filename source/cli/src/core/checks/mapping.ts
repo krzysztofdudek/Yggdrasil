@@ -6,14 +6,13 @@ import { expandMappingPaths, expandMappingPathsWithinOwnGraph } from '../../io/h
 import { mappingEntryMatchesFile, isGlobPattern, normalizeMappingPath } from '../../utils/mapping-path.js';
 import { buildOwnerIndex } from '../../relations/owner-index.js';
 import { readSortedDir, statPath } from '../../io/graph-fs.js';
-import { walkRepoFiles, isCoverageExcludedPath, findNestedProjectRoots, isUnderAnyNestedProjectRoot, NO_COVERAGE_EXCLUDED } from '../../io/repo-scanner.js';
+import { walkRepoFiles, isCoverageExcludedPath, findNestedProjectRoots, NO_COVERAGE_EXCLUDED, resolveGraphExclusionSet, filterExcludedFromGraph, describeExclusionSource, type GraphExclusionSet } from '../../io/repo-scanner.js';
 import { FileContentCache } from '../../io/file-content-cache.js';
 import { evaluateFileWhen } from '../file-when-evaluator.js';
 import { classifyFile } from '../type-classifier.js';
 import { renderTrace } from '../../formatters/predicate-trace.js';
 import { issueMsg } from './shared.js';
 import { toPosixPath } from '../../utils/posix.js';
-import { isExcludedByCoverage } from '../../utils/coverage-exclusion.js';
 
 export async function checkFileMappingGitignored(graph: Graph): Promise<ValidationIssue[]> {
   const projectRoot = path.dirname(graph.rootPath);
@@ -22,6 +21,7 @@ export async function checkFileMappingGitignored(graph: Graph): Promise<Validati
     walkRepoFiles(projectRoot).then((files) => new Set(files)),
     findNestedProjectRoots(projectRoot),
   ]);
+  const exclusion: GraphExclusionSet = { nestedRoots: nestedProjectRoots, coverage };
   const issues: ValidationIssue[] = [];
 
   for (const [nodePath, node] of graph.nodes) {
@@ -55,7 +55,18 @@ export async function checkFileMappingGitignored(graph: Graph): Promise<Validati
       // edit a file that may not exist and hides the real cause, which is why
       // this generalized check runs first, one level ABOVE the more specific
       // gitignore diagnosis below.
-      if (isUnderAnyNestedProjectRoot(norm, nestedProjectRoots) || isExcludedByCoverage(norm, coverage)) {
+      const exclusionSource = describeExclusionSource(norm, exclusion);
+      if (exclusionSource !== null) {
+        // Names WHICH of the two independent sources caused this, instead of
+        // making the adopter check both their own config and the filesystem
+        // to find out: a nested project's own boundary is never something a
+        // `coverage.excluded` edit can fix, and vice versa.
+        const cause = exclusionSource === 'nested-project'
+          ? `it sits inside a separate project's own boundary (a nested \`.yggdrasil/\` graph, or its own \`.git\` — a checkout, submodule, or worktree)`
+          : `it matches a \`coverage.excluded\` root in yg-config.yaml`;
+        const undoExclusion = exclusionSource === 'nested-project'
+          ? `move the file outside the separate project's own boundary`
+          : `remove the matching \`coverage.excluded\` entry`;
         issues.push({
           severity: 'error',
           code: 'file-mapping-excluded',
@@ -63,8 +74,8 @@ export async function checkFileMappingGitignored(graph: Graph): Promise<Validati
           nodePath,
           ...issueMsg({
             what: `File '${toPosixPath(norm)}' is in mapping of node '${nodePath}' but is excluded from graph coverage.`,
-            why: `An exclusion cuts everything it matches, including a node's own explicit mapping entry — this file is never enforced while excluded, no matter how deliberately the mapping names it. It is excluded either because it sits inside a separate project's own boundary (a nested \`.yggdrasil/\` graph, or its own \`.git\` — a checkout, submodule, or worktree) or because it matches a \`coverage.excluded\` root in yg-config.yaml.`,
-            next: `Either:\n  1. Remove the file from the mapping (it is never enforced while excluded).\n  2. If it should be enforced, remove the matching \`coverage.excluded\` entry, or move the file outside the separate project's own boundary.`,
+            why: `An exclusion cuts everything it matches, including a node's own explicit mapping entry — this file is never enforced while excluded, no matter how deliberately the mapping names it. It is excluded because ${cause}.`,
+            next: `Either:\n  1. Remove the file from the mapping (it is never enforced while excluded).\n  2. If it should be enforced, ${undoExclusion}.`,
           }),
         });
         continue;
@@ -99,7 +110,14 @@ export async function checkStrictBackwardCoverage(
 
   const projectRoot = path.dirname(graph.rootPath);
 
-  const repoFiles = await walkRepoFiles(projectRoot);
+  // An excluded file (a nested project's own boundary, or a coverage.excluded
+  // root an adopter configured) is gone from this graph's enforcement surface
+  // the same way it is gone everywhere else that decides file ownership — the
+  // strict backward scan is no exception. Filtered here, once, before `when`
+  // is ever evaluated: such a file can be neither an orphan nor misplaced,
+  // because it was never a candidate this graph considers in the first place.
+  const exclusion = await resolveGraphExclusionSet(projectRoot, graph.config.coverage ?? NO_COVERAGE_EXCLUDED);
+  const repoFiles = filterExcludedFromGraph(await walkRepoFiles(projectRoot), exclusion);
   const issues: ValidationIssue[] = [];
   const unreadable: ValidationIssue[] = [];
   const overlapPairsSeen = new Set<string>();
@@ -318,7 +336,13 @@ export async function checkMappingOverlap(graph: Graph): Promise<ValidationIssue
   );
   if (anyGlob) {
     const projectRoot = path.dirname(graph.rootPath);
-    const repoFiles = await walkRepoFiles(projectRoot);
+    // An excluded file (a nested project's own boundary, or a coverage.excluded
+    // root) belongs to no node — including the two-or-more that a glob would
+    // otherwise sweep it into — so it can never be a genuine ownership
+    // conflict. Filtered here, before the per-file owner scan below, exactly
+    // like every other file-list producer that decides what this graph owns.
+    const overlapExclusion = await resolveGraphExclusionSet(projectRoot, graph.config.coverage ?? NO_COVERAGE_EXCLUDED);
+    const repoFiles = filterExcludedFromGraph(await walkRepoFiles(projectRoot), overlapExclusion);
     const reported = new Set<string>();
     for (const rawRel of repoFiles) {
       const relPath = normalizePathForCompare(rawRel);

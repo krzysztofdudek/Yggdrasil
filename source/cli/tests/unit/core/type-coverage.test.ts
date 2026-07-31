@@ -382,18 +382,15 @@ describe('runCheck — excluded-ancestor-of-required corner is now fully closed'
     }
     expect(result.issues.some((i) => i.code === 'unmapped-files')).toBe(false);
     expect(result.issues.some((i) => i.code === 'ambiguous-node-type')).toBe(false);
-    // special.ts is DIFFERENT from the other three: checkStrictBackwardCoverage
-    // (core/checks/mapping.ts) is a structural, mapping-ownership validator that
-    // never consults coverage.excluded at all — it scans every repo file via its
-    // own walk and flags any file satisfying a strict type's `when` with no owning
-    // node, independent of coverage tiering. The absolute-exclusion authority
-    // (isExcludedByCoverage) governs only the coverage NODELESS tier
-    // (partitionByCoverageTier / computeTypeCoverage / scanTrackedButIgnored,
-    // the type-level coverage tier's own scope) — it does not reach the strict
-    // backward scan, so special.ts still surfaces as type-strict-orphan here,
-    // exactly as it would with any other coverage config. This is unrelated to
-    // and unaffected by that authority.
-    expect(result.issues.some((i) => i.code === 'type-strict-orphan')).toBe(true);
+    // special.ts (src/util/special.ts) sits under this test's excluded root
+    // ('src/') too. checkStrictBackwardCoverage (core/checks/mapping.ts) now
+    // filters its own repo walk through the same exclusion authority every
+    // other type-level question already uses — an excluded file can be
+    // neither a strict orphan nor misplaced, because it was never a candidate
+    // this graph considers in the first place. So special.ts raises no
+    // type-strict-orphan here, exactly like the other three excluded files
+    // above raise no coverage complaint.
+    expect(result.issues.some((i) => i.code === 'type-strict-orphan')).toBe(false);
 
     // The dead required line is now a visible, actionable warning instead of a
     // silent no-op — this is what the "coverage-required-shadowed" warning reports.

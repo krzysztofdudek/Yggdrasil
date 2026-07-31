@@ -1,13 +1,15 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { lstatSync, type Dirent } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { join, relative, resolve, sep } from 'node:path';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import { createRequire } from 'node:module';
 import { type Ignore, type Options as IgnoreOptions } from 'ignore';
 import { debugWrite } from '../utils/debug-log.js';
 import { toPosixPath } from '../utils/posix.js';
 import { isExcludedByCoverage } from '../utils/coverage-exclusion.js';
-import type { CoverageConfig } from '../model/graph.js';
+import { mappingEntryMatchesFile } from '../utils/mapping-path.js';
+import { normalizeMappingPaths } from './paths.js';
+import type { CoverageConfig, Graph } from '../model/graph.js';
 
 const require = createRequire(import.meta.url);
 const ignoreFactory = require('ignore') as (options?: IgnoreOptions) => Ignore;
@@ -443,6 +445,66 @@ export function isExcludedFromGraph(relPath: string, exclusion: GraphExclusionSe
 /** {@link isExcludedFromGraph}, applied to a whole list — the shared filter half, reused by every caller that already holds a candidate list and an exclusion set. */
 export function filterExcludedFromGraph(relPaths: string[], exclusion: GraphExclusionSet): string[] {
   return relPaths.filter((p) => !isExcludedFromGraph(p, exclusion));
+}
+
+/** Which of {@link isExcludedFromGraph}'s two sources a path's exclusion traces to. */
+export type ExclusionSource = 'nested-project' | 'coverage-excluded';
+
+/**
+ * For a path already known to be excluded (`isExcludedFromGraph(relPath, exclusion)`
+ * is true), which of the two independent sources caused it: a nested project's own
+ * boundary (a default member of the excluded set, present regardless of config), or
+ * an adopter's own `coverage.excluded` root. A diagnostic naming ONE cause instead of
+ * making the reader check both against their own config and their own filesystem is
+ * the whole reason this exists — `isExcludedFromGraph` itself deliberately stays a
+ * single boolean (every caller that only needs "in or out" should not have to unpack
+ * a source it never uses). Returns `null` for a path that is not excluded at all —
+ * a caller that already branched on `isExcludedFromGraph` never sees that case, but
+ * it is still the honest answer to "why", asked of a path with no cause.
+ */
+export function describeExclusionSource(relPath: string, exclusion: GraphExclusionSet): ExclusionSource | null {
+  if (isUnderAnyNestedProjectRoot(relPath, exclusion.nestedRoots)) return 'nested-project';
+  if (isExcludedByCoverage(relPath, exclusion.coverage)) return 'coverage-excluded';
+  return null;
+}
+
+/**
+ * Count of coverage-visible files a node mapping textually names — any entry
+ * kind, directory, glob, or exact — but the graph's exclusion filter removes
+ * from enforcement anyway. `scanUncoveredFiles` (core/check.ts) decides
+ * "covered by a mapping" by matching mapping-entry TEXT alone
+ * (`mappingEntryMatchesFile` has no notion of exclusion), so a file inside an
+ * excluded root that a directory or glob entry sweeps in never lands in its
+ * uncovered list — it reads as node-owned even though nothing enforces it: no
+ * pair, no fingerprint contribution, no rule ever runs on it. `yg check`'s
+ * header corrects its node-owned/excluded split by this count at the CLI
+ * boundary (`cli/check.ts`) — moved out of "node-owned" and into "excluded"
+ * — so the one number an adopter reads to see how much of a node's mapping
+ * actually enforces never reports the opposite of what `yg context --node`
+ * and `yg owner --file` already say about the same files.
+ */
+export async function countMappedButExcludedFiles(
+  graph: Graph,
+  coverageVisibleFiles: string[],
+): Promise<number> {
+  const projectRoot = dirname(graph.rootPath);
+  const exclusion = await resolveGraphExclusionSet(projectRoot, graph.config.coverage ?? NO_COVERAGE_EXCLUDED);
+  // Mirror core/check.ts's own totalFiles universe: the graph's own
+  // .yggdrasil/ tree is never a coverage candidate in either direction, so a
+  // file under it must not be double-subtracted here.
+  const yggPrefix = toPosixPath(relative(projectRoot, graph.rootPath));
+  const allMappings: string[] = [];
+  for (const node of graph.nodes.values()) {
+    allMappings.push(...normalizeMappingPaths(node.meta.mapping));
+  }
+  let count = 0;
+  for (const raw of coverageVisibleFiles) {
+    const normalized = toPosixPath(raw.trim());
+    if (normalized.startsWith(yggPrefix + '/') || normalized === yggPrefix) continue;
+    if (!isExcludedFromGraph(normalized, exclusion)) continue;
+    if (allMappings.some((mp) => mappingEntryMatchesFile(mp, normalized))) count++;
+  }
+  return count;
 }
 
 /**

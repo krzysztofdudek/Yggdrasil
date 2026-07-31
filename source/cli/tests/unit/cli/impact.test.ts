@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { mkdtemp, cp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, cp, rm, writeFile, mkdir, readFile } from 'node:fs/promises';
 import { mkdtempSync, cpSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import type { Graph } from '../../../src/model/graph.js';
@@ -424,6 +424,71 @@ describe('impact command', () => {
     });
   });
 
+  describe('--file on a path under coverage.excluded', () => {
+    async function plantExcludedNode(cwd: string): Promise<void> {
+      // A node whose mapping directory-sweeps an excluded subdirectory, with a
+      // real deterministic aspect attached — the shape that used to make BOTH
+      // the owner line AND the cost block false: the excluded file textually
+      // matched the node's mapping (a false owner), and with no lock entry yet
+      // (cold), the aspect's allowed-reads text match used to admit the
+      // excluded file as a "may observe this file (cold-start)" candidate (a
+      // false, nonzero cost) even though structure/ctx-fs.ts refuses that
+      // aspect's actual read of the file at runtime.
+      await mkdir(path.join(cwd, '.yggdrasil', 'model', 'excl'), { recursive: true });
+      await writeFile(
+        path.join(cwd, '.yggdrasil', 'model', 'excl', 'yg-node.yaml'),
+        'name: Excl\ndescription: x\ntype: service\naspects:\n  - det-rule\nmapping:\n  - src/excl\n',
+      );
+      await mkdir(path.join(cwd, '.yggdrasil', 'aspects', 'det-rule'), { recursive: true });
+      await writeFile(
+        path.join(cwd, '.yggdrasil', 'aspects', 'det-rule', 'yg-aspect.yaml'),
+        'name: DetRule\ndescription: x\nreviewer:\n  type: deterministic\nstatus: enforced\n',
+      );
+      await writeFile(
+        path.join(cwd, '.yggdrasil', 'aspects', 'det-rule', 'check.mjs'),
+        'export function check() { return []; }\n',
+      );
+      await mkdir(path.join(cwd, 'src', 'excl', 'vendor'), { recursive: true });
+      await writeFile(path.join(cwd, 'src', 'excl', 'own.ts'), 'export const own = 1;\n');
+      await writeFile(path.join(cwd, 'src', 'excl', 'vendor', 'lib.ts'), 'export const lib = 1;\n');
+      const configPath = path.join(cwd, '.yggdrasil', 'yg-config.yaml');
+      const existingConfig = await readFile(configPath, 'utf-8');
+      await writeFile(configPath, existingConfig + '\ncoverage:\n  excluded:\n    - src/excl/vendor/\n');
+    }
+
+    it('reports "excluded from graph coverage by design", never an owner or a re-verification cost', async () => {
+      await withFixtureCopy(async (cwd) => {
+        await plantExcludedNode(cwd);
+        const result = spawnSync(
+          'node',
+          [BIN_PATH, 'impact', '--file', 'src/excl/vendor/lib.ts'],
+          { cwd, encoding: 'utf-8' },
+        );
+        expect(result.status).toBe(0);
+        expect(result.stdout).toContain('src/excl/vendor/lib.ts is excluded from graph coverage by design.');
+        expect(result.stdout).toContain('No action needed.');
+        // Neither the false owner name nor a re-verification cost block ever appears.
+        expect(result.stdout).not.toContain('-> excl');
+        expect(result.stdout).not.toContain('Total to re-verify');
+        expect(result.stdout).not.toContain('deterministic');
+      });
+    });
+
+    it("control: the node's own (non-excluded) file still resolves to a real owner and a real cost", async () => {
+      await withFixtureCopy(async (cwd) => {
+        await plantExcludedNode(cwd);
+        const result = spawnSync(
+          'node',
+          [BIN_PATH, 'impact', '--file', 'src/excl/own.ts'],
+          { cwd, encoding: 'utf-8' },
+        );
+        expect(result.status).toBe(0);
+        expect(result.stdout).toContain('src/excl/own.ts -> excl');
+        expect(result.stdout).toContain('Total to re-verify');
+      });
+    });
+  });
+
   describe('error cases', () => {
     it('requires at least one option', async () => {
       await withFixtureCopy(async (cwd) => {
@@ -592,6 +657,37 @@ describe('impact command', () => {
         );
         expect(result.status).toBe(1);
         expect(result.stderr).toContain('Multiple targets specified');
+      });
+    });
+
+    it("the strict-coverage-gap preview never lists an excluded file as an orphan — it agrees with yg check's own backward scan", async () => {
+      await withFixtureCopy(async (cwd) => {
+        const archPath = path.join(cwd, '.yggdrasil', 'yg-architecture.yaml');
+        await writeFile(
+          archPath,
+          (await readFile(archPath, 'utf-8')).replace(
+            'node_types:\n',
+            'node_types:\n  strictsvc:\n    description: "Strict type for the impact --type exclusion test."\n    enforce: strict\n    when:\n      path: "strictsvc/**"\n',
+          ),
+        );
+        await mkdir(path.join(cwd, 'strictsvc', 'vendor'), { recursive: true });
+        await writeFile(path.join(cwd, 'strictsvc', 'own.ts'), 'export const own = 1;\n');
+        await writeFile(path.join(cwd, 'strictsvc', 'vendor', 'lib.ts'), 'export const lib = 1;\n');
+        const configPath = path.join(cwd, '.yggdrasil', 'yg-config.yaml');
+        await writeFile(
+          configPath,
+          (await readFile(configPath, 'utf-8')) + '\ncoverage:\n  excluded:\n    - strictsvc/vendor/\n',
+        );
+
+        const result = spawnSync(
+          'node',
+          [BIN_PATH, 'impact', '--type', 'strictsvc'],
+          { cwd, encoding: 'utf-8' },
+        );
+        expect(result.status).toBe(0);
+        expect(result.stdout).toContain('Orphans (matching files not in any mapping): 1');
+        expect(result.stdout).toContain('strictsvc/own.ts');
+        expect(result.stdout).not.toContain('strictsvc/vendor/lib.ts');
       });
     });
   });

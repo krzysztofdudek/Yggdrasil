@@ -6,12 +6,13 @@ import { exitAfterFlush } from './exit-after-flush.js';
 import { initDebugLog, debugWrite } from '../utils/debug-log.js';
 import { appendToDebugLog, writeFillDivergence } from '../io/debug-log-writer.js';
 import { runCheck, runAttentionDump } from '../core/check.js';
+import type { CheckResult } from '../core/check.js';
 import { runFill, FillGatingError } from '../core/fill.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
 import path from 'node:path';
 import { availableParallelism } from 'node:os';
-import { walkRepoFiles, listGitTrackedFiles } from '../io/repo-scanner.js';
-import type { YggConfig } from '../model/graph.js';
+import { walkRepoFiles, listGitTrackedFiles, countMappedButExcludedFiles } from '../io/repo-scanner.js';
+import type { YggConfig, Graph } from '../model/graph.js';
 import { readRulesArtifacts } from './rules-artifacts.js';
 import { formatOutput, type CheckView, resolveTopValue } from './check-render-views.js';
 
@@ -57,6 +58,29 @@ export function resolveApproveMode(
 
   // false / undefined → read-only (today's default behavior).
   return { approve: false, onlyDeterministic: false };
+}
+
+/**
+ * Correct `CheckResult.nodeOwnedFiles`/`excludedFiles` in place before the
+ * header renders. `runCheck`'s own split decides "node-owned" by whether a
+ * mapping entry TEXTUALLY matches a file — the same test `scanUncoveredFiles`
+ * uses to decide "covered" — so a file a directory or glob entry sweeps in
+ * but the graph excludes (a nested project's own boundary, or a
+ * `coverage.excluded` root) is counted node-owned even though nothing
+ * enforces it: no pair, no fingerprint contribution, no rule ever runs on it.
+ * Moving that count out of node-owned and into excluded here is the ONE
+ * place an adopter reading the header sees the truth `yg context --node` and
+ * `yg owner --file` already report for the same files. A no-op whenever the
+ * flag-gated split isn't even rendered (`result.typeLevel` false) or there is
+ * nothing to count (`result.totalFiles === 0`), so the extra scan is paid
+ * only on the runs that would otherwise show the wrong number.
+ */
+async function applyHonestCoverageSplit(result: CheckResult, graph: Graph, coverageVisibleFiles: string[]): Promise<void> {
+  if (!result.typeLevel || result.totalFiles === 0) return;
+  const mappedExcluded = await countMappedButExcludedFiles(graph, coverageVisibleFiles);
+  if (mappedExcluded === 0) return;
+  result.nodeOwnedFiles = (result.nodeOwnedFiles ?? 0) - mappedExcluded;
+  result.excludedFiles = (result.excludedFiles ?? 0) + mappedExcluded;
 }
 
 export function registerCheckCommand(program: Command): void {
@@ -334,6 +358,7 @@ export function registerCheckCommand(program: Command): void {
               divergenceWrite: (text) => { writeFillDivergence(graph.rootPath, text); },
             });
             const autoFilled = isConfigDrivenFill && !opts.dryRun;
+            await applyHonestCoverageSplit(fill.checkResult, graph, gitFiles);
             process.stdout.write(formatOutput(fill.checkResult, { kind: 'full' }, autoFilled));
             // A dry-run is a cost preview only — it never writes and must never fail
             // the build for unverified/refused pairs it merely previewed. Exit 0 always.
@@ -379,6 +404,7 @@ export function registerCheckCommand(program: Command): void {
           trackedFiles: tracked,
           rulesArtifacts: await readRulesArtifacts(projectRoot),
         });
+        await applyHonestCoverageSplit(result, graph, gitFiles);
         process.stdout.write(formatOutput(result, view));
 
         // Exit code is derived from the FULL issue set, OUTSIDE formatOutput and

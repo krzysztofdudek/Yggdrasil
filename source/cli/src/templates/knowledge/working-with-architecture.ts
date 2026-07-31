@@ -72,6 +72,12 @@ of this type must satisfy \`when\` — and strict backward — every file in the
 repo matching \`when\` must be in a mapping of this type (and of the right
 type). Closes the type-shopping evasion entirely for the type.
 
+The backward check honors \`coverage.excluded\` like every other coverage
+question: a file under an excluded root is never a \`type-strict-orphan\` or
+\`type-strict-misplaced\` candidate, even when it matches \`when\`. An excluded
+path is gone from this graph's coverage entirely, not merely from the
+ordinary required/advisory tiering.
+
 Don't use \`enforce: strict\` when the \`when\` predicate is broad (e.g.
 \`path: "**"\`) — every repo file would be required in that type's mapping.
 

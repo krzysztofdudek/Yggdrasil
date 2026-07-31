@@ -454,6 +454,36 @@ describe('checkMappingOverlap — glob pass: dedup', () => {
   });
 });
 
+describe('checkMappingOverlap — glob pass: coverage.excluded', () => {
+  it('a file under coverage.excluded matched by two non-hierarchical globs raises no overlapping-mapping — the file belongs to no node', async () => {
+    const { projectRoot, yggRoot } = await makeProject();
+    await writeFileEnsuringDir(path.join(projectRoot, 'src/vendor/lib.ts'), 'export const lib = 1;\n');
+    const graph = buildGraph(
+      yggRoot,
+      [
+        { path: 'x', mapping: ['src/xown/*.ts', 'src/vendor/**/*.ts'] },
+        { path: 'y', mapping: ['src/yown/*.ts', 'src/**/lib.ts'] },
+      ],
+      { required: [], excluded: ['src/vendor/'], typeLevel: false },
+    );
+    const issues = await checkMappingOverlap(graph);
+    expect(overlaps(issues)).toHaveLength(0);
+  });
+
+  it('control: the identical shape WITHOUT the exclusion still raises overlapping-mapping', async () => {
+    const { projectRoot, yggRoot } = await makeProject();
+    await writeFileEnsuringDir(path.join(projectRoot, 'src/vendor/lib.ts'), 'export const lib = 1;\n');
+    const graph = buildGraph(yggRoot, [
+      { path: 'x', mapping: ['src/xown/*.ts', 'src/vendor/**/*.ts'] },
+      { path: 'y', mapping: ['src/yown/*.ts', 'src/**/lib.ts'] },
+    ]);
+    const issues = await checkMappingOverlap(graph);
+    const ov = overlaps(issues);
+    expect(ov.length).toBeGreaterThanOrEqual(1);
+    expect(ov.some((i) => i.messageData.what.includes('src/vendor/lib.ts'))).toBe(true);
+  });
+});
+
 // =============================================================================
 // checkMappingPathsExist — glob + plain
 // =============================================================================

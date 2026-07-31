@@ -96,6 +96,66 @@ describe.skipIf(!distExists)('CLI E2E — yg aspect-test --file', () => {
     }
   });
 
+  /**
+   * Adds a node ('exclnode', type 'exclhost') whose DIRECTORY mapping
+   * (src/exclnode) sweeps in a subdirectory (src/exclnode/vendor) that
+   * coverage.excluded then removes from the graph — the shape that used to
+   * make the ownership pre-check answer "has a component of its own" for a
+   * file no component actually enforces, because it calls findOwner (raw
+   * text match) rather than the exclusion-aware findOwnerWithinOwnGraph.
+   */
+  function plantExcludedNode(dir: string): void {
+    const arch = path.join(dir, '.yggdrasil', 'yg-architecture.yaml');
+    writeFileSync(
+      arch,
+      readFileSync(arch, 'utf-8').replace(
+        'node_types:\n',
+        'node_types:\n  exclhost:\n    description: "Matches src/exclnode/**, for the coverage.excluded ownership pre-check test."\n    when:\n      path: "src/exclnode/**"\n',
+      ),
+    );
+    mkdirSync(path.join(dir, '.yggdrasil', 'model', 'exclnode'), { recursive: true });
+    writeFileSync(
+      path.join(dir, '.yggdrasil', 'model', 'exclnode', 'yg-node.yaml'),
+      'name: Exclnode\ndescription: x\ntype: exclhost\nmapping:\n  - src/exclnode\n',
+    );
+    mkdirSync(path.join(dir, 'src', 'exclnode', 'vendor'), { recursive: true });
+    writeFileSync(path.join(dir, 'src', 'exclnode', 'kept.ts'), 'export const kept = 1;\n');
+    writeFileSync(path.join(dir, 'src', 'exclnode', 'vendor', 'lib.ts'), 'export const lib = 1;\n');
+    const cfg = cfgPath(dir);
+    writeFileSync(cfg, readFileSync(cfg, 'utf-8').replace('excluded: []', 'excluded:\n    - src/exclnode/vendor/'));
+  }
+
+  it('refuses --file with the coverage.excluded reason, never "has a component of its own", for a file a mapping textually sweeps in but the graph excludes', () => {
+    const dir = copyMergedFixture();
+    try {
+      plantExcludedNode(dir);
+      const { status, stderr } = run(['aspect-test', '--aspect', 'own-file-rule', '--file', 'src/exclnode/vendor/lib.ts'], dir);
+      expect(status).toBe(1);
+      expect(stderr).toContain('is excluded from coverage.');
+      expect(stderr).not.toContain('has a component of its own');
+      // The false owner name is gone from the refusal message specifically
+      // (not merely absent from the whole path string, which unavoidably
+      // repeats 'exclnode' as part of the file path itself).
+      expect(stderr).not.toMatch(/component of its own: 'exclnode'/);
+      expect(stderr).not.toMatch(/--node exclnode/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('control: the node\'s own (non-excluded) file in the SAME mapping still reports "has a component of its own"', () => {
+    const dir = copyMergedFixture();
+    try {
+      plantExcludedNode(dir);
+      const { status, stderr } = run(['aspect-test', '--aspect', 'own-file-rule', '--file', 'src/exclnode/kept.ts'], dir);
+      expect(status).toBe(1);
+      expect(stderr).toContain('exclnode');
+      expect(stderr).toMatch(/--node/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('refuses --file on an untyped path, naming the classification problem', () => {
     const dir = copyMergedFixture();
     try {

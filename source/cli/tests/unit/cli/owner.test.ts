@@ -165,7 +165,7 @@ describe('owner — a file inside a nested project is never reported as owned', 
     await writeFile(path.join(cwd, 'src', 'vendored', 'own.ts'), 'export const own = 1;\n');
   }
 
-  it('reports "no graph coverage" for the nested file, not the node whose directory contains it', async () => {
+  it('reports "excluded from graph coverage by design", not the node whose directory contains it', async () => {
     await withFixtureCopy(async (cwd) => {
       await plantVendoredNode(cwd);
       const result = spawnSync(
@@ -174,8 +174,13 @@ describe('owner — a file inside a nested project is never reported as owned', 
         { cwd, encoding: 'utf-8' },
       );
       expect(result.status).toBe(0);
-      expect(result.stdout).toContain('no graph coverage');
+      expect(result.stdout).toContain('src/vendored/dep/foreign.ts is excluded from graph coverage by design.');
+      expect(result.stdout).toContain('No action needed.');
       expect(result.stdout).not.toContain('-> vendored\n');
+      // The generic unmapped advice ("Add it to a node's mapping") must never
+      // appear for an excluded path — following it verbatim would write a
+      // mapping entry file-mapping-excluded immediately refuses.
+      expect(result.stdout).not.toContain("Add '");
     });
   });
 
@@ -192,7 +197,7 @@ describe('owner — a file inside a nested project is never reported as owned', 
     });
   });
 
-  it('reports "no graph coverage" for a file under a coverage.excluded root, not the node whose directory contains it', async () => {
+  it('reports "excluded from graph coverage by design" for a file under a coverage.excluded root, not the node whose directory contains it', async () => {
     // The same guard, from the OTHER source of exclusion membership: an
     // ORDINARY subdirectory (no nested graph, no nested .git) an adopter's
     // own coverage.excluded config names directly.
@@ -214,8 +219,10 @@ describe('owner — a file inside a nested project is never reported as owned', 
         { cwd, encoding: 'utf-8' },
       );
       expect(result.status).toBe(0);
-      expect(result.stdout).toContain('no graph coverage');
+      expect(result.stdout).toContain('src/excl/vendor/foreign.ts is excluded from graph coverage by design.');
+      expect(result.stdout).toContain('No action needed.');
       expect(result.stdout).not.toContain('-> excl\n');
+      expect(result.stdout).not.toContain("Add '");
 
       // Mirror: the node's OWN (non-excluded) file is still reported as owned.
       const own = spawnSync(
@@ -244,7 +251,7 @@ describe('owner — a file inside a nested project is never reported as owned', 
         { cwd, encoding: 'utf-8' },
       );
       expect(result.status).toBe(0);
-      expect(result.stdout).toContain('no graph coverage');
+      expect(result.stdout).toContain('src/named/dep/claimed.ts is excluded from graph coverage by design.');
       expect(result.stdout).not.toContain('-> named\n');
     });
   });
@@ -360,7 +367,7 @@ describe('owner — a typed answer for a type-covered file', () => {
         { cwd, encoding: 'utf-8' },
       );
       expect(result.status).toBe(0);
-      expect(result.stdout).toContain('no graph coverage');
+      expect(result.stdout).toContain('is excluded from graph coverage by design.');
       expect(result.stdout).not.toContain('type:');
     });
   });
@@ -377,7 +384,7 @@ describe('owner — a typed answer for a type-covered file', () => {
         { cwd, encoding: 'utf-8' },
       );
       expect(result.status).toBe(0);
-      expect(result.stdout).toContain('no graph coverage');
+      expect(result.stdout).toContain('src/leaf/a.ts is excluded from graph coverage by design.');
       expect(result.stdout).not.toContain('type:');
     });
   });

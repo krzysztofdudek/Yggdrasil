@@ -4,12 +4,13 @@
 //
 // `aspect-test.ts` (a `command`-type file) owns the two checks that need
 // command-layer-only access — the on-disk existence probe and the
-// `findOwner` ownership check (`findOwner` lives in `./owner.js`, itself a
-// `command`-type file; the `engine` type this module carries cannot legally
-// call another command's export). This module owns everything AFTER those
-// two checks pass: is coverage.type_level even on, is the path excluded from
-// coverage, does it classify to exactly one non-strict architecture type,
-// and — on success — what that type's `relations:` let it legally reach.
+// exclusion-aware `findOwnerWithinOwnGraph` ownership check
+// (`findOwnerWithinOwnGraph` lives in `./owner.js`, itself a `command`-type
+// file; the `engine` type this module carries cannot legally call another
+// command's export). This module owns everything AFTER those two checks
+// pass: is coverage.type_level even on, is the path excluded from coverage,
+// does it classify to exactly one non-strict architecture type, and — on
+// success — what that type's `relations:` let it legally reach.
 import type { Graph } from '../model/graph.js';
 import type { TypeCoverageInput } from './pairs.js';
 import { classifySingleFile, computeTypeCoverage } from './type-coverage.js';

@@ -6,9 +6,9 @@ import { parseFile, grammarWasmHash } from '../ast/parser.js';
 import { getLanguageForExtension } from '../utils/language-registry.js';
 import { ensureLoaderRegistered } from '../ast/loader-hook.js';
 import { expandMappingPathsWithinOwnGraph, hashString } from '../io/hash.js';
-import { NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
+import { NO_COVERAGE_EXCLUDED, resolveGraphExclusionSet } from '../io/repo-scanner.js';
 
-import { buildOwnerIndex } from './owner-index.js';
+import { buildOwnerIndex, guardOwnerIndex } from './owner-index.js';
 import { SymbolTable } from './symbol-table.js';
 import { makeResolver, resolveCandidateGroup } from './resolver.js';
 import {
@@ -285,8 +285,18 @@ export async function runRelationPass(
     recordByPath.set(rel, record);
   }
 
-  // 3. Owner index over the whole graph.
-  const ownerIndex = buildOwnerIndex(graph.nodes);
+  // 3. Owner index over the whole graph. Guarded against the same exclusion
+  // filter the file enumeration above already applies: a candidate reaching
+  // this index by TEXT alone — an import/reference TARGET resolved fresh from
+  // source, never itself enumerated as a node's own file above — must answer
+  // "no owner" for an excluded path, exactly like `expandMappingPathsWithinOwnGraph`
+  // already treats it as unmapped for enumeration. Without this, an import
+  // INTO an excluded subtree still names its textual owner and trips
+  // relation-undeclared-dependency, even though nothing enforces the target
+  // file and D7 ("UNMAPPED target -> coverage matter, never a violation")
+  // already exempts a target this graph does not own for any other reason.
+  const exclusion = await resolveGraphExclusionSet(projectRoot, coverage);
+  const ownerIndex = guardOwnerIndex(buildOwnerIndex(graph.nodes), exclusion);
 
   // Child-precedence: enumeration above records each file once under the FIRST node
   // in graph insertion order whose mapping matches it — typically a globbing parent.

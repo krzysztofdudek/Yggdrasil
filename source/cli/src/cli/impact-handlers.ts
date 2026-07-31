@@ -11,7 +11,7 @@ import {
 } from '../core/graph/impact-graph.js';
 import type { ImpactSet, ImpactReason, UnresolvedUnit } from '../core/graph/impact-graph.js';
 import { FileContentCache } from '../io/file-content-cache.js';
-import { walkRepoFiles } from '../io/repo-scanner.js';
+import { walkRepoFiles, resolveGraphExclusionSet, filterExcludedFromGraph, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
 import { evaluateFileWhen } from '../core/file-when-evaluator.js';
 import { computeExpectedPairs } from '../core/pairs.js';
 import type { ExpectedPair, TypeCoverageInput } from '../core/pairs.js';
@@ -738,7 +738,13 @@ export async function handleTypeImpact(graph: Graph, typeId: string, lock: LockF
 
   if (def.enforce === 'strict' && def.when) {
     const cache = new FileContentCache();
-    const repoFiles = await walkRepoFiles(projectRoot);
+    // An excluded file (a nested project's own boundary, or a coverage.excluded
+    // root) is never a strict orphan/misplaced candidate — core/checks/mapping.ts's
+    // checkStrictBackwardCoverage applies the identical filter for the live
+    // `yg check` gate; this preview must agree with it, or "run yg impact --type
+    // before you flip the flag" would preview gaps `yg check` itself never reports.
+    const exclusion = await resolveGraphExclusionSet(projectRoot, graph.config.coverage ?? NO_COVERAGE_EXCLUDED);
+    const repoFiles = filterExcludedFromGraph(await walkRepoFiles(projectRoot), exclusion);
     const owners = new Map<string, string>();
     for (const [np, n] of graph.nodes) {
       for (const m of n.meta.mapping ?? []) owners.set(m, np);

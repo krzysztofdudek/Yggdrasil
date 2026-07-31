@@ -379,6 +379,109 @@ const excludedMirrorStub: DependencyExtractor = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// The file-enumeration guard above (`expandMappingPathsWithinOwnGraph`) only
+// decides which files EACH NODE reads to analyze its OWN outgoing imports.
+// Resolving an import SPECIFIER to a file and asking who owns that file is a
+// separate mechanism (relations/resolver.ts, fed by the owner index built in
+// runRelationPass) — an import reaching INTO an excluded subtree from a
+// NON-excluded file must be silent too, exactly like an import reaching any
+// other unmapped target already is (D7): the target file is never enforced,
+// so naming its textual owner and refusing the importing node would demand a
+// declared relation to a component that does not enforce the file at all.
+// ---------------------------------------------------------------------------
+describe('runRelationPass silences an import whose TARGET resolves inside a coverage.excluded root', () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = mkdtempSync(path.join(tmpdir(), 'rel-pass-target-excluded-'));
+    mkdirSync(path.join(root, '.yggdrasil', 'model'), { recursive: true });
+    writeFileSync(
+      path.join(root, '.yggdrasil', 'yg-architecture.yaml'),
+      `node_types:\n  service:\n    description: 'unit'\n    log_required: false\n    when:\n      path: "**"\n`,
+      'utf-8',
+    );
+    writeFileSync(
+      path.join(root, '.yggdrasil', 'yg-config.yaml'),
+      `quality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - src/a/vendor/\n`,
+      'utf-8',
+    );
+    writeNode(root, 'a', 'A', 'src/a');
+    writeNode(root, 'b', 'B', 'src/b');
+    mkdirSync(path.join(root, 'src', 'a', 'vendor'), { recursive: true });
+    mkdirSync(path.join(root, 'src', 'b'), { recursive: true });
+    writeFileSync(path.join(root, 'src', 'a', 'own' + EXT), 'export const own = 1;\n', 'utf-8');
+    writeFileSync(path.join(root, 'src', 'a', 'vendor', 'lib' + EXT), 'export const lib = 1;\n', 'utf-8');
+    writeFileSync(path.join(root, 'src', 'b', 'bar' + EXT), 'export const bar = 2;\n', 'utf-8');
+  });
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it("an import from node b INTO node a's excluded subtree is never flagged as an undeclared dependency on a", async () => {
+    const graph = await loadGraph(root);
+    const result = await runRelationPass(graph, root, {
+      extractorFor: (language) => (language === 'typescript' ? targetExcludedStub : undefined),
+      resolvePathToFile: (specifier) =>
+        specifier === '../a/vendor/lib' ? 'src/a/vendor/lib' + EXT : undefined,
+      symbolIndexDir: path.join(root, '.yg-cache-target-excluded'),
+    });
+
+    const b = result.violationsByNode.get('b');
+    expect(b === undefined || b.verdict === 'approved').toBe(true);
+    expect(b?.violations ?? []).toHaveLength(0);
+  });
+
+  it("control: the identical import aimed at a's NON-excluded file is still refused — the guard did not silence real cross-node imports generally", async () => {
+    const graph = await loadGraph(root);
+    const result = await runRelationPass(graph, root, {
+      extractorFor: (language) => (language === 'typescript' ? targetMirrorStub : undefined),
+      resolvePathToFile: (specifier) =>
+        specifier === '../a/own' ? 'src/a/own' + EXT : undefined,
+      symbolIndexDir: path.join(root, '.yg-cache-target-excluded-mirror'),
+    });
+
+    const b = result.violationsByNode.get('b');
+    expect(b).toBeDefined();
+    expect(b!.verdict).toBe('refused');
+    expect(b!.violations).toHaveLength(1);
+    expect(b!.violations[0].ownerNode).toBe('a');
+  });
+});
+
+// Stub emitting one import from b/bar.ts → ../a/vendor/lib (the excluded
+// target) — used only by the target-excluded test above.
+const targetExcludedStub: DependencyExtractor = {
+  languages: new Set(['typescript']),
+  rev: 1,
+  declarations() {
+    return [];
+  },
+  uses(file: ParsedFile): DetectedDep[] {
+    if (file.path.endsWith('src/b/bar' + EXT)) {
+      return [{ candidates: [{ kind: 'path', specifier: '../a/vendor/lib' }], kind: 'import', line: 1 }];
+    }
+    return [];
+  },
+};
+
+// Stub emitting one import from b/bar.ts → ../a/own (a's NON-excluded file) —
+// used only by the target-excluded mirror test above.
+const targetMirrorStub: DependencyExtractor = {
+  languages: new Set(['typescript']),
+  rev: 1,
+  declarations() {
+    return [];
+  },
+  uses(file: ParsedFile): DetectedDep[] {
+    if (file.path.endsWith('src/b/bar' + EXT)) {
+      return [{ candidates: [{ kind: 'path', specifier: '../a/own' }], kind: 'import', line: 1 }];
+    }
+    return [];
+  },
+};
+
 // Stub emitting one import from a/foo.ts → ../b/sub/deep (a nested node's file).
 const nestedStub: DependencyExtractor = {
   languages: new Set(['typescript']),

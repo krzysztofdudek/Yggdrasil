@@ -47,15 +47,21 @@ export function findOwner(graph: Graph, projectRoot: string, rawPath: string): O
  * can textually "own" a file that `expandMappingPathsWithinOwnGraph` (the
  * guard every enforcement, billing, and read-allowance path already applies)
  * would never hand the node. Reports an excluded file as having no owner,
- * same as a genuinely unmapped one: `yg owner --file` / `yg context --file`
- * go on to say so honestly ("no graph coverage" / "excluded from graph
- * coverage by design"), instead of naming a node whose rules never actually
- * run against it.
+ * same as a genuinely unmapped one: every caller below goes on to say so
+ * honestly ("no graph coverage" for a truly unmapped path, "excluded from
+ * graph coverage by design" for this one), instead of naming a node whose
+ * rules never actually run against it.
  *
- * Used by the two file-ownership commands (`yg owner`, `yg context --file`).
- * `findOwner` itself stays the pure, synchronous, text-only resolver it always
- * was — `yg which` and `aspect-test.ts`'s ownership pre-check call it directly
- * and are unaffected by this wrapper.
+ * Every command that answers an ownership or cost question for ONE file goes
+ * through this wrapper, never the raw `findOwner`: `yg owner --file`, `yg
+ * context --file`, `yg impact --file` (its blast-radius/cost estimate is
+ * meaningless for a file nothing enforces), and `aspect-test.ts`'s ownership
+ * pre-check (deciding whether `--file` should refuse with "has a component of
+ * its own"). `findOwner` itself stays the pure, synchronous, text-only
+ * resolver this wrapper is built on — exported only because its own
+ * tie-break behavior (which node wins when two mappings match equally) is
+ * unit-tested directly against it, not because any other production caller
+ * needs the unguarded answer.
  */
 export async function findOwnerWithinOwnGraph(graph: Graph, projectRoot: string, rawPath: string): Promise<OwnerResult> {
   const result = findOwner(graph, projectRoot, rawPath);
@@ -112,7 +118,23 @@ export function registerOwnerCommand(program: Command): void {
               && !isCoverageExcludedPath(result.file) && !isExcludedFromGraph(result.file, exclusionSet)
             ? await classifySingleFile(graph, result.file, new FileContentCache())
             : undefined;
-          if (typeMatch?.bucket === 'covered') {
+          if (isCoverageExcludedPath(result.file) || isExcludedFromGraph(result.file, exclusionSet)) {
+            // Same fact `yg context --file` already reports for the identical
+            // path, in the same words: an excluded file is gone from this
+            // graph's coverage, not "unmapped" — advising the adopter to add
+            // it to a node's mapping would send them to write a mapping entry
+            // that `file-mapping-excluded` immediately refuses, a contradiction
+            // between the two commands' NEXT lines that this branch removes by
+            // answering the truth up front instead of falling into the generic
+            // unmapped message below.
+            process.stdout.write(
+              buildIssueMessage({
+                what: `${result.file} is excluded from graph coverage by design.`,
+                why: `This path is never scanned for coverage (git internals / the graph directory itself), sits inside a separate project's own boundary, or matches a coverage.excluded root, so it cannot and need not be mapped to a node here.`,
+                next: `No action needed.`,
+              }) + '\n',
+            );
+          } else if (typeMatch?.bucket === 'covered') {
             // An aspect `implies` cycle reachable from this type stops the
             // cascade before it can decide what applies — computeTypeAspectCascade
             // absorbs the cycle into a `cycle` marker rather than an empty
