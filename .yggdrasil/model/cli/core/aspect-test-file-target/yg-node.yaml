@@ -1,0 +1,39 @@
+name: Aspect Test File Target
+type: engine
+description: "Classifies a `yg aspect-test --file <path>` target: a file
+  enforced by its architecture type alone, with no owning component. Given a
+  path aspect-test.ts has already confirmed exists and has no owner, refuses
+  it when coverage.type_level is off, when it is excluded from coverage, or
+  when it does not classify to exactly one non-strict architecture type
+  (naming the problem); on success, resolves the matched type's
+  architecture-permitted read allowance. Also owns the nodeless
+  type-coverage-classification lookup and the architecture-reach computation
+  for a nodeless unit, both shared with aspect-test.ts's own companion-
+  diagnostic path so the same 'what can this type legally reach' logic is
+  computed once, not duplicated per caller. Does NOT own the existence or
+  ownership checks — those need command-layer-only access (a raw fs probe,
+  and owner.ts's single-sourced findOwner) this engine-typed node cannot
+  legally reach; aspect-test.ts runs them first and calls in only once both
+  pass."
+aspects: []
+relations:
+  - target: cli/core/type-coverage
+    type: calls
+  - target: cli/io/stores
+    type: calls
+  - target: cli/io/file-content-cache
+    type: calls
+  - target: cli/core/check
+    type: calls
+  - target: cli/structure
+    type: calls
+  - target: cli/relations/core
+    type: calls
+  - target: cli/core/check-coverage-tiers
+    type: calls
+  - target: cli/core/pairs
+    type: calls
+  - target: cli/model/graph
+    type: uses
+mapping:
+  - source/cli/src/core/aspect-test-file-target.ts

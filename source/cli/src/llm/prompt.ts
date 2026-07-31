@@ -66,9 +66,21 @@ export interface PairPromptInput {
   scope: ScopeDef | undefined;        // undefined ≙ {per:'node'}
 }
 
-/** The single-file framing sentence added when scope.per === 'file'. */
+/** The single-file framing sentence added when scope.per === 'file' AND the unit has an owning component (nodePath is defined). */
 const PER_FILE_FRAMING =
   `You are reviewing ONE file of a larger component. Other files of the component are not shown; the absence of sibling context is NOT a violation by itself. Judge only what this file must satisfy on its own.`;
+
+/**
+ * The single-file framing sentence for scope.per === 'file' on a unit with NO
+ * owning component (a file enforced by its architecture type alone).
+ * PER_FILE_FRAMING's "of a larger component" claim is false here — there is
+ * no component, and the prompt's own intro sentence (built from `hasNode`
+ * just below) already says so ("a single source file", never "a node
+ * (component)"). This variant keeps the operative instruction (absence of
+ * surrounding context is not itself a violation) and drops the false claim.
+ */
+const PER_FILE_FRAMING_NODELESS =
+  `You are reviewing this file on its own. No other files are shown; the absence of surrounding context is NOT a violation by itself. Judge only what this file must satisfy on its own.`;
 
 /**
  * Assembles the reviewer prompt. Per-node output is BYTE-IDENTICAL to the legacy
@@ -117,9 +129,13 @@ ${escapeXmlText(c.content, { attribute: false })}
 }).join('\n')}
 </companions>`;
 
-  const perFileParagraph = isPerFile ? `\n${PER_FILE_FRAMING}\n` : '';
-
   const hasNode = nodePath !== undefined;
+  // The per-file framing paragraph is gated on hasNode the same way the intro
+  // sentence and <node> element below are: a componented unit gets the
+  // "larger component" framing, a nodeless unit gets the honest variant that
+  // says nothing about a component that does not exist.
+  const perFileParagraph = isPerFile ? `\n${hasNode ? PER_FILE_FRAMING : PER_FILE_FRAMING_NODELESS}\n` : '';
+
   // The top framing sentence names a node (component) only when one exists.
   // For a nodeless unit (a file enforced by its architecture type alone)
   // there is nothing true to say about a component that does not exist, so

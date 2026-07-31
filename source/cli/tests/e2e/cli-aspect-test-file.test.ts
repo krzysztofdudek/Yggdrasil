@@ -210,3 +210,87 @@ describe.skipIf(!distExists)('CLI E2E — yg aspect-test --file', () => {
     }
   });
 });
+
+// =============================================================================
+// yg-suppress on a file enforced by its architecture type alone (no owning
+// component) — a suppression waives a rule for specific lines regardless of
+// whether the subject is a real component or a type-covered file; both the
+// spans the reviewer prompt receives and the read-only inventory (`yg
+// suppressions`) key off the SUBJECT FILE, never a node, so neither needed a
+// code change to see a nodeless subject. These two tests are the pin the
+// earlier work described but never wrote: suppression is a trust surface,
+// and a waiver nobody can audit is worse than no waiver.
+// =============================================================================
+
+/**
+ * Append a single-line `yg-suppress(<aspectId>)` marker to the end of
+ * `absFile` and return the 1-based line it waives (the resolver covers
+ * exactly the line immediately below the marker, never the marker's own
+ * line). Computed by scanning the WRITTEN file rather than by arithmetic, so
+ * the assertion cannot drift if the fixture's own content ever changes.
+ */
+function appendSuppressMarker(absFile: string, aspectId: string, reason: string): number {
+  const body = readFileSync(absFile, 'utf-8');
+  writeFileSync(
+    absFile,
+    `${body}\n// yg-suppress(${aspectId}) ${reason}\nexport const SUPPRESSED_LINE = 1;\n`,
+    'utf-8',
+  );
+  const lines = readFileSync(absFile, 'utf-8').split('\n');
+  const markerIdx = lines.findIndex((l) => l.includes(`yg-suppress(${aspectId})`));
+  return markerIdx + 2; // 1-based line below the marker
+}
+
+describe.skipIf(!distExists)('CLI E2E — yg-suppress on a file enforced by its architecture type alone', () => {
+  it('a marker in a type-covered file (no owning component) reaches the assembled --file prompt as a suppressed range, with the honor instruction', () => {
+    const dir = copyMergedFixture();
+    try {
+      // Tier resolution runs even for --dry-run — a bogus, never-dialed
+      // endpoint is fine since no reviewer request is ever made (mirrors the
+      // plain --dry-run test above).
+      addReviewer(dir, 'http://127.0.0.1:1');
+      // src/leaf/b.ts is type-covered by 'leaf', no node of its own.
+      // llm-leaf-rule is the LLM aspect attached to 'leaf' (per: file).
+      const suppressedLine = appendSuppressMarker(
+        path.join(dir, 'src', 'leaf', 'b.ts'),
+        'llm-leaf-rule',
+        'known debt, tracked in the issue tracker',
+      );
+
+      const { status, stdout } = run(['aspect-test', '--aspect', 'llm-leaf-rule', '--file', 'src/leaf/b.ts', '--dry-run'], dir);
+      expect(status).toBe(0);
+      // The resolved span reached the assembled prompt exactly like it would
+      // for a component-owned file — same block, same file key, same line.
+      expect(stdout).toContain('</suppressed-ranges>');
+      expect(stdout).toContain('<file path="src/leaf/b.ts">');
+      expect(stdout).toContain(`<range start-line="${suppressedLine}" end-line="${suppressedLine}" />`);
+      // The reviewer is instructed to honor exactly those lines (unified text
+      // — same instruction a component-owned prompt carries).
+      expect(stdout).toContain('Honor exactly these line ranges');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('yg suppressions lists a marker in a type-covered file (no owning component), naming the subject file and the rule', () => {
+    const dir = copyMergedFixture();
+    try {
+      appendSuppressMarker(
+        path.join(dir, 'src', 'leaf', 'b.ts'),
+        'llm-leaf-rule',
+        'known debt, tracked in the issue tracker',
+      );
+
+      const { status, stdout } = run(['suppressions'], dir);
+      expect(status).toBe(0);
+      // The scan groups by SUBJECT FILE — never a node — so a file with no
+      // owning component is inventoried exactly like one that has one.
+      expect(stdout).toContain('src/leaf/b.ts');
+      expect(stdout).toContain('single(llm-leaf-rule)');
+      expect(stdout).toContain('known debt, tracked in the issue tracker');
+      expect(stdout).toContain('Total: 1 marker across 1 file.');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

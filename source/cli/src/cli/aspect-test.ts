@@ -13,11 +13,6 @@ import type { Violation as AstViolation } from '../ast/types.js';
 import type { Violation as StructureViolation } from '../structure/types.js';
 import { computeExpectedPairs, computeNodeMappedFiles } from '../core/pairs.js';
 import type { TypeCoverageInput } from '../core/pairs.js';
-import { scanUncoveredFiles } from '../core/check.js';
-import { computeTypeCoverage, classifySingleFile } from '../core/type-coverage.js';
-import { walkRepoFiles } from '../io/repo-scanner.js';
-import { isCoverageExcludedPath } from '../io/repo-scanner.js';
-import { FileContentCache } from '../io/file-content-cache.js';
 import { computeEffectiveAspects } from '../core/graph/aspects.js';
 import { buildPairPrompt, PROMPT_FORMAT_REV } from '../llm/prompt.js';
 import type { PromptReferenceInput, PromptFileInput, PromptCompanionInput, PromptSuppressedRangesInput } from '../llm/prompt.js';
@@ -31,11 +26,14 @@ import { readTextFile } from '../io/graph-fs.js';
 import { toPosixPath } from '../utils/posix.js';
 import { runCompanionHook } from '../structure/hook-loader.js';
 import { resolveCompanionDescriptors } from '../core/companion-resolve.js';
-import { collectArchitectureReach } from '../structure/allowed-reads.js';
-import { buildOwnerIndex } from '../relations/owner-index.js';
 import { findOwner } from './owner.js';
 import { resolveFileArg, projectRootFromGraph } from '../io/paths.js';
-import { isExcludedByCoverage } from '../core/check-coverage-tiers.js';
+import {
+  classifyAspectTestFileTarget,
+  computeTypeCoverageForAspectTest,
+  computeNodelessArchitectureReach,
+} from '../core/aspect-test-file-target.js';
+import type { AspectTestFileTarget } from '../core/aspect-test-file-target.js';
 import type { ExpectedPair } from '../core/pairs.js';
 import type { AspectDef, LlmConfig } from '../model/graph.js';
 
@@ -481,20 +479,16 @@ async function resolveCompanionsForTest(
   // A nodeless pair carries its OWN architecture-derived unit (mirrors
   // companion-resolve.ts's resolveCompanionsForPair) — the subject file, its
   // matched type, and the reach that type's relations: permit, instead of
-  // addressing a (nonexistent) component.
+  // addressing a (nonexistent) component. computeNodelessArchitectureReach is
+  // the SAME reach computation --file's own target resolution uses
+  // (aspect-test-file-target.ts) — one function, not two copies of the same
+  // owner-index-plus-collectArchitectureReach call.
   let nodelessAllowance: { typeId: string; allowedReads: Set<string> } | undefined;
   let unit: StructureUnit;
   if (pair.nodePath === undefined) {
     const file = pair.subjectFiles[0];
     const fromType = typeCoverage?.covered.get(file) ?? '';
-    const reach = await collectArchitectureReach(file, {
-      fromType,
-      typeCovered: typeCoverage?.covered ?? new Map<string, string>(),
-      architecture: graph.architecture,
-      graph,
-      projectRoot,
-      ownerIndex: buildOwnerIndex(graph.nodes),
-    });
+    const reach = await computeNodelessArchitectureReach(graph, projectRoot, file, fromType, typeCoverage?.covered ?? new Map<string, string>());
     nodelessAllowance = { typeId: fromType, allowedReads: reach };
     unit = { kind: 'file', file, typeId: fromType, allowedReads: [...reach] };
   } else {
@@ -561,73 +555,20 @@ async function resolveSuppressedRangesForTest(
 }
 
 /**
- * The type-level classification lattice (coverage.type_level), classified for
- * this one `yg aspect test` invocation. Undefined when the flag is off, so
- * computeExpectedPairs enumerates exactly the component-only universe it
- * always has. Threading it here changes nothing for a `--node`-scoped lookup
- * (nodeless pairs never match a `nodePath` filter) — it is real classification
- * data so the file-addressed lookup a future `--file` mode adds finds it
- * already wired, rather than needing this call site touched again.
- */
-async function computeTypeCoverageForAspectTest(
-  graph: import('../model/graph.js').Graph,
-  projectRoot: string,
-): Promise<TypeCoverageInput | undefined> {
-  if (!graph.config.coverage?.typeLevel) return undefined;
-  const gitFiles = await walkRepoFiles(projectRoot);
-  const uncovered = scanUncoveredFiles(graph, gitFiles);
-  const result = await computeTypeCoverage(graph, uncovered, new FileContentCache());
-  return { covered: result.covered, ambiguousPaths: result.ambiguous.map((a) => a.file) };
-}
-
-/**
- * A `--file <path>` target: a file with no owning component, addressed by the
- * architecture type it matches instead of a node path. `--node` resolves a
- * component; `--file` resolves this. `refused` names WHY the path cannot be
- * addressed this way — a component path (use --node), untyped/ambiguous
- * classification (fix the architecture or map a node), or the flag being off.
- */
-type AspectTestFileTarget =
-  | { kind: 'ok'; file: string; typeId: string; typeCoverage: TypeCoverageInput; allowedReads: string[] }
-  | { kind: 'refused'; messageData: { what: string; why: string; next: string } };
-
-/** WHAT/NEXT for every non-'covered' classification bucket a --file target can land in. */
-function describeFileTargetClassificationProblem(
-  file: string,
-  single: Awaited<ReturnType<typeof classifySingleFile>>,
-): { what: string; next: string } {
-  switch (single.bucket) {
-    case 'ambiguous':
-      return {
-        what: `'${file}' is ambiguous: it matches ${single.typeIds.length} architecture types (${single.typeIds.join(', ')}).`,
-        next: `Narrow the architecture's when: predicates so at most one type matches this file, or map it to a node and use --node.`,
-      };
-    case 'strict':
-      return {
-        what: `'${file}' matches strict type '${single.strictTypeId}', which requires an explicit node mapping, not --file addressing.`,
-        next: `Map this file to a node of type '${single.strictTypeId}' and use --node.`,
-      };
-    case 'unreadable':
-      return {
-        what: `'${file}' could not be classified: ${single.reason}.`,
-        next: `Fix the file's readability, or use --files for an ad-hoc, ungraphed run.`,
-      };
-    case 'unmatched':
-    default:
-      return {
-        what: `'${file}' matches no architecture type.`,
-        next: `Map this file to a node and use --node, or add a matching type to yg-architecture.yaml.`,
-      };
-  }
-}
-
-/**
  * Resolve `--file <path>` against the graph: refuse a path that already has a
- * component (pointing at --node), refuse one that does not classify to
- * exactly one non-strict architecture type (naming the problem), or resolve
- * its matched type's architecture-permitted read allowance
- * (collectArchitectureReach) for a deterministic run and the
- * file/typeCoverage a nodeless LLM pair lookup needs.
+ * component (pointing at --node) or does not exist on disk, then delegate the
+ * rest — flag-off, coverage-excluded, single-type classification, and the
+ * architecture-permitted read allowance — to core/aspect-test-file-target.ts.
+ *
+ * The two checks kept here (existence, ownership) are the ones the extracted
+ * module cannot legally make itself: it is `engine`-typed (so it may call
+ * structure-adapter/relations-adapter for the reach computation) but the
+ * architecture forbids an `engine` file from calling a `command`-typed one,
+ * and `findOwner`'s single canonical source is `owner.ts`, a `command` file
+ * (owner-resolution-single-source). Order matters and is preserved exactly:
+ * existence is checked BEFORE ownership, so a nonexistent path whose pattern
+ * happens to match an owning node's mapping still reports "does not exist,"
+ * never "has a component of its own."
  */
 async function resolveAspectTestFileTarget(
   graph: import('../model/graph.js').Graph,
@@ -670,53 +611,7 @@ async function resolveAspectTestFileTarget(
     };
   }
 
-  if (!graph.config.coverage?.typeLevel) {
-    return {
-      kind: 'refused',
-      messageData: {
-        what: `'${repoRelative}' cannot be addressed by --file — type-level coverage is off.`,
-        why: `--file only ever addresses a file classified by coverage.type_level; with the flag off, no file is ever classified this way.`,
-        next: `Enable coverage.type_level in .yggdrasil/yg-config.yaml, or use --node / --files instead.`,
-      },
-    };
-  }
-  if (isCoverageExcludedPath(repoRelative) || isExcludedByCoverage(repoRelative, graph.config.coverage)) {
-    return {
-      kind: 'refused',
-      messageData: {
-        what: `'${repoRelative}' is excluded from coverage.`,
-        why: `--file addresses a file the architecture classifies by type; an excluded path is never classified.`,
-        next: `Remove it from coverage.excluded, or use --files for an ad-hoc, ungraphed run.`,
-      },
-    };
-  }
-
-  const cache = new FileContentCache();
-  const single = await classifySingleFile(graph, repoRelative, cache);
-  if (single.bucket !== 'covered') {
-    const { what, next } = describeFileTargetClassificationProblem(repoRelative, single);
-    return {
-      kind: 'refused',
-      messageData: {
-        what,
-        why: `--file requires the path to match EXACTLY one non-strict architecture type — anything else has no single rule set to test.`,
-        next,
-      },
-    };
-  }
-
-  // Guaranteed defined: the flag-off case already returned above.
-  const typeCoverage = (await computeTypeCoverageForAspectTest(graph, projectRoot))!;
-  const reach = await collectArchitectureReach(repoRelative, {
-    fromType: single.typeId,
-    typeCovered: typeCoverage.covered,
-    architecture: graph.architecture,
-    graph,
-    projectRoot,
-    ownerIndex: buildOwnerIndex(graph.nodes),
-  });
-
-  return { kind: 'ok', file: repoRelative, typeId: single.typeId, typeCoverage, allowedReads: [...reach] };
+  return classifyAspectTestFileTarget(graph, projectRoot, repoRelative);
 }
 
 /**

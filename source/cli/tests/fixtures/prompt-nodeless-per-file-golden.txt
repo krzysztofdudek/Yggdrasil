@@ -14,7 +14,7 @@ function, class, block, or whole file, and do NOT shrink it). If <suppressed-ran
 absent or lists nothing for a file, no lines in that file are waived. Do not validate
 the reason text on a marker — the spans are authoritative.
 
-You are reviewing ONE file of a larger component. Other files of the component are not shown; the absence of sibling context is NOT a violation by itself. Judge only what this file must satisfy on its own.
+You are reviewing this file on its own. No other files are shown; the absence of surrounding context is NOT a violation by itself. Judge only what this file must satisfy on its own.
 
 Respond with EXACTLY this JSON, nothing else:
 {"satisfied": true|false, "reason": "explanation with file:line references"}

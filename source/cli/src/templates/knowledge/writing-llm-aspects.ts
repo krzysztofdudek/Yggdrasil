@@ -95,10 +95,12 @@ enforced deterministically.
 When \`coverage.type_level\` is on, a file matched by exactly one architecture
 type's \`when\` — but mapped by no node — is still reviewed against that
 type's \`per: file\` aspects. There is no component to name, so the prompt
-carries nothing false about one: no \`<node>\` element, and the framing sentence
-describes a single source file instead of "a node (component)". Everything
-else — the rule text, references, companions, suppressed-range handling, the
-response contract — is identical to the component-owned \`per: file\` case.
+carries nothing false about one: no \`<node>\` element, the framing sentence
+describes a single source file instead of "a node (component)", and the
+single-file framing paragraph says this file is judged on its own — never "a
+larger component" it does not have. Everything else — the rule text,
+references, companions, suppressed-range handling, the response contract —
+is identical to the component-owned \`per: file\` case.
 A \`per: node\` aspect never runs on a file like this (there is no whole unit
 to run it against) — it shows as \`whole-unit-rule\` in \`yg check\`'s type
 coverage report, naming the gap rather than silently enforcing nothing.

@@ -111,10 +111,14 @@ describe('buildPairPrompt — per-file golden', () => {
 });
 
 describe('buildPairPrompt — nodeless (a file with no component)', () => {
-  it('says nothing about a component: no <node> element, no "node (component)" framing', () => {
+  it('says nothing about a component: no <node> element, no "node (component)" framing, no "larger component" framing paragraph', () => {
     const p = buildPairPrompt(inputNodeless);
     expect(p).not.toContain('<node');
     expect(p).not.toContain('node (component)');
+    // The per-file framing paragraph must not claim a component exists either —
+    // a nodeless unit has none, so "of a larger component" would be false here.
+    expect(p).not.toContain('of a larger component');
+    expect(p).not.toContain('You are reviewing ONE file of a larger component.');
     expect(p).toContain('src/leaf/a.ts');
     expect(p).toBe(loadFixture('prompt-nodeless-per-file-golden.txt'));
   });
@@ -132,9 +136,13 @@ describe('buildPairPrompt — nodeless (a file with no component)', () => {
     expect(p).toContain('</task>\n\n<aspect');
   });
 
-  it('still carries the single-file framing sentence (scope.per === "file" already gates it)', () => {
+  it('carries an honest single-file framing sentence in place of the false componented one', () => {
     const p = buildPairPrompt(inputNodeless);
-    expect(p).toContain('You are reviewing ONE file of a larger component.');
+    // The operative instruction survives (absence of context is not itself a
+    // violation) but nothing here claims a component exists.
+    expect(p).toContain(
+      'You are reviewing this file on its own. No other files are shown; the absence of surrounding context is NOT a violation by itself. Judge only what this file must satisfy on its own.'
+    );
   });
 
   it('nodeDescription may also be omitted when nodePath is present without one (defensive)', () => {

@@ -1,0 +1,2 @@
+## [2026-07-31T03:10:00.964Z]
+New node: classifies a yg aspect-test --file target once the command layer has confirmed the path exists and has no owning component — coverage-exclusion, single-type architecture classification, the nodeless type-coverage lookup, and the nodeless architecture-reach computation the companion-diagnostic path also needs. Split out of aspect-test.ts so that command's own relation count reflects dispatching a resolved target, not also the classification machinery that produces one.

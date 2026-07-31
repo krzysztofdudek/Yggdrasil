@@ -11,20 +11,29 @@ description: "Runs an aspect against a node or ad-hoc files WITHOUT touching the
 aspects:
   - provider-redaction-cascade
 max_direct_relations:
-  limit: 24
+  limit: 21
   reason: >-
-    Raised from the project default of 20 to 21 (three dependencies the
-    LLM-mode pair lookup needed to thread real type-coverage classification
-    into computeExpectedPairs: cli/core/check, cli/core/type-coverage,
-    cli/io/file-content-cache — see their own history), then to 24 for the
-    `--file <path>` addressing mode itself (a file enforced by its
-    architecture type alone, no owning component): cli/relations/core
-    (buildOwnerIndex, to resolve --file's ownership check the same way
-    cli/commands/owner does), cli/commands/owner (findOwner, so --file and
-    `yg owner` name the identical node/no-owner answer for the same path),
-    and cli/core/check-coverage-tiers (isExcludedByCoverage, so a --file
-    target under coverage.excluded is refused for the same reason `yg owner`
-    and `yg impact --file` already give).
+    Restored from 24 back to the pre-existing 21 (originally: raised from the
+    project default of 20 to 21 for three dependencies the LLM-mode pair
+    lookup needed to thread real type-coverage classification into
+    computeExpectedPairs: cli/core/check, cli/core/type-coverage,
+    cli/io/file-content-cache). The later raise to 24, for the `--file <path>`
+    addressing mode's three extra dependencies (cli/relations/core,
+    cli/commands/owner, cli/core/check-coverage-tiers), is undone here by
+    extraction rather than a wider ceiling: --file's target classification
+    (coverage-exclusion, single-type-classification, the nodeless
+    type-coverage lookup, and the nodeless architecture-reach computation
+    shared with the companion-diagnostic path) now lives in
+    cli/core/aspect-test-file-target, its own engine node — which took two
+    further pre-existing dependencies with it (cli/core/check,
+    cli/core/type-coverage; cli/io/file-content-cache moved too but that one
+    was only ever needed for the same classification work). --file's
+    existence and ownership checks stay here (cli/commands/owner is still
+    real: findOwner's single canonical source, owner.ts, is a `command`-typed
+    file an `engine` node cannot legally call). Real usage today is 20, one
+    under this ceiling — 21 is kept rather than tightened further so a small,
+    genuine future addition here does not immediately require another graph
+    edit.
 relations:
   - target: cli/ast/runtime
     type: calls
@@ -36,10 +45,6 @@ relations:
     type: calls
   - target: cli/core/pair-inputs
     type: calls
-  - target: cli/core/check
-    type: calls
-  - target: cli/core/type-coverage
-    type: calls
   - target: cli/core/reviewer-tiers
     type: calls
   - target: cli/llm/shared
@@ -49,8 +54,6 @@ relations:
   - target: cli/io/parsers/config
     type: calls
   - target: cli/io/stores
-    type: calls
-  - target: cli/io/file-content-cache
     type: calls
   - target: cli/tests/unit/cli
     type: uses
@@ -68,11 +71,9 @@ relations:
     type: calls
   - target: cli/core/graph
     type: calls
-  - target: cli/relations/core
-    type: calls
   - target: cli/commands/owner
     type: calls
-  - target: cli/core/check-coverage-tiers
+  - target: cli/core/aspect-test-file-target
     type: calls
 mapping:
   - source/cli/src/cli/aspect-test.ts
