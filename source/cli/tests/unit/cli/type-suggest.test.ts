@@ -125,6 +125,33 @@ describe('typeSuggestCommand', () => {
     expect(output).toMatch(/5MB/);
   });
 
+  it('reports a coverage.excluded path as excluded from graph coverage, without classifying it', async () => {
+    const root = await setupProject();
+    await writeFile(
+      path.join(root, '.yggdrasil', 'yg-config.yaml'),
+      'version: "5.2.0"\ncoverage:\n  excluded:\n    - src/misc/\n',
+    );
+    const output = await captureOutput(() =>
+      typeSuggestCommand('src/misc/helper.ts', root),
+    );
+    expect(output).toContain('is excluded from graph coverage by design');
+    expect(output).not.toMatch(/Matching types/);
+    expect(output).not.toMatch(/No type.*when.*matches/);
+  });
+
+  it('control: a sibling file OUTSIDE the excluded root still classifies normally — the guard does not silence classification generally', async () => {
+    const root = await setupProject();
+    await writeFile(
+      path.join(root, '.yggdrasil', 'yg-config.yaml'),
+      'version: "5.2.0"\ncoverage:\n  excluded:\n    - src/misc/\n',
+    );
+    const output = await captureOutput(() =>
+      typeSuggestCommand('src/cli/log-add.ts', root),
+    );
+    expect(output).toMatch(/Matching types/);
+    expect(output).toMatch(/✓ command/);
+  });
+
   it('handles multiple matching types', async () => {
     const root = await setupProject();
     // Add a second type with overlapping when

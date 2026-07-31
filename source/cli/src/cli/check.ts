@@ -70,10 +70,13 @@ export function resolveApproveMode(
  * enforces it: no pair, no fingerprint contribution, no rule ever runs on it.
  * Moving that count out of node-owned and into excluded here is the ONE
  * place an adopter reading the header sees the truth `yg context --node` and
- * `yg owner --file` already report for the same files. A no-op whenever the
- * flag-gated split isn't even rendered (`result.typeLevel` false) or there is
- * nothing to count (`result.totalFiles === 0`), so the extra scan is paid
- * only on the runs that would otherwise show the wrong number.
+ * `yg owner --file` already report for the same files. The scan below (`countMappedButExcludedFiles`)
+ * is skipped only when the flag-gated split isn't even rendered (`result.typeLevel` false) or there
+ * is nothing to count (`result.totalFiles === 0`) — on every OTHER flag-on run it always runs,
+ * whether or not it finds anything to move; only the correction that follows it (moving the count
+ * from `nodeOwnedFiles` into `excludedFiles`) is skipped when the count comes back zero. Cheap
+ * either way — `findNestedProjectRoots` is memoised per root and `walkRepoFiles` already warmed it
+ * earlier in the same command.
  */
 async function applyHonestCoverageSplit(result: CheckResult, graph: Graph, coverageVisibleFiles: string[]): Promise<void> {
   if (!result.typeLevel || result.totalFiles === 0) return;

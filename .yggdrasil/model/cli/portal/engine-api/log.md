@@ -58,3 +58,5 @@ The suppression-marker audit's mapped-file universe now calls the same shared ne
 Exposed a facade wrapper that drops the per-run cache of on-disk separate-project boundaries, so the extraction pipeline can force a fresh read of that state on every refresh instead of reusing whatever a long-lived server process cached on its first request.
 ## [2026-07-31T12:04:36.890Z]
 The portal's live suppression inventory needs the adopter's coverage.excluded config threaded into the same scan the CLI's own suppression audit now receives it in, so the portal's waiver list agrees with the CLI rather than drifting from it the moment a project excludes a path by config instead of by nested-project boundary.
+## [2026-07-31T18:00:26.142Z]
+The portal's boundary computation builds its path resolver from the same exclusion-guarded owner index the live relation pass itself uses internally, instead of a raw one, so a Go or Java package's excluded member can no longer make the portal's phantom-dependency and detected-edge views miss an edge that the package's other, non-excluded files still legitimately carry.

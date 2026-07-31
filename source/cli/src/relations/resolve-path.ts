@@ -8,10 +8,23 @@ import { resolvePhpFqn, parsePsr4, type PhpResolveDeps } from './extractors/php-
 import { resolveRustPath, type RustResolveDeps } from './extractors/rust-resolve.js';
 import { resolveIncludePath } from './extractors/include-resolve.js';
 import { resolveRubyRequireRelative } from './extractors/ruby-resolve.js';
+import { buildOwnerIndex, guardOwnerIndex } from './owner-index.js';
+import { resolveGraphExclusionSet, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
+import type { Graph } from '../model/graph.js';
 
 /** Production resolvePathToFile: dispatches by language to the per-language path resolver.
  *  Checks existence against the project's files on disk. Symbol-resolved languages (and
- *  not-yet-implemented ones) return undefined here — they resolve via the SymbolTable. */
+ *  not-yet-implemented ones) return undefined here — they resolve via the SymbolTable.
+ *
+ *  `ownerOf`, when supplied, feeds the Go/Java package resolvers below so they can pick a
+ *  package directory's REPRESENTATIVE file by its owner. A caller resolving a specifier
+ *  fresh from source — the specifier can name any file on disk, excluded or not — must
+ *  build this through {@link guardedResolve} instead of calling this
+ *  directly with a raw `buildOwnerIndex(...).ownerOf`: an unguarded index can pick an
+ *  EXCLUDED file as the package's representative, and every other caller of the
+ *  resulting owner index (the resolver's own `ownerIndex.ownerOf` step) then answers "no
+ *  owner" for it, silencing the whole edge — including the part of it justified by the
+ *  package's other, non-excluded, fully enforced files. */
 export function makeResolvePathToFile(
   projectRoot: string,
   ownerOf?: (repoRelPosix: string) => string | undefined,
@@ -69,6 +82,30 @@ export function makeResolvePathToFile(
     }
     return undefined;
   };
+}
+
+/**
+ * Build the production `resolvePathToFile` from an owner index guarded against the SAME
+ * exclusion set (the nested-project boundary plus the adopter's own `coverage.excluded`
+ * roots) `runRelationPass`'s own file enumeration and ownership re-pointing already
+ * honor. Every caller that resolves an import/reference specifier fresh from source —
+ * `yg check`'s live relation gate, `yg find` / `yg structure`'s typed-edge index, the
+ * portal's boundary computation — must build `resolvePathToFile` through this
+ * constructor rather than calling `makeResolvePathToFile` with a raw
+ * `buildOwnerIndex(graph.nodes).ownerOf`. See {@link makeResolvePathToFile}'s own doc
+ * comment for why: an unguarded index can pick an excluded file as a Go/Java package's
+ * representative, and the resolver's owner lookup on that file then answers "no owner",
+ * silencing the whole edge even when the package's other, non-excluded files are fully
+ * enforced.
+ */
+export async function guardedResolve(
+  projectRoot: string,
+  graph: Graph,
+): Promise<(specifier: string, fromFile: string, language: string, isPackage?: boolean) => string | undefined> {
+  const coverage = graph.config.coverage ?? NO_COVERAGE_EXCLUDED;
+  const exclusion = await resolveGraphExclusionSet(projectRoot, coverage);
+  const guardedOwnerOf = guardOwnerIndex(buildOwnerIndex(graph.nodes), exclusion).ownerOf;
+  return makeResolvePathToFile(projectRoot, guardedOwnerOf);
 }
 
 /**

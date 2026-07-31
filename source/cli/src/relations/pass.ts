@@ -18,7 +18,7 @@ import {
 } from './extractors/csharp.js';
 import { loadFacts, writeFacts, factsKey, astCacheDir } from './facts-cache.js';
 import { extractorForLanguage } from './extractors/registry.js';
-import { makeResolvePathToFile } from './resolve-path.js';
+import { guardedResolve } from './resolve-path.js';
 import { countFeatures, type FeatureVector } from './feature-vector.js';
 import { verifyNodeDeps, type ResolvedDep, type RelationGraphView, type Violation } from './verifier.js';
 import type {
@@ -837,10 +837,9 @@ export async function buildTypedEdgeIndex(
   covered: Map<string, string>,
 ): Promise<TypedEdgeIndex> {
   const projectRoot = path.dirname(graph.rootPath);
-  const ownerIndex = buildOwnerIndex(graph.nodes);
   const result = await runRelationPass(graph, projectRoot, {
     extractorFor: extractorForLanguage,
-    resolvePathToFile: makeResolvePathToFile(projectRoot, ownerIndex.ownerOf),
+    resolvePathToFile: await guardedResolve(projectRoot, graph),
     symbolIndexDir: astCacheDir(graph.rootPath),
     typeCoveredFiles: covered,
   });

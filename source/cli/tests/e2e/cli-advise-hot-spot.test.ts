@@ -48,7 +48,7 @@ function w(root: string, rel: string, content: string): void {
  * `safe` (type guarded, carrying an enforced rule) mapping src/guarded. Only `hot`
  * can ever be an uncovered hot spot.
  */
-function makeFixture(label: string): string {
+function makeFixture(label: string, coverageBlock = ''): string {
   const dir = mkdtempSync(path.join(tmpdir(), `yg-advise-hot-${label}-`));
   w(
     dir,
@@ -60,7 +60,8 @@ function makeFixture(label: string): string {
   w(
     dir,
     '.yggdrasil/yg-config.yaml',
-    `reviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n`,
+    `reviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n` +
+      coverageBlock,
   );
   // An enforced (default status) LLM rule attached to `guarded`. `yg advise` never
   // runs a reviewer, so content is immaterial — it only needs to be effective and
@@ -188,6 +189,43 @@ describe.skipIf(!distExists)('CLI E2E — yg advise uncovered hot spot', () => {
     } finally {
       rmSync(src, { recursive: true, force: true });
       rmSync(dst, { recursive: true, force: true });
+    }
+  });
+
+  it("5. never attributes an excluded file's churn to a node, and its evidence agrees with `yg owner --file` (exit 0)", () => {
+    const dir = makeFixture('excluded', `coverage:\n  excluded:\n    - src/bare/generated\n`);
+    try {
+      gitInit(dir);
+      // Commit A: the graph + hot's real (non-excluded) file, safe's file, and an
+      // excluded generated file under hot's own mapping. hot's REAL churn is 1.
+      w(dir, 'src/bare/kept.ts', 'export const kept = 1;\n');
+      w(dir, 'src/bare/generated/g1.ts', 'export const g1 = 1;\n');
+      w(dir, 'src/guarded/b.ts', 'export const b = 1;\n');
+      commitAll(dir, 'init');
+      // Commits B–G: six more commits touching ONLY the excluded generated file.
+      for (let i = 2; i <= 7; i++) {
+        w(dir, 'src/bare/generated/g1.ts', `export const g1 = ${i};\n`);
+        commitAll(dir, `gen ${i}`);
+      }
+
+      const { status, stdout } = run(['advise'], dir);
+      expect(status).toBe(0);
+
+      // Only the ONE commit touching the non-excluded file counts — the six
+      // excluded-file-only commits are never attributed to 'hot'.
+      expect(stdout).toContain(HOT_WHAT('hot'));
+      expect(stdout).toContain("1 of the last 200 commits touched this node's files");
+      expect(stdout).not.toContain('7 of the last 200 commits');
+      // Evidence names only the file this node actually enforces.
+      expect(stdout).toContain('Evidence: src/bare/kept.ts (last 200 commits, from git history).');
+      expect(stdout).not.toContain('generated/g1.ts');
+
+      // Agreement: the same path every other ownership surface calls excluded.
+      const owner = run(['owner', '--file', 'src/bare/generated/g1.ts'], dir);
+      expect(owner.status).toBe(0);
+      expect(owner.stdout).toContain('excluded from graph coverage by design');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
     }
   });
 });

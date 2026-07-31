@@ -823,17 +823,43 @@ describe('checkStrictBackwardCoverage — branch coverage', () => {
     }
   });
 
+  // The node's type is 'other', NOT 'command' — the strict type itself — so the
+  // file (mapped, satisfying command's when) would be MISPLACED (owner type !==
+  // matched type) if the exclusion did not remove it from the scan's candidate
+  // set first. Mapping it to 'command' (the strict type) would make neither
+  // orphan nor misplaced possible to fire regardless of exclusion, proving
+  // nothing about the exclusion filter at all.
+  const STRICT_ARCH_WITH_OTHER = `${STRICT_ARCH}\n  other:\n    description: Not a command\n`;
+
   it('a MAPPED file under coverage.excluded raises no orphan/misplaced either — exclusion removes it from the strict scan\'s candidate set entirely, not just from ownership resolution', async () => {
     const { root, graph } = await buildProject({
-      architecture: STRICT_ARCH,
+      architecture: STRICT_ARCH_WITH_OTHER,
       files: [{ rel: 'secrets/cmd.ts', content: 'registerCommand("foo")' }],
-      nodes: [{ dir: 'cmd', yaml: nodeYaml('cmd', 'command', ['secrets/cmd.ts']) }],
+      nodes: [{ dir: 'holder', yaml: nodeYaml('holder', 'other', ['secrets/cmd.ts']) }],
       config: 'version: "5.2.0"\ncoverage:\n  excluded:\n    - secrets/\n',
     });
     try {
       const { issues } = await checkStrictBackwardCoverage(graph, new FileContentCache());
       expect(issues.find((i) => i.code === 'type-strict-orphan')).toBeUndefined();
       expect(issues.find((i) => i.code === 'type-strict-misplaced')).toBeUndefined();
+    } finally {
+      await cleanup(root);
+    }
+  });
+
+  it('control: the identical mapped-to-the-wrong-type file OUTSIDE the excluded root still raises type-strict-misplaced', async () => {
+    const { root, graph } = await buildProject({
+      architecture: STRICT_ARCH_WITH_OTHER,
+      files: [{ rel: 'secrets/cmd.ts', content: 'registerCommand("foo")' }],
+      nodes: [{ dir: 'holder', yaml: nodeYaml('holder', 'other', ['secrets/cmd.ts']) }],
+      config: 'version: "5.2.0"\ncoverage:\n  excluded:\n    - unrelated/\n',
+    });
+    try {
+      const { issues } = await checkStrictBackwardCoverage(graph, new FileContentCache());
+      const misplaced = issues.find((i) => i.code === 'type-strict-misplaced');
+      expect(misplaced).toBeDefined();
+      expect(misplaced?.nodePath).toBe('holder');
+      expect(misplaced?.messageData.what).toContain('secrets/cmd.ts');
     } finally {
       await cleanup(root);
     }

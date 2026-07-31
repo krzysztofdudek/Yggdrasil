@@ -2,8 +2,7 @@ import type { Graph } from '../../model/graph.js';
 import { runRelationPass } from '../../relations/pass.js';
 import { extractorForLanguage } from '../../relations/extractors/registry.js';
 import { astCacheDir } from '../../relations/facts-cache.js';
-import { makeResolvePathToFile } from '../../relations/resolve-path.js';
-import { buildOwnerIndex } from '../../relations/owner-index.js';
+import { guardedResolve } from '../../relations/resolve-path.js';
 import type { BoundaryInput } from '../contract.js';
 
 /**
@@ -78,7 +77,7 @@ export async function computePortalBoundary(
   try {
     pass = await runRelationPass(graph, projectRoot, {
       extractorFor: extractorForLanguage,
-      resolvePathToFile: makeResolvePathToFile(projectRoot, buildOwnerIndex(graph.nodes).ownerOf),
+      resolvePathToFile: await guardedResolve(projectRoot, graph),
       symbolIndexDir: astCacheDir(graph.rootPath),
     });
   } catch {
@@ -164,7 +163,7 @@ export async function computeDetectedEdges(
   try {
     const pass = await runRelationPass(graph, projectRoot, {
       extractorFor: extractorForLanguage,
-      resolvePathToFile: makeResolvePathToFile(projectRoot, buildOwnerIndex(graph.nodes).ownerOf),
+      resolvePathToFile: await guardedResolve(projectRoot, graph),
       symbolIndexDir: astCacheDir(graph.rootPath),
     });
     return pass.detectedEdgesByNode;

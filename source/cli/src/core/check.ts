@@ -40,7 +40,7 @@ import { extractorForLanguage } from '../relations/extractors/registry.js';
 import { astCacheDir } from '../relations/facts-cache.js';
 import { relationRefusedMessage, typeGateForbiddenMessage } from '../relations/messages.js';
 import { getLanguageDisplayName } from '../utils/language-registry.js';
-import { makeResolvePathToFile } from '../relations/resolve-path.js';
+import { makeResolvePathToFile, guardedResolve } from '../relations/resolve-path.js';
 import { buildOwnerIndex } from '../relations/owner-index.js';
 import { computeTypeGateFindings } from '../relations/type-gate.js';
 import { buildTypeVisibility, toAppliedPairs, type TypeVisibilityReport } from './type-visibility.js';
@@ -765,7 +765,7 @@ export async function runCheck(
     // always the current truth.
     const relResult = await runRelationPass(graph, projectRoot, {
       extractorFor: extractorForLanguage,
-      resolvePathToFile: makeResolvePathToFile(projectRoot, buildOwnerIndex(graph.nodes).ownerOf),
+      resolvePathToFile: await guardedResolve(projectRoot, graph),
       // Repurposed field: now the content-addressed AST fact cache root (.ast-cache), the
       // per-file parse cache that skips the tree-sitter re-parse of unchanged files.
       symbolIndexDir: astCacheDir(graph.rootPath),

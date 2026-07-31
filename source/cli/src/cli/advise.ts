@@ -371,10 +371,10 @@ function parseNameOnlyLog(output: string): string[][] {
  * An empty map (git present, full history, but no window commit touched any node) is
  * a DIFFERENT, honest outcome: the class runs and simply produces nothing.
  */
-function gatherChurnByNode(
+async function gatherChurnByNode(
   graph: Graph,
   projectRoot: string,
-): Map<string, { churn: number; files: string[] }> | undefined {
+): Promise<Map<string, { churn: number; files: string[] }> | undefined> {
   const gitOpts = {
     cwd: projectRoot,
     encoding: 'utf-8' as const,
@@ -395,7 +395,7 @@ function gatherChurnByNode(
       ...gitOpts,
       maxBuffer: 64 * 1024 * 1024,
     });
-    return countChurnByNode(parseNameOnlyLog(out), ownerOfForGraph(graph));
+    return countChurnByNode(parseNameOnlyLog(out), await ownerOfForGraph(graph));
   } catch (error) {
     debugWrite(`[advise] churn signal silent (no readable git history): ${(error as Error).message}`);
     return undefined;
@@ -445,7 +445,7 @@ async function gatherNominationSources(graph: Graph, todayUtc: Date): Promise<No
   const drillResults = await gatherInCorpusDrillResults(graph, projectRoot);
   const verdictEvents = readVerdictEvents(graph.rootPath).events;
   const currentUnitsByAspect = await gatherCurrentUnits(graph, typeCoverage);
-  const churnByNode = gatherChurnByNode(graph, projectRoot);
+  const churnByNode = await gatherChurnByNode(graph, projectRoot);
   const familyCandidates = readFamilyCandidatesSource(graph);
   const architectureCutCycles = computeArchitectureCutCycles(graph);
 

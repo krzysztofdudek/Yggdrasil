@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { loadGraph } from '../../src/core/graph-loader.js';
 import { runRelationPass } from '../../src/relations/pass.js';
 import { extractorForLanguage } from '../../src/relations/extractors/registry.js';
-import { makeResolvePathToFile } from '../../src/relations/resolve-path.js';
+import { makeResolvePathToFile, guardedResolve } from '../../src/relations/resolve-path.js';
 import type {
   DependencyExtractor,
   DetectedDep,
@@ -826,5 +826,91 @@ describe('runRelationPass — AST fact cache', () => {
     // The csharp-less shard must NOT have silenced the edge: c re-parsed → still refused on m.
     expect(result.violationsByNode.get('c')!.verdict).toBe('refused');
     expect(result.violationsByNode.get('c')!.violations.some((v) => v.ownerNode === 'm')).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A Go import to a package DIRECTORY resolves through a representative file the
+// resolver picks from the directory's owner set (relations/extractors/go-resolve.ts).
+// That representative pick must ignore an excluded file exactly like every other
+// ownership question this graph answers — an unguarded pick can land on the
+// excluded file, and the resolver's own (guarded) ownership lookup on THAT file
+// then reports "no owner", silencing the whole edge even though the package's
+// OTHER, non-excluded file is fully enforced. The candidate list the resolver
+// walks is lexicographically sorted, so whether the excluded member sorts first
+// or last changes which file the (buggy, unguarded) pick lands on — only a
+// first-sorting exclusion can hide the violation; a last-sorting one never could,
+// which is why both orderings are pinned here.
+// ---------------------------------------------------------------------------
+describe("runRelationPass — an excluded file must never become a Go package's owner representative", () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = mkdtempSync(path.join(tmpdir(), 'rel-pass-pkg-rep-'));
+    mkdirSync(path.join(root, '.yggdrasil', 'model'), { recursive: true });
+    writeFileSync(
+      path.join(root, '.yggdrasil', 'yg-architecture.yaml'),
+      `node_types:\n  service:\n    description: 'unit'\n    log_required: false\n    when:\n      path: "**"\n`,
+      'utf-8',
+    );
+    writeNode(root, 'a', 'A', 'pkg/a');
+    writeNode(root, 'b', 'B', 'pkg/b');
+
+    writeFileSync(path.join(root, 'go.mod'), 'module example.com/m\n\ngo 1.22\n', 'utf-8');
+
+    mkdirSync(path.join(root, 'pkg', 'a'), { recursive: true });
+    mkdirSync(path.join(root, 'pkg', 'b'), { recursive: true });
+    // Two files in package a, one sorting FIRST and one sorting LAST — the
+    // package's owner-set walk visits them in that lexical order.
+    writeFileSync(path.join(root, 'pkg', 'a', 'aaa_gen.go'), 'package a\n\nfunc Gen() int { return 0 }\n', 'utf-8');
+    writeFileSync(path.join(root, 'pkg', 'a', 'zzz_kept.go'), 'package a\n\nfunc Kept() int { return 1 }\n', 'utf-8');
+    // node b has NO declared relation to node a — this import is genuinely undeclared.
+    writeFileSync(
+      path.join(root, 'pkg', 'b', 'b.go'),
+      'package b\n\nimport "example.com/m/pkg/a"\n\nfunc Use() int { return a.Kept() }\n',
+      'utf-8',
+    );
+  });
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('excluding the package member that sorts FIRST does not silence a real undeclared dependency reached through the package\'s other, non-excluded file', async () => {
+    writeFileSync(
+      path.join(root, '.yggdrasil', 'yg-config.yaml'),
+      `quality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - pkg/a/aaa_gen.go\n`,
+      'utf-8',
+    );
+    const graph = await loadGraph(root);
+    const result = await runRelationPass(graph, root, {
+      extractorFor: extractorForLanguage,
+      resolvePathToFile: await guardedResolve(root, graph),
+      symbolIndexDir: path.join(root, '.yg-cache-pkg-rep-first'),
+    });
+
+    const b = result.violationsByNode.get('b');
+    expect(b).toBeDefined();
+    expect(b!.verdict).toBe('refused');
+    expect(b!.violations.some((v) => v.ownerNode === 'a')).toBe(true);
+  });
+
+  it('control: excluding the package member that sorts LAST still reports the same violation', async () => {
+    writeFileSync(
+      path.join(root, '.yggdrasil', 'yg-config.yaml'),
+      `quality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - pkg/a/zzz_kept.go\n`,
+      'utf-8',
+    );
+    const graph = await loadGraph(root);
+    const result = await runRelationPass(graph, root, {
+      extractorFor: extractorForLanguage,
+      resolvePathToFile: await guardedResolve(root, graph),
+      symbolIndexDir: path.join(root, '.yg-cache-pkg-rep-last'),
+    });
+
+    const b = result.violationsByNode.get('b');
+    expect(b).toBeDefined();
+    expect(b!.verdict).toBe('refused');
+    expect(b!.violations.some((v) => v.ownerNode === 'a')).toBe(true);
   });
 });

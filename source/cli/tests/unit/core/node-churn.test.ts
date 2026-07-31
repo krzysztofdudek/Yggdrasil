@@ -1,4 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
+import path from 'node:path';
+import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { countChurnByNode, ownerOfForGraph } from '../../../src/core/node-churn.js';
 import type { Graph, GraphNode } from '../../../src/model/graph.js';
 
@@ -86,19 +89,50 @@ describe('countChurnByNode — per-node commit churn over parsed touch sets', ()
   });
 });
 
-describe('ownerOfForGraph — the real buildOwnerIndex-backed resolver', () => {
-  it('resolves a mapped file to its owning node path, and undefined for an unmapped one', () => {
+describe('ownerOfForGraph — the real buildOwnerIndex-backed resolver, guarded against exclusion', () => {
+  let root: string;
+
+  afterEach(() => {
+    if (root) rmSync(root, { recursive: true, force: true });
+  });
+
+  function graphWithMapping(mapping: string[], excluded: string[]): Graph {
+    root = mkdtempSync(path.join(tmpdir(), 'node-churn-owner-'));
+    mkdirSync(path.join(root, '.yggdrasil'), { recursive: true });
     const nodes = new Map<string, GraphNode>();
     nodes.set('orders/service', {
-      meta: { name: 'service', type: 'service', description: 'x', mapping: ['src/orders/service.ts'] },
+      meta: { name: 'service', type: 'service', description: 'x', mapping },
       parent: undefined,
       children: [],
       aspects: [],
     } as unknown as GraphNode);
-    const graph = { nodes } as Graph;
+    return {
+      nodes,
+      rootPath: path.join(root, '.yggdrasil'),
+      config: { coverage: { required: [], excluded, typeLevel: false } },
+    } as unknown as Graph;
+  }
 
-    const ownerOf = ownerOfForGraph(graph);
+  it('resolves a mapped file to its owning node path, and undefined for an unmapped one', async () => {
+    const graph = graphWithMapping(['src/orders/service.ts'], []);
+
+    const ownerOf = await ownerOfForGraph(graph);
     expect(ownerOf('src/orders/service.ts')).toBe('orders/service');
     expect(ownerOf('src/unmapped/other.ts')).toBeUndefined();
+  });
+
+  it('answers undefined for a file coverage.excluded names, even though the node\'s mapping textually matches it', async () => {
+    const graph = graphWithMapping(['src/orders/service.ts'], ['src/orders/service.ts']);
+
+    const ownerOf = await ownerOfForGraph(graph);
+    expect(ownerOf('src/orders/service.ts')).toBeUndefined();
+  });
+
+  it('control: a sibling file under the SAME node, not excluded, still resolves — the guard does not silence ownership generally', async () => {
+    const graph = graphWithMapping(['src/orders/service.ts', 'src/orders/kept.ts'], ['src/orders/service.ts']);
+
+    const ownerOf = await ownerOfForGraph(graph);
+    expect(ownerOf('src/orders/service.ts')).toBeUndefined();
+    expect(ownerOf('src/orders/kept.ts')).toBe('orders/service');
   });
 });

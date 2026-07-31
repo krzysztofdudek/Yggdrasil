@@ -188,3 +188,5 @@ Moved the type-visibility assembly inside the lock-verification try block, readi
 Trimmed two inline comments to reclaim reviewer-prompt margin on this file — it has almost none against the tier limit, so a few extra words here are the difference between a prompt fitting and not.
 ## [2026-07-30T18:01:02.850Z]
 Passes the lock verification's uncomputableTypeCoverage list into the type-visibility report it assembles, so the whole-run yg check summary can tell a type-covered file whose rules an aspect implies cycle stopped from being resolved at all apart from one whose type genuinely attaches nothing — a distinction the per-file surfaces (yg owner, yg context --file) already made, but the whole-run surface did not.
+## [2026-07-31T18:00:25.790Z]
+The live relation pass's path resolver is now built from an owner index already guarded against this graph's exclusion set, rather than a raw one — a Go or Java package import's representative-file lookup could otherwise land on the one excluded file inside an otherwise ordinary package and silently drop a cross-node dependency that is legitimately reachable through the package's other, non-excluded files.

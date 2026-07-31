@@ -6,10 +6,17 @@ import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { classifyFile } from '../core/type-classifier.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import { renderTrace } from '../formatters/predicate-trace.js';
-import { loadRootGitignoreStack, isIgnoredByStack } from '../io/repo-scanner.js';
+import {
+  loadRootGitignoreStack,
+  isIgnoredByStack,
+  resolveGraphExclusionSet,
+  isExcludedFromGraph,
+  NO_COVERAGE_EXCLUDED,
+} from '../io/repo-scanner.js';
 import { projectRootFromGraph, resolveFileArg } from '../io/paths.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { toPosixPath } from '../utils/posix.js';
+import { buildIssueMessage } from '../formatters/message-builder.js';
 
 /**
  * Core logic for `yg type-suggest --file <path>`.
@@ -26,6 +33,28 @@ export async function typeSuggestCommand(file: string, projectRoot: string): Pro
     process.stdout.write(
       `\nThis path is inside .yggdrasil/ — auto-exempt from classification.\n` +
         `Type matching does not apply here.\n\n`,
+    );
+    return;
+  }
+
+  // A path the one supreme exclusion filter cuts — a separate project's own
+  // boundary (a nested .yggdrasil/ graph, or its own .git), or a
+  // coverage.excluded root an adopter configured — is never a classification
+  // candidate either, exactly like every other ownership/coverage command
+  // already answers for the same path (`yg owner --file`, `yg context --file`,
+  // `yg impact --file`, `yg aspect-test --file`). Without this, --file would be
+  // the one command left disagreeing: it would classify the path, and on an
+  // architecture with overlapping `when` predicates, send the adopter to
+  // resolve an overlap `yg check` never reports and that has no consequence
+  // for a path nothing enforces.
+  const exclusion = await resolveGraphExclusionSet(repoRoot, graph.config.coverage ?? NO_COVERAGE_EXCLUDED);
+  if (isExcludedFromGraph(repoRelPath, exclusion)) {
+    process.stdout.write(
+      buildIssueMessage({
+        what: `${repoRelPath} is excluded from graph coverage by design.`,
+        why: `This path sits inside a separate project's own boundary (a nested .yggdrasil/ graph, or its own .git — a checkout, submodule, or worktree), or matches a coverage.excluded root, so no architecture type is ever matched against it.`,
+        next: `No action needed.`,
+      }) + '\n',
     );
     return;
   }
