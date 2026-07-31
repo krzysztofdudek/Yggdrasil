@@ -1,5 +1,5 @@
 import { readFile, readdir } from 'node:fs/promises';
-import { lstatSync } from 'node:fs';
+import { lstatSync, type Dirent } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join, relative, resolve, sep } from 'node:path';
 import { createRequire } from 'node:module';
@@ -160,12 +160,17 @@ export function filterOutsideNestedProjectRoots(
 // directory below the mapping root that is:
 //   - its own `.yggdrasil/` graph (a directory named `.yggdrasil` that
 //     contains at least one file, anywhere inside it), or
-//   - its own git boundary: a `.git` entry directly inside it, in EITHER form
-//     (a directory — a fully independent nested checkout — or a FILE, the
-//     `gitdir: ...` pointer a git submodule or a linked `git worktree`
-//     leaves behind). Presence alone is the signal; unlike `.yggdrasil`,
-//     there is no "must contain a file" nuance — `.git`'s mere existence is
-//     already the signal git itself uses to recognize a repository root.
+//   - its own git boundary: a `.git` entry directly inside it that git ITSELF
+//     would recognize as one, in EITHER form — a directory containing at
+//     least one file anywhere inside it (a fully independent nested checkout;
+//     a real `git init` always populates HEAD/config/objects/refs, so a
+//     directory named `.git` with nothing inside it is not a real one), or a
+//     FILE whose content parses as the `gitdir: <path>` pointer a git
+//     submodule or a linked `git worktree` leaves behind (git calls anything
+//     else — empty, garbage, missing the `gitdir:` prefix — an "invalid
+//     gitfile format" and refuses to treat it as a repository). Both forms
+//     follow the SAME "must carry real content" rule `.yggdrasil` follows —
+//     mere presence of a path segment named `.git` is never enough on its own.
 // Nothing else is a boundary: a dependency directory (`node_modules`,
 // `vendor`, or any other name) is ordinary — guessing names on an adopter's
 // behalf produces surprises the moment real code lives there, and an
@@ -249,9 +254,11 @@ async function walkForNestedProjectRoots(
   }
 
   if (dir !== root) {
-    const gitBoundary = entries.some((e) => e.name === '.git');
     const yggMarker = entries.find((e) => e.isDirectory() && e.name === YGGDRASIL_DIRNAME);
-    const yggBoundary = yggMarker !== undefined && (await directoryHasAnyFile(join(dir, yggMarker.name)));
+    const [gitBoundary, yggBoundary] = await Promise.all([
+      isGitBoundary(dir, entries),
+      yggMarker !== undefined ? directoryHasAnyFile(join(dir, yggMarker.name)) : Promise.resolve(false),
+    ]);
     if (gitBoundary || yggBoundary) {
       roots.add(relative(root, dir).split(sep).join('/'));
       return; // the whole subtree belongs to a separate project — nothing deeper matters
@@ -282,6 +289,46 @@ async function walkForNestedProjectRoots(
     subdirs.push(absPath);
   }
   await Promise.all(subdirs.map((d) => walkForNestedProjectRoots(d, root, localStack, roots)));
+}
+
+/**
+ * True iff `content` is a valid git "gitfile" pointer — the ONLY form git itself
+ * recognizes a `.git` FILE as a repository reference (see git's own
+ * `read_gitfile_gently`): a single `gitdir: <path>` line with a non-empty path.
+ * Anything else — empty, garbage text, or missing the `gitdir:` prefix — is what
+ * git calls an "invalid gitfile format" and never treats as a repository.
+ */
+function isGitdirPointerContent(content: string): boolean {
+  return /^gitdir:\s*\S/.test(content.replace(/[\r\n]+$/, ''));
+}
+
+/**
+ * True iff `dir` carries a `.git` marker git itself would actually recognize as
+ * a repository boundary, in either of the two forms `.git` can take:
+ *   - a DIRECTORY containing at least one file anywhere inside it (mirrors
+ *     `.yggdrasil`'s own `directoryHasAnyFile` rule — a real `git init` always
+ *     populates HEAD/config/objects/refs, so a `.git` directory with nothing
+ *     inside it is not a real checkout);
+ *   - a FILE whose content parses as the `gitdir: <path>` pointer format (a
+ *     submodule or a linked worktree).
+ * A symlink (or any other exotic dirent type) named `.git` is neither form and
+ * is never a boundary — matching the pre-existing, unrelated fact that a
+ * symlinked subtree is never walked into by this scanner in the first place.
+ */
+async function isGitBoundary(dir: string, entries: Dirent[]): Promise<boolean> {
+  const gitEntry = entries.find((e) => e.name === '.git');
+  if (!gitEntry) return false;
+  const gitPath = join(dir, '.git');
+  if (gitEntry.isDirectory()) return directoryHasAnyFile(gitPath);
+  if (gitEntry.isFile()) {
+    try {
+      return isGitdirPointerContent(await readFile(gitPath, 'utf-8'));
+    } catch (err) {
+      debugWrite(`[repo-scanner] findNestedProjectRoots: .git file unreadable at ${gitPath}: ${(err as Error).message}`);
+      return false;
+    }
+  }
+  return false;
 }
 
 /** True iff `dirPath` contains at least one regular file, at any depth. Short-circuits on the first hit. */

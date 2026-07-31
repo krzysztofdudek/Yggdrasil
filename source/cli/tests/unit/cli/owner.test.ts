@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { mkdtemp, cp, rm } from 'node:fs/promises';
+import { mkdtemp, cp, rm, mkdir, writeFile } from 'node:fs/promises';
 import { Command } from 'commander';
 import { findOwner } from '../../../src/cli/owner.js';
 import type { Graph } from '../../../src/model/graph.js';
@@ -145,6 +145,70 @@ describe('owner command', () => {
       );
       expect(result.status).toBe(0);
       expect(result.stdout).toMatch(/src\/checkout\/checkout\.controller\.ts -> checkout\/controller/);
+    });
+  });
+});
+
+describe('owner — a file inside a nested project is never reported as owned', () => {
+  async function plantVendoredNode(cwd: string): Promise<void> {
+    await mkdir(path.join(cwd, '.yggdrasil', 'model', 'vendored'), { recursive: true });
+    await writeFile(
+      path.join(cwd, '.yggdrasil', 'model', 'vendored', 'yg-node.yaml'),
+      'name: Vendored\ndescription: x\ntype: service\nmapping:\n  - src/vendored\n',
+    );
+    // A vendored dependency checked out inside the mapped directory, with its
+    // own real `.git`. Its file is real, on-disk content — just not this
+    // node's, or any node's, to enforce.
+    await mkdir(path.join(cwd, 'src', 'vendored', 'dep', '.git'), { recursive: true });
+    await writeFile(path.join(cwd, 'src', 'vendored', 'dep', '.git', 'HEAD'), 'ref: refs/heads/main\n');
+    await writeFile(path.join(cwd, 'src', 'vendored', 'dep', 'foreign.ts'), 'export const foreign = 1;\n');
+    await writeFile(path.join(cwd, 'src', 'vendored', 'own.ts'), 'export const own = 1;\n');
+  }
+
+  it('reports "no graph coverage" for the nested file, not the node whose directory contains it', async () => {
+    await withFixtureCopy(async (cwd) => {
+      await plantVendoredNode(cwd);
+      const result = spawnSync(
+        'node',
+        [BIN_PATH, 'owner', '--file', 'src/vendored/dep/foreign.ts'],
+        { cwd, encoding: 'utf-8' },
+      );
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain('no graph coverage');
+      expect(result.stdout).not.toContain('-> vendored\n');
+    });
+  });
+
+  it('control: the node\'s own (non-nested) file is still reported as owned', async () => {
+    await withFixtureCopy(async (cwd) => {
+      await plantVendoredNode(cwd);
+      const result = spawnSync(
+        'node',
+        [BIN_PATH, 'owner', '--file', 'src/vendored/own.ts'],
+        { cwd, encoding: 'utf-8' },
+      );
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain('-> vendored\n');
+    });
+  });
+
+  it('a mapping entry that NAMES a nested file exactly is still reported as owned — that override only ever applies to a directory or glob entry that swept the file in', async () => {
+    await withFixtureCopy(async (cwd) => {
+      await mkdir(path.join(cwd, '.yggdrasil', 'model', 'named'), { recursive: true });
+      await writeFile(
+        path.join(cwd, '.yggdrasil', 'model', 'named', 'yg-node.yaml'),
+        'name: Named\ndescription: x\ntype: service\nmapping:\n  - src/named/dep/claimed.ts\n',
+      );
+      await mkdir(path.join(cwd, 'src', 'named', 'dep', '.git'), { recursive: true });
+      await writeFile(path.join(cwd, 'src', 'named', 'dep', '.git', 'HEAD'), 'ref: refs/heads/main\n');
+      await writeFile(path.join(cwd, 'src', 'named', 'dep', 'claimed.ts'), 'export const claimed = 1;\n');
+      const result = spawnSync(
+        'node',
+        [BIN_PATH, 'owner', '--file', 'src/named/dep/claimed.ts'],
+        { cwd, encoding: 'utf-8' },
+      );
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain('-> named\n');
     });
   });
 });

@@ -383,6 +383,38 @@ describe.skipIf(!distExists)('CLI E2E — query and navigation', () => {
     expect(stderr).not.toContain('excluded from graph coverage by design');
   });
 
+  it('yg context --file on a file inside a nested project is excluded by design (exit 0), never "must satisfy" the containing node\'s rules', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-ctx-nested-'));
+    try {
+      cpSync(FIXTURE, dir, { recursive: true });
+      mkdirSync(path.join(dir, '.yggdrasil', 'model', 'vendored'), { recursive: true });
+      writeFileSync(
+        path.join(dir, '.yggdrasil', 'model', 'vendored', 'yg-node.yaml'),
+        'name: Vendored\ndescription: x\ntype: service\nmapping:\n  - src/vendored\n',
+        'utf-8',
+      );
+      // A vendored dependency checked out inside the mapped directory, with its
+      // own real `.git` — a separate project's own boundary, not this node's.
+      mkdirSync(path.join(dir, 'src', 'vendored', 'dep', '.git'), { recursive: true });
+      writeFileSync(path.join(dir, 'src', 'vendored', 'dep', '.git', 'HEAD'), 'ref: refs/heads/main\n', 'utf-8');
+      writeFileSync(path.join(dir, 'src', 'vendored', 'dep', 'foreign.ts'), 'export const foreign = 1;\n', 'utf-8');
+      writeFileSync(path.join(dir, 'src', 'vendored', 'own.ts'), 'export const own = 1;\n', 'utf-8');
+
+      const { status, stdout } = run(['context', '--file', 'src/vendored/dep/foreign.ts'], dir);
+      expect(status).toBe(0);
+      expect(stdout).toContain('excluded from graph coverage by design');
+      expect(stdout).not.toContain('Must satisfy');
+      expect(stdout).not.toContain('vendored (service)');
+
+      // Control: the node's own (non-nested) file is still governed normally.
+      const own = run(['context', '--file', 'src/vendored/own.ts'], dir);
+      expect(own.status).toBe(0);
+      expect(own.stdout).toContain('Owner: vendored (service)');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('yg context without .yggdrasil returns exit 1', () => {
     const emptyDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-ctx-no-ygg-'));
     try {

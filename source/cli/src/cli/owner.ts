@@ -10,7 +10,7 @@ import type { Graph, OwnerResult } from '../model/graph.js';
 import { normalizeProjectRelativePath, projectRootFromGraph, resolveFileArg } from '../io/paths.js';
 import { toPosixPath } from '../utils/posix.js';
 import { buildOwnerIndex } from '../relations/owner-index.js';
-import { isCoverageExcludedPath } from '../io/repo-scanner.js';
+import { isCoverageExcludedPath, findNestedProjectRoots, isUnderAnyNestedProjectRoot } from '../io/repo-scanner.js';
 import { classifySingleFile } from '../core/type-coverage.js';
 import { isExcludedByCoverage } from '../core/check-coverage-tiers.js';
 import { FileContentCache } from '../io/file-content-cache.js';
@@ -34,6 +34,43 @@ export function findOwner(graph: Graph, projectRoot: string, rawPath: string): O
   if (!entry) return { file, nodePath: null };
 
   return { file, nodePath: entry.nodePath, mappingPath: entry.mapping, direct: entry.kind !== 'directory' };
+}
+
+/**
+ * `findOwner`, then override its verdict when the resolved file sits inside a
+ * separate project's own boundary (a nested `.yggdrasil/` graph, or a nested
+ * `.git` checkout/submodule/worktree) — but ONLY when the winning mapping
+ * entry SWEPT the file in ('directory' or 'glob' kind), never when an entry
+ * NAMES the file exactly ('exact' kind). `findOwner` matches mapping TEXT
+ * only — it has no filesystem awareness — so a directory or glob mapping's
+ * entry can textually "own" a file that `expandMappingPathsWithinOwnGraph`
+ * (the guard every enforcement, billing, and read-allowance path already
+ * applies for that same sweep case) would never hand the node. An EXACT entry
+ * is a different question: the node's own explicit, deliberate ownership
+ * claim over that one path, never a recursive sweep it never specifically
+ * named — whether an exact entry naming a path inside a nested project is
+ * itself a valid mapping is `file-mapping-nested-project`'s own question
+ * (core/checks/mapping.ts), not this command's, so it is left untouched here.
+ * For a swept file, reports it as having no owner, same as a genuinely
+ * unmapped one: `yg owner --file` / `yg context --file` go on to say so
+ * honestly ("no graph coverage" / "excluded from graph coverage by design"),
+ * instead of naming a node whose rules never actually run against it.
+ *
+ * Used by the two file-ownership commands (`yg owner`, `yg context --file`).
+ * `findOwner` itself stays the pure, synchronous, text-only resolver it always
+ * was — `yg which` and `aspect-test.ts`'s ownership pre-check call it directly
+ * and are unaffected by this wrapper.
+ */
+export async function findOwnerWithinOwnGraph(graph: Graph, projectRoot: string, rawPath: string): Promise<OwnerResult> {
+  const result = findOwner(graph, projectRoot, rawPath);
+  if (!result.nodePath) return result;
+  const entry = buildOwnerIndex(graph.nodes).ownerEntryOf(result.file);
+  if (entry?.kind === 'exact') return result;
+  const nestedProjectRoots = await findNestedProjectRoots(projectRoot);
+  if (isUnderAnyNestedProjectRoot(result.file, nestedProjectRoots)) {
+    return { file: result.file, nodePath: null };
+  }
+  return result;
 }
 
 export function registerOwnerCommand(program: Command): void {
@@ -61,7 +98,7 @@ export function registerOwnerCommand(program: Command): void {
         initDebugLog(graph.rootPath, graph.config.debug ?? false, appendToDebugLog);
         const repoRoot = projectRootFromGraph(graph.rootPath);
         const repoRelative = resolveFileArg(repoRoot, options.file);
-        const result = findOwner(graph, repoRoot, repoRelative);
+        const result = await findOwnerWithinOwnGraph(graph, repoRoot, repoRelative);
 
         if (!result.nodePath) {
           // Distinguish "file doesn't exist" from "file exists but not mapped"

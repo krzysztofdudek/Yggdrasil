@@ -2,10 +2,10 @@ import path from 'node:path';
 import type { Graph } from '../../model/graph.js';
 import type { ValidationIssue } from '../../model/validation.js';
 import { normalizeMappingPaths } from '../../io/paths.js';
-import { expandMappingPaths } from '../../io/hash.js';
+import { expandMappingPaths, expandMappingPathsWithinOwnGraph } from '../../io/hash.js';
 import { mappingEntryMatchesFile, isGlobPattern, normalizeMappingPath } from '../../utils/mapping-path.js';
 import { buildOwnerIndex } from '../../relations/owner-index.js';
-import { readSortedDir, statPath, fileAccess } from '../../io/graph-fs.js';
+import { readSortedDir, statPath } from '../../io/graph-fs.js';
 import { walkRepoFiles, isCoverageExcludedPath, findNestedProjectRoots, isUnderAnyNestedProjectRoot } from '../../io/repo-scanner.js';
 import { FileContentCache } from '../../io/file-content-cache.js';
 import { evaluateFileWhen } from '../file-when-evaluator.js';
@@ -361,9 +361,26 @@ export async function checkMappingPathsExist(graph: Graph): Promise<ValidationIs
   const projectRoot = path.dirname(graph.rootPath);
   for (const [nodePath, node] of graph.nodes) {
     const mappingPaths = normalizeMappingPaths(node.meta.mapping).map(normalizePathForCompare);
+    // Sweep entries only — a glob, or a plain entry that resolves to a
+    // DIRECTORY on disk (recursed into, so it can contain files the entry
+    // itself never named). An entry that resolves to a single, exact FILE is
+    // the node's own explicit, deliberate ownership claim over that one path —
+    // a different question from a directory or glob entry sweeping in files it
+    // never specifically named, so it is excluded from the aggregate,
+    // whole-mapping check below (whether that single claim is itself valid is
+    // a separate, unrelated check's territory).
+    const sweepEntries: string[] = [];
     for (const mp of mappingPaths) {
       if (isGlobPattern(mp)) {
-        // For glob entries: verify that at least one file matches.
+        sweepEntries.push(mp);
+        // Deliberately the NEUTRAL expandMappingPaths, not the nested-project-
+        // guarded expandMappingPathsWithinOwnGraph: this question is "does the
+        // glob resolve to real content on disk at all" (a stale/typo'd pattern),
+        // independent of WHOSE project that content belongs to. A glob that
+        // matches only a separate project's files is not stale — those files
+        // are real — so it must stay silent here; the aggregate, whole-mapping
+        // check below (using the guarded expansion) is what catches a mapping
+        // that has been entirely swallowed by a separate project's boundary.
         const matched = await expandMappingPaths(projectRoot, [mp]);
         if (matched.length === 0) {
           issues.push({
@@ -380,8 +397,9 @@ export async function checkMappingPathsExist(graph: Graph): Promise<ValidationIs
         }
       } else {
         const absPath = path.join(projectRoot, mp);
+        let st;
         try {
-          await fileAccess(absPath);
+          st = await statPath(absPath);
         } catch {
           issues.push({
             severity: 'error',
@@ -394,7 +412,43 @@ export async function checkMappingPathsExist(graph: Graph): Promise<ValidationIs
             }),
             nodePath,
           });
+          continue;
         }
+        if (st.isDirectory()) sweepEntries.push(mp);
+      }
+    }
+
+    // Aggregate, whole-mapping check: do this node's SWEEP entries — taken
+    // together, not entry by entry — resolve to anything THIS node can
+    // actually enforce? A directory or glob entry can resolve to real, on-disk
+    // content (so the per-entry checks above stay silent) while EVERY one of
+    // those files sits inside a separate project's own boundary — a nested
+    // `.yggdrasil/` graph, or a nested `.git` checkout/submodule/worktree.
+    // Left unreported, that node would pass `yg check` with a non-empty
+    // `mapping:` and zero enforceable files: the same "resolves to nothing
+    // usable" fact mapping-path-missing already reports for a stale glob or a
+    // deleted file, just reached through a different cause, so it reuses the
+    // same code rather than announcing the separate project by name (a skip
+    // stays silent; a first-party node losing its whole enforcement surface
+    // does not). An exact-file entry is never part of this computation — see
+    // the sweepEntries comment above.
+    if (sweepEntries.length > 0) {
+      const [unguardedWhole, guardedWhole] = await Promise.all([
+        expandMappingPaths(projectRoot, sweepEntries),
+        expandMappingPathsWithinOwnGraph(projectRoot, sweepEntries),
+      ]);
+      if (unguardedWhole.length > 0 && guardedWhole.length === 0) {
+        issues.push({
+          severity: 'error',
+          code: 'mapping-path-missing',
+          rule: 'mapping-path-missing',
+          ...issueMsg({
+            what: `Mapping (${sweepEntries.join(', ')}) resolves only to files inside a separate project's own boundary; none are left for this node to enforce.`,
+            why: `Every file this mapping resolved to is governed by that separate project rather than this one, so this node's rules have nothing left to apply to.`,
+            next: `Either:\n  1. Remove this mapping (nothing here belongs to this node).\n  2. Point the mapping at files this project actually owns.`,
+          }),
+          nodePath,
+        });
       }
     }
   }

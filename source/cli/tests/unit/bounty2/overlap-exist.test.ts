@@ -559,6 +559,84 @@ describe('checkMappingPathsExist — plain entries', () => {
 });
 
 // =============================================================================
+// checkMappingPathsExist — a node's WHOLE mapping resolves only into a
+// separate project's own boundary.
+//
+// A directory (or glob) mapping's per-entry existence check above answers "did
+// this entry resolve to real content on disk" — a nested project's files are
+// real content, so that check alone stays silent (correctly: the entry is not
+// stale). But once every file that content resolved to belongs to a separate
+// project (a nested `.yggdrasil/` graph, or a nested `.git` checkout/submodule/
+// worktree), the node's enforcement-side expansion is empty: it has lost its
+// entire enforcement surface with nothing anywhere saying so — `yg check`
+// would PASS a node with real, non-empty `mapping:` and zero files to show for
+// it. Reuses `mapping-path-missing`: the file is exactly the same shape the
+// adopter already knows how to read ("this mapping resolves to nothing I can
+// enforce"), just for a different underlying reason.
+// =============================================================================
+describe('checkMappingPathsExist — mapping fully swallowed by a nested project', () => {
+  it('a directory mapping whose entire content is a nested project -> mapping-path-missing', async () => {
+    const { projectRoot, yggRoot } = await makeProject();
+    await writeFileEnsuringDir(
+      path.join(projectRoot, 'services/vendorlib/.yggdrasil/yg-config.yaml'),
+      'version: "5.2.0"\n',
+    );
+    await writeFileEnsuringDir(path.join(projectRoot, 'services/vendorlib/lib.py'), 'def lib(): return 1\n');
+    const graph = buildGraph(yggRoot, [{ path: 'svc', mapping: ['services'] }]);
+    const issues = await checkMappingPathsExist(graph);
+    const m = missing(issues);
+    expect(m).toHaveLength(1);
+    expect(m[0].nodePath).toBe('svc');
+    expect(m[0].messageData.what).toContain('services');
+  });
+
+  it('a mixed mapping (real own files + a nested project) is NOT reported missing', async () => {
+    const { projectRoot, yggRoot } = await makeProject();
+    await writeFileEnsuringDir(path.join(projectRoot, 'services/alpha.py'), 'def alpha(): return 1\n');
+    await writeFileEnsuringDir(
+      path.join(projectRoot, 'services/vendorlib/.yggdrasil/yg-config.yaml'),
+      'version: "5.2.0"\n',
+    );
+    await writeFileEnsuringDir(path.join(projectRoot, 'services/vendorlib/lib.py'), 'def lib(): return 1\n');
+    const graph = buildGraph(yggRoot, [{ path: 'svc', mapping: ['services'] }]);
+    const issues = await checkMappingPathsExist(graph);
+    expect(missing(issues)).toHaveLength(0);
+  });
+
+  it('an ordinary directory mapping with no nested project is NOT reported missing (control)', async () => {
+    const { projectRoot, yggRoot } = await makeProject();
+    await writeFileEnsuringDir(path.join(projectRoot, 'services/alpha.py'), 'def alpha(): return 1\n');
+    const graph = buildGraph(yggRoot, [{ path: 'svc', mapping: ['services'] }]);
+    const issues = await checkMappingPathsExist(graph);
+    expect(missing(issues)).toHaveLength(0);
+  });
+
+  it('a directory that does not exist at all still reports exactly ONE mapping-path-missing (no double report)', async () => {
+    const { yggRoot } = await makeProject();
+    const graph = buildGraph(yggRoot, [{ path: 'svc', mapping: ['services'] }]); // services/ never created
+    const issues = await checkMappingPathsExist(graph);
+    expect(missing(issues)).toHaveLength(1);
+  });
+
+  it('a mapping entry that NAMES a nested file exactly is never folded into the aggregate check — that is a different, unrelated question', async () => {
+    // An exact-file entry is excluded from the aggregate computation entirely
+    // (see sweepEntries in the implementation): it is the node's own explicit,
+    // deliberate ownership claim over that one path, never a directory or glob
+    // sweeping in files it never specifically named. This mapping has NO
+    // sweep entry at all, so the aggregate check has nothing to compute over.
+    const { projectRoot, yggRoot } = await makeProject();
+    await writeFileEnsuringDir(
+      path.join(projectRoot, 'services/vendorlib/.yggdrasil/yg-config.yaml'),
+      'version: "5.2.0"\n',
+    );
+    await writeFileEnsuringDir(path.join(projectRoot, 'services/vendorlib/named.py'), 'def named(): return 1\n');
+    const graph = buildGraph(yggRoot, [{ path: 'svc', mapping: ['services/vendorlib/named.py'] }]);
+    const issues = await checkMappingPathsExist(graph);
+    expect(missing(issues)).toHaveLength(0);
+  });
+});
+
+// =============================================================================
 // E2E — the glob overlap path AND the missing-path path through `yg check`.
 // =============================================================================
 

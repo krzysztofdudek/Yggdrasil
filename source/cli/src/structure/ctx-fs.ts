@@ -80,8 +80,21 @@ function isAllowed(p: string, set: Set<string>): boolean {
  * lexical check already proved it is textually in-repo, and the read will fail
  * naturally — so only existing ancestors are probed. `projectRoot` itself may sit
  * under a symlink (e.g. /tmp → /private/tmp), so both sides are canonicalized.
+ *
+ * The SAME symlink also defeats the nested-project check above (line 128 in
+ * resolveAllowedReadPath), which inspects only `rel` — the TEXTUAL, pre-symlink
+ * path — for the same reason it defeats the repo-containment check: an ordinary
+ * symlink inside an allowed directory can point INTO a separate project's own
+ * boundary just as easily as it can point outside the repo entirely. Re-running
+ * `isUnderAnyNestedProjectRoot` against the REAL path here closes that gap in the
+ * same place, and for the same reason, the repo-escape re-check already lives.
  */
-function assertRealpathContained(abs: string, projectRoot: string, rel: string): void {
+function assertRealpathContained(
+  abs: string,
+  projectRoot: string,
+  rel: string,
+  nestedProjectRoots: ReadonlySet<string>,
+): void {
   let realRoot: string;
   try { realRoot = fs.realpathSync(projectRoot); } catch { realRoot = projectRoot; }
   let probe = abs;
@@ -94,6 +107,9 @@ function assertRealpathContained(abs: string, projectRoot: string, rel: string):
   try { realProbe = fs.realpathSync(probe); } catch { return; }
   const relReal = toPosix(path.relative(realRoot, realProbe));
   if (relReal === '..' || relReal.startsWith('../') || path.isAbsolute(relReal)) {
+    throw new UndeclaredFsReadError(rel);
+  }
+  if (isUnderAnyNestedProjectRoot(relReal, nestedProjectRoots)) {
     throw new UndeclaredFsReadError(rel);
   }
 }
@@ -128,8 +144,9 @@ export function resolveAllowedReadPath(
   if (isUnderAnyNestedProjectRoot(rel, nestedProjectRoots)) throw new UndeclaredFsReadError(rel);
   if (!isAllowed(rel, allowedSet)) throw new UndeclaredFsReadError(rel);
   // Symlink-escape defense: the textual path is in-repo and allow-listed, but a
-  // symlink could still redirect the real read outside the repo. Reject if so.
-  assertRealpathContained(abs, projectRoot, rel);
+  // symlink could still redirect the real read outside the repo — or into a
+  // separate project's own boundary. Reject either.
+  assertRealpathContained(abs, projectRoot, rel, nestedProjectRoots);
   return rel;
 }
 

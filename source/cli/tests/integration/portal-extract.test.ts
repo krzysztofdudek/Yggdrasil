@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { mkdtempSync, cpSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { loadGraph } from '../../src/core/graph-loader.js';
 import { runCheck, type CheckResult } from '../../src/core/check.js';
 import { computeExpectedPairs, type ExpectedPair } from '../../src/core/pairs.js';
@@ -369,5 +371,43 @@ describe('buildCounts — pair-state bucketing over every kind (the honesty swit
     // pairs alternate llm/det across 6 synthetic pairs → 3 llm, 3 det.
     expect(counts.pairsLLM).toBe(3);
     expect(counts.pairsDet).toBe(3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The nested-project boundary cache must be re-read on every extraction, not
+// carried over from an earlier one in the same long-lived `yg portal` process.
+// `extractPortalData` calls `resetNestedProjectRootsCache()` at the top of
+// every run for exactly this reason (io/repo-scanner.ts). Proven here by
+// calling it TWICE against the SAME on-disk project root within one test
+// process — the shape a real portal server refresh takes — with a separate
+// project appearing on disk between the two calls. Without the reset, the
+// second call would silently reuse the first call's (now-stale) empty
+// boundary set and count the newly-appeared separate project's file as this
+// graph's own.
+// ---------------------------------------------------------------------------
+describe('extractPortalData re-reads the nested-project boundary on every call (portal refresh)', () => {
+  const FIXTURE_ROOT = path.resolve(__dirname, '../fixtures/portal-basic');
+
+  it('a separate project appearing between two extractions is excluded on the SECOND call too', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-portal-extract-nested-'));
+    cpSync(FIXTURE_ROOT, dir, { recursive: true });
+    try {
+      const before = await extractPortalData(dir, { writeEnabled: false });
+
+      // A separate project appears on disk — a real, independent `.git` checkout
+      // — with one ordinary source file inside it. Its subtree must never be
+      // walked in as this graph's own source.
+      mkdirSync(path.join(dir, 'vendored-dep', '.git'), { recursive: true });
+      writeFileSync(path.join(dir, 'vendored-dep', '.git', 'HEAD'), 'ref: refs/heads/main\n', 'utf-8');
+      writeFileSync(path.join(dir, 'vendored-dep', 'extra.ts'), 'export const extra = 1;\n', 'utf-8');
+
+      const after = await extractPortalData(dir, { writeEnabled: false });
+
+      expect(after.meta.counts.totalFiles).toBe(before.meta.counts.totalFiles);
+      expect(after.meta.counts.coveredFiles).toBe(before.meta.counts.coveredFiles);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

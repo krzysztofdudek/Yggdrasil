@@ -280,6 +280,88 @@ describe('checkTypeWhenMismatch', () => {
     }
   });
 
+  it('never evaluates a file inside a nested project against the type when predicate, even one that would mismatch', async () => {
+    // A directory mapping recurses into a vendored sub-project's files too, but
+    // those files are governed by their OWN graph, not this node's type contract.
+    // Without the guard, the foreign file's content (which never satisfies this
+    // node's `when`) would wrongly block `yg check` with a `type-when-mismatch`
+    // attributed to the first-party node whose directory happens to contain it.
+    const tmpDir = path.join(CLI_ROOT, '.temp-test-when-mismatch-nested');
+    try {
+      const yggDir = path.join(tmpDir, '.yggdrasil');
+      await mkdir(path.join(yggDir, 'model', 'svc'), { recursive: true });
+      await mkdir(path.join(tmpDir, 'services'), { recursive: true });
+      await writeFile(path.join(tmpDir, 'services', 'handler.ts'), '@Injectable()\nexport class SvcService {}');
+      await mkdir(path.join(tmpDir, 'services', 'vendorlib', '.yggdrasil'), { recursive: true });
+      await writeFile(path.join(tmpDir, 'services', 'vendorlib', '.yggdrasil', 'yg-config.yaml'), 'version: "5.2.0"\n');
+      // No `@Injectable` here — would mismatch the type's when if ever evaluated.
+      await writeFile(path.join(tmpDir, 'services', 'vendorlib', 'other.ts'), 'export const other = 1;\n');
+      await writeFile(path.join(yggDir, 'yg-config.yaml'), 'version: "5.2.0"\n');
+      await writeFile(path.join(yggDir, 'yg-architecture.yaml'), [
+        'node_types:',
+        '  service:',
+        '    description: Service',
+        '    when:',
+        '      content: "@Injectable"',
+      ].join('\n'));
+      await writeFile(path.join(yggDir, 'model', 'svc', 'yg-node.yaml'), [
+        'name: svc',
+        'type: service',
+        'description: x',
+        'mapping:',
+        '  - services',
+      ].join('\n'));
+      const graph = await loadGraph(tmpDir);
+      const result = await validate(graph);
+      expect(result.issues.find((i) => i.code === 'type-when-mismatch')).toBeUndefined();
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('DOES evaluate a mapping entry that names a path inside a nested project EXACTLY — the nested-project boundary only ever applies to a directory or glob entry sweeping in files it never specifically named', async () => {
+    // A mapping entry naming one file, literally, is the node's own explicit
+    // ownership claim over that single path — a different question from a
+    // directory or glob entry recursing into files it never named. This check
+    // does not second-guess that claim (whether the entry is itself a VALID
+    // mapping is a separate, unrelated check's territory); it still evaluates
+    // the named file against the type's own `when`, exactly as it would for
+    // any other exact mapping entry.
+    const tmpDir = path.join(CLI_ROOT, '.temp-test-when-mismatch-exact-nested');
+    try {
+      const yggDir = path.join(tmpDir, '.yggdrasil');
+      await mkdir(path.join(yggDir, 'model', 'svc'), { recursive: true });
+      // services/vendorlib IS a separate project's own boundary — the exact
+      // condition the guard above stops a SWEEPING entry at.
+      await mkdir(path.join(tmpDir, 'services', 'vendorlib', '.yggdrasil'), { recursive: true });
+      await writeFile(path.join(tmpDir, 'services', 'vendorlib', '.yggdrasil', 'yg-config.yaml'), 'version: "5.2.0"\n');
+      // No `@Injectable` — this exact entry's own file content mismatches the type.
+      await writeFile(path.join(tmpDir, 'services', 'vendorlib', 'named.ts'), 'export const named = 1;\n');
+      await writeFile(path.join(yggDir, 'yg-config.yaml'), 'version: "5.2.0"\n');
+      await writeFile(path.join(yggDir, 'yg-architecture.yaml'), [
+        'node_types:',
+        '  service:',
+        '    description: Service',
+        '    when:',
+        '      content: "@Injectable"',
+      ].join('\n'));
+      await writeFile(path.join(yggDir, 'model', 'svc', 'yg-node.yaml'), [
+        'name: svc',
+        'type: service',
+        'description: x',
+        'mapping:',
+        '  - services/vendorlib/named.ts',
+      ].join('\n'));
+      const graph = await loadGraph(tmpDir);
+      const result = await validate(graph);
+      const mismatch = result.issues.find((i) => i.code === 'type-when-mismatch');
+      expect(mismatch).toBeDefined();
+      expect(mismatch?.messageData?.what).toContain('services/vendorlib/named.ts');
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
   it('does not emit type-when-mismatch when type has no when predicate', async () => {
     const graph = createGraph({
       architecture: {

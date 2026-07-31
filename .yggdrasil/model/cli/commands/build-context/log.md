@@ -60,3 +60,5 @@ A type-covered file whose matched type could not resolve its rules because of an
 The absorbed-implies-cycle why sentence it prints now comes from a shared helper (type-effective's describeCascadeCycle) instead of an inline copy, so its wording can never drift from yg owner's or yg check's own report of the identical fact. No behavior changes: same detection, same exit code, same message shape.
 ## [2026-07-30T21:01:45.378Z]
 Reworded two comments describing the single-file type classification helper so each explains, in its own words, why the lookup is scoped to one file rather than the whole-repo classification map, instead of leaning on a short internal code with no meaning to a reader of this repository.
+## [2026-07-31T10:21:20.010Z]
+yg context --file resolved ownership through a pure, filesystem-unaware text match against a mapping, so a file inside a separate project own boundary was reported as owned by, and bound to satisfy the rules of, a node that never actually reviews it. It now answers the same way it already does for a .git or .yggdrasil path: excluded from graph coverage by design, nothing to fix.

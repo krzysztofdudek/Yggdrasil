@@ -178,6 +178,92 @@ describe('runRelationPass (integration)', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// A directory mapping's file enumeration must stop at a nested project's own
+// boundary, exactly like every other caller that decides what belongs to this
+// graph (io/hash.ts's expandMappingPathsWithinOwnGraph). A vendored dependency,
+// submodule, or linked worktree checked out inside a mapped directory is not
+// this graph's source: an import inside it must never become an undeclared-
+// dependency refusal attributed to the FIRST-PARTY node whose directory
+// happens to contain it.
+// ---------------------------------------------------------------------------
+describe('runRelationPass stops file enumeration at a nested project boundary', () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = mkdtempSync(path.join(tmpdir(), 'rel-pass-nested-'));
+    mkdirSync(path.join(root, '.yggdrasil', 'model'), { recursive: true });
+    writeFileSync(
+      path.join(root, '.yggdrasil', 'yg-architecture.yaml'),
+      `node_types:\n  service:\n    description: 'unit'\n    log_required: false\n    when:\n      path: "**"\n`,
+      'utf-8',
+    );
+    writeFileSync(
+      path.join(root, '.yggdrasil', 'yg-config.yaml'),
+      `quality:\n  max_direct_relations: 10\n`,
+      'utf-8',
+    );
+    writeNode(root, 'a', 'A', 'src/a');
+    writeNode(root, 'b', 'B', 'src/b');
+    mkdirSync(path.join(root, 'src', 'a'), { recursive: true });
+    mkdirSync(path.join(root, 'src', 'b'), { recursive: true });
+    writeFileSync(path.join(root, 'src', 'a', 'own' + EXT), 'export const own = 1;\n', 'utf-8');
+    writeFileSync(path.join(root, 'src', 'b', 'bar' + EXT), 'export const bar = 2;\n', 'utf-8');
+    // A separate project, checked out inside node a's mapped directory, whose
+    // own file imports node b's file with no declared relation. Its own
+    // `.yggdrasil/` graph makes it a nested project — governed by itself, not
+    // by node a.
+    mkdirSync(path.join(root, 'src', 'a', 'vendorlib', '.yggdrasil'), { recursive: true });
+    writeFileSync(
+      path.join(root, 'src', 'a', 'vendorlib', '.yggdrasil', 'yg-config.yaml'),
+      'version: "5.2.0"\n',
+    );
+    writeFileSync(
+      path.join(root, 'src', 'a', 'vendorlib', 'bad' + EXT),
+      'export const bad = 1;\n',
+      'utf-8',
+    );
+  });
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('never enumerates the nested project\'s file, so its undeclared import never refuses the first-party node', async () => {
+    const graph = await loadGraph(root);
+    const result = await runRelationPass(graph, root, {
+      extractorFor: (language) => (language === 'typescript' ? vendoredStub : undefined),
+      resolvePathToFile: (specifier) =>
+        specifier === '../../b/bar' ? 'src/b/bar' + EXT : undefined,
+      symbolIndexDir: path.join(root, '.yg-cache-vendored'),
+    });
+
+    // The vendored file must never even be READ/hashed by this pass — it is a
+    // separate project's own source, not node a's.
+    expect(result.hashByPath.has('src/a/vendorlib/bad' + EXT)).toBe(false);
+
+    const a = result.violationsByNode.get('a');
+    expect(a === undefined || a.verdict === 'approved').toBe(true);
+    expect(a?.violations ?? []).toHaveLength(0);
+  });
+});
+
+// Stub emitting one import from vendorlib/bad.ts → ../../b/bar (crosses into node b,
+// with no declared relation) — used only by the nested-project-boundary test above.
+const vendoredStub: DependencyExtractor = {
+  languages: new Set(['typescript']),
+  rev: 1,
+  declarations() {
+    return [];
+  },
+  uses(file: ParsedFile): DetectedDep[] {
+    if (file.path.endsWith('src/a/vendorlib/bad' + EXT)) {
+      return [{ candidates: [{ kind: 'path', specifier: '../../b/bar' }], kind: 'import', line: 1 }];
+    }
+    return [];
+  },
+};
+
 // Stub emitting one import from a/foo.ts → ../b/sub/deep (a nested node's file).
 const nestedStub: DependencyExtractor = {
   languages: new Set(['typescript']),

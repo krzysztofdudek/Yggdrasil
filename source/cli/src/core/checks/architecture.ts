@@ -6,6 +6,7 @@ import { evaluateFileWhen } from '../file-when-evaluator.js';
 import { renderTrace } from '../../formatters/predicate-trace.js';
 import { issueMsg } from './shared.js';
 import { expandMappingPaths } from '../../io/hash.js';
+import { findNestedProjectRoots, filterOutsideNestedProjectRoots } from '../../io/repo-scanner.js';
 import { isGlobPattern, mappingEntryMatchesFile } from '../../utils/mapping-path.js';
 import { toPosixPath } from '../../utils/posix.js';
 import { getChildMappingExclusions } from '../pairs.js';
@@ -197,6 +198,19 @@ export async function checkTypeWhenMismatch(
   const issues: ValidationIssue[] = [];
   const unreadable: ValidationIssue[] = [];
   const projectRoot = path.dirname(graph.rootPath);
+  // This check decides whether a node's OWN mapped files satisfy its type's
+  // contract — a blocking judgment about what belongs to THIS graph's
+  // enforcement surface, same as expandMappingPathsWithinOwnGraph's other
+  // callers, but ONLY for a mapping entry that SWEEPS a directory or glob into
+  // this node. A file inside a separate project's own boundary (a nested
+  // `.yggdrasil/` graph, or a nested `.git` checkout/submodule/worktree) that a
+  // directory or glob entry merely happened to recurse into is not this node's
+  // source; evaluating it against the type's `when` would attribute a foreign
+  // file's shape to the first-party node whose directory happens to contain it,
+  // exactly the false `type-when-mismatch` this guard prevents. An entry that
+  // NAMES a single file exactly is a different question this check does not
+  // answer either way — see the per-entry branch below.
+  const nestedProjectRoots = await findNestedProjectRoots(projectRoot);
 
   for (const [nodePath, node] of graph.nodes) {
     const typeDef = graph.architecture.node_types[node.meta.type];
@@ -212,20 +226,38 @@ export async function checkTypeWhenMismatch(
     const mapping = node.meta.mapping ?? [];
     const pathsToCheck: string[] = [];
     for (const entry of mapping) {
-      const expanded = (await expandMappingPaths(projectRoot, [entry])).map(toPosixPath);
+      const normalizedEntry = toPosixPath(entry);
+      const unguarded = (await expandMappingPaths(projectRoot, [entry])).map(toPosixPath);
+      // An entry that resolves to EXACTLY the literal path it names (a plain
+      // file mapping, never a glob) is the node's own explicit, deliberate
+      // ownership claim over that one path — checked as-is, with NO
+      // nested-boundary filter applied. The boundary exists to stop a
+      // DIRECTORY or GLOB entry from sweeping in a foreign project's files it
+      // never specifically named; it is not a second opinion on a literal
+      // mapping entry. Whether an exact entry naming a path inside a nested
+      // project is itself a VALID mapping is file-mapping-nested-project's own
+      // question (checks/mapping.ts), not this check's — this branch only
+      // decides whether the file satisfies the type contract, given that it is
+      // in the mapping at all.
+      if (!isGlobPattern(entry) && unguarded.length === 1 && unguarded[0] === normalizedEntry) {
+        pathsToCheck.push(normalizedEntry);
+        continue;
+      }
+      // Otherwise this entry SWEPT its result set (a glob's matches, or a
+      // directory's contents) — apply the nested-project boundary to it.
+      const expanded = filterOutsideNestedProjectRoots(unguarded, nestedProjectRoots);
       if (expanded.length > 0) {
         pathsToCheck.push(...expanded);
-      } else if (!isGlobPattern(entry)) {
+      } else if (unguarded.length === 0 && !isGlobPattern(entry)) {
         // A non-glob entry that resolves to nothing on disk is a MISSING exact
-        // file. Check it as-is so a content-predicate `when` still reports
-        // file-unreadable on a file it cannot open (expandMappingPaths silently
-        // drops missing paths, which would otherwise swallow that diagnostic).
-        // An empty GLOB, by contrast, legitimately matches no files here — its
-        // empty match is reported by checkMappingPathsExist, so push nothing.
-        // Normalize the raw entry to POSIX form (as the sibling branch does for
-        // expandMappingPaths' output) because it flows on into CLI-facing
-        // diagnostic strings below as `relPath`.
-        pathsToCheck.push(toPosixPath(entry));
+        // file (a directory that does not exist, in this branch — a true
+        // exact-file entry that exists was already handled above). Check it
+        // as-is so a content-predicate `when` still reports file-unreadable on
+        // a file it cannot open (expandMappingPaths silently drops missing
+        // paths, which would otherwise swallow that diagnostic). An empty
+        // GLOB, by contrast, legitimately matches no files here — its empty
+        // match is reported by checkMappingPathsExist, so push nothing.
+        pathsToCheck.push(normalizedEntry);
       }
     }
     // Apply the child-precedence (child-wins) carve-out to the assembled path

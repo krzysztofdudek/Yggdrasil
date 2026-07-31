@@ -9,7 +9,7 @@ import { formatNodeContext } from '../formatters/context-node.js';
 import { formatFileContext } from '../formatters/context-file.js';
 import type { FileContextData, FileContextAspect } from '../formatters/context-file.js';
 import { validate } from '../core/validator.js';
-import { findOwner } from './owner.js';
+import { findOwnerWithinOwnGraph } from './owner.js';
 import { normalizeMappingPaths, projectRootFromGraph, resolveFileArg } from '../io/paths.js';
 import { hashString } from '../io/hash.js';
 import { computeNodeMappedFiles } from '../core/pairs.js';
@@ -17,7 +17,7 @@ import { readTextFile } from '../io/graph-fs.js';
 import { readFeatureFieldEntry } from '../core/feature-index-read.js';
 import { FAMILY_SEP } from '../core/feature-field-schema.js';
 import { getLanguageDisplayName } from '../utils/language-registry.js';
-import { isCoverageExcludedPath, walkRepoFiles } from '../io/repo-scanner.js';
+import { isCoverageExcludedPath, walkRepoFiles, findNestedProjectRoots, isUnderAnyNestedProjectRoot } from '../io/repo-scanner.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
 import { computeExpectedPairs, computeSourceFingerprint, FileUnreadableError } from '../core/pairs.js';
 import type { TypeCoverageInput } from '../core/pairs.js';
@@ -309,18 +309,23 @@ export function registerBuildCommand(program: Command): void {
         if (options.file) {
           const repoRoot = projectRootFromGraph(graph.rootPath);
           const repoRelative = resolveFileArg(repoRoot, options.file);
-          const result = findOwner(graph, repoRoot, repoRelative);
+          const result = await findOwnerWithinOwnGraph(graph, repoRoot, repoRelative);
           const displayFile = toPosixPath(result.file);
           if (!result.nodePath) {
             // A path the coverage scan UNCONDITIONALLY skips (git internals, or
-            // the graph's own .yggdrasil/ tree) can never be enumerated for
-            // coverage — suggesting "add it to a node mapping" would map a file
-            // yg check will never see. Answer "excluded by design" and exit 0:
-            // this is not a coverage gap, so there is genuinely nothing to fix.
-            if (isCoverageExcludedPath(result.file)) {
+            // the graph's own .yggdrasil/ tree), OR one that sits inside a
+            // SEPARATE project's own boundary (a nested `.yggdrasil/` graph, or a
+            // nested `.git` checkout/submodule/worktree — findOwnerWithinOwnGraph
+            // already refused to attribute it to a node above), can never be
+            // enforced by this graph — suggesting "add it to a node mapping"
+            // would map a file yg check will never see, or one this graph does
+            // not own. Answer "excluded by design" and exit 0 either way: this
+            // is not a coverage gap, so there is genuinely nothing to fix.
+            const nestedProjectRoots = await findNestedProjectRoots(repoRoot);
+            if (isCoverageExcludedPath(result.file) || isUnderAnyNestedProjectRoot(result.file, nestedProjectRoots)) {
               const excludedMsg = buildIssueMessage({
                 what: `${displayFile} is excluded from graph coverage by design.`,
-                why: 'This path is never scanned for coverage (git internals / the graph directory itself), so it cannot and need not be mapped to a node.',
+                why: 'This path is never scanned for coverage (git internals / the graph directory itself), or sits inside a separate project\'s own boundary, so it cannot and need not be mapped to a node here.',
                 next: 'No action needed.',
               });
               process.stdout.write(`${excludedMsg}\n`);
