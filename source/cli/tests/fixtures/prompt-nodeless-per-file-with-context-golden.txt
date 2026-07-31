@@ -24,6 +24,19 @@ Respond with EXACTLY this JSON, nothing else:
 rule body
 </aspect>
 
+<references>
+  <reference path="docs/guide.md" description="The canonical helper this rule cites.">
+GUIDE BODY
+  </reference>
+</references>
+
+These are the subject's resolved paired file(s) — read-only context, not the unit under judgment:
+<companions>
+  <companion path="src/helper/h.ts" label="helper">
+COMPANION BODY
+  </companion>
+</companions>
+
 <source-files>
 <file path="src/leaf/a.ts">
 x

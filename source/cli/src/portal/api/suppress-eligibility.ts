@@ -14,14 +14,29 @@ import type { Graph } from '../../model/graph.js';
  * checks, so their marker-shaped text is noise, not a waiver. Exclude them so the
  * inventory lists only genuine code-side waivers.
  *
- * The noise filter applies to UNMAPPED files ONLY. A file that IS a mapped node
- * source is never noise — the reviewer-honoring path raw-scans any mapped
- * grammarless file, so a marker there is a LIVE waiver and MUST be inventoried.
- * Scoping the exclusion to unmapped prose keeps the honoring path and the audit
- * path on ONE eligibility rule, so no file can be a live waiver site while being
+ * The noise filter applies ONLY to a file that is neither of the two ways a real
+ * aspect verdict can land on it. Both exemptions below cover the ENTIRE universe
+ * `computeExpectedPairs` draws pairs from — a mapped node source, or (under
+ * `coverage.type_level`) a file matched by exactly one non-strict architecture
+ * type with no node of its own — so no file that can actually produce a verdict
+ * is ever noise:
+ *  - a mapped node source is never noise — the reviewer-honoring path raw-scans
+ *    any mapped grammarless file, so a marker there is a LIVE waiver.
+ *  - a type-covered file (the type-level classification lattice's `covered`
+ *    bucket — a single non-strict type matched, no node) is never noise either,
+ *    for the identical reason: its type's `per: file` aspects run against it
+ *    exactly as they would against a mapped source, and honor its markers the
+ *    same way. A file the lattice puts in `strictClaimed`, `ambiguous`, or
+ *    `unreadable` is NOT exempted here — each of those is a blocking
+ *    architecture ERROR (type-strict-orphan/misplaced, ambiguous-node-type,
+ *    file-unreadable) that stops any aspect from ever running there, so a
+ *    marker on such a file (unless it is separately a mapped source) waives
+ *    nothing and stays correctly excluded as noise.
+ * Scoping the exclusion this way keeps the honoring path and the audit path on
+ * ONE eligibility rule, so no file can be a live waiver site while being
  * invisible to `yg suppressions`.
  *
- * Excluded (only when NOT a mapped source):
+ * Excluded (only when NOT a mapped source and NOT a type-covered file):
  *  - everything under `.yggdrasil/` — the graph's per-node `log.md`, aspect
  *    `content.md`, and `yg-node.yaml` examples. (A meta-modeling doc mapped
  *    under `.yggdrasil/` is a mapped source, so it is exempt from this
@@ -100,4 +115,29 @@ export function collectMappingEntries(graph: Graph): string[] {
 export function isMappedSource(relFile: string, mappingEntries: string[]): boolean {
   const p = toPosixPath(relFile);
   return mappingEntries.some((entry) => mappingEntryMatchesFile(entry, p));
+}
+
+/**
+ * Reduce a type-coverage classification's `covered` map (file -> matched typeId,
+ * from `computeTypeCoverage`/`TypeCoverageResult`/`TypeCoverageInput`) to the
+ * plain file-path set `isTypeCoveredSource` consumes. Every caller that already
+ * holds that classification (or has `coverage.type_level` off, in which case
+ * `covered` is absent) derives its eligibility input through this one function,
+ * so the reduction step itself cannot drift between the four call sites (`yg
+ * suppressions`, `yg aspects --health`, `yg advise`, and the portal).
+ */
+export function collectTypeCoveredFiles(covered: ReadonlyMap<string, string> | undefined): Set<string> {
+  return new Set(covered?.keys() ?? []);
+}
+
+/**
+ * True when `relFile` is a file the type-level classification lattice matched
+ * to exactly one non-strict architecture type (`computeTypeCoverage`'s
+ * `covered` bucket) — a honored-waiver site exactly like a mapped source, per
+ * this module's header. Matching is exact-path membership, not a glob: the
+ * lattice already resolved each file to at most one covering type, so there is
+ * no pattern left to re-match here.
+ */
+export function isTypeCoveredSource(relFile: string, typeCoveredFiles: ReadonlySet<string>): boolean {
+  return typeCoveredFiles.has(toPosixPath(relFile));
 }

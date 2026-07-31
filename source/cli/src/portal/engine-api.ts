@@ -26,7 +26,7 @@ import { groupIssues, type IssueGroup } from '../cli/group-issues.js';
 import type { BoundaryInput, SuppressionMarkerInput, FreshnessMarkerInput } from './contract.js';
 import { computePortalBoundary as computeBoundaryImpl } from './api/boundary.js';
 import { runSuppressionsScan, scanPortalSuppressions as adaptSuppressions } from './api/suppress-scan.js';
-import { collectMappingEntries } from './api/suppress-eligibility.js';
+import { collectMappingEntries, collectTypeCoveredFiles } from './api/suppress-eligibility.js';
 import { computePortalTypeCoverage as computeTypeCoverageImpl, toPortalTypeCoverageInput as toTypeCoverageInputImpl } from './api/type-coverage.js';
 
 /**
@@ -211,19 +211,21 @@ export async function computePortalBoundary(graph: Graph, projectRoot: string): 
 
 /**
  * Scan the repo for active yg-suppress waivers and adapt them into the portal's flat
- * marker shape with a resolved per-marker risk flag. Reuses the SAME scan `yg suppressions`
- * runs (relocated under the facade), so the inventory matches the command exactly.
+ * marker shape. Reuses the SAME scan `yg suppressions` runs. `typeCoverage` is the
+ * caller's own classification, so a type-covered file is a waiver site here too.
  */
 export async function scanPortalSuppressions(
   graph: Graph,
   projectRoot: string,
   gitFiles: string[],
+  typeCoverage?: TypeCoverageResult,
 ): Promise<SuppressionMarkerInput[]> {
   const knownAspectIds = new Set(graph.aspects.map((a) => a.id));
   const draftAspectIds = new Set(
     graph.aspects.filter((a) => (a.status ?? 'enforced') === 'draft').map((a) => a.id),
   );
-  const report = await runSuppressionsScan(projectRoot, gitFiles, knownAspectIds, collectMappingEntries(graph));
+  const typeCoveredFiles = collectTypeCoveredFiles(typeCoverage?.covered);
+  const report = await runSuppressionsScan(projectRoot, gitFiles, knownAspectIds, collectMappingEntries(graph), undefined, typeCoveredFiles);
   return adaptSuppressions(report, knownAspectIds, draftAspectIds);
 }
 

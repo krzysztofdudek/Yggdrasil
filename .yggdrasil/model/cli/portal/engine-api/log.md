@@ -48,3 +48,5 @@ The portal's pair-count helper now accepts the same file-type classification the
 Adds a facade that classifies type coverage once per portal extraction and exposes both the full result and its reduced lock-verification shape, so every portal call that needs the classification shares one computation instead of each answering about a component-only universe.
 ## [2026-07-30T21:02:19.792Z]
 Reworded a comment on the portal's once-per-extraction type-coverage classification so it explains, in its own words, why the classification is computed once and shared across every consumer, instead of leaning on a short internal code with no meaning to a reader of this repository.
+## [2026-07-31T04:22:18.827Z]
+The live suppression inventory now accepts the caller's type-coverage classification and threads it into the shared suppress scan, so a file covered by the architecture type-level lattice is recognized as a live waiver site exactly like a mapped node source, matching the same fix made to the yg suppressions command.

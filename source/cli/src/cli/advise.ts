@@ -33,7 +33,7 @@ import { readVerdictEvents } from '../io/events-reader.js';
 import { countIncidents } from '../io/incidents-store.js';
 import { walkRepoFiles } from '../io/repo-scanner.js';
 import { runSuppressionsScan, scanPortalSuppressions } from '../portal/api/suppress-scan.js';
-import { collectMappingEntries } from '../portal/api/suppress-eligibility.js';
+import { collectMappingEntries, collectTypeCoveredFiles } from '../portal/api/suppress-eligibility.js';
 import { computeDetectedEdges } from '../portal/api/boundary.js';
 import {
   edgeUniverse,
@@ -227,7 +227,11 @@ interface SuppressData {
   counts: Map<string, number>;
 }
 
-async function gatherSuppressData(graph: Graph, projectRoot: string): Promise<SuppressData | undefined> {
+async function gatherSuppressData(
+  graph: Graph,
+  projectRoot: string,
+  typeCoverage: TypeCoverageInput | undefined,
+): Promise<SuppressData | undefined> {
   try {
     const gitFiles = await walkRepoFiles(projectRoot);
     const knownAspectIds = new Set(graph.aspects.map((a) => a.id));
@@ -239,6 +243,10 @@ async function gatherSuppressData(graph: Graph, projectRoot: string): Promise<Su
       gitFiles,
       knownAspectIds,
       collectMappingEntries(graph),
+      // No under-approximating warnings wanted here (unchanged) — advise's own
+      // scan only ever consumed anomalies/counts, never `report.warnings`.
+      undefined,
+      collectTypeCoveredFiles(typeCoverage?.covered),
     );
     const anomalies: SuppressAnomaly[] = [];
     for (const m of scanPortalSuppressions(report, knownAspectIds, draftAspectIds)) {
@@ -268,11 +276,14 @@ async function gatherSuppressData(graph: Graph, projectRoot: string): Promise<Su
 /**
  * The type-level classification lattice (coverage.type_level), classified ONCE
  * for this one `yg advise` invocation and shared by every source that needs it
- * (the decorative-rule signal's expected-pairs pass, and the dead-attach
- * source), so no downstream caller classifies the repo's files a second time.
- * Undefined when the flag is off, so a caller's own
- * computeExpectedPairs/checkAspectEffectiveNowhere call enumerates exactly the
- * component-only universe it always has.
+ * (the decorative-rule signal's expected-pairs pass, the dead-attach source,
+ * and the suppress scan's file eligibility — a live waiver on a file enforced
+ * by its architecture type alone must be inventoried too), so no downstream
+ * caller classifies the repo's files a second time. Undefined when the flag is
+ * off, so a caller's own computeExpectedPairs/checkAspectEffectiveNowhere call
+ * enumerates exactly the component-only universe it always has, and the
+ * suppress scan's noise filter applies to type-covered extensions exactly as
+ * it always has.
  */
 async function computeTypeCoverageForAdvise(graph: Graph, projectRoot: string): Promise<TypeCoverageInput | undefined> {
   if (!graph.config.coverage?.typeLevel) return undefined;
@@ -423,12 +434,15 @@ async function gatherInCorpusDrillResults(
  */
 async function gatherNominationSources(graph: Graph, todayUtc: Date): Promise<NominationSources> {
   const projectRoot = path.dirname(graph.rootPath);
-  const suppressData = await gatherSuppressData(graph, projectRoot);
+  // Classified once here, then shared by every source below that needs it —
+  // no downstream helper repeats the classification pass. In particular, the
+  // suppress scan below needs it too: a live waiver on a file enforced by its
+  // architecture type alone (no owning component) must be inventoried exactly
+  // like one on a mapped node source.
+  const typeCoverage = await gatherTypeCoverageForAdvise(graph, projectRoot);
+  const suppressData = await gatherSuppressData(graph, projectRoot, typeCoverage);
   const drillResults = await gatherInCorpusDrillResults(graph, projectRoot);
   const verdictEvents = readVerdictEvents(graph.rootPath).events;
-  // Classified once here, then shared by every source below that needs it —
-  // no downstream helper repeats the classification pass.
-  const typeCoverage = await gatherTypeCoverageForAdvise(graph, projectRoot);
   const currentUnitsByAspect = await gatherCurrentUnits(graph, typeCoverage);
   const churnByNode = gatherChurnByNode(graph, projectRoot);
   const familyCandidates = readFamilyCandidatesSource(graph);

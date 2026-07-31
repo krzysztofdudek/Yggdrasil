@@ -6,9 +6,14 @@ import { escapeXmlText } from './xml-escape.js';
  * The reviewer-prompt template regime marker. Recorded on each LLM verdict
  * event emitted by the fill's telemetry sidecar (io/events-store.ts) so a
  * future rule-health report can tell which prompt scaffold produced a given
- * verdict. Bump on any future change to the prompt-scaffold shape (section
- * order, framing sentences, XML structure) — NOT on aspect content changes,
- * which already invalidate verdicts through the lock's own hash.
+ * verdict. The revision names prompt-scaffold SHAPES a real recorded event
+ * could actually carry — so it advances only when a shape that has already
+ * shipped in a release changes (section order, framing sentences, XML
+ * structure). It does NOT advance for: aspect content changes, which already
+ * invalidate verdicts through the lock's own hash; or a further edit to a
+ * shape that has never shipped — revising an unreleased shape in place keeps
+ * its current number, since bumping would claim a public shape that never
+ * existed for anyone to have recorded an event against.
  *
  * Bumped 1 -> 2: the nodeless variant (a file enforced by its architecture
  * type alone, with no owning component) omits the <node> element and swaps
@@ -17,6 +22,10 @@ import { escapeXmlText } from './xml-escape.js';
  * this constant appears only here and at its four consumer sites, never in
  * pair-hash.ts), so no stored verdict is invalidated by the bump — it only
  * keeps the record honest about which shape produced a given nodeless verdict.
+ * Rev 2's own nodeless framing sentence was revised again before rev 2 ever
+ * shipped in a release — that revision stays rev 2, not rev 3: no released
+ * build ever recorded an event against the earlier wording, so there is no
+ * shipped shape for a new number to distinguish it from.
  */
 export const PROMPT_FORMAT_REV = 2;
 
@@ -76,11 +85,24 @@ const PER_FILE_FRAMING =
  * PER_FILE_FRAMING's "of a larger component" claim is false here — there is
  * no component, and the prompt's own intro sentence (built from `hasNode`
  * just below) already says so ("a single source file", never "a node
- * (component)"). This variant keeps the operative instruction (absence of
- * surrounding context is not itself a violation) and drops the false claim.
+ * (component)").
+ *
+ * The claim this sentence makes must stay scoped to the COMPONENT, exactly
+ * like PER_FILE_FRAMING's own "other files of the component are not shown" —
+ * never widened to a claim about the whole prompt. A nodeless unit can still
+ * carry a `<references>` and/or a `<companions>` block with full file bodies
+ * (both render unconditionally, independent of nodePath); asserting "no other
+ * files are shown" would be false the moment either renders, and would read
+ * as an instruction to disregard evidence the reviewer is looking at in the
+ * same prompt. What IS true regardless: there is no component, so there are
+ * no component-sibling files to show, and whatever references or companions
+ * this prompt DOES include are the entire extent of that context — nothing
+ * is being withheld beyond what is rendered. The operative leniency guard
+ * (having none of that beyond the file itself is not itself a violation)
+ * carries over unchanged.
  */
 const PER_FILE_FRAMING_NODELESS =
-  `You are reviewing this file on its own. No other files are shown; the absence of surrounding context is NOT a violation by itself. Judge only what this file must satisfy on its own.`;
+  `You are reviewing this file on its own. It has no owning component, so there are no component siblings to show; any references or companions this prompt includes are the entire extent of that context, and having none beyond the file itself is NOT a violation by itself. Judge only what this file must satisfy on its own.`;
 
 /**
  * Assembles the reviewer prompt. Per-node output is BYTE-IDENTICAL to the legacy

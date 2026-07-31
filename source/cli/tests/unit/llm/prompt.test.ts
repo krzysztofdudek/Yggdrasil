@@ -69,6 +69,23 @@ const inputNodeless: PairPromptInput = {
   scope: { per: 'file' },
 };
 
+// The same nodeless subject, but with a reference, a companion, or both
+// resolved into the prompt — the shape the bare `inputNodeless` above (empty
+// references, no companions) cannot exercise. The single-file framing
+// sentence must read as true in every one of these four combinations: with
+// nothing else in the prompt, it is the whole context; with a reference
+// and/or companion present, THEY are the whole context, rendered with full
+// bodies right below the sentence.
+const nodelessReference = { path: 'docs/guide.md', description: 'The canonical helper this rule cites.', content: 'GUIDE BODY' };
+const nodelessCompanion = { path: 'src/helper/h.ts', content: 'COMPANION BODY', label: 'helper' };
+const inputNodelessWithReferences: PairPromptInput = { ...inputNodeless, references: [nodelessReference] };
+const inputNodelessWithCompanions: PairPromptInput = { ...inputNodeless, companions: [nodelessCompanion] };
+const inputNodelessWithBoth: PairPromptInput = {
+  ...inputNodeless,
+  references: [nodelessReference],
+  companions: [nodelessCompanion],
+};
+
 describe('buildPairPrompt — per-node golden', () => {
   it('golden 1: byte-identical to fixture (references + description with special chars)', () => {
     const expected = loadFixture('prompt-per-node-golden-1.txt');
@@ -141,7 +158,7 @@ describe('buildPairPrompt — nodeless (a file with no component)', () => {
     // The operative instruction survives (absence of context is not itself a
     // violation) but nothing here claims a component exists.
     expect(p).toContain(
-      'You are reviewing this file on its own. No other files are shown; the absence of surrounding context is NOT a violation by itself. Judge only what this file must satisfy on its own.'
+      'You are reviewing this file on its own. It has no owning component, so there are no component siblings to show; any references or companions this prompt includes are the entire extent of that context, and having none beyond the file itself is NOT a violation by itself. Judge only what this file must satisfy on its own.'
     );
   });
 
@@ -151,6 +168,51 @@ describe('buildPairPrompt — nodeless (a file with no component)', () => {
     const p = buildPairPrompt({ ...inputNodeless, nodePath: 'n' });
     expect(p).not.toContain('undefined');
     expect(p).toContain('<node path="n"');
+  });
+
+  // The framing sentence must stay true across all four shapes a nodeless
+  // prompt can take: references and companions each independently present or
+  // absent. A prior wording ("No other files are shown") was true only for
+  // the bare case below and became false the moment either block rendered —
+  // this pins all four so that regression cannot land unnoticed again.
+  describe('the framing sentence holds across references x companions', () => {
+    const OLD_FALSE_CLAIM = 'No other files are shown';
+    const NEW_SENTENCE =
+      'You are reviewing this file on its own. It has no owning component, so there are no component siblings to show; any references or companions this prompt includes are the entire extent of that context, and having none beyond the file itself is NOT a violation by itself. Judge only what this file must satisfy on its own.';
+
+    it('bare: no references, no companions — byte-identical to the bare golden', () => {
+      const p = buildPairPrompt(inputNodeless);
+      expect(p).toContain(NEW_SENTENCE);
+      expect(p).not.toContain(OLD_FALSE_CLAIM);
+      expect(p).not.toContain('<references>');
+      expect(p).not.toContain('<companions>');
+      expect(p).toBe(loadFixture('prompt-nodeless-per-file-golden.txt'));
+    });
+
+    it('references present, no companions — the reference renders with its full body, not disclaimed away', () => {
+      const p = buildPairPrompt(inputNodelessWithReferences);
+      expect(p).toContain(NEW_SENTENCE);
+      expect(p).not.toContain(OLD_FALSE_CLAIM);
+      expect(p).toContain('<reference path="docs/guide.md" description="The canonical helper this rule cites.">\nGUIDE BODY');
+      expect(p).not.toContain('<companions>');
+    });
+
+    it('companions present, no references — the companion renders with its full body, not disclaimed away', () => {
+      const p = buildPairPrompt(inputNodelessWithCompanions);
+      expect(p).toContain(NEW_SENTENCE);
+      expect(p).not.toContain(OLD_FALSE_CLAIM);
+      expect(p).toContain('<companion path="src/helper/h.ts" label="helper">\nCOMPANION BODY');
+      expect(p).not.toContain('<references>');
+    });
+
+    it('references AND companions both present — byte-identical to the with-context golden', () => {
+      const p = buildPairPrompt(inputNodelessWithBoth);
+      expect(p).toContain(NEW_SENTENCE);
+      expect(p).not.toContain(OLD_FALSE_CLAIM);
+      expect(p).toContain('<reference path="docs/guide.md" description="The canonical helper this rule cites.">\nGUIDE BODY');
+      expect(p).toContain('<companion path="src/helper/h.ts" label="helper">\nCOMPANION BODY');
+      expect(p).toBe(loadFixture('prompt-nodeless-per-file-with-context-golden.txt'));
+    });
   });
 });
 

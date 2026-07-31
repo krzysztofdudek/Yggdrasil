@@ -38,6 +38,20 @@ function copyMergedFixture(): string {
   return dir;
 }
 
+/**
+ * Merges the `binary-subject` variant instead of `two-covered-files`: it adds
+ * type `pics` (matches `src/pics/**`, attaches the LLM per-file rule
+ * `prose-rule`) and a real text subject, `src/pics/readme.md` — a
+ * type-covered file whose extension the suppression inventory's noise filter
+ * would otherwise treat as documentation prose, never a waiver site.
+ */
+function copyMergedFixtureWithBinarySubject(): string {
+  const dir = mkdtempSync(path.join(tmpdir(), 'yg-aspecttest-file-binsub-'));
+  cpSync(BASE_FIXTURE, dir, { recursive: true });
+  cpSync(path.join(BASE_FIXTURE, 'variants', 'binary-subject'), dir, { recursive: true });
+  return dir;
+}
+
 function addReviewer(dir: string, endpoint: string): void {
   appendFileSync(
     cfgPath(dir),
@@ -289,6 +303,105 @@ describe.skipIf(!distExists)('CLI E2E — yg-suppress on a file enforced by its 
       expect(stdout).toContain('single(llm-leaf-rule)');
       expect(stdout).toContain('known debt, tracked in the issue tracker');
       expect(stdout).toContain('Total: 1 marker across 1 file.');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+// =============================================================================
+// The suppression inventory's noise filter drops prose/doc extensions
+// (`.md`, `.mdc`, `.markdown`, `.txt`) UNLESS the file is a live waiver site —
+// a mapped node source, or (since type-level coverage exists) a file enforced
+// by its architecture type alone. A `.ts` subject never exercises that filter
+// (it isn't a noise extension to begin with), so the two tests above cannot
+// tell whether the type-covered exemption actually reaches it. This subject
+// is a real `.md` file the `pics` type covers directly — the exact shape the
+// noise filter is built to drop.
+// =============================================================================
+
+describe.skipIf(!distExists)('CLI E2E — yg-suppress on a type-covered file whose extension the inventory treats as noise', () => {
+  it('yg suppressions lists a marker in a type-covered .md file, naming the subject file and the rule', () => {
+    const dir = copyMergedFixtureWithBinarySubject();
+    try {
+      const target = path.join(dir, 'src', 'pics', 'readme.md');
+      appendFileSync(
+        target,
+        '\n<!-- yg-suppress(prose-rule) known debt, tracked in the issue tracker -->\n',
+      );
+
+      const { status, stdout } = run(['suppressions'], dir);
+      expect(status).toBe(0);
+      // A live waiver on a type-covered file must be inventoried exactly like
+      // one on a mapped node source, regardless of the subject's extension.
+      expect(stdout).toContain('src/pics/readme.md');
+      expect(stdout).toContain('single(prose-rule)');
+      expect(stdout).toContain('known debt, tracked in the issue tracker');
+      expect(stdout).toContain('Total: 1 marker across 1 file.');
+      expect(stdout).not.toContain('No active suppression markers found.');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('the marker that yg suppressions now lists is the SAME one the deterministic runner honors — refused flips to verifying the moment it is added', () => {
+    const dir = copyMergedFixtureWithBinarySubject();
+    // A deterministic per-file rule on the SAME type, so the "before/after"
+    // flip can be observed without a reviewer: no-banned-word refuses any
+    // line containing the literal token BANNED.
+    const adir = path.join(dir, '.yggdrasil', 'aspects', 'no-banned-word');
+    mkdirSync(adir, { recursive: true });
+    writeFileSync(
+      path.join(adir, 'yg-aspect.yaml'),
+      'name: no-banned-word\ndescription: refuses a line containing the literal token BANNED\nreviewer:\n  type: deterministic\nscope:\n  per: file\n',
+    );
+    writeFileSync(
+      path.join(adir, 'check.mjs'),
+      // Also attaches to src/pics/logo.png (binary — no text subject), so guard
+      // on an empty/undefined subject the same way a real aspect author would.
+      "export function check(ctx) {\n  const subject = ctx.subject[0];\n  if (!subject) return [];\n  const { path: p, content } = subject;\n  const lines = content.split('\\n');\n  const issues = [];\n  lines.forEach((line, i) => {\n    if (line.includes('BANNED')) issues.push({ file: p, line: i + 1, message: 'contains BANNED' });\n  });\n  return issues;\n}\n",
+    );
+    const arch = path.join(dir, '.yggdrasil', 'yg-architecture.yaml');
+    writeFileSync(arch, readFileSync(arch, 'utf-8').replace('    aspects:\n      - prose-rule\n', '    aspects:\n      - prose-rule\n      - no-banned-word\n'));
+    try {
+      // The graph also carries prose-rule (an LLM aspect), so tier resolution
+      // runs even though this test only ever fills --only-deterministic — a
+      // bogus, never-dialed endpoint is fine since no reviewer call is made.
+      addReviewer(dir, 'http://127.0.0.1:1');
+      const target = path.join(dir, 'src', 'pics', 'readme.md');
+      appendFileSync(target, '\nBANNED\n');
+
+      // The base fixture carries unrelated pre-existing errors (an
+      // architecture parents: cycle, a strict type with no when, an
+      // unclassified file) that keep the overall exit status at 1
+      // regardless of this rule — so the flip is pinned on the SPECIFIC
+      // violation text, not the process exit code.
+      const before = run(['check', '--approve', '--only-deterministic'], dir);
+      expect(before.status).toBe(1);
+      expect(before.stdout).toContain('src/pics/readme.md:3: contains BANNED');
+      expect(run(['suppressions'], dir).stdout).toContain('No active suppression markers found.');
+
+      // Insert the marker on the line immediately ABOVE "BANNED" — a single
+      // marker waives the line below it, never its own line.
+      writeFileSync(
+        target,
+        readFileSync(target, 'utf-8').replace(
+          '\nBANNED\n',
+          '\n<!-- yg-suppress(no-banned-word) known debt, tracked in the issue tracker -->\nBANNED\n',
+        ),
+      );
+      const after = run(['check', '--approve', '--only-deterministic'], dir);
+      // The refusal is gone — the waiver is honored — even though unrelated
+      // pre-existing errors keep the overall run at exit 1.
+      expect(after.stdout).not.toContain('contains BANNED');
+      expect(after.stdout).not.toContain("src/pics/readme.md  aspect 'no-banned-word'");
+
+      // The waiver that just flipped the gate from refusing to verifying is
+      // exactly the one the inventory must now surface — never silent.
+      const inventory = run(['suppressions'], dir);
+      expect(inventory.stdout).toContain('src/pics/readme.md');
+      expect(inventory.stdout).toContain('single(no-banned-word)');
+      expect(inventory.stdout).not.toContain('No active suppression markers found.');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

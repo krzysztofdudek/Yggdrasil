@@ -92,7 +92,7 @@ export async function extractPortalData(
 
   // Live suppression inventory (the facade reaches the ast/suppress scan). Indexed by
   // file so each node's mapped files pick up exactly the markers detected in them.
-  const suppressionMarkers = await scanPortalSuppressions(graph, projectRoot, gitFiles);
+  const suppressionMarkers = await scanPortalSuppressions(graph, projectRoot, gitFiles, typeCoverageResult);
   const flatSuppressions = buildSuppressions(suppressionMarkers);
   const suppressions = indexSuppressionsByFile(flatSuppressions);
 

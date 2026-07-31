@@ -5,7 +5,26 @@ import { walkRepoFiles } from '../io/repo-scanner.js';
 import { initDebugLog } from '../utils/debug-log.js';
 import { appendToDebugLog } from '../io/debug-log-writer.js';
 import { runSuppressionsScan, formatSuppressionsOutput } from '../portal/api/suppress-scan.js';
-import { collectMappingEntries } from '../portal/api/suppress-eligibility.js';
+import { collectMappingEntries, collectTypeCoveredFiles } from '../portal/api/suppress-eligibility.js';
+import { scanUncoveredFiles } from '../core/check.js';
+import { computeTypeCoverage } from '../core/type-coverage.js';
+import { FileContentCache } from '../io/file-content-cache.js';
+import type { Graph } from '../model/graph.js';
+
+/**
+ * The type-level classification lattice's `covered` files (coverage.type_level),
+ * reduced to the plain path set the suppression eligibility rule needs — mirrors
+ * the same per-command hoist `yg impact`/`yg advise`/`yg aspects --health` each do
+ * their own. Undefined-flag ⇒ empty set, so a project that never turned the
+ * setting on pays no classification cost and the inventory behaves exactly as
+ * it always has.
+ */
+async function computeTypeCoveredFilesForSuppressions(graph: Graph, gitFiles: string[]): Promise<Set<string>> {
+  if (!graph.config.coverage?.typeLevel) return new Set();
+  const uncovered = scanUncoveredFiles(graph, gitFiles);
+  const result = await computeTypeCoverage(graph, uncovered, new FileContentCache());
+  return collectTypeCoveredFiles(result.covered);
+}
 
 // Re-export the relocated scan + formatter so existing importers (and tests) that
 // reference them via this command module keep resolving to the same implementation.
@@ -44,6 +63,7 @@ export function registerSuppressionsCommand(program: Command): void {
           knownAspectIds,
           collectMappingEntries(graph),
           underApproximatingAspectIds,
+          await computeTypeCoveredFilesForSuppressions(graph, gitFiles),
         );
         process.stdout.write(formatSuppressionsOutput(report));
         // Always exit 0 — this is a purely informational command

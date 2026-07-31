@@ -50,3 +50,5 @@ Threads the portal's once-per-run type-coverage classification into the check, l
 Comment text in two files under this pipeline referenced planning labels that only make sense with access to material outside the repository, conflicting with this project's own rule that a source comment must stand on its own. Reworded the affected comments to state what the code does and why in their own terms; no behavior changed.
 ## [2026-07-30T21:02:23.172Z]
 Reworded a comment on the portal extraction pipeline's once-per-run type-coverage classification so it explains, in its own words, why the classification mirrors the same single-pass discipline the check and fill commands each already follow, instead of leaning on a short internal code with no meaning to a reader of this repository.
+## [2026-07-31T04:22:21.856Z]
+Passes the extraction run's own type-coverage classification into the live suppression scan so a file covered by the architecture type-level lattice is never treated as noise there either, matching the same fix made to the yg suppressions command.

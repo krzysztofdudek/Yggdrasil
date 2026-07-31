@@ -18,7 +18,7 @@ import { walkRepoFiles } from '../io/repo-scanner.js';
 import { runSuppressionsScan } from '../portal/api/suppress-scan.js';
 import type { SuppressionsReport } from '../portal/api/suppress-scan.js';
 import { resolveSuppressedUnitsByAspect } from '../portal/api/suppress-coverage.js';
-import { collectMappingEntries } from '../portal/api/suppress-eligibility.js';
+import { collectMappingEntries, collectTypeCoveredFiles } from '../portal/api/suppress-eligibility.js';
 import { getFirstCommitTimestamp } from '../utils/git.js';
 import { readVerdictEvents } from '../io/events-reader.js';
 import { readDrillResults } from '../io/drill-results-reader.js';
@@ -760,6 +760,9 @@ async function buildAspectsHealthOutput(graph: Graph, nowMs: number): Promise<st
     knownAspectIds,
     collectMappingEntries(graph),
     underApproximatingAspectIds,
+    // Reuse the SAME classification `verifyLock` just consumed above — no
+    // second pass over every uncovered file.
+    collectTypeCoveredFiles(typeCoverage?.covered),
   );
 
   // Local, gitignored telemetry — read HERE at the CLI boundary (aspects.ts is on

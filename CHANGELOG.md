@@ -75,6 +75,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`yg impact --type` now counts files a type covers through `coverage.type_level`, not only files mapped by one of its nodes.** "Source files covered" previously counted only node-mapped files, so a type with type-covered files and no node at all always read as zero — even while `yg check` reported those same files as live and enforced on the very same run — and a type with both a node and type-covered files undercounted by exactly the type-covered total. The count, and the file list beneath it, now agrees with `yg check`'s own per-type report.
 
+- **`yg suppressions`, and the same live inventory the portal reuses, no longer miss a marker on a file enforced by its architecture type alone.** The inventory's noise filter has always exempted a mapped node source from being dropped as documentation prose, so a waiver there is never invisible. `coverage.type_level` opened a second way for a file to host a real, reviewer-honored waiver — matching exactly one non-strict architecture type, with no node of its own — and the filter did not know about it: a marker on such a file (a `.md` subject a `when:` predicate covers, for example) was silently dropped by extension while `yg check --approve` honored it and flipped a refusal to verified underneath. The inventory now treats a type-covered file as a live waiver site exactly like a mapped source, so no file that can actually produce a real verdict is ever invisible to the audit.
+
 ## [5.6.0] - 2026-07-25
 
 ### Documentation
