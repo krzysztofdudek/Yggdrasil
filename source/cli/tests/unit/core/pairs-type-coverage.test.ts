@@ -10,8 +10,9 @@
  *     buildPairsGraph) for the enumeration algorithm itself — fast,
  *     self-contained, no fixture-project dependency.
  *   - The REAL committed tests/fixtures/type-level-engine/ project plus its
- *     `excluded-but-mapped` variant for Step 3 (the explicit-mapping guard),
- *     copied into a mkdtemp per test — never mutated in place.
+ *     `excluded-but-mapped` variant for the explicit-mapping-outranks-
+ *     exclusion guard, copied into a mkdtemp per test — never mutated in
+ *     place.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, cpSync, rmSync } from 'node:fs';
@@ -108,10 +109,10 @@ function tc(covered: Array<[string, string]>, ambiguousPaths: string[] = []): Ty
 }
 
 // ---------------------------------------------------------------------------
-// Step 2 — enumeration rows
+// Nodeless enumeration rows
 // ---------------------------------------------------------------------------
 
-describe('computeExpectedPairs — nodeless enumeration (Step 2)', () => {
+describe('computeExpectedPairs — nodeless enumeration', () => {
   it('absent opts.typeCoverage: zero pairs, zero drops, zero added cost (feature-off contract)', async () => {
     writeFile('src/leaf/a.ts');
     const graph = buildTypeCoverageGraph(tmpDir, {
@@ -309,10 +310,10 @@ describe('computeExpectedPairs — nodeless enumeration (Step 2)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Step 3 — the explicit-mapping scope guard (real fixture + variant)
+// The explicit-mapping scope guard (real fixture + variant)
 // ---------------------------------------------------------------------------
 
-describe('computeExpectedPairs — explicit mapping outranks coverage.excluded (Step 3)', () => {
+describe('computeExpectedPairs — explicit mapping outranks coverage.excluded', () => {
   let projectDir: string;
 
   beforeEach(() => {
@@ -341,7 +342,8 @@ describe('computeExpectedPairs — explicit mapping outranks coverage.excluded (
     for (const p of vendorPairs) expect(p.nodePath).toBe('vendor-owner');
     // The nodeless pass itself contributed NOTHING for vendor/mapped.ts — the
     // exclusion silently wins there (no drop either — the file never reaches
-    // the cascade), exactly like Step 2's "excluded root" row.
+    // the cascade), exactly like the nodeless-enumeration block's own "a file
+    // under the excluded root yields nothing at all" case above.
     expect(drops.some((d) => d.file === 'vendor/mapped.ts')).toBe(false);
     expect(pairs.some((p) => p.nodePath === undefined && p.subjectFiles.includes('vendor/mapped.ts'))).toBe(false);
   });
@@ -357,7 +359,7 @@ describe('computeExpectedPairs — explicit mapping outranks coverage.excluded (
 });
 
 // ---------------------------------------------------------------------------
-// Step 8 — the shared-record merge, UNIT level. Two file-level entries under
+// The shared-record merge, UNIT level. Two file-level entries under
 // the SAME aspect (as if reconciled from two branches, each adding a
 // different covered file) coexist and each self-validates independently — no
 // cross-contamination, no special merge caveat needed for the nodeless case.
@@ -366,7 +368,7 @@ describe('computeExpectedPairs — explicit mapping outranks coverage.excluded (
 // covered.
 // ---------------------------------------------------------------------------
 
-describe('verifyLock — shared-record merge at the UNIT level (Step 8)', () => {
+describe('verifyLock — shared-record merge at the UNIT level', () => {
   it('two file-level entries under one aspect, for two different files, both verify independently after a take-a-side union', async () => {
     writeFile('src/leaf/a.ts', 'export const a = 1;\n');
     writeFile('src/leaf/b.ts', 'export const b = 1;\n');

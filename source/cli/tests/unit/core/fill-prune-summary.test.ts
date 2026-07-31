@@ -1,5 +1,5 @@
 /**
- * Tests for the GC prune summary (Step 5) — the text `--approve` and
+ * Tests for the GC prune summary — the text `--approve` and
  * `--dry-run` print whenever entries are pruned, split into billed (LLM) vs
  * free (deterministic) with a reason per entry, and print NOTHING when
  * nothing is pruned.

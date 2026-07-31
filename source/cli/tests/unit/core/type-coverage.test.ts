@@ -556,7 +556,8 @@ describe('checkStrictBackwardCoverage — orphan WHAT enrichment is flag-gated',
 
   it('the Also-matches predicate excludes EVERY strict type, not just the primary co-match (predicate unification)', () => {
     // The exact filter now shared by core/checks/mapping.ts's Also-matches enrichment
-    // (Step 6's fix) — reproduced inline so this test proves the LOGIC, independent of any
+    // (the fixed predicate excluding every strict co-match, not just the primary one) —
+    // reproduced inline so this test proves the LOGIC, independent of any
     // fixture's ability to construct a 2-strict-co-match file without also triggering
     // strict-overlap-conflict first (design §3 row 1: 2+ strict types matching wins over
     // orphan entirely, so that shape can never reach the Also-matches enrichment path at
@@ -579,7 +580,7 @@ describe('checkStrictBackwardCoverage — orphan WHAT enrichment is flag-gated',
 });
 
 // ===========================================================================
-// Shared FileContentCache across validate() and computeTypeCoverage() (Step 7)
+// Shared FileContentCache across validate() and computeTypeCoverage()
 // ===========================================================================
 
 describe('runCheck — shares one FileContentCache between validate() and computeTypeCoverage()', () => {
@@ -588,9 +589,9 @@ describe('runCheck — shares one FileContentCache between validate() and comput
     // EVERY uncovered file's content, including src/util/special.ts — once via
     // checkStrictBackwardCoverage's own "Also matches" enrichment classifyFile
     // call (inside validate()), and again via computeTypeCoverage's classifyFile
-    // call (in runCheck's coverage section). Before Step 7 these were two
-    // independent FileContentCache instances, so special.ts was read from disk
-    // twice for the one run; after Step 7 both consumers share one cache, so the
+    // call (in runCheck's coverage section). Before this sharing was added, these
+    // were two independent FileContentCache instances, so special.ts was read from
+    // disk twice for the one run; now both consumers share one cache, so the
     // second read is a cache hit.
     //
     // Observation seam: FileContentCache.read() memoizes by delegating to the

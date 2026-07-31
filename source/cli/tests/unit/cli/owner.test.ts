@@ -237,7 +237,7 @@ describe('findOwner tie-break determinism', () => {
   });
 });
 
-describe('owner — a typed answer for a type-covered file (Step 4)', () => {
+describe('owner — a typed answer for a type-covered file', () => {
   it('answers with the type instead of "no graph coverage"', async () => {
     await withTypeLevelFixtureCopy(async (cwd) => {
       const result = spawnSync(

@@ -1,5 +1,5 @@
 /**
- * CLI E2E — the type-visibility surfaces (Step 6). Spawns the real built
+ * CLI E2E — the type-visibility surfaces. Spawns the real built
  * bin.js against tests/fixtures/type-level-engine/ (+ its zero-enforcement
  * variant), asserting the per-type block, the zero-applicable-rules honesty
  * line, and the `yg context --file` typed view — all from real stdout, no
@@ -32,7 +32,7 @@ function copyFixture(...overlays: string[]): string {
   return dir;
 }
 
-describe.skipIf(!distExists)('yg check / yg context --file — type-visibility (Step 6, E2E)', () => {
+describe.skipIf(!distExists)('yg check / yg context --file — type-visibility (E2E)', () => {
   it('yg check shows the per-type block, a half-expanded bundle, and one fork chain-termination line', () => {
     const dir = copyFixture();
     try {

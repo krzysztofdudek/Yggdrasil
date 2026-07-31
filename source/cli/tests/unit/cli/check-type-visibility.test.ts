@@ -1,7 +1,7 @@
 /**
  * Integration tests for the type-visibility per-type block in `yg check`'s
  * rendered output: real fixture -> real graph -> real runCheck -> real
- * formatOutput, no spawned binary (tests/e2e/ owns that, Step 6). Pins the
+ * formatOutput, no spawned binary (tests/e2e/ owns that). Pins the
  * three load-bearing lines the check summary must show: the zero-applicable-
  * rules honesty line, a half-expanded bundle, and a chain-termination line
  * rendered exactly once per type.
@@ -38,7 +38,7 @@ async function renderCheck(dir: string): Promise<string> {
   return formatOutput(result);
 }
 
-describe('yg check — type-visibility block (Step 2)', () => {
+describe('yg check — type-visibility block', () => {
   it('says plainly when a file is covered but nothing applies to it', async () => {
     const dir = copyFixture(FIXTURE_ZERO_ENFORCEMENT);
     const out = await renderCheck(dir);

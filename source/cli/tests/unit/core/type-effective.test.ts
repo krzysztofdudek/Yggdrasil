@@ -370,7 +370,7 @@ describe('relation atoms derived from imports', () => {
 });
 
 describe('the derived-relation overrides reach every forwarding site, not only the attach-site path', () => {
-  // Step 5's needs-* rows all gate through an ATTACH-SITE when: (an
+  // The needs-* rows in the describe block above all gate through an ATTACH-SITE when: (an
   // architecture type's object-form aspects entry), which only exercises
   // ONE of graph/aspects.ts's evaluateWhen call sites. These three tests
   // exercise the other forwarding sites: an aspect's OWN aspect-global

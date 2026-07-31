@@ -2,8 +2,7 @@
  * `yg context --file` on a file enforced by its architecture type alone (no
  * owning component) — the typed view (build-context.ts / formatters/
  * context-file.ts) that REPLACES today's "not covered by any node" error for
- * such a file. Real spawned binary, real tests/fixtures/type-level-engine/
- * (Step 3).
+ * such a file. Real spawned binary, real tests/fixtures/type-level-engine/.
  */
 import { describe, it, expect } from 'vitest';
 import { existsSync, mkdtempSync, rmSync, cpSync } from 'node:fs';
@@ -33,7 +32,7 @@ function run(args: string[], cwd: string): { stdout: string; stderr: string; sta
   return { stdout: r.stdout ?? '', stderr: r.stderr ?? '', status: r.status };
 }
 
-describe.skipIf(!distExists)('yg context --file — typed view for a type-covered file (Step 3)', () => {
+describe.skipIf(!distExists)('yg context --file — typed view for a type-covered file', () => {
   it('shows the matched type, chain termination, applied and dropped rules, the derived-relations note, and the graduation next-step', () => {
     const dir = copyFixture();
     try {

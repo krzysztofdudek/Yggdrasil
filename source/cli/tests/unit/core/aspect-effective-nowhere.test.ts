@@ -299,7 +299,7 @@ describe('checkArchitectureDefaultAspectUnreachable (per-type dead-attach linter
   });
 });
 
-describe('type-coverage tier-awareness (Step 5)', () => {
+describe('type-coverage tier-awareness', () => {
   const typeOnlyDirs: string[] = [];
   afterEach(() => {
     for (const d of typeOnlyDirs.splice(0)) rmSync(d, { recursive: true, force: true });

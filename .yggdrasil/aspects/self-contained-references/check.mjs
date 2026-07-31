@@ -6,14 +6,16 @@ import { walk, report, findComments } from '@chrisdudek/yg/ast';
 // repository checked out has to be able to understand it without chasing an
 // external planning artifact (a private review report, a numbered task/round
 // from a design doc, a scratch file) that is not committed here. This check
-// catches two concrete, previously-recurring shapes of that failure — see the
-// aspect's own description for why it deliberately stops there (in short: a
-// blanket "any bare reference code" scan collides with this repository's own
-// large, established, pre-existing convention of citing its OWN long-lived
-// invariants and decisions the same way, e.g. "(G4)", "(D7)", "(R5)" — a
-// static scan with no git history cannot tell that apart from an external
-// citation, so this check narrows to the one shape that never collided with
-// it in practice: a trailing-letter variant inside a TEST NAME).
+// catches three concrete, previously-recurring shapes of that failure — see
+// the aspect's own description for why it deliberately stops there (in
+// short: a blanket "any bare reference code/number" scan collides with this
+// repository's own large, established, pre-existing conventions of citing
+// its OWN long-lived invariants and decisions the same way, e.g. "(G4)",
+// "(D7)", "(R5)" for a code, or a self-contained lowercase "step" legend for
+// a number — a static scan with no git history cannot tell either apart from
+// an external citation, so this check narrows to the two shapes that never
+// collided with either in practice: a trailing-letter code, and a
+// capital-"S" "Step" number, both inside a TEST NAME).
 //
 // PART A — vague, un-anchored phrases (comments AND test names). A phrase
 // like "this task" or "the brief" names no number, no title, nothing a reader
@@ -29,6 +31,16 @@ import { walk, report, findComments } from '@chrisdudek/yg/ast';
 // `it`/`describe`/`test` name specifically. Exempt whenever the code is
 // followed by a colon introducing its own explanation in the same
 // parenthetical (e.g. "(I1b: binary wins over the size guard)").
+//
+// PART C — a bare parenthetical numbered-step citation ("(Step N)",
+// "(Step 4a)") in a test's own `it`/`describe`/`test` name, under the exact
+// same colon exemption as Part B. Deliberately capital-"S" "Step" only, and
+// test names only: this repository has its own, unrelated, already-
+// self-contained lowercase "step" convention (e.g. allowed-reads.test.ts's
+// own file-header legend numbering "step 1".."step 4", and fill.ts's/
+// pairs.ts's in-file "// Step N: ..." section markers) — neither shape is
+// this check's target, and scoping to the capital-"S" parenthetical form
+// inside a test name is what tells them apart without flagging either.
 
 const VAGUE_PHRASES = [
   { re: /\bthis task\b/i, label: '"this task"' },
@@ -56,6 +68,22 @@ function bareCodeMatch(text) {
   while ((m = CODE_IN_PARENS.exec(text))) {
     const [, code, rest] = m;
     if (!rest.includes(':')) return code;
+  }
+  return null;
+}
+
+// Literal "Step" (capital S only — see PART C above for why) + 1-3 digits +
+// 0-3 trailing lowercase letters, e.g. "Step 2", "Step 4a".
+const STEP_IN_PARENS = /\(Step (\d{1,3}[a-z]{0,3})\b([^()]*)\)/g;
+
+/** First bare (no colon in its own parenthetical) "(Step N)"/"(Step Na)" citation in
+ *  `text`, or null. */
+function bareStepMatch(text) {
+  STEP_IN_PARENS.lastIndex = 0;
+  let m;
+  while ((m = STEP_IN_PARENS.exec(text))) {
+    const [, step, rest] = m;
+    if (!rest.includes(':')) return step;
   }
   return null;
 }
@@ -191,6 +219,19 @@ export function check(ctx) {
               `can resolve from this repository. Either drop it (the name already stands on its ` +
               `own without it) or give it its own inline colon-based explanation right there, ` +
               `e.g. '(${code}: what it means)'.`,
+          ),
+        );
+      }
+      const step = bareStepMatch(text);
+      if (step) {
+        violations.push(
+          report(
+            file,
+            anchor,
+            `Test name cites a bare step reference '(Step ${step})' with no explanation a ` +
+              `reader can resolve from this repository (nothing here numbers "Step ${step}"). ` +
+              `Either drop it (the name already stands on its own without it) or give it its ` +
+              `own inline colon-based explanation right there, e.g. '(Step ${step}: what it means)'.`,
           ),
         );
       }

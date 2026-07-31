@@ -4,7 +4,7 @@ description: >-
   repository checked out has to be able to understand it without chasing an
   external planning artifact (a private review report, a numbered task/round
   from a design doc, a scratch file) that is not committed here. This check
-  refuses two concrete, previously-recurring shapes of that failure: (1) a
+  refuses three concrete, previously-recurring shapes of that failure: (1) a
   vague, un-anchored phrase citing an external plan or task with no way to
   even identify WHICH one ("this task", "a later task", "master plan", "the
   brief", "fix round") — including when the phrase is split across two or
@@ -12,7 +12,11 @@ description: >-
   grep before; (2) a bare parenthetical reference code shaped like a private
   review report's finding id (a letter, 1-3 digits, and a trailing lowercase
   letter — e.g. "(I1a)") with no colon-based explanation, in a test's own
-  `it`/`describe`/`test` name. It deliberately does NOT flag a plain
+  `it`/`describe`/`test` name; (3) a bare parenthetical numbered-step
+  citation ("(Step N)", "(Step 4a)") in a test's own `it`/`describe`/`test`
+  name, under the same colon exemption as (2) — the shape a whole later
+  branch used to cite a planning brief's own numbered steps, none of them
+  committed to this repository. It deliberately does NOT flag a plain
   letter+digit code with no trailing letter (e.g. "(G4)", "(D7)", "(R5)")
   even when unexplained at that exact spot, and does not scan general
   comments for that shape at all: this repository has an extensive,
@@ -21,10 +25,17 @@ description: >-
   concept described in full where the code is first used, then referenced
   bare elsewhere) — a static scan with no git history cannot reliably tell
   that convention apart from an external citation, and the two even collide
-  on the same literal string in different files. Narrowing to the
-  trailing-letter shape inside a test name is what keeps this check free of
-  false positives against that convention while still catching the actual
-  recurring failure. Exempt whenever the code is followed by a colon
+  on the same literal string in different files. It likewise does NOT flag a
+  lowercase "step" citation anywhere: this repository separately has its own
+  self-contained lowercase "step N" convention (an in-file legend defined and
+  explained once, then referenced bare within the same file — e.g. a test
+  file's own numbered branch-coverage cases, or a long function's own
+  "// Step N: ..." section markers), which never collides with the
+  capital-"S" parenthetical shape (3) targets. Narrowing to the
+  trailing-letter code shape and the capital-"S" step shape, both inside a
+  test name only, is what keeps this check free of false positives against
+  those established conventions while still catching the actual recurring
+  failure. Exempt whenever the code or step number is followed by a colon
   introducing its own explanation in the same parenthetical or comment.
 reviewer:
   type: deterministic

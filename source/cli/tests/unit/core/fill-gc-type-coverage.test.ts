@@ -127,7 +127,7 @@ function emptyLockWith(verdicts: LockFile['verdicts']): LockFile {
 //     file-level result — the pairs are in the universe.
 // ---------------------------------------------------------------------------
 
-describe('garbageCollectAndRewrite — nodeless universe (Step 4a)', () => {
+describe('garbageCollectAndRewrite — nodeless universe', () => {
   it('a stored file-level verdict survives GC when typeCoverage is threaded (the anti-prune lever)', async () => {
     writeFile('src/leaf/a.ts');
     const graph = buildGraph(tmpDir, [], [{ id: 'own-file-rule', scope: { per: 'file' } }], [
@@ -165,7 +165,7 @@ describe('garbageCollectAndRewrite — nodeless universe (Step 4a)', () => {
 //     regardless of which rule they belong to (aspect-agnostic, path-keyed).
 // ---------------------------------------------------------------------------
 
-describe('garbageCollectAndRewrite — ambiguous-path retain family (Step 4b)', () => {
+describe('garbageCollectAndRewrite — ambiguous-path retain family', () => {
   it('retains a file-level entry for ANY aspect when the file is reported ambiguous this run', async () => {
     // No node type attaches 'stale-rule' at all this run — the file is
     // AMBIGUOUS (the machine could not decide its type), not covered by any
@@ -204,7 +204,7 @@ describe('garbageCollectAndRewrite — ambiguous-path retain family (Step 4b)', 
 // (c) with the feature turned back off, the next FULL --approve prunes them.
 // ---------------------------------------------------------------------------
 
-describe('garbageCollectAndRewrite — feature turned back off (Step 4c)', () => {
+describe('garbageCollectAndRewrite — feature turned back off', () => {
   it('a file-level entry retained while the feature was on is pruned once typeCoverage is absent again', async () => {
     writeFile('src/leaf/a.ts');
     const graph = buildGraph(tmpDir, [], [{ id: 'own-file-rule', scope: { per: 'file' } }], [
@@ -213,7 +213,8 @@ describe('garbageCollectAndRewrite — feature turned back off (Step 4c)', () =>
     const lock = emptyLockWith({
       'own-file-rule': { [fileUnit('src/leaf/a.ts')]: { verdict: 'approved', hash: 'h1' } },
     });
-    // Run 1: feature ON — retained (Step 4a).
+    // Run 1: feature ON — retained (mirrors the nodeless-universe anti-prune
+    // case above).
     await garbageCollectAndRewrite(graph, lock, async () => {}, { typeCoverage: tc([['src/leaf/a.ts', 'leaf']]) });
     expect(lock.verdicts['own-file-rule']?.[fileUnit('src/leaf/a.ts')]).toBeDefined();
     // Run 2: feature OFF (no typeCoverage) — now positively detached, pruned.
@@ -230,7 +231,7 @@ describe('garbageCollectAndRewrite — feature turned back off (Step 4c)', () =>
 //     universe; the entry is pruned and the summary names it.
 // ---------------------------------------------------------------------------
 
-describe('garbageCollectAndRewrite — target-side re-typing (Step 4e)', () => {
+describe('garbageCollectAndRewrite — target-side re-typing', () => {
   it('re-typing the imported file removes the relation-gated rule from the importing file’s universe', async () => {
     writeFile('src/consumer/c.ts');
     // consumerType's rule is gated on relations.uses.target_type === 'ownerType'.
@@ -273,7 +274,7 @@ describe('garbageCollectAndRewrite — target-side re-typing (Step 4e)', () => {
 //     is pruned that should not be.
 // ---------------------------------------------------------------------------
 
-describe('garbageCollectAndRewrite — component-deletion twin (Step 4f)', () => {
+describe('garbageCollectAndRewrite — component-deletion twin', () => {
   it('deleting the owning component but having the file re-match a type keeps the same unit key alive', async () => {
     writeFile('src/leaf/a.ts');
     const aspects = [{ id: 'shared-rule', scope: { per: 'file' as const } }];
@@ -317,7 +318,7 @@ describe('garbageCollectAndRewrite — component-deletion twin (Step 4f)', () =>
 // covered.
 // ---------------------------------------------------------------------------
 
-describe('garbageCollectAndRewrite — graduation twin, UNIT level (Step 4d)', () => {
+describe('garbageCollectAndRewrite — graduation twin, UNIT level', () => {
   it('the unit key survives graduation untouched by GC; verifyLock is what detects the fingerprint no longer matches', async () => {
     writeFile('src/leaf/a.ts', 'export const a = 1;\n');
     const aspects = [{ id: 'own-file-rule', scope: { per: 'file' as const } }];

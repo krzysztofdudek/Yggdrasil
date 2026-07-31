@@ -115,10 +115,10 @@ function applied(pairs: ExpectedPair[]): TypeVisibilityAppliedPair[] {
 }
 
 // ---------------------------------------------------------------------------
-// Step 1 — one row per reason (9 its; 8 real, 1 .todo — see its own comment below)
+// One row per reason (9 its; 8 real, 1 .todo — see its own comment below)
 // ---------------------------------------------------------------------------
 
-describe('buildTypeVisibility — one row per reason (Step 1)', () => {
+describe('buildTypeVisibility — one row per reason', () => {
   it('when-not-satisfied: an attached rule whose when: never matches a file-level unit', async () => {
     writeFile('src/leaf/a.ts');
     const graph = buildTypeCoverageGraph(tmpDir, {
