@@ -658,3 +658,70 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health counts type-covere
     }
   });
 });
+
+// ── the suppresses column must count a marker wherever the reviewer honors one,
+// not only where an ordinary git-tracked-file walk happens to look. Three files,
+// two real aspects: a type-covered file with no owning component (src/pics/
+// readme.md, aspect prose-rule — a `.md` subject, so the count actually depends
+// on the type-coverage exemption reaching the noise filter, unlike a `.ts`
+// subject that was never noise to begin with), and two files the real 'owned'
+// node maps directly, both carrying own-file-rule — one under `.yggdrasil/`
+// (pruned from the coverage walk) and one a `.gitignore` excludes (an exact
+// mapping entry is reviewed regardless of ignore status). The deterministic
+// runner honors a marker on all three; the suppresses column must count all
+// three too.
+
+function copyMergedTypeLevelFixtureWithBinarySubject(): string {
+  const dir = mkdtempSync(path.join(tmpdir(), 'yg-aspects-health-waiverhosts-'));
+  cpSync(TYPE_LEVEL_BASE, dir, { recursive: true });
+  cpSync(path.join(TYPE_LEVEL_BASE, 'variants', 'binary-subject'), dir, { recursive: true });
+  return dir;
+}
+
+describe.skipIf(!distExists)('CLI E2E — yg aspects --health counts a marker wherever it is honored, whatever file hosts it', () => {
+  it('the suppresses column counts the type-covered file, the .yggdrasil/-mapped file, and the gitignored mapped file', () => {
+    const dir = copyMergedTypeLevelFixtureWithBinarySubject();
+    try {
+      addUnusedReviewer(dir);
+
+      const nodeYamlPath = path.join(dir, '.yggdrasil', 'model', 'owned', 'yg-node.yaml');
+      const original = readFileSync(nodeYamlPath, 'utf-8');
+      const updated = original.replace(
+        'mapping:\n  - src/owned/o.ts\n',
+        'mapping:\n  - src/owned/o.ts\n  - .yggdrasil/meta/notes.md\n  - generated/g.ts\n',
+      );
+      expect(updated).not.toBe(original);
+      writeFileSync(nodeYamlPath, updated);
+
+      mkdirSync(path.join(dir, '.yggdrasil', 'meta'), { recursive: true });
+      writeFileSync(
+        path.join(dir, '.yggdrasil', 'meta', 'notes.md'),
+        '# design notes\n\n<!-- yg-suppress(own-file-rule) mapped under .yggdrasil -->\n',
+      );
+
+      writeFileSync(path.join(dir, '.gitignore'), 'generated/\n');
+      mkdirSync(path.join(dir, 'generated'), { recursive: true });
+      writeFileSync(
+        path.join(dir, 'generated', 'g.ts'),
+        'export const G = 1;\n// yg-suppress(own-file-rule) mapped but gitignored\n',
+      );
+
+      appendFileSync(
+        path.join(dir, 'src', 'pics', 'readme.md'),
+        '\n<!-- yg-suppress(prose-rule) type-covered, no component -->\n',
+      );
+
+      run(['check', '--approve', '--only-deterministic'], dir);
+
+      const health = run(['aspects', '--health'], dir);
+      expect(health.status).toBe(0);
+
+      const ownFileRule = healthRow(health.stdout, 'own-file-rule');
+      expect(ownFileRule[COL.suppresses]).toBe('2');
+      const proseRule = healthRow(health.stdout, 'prose-rule');
+      expect(proseRule[COL.suppresses]).toBe('1');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

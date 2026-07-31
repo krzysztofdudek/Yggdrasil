@@ -1,5 +1,7 @@
 import { toPosixPath } from '../../utils/posix.js';
 import { mappingEntryMatchesFile, normalizeMappingPath } from '../../utils/mapping-path.js';
+import { expandMappingPaths } from '../../io/hash.js';
+import { excludeNestedGraphSubtrees } from '../../io/repo-scanner.js';
 import type { Graph } from '../../model/graph.js';
 
 /**
@@ -38,9 +40,13 @@ import type { Graph } from '../../model/graph.js';
  *
  * Excluded (only when NOT a mapped source and NOT a type-covered file):
  *  - everything under `.yggdrasil/` — the graph's per-node `log.md`, aspect
- *    `content.md`, and `yg-node.yaml` examples. (A meta-modeling doc mapped
- *    under `.yggdrasil/` is a mapped source, so it is exempt from this
- *    exclusion and IS inventoried.)
+ *    `content.md`, and `yg-node.yaml` examples. A meta-modeling doc mapped
+ *    under `.yggdrasil/` IS a mapped source and so is exempt from this
+ *    exclusion — but exemption alone is not enough to make it inventoried:
+ *    the caller must also present the file to this function at all, which
+ *    means drawing the scan's candidate list from `computeSuppressionScanUniverse`
+ *    below rather than a plain repo walk. See that function's own comment for
+ *    why a repo walk alone can never reach such a file.
  *  - a file whose base name is exactly `.clinerules` (Cline's legacy
  *    single-file convention, no extension) — matched by base name only, so
  *    this does NOT match `.clinerules/yggdrasil.md`, the directory form
@@ -140,4 +146,72 @@ export function collectTypeCoveredFiles(covered: ReadonlyMap<string, string> | u
  */
 export function isTypeCoveredSource(relFile: string, typeCoveredFiles: ReadonlySet<string>): boolean {
   return typeCoveredFiles.has(toPosixPath(relFile));
+}
+
+/**
+ * The scan's complete candidate file list — every path a real `yg-suppress`
+ * marker can be LIVE on, full stop. This is the current, checkable definition
+ * of "a file that can host a live marker"; extending it belongs here, in one
+ * place, not as a special case added to `isNoiseFile` or to an individual
+ * caller.
+ *
+ * A repo walk (`walkRepoFiles`) answers a DIFFERENT question — "what needs
+ * coverage" — and is deliberately narrower than this: it prunes the top-level
+ * `.yggdrasil/` directory (the graph's own internal state, irrelevant to
+ * coverage) and drops any `.gitignore`-matched path. Neither exclusion says
+ * anything about whether the reviewer actually reads and honors markers in a
+ * given file — a node's `mapping:` entry can name a file in either place, and
+ * the deterministic/structure runner reads it regardless (an exact-file
+ * mapping entry is reviewed unconditionally, gitignore or not; see the
+ * `file-mapping-gitignored` check for why that is intentional). Passing a
+ * plain repo walk to the scan is therefore not a smaller inventory, it is a
+ * WRONG one: a marker on such a file is honored by the runner and invisible
+ * to the audit at the same time.
+ *
+ * The complete universe is the union of two sets, both already exactly the
+ * ones the runner itself draws its own file set from:
+ *  - `walkedFiles` — the repo walk, unmodified. Every file the type-coverage
+ *    lattice can ever classify into its `covered` bucket is drawn from this
+ *    same walk (a file under `.yggdrasil/` can never be type-covered — the
+ *    coverage scan skips it outright), so a type-covered waiver site is
+ *    always already a member of this set and needs no separate union step.
+ *  - every concrete file `expandMappingPaths` resolves EVERY node's
+ *    `mapping:` entries to, computed here with the exact same function the
+ *    runner uses to build a node's own reviewed file set. This is the piece
+ *    `walkedFiles` cannot stand in for, for the two structural reasons above.
+ *
+ * One guard applies to the second member alone: a directory (or glob) mapping
+ * entry can resolve into a SUBTREE that carries its own nested `.yggdrasil/` —
+ * a separate graph that governs itself, the same structural case `walkedFiles`
+ * already excludes (`excludeNestedGraphSubtrees`, applied inside
+ * `walkRepoFiles`). `expandMappingPaths` has no reason to know about nested
+ * graphs — it is the shared expansion primitive the whole codebase reuses for
+ * plain file resolution — so this function applies the exclusion itself,
+ * after expansion, rather than trusting the primitive to have done it. Without
+ * this, a broad directory mapping that happens to contain an unrelated nested
+ * checkout would attribute THAT checkout's own markers to this graph's audit —
+ * a foreign-graph leak, not a live waiver on this graph's own code.
+ *
+ * If a future change gives the runner a THIRD way to read and honor a marker
+ * in a file — a new kind of reference resolved through neither a node's
+ * mapping nor the type-coverage lattice — this function's union must grow to
+ * match, or the audit drifts from enforcement again exactly as it did for the
+ * two cases above.
+ */
+export async function computeSuppressionScanUniverse(
+  projectRoot: string,
+  walkedFiles: readonly string[],
+  mappingEntries: readonly string[],
+): Promise<string[]> {
+  const universe = walkedFiles.map(toPosixPath);
+  const seen = new Set(universe);
+  const rawMappedFiles = await expandMappingPaths(projectRoot, [...mappingEntries]);
+  const mappedFiles = excludeNestedGraphSubtrees(rawMappedFiles.map(toPosixPath));
+  for (const p of mappedFiles) {
+    if (!seen.has(p)) {
+      seen.add(p);
+      universe.push(p);
+    }
+  }
+  return universe;
 }

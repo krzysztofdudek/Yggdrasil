@@ -340,6 +340,69 @@ describe.skipIf(!distExists)('yg advise agrees with yg check on a rule enforced 
   });
 });
 
+describe.skipIf(!distExists)('yg advise nominates a risky marker on every file a marker can live on (spawned)', () => {
+  let projectRoot: string;
+
+  beforeEach(() => {
+    projectRoot = mkdtempSync(path.join(tmpdir(), 'yg-advise-waiverhosts-'));
+    cpSync(TYPE_LEVEL_FIXTURE, projectRoot, { recursive: true });
+    // Adds architecture type 'pics' (matches src/pics/**, attaches the LLM
+    // per-file rule prose-rule) and a real text subject, src/pics/readme.md —
+    // a type-covered file whose extension (`.md`) the suppression scan's
+    // noise filter would otherwise drop as documentation prose. A `.ts`
+    // subject can never exercise that filter (it was never noise to begin
+    // with), so this variant is what makes the type-covered case below
+    // actually depend on the type-coverage exemption rather than passing
+    // for an unrelated reason.
+    cpSync(path.join(TYPE_LEVEL_FIXTURE, 'variants', 'binary-subject'), projectRoot, { recursive: true });
+
+    // A live marker is honored on three different kinds of file, and `yg advise`
+    // must nominate a risky one on all three: a type-covered file with no
+    // owning component (src/pics/readme.md, type 'pics'), and two files the
+    // real 'owned' node maps directly — one under `.yggdrasil/` (a repo walk
+    // prunes that whole directory) and one a `.gitignore` excludes (an exact
+    // mapping entry is reviewed regardless of ignore status). None of the
+    // three would ever surface in an ordinary git-tracked-file walk; they are
+    // live waiver sites because the deterministic runner reads a node's mapping
+    // and the type-coverage lattice directly, never through that walk.
+    const nodeYamlPath = path.join(projectRoot, '.yggdrasil', 'model', 'owned', 'yg-node.yaml');
+    const original = readFileSync(nodeYamlPath, 'utf-8');
+    const updated = original.replace(
+      'mapping:\n  - src/owned/o.ts\n',
+      'mapping:\n  - src/owned/o.ts\n  - .yggdrasil/meta/notes.md\n  - generated/g.ts\n',
+    );
+    if (updated === original) throw new Error(`fixture drift: expected mapping block not found in ${nodeYamlPath}`);
+    writeFileSync(nodeYamlPath, updated);
+
+    mkdirSync(path.join(projectRoot, '.yggdrasil', 'meta'), { recursive: true });
+    writeFileSync(
+      path.join(projectRoot, '.yggdrasil', 'meta', 'notes.md'),
+      '# design notes\n\n<!-- yg-suppress(*) waiver on a file mapped under .yggdrasil -->\n',
+    );
+
+    writeFileSync(path.join(projectRoot, '.gitignore'), 'generated/\n');
+    mkdirSync(path.join(projectRoot, 'generated'), { recursive: true });
+    writeFileSync(
+      path.join(projectRoot, 'generated', 'g.ts'),
+      'export const G = 1;\n// yg-suppress(*) waiver on a gitignored mapped file\n',
+    );
+
+    appendFileSync(
+      path.join(projectRoot, 'src', 'pics', 'readme.md'),
+      '\n<!-- yg-suppress(*) waiver on a type-covered file with no component -->\n',
+    );
+  });
+  afterEach(() => rmSync(projectRoot, { recursive: true, force: true }));
+
+  it('reports "is risky (wildcard)" for the type-covered file, the .yggdrasil/-mapped file, and the gitignored mapped file', () => {
+    const { status, stdout } = run(['advise', '--all'], projectRoot);
+    expect(status).toBe(0);
+    expect(stdout).toMatch(/A suppress marker at '?src\/pics\/readme\.md:\d+'? is risky \(wildcard\)/);
+    expect(stdout).toMatch(/A suppress marker at '?\.yggdrasil\/meta\/notes\.md:\d+'? is risky \(wildcard\)/);
+    expect(stdout).toMatch(/A suppress marker at '?generated\/g\.ts:\d+'? is risky \(wildcard\)/);
+  });
+});
+
 describe.skipIf(!distExists)('yg advise — id-surface injection hygiene (spawned)', () => {
   let projectRoot: string;
   let canonicalId: string;

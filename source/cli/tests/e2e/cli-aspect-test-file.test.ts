@@ -407,3 +407,128 @@ describe.skipIf(!distExists)('CLI E2E — yg-suppress on a type-covered file who
     }
   });
 });
+
+// =============================================================================
+// A live yg-suppress marker is honored wherever a node's mapping entry resolves
+// to a file on disk — not only where an ordinary repo walk happens to look. The
+// deterministic runner reads a node's mapping directly (expanding a directory
+// or glob, but taking an exact file entry as-is); it never consults the repo
+// walk that decides which files need coverage. Two files a repo walk cannot
+// see are still real waiver sites this way:
+//   - a file under `.yggdrasil/` — the walk prunes that whole directory to
+//     keep the graph's own internal state out of the coverage scan, which
+//     says nothing about a document a node deliberately maps there;
+//   - a file a `.gitignore` excludes — an exact mapping entry is reviewed
+//     regardless of ignore status (the `file-mapping-gitignored` check flags
+//     the anomaly as a separate concern; it does not stop the file being
+//     reviewed).
+// The audit inventory must reach exactly the files the runner actually reads,
+// or a marker can silence a rule while every audit surface reads clean.
+// =============================================================================
+
+/**
+ * Extends the real `owned` node's mapping with the two files above, and gives
+ * it a fresh deterministic rule (`no-banned-word`) that refuses any line
+ * containing the literal token BANNED — the same before/after flip shape the
+ * type-covered `.md` test above already uses, so a marker's effect on
+ * enforcement and on the inventory can be observed on the SAME two files.
+ */
+function addHiddenMappedWaiverSites(dir: string): void {
+  const nodeYamlPath = path.join(dir, '.yggdrasil', 'model', 'owned', 'yg-node.yaml');
+  const original = readFileSync(nodeYamlPath, 'utf-8');
+  const updated = original.replace(
+    'mapping:\n  - src/owned/o.ts\n',
+    'mapping:\n  - src/owned/o.ts\n  - .yggdrasil/meta/notes.md\n  - generated/g.ts\naspects:\n  - no-banned-word\n',
+  );
+  if (updated === original) {
+    throw new Error(`fixture drift: expected mapping block not found in ${nodeYamlPath}`);
+  }
+  writeFileSync(nodeYamlPath, updated);
+
+  const adir = path.join(dir, '.yggdrasil', 'aspects', 'no-banned-word');
+  mkdirSync(adir, { recursive: true });
+  writeFileSync(
+    path.join(adir, 'yg-aspect.yaml'),
+    'name: no-banned-word\ndescription: refuses a line containing the literal token BANNED\nreviewer:\n  type: deterministic\nscope:\n  per: file\n',
+  );
+  writeFileSync(
+    path.join(adir, 'check.mjs'),
+    "export function check(ctx) {\n  const subject = ctx.subject[0];\n  if (!subject) return [];\n  const { path: p, content } = subject;\n  const lines = content.split('\\n');\n  const issues = [];\n  lines.forEach((line, i) => {\n    if (line.includes('BANNED')) issues.push({ file: p, line: i + 1, message: 'contains BANNED' });\n  });\n  return issues;\n}\n",
+  );
+
+  const metaNotes = path.join(dir, '.yggdrasil', 'meta', 'notes.md');
+  mkdirSync(path.dirname(metaNotes), { recursive: true });
+  writeFileSync(metaNotes, '# design notes\n\nBANNED\n');
+
+  writeFileSync(path.join(dir, '.gitignore'), 'generated/\n');
+  const generatedFile = path.join(dir, 'generated', 'g.ts');
+  mkdirSync(path.dirname(generatedFile), { recursive: true });
+  writeFileSync(generatedFile, 'export const G = 1;\n// BANNED\n');
+}
+
+describe.skipIf(!distExists)('CLI E2E — yg-suppress on a mapped file an ordinary repo walk cannot see', () => {
+  it('a marker on a node-mapped file under .yggdrasil/ is honored by the deterministic runner AND inventoried by yg suppressions', () => {
+    const dir = copyMergedFixtureWithBinarySubject();
+    try {
+      // The fixture also carries an LLM aspect (prose-rule); tier resolution
+      // runs even for --only-deterministic, so a bogus, never-dialed endpoint
+      // is needed (mirrors the flip test above).
+      addReviewer(dir, 'http://127.0.0.1:1');
+      addHiddenMappedWaiverSites(dir);
+      const notesPath = path.join(dir, '.yggdrasil', 'meta', 'notes.md');
+
+      const before = run(['check', '--approve', '--only-deterministic'], dir);
+      expect(before.stdout).toContain('.yggdrasil/meta/notes.md:3: contains BANNED');
+      expect(run(['suppressions'], dir).stdout).not.toContain('.yggdrasil/meta/notes.md');
+
+      writeFileSync(
+        notesPath,
+        readFileSync(notesPath, 'utf-8').replace(
+          '\nBANNED\n',
+          '\n<!-- yg-suppress(no-banned-word) known debt, tracked in the issue tracker -->\nBANNED\n',
+        ),
+      );
+
+      const after = run(['check', '--approve', '--only-deterministic'], dir);
+      expect(after.stdout).not.toContain('.yggdrasil/meta/notes.md:3: contains BANNED');
+
+      const inventory = run(['suppressions'], dir);
+      expect(inventory.stdout).toContain('.yggdrasil/meta/notes.md');
+      expect(inventory.stdout).toContain('single(no-banned-word)');
+      expect(inventory.stdout).not.toContain('No active suppression markers found.');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('a marker on a node-mapped file a .gitignore excludes is honored by the deterministic runner AND inventoried by yg suppressions', () => {
+    const dir = copyMergedFixtureWithBinarySubject();
+    try {
+      addReviewer(dir, 'http://127.0.0.1:1');
+      addHiddenMappedWaiverSites(dir);
+      const generatedPath = path.join(dir, 'generated', 'g.ts');
+
+      const before = run(['check', '--approve', '--only-deterministic'], dir);
+      expect(before.stdout).toContain('generated/g.ts:2: contains BANNED');
+      expect(run(['suppressions'], dir).stdout).not.toContain('generated/g.ts');
+
+      writeFileSync(
+        generatedPath,
+        readFileSync(generatedPath, 'utf-8').replace(
+          '\n// BANNED\n',
+          '\n// yg-suppress(no-banned-word) known debt, tracked in the issue tracker\n// BANNED\n',
+        ),
+      );
+
+      const after = run(['check', '--approve', '--only-deterministic'], dir);
+      expect(after.stdout).not.toContain('generated/g.ts:2: contains BANNED');
+
+      const inventory = run(['suppressions'], dir);
+      expect(inventory.stdout).toContain('generated/g.ts');
+      expect(inventory.stdout).toContain('single(no-banned-word)');
+      expect(inventory.stdout).not.toContain('No active suppression markers found.');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

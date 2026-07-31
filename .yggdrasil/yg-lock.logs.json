@@ -90,7 +90,7 @@
     "cli/model/file-when": {"log":{"last_entry_datetime":"2026-05-13T05:28:56.718Z","prefix_hash":"906822f33b392ecac5be7cc549e1580939b18068fd72c4c2cd0c0aa50f4823e3"}},
     "cli/model/graph": {"log":{"last_entry_datetime":"2026-06-12T14:17:35.026Z","prefix_hash":"3aa682544c082b133a9e2148dc08d8088ef240ef92274620d0dc44384f7cf0e6"}},
     "cli/model/lock": {"log":{"last_entry_datetime":"2026-06-12T11:33:00.973Z","prefix_hash":"6c694550e0ebfdd290a0aca8439a9b4fc456a64e410fa638387df6d7fb6e03e8"}},
-    "cli/portal/engine-api": {"log":{"last_entry_datetime":"2026-07-31T04:22:18.827Z","prefix_hash":"ad1383c43cdeb6d1778b1c757d626dec60504884802aa991a4c4c8c6e4f5a52f"},"source":"6df9b37814ac7e8f9714cfe38b5ca8fac5b3df4857b8a651fdf88cbefd0000a3"},
+    "cli/portal/engine-api": {"log":{"last_entry_datetime":"2026-07-31T05:51:17.350Z","prefix_hash":"f7f1f4581a753dbec683c522c6fe65468a82be3c30e558050fd65f562fdbffe1"},"source":"9e91a25e5eee34712a47d7264db749bd78899c01b55531524060808ed43949eb"},
     "cli/portal/pipeline": {"log":{"last_entry_datetime":"2026-07-31T04:22:21.856Z","prefix_hash":"414c96b045231a0f7a68a2b10cdb5b4fe66aca5c1e9129d854de8eab57672da6"},"source":"e3420c52388e7cc58052d57f9dc582525dd37bad989247cfd61102e4da105647"},
     "cli/portal/serializer": {"log":{"last_entry_datetime":"2026-07-13T14:06:27.930Z","prefix_hash":"3133f12509c99e3ad176ff0ab8fb10d3de483501cd1a67562defd6a55cba9b1e"},"source":"c88ad2f5b7becd5ad85e6c700810e9e25349e1babce57175bc7484b9e5f65e30"},
     "cli/portal/server": {"log":{"last_entry_datetime":"2026-07-16T12:58:03.595Z","prefix_hash":"a4322b53116228fb1abd8a2b9d671edfcc5380c2c113932814fc94800128e56d"},"source":"05a7527a4ff70f53bb320520e0689f331a6eec0f5ff80f4ed7d5278506d2d4b3"},

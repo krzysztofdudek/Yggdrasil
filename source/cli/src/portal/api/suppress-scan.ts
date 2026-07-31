@@ -8,7 +8,7 @@ import { getLanguageForExtension } from '../../utils/language-registry.js';
 import { buildIssueMessage } from '../../formatters/message-builder.js';
 import { toPosixPath } from '../../utils/posix.js';
 import { debugWrite } from '../../utils/debug-log.js';
-import { isNoiseFile, isMappedSource, isTypeCoveredSource } from './suppress-eligibility.js';
+import { isNoiseFile, isMappedSource, isTypeCoveredSource, computeSuppressionScanUniverse } from './suppress-eligibility.js';
 import type { SuppressionMarkerInput } from '../contract.js';
 
 /**
@@ -121,7 +121,15 @@ export async function runSuppressionsScan(
   // Map<file, Map<aspectId, disableLineNum[]>>
   const openDisables = new Map<string, Map<string, number[]>>();
 
-  for (const relFile of gitTrackedFiles) {
+  // `gitTrackedFiles` is an ordinary repo walk — it answers "what needs
+  // coverage", not "what file can a live marker be on". Widen it to the
+  // scan's real candidate universe (see `computeSuppressionScanUniverse`'s
+  // own comment for exactly what that adds and why) before the noise filter
+  // below ever runs, so a mapped file the walk cannot see is never silently
+  // dropped before it gets a chance to be recognized as a live waiver site.
+  const scanFiles = await computeSuppressionScanUniverse(projectRoot, gitTrackedFiles, mappingEntries);
+
+  for (const relFile of scanFiles) {
     // Skip generated rules mirrors, per-node logs, and prose docs that carry no
     // live waiver — they only MENTION the marker syntax. A file that IS a live
     // waiver site is exempt from that noise filter regardless of extension: a

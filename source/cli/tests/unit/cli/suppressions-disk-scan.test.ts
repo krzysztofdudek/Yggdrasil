@@ -17,9 +17,15 @@ vi.mock('../../../src/utils/debug-log.js', () => ({
   debugWrite: vi.fn(),
 }));
 vi.mock('../../../src/io/debug-log-writer.js', () => ({ appendToDebugLog: vi.fn() }));
-vi.mock('../../../src/io/repo-scanner.js', () => ({
-  walkRepoFiles: vi.fn(),
-}));
+// Only walkRepoFiles is mocked (that is the plumbing this file pins); every other
+// export — including excludeNestedGraphSubtrees, which the suppression scan's file
+// universe now also calls, on the mapped-file side of its union — passes through to
+// the real module. Replacing the whole module would silently drop those real
+// functions to `undefined` for every importer, not just this file's own.
+vi.mock('../../../src/io/repo-scanner.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../src/io/repo-scanner.js')>();
+  return { ...actual, walkRepoFiles: vi.fn() };
+});
 
 import { registerSuppressionsCommand } from '../../../src/cli/suppressions.js';
 import { loadGraphOrAbort } from '../../../src/cli/preamble.js';
