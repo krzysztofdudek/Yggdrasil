@@ -22,3 +22,7 @@ Returns the pair-enumeration drop reasons alongside the verified pairs, so a cal
 Threads the new uncomputableTypeCoverage list from pair computation through LockVerification, alongside the existing unreadable and drops channels, so a caller building the type-visibility honesty report can tell a type-covered file whose rules were never resolved (an absorbed implies cycle) apart from one that resolved to genuinely nothing.
 ## [2026-07-30T21:02:16.217Z]
 Reworded the docstring on the typeCoverage parameter so it explains, in its own words, that the classification is computed once by the caller and threaded through rather than recomputed, instead of leaning on a short internal code with no meaning to a reader of this repository.
+## [2026-07-31T01:47:56.379Z]
+The prompt-size gate's companion resolution now threads the run's type-coverage classification and a reach cache through to the shared resolver, so a companion-backed rule on a file with no owning component sizes its prompt using the same architecture-derived allowance the fill stage used when it first wrote the verdict. Without this the two sides could size the same prompt differently and disagree about whether it fits the tier's limit.
+## [2026-07-31T02:01:10.452Z]
+Removed an internal task-reference phrase from a code comment describing companion-hash symmetry so it reads as self-contained prose.

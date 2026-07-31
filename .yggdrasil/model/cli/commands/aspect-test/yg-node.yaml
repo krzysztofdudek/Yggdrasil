@@ -11,16 +11,20 @@ description: "Runs an aspect against a node or ad-hoc files WITHOUT touching the
 aspects:
   - provider-redaction-cascade
 max_direct_relations:
-  limit: 21
+  limit: 24
   reason: >-
-    Raised from the project default of 20 to 21, the exact reviewed count,
-    for three dependencies the file-level `yg aspect test` lookup needs to
-    thread real type-coverage classification into computeExpectedPairs
-    instead of leaving it silently unwired: cli/core/check (scanUncoveredFiles),
-    cli/core/type-coverage (computeTypeCoverage), and cli/io/file-content-cache
-    (the cache the classifier reads through). Without these the LLM-mode pair
-    lookup this command runs would always answer about a component-only
-    universe, never the file-level tier a future --file mode resolves through.
+    Raised from the project default of 20 to 21 (three dependencies the
+    LLM-mode pair lookup needed to thread real type-coverage classification
+    into computeExpectedPairs: cli/core/check, cli/core/type-coverage,
+    cli/io/file-content-cache — see their own history), then to 24 for the
+    `--file <path>` addressing mode itself (a file enforced by its
+    architecture type alone, no owning component): cli/relations/core
+    (buildOwnerIndex, to resolve --file's ownership check the same way
+    cli/commands/owner does), cli/commands/owner (findOwner, so --file and
+    `yg owner` name the identical node/no-owner answer for the same path),
+    and cli/core/check-coverage-tiers (isExcludedByCoverage, so a --file
+    target under coverage.excluded is refused for the same reason `yg owner`
+    and `yg impact --file` already give).
 relations:
   - target: cli/ast/runtime
     type: calls
@@ -63,6 +67,12 @@ relations:
   - target: cli/core/companion-resolve
     type: calls
   - target: cli/core/graph
+    type: calls
+  - target: cli/relations/core
+    type: calls
+  - target: cli/commands/owner
+    type: calls
+  - target: cli/core/check-coverage-tiers
     type: calls
 mapping:
   - source/cli/src/cli/aspect-test.ts

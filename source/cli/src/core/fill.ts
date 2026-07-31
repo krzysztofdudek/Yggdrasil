@@ -749,11 +749,17 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   };
 
   // The architecture-reach cache for nodeless (component-free) pairs — shared
-  // across EVERY fillDetPair call this run (both the pooled and the in-process
-  // branch below dispatch from the same activeDetPairs list), computed once
-  // per matched type rather than once per pair: recomputing it per pair over a
-  // repo with thousands of files would dominate the run.
-  const detReachCache = new Map<string, Set<string>>();
+  // across EVERY fillDetPair call AND every fillLlmPair companion resolution
+  // this run (both the pooled and the in-process det branches below dispatch
+  // from the same activeDetPairs list; the LLM tier loop further down shares
+  // this SAME map), computed once per matched type rather than once per pair:
+  // recomputing it per pair over a repo with thousands of files would
+  // dominate the run. companion-resolve.ts computes the identical quantity
+  // under the identical cache contract (fromType -> Set<string>), so sharing
+  // one Map here costs nothing extra to wire and means a run reviewing both a
+  // det and an LLM aspect on the same type pays the reach computation once,
+  // not twice.
+  const reachCache = new Map<string, Set<string>>();
 
   // The deterministic phase is CPU-bound (tree-sitter parsing), so it CAN run
   // across a persistent worker-thread pool — but each worker pays a one-time
@@ -793,7 +799,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
       await Promise.all(
         activeDetPairs.map(async ({ pair, aspect }, i) => {
           tracker.onPairStart('det', pair.aspectId, toPosixPath(pair.unitKey), write);
-          const outcome = await fillDetPair(graph, projectRoot, pair, aspect, runViaPool, typeCoverageInput, detReachCache);
+          const outcome = await fillDetPair(graph, projectRoot, pair, aspect, runViaPool, typeCoverageInput, reachCache);
           diagSlots[i] = await applyDetOutcome(pair, outcome);
         }),
       );
@@ -804,7 +810,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   } else {
     for (const { pair, aspect } of activeDetPairs) {
       tracker.onPairStart('det', pair.aspectId, toPosixPath(pair.unitKey), write);
-      const outcome = await fillDetPair(graph, projectRoot, pair, aspect, runStructureAspect, typeCoverageInput, detReachCache);
+      const outcome = await fillDetPair(graph, projectRoot, pair, aspect, runStructureAspect, typeCoverageInput, reachCache);
       collectDetDiag(await applyDetOutcome(pair, outcome));
     }
   }
@@ -915,7 +921,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
     // Worker pool bounded by parallel; consensus runs sequentially in-slot.
     const outcomes = await runPairPool(group, parallel, async (item) => {
       tracker.onPairStart('llm', item.pair.aspectId, toPosixPath(item.pair.unitKey), write);
-      const outcome = await fillLlmPair(graph, projectRoot, item.pair, item.aspect, item.tier, item.tierName, baseTier, provider, referencesCache);
+      const outcome = await fillLlmPair(graph, projectRoot, item.pair, item.aspect, item.tier, item.tierName, baseTier, provider, referencesCache, typeCoverageInput, reachCache);
       // Persist each verdict the moment its pair completes — like the deterministic
       // loop — so interrupting the run (Ctrl+C) keeps every finished verdict and the
       // next run resumes only the rest (§7). Infra dispositions write nothing.

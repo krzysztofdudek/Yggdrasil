@@ -1,19 +1,22 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import path from 'node:path';
+import { existsSync } from 'node:fs';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { exitAfterFlush } from './exit-after-flush.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { runAstAspect, AstRunnerError } from '../ast/runner.js';
 import { runStructureAspect, StructureRunnerError } from '../structure/runner.js';
+import type { StructureUnit, RunStructureAspectResult } from '../structure/runner.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
 import type { Violation as AstViolation } from '../ast/types.js';
 import type { Violation as StructureViolation } from '../structure/types.js';
 import { computeExpectedPairs, computeNodeMappedFiles } from '../core/pairs.js';
 import type { TypeCoverageInput } from '../core/pairs.js';
 import { scanUncoveredFiles } from '../core/check.js';
-import { computeTypeCoverage } from '../core/type-coverage.js';
+import { computeTypeCoverage, classifySingleFile } from '../core/type-coverage.js';
 import { walkRepoFiles } from '../io/repo-scanner.js';
+import { isCoverageExcludedPath } from '../io/repo-scanner.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import { computeEffectiveAspects } from '../core/graph/aspects.js';
 import { buildPairPrompt, PROMPT_FORMAT_REV } from '../llm/prompt.js';
@@ -28,6 +31,11 @@ import { readTextFile } from '../io/graph-fs.js';
 import { toPosixPath } from '../utils/posix.js';
 import { runCompanionHook } from '../structure/hook-loader.js';
 import { resolveCompanionDescriptors } from '../core/companion-resolve.js';
+import { collectArchitectureReach } from '../structure/allowed-reads.js';
+import { buildOwnerIndex } from '../relations/owner-index.js';
+import { findOwner } from './owner.js';
+import { resolveFileArg, projectRootFromGraph } from '../io/paths.js';
+import { isExcludedByCoverage } from '../core/check-coverage-tiers.js';
 import type { ExpectedPair } from '../core/pairs.js';
 import type { AspectDef, LlmConfig } from '../model/graph.js';
 
@@ -47,17 +55,63 @@ function detRefusedStamp(count: number): string {
   return `yg aspect-test: ${chalk.red('refused')} — ${count} violation${count === 1 ? '' : 's'}\n`;
 }
 
+/**
+ * A deterministic aspect-test target: a real component (--node) or a file
+ * enforced by its architecture type alone, no owning component (--file).
+ * Shared by the LLM path too, since a nodeless pair filters on
+ * `subjectFiles` instead of `nodePath` but is otherwise the SAME
+ * expected-pair machinery.
+ */
+type AspectTestTarget =
+  | { kind: 'node'; nodePath: string }
+  | { kind: 'file'; file: string; typeId: string; typeCoverage: TypeCoverageInput };
+
+/**
+ * Run a structure-runner unit (--node or --file; both produce the SAME
+ * RunStructureAspectResult shape) and print the standard det verdict stamp +
+ * violations, honoring --check-determinism. Exits 1 on a refusal or a
+ * determinism mismatch; returns (exit 0) on satisfied. Extracted verbatim
+ * from the pre-existing --node body so --node's own behavior/output is
+ * byte-identical; --file reuses it rather than duplicating the trailer.
+ */
+async function runStructureUnitAndReport(
+  aspectId: string,
+  runOnce: () => Promise<RunStructureAspectResult>,
+  checkDeterminism: boolean,
+): Promise<void> {
+  const result = await runOnce();
+  if (checkDeterminism) {
+    const result2 = await runOnce();
+    if (!determinismMatches(result.violations, result2.violations)) {
+      writeNonDeterministicError(aspectId, result.violations, result2.violations);
+      process.stdout.write(DIAGNOSTIC_FOOTER);
+      await exitAfterFlush(1);
+    }
+  }
+  if (result.violations.length === 0) {
+    process.stdout.write(DET_SATISFIED_STAMP);
+    process.stdout.write(DIAGNOSTIC_FOOTER);
+    return;
+  }
+  process.stdout.write(detRefusedStamp(result.violations.length));
+  printStructureViolations(result.violations);
+  process.stdout.write(DIAGNOSTIC_FOOTER);
+  await exitAfterFlush(1);
+}
+
 export function registerAspectTestCommand(program: Command): void {
   program
     .command('aspect-test')
     .description(
-      'Run an aspect check without modifying the lock — against a graph node (--node) or ad-hoc files (--files, deterministic only). ' +
+      'Run an aspect check without modifying the lock — against a graph node (--node), a file enforced by its architecture ' +
+      'type alone (--file, no owning component), or ad-hoc files (--files, no graph attachment at all). ' +
       'For LLM aspects, --dry-run prints the assembled prompt(s) without making any reviewer/LLM call. ' +
       'For companion aspects, --dry-run runs the companion hook live and prints resolved companion paths.',
     )
     .requiredOption('--aspect <id>', 'aspect id to run')
     .option('--node <path>', 'graph node to check (uses the node mapping and graph-aware ctx)')
-    .option('--files <paths...>', 'ad-hoc source files to check (deterministic aspects only; no graph attachment)')
+    .option('--file <path>', 'source file enforced by its architecture type alone, no owning component (uses the architecture-derived read allowance, not a node mapping — see --files for the UNGRAPHED ad-hoc form)')
+    .option('--files <paths...>', 'ad-hoc source files to check (deterministic aspects only; NO graph attachment — see --file for a graph-attached, type-covered file)')
     .option('--check-determinism', 'run the check twice and fail if results differ (deterministic aspects only)')
     .option('--dry-run', 'for LLM aspects: print the assembled prompt(s) to stdout, make no reviewer/LLM call (companion hook runs live)')
     .option('--repeat <n>', 'for LLM aspects: re-run each unit N times (N >= 2) to measure how consistently the reviewer judges the same prompt (self-consistency, not correctness); not valid with --dry-run, --files, or deterministic aspects')
@@ -79,7 +133,24 @@ export function registerAspectTestCommand(program: Command): void {
         }
 
         const hasNode = typeof opts.node === 'string';
+        const hasFile = typeof opts.file === 'string';
         const hasFiles = Array.isArray(opts.files) && opts.files.length > 0;
+
+        // ── --file addressing mode guard ──────────────────────────────────────
+        // --file (a graph-attached, type-covered file) and --node (a real
+        // component) address two different kinds of unit; --files (ad-hoc, no
+        // graph attachment at all) is a THIRD, unrelated mode. At most one of
+        // the three may be given — each refusal names the other flags by name
+        // so a confusion between --file and --files is never silent.
+        if ([hasNode, hasFile, hasFiles].filter(Boolean).length > 1) {
+          process.stderr.write(`Error: ${buildIssueMessage({
+              what: `More than one of --node, --file, --files was provided.`,
+              why: `yg aspect-test addresses exactly one unit per run: --node (a component), --file (a file enforced by its architecture type alone, no component), or --files (ad-hoc, no graph attachment). Combining them is ambiguous — which one is under test?`,
+              next: `Re-run with exactly one of --node <path>, --file <path>, or --files <path...>.`,
+            })}\n`);
+          process.exit(1);
+          return;
+        }
 
         // ── --repeat validation (LLM stability measurement) ──────────────────
         // --repeat re-runs each unit N times with consensus FORCED to 1 per run,
@@ -166,35 +237,47 @@ export function registerAspectTestCommand(program: Command): void {
           if (hasFiles) {
             process.stderr.write(`Error: ${buildIssueMessage({
                 what: `--files cannot be used with LLM aspect '${opts.aspect}'.`,
-                why: `LLM reviews require graph context (node mapping, effective aspects, tier config). Ad-hoc file lists have none of these.`,
-                next: `Use --node <node-path> instead, or switch to a deterministic aspect for --files mode.`,
+                why: `LLM reviews require graph context (node mapping or an architecture-derived read allowance, effective aspects, tier config). Ad-hoc file lists have none of these.`,
+                next: `Use --node <node-path> or --file <path> instead, or switch to a deterministic aspect for --files mode.`,
               })}\n`);
             process.exit(1);
             return;
           }
-          if (!hasNode) {
+          if (!hasNode && !hasFile) {
             process.stderr.write(`Error: ${buildIssueMessage({
-                what: `Neither --node nor --files was provided for LLM aspect '${opts.aspect}'.`,
-                why: `yg aspect-test runs in exactly one mode: --node (graph-scoped) or --files (ad-hoc, deterministic only).`,
-                next: `Pass --node <node-path> to run an LLM aspect.`,
+                what: `Neither --node nor --file was provided for LLM aspect '${opts.aspect}'.`,
+                why: `yg aspect-test runs in exactly one mode: --node (a component), --file (a file enforced by its architecture type alone), or --files (ad-hoc, deterministic only).`,
+                next: `Pass --node <node-path> or --file <path> to run an LLM aspect.`,
               })}\n`);
             process.exit(1);
             return;
           }
 
-          const nodePath = (opts.node as string).trim().replace(/\/$/, '');
-          const node = graph.nodes.get(nodePath);
-          if (!node) {
-            process.stderr.write(`Error: ${buildIssueMessage({
-                what: `Node '${nodePath}' not found.`,
-                why: `--node requires an existing node path in the graph.`,
-                next: `Run 'yg tree' to list nodes.`,
-              })}\n`);
-            process.exit(1);
-            return;
+          let target: AspectTestTarget;
+          if (hasFile) {
+            const resolved = await resolveAspectTestFileTarget(graph, opts.file as string);
+            if (resolved.kind === 'refused') {
+              process.stderr.write(`Error: ${buildIssueMessage(resolved.messageData)}\n`);
+              process.exit(1);
+              return;
+            }
+            target = { kind: 'file', file: resolved.file, typeId: resolved.typeId, typeCoverage: resolved.typeCoverage };
+          } else {
+            const nodePath = (opts.node as string).trim().replace(/\/$/, '');
+            const node = graph.nodes.get(nodePath);
+            if (!node) {
+              process.stderr.write(`Error: ${buildIssueMessage({
+                  what: `Node '${nodePath}' not found.`,
+                  why: `--node requires an existing node path in the graph.`,
+                  next: `Run 'yg tree' to list nodes.`,
+                })}\n`);
+              process.exit(1);
+              return;
+            }
+            target = { kind: 'node', nodePath };
           }
 
-          const llmExit = await runLlmAspectTest(graph, projectRoot, aspect, nodePath, opts.dryRun ?? false, repeatN, typeof opts.tier === 'string' ? opts.tier : undefined);
+          const llmExit = await runLlmAspectTest(graph, projectRoot, aspect, target, opts.dryRun ?? false, repeatN, typeof opts.tier === 'string' ? opts.tier : undefined);
           process.stdout.write(DIAGNOSTIC_FOOTER);
           // Refused or incomplete (fail-closed) units exit 1, per the documented
           // 'exit 1 on violations or refusals' contract.
@@ -224,13 +307,13 @@ export function registerAspectTestCommand(program: Command): void {
           return;
         }
 
-        if (hasNode === hasFiles) {
+        if ([hasNode, hasFile, hasFiles].filter(Boolean).length !== 1) {
           process.stderr.write(`Error: ${buildIssueMessage({
-              what: hasNode
-                ? `Both --node and --files were provided.`
-                : `Neither --node nor --files was provided.`,
-              why: `yg aspect-test runs in exactly one mode: --node (graph-scoped) or --files (ad-hoc).`,
-              next: `Pass --node <node-path> to use the node's mapping, or --files <path...> for ad-hoc files — not both.`,
+              what: [hasNode, hasFile, hasFiles].filter(Boolean).length > 1
+                ? `More than one of --node, --file, --files was provided.`
+                : `None of --node, --file, --files was provided.`,
+              why: `yg aspect-test runs in exactly one mode: --node (a component), --file (a file enforced by its architecture type alone, no component), or --files (ad-hoc, no graph attachment).`,
+              next: `Pass exactly one of --node <node-path>, --file <path>, or --files <path...>.`,
             })}\n`);
           process.exit(1);
           return;
@@ -279,28 +362,27 @@ export function registerAspectTestCommand(program: Command): void {
           } catch (e) {
             debugWrite(`[aspect-test] effectiveness precheck failed for ${aspect.id} on ${nodePath}: ${e instanceof Error ? e.message : String(e)}`);
           }
-          // Return type is inferred from the runner (RunStructureAspectResult);
-          // do not re-annotate it, so the shape stays in sync with the runner.
           const runOnce = () =>
             runStructureAspect({ aspectDir, aspectId: aspect.id, unit: { kind: 'node', nodePath }, graph, projectRoot });
-          const result = await runOnce();
-          if (opts.checkDeterminism) {
-            const result2 = await runOnce();
-            if (!determinismMatches(result.violations, result2.violations)) {
-              writeNonDeterministicError(opts.aspect, result.violations, result2.violations);
-              process.stdout.write(DIAGNOSTIC_FOOTER);
-              await exitAfterFlush(1);
-            }
-          }
-          if (result.violations.length === 0) {
-            process.stdout.write(DET_SATISFIED_STAMP);
-            process.stdout.write(DIAGNOSTIC_FOOTER);
+          await runStructureUnitAndReport(opts.aspect, runOnce, opts.checkDeterminism === true);
+          return;
+        }
+
+        // --file: a file enforced by its architecture type alone (no owning
+        // component) — the structure runner uses the architecture-derived read
+        // allowance (collectArchitectureReach) instead of a node mapping.
+        if (hasFile) {
+          const resolved = await resolveAspectTestFileTarget(graph, opts.file as string);
+          if (resolved.kind === 'refused') {
+            process.stderr.write(`Error: ${buildIssueMessage(resolved.messageData)}\n`);
+            process.exit(1);
             return;
           }
-          process.stdout.write(detRefusedStamp(result.violations.length));
-          printStructureViolations(result.violations);
-          process.stdout.write(DIAGNOSTIC_FOOTER);
-          await exitAfterFlush(1);
+          const unit: StructureUnit = { kind: 'file', file: resolved.file, typeId: resolved.typeId, allowedReads: resolved.allowedReads };
+          const runOnce = () =>
+            runStructureAspect({ aspectDir, aspectId: aspect.id, unit, graph, projectRoot });
+          await runStructureUnitAndReport(opts.aspect, runOnce, opts.checkDeterminism === true);
+          return;
         }
 
         // --files: ad-hoc mode has no node and thus no approve equivalent; it
@@ -376,6 +458,10 @@ async function resolveCompanionsForTest(
   projectRoot: string,
   pair: ExpectedPair,
   aspect: AspectDef,
+  // Present ONLY when pair.nodePath is undefined (a nodeless pair) — the
+  // full type-coverage classification this diagnostic invocation already
+  // computed, needed by collectArchitectureReach's typeCovered map.
+  typeCoverage?: TypeCoverageInput,
 ): Promise<
   | { kind: 'ok'; companions: PromptCompanionInput[] }
   | { kind: 'infra'; messageData: { what: string; why: string; next: string } }
@@ -392,14 +478,34 @@ async function resolveCompanionsForTest(
         ? pair.subjectFiles
         : undefined);
 
+  // A nodeless pair carries its OWN architecture-derived unit (mirrors
+  // companion-resolve.ts's resolveCompanionsForPair) — the subject file, its
+  // matched type, and the reach that type's relations: permit, instead of
+  // addressing a (nonexistent) component.
+  let nodelessAllowance: { typeId: string; allowedReads: Set<string> } | undefined;
+  let unit: StructureUnit;
+  if (pair.nodePath === undefined) {
+    const file = pair.subjectFiles[0];
+    const fromType = typeCoverage?.covered.get(file) ?? '';
+    const reach = await collectArchitectureReach(file, {
+      fromType,
+      typeCovered: typeCoverage?.covered ?? new Map<string, string>(),
+      architecture: graph.architecture,
+      graph,
+      projectRoot,
+      ownerIndex: buildOwnerIndex(graph.nodes),
+    });
+    nodelessAllowance = { typeId: fromType, allowedReads: reach };
+    unit = { kind: 'file', file, typeId: fromType, allowedReads: [...reach] };
+  } else {
+    unit = { kind: 'node', nodePath: pair.nodePath };
+  }
+
   // No A6 taint guard (diagnostic only — we never hash or write observations).
   const run = await runCompanionHook({
     aspectDir: aspectDirAbs,
     aspectId: aspect.id,
-    // A nodeless pair has no component to address — an empty node path
-    // resolves to no node and fails closed (companion resolution over a
-    // component-free unit is a separate, not-yet-built design).
-    unit: { kind: 'node', nodePath: pair.nodePath ?? '' },
+    unit,
     graph,
     projectRoot,
     subjectScope,
@@ -411,7 +517,7 @@ async function resolveCompanionsForTest(
 
   // Delegate post-hook resolution to the shared helper (same logic as fill-llm:
   // normalize, dedupe, sort, allowed-reads guard with rich NEXT, readFileBytes).
-  const resolved = await resolveCompanionDescriptors(graph, projectRoot, pair, aspect, run.descriptors, run.observations);
+  const resolved = await resolveCompanionDescriptors(graph, projectRoot, pair, aspect, run.descriptors, run.observations, nodelessAllowance);
   if (resolved.kind === 'infra') {
     return { kind: 'infra', messageData: resolved.messageData };
   }
@@ -475,6 +581,145 @@ async function computeTypeCoverageForAspectTest(
 }
 
 /**
+ * A `--file <path>` target: a file with no owning component, addressed by the
+ * architecture type it matches instead of a node path. `--node` resolves a
+ * component; `--file` resolves this. `refused` names WHY the path cannot be
+ * addressed this way — a component path (use --node), untyped/ambiguous
+ * classification (fix the architecture or map a node), or the flag being off.
+ */
+type AspectTestFileTarget =
+  | { kind: 'ok'; file: string; typeId: string; typeCoverage: TypeCoverageInput; allowedReads: string[] }
+  | { kind: 'refused'; messageData: { what: string; why: string; next: string } };
+
+/** WHAT/NEXT for every non-'covered' classification bucket a --file target can land in. */
+function describeFileTargetClassificationProblem(
+  file: string,
+  single: Awaited<ReturnType<typeof classifySingleFile>>,
+): { what: string; next: string } {
+  switch (single.bucket) {
+    case 'ambiguous':
+      return {
+        what: `'${file}' is ambiguous: it matches ${single.typeIds.length} architecture types (${single.typeIds.join(', ')}).`,
+        next: `Narrow the architecture's when: predicates so at most one type matches this file, or map it to a node and use --node.`,
+      };
+    case 'strict':
+      return {
+        what: `'${file}' matches strict type '${single.strictTypeId}', which requires an explicit node mapping, not --file addressing.`,
+        next: `Map this file to a node of type '${single.strictTypeId}' and use --node.`,
+      };
+    case 'unreadable':
+      return {
+        what: `'${file}' could not be classified: ${single.reason}.`,
+        next: `Fix the file's readability, or use --files for an ad-hoc, ungraphed run.`,
+      };
+    case 'unmatched':
+    default:
+      return {
+        what: `'${file}' matches no architecture type.`,
+        next: `Map this file to a node and use --node, or add a matching type to yg-architecture.yaml.`,
+      };
+  }
+}
+
+/**
+ * Resolve `--file <path>` against the graph: refuse a path that already has a
+ * component (pointing at --node), refuse one that does not classify to
+ * exactly one non-strict architecture type (naming the problem), or resolve
+ * its matched type's architecture-permitted read allowance
+ * (collectArchitectureReach) for a deterministic run and the
+ * file/typeCoverage a nodeless LLM pair lookup needs.
+ */
+async function resolveAspectTestFileTarget(
+  graph: import('../model/graph.js').Graph,
+  rawPath: string,
+): Promise<AspectTestFileTarget> {
+  // File path normalization: resolve against the GRAPH's own root, never
+  // process.cwd() directly — the caller's projectRoot is process.cwd(),
+  // which equals the graph root only when the command happens to be
+  // invoked from the repository root.
+  const projectRoot = projectRootFromGraph(graph.rootPath);
+  const repoRelative = resolveFileArg(projectRoot, rawPath);
+
+  // Existence check BEFORE classification: a pure path: predicate can classify
+  // a path that does not exist on disk (it never reads content), which would
+  // otherwise let a nonexistent file silently reach the runner as an EMPTY
+  // subject (buildNodelessUnitCtx skips an unreadable file rather than
+  // throwing) instead of a clear refusal. Mirrors owner.ts's own existence
+  // probe for the same reason: "not covered" and "does not exist" are
+  // different facts and must not be conflated.
+  if (!existsSync(path.resolve(projectRoot, repoRelative))) {
+    return {
+      kind: 'refused',
+      messageData: {
+        what: `'${repoRelative}' does not exist.`,
+        why: `--file addresses a real, on-disk file — there is nothing to read or classify for a path that is not there.`,
+        next: `Check the path for typos, or pass an existing file.`,
+      },
+    };
+  }
+
+  const ownerResult = findOwner(graph, projectRoot, repoRelative);
+  if (ownerResult.nodePath) {
+    return {
+      kind: 'refused',
+      messageData: {
+        what: `'${repoRelative}' has a component of its own: '${ownerResult.nodePath}'.`,
+        why: `--file addresses a file enforced by its architecture type alone, with no owning component — this path already has one.`,
+        next: `Run: yg aspect-test --aspect <id> --node ${ownerResult.nodePath}`,
+      },
+    };
+  }
+
+  if (!graph.config.coverage?.typeLevel) {
+    return {
+      kind: 'refused',
+      messageData: {
+        what: `'${repoRelative}' cannot be addressed by --file — type-level coverage is off.`,
+        why: `--file only ever addresses a file classified by coverage.type_level; with the flag off, no file is ever classified this way.`,
+        next: `Enable coverage.type_level in .yggdrasil/yg-config.yaml, or use --node / --files instead.`,
+      },
+    };
+  }
+  if (isCoverageExcludedPath(repoRelative) || isExcludedByCoverage(repoRelative, graph.config.coverage)) {
+    return {
+      kind: 'refused',
+      messageData: {
+        what: `'${repoRelative}' is excluded from coverage.`,
+        why: `--file addresses a file the architecture classifies by type; an excluded path is never classified.`,
+        next: `Remove it from coverage.excluded, or use --files for an ad-hoc, ungraphed run.`,
+      },
+    };
+  }
+
+  const cache = new FileContentCache();
+  const single = await classifySingleFile(graph, repoRelative, cache);
+  if (single.bucket !== 'covered') {
+    const { what, next } = describeFileTargetClassificationProblem(repoRelative, single);
+    return {
+      kind: 'refused',
+      messageData: {
+        what,
+        why: `--file requires the path to match EXACTLY one non-strict architecture type — anything else has no single rule set to test.`,
+        next,
+      },
+    };
+  }
+
+  // Guaranteed defined: the flag-off case already returned above.
+  const typeCoverage = (await computeTypeCoverageForAspectTest(graph, projectRoot))!;
+  const reach = await collectArchitectureReach(repoRelative, {
+    fromType: single.typeId,
+    typeCovered: typeCoverage.covered,
+    architecture: graph.architecture,
+    graph,
+    projectRoot,
+    ownerIndex: buildOwnerIndex(graph.nodes),
+  });
+
+  return { kind: 'ok', file: repoRelative, typeId: single.typeId, typeCoverage, allowedReads: [...reach] };
+}
+
+/**
  * Run (or dry-run) an LLM aspect against a graph node. Builds pair prompts via
  * computeExpectedPairs filtered to the given aspect+node, runs verifyWithConsensus
  * per prompt, and prints results. The lock is NEVER written. Returns the exit
@@ -507,7 +752,7 @@ async function runLlmAspectTest(
   graph: import('../model/graph.js').Graph,
   projectRoot: string,
   aspect: import('../model/graph.js').AspectDef,
-  nodePath: string,
+  target: AspectTestTarget,
   dryRun: boolean,
   repeat: number,
   tierOverride: string | undefined,
@@ -554,18 +799,21 @@ async function runLlmAspectTest(
     tierName = tierResult.tierName;
   }
 
-  // Compute the expected pairs filtered to this aspect+node. Drafts are
+  // Compute the expected pairs filtered to this aspect+target. Drafts are
   // included: status gates the lock/fill, never this diagnostic — a draft
-  // aspect runs here exactly like an enforced one.
-  const typeCoverage = await computeTypeCoverageForAspectTest(graph, projectRoot);
+  // aspect runs here exactly like an enforced one. A --file target already
+  // computed its own typeCoverage while resolving (resolveAspectTestFileTarget)
+  // — reuse it rather than scanning the repo's uncovered files a second time.
+  const typeCoverage = target.kind === 'file' ? target.typeCoverage : await computeTypeCoverageForAspectTest(graph, projectRoot);
   const { pairs } = await computeExpectedPairs(graph, { includeDraft: true, typeCoverage });
-  const myPairs = pairs.filter(
-    (p) => p.aspectId === aspect.id && p.nodePath === nodePath && p.kind === 'llm',
-  );
+  const myPairs = target.kind === 'node'
+    ? pairs.filter((p) => p.aspectId === aspect.id && p.nodePath === target.nodePath && p.kind === 'llm')
+    : pairs.filter((p) => p.aspectId === aspect.id && p.nodePath === undefined && p.kind === 'llm' && p.subjectFiles.includes(target.file));
 
   if (myPairs.length === 0) {
+    const label = target.kind === 'node' ? `node '${target.nodePath}'` : `file '${target.file}'`;
     process.stdout.write(
-      `No pairs for aspect '${aspect.id}' on node '${nodePath}' — the aspect has an empty subject set or does not apply to this node.\n`,
+      `No pairs for aspect '${aspect.id}' on ${label} — the aspect has an empty subject set or does not apply to this ${target.kind === 'node' ? 'node' : 'file'}.\n`,
     );
     return 0;
   }
@@ -591,7 +839,12 @@ async function runLlmAspectTest(
     referencesForPrompt.push({ path: ref.path, description: ref.description, content });
   }
 
-  const nodeDescription = nodeDescriptionFor(graph, nodePath);
+  // nodePath/nodeDescription are both undefined for a --file target — the
+  // prompt's own nodeless variant (llm/prompt.ts) omits the <node> element
+  // entirely whenever nodePath is undefined; nodeDescriptionFor already
+  // returns '' for an undefined nodePath, so this needs no extra branching.
+  const targetNodePath = target.kind === 'node' ? target.nodePath : undefined;
+  const nodeDescription = nodeDescriptionFor(graph, targetNodePath);
   const aspectContent = contentFor(aspect, 'content.md');
 
   if (!dryRun) {
@@ -679,7 +932,7 @@ async function runLlmAspectTest(
       // Resolve companions (live hook run, same resolution as --approve).
       let companions: PromptCompanionInput[] = [];
       if (aspect.hasCompanion === true) {
-        const resolved = await resolveCompanionsForTest(graph, projectRoot, pair, aspect);
+        const resolved = await resolveCompanionsForTest(graph, projectRoot, pair, aspect, typeCoverage);
         if (resolved.kind === 'infra') {
           debugWrite(`[aspect-test] companion resolution failed for ${aspect.id} on ${pair.unitKey}: ${resolved.messageData.what}`);
           process.stderr.write(`Error: ${buildIssueMessage(resolved.messageData)}\n`);
@@ -698,7 +951,7 @@ async function runLlmAspectTest(
       const prompt = buildPairPrompt({
         aspect: { id: aspect.id, description: aspect.description ?? '', content: aspectContent },
         references: referencesForPrompt,
-        nodePath,
+        nodePath: targetNodePath,
         nodeDescription,
         files,
         companions,
@@ -847,7 +1100,7 @@ async function runLlmAspectTest(
       // On hook failure: print a what/why/next message and continue — never crash.
       let companions: PromptCompanionInput[] = [];
       if (aspect.hasCompanion === true) {
-        const resolved = await resolveCompanionsForTest(graph, projectRoot, pair, aspect);
+        const resolved = await resolveCompanionsForTest(graph, projectRoot, pair, aspect, typeCoverage);
         if (resolved.kind === 'infra') {
           debugWrite(`[aspect-test] companion resolution failed for ${aspect.id} on ${pair.unitKey}: ${resolved.messageData.what}`);
           process.stderr.write(`Error: ${buildIssueMessage(resolved.messageData)}\n`);
@@ -873,7 +1126,7 @@ async function runLlmAspectTest(
       const prompt = buildPairPrompt({
         aspect: { id: aspect.id, description: aspect.description ?? '', content: aspectContent },
         references: referencesForPrompt,
-        nodePath,
+        nodePath: targetNodePath,
         nodeDescription,
         files,
         companions,

@@ -290,7 +290,8 @@ describe('aspect-test command behavior (mocked runners)', () => {
     );
     await runCommand(['--aspect', 'a']);
     expect(exitCode).toBe(1);
-    expect(stderr).toContain('Neither --node nor --files');
+    // --node/--file/--files are a three-way exactly-one-mode contract.
+    expect(stderr).toContain('None of --node, --file, --files was provided');
   });
 
   // ── Deterministic: both --node and --files ───────────────────────────────────
@@ -300,7 +301,7 @@ describe('aspect-test command behavior (mocked runners)', () => {
     );
     await runCommand(['--aspect', 'a', '--node', 'N', '--files', 'src/a.ts']);
     expect(exitCode).toBe(1);
-    expect(stderr).toContain('Both --node and --files');
+    expect(stderr).toContain('More than one of --node, --file, --files was provided');
   });
 
   // ── Deterministic: --check-determinism intact ────────────────────────────────

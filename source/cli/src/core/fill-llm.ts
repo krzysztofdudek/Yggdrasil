@@ -12,7 +12,7 @@ import path from 'node:path';
 
 import type { Graph, AspectDef, LlmConfig } from '../model/graph.js';
 import type { VerdictEntry, Verdict } from '../model/lock.js';
-import type { ExpectedPair } from './pairs.js';
+import type { ExpectedPair, TypeCoverageInput } from './pairs.js';
 import { computeLlmInputHash } from './pair-hash.js';
 import { ruleHashFor, contentFor, nodeDescriptionFor, tierHashViewFromTier, companionHashFor } from './pair-inputs.js';
 import { hashBytes } from '../io/hash.js';
@@ -46,6 +46,15 @@ export async function fillLlmPair(
   mergedTier: LlmConfig,
   provider: LlmProvider,
   referencesCache: Map<string, Buffer | null>,
+  // Type-level coverage facts for this run (absent ⇒ no nodeless pairs exist —
+  // the feature-off contract every other type-coverage consumer follows).
+  // Only consulted when this pair's aspect has a companion AND the pair is
+  // nodeless (resolveCompanionsForPair ignores both for a component pair).
+  typeCoverage?: TypeCoverageInput,
+  // Shared across every fillLlmPair AND fillDetPair call this run (the caller
+  // constructs one Map and passes it to both) so the architecture-reach for a
+  // nodeless pair's matched type is computed once per type, not once per pair.
+  reachCache?: Map<string, Set<string>>,
 ): Promise<LlmFillOutcome> {
   // ── Load subject file bytes (sorted by path is the pair's contract). ──
   const subjects: Array<{ path: string; bytes: Buffer }> = [];
@@ -100,7 +109,7 @@ export async function fillLlmPair(
   let companions: PromptCompanionInput[] = [];
   let observations: Array<[string, string]> = [];
   if (aspect.hasCompanion === true) {
-    const resolved = await resolveCompanionsForPair(graph, projectRoot, pair, aspect);
+    const resolved = await resolveCompanionsForPair(graph, projectRoot, pair, aspect, typeCoverage, reachCache);
     if (resolved.kind === 'infra') {
       // Companion hook/resolution runtime failure — fail closed, NOTHING written,
       // reviewer never called (callsMade: 0). Counted and summarized as

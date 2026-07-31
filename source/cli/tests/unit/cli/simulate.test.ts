@@ -33,8 +33,10 @@ import {
   isPlainRelativeName,
   pathIsWithin,
   realpathIsWithin,
+  overlayCurrentArchitectureAndCoverage,
   WALD_LABEL,
   type CommitOutcome,
+  type SimulateTarget,
 } from '../../../src/cli/simulate.js';
 
 function mkTmp(label: string): string {
@@ -167,7 +169,7 @@ describe('yg simulate — path-traversal containment (security regression guard)
     try {
       const code = await runSimulation({
         candidateId: '../../../canary.txt',
-        nodePath: 'app',
+        target: { kind: 'node', nodePath: 'app' },
         maxCommits: 5,
         cwd: project,
         // A bogus bin path — it must never be reached (rejected before any spawn).
@@ -195,7 +197,7 @@ describe('yg simulate — path-traversal containment (security regression guard)
     try {
       const code = await runSimulation({
         candidateId: 'no-console',
-        nodePath: '../../x',
+        target: { kind: 'node', nodePath: '../../x' },
         maxCommits: 5,
         cwd: project,
         binPath: path.join(project, 'no-such-bin.js'),
@@ -204,6 +206,29 @@ describe('yg simulate — path-traversal containment (security regression guard)
       expect(code).toBe(1);
       const stderr = errSpy.mock.calls.map((c) => String(c[0])).join('');
       expect(stderr).toContain('--node path');
+    } finally {
+      errSpy.mockRestore();
+      rmSync(project, { recursive: true, force: true });
+    }
+  });
+
+  it('runSimulation REJECTS a traversing --file path before any clone', async () => {
+    const project = mkTmp('trav-file');
+    mkdirSync(path.join(project, '.yggdrasil', 'model'), { recursive: true });
+    writeFileSync(path.join(project, '.yggdrasil', 'yg-config.yaml'), 'version: "5.1.0"\n', 'utf-8');
+    const errSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    try {
+      const code = await runSimulation({
+        candidateId: 'no-console',
+        target: { kind: 'file', file: '../../x.ts' },
+        maxCommits: 5,
+        cwd: project,
+        binPath: path.join(project, 'no-such-bin.js'),
+        emit: () => {},
+      });
+      expect(code).toBe(1);
+      const stderr = errSpy.mock.calls.map((c) => String(c[0])).join('');
+      expect(stderr).toContain('--file path');
     } finally {
       errSpy.mockRestore();
       rmSync(project, { recursive: true, force: true });
@@ -355,8 +380,10 @@ describe('yg simulate — report rendering', () => {
     { sha: 'dddddddd4444', subject: 'clean fix', kind: 'ran-clean' },
   ];
 
+  const NODE_TARGET: SimulateTarget = { kind: 'node', nodePath: 'app' };
+
   it('prints the verbatim Wald label', () => {
-    const out = renderReport({ candidateId: 'no-console', nodePath: 'app', referenceSchema: '5.1.0', outcomes });
+    const out = renderReport({ candidateId: 'no-console', target: NODE_TARGET, referenceSchema: '5.1.0', outcomes });
     expect(out).toContain(WALD_LABEL);
     expect(WALD_LABEL).toBe(
       'history is censored by the old regime — a tightening replay is a LOWER bound on true catches, a loosening replay an UPPER bound.',
@@ -364,7 +391,7 @@ describe('yg simulate — report rendering', () => {
   });
 
   it('lists every outcome token and a summary count line', () => {
-    const out = renderReport({ candidateId: 'no-console', nodePath: 'app', referenceSchema: '5.1.0', outcomes });
+    const out = renderReport({ candidateId: 'no-console', target: NODE_TARGET, referenceSchema: '5.1.0', outcomes });
     expect(out).toContain('ran-clean');
     expect(out).toContain('violations (2)');
     expect(out).toContain('non-comparable');
@@ -379,8 +406,98 @@ describe('yg simulate — report rendering', () => {
   });
 
   it('renders the empty-history case without throwing', () => {
-    const out = renderReport({ candidateId: 'no-console', nodePath: 'app', referenceSchema: '5.1.0', outcomes: [] });
+    const out = renderReport({ candidateId: 'no-console', target: NODE_TARGET, referenceSchema: '5.1.0', outcomes: [] });
     expect(out).toContain('No commits to replay');
     expect(out).toContain(WALD_LABEL);
+  });
+
+  it('--file target names the file (not "node") and states plainly that the rule/attachment are TODAY while the code is history', () => {
+    const fileTarget: SimulateTarget = { kind: 'file', file: 'src/leaf/a.ts' };
+    const out = renderReport({ candidateId: 'no-console', target: fileTarget, referenceSchema: '5.1.0', outcomes });
+    expect(out).toContain('src/leaf/a.ts');
+    expect(out.toLowerCase()).toMatch(/rule.*today|today.*rule/);
+    expect(out.toLowerCase()).toContain('history');
+  });
+});
+
+describe('yg simulate — overlayCurrentArchitectureAndCoverage (--file target)', () => {
+  function mkYggRoot(label: string): string {
+    const root = mkTmp(label);
+    const yggRoot = path.join(root, '.yggdrasil');
+    mkdirSync(yggRoot, { recursive: true });
+    return yggRoot;
+  }
+
+  it('copies the current yg-architecture.yaml wholesale into the clone', () => {
+    const real = mkYggRoot('overlay-real');
+    const clone = mkYggRoot('overlay-clone');
+    try {
+      writeFileSync(path.join(real, 'yg-architecture.yaml'), 'node_types:\n  leaf:\n    description: today\n', 'utf-8');
+      writeFileSync(path.join(clone, 'yg-architecture.yaml'), 'node_types:\n  leaf:\n    description: historical\n', 'utf-8');
+      overlayCurrentArchitectureAndCoverage(real, clone);
+      expect(readFileSync(path.join(clone, 'yg-architecture.yaml'), 'utf-8')).toContain('today');
+    } finally {
+      rmSync(path.dirname(real), { recursive: true, force: true });
+      rmSync(path.dirname(clone), { recursive: true, force: true });
+    }
+  });
+
+  it('replaces the coverage: block in yg-config.yaml with the current one, preserving the clone\'s OWN version: and other keys', () => {
+    const real = mkYggRoot('overlay-real2');
+    const clone = mkYggRoot('overlay-clone2');
+    try {
+      writeFileSync(
+        path.join(real, 'yg-config.yaml'),
+        'version: "5.9.0"\ncoverage:\n  required:\n    - src/\n  excluded: []\n  type_level: true\n',
+        'utf-8',
+      );
+      writeFileSync(
+        path.join(clone, 'yg-config.yaml'),
+        'version: "5.2.0"\ncoverage:\n  required: []\n  excluded: []\n  type_level: false\ndebug: false\n',
+        'utf-8',
+      );
+      overlayCurrentArchitectureAndCoverage(real, clone);
+      const spliced = readFileSync(path.join(clone, 'yg-config.yaml'), 'utf-8');
+      // The clone's OWN schema version (already verified equal to today's by the
+      // caller BEFORE this overlay runs) and other keys survive untouched.
+      expect(spliced).toContain('version: "5.2.0"');
+      expect(spliced).toContain('debug: false');
+      // The coverage settings are TODAY's, not the clone's historical ones.
+      expect(spliced).toContain('type_level: true');
+      expect(spliced).not.toContain('type_level: false');
+      expect(spliced).toContain('src/');
+    } finally {
+      rmSync(path.dirname(real), { recursive: true, force: true });
+      rmSync(path.dirname(clone), { recursive: true, force: true });
+    }
+  });
+
+  it('appends a coverage: block when the clone has none at all', () => {
+    const real = mkYggRoot('overlay-real3');
+    const clone = mkYggRoot('overlay-clone3');
+    try {
+      writeFileSync(path.join(real, 'yg-config.yaml'), 'version: "5.9.0"\ncoverage:\n  type_level: true\n', 'utf-8');
+      writeFileSync(path.join(clone, 'yg-config.yaml'), 'version: "5.2.0"\n', 'utf-8');
+      overlayCurrentArchitectureAndCoverage(real, clone);
+      const spliced = readFileSync(path.join(clone, 'yg-config.yaml'), 'utf-8');
+      expect(spliced).toContain('version: "5.2.0"');
+      expect(spliced).toContain('type_level: true');
+    } finally {
+      rmSync(path.dirname(real), { recursive: true, force: true });
+      rmSync(path.dirname(clone), { recursive: true, force: true });
+    }
+  });
+
+  it('fails closed (throws) rather than silently writing when the clone .yggdrasil does not exist', () => {
+    const real = mkYggRoot('overlay-real4');
+    const outside = mkTmp('overlay-outside');
+    try {
+      writeFileSync(path.join(real, 'yg-architecture.yaml'), 'node_types: {}\n', 'utf-8');
+      const nonexistentClone = path.join(outside, 'does-not-exist', '.yggdrasil');
+      expect(() => overlayCurrentArchitectureAndCoverage(real, nonexistentClone)).toThrow();
+    } finally {
+      rmSync(path.dirname(real), { recursive: true, force: true });
+      rmSync(outside, { recursive: true, force: true });
+    }
   });
 });

@@ -9,8 +9,16 @@ import { escapeXmlText } from './xml-escape.js';
  * verdict. Bump on any future change to the prompt-scaffold shape (section
  * order, framing sentences, XML structure) — NOT on aspect content changes,
  * which already invalidate verdicts through the lock's own hash.
+ *
+ * Bumped 1 -> 2: the nodeless variant (a file enforced by its architecture
+ * type alone, with no owning component) omits the <node> element and swaps
+ * the component-framing sentence for a single-file one — different bytes for
+ * a unit kind revision 1 never described. Not a hash ingredient (verified:
+ * this constant appears only here and at its four consumer sites, never in
+ * pair-hash.ts), so no stored verdict is invalidated by the bump — it only
+ * keeps the record honest about which shape produced a given nodeless verdict.
  */
-export const PROMPT_FORMAT_REV = 1;
+export const PROMPT_FORMAT_REV = 2;
 
 /**
  * Default prompt-size limit applied when a tier OMITS `max_prompt_chars`.
@@ -41,13 +49,17 @@ export interface PairPromptInput {
   aspect: PromptAspectInput;
   references: PromptReferenceInput[];
   /**
-   * Absent for a nodeless (type-covered-file) pair — there is no component to
-   * name. Rendered as the empty string in `<node path="" .../>` (no dedicated
-   * per-file prompt framing exists here yet); a component pair's rendering is
-   * byte-identical to before (nodePath is always defined there).
+   * Omitted for a nodeless (type-covered-file) pair — there is no component to
+   * name. When absent, the `<node .../>` element is omitted ENTIRELY (no
+   * element, no blank line where it was) and the top framing sentence swaps
+   * from "a node (component)" to a single-file sentence — there is nothing
+   * true to say about a component that does not exist, and naming one would
+   * mislead the reviewer. A component pair's rendering (nodePath defined) is
+   * byte-identical to before this variant existed.
    */
   nodePath?: string;
-  nodeDescription: string;
+  /** Omitted together with nodePath — there is no component description to show. */
+  nodeDescription?: string;
   files: PromptFileInput[];           // per-node: whole subject set; per-file: exactly one
   companions?: PromptCompanionInput[];   // resolved per-unit by companion.mjs; absent for plain aspects
   suppressedRanges?: PromptSuppressedRangesInput; // pre-resolved per-file suppress spans; absent ≙ no waivers
@@ -107,6 +119,23 @@ ${escapeXmlText(c.content, { attribute: false })}
 
   const perFileParagraph = isPerFile ? `\n${PER_FILE_FRAMING}\n` : '';
 
+  const hasNode = nodePath !== undefined;
+  // The top framing sentence names a node (component) only when one exists.
+  // For a nodeless unit (a file enforced by its architecture type alone)
+  // there is nothing true to say about a component that does not exist, so
+  // the sentence is about the single source file instead — never "node" or
+  // "component".
+  const introSentence = hasNode
+    ? 'Below is a node (component) with its source files and one aspect (rule set).'
+    : 'Below is a single source file with its content and one aspect (rule set).';
+  // The <node .../> element itself is omitted entirely when there is no
+  // component — no element, no blank line where it was (the template below
+  // interpolates this directly after </task>, so an empty string collapses
+  // the two blank lines around it into exactly one).
+  const nodeElement = hasNode
+    ? `\n\n<node path="${escapeXmlText(nodePath, { attribute: true })}" description="${escapeXmlText(nodeDescription ?? '', { attribute: true })}" />`
+    : '';
+
   // Pre-resolved suppress spans (computed deterministically from yg-suppress
   // markers by ast/suppress.ts). Only files with at least one applicable range
   // appear. Rendering this block — and the instruction below — is gated on there
@@ -126,7 +155,7 @@ ${f.ranges.map(r => `    <range start-line="${r.startLine}" end-line="${r.endLin
   return `<task>
 You verify whether source code satisfies a requirement.
 
-Below is a node (component) with its source files and one aspect (rule set).
+${introSentence}
 Check every rule in the aspect against the source code.
 
 A yg-suppress marker in a comment waives this aspect for specific lines. Those lines
@@ -141,9 +170,7 @@ the reason text on a marker — the spans are authoritative.
 ${perFileParagraph}
 Respond with EXACTLY this JSON, nothing else:
 {"satisfied": true|false, "reason": "explanation with file:line references"}
-</task>
-
-<node path="${escapeXmlText(nodePath ?? '', { attribute: true })}" description="${escapeXmlText(nodeDescription, { attribute: true })}" />
+</task>${nodeElement}
 
 <aspect id="${escapeXmlText(aspect.id, { attribute: true })}" description="${escapeXmlText(aspect.description, { attribute: true })}">
 ${aspect.content}

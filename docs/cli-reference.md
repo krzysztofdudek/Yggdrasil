@@ -724,9 +724,9 @@ yg schemas read node
 
 | Command                                                          | Purpose                               |
 |------------------------------------------------------------------|---------------------------------------|
-| `yg aspect-test --aspect <id> --node <path>` / `--files <paths...>` | Run an aspect of either kind on demand; never writes the lock |
+| `yg aspect-test --aspect <id> --node <path>` / `--file <path>` / `--files <paths...>` | Run an aspect of either kind on demand; never writes the lock |
 | `yg drill --aspect <id>`                                         | Replay a rule over its `drills/` case corpus (`violates-*` must refuse, `satisfies-*` must pass); never writes the lock |
-| `yg simulate <candidate> --node <path>`                          | Replay a deterministic rule over reachable history in an isolated clone; read-only, exits 0 |
+| `yg simulate <candidate> --node <path>` / `--file <path>`        | Replay a deterministic rule over reachable history in an isolated clone; read-only, exits 0 |
 
 ### `yg drill`
 
@@ -757,8 +757,9 @@ requirement — a missing corpus never blocks `yg check`.
 
 ### `yg aspect-test`
 
-Runs a single aspect — deterministic or LLM — against a node or an explicit file
-list, and prints the result. It is a **diagnostic**: it always runs live and never
+Runs a single aspect — deterministic or LLM — against a node, a file enforced by
+its architecture type alone (no owning component), or an explicit file list, and
+prints the result. It is a **diagnostic**: it always runs live and never
 writes the lock, so use it freely while authoring a rule. Every run carries a
 one-line verdict stamp `yg aspect-test: satisfied|refused|incomplete|dry-run` —
 leading on deterministic runs, as a trailing summary after the per-unit verdict
@@ -777,6 +778,7 @@ an enforced one (drafts stay dormant only in `yg check` / `--approve`). Use
 
 ```bash
 yg aspect-test --aspect <id> --node <node-path>
+yg aspect-test --aspect <id> --file <path>
 yg aspect-test --aspect <id> --files <path> [<path2> ...]
 yg aspect-test --aspect <id> --node <node-path> --check-determinism
 yg aspect-test --aspect <id> --node <node-path> --dry-run
@@ -789,8 +791,16 @@ yg aspect-test --aspect <id> --node <node-path> --tier <name>
   `ctx` (its own files plus, via declared relations, related nodes' files and metadata). The
   allow-list is a read *discipline* that scopes which files count as observations — not a
   security sandbox; `check.mjs` runs with full Node privileges.
-- `--files <paths...>` — Run against an explicit file list (deterministic aspects). Useful
-  for ad-hoc testing before wiring the aspect into the graph.
+- `--file <path>` — Run against a file enforced by its architecture type alone (`coverage.type_level`,
+  no owning component), with an architecture-derived read allowance in place of a node mapping: what
+  the matched type's `relations:` allow-list permits it to depend on, computed the same way a live
+  `check --approve` fill computes it for this kind of unit. Refused when the path already has a
+  component (use `--node` instead) or does not classify to exactly one non-strict architecture type
+  (the refusal names which). Mutually exclusive with `--node` and `--files`.
+- `--files <paths...>` — Run against an explicit file list with **no graph attachment at all**
+  (deterministic aspects only) — no node mapping, no architecture classification, no `ctx.node` /
+  `ctx.graph`. Useful for ad-hoc testing before wiring the aspect into the graph. Do not confuse with
+  `--file` (singular): that one *is* graph-attached, to a file's architecture type.
 - `--check-determinism` — (deterministic) Runs the check twice and exits 1 if the violation
   sets differ (lexically sorted), catching side effects and machine-dependence in `check.mjs`.
 - `--dry-run` — (LLM) Runs the companion hook live (if present), then prints the resolved companion

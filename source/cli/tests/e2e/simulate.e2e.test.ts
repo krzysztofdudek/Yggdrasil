@@ -256,4 +256,136 @@ describe.skipIf(!distExists)('CLI E2E — yg simulate', () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it('rejects both --node and --file, and rejects neither', () => {
+    const dir = buildHistoryFixture();
+    try {
+      const both = run(['simulate', 'no-console', '--node', 'app', '--file', 'src/app.ts'], dir);
+      expect(both.status).toBe(1);
+      expect(both.stderr).toContain('Both --node and --file');
+
+      const neither = run(['simulate', 'no-console'], dir);
+      expect(neither.status).toBe(1);
+      expect(neither.stderr).toContain('Neither --node nor --file');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+// =============================================================================
+// --file (E2): a file enforced by its architecture type alone (no owning
+// component) — replayed over its HISTORICAL content, classified against the
+// CURRENT architecture + coverage settings (overlaid into the clone alongside
+// the candidate, on top of the schema-equality guard which already holds).
+//
+//   F1  no-leaf-yet   — graph at 5.2.0 (matches HEAD's schema), but
+//                       src/leaf/a.ts does not exist yet  → non-comparable
+//   F2  leaf-violation — src/leaf/a.ts added, trips the rule → violations
+//   F3  schema-downgrade — graph at 5.0.0 (would need migration) → non-comparable (unchanged reason)
+//   F4  leaf-clean    — graph back at 5.2.0, src/leaf/a.ts fixed → ran-clean
+//
+// HEAD (F4) is what runSimulation reads as "today's" architecture/coverage —
+// it declares the 'leaf' type and coverage.type_level: true, which the
+// overlay projects backward onto every comparable commit's clone.
+// =============================================================================
+
+/** Write the committed graph for the --file fixture: a 'leaf' type (path-only
+ *  when:, no node ever maps it) plus coverage.type_level: true. */
+function writeFileTargetGraph(dir: string, schema: string): void {
+  w(
+    dir,
+    '.yggdrasil/yg-config.yaml',
+    `version: "${schema}"\ncoverage:\n  required:\n    - src/\n  excluded: []\n  type_level: true\n`,
+  );
+  w(
+    dir,
+    '.yggdrasil/yg-architecture.yaml',
+    `node_types:\n  leaf:\n    description: 'a type-covered leaf file, no component'\n    when:\n      path: "src/leaf/**"\n`,
+  );
+  w(dir, '.yggdrasil/aspects/no-console/yg-aspect.yaml', `name: No Console\ndescription: no console.log in shipped source\nreviewer:\n  type: deterministic\nstatus: enforced\n`);
+  w(dir, '.yggdrasil/aspects/no-console/check.mjs', CANDIDATE_CHECK);
+  // graph-loader.ts requires .yggdrasil/model/ to exist as a directory even
+  // with zero declared nodes (this fixture is deliberately nodeless — every
+  // subject is a type-covered file); git does not track empty directories.
+  w(dir, '.yggdrasil/model/.gitkeep', '');
+}
+
+/** Build the four-commit --file history described above. HEAD = F4 (clean). */
+function buildFileTargetHistoryFixture(): string {
+  const dir = mkdtempSync(path.join(tmpdir(), 'yg-sim-e2e-file-'));
+  gitInit(dir);
+  // F1 — graph exists (schema matches HEAD's) but the type-covered file itself
+  // does not exist yet.
+  writeFileTargetGraph(dir, '5.2.0');
+  w(dir, 'src/other.ts', 'export const other = 1;\n');
+  commitAll(dir, 'no-leaf-yet');
+  // F2 — the file exists now and trips the rule.
+  w(dir, 'src/leaf/a.ts', SRC_BAD);
+  commitAll(dir, 'leaf-violation');
+  // F3 — schema downgraded (out of horizon).
+  w(dir, '.yggdrasil/yg-config.yaml', `version: "5.0.0"\ncoverage:\n  required:\n    - src/\n  excluded: []\n  type_level: true\n`);
+  commitAll(dir, 'schema-downgrade');
+  // F4 — schema back to 5.2.0, file fixed.
+  writeFileTargetGraph(dir, '5.2.0');
+  w(dir, 'src/leaf/a.ts', SRC_GOOD);
+  commitAll(dir, 'leaf-clean');
+  return dir;
+}
+
+describe.skipIf(!distExists)('CLI E2E — yg simulate --file (a file with no owning component)', () => {
+  it('replays a type-covered file over its historical content under the CURRENT architecture, classifying each commit correctly', () => {
+    const dir = buildFileTargetHistoryFixture();
+    try {
+      const before = snapshotTree(dir);
+
+      const { status, stdout } = run(['simulate', 'no-console', '--file', 'src/leaf/a.ts', '--max-commits', '10'], dir);
+      expect(status).toBe(0);
+
+      // F1: the file did not exist yet at this commit -> non-comparable.
+      expect(lineFor(stdout, 'no-leaf-yet')).toContain('non-comparable');
+      // F2: the file exists and trips the candidate rule.
+      expect(lineFor(stdout, 'leaf-violation')).toContain('violations');
+      // F3: schema mismatch — the EXISTING non-comparable reason, unchanged.
+      expect(lineFor(stdout, 'schema-downgrade')).toContain('non-comparable');
+      expect(stdout).toContain('would need a migration');
+      // F4: clean.
+      expect(lineFor(stdout, 'leaf-clean')).toContain('ran-clean');
+
+      // The header names the FILE, not "node", and states plainly that the
+      // rule/attachment come from today while the code is historical.
+      expect(stdout).toContain("over file 'src/leaf/a.ts'");
+      expect(stdout.toLowerCase()).toMatch(/today/);
+      expect(stdout.toLowerCase()).toContain('history');
+
+      expect(stdout).toContain(WALD_LABEL);
+
+      // Security crux, same as --node: the real tree is untouched.
+      expect(snapshotTree(dir)).toBe(before);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('normalizes --file the same way every --file-accepting command does (resolveFileArg against the graph root)', () => {
+    // Regression pin: --file must resolve via resolveFileArg(repoRoot, ...) —
+    // the same rule every other --file-accepting command follows — rather
+    // than forwarding the raw typed string as-is. A leading './' survives
+    // unresolved if simulate.ts skips this step (its own upfront traversal
+    // guard rejects '..' and absolute paths outright, but does not touch a
+    // harmless './' prefix); resolveFileArg's resolve/relativize round trip
+    // collapses it. The report line — rendered directly from the resolved
+    // target — proves which one actually happened.
+    const dir = buildFileTargetHistoryFixture();
+    try {
+      const { status, stdout } = run(['simulate', 'no-console', '--file', './src/leaf/a.ts', '--max-commits', '10'], dir);
+      expect(status).toBe(0);
+      expect(lineFor(stdout, 'leaf-violation')).toContain('violations');
+      expect(lineFor(stdout, 'leaf-clean')).toContain('ran-clean');
+      expect(stdout).toContain("over file 'src/leaf/a.ts'");
+      expect(stdout).not.toContain('./src/leaf/a.ts');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });

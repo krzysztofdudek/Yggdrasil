@@ -1,0 +1,20 @@
+name: E2E Tests — Aspect-Test --file Addressing
+type: test-suite
+description: "Subprocess E2E for `yg aspect-test --file <path>` — running an
+  aspect against a file enforced by its architecture type alone (no owning
+  component), on the real committed tests/fixtures/type-level-engine merged
+  with its two-covered-files variant. Covers the addressing guards (--file
+  combined with --node refused as ambiguous; a path that already has a
+  component refused, pointing at --node; an untyped or ambiguous path
+  refused, naming the classification problem), a deterministic run using the
+  architecture-derived read allowance (a permitted sibling read succeeds, an
+  out-of-reach read is refused, touching ctx.node is refused naming both
+  exits), the nodeless prompt variant under --dry-run and live, and that
+  --files (ad-hoc, no graph attachment) keeps its own behavior untouched
+  alongside the new flag."
+aspects: []
+relations:
+  - target: cli/tests/e2e/support
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-aspect-test-file.test.ts

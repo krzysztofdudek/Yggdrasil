@@ -1,0 +1,31 @@
+<task>
+You verify whether source code satisfies a requirement.
+
+Below is a single source file with its content and one aspect (rule set).
+Check every rule in the aspect against the source code.
+
+A yg-suppress marker in a comment waives this aspect for specific lines. Those lines
+have already been resolved for you and are listed in <suppressed-ranges> below, as
+exact (start-line, end-line) spans into the files in <source-files>. Treat every line
+inside a listed span as satisfied — do NOT report a violation on any line covered by a
+span, even if the code there clearly breaks the rule. Honor exactly these line ranges:
+do NOT re-derive the marker's scope yourself (do NOT expand it to the surrounding
+function, class, block, or whole file, and do NOT shrink it). If <suppressed-ranges> is
+absent or lists nothing for a file, no lines in that file are waived. Do not validate
+the reason text on a marker — the spans are authoritative.
+
+You are reviewing ONE file of a larger component. Other files of the component are not shown; the absence of sibling context is NOT a violation by itself. Judge only what this file must satisfy on its own.
+
+Respond with EXACTLY this JSON, nothing else:
+{"satisfied": true|false, "reason": "explanation with file:line references"}
+</task>
+
+<aspect id="a" description="d">
+rule body
+</aspect>
+
+<source-files>
+<file path="src/leaf/a.ts">
+x
+</file>
+</source-files>

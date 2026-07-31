@@ -29,17 +29,20 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     data = await extractPortalData(REPO_ROOT, { writeEnabled: false });
   }, 180_000);
 
-  it('the top fan-out hub is cli/core/check, tied with cli/core/fill at 24 declared relations', () => {
-    // cli/core/check gained one real dependency (cli/core/type-visibility, the
-    // new honesty artifact it assembles CheckResult.typeVisibility from) and
-    // now ties cli/core/fill's own reviewed ceiling of 24. Tied counts break
-    // alphabetically (rankHubs: count desc, then path asc), so 'cli/core/check'
-    // sorts before 'cli/core/fill'.
+  it('the top fan-out hub is a three-way tie at 24 declared relations: cli/commands/aspect-test, cli/core/check, cli/core/fill', () => {
+    // cli/commands/aspect-test gained three real dependencies for its --file
+    // addressing mode (cli/relations/core, cli/commands/owner,
+    // cli/core/check-coverage-tiers), raising it from 21 to 24 — the exact
+    // ceiling cli/core/check and cli/core/fill already sat at. Tied counts
+    // break alphabetically (rankHubs: count desc, then path asc), so
+    // 'cli/commands/aspect-test' (commands < core) now sorts first.
     expect(data.hubs.fanOut.length).toBeGreaterThan(0);
-    expect(data.hubs.fanOut[0].path).toBe('cli/core/check');
+    expect(data.hubs.fanOut[0].path).toBe('cli/commands/aspect-test');
     expect(data.hubs.fanOut[0].count).toBe(24);
-    expect(data.hubs.fanOut[1].path).toBe('cli/core/fill');
+    expect(data.hubs.fanOut[1].path).toBe('cli/core/check');
     expect(data.hubs.fanOut[1].count).toBe(24);
+    expect(data.hubs.fanOut[2].path).toBe('cli/core/fill');
+    expect(data.hubs.fanOut[2].count).toBe(24);
     // descending order invariant.
     for (let i = 1; i < data.hubs.fanOut.length; i++) {
       expect(data.hubs.fanOut[i - 1].count).toBeGreaterThanOrEqual(data.hubs.fanOut[i].count);

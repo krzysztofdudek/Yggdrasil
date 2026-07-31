@@ -147,6 +147,12 @@ export async function verifyLock(
 
   const verified: VerifiedPair[] = [];
 
+  // The architecture-reach cache for a nodeless (component-free) LLM pair's
+  // companion resolution — shared across every pair THIS verifyLock call
+  // reviews, computed once per matched type rather than once per pair. Mirrors
+  // core/fill.ts's own per-run cache (same contract: fromType -> Set<string>).
+  const reachCache = new Map<string, Set<string>>();
+
   for (const pair of pairs) {
     const aspect = aspectById.get(pair.aspectId);
     // Defensive: pairs come from the same graph, so the aspect always exists.
@@ -157,7 +163,7 @@ export async function verifyLock(
 
     if (pair.kind === 'llm') {
       verified.push(
-        await verifyLlmPair(pair, aspect, graph, lock, projectRoot, storedEntry, readBytes, hashCached),
+        await verifyLlmPair(pair, aspect, graph, lock, projectRoot, storedEntry, readBytes, hashCached, typeCoverage, reachCache),
       );
     } else {
       verified.push(
@@ -182,6 +188,8 @@ async function verifyLlmPair(
   storedEntry: VerdictEntry | undefined,
   readBytes: (absPath: string) => Promise<Buffer | null>,
   hashCached: (absPath: string, bytes: Buffer) => string,
+  typeCoverage: TypeCoverageInput | undefined,
+  reachCache: Map<string, Set<string>>,
 ): Promise<VerifiedPair> {
   // ── Resolve the tier (needed for both validity recompute and the gate). ──
   const reviewer = graph.config.reviewer;
@@ -217,7 +225,7 @@ async function verifyLlmPair(
   // ── ruleHash = sha256(content.md bytes). Artifacts carry the loaded text. ──
   const ruleHash = ruleHashFor(aspect, 'content.md');
 
-  // ── Companion symmetry (Task 6). companionHash folds UNCONDITIONALLY: undefined
+  // ── Companion symmetry. companionHash folds UNCONDITIONALLY: undefined
   //    for a plain aspect → not folded → the hash is byte-identical to the
   //    pre-feature contract. A companion aspect (any artifact named companion.mjs,
   //    even a []-resolving one) folds its companion.mjs digest, so a hook edit
@@ -267,7 +275,7 @@ async function verifyLlmPair(
     const limit = tierResult.tier.max_prompt_chars ?? DEFAULT_MAX_PROMPT_CHARS;
     let gateCompanions: PromptCompanionInput[] = [];
     if (aspect.hasCompanion === true) {
-      const resolved = await resolveCompanionsForPair(graph, projectRoot, pair, aspect);
+      const resolved = await resolveCompanionsForPair(graph, projectRoot, pair, aspect, typeCoverage, reachCache);
       if (resolved.kind === 'infra') {
         return { pair, state: { kind: 'companion-error', messageData: resolved.messageData } };
       }

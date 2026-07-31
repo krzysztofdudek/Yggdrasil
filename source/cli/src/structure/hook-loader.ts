@@ -574,6 +574,24 @@ export async function runCompanionHook(params: RunCompanionHookParams): Promise<
   try {
     out = await (fn as (ctx: Ctx) => unknown)(ctx);
   } catch (err) {
+    // ctx.node / ctx.graph accessed on a unit with no owning component (a
+    // companion resolving over a file enforced by its architecture type
+    // alone): this error is thrown ONLY by buildNodelessUnitCtx's ctx.node
+    // Proxy and createNodelessCtxGraph()'s methods (ctx-graph.ts), so `unit`
+    // is guaranteed `kind === 'file'` here — never a bug in companion.mjs
+    // itself, always a hook written for a component that this unit does not
+    // have. A typed, fail-closed infra disposition (never a Violation, never
+    // a stack trace, never a phantom component name), naming both exits —
+    // mirrors runner.ts's STRUCTURE_NODE_CONTEXT_UNAVAILABLE translation for
+    // the deterministic path.
+    if (err instanceof StructureNodeContextUnavailableError) {
+      const target = unit.kind === 'file' ? unit.file : unit.nodePath;
+      return companionInfra(
+        `companion.mjs for aspect '${aspectId}' on '${target}' accessed ctx.${err.member}: this paired-file rule needs a component to work.`,
+        `The file is enforced by its architecture type alone — there is no owning component, so there is no yg-node.yaml to back ctx.node or ctx.graph.`,
+        `Give the file a component of its own (a yg-node.yaml mapping it) so ctx.node/ctx.graph become available, or rewrite the companion to use only ctx.subject/ctx.fs over files the architecture already permits this file's type to reach.`,
+      );
+    }
     if (
       err instanceof UndeclaredFsReadError ||
       err instanceof UndeclaredGraphReadError ||

@@ -14,10 +14,12 @@ import {
 import {
   collectDescendants,
   collectInvalidatedPairs,
+  computeGraduationPreview,
   computeNodeFillCost,
   handleAspectImpact,
   handleFlowImpact,
   handleTypeImpact,
+  renderGraduationPreview,
   renderNodeFillCost,
   summarizeImpact,
   renderImpactTotal,
@@ -138,8 +140,19 @@ export function registerImpactCommand(program: Command): void {
             const summary = summarizeImpact(set, graph, lock);
 
             if (!ownerResult.nodePath) {
-              // No structural owner — render the Total and exit. This is an
-              // ADD over the old behavior which early-exited with no cost.
+              // No structural owner. When the file is ITSELF enforced by its
+              // architecture type alone (type-covered, not merely referenced
+              // or observed by some other pair), also preview what giving it
+              // a component of its own would cost — reusing this SAME
+              // invocation's pair universe (set.allPairs / set.typeCoverage)
+              // rather than paying a second, full computeExpectedPairs
+              // enumeration just to answer this one extra question.
+              if (set.typeCoverage?.covered.has(repoRelative)) {
+                const preview = await computeGraduationPreview(graph, repoRelative, set.typeCoverage, set.allPairs);
+                process.stdout.write(renderGraduationPreview(preview));
+              }
+              // Render the Total and exit. This is an ADD over the old
+              // behavior which early-exited with no cost.
               process.stdout.write(renderImpactTotal(summary, repoRelative, { isTTY: process.stdout.isTTY ?? false }));
               await exitAfterFlush(0);
               return;
@@ -162,7 +175,7 @@ export function registerImpactCommand(program: Command): void {
             return;
           }
           if (options.type) {
-            await handleTypeImpact(graph, options.type.trim());
+            await handleTypeImpact(graph, options.type.trim(), lock);
             return;
           }
 

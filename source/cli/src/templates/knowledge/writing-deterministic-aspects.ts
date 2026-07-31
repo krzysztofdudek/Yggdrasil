@@ -599,18 +599,31 @@ by the node path and subject-file hashes.
 ## Testing with yg aspect-test
 
 Run a deterministic aspect's \`check.mjs\` live, without writing the lock. Scope it
-either to a graph node or to ad-hoc files:
+to a graph node, a file enforced by its architecture type alone (no owning
+component), or ad-hoc files:
 
 \`\`\`bash
 # Graph-scoped: run the check against a named node
 yg aspect-test --aspect sibling-test-file --node orders/handler
 
-# Ad-hoc: run the check against specific files
+# Type-scoped: run the check against a file with no owning component — the
+# architecture's relations: allow-list stands in for the node mapping ctx.fs
+# would otherwise enforce against.
+yg aspect-test --aspect sibling-test-file --file src/leaf/order-utils.ts
+
+# Ad-hoc: run the check against specific files (no graph attachment at all)
 yg aspect-test --aspect no-sync-fs --files src/orders/handler.ts src/other.ts
 
 # Verify the check is deterministic (same violations on every run)
 yg aspect-test --aspect sibling-test-file --node orders/handler --check-determinism
 \`\`\`
+
+\`--node\`, \`--file\`, and \`--files\` are mutually exclusive — pass exactly one.
+\`--file\` refuses a path that already has a component (use \`--node\`) or one
+that does not classify to exactly one architecture type (fix the architecture
+or map it to a node). See "A file enforced by its architecture type alone" in
+\`yg knowledge read writing-llm-aspects\` for what \`ctx.node\`/\`ctx.graph\`
+being unavailable means for a check running this way.
 
 Every run leads with a one-line verdict stamp (\`yg aspect-test: satisfied — No
 violations.\` or \`yg aspect-test: refused — N violation(s)\`) and ends with the

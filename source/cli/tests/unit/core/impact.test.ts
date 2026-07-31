@@ -184,7 +184,7 @@ describe('handleTypeImpact — Object.prototype key guard', () => {
       throw new Error(`__exit__${exitCode}`);
     }) as never);
     try {
-      await handleTypeImpact(graph, typeId);
+      await handleTypeImpact(graph, typeId, emptyLock());
     } catch (e) {
       if (!(e instanceof Error) || !e.message.startsWith('__exit__')) throw e;
     } finally {

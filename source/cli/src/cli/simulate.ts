@@ -1,10 +1,10 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { spawnSync } from 'node:child_process';
-import { statSync, existsSync, mkdtempSync, mkdirSync, rmSync, cpSync, readFileSync, realpathSync } from 'node:fs';
+import { statSync, existsSync, mkdtempSync, mkdirSync, rmSync, cpSync, readFileSync, writeFileSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { findYggRoot, getPackageRoot } from '../io/paths.js';
+import { findYggRoot, getPackageRoot, resolveFileArg, projectRootFromGraph } from '../io/paths.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { loadGraphOrAbort } from './preamble.js';
@@ -66,6 +66,17 @@ export type CommitOutcome =
   | { sha: string; subject: string; kind: 'ran-clean' }
   | { sha: string; subject: string; kind: 'violations'; count: number }
   | { sha: string; subject: string; kind: 'non-comparable'; reason: string };
+
+/**
+ * What the candidate replays over: a real component (--node, the original,
+ * unchanged form) or a file enforced by its architecture type alone (--file,
+ * E2). `--file` replays over the file's HISTORICAL content but the CURRENT
+ * architecture and coverage settings — see overlayCurrentArchitectureAndCoverage
+ * — so the report must say so; --node's replay stays entirely historical.
+ */
+export type SimulateTarget =
+  | { kind: 'node'; nodePath: string }
+  | { kind: 'file'; file: string };
 
 /** One commit of the replay window (newest-first from git, displayed oldest-first). */
 interface Commit {
@@ -334,6 +345,121 @@ function overlayCandidate(candidateDir: string, cloneYggRoot: string, candidateI
 }
 
 // ---------------------------------------------------------------------------
+// --file target: overlay TODAY's architecture + coverage settings into the
+// clone (E2). The file's CONTENT stays historical (checked out from the
+// commit); only how the architecture classifies it and whether type-level
+// coverage is even on come from today — otherwise a historical commit that
+// predates coverage.type_level (or the matching architecture type) could
+// never classify the file at all, and the replay would spuriously read as
+// non-comparable for every commit instead of testing the rule.
+// ---------------------------------------------------------------------------
+
+/**
+ * Extract the top-level `coverage:` block from a yg-config.yaml's raw text:
+ * the `coverage:` key line itself plus every following line that is either
+ * MORE indented than column 0 or blank, up to (not including) the next
+ * column-0, non-blank line. Returns null when no `coverage:` key exists at
+ * column 0. A regex/line scan, not a YAML parser — mirrors readConfigVersion's
+ * own stated reason for staying inside the import fence.
+ */
+function extractCoverageBlock(content: string): string | null {
+  const lines = content.split('\n');
+  let start = -1;
+  let end = lines.length;
+  for (let i = 0; i < lines.length; i++) {
+    if (start === -1) {
+      if (/^coverage:\s*(#.*)?$/.test(lines[i])) { start = i; }
+      continue;
+    }
+    if (lines[i].trim() === '' || /^\s/.test(lines[i])) continue; // inside the block
+    end = i;
+    break;
+  }
+  if (start === -1) return null;
+  // Trim trailing blank lines from the captured block (they belong to the
+  // surrounding file's spacing, not to the block's own content).
+  while (end > start + 1 && lines[end - 1].trim() === '') end--;
+  return lines.slice(start, end).join('\n');
+}
+
+/** Remove the top-level `coverage:` block (see extractCoverageBlock) from `content`, if present. */
+function removeCoverageBlock(content: string): string {
+  const lines = content.split('\n');
+  let start = -1;
+  let end = lines.length;
+  for (let i = 0; i < lines.length; i++) {
+    if (start === -1) {
+      if (/^coverage:\s*(#.*)?$/.test(lines[i])) { start = i; }
+      continue;
+    }
+    if (lines[i].trim() === '' || /^\s/.test(lines[i])) continue;
+    end = i;
+    break;
+  }
+  if (start === -1) return content;
+  lines.splice(start, end - start);
+  return lines.join('\n');
+}
+
+/**
+ * Splice `block` (as returned by extractCoverageBlock, or null) into `content`
+ * in place of whatever `coverage:` block `content` already has (removing it
+ * first, if any) — `block === null` means today's config has none either, so
+ * the clone's own historical block (if any) is simply dropped.
+ */
+function spliceCoverageBlock(content: string, block: string | null): string {
+  const stripped = removeCoverageBlock(content);
+  if (block === null) return stripped;
+  const sep = stripped === '' || stripped.endsWith('\n') ? '' : '\n';
+  return `${stripped}${sep}${block}\n`;
+}
+
+/**
+ * Overlay TODAY's yg-architecture.yaml (wholesale) and TODAY's `coverage:`
+ * settings (spliced into yg-config.yaml, replacing whatever the clone's
+ * historical checkout had — every OTHER key, including the clone's own
+ * `version:`, is left untouched) into the clone's graph — --file's addition
+ * to the per-commit overlay (--node's own overlay is unchanged: only
+ * overlayCandidate runs for it).
+ *
+ * Called AFTER the schema-version equality guard already passed for this
+ * commit, so the clone's `version:` is already known to equal today's —
+ * overwriting only `coverage:` (never `version:` or any other key) cannot
+ * desync that already-verified fact.
+ *
+ * Same containment discipline as overlayCandidate: both destinations are
+ * checked lexically AND through realpath (a committed yg-architecture.yaml or
+ * yg-config.yaml that is a SYMLINK escaping the clone must never be written
+ * through). Fails closed (throws) rather than silently skipping — a caller
+ * that ignores the guard would report a "current-architecture" replay that
+ * silently used stale, historical settings instead.
+ */
+export function overlayCurrentArchitectureAndCoverage(realYggRoot: string, cloneYggRoot: string): void {
+  const archDest = path.join(cloneYggRoot, 'yg-architecture.yaml');
+  const cfgDest = path.join(cloneYggRoot, 'yg-config.yaml');
+  for (const dest of [archDest, cfgDest]) {
+    if (!pathIsWithin(cloneYggRoot, dest) || !realpathIsWithin(cloneYggRoot, dest)) {
+      throw new Error(`current-architecture overlay destination escapes the clone ('${dest}') — refusing to touch the filesystem`);
+    }
+  }
+
+  const archSrc = path.join(realYggRoot, 'yg-architecture.yaml');
+  if (existsSync(archSrc)) {
+    cpSync(archSrc, archDest);
+  } else {
+    // Today's repo declares no architecture types at all — the clone must not
+    // keep a stale historical one that would let a file classify when the
+    // CURRENT repo could never have matched it.
+    rmSync(archDest, { force: true });
+  }
+
+  const cfgSrc = path.join(realYggRoot, 'yg-config.yaml');
+  const todayCoverage = existsSync(cfgSrc) ? extractCoverageBlock(readFileSync(cfgSrc, 'utf-8')) : null;
+  const cloneCfg = existsSync(cfgDest) ? readFileSync(cfgDest, 'utf-8') : '';
+  writeFileSync(cfgDest, spliceCoverageBlock(cloneCfg, todayCoverage));
+}
+
+// ---------------------------------------------------------------------------
 // Report rendering.
 // ---------------------------------------------------------------------------
 
@@ -357,15 +483,19 @@ function colorForOutcome(kind: CommitOutcome['kind'], token: string): string {
  */
 export function renderReport(params: {
   candidateId: string;
-  nodePath: string;
+  target: SimulateTarget;
   referenceSchema: string;
   outcomes: CommitOutcome[];
 }): string {
-  const { candidateId, nodePath, referenceSchema, outcomes } = params;
+  const { candidateId, target, referenceSchema, outcomes } = params;
   const lines: string[] = [];
 
   lines.push(
-    chalk.bold(`Replay of candidate rule '${candidateId}' over node '${nodePath}'`),
+    chalk.bold(
+      target.kind === 'node'
+        ? `Replay of candidate rule '${candidateId}' over node '${target.nodePath}'`
+        : `Replay of candidate rule '${candidateId}' over file '${target.file}' (enforced by its architecture type alone)`,
+    ),
   );
   lines.push(
     chalk.dim(
@@ -373,6 +503,16 @@ export function renderReport(params: {
         `every other commit is reported as non-comparable, never as a clean pass.`,
     ),
   );
+  if (target.kind === 'file') {
+    // E2: the file's CONTENT at each commit is historical, but the rule and
+    // how it attaches (architecture + coverage settings) come from TODAY —
+    // stated plainly so a reader never mistakes the result for pure history.
+    lines.push(
+      chalk.dim(
+        'The rule and the way it attaches (architecture + coverage settings) come from TODAY; only the file\'s code comes from history.',
+      ),
+    );
+  }
   lines.push('');
 
   if (outcomes.length === 0) {
@@ -424,7 +564,7 @@ function emitError(msg: { what: string; why: string; next: string }): void {
 
 export interface SimulateArgs {
   candidateId: string;
-  nodePath: string;
+  target: SimulateTarget;
   maxCommits: number;
   /** The directory to resolve the real graph from (normally process.cwd()). */
   cwd: string;
@@ -440,21 +580,24 @@ export interface SimulateArgs {
  * missing candidate, wrong candidate kind, unreadable schema, cannot clone).
  */
 export async function runSimulation(args: SimulateArgs): Promise<number> {
-  const { candidateId, nodePath, maxCommits, cwd, binPath, emit } = args;
+  const { candidateId, target, maxCommits, cwd, binPath, emit } = args;
+  const targetValue = target.kind === 'node' ? target.nodePath : target.file;
+  const targetLabel = target.kind === 'node' ? '--node path' : '--file path';
 
   // ── Input sanitisation (SECURITY, before any graph load or fs op) ───────────
-  // The candidate id and node path are untrusted and reach filesystem operations
-  // (the overlay's rmSync/cpSync at `<clone>/.yggdrasil/aspects/<candidateId>`). A
-  // `..` or absolute component could make those operations escape the clone onto the
-  // REAL tree, so reject a traversing value up front — before cloning, before any
-  // read or write. This is input validation, not graph-state handling; the graph
-  // load (below) still owns the missing-graph error.
-  for (const [label, value] of [['candidate id', candidateId], ['--node path', nodePath]] as const) {
+  // The candidate id and target value are untrusted and reach filesystem
+  // operations (the overlay's rmSync/cpSync at `<clone>/.yggdrasil/aspects/<candidateId>`,
+  // and — for a --file target — the current-architecture overlay). A `..` or
+  // absolute component could make those operations escape the clone onto the
+  // REAL tree, so reject a traversing value up front — before cloning, before
+  // any read or write. This is input validation, not graph-state handling;
+  // the graph load (below) still owns the missing-graph error.
+  for (const [label, value] of [['candidate id', candidateId], [targetLabel, targetValue]] as const) {
     if (!isPlainRelativeName(value)) {
       emitError({
         what: `The ${label} '${value}' is not a plain relative name.`,
         why: 'simulate writes the candidate only inside an isolated clone and must never resolve a path outside it; a value with a `..`, absolute, or drive-letter component could escape onto the real tree.',
-        next: 'Pass a plain aspect id / node path with no `..` segments and no absolute or drive-letter components.',
+        next: `Pass a plain aspect id and a plain ${target.kind === 'node' ? '--node' : '--file'} path with no \`..\` segments and no absolute or drive-letter components.`,
       });
       return 1;
     }
@@ -519,7 +662,24 @@ export async function runSimulation(args: SimulateArgs): Promise<number> {
     return 1;
   }
 
-  const projectRoot = path.dirname(realYggRoot);
+  const projectRoot = projectRootFromGraph(realYggRoot);
+
+  // ── --file path normalization (same rule every --file-accepting command
+  // follows: resolveFileArg(repoRoot, rawPath), never process.cwd() directly)
+  // — done here, not before the graph load above, because repoRoot comes from
+  // the loaded graph's own root. A --node target needs no such resolution
+  // (a node path is already graph-relative, not filesystem-relative). ──
+  const resolvedTarget: SimulateTarget = target.kind === 'node'
+    ? target
+    : { kind: 'file', file: resolveFileArg(projectRoot, target.file) };
+  if (resolvedTarget.kind === 'file' && !isPlainRelativeName(resolvedTarget.file)) {
+    emitError({
+      what: `The --file path '${resolvedTarget.file}' resolves outside the project root.`,
+      why: 'simulate resolves --file the same way every other --file-accepting command does (relative to the graph root, not the current directory) — a value that escapes the project root cannot be a subject in this project\'s history.',
+      next: 'Pass a --file path inside the project root.',
+    });
+    return 1;
+  }
 
   // ── Clone-in-temp (all mutation happens here, never in the real tree) ───────
   const cloneDir = mkdtempSync(path.join(tmpdir(), 'yg-simulate-'));
@@ -541,10 +701,10 @@ export async function runSimulation(args: SimulateArgs): Promise<number> {
 
     const outcomes: CommitOutcome[] = [];
     for (const commit of commits) {
-      outcomes.push(await replayOneCommit({ commit, cloneDir, referenceSchema, candidateDir, candidateId, nodePath, binPath }));
+      outcomes.push(await replayOneCommit({ commit, cloneDir, referenceSchema, candidateDir, candidateId, target: resolvedTarget, realYggRoot, binPath }));
     }
 
-    emit(renderReport({ candidateId, nodePath, referenceSchema, outcomes }));
+    emit(renderReport({ candidateId, target: resolvedTarget, referenceSchema, outcomes }));
     return 0;
   } finally {
     rmSync(cloneDir, { recursive: true, force: true });
@@ -562,10 +722,13 @@ async function replayOneCommit(params: {
   referenceSchema: string;
   candidateDir: string;
   candidateId: string;
-  nodePath: string;
+  target: SimulateTarget;
+  /** The REAL project's .yggdrasil root — read-only source for a --file
+   *  target's current-architecture overlay. Never written to. */
+  realYggRoot: string;
   binPath: string;
 }): Promise<CommitOutcome> {
-  const { commit, cloneDir, referenceSchema, candidateDir, candidateId, nodePath, binPath } = params;
+  const { commit, cloneDir, referenceSchema, candidateDir, candidateId, target, realYggRoot, binPath } = params;
   const base = { sha: commit.sha, subject: commit.subject };
   try {
     const checkout = git(['checkout', '-f', commit.sha], cloneDir);
@@ -598,10 +761,19 @@ async function replayOneCommit(params: {
     }
 
     overlayCandidate(candidateDir, cloneYggRoot, candidateId);
+    // --file (E2): additionally overlay TODAY's architecture + coverage
+    // settings — the schema-equality guard above already confirmed this
+    // commit's graph shares today's schema, so overwriting only `coverage:`
+    // (never `version:` or any other key) cannot desync that fact. --node's
+    // own overlay is unchanged: only overlayCandidate runs for it.
+    if (target.kind === 'file') {
+      overlayCurrentArchitectureAndCoverage(realYggRoot, cloneYggRoot);
+    }
 
     // ONE fresh subprocess per commit — a reused process would pin the previous
     // commit's check.mjs in the ESM module cache and replay stale logic.
-    const run = spawnSync(process.execPath, [binPath, 'aspect-test', '--aspect', candidateId, '--node', nodePath], {
+    const targetArgs = target.kind === 'node' ? ['--node', target.nodePath] : ['--file', target.file];
+    const run = spawnSync(process.execPath, [binPath, 'aspect-test', '--aspect', candidateId, ...targetArgs], {
       cwd: cloneDir,
       encoding: 'utf-8',
       maxBuffer: 128 * 1024 * 1024,
@@ -635,12 +807,28 @@ export function registerSimulateCommand(program: Command): void {
       'Replay a candidate deterministic rule over the history it can honestly reach (read-only, in an isolated clone; reports per-commit outcomes, never gates)',
     )
     .argument('<candidate>', 'aspect id of the candidate deterministic rule to replay')
-    .requiredOption('--node <path>', 'the node whose files the candidate replays over at each commit')
+    .option('--node <path>', 'the node whose files the candidate replays over at each commit — mutually exclusive with --file')
+    .option('--file <path>', 'a file enforced by its architecture type alone (no owning component) — replays over its HISTORICAL content, classified against the CURRENT architecture; mutually exclusive with --node')
     .option('--max-commits <n>', 'how many most-recent commits to consider', '20')
-    .action(async (candidate: string, opts: { node: string; maxCommits: string }) => {
+    .action(async (candidate: string, opts: { node?: string; file?: string; maxCommits: string }) => {
       try {
+        const hasNode = typeof opts.node === 'string';
+        const hasFile = typeof opts.file === 'string';
+        if (hasNode === hasFile) {
+          emitError({
+            what: hasNode
+              ? 'Both --node and --file were provided.'
+              : 'Neither --node nor --file was provided.',
+            why: 'yg simulate replays over exactly one target: --node (a component) or --file (a file enforced by its architecture type alone, no component).',
+            next: 'Re-run with exactly one of --node <path> or --file <path>.',
+          });
+          process.exit(1);
+          return;
+        }
         const candidateId = candidate.trim().replace(/\/$/, '');
-        const nodePath = opts.node.trim().replace(/\/$/, '');
+        const target: SimulateTarget = hasNode
+          ? { kind: 'node', nodePath: opts.node!.trim().replace(/\/$/, '') }
+          : { kind: 'file', file: opts.file!.trim() };
         const maxCommits = parseMaxCommits(opts.maxCommits);
         if (maxCommits === null) {
           emitError({
@@ -654,7 +842,7 @@ export function registerSimulateCommand(program: Command): void {
         const binPath = path.join(getPackageRoot(), 'bin.js');
         const code = await runSimulation({
           candidateId,
-          nodePath,
+          target,
           maxCommits,
           cwd: process.cwd(),
           binPath,

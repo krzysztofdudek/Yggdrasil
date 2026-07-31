@@ -656,7 +656,9 @@ describe.skipIf(!distExists)('CLI E2E — graph-aware deterministic ctx surface 
         dir,
       );
       expect(test.status).toBe(1);
-      expect(test.all).toContain('Both --node and --files were provided');
+      // --node/--file/--files are a three-way exactly-one-mode contract; the
+      // wording names all three.
+      expect(test.all).toContain('More than one of --node, --file, --files was provided');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -667,7 +669,7 @@ describe.skipIf(!distExists)('CLI E2E — graph-aware deterministic ctx surface 
     try {
       const test = run(['aspect-test', '--aspect', 'no-todo-comments'], dir);
       expect(test.status).toBe(1);
-      expect(test.all).toContain('Neither --node nor --files was provided');
+      expect(test.all).toContain('None of --node, --file, --files was provided');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

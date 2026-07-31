@@ -1,0 +1,20 @@
+name: E2E Tests — Type-Coverage Impact
+type: test-suite
+description: "Subprocess E2E for `yg impact` over files enforced by their
+  architecture type alone (coverage.type_level), on the real committed
+  tests/fixtures/type-level-engine merged with its two-covered-files variant.
+  Pins two binding fixes verified on the real binary: `yg impact --file`
+  folding a type-covered file's own pairs into its printed totals instead of
+  silently dropping them to zero, and `yg impact --type` counting type-covered
+  files (not just node-mapped ones) so its 'Source files covered' count agrees
+  with `yg check`'s own per-type report. Also covers the two new cost previews
+  ('Files enforced by this type' / 'At stake' for --type; the graduation
+  preview for --file) and the real nodeless prompt variant captured by the
+  mock reviewer (no <node> element for a type-covered file's prompt, byte-
+  identical framing for the real component sharing the same type)."
+aspects: []
+relations:
+  - target: cli/tests/e2e/support
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-type-coverage-impact.test.ts

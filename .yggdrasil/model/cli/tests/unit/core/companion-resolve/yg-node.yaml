@@ -3,7 +3,14 @@ type: test-suite
 description: "Unit tests for the shared companion-resolve helper — verifies
   descriptor normalization, deduplication, allowed-reads validation, file
   reading, and observation recording, including the infra-failure path when a
-  companion path falls outside the node's allowed-reads boundary."
+  companion path falls outside the node's allowed-reads boundary. Also covers
+  the NODELESS case (a pair for a file enforced by its architecture type
+  alone, no owning component): a paired file the architecture already
+  permits resolves; one the architecture forbids is refused without naming a
+  phantom component; and a companion hook written for a component (touching
+  ctx.node/ctx.graph) fails clearly, naming both exits, over real on-disk
+  companion.mjs fixtures and a hand-built architecture — no mocking, unlike
+  the sibling file above."
 aspects: []
 relations:
   - target: cli/core/companion-resolve
@@ -14,5 +21,8 @@ relations:
     type: uses
   - target: cli/model/graph
     type: uses
+  - target: cli/tests/unit/helpers
+    type: uses
 mapping:
   - source/cli/tests/unit/core/companion-resolve.test.ts
+  - source/cli/tests/unit/core/companion-resolve-nodeless.test.ts

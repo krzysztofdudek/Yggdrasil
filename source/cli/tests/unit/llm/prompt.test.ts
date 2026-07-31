@@ -59,6 +59,16 @@ const inputPerFile: PairPromptInput = {
   scope: { per: 'file' },
 };
 
+// A file enforced by its architecture type alone — no owning component, so
+// nodePath/nodeDescription are both omitted entirely (never rendered as an
+// empty '' component under a header announcing one).
+const inputNodeless: PairPromptInput = {
+  aspect: { id: 'a', description: 'd', content: 'rule body' },
+  references: [],
+  files: [{ path: 'src/leaf/a.ts', content: 'x' }],
+  scope: { per: 'file' },
+};
+
 describe('buildPairPrompt — per-node golden', () => {
   it('golden 1: byte-identical to fixture (references + description with special chars)', () => {
     const expected = loadFixture('prompt-per-node-golden-1.txt');
@@ -97,6 +107,42 @@ describe('buildPairPrompt — per-file golden', () => {
   it('per-node does NOT contain the per-file framing sentence', () => {
     const prompt = buildPairPrompt(input1);
     expect(prompt).not.toContain('You are reviewing ONE file of a larger component.');
+  });
+});
+
+describe('buildPairPrompt — nodeless (a file with no component)', () => {
+  it('says nothing about a component: no <node> element, no "node (component)" framing', () => {
+    const p = buildPairPrompt(inputNodeless);
+    expect(p).not.toContain('<node');
+    expect(p).not.toContain('node (component)');
+    expect(p).toContain('src/leaf/a.ts');
+    expect(p).toBe(loadFixture('prompt-nodeless-per-file-golden.txt'));
+  });
+
+  it('leaves the component-owned prompts byte-identical (golden pins unchanged)', () => {
+    expect(buildPairPrompt(input1)).toBe(loadFixture('prompt-per-node-golden-1.txt'));
+    expect(buildPairPrompt(input2)).toBe(loadFixture('prompt-per-node-golden-2.txt'));
+    expect(buildPairPrompt(inputPerFile)).toBe(loadFixture('prompt-per-file-golden.txt'));
+  });
+
+  it('omits the component element entirely — no blank line where it was', () => {
+    const p = buildPairPrompt(inputNodeless);
+    // Exactly one blank line between </task> and <aspect — no gap left by a
+    // missing <node> block.
+    expect(p).toContain('</task>\n\n<aspect');
+  });
+
+  it('still carries the single-file framing sentence (scope.per === "file" already gates it)', () => {
+    const p = buildPairPrompt(inputNodeless);
+    expect(p).toContain('You are reviewing ONE file of a larger component.');
+  });
+
+  it('nodeDescription may also be omitted when nodePath is present without one (defensive)', () => {
+    // Not a real caller shape (every real per-node caller supplies both), but
+    // the type is now optional — must not throw or render "undefined".
+    const p = buildPairPrompt({ ...inputNodeless, nodePath: 'n' });
+    expect(p).not.toContain('undefined');
+    expect(p).toContain('<node path="n"');
   });
 });
 
