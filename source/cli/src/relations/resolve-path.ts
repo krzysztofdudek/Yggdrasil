@@ -16,19 +16,24 @@ import type { Graph } from '../model/graph.js';
  *  Checks existence against the project's files on disk. Symbol-resolved languages (and
  *  not-yet-implemented ones) return undefined here — they resolve via the SymbolTable.
  *
- *  `ownerOf` and `isExcluded`, when supplied, feed the Go/Java package resolvers below so
- *  they can pick a package directory's REPRESENTATIVE file. `isExcluded` drops an excluded
- *  file from the package's candidate list BEFORE `ownerOf` is ever asked about it — the
- *  package's split-or-single-owner status is decided from what remains, not from every file
- *  the directory happens to hold. This is what keeps an exclusion honest about every OTHER
- *  file in the package: excluding one file can only remove that file's own contribution to
- *  the decision — it can never fabricate an owner a surviving file never had, and it can
- *  never bury a real dependency reached through a file that is still there. A caller
- *  resolving a specifier fresh from source — the specifier can name any file on disk,
+ *  `ownerOf` and `isExcluded`, when supplied, feed every resolver below that can face
+ *  MORE THAN ONE candidate file for a single specifier. Go and Java package imports use
+ *  `isExcluded` to drop an excluded file from the package's candidate list BEFORE `ownerOf`
+ *  is ever asked about it — the package's split-or-single-owner status is decided from what
+ *  remains, not from every file the directory happens to hold. Python (multiple ancestor
+ *  source roots matching the same dotted module) and PHP (multiple PSR-4 base directories
+ *  for one prefix) face the same shape of ambiguity without an owner-set to collapse: their
+ *  resolvers use `isExcluded` to drop an excluded match from the candidate SET before
+ *  deciding whether resolution is ambiguous, so an excluded duplicate can no longer keep a
+ *  real, surviving candidate silenced. Either way this is what keeps an exclusion honest
+ *  about every OTHER file: excluding one file can only remove that file's own contribution
+ *  to the decision — it can never fabricate an owner or a target a surviving file never had,
+ *  and it can never bury a real dependency reached through a file that is still there. A
+ *  caller resolving a specifier fresh from source — the specifier can name any file on disk,
  *  excluded or not — must build this through {@link guardedResolve} instead of calling this
  *  directly with `ownerOf` and no `isExcluded`: without `isExcluded`, an excluded file still
- *  counts toward the owner-set decision, which can silence a real cross-node dependency
- *  reached through the package's other, non-excluded, fully enforced files. */
+ *  counts toward the ambiguity decision, which can silence a real cross-node dependency
+ *  reached through the surviving, non-excluded, fully enforced candidate. */
 export function makeResolvePathToFile(
   projectRoot: string,
   ownerOf?: (repoRelPosix: string) => string | undefined,
@@ -37,14 +42,14 @@ export function makeResolvePathToFile(
   const exists = (repoRelPosix: string): boolean => existsSync(path.resolve(projectRoot, repoRelPosix));
   const goDeps = makeGoResolveDeps(projectRoot, ownerOf, isExcluded);
   const javaDeps = makeJavaResolveDeps(projectRoot, exists);
-  const phpDeps = makePhpResolveDeps(projectRoot, exists);
+  const phpDeps = makePhpResolveDeps(projectRoot, exists, isExcluded);
   const rustDeps = makeRustResolveDeps(projectRoot);
   return (specifier, fromFile, language, isPackage = false) => {
     if (language === 'typescript' || language === 'tsx' || language === 'javascript') {
       return resolveTsPath(specifier, fromFile, exists);
     }
     if (language === 'python') {
-      return resolvePythonModule(specifier, fromFile, exists);
+      return resolvePythonModule(specifier, fromFile, exists, isExcluded);
     }
     if (language === 'go') {
       return resolveGoImport(specifier, fromFile, goDeps);
@@ -361,6 +366,7 @@ function makeJavaResolveDeps(
 function makePhpResolveDeps(
   projectRoot: string,
   exists: (repoRelPosix: string) => boolean,
+  isExcluded?: (repoRelPosix: string) => boolean,
 ): PhpResolveDeps {
   // Cache: composer.json directory (repo-rel POSIX, '' = root) → parsed PSR-4 map.
   const psr4ByDir = new Map<string, Map<string, string[]>>();
@@ -400,7 +406,7 @@ function makePhpResolveDeps(
     }
   }
 
-  return { psr4For, exists };
+  return { psr4For, exists, isExcluded };
 }
 
 function toPosix(p: string): string {

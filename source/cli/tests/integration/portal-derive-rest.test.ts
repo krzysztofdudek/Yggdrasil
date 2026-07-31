@@ -196,6 +196,7 @@ function mkNode(p: string, outDeg: number, inDeg: number): PortalNode {
     parent: null,
     mapping: [],
     mappingEntryCount: 0,
+    sourceFileCount: 0,
     isTest: false,
     checked: false,
     fresh: false,

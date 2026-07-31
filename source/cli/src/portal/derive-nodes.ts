@@ -94,6 +94,12 @@ export function buildPortalNodes(
   // `unverified` ("we don't know"), so a touched file never reads green anywhere.
   // Optional: absent/empty means no node is treated as touched (the cold baseline).
   freshByNode: Map<string, boolean> = new Map(),
+  // The real per-node on-disk file count (the file-aware answer `mappingEntryCount`
+  // deliberately does not give — see PortalNode.sourceFileCount). Computed by the impure
+  // caller (engine-api's computePortalSourceFileCounts) and passed in, exactly like
+  // freshByNode above, so this function stays pure over already-derived results. Optional:
+  // absent/empty means every node reads 0 (never a fabricated count).
+  sourceFileCountByNode: Map<string, number> = new Map(),
 ): PortalNode[] {
   // Index pair states by node path → aspectId → the per-unit pair records
   // (state PLUS the verdict's covered subject files / refusal reason for drill-through).
@@ -116,6 +122,7 @@ export function buildPortalNodes(
         logContents,
         suppressions,
         freshByNode.get(path) === true,
+        sourceFileCountByNode.get(path) ?? 0,
       ),
     );
   }
@@ -218,6 +225,7 @@ function buildOne(
   logContents: Map<string, string>,
   suppressions: SuppressionsByFile,
   fresh: boolean,
+  sourceFileCount: number,
 ): PortalNode {
   const path = node.path;
   const mapping = node.meta.mapping ?? [];
@@ -275,6 +283,7 @@ function buildOne(
     parent: node.parent ? node.parent.path : null,
     mapping,
     mappingEntryCount: mapping.length,
+    sourceFileCount,
     isTest: node.meta.type === 'test-suite',
     checked,
     fresh,

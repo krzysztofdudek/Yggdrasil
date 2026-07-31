@@ -234,6 +234,7 @@ node_types:
         status: enforced
       - deterministic
       - source-hygiene
+    log_required: true
     parents: [module]
     relations:
       calls: [engine, ast-adapter, structure-adapter, persistence-adapter, llm-shared, utility, relations-adapter]

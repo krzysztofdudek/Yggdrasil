@@ -535,15 +535,22 @@ exclusive — you cannot combine them.
 
 \`--with-verdicts\` interleaves the node's recent verification outcomes with its
 log entries into one newest-first timeline. The outcomes come from the local,
-git-ignored telemetry \`yg check --approve\` records for every verdict; only this
-node's own outcomes are shown (a verdict keyed by the node itself or by one of its
-mapped files), under a \`local telemetry since <timestamp>\` header. The reader is
-deliberately forgiving of that append-only telemetry — unknown line versions,
-unfamiliar entry kinds, and malformed lines are skipped, not errored — so an older
-or partially written file still reads. If the telemetry file has been committed
-(git-tracked) the header drops the "local" wording and says so, since a tracked
-file is shared history rather than local-only telemetry. Plain \`yg log read\` is
-unchanged.
+git-ignored telemetry \`yg check --approve\` records for every verdict, unioned
+with any events a committed shared stream contributes (older CLIs wrote verdicts
+there before the local telemetry existed; when it contributes, a second line
+reports how many events and why). Only this node's own outcomes are shown —
+attributed by REAL ownership, the same hierarchy-first, exclusion-aware answer
+\`yg owner --file\` gives, never by whether a path merely falls inside one of the
+node's mapping strings: a directory-mapping ancestor's mapping text also
+textually covers a descendant's own file, and text has no notion of an
+exclusion, so neither a descendant's outcome nor an excluded file's outcome is
+ever attributed to an ancestor. This is printed under a \`local telemetry since
+<timestamp>\` header. The reader is deliberately forgiving of that append-only
+telemetry — unknown line versions, unfamiliar entry kinds, and malformed lines
+are skipped, not errored — so an older or partially written file still reads.
+If the telemetry file has been committed (git-tracked) the header drops the
+"local" wording and says so, since a tracked file is shared history rather than
+local-only telemetry. Plain \`yg log read\` is unchanged.
 
 ## yg advise
 

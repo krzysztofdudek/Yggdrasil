@@ -87,6 +87,43 @@ describe('resolvePythonModule — absolute', () => {
     const clean = new Set(['src/b/bar.py']);
     expect(resolvePythonModule('b.bar', 'src/a/foo.py', (p) => clean.has(p))).toBe('src/b/bar.py');
   });
+
+  describe('exclusion awareness', () => {
+    // Same shadow shape as the "own dir shadows a genuine root" test above: two
+    // ancestor roots each hold a file matching the same dotted module, so the
+    // absolute resolver treats it as genuinely ambiguous and stays silent. An
+    // `isExcluded` predicate that marks one of the two matches as graph-excluded
+    // must drop it from the ambiguity count BEFORE the silence decision, the same
+    // drop-then-decide rule the Go/Java package resolvers already apply.
+    const shadow = new Set(['src/a/b.py', 'src/b/bar.py']);
+    const shadowExists = (p: string) => shadow.has(p);
+
+    it('control: with nothing excluded, two distinct roots stay ambiguous — silent', () => {
+      expect(resolvePythonModule('b.bar', 'src/a/b.py', shadowExists)).toBeUndefined();
+    });
+
+    it('excluding the match that sorts FIRST resolves to the survivor', () => {
+      // 'src/a/b.py' < 'src/b/bar.py' lexicographically.
+      const isExcluded = (p: string) => p === 'src/a/b.py';
+      expect(resolvePythonModule('b.bar', 'src/a/b.py', shadowExists, isExcluded)).toBe(
+        'src/b/bar.py',
+      );
+    });
+
+    it('excluding the match that sorts LAST resolves to the survivor', () => {
+      const isExcluded = (p: string) => p === 'src/b/bar.py';
+      expect(resolvePythonModule('b.bar', 'src/a/b.py', shadowExists, isExcluded)).toBe(
+        'src/a/b.py',
+      );
+    });
+
+    it('excluding an UNRELATED path elsewhere leaves a genuinely ambiguous resolution silent', () => {
+      const isExcluded = (p: string) => p === 'somewhere/else/entirely.py';
+      expect(
+        resolvePythonModule('b.bar', 'src/a/b.py', shadowExists, isExcluded),
+      ).toBeUndefined();
+    });
+  });
 });
 
 describe('resolvePythonModule — relative', () => {

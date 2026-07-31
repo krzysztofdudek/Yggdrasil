@@ -152,12 +152,21 @@ export interface PortalNode {
    * glob, or an exact file path), never a count of the files those declarations resolve
    * to on disk. One directory or glob entry can expand to any number of real files (a
    * node whose mapping is a single directory covering hundreds of files still has
-   * `mappingEntryCount === 1`), and a node whose one mapped file is excluded from graph
-   * coverage still has `mappingEntryCount === 1` even though nothing enforces it. Neither
-   * shape is what "how many source files does this node have" would answer — this field
-   * intentionally does not claim to answer that question.
+   * `mappingEntryCount === 1`). "How many source files does this node have" is answered
+   * by the sibling field `sourceFileCount`, not this one.
    */
   mappingEntryCount: number;
+  /**
+   * The real number of on-disk source files this node's mapping resolves to — the answer
+   * `mappingEntryCount` deliberately does not give. Computed the same exclusion-aware,
+   * child-carve-out-aware way the node's own source fingerprint is (`computeNodeMappedFiles`):
+   * a file excluded from graph coverage (a nested project's own boundary, or a
+   * `coverage.excluded` root) is never counted, and a file a MORE SPECIFIC descendant node
+   * also maps is counted only for that descendant, never for the ancestor whose directory
+   * mapping happens to sweep it in too — so a parent and a child mapping the same directory
+   * never double-count the same file between them. A mapping-less node reads 0.
+   */
+  sourceFileCount: number;
   isTest: boolean;
   /**
    * true = the node has at least one REAL verdict-bearing pair (an effective-aspect row
@@ -324,6 +333,17 @@ export interface PortalSuppression {
 export interface FreshnessMarkerInput {
   nodePath: string;
   sourceChanged: boolean;
+}
+
+/**
+ * Portal-local source-file-count marker — the producer/consumer seam for the panel's real
+ * file count. The facade PRODUCES one per node (`computeNodeMappedFiles`, the same
+ * exclusion-aware, child-carve-out-aware expansion the source fingerprint uses);
+ * `buildPortalNodes` in the pipeline CONSUMES it to fill `PortalNode.sourceFileCount`.
+ */
+export interface SourceFileCountMarkerInput {
+  nodePath: string;
+  sourceFileCount: number;
 }
 
 export interface HubEntry {

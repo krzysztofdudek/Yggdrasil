@@ -9,9 +9,21 @@ import path from 'node:path';
  *
  * `exists(repoRelPosix)` reports whether a candidate file exists in the resolution
  * universe (disk at --approve time; a fixed known-set in unit tests). PURE except
- * through `exists`. Resolution is a pure file-existence search — no directory
- * listing, no graph access. The owner index downstream maps the resolved file to a
- * node; an unmapped resolved file is simply not a known target.
+ * through `exists` and `isExcluded`. Resolution is a pure file-existence search — no
+ * directory listing, no graph access. The owner index downstream maps the resolved
+ * file to a node; an unmapped resolved file is simply not a known target.
+ *
+ * `isExcluded`, when supplied, drops an excluded candidate from the ambiguity count
+ * BEFORE the absolute resolver decides whether a dotted module resolved to one file
+ * or several. The absolute search probes every ancestor source root and treats 2+
+ * DISTINCT existing files as genuinely ambiguous (ANOTHER root or a same-named
+ * shadow really might be the target, so a static tool must not guess which). An
+ * excluded file is graph-told to not exist for this purpose: it can never BE the
+ * real target, so its match must not count toward "this is ambiguous" once a
+ * single non-excluded candidate is what remains. This mirrors the Go/Java package
+ * resolvers' drop-then-decide rule, applied to the per-root candidate SET instead
+ * of a package's file list. Absent → no candidate is ever dropped (today's
+ * behavior, unaffected).
  *
  * RESOLUTION MISS → undefined. This fail-to-silence is the single most important
  * false-positive guard: a stdlib/third-party module, a mis-climbed relative import,
@@ -21,11 +33,12 @@ export function resolvePythonModule(
   specifier: string,
   fromFile: string,
   exists: (repoRelPosix: string) => boolean,
+  isExcluded?: (repoRelPosix: string) => boolean,
 ): string | undefined {
   if (specifier.startsWith('.')) {
     return resolveRelative(specifier, fromFile, exists);
   }
-  return resolveAbsolute(specifier, fromFile, exists);
+  return resolveAbsolute(specifier, fromFile, exists, isExcluded);
 }
 
 /**
@@ -38,11 +51,17 @@ export function resolvePythonModule(
  * root (the importer's own/intermediate dirs are not genuine roots, so they must
  * not shadow the real source root): a single distinct matching file is returned;
  * 2+ distinct matches are ambiguous and resolve to undefined (silence).
+ *
+ * An excluded match is dropped BEFORE that ambiguity count. It is graph-told to
+ * not exist, so it can never be the genuine target and must not keep a real,
+ * surviving match silenced merely because it once shared a dotted module name
+ * with a file the graph no longer considers.
  */
 function resolveAbsolute(
   specifier: string,
   fromFile: string,
   exists: (repoRelPosix: string) => boolean,
+  isExcluded?: (repoRelPosix: string) => boolean,
 ): string | undefined {
   const segments = specifier.split('.').filter((s) => s.length > 0);
   if (segments.length === 0) return undefined;
@@ -81,7 +100,14 @@ function resolveAbsolute(
       }
     }
   }
-  return matches.size === 1 ? [...matches][0] : undefined;
+  // Drop any excluded match before deciding whether resolution is ambiguous — the
+  // same drop-then-decide rule the Go/Java package resolvers apply to a package's
+  // file list, applied here to the per-root candidate set. Exactly one live match
+  // remaining is an unambiguous resolution even when a second, now-excluded match
+  // also exists; zero or 2+ live matches stay silent, unchanged.
+  const isExcl = isExcluded ?? ((): boolean => false);
+  const live = [...matches].filter((m) => !isExcl(m));
+  return live.length === 1 ? live[0] : undefined;
 }
 
 /**

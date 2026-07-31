@@ -330,10 +330,17 @@ yg log merge-resolve --node <path>
   `--all` shows the full history. `--top` and `--all` are mutually exclusive. Use this
   before editing a node to understand past decisions.
   - `--with-verdicts` — Interleave the node's own recent verification events with its
-    log entries, newest first, under a `local telemetry since <timestamp>` header.
-    The events come from a local, gitignored telemetry sidecar written during
-    `yg check --approve`; only the node's own fill outcomes are shown (keyed by the
-    node itself or by one of its mapped files). Unknown or malformed lines are
+    log entries, newest first, under a `local telemetry since <timestamp>` header. The
+    events come from a local, gitignored telemetry sidecar written during
+    `yg check --approve`, unioned with any events a committed shared stream contributes
+    (older CLIs wrote verdicts there before the sidecar existed; when it contributes,
+    a second line reports how many events and why). Only the node's own fill outcomes
+    are shown — attributed by REAL ownership, the same hierarchy-first,
+    exclusion-aware answer `yg owner --file` gives, never by whether a path merely
+    falls inside one of the node's mapping strings: a directory-mapping ancestor's
+    mapping text also textually covers a descendant's own file, and text has no
+    notion of an exclusion, so neither a descendant's event nor an excluded file's
+    event is ever attributed to an ancestor. Unknown or malformed lines are
     tolerated and skipped. If the sidecar is unexpectedly committed (git-tracked),
     the header says so and drops the "local" label — a tracked sidecar is shared
     history, not local-only telemetry.

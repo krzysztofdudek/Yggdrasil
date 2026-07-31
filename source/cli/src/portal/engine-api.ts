@@ -8,7 +8,7 @@ import { walkRepoFiles, listGitTrackedFiles, NO_COVERAGE_EXCLUDED } from '../io/
 import { runCheck, scanUncoveredFiles, type CheckResult, type CheckIssue } from '../core/check.js';
 import { readLock, committedLockContentHash } from '../io/lock-store.js';
 import { verifyLock, type LockVerification, type VerifiedPair, type PairState } from '../core/verify-lock.js';
-import { computeExpectedPairs, computeSourceFingerprint, type PairComputation, type TypeCoverageInput } from '../core/pairs.js';
+import { computeExpectedPairs, type PairComputation, type TypeCoverageInput } from '../core/pairs.js';
 import type { TypeCoverageResult } from '../core/type-coverage.js';
 import { readLogContent } from '../core/log/log-gate.js';
 import { CLI_SUPPORTED_SCHEMA } from '../core/graph-loader.js';
@@ -23,11 +23,13 @@ import { collectDescendants } from '../core/graph/traversal.js';
 import { selectTierForAspect } from '../core/tier-selection.js';
 import { parseLog } from '../core/parsing/log-parser.js';
 import { groupIssues, type IssueGroup } from '../cli/group-issues.js';
-import type { BoundaryInput, SuppressionMarkerInput, FreshnessMarkerInput } from './contract.js';
+import type { BoundaryInput, SuppressionMarkerInput, FreshnessMarkerInput, SourceFileCountMarkerInput } from './contract.js';
 import { computePortalBoundary as computeBoundaryImpl } from './api/boundary.js';
 import { runSuppressionsScan, scanPortalSuppressions as adaptSuppressions } from './api/suppress-scan.js';
 import { collectMappingEntries, collectTypeCoveredFiles } from './api/suppress-eligibility.js';
 import { computePortalTypeCoverage as computeTypeCoverageImpl, toPortalTypeCoverageInput as toTypeCoverageInputImpl } from './api/type-coverage.js';
+import { computePortalSourceFileCounts as computeSourceFileCountsImpl } from './api/source-file-counts.js';
+import { computePortalFreshness as computeFreshnessImpl } from './api/freshness.js';
 
 /**
  * engine-api — the portal's SOLE gateway to engine internals.
@@ -346,55 +348,20 @@ function resolveRelative(base: string, target: string): string {
 
 // ── File-aware loop: per-node source freshness (the honesty heartbeat) ─────────
 
-/**
- * Compute per-node source FRESHNESS — the file-aware loop signal. For every node that carries
- * a COMMITTED source baseline (`lock.nodes[path].source`, written at positive closure for a
- * log_required node), compare its current mapped-source fingerprint — the SAME fold `yg check`
- * uses — against that baseline. `sourceChanged: true` when they differ: the node's bytes changed
- * since the reviewer last saw them, so it reads "we don't know", never a pass.
- *
- * Honesty boundary — never over-fire: a node WITHOUT a committed baseline (`stored` absent) is
- * reported `sourceChanged: false`. Engine semantics record a source fingerprint ONLY for
- * log_required types, so a baseline's absence is the normal case, not evidence of a change — the
- * portal must not paint the whole repo unverified from missing baselines. Such a node's freshness
- * is already carried honestly elsewhere: a node with reviewer pairs flips those pairs to
- * `unverified` on any input change (the pair-state path), and a no-rule node is already the
- * distinct, non-green `no-rule` state. This signal adds the ONE case neither covers: a node that
- * HAS a committed baseline (so its green is a real attestation of specific bytes) whose source
- * has since been edited — exactly where a cached green must never re-render as a pass.
- *
- * A mapping-less node has an undefined fingerprint and is never marked changed. Read-only; reuses
- * the engine's own fingerprint function so the portal's freshness can never diverge from the
- * engine's source-change detection.
- */
+/** Per-node source freshness (see portal/api/freshness.ts) — the file-aware loop
+ *  signal that forces a touched node's state to `unverified`, never a stale pass. */
 export async function computePortalFreshness(
   graph: Graph,
   lock: LockFile,
 ): Promise<FreshnessMarkerInput[]> {
-  const out: FreshnessMarkerInput[] = [];
-  for (const nodePath of graph.nodes.keys()) {
-    const stored = lock.nodes[nodePath]?.source;
-    // No committed baseline → no honest claim of change (the common, non-log_required case).
-    if (stored === undefined) {
-      out.push({ nodePath, sourceChanged: false });
-      continue;
-    }
-    let fingerprint: string | undefined;
-    try {
-      fingerprint = await computeSourceFingerprint(graph, nodePath);
-    } catch {
-      // An unreadable mapped file makes the fingerprint uncomputable. The node carries a
-      // baseline (it once closed) but we can no longer confirm the bytes hold — never silently
-      // fresh: report changed (it is already a blocking file-unreadable error elsewhere).
-      out.push({ nodePath, sourceChanged: true });
-      continue;
-    }
-    // Mapping-less node: no source to be fresh/stale about — never marked changed.
-    if (fingerprint === undefined) {
-      out.push({ nodePath, sourceChanged: false });
-      continue;
-    }
-    out.push({ nodePath, sourceChanged: fingerprint !== stored });
-  }
-  return out;
+  return computeFreshnessImpl(graph, lock);
+}
+
+// ── The panel's real file count ─────────────────────────────────────────────
+
+/** Per-node real source-file count (see portal/api/source-file-counts.ts) — the number
+ *  the panel shows next to `mappingEntryCount` so an adopter can see both what a node
+ *  DECLARES (entries) and what it actually OWNS (files) at a glance. */
+export async function computePortalSourceFileCounts(graph: Graph): Promise<SourceFileCountMarkerInput[]> {
+  return computeSourceFileCountsImpl(graph);
 }

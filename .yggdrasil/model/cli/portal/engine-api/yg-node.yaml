@@ -92,3 +92,5 @@ mapping:
   - source/cli/src/portal/api/suppress-eligibility.ts
   - source/cli/src/portal/api/suppress-coverage.ts
   - source/cli/src/portal/api/type-coverage.ts
+  - source/cli/src/portal/api/freshness.ts
+  - source/cli/src/portal/api/source-file-counts.ts

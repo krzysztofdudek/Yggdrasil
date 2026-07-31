@@ -7,6 +7,7 @@ import { walkRepoFiles } from '../../src/io/repo-scanner.js';
 import { readLock } from '../../src/io/lock-store.js';
 import { verifyLock } from '../../src/core/verify-lock.js';
 import { readLogContent } from '../../src/core/log/log-gate.js';
+import { computeNodeMappedFiles } from '../../src/core/pairs.js';
 import { buildPortalNodes, type SuppressionsByFile } from '../../src/portal/derive-nodes.js';
 import type { PortalNode, PortalSuppression } from '../../src/portal/contract.js';
 import type { Graph, GraphNode, AspectDef } from '../../src/model/graph.js';
@@ -39,7 +40,24 @@ describe('portal per-node derivation (honest state, effective aspects, relations
     }
     const suppressions: SuppressionsByFile = { byFile: new Map() };
 
-    const nodes = buildPortalNodes(graph, lock, verification, check, logContents, suppressions);
+    // The real per-node file count, computed the SAME exclusion-aware, child-carve-out-aware
+    // way the engine-api facade (computePortalSourceFileCounts) does in production, so this
+    // test drives the actual on-disk answer rather than a stand-in.
+    const sourceFileCountByNode = new Map<string, number>();
+    for (const nodePath of graph.nodes.keys()) {
+      sourceFileCountByNode.set(nodePath, (await computeNodeMappedFiles(graph, nodePath)).length);
+    }
+
+    const nodes = buildPortalNodes(
+      graph,
+      lock,
+      verification,
+      check,
+      logContents,
+      suppressions,
+      new Map(),
+      sourceFileCountByNode,
+    );
     byPath = new Map(nodes.map((n) => [n.path, n]));
   }, 180_000);
 
@@ -52,6 +70,30 @@ describe('portal per-node derivation (honest state, effective aspects, relations
     // "how many entries did the node declare", never "how many files does it own".
     expect(fixtures!.mappingEntryCount).toBe(fixtures!.mapping.length);
     expect(fixtures!.mappingEntryCount).toBe(1);
+  });
+
+  it('scripts maps TWO mapping entries — mappingEntryCount counts BOTH, never collapsing a multi-entry mapping to 1', () => {
+    // Distinct from the single-entry pin above: a mapping with more than one declared
+    // entry is the only shape that can distinguish "count the entries" from "always 1".
+    const scripts = byPath.get('scripts');
+    expect(scripts).toBeDefined();
+    expect(scripts!.mapping.length).toBeGreaterThan(1);
+    expect(scripts!.mappingEntryCount).toBe(scripts!.mapping.length);
+  });
+
+  it("cli/tests/fixtures' sourceFileCount is the real, exclusion-aware, on-disk file count mappingEntryCount deliberately does not give", () => {
+    const fixtures = byPath.get('cli/tests/fixtures');
+    expect(fixtures).toBeDefined();
+    // The one declared directory entry resolves to many real loose fixture files directly
+    // under it, PLUS however many more sit outside a nested fixture project's own boundary
+    // (most subdirectories here are self-contained mini-projects with their own .yggdrasil/
+    // or .git, so the SAME nested-project exclusion this branch enforces everywhere else
+    // also keeps their files off this node's own count — sourceFileCount never claims
+    // ownership of files this graph does not actually enforce). Either way the real count
+    // is well above the single declared entry, and never equal to it.
+    expect(fixtures!.mappingEntryCount).toBe(1);
+    expect(fixtures!.sourceFileCount).toBeGreaterThan(5);
+    expect(fixtures!.sourceFileCount).not.toBe(fixtures!.mappingEntryCount);
   });
 
   it('cli/core/fill is checked and fully verified (its reviewed-seam allowance clears the fan-out warning)', () => {
@@ -358,6 +400,38 @@ describe('per-node derivation — honest states on synthetic inputs', () => {
     // Roll-up must reach the top ancestor, not stop one level short.
     expect(out.get('a/b')!.rollupState).toBe('refused');
     expect(out.get('a')!.rollupState).toBe('refused');
+  });
+
+  it('sourceFileCountByNode is threaded straight through to PortalNode.sourceFileCount; an absent node defaults to 0', () => {
+    const aDet = aspectDef('a', 'deterministic');
+    const withCount = node('has-count', 'module', ['a'], ['src/**/*.ts']);
+    const withoutCount = node('no-count', 'module', ['a'], ['src/other.ts']);
+    const graph = {
+      nodes: new Map([['has-count', withCount], ['no-count', withoutCount]]),
+      aspects: [aDet],
+      flows: [],
+      architecture: { node_types: {} },
+    } as unknown as Graph;
+    const verification: LockVerification = {
+      pairs: [vp('a', 'has-count', { kind: 'verified' }), vp('a', 'no-count', { kind: 'verified' })],
+      unreadable: [], drops: [], uncomputableTypeCoverage: [],
+    };
+    const sourceFileCountByNode = new Map<string, number>([['has-count', 42]]);
+    const out = new Map(
+      buildPortalNodes(
+        graph,
+        {} as never,
+        verification,
+        syntheticCheck([]),
+        new Map(),
+        { byFile: new Map() },
+        new Map(),
+        sourceFileCountByNode,
+      ).map((n) => [n.path, n]),
+    );
+    expect(out.get('has-count')!.sourceFileCount).toBe(42);
+    // Never a fabricated count for a node the caller's map has no entry for.
+    expect(out.get('no-count')!.sourceFileCount).toBe(0);
   });
 
   it('per-node suppressions are filtered to the node mapped files; the log is parsed', () => {

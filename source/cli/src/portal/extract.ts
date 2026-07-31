@@ -13,6 +13,7 @@ import {
   computePortalBoundary,
   scanPortalSuppressions,
   computePortalFreshness,
+  computePortalSourceFileCounts,
   computePortalLockHash,
   readGitCommitRef,
   PORTAL_SCHEMA_SUPPORTED,
@@ -109,7 +110,21 @@ export async function extractPortalData(
   const freshByNode = new Map<string, boolean>();
   for (const m of freshnessMarkers) freshByNode.set(m.nodePath, m.sourceChanged);
 
-  const nodes = buildPortalNodes(graph, lock, verification, checkResult, logContents, suppressions, freshByNode);
+  // The panel's real file count, alongside mappingEntryCount — see PortalNode.sourceFileCount.
+  const sourceFileCountMarkers = await computePortalSourceFileCounts(graph);
+  const sourceFileCountByNode = new Map<string, number>();
+  for (const m of sourceFileCountMarkers) sourceFileCountByNode.set(m.nodePath, m.sourceFileCount);
+
+  const nodes = buildPortalNodes(
+    graph,
+    lock,
+    verification,
+    checkResult,
+    logContents,
+    suppressions,
+    freshByNode,
+    sourceFileCountByNode,
+  );
 
   // Catalogue derivations (aspect tally, flows, type model) — pure over the graph +
   // the already-verified pairs. Per-node pair-state index for the honest flow state.
