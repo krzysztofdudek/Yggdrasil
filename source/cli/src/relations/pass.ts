@@ -16,9 +16,7 @@ import {
   assembleCsharpCandidates,
   type CsharpExtract,
 } from './extractors/csharp.js';
-import { loadFacts, writeFacts, factsKey, astCacheDir } from './facts-cache.js';
-import { extractorForLanguage } from './extractors/registry.js';
-import { guardedResolve } from './resolve-path.js';
+import { loadFacts, writeFacts, factsKey } from './facts-cache.js';
 import { countFeatures, type FeatureVector } from './feature-vector.js';
 import { verifyNodeDeps, type ResolvedDep, type RelationGraphView, type Violation } from './verifier.js';
 import type {
@@ -819,29 +817,4 @@ export async function runRelationPass(
     typedEdges: { edgesFrom: (file: string) => typedEdgesByFile.get(file) ?? [] },
     fileOwnerType,
   };
-}
-
-/**
- * Convenience entry point for callers OUTSIDE runCheck (the yg find / yg structure
- * navigation surfaces read derived edges without running a full check) that want the
- * live type-relation edge index without assembling RelationPassDeps themselves. Runs
- * the SAME live pass runRelationPass does — no separate implementation, no drift —
- * and returns just the one field those callers need. `covered` is a type-covered
- * file -> matched typeId map, e.g. computeTypeCoverage(...).covered. core/check.ts
- * itself does NOT call this: it already holds a full RelationPassResult from its own
- * direct runRelationPass call, and calling this too would re-run the whole pass a
- * second time in the same check.
- */
-export async function buildTypedEdgeIndex(
-  graph: Graph,
-  covered: Map<string, string>,
-): Promise<TypedEdgeIndex> {
-  const projectRoot = path.dirname(graph.rootPath);
-  const result = await runRelationPass(graph, projectRoot, {
-    extractorFor: extractorForLanguage,
-    resolvePathToFile: await guardedResolve(projectRoot, graph),
-    symbolIndexDir: astCacheDir(graph.rootPath),
-    typeCoveredFiles: covered,
-  });
-  return result.typedEdges;
 }

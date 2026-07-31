@@ -26,7 +26,7 @@ import { runCheck, scanUncoveredFiles } from '../../../src/core/check.js';
 import { walkRepoFiles } from '../../../src/io/repo-scanner.js';
 import { computeTypeCoverage } from '../../../src/core/type-coverage.js';
 import { FileContentCache } from '../../../src/io/file-content-cache.js';
-import { runRelationPass, buildTypedEdgeIndex } from '../../../src/relations/pass.js';
+import { runRelationPass } from '../../../src/relations/pass.js';
 import { extractorForLanguage } from '../../../src/relations/extractors/registry.js';
 import { makeResolvePathToFile } from '../../../src/relations/resolve-path.js';
 import { astCacheDir } from '../../../src/relations/facts-cache.js';
@@ -181,12 +181,11 @@ describe('live type-relation gate — fixture rows', () => {
 // ── Direct tests of the public TypedEdgeIndex surface ────────────────────────
 //
 // The gate-finding tests above only ever observe TypedEdgeIndex through
-// computeTypeGateFindings' own aggregation. These two tests instead read
-// runRelationPass's `typedEdges` field, and the buildTypedEdgeIndex convenience
-// wrapper (Tasks 11/12's own entry point), directly — pinning the exact edge
-// set the live pass produces for a real, parsed file, independent of how the
-// gate happens to consume it.
-describe('runRelationPass.typedEdges / buildTypedEdgeIndex — direct surface', () => {
+// computeTypeGateFindings' own aggregation. This test instead reads
+// runRelationPass's `typedEdges` field directly — pinning the exact edge set
+// the live pass produces for a real, parsed file, independent of how the gate
+// happens to consume it.
+describe('runRelationPass.typedEdges — direct surface', () => {
   /** The SAME covered map core/check.ts's earlyTypeCoverage assembles: every
    *  uncovered file's matched classifying type. */
   async function computeCovered(dir: string) {
@@ -218,19 +217,5 @@ describe('runRelationPass.typedEdges / buildTypedEdgeIndex — direct surface', 
     // Exactly those two — no ambiguous.ts entry, no phantom third edge.
     expect(edges).toHaveLength(2);
     expect(edges.some((e) => e.toFile.includes('ambiguous'))).toBe(false);
-  });
-
-  it('buildTypedEdgeIndex(graph, covered) returns the SAME edges as runRelationPass — the one implementation, no drift', async () => {
-    const dir = copyFixture();
-    const { graph, covered } = await computeCovered(dir);
-    const index = await buildTypedEdgeIndex(graph, covered);
-    const edges = index.edgesFrom('src/svc/handler.ts');
-    expect(edges).toEqual(
-      expect.arrayContaining([
-        { toFile: 'src/owner/target.ts', toOwner: { kind: 'node', path: 'owner', type: 'owner-type' } },
-        { toFile: 'src/util/plain-util.ts', toOwner: { kind: 'type-covered', type: 'util' } },
-      ]),
-    );
-    expect(edges).toHaveLength(2);
   });
 });

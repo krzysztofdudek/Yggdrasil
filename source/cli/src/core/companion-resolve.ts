@@ -29,7 +29,7 @@ import type { StructureUnit } from '../structure/hook-loader.js';
 import { toPosix, toPosixPath } from '../utils/posix.js';
 import { collectAllowedReadsForAspect, collectArchitectureReach } from '../structure/allowed-reads.js';
 import { resolveAllowedReadPath } from '../structure/ctx-fs.js';
-import { findNestedProjectRoots, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
+import { findNestedProjectRoots, isExcludedFromGraph, NO_COVERAGE_EXCLUDED, type GraphExclusionSet } from '../io/repo-scanner.js';
 import { readFileBytes } from '../io/graph-fs.js';
 import { buildOwnerIndex } from '../relations/owner-index.js';
 import { observationKey, hashReadObservation } from './pair-hash.js';
@@ -99,8 +99,25 @@ export function companionOutsideAllowedReads(
   pair: Pick<ExpectedPair, 'nodePath' | 'unitKey'>,
   aspect: AspectDef,
   rel: string,
+  exclusion: GraphExclusionSet,
   typeId?: string,
 ): { why: string; messageData: IssueMessage } {
+  // A companion.mjs hook can return ANY path on disk, including one this graph
+  // excludes (a nested project's own boundary, or a coverage.excluded root) —
+  // resolveAllowedReadPath rejects such a path before the allow-set is even
+  // consulted, so it always lands here. Answer with the SAME fact every other
+  // ownership surface gives for an excluded path (`yg owner --file`, `yg
+  // context --file`) instead of an owner-lookup NEXT that names a relation to
+  // declare: no relation can ever satisfy this, since the path is gone from
+  // graph coverage regardless of what any node's mapping or relations say.
+  if (isExcludedFromGraph(rel, exclusion)) {
+    const what = `Companion file '${rel}' for aspect '${aspect.id}' on ${toPosixPath(pair.unitKey)} is excluded from graph coverage by design.`;
+    const why =
+      "This path sits inside a separate project's own boundary (a nested .yggdrasil/ graph, or its own .git — a checkout, submodule, or worktree), or matches a coverage.excluded root, so no node or architecture type is ever permitted to depend on it — the reviewer may only see files the graph counts as covered, so an excluded companion is an infrastructure fault and the fill fails closed (NOTHING written).";
+    const next = `Fix companion.mjs to return only non-excluded, relation-reachable paths.`;
+    return { why: `companion '${rel}' is excluded from graph coverage by design`, messageData: { what, why, next } };
+  }
+
   // A nodeless pair has no component whose allowed-reads could widen — the
   // architecture's relation allow-list is the ONLY authority. Never names a
   // component (there is none) and never constructs a yg-node.yaml PATH (there
@@ -175,6 +192,7 @@ export async function resolveCompanionDescriptors(
   // textually covers it.
   const nestedProjectRoots = await findNestedProjectRoots(projectRoot);
   const coverage = graph.config.coverage ?? NO_COVERAGE_EXCLUDED;
+  const exclusion: GraphExclusionSet = { nestedRoots: nestedProjectRoots, coverage };
   const subjectSet = new Set(pair.subjectFiles.map((p) => toPosix(p)));
   const normalizedSet = new Set<string>();
   for (const d of descriptors) {
@@ -213,7 +231,7 @@ export async function resolveCompanionDescriptors(
     try {
       resolveAllowedReadPath(rel, allowedSet, projectRoot, nestedProjectRoots, coverage);
     } catch {
-      return { kind: 'infra', ...companionOutsideAllowedReads(graph, pair, aspect, rel, nodelessAllowance?.typeId) };
+      return { kind: 'infra', ...companionOutsideAllowedReads(graph, pair, aspect, rel, exclusion, nodelessAllowance?.typeId) };
     }
     const bytes = await readFileBytes(path.resolve(projectRoot, rel));
     if (bytes === null) {

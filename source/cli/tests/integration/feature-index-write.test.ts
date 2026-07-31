@@ -15,6 +15,9 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 import { loadGraph } from '../../src/core/graph-loader.js';
 import { runCheck, runAttentionDump } from '../../src/core/check.js';
@@ -297,5 +300,20 @@ describe('runAttentionDump — in-process calibration view (writes nothing)', ()
     } finally {
       rmSync(bare, { recursive: true, force: true });
     }
+  });
+
+  it('builds its own resolvePathToFile through the exclusion-guarded constructor, like every other resolver this run', () => {
+    // A resolver built with a raw, unguarded owner index can pick an EXCLUDED file as
+    // a Go/Java package's representative and silence an edge the package's other,
+    // non-excluded files still justify (relations/resolve-path.ts's own doc comment).
+    // runAttentionDump's calibration report happens not to expose that edge today,
+    // but the source itself must still route through the SAME guarded constructor
+    // every other caller that resolves a specifier fresh from source uses — reading
+    // the shipped source is what pins the actual production wiring, not a behavior
+    // this particular report happens not to surface.
+    const checkSrc = readFileSync(path.join(__dirname, '..', '..', 'src', 'core', 'check.ts'), 'utf-8');
+    const attnDumpSrc = checkSrc.slice(checkSrc.indexOf('export async function runAttentionDump'));
+    expect(attnDumpSrc).not.toMatch(/resolvePathToFile:\s*makeResolvePathToFile\(/);
+    expect(attnDumpSrc).toMatch(/resolvePathToFile:\s*await guardedResolve\(/);
   });
 });

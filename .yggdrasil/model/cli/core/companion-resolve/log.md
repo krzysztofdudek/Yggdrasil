@@ -14,3 +14,5 @@ A companion-backed LLM rule can now resolve its paired files for a subject that 
 Companion path resolution now rejects a path inside a separate project's own boundary before checking it against the allowed-reads set, closing a gap where a directory or glob mapping entry could textually cover a foreign project's files and let a companion hook put that project's source into a billed reviewer prompt.
 ## [2026-07-31T12:04:36.244Z]
 Companion-path resolution rejected a path inside a nested project but had no awareness of an adopter's own coverage.excluded config, so a companion.mjs could still name, and have read into a billed prompt, a file that is otherwise fully excluded from the graph. The shared allowed-read guard now takes the graph's coverage config too, closing that gap at the one place all three read surfaces already share.
+## [2026-07-31T19:30:10.821Z]
+A companion path this graph excludes is now reported as excluded from graph coverage by design instead of naming a node to declare a relation to — no relation could ever satisfy an exclusion, so the prior message sent an adopter to a dead end.

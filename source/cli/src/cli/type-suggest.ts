@@ -10,7 +10,7 @@ import {
   loadRootGitignoreStack,
   isIgnoredByStack,
   resolveGraphExclusionSet,
-  isExcludedFromGraph,
+  describeExclusionSource,
   NO_COVERAGE_EXCLUDED,
 } from '../io/repo-scanner.js';
 import { projectRootFromGraph, resolveFileArg } from '../io/paths.js';
@@ -48,18 +48,25 @@ export async function typeSuggestCommand(file: string, projectRoot: string): Pro
   // resolve an overlap `yg check` never reports and that has no consequence
   // for a path nothing enforces.
   const exclusion = await resolveGraphExclusionSet(repoRoot, graph.config.coverage ?? NO_COVERAGE_EXCLUDED);
-  if (isExcludedFromGraph(repoRelPath, exclusion)) {
+  const exclusionSource = describeExclusionSource(repoRelPath, exclusion);
+  if (exclusionSource !== null) {
+    // Names WHICH of the two independent sources caused this — the same
+    // distinction `file-mapping-excluded` already draws — instead of a
+    // disjunction the adopter has to check both halves of.
+    const cause = exclusionSource === 'nested-project'
+      ? `it sits inside a separate project's own boundary (a nested .yggdrasil/ graph, or its own .git — a checkout, submodule, or worktree)`
+      : `it matches a coverage.excluded root in yg-config.yaml`;
     process.stdout.write(
       buildIssueMessage({
         what: `${repoRelPath} is excluded from graph coverage by design.`,
-        why: `This path sits inside a separate project's own boundary (a nested .yggdrasil/ graph, or its own .git — a checkout, submodule, or worktree), or matches a coverage.excluded root, so no architecture type is ever matched against it.`,
+        why: `This path is never matched against any architecture type because ${cause}.`,
         next: `No action needed.`,
       }) + '\n',
     );
     return;
   }
 
-  const gitignoreStack = await loadRootGitignoreStack(projectRoot);
+  const gitignoreStack = await loadRootGitignoreStack(repoRoot);
   if (existsSync(absPath) && isIgnoredByStack(absPath, gitignoreStack)) {
     process.stderr.write(
       chalk.yellow(

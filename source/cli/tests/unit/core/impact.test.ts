@@ -415,6 +415,34 @@ describe('nodesWithRefusedVerdict (lock-seeded)', () => {
     expect([...result]).toEqual(['billing']);
   });
 
+  it('never attributes a file:<path> refused entry to its owner when the file is now excluded — a stale lock line the graph no longer counts as covered', () => {
+    const owner = makeNode('billing', {
+      meta: { name: 'billing', type: 'service', mapping: ['src/billing/x.ts'] },
+    });
+    const graph = makeGraph([owner]);
+    const lock: LockFile = {
+      version: 1,
+      verdicts: { shape: { 'file:src/billing/x.ts': entry('refused') } },
+      nodes: {},
+    };
+    const exclusion = { nestedRoots: new Set<string>(), coverage: { required: [], excluded: ['src/billing/x.ts'], typeLevel: false } };
+    expect(nodesWithRefusedVerdict(graph, lock, 'shape', exclusion).size).toBe(0);
+  });
+
+  it('control: a DIFFERENT (non-excluded) file:<path> refused entry on the same graph still attributes to its owner (the exclusion does not silence generally)', () => {
+    const owner = makeNode('billing', {
+      meta: { name: 'billing', type: 'service', mapping: ['src/billing'] },
+    });
+    const graph = makeGraph([owner]);
+    const lock: LockFile = {
+      version: 1,
+      verdicts: { shape: { 'file:src/billing/x.ts': entry('refused') } },
+      nodes: {},
+    };
+    const exclusion = { nestedRoots: new Set<string>(), coverage: { required: [], excluded: ['src/billing/vendored'], typeLevel: false } };
+    expect([...nodesWithRefusedVerdict(graph, lock, 'shape', exclusion)]).toEqual(['billing']);
+  });
+
   it('skips a file:<path> entry that maps to no node (stale lock line)', () => {
     const graph = makeGraph([makeNode('a', { meta: { name: 'a', type: 'service', mapping: ['src/a.ts'] } })]);
     const lock: LockFile = {

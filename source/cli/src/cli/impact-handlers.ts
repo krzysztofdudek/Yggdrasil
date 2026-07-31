@@ -134,8 +134,13 @@ export async function handleAspectImpact(
     process.exit(1);
   }
 
-  // Nodes currently holding a refused verdict for this aspect (lock scan, no IO).
-  const refusedNodes = nodesWithRefusedVerdict(graph, lock, aspectId);
+  // Nodes currently holding a refused verdict for this aspect (lock scan). Guarded
+  // against the graph's own exclusion set so a stale refused verdict on a file the
+  // graph no longer counts as covered (excluded after the verdict was recorded,
+  // before the next --approve's GC prunes it) is never shown here as a live
+  // refusal every other ownership surface already calls excluded.
+  const exclusion = await resolveGraphExclusionSet(projectRoot, graph.config.coverage ?? NO_COVERAGE_EXCLUDED);
+  const refusedNodes = nodesWithRefusedVerdict(graph, lock, aspectId, exclusion);
 
   const affected: Array<{ path: string; source: string; status: string; refused: boolean }> = [];
   for (const [nodePath, node] of graph.nodes) {

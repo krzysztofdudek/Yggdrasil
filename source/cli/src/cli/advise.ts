@@ -17,7 +17,7 @@ import {
   type ArchitectureCutCycle,
   type FamilyCandidatesData,
 } from '../core/advise-nominations.js';
-import { countChurnByNode, ownerOfForGraph } from '../core/node-churn.js';
+import { countChurnByNode, ownerOfForGraph, type OwnerOf } from '../core/node-churn.js';
 import { applyDecisions, type VisibleNomination } from '../core/advise-feed.js';
 import { groupUnitsByAspect } from '../core/aspect-health-signals.js';
 import { computeExpectedPairs } from '../core/pairs.js';
@@ -360,7 +360,13 @@ function parseNameOnlyLog(output: string): string[][] {
  * used ONLY when git is present AND the repo has its FULL history; otherwise this
  * returns undefined so the caller OMITS the churn source entirely and the hot-spot
  * class stays SILENT rather than fabricating a signal over history it could not read.
- * Two silence gates:
+ * Three silence gates:
+ *   - owner resolution failed — `ownerOfForGraph` resolves the graph's exclusion set
+ *     via a filesystem walk (`resolveGraphExclusionSet`), unrelated to git; resolved
+ *     and awaited BEFORE the git try/catch below so a failure here is never
+ *     misattributed to "no readable git history" (`findNestedProjectRoots` swallows
+ *     its own read errors, so this is a defensive gate, not one an ordinary
+ *     repository hits).
  *   - shallow clone — `git log -n 200` on a shallow repo exits 0 and returns a
  *     TRUNCATED window, which would undercount churn while the "last 200 commits"
  *     provenance overstates it; `--is-shallow-repository` catches that before any
@@ -375,6 +381,17 @@ async function gatherChurnByNode(
   graph: Graph,
   projectRoot: string,
 ): Promise<Map<string, { churn: number; files: string[] }> | undefined> {
+  // Resolved BEFORE the git try/catch below: a failure here is a filesystem-walk
+  // fault, not a git fault, and must be named honestly rather than folded into the
+  // git-specific "no readable git history" debug line.
+  let resolveOwner: OwnerOf;
+  try {
+    resolveOwner = await ownerOfForGraph(graph);
+  } catch (error) {
+    debugWrite(`[advise] churn signal silent (owner resolution failed): ${(error as Error).message}`);
+    return undefined;
+  }
+
   const gitOpts = {
     cwd: projectRoot,
     encoding: 'utf-8' as const,
@@ -395,7 +412,7 @@ async function gatherChurnByNode(
       ...gitOpts,
       maxBuffer: 64 * 1024 * 1024,
     });
-    return countChurnByNode(parseNameOnlyLog(out), await ownerOfForGraph(graph));
+    return countChurnByNode(parseNameOnlyLog(out), resolveOwner);
   } catch (error) {
     debugWrite(`[advise] churn signal silent (no readable git history): ${(error as Error).message}`);
     return undefined;

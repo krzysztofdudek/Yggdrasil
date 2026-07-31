@@ -40,7 +40,7 @@ import { extractorForLanguage } from '../relations/extractors/registry.js';
 import { astCacheDir } from '../relations/facts-cache.js';
 import { relationRefusedMessage, typeGateForbiddenMessage } from '../relations/messages.js';
 import { getLanguageDisplayName } from '../utils/language-registry.js';
-import { makeResolvePathToFile, guardedResolve } from '../relations/resolve-path.js';
+import { guardedResolve } from '../relations/resolve-path.js';
 import { buildOwnerIndex } from '../relations/owner-index.js';
 import { computeTypeGateFindings } from '../relations/type-gate.js';
 import { buildTypeVisibility, toAppliedPairs, type TypeVisibilityReport } from './type-visibility.js';
@@ -1100,7 +1100,7 @@ export async function runAttentionDump(graph: Graph, coverageVisibleFiles: strin
   const ownerOf = buildOwnerIndex(graph.nodes).ownerOf;
   const relResult = await runRelationPass(graph, projectRoot, {
     extractorFor: extractorForLanguage,
-    resolvePathToFile: makeResolvePathToFile(projectRoot, ownerOf),
+    resolvePathToFile: await guardedResolve(projectRoot, graph),
     symbolIndexDir: astCacheDir(graph.rootPath),
   });
   const includedPaths = new Set(

@@ -44,3 +44,5 @@ The suppress scan this command feeds into its nomination sources now also treats
 The suppression-audit scan needs the adopter's coverage.excluded config threaded through alongside the filesystem-derived nested-project boundary, so a waiver on an excluded file is never inventoried here while genuinely absent from enforcement everywhere else.
 ## [2026-07-31T18:00:24.405Z]
 Per-node churn attribution (the uncovered-hot-spot nomination's commit count and file evidence) now waits on an async, exclusion-guarded owner resolver instead of a synchronous raw one, so a commit that only touched a file this graph excludes from coverage no longer inflates a node's churn count or names that path as the node's evidence — the same fact every other ownership surface in this graph already reports for the identical path.
+## [2026-07-31T19:30:03.637Z]
+The uncovered-hot-spot churn signal now resolves the file owner index before the git subprocess call, in its own try/catch, so a filesystem-walk failure is reported in the debug log as an owner-resolution failure instead of being folded into the git-specific no-readable-history message.

@@ -194,6 +194,32 @@ describe('makeResolvePathToFile — per-language dispatch (disk-backed)', () => 
     expect(resolve('com.foo', 'src/Main.java', 'java', true)).toBeUndefined();
   });
 
+  it('an exclusion never collapses a split Java wildcard package into a false single owner', () => {
+    // Same split as above (App.java → node-a, Bar.java → node-b), but App.java is
+    // now ALSO excluded. ownerOf is the RAW, exclusion-blind index by contract, so
+    // the split must still be seen — the import stays silent, never attributed to
+    // node-b alone just because node-a's file happens to be excluded.
+    const ownerOf = (f: string): string | undefined => {
+      if (f === 'com/foo/App.java') return 'node-a';
+      if (f === 'com/foo/Bar.java') return 'node-b';
+      return undefined;
+    };
+    const isExcluded = (f: string): boolean => f === 'com/foo/App.java';
+    const resolve = makeResolvePathToFile(root, ownerOf, isExcluded);
+    expect(resolve('com.foo', 'src/Main.java', 'java', true)).toBeUndefined();
+  });
+
+  it('picks a NON-EXCLUDED file to represent a single-owner Java package when the lexically-first one is excluded', () => {
+    // Both files belong to 'foo' (not split). App.java sorts first and would
+    // normally be the representative, but it is excluded — the representative
+    // must shift to Bar.java (the SAME owner's other file), never silence.
+    const ownerOf = (f: string): string | undefined =>
+      f.startsWith('com/foo/') && f.endsWith('.java') ? 'foo' : undefined;
+    const isExcluded = (f: string): boolean => f === 'com/foo/App.java';
+    const resolve = makeResolvePathToFile(root, ownerOf, isExcluded);
+    expect(resolve('com.foo', 'src/Main.java', 'java', true)).toBe('com/foo/Bar.java');
+  });
+
   it('resolves a Rust crate path through the nearest Cargo.toml src dir', () => {
     const resolve = makeResolvePathToFile(root);
     expect(resolve('crate::orders', 'src/lib.rs', 'rust')).toBe('src/orders/mod.rs');

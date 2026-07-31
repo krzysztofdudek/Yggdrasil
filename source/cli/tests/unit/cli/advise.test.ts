@@ -1002,3 +1002,23 @@ describe.skipIf(!distExists)('yg advise — T2 shares the JOINT cap with T1 (non
     expect((stdout.match(/A candidate rule family —/g) ?? []).length).toBe(12);
   });
 });
+
+describe('gatherChurnByNode — owner resolution is isolated from the git try/catch', () => {
+  it("resolves the owner index BEFORE the git subprocess try block, so a filesystem-walk failure is never misattributed to \"no readable git history\"", () => {
+    // ownerOfForGraph does a real filesystem walk (resolveGraphExclusionSet), unrelated
+    // to git; if it were awaited INSIDE the git try block, a failure there would be
+    // caught by the git-specific catch and debug-logged with the wrong cause. Reading
+    // the shipped source pins the actual ordering, since the two outcomes (silent,
+    // undefined) are otherwise indistinguishable from the outside.
+    const src = readFileSync(path.join(CLI_ROOT, 'src', 'cli', 'advise.ts'), 'utf-8');
+    const fnSrc = src.slice(
+      src.indexOf('async function gatherChurnByNode'),
+      src.indexOf('\n}\n', src.indexOf('async function gatherChurnByNode')),
+    );
+    const ownerCallIndex = fnSrc.indexOf('ownerOfForGraph(graph)');
+    const gitTryIndex = fnSrc.indexOf("execFileSync('git'");
+    expect(ownerCallIndex).toBeGreaterThan(-1);
+    expect(gitTryIndex).toBeGreaterThan(-1);
+    expect(ownerCallIndex).toBeLessThan(gitTryIndex);
+  });
+});

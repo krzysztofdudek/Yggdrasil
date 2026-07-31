@@ -914,3 +914,107 @@ describe("runRelationPass — an excluded file must never become a Go package's 
     expect(b!.violations.some((v) => v.ownerNode === 'a')).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// A Go package split across TWO nodes (each mapping one exact file) already
+// silences an import into it — no single owner can stand for both without
+// fabricating or hiding a cross-node edge (relations/extractors/go-resolve.ts).
+// Excluding ONE of the split package's two files must never change that: the
+// split is a fact about the package's real owners, independent of which of
+// their files an adopter later excludes. The opposite outcome — an exclusion
+// making the resolver see only ONE owner and attribute the whole package's
+// import to it — would fabricate an edge the importing code may not even use,
+// the mirror-image failure of the guard this suite's own "owner representative"
+// block above pins.
+// ---------------------------------------------------------------------------
+describe('runRelationPass — an exclusion must never turn a split Go package into a fabricated single-owner edge', () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = mkdtempSync(path.join(tmpdir(), 'rel-pass-pkg-split-'));
+    mkdirSync(path.join(root, '.yggdrasil', 'model'), { recursive: true });
+    writeFileSync(
+      path.join(root, '.yggdrasil', 'yg-architecture.yaml'),
+      `node_types:\n  service:\n    description: 'unit'\n    log_required: false\n    when:\n      path: "**"\n`,
+      'utf-8',
+    );
+    // Two nodes, each mapping EXACTLY one file of the same Go package directory —
+    // a genuine split, unlike the single-node "owner representative" fixture above.
+    writeNode(root, 'a1', 'A1', 'pkg/a/aaa_gen.go');
+    writeNode(root, 'a2', 'A2', 'pkg/a/zzz_kept.go');
+    writeNode(root, 'b', 'B', 'pkg/b');
+
+    writeFileSync(path.join(root, 'go.mod'), 'module example.com/m\n\ngo 1.22\n', 'utf-8');
+
+    mkdirSync(path.join(root, 'pkg', 'a'), { recursive: true });
+    mkdirSync(path.join(root, 'pkg', 'b'), { recursive: true });
+    writeFileSync(path.join(root, 'pkg', 'a', 'aaa_gen.go'), 'package a\n\nfunc Gen() int { return 0 }\n', 'utf-8');
+    writeFileSync(path.join(root, 'pkg', 'a', 'zzz_kept.go'), 'package a\n\nfunc Kept() int { return 1 }\n', 'utf-8');
+    // b imports the package and calls Kept() — defined in zzz_kept.go, owned by a2 —
+    // but the resolver attributes at PACKAGE granularity, so which file defines
+    // Kept() is irrelevant to which node(s) the import could ever legally reach.
+    writeFileSync(
+      path.join(root, 'pkg', 'b', 'b.go'),
+      'package b\n\nimport "example.com/m/pkg/a"\n\nfunc Use() int { return a.Kept() }\n',
+      'utf-8',
+    );
+  });
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('control: with no exclusion, the split package silences the import for BOTH candidate owners (neither a1 nor a2 is fabricated)', async () => {
+    writeFileSync(
+      path.join(root, '.yggdrasil', 'yg-config.yaml'),
+      `quality:\n  max_direct_relations: 10\n`,
+      'utf-8',
+    );
+    const graph = await loadGraph(root);
+    const result = await runRelationPass(graph, root, {
+      extractorFor: extractorForLanguage,
+      resolvePathToFile: await guardedResolve(root, graph),
+      symbolIndexDir: path.join(root, '.yg-cache-pkg-split-none'),
+    });
+
+    const b = result.violationsByNode.get('b');
+    const flagged = b?.violations.some((v) => v.ownerNode === 'a1' || v.ownerNode === 'a2') ?? false;
+    expect(flagged).toBe(false);
+  });
+
+  it('excluding the FIRST-sorting member (a1\'s file) does not fabricate an edge to a2', async () => {
+    writeFileSync(
+      path.join(root, '.yggdrasil', 'yg-config.yaml'),
+      `quality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - pkg/a/aaa_gen.go\n`,
+      'utf-8',
+    );
+    const graph = await loadGraph(root);
+    const result = await runRelationPass(graph, root, {
+      extractorFor: extractorForLanguage,
+      resolvePathToFile: await guardedResolve(root, graph),
+      symbolIndexDir: path.join(root, '.yg-cache-pkg-split-first'),
+    });
+
+    const b = result.violationsByNode.get('b');
+    const flagged = b?.violations.some((v) => v.ownerNode === 'a1' || v.ownerNode === 'a2') ?? false;
+    expect(flagged).toBe(false);
+  });
+
+  it('excluding the LAST-sorting member (a2\'s file, the one that actually defines Kept()) does not fabricate an edge to a1', async () => {
+    writeFileSync(
+      path.join(root, '.yggdrasil', 'yg-config.yaml'),
+      `quality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - pkg/a/zzz_kept.go\n`,
+      'utf-8',
+    );
+    const graph = await loadGraph(root);
+    const result = await runRelationPass(graph, root, {
+      extractorFor: extractorForLanguage,
+      resolvePathToFile: await guardedResolve(root, graph),
+      symbolIndexDir: path.join(root, '.yg-cache-pkg-split-last'),
+    });
+
+    const b = result.violationsByNode.get('b');
+    const flagged = b?.violations.some((v) => v.ownerNode === 'a1' || v.ownerNode === 'a2') ?? false;
+    expect(flagged).toBe(false);
+  });
+});

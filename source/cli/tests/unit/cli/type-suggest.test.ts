@@ -125,7 +125,7 @@ describe('typeSuggestCommand', () => {
     expect(output).toMatch(/5MB/);
   });
 
-  it('reports a coverage.excluded path as excluded from graph coverage, without classifying it', async () => {
+  it('reports a coverage.excluded path as excluded from graph coverage, without classifying it, and names coverage.excluded as the specific cause', async () => {
     const root = await setupProject();
     await writeFile(
       path.join(root, '.yggdrasil', 'yg-config.yaml'),
@@ -137,6 +137,25 @@ describe('typeSuggestCommand', () => {
     expect(output).toContain('is excluded from graph coverage by design');
     expect(output).not.toMatch(/Matching types/);
     expect(output).not.toMatch(/No type.*when.*matches/);
+    // Names the ONE actual cause (coverage.excluded) instead of a disjunction
+    // the adopter would have to check both halves of.
+    expect(output).toContain('it matches a coverage.excluded root');
+    expect(output).not.toContain("separate project's own boundary");
+  });
+
+  it('names a nested project boundary (not coverage.excluded) as the cause when THAT is what excludes the path', async () => {
+    const root = await setupProject();
+    const nestedYgg = path.join(root, 'src', 'misc', 'vendored', '.yggdrasil');
+    await mkdir(nestedYgg, { recursive: true });
+    await writeFile(path.join(nestedYgg, 'yg-config.yaml'), 'version: "5.2.0"\n');
+    await writeFile(path.join(root, 'src', 'misc', 'vendored', 'lib.ts'), '');
+
+    const output = await captureOutput(() =>
+      typeSuggestCommand('src/misc/vendored/lib.ts', root),
+    );
+    expect(output).toContain('is excluded from graph coverage by design');
+    expect(output).toContain("separate project's own boundary");
+    expect(output).not.toContain('coverage.excluded root');
   });
 
   it('control: a sibling file OUTSIDE the excluded root still classifies normally — the guard does not silence classification generally', async () => {
@@ -173,5 +192,20 @@ describe('typeSuggestCommand', () => {
     expect(output).toMatch(/Multiple types match/);
     expect(output).toMatch(/command/);
     expect(output).toMatch(/handler/);
+  });
+
+  it('reads the gitignore stack from the repo root, not the invocation cwd, when run from a subdirectory', async () => {
+    // A .gitignore at the REPO ROOT matching the target file. Invoking from a
+    // SUBDIRECTORY (a legitimate way to run any yg command — the graph is found
+    // by walking up) must still see it: the gitignore warning is keyed off the
+    // repo root's own stack, never the cwd the command happened to be run from.
+    const root = await setupProject();
+    await writeFile(path.join(root, '.gitignore'), 'src/misc/\n');
+    const subDir = path.join(root, 'src', 'cli');
+
+    const output = await captureOutput(() =>
+      typeSuggestCommand('src/misc/helper.ts', subDir),
+    );
+    expect(output).toContain('is matched by .gitignore');
   });
 });

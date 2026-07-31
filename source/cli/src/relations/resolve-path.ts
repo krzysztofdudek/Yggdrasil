@@ -8,29 +8,39 @@ import { resolvePhpFqn, parsePsr4, type PhpResolveDeps } from './extractors/php-
 import { resolveRustPath, type RustResolveDeps } from './extractors/rust-resolve.js';
 import { resolveIncludePath } from './extractors/include-resolve.js';
 import { resolveRubyRequireRelative } from './extractors/ruby-resolve.js';
-import { buildOwnerIndex, guardOwnerIndex } from './owner-index.js';
-import { resolveGraphExclusionSet, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
+import { buildOwnerIndex } from './owner-index.js';
+import { resolveGraphExclusionSet, isExcludedFromGraph, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
 import type { Graph } from '../model/graph.js';
 
 /** Production resolvePathToFile: dispatches by language to the per-language path resolver.
  *  Checks existence against the project's files on disk. Symbol-resolved languages (and
  *  not-yet-implemented ones) return undefined here — they resolve via the SymbolTable.
  *
- *  `ownerOf`, when supplied, feeds the Go/Java package resolvers below so they can pick a
- *  package directory's REPRESENTATIVE file by its owner. A caller resolving a specifier
- *  fresh from source — the specifier can name any file on disk, excluded or not — must
- *  build this through {@link guardedResolve} instead of calling this
- *  directly with a raw `buildOwnerIndex(...).ownerOf`: an unguarded index can pick an
- *  EXCLUDED file as the package's representative, and every other caller of the
- *  resulting owner index (the resolver's own `ownerIndex.ownerOf` step) then answers "no
- *  owner" for it, silencing the whole edge — including the part of it justified by the
- *  package's other, non-excluded, fully enforced files. */
+ *  `ownerOf` and `isExcluded`, when supplied, feed the Go/Java package resolvers below so
+ *  they can pick a package directory's REPRESENTATIVE file. They play DIFFERENT roles and
+ *  must never be conflated:
+ *    - `ownerOf` MUST be the RAW, exclusion-BLIND owner index — it decides whether a
+ *      package is genuinely split across two graph owners, and that decision has to see
+ *      every file the owners actually map, excluded or not. Guarding it here would let
+ *      excluding one member of a split package collapse the split into a false single
+ *      owner and FABRICATE an edge the code does not have — the opposite failure from the
+ *      one this module exists to prevent.
+ *    - `isExcluded`, when supplied, is consulted ONLY to skip an excluded file when
+ *      picking which of an already-resolved sole owner's files represents the package.
+ *  A caller resolving a specifier fresh from source — the specifier can name any file on
+ *  disk, excluded or not — must build this through {@link guardedResolve} instead of
+ *  calling this directly with a raw `ownerOf` and no `isExcluded`: without `isExcluded`,
+ *  the chosen representative can be an EXCLUDED file, and the resolver's own downstream
+ *  `ownerIndex.ownerOf` step then answers "no owner" for it, silencing the whole edge —
+ *  including the part of it justified by the package's other, non-excluded, fully
+ *  enforced files. */
 export function makeResolvePathToFile(
   projectRoot: string,
   ownerOf?: (repoRelPosix: string) => string | undefined,
+  isExcluded?: (repoRelPosix: string) => boolean,
 ): (specifier: string, fromFile: string, language: string, isPackage?: boolean) => string | undefined {
   const exists = (repoRelPosix: string): boolean => existsSync(path.resolve(projectRoot, repoRelPosix));
-  const goDeps = makeGoResolveDeps(projectRoot, ownerOf);
+  const goDeps = makeGoResolveDeps(projectRoot, ownerOf, isExcluded);
   const javaDeps = makeJavaResolveDeps(projectRoot, exists);
   const phpDeps = makePhpResolveDeps(projectRoot, exists);
   const rustDeps = makeRustResolveDeps(projectRoot);
@@ -46,19 +56,28 @@ export function makeResolvePathToFile(
     }
     if (language === 'java') {
       if (isPackage) {
-        // Wildcard package import: collect owners of ALL .java in the resolved
-        // package dir. Exactly one distinct owner → attribute (return that file);
-        // zero or 2+ distinct owners → silence (S2/S3 — never guess across a split).
+        // Wildcard package import: collect RAW owners (exclusion-blind — see this
+        // function's own doc comment above for why) of ALL .java in the resolved
+        // package dir. Exactly one distinct owner → attribute a NON-EXCLUDED file
+        // that owner maps, falling back to its first file only when every one of
+        // its files is excluded (the downstream guarded owner lookup then silences
+        // it honestly, same as a wholly-excluded package); zero or 2+ distinct
+        // owners → silence (never guess across a split, and never let an exclusion
+        // turn a real split into a false single owner).
         const files = resolveJavaPackageFiles(specifier, fromFile, javaDeps);
-        const owners = new Set<string>();
-        let firstFile: string | undefined;
+        let sole: string | undefined;
         for (const f of files) {
           const owner = ownerOf?.(f);
           if (owner === undefined) continue; // unmapped file is not part of the owner set
-          if (owners.size === 0) firstFile = f;
-          owners.add(owner);
+          if (sole === undefined) {
+            sole = owner;
+          } else if (owner !== sole) {
+            return undefined; // 2+ distinct owners → split package → silence
+          }
         }
-        return owners.size === 1 ? firstFile : undefined;
+        if (sole === undefined) return undefined;
+        const soleOwned = files.filter((f) => ownerOf?.(f) === sole);
+        return soleOwned.find((f) => !(isExcluded?.(f) ?? false)) ?? soleOwned[0];
       }
       return resolveJavaFqn(specifier, fromFile, javaDeps);
     }
@@ -85,18 +104,23 @@ export function makeResolvePathToFile(
 }
 
 /**
- * Build the production `resolvePathToFile` from an owner index guarded against the SAME
- * exclusion set (the nested-project boundary plus the adopter's own `coverage.excluded`
- * roots) `runRelationPass`'s own file enumeration and ownership re-pointing already
- * honor. Every caller that resolves an import/reference specifier fresh from source —
- * `yg check`'s live relation gate, `yg find` / `yg structure`'s typed-edge index, the
- * portal's boundary computation — must build `resolvePathToFile` through this
- * constructor rather than calling `makeResolvePathToFile` with a raw
- * `buildOwnerIndex(graph.nodes).ownerOf`. See {@link makeResolvePathToFile}'s own doc
- * comment for why: an unguarded index can pick an excluded file as a Go/Java package's
- * representative, and the resolver's owner lookup on that file then answers "no owner",
- * silencing the whole edge even when the package's other, non-excluded files are fully
- * enforced.
+ * Build the production `resolvePathToFile` against the SAME exclusion set (the
+ * nested-project boundary plus the adopter's own `coverage.excluded` roots)
+ * `runRelationPass`'s own file enumeration and ownership re-pointing already honor.
+ * Every caller that resolves an import/reference specifier fresh from source — `yg
+ * check`'s live relation gate (including its hidden `--attention-dump` diagnostic) and
+ * the portal's boundary computation (which backs `yg structure`'s navigation and `yg
+ * advise`'s detected-edge signal) — must build `resolvePathToFile` through this
+ * constructor rather than calling `makeResolvePathToFile` with a raw owner index and no
+ * exclusion awareness. `yg find` never resolves an import specifier at all (it searches
+ * graph documents, not code edges), so it is not among these callers.
+ *
+ * Passes the owner index in its two distinct roles `makeResolvePathToFile`'s own doc
+ * comment describes: the RAW (exclusion-blind) index for split-package detection, and a
+ * same-set `isExcluded` predicate for representative-file picking — never the same
+ * guarded index for both, which would let an exclusion collapse a genuinely split
+ * package into a false single owner and fabricate an edge instead of merely silencing
+ * one.
  */
 export async function guardedResolve(
   projectRoot: string,
@@ -104,8 +128,9 @@ export async function guardedResolve(
 ): Promise<(specifier: string, fromFile: string, language: string, isPackage?: boolean) => string | undefined> {
   const coverage = graph.config.coverage ?? NO_COVERAGE_EXCLUDED;
   const exclusion = await resolveGraphExclusionSet(projectRoot, coverage);
-  const guardedOwnerOf = guardOwnerIndex(buildOwnerIndex(graph.nodes), exclusion).ownerOf;
-  return makeResolvePathToFile(projectRoot, guardedOwnerOf);
+  const rawOwnerOf = buildOwnerIndex(graph.nodes).ownerOf;
+  const isExcluded = (repoRelPosix: string): boolean => isExcludedFromGraph(repoRelPosix, exclusion);
+  return makeResolvePathToFile(projectRoot, rawOwnerOf, isExcluded);
 }
 
 /**
@@ -195,6 +220,7 @@ function makeRustResolveDeps(projectRoot: string): RustResolveDeps {
 function makeGoResolveDeps(
   projectRoot: string,
   ownerOf?: (repoRelPosix: string) => string | undefined,
+  isExcluded?: (repoRelPosix: string) => boolean,
 ): GoResolveDeps {
   // Cache: go.mod directory (repo-rel POSIX, '' = root) → module path or undefined.
   const moduleByDir = new Map<string, string | undefined>();
@@ -274,7 +300,7 @@ function makeGoResolveDeps(
     return out;
   }
 
-  return { modulePathFor, dirExists, goFilesIn, ownerOf };
+  return { modulePathFor, dirExists, goFilesIn, ownerOf, isExcluded };
 }
 
 /**

@@ -141,4 +141,45 @@ describe('resolveGoImport — pure unit (injected deps)', () => {
     };
     expect(resolveGoImport('example.com/m/foo/bar', 'foo/x.go', oneOwner)).toBe('foo/bar/aux.go');
   });
+
+  it('an exclusion never collapses a genuinely split package into a false single owner', () => {
+    // foo/bar holds aux.go (owner y) and baz.go (owner x) — a real split. Marking
+    // aux.go excluded must NOT make the package read as single-owner (x): ownerOf
+    // is the RAW, exclusion-blind index by contract, so the split is still seen
+    // and the import stays silent — exactly as it would with no exclusion at all.
+    const splitWithExclusion: GoResolveDeps = {
+      ...deps,
+      goFilesIn: (d) => (d === 'foo/bar' ? ['foo/bar/baz.go', 'foo/bar/aux.go'] : []),
+      ownerOf: (f) => (f === 'foo/bar/aux.go' ? 'y' : f === 'foo/bar/baz.go' ? 'x' : undefined),
+      isExcluded: (f) => f === 'foo/bar/aux.go',
+    };
+    expect(resolveGoImport('example.com/m/foo/bar', 'foo/x.go', splitWithExclusion)).toBeUndefined();
+  });
+
+  it('picks a NON-EXCLUDED file to represent a single owner when the lexicographically-first one is excluded', () => {
+    // Both files belong to node "x" (single owner, not split). aux.go sorts
+    // first and would normally be the representative, but it is excluded —
+    // the representative must shift to the other file the SAME owner maps
+    // (baz.go), never fall through to "no representative".
+    const oneOwnerFirstExcluded: GoResolveDeps = {
+      ...deps,
+      goFilesIn: (d) => (d === 'foo/bar' ? ['foo/bar/baz.go', 'foo/bar/aux.go'] : []),
+      ownerOf: () => 'x',
+      isExcluded: (f) => f === 'foo/bar/aux.go',
+    };
+    expect(resolveGoImport('example.com/m/foo/bar', 'foo/x.go', oneOwnerFirstExcluded)).toBe('foo/bar/baz.go');
+  });
+
+  it('falls back to the sole owner\'s own file (never a different owner\'s) when EVERY one of its files is excluded', () => {
+    const allExcluded: GoResolveDeps = {
+      ...deps,
+      goFilesIn: (d) => (d === 'foo/bar' ? ['foo/bar/baz.go', 'foo/bar/aux.go'] : []),
+      ownerOf: () => 'x',
+      isExcluded: () => true,
+    };
+    // Still names one of x's own files (never undefined, never a fabricated
+    // owner) — the downstream, exclusion-guarded owner lookup on that file is
+    // what actually silences the edge, the same as a wholly-excluded package.
+    expect(resolveGoImport('example.com/m/foo/bar', 'foo/x.go', allExcluded)).toBe('foo/bar/aux.go');
+  });
 });

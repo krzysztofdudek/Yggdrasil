@@ -131,3 +131,5 @@ Both the when-predicate evaluator and the aspect cascade gain one optional resol
 The impact-estimate types now admit a subject with no owning component, and the estimate skips the cold-start read-set check for such a subject explicitly rather than relying on an empty result falling through.
 ## [2026-07-30T23:24:03.209Z]
 Corrected a stale doc-comment: the async companion resolution it deferred to already exists (collectInvalidatedPairs in cli/impact-handlers.ts), so the comment now names that caller instead of pointing at unspecified future work.
+## [2026-07-31T19:30:11.163Z]
+A refused verdict recorded against a file the graph has since excluded from coverage is no longer shown as a live refusal in the aspect blast-radius view, agreeing with the ownership answer every other surface already gives for the same excluded path.
