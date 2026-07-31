@@ -40,6 +40,7 @@ export const STRUCTURAL_CODES = new Set<string>([
   'type-without-when-with-mapping',
   'type-when-mismatch',
   'file-mapping-gitignored',
+  'file-mapping-nested-project',
   'enforce-strict-without-when',
   'architecture-cycle',
   // A relation allow-list in yg-architecture.yaml names a target type that is

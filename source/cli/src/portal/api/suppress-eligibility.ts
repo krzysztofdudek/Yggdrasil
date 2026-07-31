@@ -182,17 +182,19 @@ export function isTypeCoveredSource(relFile: string, typeCoveredFiles: ReadonlyS
  *    for, for the two structural reasons above.
  *
  * One guard applies to the second member alone: a directory (or glob) mapping
- * entry can resolve into a SUBTREE that carries its own nested `.yggdrasil/` —
- * a separate graph that governs itself, the same structural case `walkedFiles`
- * already excludes (`excludeNestedGraphSubtrees`, applied inside
- * `walkRepoFiles`). `expandMappingPathsWithinOwnGraph` applies that identical
- * exclusion after expansion — the SAME shared derivation the enforcement side
- * uses, not a second implementation of the same guard — so this audit and
- * the runner it audits can never disagree about which files belong to a
- * nested checkout. Without it, a broad directory mapping that happens to
- * contain an unrelated nested checkout would attribute THAT checkout's own
- * markers to this graph's audit — a foreign-graph leak, not a live waiver on
- * this graph's own code.
+ * entry can resolve into a SUBTREE that is its own separate project — its own
+ * nested `.yggdrasil/` graph, or its own `.git` checkout/submodule/worktree —
+ * the same structural case `walkedFiles` already excludes (`walkRepoFiles`
+ * prunes it during the walk, against `io/repo-scanner.ts`'s
+ * `findNestedProjectRoots`). `expandMappingPathsWithinOwnGraph` filters
+ * against that SAME filesystem-derived root set — not a second
+ * implementation of the same guard, and not derived from either caller's own
+ * candidate list — so this audit and the runner it audits can never disagree
+ * about which files belong to a nested checkout, however differently each
+ * side's mapping entries expand. Without it, a broad directory mapping that
+ * happens to contain an unrelated nested checkout would attribute THAT
+ * checkout's own markers to this graph's audit — a foreign-graph leak, not a
+ * live waiver on this graph's own code.
  *
  * If a future change gives the runner a THIRD way to read and honor a marker
  * in a file — a new kind of reference resolved through neither a node's

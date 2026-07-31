@@ -22,9 +22,10 @@ import {
   hashPath,
   perFileHashes,
   expandMappingPaths,
-  expandMappingPathsExcluding,
+  expandMappingPathsWithinOwnGraph,
   normalizeLineEndings,
 } from '../../../src/io/hash.js';
+import { runGitFixture } from '../../support/git-fixture.js';
 import { readFileBytes, listDirEntries, statKind, probeUnreadable } from '../../../src/io/graph-fs.js';
 
 const dirs: string[] = [];
@@ -289,17 +290,167 @@ describe('directory-only gitignore pattern vs a like-named FILE (C-27 twin)', ()
   });
 });
 
-describe('expandMappingPathsExcluding', () => {
-  it('returns all files when no exclusions are given', async () => {
-    const root = await tmpTree({ 'src/a.ts': 'a\n', 'src/b.ts': 'b\n' });
-    const out = await expandMappingPathsExcluding(root, ['src'], []);
-    expect(out.sort()).toEqual(['src/a.ts', 'src/b.ts']);
+// =============================================================================
+// A directory OR glob mapping never hashes/reviews `.git` as source.
+//
+// `collectDirectoryFilePaths` (the shared walker behind both a directory
+// mapping and a glob mapping's base-directory walk) used to have no `.git`
+// skip at all, unlike the coverage walk (`walkRepoFiles`) which has always
+// skipped it. A mapping that covers the project root — or any directory that
+// happens to carry its own `.git` — would hash and expose git's own internal
+// object store as though it were mapped source.
+// =============================================================================
+describe('a directory/glob mapping never expands into `.git`', () => {
+  it('a directory mapping over the project root skips `.git` entirely', async () => {
+    const root = await tmpTree({ 'src/a.ts': 'a\n' });
+    expect(runGitFixture(root, ['init', '-q', '-b', 'main']).status).toBe(0);
+    const out = await expandMappingPaths(root, ['.']);
+    expect(out.sort()).toEqual(['src/a.ts']);
+    expect(out.some((f) => f.startsWith('.git/') || f === '.git')).toBe(false);
   });
 
-  it('excludes files matched by a child-mapping prefix (child carve-out)', async () => {
-    const root = await tmpTree({ 'src/a.ts': 'a\n', 'src/child/c.ts': 'c\n' });
-    const out = await expandMappingPathsExcluding(root, ['src'], ['src/child']);
+  it('a glob mapping over the project root skips `.git` entirely', async () => {
+    const root = await tmpTree({ 'src/a.ts': 'a\n', 'src/b.py': 'b\n' });
+    expect(runGitFixture(root, ['init', '-q', '-b', 'main']).status).toBe(0);
+    const out = await expandMappingPaths(root, ['**/*.ts']);
     expect(out).toEqual(['src/a.ts']);
+  });
+});
+
+// =============================================================================
+// expandMappingPathsWithinOwnGraph — the enforcement-side boundary is derived
+// from the FILESYSTEM (io/repo-scanner.ts's findNestedProjectRoots), not from
+// whatever candidates a given mapping's own expansion happens to produce. A
+// glob's extension filter, or a `.gitignore` line hiding just the marker, must
+// not blind the guard — and the guard must fire identically for a `.yggdrasil`
+// graph AND for a git boundary (a nested checkout, a real submodule, a real
+// linked worktree).
+// =============================================================================
+describe('expandMappingPathsWithinOwnGraph — the boundary is read off the filesystem', () => {
+  const IDENTITY = {
+    GIT_AUTHOR_NAME: 'yg-test',
+    GIT_AUTHOR_EMAIL: 'yg-test@fixture.test',
+    GIT_COMMITTER_NAME: 'yg-test',
+    GIT_COMMITTER_EMAIL: 'yg-test@fixture.test',
+  };
+
+  it('a GLOB mapping stops at a nested `.yggdrasil/` graph even though the glob itself never surfaces the marker path', async () => {
+    // services/**/*.py never yields a `.yggdrasil/yg-config.yaml` path — the
+    // extension filter strips it before a candidate-list-derived guard could
+    // ever see it. The filesystem-derived guard must still catch it.
+    const root = await tmpTree({
+      'services/alpha.py': 'def alpha(): return 1\n',
+      'services/vendorlib/.yggdrasil/yg-config.yaml': 'version: "5.2.0"\n',
+      'services/vendorlib/other.py': 'SECRET = 1\n',
+    });
+    const out = await expandMappingPathsWithinOwnGraph(root, ['services/**/*.py']);
+    expect(out).toEqual(['services/alpha.py']);
+  });
+
+  it('a `.gitignore` line hiding only the nested `.yggdrasil/` marker does not blind the guard', async () => {
+    const root = await tmpTree({
+      'services/alpha.py': 'def alpha(): return 1\n',
+      'services/vendorlib/.yggdrasil/yg-config.yaml': 'version: "5.2.0"\n',
+      'services/vendorlib/other.py': 'SECRET = 1\n',
+      '.gitignore': 'services/vendorlib/.yggdrasil/\n',
+    });
+    const out = await expandMappingPathsWithinOwnGraph(root, ['services']);
+    expect(out).toEqual(['services/alpha.py']);
+  });
+
+  it('a directory mapping stops at a nested, fully independent git repository (`.git` is a directory)', async () => {
+    const root = await tmpTree({ 'services/alpha.py': 'def alpha(): return 1\n' });
+    const nestedRepo = path.join(root, 'services', 'sub');
+    await mkdir(nestedRepo, { recursive: true });
+    await writeFile(path.join(nestedRepo, 'lib.py'), 'def lib(): return 1\n');
+    expect(runGitFixture(nestedRepo, ['init', '-q', '-b', 'main']).status).toBe(0);
+
+    const out = await expandMappingPathsWithinOwnGraph(root, ['services']);
+    expect(out).toEqual(['services/alpha.py']);
+  });
+
+  it('a directory mapping stops at a REAL git submodule (`.git` is a gitdir pointer FILE)', async () => {
+    const outer = await tmpTree({ 'services/alpha.py': 'def alpha(): return 1\n' });
+    const inner = await tmpTree({ 'lib.py': 'def lib(): return 1\n' });
+    expect(runGitFixture(inner, ['init', '-q', '-b', 'main']).status).toBe(0);
+    expect(runGitFixture(inner, ['add', '-A'], { extraEnv: IDENTITY }).status).toBe(0);
+    expect(runGitFixture(inner, ['commit', '-q', '-m', 'init'], { extraEnv: IDENTITY }).status).toBe(0);
+
+    expect(runGitFixture(outer, ['init', '-q', '-b', 'main']).status).toBe(0);
+    const add = runGitFixture(
+      outer,
+      ['-c', 'protocol.file.allow=always', 'submodule', 'add', '--quiet', inner, 'services/vendorlib'],
+      { extraEnv: IDENTITY },
+    );
+    expect(add.status).toBe(0);
+
+    const out = await expandMappingPathsWithinOwnGraph(outer, ['services']);
+    expect(out).toEqual(['services/alpha.py']);
+  });
+
+  it('a directory mapping stops at a REAL linked git worktree (`.git` is a gitdir pointer FILE)', async () => {
+    const outer = await tmpTree({ 'services/alpha.py': 'def alpha(): return 1\n' });
+    expect(runGitFixture(outer, ['init', '-q', '-b', 'main']).status).toBe(0);
+    expect(runGitFixture(outer, ['add', '-A'], { extraEnv: IDENTITY }).status).toBe(0);
+    expect(runGitFixture(outer, ['commit', '-q', '-m', 'init'], { extraEnv: IDENTITY }).status).toBe(0);
+
+    const wt = runGitFixture(
+      outer,
+      ['worktree', 'add', '-q', path.join('services', 'wt1'), '-b', 'wt-branch'],
+      { extraEnv: IDENTITY },
+    );
+    expect(wt.status).toBe(0);
+
+    const out = await expandMappingPathsWithinOwnGraph(outer, ['services']);
+    expect(out).toEqual(['services/alpha.py']);
+  });
+
+  it('an ORDINARY subdirectory (no `.yggdrasil/`, no `.git`) is still absorbed normally', async () => {
+    const root = await tmpTree({
+      'services/alpha.py': 'def alpha(): return 1\n',
+      'services/sub/control.py': 'def control(): return 1\n',
+    });
+    const out = await expandMappingPathsWithinOwnGraph(root, ['services']);
+    expect(out.sort()).toEqual(['services/alpha.py', 'services/sub/control.py']);
+  });
+
+  it('does NOT exclude a dependency directory by name alone (node_modules is ordinary, not a boundary)', async () => {
+    // No name-based guessing. A `node_modules`/`vendor`/etc. directory
+    // with no `.yggdrasil/` or `.git` of its own is absorbed exactly like any
+    // other subdirectory — it stays visible in the coverage/pair count rather
+    // than silently vanishing, which is the adopter's own business to exclude
+    // via config if they want it gone.
+    const root = await tmpTree({
+      'services/alpha.py': 'def alpha(): return 1\n',
+      'services/node_modules/pkg/index.py': 'x = 1\n',
+    });
+    const out = await expandMappingPathsWithinOwnGraph(root, ['services']);
+    expect(out.sort()).toEqual(['services/alpha.py', 'services/node_modules/pkg/index.py']);
+  });
+
+  it('two nodes expanded separately (enforcement) and together (audit-style) draw the SAME boundary', async () => {
+    // The audit universe (portal/api/suppress-eligibility.ts) expands every
+    // node's mapping entries TOGETHER; enforcement expands one node's mapping
+    // at a time. Both must agree — the boundary is a property of the
+    // filesystem, never of which candidates a particular call happened to expand.
+    const root = await tmpTree({
+      'services/alpha.py': 'def alpha(): return 1\n',
+      'services/vendorlib/.yggdrasil/yg-config.yaml': 'version: "5.2.0"\n',
+      'services/vendorlib/other.py': 'SECRET = 1\n',
+      'services/config.yaml': 'k: v\n',
+    });
+    const pyOnly = await expandMappingPathsWithinOwnGraph(root, ['services/**/*.py']);
+    const yamlOnly = await expandMappingPathsWithinOwnGraph(root, ['services/**/*.yaml']);
+    const combined = await expandMappingPathsWithinOwnGraph(root, ['services/**/*.py', 'services/**/*.yaml']);
+
+    expect(pyOnly).toEqual(['services/alpha.py']);
+    expect(yamlOnly).toEqual(['services/config.yaml']);
+    expect(combined.sort()).toEqual([...pyOnly, ...yamlOnly].sort());
+    // Neither the individually-expanded nor the combined view ever reveals the
+    // vendored files — same boundary, regardless of composition.
+    for (const list of [pyOnly, yamlOnly, combined]) {
+      expect(list.some((f) => f.startsWith('services/vendorlib/'))).toBe(false);
+    }
   });
 });
 

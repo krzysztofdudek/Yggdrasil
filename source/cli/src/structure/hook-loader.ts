@@ -11,6 +11,7 @@ import { createCtxParsers, prewarmupAstCache, enrichFilesWithAst, ParseAstNotPre
 import { collectAllowedReadsForAspect } from './allowed-reads.js';
 import { normalizeMappingPath, isPathInMapping } from './expand-mapping-sync.js';
 import { expandMappingPathsWithinOwnGraph } from '../io/hash.js';
+import { findNestedProjectRoots } from '../io/repo-scanner.js';
 import type { Graph, GraphNode as ModelNode } from '../model/graph.js';
 import type { Ctx, CompanionDescriptor, File, Port } from './types.js';
 import type { ParseCache } from '../ast/parse-cache.js';
@@ -41,10 +42,11 @@ export class StructureRunnerError extends Error {
  * Directory entries are expanded recursively via the gitignore-aware
  * expandMappingPathsWithinOwnGraph helper (same function used by the
  * node-size budget and build-context), so ctx.files exactly matches what the
- * LLM path sees — a nested project's own subtree (a directory carrying its
- * own `.yggdrasil/`) is dropped by that helper before it ever reaches ctx,
- * so a vendored dependency's or a submodule's files are never exposed to
- * this graph's review as though they were this node's own.
+ * LLM path sees — a separate project's own subtree (a directory carrying its
+ * own `.yggdrasil/` graph, or its own `.git` checkout/submodule/worktree) is
+ * dropped by that helper before it ever reaches ctx, so a vendored
+ * dependency's or a submodule's files are never exposed to this graph's
+ * review as though they were this node's own.
  * Files owned by descendant (child) nodes are carved out so a child's
  * aspects apply to those files, not the parent's.
  * Binary files (by extension) and unreadable files are silently skipped.
@@ -81,7 +83,7 @@ async function buildOwnFiles(
     .map(normalizeMappingPath)
     .filter((p): p is string => p !== '');
 
-  // Expand directories to constituent files (gitignore-aware, nested-graph subtrees dropped).
+  // Expand directories to constituent files (gitignore-aware, separate-project subtrees dropped).
   const expanded = await expandMappingPathsWithinOwnGraph(projectRoot, rawMapping);
 
   const result: Array<{ file: File; bytes: Buffer }> = [];
@@ -157,7 +159,7 @@ function wrapNonSubjectFile(
 /**
  * Async mapping path enumeration for prewarmup. Mapping entries may be files
  * or directories; directories are expanded via expandMappingPathsWithinOwnGraph
- * (gitignore-aware, nested-graph subtrees dropped) — this also backs
+ * (gitignore-aware, separate-project subtrees dropped) — this also backs
  * `ctx.graph.node().files`, so a node whose mapping happens to contain a
  * vendored dependency's own graph must not expose that dependency's files
  * as though they belonged to the enumerated node.
@@ -277,6 +279,14 @@ export async function buildUnitCtx(params: BuildUnitCtxParams): Promise<BuildUni
   }
 
   const allowedSet = collectAllowedReadsForAspect(nodePath, graph);
+  // Separate-project boundaries (nested `.yggdrasil/` graph, nested `.git`
+  // checkout/submodule/worktree) below the project root — the SAME set
+  // `expandMappingPathsWithinOwnGraph` below draws its own exclusion from
+  // (cached per run in repo-scanner.ts, so this costs nothing extra here).
+  // Threaded into ctx.fs/ctx.parseAst so a directory or glob allowed-reads
+  // entry that textually covers a path inside a foreign project still cannot
+  // read it.
+  const nestedProjectRoots = await findNestedProjectRoots(projectRoot);
 
   // Construct one ObservationRecorder per run — threaded into all ctx factories.
   const recorder = new ObservationRecorder();
@@ -285,9 +295,9 @@ export async function buildUnitCtx(params: BuildUnitCtxParams): Promise<BuildUni
   // We must know which paths are subject files so we can skip recording read: observations
   // for them — they are hashed separately as subject inputs in the deterministic pair hash.
   // We collect own file paths from the mapping before actually reading them so that the
-  // subject set is available when ctxFs/ctxGraph/parsers are created. Nested-graph subtrees
-  // are dropped the same way `core/pairs.ts` drops them from the fingerprint this subject
-  // set stands in for — a foreign file must never be treated as this pair's subject.
+  // subject set is available when ctxFs/ctxGraph/parsers are created. Separate-project
+  // subtrees are dropped the same way `core/pairs.ts` drops them from the fingerprint this
+  // subject set stands in for — a foreign file must never be treated as this pair's subject.
   const ownFilesRaw = (node.meta.mapping ?? [])
     .map(normalizeMappingPath)
     .filter((p): p is string => p !== '');
@@ -300,7 +310,7 @@ export async function buildUnitCtx(params: BuildUnitCtxParams): Promise<BuildUni
     ? new Set<string>(subjectScope.map(normalizeMappingPath))
     : new Set<string>(ownFilesExpanded);
 
-  const ctxFs = createCtxFs({ allowedSet, projectRoot, touchedFiles, recorder, subjectFiles });
+  const ctxFs = createCtxFs({ allowedSet, projectRoot, touchedFiles, recorder, subjectFiles, nestedProjectRoots });
   // Pre-expand each graph-readable node's mapping to concrete files (directory
   // and glob entries resolved here in the async layer) so ctx.graph.node().files
   // sees a glob-mapped node's real files. Each graph file's read: observation
@@ -312,7 +322,7 @@ export async function buildUnitCtx(params: BuildUnitCtxParams): Promise<BuildUni
     if (m) expandedFilesByNode.set(id, await enumerateMappedFilesAsync(m.meta.mapping ?? [], projectRoot));
   }
   const ctxGraph = createCtxGraph({ currentNodePath: nodePath, graph, projectRoot, touchedFiles, expandedFilesByNode, recorder, subjectFiles });
-  const parsers = createCtxParsers({ allowedSet, projectRoot, touchedFiles, astCache, recorder, subjectFiles });
+  const parsers = createCtxParsers({ allowedSet, projectRoot, touchedFiles, astCache, recorder, subjectFiles, nestedProjectRoots });
 
   const ownFilesWithBytes = await buildOwnFiles(node, projectRoot, touchedFiles);
   const ownFiles = ownFilesWithBytes.map((x) => x.file);
@@ -437,13 +447,20 @@ async function buildNodelessUnitCtx(params: {
   const { unit, projectRoot, astCache, touchedFiles } = params;
 
   const allowedSet = new Set<string>(unit.allowedReads);
+  // Defense-in-depth alongside collectArchitectureReach's own filtering
+  // (structure/allowed-reads.ts already expands a declared component's
+  // mapping through expandMappingPathsWithinOwnGraph before adding to
+  // unit.allowedReads) — the same run-cached boundary, applied at the same
+  // choke point every ctx.fs/ctx.parseAst call goes through regardless of
+  // whether the unit has an owning component.
+  const nestedProjectRoots = await findNestedProjectRoots(projectRoot);
   const recorder = new ObservationRecorder();
   // The subject is the file itself, so its own content is a subject input and
   // is not double-recorded — mirrors the whole-node per:file case exactly.
   const subjectFiles = new Set<string>([unit.file]);
 
-  const ctxFs = createCtxFs({ allowedSet, projectRoot, touchedFiles, recorder, subjectFiles });
-  const parsers = createCtxParsers({ allowedSet, projectRoot, touchedFiles, astCache, recorder, subjectFiles });
+  const ctxFs = createCtxFs({ allowedSet, projectRoot, touchedFiles, recorder, subjectFiles, nestedProjectRoots });
+  const parsers = createCtxParsers({ allowedSet, projectRoot, touchedFiles, astCache, recorder, subjectFiles, nestedProjectRoots });
 
   // Read the subject file directly — there is no mapping to expand and no
   // children to carve out (there is no component). Binary-by-extension and

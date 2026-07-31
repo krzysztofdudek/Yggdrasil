@@ -6,7 +6,7 @@ import { expandMappingPaths } from '../../io/hash.js';
 import { mappingEntryMatchesFile, isGlobPattern, normalizeMappingPath } from '../../utils/mapping-path.js';
 import { buildOwnerIndex } from '../../relations/owner-index.js';
 import { readSortedDir, statPath, fileAccess } from '../../io/graph-fs.js';
-import { walkRepoFiles, isCoverageExcludedPath } from '../../io/repo-scanner.js';
+import { walkRepoFiles, isCoverageExcludedPath, findNestedProjectRoots, isUnderAnyNestedProjectRoot } from '../../io/repo-scanner.js';
 import { FileContentCache } from '../../io/file-content-cache.js';
 import { evaluateFileWhen } from '../file-when-evaluator.js';
 import { classifyFile } from '../type-classifier.js';
@@ -16,7 +16,10 @@ import { toPosixPath } from '../../utils/posix.js';
 
 export async function checkFileMappingGitignored(graph: Graph): Promise<ValidationIssue[]> {
   const projectRoot = path.dirname(graph.rootPath);
-  const tracked = new Set(await walkRepoFiles(projectRoot));
+  const [tracked, nestedProjectRoots] = await Promise.all([
+    walkRepoFiles(projectRoot).then((files) => new Set(files)),
+    findNestedProjectRoots(projectRoot),
+  ]);
   const issues: ValidationIssue[] = [];
 
   for (const [nodePath, node] of graph.nodes) {
@@ -40,6 +43,27 @@ export async function checkFileMappingGitignored(graph: Graph): Promise<Validati
       try { st = await statPath(absPath); } catch { continue; }
       if (!st.isFile()) continue;
       if (tracked.has(norm)) continue;
+
+      // A file absent from `tracked` for a THIRD reason — it sits inside a
+      // separate project's own boundary (a nested `.yggdrasil/` graph, or a
+      // nested `.git` checkout/submodule/worktree) — is not gitignored at
+      // all; blaming .gitignore sends an adopter to edit a file that may not
+      // exist and hides the real, structural cause.
+      if (isUnderAnyNestedProjectRoot(norm, nestedProjectRoots)) {
+        issues.push({
+          severity: 'error',
+          code: 'file-mapping-nested-project',
+          rule: 'file-mapping-nested-project',
+          nodePath,
+          ...issueMsg({
+            what: `File '${toPosixPath(norm)}' is in mapping of node '${nodePath}' but sits inside a separate project's own boundary.`,
+            why: `A directory below the mapping is its own separate project (a nested \`.yggdrasil/\` graph, or its own \`.git\` — a checkout, submodule, or worktree), governed by that project rather than this one, so it can never be reviewed here regardless of .gitignore.`,
+            next: `Either:\n  1. Remove the file from the mapping (it belongs to the separate project).\n  2. Map a file outside the separate project's own boundary.`,
+          }),
+        });
+        continue;
+      }
+
       issues.push({
         severity: 'error',
         code: 'file-mapping-gitignored',

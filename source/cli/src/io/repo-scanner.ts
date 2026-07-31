@@ -1,7 +1,7 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { lstatSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { join, relative, sep } from 'node:path';
+import { join, relative, resolve, sep } from 'node:path';
 import { createRequire } from 'node:module';
 import { type Ignore, type Options as IgnoreOptions } from 'ignore';
 import { debugWrite } from '../utils/debug-log.js';
@@ -52,6 +52,7 @@ async function collectFiles(
   dir: string,
   projectRoot: string,
   stack: GitignoreEntry[],
+  nestedRoots: ReadonlySet<string>,
 ): Promise<string[]> {
   let localStack = stack;
   try {
@@ -74,13 +75,23 @@ async function collectFiles(
   const results: string[] = [];
   for (const entry of entries) {
     // `.git` is skipped in BOTH forms: the directory (normal checkout) and the
-    // pointer FILE `gitdir: ...` (git worktree / submodule checkout).
+    // pointer FILE `gitdir: ...` (git worktree / submodule checkout). This
+    // guards the ROOT's own `.git`; a NESTED `.git` (a separate project's own
+    // boundary) is excluded wholesale below via `nestedRoots`, computed once
+    // per run by `findNestedProjectRoots` — this per-entry check alone cannot
+    // see a nested `.git` two levels down before recursing there.
     if (entry.name === '.git') continue;
     const absPath = join(dir, entry.name);
     if (entry.isDirectory()) {
       if (entry.name === YGGDRASIL_DIRNAME && dir === projectRoot) continue;
       if (isIgnoredByStack(absPath, localStack, true)) continue;
-      results.push(...(await collectFiles(absPath, projectRoot, localStack)));
+      const relDir = relative(projectRoot, absPath).split(sep).join('/');
+      // A directory that is itself a separate project's boundary (its own
+      // `.yggdrasil/` graph, or its own `.git` — a nested checkout, submodule,
+      // or linked worktree) is governed by that project, not this one: none of
+      // its files are ever walked in.
+      if (nestedRoots.has(relDir)) continue;
+      results.push(...(await collectFiles(absPath, projectRoot, localStack, nestedRoots)));
     } else if (entry.isFile()) {
       if (isIgnoredByStack(absPath, localStack)) continue;
       results.push(relative(projectRoot, absPath).split(sep).join('/'));
@@ -94,6 +105,20 @@ async function collectFiles(
  * that contains its own `.yggdrasil/`. Such a subtree is governed by that graph, so
  * the parent graph's checks must ignore it. The top-level `.yggdrasil/` is NOT a
  * nested root (its paths start with `.yggdrasil/`, with no leading-slash segment).
+ *
+ * LEGACY, list-derived heuristic: it infers a nested root by scanning the
+ * CANDIDATE list handed to it for a `/.yggdrasil/` path segment, so it can only
+ * ever notice a nested graph whose marker file already survived into that list.
+ * A glob filtered by extension, or a `.gitignore` line hiding just the marker
+ * directory, never produces such a path — the exact blind spot
+ * `findNestedProjectRoots` (below) exists to close by reading the boundary off
+ * the filesystem instead. Every caller that decides what belongs to THIS
+ * graph's own enforcement surface (`walkRepoFiles`, `expandMappingPathsWithinOwnGraph`,
+ * the suppression-scan universe) now uses that filesystem-derived source of
+ * truth. This function survives only because `core/check.ts` still calls it as
+ * a defense-in-depth re-filter over a list (`walkRepoFiles`'s own output) that
+ * has ALREADY had every nested subtree removed — on such a list it is a
+ * provable no-op, never a second, weaker guard.
  */
 export function excludeNestedGraphSubtrees(relPaths: string[]): string[] {
   // A nested graph always has files under its own `.yggdrasil/`, so a `/.yggdrasil/`
@@ -105,13 +130,177 @@ export function excludeNestedGraphSubtrees(relPaths: string[]): string[] {
     const idx = p.indexOf(seg);
     if (idx > 0) nestedRoots.add(p.slice(0, idx));
   }
+  return filterOutsideNestedProjectRoots(relPaths, nestedRoots);
+}
+
+/** True iff `relPath` is `root` itself or lives under it, for any root in `nestedRoots`. */
+export function isUnderAnyNestedProjectRoot(relPath: string, nestedRoots: ReadonlySet<string>): boolean {
+  for (const root of nestedRoots) {
+    if (relPath === root || relPath.startsWith(root + '/')) return true;
+  }
+  return false;
+}
+
+/**
+ * Drop every path that lives under (or equals) one of `nestedRoots` — the shared
+ * filter half of the nested-project boundary, reused by every caller that already
+ * holds both a candidate list and the roots to filter it against.
+ */
+export function filterOutsideNestedProjectRoots(
+  relPaths: string[],
+  nestedRoots: ReadonlySet<string>,
+): string[] {
   if (nestedRoots.size === 0) return relPaths;
-  return relPaths.filter((p) => {
-    for (const root of nestedRoots) {
-      if (p === root || p.startsWith(root + '/')) return false;
+  return relPaths.filter((p) => !isUnderAnyNestedProjectRoot(p, nestedRoots));
+}
+
+// ── Filesystem-derived nested-project boundary ──────────────────────────────
+//
+// A directory mapping (or a repo walk) stops at a SEPARATE PROJECT — a
+// directory below the mapping root that is:
+//   - its own `.yggdrasil/` graph (a directory named `.yggdrasil` that
+//     contains at least one file, anywhere inside it), or
+//   - its own git boundary: a `.git` entry directly inside it, in EITHER form
+//     (a directory — a fully independent nested checkout — or a FILE, the
+//     `gitdir: ...` pointer a git submodule or a linked `git worktree`
+//     leaves behind). Presence alone is the signal; unlike `.yggdrasil`,
+//     there is no "must contain a file" nuance — `.git`'s mere existence is
+//     already the signal git itself uses to recognize a repository root.
+// Nothing else is a boundary: a dependency directory (`node_modules`,
+// `vendor`, or any other name) is ordinary — guessing names on an adopter's
+// behalf produces surprises the moment real code lives there, and an
+// absorbed dependency directory still shows up in the coverage count, so it
+// stays visible rather than silently vanishing. Draw the line at a REAL
+// separate-project marker, never a naming convention.
+//
+// This is a real filesystem walk, not derived from any candidate list, so it
+// gives the same answer regardless of what filtered a caller's own candidate
+// list first (a glob's extension filter, `.gitignore`) — the blind spot
+// `excludeNestedGraphSubtrees` above cannot close. A `.gitignore` rule that
+// hides the `.git`/`.yggdrasil` marker itself is deliberately NOT honored
+// here (that is exactly the second escape this walk exists to close); every
+// OTHER directory is still `.gitignore`-pruned during the search, so this
+// stays as cheap as the ordinary repo walk — a gitignored `node_modules` is
+// still never descended into.
+
+/**
+ * Per-run cache of `findNestedProjectRoots` results, keyed by resolved
+ * project root. Safe because a `yg` CLI invocation is a fresh process — the
+ * cache starts (and, for that invocation, stays) empty, so this is exactly a
+ * per-run cache with zero extra plumbing. The one process that outlives a
+ * single logical run is `yg portal` (no `--static`): its extraction pipeline
+ * (`portal/extract.ts`'s `extractPortalData`, re-run on every refresh) calls
+ * {@link resetNestedProjectRootsCache} at the top of every extraction, so a
+ * project's disk state is re-read once per refresh, never carried over from
+ * an earlier one. Nothing else invalidates it — a `yg` run never writes
+ * source, so nothing else legitimately changes which directories are
+ * separate projects while one run is in flight.
+ */
+let nestedProjectRootsCache = new Map<string, Promise<Set<string>>>();
+
+/**
+ * Drop the per-run cache described above. Call this at the start of any unit
+ * of work that must see the CURRENT filesystem state after a prior call may
+ * have cached a stale answer for the same root — today that is only the
+ * portal server's per-request re-extraction. A one-shot CLI command never
+ * needs this: its cache starts empty and the process exits before it could
+ * ever go stale.
+ */
+export function resetNestedProjectRootsCache(): void {
+  nestedProjectRootsCache = new Map();
+}
+
+/**
+ * Find every separate-project boundary below `root` (see the section header
+ * above) — repo-relative POSIX paths, computed by walking the real
+ * filesystem. `root` itself is never a boundary of itself: its own top-level
+ * `.yggdrasil/` and its own `.git` are the project's own state, not a nested
+ * one. Cached per resolved root for the lifetime described above.
+ */
+export async function findNestedProjectRoots(root: string): Promise<Set<string>> {
+  const key = resolve(root);
+  let cached = nestedProjectRootsCache.get(key);
+  if (!cached) {
+    cached = scanNestedProjectRoots(key);
+    nestedProjectRootsCache.set(key, cached);
+  }
+  return cached;
+}
+
+async function scanNestedProjectRoots(root: string): Promise<Set<string>> {
+  const stack = await loadRootGitignoreStack(root);
+  const roots = new Set<string>();
+  await walkForNestedProjectRoots(root, root, stack, roots);
+  return roots;
+}
+
+async function walkForNestedProjectRoots(
+  dir: string,
+  root: string,
+  stack: GitignoreEntry[],
+  roots: Set<string>,
+): Promise<void> {
+  let entries;
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch (err) {
+    debugWrite(`[repo-scanner] findNestedProjectRoots: readdir failed for ${dir}: ${(err as Error).message}`);
+    return;
+  }
+
+  if (dir !== root) {
+    const gitBoundary = entries.some((e) => e.name === '.git');
+    const yggMarker = entries.find((e) => e.isDirectory() && e.name === YGGDRASIL_DIRNAME);
+    const yggBoundary = yggMarker !== undefined && (await directoryHasAnyFile(join(dir, yggMarker.name)));
+    if (gitBoundary || yggBoundary) {
+      roots.add(relative(root, dir).split(sep).join('/'));
+      return; // the whole subtree belongs to a separate project — nothing deeper matters
     }
-    return true;
-  });
+  }
+
+  let localStack = stack;
+  try {
+    const content = await readFile(join(dir, '.gitignore'), 'utf-8');
+    const ig = ignoreFactory();
+    ig.add(content);
+    localStack = [...stack, { dir, ig }];
+  } catch (err) {
+    debugWrite(`[repo-scanner] findNestedProjectRoots: local .gitignore not readable in ${dir}: ${(err as Error).message}`);
+  }
+
+  const subdirs: string[] = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    // Never descended into: `.git`'s own internals are irrelevant here (a
+    // nested `.git` is already caught by the marker check above, at whichever
+    // directory hosts it), and a `.yggdrasil` directory is likewise only ever
+    // inspected AS a marker at its parent, never searched for a further
+    // boundary inside it.
+    if (entry.name === '.git' || entry.name === YGGDRASIL_DIRNAME) continue;
+    const absPath = join(dir, entry.name);
+    if (isIgnoredByStack(absPath, localStack, true)) continue;
+    subdirs.push(absPath);
+  }
+  await Promise.all(subdirs.map((d) => walkForNestedProjectRoots(d, root, localStack, roots)));
+}
+
+/** True iff `dirPath` contains at least one regular file, at any depth. Short-circuits on the first hit. */
+async function directoryHasAnyFile(dirPath: string): Promise<boolean> {
+  let entries;
+  try {
+    entries = await readdir(dirPath, { withFileTypes: true });
+  } catch {
+    return false;
+  }
+  const subdirs: string[] = [];
+  for (const entry of entries) {
+    if (entry.isFile()) return true;
+    if (entry.isDirectory()) subdirs.push(join(dirPath, entry.name));
+  }
+  for (const d of subdirs) {
+    if (await directoryHasAnyFile(d)) return true;
+  }
+  return false;
 }
 
 /**
@@ -139,12 +328,17 @@ export function isCoverageExcludedPath(relPath: string): boolean {
  * Walk all files in the repo, returning repo-relative POSIX paths.
  * Excludes `.yggdrasil/`, `.git` (directory or worktree/submodule pointer file),
  * symlinks, and gitignore-matched files.
- * Excludes subtrees that contain their own nested `.yggdrasil/` directory.
+ * Excludes every separate-project subtree (its own `.yggdrasil/` graph, or its
+ * own `.git` — a nested checkout, submodule, or linked worktree), pruned
+ * proactively during the walk against {@link findNestedProjectRoots}'s
+ * filesystem-derived boundary set.
  */
 export async function walkRepoFiles(projectRoot: string): Promise<string[]> {
-  const stack = await loadRootGitignoreStack(projectRoot);
-  const files = await collectFiles(projectRoot, projectRoot, stack);
-  return excludeNestedGraphSubtrees(files);
+  const [stack, nestedRoots] = await Promise.all([
+    loadRootGitignoreStack(projectRoot),
+    findNestedProjectRoots(projectRoot),
+  ]);
+  return collectFiles(projectRoot, projectRoot, stack, nestedRoots);
 }
 
 /**

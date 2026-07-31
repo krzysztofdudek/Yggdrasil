@@ -52,3 +52,5 @@ Comment text in two files under this pipeline referenced planning labels that on
 Reworded a comment on the portal extraction pipeline's once-per-run type-coverage classification so it explains, in its own words, why the classification mirrors the same single-pass discipline the check and fill commands each already follow, instead of leaning on a short internal code with no meaning to a reader of this repository.
 ## [2026-07-31T04:22:21.856Z]
 Passes the extraction run's own type-coverage classification into the live suppression scan so a file covered by the architecture type-level lattice is never treated as noise there either, matching the same fix made to the yg suppressions command.
+## [2026-07-31T08:26:18.849Z]
+Every extraction now resets the separate-project boundary cache before deriving anything, so a project whose git or graph layout changed between two portal refreshes is re-read rather than served the first refresh's stale answer for the lifetime of the server process.

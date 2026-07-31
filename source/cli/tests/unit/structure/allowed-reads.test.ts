@@ -260,6 +260,38 @@ describe('what a rule running on a single file may read', () => {
       }
     },
   );
+
+  it("excludes a declared component's separate-project subtree (its own nested `.yggdrasil/` graph) from a file's read-allowance", async () => {
+    // A rule running on a nodeless file may reach 'owned''s directory mapping —
+    // but a subtree of that directory carrying its own `.yggdrasil/` graph is a
+    // SEPARATE project, governed by its own rules, and must never earn a reach
+    // entry just because the enumerating component's mapping textually covers it.
+    const ARCH: ArchitectureDef = {
+      node_types: {
+        leaf: { description: 'A file classified by its own type, no component.', relationDefault: 'deny', relations: { uses: ['owned-type'] } },
+        'owned-type': { description: 'A component whose directory mapping contains a nested separate project.' },
+      },
+    };
+    const g = buildTestGraphForStructure({
+      nodes: [{ path: 'owned', type: 'owned-type', mapping: ['src/owned'] }],
+    });
+    g.architecture = ARCH;
+    writeRealFile(g, 'src/owned/readable.ts', 'export const r = 1;\n');
+    writeRealFile(g, 'src/owned/vendor/.yggdrasil/yg-config.yaml', 'version: "5.2.0"\n');
+    writeRealFile(g, 'src/owned/vendor/foreign.ts', 'export const SECRET = 1;\n');
+
+    const reach = await collectArchitectureReach('src/leaf/a.ts', {
+      fromType: 'leaf',
+      typeCovered: new Map(),
+      architecture: ARCH,
+      graph: g,
+      projectRoot: path.dirname(g.rootPath),
+      ownerIndex: buildOwnerIndex(g.nodes),
+    });
+    expect(reach.has('src/owned/readable.ts')).toBe(true);
+    expect(reach.has('src/owned/vendor/foreign.ts')).toBe(false);
+    expect(reach.has('src/owned/vendor/.yggdrasil/yg-config.yaml')).toBe(false);
+  });
 });
 
 // =============================================================================

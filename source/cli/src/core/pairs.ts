@@ -18,12 +18,14 @@
  *   - LLM subject sets exclude binary files (by extension); deterministic keeps them.
  *   - Empty subject set → no pair for that (aspect, node) — vacuous pass.
  *   - Nodes with empty mapping → no pairs at all.
- *   - A directory/glob mapping entry stops at a nested project's own boundary:
- *     a subtree carrying its own `.yggdrasil/` is a separate graph and never
- *     contributes pairs here (see `expandNodeFiles`, the one place this
- *     module expands a mapping to files) — the same boundary the coverage
- *     walk draws via `excludeNestedGraphSubtrees`, so the pair universe and
- *     the coverage count agree on what belongs to this graph.
+ *   - A directory/glob mapping entry stops at a separate project's own boundary:
+ *     a subtree carrying its own `.yggdrasil/` graph, or its own `.git`
+ *     checkout/submodule/worktree, never contributes pairs here (see
+ *     `expandNodeFiles`, the one place this module expands a mapping to
+ *     files) — the same filesystem-derived boundary
+ *     (`io/repo-scanner.ts`'s `findNestedProjectRoots`) the coverage walk
+ *     draws, so the pair universe and the coverage count agree on what
+ *     belongs to this graph.
  *   - Pairs are sorted by aspectId, then unitKey for deterministic output.
  */
 

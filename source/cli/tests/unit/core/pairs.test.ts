@@ -18,6 +18,7 @@ import {
   getChildMappingExclusions,
   FileUnreadableError,
 } from '../../../src/core/pairs.js';
+import { resetNestedProjectRootsCache } from '../../../src/io/repo-scanner.js';
 import type { Graph, GraphNode, AspectDef, ScopeDef } from '../../../src/model/graph.js';
 
 /**
@@ -729,6 +730,12 @@ describe('directory mapping vs. a nested project boundary', () => {
 
     writeFile('services/vendored-sub/.yggdrasil/yg-config.yaml', 'version: "5.2.0"\n');
     writeFile('services/vendored-sub/foreign.py', 'def foreign(): return 1');
+    // The nested-project boundary is cached per resolved project root for the
+    // lifetime of one real `yg` run (a fresh process every time), but this test
+    // simulates TWO separate runs against the SAME on-disk root without a
+    // process boundary between them — reset so the second call re-reads the
+    // filesystem instead of replaying the first call's (now-stale) answer.
+    resetNestedProjectRootsCache();
     const graphAfter = buildPairsGraph(tmpDir, [{ path: 'svc', mapping: ['services'] }], []);
     const fpAfter = await computeSourceFingerprint(graphAfter, 'svc');
 

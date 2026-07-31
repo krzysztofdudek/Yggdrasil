@@ -207,11 +207,11 @@ export async function collectArchitectureReach(subjectFile: string, input: Archi
       .map(normalizeMappingPath)
       .filter((p): p is string => p !== '');
     if (rawMapping.length === 0) continue;
-    // A nested project's own subtree (a directory carrying its own
-    // `.yggdrasil/`) is dropped here too: a foreign file must never earn a
-    // reach entry just because the enumerating node's mapping happens to
-    // contain it — that file belongs to, and is governed by, a different
-    // graph entirely.
+    // A separate project's own subtree (a directory carrying its own
+    // `.yggdrasil/` graph, or its own `.git` checkout/submodule/worktree) is
+    // dropped here too: a foreign file must never earn a reach entry just
+    // because the enumerating node's mapping happens to contain it — that
+    // file belongs to, and is governed by, a different project entirely.
     const expanded = await expandMappingPathsWithinOwnGraph(projectRoot, rawMapping);
     for (const file of expanded) {
       // Re-resolve the file's TRUE owner (child-wins) — never assume the

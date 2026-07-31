@@ -52,3 +52,5 @@ Reworded the coverage-required-shadowed warning-code doc comment so it reads as 
 Gained the zero-classifying-types standing notice constant, moved here from core/check.ts — it is a shared user-facing string read by two unrelated command files (yg check's coverage-section render and yg init's closing summary), which belongs beside the other shared issue-code constants rather than living inside the check orchestrator.
 ## [2026-07-28T15:37:23.450Z]
 Registered the new live type-relation gate's blocking code in the structural set so the summary tally and the rendered error grouping count it consistently, the same single source every other blocking code already shares.
+## [2026-07-31T08:26:04.808Z]
+Registered the new file-mapping-nested-project structural error code alongside the existing gitignore one, so both render in the same grouped category.

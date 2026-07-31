@@ -2,6 +2,7 @@ import type { Graph } from '../model/graph.js';
 import {
   loadPortalGraph,
   walkPortalFiles,
+  resetNestedProjectRootsCache,
   runPortalCheck,
   computePortalTypeCoverage,
   toPortalTypeCoverageInput,
@@ -49,6 +50,11 @@ export async function extractPortalData(
   projectRoot: string,
   opts: { writeEnabled: boolean },
 ): Promise<PortalData> {
+  // Every refresh re-derives from scratch (see the module doc above) — including
+  // the separate-project boundary, which would otherwise stay cached from the
+  // FIRST refresh of this long-lived server process for as long as it keeps running.
+  resetNestedProjectRootsCache();
+
   // Committed-only graph load — the portal can provably never read yg-secrets.yaml.
   // The facade is the SOLE gateway to the engine; this module reaches no engine node
   // directly (it imports only the facade + the data contract).

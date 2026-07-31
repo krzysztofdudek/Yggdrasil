@@ -167,4 +167,38 @@ describe('runStructureAspect — directory-mapped nodes (fix 3b)', () => {
     expect(r.succeeded).toBe(true);
     expect(r.violations).toHaveLength(0);
   });
+
+  it('3b: a nested separate project inside a directory mapping never appears in ctx.files / ctx.node.files', async () => {
+    // A vendored sub-project with its own graph, nested inside the mapped directory.
+    // Its files (including its own yg-config.yaml) must never reach ctx.files or
+    // ctx.node.files as though they belonged to this node — that is the content-leak
+    // this same check.mjs sees would otherwise fold a foreign body into the review.
+    writeFileSync(path.join(projectRoot, 'src/a.ts'), 'export const a = 1;');
+    mkdirSync(path.join(projectRoot, 'src/vendor/.yggdrasil'), { recursive: true });
+    writeFileSync(path.join(projectRoot, 'src/vendor/.yggdrasil/yg-config.yaml'), 'version: "5.2.0"\n');
+    writeFileSync(path.join(projectRoot, 'src/vendor/foreign.ts'), 'export const SECRET = 1;');
+
+    await writeAspect('dir6', `export function check(ctx) {
+      const violations = [];
+      const allPaths = [...ctx.files.map(f => f.path), ...ctx.node.files.map(f => f.path)];
+      for (const p of allPaths) {
+        if (p.startsWith('src/vendor/')) {
+          violations.push({ message: 'nested project file must not appear in ctx.files/ctx.node.files', file: p });
+        }
+      }
+      return violations;
+    }`);
+
+    const g = buildTestGraphForStructure({
+      nodes: [{ path: 'N', type: 'module', mapping: ['src'] }],
+    });
+    const r = await runStructureAspect({
+      aspectDir: path.join('.yggdrasil/aspects/dir6'),
+      aspectId: 'dir6', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
+    });
+    expect(r.succeeded).toBe(true);
+    expect(r.violations).toHaveLength(0);
+    // Belt-and-suspenders: the nested files were never even read off disk for this run.
+    expect(r.touchedFiles.some((f) => f.startsWith('src/vendor/'))).toBe(false);
+  });
 });

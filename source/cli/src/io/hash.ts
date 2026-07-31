@@ -4,8 +4,8 @@ import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { type Ignore, type Options as IgnoreOptions } from 'ignore';
 import { toPosix, toPosixPath } from '../utils/posix.js';
-import { isGlobPattern, mappingEntryMatchesFile, globMatch } from '../utils/mapping-path.js';
-import { excludeNestedGraphSubtrees } from '../io/repo-scanner.js';
+import { isGlobPattern, globMatch } from '../utils/mapping-path.js';
+import { findNestedProjectRoots, filterOutsideNestedProjectRoots } from '../io/repo-scanner.js';
 
 export { loadRootGitignoreStack, isIgnoredByStack, walkRepoFiles } from '../io/repo-scanner.js';
 export type { GitignoreEntry } from '../io/repo-scanner.js';
@@ -209,6 +209,13 @@ async function collectDirectoryFilePaths(
   const files: string[] = [];
 
   for (const entry of entries) {
+    // `.git` is never a mappable source, in either form: the directory (a
+    // checkout's own git metadata) or the pointer FILE `gitdir: ...` (a
+    // submodule/worktree checkout). Mirrors repo-scanner.ts's `collectFiles`
+    // skip, so a directory/glob mapping that happens to cover the project
+    // root (or any directory carrying its own `.git`) never hashes or
+    // reviews git's internal object store as though it were source.
+    if (entry.name === '.git') continue;
     const absoluteChildPath = path.join(directoryPath, entry.name);
     if (isIgnoredByStack(absoluteChildPath, stack, entry.isDirectory())) continue;
     if (entry.isDirectory()) dirs.push(absoluteChildPath);
@@ -335,41 +342,40 @@ export async function expandMappingPaths(
 
 /**
  * Expand mapping paths to individual files, then drop every file under a
- * NESTED project's own boundary — a directory (below the mapping) that
- * carries its own `.yggdrasil/` is a separate graph, governed by its own
- * rules, and its files must never be attributed to the graph doing the
- * expanding (not counted as its pairs, not fed into its fingerprints, not
- * exposed as its review content, not folded into its read-allowances).
+ * SEPARATE project's own boundary — a directory (below the mapping) that
+ * carries its own `.yggdrasil/` graph, or its own `.git` (a nested checkout,
+ * submodule, or linked worktree), is governed by its own project, and its
+ * files must never be attributed to the graph doing the expanding (not
+ * counted as its pairs, not fed into its fingerprints, not exposed as its
+ * review content, not folded into its read-allowances).
+ *
+ * The boundary is read off the real FILESYSTEM (`findNestedProjectRoots`),
+ * independently of `mappingPaths` — so it gives the same answer whether the
+ * mapping is a directory or a glob (a glob's own extension filter can strip
+ * every path that would otherwise reveal a nested marker) and regardless of
+ * whether a `.gitignore` line hides the marker itself. It is also the SAME
+ * root set every other caller in one run computes for the same `projectRoot`
+ * (cached — see repo-scanner.ts), so two different mappings — even a whole
+ * graph's worth expanded together, as the suppression-scan audit does — can
+ * never draw the boundary in two different places.
  *
  * This is the ONE place that guard is applied for every caller that turns a
  * mapping into "the files this graph actually owns" — `expandMappingPaths`
- * itself stays a neutral, nested-graph-unaware primitive (plenty of callers
+ * itself stays a neutral, nested-project-unaware primitive (plenty of callers
  * — mapping validation, the type-when evaluator, the relation-conformance
  * pass — resolve a mapping for a purpose that has nothing to do with THIS
  * graph's own enforcement boundary, and must not have that boundary imposed
  * on them by the shared primitive). Callers that DO mean "the files this
  * graph enforces / reviews / hashes" should call this instead of composing
- * `expandMappingPaths` + `excludeNestedGraphSubtrees` themselves.
+ * `expandMappingPaths` with the boundary filter themselves.
  */
 export async function expandMappingPathsWithinOwnGraph(
   projectRoot: string,
   mappingPaths: string[],
 ): Promise<string[]> {
-  return excludeNestedGraphSubtrees(await expandMappingPaths(projectRoot, mappingPaths));
-}
-
-/**
- * Expand mapping paths to individual files, excluding paths matched by any
- * child-mapping exclusion entry. Used by pairs/fingerprint computation.
- */
-export async function expandMappingPathsExcluding(
-  projectRoot: string,
-  mappingPaths: string[],
-  excludePrefixes: string[],
-): Promise<string[]> {
-  const all = await expandMappingPaths(projectRoot, mappingPaths);
-  if (!excludePrefixes.length) return all;
-  return all.filter(
-    (p) => !excludePrefixes.some((prefix) => mappingEntryMatchesFile(prefix, p)),
-  );
+  const [expanded, nestedRoots] = await Promise.all([
+    expandMappingPaths(projectRoot, mappingPaths),
+    findNestedProjectRoots(projectRoot),
+  ]);
+  return filterOutsideNestedProjectRoots(expanded, nestedRoots);
 }

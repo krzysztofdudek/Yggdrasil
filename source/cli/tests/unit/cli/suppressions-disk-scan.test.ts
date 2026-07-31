@@ -18,10 +18,11 @@ vi.mock('../../../src/utils/debug-log.js', () => ({
 }));
 vi.mock('../../../src/io/debug-log-writer.js', () => ({ appendToDebugLog: vi.fn() }));
 // Only walkRepoFiles is mocked (that is the plumbing this file pins); every other
-// export — including excludeNestedGraphSubtrees, which the suppression scan's file
-// universe now also calls, on the mapped-file side of its union — passes through to
-// the real module. Replacing the whole module would silently drop those real
-// functions to `undefined` for every importer, not just this file's own.
+// export — including findNestedProjectRoots, which the suppression scan's file
+// universe now also relies on (via expandMappingPathsWithinOwnGraph, on the
+// mapped-file side of its union) — passes through to the real module. Replacing
+// the whole module would silently drop those real functions to `undefined` for
+// every importer, not just this file's own.
 vi.mock('../../../src/io/repo-scanner.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../src/io/repo-scanner.js')>();
   return { ...actual, walkRepoFiles: vi.fn() };
@@ -30,6 +31,7 @@ vi.mock('../../../src/io/repo-scanner.js', async (importOriginal) => {
 import { registerSuppressionsCommand } from '../../../src/cli/suppressions.js';
 import { loadGraphOrAbort } from '../../../src/cli/preamble.js';
 import { walkRepoFiles } from '../../../src/io/repo-scanner.js';
+import { computeSuppressionScanUniverse } from '../../../src/portal/api/suppress-eligibility.js';
 
 const mockLoadGraph = vi.mocked(loadGraphOrAbort);
 const mockWalkRepoFiles = vi.mocked(walkRepoFiles);
@@ -105,5 +107,68 @@ describe('yg suppressions uses disk scan (walkRepoFiles), not git ls-files', () 
     expect(mockWalkRepoFiles).toHaveBeenCalledOnce();
     const [calledRoot] = mockWalkRepoFiles.mock.calls[0] as [string];
     expect(calledRoot).toBe(tmpDir);
+  });
+});
+
+// =============================================================================
+// computeSuppressionScanUniverse — the audit-side candidate list `yg
+// suppressions` and the portal inventory scan. It must exclude a nested
+// project's files exactly like the runner that honors markers on them
+// (structure/hook-loader.ts), or a waiver honored by the runner would be
+// invisible to this inventory — the exact defect the shared, filesystem-derived
+// boundary exists to make impossible. No module mocking here: real fixture,
+// real function, real disk.
+// =============================================================================
+describe('computeSuppressionScanUniverse excludes a nested project from the audit universe', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-supp-universe-'));
+  });
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('a mapped directory containing a nested `.yggdrasil/` graph contributes only its own files to the universe', async () => {
+    const servicesDir = path.join(tmpDir, 'services');
+    mkdirSync(servicesDir, { recursive: true });
+    writeFileSync(path.join(servicesDir, 'alpha.py'), '# yg-suppress(det-perfile) known debt\ndoWork()\n');
+    const vendorYgg = path.join(servicesDir, 'vendorlib', '.yggdrasil');
+    mkdirSync(vendorYgg, { recursive: true });
+    writeFileSync(path.join(vendorYgg, 'yg-config.yaml'), 'version: "5.2.0"\n');
+    writeFileSync(
+      path.join(servicesDir, 'vendorlib', 'other.py'),
+      '# yg-suppress(det-perfile) a foreign waiver this graph must never inventory\ndoWork()\n',
+    );
+
+    // walkedFiles simulates walkRepoFiles' own output (already excludes the
+    // nested subtree) — the universe's SECOND member, the mapped-file
+    // expansion, is the one under test here.
+    const walkedFiles = ['services/alpha.py'];
+    const universe = await computeSuppressionScanUniverse(tmpDir, walkedFiles, ['services']);
+
+    expect(universe.sort()).toEqual(['services/alpha.py']);
+    expect(universe).not.toContain('services/vendorlib/other.py');
+    expect(universe).not.toContain('services/vendorlib/.yggdrasil/yg-config.yaml');
+  });
+
+  it('two nodes with DIFFERENT mapping entries, expanded TOGETHER (the real audit shape), draw the same boundary as either expanded alone', async () => {
+    const servicesDir = path.join(tmpDir, 'services');
+    mkdirSync(servicesDir, { recursive: true });
+    writeFileSync(path.join(servicesDir, 'alpha.py'), 'doWork()\n');
+    writeFileSync(path.join(servicesDir, 'config.yaml'), 'k: v\n');
+    const vendorYgg = path.join(servicesDir, 'vendorlib', '.yggdrasil');
+    mkdirSync(vendorYgg, { recursive: true });
+    writeFileSync(path.join(vendorYgg, 'yg-config.yaml'), 'version: "5.2.0"\n');
+    writeFileSync(path.join(servicesDir, 'vendorlib', 'other.py'), 'SECRET = 1\n');
+
+    // The audit path expands every node's mapping entries TOGETHER in one call
+    // (portal/engine-api.ts's collectMappingEntries → computeSuppressionScanUniverse),
+    // unlike enforcement, which expands one node's mapping at a time. Both must
+    // land on the identical boundary.
+    const universe = await computeSuppressionScanUniverse(tmpDir, [], ['services/**/*.py', 'services/**/*.yaml']);
+
+    expect(universe.sort()).toEqual(['services/alpha.py', 'services/config.yaml']);
+    expect(universe.some((f) => f.startsWith('services/vendorlib/'))).toBe(false);
   });
 });

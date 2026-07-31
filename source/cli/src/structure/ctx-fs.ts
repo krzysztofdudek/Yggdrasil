@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import type { FsEntry } from './types.js';
 import { normalizeMappingPath, mappingEntryMatchesFile } from '../utils/mapping-path.js';
 import { toPosix } from '../utils/posix.js';
+import { isUnderAnyNestedProjectRoot } from '../io/repo-scanner.js';
 import type { ObservationRecorder } from './observations.js';
 
 export interface CtxFsParams {
@@ -22,6 +23,21 @@ export interface CtxFsParams {
    * separately as subject inputs in the deterministic pair hash.
    */
   subjectFiles?: Set<string>;
+  /**
+   * Repo-relative POSIX paths of separate-project boundaries below the
+   * project root (io/repo-scanner.ts's `findNestedProjectRoots` — a nested
+   * `.yggdrasil/` graph, or a nested `.git` checkout/submodule/worktree),
+   * computed once per run by the caller. A path under one of these is
+   * rejected exactly like an unmapped one, even if `allowedSet` textually
+   * covers it (a directory or glob mapping entry can cover a path it never
+   * intended to reach into a foreign project) — the same boundary
+   * `expandMappingPathsWithinOwnGraph` already draws for `ctx.files` /
+   * `ctx.node.files`. Defaults to empty (no boundary applied) so a fixture
+   * with nothing to say about nested projects is not forced to thread an
+   * unrelated concern through every call — every real runner call site
+   * computes and passes the actual set.
+   */
+  nestedProjectRoots?: ReadonlySet<string>;
 }
 
 export interface CtxFs {
@@ -82,21 +98,34 @@ function assertRealpathContained(abs: string, projectRoot: string, rel: string):
   }
 }
 
+/** No paths excluded — the default when a caller has nothing to say about nested projects. */
+const NO_NESTED_PROJECT_ROOTS: ReadonlySet<string> = new Set();
+
 /**
  * Resolve a check.mjs-supplied read path to a safe, allow-set-checked repo-relative path.
- * Rejects absolute paths and any `..` traversal that escapes the repo, then enforces the
- * allow-set, then re-checks the REAL (symlink-resolved) path is still inside the repo.
- * Throws UndeclaredFsReadError on any violation. Shared by ctx.fs and ctx.parsers so the
- * two allow-set surfaces cannot diverge. (This is a read-tracking discipline, not a
- * security sandbox — check.mjs runs with full Node privileges.)
+ * Rejects absolute paths and any `..` traversal that escapes the repo, rejects a path inside
+ * a separate project's own boundary (`nestedProjectRoots` — see CtxFsParams), then enforces
+ * the allow-set, then re-checks the REAL (symlink-resolved) path is still inside the repo.
+ * Throws UndeclaredFsReadError on any violation. Shared by ctx.fs, ctx.parsers AND companion
+ * resolution (core/companion-resolve.ts) so the three read-allowance surfaces cannot diverge:
+ * a directory or glob mapping entry can textually cover a path inside a nested project it
+ * never intended to reach, so the nested-boundary check runs BEFORE the allow-set check, not
+ * folded into it. (This is a read-tracking discipline, not a security sandbox — check.mjs
+ * runs with full Node privileges.)
  */
-export function resolveAllowedReadPath(raw: string, allowedSet: Set<string>, projectRoot: string): string {
+export function resolveAllowedReadPath(
+  raw: string,
+  allowedSet: Set<string>,
+  projectRoot: string,
+  nestedProjectRoots: ReadonlySet<string> = NO_NESTED_PROJECT_ROOTS,
+): string {
   const abs = path.resolve(projectRoot, normalizeMappingPath(raw));
   const rel = toPosix(path.relative(projectRoot, abs));
   // rel === '' (the repo root itself), starts with '..' (escapes repo), or is absolute → reject
   if (rel === '' || rel.startsWith('..') || path.isAbsolute(rel)) {
     throw new UndeclaredFsReadError(normalizeMappingPath(raw));
   }
+  if (isUnderAnyNestedProjectRoot(rel, nestedProjectRoots)) throw new UndeclaredFsReadError(rel);
   if (!isAllowed(rel, allowedSet)) throw new UndeclaredFsReadError(rel);
   // Symlink-escape defense: the textual path is in-repo and allow-listed, but a
   // symlink could still redirect the real read outside the repo. Reject if so.
@@ -105,10 +134,10 @@ export function resolveAllowedReadPath(raw: string, allowedSet: Set<string>, pro
 }
 
 export function createCtxFs(params: CtxFsParams): CtxFs {
-  const { allowedSet, projectRoot, touchedFiles, recorder, subjectFiles } = params;
+  const { allowedSet, projectRoot, touchedFiles, recorder, subjectFiles, nestedProjectRoots } = params;
 
   function assertAllowed(raw: string): string {
-    const p = resolveAllowedReadPath(raw, allowedSet, projectRoot);
+    const p = resolveAllowedReadPath(raw, allowedSet, projectRoot, nestedProjectRoots);
     touchedFiles.push(p);
     return p;
   }

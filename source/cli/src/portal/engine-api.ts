@@ -91,6 +91,7 @@ export async function walkPortalFiles(projectRoot: string): Promise<string[]> {
   return walkRepoFiles(projectRoot);
 }
 
+export { resetNestedProjectRootsCache } from '../io/repo-scanner.js'; // re-exported, not imported directly by the pipeline (single-seam)
 // ── Engine read-only entry points (severities, coverage, pairs, lock) ─────────
 
 /**

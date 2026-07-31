@@ -239,7 +239,7 @@ Controls which coverage-visible files must be mapped to a node.
 - \`excluded\` — roots that are silently ignored. Default: \`[]\`.
 - Roots accept the same forms as a node \`mapping:\` entry: an exact file, a directory prefix (e.g. \`src/\` covers everything beneath it), or a glob (\`*\` within a segment, \`**\` across) — so \`excluded: ["**/*.generated.ts"]\` drops generated files anywhere and \`required: ["services/*/api/**"]\` scopes the blocking tier to a pattern. \`/\` still means the whole repo.
 - Files that match neither a required nor an excluded root produce a non-blocking \`uncovered-advisory\` warning.
-- Subtrees containing their own nested \`.yggdrasil/\` are auto-skipped by all repo-walking checks (they are governed by their own graph).
+- A subtree that is its own separate project — carrying its own nested \`.yggdrasil/\` graph, or its own \`.git\` (a checkout, submodule, or linked worktree) — is auto-skipped everywhere a mapping is turned into files, for a directory OR glob mapping alike, regardless of \`.gitignore\`. A dependency directory (e.g. \`node_modules\`) is never skipped by name alone; exclude it explicitly via \`excluded\` if desired.
 - Exclusion is absolute: any excluded-root match drops a file before it is ever sorted into the blocking or advisory tier, independent of whether a more specific required root also matches it; \`yg check\` warns (\`coverage-required-shadowed\`) when a plain required root sits fully inside a plain excluded root.
 
 ## Quality thresholds

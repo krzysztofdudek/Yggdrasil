@@ -486,6 +486,50 @@ describe('checkFileMappingGitignored', () => {
       await rm(tmpDir, { recursive: true, force: true });
     }
   });
+
+  it('emits file-mapping-nested-project (not file-mapping-gitignored) for a mapped file inside a nested project — there is no .gitignore to blame', async () => {
+    // A file absent from walkRepoFiles has THREE possible causes: real
+    // .gitignore exclusion, the graph's own structural exclusions
+    // (isCoverageExcludedPath), or — this case — sitting inside a separate
+    // project's own boundary. Blaming .gitignore here would be factually
+    // wrong (none exists in this fixture) and would send an adopter to edit a
+    // file that does not exist.
+    const tmpDir = path.join(CLI_ROOT, '.temp-test-nested-project-mapping');
+    try {
+      const yggDir = path.join(tmpDir, '.yggdrasil');
+      await mkdir(path.join(yggDir, 'model', 'svc'), { recursive: true });
+      await mkdir(path.join(tmpDir, 'services', 'vendorlib', '.yggdrasil'), { recursive: true });
+      await writeFile(path.join(tmpDir, 'services', 'vendorlib', '.yggdrasil', 'yg-config.yaml'), 'version: "5.2.0"\n');
+      await writeFile(path.join(tmpDir, 'services', 'vendorlib', 'lib.py'), 'def lib(): return 1\n');
+      await writeFile(path.join(yggDir, 'yg-config.yaml'), 'version: "5.2.0"\n');
+      await writeFile(path.join(yggDir, 'yg-architecture.yaml'), [
+        'node_types:',
+        '  service:',
+        '    description: Service',
+        '    when:',
+        '      path: "**"',
+      ].join('\n'));
+      await writeFile(path.join(yggDir, 'model', 'svc', 'yg-node.yaml'), [
+        'name: svc',
+        'type: service',
+        'description: x',
+        'mapping:',
+        '  - services/vendorlib/lib.py',
+      ].join('\n'));
+      const graph = await loadGraph(tmpDir);
+      const result = await validate(graph);
+      expect(result.issues.find((i) => i.code === 'file-mapping-gitignored')).toBeUndefined();
+      const nested = result.issues.find((i) => i.code === 'file-mapping-nested-project');
+      expect(nested).toBeDefined();
+      expect(nested?.messageData?.what).toContain('services/vendorlib/lib.py');
+      // The real cause is named plainly; the OLD, factually wrong claim
+      // ("is excluded by .gitignore") must not appear anywhere in this issue.
+      expect(nested?.messageData?.what).not.toMatch(/excluded by \.gitignore/i);
+      expect(nested?.messageData?.next).not.toMatch(/\.gitignore/i);
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('checkStrictBackwardCoverage', () => {

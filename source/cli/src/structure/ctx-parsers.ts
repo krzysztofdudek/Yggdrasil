@@ -27,6 +27,13 @@ export interface CtxParsersParams {
    * Reads of these paths via parsers are NOT recorded as observations.
    */
   subjectFiles?: Set<string>;
+  /**
+   * Repo-relative POSIX paths of separate-project boundaries below the project
+   * root — see CtxFsParams.nestedProjectRoots (ctx-fs.ts) for the full contract.
+   * A string-path parse call resolving under one of these is rejected the same
+   * way ctx.fs.read is. Defaults to empty.
+   */
+  nestedProjectRoots?: ReadonlySet<string>;
 }
 
 export interface CtxParsers {
@@ -49,14 +56,14 @@ export class ParseAstNotPrewarmedError extends Error {
 }
 
 export function createCtxParsers(params: CtxParsersParams): CtxParsers {
-  const { allowedSet, projectRoot, touchedFiles, astCache, recorder, subjectFiles } = params;
+  const { allowedSet, projectRoot, touchedFiles, astCache, recorder, subjectFiles, nestedProjectRoots } = params;
 
   function asFile(input: File | string): File {
     if (typeof input !== 'string') {
       touchedFiles.push(input.path);
       return input;
     }
-    const p = resolveAllowedReadPath(input, allowedSet, projectRoot);
+    const p = resolveAllowedReadPath(input, allowedSet, projectRoot, nestedProjectRoots);
     const abs = path.resolve(projectRoot, p);
     let bytes: Buffer;
     try {
