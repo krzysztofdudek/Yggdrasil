@@ -303,17 +303,22 @@ describe('runAttentionDump — in-process calibration view (writes nothing)', ()
   });
 
   it('builds its own resolvePathToFile through the exclusion-guarded constructor, like every other resolver this run', () => {
-    // A resolver built with a raw, unguarded owner index can pick an EXCLUDED file as
-    // a Go/Java package's representative and silence an edge the package's other,
-    // non-excluded files still justify (relations/resolve-path.ts's own doc comment).
-    // runAttentionDump's calibration report happens not to expose that edge today,
-    // but the source itself must still route through the SAME guarded constructor
-    // every other caller that resolves a specifier fresh from source uses — reading
-    // the shipped source is what pins the actual production wiring, not a behavior
-    // this particular report happens not to surface.
+    // A resolver built with a raw, unguarded owner index can decide a Go/Java
+    // package's ownership over files an exclusion should have dropped from
+    // consideration first (relations/resolve-path.ts's own doc comment). This
+    // is a source-text pin, not a behavioral one, because runAttentionDump's
+    // own body (verified just above by reading the same file this checks)
+    // reads ONLY relResult.factsByPath / relResult.hashByPath — populated by
+    // the pass's file ENUMERATION, never relResult.violationsByNode, which is
+    // the only field resolvePathToFile's guardedness could ever change. No
+    // fixture can make the dump's OWN printed text differ between a guarded
+    // and an unguarded construction, so there is nothing to observe from the
+    // outside; reading the shipped source is what pins the actual production
+    // wiring instead.
     const checkSrc = readFileSync(path.join(__dirname, '..', '..', 'src', 'core', 'check.ts'), 'utf-8');
     const attnDumpSrc = checkSrc.slice(checkSrc.indexOf('export async function runAttentionDump'));
     expect(attnDumpSrc).not.toMatch(/resolvePathToFile:\s*makeResolvePathToFile\(/);
     expect(attnDumpSrc).toMatch(/resolvePathToFile:\s*await guardedResolve\(/);
+    expect(attnDumpSrc).not.toContain('violationsByNode');
   });
 });

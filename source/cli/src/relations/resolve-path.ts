@@ -17,23 +17,18 @@ import type { Graph } from '../model/graph.js';
  *  not-yet-implemented ones) return undefined here — they resolve via the SymbolTable.
  *
  *  `ownerOf` and `isExcluded`, when supplied, feed the Go/Java package resolvers below so
- *  they can pick a package directory's REPRESENTATIVE file. They play DIFFERENT roles and
- *  must never be conflated:
- *    - `ownerOf` MUST be the RAW, exclusion-BLIND owner index — it decides whether a
- *      package is genuinely split across two graph owners, and that decision has to see
- *      every file the owners actually map, excluded or not. Guarding it here would let
- *      excluding one member of a split package collapse the split into a false single
- *      owner and FABRICATE an edge the code does not have — the opposite failure from the
- *      one this module exists to prevent.
- *    - `isExcluded`, when supplied, is consulted ONLY to skip an excluded file when
- *      picking which of an already-resolved sole owner's files represents the package.
- *  A caller resolving a specifier fresh from source — the specifier can name any file on
- *  disk, excluded or not — must build this through {@link guardedResolve} instead of
- *  calling this directly with a raw `ownerOf` and no `isExcluded`: without `isExcluded`,
- *  the chosen representative can be an EXCLUDED file, and the resolver's own downstream
- *  `ownerIndex.ownerOf` step then answers "no owner" for it, silencing the whole edge —
- *  including the part of it justified by the package's other, non-excluded, fully
- *  enforced files. */
+ *  they can pick a package directory's REPRESENTATIVE file. `isExcluded` drops an excluded
+ *  file from the package's candidate list BEFORE `ownerOf` is ever asked about it — the
+ *  package's split-or-single-owner status is decided from what remains, not from every file
+ *  the directory happens to hold. This is what keeps an exclusion honest about every OTHER
+ *  file in the package: excluding one file can only remove that file's own contribution to
+ *  the decision — it can never fabricate an owner a surviving file never had, and it can
+ *  never bury a real dependency reached through a file that is still there. A caller
+ *  resolving a specifier fresh from source — the specifier can name any file on disk,
+ *  excluded or not — must build this through {@link guardedResolve} instead of calling this
+ *  directly with `ownerOf` and no `isExcluded`: without `isExcluded`, an excluded file still
+ *  counts toward the owner-set decision, which can silence a real cross-node dependency
+ *  reached through the package's other, non-excluded, fully enforced files. */
 export function makeResolvePathToFile(
   projectRoot: string,
   ownerOf?: (repoRelPosix: string) => string | undefined,
@@ -56,28 +51,30 @@ export function makeResolvePathToFile(
     }
     if (language === 'java') {
       if (isPackage) {
-        // Wildcard package import: collect RAW owners (exclusion-blind — see this
-        // function's own doc comment above for why) of ALL .java in the resolved
-        // package dir. Exactly one distinct owner → attribute a NON-EXCLUDED file
-        // that owner maps, falling back to its first file only when every one of
-        // its files is excluded (the downstream guarded owner lookup then silences
-        // it honestly, same as a wholly-excluded package); zero or 2+ distinct
-        // owners → silence (never guess across a split, and never let an exclusion
-        // turn a real split into a false single owner).
+        // Wildcard package import: drop any excluded file from the resolved
+        // package dir's file list FIRST, then decide ownership from what
+        // remains — the same drop-then-decide rule go-resolve.ts's own
+        // owner-set guard applies (see makeGoResolveDeps's isExcluded doc
+        // comment for the full reasoning). Exactly one distinct owner among
+        // what remains → attribute one of its (non-excluded, by construction)
+        // files; 2+ distinct owners among what remains → still split →
+        // silence; nothing remains (every file excluded) → no owner decided
+        // here, undefined (the same silence a wholly-unmapped package gets).
         const files = resolveJavaPackageFiles(specifier, fromFile, javaDeps);
+        const remaining = files.filter((f) => !(isExcluded?.(f) ?? false));
         let sole: string | undefined;
-        for (const f of files) {
+        for (const f of remaining) {
           const owner = ownerOf?.(f);
           if (owner === undefined) continue; // unmapped file is not part of the owner set
           if (sole === undefined) {
             sole = owner;
           } else if (owner !== sole) {
-            return undefined; // 2+ distinct owners → split package → silence
+            return undefined; // 2+ distinct owners among what remains → split package → silence
           }
         }
         if (sole === undefined) return undefined;
-        const soleOwned = files.filter((f) => ownerOf?.(f) === sole);
-        return soleOwned.find((f) => !(isExcluded?.(f) ?? false)) ?? soleOwned[0];
+        const soleOwned = remaining.filter((f) => ownerOf?.(f) === sole);
+        return soleOwned[0];
       }
       return resolveJavaFqn(specifier, fromFile, javaDeps);
     }
@@ -115,12 +112,11 @@ export function makeResolvePathToFile(
  * exclusion awareness. `yg find` never resolves an import specifier at all (it searches
  * graph documents, not code edges), so it is not among these callers.
  *
- * Passes the owner index in its two distinct roles `makeResolvePathToFile`'s own doc
- * comment describes: the RAW (exclusion-blind) index for split-package detection, and a
- * same-set `isExcluded` predicate for representative-file picking — never the same
- * guarded index for both, which would let an exclusion collapse a genuinely split
- * package into a false single owner and fabricate an edge instead of merely silencing
- * one.
+ * Passes the owner index together with a same-set `isExcluded` predicate, exactly as
+ * `makeResolvePathToFile`'s own doc comment describes: `isExcluded` drops an excluded
+ * file from a package's candidate list before the owner index is ever asked about it,
+ * so the split-or-single-owner decision is made from what remains — an exclusion can
+ * remove its own file from consideration, never rewrite what is true of any other file.
  */
 export async function guardedResolve(
   projectRoot: string,
@@ -128,9 +124,9 @@ export async function guardedResolve(
 ): Promise<(specifier: string, fromFile: string, language: string, isPackage?: boolean) => string | undefined> {
   const coverage = graph.config.coverage ?? NO_COVERAGE_EXCLUDED;
   const exclusion = await resolveGraphExclusionSet(projectRoot, coverage);
-  const rawOwnerOf = buildOwnerIndex(graph.nodes).ownerOf;
+  const ownerOf = buildOwnerIndex(graph.nodes).ownerOf;
   const isExcluded = (repoRelPosix: string): boolean => isExcludedFromGraph(repoRelPosix, exclusion);
-  return makeResolvePathToFile(projectRoot, rawOwnerOf, isExcluded);
+  return makeResolvePathToFile(projectRoot, ownerOf, isExcluded);
 }
 
 /**

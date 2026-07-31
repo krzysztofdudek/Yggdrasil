@@ -469,6 +469,20 @@ export function describeExclusionSource(relPath: string, exclusion: GraphExclusi
 }
 
 /**
+ * Render an {@link ExclusionSource} as the clause a "why" sentence completes
+ * with — "...because <this>." Shared wording for every message that names
+ * WHICH of the two sources excluded a path (`yg type-suggest --file`'s own
+ * phrasing, mirrored here) instead of each call site inventing its own, so an
+ * agent reads the same fact in the same words regardless of which surface
+ * reported it.
+ */
+export function describeExclusionCause(source: ExclusionSource): string {
+  return source === 'nested-project'
+    ? "it sits inside a separate project's own boundary (a nested .yggdrasil/ graph, or its own .git — a checkout, submodule, or worktree)"
+    : 'it matches a coverage.excluded root in yg-config.yaml';
+}
+
+/**
  * Count of coverage-visible files a node mapping textually names — any entry
  * kind, directory, glob, or exact — but the graph's exclusion filter removes
  * from enforcement anyway. `scanUncoveredFiles` (core/check.ts) decides

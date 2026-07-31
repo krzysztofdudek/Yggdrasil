@@ -1,4 +1,5 @@
 import { UndeclaredFsReadError } from './ctx-fs.js';
+import { describeExclusionCause } from '../io/repo-scanner.js';
 import { UndeclaredGraphReadError, StructureNodeContextUnavailableError } from './ctx-graph.js';
 import { ParseAstNotPrewarmedError } from './ctx-parsers.js';
 import { normalizeMappingPath } from './expand-mapping-sync.js';
@@ -96,6 +97,20 @@ export async function runStructureAspect(
     raw = checkFn(ctx);
   } catch (err) {
     if (err instanceof UndeclaredFsReadError) {
+      // An excluded path (err.exclusionSource set) is a DIFFERENT fact from an
+      // undeclared one: no relation, mapping, or architecture change can ever
+      // make it readable — it is gone from graph coverage regardless of what
+      // the graph says. Report that fact directly, the same wording every
+      // other exclusion message in the graph uses, instead of falling into
+      // the relation/widen advice below, which would send an agent looping on
+      // a fix that cannot work.
+      if (err.exclusionSource !== null) {
+        throw new StructureRunnerError('STRUCTURE_UNDECLARED_FS_READ', {
+          what: `Aspect tried to read '${err.path}', which is excluded from graph coverage by design.`,
+          why: `No relation, mapping, or architecture change can make this path readable — it is never matched against any node or type because ${describeExclusionCause(err.exclusionSource)}.`,
+          next: `Remove the read of '${err.path}' from check.mjs, or read only a non-excluded, relation-reachable file.`,
+        });
+      }
       // An undeclared read is never a bug IN check.mjs — the remedy is always
       // an architecture or graph change (widen a relation, or give the file/
       // node a component of its own), never a code fix. Throw a structured

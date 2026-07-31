@@ -7,10 +7,10 @@ description: "Fixture-driven integration tests for the live type-to-type relatio
   at all, an edge into a deliberately ambiguous file that must never be gated,
   the flag-off no-op, the read-cost invariant (a type-covered-only file is
   never parsed at flag-off, and a nested graph subtree is excluded from the
-  gate's enumeration even at flag-on), and direct tests of the runRelationPass
-  typedEdges field plus the buildTypedEdgeIndex convenience wrapper against the
-  same fixture (assembling the same deps core/check.ts's earlyTypeCoverage
-  wiring does: computeTypeCoverage over scanUncoveredFiles's output)."
+  gate's enumeration even at flag-on), and a direct test of the runRelationPass
+  typedEdges field against the same fixture (assembling the same deps
+  core/check.ts's earlyTypeCoverage wiring does: computeTypeCoverage over
+  scanUncoveredFiles's output)."
 aspects: []
 relations:
   [

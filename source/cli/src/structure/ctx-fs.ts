@@ -3,8 +3,7 @@ import * as path from 'node:path';
 import type { FsEntry } from './types.js';
 import { normalizeMappingPath, mappingEntryMatchesFile } from '../utils/mapping-path.js';
 import { toPosix } from '../utils/posix.js';
-import { isUnderAnyNestedProjectRoot } from '../io/repo-scanner.js';
-import { isExcludedByCoverage } from '../utils/coverage-exclusion.js';
+import { describeExclusionSource, type ExclusionSource } from '../io/repo-scanner.js';
 import type { CoverageConfig } from '../model/graph.js';
 import type { ObservationRecorder } from './observations.js';
 
@@ -60,7 +59,25 @@ export interface CtxFs {
 }
 
 export class UndeclaredFsReadError extends Error {
-  constructor(public readonly path: string) {
+  constructor(
+    public readonly path: string,
+    /**
+     * Which of the two exclusion sources caused this rejection
+     * ({@link describeExclusionSource}: `'nested-project'` or `'coverage-excluded'`),
+     * or `null` when the read was rejected for a reason exclusion has nothing to do
+     * with — a repo-escaping path, or a path simply outside the allow-set. A caller
+     * that renders this error for an agent must check this FIRST: a non-null value
+     * means no relation or mapping change can ever satisfy the read (the path is
+     * gone from graph coverage regardless of what the graph says), so the message
+     * must say "excluded from graph coverage by design" instead of prescribing a
+     * relation to declare — the same distinction every other exclusion message in
+     * the graph already draws. Determined once, at the throw site, so `ctx.fs`,
+     * `ctx.parsers`, and companion resolution — the three consumers of this error —
+     * render the same fact instead of each re-deriving (or forgetting to re-derive)
+     * it independently.
+     */
+    public readonly exclusionSource: ExclusionSource | null = null,
+  ) {
     super(`structure-aspect-undeclared-fs-read: ${path}`);
     this.name = 'UndeclaredFsReadError';
   }
@@ -124,8 +141,9 @@ function assertRealpathContained(
   if (relReal === '..' || relReal.startsWith('../') || path.isAbsolute(relReal)) {
     throw new UndeclaredFsReadError(rel);
   }
-  if (isUnderAnyNestedProjectRoot(relReal, nestedProjectRoots) || isExcludedByCoverage(relReal, coverage)) {
-    throw new UndeclaredFsReadError(rel);
+  const exclusionSource = describeExclusionSource(relReal, { nestedRoots: nestedProjectRoots, coverage });
+  if (exclusionSource !== null) {
+    throw new UndeclaredFsReadError(rel, exclusionSource);
   }
 }
 
@@ -160,8 +178,9 @@ export function resolveAllowedReadPath(
   if (rel === '' || rel.startsWith('..') || path.isAbsolute(rel)) {
     throw new UndeclaredFsReadError(normalizeMappingPath(raw));
   }
-  if (isUnderAnyNestedProjectRoot(rel, nestedProjectRoots) || isExcludedByCoverage(rel, coverage)) {
-    throw new UndeclaredFsReadError(rel);
+  const exclusionSource = describeExclusionSource(rel, { nestedRoots: nestedProjectRoots, coverage });
+  if (exclusionSource !== null) {
+    throw new UndeclaredFsReadError(rel, exclusionSource);
   }
   if (!isAllowed(rel, allowedSet)) throw new UndeclaredFsReadError(rel);
   // Symlink-escape defense: the textual path is in-repo and allow-listed, but a

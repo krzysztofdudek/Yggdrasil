@@ -1007,9 +1007,15 @@ describe('gatherChurnByNode — owner resolution is isolated from the git try/ca
   it("resolves the owner index BEFORE the git subprocess try block, so a filesystem-walk failure is never misattributed to \"no readable git history\"", () => {
     // ownerOfForGraph does a real filesystem walk (resolveGraphExclusionSet), unrelated
     // to git; if it were awaited INSIDE the git try block, a failure there would be
-    // caught by the git-specific catch and debug-logged with the wrong cause. Reading
-    // the shipped source pins the actual ordering, since the two outcomes (silent,
-    // undefined) are otherwise indistinguishable from the outside.
+    // caught by the git-specific catch and debug-logged with the wrong cause. This is
+    // a source-position pin, not a behavioral one, because ownerOfForGraph's only
+    // fallible step — resolveGraphExclusionSet's findNestedProjectRoots walk
+    // (io/repo-scanner.ts's walkForNestedProjectRoots) — catches every readdir fault
+    // itself and never rethrows (confirmed by reading it, and by a real chmod-000
+    // subdirectory under a project root, which the walk silently skipped rather than
+    // propagating). There is no real filesystem condition under which
+    // gatherChurnByNode's own try/catch split could be told apart by observing which
+    // debug line fires, so the ordering itself is the only thing left to check.
     const src = readFileSync(path.join(CLI_ROOT, 'src', 'cli', 'advise.ts'), 'utf-8');
     const fnSrc = src.slice(
       src.indexOf('async function gatherChurnByNode'),

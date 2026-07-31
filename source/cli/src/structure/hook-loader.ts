@@ -11,7 +11,7 @@ import { createCtxParsers, prewarmupAstCache, enrichFilesWithAst, ParseAstNotPre
 import { collectAllowedReadsForAspect } from './allowed-reads.js';
 import { normalizeMappingPath, isPathInMapping } from './expand-mapping-sync.js';
 import { expandMappingPathsWithinOwnGraph } from '../io/hash.js';
-import { findNestedProjectRoots, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
+import { findNestedProjectRoots, NO_COVERAGE_EXCLUDED, describeExclusionCause } from '../io/repo-scanner.js';
 import type { Graph, GraphNode as ModelNode, CoverageConfig } from '../model/graph.js';
 import type { Ctx, CompanionDescriptor, File, Port } from './types.js';
 import type { ParseCache } from '../ast/parse-cache.js';
@@ -621,6 +621,18 @@ export async function runCompanionHook(params: RunCompanionHookParams): Promise<
         `companion.mjs for aspect '${aspectId}' on '${target}' accessed ctx.${err.member}: this paired-file rule needs a component to work.`,
         `The file is enforced by its architecture type alone — there is no owning component, so there is no yg-node.yaml to back ctx.node or ctx.graph.`,
         `Give the file a component of its own (a yg-node.yaml mapping it) so ctx.node/ctx.graph become available, or rewrite the companion to use only ctx.subject/ctx.fs over files the architecture already permits this file's type to reach.`,
+      );
+    }
+    // An excluded path (err.exclusionSource set) is a DIFFERENT fact from an
+    // undeclared one: no relation can ever make it readable, since it is gone
+    // from graph coverage regardless of what the graph says. Report that
+    // directly, before the generic "declare a relation" advice below, which
+    // would send an agent looping on a fix that cannot work.
+    if (err instanceof UndeclaredFsReadError && err.exclusionSource !== null) {
+      return companionInfra(
+        `companion.mjs for aspect '${aspectId}' read '${err.path}', which is excluded from graph coverage by design.`,
+        `A companion resolves the prompt only — it cannot judge code, and no relation can make an excluded path readable: it is never matched against any node or type because ${describeExclusionCause(err.exclusionSource)}.`,
+        `Read only a non-excluded, relation-reachable file in companion.mjs.`,
       );
     }
     if (

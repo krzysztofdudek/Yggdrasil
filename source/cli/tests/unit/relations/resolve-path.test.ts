@@ -91,6 +91,7 @@ describe('makeResolvePathToFile — per-language dispatch (disk-backed)', () => 
     // javaFilesIn (the directory entry that is skipped).
     w('com/foo/Bar.java', 'package com.foo;\n');
     w('com/foo/App.java', 'package com.foo;\n');
+    w('com/foo/Baz.java', 'package com.foo;\n');
     w('com/foo/README.md', '# not java\n');
 
     // RUST: a crate named "my-crate" (hyphen → underscore identifier rule). A
@@ -194,17 +195,56 @@ describe('makeResolvePathToFile — per-language dispatch (disk-backed)', () => 
     expect(resolve('com.foo', 'src/Main.java', 'java', true)).toBeUndefined();
   });
 
-  it('an exclusion never collapses a split Java wildcard package into a false single owner', () => {
+  it('excluding one file of a split Java wildcard package attributes the import to whichever owner is left', () => {
     // Same split as above (App.java → node-a, Bar.java → node-b), but App.java is
-    // now ALSO excluded. ownerOf is the RAW, exclusion-blind index by contract, so
-    // the split must still be seen — the import stays silent, never attributed to
-    // node-b alone just because node-a's file happens to be excluded.
+    // now excluded. Dropping it BEFORE deciding ownership means only Bar.java is
+    // left — owned solely by node-b — so the import now attributes to node-b: the
+    // exclusion removed App.java from consideration and nothing else.
     const ownerOf = (f: string): string | undefined => {
       if (f === 'com/foo/App.java') return 'node-a';
       if (f === 'com/foo/Bar.java') return 'node-b';
       return undefined;
     };
     const isExcluded = (f: string): boolean => f === 'com/foo/App.java';
+    const resolve = makeResolvePathToFile(root, ownerOf, isExcluded);
+    expect(resolve('com.foo', 'src/Main.java', 'java', true)).toBe('com/foo/Bar.java');
+  });
+
+  it('excluding the OTHER file of the same split package attributes it to the other owner', () => {
+    // Mirror of the case above: Bar.java (node-b) excluded this time, leaving
+    // App.java (node-a) as the sole remaining owner.
+    const ownerOf = (f: string): string | undefined => {
+      if (f === 'com/foo/App.java') return 'node-a';
+      if (f === 'com/foo/Bar.java') return 'node-b';
+      return undefined;
+    };
+    const isExcluded = (f: string): boolean => f === 'com/foo/Bar.java';
+    const resolve = makeResolvePathToFile(root, ownerOf, isExcluded);
+    expect(resolve('com.foo', 'src/Main.java', 'java', true)).toBe('com/foo/App.java');
+  });
+
+  it('a Java wildcard package split across THREE owners still silences the import after excluding one member', () => {
+    // com/foo now has three files, each owned by a different node. Excluding one
+    // still leaves two distinct owners among what remains — genuinely still
+    // split, so the import stays silent rather than collapsing to a survivor.
+    const ownerOf = (f: string): string | undefined => {
+      if (f === 'com/foo/App.java') return 'node-a';
+      if (f === 'com/foo/Bar.java') return 'node-b';
+      if (f === 'com/foo/Baz.java') return 'node-c';
+      return undefined;
+    };
+    const isExcluded = (f: string): boolean => f === 'com/foo/App.java';
+    const resolve = makeResolvePathToFile(root, ownerOf, isExcluded);
+    expect(resolve('com.foo', 'src/Main.java', 'java', true)).toBeUndefined();
+  });
+
+  it('a Java wildcard package where EVERY file is excluded resolves to no owner', () => {
+    // Both of com/foo's files belong to node 'foo', but both are excluded —
+    // nothing remains to decide ownership from, so the import stays silent
+    // (the same silence a wholly-unmapped package gets).
+    const ownerOf = (f: string): string | undefined =>
+      f.startsWith('com/foo/') && f.endsWith('.java') ? 'foo' : undefined;
+    const isExcluded = (f: string): boolean => f.startsWith('com/foo/') && f.endsWith('.java');
     const resolve = makeResolvePathToFile(root, ownerOf, isExcluded);
     expect(resolve('com.foo', 'src/Main.java', 'java', true)).toBeUndefined();
   });

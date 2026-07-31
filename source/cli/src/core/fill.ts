@@ -572,6 +572,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
     const prunePreview = await garbageCollectAndRewrite(graph, previewLock, async () => {}, {
       typeCoverage: typeCoverageInput,
       detAspectIdsOnDisk,
+      scope: onlyDeterministic ? 'deterministic' : 'all',
     });
     writePruneSummary(prunePreview, write);
     const checkResult = await runCheck(graph, opts.coverageVisibleFiles, {
@@ -1000,6 +1001,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   const pruneSummary = await garbageCollectAndRewrite(graph, lock, persistLock, {
     typeCoverage: typeCoverageInput,
     detAspectIdsOnDisk,
+    scope: onlyDeterministic ? 'deterministic' : 'all',
   });
 
   // ── Step 9: Summaries + re-run the read. ──────────────────────────────────

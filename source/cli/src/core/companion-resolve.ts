@@ -28,8 +28,8 @@ import { runCompanionHook, type RunCompanionHookResult } from '../structure/hook
 import type { StructureUnit } from '../structure/hook-loader.js';
 import { toPosix, toPosixPath } from '../utils/posix.js';
 import { collectAllowedReadsForAspect, collectArchitectureReach } from '../structure/allowed-reads.js';
-import { resolveAllowedReadPath } from '../structure/ctx-fs.js';
-import { findNestedProjectRoots, isExcludedFromGraph, NO_COVERAGE_EXCLUDED, type GraphExclusionSet } from '../io/repo-scanner.js';
+import { resolveAllowedReadPath, UndeclaredFsReadError } from '../structure/ctx-fs.js';
+import { findNestedProjectRoots, NO_COVERAGE_EXCLUDED, describeExclusionCause, type ExclusionSource } from '../io/repo-scanner.js';
 import { readFileBytes } from '../io/graph-fs.js';
 import { buildOwnerIndex } from '../relations/owner-index.js';
 import { observationKey, hashReadObservation } from './pair-hash.js';
@@ -99,7 +99,7 @@ export function companionOutsideAllowedReads(
   pair: Pick<ExpectedPair, 'nodePath' | 'unitKey'>,
   aspect: AspectDef,
   rel: string,
-  exclusion: GraphExclusionSet,
+  exclusionSource: ExclusionSource | null,
   typeId?: string,
 ): { why: string; messageData: IssueMessage } {
   // A companion.mjs hook can return ANY path on disk, including one this graph
@@ -110,10 +110,14 @@ export function companionOutsideAllowedReads(
   // context --file`) instead of an owner-lookup NEXT that names a relation to
   // declare: no relation can ever satisfy this, since the path is gone from
   // graph coverage regardless of what any node's mapping or relations say.
-  if (isExcludedFromGraph(rel, exclusion)) {
+  // `exclusionSource` names WHICH of the two independent sources applies
+  // (resolveAllowedReadPath already worked this out at the throw site — see
+  // UndeclaredFsReadError's own doc comment), the same distinction every
+  // other exclusion message in the graph draws, instead of a disjunction the
+  // reader has to check both halves of.
+  if (exclusionSource !== null) {
     const what = `Companion file '${rel}' for aspect '${aspect.id}' on ${toPosixPath(pair.unitKey)} is excluded from graph coverage by design.`;
-    const why =
-      "This path sits inside a separate project's own boundary (a nested .yggdrasil/ graph, or its own .git — a checkout, submodule, or worktree), or matches a coverage.excluded root, so no node or architecture type is ever permitted to depend on it — the reviewer may only see files the graph counts as covered, so an excluded companion is an infrastructure fault and the fill fails closed (NOTHING written).";
+    const why = `No node or architecture type is ever permitted to depend on this path because ${describeExclusionCause(exclusionSource)} — the reviewer may only see files the graph counts as covered, so an excluded companion is an infrastructure fault and the fill fails closed (NOTHING written).`;
     const next = `Fix companion.mjs to return only non-excluded, relation-reachable paths.`;
     return { why: `companion '${rel}' is excluded from graph coverage by design`, messageData: { what, why, next } };
   }
@@ -192,7 +196,6 @@ export async function resolveCompanionDescriptors(
   // textually covers it.
   const nestedProjectRoots = await findNestedProjectRoots(projectRoot);
   const coverage = graph.config.coverage ?? NO_COVERAGE_EXCLUDED;
-  const exclusion: GraphExclusionSet = { nestedRoots: nestedProjectRoots, coverage };
   const subjectSet = new Set(pair.subjectFiles.map((p) => toPosix(p)));
   const normalizedSet = new Set<string>();
   for (const d of descriptors) {
@@ -230,8 +233,13 @@ export async function resolveCompanionDescriptors(
     // failure → infra with a relation-source/target NEXT.
     try {
       resolveAllowedReadPath(rel, allowedSet, projectRoot, nestedProjectRoots, coverage);
-    } catch {
-      return { kind: 'infra', ...companionOutsideAllowedReads(graph, pair, aspect, rel, exclusion, nodelessAllowance?.typeId) };
+    } catch (err) {
+      // resolveAllowedReadPath already worked out WHY at the throw site — read
+      // it off the caught error instead of re-deriving it here, so this
+      // caller can never drift from the other two consumers of the same throw
+      // (structure/runner.ts, structure/hook-loader.ts).
+      const exclusionSource = err instanceof UndeclaredFsReadError ? err.exclusionSource : null;
+      return { kind: 'infra', ...companionOutsideAllowedReads(graph, pair, aspect, rel, exclusionSource, nodelessAllowance?.typeId) };
     }
     const bytes = await readFileBytes(path.resolve(projectRoot, rel));
     if (bytes === null) {

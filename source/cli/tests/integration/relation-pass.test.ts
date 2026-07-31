@@ -916,18 +916,17 @@ describe("runRelationPass — an excluded file must never become a Go package's 
 });
 
 // ---------------------------------------------------------------------------
-// A Go package split across TWO nodes (each mapping one exact file) already
-// silences an import into it — no single owner can stand for both without
-// fabricating or hiding a cross-node edge (relations/extractors/go-resolve.ts).
-// Excluding ONE of the split package's two files must never change that: the
-// split is a fact about the package's real owners, independent of which of
-// their files an adopter later excludes. The opposite outcome — an exclusion
-// making the resolver see only ONE owner and attribute the whole package's
-// import to it — would fabricate an edge the importing code may not even use,
-// the mirror-image failure of the guard this suite's own "owner representative"
-// block above pins.
+// A Go package split across TWO nodes (each mapping one exact file) silences
+// an import into it when nothing is excluded — no single owner can stand for
+// both without fabricating or hiding a cross-node edge
+// (relations/extractors/go-resolve.ts). Excluding ONE of the split package's
+// two files removes that file from consideration and nothing else: the owner
+// decision is then made over what remains, which is a single file with a
+// single owner, so the import attributes to that owner. This is the same
+// drop-then-decide rule the "owner representative" block above pins for a
+// single-owner package, applied to a package that starts out genuinely split.
 // ---------------------------------------------------------------------------
-describe('runRelationPass — an exclusion must never turn a split Go package into a fabricated single-owner edge', () => {
+describe('runRelationPass — excluding one file of a split Go package attributes the import to whichever owner is left', () => {
   let root: string;
 
   beforeEach(() => {
@@ -964,7 +963,7 @@ describe('runRelationPass — an exclusion must never turn a split Go package in
     rmSync(root, { recursive: true, force: true });
   });
 
-  it('control: with no exclusion, the split package silences the import for BOTH candidate owners (neither a1 nor a2 is fabricated)', async () => {
+  it('control: with no exclusion, the split package silences the import for BOTH candidate owners', async () => {
     writeFileSync(
       path.join(root, '.yggdrasil', 'yg-config.yaml'),
       `quality:\n  max_direct_relations: 10\n`,
@@ -982,7 +981,7 @@ describe('runRelationPass — an exclusion must never turn a split Go package in
     expect(flagged).toBe(false);
   });
 
-  it('excluding the FIRST-sorting member (a1\'s file) does not fabricate an edge to a2', async () => {
+  it('excluding the FIRST-sorting member (a1\'s file) attributes the import to a2, the owner that remains', async () => {
     writeFileSync(
       path.join(root, '.yggdrasil', 'yg-config.yaml'),
       `quality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - pkg/a/aaa_gen.go\n`,
@@ -996,11 +995,13 @@ describe('runRelationPass — an exclusion must never turn a split Go package in
     });
 
     const b = result.violationsByNode.get('b');
-    const flagged = b?.violations.some((v) => v.ownerNode === 'a1' || v.ownerNode === 'a2') ?? false;
-    expect(flagged).toBe(false);
+    expect(b).toBeDefined();
+    expect(b!.verdict).toBe('refused');
+    expect(b!.violations.some((v) => v.ownerNode === 'a2')).toBe(true);
+    expect(b!.violations.some((v) => v.ownerNode === 'a1')).toBe(false);
   });
 
-  it('excluding the LAST-sorting member (a2\'s file, the one that actually defines Kept()) does not fabricate an edge to a1', async () => {
+  it('excluding the LAST-sorting member (a2\'s file, the one that actually defines Kept()) attributes the import to a1, the owner that remains', async () => {
     writeFileSync(
       path.join(root, '.yggdrasil', 'yg-config.yaml'),
       `quality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - pkg/a/zzz_kept.go\n`,
@@ -1014,7 +1015,149 @@ describe('runRelationPass — an exclusion must never turn a split Go package in
     });
 
     const b = result.violationsByNode.get('b');
-    const flagged = b?.violations.some((v) => v.ownerNode === 'a1' || v.ownerNode === 'a2') ?? false;
+    expect(b).toBeDefined();
+    expect(b!.verdict).toBe('refused');
+    expect(b!.violations.some((v) => v.ownerNode === 'a1')).toBe(true);
+    expect(b!.violations.some((v) => v.ownerNode === 'a2')).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A package split across THREE nodes stays split — and silent — even after
+// one member is excluded: two distinct owners are still left among the
+// non-excluded files, so there is still no single owner to attribute the
+// import to.
+// ---------------------------------------------------------------------------
+describe('runRelationPass — a three-way split Go package stays silent after excluding one member', () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = mkdtempSync(path.join(tmpdir(), 'rel-pass-pkg-split3-'));
+    mkdirSync(path.join(root, '.yggdrasil', 'model'), { recursive: true });
+    writeFileSync(
+      path.join(root, '.yggdrasil', 'yg-architecture.yaml'),
+      `node_types:\n  service:\n    description: 'unit'\n    log_required: false\n    when:\n      path: "**"\n`,
+      'utf-8',
+    );
+    writeNode(root, 'a1', 'A1', 'pkg/a/aaa.go');
+    writeNode(root, 'a2', 'A2', 'pkg/a/mmm.go');
+    writeNode(root, 'a3', 'A3', 'pkg/a/zzz.go');
+    writeNode(root, 'b', 'B', 'pkg/b');
+
+    writeFileSync(path.join(root, 'go.mod'), 'module example.com/m\n\ngo 1.22\n', 'utf-8');
+    mkdirSync(path.join(root, 'pkg', 'a'), { recursive: true });
+    mkdirSync(path.join(root, 'pkg', 'b'), { recursive: true });
+    writeFileSync(path.join(root, 'pkg', 'a', 'aaa.go'), 'package a\n\nfunc Aaa() int { return 0 }\n', 'utf-8');
+    writeFileSync(path.join(root, 'pkg', 'a', 'mmm.go'), 'package a\n\nfunc Mmm() int { return 1 }\n', 'utf-8');
+    writeFileSync(path.join(root, 'pkg', 'a', 'zzz.go'), 'package a\n\nfunc Zzz() int { return 2 }\n', 'utf-8');
+    writeFileSync(
+      path.join(root, 'pkg', 'b', 'b.go'),
+      'package b\n\nimport "example.com/m/pkg/a"\n\nfunc Use() int { return a.Mmm() }\n',
+      'utf-8',
+    );
+    writeFileSync(
+      path.join(root, '.yggdrasil', 'yg-config.yaml'),
+      `quality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - pkg/a/aaa.go\n`,
+      'utf-8',
+    );
+  });
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('excluding a1\'s file leaves a2 and a3 as two distinct owners — still split, still silent', async () => {
+    const graph = await loadGraph(root);
+    const result = await runRelationPass(graph, root, {
+      extractorFor: extractorForLanguage,
+      resolvePathToFile: await guardedResolve(root, graph),
+      symbolIndexDir: path.join(root, '.yg-cache-pkg-split3'),
+    });
+
+    const b = result.violationsByNode.get('b');
+    const flagged = b?.violations.some((v) => v.ownerNode === 'a1' || v.ownerNode === 'a2' || v.ownerNode === 'a3') ?? false;
     expect(flagged).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A single-file Go package: the ordinary case (reported), that one file
+// excluded (silent — the whole target is gone), and an UNRELATED file
+// excluded elsewhere in the repo (still reported — exclusion does not
+// silence generally).
+// ---------------------------------------------------------------------------
+describe('runRelationPass — a single-file Go package', () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = mkdtempSync(path.join(tmpdir(), 'rel-pass-pkg-single-'));
+    mkdirSync(path.join(root, '.yggdrasil', 'model'), { recursive: true });
+    writeFileSync(
+      path.join(root, '.yggdrasil', 'yg-architecture.yaml'),
+      `node_types:\n  service:\n    description: 'unit'\n    log_required: false\n    when:\n      path: "**"\n`,
+      'utf-8',
+    );
+    writeNode(root, 'a', 'A', 'pkg/a');
+    writeNode(root, 'b', 'B', 'pkg/b');
+    writeFileSync(path.join(root, 'go.mod'), 'module example.com/m\n\ngo 1.22\n', 'utf-8');
+    mkdirSync(path.join(root, 'pkg', 'a'), { recursive: true });
+    mkdirSync(path.join(root, 'pkg', 'b'), { recursive: true });
+    writeFileSync(path.join(root, 'pkg', 'a', 'only.go'), 'package a\n\nfunc Only() int { return 0 }\n', 'utf-8');
+    writeFileSync(
+      path.join(root, 'pkg', 'b', 'b.go'),
+      'package b\n\nimport "example.com/m/pkg/a"\n\nfunc Use() int { return a.Only() }\n',
+      'utf-8',
+    );
+  });
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('control: reported when nothing is excluded', async () => {
+    writeFileSync(path.join(root, '.yggdrasil', 'yg-config.yaml'), `quality:\n  max_direct_relations: 10\n`, 'utf-8');
+    const graph = await loadGraph(root);
+    const result = await runRelationPass(graph, root, {
+      extractorFor: extractorForLanguage,
+      resolvePathToFile: await guardedResolve(root, graph),
+      symbolIndexDir: path.join(root, '.yg-cache-pkg-single-none'),
+    });
+    const b = result.violationsByNode.get('b');
+    expect(b?.verdict).toBe('refused');
+    expect(b!.violations.some((v) => v.ownerNode === 'a')).toBe(true);
+  });
+
+  it('the package\'s only file excluded: silent — the whole target is gone', async () => {
+    writeFileSync(
+      path.join(root, '.yggdrasil', 'yg-config.yaml'),
+      `quality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - pkg/a/only.go\n`,
+      'utf-8',
+    );
+    const graph = await loadGraph(root);
+    const result = await runRelationPass(graph, root, {
+      extractorFor: extractorForLanguage,
+      resolvePathToFile: await guardedResolve(root, graph),
+      symbolIndexDir: path.join(root, '.yg-cache-pkg-single-excl'),
+    });
+    const b = result.violationsByNode.get('b');
+    expect(b?.violations.some((v) => v.ownerNode === 'a') ?? false).toBe(false);
+  });
+
+  it('an UNRELATED file excluded elsewhere: still reported — exclusion does not silence generally', async () => {
+    writeFileSync(path.join(root, 'pkg', 'b', 'unrelated.go'), 'package b\n\nfunc Unrelated() int { return 0 }\n', 'utf-8');
+    writeFileSync(
+      path.join(root, '.yggdrasil', 'yg-config.yaml'),
+      `quality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - pkg/b/unrelated.go\n`,
+      'utf-8',
+    );
+    const graph = await loadGraph(root);
+    const result = await runRelationPass(graph, root, {
+      extractorFor: extractorForLanguage,
+      resolvePathToFile: await guardedResolve(root, graph),
+      symbolIndexDir: path.join(root, '.yg-cache-pkg-single-unrelated'),
+    });
+    const b = result.violationsByNode.get('b');
+    expect(b?.verdict).toBe('refused');
+    expect(b!.violations.some((v) => v.ownerNode === 'a')).toBe(true);
   });
 });

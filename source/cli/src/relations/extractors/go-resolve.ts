@@ -47,32 +47,37 @@ export interface GoResolveDeps {
   /**
    * Optional. Repo-relative POSIX file → owning node id, or undefined when no
    * node maps it. When supplied, resolveGoImport becomes OWNER-SET-AWARE: it
-   * computes the owner of every production `.go` file in the package directory;
-   * all-one-owner attributes that owner's representative file, 2+ distinct
-   * owners silences the import entirely (package granularity — a split
-   * package has no single graph owner, so attributing it to any one file's
-   * owner would fabricate or hide a cross-node edge). Absent → today's
+   * computes the owner of every production `.go` file the package directory
+   * has left AFTER `isExcluded` below has removed any excluded one; all-one-owner
+   * among what remains attributes that owner's representative file, 2+ distinct
+   * owners among what remains silences the import entirely (package granularity —
+   * a split package has no single graph owner, so attributing it to any one
+   * file's owner would fabricate or hide a cross-node edge). Absent → today's
    * lexicographically-first pick, no owner check.
    *
-   * MUST be the RAW owner index, never one already guarded against an
-   * exclusion set: this function's own split-package detection has to see
-   * EVERY file the package's owner(s) actually map, excluded or not — an
-   * excluded file silently dropping out of the owner set here would let
-   * excluding one member of a genuinely split package collapse a real split
-   * into a false single owner, turning what was correctly silent into a
-   * FABRICATED edge. `isExcluded` below is the one place exclusion belongs:
-   * choosing which non-excluded file represents an already-resolved sole
-   * owner, never deciding whether the package is split in the first place.
+   * Whether this is the raw index or one already guarded against an exclusion
+   * set makes no difference here: every file this function queries it through
+   * has already passed `isExcluded`, so a raw and a guarded index answer the
+   * same thing for it either way.
    */
   ownerOf?(repoRelPosix: string): string | undefined;
   /**
-   * Optional. True when the graph excludes this repo-relative POSIX path
-   * (a nested project's own boundary, or a `coverage.excluded` root). Used
-   * ONLY to skip an excluded file when picking which of a sole owner's files
-   * represents the package — the same representative-picking guard the
-   * headline fix added, now kept separate from the (exclusion-blind) split
-   * detection above so an exclusion can silence an edge but never invent one.
-   * Absent → no file is ever skipped (today's behavior, unaffected).
+   * Optional. True when the graph excludes this repo-relative POSIX path (a
+   * nested project's own boundary, or a `coverage.excluded` root). An excluded
+   * file is dropped from the package's candidate list BEFORE the owner-set
+   * decision runs — the split-or-not question is answered from what remains,
+   * never from the full, pre-exclusion file list. This is what keeps the
+   * decision honest about every OTHER file in the package: an exclusion
+   * removes its own file from consideration and nothing else. It can never
+   * fabricate an owner a file never had (the owner set is still computed from
+   * real mappings, just fewer files), and it can never bury a real dependency
+   * reached through a file that is still there merely because some other,
+   * now-excluded file used to make the package look split. When every file in
+   * the package is excluded, nothing remains to decide from — the plain
+   * lexicographically-first pick below hands that (excluded) file to the
+   * caller's own, separately guarded owner lookup, which answers "no owner"
+   * for it, the same silence a wholly-unmapped package already gets. Absent →
+   * no file is ever dropped (today's behavior, unaffected).
    */
   isExcluded?(repoRelPosix: string): boolean;
 }
@@ -127,42 +132,37 @@ export function resolveGoImport(
   const production = goFiles.filter((f) => !f.endsWith('_test.go'));
   const candidates = (production.length > 0 ? production : goFiles).sort();
 
-  // Owner-set guard (package granularity). When an owner authority is
-  // supplied, the package's files may belong to DIFFERENT graph nodes (a parent
-  // and child carving one directory, or two siblings). A single representative
-  // file cannot stand in for a split package — attributing the import to its
-  // owner would fabricate or hide a cross-node edge. So: collect the distinct
-  // RAW owners over the candidates (deps.ownerOf's own contract requires this
-  // to be exclusion-blind — see its doc comment); exactly one owner → return
-  // a file that owner maps; 2+ distinct owners → silence (undefined),
-  // REGARDLESS of which of those files an exclusion later hides — an
-  // exclusion may only silence an edge, never invent one by shrinking a
-  // genuine split down to what looks like a single owner. Files no node maps
-  // do not contribute an owner (a wholly-unmapped package falls through to
-  // the D7 unmapped-target silence downstream, unchanged).
+  // Owner-set guard (package granularity), decided over the NON-EXCLUDED
+  // candidates only. Drop any excluded file from the candidate list FIRST,
+  // then ask whether what remains has one owner or several — a single
+  // representative file cannot stand in for a package whose surviving files
+  // belong to DIFFERENT graph nodes (a parent and child carving one
+  // directory, or two siblings) without fabricating or hiding a cross-node
+  // edge. Exactly one distinct owner among what remains → return a
+  // (non-excluded, by construction) file that owner maps; 2+ distinct owners
+  // among what remains → still split → silence (undefined). Files no node
+  // maps do not contribute an owner (a wholly-unmapped package falls through
+  // to the D7 unmapped-target silence downstream, unchanged). When nothing
+  // remains (every candidate is excluded), the loop below never runs and
+  // `sole` stays undefined, so control falls through to the plain
+  // lexicographically-first pick at the end of this function — see
+  // `isExcluded`'s own doc comment above for why that is still correct.
   if (deps.ownerOf) {
     const ownerOf = deps.ownerOf;
+    const isExcluded = deps.isExcluded ?? ((): boolean => false);
+    const remaining = candidates.filter((f) => !isExcluded(f));
     let sole: string | undefined; // the single distinct owner seen so far
-    for (const f of candidates) {
+    for (const f of remaining) {
       const o = ownerOf(f);
       if (o === undefined) continue; // unmapped file → no owner contribution
       if (sole === undefined) {
         sole = o;
       } else if (o !== sole) {
-        return undefined; // 2+ distinct owners → split package → silence
+        return undefined; // 2+ distinct owners among what remains → split package → silence
       }
     }
-    // Representative pick, once the package is confirmed NOT split: prefer a
-    // NON-EXCLUDED file the sole owner maps (this is where an exclusion is
-    // allowed to act — picking which file stands for an already-resolved
-    // single owner), falling back to the sole owner's first file when every
-    // one of its files is excluded — the downstream (exclusion-guarded) owner
-    // lookup on that file then answers "no owner" honestly, the same silence
-    // a wholly-excluded package already gets.
     if (sole !== undefined) {
-      const soleOwned = candidates.filter((f) => ownerOf(f) === sole);
-      const nonExcluded = soleOwned.find((f) => !(deps.isExcluded?.(f) ?? false));
-      if (nonExcluded !== undefined) return nonExcluded;
+      const soleOwned = remaining.filter((f) => ownerOf(f) === sole);
       if (soleOwned.length > 0) return soleOwned[0];
     }
   }

@@ -109,13 +109,25 @@ export function owningNodeForUnitKey(
  * just because the aspect's definition is gone. Absent (a caller with no
  * on-disk lock to consult, e.g. a pure in-memory test) means such an entry is
  * reported with kind `'unknown'` rather than guessed.
+ *
+ * `opts.scope` (optional, defaults to `'all'`): which of the two verdict
+ * partitions the caller's own `persistLock` will actually WRITE this run.
+ * `'deterministic'` (the `--only-deterministic` / CI path) rewrites only the
+ * gitignored deterministic file — the committed nondeterministic (LLM) file
+ * is never touched, on disk, regardless of what this function decides in
+ * memory. An LLM-kind (or unclassifiable `'unknown'`-kind, since it might be
+ * LLM) entry is therefore left IN `lock.verdicts` and OUT of the returned
+ * summary under that scope: reporting it as pruned would claim a write that
+ * never reaches disk. A full `--approve` (`scope: 'all'`) prunes and reports
+ * every kind, exactly as before this parameter existed.
  */
 export async function garbageCollectAndRewrite(
   graph: Graph,
   lock: LockFile,
   persistLock: () => Promise<void>,
-  opts?: { typeCoverage?: TypeCoverageInput; detAspectIdsOnDisk?: Set<string> },
+  opts?: { typeCoverage?: TypeCoverageInput; detAspectIdsOnDisk?: Set<string>; scope?: 'all' | 'deterministic' },
 ): Promise<PruneSummary> {
+  const scope = opts?.scope ?? 'all';
   const emptySummary: PruneSummary = { entries: [], billedCount: 0, freeCount: 0, unknownCount: 0 };
 
   // A node/aspect that failed to parse hides itself (and, for a node, its whole
@@ -200,6 +212,15 @@ export async function garbageCollectAndRewrite(
         (opts?.detAspectIdsOnDisk === undefined
           ? 'unknown'
           : opts.detAspectIdsOnDisk.has(aspectId) ? 'deterministic' : 'llm');
+      // Under a deterministic-only run, the caller's persistLock rewrites
+      // ONLY the gitignored deterministic file — an LLM (or unclassifiable
+      // 'unknown', since it might be LLM) entry pruned from this in-memory
+      // lock would never actually leave the committed nondeterministic file
+      // on disk. Leave it in `lock.verdicts` and out of the summary rather
+      // than reporting a write that will not happen; a full `--approve`
+      // prunes it for real.
+      if (scope === 'deterministic' && kind !== 'deterministic') continue;
+
       const reason = unitKey.startsWith('node:') && !graph.nodes.has(unitKey.slice('node:'.length))
         ? 'node deleted'
         : !aspectKindById.has(aspectId)

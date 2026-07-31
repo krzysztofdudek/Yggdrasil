@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, rm, chmod } from 'node:fs/promises';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import {
@@ -42,6 +42,43 @@ describe('walkRepoFiles nested-graph integration', () => {
       const files = await walkRepoFiles(root);
       expect(files).toContain('src/a.ts');
       expect(files.every((f) => !f.startsWith('apps/'))).toBe(true);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('findNestedProjectRoots — a permission-denied subtree is skipped, never thrown', () => {
+  it('does not propagate a real readdir EACCES; the unreadable subtree is silently treated as having no boundary of its own', async () => {
+    // A directory this process cannot list is a real filesystem fault, not a
+    // simulated one — running as root would bypass the permission bits entirely
+    // and make the probe meaningless, so this test opts out under root instead
+    // of asserting something it cannot actually cause.
+    if (typeof process.getuid === 'function' && process.getuid() === 0) return;
+    const root = await mkdtemp(path.join(tmpdir(), 'yg-walk-unreadable-'));
+    resetNestedProjectRootsCache();
+    try {
+      await mkdir(path.join(root, 'blocked'), { recursive: true });
+      await writeFile(path.join(root, 'blocked', 'secret.ts'), '');
+      await mkdir(path.join(root, 'ok'), { recursive: true });
+      await writeFile(path.join(root, 'ok', 'a.ts'), '');
+      await chmod(path.join(root, 'blocked'), 0o000);
+      try {
+        // The walk must complete without throwing — a caller relying on this
+        // (e.g. core/node-churn.ts's ownerOfForGraph) must never see an
+        // exception surface from a permission fault deep in the tree.
+        const roots = await findNestedProjectRoots(root);
+        // Nothing under 'blocked' could be inspected, so no nested boundary was
+        // ever found there — the unreadable subtree is invisible, not excluded.
+        expect(roots.size).toBe(0);
+        // 'ok' was walked normally; the fault was local to 'blocked' alone.
+        const files = await walkRepoFiles(root);
+        expect(files).toContain('ok/a.ts');
+      } finally {
+        // Restore permissions BEFORE cleanup — rm can't remove an entry it
+        // cannot list.
+        await chmod(path.join(root, 'blocked'), 0o755);
+      }
     } finally {
       await rm(root, { recursive: true, force: true });
     }

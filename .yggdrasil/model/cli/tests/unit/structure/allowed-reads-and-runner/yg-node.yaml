@@ -2,8 +2,10 @@ name: Structure Allowed-Reads and Runner Tests
 type: test-suite
 description: "Unit tests for the structure-aspect runner and the allowed-reads
   collection (including its conformance with the tracked-files source layer),
-  plus the separate-project read boundary shared by ctx.fs, ctx.parsers, and
-  companion resolution."
+  the separate-project read boundary shared by ctx.fs, ctx.parsers, and
+  companion resolution, and — for the same three consumers — that a path this
+  graph excludes (either boundary source) is reported as excluded by design
+  rather than as a relation to declare."
 aspects: []
 relations:
   [
@@ -25,3 +27,4 @@ mapping:
   - source/cli/tests/unit/structure/det-worker-core.test.ts
   - source/cli/tests/unit/structure/det-worker-pool.test.ts
   - source/cli/tests/unit/structure/nested-project-read-guard.test.ts
+  - source/cli/tests/unit/structure/excluded-read-reports-the-real-reason.test.ts

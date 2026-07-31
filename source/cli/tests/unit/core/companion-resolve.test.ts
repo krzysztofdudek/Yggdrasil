@@ -16,12 +16,15 @@ import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { resolveCompanionDescriptors, companionOutsideAllowedReads, resolveCompanionsForPair } from '../../../src/core/companion-resolve.js';
 import type { Graph, AspectDef } from '../../../src/model/graph.js';
 import type { ExpectedPair } from '../../../src/core/pairs.js';
-import { NO_COVERAGE_EXCLUDED, type GraphExclusionSet } from '../../../src/io/repo-scanner.js';
+import type { ExclusionSource } from '../../../src/io/repo-scanner.js';
 
 /** No exclusion in effect — the shape every existing (pre-exclusion-aware) test in this
  *  file passes so `companionOutsideAllowedReads`'s original owner-lookup behavior is
- *  unaffected by the new exclusion check ahead of it. */
-const NO_EXCLUSION: GraphExclusionSet = { nestedRoots: new Set(), coverage: NO_COVERAGE_EXCLUDED };
+ *  unaffected by the exclusion check ahead of it. A real caller determines this by
+ *  reading it off the caught UndeclaredFsReadError (see core/companion-resolve.ts's
+ *  own resolveCompanionDescriptors); these tests call the function directly, so they
+ *  supply the already-determined value instead of a path to re-derive it from. */
+const NO_EXCLUSION: ExclusionSource | null = null;
 
 // ── Mock runCompanionHook — control the exact sequence of hook results across
 // the A6 taint-guard's two possible calls (resolveCompanionsForPair only). ──
@@ -334,16 +337,21 @@ describe('companionOutsideAllowedReads', () => {
     const graph = makeGraph({ nodes });
     const pair = makePair({ nodePath: 'orders/handler', unitKey: 'node:orders/handler' });
     const aspect = makeAspect('correlation-tracking');
-    const exclusion: GraphExclusionSet = { nestedRoots: new Set(), coverage: { required: [], excluded: ['src/payments/vendored'], typeLevel: false } };
+    // A real caller determines this by reading resolveAllowedReadPath's thrown
+    // UndeclaredFsReadError.exclusionSource — 'coverage-excluded' is exactly
+    // what it would be for 'src/payments/vendored/lib.ts' under
+    // `coverage.excluded: ['src/payments/vendored']`.
+    const exclusionSource: ExclusionSource = 'coverage-excluded';
 
-    const result = companionOutsideAllowedReads(graph, pair, aspect, 'src/payments/vendored/lib.ts', exclusion);
+    const result = companionOutsideAllowedReads(graph, pair, aspect, 'src/payments/vendored/lib.ts', exclusionSource);
 
     expect(result.messageData.what).toContain('excluded from graph coverage by design');
+    expect(result.messageData.why).toContain('coverage.excluded root');
     expect(result.messageData.next).not.toContain('declare a relation');
     expect(result.messageData.next).not.toContain('payments/service');
   });
 
-  it('control: a path outside coverage.excluded on the SAME graph still gets the owner-lookup NEXT (the exclusion check does not silence generally)', () => {
+  it('control: when the caller says the path is NOT excluded, the SAME node mapping still gets the owner-lookup NEXT (the exclusion branch does not fire generally)', () => {
     const nodes = new Map<string, import('../../../src/model/graph.js').GraphNode>();
     nodes.set('payments/service', {
       meta: { name: 'payments-service', type: 'service', description: 'x', mapping: ['src/payments'] },
@@ -355,9 +363,8 @@ describe('companionOutsideAllowedReads', () => {
     const graph = makeGraph({ nodes });
     const pair = makePair({ nodePath: 'orders/handler', unitKey: 'node:orders/handler' });
     const aspect = makeAspect('correlation-tracking');
-    const exclusion: GraphExclusionSet = { nestedRoots: new Set(), coverage: { required: [], excluded: ['src/payments/vendored'], typeLevel: false } };
 
-    const result = companionOutsideAllowedReads(graph, pair, aspect, 'src/payments/svc.ts', exclusion);
+    const result = companionOutsideAllowedReads(graph, pair, aspect, 'src/payments/svc.ts', null);
 
     expect(result.messageData.what).not.toContain('excluded from graph coverage by design');
     expect(result.messageData.next).toContain('declare a relation from orders/handler to payments/service');
