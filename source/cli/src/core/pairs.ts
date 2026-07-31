@@ -18,6 +18,12 @@
  *   - LLM subject sets exclude binary files (by extension); deterministic keeps them.
  *   - Empty subject set → no pair for that (aspect, node) — vacuous pass.
  *   - Nodes with empty mapping → no pairs at all.
+ *   - A directory/glob mapping entry stops at a nested project's own boundary:
+ *     a subtree carrying its own `.yggdrasil/` is a separate graph and never
+ *     contributes pairs here (see `expandNodeFiles`, the one place this
+ *     module expands a mapping to files) — the same boundary the coverage
+ *     walk draws via `excludeNestedGraphSubtrees`, so the pair universe and
+ *     the coverage count agree on what belongs to this graph.
  *   - Pairs are sorted by aspectId, then unitKey for deterministic output.
  */
 
@@ -29,7 +35,7 @@ import type { UnitKey } from '../model/lock.js';
 import type { IssueMessage } from '../model/validation.js';
 import { toPosixPath } from '../utils/posix.js';
 import { nodeUnit, fileUnit } from '../model/lock.js';
-import { expandMappingPaths, hashFile, hashString } from '../io/hash.js';
+import { expandMappingPathsWithinOwnGraph, hashFile, hashString } from '../io/hash.js';
 import { probeUnreadable } from '../io/graph-fs.js';
 import { normalizeMappingPaths } from '../io/paths.js';
 import {
@@ -239,11 +245,36 @@ export function getChildMappingExclusions(graph: Graph, nodePath: string): strin
 }
 
 /**
+ * Expand a node's raw mapping entries to concrete files: gitignore-aware
+ * expansion with a nested project's own subtree dropped
+ * (`expandMappingPathsWithinOwnGraph` — a directory below the mapping that
+ * carries its own `.yggdrasil/` is a separate graph, governed by its own
+ * rules, and its files are never this graph's pairs; the same shared guard
+ * `structure/hook-loader.ts` and `structure/allowed-reads.ts` apply to the
+ * files they expose to a review), and the child carve-out applied (a
+ * descendant node's own mapping wins over a globbing ancestor's).
+ *
+ * The one place this expansion happens for the enforcement (pairs/fingerprint)
+ * path — every call site below shares it rather than repeating the guard.
+ */
+async function expandNodeFiles(
+  projectRoot: string,
+  rawMapping: string[],
+  excludePrefixes: string[],
+): Promise<string[]> {
+  const allExpanded = await expandMappingPathsWithinOwnGraph(projectRoot, rawMapping);
+  return excludePrefixes.length > 0
+    ? allExpanded.filter((p) => !excludePrefixes.some((ep) => mappingEntryMatchesFile(ep, p)))
+    : allExpanded;
+}
+
+/**
  * The full mapped subject set for a node: every mapped file (gitignore-aware
- * expansion) with the child carve-out applied, BEFORE any scope.files filter and
- * BEFORE binary exclusion. This is the deterministic-reviewer subject set when an
- * aspect declares no scope filter — identical to the `nodeFiles` set
- * computeExpectedPairs builds at step 4. Repo-relative POSIX paths, unsorted.
+ * expansion, nested-graph subtrees dropped) with the child carve-out applied,
+ * BEFORE any scope.files filter and BEFORE binary exclusion. This is the
+ * deterministic-reviewer subject set when an aspect declares no scope filter —
+ * identical to the `nodeFiles` set computeExpectedPairs builds at step 4.
+ * Repo-relative POSIX paths, unsorted.
  *
  * Used by the fill stage to decide whether a deterministic pair's subject is
  * NARROWER than the node's full mapping (a per:node aspect with a scope.files
@@ -262,10 +293,7 @@ export async function computeNodeMappedFiles(
 
   const projectRoot = path.dirname(graph.rootPath);
   const excludePrefixes = getChildMappingExclusions(graph, nodePath);
-  const allExpanded = await expandMappingPaths(projectRoot, rawMapping);
-  return excludePrefixes.length > 0
-    ? allExpanded.filter((p) => !excludePrefixes.some((ep) => mappingEntryMatchesFile(ep, p)))
-    : allExpanded;
+  return expandNodeFiles(projectRoot, rawMapping, excludePrefixes);
 }
 
 /**
@@ -376,10 +404,7 @@ export async function computeExpectedPairs(
 
     // O(nodes²) with one FS walk per node — fine at current scale; if check latency grows, precompute a child-exclusion index per run.
     const excludePrefixes = getChildMappingExclusions(graph, nodePath);
-    const allExpanded = await expandMappingPaths(projectRoot, rawMapping);
-    const nodeFiles = excludePrefixes.length > 0
-      ? allExpanded.filter((p) => !excludePrefixes.some((ep) => mappingEntryMatchesFile(ep, p)))
-      : allExpanded;
+    const nodeFiles = await expandNodeFiles(projectRoot, rawMapping, excludePrefixes);
 
     if (nodeFiles.length === 0) continue; // after carve-out, nothing left
 
@@ -738,10 +763,7 @@ export async function computeSourceFingerprint(
 
   const projectRoot = path.dirname(graph.rootPath);
   const excludePrefixes = getChildMappingExclusions(graph, nodePath);
-  const allExpanded = await expandMappingPaths(projectRoot, rawMapping);
-  const nodeFiles = excludePrefixes.length > 0
-    ? allExpanded.filter((p) => !excludePrefixes.some((ep) => mappingEntryMatchesFile(ep, p)))
-    : allExpanded;
+  const nodeFiles = await expandNodeFiles(projectRoot, rawMapping, excludePrefixes);
 
   if (nodeFiles.length === 0) return undefined;
 

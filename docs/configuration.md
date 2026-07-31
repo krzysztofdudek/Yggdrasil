@@ -252,7 +252,7 @@ Controls which coverage-visible files must be mapped to a node in `yg check`.
   ```
 
 - Files that match neither a required nor an excluded root produce a non-blocking `uncovered-advisory` warning.
-- Subtrees that contain their own nested `.yggdrasil/` are auto-skipped by all repo-walking checks — they are governed by their own graph, not the root graph.
+- Subtrees that contain their own nested `.yggdrasil/` are auto-skipped everywhere — not only by the repo-walking coverage checks, but also wherever a node's `mapping:` is turned into the files it actually enforces (expected review pairs, the node's source fingerprint, and the files/allowances a rule's review actually runs against). A vendored dependency, git worktree, or submodule that carries its own graph never becomes this graph's enforcement surface just because a directory mapping happens to recurse over it; it is governed by its own graph, not the root graph. An ordinary subdirectory with no graph of its own is unaffected and still gets covered normally.
 
 A file matching ANY excluded root is dropped entirely, before it is ever sorted into the blocking or advisory tier — exclusion is absolute, independent of whether a required root also matches it and independent of how specific either root is. Among the files that match no excluded root, any matching required root puts the file in the blocking tier. A required root fully contained inside an excluded root can therefore never match anything; `yg check` warns (`coverage-required-shadowed`) when both roots are plain (non-glob) paths.
 

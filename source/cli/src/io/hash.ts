@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 import { type Ignore, type Options as IgnoreOptions } from 'ignore';
 import { toPosix, toPosixPath } from '../utils/posix.js';
 import { isGlobPattern, mappingEntryMatchesFile, globMatch } from '../utils/mapping-path.js';
+import { excludeNestedGraphSubtrees } from '../io/repo-scanner.js';
 
 export { loadRootGitignoreStack, isIgnoredByStack, walkRepoFiles } from '../io/repo-scanner.js';
 export type { GitignoreEntry } from '../io/repo-scanner.js';
@@ -330,6 +331,31 @@ export async function expandMappingPaths(
   }
 
   return result;
+}
+
+/**
+ * Expand mapping paths to individual files, then drop every file under a
+ * NESTED project's own boundary — a directory (below the mapping) that
+ * carries its own `.yggdrasil/` is a separate graph, governed by its own
+ * rules, and its files must never be attributed to the graph doing the
+ * expanding (not counted as its pairs, not fed into its fingerprints, not
+ * exposed as its review content, not folded into its read-allowances).
+ *
+ * This is the ONE place that guard is applied for every caller that turns a
+ * mapping into "the files this graph actually owns" — `expandMappingPaths`
+ * itself stays a neutral, nested-graph-unaware primitive (plenty of callers
+ * — mapping validation, the type-when evaluator, the relation-conformance
+ * pass — resolve a mapping for a purpose that has nothing to do with THIS
+ * graph's own enforcement boundary, and must not have that boundary imposed
+ * on them by the shared primitive). Callers that DO mean "the files this
+ * graph enforces / reviews / hashes" should call this instead of composing
+ * `expandMappingPaths` + `excludeNestedGraphSubtrees` themselves.
+ */
+export async function expandMappingPathsWithinOwnGraph(
+  projectRoot: string,
+  mappingPaths: string[],
+): Promise<string[]> {
+  return excludeNestedGraphSubtrees(await expandMappingPaths(projectRoot, mappingPaths));
 }
 
 /**

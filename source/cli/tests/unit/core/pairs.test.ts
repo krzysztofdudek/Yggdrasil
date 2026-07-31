@@ -11,7 +11,13 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, chmodSync 
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileUnit, nodeUnit } from '../../../src/model/lock.js';
-import { computeExpectedPairs, computeSourceFingerprint, getChildMappingExclusions, FileUnreadableError } from '../../../src/core/pairs.js';
+import {
+  computeExpectedPairs,
+  computeSourceFingerprint,
+  computeNodeMappedFiles,
+  getChildMappingExclusions,
+  FileUnreadableError,
+} from '../../../src/core/pairs.js';
 import type { Graph, GraphNode, AspectDef, ScopeDef } from '../../../src/model/graph.js';
 
 /**
@@ -658,6 +664,101 @@ describe('computeSourceFingerprint', () => {
     } finally {
       chmodSync(lockedAbs, 0o644);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A directory mapping stops at a nested project's own .yggdrasil boundary.
+//
+// A vendored dependency, git worktree, or submodule that itself carries a
+// `.yggdrasil/` is a separate graph, governed by its own rules — its files
+// must never become this graph's enforcement pairs, must never enter a
+// node's source fingerprint, and must never appear in its mapped-files set.
+// An ORDINARY subdirectory (no nested `.yggdrasil/`) must still be absorbed
+// by the recursive directory mapping — the guard must stop exactly at a
+// nested graph's boundary, not at every subdirectory.
+// ---------------------------------------------------------------------------
+
+describe('directory mapping vs. a nested project boundary', () => {
+  it('computeExpectedPairs excludes a nested project\'s files from the pair universe', async () => {
+    writeFile('services/alpha.py', 'def alpha(): return 1');
+    writeFile('services/beta.py', 'def beta(): return 2');
+    // A vendored sub-project with its own graph, nested inside the mapped directory.
+    writeFile('services/vendored-sub/.yggdrasil/yg-config.yaml', 'version: "5.2.0"\n');
+    writeFile('services/vendored-sub/foreign.py', 'def foreign(): return 1');
+
+    const graph = buildPairsGraph(
+      tmpDir,
+      [{ path: 'svc', mapping: ['services'], aspects: ['check-input'] }],
+      [{ id: 'check-input', kind: 'deterministic', scope: { per: 'file' } }],
+    );
+
+    const { pairs } = await computeExpectedPairs(graph);
+    const subjects = pairs.map((p) => p.subjectFiles[0]);
+    expect(subjects.sort()).toEqual(['services/alpha.py', 'services/beta.py']);
+    expect(subjects).not.toContain('services/vendored-sub/foreign.py');
+    expect(subjects).not.toContain('services/vendored-sub/.yggdrasil/yg-config.yaml');
+  });
+
+  it('computeExpectedPairs still absorbs an ordinary nested subdirectory (no own graph)', async () => {
+    writeFile('services/alpha.py', 'def alpha(): return 1');
+    writeFile('services/beta.py', 'def beta(): return 2');
+    // Plain subdirectory — NOT its own project, must recurse in as usual.
+    writeFile('services/control-sub/control.py', 'def control(): return 1');
+
+    const graph = buildPairsGraph(
+      tmpDir,
+      [{ path: 'svc', mapping: ['services'], aspects: ['check-input'] }],
+      [{ id: 'check-input', kind: 'deterministic', scope: { per: 'file' } }],
+    );
+
+    const { pairs } = await computeExpectedPairs(graph);
+    const subjects = pairs.map((p) => p.subjectFiles[0]);
+    expect(subjects.sort()).toEqual([
+      'services/alpha.py',
+      'services/beta.py',
+      'services/control-sub/control.py',
+    ]);
+  });
+
+  it('computeSourceFingerprint is unchanged by a nested project appearing under the mapping', async () => {
+    writeFile('services/alpha.py', 'def alpha(): return 1');
+
+    const graphBefore = buildPairsGraph(tmpDir, [{ path: 'svc', mapping: ['services'] }], []);
+    const fpBefore = await computeSourceFingerprint(graphBefore, 'svc');
+
+    writeFile('services/vendored-sub/.yggdrasil/yg-config.yaml', 'version: "5.2.0"\n');
+    writeFile('services/vendored-sub/foreign.py', 'def foreign(): return 1');
+    const graphAfter = buildPairsGraph(tmpDir, [{ path: 'svc', mapping: ['services'] }], []);
+    const fpAfter = await computeSourceFingerprint(graphAfter, 'svc');
+
+    // The nested project's files never entered the fingerprint, so appearing
+    // (or later disappearing) changes nothing about it.
+    expect(fpAfter).toBe(fpBefore);
+  });
+
+  it('computeSourceFingerprint DOES change for an ordinary new sibling file (control)', async () => {
+    writeFile('services/alpha.py', 'def alpha(): return 1');
+
+    const graphBefore = buildPairsGraph(tmpDir, [{ path: 'svc', mapping: ['services'] }], []);
+    const fpBefore = await computeSourceFingerprint(graphBefore, 'svc');
+
+    writeFile('services/control-sub/control.py', 'def control(): return 1');
+    const graphAfter = buildPairsGraph(tmpDir, [{ path: 'svc', mapping: ['services'] }], []);
+    const fpAfter = await computeSourceFingerprint(graphAfter, 'svc');
+
+    expect(fpAfter).not.toBe(fpBefore);
+  });
+
+  it('computeNodeMappedFiles never lists a file under a nested project\'s own boundary', async () => {
+    writeFile('services/alpha.py', 'def alpha(): return 1');
+    writeFile('services/vendored-sub/.yggdrasil/yg-config.yaml', 'version: "5.2.0"\n');
+    writeFile('services/vendored-sub/foreign.py', 'def foreign(): return 1');
+
+    const graph = buildPairsGraph(tmpDir, [{ path: 'svc', mapping: ['services'] }], []);
+    const files = await computeNodeMappedFiles(graph, 'svc');
+
+    expect(files.sort()).toEqual(['services/alpha.py']);
   });
 });
 

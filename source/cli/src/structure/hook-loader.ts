@@ -10,7 +10,7 @@ import {
 import { createCtxParsers, prewarmupAstCache, enrichFilesWithAst, ParseAstNotPrewarmedError } from './ctx-parsers.js';
 import { collectAllowedReadsForAspect } from './allowed-reads.js';
 import { normalizeMappingPath, isPathInMapping } from './expand-mapping-sync.js';
-import { expandMappingPaths } from '../io/hash.js';
+import { expandMappingPathsWithinOwnGraph } from '../io/hash.js';
 import type { Graph, GraphNode as ModelNode } from '../model/graph.js';
 import type { Ctx, CompanionDescriptor, File, Port } from './types.js';
 import type { ParseCache } from '../ast/parse-cache.js';
@@ -39,8 +39,12 @@ export class StructureRunnerError extends Error {
 /**
  * Expand the node's own mapping to a flat list of readable text files.
  * Directory entries are expanded recursively via the gitignore-aware
- * expandMappingPaths helper (same function used by the node-size budget and
- * build-context), so ctx.files exactly matches what the LLM path sees.
+ * expandMappingPathsWithinOwnGraph helper (same function used by the
+ * node-size budget and build-context), so ctx.files exactly matches what the
+ * LLM path sees — a nested project's own subtree (a directory carrying its
+ * own `.yggdrasil/`) is dropped by that helper before it ever reaches ctx,
+ * so a vendored dependency's or a submodule's files are never exposed to
+ * this graph's review as though they were this node's own.
  * Files owned by descendant (child) nodes are carved out so a child's
  * aspects apply to those files, not the parent's.
  * Binary files (by extension) and unreadable files are silently skipped.
@@ -77,8 +81,8 @@ async function buildOwnFiles(
     .map(normalizeMappingPath)
     .filter((p): p is string => p !== '');
 
-  // Expand directories to constituent files (gitignore-aware).
-  const expanded = await expandMappingPaths(projectRoot, rawMapping);
+  // Expand directories to constituent files (gitignore-aware, nested-graph subtrees dropped).
+  const expanded = await expandMappingPathsWithinOwnGraph(projectRoot, rawMapping);
 
   const result: Array<{ file: File; bytes: Buffer }> = [];
   for (const p of expanded) {
@@ -152,13 +156,17 @@ function wrapNonSubjectFile(
 
 /**
  * Async mapping path enumeration for prewarmup. Mapping entries may be files
- * or directories; directories are expanded via expandMappingPaths (gitignore-aware).
+ * or directories; directories are expanded via expandMappingPathsWithinOwnGraph
+ * (gitignore-aware, nested-graph subtrees dropped) — this also backs
+ * `ctx.graph.node().files`, so a node whose mapping happens to contain a
+ * vendored dependency's own graph must not expose that dependency's files
+ * as though they belonged to the enumerated node.
  */
 async function enumerateMappedFilesAsync(mappingPaths: string[], projectRoot: string): Promise<string[]> {
   const normalized = mappingPaths
     .map(normalizeMappingPath)
     .filter((p): p is string => p !== '');
-  return expandMappingPaths(projectRoot, normalized);
+  return expandMappingPathsWithinOwnGraph(projectRoot, normalized);
 }
 
 export interface LoadHookModuleParams {
@@ -277,11 +285,13 @@ export async function buildUnitCtx(params: BuildUnitCtxParams): Promise<BuildUni
   // We must know which paths are subject files so we can skip recording read: observations
   // for them — they are hashed separately as subject inputs in the deterministic pair hash.
   // We collect own file paths from the mapping before actually reading them so that the
-  // subject set is available when ctxFs/ctxGraph/parsers are created.
+  // subject set is available when ctxFs/ctxGraph/parsers are created. Nested-graph subtrees
+  // are dropped the same way `core/pairs.ts` drops them from the fingerprint this subject
+  // set stands in for — a foreign file must never be treated as this pair's subject.
   const ownFilesRaw = (node.meta.mapping ?? [])
     .map(normalizeMappingPath)
     .filter((p): p is string => p !== '');
-  const ownFilesExpanded = await expandMappingPaths(projectRoot, ownFilesRaw);
+  const ownFilesExpanded = await expandMappingPathsWithinOwnGraph(projectRoot, ownFilesRaw);
   // The observation-EXCLUSION set: paths hashed as subject inputs are NOT
   // double-recorded as observations. For a `per: file` pair (subjectScope set)
   // this is exactly that file, so a sibling read folds as an observation

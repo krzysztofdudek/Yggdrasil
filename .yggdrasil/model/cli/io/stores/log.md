@@ -122,3 +122,5 @@ Adds a helper that lists a project's real git-tracked files, filtered to those s
 Removed a reference to another document from a code comment so the comment reads on its own without pointing elsewhere for the fact it states.
 ## [2026-07-27T15:11:17.095Z]
 The git-tracked-file helper filtered a candidate down to whether it still exists on disk, which is not enough to know it is an ordinary file: a symlink, and a checked-out submodule reference, both exist on disk as something other than a regular file, and a caller treating either as an ordinary tracked file could give destructive advice for the submodule case. The filter now confirms the candidate is a regular file (never following a symlink) rather than merely present.
+## [2026-07-31T07:06:24.090Z]
+Added a single shared helper that expands a mapping to files and then drops any subtree carrying its own nested graph, so every caller that means 'the files this graph enforces' gets the same boundary instead of hand-composing the expansion and the exclusion separately. The plain expansion primitive is left untouched for callers that resolve a mapping for an unrelated purpose.

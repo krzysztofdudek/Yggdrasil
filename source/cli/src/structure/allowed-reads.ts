@@ -9,7 +9,7 @@ import { allowedRelationTypes } from '../core/allowed-relation-types.js';
 // edge for the relation-conformance pass to see, so this module never needs
 // its own relation to relations-adapter just to spell the resolver's type.
 import type { OwnerIndex } from '../relations/owner-index.js';
-import { expandMappingPaths } from '../io/hash.js';
+import { expandMappingPathsWithinOwnGraph } from '../io/hash.js';
 
 /**
  * Computes the set of repo-relative paths a structure aspect on `nodePath`
@@ -139,8 +139,8 @@ export interface ArchitectureReachInput {
    * declared component's directory/glob mapping entries to the real, on-disk
    * files they cover — the SAME expansion `structure/hook-loader.ts`'s
    * `buildUnitCtx` already performs for a component's own files (via
-   * `expandMappingPaths`) — so ownership can be resolved file-by-file instead
-   * of trusting the raw mapping entry alone.
+   * `expandMappingPathsWithinOwnGraph`) — so ownership can be resolved
+   * file-by-file instead of trusting the raw mapping entry alone.
    */
   projectRoot: string;
   /**
@@ -207,7 +207,12 @@ export async function collectArchitectureReach(subjectFile: string, input: Archi
       .map(normalizeMappingPath)
       .filter((p): p is string => p !== '');
     if (rawMapping.length === 0) continue;
-    const expanded = await expandMappingPaths(projectRoot, rawMapping);
+    // A nested project's own subtree (a directory carrying its own
+    // `.yggdrasil/`) is dropped here too: a foreign file must never earn a
+    // reach entry just because the enumerating node's mapping happens to
+    // contain it — that file belongs to, and is governed by, a different
+    // graph entirely.
+    const expanded = await expandMappingPathsWithinOwnGraph(projectRoot, rawMapping);
     for (const file of expanded) {
       // Re-resolve the file's TRUE owner (child-wins) — never assume the
       // enumerating node still owns it once expanded to a real path.

@@ -1,7 +1,6 @@
 import { toPosixPath } from '../../utils/posix.js';
 import { mappingEntryMatchesFile, normalizeMappingPath } from '../../utils/mapping-path.js';
-import { expandMappingPaths } from '../../io/hash.js';
-import { excludeNestedGraphSubtrees } from '../../io/repo-scanner.js';
+import { expandMappingPathsWithinOwnGraph } from '../../io/hash.js';
 import type { Graph } from '../../model/graph.js';
 
 /**
@@ -175,22 +174,25 @@ export function isTypeCoveredSource(relFile: string, typeCoveredFiles: ReadonlyS
  *    same walk (a file under `.yggdrasil/` can never be type-covered — the
  *    coverage scan skips it outright), so a type-covered waiver site is
  *    always already a member of this set and needs no separate union step.
- *  - every concrete file `expandMappingPaths` resolves EVERY node's
- *    `mapping:` entries to, computed here with the exact same function the
- *    runner uses to build a node's own reviewed file set. This is the piece
- *    `walkedFiles` cannot stand in for, for the two structural reasons above.
+ *  - every concrete file EVERY node's `mapping:` entries resolve to, computed
+ *    here with `expandMappingPathsWithinOwnGraph` — the exact same function
+ *    `core/pairs.ts` and the structure runner (`structure/hook-loader.ts`,
+ *    `structure/allowed-reads.ts`) use to build a node's own reviewed file
+ *    set and review content. This is the piece `walkedFiles` cannot stand in
+ *    for, for the two structural reasons above.
  *
  * One guard applies to the second member alone: a directory (or glob) mapping
  * entry can resolve into a SUBTREE that carries its own nested `.yggdrasil/` —
  * a separate graph that governs itself, the same structural case `walkedFiles`
  * already excludes (`excludeNestedGraphSubtrees`, applied inside
- * `walkRepoFiles`). `expandMappingPaths` has no reason to know about nested
- * graphs — it is the shared expansion primitive the whole codebase reuses for
- * plain file resolution — so this function applies the exclusion itself,
- * after expansion, rather than trusting the primitive to have done it. Without
- * this, a broad directory mapping that happens to contain an unrelated nested
- * checkout would attribute THAT checkout's own markers to this graph's audit —
- * a foreign-graph leak, not a live waiver on this graph's own code.
+ * `walkRepoFiles`). `expandMappingPathsWithinOwnGraph` applies that identical
+ * exclusion after expansion — the SAME shared derivation the enforcement side
+ * uses, not a second implementation of the same guard — so this audit and
+ * the runner it audits can never disagree about which files belong to a
+ * nested checkout. Without it, a broad directory mapping that happens to
+ * contain an unrelated nested checkout would attribute THAT checkout's own
+ * markers to this graph's audit — a foreign-graph leak, not a live waiver on
+ * this graph's own code.
  *
  * If a future change gives the runner a THIRD way to read and honor a marker
  * in a file — a new kind of reference resolved through neither a node's
@@ -205,8 +207,8 @@ export async function computeSuppressionScanUniverse(
 ): Promise<string[]> {
   const universe = walkedFiles.map(toPosixPath);
   const seen = new Set(universe);
-  const rawMappedFiles = await expandMappingPaths(projectRoot, [...mappingEntries]);
-  const mappedFiles = excludeNestedGraphSubtrees(rawMappedFiles.map(toPosixPath));
+  const rawMappedFiles = await expandMappingPathsWithinOwnGraph(projectRoot, [...mappingEntries]);
+  const mappedFiles = rawMappedFiles.map(toPosixPath);
   for (const p of mappedFiles) {
     if (!seen.has(p)) {
       seen.add(p);
