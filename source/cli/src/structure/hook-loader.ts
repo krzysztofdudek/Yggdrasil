@@ -11,8 +11,8 @@ import { createCtxParsers, prewarmupAstCache, enrichFilesWithAst, ParseAstNotPre
 import { collectAllowedReadsForAspect } from './allowed-reads.js';
 import { normalizeMappingPath, isPathInMapping } from './expand-mapping-sync.js';
 import { expandMappingPathsWithinOwnGraph } from '../io/hash.js';
-import { findNestedProjectRoots } from '../io/repo-scanner.js';
-import type { Graph, GraphNode as ModelNode } from '../model/graph.js';
+import { findNestedProjectRoots, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
+import type { Graph, GraphNode as ModelNode, CoverageConfig } from '../model/graph.js';
 import type { Ctx, CompanionDescriptor, File, Port } from './types.js';
 import type { ParseCache } from '../ast/parse-cache.js';
 import { destroyParseCache } from '../ast/parse-cache.js';
@@ -59,6 +59,7 @@ async function buildOwnFiles(
   node: ModelNode,
   projectRoot: string,
   touchedFiles: string[],
+  coverage: CoverageConfig,
 ): Promise<Array<{ file: File; bytes: Buffer }>> {
   // Collect mapping entries from ALL strict-descendant nodes (not just direct
   // children) — we exclude any file a descendant maps (glob-aware) to preserve the
@@ -83,8 +84,8 @@ async function buildOwnFiles(
     .map(normalizeMappingPath)
     .filter((p): p is string => p !== '');
 
-  // Expand directories to constituent files (gitignore-aware, separate-project subtrees dropped).
-  const expanded = await expandMappingPathsWithinOwnGraph(projectRoot, rawMapping);
+  // Expand directories to constituent files (gitignore-aware, everything the graph excludes globally dropped).
+  const expanded = await expandMappingPathsWithinOwnGraph(projectRoot, rawMapping, coverage);
 
   const result: Array<{ file: File; bytes: Buffer }> = [];
   for (const p of expanded) {
@@ -164,11 +165,11 @@ function wrapNonSubjectFile(
  * vendored dependency's own graph must not expose that dependency's files
  * as though they belonged to the enumerated node.
  */
-async function enumerateMappedFilesAsync(mappingPaths: string[], projectRoot: string): Promise<string[]> {
+async function enumerateMappedFilesAsync(mappingPaths: string[], projectRoot: string, coverage: CoverageConfig): Promise<string[]> {
   const normalized = mappingPaths
     .map(normalizeMappingPath)
     .filter((p): p is string => p !== '');
-  return expandMappingPathsWithinOwnGraph(projectRoot, normalized);
+  return expandMappingPathsWithinOwnGraph(projectRoot, normalized, coverage);
 }
 
 export interface LoadHookModuleParams {
@@ -263,9 +264,10 @@ export interface BuildUnitCtxResult {
 export async function buildUnitCtx(params: BuildUnitCtxParams): Promise<BuildUnitCtxResult> {
   const { aspectId, unit, graph, projectRoot, astCache, touchedFiles, subjectScope } = params;
   void aspectId; // unused here — the loader threads it through unchanged; callers use it for messaging
+  const coverage = graph.config.coverage ?? NO_COVERAGE_EXCLUDED;
 
   if (unit.kind === 'file') {
-    return buildNodelessUnitCtx({ unit, projectRoot, astCache, touchedFiles });
+    return buildNodelessUnitCtx({ unit, projectRoot, astCache, touchedFiles, coverage });
   }
 
   const nodePath = unit.nodePath;
@@ -279,13 +281,14 @@ export async function buildUnitCtx(params: BuildUnitCtxParams): Promise<BuildUni
   }
 
   const allowedSet = collectAllowedReadsForAspect(nodePath, graph);
-  // Separate-project boundaries (nested `.yggdrasil/` graph, nested `.git`
-  // checkout/submodule/worktree) below the project root — the SAME set
-  // `expandMappingPathsWithinOwnGraph` below draws its own exclusion from
-  // (cached per run in repo-scanner.ts, so this costs nothing extra here).
-  // Threaded into ctx.fs/ctx.parseAst so a directory or glob allowed-reads
-  // entry that textually covers a path inside a foreign project still cannot
-  // read it.
+  // Everything the graph excludes globally below the project root — a
+  // separate project's own boundary (nested `.yggdrasil/` graph, nested
+  // `.git` checkout/submodule/worktree) plus the adopter's own
+  // `coverage.excluded` roots. The SAME set `expandMappingPathsWithinOwnGraph`
+  // below draws its own exclusion from (cached per run in repo-scanner.ts, so
+  // this costs nothing extra here). Threaded into ctx.fs/ctx.parseAst so a
+  // directory or glob allowed-reads entry that textually covers an excluded
+  // path still cannot read it.
   const nestedProjectRoots = await findNestedProjectRoots(projectRoot);
 
   // Construct one ObservationRecorder per run — threaded into all ctx factories.
@@ -301,7 +304,7 @@ export async function buildUnitCtx(params: BuildUnitCtxParams): Promise<BuildUni
   const ownFilesRaw = (node.meta.mapping ?? [])
     .map(normalizeMappingPath)
     .filter((p): p is string => p !== '');
-  const ownFilesExpanded = await expandMappingPathsWithinOwnGraph(projectRoot, ownFilesRaw);
+  const ownFilesExpanded = await expandMappingPathsWithinOwnGraph(projectRoot, ownFilesRaw, coverage);
   // The observation-EXCLUSION set: paths hashed as subject inputs are NOT
   // double-recorded as observations. For a `per: file` pair (subjectScope set)
   // this is exactly that file, so a sibling read folds as an observation
@@ -310,7 +313,7 @@ export async function buildUnitCtx(params: BuildUnitCtxParams): Promise<BuildUni
     ? new Set<string>(subjectScope.map(normalizeMappingPath))
     : new Set<string>(ownFilesExpanded);
 
-  const ctxFs = createCtxFs({ allowedSet, projectRoot, touchedFiles, recorder, subjectFiles, nestedProjectRoots });
+  const ctxFs = createCtxFs({ allowedSet, projectRoot, touchedFiles, recorder, subjectFiles, nestedProjectRoots, coverage });
   // Pre-expand each graph-readable node's mapping to concrete files (directory
   // and glob entries resolved here in the async layer) so ctx.graph.node().files
   // sees a glob-mapped node's real files. Each graph file's read: observation
@@ -319,12 +322,12 @@ export async function buildUnitCtx(params: BuildUnitCtxParams): Promise<BuildUni
   const expandedFilesByNode = new Map<string, string[]>();
   for (const id of computeAllowedNodePaths(nodePath, graph)) {
     const m = graph.nodes.get(id);
-    if (m) expandedFilesByNode.set(id, await enumerateMappedFilesAsync(m.meta.mapping ?? [], projectRoot));
+    if (m) expandedFilesByNode.set(id, await enumerateMappedFilesAsync(m.meta.mapping ?? [], projectRoot, coverage));
   }
   const ctxGraph = createCtxGraph({ currentNodePath: nodePath, graph, projectRoot, touchedFiles, expandedFilesByNode, recorder, subjectFiles });
-  const parsers = createCtxParsers({ allowedSet, projectRoot, touchedFiles, astCache, recorder, subjectFiles, nestedProjectRoots });
+  const parsers = createCtxParsers({ allowedSet, projectRoot, touchedFiles, astCache, recorder, subjectFiles, nestedProjectRoots, coverage });
 
-  const ownFilesWithBytes = await buildOwnFiles(node, projectRoot, touchedFiles);
+  const ownFilesWithBytes = await buildOwnFiles(node, projectRoot, touchedFiles, coverage);
   const ownFiles = ownFilesWithBytes.map((x) => x.file);
   // Raw disk bytes per own-file path — used to fold a byte-symmetric read:
   // observation if the check accesses a non-subject sibling's content (Bug 1).
@@ -405,7 +408,7 @@ export async function buildUnitCtx(params: BuildUnitCtxParams): Promise<BuildUni
   for (const rel of (node.meta.relations ?? [])) {
     const target = graph.nodes.get(rel.target);
     if (!target) continue;
-    for (const p of await enumerateMappedFilesAsync(target.meta.mapping ?? [], projectRoot)) {
+    for (const p of await enumerateMappedFilesAsync(target.meta.mapping ?? [], projectRoot, coverage)) {
       const abs = path.resolve(projectRoot, p);
       try {
         const content = fs.readFileSync(abs, 'utf8');
@@ -443,8 +446,9 @@ async function buildNodelessUnitCtx(params: {
   projectRoot: string;
   astCache: ParseCache;
   touchedFiles: string[];
+  coverage: CoverageConfig;
 }): Promise<BuildUnitCtxResult> {
-  const { unit, projectRoot, astCache, touchedFiles } = params;
+  const { unit, projectRoot, astCache, touchedFiles, coverage } = params;
 
   const allowedSet = new Set<string>(unit.allowedReads);
   // Defense-in-depth alongside collectArchitectureReach's own filtering
@@ -459,8 +463,8 @@ async function buildNodelessUnitCtx(params: {
   // is not double-recorded — mirrors the whole-node per:file case exactly.
   const subjectFiles = new Set<string>([unit.file]);
 
-  const ctxFs = createCtxFs({ allowedSet, projectRoot, touchedFiles, recorder, subjectFiles, nestedProjectRoots });
-  const parsers = createCtxParsers({ allowedSet, projectRoot, touchedFiles, astCache, recorder, subjectFiles, nestedProjectRoots });
+  const ctxFs = createCtxFs({ allowedSet, projectRoot, touchedFiles, recorder, subjectFiles, nestedProjectRoots, coverage });
+  const parsers = createCtxParsers({ allowedSet, projectRoot, touchedFiles, astCache, recorder, subjectFiles, nestedProjectRoots, coverage });
 
   // Read the subject file directly — there is no mapping to expand and no
   // children to carve out (there is no component). Binary-by-extension and

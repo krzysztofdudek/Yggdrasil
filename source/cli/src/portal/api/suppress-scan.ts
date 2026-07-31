@@ -9,6 +9,8 @@ import { buildIssueMessage } from '../../formatters/message-builder.js';
 import { toPosixPath } from '../../utils/posix.js';
 import { debugWrite } from '../../utils/debug-log.js';
 import { isNoiseFile, isMappedSource, isTypeCoveredSource, computeSuppressionScanUniverse } from './suppress-eligibility.js';
+import { NO_COVERAGE_EXCLUDED } from '../../io/repo-scanner.js';
+import type { CoverageConfig } from '../../model/graph.js';
 import type { SuppressionMarkerInput } from '../contract.js';
 
 /**
@@ -112,6 +114,7 @@ export async function runSuppressionsScan(
   mappingEntries: string[] = [],
   underApproximatingAspectIds: Set<string> = new Set(),
   typeCoveredFiles: Set<string> = new Set(),
+  coverage: CoverageConfig = NO_COVERAGE_EXCLUDED,
 ): Promise<SuppressionsReport> {
   const fileEntries: FileMarkers[] = [];
   const warnings: string[] = [];
@@ -127,7 +130,7 @@ export async function runSuppressionsScan(
   // own comment for exactly what that adds and why) before the noise filter
   // below ever runs, so a mapped file the walk cannot see is never silently
   // dropped before it gets a chance to be recognized as a live waiver site.
-  const scanFiles = await computeSuppressionScanUniverse(projectRoot, gitTrackedFiles, mappingEntries);
+  const scanFiles = await computeSuppressionScanUniverse(projectRoot, gitTrackedFiles, mappingEntries, coverage);
 
   for (const relFile of scanFiles) {
     // Skip generated rules mirrors, per-node logs, and prose docs that carry no

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { mkdtemp, cp, rm, mkdir, writeFile } from 'node:fs/promises';
+import { mkdtemp, cp, rm, mkdir, writeFile, readFile } from 'node:fs/promises';
 import { Command } from 'commander';
 import { findOwner } from '../../../src/cli/owner.js';
 import type { Graph } from '../../../src/model/graph.js';
@@ -192,7 +192,43 @@ describe('owner — a file inside a nested project is never reported as owned', 
     });
   });
 
-  it('a mapping entry that NAMES a nested file exactly is still reported as owned — that override only ever applies to a directory or glob entry that swept the file in', async () => {
+  it('reports "no graph coverage" for a file under a coverage.excluded root, not the node whose directory contains it', async () => {
+    // The same guard, from the OTHER source of exclusion membership: an
+    // ORDINARY subdirectory (no nested graph, no nested .git) an adopter's
+    // own coverage.excluded config names directly.
+    await withFixtureCopy(async (cwd) => {
+      await mkdir(path.join(cwd, '.yggdrasil', 'model', 'excl'), { recursive: true });
+      await writeFile(
+        path.join(cwd, '.yggdrasil', 'model', 'excl', 'yg-node.yaml'),
+        'name: Excl\ndescription: x\ntype: service\nmapping:\n  - src/excl\n',
+      );
+      await mkdir(path.join(cwd, 'src', 'excl', 'vendor'), { recursive: true });
+      await writeFile(path.join(cwd, 'src', 'excl', 'vendor', 'foreign.ts'), 'export const foreign = 1;\n');
+      await writeFile(path.join(cwd, 'src', 'excl', 'own.ts'), 'export const own = 1;\n');
+      const configPath = path.join(cwd, '.yggdrasil', 'yg-config.yaml');
+      const existingConfig = await readFile(configPath, 'utf-8');
+      await writeFile(configPath, existingConfig + '\ncoverage:\n  excluded:\n    - src/excl/vendor/\n');
+      const result = spawnSync(
+        'node',
+        [BIN_PATH, 'owner', '--file', 'src/excl/vendor/foreign.ts'],
+        { cwd, encoding: 'utf-8' },
+      );
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain('no graph coverage');
+      expect(result.stdout).not.toContain('-> excl\n');
+
+      // Mirror: the node's OWN (non-excluded) file is still reported as owned.
+      const own = spawnSync(
+        'node',
+        [BIN_PATH, 'owner', '--file', 'src/excl/own.ts'],
+        { cwd, encoding: 'utf-8' },
+      );
+      expect(own.status).toBe(0);
+      expect(own.stdout).toContain('-> excl\n');
+    });
+  });
+
+  it('a mapping entry that NAMES a nested file exactly is reported as having no owner too — exclusion cuts an explicit claim exactly like it cuts a directory or glob sweep', async () => {
     await withFixtureCopy(async (cwd) => {
       await mkdir(path.join(cwd, '.yggdrasil', 'model', 'named'), { recursive: true });
       await writeFile(
@@ -208,7 +244,8 @@ describe('owner — a file inside a nested project is never reported as owned', 
         { cwd, encoding: 'utf-8' },
       );
       expect(result.status).toBe(0);
-      expect(result.stdout).toContain('-> named\n');
+      expect(result.stdout).toContain('no graph coverage');
+      expect(result.stdout).not.toContain('-> named\n');
     });
   });
 });

@@ -6,6 +6,7 @@ import { parseFile, grammarWasmHash } from '../ast/parser.js';
 import { getLanguageForExtension } from '../utils/language-registry.js';
 import { ensureLoaderRegistered } from '../ast/loader-hook.js';
 import { expandMappingPathsWithinOwnGraph, hashString } from '../io/hash.js';
+import { NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
 
 import { buildOwnerIndex } from './owner-index.js';
 import { SymbolTable } from './symbol-table.js';
@@ -230,17 +231,20 @@ export async function runRelationPass(
   //
   //    expandMappingPathsWithinOwnGraph (not the neutral expandMappingPaths): this
   //    enumeration decides which files belong to EACH node's own dependency-conformance
-  //    surface — a file inside a separate project's own boundary (a nested `.yggdrasil/`
-  //    graph, or a nested `.git` checkout/submodule/worktree) is not this node's source,
-  //    so an import inside it must never become an undeclared-dependency refusal
-  //    attributed to the first-party node whose directory happens to contain it, and its
-  //    bytes must never be read, hashed, or parsed here at all.
+  //    surface — a file the graph excludes globally (a nested project's own boundary, a
+  //    DEFAULT member of the excluded set, or a `coverage.excluded` root an adopter
+  //    configured) is not this node's source, whether a directory/glob entry swept it in
+  //    or the node's own mapping names it exactly, so an import inside it must never
+  //    become an undeclared-dependency refusal attributed to the first-party node whose
+  //    directory happens to contain it, and its bytes must never be read, hashed, or
+  //    parsed here at all.
   const fileRecords: FileRecord[] = [];
   const recordByPath = new Map<string, FileRecord>();
+  const coverage = graph.config.coverage ?? NO_COVERAGE_EXCLUDED;
   for (const [nodeId, node] of graph.nodes) {
     const mapping = node.meta.mapping ?? [];
     if (mapping.length === 0) continue;
-    const files = await expandMappingPathsWithinOwnGraph(projectRoot, mapping);
+    const files = await expandMappingPathsWithinOwnGraph(projectRoot, mapping, coverage);
     for (const rel of files) {
       if (recordByPath.has(rel)) continue; // already enumerated under another node
       let content: string;

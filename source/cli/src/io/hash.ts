@@ -5,7 +5,8 @@ import { createRequire } from 'node:module';
 import { type Ignore, type Options as IgnoreOptions } from 'ignore';
 import { toPosix, toPosixPath } from '../utils/posix.js';
 import { isGlobPattern, globMatch } from '../utils/mapping-path.js';
-import { findNestedProjectRoots, filterOutsideNestedProjectRoots } from '../io/repo-scanner.js';
+import { findNestedProjectRoots, filterExcludedFromGraph } from '../io/repo-scanner.js';
+import type { CoverageConfig } from '../model/graph.js';
 
 export { loadRootGitignoreStack, isIgnoredByStack, walkRepoFiles } from '../io/repo-scanner.js';
 export type { GitignoreEntry } from '../io/repo-scanner.js';
@@ -341,41 +342,53 @@ export async function expandMappingPaths(
 }
 
 /**
- * Expand mapping paths to individual files, then drop every file under a
- * SEPARATE project's own boundary — a directory (below the mapping) that
- * carries its own `.yggdrasil/` graph, or its own `.git` (a nested checkout,
- * submodule, or linked worktree), is governed by its own project, and its
- * files must never be attributed to the graph doing the expanding (not
+ * Expand mapping paths to individual files, then drop every file the graph
+ * excludes globally — the one supreme filter (`io/repo-scanner.ts`'s
+ * `isExcludedFromGraph`), which combines two sources: a SEPARATE project's own
+ * boundary (a directory below the mapping carrying its own `.yggdrasil/`
+ * graph, or its own `.git` — a nested checkout, submodule, or linked
+ * worktree; a DEFAULT member of the excluded set, present with or without any
+ * adopter config) and the adopter's own `coverage.excluded` roots (the other
+ * source of members). A file matched by either is governed outside this
+ * graph, and must never be attributed to the graph doing the expanding (not
  * counted as its pairs, not fed into its fingerprints, not exposed as its
- * review content, not folded into its read-allowances).
+ * review content, not folded into its read-allowances) — regardless of
+ * whether a mapping entry named it exactly, swept it in via a directory, or
+ * matched it via a glob: exclusion cuts everything it matches, with no
+ * carve-out for an explicit claim.
  *
- * The boundary is read off the real FILESYSTEM (`findNestedProjectRoots`),
- * independently of `mappingPaths` — so it gives the same answer whether the
- * mapping is a directory or a glob (a glob's own extension filter can strip
- * every path that would otherwise reveal a nested marker) and regardless of
- * whether a `.gitignore` line hides the marker itself. It is also the SAME
- * root set every other caller in one run computes for the same `projectRoot`
- * (cached — see repo-scanner.ts), so two different mappings — even a whole
- * graph's worth expanded together, as the suppression-scan audit does — can
- * never draw the boundary in two different places.
+ * The nested-project half is read off the real FILESYSTEM
+ * (`findNestedProjectRoots`), independently of `mappingPaths` — so it gives
+ * the same answer whether the mapping is a directory or a glob (a glob's own
+ * extension filter can strip every path that would otherwise reveal a nested
+ * marker) and regardless of whether a `.gitignore` line hides the marker
+ * itself. It is also the SAME root set every other caller in one run computes
+ * for the same `projectRoot` (cached — see repo-scanner.ts), so two different
+ * mappings — even a whole graph's worth expanded together, as the
+ * suppression-scan audit does — can never draw the boundary in two different
+ * places. `coverage` is the caller's own `graph.config.coverage` (or an
+ * equivalent with an empty `excluded` list when the caller has none), so the
+ * adopter-configured half agrees with every other consumer of the same config
+ * for the same reason.
  *
- * This is the ONE place that guard is applied for every caller that turns a
+ * This is the ONE place this guard is applied for every caller that turns a
  * mapping into "the files this graph actually owns" — `expandMappingPaths`
- * itself stays a neutral, nested-project-unaware primitive (plenty of callers
- * — mapping validation, the type-when evaluator, the relation-conformance
- * pass — resolve a mapping for a purpose that has nothing to do with THIS
- * graph's own enforcement boundary, and must not have that boundary imposed
- * on them by the shared primitive). Callers that DO mean "the files this
- * graph enforces / reviews / hashes" should call this instead of composing
- * `expandMappingPaths` with the boundary filter themselves.
+ * itself stays a neutral, exclusion-unaware primitive (plenty of callers —
+ * mapping validation, the type-when evaluator, the relation-conformance pass
+ * — resolve a mapping for a purpose that has nothing to do with THIS graph's
+ * own enforcement boundary, and must not have that boundary imposed on them
+ * by the shared primitive). Callers that DO mean "the files this graph
+ * enforces / reviews / hashes" should call this instead of composing
+ * `expandMappingPaths` with the exclusion filter themselves.
  */
 export async function expandMappingPathsWithinOwnGraph(
   projectRoot: string,
   mappingPaths: string[],
+  coverage: CoverageConfig,
 ): Promise<string[]> {
   const [expanded, nestedRoots] = await Promise.all([
     expandMappingPaths(projectRoot, mappingPaths),
     findNestedProjectRoots(projectRoot),
   ]);
-  return filterOutsideNestedProjectRoots(expanded, nestedRoots);
+  return filterExcludedFromGraph(expanded, { nestedRoots, coverage });
 }

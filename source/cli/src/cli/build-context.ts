@@ -17,14 +17,13 @@ import { readTextFile } from '../io/graph-fs.js';
 import { readFeatureFieldEntry } from '../core/feature-index-read.js';
 import { FAMILY_SEP } from '../core/feature-field-schema.js';
 import { getLanguageDisplayName } from '../utils/language-registry.js';
-import { isCoverageExcludedPath, walkRepoFiles, findNestedProjectRoots, isUnderAnyNestedProjectRoot } from '../io/repo-scanner.js';
+import { walkRepoFiles, resolveGraphExclusionSet, isExcludedFromGraph, isCoverageExcludedPath, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
 import { computeExpectedPairs, computeSourceFingerprint, FileUnreadableError } from '../core/pairs.js';
 import type { TypeCoverageInput } from '../core/pairs.js';
 import { scanUncoveredFiles } from '../core/check.js';
 import { computeTypeCoverage, classifySingleFile } from '../core/type-coverage.js';
 import { computeTypeAspectCascade, describeCascadeCycle } from '../core/type-effective.js';
-import { isExcludedByCoverage } from '../core/check-coverage-tiers.js';
 import { buildTypeVisibility, describeTypeVisibilityReason, describeChainTermination, toAppliedPairs } from '../core/type-visibility.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import { readLock } from '../io/lock-store.js';
@@ -313,19 +312,26 @@ export function registerBuildCommand(program: Command): void {
           const displayFile = toPosixPath(result.file);
           if (!result.nodePath) {
             // A path the coverage scan UNCONDITIONALLY skips (git internals, or
-            // the graph's own .yggdrasil/ tree), OR one that sits inside a
-            // SEPARATE project's own boundary (a nested `.yggdrasil/` graph, or a
-            // nested `.git` checkout/submodule/worktree — findOwnerWithinOwnGraph
-            // already refused to attribute it to a node above), can never be
-            // enforced by this graph — suggesting "add it to a node mapping"
-            // would map a file yg check will never see, or one this graph does
-            // not own. Answer "excluded by design" and exit 0 either way: this
-            // is not a coverage gap, so there is genuinely nothing to fix.
-            const nestedProjectRoots = await findNestedProjectRoots(repoRoot);
-            if (isCoverageExcludedPath(result.file) || isUnderAnyNestedProjectRoot(result.file, nestedProjectRoots)) {
+            // the graph's own .yggdrasil/ tree — isCoverageExcludedPath), one
+            // that sits inside a SEPARATE project's own boundary (a nested
+            // `.yggdrasil/` graph, or a nested `.git` checkout/submodule/
+            // worktree), or one matching a `coverage.excluded` root an adopter
+            // configured (the latter two via isExcludedFromGraph, the same
+            // exclusion authority findOwnerWithinOwnGraph above already
+            // consulted for the mapped case — a genuinely mapped `.yggdrasil/`
+            // meta file is deliberately NOT caught by isExcludedFromGraph, so
+            // findOwnerWithinOwnGraph would have kept its owner and this branch
+            // would never run for it). Any of these can never be enforced by
+            // this graph — suggesting "add it to a node mapping" would map a
+            // file yg check will never see, or one this graph does not own or
+            // has deliberately excluded. Answer "excluded by design" and exit 0
+            // either way: this is not a coverage gap, so there is genuinely
+            // nothing to fix.
+            const exclusionSet = await resolveGraphExclusionSet(repoRoot, graph.config.coverage ?? NO_COVERAGE_EXCLUDED);
+            if (isCoverageExcludedPath(result.file) || isExcludedFromGraph(result.file, exclusionSet)) {
               const excludedMsg = buildIssueMessage({
                 what: `${displayFile} is excluded from graph coverage by design.`,
-                why: 'This path is never scanned for coverage (git internals / the graph directory itself), or sits inside a separate project\'s own boundary, so it cannot and need not be mapped to a node here.',
+                why: 'This path is never scanned for coverage (git internals / the graph directory itself), sits inside a separate project\'s own boundary, or matches a coverage.excluded root, so it cannot and need not be mapped to a node here.',
                 next: 'No action needed.',
               });
               process.stdout.write(`${excludedMsg}\n`);
@@ -336,7 +342,7 @@ export function registerBuildCommand(program: Command): void {
             // when it matches exactly one non-strict type, replaces the
             // not-covered error with the matched type, its chain, and both
             // halves of what the type attaches.
-            if (graph.config.coverage?.typeLevel && !isExcludedByCoverage(result.file, graph.config.coverage)) {
+            if (graph.config.coverage?.typeLevel) {
               const typeMatch = await classifySingleFile(graph, result.file, new FileContentCache());
               if (typeMatch.bucket === 'covered') {
                 // An aspect `implies` cycle reachable from this type stops the

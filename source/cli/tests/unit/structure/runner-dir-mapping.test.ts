@@ -201,4 +201,45 @@ describe('runStructureAspect — directory-mapped nodes (fix 3b)', () => {
     // Belt-and-suspenders: the nested files were never even read off disk for this run.
     expect(r.touchedFiles.some((f) => f.startsWith('src/vendor/'))).toBe(false);
   });
+
+  it('3c: a coverage.excluded subtree inside a directory mapping never appears in ctx.files / ctx.node.files', async () => {
+    // An ORDINARY subdirectory (no nested graph, no nested .git) that this
+    // fixture's own coverage.excluded config names directly. Its files must
+    // never reach ctx.files or ctx.node.files as though they belonged to this
+    // node, exactly like the nested-project case above — the same one supreme
+    // exclusion filter, from its other source of membership.
+    writeFileSync(path.join(projectRoot, 'src/a.ts'), 'export const a = 1;');
+    mkdirSync(path.join(projectRoot, 'src/vendor'), { recursive: true });
+    writeFileSync(path.join(projectRoot, 'src/vendor/foreign.ts'), 'export const SECRET = 1;');
+
+    await writeAspect('dir7', `export function check(ctx) {
+      const violations = [];
+      const allPaths = [...ctx.files.map(f => f.path), ...ctx.node.files.map(f => f.path)];
+      for (const p of allPaths) {
+        if (p.startsWith('src/vendor/')) {
+          violations.push({ message: 'excluded file must not appear in ctx.files/ctx.node.files', file: p });
+        }
+      }
+      // Mirror, in the same run: the node's OWN (non-excluded) file must
+      // still be there — over-correction that silently drops it would be the
+      // mirror-image failure to the leak this guard exists to close.
+      if (!allPaths.includes('src/a.ts')) {
+        violations.push({ message: 'own non-excluded file missing from ctx.files/ctx.node.files', file: 'src/a.ts' });
+      }
+      return violations;
+    }`);
+
+    const g = buildTestGraphForStructure({
+      nodes: [{ path: 'N', type: 'module', mapping: ['src'] }],
+      config: { coverage: { required: [], excluded: ['src/vendor/'], typeLevel: false } },
+    });
+    const r = await runStructureAspect({
+      aspectDir: path.join('.yggdrasil/aspects/dir7'),
+      aspectId: 'dir7', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
+    });
+    expect(r.succeeded).toBe(true);
+    expect(r.violations).toHaveLength(0);
+    // Belt-and-suspenders: the excluded files were never even read off disk for this run.
+    expect(r.touchedFiles.some((f) => f.startsWith('src/vendor/'))).toBe(false);
+  });
 });

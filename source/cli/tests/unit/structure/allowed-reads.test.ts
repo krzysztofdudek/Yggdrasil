@@ -292,6 +292,38 @@ describe('what a rule running on a single file may read', () => {
     expect(reach.has('src/owned/vendor/foreign.ts')).toBe(false);
     expect(reach.has('src/owned/vendor/.yggdrasil/yg-config.yaml')).toBe(false);
   });
+
+  it("excludes a declared component's coverage.excluded subtree from a file's read-allowance, while keeping its non-excluded files reachable", async () => {
+    // Same guard, from the OTHER source of exclusion membership: an ORDINARY
+    // subdirectory (no nested graph, no nested .git) that the graph's own
+    // coverage.excluded config names directly must never earn a reach entry
+    // either, even though the enumerating component's directory mapping
+    // textually covers it.
+    const ARCH: ArchitectureDef = {
+      node_types: {
+        leaf: { description: 'A file classified by its own type, no component.', relationDefault: 'deny', relations: { uses: ['owned-type'] } },
+        'owned-type': { description: 'A component whose directory mapping contains a coverage.excluded subtree.' },
+      },
+    };
+    const g = buildTestGraphForStructure({
+      nodes: [{ path: 'owned', type: 'owned-type', mapping: ['src/owned'] }],
+      config: { coverage: { required: [], excluded: ['src/owned/vendor/'], typeLevel: false } },
+    });
+    g.architecture = ARCH;
+    writeRealFile(g, 'src/owned/readable.ts', 'export const r = 1;\n');
+    writeRealFile(g, 'src/owned/vendor/foreign.ts', 'export const SECRET = 1;\n');
+
+    const reach = await collectArchitectureReach('src/leaf/a.ts', {
+      fromType: 'leaf',
+      typeCovered: new Map(),
+      architecture: ARCH,
+      graph: g,
+      projectRoot: path.dirname(g.rootPath),
+      ownerIndex: buildOwnerIndex(g.nodes),
+    });
+    expect(reach.has('src/owned/readable.ts')).toBe(true);
+    expect(reach.has('src/owned/vendor/foreign.ts')).toBe(false);
+  });
 });
 
 // =============================================================================

@@ -17,13 +17,18 @@ description: Shared helper functions — debug logging, git introspection, path
   installed-artifact names (AGENTS.md, CLAUDE.md, .clinerules/yggdrasil.md) for
   the same reason — the installer, the committed-digest reader, and the check
   that labels findings with them cannot import each other, but all three may
-  call utility.
+  call utility. It also owns the one-file coverage.excluded predicate
+  (normalizeRoot / matchesRoot / isExcludedByCoverage) — placed here rather
+  than in the engine layer so the persistence-adapter layer (io/hash.ts,
+  io/repo-scanner.ts) can call it directly while expanding a mapping to real
+  files, since a persistence-adapter node may call utility but not engine.
 aspects:
   - posix-paths-output
 relations: [ { target: cli/model/graph, type: uses } ]
 mapping:
   - source/cli/src/utils/binary-check.ts
   - source/cli/src/utils/binary-extensions.ts
+  - source/cli/src/utils/coverage-exclusion.ts
   - source/cli/src/utils/debug-log.ts
   - source/cli/src/utils/git-introspect.ts
   - source/cli/src/utils/git.ts

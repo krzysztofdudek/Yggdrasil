@@ -172,3 +172,54 @@ describe('computeSuppressionScanUniverse excludes a nested project from the audi
     expect(universe.some((f) => f.startsWith('services/vendorlib/'))).toBe(false);
   });
 });
+
+// =============================================================================
+// The same audit-universe guard, from its OTHER source of exclusion
+// membership: a coverage.excluded root an adopter configured, rather than a
+// nested project's filesystem-derived boundary. Both feed the one supreme
+// exclusion filter, so a file matching neither reason must still vanish from
+// the audit universe — no inventoried waiver on an excluded file, no matter
+// whether a mapping swept it in or the base repo walk would have surfaced it
+// as an ordinary tracked file.
+// =============================================================================
+describe('computeSuppressionScanUniverse excludes a coverage.excluded root from the audit universe', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-supp-universe-excl-'));
+  });
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  const EXCLUDED_COVERAGE = { required: [], excluded: ['services/vendor/'], typeLevel: false };
+
+  it('a mapped directory containing an ORDINARY excluded subdirectory contributes only its own files to the universe', async () => {
+    const servicesDir = path.join(tmpDir, 'services');
+    mkdirSync(servicesDir, { recursive: true });
+    writeFileSync(path.join(servicesDir, 'alpha.py'), '# yg-suppress(det-perfile) known debt\ndoWork()\n');
+    mkdirSync(path.join(servicesDir, 'vendor'), { recursive: true });
+    writeFileSync(
+      path.join(servicesDir, 'vendor', 'other.py'),
+      '# yg-suppress(det-perfile) an excluded waiver this graph must never inventory\ndoWork()\n',
+    );
+
+    const walkedFiles = ['services/alpha.py'];
+    const universe = await computeSuppressionScanUniverse(tmpDir, walkedFiles, ['services'], EXCLUDED_COVERAGE);
+
+    expect(universe.sort()).toEqual(['services/alpha.py']);
+    expect(universe).not.toContain('services/vendor/other.py');
+  });
+
+  it('an excluded file that is ALSO an ordinary tracked file (present in the base walk) is still dropped, not just the mapped-file side', async () => {
+    // walkRepoFiles does not itself know about coverage.excluded — a file
+    // under an excluded root that happens to be a normal git-tracked file
+    // (never swept in by any mapping either) can still reach this universe's
+    // BASE list unless the base list is filtered too, not only the union's
+    // mapped-file half.
+    const walkedFiles = ['services/alpha.py', 'services/vendor/other.py'];
+    const universe = await computeSuppressionScanUniverse(tmpDir, walkedFiles, [], EXCLUDED_COVERAGE);
+
+    expect(universe).toEqual(['services/alpha.py']);
+  });
+});

@@ -310,10 +310,10 @@ describe('computeExpectedPairs — nodeless enumeration', () => {
 });
 
 // ---------------------------------------------------------------------------
-// The explicit-mapping scope guard (real fixture + variant)
+// The absolute-exclusion guard (real fixture + variant)
 // ---------------------------------------------------------------------------
 
-describe('computeExpectedPairs — explicit mapping outranks coverage.excluded', () => {
+describe('computeExpectedPairs — coverage.excluded cuts a component\'s own explicit mapping too', () => {
   let projectDir: string;
 
   beforeEach(() => {
@@ -326,35 +326,30 @@ describe('computeExpectedPairs — explicit mapping outranks coverage.excluded',
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  it("keeps enforcing a file a component explicitly maps, even under an excluded root", async () => {
+  it("produces NO pair for a file a component explicitly maps, once that file is under an excluded root", async () => {
     const graph = await loadGraph(projectDir);
     // Simulate the file ALSO appearing in the type-coverage lattice's `covered`
     // map (a hand-built TypeCoverageInput, as the classifier itself would never
     // classify an explicitly-mapped file as "uncovered" in the first place —
-    // this directly tests computeExpectedPairs's OWN redundant safety net,
-    // independent of whether the upstream classifier's own filter is correct).
+    // this directly tests computeExpectedPairs's OWN exclusion guard on both
+    // the node loop and the nodeless loop, independent of whether the upstream
+    // classifier's own filter is correct).
     const TC = tc([['vendor/mapped.ts', 'leaf']]);
     const { pairs, drops } = await computeExpectedPairs(graph, { typeCoverage: TC });
     const vendorPairs = pairs.filter((p) => p.subjectFiles.includes('vendor/mapped.ts'));
-    expect(vendorPairs.length).not.toBe(0);
-    // Every one of them is the REAL node's own pair (node loop untouched) —
-    // never a nodeless pair for the same file.
-    for (const p of vendorPairs) expect(p.nodePath).toBe('vendor-owner');
-    // The nodeless pass itself contributed NOTHING for vendor/mapped.ts — the
-    // exclusion silently wins there (no drop either — the file never reaches
-    // the cascade), exactly like the nodeless-enumeration block's own "a file
+    expect(vendorPairs).toHaveLength(0);
+    // Neither loop contributed a drop either — the file never reaches the
+    // cascade, exactly like the nodeless-enumeration block's own "a file
     // under the excluded root yields nothing at all" case above.
     expect(drops.some((d) => d.file === 'vendor/mapped.ts')).toBe(false);
-    expect(pairs.some((p) => p.nodePath === undefined && p.subjectFiles.includes('vendor/mapped.ts'))).toBe(false);
   });
 
-  it('the node loop never consults isExcludedByCoverage at all (explicit mapping is unconditional)', async () => {
+  it('the node loop DOES consult the exclusion filter — an excluded file produces no pair even with no typeCoverage supplied at all', async () => {
     const graph = await loadGraph(projectDir);
-    // No typeCoverage supplied at all — the node's own pair must still exist;
-    // proves that the component loop never consults isExcludedByCoverage,
-    // independent of the feature.
+    // No typeCoverage supplied at all — proves this is the component loop's
+    // OWN exclusion, independent of the nodeless-tier feature.
     const { pairs } = await computeExpectedPairs(graph);
-    expect(pairs.some((p) => p.nodePath === 'vendor-owner' && p.subjectFiles.includes('vendor/mapped.ts'))).toBe(true);
+    expect(pairs.some((p) => p.nodePath === 'vendor-owner' && p.subjectFiles.includes('vendor/mapped.ts'))).toBe(false);
   });
 });
 

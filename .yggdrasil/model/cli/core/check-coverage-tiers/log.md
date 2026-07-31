@@ -20,3 +20,5 @@ Coverage exclusion is now absolute: a file matching any excluded root is dropped
 Reworded the coverage-required-shadowed warning's WHY sentence to plain language: it no longer names the internal middle tier, since that vocabulary appears in no other user-facing message.
 ## [2026-07-30T21:01:53.090Z]
 Reworded a comment naming the live type-to-type relation gate so it stands on its own, dropping a short internal code with no meaning to a reader of this repository.
+## [2026-07-31T12:04:35.237Z]
+The one-file coverage.excluded predicate needed to be reachable from the persistence layer while expanding a mapping to real files, and a persistence-layer module may not depend on the engine layer this predicate used to live in. It now lives in the shared utility layer both sides may call, re-exported here so nothing importing it from this module needed to change.

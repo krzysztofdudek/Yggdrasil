@@ -415,6 +415,41 @@ describe.skipIf(!distExists)('CLI E2E — query and navigation', () => {
     }
   });
 
+  it('yg context --file on a file under a coverage.excluded root is excluded by design (exit 0), never "must satisfy" the containing node\'s rules', () => {
+    // The same guard, from the OTHER source of exclusion membership: an
+    // ORDINARY subdirectory (no nested graph, no nested .git) an adopter's
+    // own coverage.excluded config names directly.
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-ctx-excluded-'));
+    try {
+      cpSync(FIXTURE, dir, { recursive: true });
+      mkdirSync(path.join(dir, '.yggdrasil', 'model', 'excl'), { recursive: true });
+      writeFileSync(
+        path.join(dir, '.yggdrasil', 'model', 'excl', 'yg-node.yaml'),
+        'name: Excl\ndescription: x\ntype: service\nmapping:\n  - src/excl\n',
+        'utf-8',
+      );
+      mkdirSync(path.join(dir, 'src', 'excl', 'vendor'), { recursive: true });
+      writeFileSync(path.join(dir, 'src', 'excl', 'vendor', 'foreign.ts'), 'export const foreign = 1;\n', 'utf-8');
+      writeFileSync(path.join(dir, 'src', 'excl', 'own.ts'), 'export const own = 1;\n', 'utf-8');
+      const configPath = path.join(dir, '.yggdrasil', 'yg-config.yaml');
+      const existingConfig = readFileSync(configPath, 'utf-8');
+      writeFileSync(configPath, existingConfig + '\ncoverage:\n  excluded:\n    - src/excl/vendor/\n', 'utf-8');
+
+      const { status, stdout } = run(['context', '--file', 'src/excl/vendor/foreign.ts'], dir);
+      expect(status).toBe(0);
+      expect(stdout).toContain('excluded from graph coverage by design');
+      expect(stdout).not.toContain('Must satisfy');
+      expect(stdout).not.toContain('excl (service)');
+
+      // Control: the node's own (non-excluded) file is still governed normally.
+      const own = run(['context', '--file', 'src/excl/own.ts'], dir);
+      expect(own.status).toBe(0);
+      expect(own.stdout).toContain('Owner: excl (service)');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('yg context without .yggdrasil returns exit 1', () => {
     const emptyDir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-ctx-no-ygg-'));
     try {

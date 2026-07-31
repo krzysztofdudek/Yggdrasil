@@ -24,3 +24,5 @@ The suppressions command now imports the file-eligibility helper from the focuse
 The suppression inventory command now derives the set of rules labeled as only ever firing on provable violations and passes it into the scan so a waiver that silences one is flagged. Silencing a rule that produces no false positives by design is a footgun worth surfacing to a reader; the command supplies the set and keeps the scan itself free of policy.
 ## [2026-07-31T04:22:16.040Z]
 The inventory now classifies the architecture type-level coverage lattice and treats any file it covers as a live waiver site, exempt from the noise filter the same way a mapped node source already is. Previously a marker on a file enforced only by its architecture type, including a documentation file the noise filter would otherwise drop by extension, could silently waive an enforced rule while this command reported no active markers at all.
+## [2026-07-31T12:04:34.229Z]
+Threads the adopter's coverage.excluded config into the audit-universe scan alongside the existing nested-project boundary, so the inventory this command prints agrees with the same exclusion authority enforcement now honors.

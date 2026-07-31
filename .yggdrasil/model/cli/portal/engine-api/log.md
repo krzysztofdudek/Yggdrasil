@@ -56,3 +56,5 @@ The suppression scan drew its candidate file list from a plain repo walk, which 
 The suppression-marker audit's mapped-file universe now calls the same shared nested-graph-aware expansion the enforcement side uses, instead of hand-composing the expansion and the exclusion itself, so the audit and the runner it audits can never disagree about which files belong to a nested checkout.
 ## [2026-07-31T08:26:09.677Z]
 Exposed a facade wrapper that drops the per-run cache of on-disk separate-project boundaries, so the extraction pipeline can force a fresh read of that state on every refresh instead of reusing whatever a long-lived server process cached on its first request.
+## [2026-07-31T12:04:36.890Z]
+The portal's live suppression inventory needs the adopter's coverage.excluded config threaded into the same scan the CLI's own suppression audit now receives it in, so the portal's waiver list agrees with the CLI rather than drifting from it the moment a project excludes a path by config instead of by nested-project boundary.

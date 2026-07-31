@@ -4,6 +4,8 @@ import type { FsEntry } from './types.js';
 import { normalizeMappingPath, mappingEntryMatchesFile } from '../utils/mapping-path.js';
 import { toPosix } from '../utils/posix.js';
 import { isUnderAnyNestedProjectRoot } from '../io/repo-scanner.js';
+import { isExcludedByCoverage } from '../utils/coverage-exclusion.js';
+import type { CoverageConfig } from '../model/graph.js';
 import type { ObservationRecorder } from './observations.js';
 
 export interface CtxFsParams {
@@ -38,6 +40,17 @@ export interface CtxFsParams {
    * computes and passes the actual set.
    */
   nestedProjectRoots?: ReadonlySet<string>;
+  /**
+   * The graph's `coverage` config — the adopter-configured half of the same
+   * one supreme exclusion filter `nestedProjectRoots` supplies the
+   * filesystem-derived half of. A path matching a `coverage.excluded` root is
+   * rejected exactly like a path under a nested-project boundary, even if
+   * `allowedSet` textually covers it. Defaults to an empty `excluded` list
+   * (no adopter-config exclusion applied) for the same reason
+   * `nestedProjectRoots` defaults to empty — every real runner call site
+   * threads the graph's actual coverage config.
+   */
+  coverage?: CoverageConfig;
 }
 
 export interface CtxFs {
@@ -81,19 +94,21 @@ function isAllowed(p: string, set: Set<string>): boolean {
  * naturally — so only existing ancestors are probed. `projectRoot` itself may sit
  * under a symlink (e.g. /tmp → /private/tmp), so both sides are canonicalized.
  *
- * The SAME symlink also defeats the nested-project check above (line 128 in
- * resolveAllowedReadPath), which inspects only `rel` — the TEXTUAL, pre-symlink
- * path — for the same reason it defeats the repo-containment check: an ordinary
- * symlink inside an allowed directory can point INTO a separate project's own
- * boundary just as easily as it can point outside the repo entirely. Re-running
- * `isUnderAnyNestedProjectRoot` against the REAL path here closes that gap in the
- * same place, and for the same reason, the repo-escape re-check already lives.
+ * The SAME symlink also defeats the exclusion check above (in
+ * resolveAllowedReadPath), which inspects only `rel` — the TEXTUAL,
+ * pre-symlink path — for the same reason it defeats the repo-containment
+ * check: an ordinary symlink inside an allowed directory can point INTO a
+ * separate project's own boundary, or into a `coverage.excluded` root, just
+ * as easily as it can point outside the repo entirely. Re-running the same
+ * exclusion test against the REAL path here closes that gap in the same
+ * place, and for the same reason, the repo-escape re-check already lives.
  */
 function assertRealpathContained(
   abs: string,
   projectRoot: string,
   rel: string,
   nestedProjectRoots: ReadonlySet<string>,
+  coverage: CoverageConfig,
 ): void {
   let realRoot: string;
   try { realRoot = fs.realpathSync(projectRoot); } catch { realRoot = projectRoot; }
@@ -109,7 +124,7 @@ function assertRealpathContained(
   if (relReal === '..' || relReal.startsWith('../') || path.isAbsolute(relReal)) {
     throw new UndeclaredFsReadError(rel);
   }
-  if (isUnderAnyNestedProjectRoot(relReal, nestedProjectRoots)) {
+  if (isUnderAnyNestedProjectRoot(relReal, nestedProjectRoots) || isExcludedByCoverage(relReal, coverage)) {
     throw new UndeclaredFsReadError(rel);
   }
 }
@@ -117,23 +132,27 @@ function assertRealpathContained(
 /** No paths excluded — the default when a caller has nothing to say about nested projects. */
 const NO_NESTED_PROJECT_ROOTS: ReadonlySet<string> = new Set();
 
+/** No adopter-configured exclusion — the default when a caller has nothing to say about coverage.excluded. */
+const NO_COVERAGE_EXCLUDED: CoverageConfig = { required: [], excluded: [], typeLevel: false };
+
 /**
  * Resolve a check.mjs-supplied read path to a safe, allow-set-checked repo-relative path.
- * Rejects absolute paths and any `..` traversal that escapes the repo, rejects a path inside
- * a separate project's own boundary (`nestedProjectRoots` — see CtxFsParams), then enforces
- * the allow-set, then re-checks the REAL (symlink-resolved) path is still inside the repo.
+ * Rejects absolute paths and any `..` traversal that escapes the repo, rejects a path the
+ * graph excludes globally (`nestedProjectRoots` + `coverage` — see CtxFsParams; a separate
+ * project's own boundary, or a `coverage.excluded` root), then enforces the allow-set, then
+ * re-checks the REAL (symlink-resolved) path is still inside the repo and not excluded either.
  * Throws UndeclaredFsReadError on any violation. Shared by ctx.fs, ctx.parsers AND companion
  * resolution (core/companion-resolve.ts) so the three read-allowance surfaces cannot diverge:
- * a directory or glob mapping entry can textually cover a path inside a nested project it
- * never intended to reach, so the nested-boundary check runs BEFORE the allow-set check, not
- * folded into it. (This is a read-tracking discipline, not a security sandbox — check.mjs
- * runs with full Node privileges.)
+ * a directory or glob mapping entry can textually cover an excluded path it never intended to
+ * reach, so the exclusion check runs BEFORE the allow-set check, not folded into it. (This is
+ * a read-tracking discipline, not a security sandbox — check.mjs runs with full Node privileges.)
  */
 export function resolveAllowedReadPath(
   raw: string,
   allowedSet: Set<string>,
   projectRoot: string,
   nestedProjectRoots: ReadonlySet<string> = NO_NESTED_PROJECT_ROOTS,
+  coverage: CoverageConfig = NO_COVERAGE_EXCLUDED,
 ): string {
   const abs = path.resolve(projectRoot, normalizeMappingPath(raw));
   const rel = toPosix(path.relative(projectRoot, abs));
@@ -141,20 +160,22 @@ export function resolveAllowedReadPath(
   if (rel === '' || rel.startsWith('..') || path.isAbsolute(rel)) {
     throw new UndeclaredFsReadError(normalizeMappingPath(raw));
   }
-  if (isUnderAnyNestedProjectRoot(rel, nestedProjectRoots)) throw new UndeclaredFsReadError(rel);
+  if (isUnderAnyNestedProjectRoot(rel, nestedProjectRoots) || isExcludedByCoverage(rel, coverage)) {
+    throw new UndeclaredFsReadError(rel);
+  }
   if (!isAllowed(rel, allowedSet)) throw new UndeclaredFsReadError(rel);
   // Symlink-escape defense: the textual path is in-repo and allow-listed, but a
-  // symlink could still redirect the real read outside the repo — or into a
-  // separate project's own boundary. Reject either.
-  assertRealpathContained(abs, projectRoot, rel, nestedProjectRoots);
+  // symlink could still redirect the real read outside the repo — or into
+  // whatever the graph excludes globally. Reject either.
+  assertRealpathContained(abs, projectRoot, rel, nestedProjectRoots, coverage);
   return rel;
 }
 
 export function createCtxFs(params: CtxFsParams): CtxFs {
-  const { allowedSet, projectRoot, touchedFiles, recorder, subjectFiles, nestedProjectRoots } = params;
+  const { allowedSet, projectRoot, touchedFiles, recorder, subjectFiles, nestedProjectRoots, coverage } = params;
 
   function assertAllowed(raw: string): string {
-    const p = resolveAllowedReadPath(raw, allowedSet, projectRoot, nestedProjectRoots);
+    const p = resolveAllowedReadPath(raw, allowedSet, projectRoot, nestedProjectRoots, coverage);
     touchedFiles.push(p);
     return p;
   }

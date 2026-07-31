@@ -9,6 +9,7 @@ import { getLanguageForExtension } from '../utils/language-registry.js';
 import { resolveAllowedReadPath } from './ctx-fs.js';
 import type { File } from './types.js';
 import type { ObservationRecorder } from './observations.js';
+import type { CoverageConfig } from '../model/graph.js';
 
 export interface CtxParsersParams {
   allowedSet: Set<string>;
@@ -34,6 +35,8 @@ export interface CtxParsersParams {
    * way ctx.fs.read is. Defaults to empty.
    */
   nestedProjectRoots?: ReadonlySet<string>;
+  /** The graph's `coverage` config — see CtxFsParams.coverage (ctx-fs.ts) for the full contract. Defaults to no adopter-configured exclusion. */
+  coverage?: CoverageConfig;
 }
 
 export interface CtxParsers {
@@ -56,14 +59,14 @@ export class ParseAstNotPrewarmedError extends Error {
 }
 
 export function createCtxParsers(params: CtxParsersParams): CtxParsers {
-  const { allowedSet, projectRoot, touchedFiles, astCache, recorder, subjectFiles, nestedProjectRoots } = params;
+  const { allowedSet, projectRoot, touchedFiles, astCache, recorder, subjectFiles, nestedProjectRoots, coverage } = params;
 
   function asFile(input: File | string): File {
     if (typeof input !== 'string') {
       touchedFiles.push(input.path);
       return input;
     }
-    const p = resolveAllowedReadPath(input, allowedSet, projectRoot, nestedProjectRoots);
+    const p = resolveAllowedReadPath(input, allowedSet, projectRoot, nestedProjectRoots, coverage);
     const abs = path.resolve(projectRoot, p);
     let bytes: Buffer;
     try {

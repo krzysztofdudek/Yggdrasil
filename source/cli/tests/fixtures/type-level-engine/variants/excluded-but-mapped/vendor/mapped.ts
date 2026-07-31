@@ -1,4 +1,4 @@
-// Lives under vendor/, which this variant's config adds to coverage.excluded —
-// but an explicit component (vendor-owner) still maps this exact file, so it
-// must stay reviewed despite the exclusion.
+// Lives under vendor/, which this variant's config adds to coverage.excluded.
+// An explicit component (vendor-owner) maps this exact file, but the
+// exclusion cuts it anyway — it is never a review subject.
 export const mapped = 1;

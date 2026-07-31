@@ -1,7 +1,8 @@
 import { toPosixPath } from '../../utils/posix.js';
 import { mappingEntryMatchesFile, normalizeMappingPath } from '../../utils/mapping-path.js';
 import { expandMappingPathsWithinOwnGraph } from '../../io/hash.js';
-import type { Graph } from '../../model/graph.js';
+import { NO_COVERAGE_EXCLUDED, resolveGraphExclusionSet, filterExcludedFromGraph } from '../../io/repo-scanner.js';
+import type { Graph, CoverageConfig } from '../../model/graph.js';
 
 /**
  * portal/api/suppress-eligibility — the ONE file-eligibility rule shared by the
@@ -206,10 +207,20 @@ export async function computeSuppressionScanUniverse(
   projectRoot: string,
   walkedFiles: readonly string[],
   mappingEntries: readonly string[],
+  coverage: CoverageConfig = NO_COVERAGE_EXCLUDED,
 ): Promise<string[]> {
-  const universe = walkedFiles.map(toPosixPath);
+  // `walkedFiles` is an ordinary repo walk (walkRepoFiles): it already prunes a
+  // nested project's own boundary, but NOT an adopter's `coverage.excluded`
+  // config — that root list is unknown to the walk itself. Filter the base list
+  // through the same one supreme exclusion authority the mapped-file union
+  // below already uses, so a `coverage.excluded` file that would otherwise
+  // reach this universe only because it happens to be an ordinary tracked file
+  // (never swept in by any mapping) is gone here too — no audit entry for an
+  // excluded path, exactly like no coverage complaint and no enforcement pair.
+  const exclusion = await resolveGraphExclusionSet(projectRoot, coverage);
+  const universe = filterExcludedFromGraph(walkedFiles.map(toPosixPath), exclusion);
   const seen = new Set(universe);
-  const rawMappedFiles = await expandMappingPathsWithinOwnGraph(projectRoot, [...mappingEntries]);
+  const rawMappedFiles = await expandMappingPathsWithinOwnGraph(projectRoot, [...mappingEntries], coverage);
   const mappedFiles = rawMappedFiles.map(toPosixPath);
   for (const p of mappedFiles) {
     if (!seen.has(p)) {

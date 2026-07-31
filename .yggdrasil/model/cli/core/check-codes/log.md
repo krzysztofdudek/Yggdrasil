@@ -54,3 +54,5 @@ Gained the zero-classifying-types standing notice constant, moved here from core
 Registered the new live type-relation gate's blocking code in the structural set so the summary tally and the rendered error grouping count it consistently, the same single source every other blocking code already shares.
 ## [2026-07-31T08:26:04.808Z]
 Registered the new file-mapping-nested-project structural error code alongside the existing gitignore one, so both render in the same grouped category.
+## [2026-07-31T12:04:34.900Z]
+The structural code that used to name only a nested-project cause for an unusable mapping entry now also covers the case where an adopter's own coverage.excluded config is what emptied it, so it is renamed to describe the general condition rather than the one cause it originally covered.

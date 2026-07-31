@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import path from 'node:path';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
-import { walkRepoFiles } from '../io/repo-scanner.js';
+import { walkRepoFiles, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
 import { initDebugLog } from '../utils/debug-log.js';
 import { appendToDebugLog } from '../io/debug-log-writer.js';
 import { runSuppressionsScan, formatSuppressionsOutput } from '../portal/api/suppress-scan.js';
@@ -64,6 +64,7 @@ export function registerSuppressionsCommand(program: Command): void {
           collectMappingEntries(graph),
           underApproximatingAspectIds,
           await computeTypeCoveredFilesForSuppressions(graph, gitFiles),
+          graph.config.coverage ?? NO_COVERAGE_EXCLUDED,
         );
         process.stdout.write(formatSuppressionsOutput(report));
         // Always exit 0 — this is a purely informational command

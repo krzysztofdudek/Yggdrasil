@@ -380,3 +380,151 @@ describe('a symlink cannot smuggle a foreign read past the nested-project guard'
     expect(result.kind).toBe('infra');
   });
 });
+
+/**
+ * The same read-surface guard, from its OTHER source of membership: a
+ * `coverage.excluded` root an adopter configured, rather than a nested
+ * project's filesystem-derived boundary. Both feed the same one supreme
+ * exclusion filter, so a directory mapping's allowed-reads set must refuse a
+ * path under an excluded root exactly as it refuses one inside a nested
+ * project — including through a symlink, and including for a companion.
+ *
+ * HERMETIC: real on-disk fixtures under a fresh mkdtemp per test, no mocking.
+ */
+describe('a coverage.excluded subtree inside a mapped directory is refused on every read surface', () => {
+  let projectRoot: string;
+  let outsideDir: string;
+
+  beforeEach(() => {
+    projectRoot = mkdtempSync(path.join(tmpdir(), 'yg-excluded-read-guard-'));
+    outsideDir = mkdtempSync(path.join(tmpdir(), 'yg-excluded-read-guard-outside-'));
+
+    mkdirSync(path.join(projectRoot, 'services'), { recursive: true });
+    writeFileSync(path.join(projectRoot, 'services', 'alpha.py'), 'def alpha(): return 1\n');
+
+    // An ordinary (no nested graph, no nested .git) subdirectory that this
+    // fixture's own coverage.excluded config names directly.
+    mkdirSync(path.join(projectRoot, 'services', 'vendor'), { recursive: true });
+    writeFileSync(
+      path.join(projectRoot, 'services', 'vendor', 'other.py'),
+      'SECRET_VENDOR_TOKEN = "not-yours"\n',
+    );
+
+    // A real, ordinary-looking symlink inside the mapped directory whose
+    // target resolves INTO the excluded subtree.
+    symlinkSync(
+      path.join(projectRoot, 'services', 'vendor', 'other.py'),
+      path.join(projectRoot, 'services', 'alias.py'),
+    );
+
+    writeFileSync(path.join(outsideDir, 'secret.py'), 'OUTSIDE_TOKEN = "not-yours"\n');
+  });
+
+  afterEach(() => {
+    rmSync(projectRoot, { recursive: true, force: true });
+    rmSync(outsideDir, { recursive: true, force: true });
+  });
+
+  function graphN() {
+    return buildTestGraphForStructure({
+      nodes: [{ path: 'N', type: 'module', mapping: ['services'] }],
+      config: { coverage: { required: [], excluded: ['services/vendor/'], typeLevel: false } },
+    });
+  }
+
+  function writeDetAspect(aspectId: string, checkBody: string): void {
+    const aspectDir = path.join(projectRoot, '.yggdrasil', 'aspects', aspectId);
+    mkdirSync(aspectDir, { recursive: true });
+    writeFileSync(path.join(aspectDir, 'check.mjs'), checkBody);
+  }
+
+  it('ctx.fs.read on a file under the excluded root is refused', async () => {
+    writeDetAspect('read-excluded', `export function check(ctx) {
+      ctx.fs.read('services/vendor/other.py');
+      return [];
+    }`);
+    let caught: unknown;
+    try {
+      await runStructureAspect({
+        aspectDir: path.join('.yggdrasil/aspects/read-excluded'),
+        aspectId: 'read-excluded', unit: { kind: 'node', nodePath: 'N' }, graph: graphN(), projectRoot,
+      });
+    } catch (e) { caught = e; }
+    expect(caught).toBeInstanceOf(StructureRunnerError);
+    expect((caught as StructureRunnerError).code).toBe('STRUCTURE_UNDECLARED_FS_READ');
+  });
+
+  it('ctx.fs.read on a symlink resolving INTO the excluded root is refused', async () => {
+    writeDetAspect('read-excluded-symlink', `export function check(ctx) {
+      ctx.fs.read('services/alias.py');
+      return [];
+    }`);
+    let caught: unknown;
+    try {
+      await runStructureAspect({
+        aspectDir: path.join('.yggdrasil/aspects/read-excluded-symlink'),
+        aspectId: 'read-excluded-symlink', unit: { kind: 'node', nodePath: 'N' }, graph: graphN(), projectRoot,
+      });
+    } catch (e) { caught = e; }
+    expect(caught).toBeInstanceOf(StructureRunnerError);
+    expect((caught as StructureRunnerError).code).toBe('STRUCTURE_UNDECLARED_FS_READ');
+  });
+
+  it('control: ctx.fs.read on an ordinary mapped sibling (not under the excluded root) still works', async () => {
+    writeDetAspect('read-ordinary-excluded-suite', `export function check(ctx) {
+      const body = ctx.fs.read('services/alpha.py');
+      return body.includes('alpha') ? [] : [{ message: 'missing', file: 'services/alpha.py', line: 1 }];
+    }`);
+    const r = await runStructureAspect({
+      aspectDir: path.join('.yggdrasil/aspects/read-ordinary-excluded-suite'),
+      aspectId: 'read-ordinary-excluded-suite', unit: { kind: 'node', nodePath: 'N' }, graph: graphN(), projectRoot,
+    });
+    expect(r.succeeded).toBe(true);
+    expect(r.violations).toHaveLength(0);
+  });
+
+  function writeCompanionAspect(aspectId: string, companionBody: string): void {
+    const aspectDir = path.join(projectRoot, '.yggdrasil', 'aspects', aspectId);
+    mkdirSync(aspectDir, { recursive: true });
+    writeFileSync(path.join(aspectDir, 'content.md'), '# rule\n');
+    writeFileSync(path.join(aspectDir, 'companion.mjs'), companionBody);
+  }
+
+  function makePair(): ExpectedPair {
+    return {
+      aspectId: 'co-excluded',
+      kind: 'llm',
+      unitKey: nodeUnit('N'),
+      nodePath: 'N',
+      status: 'enforced',
+      subjectFiles: ['services/alpha.py'],
+    };
+  }
+
+  function makeAspect(): AspectDef {
+    return {
+      id: 'co-excluded',
+      name: 'co-excluded',
+      reviewer: { type: 'llm' },
+      artifacts: [{ filename: 'content.md', content: '# rule\n' }],
+    } as unknown as AspectDef;
+  }
+
+  it('a companion.mjs returning a file under the excluded root fails closed (infra), never billed', async () => {
+    writeCompanionAspect('co-excluded', `export function companion(ctx) {
+      return [{ path: 'services/vendor/other.py', label: 'excluded-file' }];
+    }`);
+    const result = await resolveCompanionsForPair(graphN(), projectRoot, makePair(), makeAspect());
+    expect(result.kind).toBe('infra');
+  });
+
+  it('control: a companion.mjs returning an ordinary mapped sibling still resolves ok', async () => {
+    writeCompanionAspect('co-excluded', `export function companion(ctx) {
+      return [];
+    }`);
+    const result = await resolveCompanionsForPair(graphN(), projectRoot, makePair(), makeAspect());
+    expect(result.kind).toBe('ok');
+    if (result.kind !== 'ok') return;
+    expect(result.companions.promptCompanions).toEqual([]);
+  });
+});

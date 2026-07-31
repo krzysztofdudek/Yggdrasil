@@ -4,43 +4,18 @@ import { mappingEntryMatchesFile, normalizeMappingPath, isGlobPattern } from '..
 // type-only import — erased at runtime, no circular runtime dependency
 import type { CheckIssue } from './check.js';
 
-/** Normalize a coverage root: POSIX, no leading/trailing slash, collapse internal double-slashes. "/" → "" (whole repo). */
-export function normalizeRoot(root: string): string {
-  return toPosixPath(root.trim()).replace(/^\/+/, '').replace(/\/+$/, '').replace(/\/{2,}/g, '/');
-}
-
 /**
- * A normalized root R matches file F iff R is "" (whole repo), or R covers F.
- * "Covers" uses the same semantics as a node mapping entry: a plain root is an
- * exact file match or a directory prefix (F === R or F under R/); a glob root
- * (one containing glob metacharacters) matches via minimatch — a single star
- * stays within one path segment, a double star spans segments. So an excluded
- * glob root can drop generated files anywhere in the tree, and a required glob
- * root can scope the blocking tier to a pattern rather than a whole directory.
+ * `normalizeRoot`, `matchesRoot`, `isExcludedByCoverage` now live in
+ * `utils/coverage-exclusion.ts` — the persistence-adapter layer (`io/hash.ts`,
+ * `io/repo-scanner.ts`) needs `isExcludedByCoverage` while expanding a mapping
+ * to real files, and a utility-layer module is the one place both that layer
+ * and this one (engine) may legally import from. Re-exported here so every
+ * existing importer of this module is unaffected by where the implementation
+ * lives — this file remains the coverage-tiering entry point, it just no
+ * longer OWNS the one-file exclusion predicate.
  */
-export function matchesRoot(file: string, normRoot: string): boolean {
-  return normRoot === '' || mappingEntryMatchesFile(normRoot, file);
-}
-
-/**
- * True iff `file` matches ANY normalized root in `coverage.excluded` (plain or
- * glob). Exclusion is ABSOLUTE: this predicate is the ONE authority every
- * nodeless-tier consumer asks the same question through, so a file's excluded
- * status can never disagree between them — directly for the classification
- * lattice, coverage tiering, and the tracked∩gitignored anomaly check; INDIRECTLY
- * for the live type-relation gate, which never calls this predicate
- * itself but consumes `computeTypeCoverage`'s already-filtered `covered` map —
- * an excluded file is never a member of that map, so it can never become a gate
- * endpoint either, without the gate needing its own exclusion check. It has NO
- * opinion on a required root also matching — exclusion wins regardless. An
- * EXPLICITLY-MAPPED file (a node's own `mapping:` entry) never reaches this
- * function at all — mapping is stronger intent than exclusion, and pair
- * enumeration for explicit nodes (core/pairs.ts) has no dependency on
- * coverage.excluded.
- */
-export function isExcludedByCoverage(file: string, coverage: CoverageConfig): boolean {
-  return coverage.excluded.map(normalizeRoot).some((r) => matchesRoot(file, r));
-}
+export { normalizeRoot, matchesRoot, isExcludedByCoverage } from '../utils/coverage-exclusion.js';
+import { isExcludedByCoverage, normalizeRoot, matchesRoot } from '../utils/coverage-exclusion.js';
 
 /**
  * Split uncovered files into the error tier (matches a `required` root) and the

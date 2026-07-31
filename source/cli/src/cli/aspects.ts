@@ -14,7 +14,7 @@ import type { Graph, AspectStatus, AspectDef } from '../model/graph.js';
 import { readLock } from '../io/lock-store.js';
 import { verifyLock } from '../core/verify-lock.js';
 import type { VerifiedPair } from '../core/verify-lock.js';
-import { walkRepoFiles } from '../io/repo-scanner.js';
+import { walkRepoFiles, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
 import { runSuppressionsScan } from '../portal/api/suppress-scan.js';
 import type { SuppressionsReport } from '../portal/api/suppress-scan.js';
 import { resolveSuppressedUnitsByAspect } from '../portal/api/suppress-coverage.js';
@@ -763,6 +763,7 @@ async function buildAspectsHealthOutput(graph: Graph, nowMs: number): Promise<st
     // Reuse the SAME classification `verifyLock` just consumed above — no
     // second pass over every uncovered file.
     collectTypeCoveredFiles(typeCoverage?.covered),
+    graph.config.coverage ?? NO_COVERAGE_EXCLUDED,
   );
 
   // Local, gitignored telemetry — read HERE at the CLI boundary (aspects.ts is on

@@ -6,16 +6,18 @@ import { expandMappingPaths, expandMappingPathsWithinOwnGraph } from '../../io/h
 import { mappingEntryMatchesFile, isGlobPattern, normalizeMappingPath } from '../../utils/mapping-path.js';
 import { buildOwnerIndex } from '../../relations/owner-index.js';
 import { readSortedDir, statPath } from '../../io/graph-fs.js';
-import { walkRepoFiles, isCoverageExcludedPath, findNestedProjectRoots, isUnderAnyNestedProjectRoot } from '../../io/repo-scanner.js';
+import { walkRepoFiles, isCoverageExcludedPath, findNestedProjectRoots, isUnderAnyNestedProjectRoot, NO_COVERAGE_EXCLUDED } from '../../io/repo-scanner.js';
 import { FileContentCache } from '../../io/file-content-cache.js';
 import { evaluateFileWhen } from '../file-when-evaluator.js';
 import { classifyFile } from '../type-classifier.js';
 import { renderTrace } from '../../formatters/predicate-trace.js';
 import { issueMsg } from './shared.js';
 import { toPosixPath } from '../../utils/posix.js';
+import { isExcludedByCoverage } from '../../utils/coverage-exclusion.js';
 
 export async function checkFileMappingGitignored(graph: Graph): Promise<ValidationIssue[]> {
   const projectRoot = path.dirname(graph.rootPath);
+  const coverage = graph.config.coverage ?? NO_COVERAGE_EXCLUDED;
   const [tracked, nestedProjectRoots] = await Promise.all([
     walkRepoFiles(projectRoot).then((files) => new Set(files)),
     findNestedProjectRoots(projectRoot),
@@ -42,27 +44,33 @@ export async function checkFileMappingGitignored(graph: Graph): Promise<Validati
       let st;
       try { st = await statPath(absPath); } catch { continue; }
       if (!st.isFile()) continue;
-      if (tracked.has(norm)) continue;
 
-      // A file absent from `tracked` for a THIRD reason — it sits inside a
-      // separate project's own boundary (a nested `.yggdrasil/` graph, or a
-      // nested `.git` checkout/submodule/worktree) — is not gitignored at
-      // all; blaming .gitignore sends an adopter to edit a file that may not
-      // exist and hides the real, structural cause.
-      if (isUnderAnyNestedProjectRoot(norm, nestedProjectRoots)) {
+      // Exclusion is checked BEFORE the tracked-file short-circuit below, and
+      // regardless of it: an excluded path is gone from this graph whether or
+      // not git happens to track it, so a git-tracked-but-excluded file must
+      // still be reported as excluded, not silently passed over because
+      // `tracked.has(norm)` would otherwise short-circuit this loop. A file
+      // absent from `tracked` for this reason (nested-project boundary) was
+      // never gitignored at all — blaming .gitignore would send an adopter to
+      // edit a file that may not exist and hides the real cause, which is why
+      // this generalized check runs first, one level ABOVE the more specific
+      // gitignore diagnosis below.
+      if (isUnderAnyNestedProjectRoot(norm, nestedProjectRoots) || isExcludedByCoverage(norm, coverage)) {
         issues.push({
           severity: 'error',
-          code: 'file-mapping-nested-project',
-          rule: 'file-mapping-nested-project',
+          code: 'file-mapping-excluded',
+          rule: 'file-mapping-excluded',
           nodePath,
           ...issueMsg({
-            what: `File '${toPosixPath(norm)}' is in mapping of node '${nodePath}' but sits inside a separate project's own boundary.`,
-            why: `A directory below the mapping is its own separate project (a nested \`.yggdrasil/\` graph, or its own \`.git\` — a checkout, submodule, or worktree), governed by that project rather than this one, so it can never be reviewed here regardless of .gitignore.`,
-            next: `Either:\n  1. Remove the file from the mapping (it belongs to the separate project).\n  2. Map a file outside the separate project's own boundary.`,
+            what: `File '${toPosixPath(norm)}' is in mapping of node '${nodePath}' but is excluded from graph coverage.`,
+            why: `An exclusion cuts everything it matches, including a node's own explicit mapping entry — this file is never enforced while excluded, no matter how deliberately the mapping names it. It is excluded either because it sits inside a separate project's own boundary (a nested \`.yggdrasil/\` graph, or its own \`.git\` — a checkout, submodule, or worktree) or because it matches a \`coverage.excluded\` root in yg-config.yaml.`,
+            next: `Either:\n  1. Remove the file from the mapping (it is never enforced while excluded).\n  2. If it should be enforced, remove the matching \`coverage.excluded\` entry, or move the file outside the separate project's own boundary.`,
           }),
         });
         continue;
       }
+
+      if (tracked.has(norm)) continue;
 
       issues.push({
         severity: 'error',
@@ -359,28 +367,19 @@ export async function checkMappingOverlap(graph: Graph): Promise<ValidationIssue
 export async function checkMappingPathsExist(graph: Graph): Promise<ValidationIssue[]> {
   const issues: ValidationIssue[] = [];
   const projectRoot = path.dirname(graph.rootPath);
+  const coverage = graph.config.coverage ?? NO_COVERAGE_EXCLUDED;
   for (const [nodePath, node] of graph.nodes) {
     const mappingPaths = normalizeMappingPaths(node.meta.mapping).map(normalizePathForCompare);
-    // Sweep entries only — a glob, or a plain entry that resolves to a
-    // DIRECTORY on disk (recursed into, so it can contain files the entry
-    // itself never named). An entry that resolves to a single, exact FILE is
-    // the node's own explicit, deliberate ownership claim over that one path —
-    // a different question from a directory or glob entry sweeping in files it
-    // never specifically named, so it is excluded from the aggregate,
-    // whole-mapping check below (whether that single claim is itself valid is
-    // a separate, unrelated check's territory).
-    const sweepEntries: string[] = [];
     for (const mp of mappingPaths) {
       if (isGlobPattern(mp)) {
-        sweepEntries.push(mp);
-        // Deliberately the NEUTRAL expandMappingPaths, not the nested-project-
+        // Deliberately the NEUTRAL expandMappingPaths, not the exclusion-
         // guarded expandMappingPathsWithinOwnGraph: this question is "does the
-        // glob resolve to real content on disk at all" (a stale/typo'd pattern),
-        // independent of WHOSE project that content belongs to. A glob that
-        // matches only a separate project's files is not stale — those files
-        // are real — so it must stay silent here; the aggregate, whole-mapping
+        // glob resolve to real content on disk at all" (a stale/typo'd
+        // pattern), independent of whether that content is excluded. A glob
+        // that matches only excluded files is not stale — those files are
+        // real — so it must stay silent here; the aggregate, whole-mapping
         // check below (using the guarded expansion) is what catches a mapping
-        // that has been entirely swallowed by a separate project's boundary.
+        // that has been entirely swallowed by exclusion.
         const matched = await expandMappingPaths(projectRoot, [mp]);
         if (matched.length === 0) {
           issues.push({
@@ -397,9 +396,8 @@ export async function checkMappingPathsExist(graph: Graph): Promise<ValidationIs
         }
       } else {
         const absPath = path.join(projectRoot, mp);
-        let st;
         try {
-          st = await statPath(absPath);
+          await statPath(absPath);
         } catch {
           issues.push({
             severity: 'error',
@@ -412,30 +410,33 @@ export async function checkMappingPathsExist(graph: Graph): Promise<ValidationIs
             }),
             nodePath,
           });
-          continue;
         }
-        if (st.isDirectory()) sweepEntries.push(mp);
       }
     }
 
-    // Aggregate, whole-mapping check: do this node's SWEEP entries — taken
+    // Aggregate, whole-mapping check: do this node's mapping entries — taken
     // together, not entry by entry — resolve to anything THIS node can
     // actually enforce? A directory or glob entry can resolve to real, on-disk
     // content (so the per-entry checks above stay silent) while EVERY one of
-    // those files sits inside a separate project's own boundary — a nested
-    // `.yggdrasil/` graph, or a nested `.git` checkout/submodule/worktree.
-    // Left unreported, that node would pass `yg check` with a non-empty
-    // `mapping:` and zero enforceable files: the same "resolves to nothing
-    // usable" fact mapping-path-missing already reports for a stale glob or a
-    // deleted file, just reached through a different cause, so it reuses the
-    // same code rather than announcing the separate project by name (a skip
-    // stays silent; a first-party node losing its whole enforcement surface
-    // does not). An exact-file entry is never part of this computation — see
-    // the sweepEntries comment above.
-    if (sweepEntries.length > 0) {
+    // those files is excluded from the graph — a nested `.yggdrasil/` graph,
+    // a nested `.git` checkout/submodule/worktree, or a `coverage.excluded`
+    // root an adopter configured. Left unreported, that node would pass `yg
+    // check` with a non-empty `mapping:` and zero enforceable files: the same
+    // "resolves to nothing usable" fact mapping-path-missing already reports
+    // for a stale glob or a deleted file, just reached through a different
+    // cause, so it reuses the same code. Runs over EVERY entry, exact or
+    // swept — exclusion is one filter with no carve-out for an entry that
+    // names a path exactly, so this aggregate check does not carve one out
+    // either (a single exact-entry mapping wholly swallowed by exclusion also
+    // trips `checkFileMappingGitignored`'s own per-entry `file-mapping-
+    // excluded` diagnostic above; both firing for the same root cause is
+    // expected, not a bug — they answer different questions: "is this one
+    // entry excluded" versus "does this node have anything left to enforce
+    // at all").
+    if (mappingPaths.length > 0) {
       const [unguardedWhole, guardedWhole] = await Promise.all([
-        expandMappingPaths(projectRoot, sweepEntries),
-        expandMappingPathsWithinOwnGraph(projectRoot, sweepEntries),
+        expandMappingPaths(projectRoot, mappingPaths),
+        expandMappingPathsWithinOwnGraph(projectRoot, mappingPaths, coverage),
       ]);
       if (unguardedWhole.length > 0 && guardedWhole.length === 0) {
         issues.push({
@@ -443,9 +444,9 @@ export async function checkMappingPathsExist(graph: Graph): Promise<ValidationIs
           code: 'mapping-path-missing',
           rule: 'mapping-path-missing',
           ...issueMsg({
-            what: `Mapping (${sweepEntries.join(', ')}) resolves only to files inside a separate project's own boundary; none are left for this node to enforce.`,
-            why: `Every file this mapping resolved to is governed by that separate project rather than this one, so this node's rules have nothing left to apply to.`,
-            next: `Either:\n  1. Remove this mapping (nothing here belongs to this node).\n  2. Point the mapping at files this project actually owns.`,
+            what: `Mapping (${mappingPaths.join(', ')}) resolves only to excluded files; none are left for this node to enforce.`,
+            why: `Every file this mapping resolved to is excluded from the graph — inside a separate project's own boundary, or matching a coverage.excluded root — so this node's rules have nothing left to apply to.`,
+            next: `Either:\n  1. Remove this mapping (nothing here belongs to this node).\n  2. Point the mapping at files this project actually owns and does not exclude.`,
           }),
           nodePath,
         });

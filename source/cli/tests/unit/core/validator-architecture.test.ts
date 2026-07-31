@@ -319,14 +319,13 @@ describe('checkTypeWhenMismatch', () => {
     }
   });
 
-  it('DOES evaluate a mapping entry that names a path inside a nested project EXACTLY — the nested-project boundary only ever applies to a directory or glob entry sweeping in files it never specifically named', async () => {
-    // A mapping entry naming one file, literally, is the node's own explicit
-    // ownership claim over that single path — a different question from a
-    // directory or glob entry recursing into files it never named. This check
-    // does not second-guess that claim (whether the entry is itself a VALID
-    // mapping is a separate, unrelated check's territory); it still evaluates
-    // the named file against the type's own `when`, exactly as it would for
-    // any other exact mapping entry.
+  it('does NOT evaluate a mapping entry that names a path inside a nested project EXACTLY — an excluded file never reaches the when check at all, whether swept in or named exactly', async () => {
+    // A nested project's own boundary is a default member of the graph's
+    // excluded set, and exclusion cuts everything it matches — a mapping
+    // entry naming one file literally is no more exempt than a directory or
+    // glob entry that sweeps it in. The excluded file simply never enters
+    // this check's evaluation set, so it can raise no type-when-mismatch for
+    // it either way.
     const tmpDir = path.join(CLI_ROOT, '.temp-test-when-mismatch-exact-nested');
     try {
       const yggDir = path.join(tmpDir, '.yggdrasil');
@@ -355,8 +354,46 @@ describe('checkTypeWhenMismatch', () => {
       const graph = await loadGraph(tmpDir);
       const result = await validate(graph);
       const mismatch = result.issues.find((i) => i.code === 'type-when-mismatch');
-      expect(mismatch).toBeDefined();
-      expect(mismatch?.messageData?.what).toContain('services/vendorlib/named.ts');
+      expect(mismatch).toBeUndefined();
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('does NOT evaluate a mapping entry that names a path under a coverage.excluded root EXACTLY — the same exclusion filter, from its other source of membership', async () => {
+    // Mirrors the nested-project case above, but the exclusion comes from the
+    // adopter's own coverage.excluded config rather than a filesystem-derived
+    // boundary. Same result: the excluded file never reaches the when check.
+    const tmpDir = path.join(CLI_ROOT, '.temp-test-when-mismatch-exact-excluded');
+    try {
+      const yggDir = path.join(tmpDir, '.yggdrasil');
+      await mkdir(path.join(yggDir, 'model', 'svc'), { recursive: true });
+      await mkdir(path.join(tmpDir, 'services', 'vendor'), { recursive: true });
+      // No `@Injectable` — this exact entry's own file content mismatches the type,
+      // so if the exclusion filter did not apply, this WOULD raise type-when-mismatch.
+      await writeFile(path.join(tmpDir, 'services', 'vendor', 'named.ts'), 'export const named = 1;\n');
+      await writeFile(
+        path.join(yggDir, 'yg-config.yaml'),
+        'version: "5.2.0"\ncoverage:\n  excluded:\n    - services/vendor/\n',
+      );
+      await writeFile(path.join(yggDir, 'yg-architecture.yaml'), [
+        'node_types:',
+        '  service:',
+        '    description: Service',
+        '    when:',
+        '      content: "@Injectable"',
+      ].join('\n'));
+      await writeFile(path.join(yggDir, 'model', 'svc', 'yg-node.yaml'), [
+        'name: svc',
+        'type: service',
+        'description: x',
+        'mapping:',
+        '  - services/vendor/named.ts',
+      ].join('\n'));
+      const graph = await loadGraph(tmpDir);
+      const result = await validate(graph);
+      const mismatch = result.issues.find((i) => i.code === 'type-when-mismatch');
+      expect(mismatch).toBeUndefined();
     } finally {
       await rm(tmpDir, { recursive: true, force: true });
     }
@@ -569,7 +606,7 @@ describe('checkFileMappingGitignored', () => {
     }
   });
 
-  it('emits file-mapping-nested-project (not file-mapping-gitignored) for a mapped file inside a nested project — there is no .gitignore to blame', async () => {
+  it('emits file-mapping-excluded (not file-mapping-gitignored) for a mapped file inside a nested project — there is no .gitignore to blame', async () => {
     // A file absent from walkRepoFiles has THREE possible causes: real
     // .gitignore exclusion, the graph's own structural exclusions
     // (isCoverageExcludedPath), or — this case — sitting inside a separate
@@ -601,13 +638,53 @@ describe('checkFileMappingGitignored', () => {
       const graph = await loadGraph(tmpDir);
       const result = await validate(graph);
       expect(result.issues.find((i) => i.code === 'file-mapping-gitignored')).toBeUndefined();
-      const nested = result.issues.find((i) => i.code === 'file-mapping-nested-project');
-      expect(nested).toBeDefined();
-      expect(nested?.messageData?.what).toContain('services/vendorlib/lib.py');
+      const excluded = result.issues.find((i) => i.code === 'file-mapping-excluded');
+      expect(excluded).toBeDefined();
+      expect(excluded?.messageData?.what).toContain('services/vendorlib/lib.py');
       // The real cause is named plainly; the OLD, factually wrong claim
       // ("is excluded by .gitignore") must not appear anywhere in this issue.
-      expect(nested?.messageData?.what).not.toMatch(/excluded by \.gitignore/i);
-      expect(nested?.messageData?.next).not.toMatch(/\.gitignore/i);
+      expect(excluded?.messageData?.what).not.toMatch(/excluded by \.gitignore/i);
+      expect(excluded?.messageData?.next).not.toMatch(/\.gitignore/i);
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('emits file-mapping-excluded for a mapped file under a coverage.excluded root, even though it is a real, ordinary, git-tracked file', async () => {
+    // Mirrors the nested-project case above, but the exclusion comes from the
+    // adopter's own coverage.excluded config. Unlike the nested case, this
+    // file is a completely ordinary, ordinary tracked file — proving exclusion
+    // is checked BEFORE (and independent of) the tracked-file short-circuit.
+    const tmpDir = path.join(CLI_ROOT, '.temp-test-excluded-mapping');
+    try {
+      const yggDir = path.join(tmpDir, '.yggdrasil');
+      await mkdir(path.join(yggDir, 'model', 'svc'), { recursive: true });
+      await mkdir(path.join(tmpDir, 'services', 'vendor'), { recursive: true });
+      await writeFile(path.join(tmpDir, 'services', 'vendor', 'lib.py'), 'def lib(): return 1\n');
+      await writeFile(
+        path.join(yggDir, 'yg-config.yaml'),
+        'version: "5.2.0"\ncoverage:\n  excluded:\n    - services/vendor/\n',
+      );
+      await writeFile(path.join(yggDir, 'yg-architecture.yaml'), [
+        'node_types:',
+        '  service:',
+        '    description: Service',
+        '    when:',
+        '      path: "**"',
+      ].join('\n'));
+      await writeFile(path.join(yggDir, 'model', 'svc', 'yg-node.yaml'), [
+        'name: svc',
+        'type: service',
+        'description: x',
+        'mapping:',
+        '  - services/vendor/lib.py',
+      ].join('\n'));
+      const graph = await loadGraph(tmpDir);
+      const result = await validate(graph);
+      expect(result.issues.find((i) => i.code === 'file-mapping-gitignored')).toBeUndefined();
+      const excluded = result.issues.find((i) => i.code === 'file-mapping-excluded');
+      expect(excluded).toBeDefined();
+      expect(excluded?.messageData?.what).toContain('services/vendor/lib.py');
     } finally {
       await rm(tmpDir, { recursive: true, force: true });
     }

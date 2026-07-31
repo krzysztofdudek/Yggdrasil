@@ -10,9 +10,8 @@ import type { Graph, OwnerResult } from '../model/graph.js';
 import { normalizeProjectRelativePath, projectRootFromGraph, resolveFileArg } from '../io/paths.js';
 import { toPosixPath } from '../utils/posix.js';
 import { buildOwnerIndex } from '../relations/owner-index.js';
-import { isCoverageExcludedPath, findNestedProjectRoots, isUnderAnyNestedProjectRoot } from '../io/repo-scanner.js';
+import { resolveGraphExclusionSet, isExcludedFromGraph, isCoverageExcludedPath, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
 import { classifySingleFile } from '../core/type-coverage.js';
-import { isExcludedByCoverage } from '../core/check-coverage-tiers.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import { computeExpectedPairs } from '../core/pairs.js';
 import { computeTypeAspectCascade, describeCascadeCycle } from '../core/type-effective.js';
@@ -37,24 +36,21 @@ export function findOwner(graph: Graph, projectRoot: string, rawPath: string): O
 }
 
 /**
- * `findOwner`, then override its verdict when the resolved file sits inside a
- * separate project's own boundary (a nested `.yggdrasil/` graph, or a nested
- * `.git` checkout/submodule/worktree) — but ONLY when the winning mapping
- * entry SWEPT the file in ('directory' or 'glob' kind), never when an entry
- * NAMES the file exactly ('exact' kind). `findOwner` matches mapping TEXT
- * only — it has no filesystem awareness — so a directory or glob mapping's
- * entry can textually "own" a file that `expandMappingPathsWithinOwnGraph`
- * (the guard every enforcement, billing, and read-allowance path already
- * applies for that same sweep case) would never hand the node. An EXACT entry
- * is a different question: the node's own explicit, deliberate ownership
- * claim over that one path, never a recursive sweep it never specifically
- * named — whether an exact entry naming a path inside a nested project is
- * itself a valid mapping is `file-mapping-nested-project`'s own question
- * (core/checks/mapping.ts), not this command's, so it is left untouched here.
- * For a swept file, reports it as having no owner, same as a genuinely
- * unmapped one: `yg owner --file` / `yg context --file` go on to say so
- * honestly ("no graph coverage" / "excluded from graph coverage by design"),
- * instead of naming a node whose rules never actually run against it.
+ * `findOwner`, then override its verdict when the resolved file is excluded
+ * from the graph — a separate project's own boundary (a nested `.yggdrasil/`
+ * graph, or a nested `.git` checkout/submodule/worktree), or a
+ * `coverage.excluded` root an adopter configured — regardless of whether the
+ * winning mapping entry SWEPT the file in (`directory` or `glob` kind) or
+ * NAMES it exactly (`exact` kind): exclusion cuts everything it matches, with
+ * no carve-out for an explicit claim. `findOwner` matches mapping TEXT only —
+ * it has no filesystem or config awareness — so a mapping entry of any kind
+ * can textually "own" a file that `expandMappingPathsWithinOwnGraph` (the
+ * guard every enforcement, billing, and read-allowance path already applies)
+ * would never hand the node. Reports an excluded file as having no owner,
+ * same as a genuinely unmapped one: `yg owner --file` / `yg context --file`
+ * go on to say so honestly ("no graph coverage" / "excluded from graph
+ * coverage by design"), instead of naming a node whose rules never actually
+ * run against it.
  *
  * Used by the two file-ownership commands (`yg owner`, `yg context --file`).
  * `findOwner` itself stays the pure, synchronous, text-only resolver it always
@@ -64,10 +60,8 @@ export function findOwner(graph: Graph, projectRoot: string, rawPath: string): O
 export async function findOwnerWithinOwnGraph(graph: Graph, projectRoot: string, rawPath: string): Promise<OwnerResult> {
   const result = findOwner(graph, projectRoot, rawPath);
   if (!result.nodePath) return result;
-  const entry = buildOwnerIndex(graph.nodes).ownerEntryOf(result.file);
-  if (entry?.kind === 'exact') return result;
-  const nestedProjectRoots = await findNestedProjectRoots(projectRoot);
-  if (isUnderAnyNestedProjectRoot(result.file, nestedProjectRoots)) {
+  const exclusion = await resolveGraphExclusionSet(projectRoot, graph.config.coverage ?? NO_COVERAGE_EXCLUDED);
+  if (isExcludedFromGraph(result.file, exclusion)) {
     return { file: result.file, nodePath: null };
   }
   return result;
@@ -105,13 +99,17 @@ export function registerOwnerCommand(program: Command): void {
           const absPath = path.resolve(repoRoot, result.file);
           let exists = true;
           try { await access(absPath); } catch (e: unknown) { debugWrite(`[owner] access check failed: ${e instanceof Error ? e.message : String(e)}`); exists = false; }
-          // A typed answer, not "no graph coverage": the graph directory itself
-          // stays exempt (isCoverageExcludedPath, a path under .yggdrasil/ is
-          // never classified) and a coverage.excluded root stays exempt too
-          // (isExcludedByCoverage) — both fall through to the plain message
-          // below regardless of the flag.
+          // A typed answer, not "no graph coverage": a structurally exempt path
+          // (isCoverageExcludedPath — under .yggdrasil/, or a .git segment) is
+          // never a classification candidate — the ordinary coverage walk never
+          // enumerates it, so classifyFile would never see it either. A path
+          // excluded by the one supreme filter (isExcludedFromGraph — a nested-
+          // project boundary or a coverage.excluded root) stays exempt too. Both
+          // fall through to the plain message below regardless of the flag.
           const coverage = graph.config.coverage;
-          const typeMatch = exists && coverage?.typeLevel && !isCoverageExcludedPath(result.file) && !isExcludedByCoverage(result.file, coverage)
+          const exclusionSet = await resolveGraphExclusionSet(repoRoot, coverage ?? NO_COVERAGE_EXCLUDED);
+          const typeMatch = exists && coverage?.typeLevel
+              && !isCoverageExcludedPath(result.file) && !isExcludedFromGraph(result.file, exclusionSet)
             ? await classifySingleFile(graph, result.file, new FileContentCache())
             : undefined;
           if (typeMatch?.bucket === 'covered') {

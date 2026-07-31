@@ -27,6 +27,10 @@ import {
 } from '../../../src/io/hash.js';
 import { runGitFixture } from '../../support/git-fixture.js';
 import { readFileBytes, listDirEntries, statKind, probeUnreadable } from '../../../src/io/graph-fs.js';
+import type { CoverageConfig } from '../../../src/model/graph.js';
+
+/** No adopter-configured coverage.excluded roots — isolates these cases to the filesystem-derived nested-project boundary alone. */
+const NO_EXCLUDED: CoverageConfig = { required: [], excluded: [], typeLevel: false };
 
 const dirs: string[] = [];
 afterEach(async () => {
@@ -343,7 +347,7 @@ describe('expandMappingPathsWithinOwnGraph — the boundary is read off the file
       'services/vendorlib/.yggdrasil/yg-config.yaml': 'version: "5.2.0"\n',
       'services/vendorlib/other.py': 'SECRET = 1\n',
     });
-    const out = await expandMappingPathsWithinOwnGraph(root, ['services/**/*.py']);
+    const out = await expandMappingPathsWithinOwnGraph(root, ['services/**/*.py'], NO_EXCLUDED);
     expect(out).toEqual(['services/alpha.py']);
   });
 
@@ -354,7 +358,7 @@ describe('expandMappingPathsWithinOwnGraph — the boundary is read off the file
       'services/vendorlib/other.py': 'SECRET = 1\n',
       '.gitignore': 'services/vendorlib/.yggdrasil/\n',
     });
-    const out = await expandMappingPathsWithinOwnGraph(root, ['services']);
+    const out = await expandMappingPathsWithinOwnGraph(root, ['services'], NO_EXCLUDED);
     expect(out).toEqual(['services/alpha.py']);
   });
 
@@ -365,7 +369,7 @@ describe('expandMappingPathsWithinOwnGraph — the boundary is read off the file
     await writeFile(path.join(nestedRepo, 'lib.py'), 'def lib(): return 1\n');
     expect(runGitFixture(nestedRepo, ['init', '-q', '-b', 'main']).status).toBe(0);
 
-    const out = await expandMappingPathsWithinOwnGraph(root, ['services']);
+    const out = await expandMappingPathsWithinOwnGraph(root, ['services'], NO_EXCLUDED);
     expect(out).toEqual(['services/alpha.py']);
   });
 
@@ -384,7 +388,7 @@ describe('expandMappingPathsWithinOwnGraph — the boundary is read off the file
     );
     expect(add.status).toBe(0);
 
-    const out = await expandMappingPathsWithinOwnGraph(outer, ['services']);
+    const out = await expandMappingPathsWithinOwnGraph(outer, ['services'], NO_EXCLUDED);
     expect(out).toEqual(['services/alpha.py']);
   });
 
@@ -401,7 +405,7 @@ describe('expandMappingPathsWithinOwnGraph — the boundary is read off the file
     );
     expect(wt.status).toBe(0);
 
-    const out = await expandMappingPathsWithinOwnGraph(outer, ['services']);
+    const out = await expandMappingPathsWithinOwnGraph(outer, ['services'], NO_EXCLUDED);
     expect(out).toEqual(['services/alpha.py']);
   });
 
@@ -410,7 +414,7 @@ describe('expandMappingPathsWithinOwnGraph — the boundary is read off the file
       'services/alpha.py': 'def alpha(): return 1\n',
       'services/sub/control.py': 'def control(): return 1\n',
     });
-    const out = await expandMappingPathsWithinOwnGraph(root, ['services']);
+    const out = await expandMappingPathsWithinOwnGraph(root, ['services'], NO_EXCLUDED);
     expect(out.sort()).toEqual(['services/alpha.py', 'services/sub/control.py']);
   });
 
@@ -424,7 +428,7 @@ describe('expandMappingPathsWithinOwnGraph — the boundary is read off the file
       'services/alpha.py': 'def alpha(): return 1\n',
       'services/node_modules/pkg/index.py': 'x = 1\n',
     });
-    const out = await expandMappingPathsWithinOwnGraph(root, ['services']);
+    const out = await expandMappingPathsWithinOwnGraph(root, ['services'], NO_EXCLUDED);
     expect(out.sort()).toEqual(['services/alpha.py', 'services/node_modules/pkg/index.py']);
   });
 
@@ -439,9 +443,9 @@ describe('expandMappingPathsWithinOwnGraph — the boundary is read off the file
       'services/vendorlib/other.py': 'SECRET = 1\n',
       'services/config.yaml': 'k: v\n',
     });
-    const pyOnly = await expandMappingPathsWithinOwnGraph(root, ['services/**/*.py']);
-    const yamlOnly = await expandMappingPathsWithinOwnGraph(root, ['services/**/*.yaml']);
-    const combined = await expandMappingPathsWithinOwnGraph(root, ['services/**/*.py', 'services/**/*.yaml']);
+    const pyOnly = await expandMappingPathsWithinOwnGraph(root, ['services/**/*.py'], NO_EXCLUDED);
+    const yamlOnly = await expandMappingPathsWithinOwnGraph(root, ['services/**/*.yaml'], NO_EXCLUDED);
+    const combined = await expandMappingPathsWithinOwnGraph(root, ['services/**/*.py', 'services/**/*.yaml'], NO_EXCLUDED);
 
     expect(pyOnly).toEqual(['services/alpha.py']);
     expect(yamlOnly).toEqual(['services/config.yaml']);

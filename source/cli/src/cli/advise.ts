@@ -31,7 +31,7 @@ import { filterInCorpusDevDrills } from '../core/drill-runner.js';
 import type { DrillResultLine } from '../io/drill-results-store.js';
 import { readVerdictEvents } from '../io/events-reader.js';
 import { countIncidents } from '../io/incidents-store.js';
-import { walkRepoFiles } from '../io/repo-scanner.js';
+import { walkRepoFiles, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
 import { runSuppressionsScan, scanPortalSuppressions } from '../portal/api/suppress-scan.js';
 import { collectMappingEntries, collectTypeCoveredFiles } from '../portal/api/suppress-eligibility.js';
 import { computeDetectedEdges } from '../portal/api/boundary.js';
@@ -247,6 +247,7 @@ async function gatherSuppressData(
       // scan only ever consumed anomalies/counts, never `report.warnings`.
       undefined,
       collectTypeCoveredFiles(typeCoverage?.covered),
+      graph.config.coverage ?? NO_COVERAGE_EXCLUDED,
     );
     const anomalies: SuppressAnomaly[] = [];
     for (const m of scanPortalSuppressions(report, knownAspectIds, draftAspectIds)) {

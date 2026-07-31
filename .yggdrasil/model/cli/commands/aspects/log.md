@@ -48,3 +48,5 @@ The --health view now threads the same type-coverage classification the plain as
 The health table's files column now renders an em-dash when coverage.type_level is off, matching every other on-demand column instead of printing a literal 0 for a question that was never asked. The column itself is now appended to the header only when the tier is on, so a repository that never enables it keeps byte-identical --health output to before the column existed.
 ## [2026-07-31T04:22:12.842Z]
 The suppress scan behind the health view now also treats a file covered by the architecture type-level lattice as a live waiver site, exempt from the noise filter the same way a mapped node source already is, reusing the type-coverage classification the health view already computes for lock verification rather than reclassifying a second time.
+## [2026-07-31T12:04:33.144Z]
+Same threading as the other suppression-scan callers: the health-check summary's suppression count must agree with the same exclusion authority the enforcement surface now honors, so an excluded file's waiver is never counted here either.

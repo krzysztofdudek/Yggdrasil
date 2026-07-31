@@ -10,6 +10,7 @@ import { allowedRelationTypes } from '../core/allowed-relation-types.js';
 // its own relation to relations-adapter just to spell the resolver's type.
 import type { OwnerIndex } from '../relations/owner-index.js';
 import { expandMappingPathsWithinOwnGraph } from '../io/hash.js';
+import { NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
 
 /**
  * Computes the set of repo-relative paths a structure aspect on `nodePath`
@@ -207,12 +208,14 @@ export async function collectArchitectureReach(subjectFile: string, input: Archi
       .map(normalizeMappingPath)
       .filter((p): p is string => p !== '');
     if (rawMapping.length === 0) continue;
-    // A separate project's own subtree (a directory carrying its own
-    // `.yggdrasil/` graph, or its own `.git` checkout/submodule/worktree) is
-    // dropped here too: a foreign file must never earn a reach entry just
-    // because the enumerating node's mapping happens to contain it — that
-    // file belongs to, and is governed by, a different project entirely.
-    const expanded = await expandMappingPathsWithinOwnGraph(projectRoot, rawMapping);
+    // A file the graph excludes globally is dropped here too — a separate
+    // project's own subtree (a directory carrying its own `.yggdrasil/`
+    // graph, or its own `.git` checkout/submodule/worktree) or a
+    // `coverage.excluded` root an adopter configured. A foreign or excluded
+    // file must never earn a reach entry just because the enumerating node's
+    // mapping happens to contain it — it is governed outside this graph, or
+    // deliberately excluded from it, either way not this node's to reach.
+    const expanded = await expandMappingPathsWithinOwnGraph(projectRoot, rawMapping, graph.config.coverage ?? NO_COVERAGE_EXCLUDED);
     for (const file of expanded) {
       // Re-resolve the file's TRUE owner (child-wins) — never assume the
       // enumerating node still owns it once expanded to a real path.

@@ -4,10 +4,12 @@ quality:
   max_direct_relations: 10
 
 # Enforcement targets the source tree. Only files under src/ must be mapped to
-# a node; the README and graph metadata are not graph-covered code.
+# a node; the README and graph metadata are not graph-covered code. The
+# Yggdrasil-managed agent-rules files and the gitattributes scaffold are repo
+# plumbing, not example source, so they are excluded rather than mapped.
 coverage:
   required: ["src"]
-  excluded: ["/"]
+  excluded: ["README.md", "AGENTS.md", "CLAUDE.md", ".clinerules/", ".gitattributes"]
 
 # This example is KEYLESS: its only rule is a deterministic check.mjs, which
 # runs locally at zero cost with no API key. The reviewer tier below is NOT

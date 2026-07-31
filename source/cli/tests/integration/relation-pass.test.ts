@@ -264,6 +264,121 @@ const vendoredStub: DependencyExtractor = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// A directory mapping's file enumeration must stop at a coverage.excluded
+// root too, exactly like the nested-project boundary above — the two are the
+// same one supreme exclusion filter, from its other source of membership (the
+// adopter's own config rather than the filesystem). An import inside an
+// excluded subdirectory must never become an undeclared-dependency refusal
+// attributed to the first-party node whose directory happens to contain it.
+// ---------------------------------------------------------------------------
+describe('runRelationPass stops file enumeration at a coverage.excluded root', () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = mkdtempSync(path.join(tmpdir(), 'rel-pass-excluded-'));
+    mkdirSync(path.join(root, '.yggdrasil', 'model'), { recursive: true });
+    writeFileSync(
+      path.join(root, '.yggdrasil', 'yg-architecture.yaml'),
+      `node_types:\n  service:\n    description: 'unit'\n    log_required: false\n    when:\n      path: "**"\n`,
+      'utf-8',
+    );
+    writeFileSync(
+      path.join(root, '.yggdrasil', 'yg-config.yaml'),
+      `quality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - src/a/vendor/\n`,
+      'utf-8',
+    );
+    writeNode(root, 'a', 'A', 'src/a');
+    writeNode(root, 'b', 'B', 'src/b');
+    mkdirSync(path.join(root, 'src', 'a'), { recursive: true });
+    mkdirSync(path.join(root, 'src', 'b'), { recursive: true });
+    writeFileSync(path.join(root, 'src', 'a', 'own' + EXT), 'export const own = 1;\n', 'utf-8');
+    writeFileSync(path.join(root, 'src', 'b', 'bar' + EXT), 'export const bar = 2;\n', 'utf-8');
+    // A vendored file under an EXCLUDED (not nested-project) directory inside
+    // node a's mapping, whose own file imports node b's file with no declared
+    // relation.
+    mkdirSync(path.join(root, 'src', 'a', 'vendor'), { recursive: true });
+    writeFileSync(
+      path.join(root, 'src', 'a', 'vendor', 'bad' + EXT),
+      'export const bad = 1;\n',
+      'utf-8',
+    );
+  });
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('never enumerates the excluded file, so its undeclared import never refuses the first-party node', async () => {
+    const graph = await loadGraph(root);
+    const result = await runRelationPass(graph, root, {
+      extractorFor: (language) => (language === 'typescript' ? excludedStub : undefined),
+      resolvePathToFile: (specifier) =>
+        specifier === '../../b/bar' ? 'src/b/bar' + EXT : undefined,
+      symbolIndexDir: path.join(root, '.yg-cache-excluded'),
+    });
+
+    // The excluded file must never even be READ/hashed by this pass.
+    expect(result.hashByPath.has('src/a/vendor/bad' + EXT)).toBe(false);
+
+    const a = result.violationsByNode.get('a');
+    expect(a === undefined || a.verdict === 'approved').toBe(true);
+    expect(a?.violations ?? []).toHaveLength(0);
+  });
+
+  it('the mirror case: node a\'s OWN (non-excluded) file with a real undeclared import is still refused', async () => {
+    const graph = await loadGraph(root);
+    const result = await runRelationPass(graph, root, {
+      extractorFor: (language) => (language === 'typescript' ? excludedMirrorStub : undefined),
+      resolvePathToFile: (specifier) =>
+        specifier === '../b/bar' ? 'src/b/bar' + EXT : undefined,
+      symbolIndexDir: path.join(root, '.yg-cache-excluded-mirror'),
+    });
+
+    // src/a/foo.ts is not under the excluded root — a real undeclared import
+    // from it must still be caught. Over-correction that silently drops a
+    // real violation would be the mirror-image failure to the leak this
+    // guard exists to close.
+    expect(result.hashByPath.has('src/a/own' + EXT)).toBe(true);
+    const a = result.violationsByNode.get('a');
+    expect(a).toBeDefined();
+    expect(a!.verdict).toBe('refused');
+  });
+});
+
+// Stub emitting one import from vendor/bad.ts → ../../b/bar (crosses into node b,
+// with no declared relation) — used only by the coverage.excluded-boundary test above.
+const excludedStub: DependencyExtractor = {
+  languages: new Set(['typescript']),
+  rev: 1,
+  declarations() {
+    return [];
+  },
+  uses(file: ParsedFile): DetectedDep[] {
+    if (file.path.endsWith('src/a/vendor/bad' + EXT)) {
+      return [{ candidates: [{ kind: 'path', specifier: '../../b/bar' }], kind: 'import', line: 1 }];
+    }
+    return [];
+  },
+};
+
+// Stub emitting one import from a/own.ts → ../b/bar — used only by the
+// coverage.excluded-boundary mirror test above (own.ts is NOT under the
+// excluded root, so this import must still be caught as undeclared).
+const excludedMirrorStub: DependencyExtractor = {
+  languages: new Set(['typescript']),
+  rev: 1,
+  declarations() {
+    return [];
+  },
+  uses(file: ParsedFile): DetectedDep[] {
+    if (file.path.endsWith('src/a/own' + EXT)) {
+      return [{ candidates: [{ kind: 'path', specifier: '../b/bar' }], kind: 'import', line: 1 }];
+    }
+    return [];
+  },
+};
+
 // Stub emitting one import from a/foo.ts → ../b/sub/deep (a nested node's file).
 const nestedStub: DependencyExtractor = {
   languages: new Set(['typescript']),

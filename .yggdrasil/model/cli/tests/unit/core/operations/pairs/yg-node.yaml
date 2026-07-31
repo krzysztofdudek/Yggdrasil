@@ -7,8 +7,9 @@ description: "Unit tests for expected-pair computation and source fingerprints â
   exclusion, child carve-out, deterministic output ordering, fingerprint
   stability/sensitivity properties, and the nodeless enumeration pass for files
   enforced by their architecture type alone â€” the PairDrop channel, the
-  explicit-mapping-outranks-exclusion guard against the real type-level-engine
-  fixture, and the shared-record merge at the unit level."
+  absolute-exclusion guard (coverage.excluded cuts a component's own explicit
+  mapping too) against the real type-level-engine fixture, and the
+  shared-record merge at the unit level."
 aspects: []
 relations:
   [

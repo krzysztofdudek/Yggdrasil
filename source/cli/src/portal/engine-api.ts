@@ -4,7 +4,7 @@ import type { Graph, GraphNode, AspectStatus } from '../model/graph.js';
 import type { LockFile } from '../model/lock.js';
 import { loadGraphOrAbort } from '../cli/preamble.js';
 import { readRulesArtifacts } from '../cli/rules-artifacts.js';
-import { walkRepoFiles, listGitTrackedFiles } from '../io/repo-scanner.js';
+import { walkRepoFiles, listGitTrackedFiles, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
 import { runCheck, scanUncoveredFiles, type CheckResult, type CheckIssue } from '../core/check.js';
 import { readLock, committedLockContentHash } from '../io/lock-store.js';
 import { verifyLock, type LockVerification, type VerifiedPair, type PairState } from '../core/verify-lock.js';
@@ -226,7 +226,7 @@ export async function scanPortalSuppressions(
     graph.aspects.filter((a) => (a.status ?? 'enforced') === 'draft').map((a) => a.id),
   );
   const typeCoveredFiles = collectTypeCoveredFiles(typeCoverage?.covered);
-  const report = await runSuppressionsScan(projectRoot, gitFiles, knownAspectIds, collectMappingEntries(graph), undefined, typeCoveredFiles);
+  const report = await runSuppressionsScan(projectRoot, gitFiles, knownAspectIds, collectMappingEntries(graph), undefined, typeCoveredFiles, graph.config.coverage ?? NO_COVERAGE_EXCLUDED);
   return adaptSuppressions(report, knownAspectIds, draftAspectIds);
 }
 

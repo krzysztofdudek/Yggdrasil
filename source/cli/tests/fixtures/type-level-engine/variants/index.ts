@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-/** An explicit mapping outranks a coverage exclusion. */
+/** A coverage exclusion cuts an explicit mapping entry too, not only a swept-in one. */
 export const FIXTURE_EXCLUDED_BUT_MAPPED = path.join(__dirname, 'excluded-but-mapped');
 
 /** One refusing file must not suppress review of another. */

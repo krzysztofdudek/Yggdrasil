@@ -13,12 +13,11 @@
 import type { Graph } from '../model/graph.js';
 import type { TypeCoverageInput } from './pairs.js';
 import { classifySingleFile, computeTypeCoverage } from './type-coverage.js';
-import { isCoverageExcludedPath, walkRepoFiles } from '../io/repo-scanner.js';
+import { walkRepoFiles, resolveGraphExclusionSet, isExcludedFromGraph, isCoverageExcludedPath, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import { scanUncoveredFiles } from './check.js';
 import { collectArchitectureReach } from '../structure/allowed-reads.js';
 import { buildOwnerIndex } from '../relations/owner-index.js';
-import { isExcludedByCoverage } from './check-coverage-tiers.js';
 
 /**
  * The type-level classification lattice (coverage.type_level), classified for
@@ -138,13 +137,14 @@ export async function classifyAspectTestFileTarget(
       },
     };
   }
-  if (isCoverageExcludedPath(repoRelative) || isExcludedByCoverage(repoRelative, graph.config.coverage)) {
+  const exclusionSet = await resolveGraphExclusionSet(projectRoot, graph.config.coverage ?? NO_COVERAGE_EXCLUDED);
+  if (isCoverageExcludedPath(repoRelative) || isExcludedFromGraph(repoRelative, exclusionSet)) {
     return {
       kind: 'refused',
       messageData: {
         what: `'${repoRelative}' is excluded from coverage.`,
-        why: `--file addresses a file the architecture classifies by type; an excluded path is never classified.`,
-        next: `Remove it from coverage.excluded, or use --files for an ad-hoc, ungraphed run.`,
+        why: `--file addresses a file the architecture classifies by type; an excluded path is never classified — because it sits inside a separate project's own boundary, or matches a coverage.excluded root.`,
+        next: `Remove it from coverage.excluded (or move it outside the separate project's own boundary), or use --files for an ad-hoc, ungraphed run.`,
       },
     };
   }

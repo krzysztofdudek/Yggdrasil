@@ -6,6 +6,8 @@ import { createRequire } from 'node:module';
 import { type Ignore, type Options as IgnoreOptions } from 'ignore';
 import { debugWrite } from '../utils/debug-log.js';
 import { toPosixPath } from '../utils/posix.js';
+import { isExcludedByCoverage } from '../utils/coverage-exclusion.js';
+import type { CoverageConfig } from '../model/graph.js';
 
 const require = createRequire(import.meta.url);
 const ignoreFactory = require('ignore') as (options?: IgnoreOptions) => Ignore;
@@ -369,6 +371,78 @@ export function isCoverageExcludedPath(relPath: string): boolean {
   if (segments.includes('.git')) return true;
   if (norm === YGGDRASIL_DIRNAME || norm.startsWith(YGGDRASIL_DIRNAME + '/')) return true;
   return false;
+}
+
+/**
+ * Everything a graph excludes globally, for one run: the filesystem-derived
+ * nested-project boundary (a nested `.yggdrasil/` graph, or a nested `.git`
+ * checkout/submodule/worktree — DEFAULT members of the excluded set, present
+ * whether or not an adopter's config says anything) plus the adopter's own
+ * `coverage.excluded` roots (the other source of members). One filter, two
+ * sources — see {@link isExcludedFromGraph}, the single predicate every
+ * caller that decides "does this path belong to this graph at all" asks.
+ */
+export interface GraphExclusionSet {
+  nestedRoots: ReadonlySet<string>;
+  coverage: CoverageConfig;
+}
+
+/** An exclusion set with no adopter-configured roots — only the (still real) nested-project boundary applies. Used where a caller has no `coverage` block to thread (e.g. a fixture with none configured). */
+export const NO_COVERAGE_EXCLUDED: CoverageConfig = { required: [], excluded: [], typeLevel: false };
+
+/**
+ * Resolve the full excluded-set membership for one project run: a real
+ * filesystem walk for the nested-project boundary (cached per resolved root —
+ * see {@link findNestedProjectRoots}) packaged alongside the adopter's
+ * `coverage.excluded` config. Callers that already hold `nestedRoots` from a
+ * prior `findNestedProjectRoots` call in the same run may build the
+ * `GraphExclusionSet` object literal directly instead of calling this again —
+ * the cache makes either equally cheap, this is just the one-line form.
+ */
+export async function resolveGraphExclusionSet(
+  projectRoot: string,
+  coverage: CoverageConfig,
+): Promise<GraphExclusionSet> {
+  return { nestedRoots: await findNestedProjectRoots(projectRoot), coverage };
+}
+
+/**
+ * True iff `relPath` is excluded from the graph for ANY reason the ONE
+ * supreme filter recognizes (see the module's own section header above): a
+ * path under a nested-project boundary (a default member of the excluded
+ * set), or a path an adopter's own `coverage.excluded` config names (the
+ * other source of members). Exclusion cuts everything it matches — including
+ * a node's own explicit `mapping:` entry naming that exact path, a directory
+ * mapping that recurses into it, or a glob that happens to match it. Every
+ * caller that decides "does this path belong to this graph's enforcement
+ * surface" — coverage counting, pair enumeration, the suppression/audit
+ * universe, the relation pass, structure reads and companion resolution, the
+ * portal, and every command that reports ownership or cost — asks THIS
+ * question, so a path's excluded status can never disagree between them.
+ *
+ * Deliberately does NOT fold in `isCoverageExcludedPath` (`.git`, the
+ * top-level `.yggdrasil/`): that predicate answers a DIFFERENT question — is
+ * this path ever a candidate the ordinary coverage WALK enumerates at all —
+ * and a node's explicit `mapping:` entry naming a file under `.yggdrasil/` is
+ * sanctioned meta-modeling (documented in `checkFileMappingGitignored`),
+ * deliberately reviewable despite the walk skipping it structurally. Folding
+ * that predicate in here would make the supreme filter cut a mapping an
+ * adopter deliberately wrote, which is not what "excluded" means for this
+ * filter. A caller that also needs the walk-visibility question (e.g.
+ * deciding whether to say "excluded from graph coverage by design" for a path
+ * with NO owner at all) asks `isCoverageExcludedPath` alongside this, exactly
+ * as it did before this filter existed.
+ */
+export function isExcludedFromGraph(relPath: string, exclusion: GraphExclusionSet): boolean {
+  return (
+    isUnderAnyNestedProjectRoot(relPath, exclusion.nestedRoots) ||
+    isExcludedByCoverage(relPath, exclusion.coverage)
+  );
+}
+
+/** {@link isExcludedFromGraph}, applied to a whole list — the shared filter half, reused by every caller that already holds a candidate list and an exclusion set. */
+export function filterExcludedFromGraph(relPaths: string[], exclusion: GraphExclusionSet): string[] {
+  return relPaths.filter((p) => !isExcludedFromGraph(p, exclusion));
 }
 
 /**

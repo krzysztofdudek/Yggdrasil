@@ -101,9 +101,10 @@ interface NodeSpec {
 /**
  * Build an inline Graph rooted at yggRoot. Insertion order into the Map is the
  * order given (some checks rely on graph insertion order). Parent links are
- * wired from `parent`.
+ * wired from `parent`. `coverage`, when given, overrides the default empty
+ * coverage config — e.g. `{ required: [], excluded: ['services/vendor/'], typeLevel: false }`.
  */
-function buildGraph(yggRoot: string, nodes: NodeSpec[]): Graph {
+function buildGraph(yggRoot: string, nodes: NodeSpec[], coverage?: { required: string[]; excluded: string[]; typeLevel: boolean }): Graph {
   const node_types: Record<string, ArchitectureNodeType> = {};
   const nodeByPath = new Map<string, GraphNode>();
   for (const n of nodes) {
@@ -134,6 +135,7 @@ function buildGraph(yggRoot: string, nodes: NodeSpec[]): Graph {
         tiers: { default: { provider: 'ollama', model: 'test', temperature: 0, consensus: 1 } },
         default: 'default',
       },
+      coverage,
     },
     architecture: { node_types },
     nodes: nodeByPath,
@@ -618,12 +620,42 @@ describe('checkMappingPathsExist — mapping fully swallowed by a nested project
     expect(missing(issues)).toHaveLength(1);
   });
 
-  it('a mapping entry that NAMES a nested file exactly is never folded into the aggregate check — that is a different, unrelated question', async () => {
-    // An exact-file entry is excluded from the aggregate computation entirely
-    // (see sweepEntries in the implementation): it is the node's own explicit,
-    // deliberate ownership claim over that one path, never a directory or glob
-    // sweeping in files it never specifically named. This mapping has NO
-    // sweep entry at all, so the aggregate check has nothing to compute over.
+  it('a directory mapping whose entire content sits under a coverage.excluded root -> mapping-path-missing', async () => {
+    // The same aggregate fact, from the OTHER source of exclusion membership:
+    // an ORDINARY subdirectory (no nested graph, no nested .git) the
+    // adopter's own coverage.excluded config names directly.
+    const { projectRoot, yggRoot } = await makeProject();
+    await writeFileEnsuringDir(path.join(projectRoot, 'services/vendor/lib.py'), 'def lib(): return 1\n');
+    const graph = buildGraph(
+      yggRoot,
+      [{ path: 'svc', mapping: ['services'] }],
+      { required: [], excluded: ['services/vendor/'], typeLevel: false },
+    );
+    const issues = await checkMappingPathsExist(graph);
+    const m = missing(issues);
+    expect(m).toHaveLength(1);
+    expect(m[0].nodePath).toBe('svc');
+  });
+
+  it('a mixed mapping (a real own file + a coverage.excluded subdirectory) is NOT reported missing', async () => {
+    const { projectRoot, yggRoot } = await makeProject();
+    await writeFileEnsuringDir(path.join(projectRoot, 'services/alpha.py'), 'def alpha(): return 1\n');
+    await writeFileEnsuringDir(path.join(projectRoot, 'services/vendor/lib.py'), 'def lib(): return 1\n');
+    const graph = buildGraph(
+      yggRoot,
+      [{ path: 'svc', mapping: ['services'] }],
+      { required: [], excluded: ['services/vendor/'], typeLevel: false },
+    );
+    const issues = await checkMappingPathsExist(graph);
+    expect(missing(issues)).toHaveLength(0);
+  });
+
+  it('a mapping that is a single entry NAMING a nested file exactly is reported missing too — a node with nothing left to enforce is a node with nothing left to enforce, whether that came from a sweep or an exact claim', async () => {
+    // Exclusion applies uniformly to every mapping entry kind: a directory or
+    // glob that sweeps a file in, and an entry that names one file exactly.
+    // A mapping consisting solely of an exact entry into a nested project
+    // resolves to zero enforceable files, exactly like a directory mapping
+    // fully swallowed by one — so the aggregate check reports it the same way.
     const { projectRoot, yggRoot } = await makeProject();
     await writeFileEnsuringDir(
       path.join(projectRoot, 'services/vendorlib/.yggdrasil/yg-config.yaml'),
@@ -632,7 +664,8 @@ describe('checkMappingPathsExist — mapping fully swallowed by a nested project
     await writeFileEnsuringDir(path.join(projectRoot, 'services/vendorlib/named.py'), 'def named(): return 1\n');
     const graph = buildGraph(yggRoot, [{ path: 'svc', mapping: ['services/vendorlib/named.py'] }]);
     const issues = await checkMappingPathsExist(graph);
-    expect(missing(issues)).toHaveLength(0);
+    expect(missing(issues)).toHaveLength(1);
+    expect(missing(issues)[0].nodePath).toBe('svc');
   });
 });
 

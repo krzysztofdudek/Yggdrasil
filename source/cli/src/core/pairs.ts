@@ -18,21 +18,26 @@
  *   - LLM subject sets exclude binary files (by extension); deterministic keeps them.
  *   - Empty subject set → no pair for that (aspect, node) — vacuous pass.
  *   - Nodes with empty mapping → no pairs at all.
- *   - A directory/glob mapping entry stops at a separate project's own boundary:
- *     a subtree carrying its own `.yggdrasil/` graph, or its own `.git`
- *     checkout/submodule/worktree, never contributes pairs here (see
- *     `expandNodeFiles`, the one place this module expands a mapping to
- *     files) — the same filesystem-derived boundary
- *     (`io/repo-scanner.ts`'s `findNestedProjectRoots`) the coverage walk
- *     draws, so the pair universe and the coverage count agree on what
- *     belongs to this graph.
+ *   - A mapping entry never contributes a pair for a path the graph excludes
+ *     globally (see `expandNodeFiles`, the one place this module expands a
+ *     mapping to files): a nested project's own boundary (a subtree carrying
+ *     its own `.yggdrasil/` graph, or its own `.git` checkout/submodule/
+ *     worktree — a DEFAULT member of the excluded set) or a `coverage.excluded`
+ *     root an adopter configured (the other source of members), regardless of
+ *     whether a directory/glob entry swept the path in or a node's own
+ *     mapping names it exactly — exclusion cuts everything it matches, with
+ *     no carve-out for an explicit claim. This is the same one exclusion
+ *     authority (`io/repo-scanner.ts`'s `isExcludedFromGraph`) the coverage
+ *     walk, the relation pass, and the audit/portal surfaces all consult, so
+ *     the pair universe and every other view of "what belongs to this graph"
+ *     agree.
  *   - Pairs are sorted by aspectId, then unitKey for deterministic output.
  */
 
 import path from 'node:path';
 
 import type { Graph } from '../model/graph.js';
-import type { AspectStatus } from '../model/graph.js';
+import type { AspectStatus, CoverageConfig } from '../model/graph.js';
 import type { UnitKey } from '../model/lock.js';
 import type { IssueMessage } from '../model/validation.js';
 import { toPosixPath } from '../utils/posix.js';
@@ -248,10 +253,14 @@ export function getChildMappingExclusions(graph: Graph, nodePath: string): strin
 
 /**
  * Expand a node's raw mapping entries to concrete files: gitignore-aware
- * expansion with a nested project's own subtree dropped
+ * expansion with everything the graph excludes globally dropped
  * (`expandMappingPathsWithinOwnGraph` — a directory below the mapping that
- * carries its own `.yggdrasil/` is a separate graph, governed by its own
- * rules, and its files are never this graph's pairs; the same shared guard
+ * carries its own `.yggdrasil/` graph, or is otherwise governed by a separate
+ * project's own boundary, is a DEFAULT member of the excluded set; a path an
+ * adopter's own `coverage.excluded` config names is the other source of
+ * members. Either way its files are never this graph's pairs, even when a
+ * node's own mapping names them exactly — exclusion cuts everything it
+ * matches, with no carve-out for an explicit claim. The same shared guard
  * `structure/hook-loader.ts` and `structure/allowed-reads.ts` apply to the
  * files they expose to a review), and the child carve-out applied (a
  * descendant node's own mapping wins over a globbing ancestor's).
@@ -263,8 +272,9 @@ async function expandNodeFiles(
   projectRoot: string,
   rawMapping: string[],
   excludePrefixes: string[],
+  coverage: CoverageConfig,
 ): Promise<string[]> {
-  const allExpanded = await expandMappingPathsWithinOwnGraph(projectRoot, rawMapping);
+  const allExpanded = await expandMappingPathsWithinOwnGraph(projectRoot, rawMapping, coverage);
   return excludePrefixes.length > 0
     ? allExpanded.filter((p) => !excludePrefixes.some((ep) => mappingEntryMatchesFile(ep, p)))
     : allExpanded;
@@ -295,7 +305,7 @@ export async function computeNodeMappedFiles(
 
   const projectRoot = path.dirname(graph.rootPath);
   const excludePrefixes = getChildMappingExclusions(graph, nodePath);
-  return expandNodeFiles(projectRoot, rawMapping, excludePrefixes);
+  return expandNodeFiles(projectRoot, rawMapping, excludePrefixes, graph.config.coverage ?? DEFAULT_COVERAGE);
 }
 
 /**
@@ -356,12 +366,15 @@ export function computeUncomputableNodes(graph: Graph): Set<string> {
  *
  * Nodeless enumeration (`opts.typeCoverage`), run AFTER the node loop above so
  * every component pair stays byte-identical: for each file enforced by its
- * architecture type alone (`typeCoverage.covered`), unless the file sits under a
- * `coverage.excluded` root (the one exclusion authority, `isExcludedByCoverage` —
- * an explicit node mapping is never subject to it, so the node loop above never
- * consults it — this is the ONE step in this loop that stays silent: the file
- * was never really "covered" to begin with, so there is nothing to have a
- * reason about), run `computeTypeAspectCascade` once for the whole file and,
+ * architecture type alone (`typeCoverage.covered`), unless the file sits under
+ * a `coverage.excluded` root (the same one exclusion authority the node loop
+ * above already applies via `expandNodeFiles` — this defensive re-check exists
+ * because `typeCoverage.covered` is computed upstream by `computeTypeCoverage`,
+ * which already filters by it; a file this excluded could not reach this
+ * point as "covered" in the first place, so this is the ONE step in this loop
+ * that stays silent rather than recording a drop: the file was never really
+ * "covered" to begin with, so there is nothing to have a reason about), run
+ * `computeTypeAspectCascade` once for the whole file and,
  * for each of its effective aspects: skip aggregates silently (no reviewer, no
  * own verdict — the bundle they belong to is reported separately, never as a
  * bare drop); an id with no matching aspect definition records
@@ -406,7 +419,7 @@ export async function computeExpectedPairs(
 
     // O(nodes²) with one FS walk per node — fine at current scale; if check latency grows, precompute a child-exclusion index per run.
     const excludePrefixes = getChildMappingExclusions(graph, nodePath);
-    const nodeFiles = await expandNodeFiles(projectRoot, rawMapping, excludePrefixes);
+    const nodeFiles = await expandNodeFiles(projectRoot, rawMapping, excludePrefixes, graph.config.coverage ?? DEFAULT_COVERAGE);
 
     if (nodeFiles.length === 0) continue; // after carve-out, nothing left
 
@@ -574,9 +587,9 @@ export async function computeExpectedPairs(
     // The one exclusion authority (isExcludedByCoverage) — a file under an
     // excluded root is skipped entirely, not even classified into a drop. This
     // is the SAME authority computeTypeCoverage itself already applied to reach
-    // `covered` in the first place, so this is a defensive re-check, not a new
-    // filter — but the node loop above never consults it (an explicit mapping is
-    // a stronger statement of intent than an exclusion, per Step 3's guard).
+    // `covered` in the first place (and the node loop above applies too, via
+    // expandNodeFiles), so this is a defensive re-check, not a new filter: a
+    // file this excluded should never actually reach this point as "covered".
     if (isExcludedByCoverage(file, coverageConfig)) continue;
 
     let cascade: { effective: TypeEffectiveAspect[]; drops: TypeAspectDrop[]; cycle?: TypeCascadeCycle };
@@ -765,7 +778,7 @@ export async function computeSourceFingerprint(
 
   const projectRoot = path.dirname(graph.rootPath);
   const excludePrefixes = getChildMappingExclusions(graph, nodePath);
-  const nodeFiles = await expandNodeFiles(projectRoot, rawMapping, excludePrefixes);
+  const nodeFiles = await expandNodeFiles(projectRoot, rawMapping, excludePrefixes, graph.config.coverage ?? DEFAULT_COVERAGE);
 
   if (nodeFiles.length === 0) return undefined;
 

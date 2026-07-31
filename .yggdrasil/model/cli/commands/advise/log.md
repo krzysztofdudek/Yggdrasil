@@ -40,3 +40,5 @@ The command computed a type-level enforcement classification for one internal si
 Reworded two comments about the once-per-run type-coverage classification hoist so each explains, entirely in its own words, why the classification is computed once and shared across every source that needs it rather than reclassified — the previous wording leaned on a short internal code with no meaning to a reader of this repository.
 ## [2026-07-31T04:22:08.792Z]
 The suppress scan this command feeds into its nomination sources now also treats a file covered by the architecture type-level lattice as a live waiver site, exempt from the noise filter the same way a mapped node source already is. The type-coverage classification this needs is computed once and now happens before the suppress scan runs, so the scan can consume it instead of reclassifying separately.
+## [2026-07-31T12:04:32.805Z]
+The suppression-audit scan needs the adopter's coverage.excluded config threaded through alongside the filesystem-derived nested-project boundary, so a waiver on an excluded file is never inventoried here while genuinely absent from enforcement everywhere else.

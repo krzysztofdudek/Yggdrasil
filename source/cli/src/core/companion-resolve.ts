@@ -29,7 +29,7 @@ import type { StructureUnit } from '../structure/hook-loader.js';
 import { toPosix, toPosixPath } from '../utils/posix.js';
 import { collectAllowedReadsForAspect, collectArchitectureReach } from '../structure/allowed-reads.js';
 import { resolveAllowedReadPath } from '../structure/ctx-fs.js';
-import { findNestedProjectRoots } from '../io/repo-scanner.js';
+import { findNestedProjectRoots, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
 import { readFileBytes } from '../io/graph-fs.js';
 import { buildOwnerIndex } from '../relations/owner-index.js';
 import { observationKey, hashReadObservation } from './pair-hash.js';
@@ -166,12 +166,15 @@ export async function resolveCompanionDescriptors(
   // A nodeless pair carries its OWN architecture-derived allowance instead
   // (there is no component to resolve collectAllowedReadsForAspect against).
   const allowedSet = nodelessAllowance ? nodelessAllowance.allowedReads : collectAllowedReadsForAspect(pair.nodePath ?? '', graph);
-  // Separate-project boundaries (nested `.yggdrasil/` graph, nested `.git`
-  // checkout/submodule/worktree) below the project root — the same run-cached
-  // set ctx.fs/ctx.parseAst reject against (structure/ctx-fs.ts), so a
-  // companion.mjs cannot name a path inside a foreign project just because a
-  // directory/glob mapping entry textually covers it.
+  // Everything the graph excludes globally below the project root — a
+  // separate project's own boundary (nested `.yggdrasil/` graph, nested
+  // `.git` checkout/submodule/worktree) plus the adopter's own
+  // `coverage.excluded` roots — the same run-cached set / config ctx.fs /
+  // ctx.parseAst reject against (structure/ctx-fs.ts), so a companion.mjs
+  // cannot name an excluded path just because a directory/glob mapping entry
+  // textually covers it.
   const nestedProjectRoots = await findNestedProjectRoots(projectRoot);
+  const coverage = graph.config.coverage ?? NO_COVERAGE_EXCLUDED;
   const subjectSet = new Set(pair.subjectFiles.map((p) => toPosix(p)));
   const normalizedSet = new Set<string>();
   for (const d of descriptors) {
@@ -208,7 +211,7 @@ export async function resolveCompanionDescriptors(
     // enforces the allow-set, and re-checks the real (symlink-resolved) path. Any
     // failure → infra with a relation-source/target NEXT.
     try {
-      resolveAllowedReadPath(rel, allowedSet, projectRoot, nestedProjectRoots);
+      resolveAllowedReadPath(rel, allowedSet, projectRoot, nestedProjectRoots, coverage);
     } catch {
       return { kind: 'infra', ...companionOutsideAllowedReads(graph, pair, aspect, rel, nodelessAllowance?.typeId) };
     }
