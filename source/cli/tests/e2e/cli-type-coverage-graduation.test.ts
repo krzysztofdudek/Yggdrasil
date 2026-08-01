@@ -43,9 +43,17 @@ function copyFixture(label: string): string {
   return dir;
 }
 
-function run(args: string[], dir: string): { code: number; stdout: string } {
+// Fill-progress lines (including writePruneSummary's "Pruned..." line, should
+// one ever fire here) print to STDERR for a real --approve run — core/check.ts
+// routes fill's own `write` sink to process.stderr.write there. The final
+// report (verdict, Type coverage, Errors/Warnings) always prints to STDOUT.
+// `all` combines both so a "never a Pruned line" assertion actually reads the
+// stream that line would land on, instead of a stream it never reaches.
+function run(args: string[], dir: string): { code: number; stdout: string; stderr: string; all: string } {
   const r = spawnSync('node', [BIN, ...args], { cwd: dir, encoding: 'utf-8' });
-  return { code: r.status ?? 1, stdout: r.stdout ?? '' };
+  const stdout = r.stdout ?? '';
+  const stderr = r.stderr ?? '';
+  return { code: r.status ?? 1, stdout, stderr, all: stdout + stderr };
 }
 
 function detLockJson(dir: string): { verdicts: Record<string, Record<string, { hash: string }>> } {
@@ -90,13 +98,13 @@ describe('graduation twin: type-covered file -> explicit node, same file, same r
     // Never a "Pruned" line: this is a hash mismatch under the SAME
     // (aspectId, unitKey) pair, still in the expected universe (now
     // attributed to the claiming node) — not a detachment GC would prune.
-    expect(plain.stdout).not.toMatch(/prune/i);
+    expect(plain.all).not.toMatch(/prune/i);
 
     // The next free deterministic run re-fills it, once, under the
     // IDENTICAL unit key — same key, new fingerprint, not a new entry.
     const after = run(['check', '--approve', '--only-deterministic'], dir);
     expect(after.code).toBe(0);
-    expect(after.stdout).not.toMatch(/prune/i);
+    expect(after.all).not.toMatch(/prune/i);
     const afterLock = detLockJson(dir);
     expect(Object.keys(afterLock.verdicts['svc-file-shape'])).toEqual(['file:src/svc/handler.ts']);
     expect(afterLock.verdicts['svc-file-shape']['file:src/svc/handler.ts'].hash).not.toBe(beforeHash);

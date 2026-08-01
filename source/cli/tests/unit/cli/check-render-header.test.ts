@@ -246,13 +246,16 @@ describe('check render — header type-covered split (coverage.type_level)', () 
   });
 
   // The existing cases above never combine typeLevel: true with errors.length
-  // > 0 (FAIL) or autoFilled: true — both exercised only by the flag-less
-  // 'PASS (auto-filled) header marker' describe block above. Since
+  // > 0 (FAIL) — only exercised by the flag-less 'PASS (auto-filled) header
+  // marker' describe block above, which never sets typeLevel. Since
   // renderHeader computes the verdict prefix and the files-metric split from
   // the SAME result object in one pass, an interaction bug (e.g. the
-  // type-level split accidentally suppressing the FAIL colour, or autoFilled
-  // text colliding with the three-term split) is exactly the kind of thing
-  // neither existing block can catch alone.
+  // type-level split accidentally suppressing the FAIL colour) is exactly
+  // the kind of thing neither existing block can catch alone. (The FAIL +
+  // autoFilled interaction is a separate, already-covered claim — the
+  // verdict prefix never reads typeLevel, so the pre-existing 'FAIL result
+  // with autoFilled=true does NOT say (auto-filled)' test above already pins
+  // it regardless of which files-metric arm renders underneath.)
   it('flag ON + FAIL (errors present): verdict reads FAIL and the three-term split still renders in full', () => {
     const errorIssue: CheckIssue = {
       severity: 'error', code: 'ambiguous-node-type', rule: 'ambiguous-node-type',
@@ -265,10 +268,6 @@ describe('check render — header type-covered split (coverage.type_level)', () 
     };
     const out = stripAnsi(formatOutput(result, { kind: 'full' }));
     expect(out).toContain('yg check: FAIL');
-    // The auto-filled qualifier is a PASS-only marker (renderHeader's own
-    // documented rule) — a FAIL line must never carry it even if autoFilled is
-    // somehow still true, and the files split must still be present.
-    expect(out).not.toContain('(auto-filled)');
     expect(out).toContain('2/5 files (0 node-owned, 1 type-covered, 1 excluded)');
   });
 

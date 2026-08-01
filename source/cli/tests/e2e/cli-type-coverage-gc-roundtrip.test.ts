@@ -116,5 +116,13 @@ describe('flag disable/enable GC round-trip for a deterministic virtual entry', 
     expect(second.stdout).toMatch(/handler\.ts/);
     // Exactly one mention, not a count that grew from repeated cycling.
     expect((second.stdout.match(/handler\.ts/g) ?? []).length).toBe(1);
+    // The Type coverage listing above names the file whether this run
+    // actually re-verified it or silently reused a verdict that survived
+    // the OFF cycle unpruned — it reads identically either way. The
+    // fill-progress header does not: it names an unverified pair only when
+    // one genuinely needed re-verification, so this is the assertion that
+    // tells a real refill apart from a stale entry masquerading as one.
+    expect(second.all).toMatch(/Filling 1 unverified pairs/);
+    expect(second.all).toMatch(/1\/1 filled \(1 ok\)/);
   });
 });
