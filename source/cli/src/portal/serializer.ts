@@ -86,6 +86,7 @@ const MODULE_ORDER = [
   // matrix module precedes the relations view that calls Yg.matrix; the panel module is read
   // by the bootstrap's panel slot. All before the bootstrap, which orchestrates the rest.
   'js/views/overview-view.js',
+  'js/views/coverage-typecovered.js',
   'js/views/coverage-view.js',
   'js/views/tree-view.js',
   'js/views/relations-matrix.js',

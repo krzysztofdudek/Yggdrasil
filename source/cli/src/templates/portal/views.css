@@ -117,6 +117,14 @@
   background: var(--surface-2);
   border: 1px solid var(--border-subtle);
 }
+/* The type-covered "rules could not be worked out" marker: its own glyph, never the
+   no-rule badge's colour (that would claim a resolved "nothing applies" fact) and never
+   the neutral mark above (nothing was found to be satisfied — the cascade never ran). */
+.reslink-unknown {
+  color: var(--unverified);
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+}
 .ov-precise {
   width: 100%;
   justify-content: flex-start;
@@ -238,6 +246,13 @@
 }
 .cov-typelist-bad .cov-typerow {
   color: var(--refused);
+}
+.cov-typelist-unknown .cov-typerow {
+  color: var(--unverified);
+}
+.cov-typerow-more {
+  color: var(--text-muted);
+  font-style: italic;
 }
 .cov-live {
   display: inline-flex;

@@ -10,6 +10,7 @@ import { walkRepoFiles } from '../io/repo-scanner.js';
 import { scanUncoveredFiles } from '../core/check.js';
 import { computeTypeCoverage } from '../core/type-coverage.js';
 import { FileContentCache } from '../io/file-content-cache.js';
+import { computeExpectedPairs, type TypeCoverageInput } from '../core/pairs.js';
 
 export function registerTreeCommand(program: Command): void {
   program
@@ -79,6 +80,16 @@ export function registerTreeCommand(program: Command): void {
  * explicit "repo-wide" qualifier is added whenever `--root` narrowed the node
  * listing above it — so the line can never be misread as "these files are
  * under the subtree you asked for".
+ *
+ * The total is split the same way the portal's own residue chips split it —
+ * checked (at least one applicable rule), unenforced (matched a type with
+ * nothing that applies), and, when it occurs, uncomputable (an aspect
+ * `implies` cycle stopped the type's rules from ever being resolved for the
+ * file — the honest answer there is unknown, never folded into "nothing
+ * applies"). Bare "N files satisfied" would read as a single, undifferentiated
+ * pass; a reader cannot tell "checked" from "matched but unguarded" from a
+ * count alone, which is exactly the ambiguity `yg owner --file` and the
+ * portal's own ledger already resolve per file.
  */
 async function typeCoveredSummaryLine(graph: Graph, scopedToRoot: boolean): Promise<string | undefined> {
   if (!graph.config.coverage?.typeLevel) return undefined;
@@ -89,7 +100,35 @@ async function typeCoveredSummaryLine(graph: Graph, scopedToRoot: boolean): Prom
   const count = coverage.covered.size;
   const noun = count === 1 ? 'file is' : 'files are';
   const scopeNote = scopedToRoot ? ' (repo-wide — the type-level lattice has no subtree of its own to scope this to)' : '';
-  return `\n${count} ${noun} satisfied by the type-level lattice, no component of their own${scopeNote}.`;
+  const head = `\n${count} ${noun} satisfied by the type-level lattice, no component of their own${scopeNote}`;
+  if (count === 0) return `${head}.`;
+
+  // The SAME nodeless expected-pair computation `yg check` and the portal both read this split
+  // from — never a re-implementation of "what counts as enforced".
+  const typeCoverageInput: TypeCoverageInput = {
+    covered: coverage.covered,
+    ambiguousPaths: coverage.ambiguous.map((a) => a.file),
+  };
+  const expected = await computeExpectedPairs(graph, { typeCoverage: typeCoverageInput });
+  const enforcedFiles = new Set<string>();
+  for (const p of expected.pairs) {
+    if (p.nodePath !== undefined) continue;
+    for (const f of p.subjectFiles) enforcedFiles.add(f);
+  }
+  const uncomputableFiles = new Set(expected.uncomputableTypeCoverage.map((u) => u.file));
+  let enforced = 0;
+  let unenforced = 0;
+  let uncomputable = 0;
+  for (const file of coverage.covered.keys()) {
+    if (uncomputableFiles.has(file)) uncomputable += 1;
+    else if (enforcedFiles.has(file)) enforced += 1;
+    else unenforced += 1;
+  }
+  const parts = [`${enforced} checked by at least one rule`, `${unenforced} with nothing that applies`];
+  if (uncomputable > 0) {
+    parts.push(`${uncomputable} whose rules could not be worked out (aspect implies cycle)`);
+  }
+  return `${head}: ${parts.join(', ')}.`;
 }
 
 function collectNodes(

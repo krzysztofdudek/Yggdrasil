@@ -62,15 +62,22 @@ A row of views down the side, each answering a different question:
   type carries no rule at all reads differently again, on its own line, using the
   same "no rule" treatment as the rest of the unguarded surface — so a file that
   merely matches a type, with nothing actually checking it, is never shown as
-  satisfied either.
+  satisfied either. A third, rarer case gets its own line too: a file whose
+  matched type's rules an aspect `implies` cycle stopped from ever being resolved
+  is reported as unknown, not as "no rule applies" — the cascade never ran, so
+  the honest answer is that what checks this file could not be worked out, never
+  that nothing does.
 - **Coverage & audit** — the full ledger. Every expected check, every verdict,
   with a single honest bar: the only green is a check a reviewer actually ran and
   approved against the current code. Free local checks and reviewer-judged checks
   are shown apart, and a needs-attention worklist lists what to fix, in priority
   order. With `coverage.type_level` on, every type-covered file is listed by name
   with the type that covers it — an enforced one under the checked total, an
-  unenforced one under its own "checked by nothing" line — and a deliberately
-  excluded file is listed by name too, never only a count.
+  unenforced one under its own "checked by nothing" line, and a file whose
+  type's rules an aspect `implies` cycle blocked under its own "could not be
+  worked out" line, naming the cycle — and a deliberately excluded file is
+  listed by name too, never only a count. Any of these per-file listings longer
+  than twelve entries is capped, with the remainder summarized as a count.
 
   ![The portal's coverage and audit view — the honest verdict bar over every expected check, with the needs-attention worklist](/portal-coverage.png)
 

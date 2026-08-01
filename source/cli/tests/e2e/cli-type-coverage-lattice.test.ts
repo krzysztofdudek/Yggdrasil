@@ -28,6 +28,7 @@ const BIN_PATH = path.join(CLI_ROOT, 'dist', 'bin.js');
 const FIXTURE = path.join(CLI_ROOT, 'tests', 'fixtures', 'type-coverage-basic');
 const PASS_FIXTURE = path.join(CLI_ROOT, 'tests', 'fixtures', 'type-coverage-basic-pass');
 const RELATION_GATE_FIXTURE = path.join(CLI_ROOT, 'tests', 'fixtures', 'type-relation-gate');
+const PORTAL_TYPE_COVERAGE_FIXTURE = path.join(CLI_ROOT, 'tests', 'fixtures', 'portal-type-coverage');
 const distExists = existsSync(BIN_PATH);
 
 function copyFixture(source: string = FIXTURE): string {
@@ -200,6 +201,26 @@ describe.skipIf(!distExists)('E2E: yg tree — the type-covered summary line', (
       expect(out).toContain('owner [owner-type]');
       expect(out).toMatch(/2 files? .*satisfied by (the )?type-level/i);
       expect(out).toMatch(/repo-wide/i);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('the summary line splits enforced from unenforced — never one conflated "satisfied" figure, matching the portal\'s own split', () => {
+    // portal-type-coverage: one node-owned file (gateway), src/svc/handler.ts type-covered
+    // as 'svc' with a real deterministic aspect attached (enforced — a real pair exists
+    // regardless of whether it has been filled yet), src/lib/util.ts type-covered as 'lib'
+    // with no aspects at all (unenforced — matched a type, checked by nothing). `yg tree`'s
+    // single "2 files are satisfied" figure used to fold both into one number indistinguishable
+    // from "both checked"; the portal already splits this into two named residue lines — the
+    // command must agree, not just count.
+    const dir = copyFixture(PORTAL_TYPE_COVERAGE_FIXTURE);
+    try {
+      const { status, out } = run(['tree'], dir);
+      expect(status).toBe(0);
+      expect(out).toMatch(/2 files? .*satisfied by (the )?type-level/i);
+      expect(out).toMatch(/1 checked by at least one rule/);
+      expect(out).toMatch(/1 with nothing that applies/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

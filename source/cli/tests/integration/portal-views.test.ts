@@ -37,6 +37,7 @@ const MODULES = [
   'shell.js',
   'dispatch.js',
   'views/overview-view.js',
+  'views/coverage-typecovered.js',
   'views/coverage-view.js',
   'views/tree-view.js',
   'views/relations-matrix.js',
@@ -366,6 +367,70 @@ describe('portal Phase-4 view modules (real source, real fixture data)', () => {
     expect(covText).toMatch(/checked by nothing/);
     const noRuleBadges = walk(covStage).filter((n) => n.classList && n.classList.contains(Yg.states.cssClass('no-rule')));
     expect(noRuleBadges.length).toBeGreaterThan(0);
+  });
+
+  it('the per-file type-covered listing is capped at 12 rows with "... and N more" — never one row per file on a large project', async () => {
+    const Yg = await loadYg();
+    const typeCovered: Array<{ path: string; type: string; enforced: boolean }> = [];
+    for (let i = 0; i < 20; i += 1) {
+      typeCovered.push({ path: 'src/file' + String(i).padStart(2, '0') + '.ts', type: 'svc', enforced: false });
+    }
+    const withMany: PortalData = {
+      ...data,
+      meta: { ...data.meta, counts: { ...data.meta.counts, typeCoveredCount: 20, typeCoveredUnenforced: 20 } },
+      residue: { ...data.residue, typeCovered },
+    };
+    const stage = makeNode('div');
+    Yg.views.coverage(stage, { view: 'coverage' }, withMany, { navigate: () => undefined });
+    const rows = walk(stage).filter((n) => n.classList && n.classList.contains('cov-typerow'));
+    // 12 real file rows + one "... and N more" summary row — never 20 (one per file).
+    expect(rows.length).toBe(13);
+    expect(textOf(stage)).toContain('... and 8 more');
+    // The capped rows are the FIRST 12 of the given (already path-sorted) list, not an
+    // arbitrary slice — src/file00..src/file11 shown, src/file12 and beyond summarized.
+    expect(textOf(stage)).toContain('src/file00.ts');
+    expect(textOf(stage)).toContain('src/file11.ts');
+    expect(textOf(stage)).not.toContain('src/file12.ts');
+  });
+
+  it('Overview never lets a type-covered-but-uncomputable file leak into the "accounted for" chip — the enforced count subtracts BOTH the unenforced and the uncomputable split', async () => {
+    const Yg = await loadYg();
+    const withUncomputable: PortalData = {
+      ...data,
+      meta: {
+        ...data.meta,
+        counts: { ...data.meta.counts, typeCoveredCount: 3, typeCoveredUnenforced: 1, typeCoveredUncomputable: 1 },
+      },
+      residue: {
+        ...data.residue,
+        typeCovered: [
+          { path: 'src/checked.ts', type: 'svc', enforced: true },
+          { path: 'src/unchecked.ts', type: 'svc', enforced: false },
+        ],
+        typeCoveredUncomputable: [
+          { path: 'src/cyclic.ts', type: 'cyc', why: "The aspect graph has an implies cycle at 'cyc-a' — the cascade cannot tell which of the type's rules apply until that cycle is broken." },
+        ],
+      },
+    };
+    const stage = makeNode('div');
+    Yg.views.overview(stage, { view: 'overview' }, withUncomputable, { navigate: () => undefined });
+    // Each chip's own text is asserted in isolation (never a substring match across the whole
+    // stage, which a "1" appearing in an unrelated earlier chip could satisfy by accident even
+    // under the mutation this test exists to catch).
+    const chips = walk(stage).filter((n) => n.classList && n.classList.contains('reslink'));
+    const enforcedChip = chips.find((n) => textOf(n).includes('satisfied by their matched type'));
+    const uncomputableChip = chips.find((n) => textOf(n).includes('could not be worked out'));
+    const unenforcedChip = chips.find((n) => textOf(n).includes('no rule that applies'));
+    expect(enforcedChip, 'no "accounted for" chip rendered').toBeTruthy();
+    expect(uncomputableChip, 'no "could not be worked out" chip rendered').toBeTruthy();
+    expect(unenforcedChip, 'no "no rule that applies" chip rendered').toBeTruthy();
+    // Enforced is 1 (3 total − 1 unenforced − 1 uncomputable) — never 2, which is what a
+    // regression that forgot to subtract typeCoveredUncomputable would render (the cyclic
+    // file silently counted as "satisfied by their matched type").
+    expect(textOf(enforcedChip as FakeNode)).toContain('1 files satisfied by their matched type');
+    expect(textOf(enforcedChip as FakeNode)).not.toContain('2 files');
+    expect(textOf(uncomputableChip as FakeNode)).toContain('1 files whose matched type');
+    expect(textOf(unenforcedChip as FakeNode)).toContain('1 files matched by a type with no rule');
   });
 
   it('Coverage surfaces the boundary counter as UNKNOWN (not a fabricated zero) when the parse could not run', async () => {

@@ -85,6 +85,29 @@
   }
 
   /**
+   * A chip in the SAME shape as `accountedForLink`, for a type-covered file whose matched
+   * type's rules an aspect `implies` cycle stopped from ever being resolved — the ONE case
+   * "no rule applies" cannot cover (docs/configuration.md is explicit about this). Its own
+   * glyph: never the "no rule" badge `residueLink` uses (that would claim a resolved fact —
+   * "nothing applies" — that was never reached) and never the neutral "satisfied" mark either
+   * (nothing was found to be satisfied; the cascade never ran).
+   */
+  function unknownLink(count, text, onClick) {
+    var chip = dom.el('button', 'reslink');
+    chip.type = 'button';
+    var mark = dom.el('span', 'state-glyph reslink-unknown', '?');
+    mark.setAttribute('role', 'img');
+    mark.setAttribute('aria-label', 'rules could not be worked out');
+    mark.setAttribute('title', 'An aspect implies cycle stopped this file\'s matched type from ever being resolved — the honest answer is unknown, not "no rule applies". See the cycle named in Coverage & Audit.');
+    chip.appendChild(mark);
+    chip.appendChild(dom.el('b', null, String(count)));
+    chip.appendChild(dom.el('span', null, text));
+    chip.appendChild(dom.el('span', 'reslink-arrow', '→'));
+    chip.addEventListener('click', onClick);
+    return chip;
+  }
+
+  /**
    * The file-aware freshness strip — the heartbeat (§0b.1). When any node's source has changed
    * since the last reviewer pass, the landing says so FIRST: a touched file reads "we don't
    * know", and the whole-repo cached green can never render as "you're fine" over it. Each
@@ -172,7 +195,7 @@
       }),
     );
     // A type-covered file left uncoveredFiles above once it gained a matched-type
-    // verdict of its own — it must not simply vanish. Split into the SAME two
+    // verdict of its own — it must not simply vanish. Split into the SAME three
     // states the Coverage view lists by name: a file whose matched type actually
     // enforces something reads as accounted-for (its own neutral chip, never the
     // "no rule" badge — that would repeat the exact miscount this chip exists to
@@ -180,12 +203,25 @@
     // accounted for by anything and belongs back with the other residue chips
     // above, using the SAME "no rule" badge they use — checked by nothing is
     // checked by nothing, whether the cause is "no node" or "no rule the type
-    // attaches". Either count is omitted entirely when zero.
+    // attaches"; a file whose matched type's rules an aspect `implies` cycle
+    // stopped from ever resolving is neither of those — its own chip, its own
+    // glyph (see `unknownLink`), since the honest answer is unknown, not "no
+    // rule applies". `typeCoveredEnforced` subtracts BOTH splits, so a cycle
+    // file can never silently land in the "accounted for" chip just because it
+    // is absent from the unenforced count. Each count is omitted when zero.
     var typeCoveredUnenforced = c.typeCoveredUnenforced || 0;
-    var typeCoveredEnforced = (c.typeCoveredCount || 0) - typeCoveredUnenforced;
+    var typeCoveredUncomputable = c.typeCoveredUncomputable || 0;
+    var typeCoveredEnforced = (c.typeCoveredCount || 0) - typeCoveredUnenforced - typeCoveredUncomputable;
     if (typeCoveredUnenforced > 0) {
       residue.appendChild(
         residueLink('no-rule', typeCoveredUnenforced, 'files matched by a type with no rule that applies (unguarded)', function () {
+          nav({ view: 'coverage' });
+        }),
+      );
+    }
+    if (typeCoveredUncomputable > 0) {
+      residue.appendChild(
+        unknownLink(typeCoveredUncomputable, 'files whose matched type’s rules could not be worked out (unknown, not unguarded)', function () {
           nav({ view: 'coverage' });
         }),
       );

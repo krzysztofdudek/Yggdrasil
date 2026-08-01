@@ -11,25 +11,30 @@ import {
   scanPortalUncovered,
   readNodeLog,
   computePortalBoundary,
-  computePortalTypedEdges,
   scanPortalSuppressions,
   computePortalFreshness,
   computePortalSourceFileCounts,
   computePortalLockHash,
   readGitCommitRef,
+  describeCascadeCycle,
   PORTAL_SCHEMA_SUPPORTED,
   isPortalFileExcludedByCoverage,
   NO_COVERAGE_EXCLUDED,
-  type CheckResult,
   type LockVerification,
-  type PairComputation,
 } from './engine-api.js';
-import type { PortalData, PortalCounts, PortalPairState, PortalSuppression, PortalTypeCoveredFile } from './contract.js';
+import type {
+  PortalData,
+  PortalPairState,
+  PortalSuppression,
+  PortalTypeCoveredFile,
+  PortalTypeCoveredUncomputableFile,
+} from './contract.js';
 import { buildPortalNodes, displayPairState, type SuppressionsByFile } from './derive-nodes.js';
 import { buildAspects, buildFlows, buildTypes } from './derive-catalogue.js';
 import { buildSuppressions, buildHubs, buildResidue, buildWorklist } from './derive-rest.js';
 import { buildBoundary } from './derive-boundary.js';
 import { deriveStructure, type StructureTypeWidening } from './derive-metrics.js';
+import { buildCounts } from './derive-counts.js';
 
 /**
  * Extract the portal data contract from a project's graph + lock.
@@ -175,18 +180,35 @@ export async function extractPortalData(
   // pass computation. A file with zero such pairs matched a type but has nothing that checks
   // it — `yg check`'s own "satisfy coverage with no enforcement" state — and must never
   // render the same as a file with a real pair (verified, refused, or unverified).
+  //
+  // A file an aspect `implies` cycle stopped from being resolved at all
+  // (`expected.uncomputableTypeCoverage`) is a THIRD, disjoint state: resolution never ran
+  // for it, so it is neither "enforced" nor the zero-rule state above — `core/type-visibility.ts`
+  // (the same producer `yg check`, `yg context --file`, and `yg owner --file` already read)
+  // excludes it from both for the identical reason. Folding it into `enforced: false` here
+  // would render it with the SAME "satisfy coverage with no enforcement" wording those three
+  // surfaces refuse to use for it — a resolved claim where the honest answer is unknown.
   const enforcedTypeCoveredFiles = new Set<string>();
   for (const p of expected.pairs) {
     if (p.nodePath !== undefined) continue;
     for (const f of p.subjectFiles) enforcedTypeCoveredFiles.add(f);
   }
-  const typeCoveredEntries: PortalTypeCoveredFile[] = [...typeCoveredMap.entries()].map(([path, type]) => ({
-    path,
-    type,
-    enforced: enforcedTypeCoveredFiles.has(path),
-  }));
+  const uncomputableByFile = new Map<string, string>(); // file -> why (describeCascadeCycle's sentence)
+  for (const u of expected.uncomputableTypeCoverage) {
+    uncomputableByFile.set(u.file, describeCascadeCycle(u.cycle));
+  }
+  const typeCoveredEntries: PortalTypeCoveredFile[] = [];
+  const typeCoveredUncomputableEntries: PortalTypeCoveredUncomputableFile[] = [];
+  for (const [path, type] of typeCoveredMap) {
+    const why = uncomputableByFile.get(path);
+    if (why !== undefined) {
+      typeCoveredUncomputableEntries.push({ path, type, why });
+    } else {
+      typeCoveredEntries.push({ path, type, enforced: enforcedTypeCoveredFiles.has(path) });
+    }
+  }
 
-  const residue = buildResidue(nodes, genuinelyUncovered, typeCoveredEntries, excludedFileList);
+  const residue = buildResidue(nodes, genuinelyUncovered, typeCoveredEntries, excludedFileList, typeCoveredUncomputableEntries);
   const worklist = buildWorklist(checkResult);
 
   // Residue-track count post-pass. These four counts are NOT part of the count-parity
@@ -200,18 +222,22 @@ export async function extractPortalData(
   counts.noRule = residue.noRuleNodes.length;
   counts.notApplicable = nodes.reduce((sum, n) => sum + n.notApplicable.length, 0);
   counts.typeCoveredUnenforced = residue.typeCovered.filter((f) => !f.enforced).length;
+  counts.typeCoveredUncomputable = residue.typeCoveredUncomputable.length;
 
   // FULL live boundary via the facade — phantom + declared-only + forbidden-type, joined
   // from the relation pass and the architecture matrix. `null` (the parse genuinely threw)
   // is the ONLY honest "unknown"; a successful parse yields the three classes verbatim.
-  // ONE relation pass backs BOTH the boundary AND the structure panel's detected-edge half:
-  // computePortalBoundary runs the pass once and surfaces its detected-edge set on
-  // `boundaryInput`, so deriving the structure metrics below adds NO second pass for THAT
-  // half (the ≤2-pass invariant — runCheck + this one). The type-level widening below is a
-  // separate, additional pass ONLY when the tier is on and classified something — the same
-  // shape `yg structure` itself pays (its own doc notes the CLI already runs the relation
-  // pass twice at flag-on; the shared content-addressed AST fact cache absorbs most of it).
-  const boundaryInput = await computePortalBoundary(graph, projectRoot);
+  // ONE relation pass backs the boundary, the structure panel's detected-edge half, AND (when
+  // the tier is on and classified something) the type-level widening below: seeding
+  // computePortalBoundary with the SAME typeCoveredMap this run already classified makes the
+  // ONE pass it runs also carry the live type-relation gate's edges on `boundaryInput.typedEdges`
+  // — so the widening costs NO second, dedicated pass, and the ≤2-pass invariant (runCheck +
+  // this one) holds at flag-on too, not only at flag-off.
+  const boundaryInput = await computePortalBoundary(
+    graph,
+    projectRoot,
+    typeCoveredMap.size > 0 ? typeCoveredMap : undefined,
+  );
   const boundary = buildBoundary(boundaryInput);
 
   // Structure panel — the same analysis `yg structure` computes (dependency tunnels, module
@@ -222,7 +248,7 @@ export async function extractPortalData(
   // threw) yields an explicit UNKNOWN structure, never a fabricated zero graph.
   const typeWidening: StructureTypeWidening | undefined =
     typeCoveredMap.size > 0
-      ? { edges: await computePortalTypedEdges(graph, projectRoot, typeCoveredMap), nodeIds: [...typeCoveredMap.keys()] }
+      ? { edges: boundaryInput?.typedEdges ?? [], nodeIds: [...typeCoveredMap.keys()] }
       : undefined;
   const structure = deriveStructure(
     graph,
@@ -294,107 +320,7 @@ function indexSuppressionsByFile(flat: PortalSuppression[]): SuppressionsByFile 
   return { byFile };
 }
 
-/**
- * Build meta.counts from the engine results. The pair-state, severity, and coverage
- * counts are read off the engine's own outputs so they can never diverge from
- * `yg check`. Pairs that are neither cleanly verified nor a code refusal
- * (prompt-too-large, companion-error) are counted as unverified — they are not
- * green and not a reviewer's "no".
- *
- * Pair states are bucketed by the status-adjusted DISPLAY state (the single
- * `displayPairState` transform), so a `refused` verdict on an ADVISORY aspect lands in
- * `advisoryRefused` — NOT `refused`. `refused` then counts ENFORCED refusals only, matching
- * what `yg check` blocks on, while the advisory refusal is the non-blocking warning it already
- * shows up as in `warnings` (runCheck emits it as a warning issue). The count-parity identity
- * stays whole: verified + refused + unverified + advisoryRefused === expected pairs.
- *
- * The residue-track counts (suppressed / noRule / notApplicable) are seeded 0 here and
- * filled by a post-pass in extractPortalData, because each is derived from the built
- * node array / residue ledger / suppression inventory — data that does not exist yet at
- * this seam. They are additive residue, not part of the count-parity identity.
- */
-export function buildCounts(
-  graph: Graph,
-  check: CheckResult,
-  pairs: LockVerification['pairs'],
-  expectedPairs: PairComputation['pairs'],
-): PortalCounts {
-  let verified = 0;
-  let verifiedDet = 0;
-  let verifiedLlm = 0;
-  let refused = 0;
-  let unverified = 0;
-  let advisoryRefused = 0;
-  for (const vp of pairs) {
-    // Bucket by the status-adjusted display state, so an advisory refusal never reads as a
-    // blocking `refused` (it is the non-blocking warning `yg check` already reports).
-    switch (displayPairState(vp.state.kind, vp.pair.status)) {
-      case 'verified':
-        verified += 1;
-        // Split by reviewer kind — the same split CheckResult.verifiedDet/verifiedLlm tallies
-        // off the identical pairs loop in runCheck, so the two stay in lockstep.
-        if (vp.pair.kind === 'llm') verifiedLlm += 1;
-        else verifiedDet += 1;
-        break;
-      case 'refused':
-        // ENFORCED refusal — a real, blocking "no".
-        refused += 1;
-        break;
-      case 'warning':
-        // ADVISORY refusal — non-blocking signal, already counted in `warnings`.
-        advisoryRefused += 1;
-        break;
-      default:
-        // unverified | prompt-too-large | companion-error → not green, not a code "no".
-        unverified += 1;
-        break;
-    }
-  }
-
-  let pairsLLM = 0;
-  let pairsDet = 0;
-  for (const p of expectedPairs) {
-    if (p.kind === 'llm') pairsLLM += 1;
-    else pairsDet += 1;
-  }
-
-  const errors = check.issues.filter((i) => i.severity === 'error').length;
-  const warnings = check.issues.filter((i) => i.severity === 'warning').length;
-
-  return {
-    nodes: graph.nodes.size,
-    aspects: graph.aspects.length,
-    flows: graph.flows.length,
-    pairsTotal: expectedPairs.length,
-    pairsLLM,
-    pairsDet,
-    verified,
-    verifiedDet,
-    verifiedLlm,
-    refused,
-    unverified,
-    advisoryRefused,
-    // The residue-track counts (noRule / notApplicable / suppressed / typeCoveredUnenforced)
-    // are NOT part of the count-parity identity and cannot be computed here — each depends on
-    // data derived AFTER this seam (the built node array, the residue ledger, the suppression
-    // inventory). They are seeded 0 and OVERWRITTEN by the post-pass in extractPortalData once
-    // that data exists. (Never leave them 0: that prints "0 waived / 0 no rule / 0 not
-    // applicable" over a list.)
-    noRule: 0,
-    draft: check.draftSkipped,
-    notApplicable: 0,
-    suppressed: 0,
-    // A file satisfied by the type-level lattice has its own verdict — it must
-    // never ALSO inflate "uncovered". coveredFiles keeps its legacy conflated
-    // meaning (nodeOwnedFiles + excludedFiles, unchanged below); subtracting
-    // typeCoveredCount on top of it is the one corrected term.
-    uncoveredFiles: check.totalFiles - check.coveredFiles - (check.typeCoveredCount ?? 0),
-    coveredFiles: check.coveredFiles,
-    totalFiles: check.totalFiles,
-    typeCoveredCount: check.typeCoveredCount ?? 0,
-    excludedFiles: check.excludedFiles ?? 0,
-    typeCoveredUnenforced: 0,
-    errors,
-    warnings,
-  };
-}
+// `buildCounts` — meta.counts from the engine's own results — lives in derive-counts.ts
+// (split out so each file stays a focused unit); re-exported here so an existing caller
+// importing it from this module's own public surface needs no change.
+export { buildCounts };

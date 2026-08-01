@@ -84,14 +84,29 @@ export interface PortalCounts {
   excludedFiles: number;
   /**
    * Split of `typeCoveredCount`: how many of those files matched a classifying type whose
-   * cascade produced NO applicable rule at all (any status) — the exact state `yg check`'s
-   * "satisfy coverage with no enforcement" bucket names. A type-covered file is "checked" only
-   * when this is excluded; the rest of `typeCoveredCount` (typeCoveredCount - typeCoveredUnenforced)
-   * genuinely has a real verdict. 0 when typeLevel is off or every type-covered file has at
-   * least one applicable rule. Derived the same post-pass way `noRule` / `notApplicable` /
-   * `suppressed` are — see the comment above `extractPortalData`'s residue-track fill.
+   * cascade RAN to completion and produced NO applicable rule at all (any status) — the exact
+   * state `yg check`'s "satisfy coverage with no enforcement" bucket names. Deliberately
+   * EXCLUDES a file counted under `typeCoveredUncomputable` below: a cascade an aspect `implies`
+   * cycle stopped never ran, so "resolution ran and found nothing" and "resolution never ran"
+   * must never share this count, the same distinction `yg check`, `yg context --file`, and `yg
+   * owner --file` already draw. A type-covered file is "checked" only when both this and
+   * `typeCoveredUncomputable` are excluded; the rest of `typeCoveredCount`
+   * (typeCoveredCount - typeCoveredUnenforced - typeCoveredUncomputable) genuinely has a real
+   * verdict. 0 when typeLevel is off or every type-covered file has at least one applicable rule.
+   * Derived the same post-pass way `noRule` / `notApplicable` / `suppressed` are — see the
+   * comment above `extractPortalData`'s residue-track fill.
    */
   typeCoveredUnenforced: number;
+  /**
+   * Split of `typeCoveredCount`: how many of those files matched a classifying type whose
+   * cascade an aspect `implies` cycle stopped from ever being resolved — the same fact `yg
+   * check`'s repo-wide "could not have its rules worked out" rollup, `yg context --file`, and
+   * `yg owner --file` each report by naming the cycle, rather than calling the file
+   * "satisfies coverage with no enforcement." Disjoint from `typeCoveredUnenforced` (see its own
+   * doc) — a file is counted in exactly one of the two, never both, never neither. 0 when
+   * typeLevel is off or no aspect `implies` cycle reaches a type-covered file's type.
+   */
+  typeCoveredUncomputable: number;
   // Severities — equal to what `yg check` reports.
   errors: number;
   warnings: number;
@@ -313,6 +328,18 @@ export interface BoundaryInput {
    * relation pass. Absent only on older producers; the pipeline treats absence as an empty set.
    */
   detectedEdgesByNode?: Array<{ from: string; targets: string[] }>;
+  /**
+   * The live type-relation gate's own edges (`coverage.type_level` on): every statically-resolved
+   * import edge with at least one type-covered endpoint, already translated into the same plain
+   * edge shape the structure panel consumes (`origin` is always `'detected'` here — a type-covered
+   * endpoint has no declared-relation channel to be `'declared'` or `'both'`). Computed by the SAME
+   * relation pass as the three classes above and `detectedEdgesByNode`, when the caller seeds it
+   * with a type-coverage classification — surfacing it costs no extra relation pass. `[]` when the
+   * tier is off, nothing was classified, or the caller didn't seed a classification; absent only on
+   * an older producer (the pipeline treats absence as empty, the same convention `detectedEdgesByNode`
+   * already uses).
+   */
+  typedEdges?: Array<{ from: string; to: string; viaContract: boolean; origin: 'declared' | 'detected' | 'both' }>;
 }
 
 /**
@@ -374,17 +401,33 @@ export interface WorklistGroup {
 }
 
 /**
- * One file satisfied by the type-level lattice (matched a classifying type, no node maps it).
- * `enforced` is true when at least one non-draft rule from the matched type's cascade actually
- * applies to this file (a real expected pair exists against it) — false means the file is only
- * NOMINALLY covered: matched by a type, but nothing checks it. Every type-covered file appears
- * here exactly once, sorted by path, whichever way it goes — so a consumer never has to
- * re-derive which files are which from a bare count.
+ * One file satisfied by the type-level lattice (matched a classifying type, no node maps it),
+ * WHOSE CASCADE RAN — see `PortalTypeCoveredUncomputableFile` below for the disjoint third case
+ * where it did not. `enforced` is true when at least one non-draft rule from the matched type's
+ * cascade actually applies to this file (a real expected pair exists against it) — false means
+ * the file is only NOMINALLY covered: its cascade ran and found nothing that checks it. Every
+ * COMPUTABLE type-covered file appears here exactly once, sorted by path, whichever way it
+ * goes — a file counted under `PortalResidue.typeCoveredUncomputable` never also appears here,
+ * since "resolution ran and found nothing" and "resolution never ran" are mutually exclusive.
  */
 export interface PortalTypeCoveredFile {
   path: string;
   type: string;
   enforced: boolean;
+}
+
+/**
+ * One type-covered file whose matched type's rules an aspect `implies` cycle stopped from ever
+ * being resolved — disjoint from `PortalTypeCoveredFile` above (see its own doc): this file
+ * contributes to NEITHER `enforced` NOR the zero-rule state, because its cascade never ran to
+ * decide either. `why` is the SAME cycle sentence `yg check`, `yg context --file`, and `yg owner
+ * --file` already print for the identical fact (via the facade's `describeCascadeCycle`) — never
+ * restated, so the wording cannot drift between the four surfaces.
+ */
+export interface PortalTypeCoveredUncomputableFile {
+  path: string;
+  type: string;
+  why: string;
 }
 
 /**
@@ -411,6 +454,18 @@ export interface PortalResidue {
    * into a bare count next to the files that ARE checked.
    */
   typeCovered: PortalTypeCoveredFile[];
+  /**
+   * Every type-covered file whose matched type's rules an aspect `implies` cycle stopped from
+   * ever being resolved (see `PortalTypeCoveredUncomputableFile`) — disjoint from `typeCovered`
+   * above: a file appears in exactly one of the two lists, never both. Mirrors
+   * `PortalCounts.typeCoveredUncomputable`'s count exactly. This is the state the honest answer
+   * is "unknown," not "no rule applies" — rendered with the cycle named, the same way `yg
+   * check`, `yg context --file`, and `yg owner --file` already do, rather than folded into
+   * `typeCovered` with `enforced: false`, which would repeat the exact substitution ("we could
+   * not determine what checks this file" read back as "nothing checks this file") this field
+   * exists to rule out.
+   */
+  typeCoveredUncomputable: PortalTypeCoveredUncomputableFile[];
   /**
    * Files under a `coverage.excluded` root — deliberately skipped, not silently missed.
    * Mirrors `PortalCounts.excludedFiles`'s count exactly. Not a gap (nothing here needs

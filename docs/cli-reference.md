@@ -383,7 +383,11 @@ their own (never a synthetic tree entry — the listing above still renders
 nodes only). The count is always repo-wide: a type-covered file has no place
 in the graph hierarchy for `--root` to scope it to, so narrowing `--root` adds
 an explicit "repo-wide" note to the line rather than fabricating a scoped
-count. Absent entirely when the flag is off.
+count. The total splits into how many are actually checked by at least one
+rule, how many matched a type with nothing that applies, and — only when it
+occurs — how many hit an aspect `implies` cycle that stopped their type's
+rules from ever being resolved, so a bare "N files satisfied" can never be
+misread as "N files enforced." Absent entirely when the flag is off.
 
 ### `yg structure`
 
@@ -414,9 +418,15 @@ With `coverage.type_level` on, the universe widens: every statically-resolved
 import edge touching a type-covered file joins it too (named by the file's own
 path, since it has no node id), and the change-reach caption says "component or
 type-covered file" instead of "component" so the wording never misnames a file.
-A malformed `when:` predicate (an invalid regex, for example) degrades this
-widening to the node-only view rather than crashing the command — flag off
-(or zero type-covered files) is byte-identical to today's node-only view.
+The Modules heading widens the same way, from "component groups" to "groups of
+components and type-covered files", the moment a file joins a group. The
+Tunnels ranking measures a type-covered file at a fixed, shallow depth rather
+than the file's own on-disk directory nesting, so a deeply-nested file's edge
+can no longer crowd out a genuine cross-module dependency purely because the
+file happens to live many directories down. A malformed `when:` predicate (an
+invalid regex, for example) degrades this widening to the node-only view
+rather than crashing the command — flag off (or zero type-covered files) is
+byte-identical to today's node-only view.
 
 ### `yg find`
 

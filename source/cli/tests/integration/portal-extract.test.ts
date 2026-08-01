@@ -572,3 +572,84 @@ describe('extractPortalData over a real tier-on fixture — a checked file is ne
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// A type whose rules an aspect `implies` cycle stopped from being resolved at
+// all is a THIRD state, distinct from both "enforced" and "matched a type
+// with zero applicable rules". `yg check`, `yg context --file`, and `yg owner
+// --file` all say so plainly and name the cycle, rather than reporting the
+// file as satisfying coverage with no enforcement — the exact sentence
+// docs/configuration.md forbids for this case. The portal must agree: a file
+// whose cascade never ran must never be folded into the same "no rule
+// applies" bucket as a file whose cascade ran and found nothing.
+// ---------------------------------------------------------------------------
+describe('extractPortalData over a fixture with a real aspect implies cycle — a file whose rules could not be worked out is never called "no rule applies"', () => {
+  const BASE_FIXTURE = path.resolve(__dirname, '../fixtures/type-level-engine');
+  const CYCLIC_OVERLAY = path.resolve(__dirname, '../fixtures/type-level-engine/variants/cyclic-type');
+
+  async function extractWithCycle(): Promise<{ data: PortalData; dir: string }> {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-portal-extract-cyclic-'));
+    cpSync(BASE_FIXTURE, dir, { recursive: true });
+    cpSync(CYCLIC_OVERLAY, dir, { recursive: true });
+    const data = await extractPortalData(dir, { writeEnabled: false });
+    return { data, dir };
+  }
+
+  // Ground truth, independently confirmed against `yg check` on this exact fixture
+  // combination: 7 type-covered files total, of which 5 are genuinely enforced
+  // (consumer, forked, classifying-parent, leaf, underStrict each have at least one
+  // rule that actually runs), 1 has a matched type with literally no aspects at all
+  // (emptyparents — the zero-enforcement case), and 1 hit the aspect `implies` cycle
+  // (cyclic — cyclic-a <-> cyclic-b) before resolution ever ran.
+
+  it('counts.typeCoveredUncomputable is 1 and typeCoveredUnenforced is 1 — never conflated into 2', async () => {
+    const { data, dir } = await extractWithCycle();
+    try {
+      expect(data.meta.counts.typeCoveredCount).toBe(7);
+      expect(data.meta.counts.typeCoveredUncomputable).toBe(1);
+      expect(data.meta.counts.typeCoveredUnenforced).toBe(1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('residue.typeCovered excludes the uncomputable file entirely — it is neither enforced nor unenforced, it is unresolved', async () => {
+    const { data, dir } = await extractWithCycle();
+    try {
+      expect(data.residue.typeCovered.map((f) => f.path)).not.toContain('src/cyclic/z.ts');
+      expect(data.residue.typeCovered).toHaveLength(6);
+      const unenforced = data.residue.typeCovered.filter((f) => !f.enforced);
+      expect(unenforced).toEqual([{ path: 'src/ep/e.ts', type: 'emptyparents', enforced: false }]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('residue.typeCoveredUncomputable names the cycle file, its type, and the SAME cycle sentence yg check/yg context --file/yg owner --file already print', async () => {
+    const { data, dir } = await extractWithCycle();
+    try {
+      expect(data.residue.typeCoveredUncomputable).toHaveLength(1);
+      const entry = data.residue.typeCoveredUncomputable[0];
+      expect(entry.path).toBe('src/cyclic/z.ts');
+      expect(entry.type).toBe('cyclic');
+      expect(entry.why).toMatch(/implies cycle/);
+      expect(entry.why).toContain('cyclic-a');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('counts.typeCoveredCount partitions exactly into enforced + unenforced + uncomputable, with nothing double-counted or dropped', async () => {
+    const { data, dir } = await extractWithCycle();
+    try {
+      const enforcedCount = data.residue.typeCovered.filter((f) => f.enforced).length;
+      const unenforcedCount = data.residue.typeCovered.filter((f) => !f.enforced).length;
+      const uncomputableCount = data.residue.typeCoveredUncomputable.length;
+      expect(enforcedCount + unenforcedCount + uncomputableCount).toBe(data.meta.counts.typeCoveredCount);
+      expect(unenforcedCount).toBe(data.meta.counts.typeCoveredUnenforced);
+      expect(uncomputableCount).toBe(data.meta.counts.typeCoveredUncomputable);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

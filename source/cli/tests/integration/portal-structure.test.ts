@@ -179,6 +179,43 @@ describe('portal structure panel — real repo, ≤2 relation passes, JSON-flat 
   });
 });
 
+// ── extractPortalData on a TIER-ON fixture — the ≤2-pass invariant must hold there too ───────
+//
+// The block above only ever exercises this repository, whose tier is off — the type-level
+// widening path (computePortalBoundary seeded with a real classification, surfacing typedEdges
+// on its return value) never runs there, so a regression that added a THIRD relation pass
+// specifically at flag-on could land with this guard fully green. This block closes that gap:
+// same counter, same assertion, over a fixture that actually turns coverage.type_level on and
+// classifies something, so the widening path is genuinely exercised.
+
+describe('portal structure panel — TIER-ON fixture, ≤2 relation passes even with the type-level widening', () => {
+  const TIER_ON_FIXTURE = path.resolve(__dirname, '../fixtures/type-relation-gate');
+  let data: PortalData;
+  let passCalls: number;
+  let tmp: string;
+
+  beforeAll(async () => {
+    tmp = mkdtempSync(path.join(tmpdir(), 'yg-portal-structure-tieron-'));
+    cpSync(TIER_ON_FIXTURE, tmp, { recursive: true });
+    vi.mocked(runRelationPass).mockClear();
+    data = await extractPortalData(tmp, { writeEnabled: false });
+    passCalls = vi.mocked(runRelationPass).mock.calls.length;
+  }, 60_000);
+
+  afterAll(() => {
+    if (tmp) rmSync(tmp, { recursive: true, force: true });
+  });
+
+  it('the widening actually ran (the guard is not vacuous — a type-covered file really joined the panel)', () => {
+    expect(data.structure.hasTypeCovered).toBe(true);
+  });
+
+  it('still runs the relation pass AT MOST twice — the type-level widening reuses the boundary pass instead of paying a third', () => {
+    expect(passCalls).toBeGreaterThanOrEqual(1);
+    expect(passCalls).toBeLessThanOrEqual(2);
+  });
+});
+
 // ── portal ↔ `yg structure` PARITY — the drift guard for the verbatim-duplicated feeders ─────
 //
 // `portal/derive-metrics.deriveStructure` and the `yg structure` command (`cli/structure.ts`)
@@ -299,13 +336,16 @@ describe.skipIf(!existsSync(SAMPLE_FIXTURE))(
 //
 // The parity block above proves the two surfaces agree on the NODE-ONLY universe. It says
 // nothing about the WIDENED one: `deriveStructure`'s `widened` parameter and `renderStructure`'s
-// `widened` parameter are each assembled by their own caller (the pipeline's `extractPortalData`
-// vs the command's `computeTypeWidening`) from the SAME underlying facade call
-// (`computeTypedEdges` / `computePortalTypedEdges` — one function, two re-export names), through
-// the SAME ranking (`widenedTunnelMetrics` / `rankTunnels`, shared in `core/graph-metrics.ts`).
-// This binds the two callers directly: feed both the identical widening and assert the rendered
-// picture and the structured one still agree — a type-covered file's tunnels, node count, and
-// reach wording included.
+// `widened` parameter are each assembled by their own caller (the pipeline's `extractPortalData`,
+// which folds the widening into its own `computePortalBoundary` call, vs the command's
+// `computeTypeWidening`, which calls the standalone `computeTypedEdges`) through the SAME
+// translation (`structEdgesFromPass`, api/boundary.ts) and the SAME ranking
+// (`widenedTunnelMetrics` / `rankTunnels`, shared in `core/graph-metrics.ts`). This test builds
+// its own oracle via the standalone `computeTypedEdges` call directly (bypassing
+// `extractPortalData` entirely) and feeds the identical result to both renderers, so the only
+// remaining variable under test is the two callers' own assembly and rendering — not the two
+// pipelines' own wiring, which portal-extract.test.ts's cycle fixture and the ≤2-pass block above
+// exercise through the real `extractPortalData` call instead.
 
 const RELATION_GATE_FIXTURE = path.resolve(__dirname, '../fixtures/type-relation-gate');
 
@@ -324,11 +364,10 @@ describe.skipIf(!existsSync(RELATION_GATE_FIXTURE))(
       const detectedMap = (await computeDetectedEdges(graph, projectRoot)) ?? new Map<string, Set<string>>();
       const detectedFlat = [...detectedMap].map(([from, targetSet]) => ({ from, targets: [...targetSet] }));
 
-      // The SAME type-level widening each surface computes independently through its own
-      // permitted facade call — computeTypedEdges (structure.ts) and computePortalTypedEdges
-      // (the portal pipeline) are the identical underlying function, seeded with the identical
-      // classification here, so the only remaining variable under test is the two callers' own
-      // assembly and rendering.
+      // Built directly via the standalone computeTypedEdges (the same one `yg structure` calls) —
+      // this test's own oracle, independent of how extractPortalData obtains its widening — fed
+      // to BOTH renderers below, so the only remaining variable under test is the two callers'
+      // own assembly and rendering, not which pass produced the edges.
       const files = await walkRepoFiles(projectRoot);
       const uncovered = scanUncoveredFiles(graph, files);
       const coverage = await computeTypeCoverage(graph, uncovered, new FileContentCache());

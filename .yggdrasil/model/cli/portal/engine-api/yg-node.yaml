@@ -12,12 +12,16 @@ description: >-
   imports only this facade and the data contract. Read-only by construction: no lock
   writer is imported and the graph is loaded committed-only. The boundary join changes no
   engine logic; it reuses an additive read-only detected-edge accessor on the relation
-  pass. api/boundary.ts also exposes computeTypedEdges — the same relation-pass call
-  seeded with the caller's type-coverage classification, translated to plain StructEdge
-  data so `yg structure` can widen its universe without touching RelationPassDeps
-  itself; this facade re-exports it as computePortalTypedEdges so the extraction
-  pipeline can widen the structure PANEL identically, rather than leaving it node-only
-  while the CLI's own dashboard widens. isPortalFileExcludedByCoverage (imported straight from utils/coverage-exclusion,
+  pass. computePortalBoundary optionally accepts the caller's own type-coverage
+  classification (typeCoveredFiles); when given, the SAME single relation pass it already
+  runs also carries the live type-relation gate's edges, surfaced on its return value's
+  typedEdges field, translated to plain StructEdge data — so the extraction pipeline can
+  widen the structure PANEL with the identical edges `yg structure` widens its own
+  universe with, at no extra relation pass. api/boundary.ts separately exposes
+  computeTypedEdges as its own second-pass accessor for a caller that cannot fold the
+  widening into an existing pass — `yg structure` itself calls it directly (not through
+  this facade), since a CLI command is not bound to the portal's single-pass call.
+  isPortalFileExcludedByCoverage (imported straight from utils/coverage-exclusion,
   not core/check-coverage-tiers, so it adds no new relation beyond the already-declared
   cli/utils) lets the residue derivation exclude a deliberately-excluded file the same
   way it excludes a type-covered one.
@@ -95,6 +99,7 @@ relations:
     type: uses
 mapping:
   - source/cli/src/portal/engine-api.ts
+  - source/cli/src/portal/api/attestation.ts
   - source/cli/src/portal/api/boundary.ts
   - source/cli/src/portal/api/suppress-scan.ts
   - source/cli/src/portal/api/suppress-eligibility.ts

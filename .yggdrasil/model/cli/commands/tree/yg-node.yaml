@@ -23,5 +23,7 @@ relations:
     type: calls
   - target: cli/io/file-content-cache
     type: calls
+  - target: cli/core/pairs
+    type: calls
 mapping:
   - source/cli/src/cli/tree.ts

@@ -24,6 +24,7 @@ relations:
     type: calls
 mapping:
   - source/cli/src/portal/extract.ts
+  - source/cli/src/portal/derive-counts.ts
   - source/cli/src/portal/derive-nodes.ts
   - source/cli/src/portal/derive-node-state.ts
   - source/cli/src/portal/derive-pair-state.ts

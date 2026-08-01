@@ -15,8 +15,11 @@
  * Public surface only — the page is a real CLI emit and `yg check` is the real CLI; nothing is
  * fabricated. COVERS adds no new manifest surface (it re-asserts coverage/overview honesty).
  */
+import { mkdtempSync, cpSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { test, expect } from './support/fixtures';
-import { runCheck, staticPage, freshFixtureCopy, servedPortal, readInlinedData, approveDeterministic } from './support/harness';
+import { runCheck, staticPage, freshFixtureCopy, servedPortal, readInlinedData, approveDeterministic, fixtureRoot } from './support/harness';
 
 export const COVERS: string[] = [];
 
@@ -40,6 +43,18 @@ function parseCheckTypeSplit(out: string): { nodeOwned: number; typeCovered: num
 
 function parseCheckWarnings(out: string): number {
   const m = out.match(/Warnings\s*\((\d+)\)/);
+  return m ? parseInt(m[1], 10) : 0;
+}
+
+/** Parse `yg check`'s repo-wide "N file(s) matched by a type could not have its rules worked out" count, or 0. */
+function parseCheckUncomputableCount(out: string): number {
+  const m = out.match(/(\d+) files? matched by a type could not have (?:its|their) rules worked out/);
+  return m ? parseInt(m[1], 10) : 0;
+}
+
+/** Parse `yg check`'s repo-wide "N file(s) ... satisfy coverage with no enforcement" count, or 0. */
+function parseCheckZeroEnforcementCount(out: string): number {
+  const m = out.match(/(\d+) files? matched by a type ha(?:s|ve) no rules that apply to (?:it|them)/);
   return m ? parseInt(m[1], 10) : 0;
 }
 
@@ -201,6 +216,69 @@ test.describe('the page counts EQUAL `yg check` on the same fixture', () => {
     // folded into a count nobody can trace back to a file.
     await expect(page.locator('.cov-ledger')).toContainText('vendor/tool.ts');
     await expect(page.locator('.cov-ledger')).toContainText('deliberately excluded from coverage');
+  });
+
+  test('a real aspect implies cycle: the portal calls the cycle file "unknown", never "no rule applies", and the counts equal yg check', async ({ page, t }) => {
+    // type-level-engine + its variants/cyclic-type overlay: the one committed fixture
+    // combination with a real aspect `implies` cycle reaching a type-covered file
+    // (src/cyclic/z.ts, type 'cyclic', cyclic-a <-> cyclic-b) alongside a genuinely
+    // zero-enforcement one (src/ep/e.ts, type 'emptyparents', which declares no aspects
+    // at all). `yg check` on this combination reports exactly ONE uncomputable file and
+    // ONE zero-enforcement file — the two must never share a count, on either surface.
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-portal-e2e-cyclic-'));
+    t.tmpDirs.push(dir);
+    cpSync(fixtureRoot('type-level-engine'), dir, { recursive: true });
+    cpSync(path.join(fixtureRoot('type-level-engine'), 'variants', 'cyclic-type'), dir, { recursive: true });
+
+    const check = runCheck(dir);
+    const cliUncomputable = parseCheckUncomputableCount(check.out);
+    const cliZeroEnforcement = parseCheckZeroEnforcementCount(check.out);
+    // Sanity-pin the fixture combination's own shape.
+    expect(cliUncomputable).toBe(1);
+    expect(cliZeroEnforcement).toBe(1);
+
+    const url = staticPage(t, { cwd: dir });
+    const portal = readInlinedData(url) as {
+      meta: { counts: { typeCoveredUnenforced: number; typeCoveredUncomputable: number } };
+      residue: {
+        typeCovered: Array<{ path: string; type: string; enforced: boolean }>;
+        typeCoveredUncomputable: Array<{ path: string; type: string; why: string }>;
+      };
+    };
+    // Field-level parity: the portal's split equals the CLI's, never conflated into one number.
+    expect(portal.meta.counts.typeCoveredUncomputable).toBe(cliUncomputable);
+    expect(portal.meta.counts.typeCoveredUnenforced).toBe(cliZeroEnforcement);
+    expect(portal.residue.typeCoveredUncomputable.map((f) => f.path)).toEqual(['src/cyclic/z.ts']);
+    // The cycle file never also appears in the enforced/unenforced list — the two are disjoint.
+    expect(portal.residue.typeCovered.map((f) => f.path)).not.toContain('src/cyclic/z.ts');
+    expect(portal.residue.typeCovered.filter((f) => !f.enforced).map((f) => f.path)).toEqual(['src/ep/e.ts']);
+
+    // The SAME facts render on the page, in real Chromium — Overview first.
+    await page.goto(url);
+    const unknownChip = page.locator('.ov-residue .reslink', { hasText: 'could not be worked out' });
+    await expect(unknownChip).toContainText('1');
+    const unenforcedChip = page.locator('.ov-residue .reslink', { hasText: 'no rule that applies' });
+    await expect(unenforcedChip).toContainText('1');
+
+    // Coverage & Audit: the cycle file is named, WITH the cycle itself named — never the
+    // "satisfies coverage with no enforcement" sentence docs/configuration.md forbids for
+    // this exact case, and never folded into the "checked by nothing" bucket below it.
+    await page.goto(url + '#/view/coverage');
+    const ledgerText = (await page.locator('.cov-ledger').textContent()) ?? '';
+    expect(ledgerText).toContain('src/cyclic/z.ts');
+    expect(ledgerText).toContain('could not be worked out');
+    expect(ledgerText).toMatch(/implies cycle/);
+    expect(ledgerText).toContain('cyclic-a');
+
+    const unknownBlock = page.locator('.cov-nonpair', { hasText: 'could not be worked out' });
+    await expect(unknownBlock.locator('.cov-key b')).toHaveText('1');
+    // The genuinely zero-enforcement file is still named, distinctly, under "checked by
+    // nothing" — the honest "no rule" badge, count exactly 1 (never 2).
+    const noRuleBlock = page.locator('.cov-nonpair', { hasText: 'checked by nothing' });
+    await expect(noRuleBlock.locator('.cov-key b')).toHaveText('1');
+    await expect(page.locator('.cov-typelist-bad')).toContainText('src/ep/e.ts');
+    await expect(page.locator('.cov-typelist-bad')).not.toContainText('src/cyclic/z.ts');
+    await expect(page.locator('.cov-typelist-unknown')).toContainText('src/cyclic/z.ts');
   });
 
   test('repo: rendered blocking-errors + warnings == yg check on this repo', async ({ page, repoPage }) => {

@@ -412,7 +412,12 @@ how many files the type-level lattice satisfies with no component of their
 own — never a synthetic tree entry (the listing above stays nodes only). The
 count is always repo-wide, even under \`--root\`: a type-covered file has no
 place in the graph hierarchy for that flag to narrow, so the line says
-"repo-wide" instead of fabricating a scoped count. Absent when the flag is off.
+"repo-wide" instead of fabricating a scoped count. The total splits into how
+many are actually checked by at least one rule, how many matched a type with
+nothing that applies, and — only when it occurs — how many hit an aspect
+\`implies\` cycle that stopped their type's rules from ever resolving, so the
+bare total is never mistaken for "all of these are enforced." Absent when the
+flag is off.
 
 ## yg structure
 
@@ -442,10 +447,15 @@ yg structure
 With \`coverage.type_level\` on, the universe widens: every statically-resolved
 import touching a type-covered file joins it too (named by the file's own
 path — it has no component id), and the change-reach line says "component or
-type-covered file" instead of "component" so a file is never misnamed. A
-malformed \`when:\` predicate degrades this widening to the node-only view
-rather than crashing — flag off (or zero type-covered files) renders exactly
-today's output.
+type-covered file" instead of "component" so a file is never misnamed. The
+Modules heading widens the same way, from "component groups" to "groups of
+components and type-covered files", the moment a file joins a group. The
+Tunnels ranking measures a type-covered file at a fixed, shallow depth rather
+than its own on-disk directory nesting, so a deeply-nested file's edge can no
+longer crowd out a genuine cross-module dependency just for living many
+directories down. A malformed \`when:\` predicate degrades this widening to
+the node-only view rather than crashing — flag off (or zero type-covered
+files) renders exactly today's output.
 
 ## yg aspects
 
