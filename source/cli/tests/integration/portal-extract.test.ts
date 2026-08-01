@@ -464,14 +464,16 @@ describe('extractPortalData re-reads the nested-project boundary on every call (
 
 // ---------------------------------------------------------------------------
 // The heart of it: a type-covered file that a real deterministic aspect just
-// refused must never ALSO read as "unmapped (unguarded)" in the same payload.
-// portal-type-coverage is the one committed fixture with coverage.type_level
-// on: one node-owned file, one type-covered file carrying a genuine refused
-// verdict (a live deterministic check, no lock committed), one excluded-root
-// file. Every count and the residue ledger are asserted against real,
-// independently-derived numbers — never a literal.
+// refused must never ALSO read as "unmapped (unguarded)" in the same payload —
+// and a type-covered file whose matched type carries NO rule at all must never
+// read as "satisfied" either. portal-type-coverage is the one committed
+// fixture with coverage.type_level on: one node-owned file, one type-covered
+// file carrying a genuine refused verdict (a live deterministic check, no lock
+// committed), one type-covered file matched by a type with zero rules (zero
+// enforcement), one excluded-root file. Every count and the residue ledger are
+// asserted against real, independently-derived numbers — never a literal.
 // ---------------------------------------------------------------------------
-describe('extractPortalData over a real tier-on fixture — a checked file is never called unguarded', () => {
+describe('extractPortalData over a real tier-on fixture — a checked file is never called unguarded, and an unchecked one is never called satisfied', () => {
   const FIXTURE_ROOT = path.resolve(__dirname, '../fixtures/portal-type-coverage');
 
   async function extractWithRealRefusal(): Promise<{ data: PortalData; dir: string }> {
@@ -495,11 +497,12 @@ describe('extractPortalData over a real tier-on fixture — a checked file is ne
     }
   });
 
-  it('counts reconcile with the three honest terms: 1 node-owned + 1 type-covered + 1 excluded, 0 genuinely uncovered', async () => {
+  it('counts reconcile with the four honest terms: 1 node-owned + 2 type-covered (1 enforced, 1 not) + 1 excluded, 0 genuinely uncovered', async () => {
     const { data, dir } = await extractWithRealRefusal();
     try {
-      expect(data.meta.counts.totalFiles).toBe(3);
-      expect(data.meta.counts.typeCoveredCount).toBe(1);
+      expect(data.meta.counts.totalFiles).toBe(4);
+      expect(data.meta.counts.typeCoveredCount).toBe(2);
+      expect(data.meta.counts.typeCoveredUnenforced).toBe(1);
       expect(data.meta.counts.excludedFiles).toBe(1);
       expect(data.meta.counts.coveredFiles).toBe(2); // legacy: nodeOwned(1) + excluded(1)
       expect(data.meta.counts.uncoveredFiles).toBe(0); // nothing left over — every file is spoken for
@@ -512,6 +515,15 @@ describe('extractPortalData over a real tier-on fixture — a checked file is ne
     const { data, dir } = await extractWithRealRefusal();
     try {
       expect(data.residue.uncoveredFiles).not.toContain('src/svc/handler.ts');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('the unenforced type-covered file is ALSO absent from residue.uncoveredFiles — it is not "no node maps it" the way a genuinely unmapped file is', async () => {
+    const { data, dir } = await extractWithRealRefusal();
+    try {
+      expect(data.residue.uncoveredFiles).not.toContain('src/lib/util.ts');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -530,6 +542,31 @@ describe('extractPortalData over a real tier-on fixture — a checked file is ne
     const { data, dir } = await extractWithRealRefusal();
     try {
       expect(data.residue.uncoveredFiles.length).toBe(data.meta.counts.uncoveredFiles);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('residue.typeCovered names BOTH type-covered files, each with its matched type and real enforcement state — the checked one and the unchecked one are never rendered the same way', async () => {
+    const { data, dir } = await extractWithRealRefusal();
+    try {
+      expect(data.residue.typeCovered).toEqual([
+        { path: 'src/lib/util.ts', type: 'lib', enforced: false },
+        { path: 'src/svc/handler.ts', type: 'svc', enforced: true },
+      ]);
+      // The post-pass count is derived from this SAME list, so the two can never disagree.
+      expect(data.meta.counts.typeCoveredUnenforced).toBe(
+        data.residue.typeCovered.filter((f) => !f.enforced).length,
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('residue.excludedFiles names the excluded-root file by path — it has somewhere to be found by name, not only a number', async () => {
+    const { data, dir } = await extractWithRealRefusal();
+    try {
+      expect(data.residue.excludedFiles).toEqual(['vendor/tool.ts']);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

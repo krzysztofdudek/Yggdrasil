@@ -11,6 +11,7 @@ import {
   scanPortalUncovered,
   readNodeLog,
   computePortalBoundary,
+  computePortalTypedEdges,
   scanPortalSuppressions,
   computePortalFreshness,
   computePortalSourceFileCounts,
@@ -23,12 +24,12 @@ import {
   type LockVerification,
   type PairComputation,
 } from './engine-api.js';
-import type { PortalData, PortalCounts, PortalPairState, PortalSuppression } from './contract.js';
+import type { PortalData, PortalCounts, PortalPairState, PortalSuppression, PortalTypeCoveredFile } from './contract.js';
 import { buildPortalNodes, displayPairState, type SuppressionsByFile } from './derive-nodes.js';
 import { buildAspects, buildFlows, buildTypes } from './derive-catalogue.js';
 import { buildSuppressions, buildHubs, buildResidue, buildWorklist } from './derive-rest.js';
 import { buildBoundary } from './derive-boundary.js';
-import { deriveStructure } from './derive-metrics.js';
+import { deriveStructure, type StructureTypeWidening } from './derive-metrics.js';
 
 /**
  * Extract the portal data contract from a project's graph + lock.
@@ -154,14 +155,41 @@ export async function extractPortalData(
   // excluded-root file was deliberately dropped from coverage. Neither belongs
   // here — this is the SAME exclusion counts.uncoveredFiles applies, so the chip
   // and this list's length can never disagree.
-  const typeCoveredFiles = new Set(typeCoverageResult?.covered.keys() ?? []);
+  const typeCoveredMap = typeCoverageResult?.covered ?? new Map<string, string>();
+  const typeCoveredPaths = new Set(typeCoveredMap.keys());
+  const coverageExclusion = graph.config.coverage ?? NO_COVERAGE_EXCLUDED;
   const genuinelyUncovered = uncovered.filter(
-    (f) => !typeCoveredFiles.has(f) && !isPortalFileExcludedByCoverage(f, graph.config.coverage ?? NO_COVERAGE_EXCLUDED),
+    (f) => !typeCoveredPaths.has(f) && !isPortalFileExcludedByCoverage(f, coverageExclusion),
   );
-  const residue = buildResidue(nodes, genuinelyUncovered);
+  // Deliberately excluded (never classified, never a residue gap) — the same file set
+  // `counts.excludedFiles` counts, kept as its own list so the file has somewhere to be
+  // found by name instead of only ever being a number (it was never dropped by accident).
+  const excludedFileList = uncovered.filter(
+    (f) => !typeCoveredPaths.has(f) && isPortalFileExcludedByCoverage(f, coverageExclusion),
+  );
+
+  // Per-file enforcement state for every type-covered file: "enforced" means at least one
+  // non-draft rule from the matched type's cascade actually applies to THIS file — read off
+  // the SAME nodeless expected pairs already computed above for the pair-count seam
+  // (`expected`), just re-indexed per file instead of only totalled, so this costs no second
+  // pass computation. A file with zero such pairs matched a type but has nothing that checks
+  // it — `yg check`'s own "satisfy coverage with no enforcement" state — and must never
+  // render the same as a file with a real pair (verified, refused, or unverified).
+  const enforcedTypeCoveredFiles = new Set<string>();
+  for (const p of expected.pairs) {
+    if (p.nodePath !== undefined) continue;
+    for (const f of p.subjectFiles) enforcedTypeCoveredFiles.add(f);
+  }
+  const typeCoveredEntries: PortalTypeCoveredFile[] = [...typeCoveredMap.entries()].map(([path, type]) => ({
+    path,
+    type,
+    enforced: enforcedTypeCoveredFiles.has(path),
+  }));
+
+  const residue = buildResidue(nodes, genuinelyUncovered, typeCoveredEntries, excludedFileList);
   const worklist = buildWorklist(checkResult);
 
-  // Residue-track count post-pass. These three counts are NOT part of the count-parity
+  // Residue-track count post-pass. These four counts are NOT part of the count-parity
   // identity (verified/refused/unverified/coverage/severities) — they are the additive
   // honest-residue counts the header + Overview residue links display. buildCounts cannot
   // populate them: each depends on data derived AFTER the counts seam (the per-node array,
@@ -171,23 +199,35 @@ export async function extractPortalData(
   counts.suppressed = flatSuppressions.length;
   counts.noRule = residue.noRuleNodes.length;
   counts.notApplicable = nodes.reduce((sum, n) => sum + n.notApplicable.length, 0);
+  counts.typeCoveredUnenforced = residue.typeCovered.filter((f) => !f.enforced).length;
 
   // FULL live boundary via the facade — phantom + declared-only + forbidden-type, joined
   // from the relation pass and the architecture matrix. `null` (the parse genuinely threw)
   // is the ONLY honest "unknown"; a successful parse yields the three classes verbatim.
-  // ONE relation pass backs BOTH the boundary AND the structure panel: computePortalBoundary
-  // runs the pass once and surfaces its detected-edge set on `boundaryInput`, so deriving the
-  // structure metrics below adds NO second pass (the ≤2-pass invariant — runCheck + this one).
+  // ONE relation pass backs BOTH the boundary AND the structure panel's detected-edge half:
+  // computePortalBoundary runs the pass once and surfaces its detected-edge set on
+  // `boundaryInput`, so deriving the structure metrics below adds NO second pass for THAT
+  // half (the ≤2-pass invariant — runCheck + this one). The type-level widening below is a
+  // separate, additional pass ONLY when the tier is on and classified something — the same
+  // shape `yg structure` itself pays (its own doc notes the CLI already runs the relation
+  // pass twice at flag-on; the shared content-addressed AST fact cache absorbs most of it).
   const boundaryInput = await computePortalBoundary(graph, projectRoot);
   const boundary = buildBoundary(boundaryInput);
 
   // Structure panel — the same analysis `yg structure` computes (dependency tunnels, module
   // groups, change reach), derived PURELY from the already-flattened detected edges + the graph's
-  // declared structural relations. A null boundaryInput (the parse threw) yields an explicit
-  // UNKNOWN structure, never a fabricated zero graph.
+  // declared structural relations, WIDENED with the same type-level augmentation `yg structure`
+  // merges into its own universe (every statically-resolved import edge touching a type-covered
+  // file) whenever the tier is on and classified something. A null boundaryInput (the parse
+  // threw) yields an explicit UNKNOWN structure, never a fabricated zero graph.
+  const typeWidening: StructureTypeWidening | undefined =
+    typeCoveredMap.size > 0
+      ? { edges: await computePortalTypedEdges(graph, projectRoot, typeCoveredMap), nodeIds: [...typeCoveredMap.keys()] }
+      : undefined;
   const structure = deriveStructure(
     graph,
     boundaryInput === null ? null : boundaryInput.detectedEdgesByNode ?? [],
+    typeWidening,
   );
 
   // Attestation provenance — read-only: a content hash over the committed lock triad and the
@@ -334,11 +374,12 @@ export function buildCounts(
     refused,
     unverified,
     advisoryRefused,
-    // The residue-track counts (noRule / notApplicable / suppressed) are NOT part of the
-    // count-parity identity and cannot be computed here — each depends on data derived AFTER
-    // this seam (the built node array, the residue ledger, the suppression inventory). They
-    // are seeded 0 and OVERWRITTEN by the post-pass in extractPortalData once that data exists.
-    // (Never leave them 0: that prints "0 waived / 0 no rule / 0 not applicable" over a list.)
+    // The residue-track counts (noRule / notApplicable / suppressed / typeCoveredUnenforced)
+    // are NOT part of the count-parity identity and cannot be computed here — each depends on
+    // data derived AFTER this seam (the built node array, the residue ledger, the suppression
+    // inventory). They are seeded 0 and OVERWRITTEN by the post-pass in extractPortalData once
+    // that data exists. (Never leave them 0: that prints "0 waived / 0 no rule / 0 not
+    // applicable" over a list.)
     noRule: 0,
     draft: check.draftSkipped,
     notApplicable: 0,
@@ -352,6 +393,7 @@ export function buildCounts(
     totalFiles: check.totalFiles,
     typeCoveredCount: check.typeCoveredCount ?? 0,
     excludedFiles: check.excludedFiles ?? 0,
+    typeCoveredUnenforced: 0,
     errors,
     warnings,
   };

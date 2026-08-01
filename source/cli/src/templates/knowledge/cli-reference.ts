@@ -443,8 +443,9 @@ With \`coverage.type_level\` on, the universe widens: every statically-resolved
 import touching a type-covered file joins it too (named by the file's own
 path — it has no component id), and the change-reach line says "component or
 type-covered file" instead of "component" so a file is never misnamed. A
-malformed architecture degrades this widening to empty rather than crashing —
-flag off (or zero type-covered files) renders exactly today's output.
+malformed \`when:\` predicate degrades this widening to the node-only view
+rather than crashing — flag off (or zero type-covered files) renders exactly
+today's output.
 
 ## yg aspects
 

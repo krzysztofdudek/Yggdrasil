@@ -11,12 +11,12 @@ import { computeTypeCoverage } from '../core/type-coverage.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import {
   edgeUniverse,
-  tunnelSpans,
   quotientAtDepth,
   changeReach,
   depthOfPath,
-  lcaDepthOfPaths,
   ancestorAtDepth,
+  widenedTunnelMetrics,
+  rankTunnels,
   TOP_TUNNELS,
   type DeclaredRelation,
   type StructEdge,
@@ -115,8 +115,14 @@ export function cyclePhrase(interBlockCount: number, sccOutsideShare: number): s
   );
 }
 
-/** Section 1 — the widest-spanning tunnels, named in words. */
-function renderTunnels(edges: StructEdge[]): string[] {
+/**
+ * Section 1 — the widest-spanning tunnels, named in words. `realNodeIds` is the
+ * graph's own node id set — used to tell a real architecture node apart from a
+ * type-covered file sharing the same widened id space, so the two are ranked in
+ * the SAME comparable unit rather than a node's hierarchy depth against a
+ * file's incidental directory nesting (see `widenedTunnelMetrics`'s own doc).
+ */
+function renderTunnels(edges: StructEdge[], realNodeIds: ReadonlySet<string>): string[] {
   const lines: string[] = [];
   lines.push('Tunnels — dependencies that reach farthest across the hierarchy');
   lines.push('');
@@ -126,14 +132,8 @@ function renderTunnels(edges: StructEdge[]): string[] {
     return lines;
   }
 
-  const spanned = tunnelSpans(edges, depthOfPath, lcaDepthOfPaths);
-  // Widest span first; ties broken by (from, to) so the ranking is stable.
-  const ranked = [...spanned].sort((a, b) => {
-    if (b.span !== a.span) return b.span - a.span;
-    if (a.from !== b.from) return a.from < b.from ? -1 : 1;
-    if (a.to !== b.to) return a.to < b.to ? -1 : 1;
-    return 0;
-  });
+  const { depthOf, lcaDepth } = widenedTunnelMetrics(realNodeIds);
+  const ranked = rankTunnels(edges, depthOf, lcaDepth);
 
   for (const e of ranked.slice(0, TOP_TUNNELS)) {
     const contract = e.viaContract ? 'via declared contract' : 'no declared contract';
@@ -142,14 +142,29 @@ function renderTunnels(edges: StructEdge[]): string[] {
   return lines;
 }
 
-/** Section 2 — how groups at each depth of the tree depend on one another. */
-function renderModules(edges: StructEdge[]): string[] {
+/**
+ * Section 2 — how groups at each depth of the tree depend on one another.
+ * `hasTypeCovered` mirrors `renderChangeReach`'s own flag: once the widened
+ * universe (below) folds a type-covered file's path into these groups, calling
+ * every group a "component" group would name a file a component — this
+ * command's own jargon-free-language rule, applied here the same way it
+ * already is in the change-reach caption. False (the default) renders
+ * byte-identical to today.
+ */
+function renderModules(edges: StructEdge[], hasTypeCovered: boolean): string[] {
   const lines: string[] = [];
-  lines.push('Modules — how component groups at each level depend on one another');
+  const heading = hasTypeCovered
+    ? 'Modules — how groups of components and type-covered files at each level depend on one another'
+    : 'Modules — how component groups at each level depend on one another';
+  lines.push(heading);
   lines.push('');
 
   if (edges.length === 0) {
-    lines.push('  No dependencies between component groups yet.');
+    lines.push(
+      hasTypeCovered
+        ? '  No dependencies between groups yet.'
+        : '  No dependencies between component groups yet.',
+    );
     return lines;
   }
 
@@ -224,11 +239,17 @@ const NO_WIDENING: StructureTypeWidening = { edges: [], nodeIds: [], hasTypeCove
  * that skips this function entirely and a caller that calls it and gets
  * nothing back render identically.
  *
- * `yg structure` is READ-ONLY and never gates (its own doc comment above) — a
- * malformed architecture must not turn this dashboard into a crash. Wrapped in
+ * `yg structure` is READ-ONLY and never gates (its own doc comment above) —
+ * nothing this function calls may ever crash the command. The known failure
+ * modes degrade UPSTREAM of this try/catch, not inside it: a malformed
+ * `when:` predicate (an invalid regex, for example) is caught by
+ * classification itself, which reports zero matches rather than throwing, so
+ * `coverage.covered.size === 0` above already returns `NO_WIDENING` before
+ * any exception could reach this function's own catch. The try/catch is the
+ * defense-in-depth backstop for a failure neither producer fails closed on —
  * the SAME fail-open contract `computeDetectedEdges` already applies to the
- * relation pass: any failure anywhere in classification or edge resolution
- * degrades to the empty widening (the node-only view) rather than throwing.
+ * relation pass — so a future failure mode that DOES throw still degrades to
+ * the node-only view instead of crashing a read-only command.
  */
 async function computeTypeWidening(graph: Graph, projectRoot: string): Promise<StructureTypeWidening> {
   if (!graph.config.coverage?.typeLevel) return NO_WIDENING;
@@ -266,8 +287,8 @@ export function renderStructure(
 
   const sections: string[][] = [
     ['Structure', '', EDGE_UNIVERSE_LEGEND],
-    renderTunnels(edges),
-    renderModules(edges),
+    renderTunnels(edges, new Set(baseNodeIds)),
+    renderModules(edges, hasTypeCovered),
     renderChangeReach(edges, nodeIds, hasTypeCovered),
   ];
 

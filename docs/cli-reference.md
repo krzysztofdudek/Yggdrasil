@@ -414,9 +414,9 @@ With `coverage.type_level` on, the universe widens: every statically-resolved
 import edge touching a type-covered file joins it too (named by the file's own
 path, since it has no node id), and the change-reach caption says "component or
 type-covered file" instead of "component" so the wording never misnames a file.
-A malformed architecture degrades this widening to empty rather than crashing
-the command — flag off (or zero type-covered files) is byte-identical to
-today's node-only view.
+A malformed `when:` predicate (an invalid regex, for example) degrades this
+widening to the node-only view rather than crashing the command — flag off
+(or zero type-covered files) is byte-identical to today's node-only view.
 
 ### `yg find`
 

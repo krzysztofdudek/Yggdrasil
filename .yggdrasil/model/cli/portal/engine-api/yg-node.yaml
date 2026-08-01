@@ -15,7 +15,9 @@ description: >-
   pass. api/boundary.ts also exposes computeTypedEdges — the same relation-pass call
   seeded with the caller's type-coverage classification, translated to plain StructEdge
   data so `yg structure` can widen its universe without touching RelationPassDeps
-  itself. isPortalFileExcludedByCoverage (imported straight from utils/coverage-exclusion,
+  itself; this facade re-exports it as computePortalTypedEdges so the extraction
+  pipeline can widen the structure PANEL identically, rather than leaving it node-only
+  while the CLI's own dashboard widens. isPortalFileExcludedByCoverage (imported straight from utils/coverage-exclusion,
   not core/check-coverage-tiers, so it adds no new relation beyond the already-declared
   cli/utils) lets the residue derivation exclude a deliberately-excluded file the same
   way it excludes a type-covered one.

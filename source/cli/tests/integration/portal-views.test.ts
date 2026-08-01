@@ -297,9 +297,22 @@ describe('portal Phase-4 view modules (real source, real fixture data)', () => {
   it('Coverage shows a nonzero type-covered count on its OWN line — never inside "not in coverage fraction" (its pairs ARE counted in the bar)', async () => {
     const Yg = await loadYg();
     const stage = makeNode('div');
-    const withTypeCovered: PortalData = { ...data, meta: { ...data.meta, counts: { ...data.meta.counts, typeCoveredCount: 4 } } };
+    const typeCovered = [
+      { path: 'src/a.ts', type: 'svc', enforced: true },
+      { path: 'src/b.ts', type: 'svc', enforced: true },
+      { path: 'src/c.ts', type: 'svc', enforced: true },
+      { path: 'src/d.ts', type: 'svc', enforced: true },
+    ];
+    const withTypeCovered: PortalData = {
+      ...data,
+      meta: { ...data.meta, counts: { ...data.meta.counts, typeCoveredCount: 4, typeCoveredUnenforced: 0 } },
+      residue: { ...data.residue, typeCovered },
+    };
     Yg.views.coverage(stage, { view: 'coverage' }, withTypeCovered, { navigate: () => undefined });
     expect(textOf(stage)).toMatch(/4.*type-covered/);
+    // Every enforced file is named with its matched type, not folded into a bare count.
+    expect(textOf(stage)).toContain('src/a.ts — type-covered as svc');
+    expect(textOf(stage)).toContain('src/d.ts — type-covered as svc');
     // The chip is neutral — not one of the nine honest-state badges (it is not itself a
     // pair verdict; the file's real verdict is already counted in the bar above).
     expect(classesIn(stage).has('reslink-neutral')).toBe(true);
@@ -307,6 +320,52 @@ describe('portal Phase-4 view modules (real source, real fixture data)', () => {
     const nonpairNodes = walk(stage).filter((n) => n.classList && n.classList.contains('cov-nonpair'));
     const typeCoveredNonpair = nonpairNodes.find((n) => textOf(n).includes('type-covered'));
     expect(typeCoveredNonpair && textOf(typeCoveredNonpair)).not.toMatch(/not in coverage fraction/);
+    // No file here is unenforced, so the "checked by nothing" line must not appear at all.
+    expect(textOf(stage)).not.toMatch(/checked by nothing/);
+  });
+
+  it('a type-covered file with NO applicable rule renders as unenforced — named by file and type, never folded into "satisfied by a matched type", on both Overview and Coverage', async () => {
+    const Yg = await loadYg();
+    const typeCovered = [
+      { path: 'src/checked.ts', type: 'svc', enforced: true },
+      { path: 'src/unchecked.ts', type: 'svc', enforced: false },
+    ];
+    const withUnenforced: PortalData = {
+      ...data,
+      meta: {
+        ...data.meta,
+        counts: { ...data.meta.counts, typeCoveredCount: 2, typeCoveredUnenforced: 1, uncoveredFiles: 0 },
+      },
+      residue: { ...data.residue, typeCovered },
+    };
+
+    // Overview: the unenforced file gets its OWN chip, using the SAME "no rule" state the
+    // other unguarded-surface chips use — never the neutral "satisfied by a matched type"
+    // mark, which would repeat the exact dishonesty this chip exists to correct. The
+    // enforced file keeps its own, separate, smaller count.
+    const ovStage = makeNode('div');
+    Yg.views.overview(ovStage, { view: 'overview' }, withUnenforced, { navigate: () => undefined });
+    const ovText = textOf(ovStage);
+    expect(ovText).toMatch(/1.*no rule that applies/);
+    expect(ovText).toMatch(/1.*matched type/); // the ENFORCED count (2 total − 1 unenforced)
+    const unenforcedChip = walk(ovStage).find(
+      (n) => n.classList && n.classList.contains('reslink') && textOf(n).includes('no rule that applies'),
+    );
+    expect(unenforcedChip).toBeTruthy();
+    expect(classesIn(unenforcedChip as FakeNode).has(Yg.states.cssClass('no-rule'))).toBe(true);
+    expect(classesIn(unenforcedChip as FakeNode).has('reslink-neutral')).toBe(false);
+
+    // Coverage: BOTH file names appear on the page — never just a count — the unenforced one
+    // tagged "checked by nothing" under the honest "no rule" badge, the enforced one under the
+    // neutral "satisfied" mark. Neither line borrows the other's wording or badge.
+    const covStage = makeNode('div');
+    Yg.views.coverage(covStage, { view: 'coverage' }, withUnenforced, { navigate: () => undefined });
+    const covText = textOf(covStage);
+    expect(covText).toContain('src/unchecked.ts — type-covered as svc');
+    expect(covText).toContain('src/checked.ts — type-covered as svc');
+    expect(covText).toMatch(/checked by nothing/);
+    const noRuleBadges = walk(covStage).filter((n) => n.classList && n.classList.contains(Yg.states.cssClass('no-rule')));
+    expect(noRuleBadges.length).toBeGreaterThan(0);
   });
 
   it('Coverage surfaces the boundary counter as UNKNOWN (not a fabricated zero) when the parse could not run', async () => {

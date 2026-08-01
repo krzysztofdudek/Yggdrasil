@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mkdtemp, mkdir, writeFile, rm, chmod } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, rm, chmod, cp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import MiniSearch from 'minisearch';
 import { loadGraph } from '../../../src/core/graph-loader.js';
@@ -18,6 +18,18 @@ const dirs: string[] = [];
 afterEach(async () => {
   for (const d of dirs.splice(0)) await rm(d, { recursive: true, force: true });
 });
+
+/**
+ * A fresh copy of type-coverage-basic — this fixture carries pinned counts other suites rely
+ * on (see tests/integration/find.test.ts), so it is never driven from its committed path, even
+ * for a read-only load.
+ */
+async function freshTypeCoverageFixture(): Promise<string> {
+  const dir = await mkdtemp(path.join(tmpdir(), 'yg-find-idx-typecov-'));
+  dirs.push(dir);
+  await cp(TYPE_COVERAGE_FIXTURE, dir, { recursive: true });
+  return dir;
+}
 
 async function setupGraph(opts: { logContent?: string; aspectContent?: string }): Promise<{ projectRoot: string }> {
   const root = await mkdtemp(path.join(tmpdir(), 'yg-find-idx-'));
@@ -178,8 +190,9 @@ describe('buildIndex', () => {
   });
 
   it("at flag-on, a type-covered file is indexed with the matched type's description as searchable text, and points at yg context --file, never a phantom node", async () => {
-    const graph = await loadGraph(TYPE_COVERAGE_FIXTURE);
-    const files = await walkRepoFiles(TYPE_COVERAGE_FIXTURE);
+    const projectRoot = await freshTypeCoverageFixture();
+    const graph = await loadGraph(projectRoot);
+    const files = await walkRepoFiles(projectRoot);
     const uncovered = scanUncoveredFiles(graph, files);
     const coverage = await computeTypeCoverage(graph, uncovered, new FileContentCache());
     const flattened = [...coverage.covered.entries()].map(([file, typeId]) => ({ file, typeId }));
@@ -196,13 +209,15 @@ describe('buildIndex', () => {
   });
 
   it('at flag-off (typeCoverage omitted), buildIndex output is byte-identical to today — no file documents at all', async () => {
-    const graph = await loadGraph(TYPE_COVERAGE_FIXTURE);
+    const projectRoot = await freshTypeCoverageFixture();
+    const graph = await loadGraph(projectRoot);
     const docs = await buildIndex(graph);
     expect(docs.every((d) => d.kind !== 'file')).toBe(true);
   });
 
   it('an empty typeCoverage array is the same as omitting it — no file documents', async () => {
-    const graph = await loadGraph(TYPE_COVERAGE_FIXTURE);
+    const projectRoot = await freshTypeCoverageFixture();
+    const graph = await loadGraph(projectRoot);
     const docs = await buildIndex(graph, []);
     expect(docs.every((d) => d.kind !== 'file')).toBe(true);
   });

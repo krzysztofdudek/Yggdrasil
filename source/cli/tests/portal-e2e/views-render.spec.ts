@@ -11,6 +11,7 @@
  * imported. COVERS is the stable marker the `portal/every-surface-has-e2e` aspect reads.
  */
 import { test, expect } from './support/fixtures';
+import { freshFixtureCopy, staticPage } from './support/harness';
 
 // Surfaces this spec covers (the §3a manifest ids). Read by portal/every-surface-has-e2e.
 export const COVERS = [
@@ -89,22 +90,27 @@ test.describe('§3a views V1–V9 — render real data + honest palette', () => 
     await expectHonestPalette(page);
   });
 
-  test('V1/V2 on the tier-on fixture: a type-covered file with a real refusal is never called unmapped', async ({ page, typeCoveragePage }) => {
+  test('V1/V2 on the tier-on fixture: a type-covered file with a real refusal is never called unmapped, and one with no applicable rule is never called satisfied', async ({ page, typeCoveragePage }) => {
     // portal-type-coverage: coverage.type_level ON, one node-owned file, one
     // type-covered file carrying a REAL refused verdict (a live deterministic
-    // check, no committed lock), one excluded-root file. The one committed
-    // portal fixture with the tier enabled — without it this whole spec suite
-    // is structurally incapable of observing this class of bug.
+    // check, no committed lock), one type-covered file matched by a type with
+    // NO rule at all (zero enforcement), one excluded-root file. The one
+    // committed portal fixture with the tier enabled — without it this whole
+    // spec suite is structurally incapable of observing either class of bug.
     await page.goto(typeCoveragePage);
-    // Overview: the type-covered file is accounted for on its OWN chip, distinct
-    // from the "unmapped (unguarded)" chip, which must NOT count it.
+    // Overview: the CHECKED type-covered file is accounted for on its own chip,
+    // distinct from the "unmapped (unguarded)" chip, which must NOT count it.
     await expect(page.locator('.ov-residue')).toContainText('matched type');
     const unmappedChip = page.locator('.ov-residue .reslink', { hasText: 'unmapped (unguarded)' });
-    await expect(unmappedChip).toContainText('0'); // the excluded + type-covered file both left this chip
+    await expect(unmappedChip).toContainText('0'); // the excluded + BOTH type-covered files all left this chip
     const typeCoveredChip = page.locator('.ov-residue .reslink', { hasText: 'matched type' });
     await expect(typeCoveredChip).toContainText('1');
+    // The UNENFORCED type-covered file gets its OWN, distinctly-worded chip — never folded
+    // into the "satisfied" chip above, and never silently dropped.
+    const unenforcedChip = page.locator('.ov-residue .reslink', { hasText: 'no rule that applies' });
+    await expect(unenforcedChip).toContainText('1');
 
-    // Coverage & Audit: the SAME file's refusal renders in the verdict bar (it IS
+    // Coverage & Audit: the checked file's refusal renders in the verdict bar (it IS
     // being checked)...
     await navTo(page, 'Coverage & audit');
     await expect(page.locator('.cov-bar .cov-seg-r')).toHaveCount(1);
@@ -113,6 +119,10 @@ test.describe('§3a views V1–V9 — render real data + honest palette', () => 
     await expect(page.locator('.cov-ledger')).toContainText('type-covered');
     const nonpairText = (await page.locator('.cov-nonpair').first().textContent()) ?? '';
     expect(nonpairText).not.toContain('type-covered');
+    // The unenforced file is named on the page — never just a number — under its own
+    // "checked by nothing" line, using the honest "no rule" state, not the neutral mark.
+    await expect(page.locator('.cov-ledger')).toContainText('src/lib/util.ts');
+    await expect(page.locator('.cov-ledger')).toContainText('checked by nothing');
     await expectHonestPalette(page);
   });
 
@@ -213,6 +223,38 @@ test.describe('§3a views V1–V9 — render real data + honest palette', () => 
     // Above the floor: the interpretive change-reach caption renders (small-N panel absent).
     await expect(page.locator('.str-reach .str-reach-cap')).toContainText('average component');
     await expect(page.locator('.str-smalln')).toHaveCount(0);
+    await expectHonestPalette(page);
+  });
+
+  test('V10 Dependency structure on a tier-on project reports the SAME tunnels, node count, and reach `yg structure` prints — never a node-only panel while the CLI widens', async ({
+    page,
+    t,
+  }) => {
+    // type-relation-gate: one real node ("owner") and two type-covered files with real static
+    // imports touching all three — the widened universe `yg structure` reports has 3 nodes and
+    // 3 tunnels, none of which exist without the type-level widening. If the panel stayed
+    // node-only (as it did before this widening was wired in), it would report 1 node and 0
+    // tunnels here — the exact disagreement this test exists to rule out.
+    const project = freshFixtureCopy(t, 'type-relation-gate');
+    const url = staticPage(t, { cwd: project });
+
+    await page.goto(url);
+    await navTo(page, 'Dependency structure');
+    // Small-N: 3 nodes is below the interpretive-caption floor, so the raw-figure panel renders
+    // instead of the "average component" sentence — this is the SAME honest floor `yg structure`
+    // has no equivalent gate for (it always prints the interpretive line), so the panel's own
+    // smallGraph flag is asserted directly rather than the caption text.
+    await expect(page.locator('.str-smalln')).toContainText('50% average forward reach');
+    await expect(page.locator('.str-smalln')).toContainText('components or type-covered files');
+
+    // Every tunnel `yg structure` reports is present, by name, on the page.
+    const tunnelsText = (await page.locator('.str-tunnels').textContent()) ?? '';
+    expect(tunnelsText).toContain('src/svc/handler.ts → owner');
+    expect(tunnelsText).toContain('src/util/plain-util.ts → owner');
+    expect(tunnelsText).toContain('src/svc/handler.ts → src/util/plain-util.ts');
+    // Exactly 3 tunnel rows — never 0 (the node-only regression this test guards against).
+    await expect(page.locator('.str-tunnels .str-tunnel')).toHaveCount(3);
+
     await expectHonestPalette(page);
   });
 });

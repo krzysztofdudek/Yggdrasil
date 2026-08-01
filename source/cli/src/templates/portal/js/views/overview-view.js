@@ -172,13 +172,27 @@
       }),
     );
     // A type-covered file left uncoveredFiles above once it gained a matched-type
-    // verdict of its own — it must not simply vanish. Surfaced here, distinctly
-    // from the residue chips above, so the count is accounted for somewhere on
-    // this view rather than merely no-longer-miscounted. Omitted entirely when
-    // zero (typeLevel off or no file satisfied this way) — nothing to account for.
-    if (c.typeCoveredCount > 0) {
+    // verdict of its own — it must not simply vanish. Split into the SAME two
+    // states the Coverage view lists by name: a file whose matched type actually
+    // enforces something reads as accounted-for (its own neutral chip, never the
+    // "no rule" badge — that would repeat the exact miscount this chip exists to
+    // correct); a file whose matched type has NOTHING that applies to it is not
+    // accounted for by anything and belongs back with the other residue chips
+    // above, using the SAME "no rule" badge they use — checked by nothing is
+    // checked by nothing, whether the cause is "no node" or "no rule the type
+    // attaches". Either count is omitted entirely when zero.
+    var typeCoveredUnenforced = c.typeCoveredUnenforced || 0;
+    var typeCoveredEnforced = (c.typeCoveredCount || 0) - typeCoveredUnenforced;
+    if (typeCoveredUnenforced > 0) {
       residue.appendChild(
-        accountedForLink(c.typeCoveredCount, 'files satisfied by their matched type, no component of their own', function () {
+        residueLink('no-rule', typeCoveredUnenforced, 'files matched by a type with no rule that applies (unguarded)', function () {
+          nav({ view: 'coverage' });
+        }),
+      );
+    }
+    if (typeCoveredEnforced > 0) {
+      residue.appendChild(
+        accountedForLink(typeCoveredEnforced, 'files satisfied by their matched type, no component of their own', function () {
           nav({ view: 'coverage' });
         }),
       );

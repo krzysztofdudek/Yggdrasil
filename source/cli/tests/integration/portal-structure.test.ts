@@ -15,10 +15,14 @@ vi.mock('../../src/relations/pass.js', async (importOriginal) => {
 
 import { runRelationPass } from '../../src/relations/pass.js';
 import { extractPortalData } from '../../src/portal/extract.js';
-import { deriveStructure, REACH_CAPTION_MIN_NODES } from '../../src/portal/derive-metrics.js';
+import { deriveStructure, REACH_CAPTION_MIN_NODES, type StructureTypeWidening } from '../../src/portal/derive-metrics.js';
 import { renderStructure, cyclePhrase } from '../../src/cli/structure.js';
 import { loadGraph } from '../../src/core/graph-loader.js';
-import { computeDetectedEdges } from '../../src/portal/api/boundary.js';
+import { computeDetectedEdges, computeTypedEdges } from '../../src/portal/api/boundary.js';
+import { walkRepoFiles } from '../../src/io/repo-scanner.js';
+import { scanUncoveredFiles } from '../../src/core/check.js';
+import { computeTypeCoverage } from '../../src/core/type-coverage.js';
+import { FileContentCache } from '../../src/io/file-content-cache.js';
 import type { PortalData, PortalStructure } from '../../src/portal/contract.js';
 import type { Graph } from '../../src/model/graph.js';
 
@@ -287,6 +291,75 @@ describe.skipIf(!existsSync(SAMPLE_FIXTURE))(
         // the panel's loopShare — binding the loop-share value across the two surfaces.
         expect(blocks[i].cyclePhraseLine).toBe(cyclePhrase(layer.crossings, 1 - layer.loopShare));
       }
+    });
+  },
+);
+
+// ── portal ↔ `yg structure` PARITY, at coverage.type_level ON ────────────────────────────────
+//
+// The parity block above proves the two surfaces agree on the NODE-ONLY universe. It says
+// nothing about the WIDENED one: `deriveStructure`'s `widened` parameter and `renderStructure`'s
+// `widened` parameter are each assembled by their own caller (the pipeline's `extractPortalData`
+// vs the command's `computeTypeWidening`) from the SAME underlying facade call
+// (`computeTypedEdges` / `computePortalTypedEdges` — one function, two re-export names), through
+// the SAME ranking (`widenedTunnelMetrics` / `rankTunnels`, shared in `core/graph-metrics.ts`).
+// This binds the two callers directly: feed both the identical widening and assert the rendered
+// picture and the structured one still agree — a type-covered file's tunnels, node count, and
+// reach wording included.
+
+const RELATION_GATE_FIXTURE = path.resolve(__dirname, '../fixtures/type-relation-gate');
+
+describe.skipIf(!existsSync(RELATION_GATE_FIXTURE))(
+  'portal ↔ yg structure parity — the type-level widening (coverage.type_level on)',
+  () => {
+    let tmp: string;
+    let s: PortalStructure;
+    let text: string;
+
+    beforeAll(async () => {
+      tmp = mkdtempSync(path.join(tmpdir(), 'yg-structure-parity-typecov-'));
+      cpSync(RELATION_GATE_FIXTURE, tmp, { recursive: true });
+      const graph = await loadGraph(tmp);
+      const projectRoot = path.dirname(graph.rootPath);
+      const detectedMap = (await computeDetectedEdges(graph, projectRoot)) ?? new Map<string, Set<string>>();
+      const detectedFlat = [...detectedMap].map(([from, targetSet]) => ({ from, targets: [...targetSet] }));
+
+      // The SAME type-level widening each surface computes independently through its own
+      // permitted facade call — computeTypedEdges (structure.ts) and computePortalTypedEdges
+      // (the portal pipeline) are the identical underlying function, seeded with the identical
+      // classification here, so the only remaining variable under test is the two callers' own
+      // assembly and rendering.
+      const files = await walkRepoFiles(projectRoot);
+      const uncovered = scanUncoveredFiles(graph, files);
+      const coverage = await computeTypeCoverage(graph, uncovered, new FileContentCache());
+      const typedEdges = await computeTypedEdges(graph, projectRoot, coverage.covered);
+      const widened: StructureTypeWidening = { edges: typedEdges, nodeIds: [...coverage.covered.keys()] };
+
+      s = deriveStructure(graph, detectedFlat, widened);
+      text = renderStructure(graph, detectedMap, { ...widened, hasTypeCovered: widened.nodeIds.length > 0 });
+    }, 60_000);
+
+    afterAll(() => {
+      if (tmp) rmSync(tmp, { recursive: true, force: true });
+    });
+
+    it('the widening actually adds a type-covered file to the universe (the guard is not vacuous)', () => {
+      expect(s.hasTypeCovered).toBe(true);
+      expect(s.tunnels.length).toBeGreaterThan(0);
+      expect(s.nodeCount).toBeGreaterThan(1); // more than the fixture's one real node ("owner")
+    });
+
+    it('tunnels match — same ranked list of (from, to, span) in the same order, type-covered file endpoints included', () => {
+      expect(parseTunnels(text)).toEqual(
+        s.tunnels.map((t) => ({ from: t.from, to: t.to, span: t.span })),
+      );
+    });
+
+    it('node count and change reach match, with the widened "component or type-covered file" wording on the rendered side', () => {
+      expect(text).toContain('From an average component or type-covered file,');
+      const reachMatch = /From an average component or type-covered file, (\d+)% of the system is reachable/.exec(text);
+      expect(reachMatch).not.toBeNull();
+      expect(Number((reachMatch as RegExpExecArray)[1])).toBe(Math.round(s.reachMean * 100));
     });
   },
 );

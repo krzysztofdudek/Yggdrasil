@@ -2,6 +2,8 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readFile } from 'node:fs/promises';
+import { mkdtempSync, cpSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import vm from 'node:vm';
 import { extractPortalData } from '../../src/portal/extract.js';
 import type { PortalData } from '../../src/portal/contract.js';
@@ -420,6 +422,56 @@ describe('Phase-5 frontend — export, file-aware loop, a11y, org guard (real so
     expect(approve.disabled).toBe(true);
     // The chrome states the view-only status.
     expect(textOf(root)).toMatch(/view-only/i);
+  });
+});
+
+// ── 5.1, at coverage.type_level ON — the coverage CSV reconciles ──────────────────────────────
+//
+// portal-basic above never turns the tier on, so its coverage CSV round-trip proves nothing about
+// whether the two type-level terms (typeCoveredCount / excludedFiles) reach the export at all —
+// on that fixture both are zero and their absence from the row set is invisible. A real tier-on
+// fixture is required to prove the identity `coveredFiles + typeCoveredCount + uncoveredFiles ===
+// totalFiles` actually holds IN THE EXPORTED ARTIFACT, not only in the live counts object.
+describe('Phase-5 export — the coverage CSV reconciles at coverage.type_level on (real tier-on fixture)', () => {
+  let typeCovData: PortalData;
+
+  beforeAll(async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-portal-csv-typecov-'));
+    cpSync(path.resolve(__dirname, '../fixtures/portal-type-coverage'), dir, { recursive: true });
+    try {
+      typeCovData = await extractPortalData(dir, { writeEnabled: false });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('the exported coverage CSV carries typeCoveredCount, typeCoveredUnenforced, and excludedFiles, and the four terms sum to totalFiles', async () => {
+    const Yg = await loadYg();
+    const ex = Yg.exporter as { buildCoverageCsv: (d: PortalData) => string };
+    const rows = parseCsv(ex.buildCoverageCsv(typeCovData));
+    const valueOf = (metric: string): number => {
+      const row = rows.find((r) => r[0] === metric);
+      expect(row, `no "${metric}" row in the exported coverage CSV`).toBeTruthy();
+      return Number((row as string[])[1]);
+    };
+    // Sanity-pin the fixture's own shape (see portal-extract.test.ts's identical pin) so a future
+    // edit to it cannot silently invalidate what this test is actually proving.
+    expect(typeCovData.meta.counts.totalFiles).toBe(4);
+    expect(valueOf('coveredFiles') + valueOf('typeCoveredCount') + valueOf('uncoveredFiles')).toBe(
+      valueOf('totalFiles'),
+    );
+    expect(valueOf('typeCoveredUnenforced')).toBe(1);
+    expect(valueOf('excludedFiles')).toBe(1);
+  });
+
+  it('the exported residue CSV names the unenforced type-covered file and the excluded file, not only the checked type-covered one', async () => {
+    const Yg = await loadYg();
+    const ex = Yg.exporter as { buildResidueCsv: (d: PortalData) => string };
+    const rows = parseCsv(ex.buildResidueCsv(typeCovData));
+    expect(rows).toContainEqual(['src/lib/util.ts', 'type-covered-no-enforcement (lib)']);
+    expect(rows).toContainEqual(['vendor/tool.ts', 'excluded-file']);
+    // The CHECKED type-covered file is not a residue item — it has a real verdict.
+    expect(rows.some((r) => r[0] === 'src/svc/handler.ts')).toBe(false);
   });
 });
 

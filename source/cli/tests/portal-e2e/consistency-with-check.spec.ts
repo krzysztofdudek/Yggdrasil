@@ -137,7 +137,7 @@ test.describe('the page counts EQUAL `yg check` on the same fixture', () => {
     expect(parseInt((liveErrText.match(/(\d+)/) as RegExpMatchArray)[1], 10)).toBe(0);
   });
 
-  test('portal-type-coverage: counts.typeCoveredCount / excludedFiles / uncoveredFiles reconcile with yg check\'s three honest terms — a type-covered file with a real refusal is never called unmapped', async ({ page, t }) => {
+  test('portal-type-coverage: counts.typeCoveredCount / excludedFiles / uncoveredFiles reconcile with yg check\'s honest terms — a type-covered file with a real refusal is never called unmapped', async ({ page, t }) => {
     // A fresh copy, deterministically filled BEFORE either side reads it, so the CLI header
     // and the portal extraction see the identical committed state — including the type-covered
     // file's REAL refused verdict (a live deterministic check, not a fabricated one).
@@ -148,12 +148,12 @@ test.describe('the page counts EQUAL `yg check` on the same fixture', () => {
     const split = parseCheckTypeSplit(check.out);
     // Sanity-pin the fixture's own shape so a future edit to it cannot silently
     // invalidate what this test is actually proving.
-    expect(split).toEqual({ nodeOwned: 1, typeCovered: 1, excluded: 1, total: 3 });
+    expect(split).toEqual({ nodeOwned: 1, typeCovered: 2, excluded: 1, total: 4 });
 
     const url = staticPage(t, { cwd: project });
     // Field-level parity against the exact contract the page emits.
     const portal = readInlinedData(url) as {
-      meta: { counts: { typeCoveredCount: number; excludedFiles: number; coveredFiles: number; uncoveredFiles: number; totalFiles: number; refused: number } };
+      meta: { counts: { typeCoveredCount: number; typeCoveredUnenforced: number; excludedFiles: number; coveredFiles: number; uncoveredFiles: number; totalFiles: number; refused: number } };
     };
     expect(portal.meta.counts.typeCoveredCount).toBe(split.typeCovered);
     expect(portal.meta.counts.excludedFiles).toBe(split.excluded);
@@ -165,11 +165,42 @@ test.describe('the page counts EQUAL `yg check` on the same fixture', () => {
     expect(portal.meta.counts.totalFiles).toBe(split.total);
     // The heart of it: the type-covered file's refusal IS in this same payload.
     expect(portal.meta.counts.refused).toBe(1);
+    // The SECOND type-covered file matches yg check's own "satisfy coverage with no
+    // enforcement" bucket — exactly one file, the same one the CLI names by sample below.
+    expect(portal.meta.counts.typeCoveredUnenforced).toBe(1);
 
-    // The same number RENDERS in real Chromium, on the Overview residue chip.
+    // The same numbers RENDER in real Chromium, on the Overview residue chips — split into
+    // two distinct chips, never one bare "matched type" count folding both together.
     await page.goto(url);
-    await expect(page.locator('.ov-residue')).toContainText('1'); // the count the chip carries
-    await expect(page.locator('.ov-residue')).toContainText('matched type');
+    const enforcedChip = page.locator('.ov-residue .reslink', { hasText: 'satisfied by their matched type' });
+    await expect(enforcedChip).toContainText('1'); // src/svc/handler.ts, checked (has a real pair)
+    const unenforcedChip = page.locator('.ov-residue .reslink', { hasText: 'no rule that applies' });
+    await expect(unenforcedChip).toContainText('1'); // src/lib/util.ts, checked by nothing
+
+    // `yg check` names the unenforced file BY NAME under "satisfy coverage with no
+    // enforcement" — the portal must name it too, not just count it. Read straight off
+    // the page (Coverage & Audit), the real emitted output, not the inlined JSON.
+    expect(check.out).toContain('src/lib/util.ts');
+    expect(check.out).toMatch(/satisf(?:y|ies) coverage with no enforcement/);
+    await page.goto(url + '#/view/coverage');
+    await expect(page.locator('.cov-ledger')).toContainText('src/lib/util.ts');
+    await expect(page.locator('.cov-ledger')).toContainText('type-covered as lib');
+    await expect(page.locator('.cov-ledger')).toContainText('checked by nothing');
+    // The checked file is ALSO named, under its own, differently-worded line — never the
+    // "checked by nothing" wording, and never absent just because the unenforced one is now
+    // rendered too.
+    await expect(page.locator('.cov-ledger')).toContainText('src/svc/handler.ts');
+    await expect(page.locator('.cov-ledger')).toContainText('type-covered as svc');
+
+    // The unenforced file gets the honest "no rule" badge (the same one a no-rule NODE gets),
+    // never the neutral "satisfied" mark reserved for a file that actually has a pair.
+    const noRuleRow = page.locator('.cov-nonpair', { hasText: 'checked by nothing' });
+    await expect(noRuleRow.locator('.state-no-rule')).not.toHaveCount(0);
+
+    // The deliberately excluded file has a home too: it is named on the page, not only
+    // folded into a count nobody can trace back to a file.
+    await expect(page.locator('.cov-ledger')).toContainText('vendor/tool.ts');
+    await expect(page.locator('.cov-ledger')).toContainText('deliberately excluded from coverage');
   });
 
   test('repo: rendered blocking-errors + warnings == yg check on this repo', async ({ page, repoPage }) => {

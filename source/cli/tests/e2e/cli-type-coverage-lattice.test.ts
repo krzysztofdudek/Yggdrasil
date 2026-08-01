@@ -204,4 +204,30 @@ describe.skipIf(!distExists)('E2E: yg tree — the type-covered summary line', (
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it('--root naming an unknown node prints the "Error: " prefixed not-found message, in BOTH flag states', () => {
+    // The type-covered summary line never has a chance to run here — the --root lookup
+    // fails before the node listing (and the line after it) is ever built — so this error
+    // path must render identically whether or not coverage.type_level is on. The "Error: "
+    // prefix is the canonical bespoke-error form cli-command-contract requires for a
+    // constant-text command error like this one (its own content.md names "node not found"
+    // as an example) — dropping it would be a regression, not a fix, independent of this flag.
+    const onDir = copyFixture(RELATION_GATE_FIXTURE);
+    const offDir = copyFixture(RELATION_GATE_FIXTURE);
+    try {
+      const configPath = path.join(offDir, '.yggdrasil', 'yg-config.yaml');
+      writeFileSync(configPath, readFileSync(configPath, 'utf-8').replace('type_level: true', 'type_level: false'));
+
+      const flagOn = run(['tree', '--root', 'nosuch'], onDir);
+      const flagOff = run(['tree', '--root', 'nosuch'], offDir);
+      for (const result of [flagOn, flagOff]) {
+        expect(result.status).toBe(1);
+        expect(result.out).toContain("Error: Node 'nosuch' not found.");
+      }
+      expect(flagOn.out).toBe(flagOff.out);
+    } finally {
+      rmSync(onDir, { recursive: true, force: true });
+      rmSync(offDir, { recursive: true, force: true });
+    }
+  });
 });

@@ -82,6 +82,16 @@ export interface PortalCounts {
   typeCoveredCount: number;
   /** Files under a coverage.excluded root — mirrors CheckResult.excludedFiles exactly. Already folded into the legacy coveredFiles total; exposed here as its own term so a consumer can subtract it out honestly instead of guessing. */
   excludedFiles: number;
+  /**
+   * Split of `typeCoveredCount`: how many of those files matched a classifying type whose
+   * cascade produced NO applicable rule at all (any status) — the exact state `yg check`'s
+   * "satisfy coverage with no enforcement" bucket names. A type-covered file is "checked" only
+   * when this is excluded; the rest of `typeCoveredCount` (typeCoveredCount - typeCoveredUnenforced)
+   * genuinely has a real verdict. 0 when typeLevel is off or every type-covered file has at
+   * least one applicable rule. Derived the same post-pass way `noRule` / `notApplicable` /
+   * `suppressed` are — see the comment above `extractPortalData`'s residue-track fill.
+   */
+  typeCoveredUnenforced: number;
   // Severities — equal to what `yg check` reports.
   errors: number;
   warnings: number;
@@ -364,6 +374,20 @@ export interface WorklistGroup {
 }
 
 /**
+ * One file satisfied by the type-level lattice (matched a classifying type, no node maps it).
+ * `enforced` is true when at least one non-draft rule from the matched type's cascade actually
+ * applies to this file (a real expected pair exists against it) — false means the file is only
+ * NOMINALLY covered: matched by a type, but nothing checks it. Every type-covered file appears
+ * here exactly once, sorted by path, whichever way it goes — so a consumer never has to
+ * re-derive which files are which from a bare count.
+ */
+export interface PortalTypeCoveredFile {
+  path: string;
+  type: string;
+  enforced: boolean;
+}
+
+/**
  * The honest "what is NOT being verified" ledger: nodes that own source but carry
  * no non-draft effective aspect, plus repo files mapped to no node AND not
  * otherwise spoken for. `uncoveredFiles` excludes a file satisfied by the type-level
@@ -376,6 +400,24 @@ export interface WorklistGroup {
 export interface PortalResidue {
   noRuleNodes: string[];
   uncoveredFiles: string[];
+  /**
+   * Every type-covered file, matched type + whether anything enforces it (see
+   * `PortalTypeCoveredFile`). An ENFORCED entry is not itself a residue item — it has a real
+   * verdict, counted in the coverage bar like any other pair — but it is listed here too so a
+   * consumer can render "type-covered as <type>" for every one of them from a single list. An
+   * UNENFORCED entry genuinely belongs to this ledger: matched by a type, checked by nothing,
+   * the same state `yg check` names under "satisfy coverage with no enforcement" and lists by
+   * name — this is the field that lets the portal do the same, instead of folding that file
+   * into a bare count next to the files that ARE checked.
+   */
+  typeCovered: PortalTypeCoveredFile[];
+  /**
+   * Files under a `coverage.excluded` root — deliberately skipped, not silently missed.
+   * Mirrors `PortalCounts.excludedFiles`'s count exactly. Not a gap (nothing here needs
+   * attention), but named here so a deliberately-excluded file has somewhere to be found by
+   * name instead of only ever being a number.
+   */
+  excludedFiles: string[];
 }
 
 /**
@@ -433,6 +475,15 @@ export interface PortalStructure {
   reachMean: number;
   /** true ⇔ nodeCount is below the interpretive-caption floor — show the raw figure only. */
   smallGraph: boolean;
+  /**
+   * true ⇔ the universe was widened with at least one type-covered file (mirrors `yg
+   * structure`'s own `hasTypeCovered` flag exactly, same widening, same trigger). The frontend
+   * reads this to say "component or type-covered file" instead of "component" — this command's
+   * own jargon-free-language rule — so a type-covered file's contribution to `nodeCount` /
+   * `tunnels` / `reachMean` is never silently misnamed once it joins the universe. False (the
+   * default) renders byte-identical to today's node-only wording.
+   */
+  hasTypeCovered: boolean;
 }
 
 export interface PortalData {

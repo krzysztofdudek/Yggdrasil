@@ -1,12 +1,12 @@
 import type { Graph } from '../model/graph.js';
 import {
   edgeUniverse,
-  tunnelSpans,
   quotientAtDepth,
   changeReach,
   depthOfPath,
-  lcaDepthOfPaths,
   ancestorAtDepth,
+  widenedTunnelMetrics,
+  rankTunnels,
   TOP_TUNNELS,
   type DeclaredRelation,
   type StructEdge,
@@ -14,17 +14,32 @@ import {
 import type { PortalStructure, PortalStructureTunnel, PortalStructureLayer } from './contract.js';
 
 /**
+ * The optional type-level widening `deriveStructure` merges in — the SAME shape `yg
+ * structure`'s own `StructureTypeWidening` carries (edges touching a type-covered file, plus
+ * the files themselves as extra node ids), computed by the pipeline (which alone may reach the
+ * facade's classifier + live type-relation gate) and passed in here so this module stays pure.
+ */
+export interface StructureTypeWidening {
+  edges: StructEdge[];
+  nodeIds: string[];
+}
+
+/**
  * derive-metrics — the pipeline's structure-panel derivation. It computes the SAME analysis
  * `yg structure` reports (dependency tunnels, module groups, change reach) as a JSON-flat
  * `PortalStructure`, reusing the wave-2 pure metrics core (`edgeUniverse` / `tunnelSpans` /
- * `quotientAtDepth` / `changeReach`) via the single facade re-export.
+ * `rankTunnels` / `quotientAtDepth` / `changeReach`) via the single facade re-export — including,
+ * at `coverage.type_level` on, the SAME type-level widening `yg structure` merges into its own
+ * universe (`widened`, above): the panel is never left node-only while the CLI widens.
  *
  * Pure: no I/O, no graph mutation, no lock access, no YAML writer. It consumes plain data only —
- * the graph model (read for declared relations + node ids) and the ALREADY-FLATTENED detected-edge
- * set surfaced on the boundary seam. It reconstructs a `Map<string, Set<string>>` internally for
- * the metrics core, but the RETURNED shape is plain arrays/objects, so nothing that fails to
- * survive `JSON.stringify` (a Map serialises to `{}`) ever reaches `PortalData`. In particular,
- * `changeReach`'s per-node Map is dropped — only its scalar `mean` is carried.
+ * the graph model (read for declared relations + node ids), the ALREADY-FLATTENED detected-edge
+ * set surfaced on the boundary seam, and the already-computed type-level widening (edges + extra
+ * node ids) the impure pipeline obtained through the facade. It reconstructs a `Map<string,
+ * Set<string>>` internally for the metrics core, but the RETURNED shape is plain arrays/objects,
+ * so nothing that fails to survive `JSON.stringify` (a Map serialises to `{}`) ever reaches
+ * `PortalData`. In particular, `changeReach`'s per-node Map is dropped — only its scalar `mean`
+ * is carried.
  *
  * Honesty: a `null` detected set (the relation parse threw) yields an explicit UNKNOWN structure —
  * never a fabricated empty/zero graph — mirroring `buildBoundary`'s `unknown: true`. Below the
@@ -65,15 +80,17 @@ function collectDeclaredRelations(graph: Graph): DeclaredRelation[] {
   return out;
 }
 
-/** The widest-spanning tunnels, ranked span-desc then (from, to), capped at TOP_TUNNELS. */
-function topTunnels(edges: StructEdge[]): PortalStructureTunnel[] {
-  const spanned = tunnelSpans(edges, depthOfPath, lcaDepthOfPaths);
-  const ranked = [...spanned].sort((a, b) => {
-    if (b.span !== a.span) return b.span - a.span;
-    if (a.from !== b.from) return a.from < b.from ? -1 : 1;
-    if (a.to !== b.to) return a.to < b.to ? -1 : 1;
-    return 0;
-  });
+/**
+ * The widest-spanning tunnels, ranked span-desc then (from, to), capped at TOP_TUNNELS.
+ * `realNodeIds` is the graph's own node id set — reused (via `widenedTunnelMetrics`, the SAME
+ * function `yg structure` calls) so a type-covered file folded into `edges` is measured at its
+ * own fixed, shallow depth rather than its incidental on-disk directory nesting: the two
+ * surfaces rank tunnels in the identical comparable unit, never one comparing filesystem depth
+ * against architecture depth while the other does not.
+ */
+function topTunnels(edges: StructEdge[], realNodeIds: ReadonlySet<string>): PortalStructureTunnel[] {
+  const { depthOf, lcaDepth } = widenedTunnelMetrics(realNodeIds);
+  const ranked = rankTunnels(edges, depthOf, lcaDepth);
   return ranked.slice(0, TOP_TUNNELS).map((e) => ({
     from: e.from,
     to: e.to,
@@ -110,18 +127,33 @@ function moduleLayers(edges: StructEdge[]): PortalStructureLayer[] {
 }
 
 /**
- * Derive the JSON-flat structure panel. `detectedEdgesByNode` is the already-flattened detected-edge
- * set from the boundary seam; `null` means the relation parse could not run → UNKNOWN.
+ * Derive the JSON-flat structure panel — the SAME analysis `yg structure` renders, over the SAME
+ * widened universe when the type-level tier is on. `detectedEdgesByNode` is the already-flattened
+ * detected-edge set from the boundary seam; `null` means the relation parse could not run →
+ * UNKNOWN. `widened` is the OPTIONAL type-level augmentation the pipeline computes through the
+ * facade's live type-relation gate (mirroring `yg structure`'s own `computeTypeWidening`) —
+ * omitted (or with an empty `nodeIds`), the panel is exactly today's node-only rendering,
+ * byte-identical.
  */
 export function deriveStructure(
   graph: Graph,
   detectedEdgesByNode: Array<{ from: string; targets: string[] }> | null,
+  widened?: StructureTypeWidening,
 ): PortalStructure {
   // Null detected half → the parse threw → structure is unknown. Never fabricate a graph from the
   // declared relations alone: without the detected half the universe is incomplete, so the honest
   // answer is "unknown", mirroring the boundary's own unknown state.
   if (detectedEdgesByNode === null) {
-    return { unknown: true, edgeCount: 0, nodeCount: 0, tunnels: [], layers: [], reachMean: 0, smallGraph: false };
+    return {
+      unknown: true,
+      edgeCount: 0,
+      nodeCount: 0,
+      tunnels: [],
+      layers: [],
+      reachMean: 0,
+      smallGraph: false,
+      hasTypeCovered: false,
+    };
   }
 
   const declared = collectDeclaredRelations(graph);
@@ -130,18 +162,22 @@ export function deriveStructure(
   const detected = new Map<string, Set<string>>();
   for (const e of detectedEdgesByNode) detected.set(e.from, new Set(e.targets));
 
-  const edges = edgeUniverse(declared, detected);
-  const nodeIds = [...graph.nodes.keys()];
+  const baseEdges = edgeUniverse(declared, detected);
+  const baseNodeIds = [...graph.nodes.keys()];
+  const hasTypeCovered = !!widened && widened.nodeIds.length > 0;
+  const edges = hasTypeCovered ? [...baseEdges, ...(widened as StructureTypeWidening).edges] : baseEdges;
+  const nodeIds = hasTypeCovered ? [...baseNodeIds, ...(widened as StructureTypeWidening).nodeIds] : baseNodeIds;
 
   return {
     unknown: false,
     edgeCount: edges.length,
     nodeCount: nodeIds.length,
-    tunnels: topTunnels(edges),
+    tunnels: topTunnels(edges, new Set(baseNodeIds)),
     layers: moduleLayers(edges),
     // Only the scalar mean is carried — changeReach's per-node Map is deliberately dropped at the
     // JSON seam (a Map would serialise to `{}`).
     reachMean: changeReach(edges, nodeIds).mean,
     smallGraph: nodeIds.length < REACH_CAPTION_MIN_NODES,
+    hasTypeCovered,
   };
 }

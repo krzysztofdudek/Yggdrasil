@@ -77,10 +77,20 @@
     return chip;
   }
 
+  /** One `path — type-covered as <type>` row per entry, in a plain mono list. */
+  function typeCoveredList(cls, entries) {
+    var list = dom.el('div', 'cov-typelist ' + cls);
+    for (var i = 0; i < entries.length; i += 1) {
+      list.appendChild(dom.el('div', 'cov-typerow mono', entries[i].path + ' — type-covered as ' + entries[i].type));
+    }
+    return list;
+  }
+
   function renderBar(stage, data, ctx) {
     var c = data.meta.counts;
     var nav = ctx && ctx.navigate ? ctx.navigate : function () {};
     var boundary = data.boundary || { unknown: false, phantom: [], forbiddenType: [] };
+    var residue = data.residue || { noRuleNodes: [], uncoveredFiles: [], typeCovered: [], excludedFiles: [] };
     var ledger = dom.el('div', 'cov-ledger');
 
     var head = dom.el('div', 'cov-lhead');
@@ -137,18 +147,61 @@
     nonpair.appendChild(key('not-applicable', c.notApplicable));
     ledger.appendChild(nonpair);
 
-    // A type-covered file is the OPPOSITE of the non-pair track above: its own
-    // pairs against its matched type's aspects ARE counted in the bar's fraction
-    // — it just has no component of its own to attach to. Shown as its own line,
-    // never inside "not in coverage fraction", so it is never read as excluded
-    // from the ratio it actually contributes to. Omitted when zero (typeLevel
-    // off, or no file satisfied this way) — flag-off output stays unchanged.
-    if (c.typeCoveredCount > 0) {
+    // A type-covered file's per-file enforcement state — path + matched type + whether
+    // anything actually checks it (see PortalTypeCoveredFile). Split into two DISTINCT
+    // lines, never one bare count folding both together: an ENFORCED file's own pairs
+    // against its matched type's aspects ARE counted in the bar's fraction above (it just
+    // has no component of its own to attach to); an UNENFORCED file has NO pair counted
+    // anywhere — matched by a type, checked by nothing, the exact state yg check names
+    // under "satisfy coverage with no enforcement". Neither line borrows the other's
+    // wording or badge, so a project whose classifying types carry no rules yet cannot
+    // read as accounted-for just because a count happens to be nonzero.
+    var typeCoveredEntries = residue.typeCovered || [];
+    var typeCoveredEnforced = typeCoveredEntries.filter(function (f) { return f.enforced; });
+    var typeCoveredUnenforced = typeCoveredEntries.filter(function (f) { return !f.enforced; });
+
+    // Shown as its own line, never inside "not in coverage fraction", so it is never read
+    // as excluded from the ratio it actually contributes to. Omitted when zero (typeLevel
+    // off, or no enforced file) — flag-off output stays unchanged.
+    if (typeCoveredEnforced.length > 0) {
       ledger.appendChild(dom.el('div', 'cov-hair'));
       var typeCovered = dom.el('div', 'cov-nonpair');
       typeCovered.appendChild(dom.el('span', 'cov-nptag', 'counted above, no component of their own:'));
-      typeCovered.appendChild(neutralKey(c.typeCoveredCount, 'type-covered', 'satisfied by a matched type'));
+      typeCovered.appendChild(neutralKey(typeCoveredEnforced.length, 'type-covered', 'satisfied by a matched type'));
       ledger.appendChild(typeCovered);
+      ledger.appendChild(typeCoveredList('cov-typelist-ok', typeCoveredEnforced));
+    }
+
+    // A file matched by a type whose cascade produced NO applicable rule at all: no pair,
+    // no bar segment, nothing counted anywhere above. This is the state a bare "type-covered"
+    // count could never distinguish from the enforced line above it — rendered with the SAME
+    // honest "no rule" badge a no-rule NODE gets (never the neutral "satisfied" mark, which
+    // would repeat the exact dishonesty this line exists to correct), and named by file so it
+    // cannot vanish behind a number the way it did before this line existed.
+    if (typeCoveredUnenforced.length > 0) {
+      ledger.appendChild(dom.el('div', 'cov-hair'));
+      var noEnforce = dom.el('div', 'cov-nonpair');
+      noEnforce.appendChild(dom.el('span', 'cov-nptag', 'matched by a type with no rule that applies — checked by nothing:'));
+      noEnforce.appendChild(key('no-rule', typeCoveredUnenforced.length, 'satisfy coverage with no enforcement'));
+      ledger.appendChild(noEnforce);
+      ledger.appendChild(typeCoveredList('cov-typelist-bad', typeCoveredUnenforced));
+    }
+
+    // Files deliberately excluded from coverage (coverage.excluded) — never a residue gap
+    // and never enforced, but named here so an excluded file has somewhere to be found by
+    // name rather than only ever being a number in the header.
+    var excludedList = residue.excludedFiles || [];
+    if (excludedList.length > 0) {
+      ledger.appendChild(dom.el('div', 'cov-hair'));
+      var excludedBlock = dom.el('div', 'cov-nonpair');
+      excludedBlock.appendChild(dom.el('span', 'cov-nptag', 'deliberately excluded from coverage, never enforced:'));
+      excludedBlock.appendChild(neutralKey(excludedList.length, 'excluded', 'under a coverage.excluded root'));
+      ledger.appendChild(excludedBlock);
+      var excludedRows = dom.el('div', 'cov-typelist cov-typelist-excluded');
+      for (var xi = 0; xi < excludedList.length; xi += 1) {
+        excludedRows.appendChild(dom.el('div', 'cov-typerow mono', excludedList[xi]));
+      }
+      ledger.appendChild(excludedRows);
     }
 
     // LIVE counters — read from the live data, never a fabricated zero. The boundary count is

@@ -133,3 +133,5 @@ The impact-estimate types now admit a subject with no owning component, and the 
 Corrected a stale doc-comment: the async companion resolution it deferred to already exists (collectInvalidatedPairs in cli/impact-handlers.ts), so the comment now names that caller instead of pointing at unspecified future work.
 ## [2026-07-31T19:30:11.163Z]
 A refused verdict recorded against a file the graph has since excluded from coverage is no longer shown as a live refusal in the aspect blast-radius view, agreeing with the ownership answer every other surface already gives for the same excluded path.
+## [2026-08-01T06:56:37.893Z]
+Added a shared depth/LCA function and a shared tunnel-ranking function: a type-covered file has no real position in the architecture hierarchy, so measuring it by its own on-disk directory nesting mixed two incompatible units in the same ranked list, letting an incidentally deep file outrank a genuine cross-module dependency. Both consumers of the ranking (the CLI dashboard and the portal panel) now call the identical shared function, so the two can never rank tunnels two different ways.

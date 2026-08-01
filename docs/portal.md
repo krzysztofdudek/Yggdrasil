@@ -56,14 +56,21 @@ A row of views down the side, each answering a different question:
 - **Overview** — where the repo stands, in one sentence, plus the residue worth a
   look: components with no rule yet, source files not mapped to anything, and any
   active waivers. With `coverage.type_level` on, a file satisfied by the
-  type-level lattice is never counted in "not mapped to anything" — it has its
-  own real verdict, shown on its own line instead, so a checked file is never
-  called unguarded.
+  type-level lattice is never counted in "not mapped to anything" — a file with a
+  real verdict against its matched type gets its own "satisfied" line instead, so
+  a checked file is never called unguarded. A type-covered file whose matched
+  type carries no rule at all reads differently again, on its own line, using the
+  same "no rule" treatment as the rest of the unguarded surface — so a file that
+  merely matches a type, with nothing actually checking it, is never shown as
+  satisfied either.
 - **Coverage & audit** — the full ledger. Every expected check, every verdict,
   with a single honest bar: the only green is a check a reviewer actually ran and
   approved against the current code. Free local checks and reviewer-judged checks
   are shown apart, and a needs-attention worklist lists what to fix, in priority
-  order.
+  order. With `coverage.type_level` on, every type-covered file is listed by name
+  with the type that covers it — an enforced one under the checked total, an
+  unenforced one under its own "checked by nothing" line — and a deliberately
+  excluded file is listed by name too, never only a count.
 
   ![The portal's coverage and audit view — the honest verdict bar over every expected check, with the needs-attention worklist](/portal-coverage.png)
 
@@ -87,7 +94,10 @@ A row of views down the side, each answering a different question:
   component. It is honest about its own limits — if the dependency scan cannot run
   it says the structure is unknown rather than showing an empty graph, and on a
   small project it shows the raw reach figure without over-reading it. Event
-  relations are left out of this picture and the view says so.
+  relations are left out of this picture and the view says so. With
+  `coverage.type_level` on this is the same widened picture `yg structure` prints
+  on the command line — every import touching a type-covered file joins it too,
+  and the reach line says "component or type-covered file" once one does.
 - **Flows** — your business processes, each participant marked with its honest
   state, so a single weak link in a flow is never hidden behind an otherwise-green
   picture.

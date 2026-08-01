@@ -7,6 +7,8 @@ import {
   depthOfPath,
   lcaDepthOfPaths,
   ancestorAtDepth,
+  widenedTunnelMetrics,
+  rankTunnels,
   type StructEdge,
 } from '../../../src/core/graph-metrics.js';
 
@@ -142,6 +144,63 @@ describe('tunnelSpans', () => {
       origin: 'both',
       span: 1,
     });
+  });
+});
+
+describe('widenedTunnelMetrics / rankTunnels — a type-covered file compares in the SAME unit as a real node, never its own raw directory nesting', () => {
+  const REAL_NODE_IDS: ReadonlySet<string> = new Set(NODE_IDS); // 'a', 'a/x', 'b', 'b/y'
+
+  it('reduces to depthOfPath / lcaDepthOfPaths exactly when every id is a real node — byte-identical spans', () => {
+    const universe = edgeUniverse(DECLARED, DETECTED);
+    const { depthOf, lcaDepth } = widenedTunnelMetrics(REAL_NODE_IDS);
+    expect(tunnelSpans(universe, depthOf, lcaDepth)).toEqual(tunnelSpans(universe, depthOfPath, lcaDepthOfPaths));
+  });
+
+  it('fixes a non-node id (a type-covered file) at depth 1, never its raw directory-segment count', () => {
+    const { depthOf } = widenedTunnelMetrics(REAL_NODE_IDS);
+    expect(depthOf('a/x')).toBe(2); // a real node — unchanged
+    expect(depthOf('src/a/b/c/d/e/p.ts')).toBe(1); // deep on disk, shallow in the metric
+    expect(depthOf('lib/q.ts')).toBe(1);
+  });
+
+  it('caps a file id\'s LCA at its own (fixed) depth, so a span can never go negative even when it textually nests under a real node', () => {
+    const { depthOf, lcaDepth } = widenedTunnelMetrics(REAL_NODE_IDS);
+    // 'a/x/typed.ts' shares two raw segments with the real node 'a/x' (lcaDepthOfPaths = 2),
+    // but the file's own fixed depth is 1 — the LCA can never exceed that, or span would go
+    // negative (depthOf('a/x')=2 + depthOf(file)=1 − 2·2 = −1).
+    expect(lcaDepthOfPaths('a/x', 'a/x/typed.ts')).toBe(2);
+    expect(lcaDepth('a/x', 'a/x/typed.ts')).toBe(1);
+    expect(depthOf('a/x') + depthOf('a/x/typed.ts') - 2 * lcaDepth('a/x', 'a/x/typed.ts')).toBe(1);
+  });
+
+  it('a deeply-nested type-covered file edge no longer crowds out a genuine cross-module node tunnel in the ranking', () => {
+    // 'a/x -> b/y' is this fixture's real architectural tunnel (span 4, per the tunnelSpans
+    // block above). Widen the universe with an edge between two type-covered files that sit
+    // many directories deep on disk and share no real ancestor — under raw
+    // depthOfPath/lcaDepthOfPaths this edge spans 9 (6+5−2·1), which would outrank the real
+    // tunnel. It must not.
+    const universe = [
+      ...edgeUniverse(DECLARED, DETECTED),
+      { from: 'src/a/b/c/d/e/p.ts', to: 'lib/q.ts', viaContract: false, origin: 'detected' as const },
+    ];
+    const { depthOf, lcaDepth } = widenedTunnelMetrics(REAL_NODE_IDS);
+    const ranked = rankTunnels(universe, depthOf, lcaDepth);
+    const realTunnel = ranked.find((e) => e.from === 'a/x' && e.to === 'b/y');
+    const fileTunnel = ranked.find((e) => e.from === 'src/a/b/c/d/e/p.ts');
+    expect(realTunnel?.span).toBe(4);
+    expect(fileTunnel?.span).toBeLessThan(realTunnel?.span as number);
+    expect(ranked.indexOf(realTunnel as never)).toBeLessThan(ranked.indexOf(fileTunnel as never));
+  });
+
+  it('rankTunnels sorts widest span first, ties broken by (from, to)', () => {
+    const universe = edgeUniverse(DECLARED, DETECTED);
+    const ranked = rankTunnels(universe, depthOfPath, lcaDepthOfPaths);
+    // a/x->b/y is span 4; a/x->a and b/y->b both tie at span 1, broken by `from`.
+    expect(ranked.map((e) => `${e.from}->${e.to} (${e.span})`)).toEqual([
+      'a/x->b/y (4)',
+      'a/x->a (1)',
+      'b/y->b (1)',
+    ]);
   });
 });
 

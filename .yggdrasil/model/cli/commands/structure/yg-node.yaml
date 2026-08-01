@@ -10,10 +10,16 @@ description: >-
   reach. At coverage.type_level on, the universe additionally widens with every
   type-covered file (via the same facade's live type-relation gate edges,
   translated into the node-id space) so a dependency reaching into or out of a
-  type-covered file is not invisible to the dashboard; a malformed architecture
-  degrades this widening to empty rather than crashing the command. Never reads
-  or writes the lock and never calls a reviewer — it exits 0 whenever the graph
-  loads, so it never gates.
+  type-covered file is not invisible to the dashboard; a malformed `when:`
+  predicate degrades this widening to the node-only view rather than crashing
+  the command. The tunnels ranking measures a type-covered file at a fixed,
+  shallow depth (core/graph-metrics's widenedTunnelMetrics) rather than the
+  file's own on-disk directory nesting, so a deeply-nested file can never
+  crowd a genuine cross-module tunnel out of the ranked list purely because
+  of where it happens to sit on disk — the portal's Dependency-structure
+  panel reuses the identical ranking function. Never reads or writes the
+  lock and never calls a reviewer — it exits 0 whenever the graph loads, so
+  it never gates.
 aspects: []
 relations:
   - target: cli/preamble

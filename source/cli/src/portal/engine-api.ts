@@ -28,7 +28,7 @@ import { selectTierForAspect } from '../core/tier-selection.js';
 import { parseLog } from '../core/parsing/log-parser.js';
 import { groupIssues, type IssueGroup } from '../cli/group-issues.js';
 import type { BoundaryInput, SuppressionMarkerInput, FreshnessMarkerInput, SourceFileCountMarkerInput } from './contract.js';
-import { computePortalBoundary as computeBoundaryImpl } from './api/boundary.js';
+import { computePortalBoundary as computeBoundaryImpl, computeTypedEdges as computeTypedEdgesImpl } from './api/boundary.js';
 import { runSuppressionsScan, scanPortalSuppressions as adaptSuppressions } from './api/suppress-scan.js';
 import { collectMappingEntries, collectTypeCoveredFiles } from './api/suppress-eligibility.js';
 import { computePortalTypeCoverage as computeTypeCoverageImpl, toPortalTypeCoverageInput as toTypeCoverageInputImpl } from './api/type-coverage.js';
@@ -75,6 +75,8 @@ export {
   depthOfPath,
   lcaDepthOfPaths,
   ancestorAtDepth,
+  widenedTunnelMetrics,
+  rankTunnels,
   TOP_TUNNELS,
 } from '../core/graph-metrics.js';
 export type { DeclaredRelation, StructEdge, EdgeOrigin, QuotientView } from '../core/graph-metrics.js';
@@ -223,6 +225,14 @@ export function groupPortalIssues(issues: CheckIssue[]): IssueGroup[] {
 export async function computePortalBoundary(graph: Graph, projectRoot: string): Promise<BoundaryInput | null> {
   return computeBoundaryImpl(graph, projectRoot);
 }
+
+/**
+ * The engine's live type-relation gate, re-exported under the facade's own naming — see
+ * `computeTypedEdges`'s own doc in api/boundary.ts. Lets the extraction pipeline widen the
+ * structure PANEL with the SAME edges `yg structure` widens its own universe with, instead of
+ * leaving the panel node-only.
+ */
+export const computePortalTypedEdges = computeTypedEdgesImpl;
 
 // ── Live suppression inventory ────────────────────────────────────────────────
 
