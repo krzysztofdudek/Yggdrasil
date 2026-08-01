@@ -442,6 +442,70 @@ describe('runCheck — coverage.type_level OFF reproduces pre-type-level behavio
     // here regardless of whether the flag is on or off.
     expect(result.issues.some((i) => i.code === 'coverage-required-shadowed')).toBe(false);
   });
+
+  it('flag OFF reproduces the COMPLETE pre-type-level issue set — full comparison, not targeted negatives', async () => {
+    // The test above uses .some()/.find()/field-level checks — targeted
+    // negatives, not a full issue-set comparison. A new issue class silently
+    // appearing at flag-off would be a real regression (the flag must gate
+    // 100% of the type-level machinery) but none of those checks would catch
+    // an EXTRA, unanticipated issue — only a complete, sorted comparison of
+    // every issue's code + severity + exact uncoveredFiles membership does.
+    const dir = copyFixture();
+    const graphOn = await loadGraph(dir);
+    const graphOff = withTypeLevel(graphOn, false);
+    const files = await walkRepoFiles(dir);
+    const result = await runCheck(graphOff, files);
+
+    const shape = result.issues
+      .map((i) => ({
+        code: i.code,
+        severity: i.severity,
+        // uncoveredFiles is present only on the bulk unmapped-files issue;
+        // null elsewhere keeps the comparison array uniform and diffable.
+        uncoveredFiles: i.uncoveredFiles ? [...i.uncoveredFiles].sort() : null,
+      }))
+      .sort((a, b) => a.code.localeCompare(b.code));
+
+    expect(shape).toEqual([
+      // type-strict-orphan for special.ts — still fires at flag-off (the
+      // strict backward scan is unconditional), but carries none of the
+      // "Also matches" enrichment (pinned separately above).
+      { code: 'type-strict-orphan', severity: 'error', uncoveredFiles: null },
+      // Every other uncovered file lands in ONE bulk unmapped-files issue —
+      // the lattice never partitioned them into covered/ambiguous, so this
+      // includes special.ts too: at flag-off the "one issue per file" dedup
+      // (a type-level-only mechanism) does not run, and the pre-existing
+      // strict-orphan check and the plain unmapped-files check independently
+      // flag the same file, exactly as they did before type-level coverage
+      // existed. vendor/tool.ts is dropped by the pre-existing excluded-root
+      // tier, unrelated to type-level.
+      {
+        code: 'unmapped-files',
+        severity: 'error',
+        uncoveredFiles: [
+          'src/misc/plain.ts',
+          'src/svc/handler.ts',
+          'src/svc/overlap.ts',
+          'src/util/special.ts',
+        ],
+      },
+    ]);
+
+    // Zero issues of any type-level-only code exist in this list at all —
+    // stronger than the old test's .some()===false checks, because it is
+    // implied by the exhaustive toEqual above (any stray issue would break
+    // the array-length match), stated explicitly for readability.
+    const typeLevelOnlyCodes = ['ambiguous-node-type', 'file-unreadable'];
+    expect(shape.some((i) => typeLevelOnlyCodes.includes(i.code))).toBe(false);
+
+    // Task 2's dead-config-line warning (coverage-required-shadowed) is a PURE
+    // CoverageConfig check, unrelated to the type-level flag, and fires on
+    // every run regardless of typeLevel. This fixture's config (required:
+    // [src/], excluded: [vendor/]) has no shadowing relationship — neither root
+    // contains the other — so it must stay silent. Kept here as insurance
+    // against exactly this fixture's config drifting in a later change.
+    expect(shape.some((i) => i.code === 'coverage-required-shadowed')).toBe(false);
+  });
 });
 
 // ===========================================================================

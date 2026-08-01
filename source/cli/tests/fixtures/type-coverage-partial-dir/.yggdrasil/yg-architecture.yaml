@@ -1,0 +1,10 @@
+# yg-architecture.yaml — one non-strict classifying type (svc), matching
+# src/svc/** cleanly. src/svc/handler.ts is claimed by the one explicit node
+# (.yggdrasil/model/handler/yg-node.yaml); its sibling src/svc/sibling.ts
+# matches the same type but is claimed by no node, so it is type-covered
+# instead — both satisfy coverage, via different mechanisms.
+node_types:
+  svc:
+    description: "Service-layer source under src/svc/, classified for the partial-dir fixture."
+    when:
+      path: "src/svc/**"

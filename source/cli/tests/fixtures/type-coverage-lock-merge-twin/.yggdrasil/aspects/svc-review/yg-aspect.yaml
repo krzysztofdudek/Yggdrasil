@@ -1,0 +1,6 @@
+name: Svc Review
+description: "An LLM-reviewed per-file rule for the lock-merge-twin fixture. LLM, not deterministic, on purpose: only an LLM verdict lands in the COMMITTED yg-lock.nondeterministic.json file this fixture's git-merge tests exercise — a deterministic verdict lives in the gitignored .yg-lock.deterministic.json, which is never committed and so never reaches a real git merge at all."
+reviewer:
+  type: llm
+scope:
+  per: file

@@ -15,10 +15,10 @@ import path from 'node:path';
  *
  * `isExcluded`, when supplied, makes an excluded candidate act as though it does not
  * exist, in BOTH resolvers. In the absolute resolver this happens at two levels: per
- * ancestor source root, the priority list (module-as-file, then same-named package)
- * no longer stops at the first EXISTING candidate — an excluded one is skipped so a
- * live candidate further down the SAME root's list (a package outranking its own
- * excluded same-named module, matching CPython's real precedence) still reaches the
+ * ancestor source root, the priority list (a package, then a same-named module-as-file
+ * — CPython's own precedence) no longer stops at the first EXISTING candidate — an
+ * excluded one is skipped so a live candidate further down the SAME root's list (a
+ * module-as-file surviving its own excluded same-named package) still reaches the
  * per-root match; and across roots, an excluded root's match is dropped from the
  * ambiguity count before deciding whether a dotted module resolved to one file or
  * several — the search probes every ancestor source root and treats 2+ DISTINCT live
@@ -98,14 +98,17 @@ function resolveAbsolute(
   const matches = new Set<string>();
   for (const dir of ancestorDirs(path.posix.dirname(toPosix(fromFile)))) {
     const candidates: string[] = [
-      // module-as-file / package at this root
-      joinUnder(dir, modulePath + '.py'),
+      // package / module-as-file at this root — CPython imports a regular
+      // package over a same-named module file (verified against the real
+      // interpreter: `import lib.mod` loads lib/mod/__init__.py even when
+      // lib/mod.py also exists at the same root).
       joinUnder(dir, modulePath + '/__init__.py'),
+      joinUnder(dir, modulePath + '.py'),
     ];
     // `from a.b import c` longest-match: last segment is a symbol in module a.b.
     if (parentPath.length > 0) {
-      candidates.push(joinUnder(dir, parentPath + '.py'));
       candidates.push(joinUnder(dir, parentPath + '/__init__.py'));
+      candidates.push(joinUnder(dir, parentPath + '.py'));
     }
     for (const cand of candidates) {
       if (cand !== undefined && exists(cand) && !isExcl(cand)) {
@@ -121,9 +124,9 @@ function resolveAbsolute(
  * Relative module: a leading run of `k` dots then an optional dotted tail. CPython
  * semantics: 1 dot = the importing file's own package (its directory), each extra
  * dot climbs one parent. So climb `(k - 1)` directories from the importing file's
- * directory, append the tail path, then try `<base>.py` and `<base>/__init__.py`
- * (module-as-file before same-named package, the same priority order the absolute
- * resolver uses). An excluded candidate is skipped exactly like a genuine miss, so
+ * directory, append the tail path, then try `<base>/__init__.py` and `<base>.py`
+ * (a package before a same-named module-as-file, the same priority order the
+ * absolute resolver uses). An excluded candidate is skipped exactly like a genuine miss, so
  * a live package sitting right next to its own excluded same-named module still
  * resolves — there is only one base here, so no cross-root ambiguity to decide.
  */
@@ -153,7 +156,7 @@ function resolveRelative(
 
   const candidates =
     tailPath.length > 0
-      ? [normalized + '.py', path.posix.join(normalized, '__init__.py')]
+      ? [path.posix.join(normalized, '__init__.py'), normalized + '.py']
       : [path.posix.join(normalized, '__init__.py')]; // bare dots → the package's __init__
 
   const isExcl = isExcluded ?? ((): boolean => false);

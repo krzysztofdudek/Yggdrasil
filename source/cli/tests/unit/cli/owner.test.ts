@@ -407,6 +407,34 @@ describe('owner — a typed answer for a type-covered file', () => {
     });
   });
 
+  // The exemption test above (".yggdrasil/yg-config.yaml is still exempt")
+  // cannot actually discriminate: no type in this fixture's architecture
+  // matches ANY .yggdrasil/ path, so the assertion would hold even without
+  // the exemption guard. This test adds a type broad enough to match
+  // EVERY .yaml file in the repository — including the graph's own node
+  // files under .yggdrasil/model/ — so the exemption is the only thing that
+  // can still keep the answer "excluded from graph coverage by design"
+  // instead of a typed "type:anyyaml" answer.
+  it('a classifying type broad enough to match every .yaml file still never reaches a .yggdrasil/-internal path', async () => {
+    await withTypeLevelFixtureCopy(async (cwd) => {
+      const archPath = path.join(cwd, '.yggdrasil', 'yg-architecture.yaml');
+      const { readFileSync, writeFileSync } = await import('node:fs');
+      const arch = readFileSync(archPath, 'utf-8').replace(
+        'node_types:',
+        'node_types:\n  anyyaml:\n    description: "Vacuously matches every .yaml file in the repository, including the graph\'s own."\n    when:\n      path: "**/*.yaml"\n',
+      );
+      writeFileSync(archPath, arch, 'utf-8');
+      const result = spawnSync(
+        'node',
+        [BIN_PATH, 'owner', '--file', '.yggdrasil/model/owned/yg-node.yaml'],
+        { cwd, encoding: 'utf-8' },
+      );
+      expect(result.status).toBe(0);
+      expect(result.stdout).not.toMatch(/type-covered as|type:anyyaml/);
+      expect(result.stdout).toContain('is excluded from graph coverage by design.');
+    });
+  });
+
   // For a type-covered file with ZERO applicable rules, `yg owner` must not
   // assert the opposite of the truth ("Enforced by its architecture type").
   // src/ep/e.ts's only attached rule is whole-unit (per: node) — it can never

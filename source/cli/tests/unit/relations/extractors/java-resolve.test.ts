@@ -177,3 +177,43 @@ describe('resolveJavaFqn / resolveJavaPackageFiles — exclusion-aware ancestor-
     expect(resolveJavaPackageFiles('com.a', FROM, deps2)).toEqual(['src/main/java/com/a/Yyy.java']);
   });
 });
+
+// The exclusion tests above all shadow across TWO ancestor ROOTS (near vs far).
+// None of them exercise the OTHER candidate list resolveType tries per root: the
+// nested-type longest-match fallback (typePath, then parentTypePath) AT THE SAME
+// root. The file's own doc comment promises an excluded candidate is skipped and
+// the search "keeps walking (the same candidate list at the current ancestor
+// root, then further-out roots)" — this pins the first half of that sentence,
+// which nothing above touches: an excluded typePath must fall through to a live
+// parentTypePath in the SAME root, not skip straight to a farther root.
+describe('resolveJavaFqn — excluded nested-type candidate falls through within the SAME root', () => {
+  const typePath = 'src/main/java/com/foo/Outer/Inner.java'; // the FQN's own (unusual) file
+  const parentTypePath = 'src/main/java/com/foo/Outer.java'; // the enclosing type's file
+  function nestedDeps(isExcluded?: (p: string) => boolean): JavaResolveDeps {
+    const nestedFiles = new Set([typePath, parentTypePath]);
+    return {
+      exists: (p) => nestedFiles.has(p),
+      javaFilesIn: () => [],
+      isExcluded,
+    };
+  }
+
+  it('control: with nothing excluded, the more specific typePath candidate wins over parentTypePath', () => {
+    expect(resolveJavaFqn('com.foo.Outer.Inner', FROM, nestedDeps())).toBe(typePath);
+  });
+
+  it('excluding the typePath candidate falls through to the live parentTypePath candidate AT THE SAME ROOT — not silence, and not a farther root', () => {
+    const isExcluded = (p: string) => p === typePath;
+    expect(resolveJavaFqn('com.foo.Outer.Inner', FROM, nestedDeps(isExcluded))).toBe(parentTypePath);
+  });
+
+  it('excluding the parentTypePath candidate leaves the typePath resolution unaffected', () => {
+    const isExcluded = (p: string) => p === parentTypePath;
+    expect(resolveJavaFqn('com.foo.Outer.Inner', FROM, nestedDeps(isExcluded))).toBe(typePath);
+  });
+
+  it('excluding both leaves the nested-type FQN unresolved', () => {
+    const isExcluded = (): boolean => true;
+    expect(resolveJavaFqn('com.foo.Outer.Inner', FROM, nestedDeps(isExcluded))).toBeUndefined();
+  });
+});

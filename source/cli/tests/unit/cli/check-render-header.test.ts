@@ -244,6 +244,73 @@ describe('check render — header type-covered split (coverage.type_level)', () 
     const out = stripAnsi(formatOutput(result, { kind: 'full' }));
     expect(out).toContain('6/7 files (1 node-owned, 2 type-covered, 3 excluded)');
   });
+
+  // The existing cases above never combine typeLevel: true with errors.length
+  // > 0 (FAIL) or autoFilled: true — both exercised only by the flag-less
+  // 'PASS (auto-filled) header marker' describe block above. Since
+  // renderHeader computes the verdict prefix and the files-metric split from
+  // the SAME result object in one pass, an interaction bug (e.g. the
+  // type-level split accidentally suppressing the FAIL colour, or autoFilled
+  // text colliding with the three-term split) is exactly the kind of thing
+  // neither existing block can catch alone.
+  it('flag ON + FAIL (errors present): verdict reads FAIL and the three-term split still renders in full', () => {
+    const errorIssue: CheckIssue = {
+      severity: 'error', code: 'ambiguous-node-type', rule: 'ambiguous-node-type',
+      messageData: { what: 'x', why: 'y', next: 'z' },
+    };
+    const result: CheckResult = {
+      ...baseResult([errorIssue]),
+      coveredFiles: 1, totalFiles: 5, typeLevel: true,
+      typeCoveredCount: 1, classifyingTypeCount: 1, nodeOwnedFiles: 0, excludedFiles: 1,
+    };
+    const out = stripAnsi(formatOutput(result, { kind: 'full' }));
+    expect(out).toContain('yg check: FAIL');
+    // The auto-filled qualifier is a PASS-only marker (renderHeader's own
+    // documented rule) — a FAIL line must never carry it even if autoFilled is
+    // somehow still true, and the files split must still be present.
+    expect(out).not.toContain('(auto-filled)');
+    expect(out).toContain('2/5 files (0 node-owned, 1 type-covered, 1 excluded)');
+  });
+
+  it('flag ON + autoFilled=true, no errors: PASS (auto-filled) coexists with the three-term split', () => {
+    const result: CheckResult = {
+      ...baseResult([]),
+      coveredFiles: 3, totalFiles: 5, typeLevel: true,
+      typeCoveredCount: 1, classifyingTypeCount: 2, nodeOwnedFiles: 2, excludedFiles: 0,
+    };
+    const out = stripAnsi(formatOutput(result, { kind: 'full' }, /* autoFilled */ true));
+    expect(out).toContain('yg check: PASS (auto-filled)');
+    expect(out).toContain('3/5 files (2 node-owned, 1 type-covered, 0 excluded)');
+  });
+
+  it('flag ON + autoFilled=true + warnings present: PASS (auto-filled, N warnings) coexists with the split', () => {
+    const warnIssue: CheckIssue = {
+      severity: 'warning', code: 'coverage-required-shadowed', rule: 'coverage-required-shadowed',
+      messageData: { what: 'x', why: 'y', next: 'z' },
+    };
+    const result: CheckResult = {
+      ...baseResult([warnIssue]),
+      coveredFiles: 3, totalFiles: 5, typeLevel: true,
+      typeCoveredCount: 1, classifyingTypeCount: 2, nodeOwnedFiles: 2, excludedFiles: 0,
+    };
+    const out = stripAnsi(formatOutput(result, { kind: 'full' }, true));
+    expect(out).toContain('yg check: PASS (auto-filled, 1 warning)');
+    expect(out).toContain('3/5 files (2 node-owned, 1 type-covered, 0 excluded)');
+  });
+
+  // Every existing flag-off case above uses a non-full ratio (coveredFiles <
+  // totalFiles, the percentage arm). The else arm — 100% covered, flag off,
+  // plain "N/N files" with no percentage and no split — is not pinned at the
+  // string level anywhere in the suite; this composition is unchanged by
+  // whatever split the file went through.
+  it('flag OFF, fully covered (coveredFiles === totalFiles): plain "N/N files", no percentage, no split — the else arm of the pre-type-level branch', () => {
+    const result: CheckResult = { ...baseResult([]), coveredFiles: 5, totalFiles: 5 };
+    const out = stripAnsi(formatOutput(result, { kind: 'full' }));
+    expect(out).toContain('5/5 files');
+    expect(out).not.toContain('5/5 files (');   // no trailing percentage parenthetical
+    expect(out).not.toContain('node-owned');
+    expect(out).not.toContain('type-covered');
+  });
 });
 
 // ── Emoji decoration (accessibility invariant) ────────────────────────────────

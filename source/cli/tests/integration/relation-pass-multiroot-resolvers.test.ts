@@ -333,34 +333,20 @@ describe('runRelationPass — excluding the nearer of two ancestor-root package 
 });
 
 // ---------------------------------------------------------------------------
-// Python's per-root candidate search tries a module-as-file before a same-named
-// package at every ancestor root, but previously stopped at the first EXISTING
-// candidate regardless of exclusion — so at a single root holding both `mod.py`
-// and `mod/__init__.py` (a package outranks a same-named module at runtime, per
-// CPython's own import semantics), excluding the module could not fall through
-// to the live package sitting right next to it. The fixture
+// Python's per-root candidate search tries a package before a same-named
+// module-as-file at every ancestor root — CPython's own precedence (verified
+// against the real interpreter: `import lib.mod` loads `lib/mod/__init__.py`
+// even when `lib/mod.py` also exists) — and does not stop at the first
+// EXISTING candidate regardless of exclusion, so at a single root holding both
+// `mod.py` and `mod/__init__.py`, excluding the package falls through to the
+// live module sitting right next to it. The fixture
 // (tests/fixtures/python-modpkg-shadow) is a permanent, real on-disk project.
 // ---------------------------------------------------------------------------
-describe('runRelationPass — excluding a module file that shadows a same-root package attributes an absolute import to the live package', () => {
+describe('runRelationPass — excluding a package that shadows a same-root module file attributes an absolute import to the live module', () => {
   const symbolIndexDir = path.join(PYTHON_SHADOW_FIXTURE, '.yggdrasil', '.ast-cache');
 
-  it('control: with no exclusion, the module file wins over the same-root package', async () => {
+  it('control: with no exclusion, the package wins over the same-root module file — matches CPython', async () => {
     const graph = await loadGraph(PYTHON_SHADOW_FIXTURE);
-    const result = await runRelationPass(graph, PYTHON_SHADOW_FIXTURE, {
-      extractorFor: extractorForLanguage,
-      resolvePathToFile: await guardedResolve(PYTHON_SHADOW_FIXTURE, graph),
-      symbolIndexDir,
-    });
-    const app = result.violationsByNode.get('app-abs');
-    expect(app).toBeDefined();
-    expect(app!.verdict).toBe('refused');
-    expect(app!.violations.some((v) => v.ownerNode === 'modfile-abs')).toBe(true);
-    expect(app!.violations.some((v) => v.ownerNode === 'modpkg-abs')).toBe(false);
-  });
-
-  it("excluding the module file ('lib/mod.py') attributes the import to the live package", async () => {
-    const graph = await loadGraph(PYTHON_SHADOW_FIXTURE);
-    graph.config.coverage = { required: [], excluded: ['lib/mod.py'], typeLevel: false };
     const result = await runRelationPass(graph, PYTHON_SHADOW_FIXTURE, {
       extractorFor: extractorForLanguage,
       resolvePathToFile: await guardedResolve(PYTHON_SHADOW_FIXTURE, graph),
@@ -372,35 +358,35 @@ describe('runRelationPass — excluding a module file that shadows a same-root p
     expect(app!.violations.some((v) => v.ownerNode === 'modpkg-abs')).toBe(true);
     expect(app!.violations.some((v) => v.ownerNode === 'modfile-abs')).toBe(false);
   });
-});
 
-// ---------------------------------------------------------------------------
-// The same module/package shadow, through a RELATIVE import (`from .mod import
-// X`) — the relative resolver received no isExcluded parameter at all, so
-// excluding the module file had no effect on it whatsoever. Same fixture as
-// above; the relative shape uses its own sibling module/package pair so the
-// two shapes never interact on disk.
-// ---------------------------------------------------------------------------
-describe('runRelationPass — excluding a module file that shadows a same-root package attributes a relative import to the live package', () => {
-  const symbolIndexDir = path.join(PYTHON_SHADOW_FIXTURE, '.yggdrasil', '.ast-cache');
-
-  it('control: with no exclusion, the module file wins over the same-root package', async () => {
+  it("excluding the package ('lib/mod/__init__.py') attributes the import to the live module file", async () => {
     const graph = await loadGraph(PYTHON_SHADOW_FIXTURE);
+    graph.config.coverage = { required: [], excluded: ['lib/mod/__init__.py'], typeLevel: false };
     const result = await runRelationPass(graph, PYTHON_SHADOW_FIXTURE, {
       extractorFor: extractorForLanguage,
       resolvePathToFile: await guardedResolve(PYTHON_SHADOW_FIXTURE, graph),
       symbolIndexDir,
     });
-    const app = result.violationsByNode.get('app-rel');
+    const app = result.violationsByNode.get('app-abs');
     expect(app).toBeDefined();
     expect(app!.verdict).toBe('refused');
-    expect(app!.violations.some((v) => v.ownerNode === 'modfile-rel')).toBe(true);
-    expect(app!.violations.some((v) => v.ownerNode === 'modpkg-rel')).toBe(false);
+    expect(app!.violations.some((v) => v.ownerNode === 'modfile-abs')).toBe(true);
+    expect(app!.violations.some((v) => v.ownerNode === 'modpkg-abs')).toBe(false);
   });
+});
 
-  it("excluding the module file ('app/mod.py') attributes the import to the live package", async () => {
+// ---------------------------------------------------------------------------
+// The same module/package shadow, through a RELATIVE import (`from .mod import
+// X`) — the relative resolver previously received no isExcluded parameter at
+// all, so excluding either candidate had no effect on it whatsoever. Same
+// fixture as above; the relative shape uses its own sibling module/package
+// pair so the two shapes never interact on disk.
+// ---------------------------------------------------------------------------
+describe('runRelationPass — excluding a package that shadows a same-root module file attributes a relative import to the live module', () => {
+  const symbolIndexDir = path.join(PYTHON_SHADOW_FIXTURE, '.yggdrasil', '.ast-cache');
+
+  it('control: with no exclusion, the package wins over the same-root module file — matches CPython', async () => {
     const graph = await loadGraph(PYTHON_SHADOW_FIXTURE);
-    graph.config.coverage = { required: [], excluded: ['app/mod.py'], typeLevel: false };
     const result = await runRelationPass(graph, PYTHON_SHADOW_FIXTURE, {
       extractorFor: extractorForLanguage,
       resolvePathToFile: await guardedResolve(PYTHON_SHADOW_FIXTURE, graph),
@@ -411,5 +397,20 @@ describe('runRelationPass — excluding a module file that shadows a same-root p
     expect(app!.verdict).toBe('refused');
     expect(app!.violations.some((v) => v.ownerNode === 'modpkg-rel')).toBe(true);
     expect(app!.violations.some((v) => v.ownerNode === 'modfile-rel')).toBe(false);
+  });
+
+  it("excluding the package ('app/mod/__init__.py') attributes the import to the live module file", async () => {
+    const graph = await loadGraph(PYTHON_SHADOW_FIXTURE);
+    graph.config.coverage = { required: [], excluded: ['app/mod/__init__.py'], typeLevel: false };
+    const result = await runRelationPass(graph, PYTHON_SHADOW_FIXTURE, {
+      extractorFor: extractorForLanguage,
+      resolvePathToFile: await guardedResolve(PYTHON_SHADOW_FIXTURE, graph),
+      symbolIndexDir,
+    });
+    const app = result.violationsByNode.get('app-rel');
+    expect(app).toBeDefined();
+    expect(app!.verdict).toBe('refused');
+    expect(app!.violations.some((v) => v.ownerNode === 'modfile-rel')).toBe(true);
+    expect(app!.violations.some((v) => v.ownerNode === 'modpkg-rel')).toBe(false);
   });
 });

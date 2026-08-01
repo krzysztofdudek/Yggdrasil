@@ -1,6 +1,6 @@
 name: Type Coverage Unit Tests
 type: test-suite
-description: "Unit tests for the type-level classification lattice: computeTypeCoverage's six rows (covered, ambiguous, strict-claimed, unmatched, excluded-root mute, unreadable) driven directly against the real committed fixture tests/fixtures/type-coverage-basic/, its wiring into runCheck's coverage section (ambiguous-node-type, the improved no-type-match message, the excluded-covered-file suppression), the flag-gated 'Also matches' enrichment checkStrictBackwardCoverage adds to a type-strict-orphan, and the HARD invariant that coverage.type_level: false reproduces pre-type-level output exactly."
+description: "Unit tests for the type-level classification lattice: computeTypeCoverage's six rows (covered, ambiguous, strict-claimed, unmatched, excluded-root mute, unreadable) driven directly against the real committed fixture tests/fixtures/type-coverage-basic/, its wiring into runCheck's coverage section (ambiguous-node-type, the improved no-type-match message, the excluded-covered-file suppression), the flag-gated 'Also matches' enrichment checkStrictBackwardCoverage adds to a type-strict-orphan, the HARD invariant that coverage.type_level: false reproduces pre-type-level output exactly, ambiguous-node-type's independence from the required/middle/excluded coverage-root tier (tests/fixtures/type-coverage-tier-independence/), a directory split between one explicit-node file and one type-covered sibling satisfying coverage through different mechanisms with no cross-contamination (tests/fixtures/type-coverage-partial-dir/), and regression pins for the three checks that structurally can never see a type-covered file's path at all (yg log add's graph.nodes membership guard, description-missing, max_direct_relations) because each iterates graph.nodes only, which a type-covered file never joins."
 aspects: []
 relations:
   - target: cli/core/loader
@@ -11,9 +11,16 @@ relations:
     type: uses
   - target: cli/core/type-coverage
     type: uses
+  - target: cli/core/log
+    type: uses
+  - target: cli/core/checks/relations
+    type: uses
   - target: cli/io/file-content-cache
     type: uses
   - target: cli/io/stores
     type: uses
 mapping:
   - source/cli/tests/unit/core/type-coverage.test.ts
+  - source/cli/tests/unit/core/type-coverage-tier-independence.test.ts
+  - source/cli/tests/unit/core/type-coverage-partial-dir.test.ts
+  - source/cli/tests/unit/core/type-coverage-never-channel.test.ts

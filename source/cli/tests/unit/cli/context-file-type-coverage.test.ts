@@ -5,7 +5,7 @@
  * such a file. Real spawned binary, real tests/fixtures/type-level-engine/.
  */
 import { describe, it, expect } from 'vitest';
-import { existsSync, mkdtempSync, rmSync, cpSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, cpSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -142,6 +142,31 @@ describe.skipIf(!distExists)('yg context --file — typed view for a type-covere
       const { stderr, status } = run(['context', '--file', 'src/unclassified/x.ts'], dir);
       expect(status).toBe(1);
       expect(stderr).toContain('has no graph coverage.');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // `.yggdrasil/model/owned/yg-node.yaml` is a graph-internal path, never a
+  // classification candidate — the ordinary coverage walk never enumerates
+  // it. This pins that `yg context --file` on such a path stays exempt even
+  // against a classifying type broad enough to match every .yaml file in the
+  // repository, including the graph's own — the same discriminating check
+  // `yg owner --file` gets, at the OTHER call site design §3 names ("any
+  // classify call NOT behind the walk filter would match every type").
+  it('a .yggdrasil/-internal path stays exempt even against a classifying type that would vacuously match everything', () => {
+    const dir = copyFixture();
+    try {
+      const archPath = path.join(dir, '.yggdrasil', 'yg-architecture.yaml');
+      const arch = readFileSync(archPath, 'utf-8').replace(
+        'node_types:',
+        'node_types:\n  anyyaml:\n    description: "Vacuously matches every .yaml file in the repository, including the graph\'s own."\n    when:\n      path: "**/*.yaml"\n',
+      );
+      writeFileSync(archPath, arch, 'utf-8');
+      const { stdout, stderr, status } = run(['context', '--file', '.yggdrasil/model/owned/yg-node.yaml'], dir);
+      expect(status).toBe(0);
+      expect(stdout + stderr).not.toMatch(/Matched type:|type:anyyaml/);
+      expect(stdout).toContain('is excluded from graph coverage by design.');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
