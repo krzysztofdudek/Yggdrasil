@@ -419,7 +419,10 @@ import edge touching a type-covered file joins it too (named by the file's own
 path, since it has no node id), and the change-reach caption says "component or
 type-covered file" instead of "component" so the wording never misnames a file.
 The Modules heading widens the same way, from "component groups" to "groups of
-components and type-covered files", the moment a file joins a group. The
+components and type-covered files", whenever the project has at least one
+type-covered file at all — not only once one actually turns up among the
+rendered groups, so the widened heading can print over "No dependencies
+between groups yet." too, with zero groups shown. The
 Tunnels ranking measures a type-covered file at a fixed, shallow depth rather
 than the file's own on-disk directory nesting, so a deeply-nested file's edge
 can no longer crowd out a genuine cross-module dependency purely because the
@@ -430,9 +433,11 @@ byte-identical to today's node-only view.
 
 ### `yg find`
 
-Natural-language search across nodes and aspects (flows are not indexed). Returns results
-ranked by relevance. Each result shows the `score`, the `Kind` (node/aspect), and a short
-`Description`. Node results also print a `Type:` line; aspect results print a `status:` line.
+Natural-language search across nodes, aspects, and — with `coverage.type_level` on —
+type-covered files (flows are not indexed). Returns results ranked by relevance. Each result
+shows the `score`, the `Kind` (`node` / `aspect` / `file`), and a short `Description`. Node
+and file results also print a `Type:` line (a node's own type, or a type-covered file's
+matched classifying type); aspect results print a `status:` line.
 A `Matched:` line lists the query terms that matched (deduplicated and capped to the
 first few, with a `(+N more)` suffix when the full set is longer).
 
@@ -452,9 +457,13 @@ find a flow, use `yg flows`.
 With `coverage.type_level` on, a file satisfied by the type-level lattice (no
 node of its own) is also searchable — its `Kind` prints `file`, its `Type:`
 line names the matched classifying type, and its `Description` is that type's
-own description (types carry required descriptions). A file result's `Next`
-line points at `yg context --file <path>`, never `yg context --node` — a
-type-covered file has no `yg-node.yaml` to look up.
+own description (types carry required descriptions). `yg find` prints one
+terminal `Next:` line for the whole search, drawn from the single top-ranked
+result: when that result is a type-covered file, `Next:` points at
+`yg context --file <path>`, never `yg context --node` — a type-covered file
+has no `yg-node.yaml` to look up. When a node or an aspect outranks the file,
+the file still appears in the list with its own `Kind`/`Type`/`Description`,
+but `Next:` follows the higher-ranked entry instead.
 
 ### `yg aspects`
 

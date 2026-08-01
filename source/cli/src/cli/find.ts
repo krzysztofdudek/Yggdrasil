@@ -126,7 +126,7 @@ export async function findCommand(query: string, projectRoot: string): Promise<n
 export function registerFindCommand(program: Command): void {
   program
     .command('find')
-    .description('Locate entry points (nodes / aspects) by natural-language query')
+    .description('Locate entry points (nodes / aspects / type-covered files) by natural-language query')
     .argument('<query>', 'Search keywords (English)')
     .action(async (query: string) => {
       try {

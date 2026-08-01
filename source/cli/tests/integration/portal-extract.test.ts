@@ -653,3 +653,62 @@ describe('extractPortalData over a fixture with a real aspect implies cycle — 
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// An excluded file is excluded rather than unguarded — that rule does not read
+// coverage.type_level, so it holds even with the tier off. Every other committed
+// flag-off fixture carries no coverage.excluded root at all, so none of them can
+// tell a reader whether turning the tier off also turns this off; this one can.
+// ---------------------------------------------------------------------------
+describe('extractPortalData over a flag-off fixture with an excluded root — exclusion still moves a file out of the unguarded residue with the type-level tier off', () => {
+  const FIXTURE_ROOT = path.resolve(__dirname, '../fixtures/portal-flagoff-excluded');
+
+  async function extractFlagOff(): Promise<{ data: PortalData; dir: string }> {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-portal-extract-flagoff-excl-'));
+    cpSync(FIXTURE_ROOT, dir, { recursive: true });
+    const data = await extractPortalData(dir, { writeEnabled: false });
+    return { data, dir };
+  }
+
+  it('the type-level tier is genuinely off on this fixture — typeCoveredCount is 0', async () => {
+    const { data, dir } = await extractFlagOff();
+    try {
+      expect(data.meta.counts.typeCoveredCount).toBe(0);
+      expect(data.meta.counts.typeCoveredUnenforced).toBe(0);
+      expect(data.meta.counts.typeCoveredUncomputable).toBe(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('counts reconcile: 1 node-owned + 1 excluded + 2 genuinely unmapped, out of 4 total', async () => {
+    const { data, dir } = await extractFlagOff();
+    try {
+      expect(data.meta.counts.totalFiles).toBe(4);
+      expect(data.meta.counts.excludedFiles).toBe(1);
+      expect(data.meta.counts.coveredFiles).toBe(2); // legacy: nodeOwned(1) + excluded(1)
+      expect(data.meta.counts.uncoveredFiles).toBe(2);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('the excluded file lands in residue.excludedFiles, not residue.uncoveredFiles, with the tier off', async () => {
+    const { data, dir } = await extractFlagOff();
+    try {
+      expect(data.residue.excludedFiles).toEqual(['vendor/tool.ts']);
+      expect(data.residue.uncoveredFiles).not.toContain('vendor/tool.ts');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('the two files that were never excluded stay in residue.uncoveredFiles — exclusion does not sweep up unrelated unmapped files', async () => {
+    const { data, dir } = await extractFlagOff();
+    try {
+      expect(data.residue.uncoveredFiles.slice().sort()).toEqual(['src/lib/util.ts', 'src/svc/handler.ts']);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

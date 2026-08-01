@@ -449,7 +449,10 @@ import touching a type-covered file joins it too (named by the file's own
 path — it has no component id), and the change-reach line says "component or
 type-covered file" instead of "component" so a file is never misnamed. The
 Modules heading widens the same way, from "component groups" to "groups of
-components and type-covered files", the moment a file joins a group. The
+components and type-covered files", whenever the project has at least one
+type-covered file at all — not only once one actually turns up among the
+rendered groups, so it can print over "No dependencies between groups yet."
+too, with zero groups shown. The
 Tunnels ranking measures a type-covered file at a fixed, shallow depth rather
 than its own on-disk directory nesting, so a deeply-nested file's edge can no
 longer crowd out a genuine cross-module dependency just for living many
@@ -526,7 +529,7 @@ yg owner --file src/orders/handler.ts
 
 ## yg find
 
-Locate entry-point nodes/aspects by natural-language query.
+Locate entry-point nodes/aspects/type-covered files by natural-language query.
 
 \`\`\`bash
 yg find "order cancellation"
@@ -538,14 +541,19 @@ Returns ranked candidates. Scores are RELATIVE — the top result is always
 gap from #1 to #2 (e.g. \`1.00\` then \`0.40\`) signals a confident winner;
 closely-clustered scores (\`1.00\`, \`0.95\`, \`0.90\`) mean the query is
 ambiguous — verify the top few with \`yg context\`. \`yg find\` indexes nodes
-and aspects only — not flows.
+and aspects, plus type-covered files once \`coverage.type_level\` is on — not
+flows.
 
 With \`coverage.type_level\` on, a file satisfied by the type-level lattice (no
 node of its own) is searchable too — its result prints \`Kind: file\`, a
 \`Type:\` line naming the matched classifying type, and a \`Description\` taken
-from that type's own description. Its \`Next\` line always reads
-\`yg context --file <path>\`, never \`--node\` — a type-covered file has no
-\`yg-node.yaml\` to look up.
+from that type's own description. \`yg find\` prints one terminal \`Next\` line
+for the whole search, drawn from the single top-ranked result: when that
+result is a type-covered file, \`Next\` reads \`yg context --file <path>\`,
+never \`--node\` — a type-covered file has no \`yg-node.yaml\` to look up. When
+a node or an aspect outranks the file, the file still appears in the list
+with its own \`Kind\`/\`Type\`/\`Description\`, but \`Next\` follows the
+higher-ranked entry instead.
 
 ## yg log
 

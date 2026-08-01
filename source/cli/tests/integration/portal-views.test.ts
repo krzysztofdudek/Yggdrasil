@@ -433,6 +433,62 @@ describe('portal Phase-4 view modules (real source, real fixture data)', () => {
     expect(textOf(unenforcedChip as FakeNode)).toContain('1 files matched by a type with no rule');
   });
 
+  it('the Overview uncomputable chip carries its OWN glyph and aria-label — never the no-rule badge the unenforced chip right above it uses', async () => {
+    const Yg = await loadYg();
+    const withUncomputable: PortalData = {
+      ...data,
+      meta: { ...data.meta, counts: { ...data.meta.counts, typeCoveredCount: 1, typeCoveredUncomputable: 1 } },
+      residue: {
+        ...data.residue,
+        typeCoveredUncomputable: [
+          { path: 'src/cyclic.ts', type: 'cyc', why: "The aspect graph has an implies cycle at 'cyc-a' — the cascade cannot tell which of the type's rules apply until that cycle is broken." },
+        ],
+      },
+    };
+    const stage = makeNode('div');
+    Yg.views.overview(stage, { view: 'overview' }, withUncomputable, { navigate: () => undefined });
+    const chips = walk(stage).filter((n) => n.classList && n.classList.contains('reslink'));
+    const uncomputableChip = chips.find((n) => textOf(n).includes('could not be worked out'));
+    expect(uncomputableChip, 'no "could not be worked out" chip rendered').toBeTruthy();
+    const mark = walk(uncomputableChip as FakeNode).find((n) => n.classList && n.classList.contains('state-glyph'));
+    expect(mark, 'no glyph mark on the uncomputable chip').toBeTruthy();
+    // Its own class, never the no-rule state class the unenforced chip carries — swapping the
+    // badge builder is the exact regression this test exists to catch, and it leaves the chip's
+    // text and count completely unchanged, so only the glyph/class/aria-label tell them apart.
+    expect(classesIn(uncomputableChip as FakeNode).has('reslink-unknown')).toBe(true);
+    expect(classesIn(uncomputableChip as FakeNode).has(Yg.states.cssClass('no-rule'))).toBe(false);
+    expect((mark as FakeNode).textContent).toBe('?');
+    expect((mark as FakeNode).getAttribute('aria-label')).toBe('rules could not be worked out');
+  });
+
+  it('the Coverage & Audit uncomputable ledger row carries its OWN glyph and aria-label — never the no-rule badge the "checked by nothing" row above it uses', async () => {
+    const Yg = await loadYg();
+    const withUncomputable: PortalData = {
+      ...data,
+      meta: { ...data.meta, counts: { ...data.meta.counts, typeCoveredCount: 1, typeCoveredUncomputable: 1 } },
+      residue: {
+        ...data.residue,
+        typeCoveredUncomputable: [
+          { path: 'src/cyclic.ts', type: 'cyc', why: "The aspect graph has an implies cycle at 'cyc-a' — the cascade cannot tell which of the type's rules apply until that cycle is broken." },
+        ],
+      },
+    };
+    const stage = makeNode('div');
+    Yg.views.coverage(stage, { view: 'coverage' }, withUncomputable, { navigate: () => undefined });
+    const nonpairRows = walk(stage).filter((n) => n.classList && n.classList.contains('cov-nonpair'));
+    const uncomputableRow = nonpairRows.find((n) => textOf(n).includes('could not be worked out'));
+    expect(uncomputableRow, 'no uncomputable ledger row rendered').toBeTruthy();
+    const mark = walk(uncomputableRow as FakeNode).find((n) => n.classList && n.classList.contains('state-glyph'));
+    expect(mark, 'no glyph mark on the uncomputable ledger row').toBeTruthy();
+    // Relabelling the row with the "no rule" badge renders the exact forbidden sentence — "no
+    // rule / satisfy coverage with no enforcement" — under a heading that says the honest answer
+    // is unknown; text and count alone do not catch that, only the badge does.
+    expect(classesIn(uncomputableRow as FakeNode).has('reslink-unknown')).toBe(true);
+    expect(classesIn(uncomputableRow as FakeNode).has(Yg.states.cssClass('no-rule'))).toBe(false);
+    expect((mark as FakeNode).textContent).toBe('?');
+    expect((mark as FakeNode).getAttribute('aria-label')).toBe('rules could not be worked out');
+  });
+
   it('Coverage surfaces the boundary counter as UNKNOWN (not a fabricated zero) when the parse could not run', async () => {
     const Yg = await loadYg();
     const stage = makeNode('div');

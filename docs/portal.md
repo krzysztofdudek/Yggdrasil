@@ -56,9 +56,12 @@ A row of views down the side, each answering a different question:
 - **Overview** — where the repo stands, in one sentence, plus the residue worth a
   look: components with no rule yet, source files not mapped to anything, and any
   active waivers. With `coverage.type_level` on, a file satisfied by the
-  type-level lattice is never counted in "not mapped to anything" — a file with a
-  real verdict against its matched type gets its own "satisfied" line instead, so
-  a checked file is never called unguarded. A type-covered file whose matched
+  type-level lattice is never counted in "not mapped to anything" — a file whose
+  matched type actually has a rule that applies to it gets its own "satisfied"
+  line instead, so a checked file is never called unguarded. "Satisfied" here
+  means accounted for, not that a verdict has already been reached: the file's
+  own real verdict — verified, refused, or still unverified — sits in the bar on
+  Coverage & audit, not on this line. A type-covered file whose matched
   type carries no rule at all reads differently again, on its own line, using the
   same "no rule" treatment as the rest of the unguarded surface — so a file that
   merely matches a type, with nothing actually checking it, is never shown as
@@ -72,12 +75,15 @@ A row of views down the side, each answering a different question:
   approved against the current code. Free local checks and reviewer-judged checks
   are shown apart, and a needs-attention worklist lists what to fix, in priority
   order. With `coverage.type_level` on, every type-covered file is listed by name
-  with the type that covers it — an enforced one under the checked total, an
-  unenforced one under its own "checked by nothing" line, and a file whose
-  type's rules an aspect `implies` cycle blocked under its own "could not be
-  worked out" line, naming the cycle — and a deliberately excluded file is
-  listed by name too, never only a count. Any of these per-file listings longer
-  than twelve entries is capped, with the remainder summarized as a count.
+  with the type that covers it — one with an applicable rule under the checked
+  total (its own real verdict sits in the bar above, not on this line), one
+  matched by a type with nothing that applies under its own "checked by nothing"
+  line, and one whose type's rules an aspect `implies` cycle blocked under its
+  own "could not be worked out" line, naming the cycle. Each of these three
+  listings longer than twelve entries is capped, with the remainder summarized as
+  a count. Separately, and regardless of whether `coverage.type_level` is on, a
+  file under a `coverage.excluded` root is listed by name too, in its own,
+  uncapped "deliberately excluded from coverage, never enforced" block.
 
   ![The portal's coverage and audit view — the honest verdict bar over every expected check, with the needs-attention worklist](/portal-coverage.png)
 
