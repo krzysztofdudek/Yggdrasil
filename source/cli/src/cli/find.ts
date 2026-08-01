@@ -3,9 +3,13 @@ import chalk from 'chalk';
 import { debugWrite } from '../utils/debug-log.js';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { buildIndex, createMiniSearch } from '../io/find-index.js';
-import type { IndexedDocument } from '../io/find-index.js';
+import type { IndexedDocument, TypeCoveredIndexEntry } from '../io/find-index.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
 import { toPosixPath } from '../utils/posix.js';
+import { walkRepoFiles } from '../io/repo-scanner.js';
+import { scanUncoveredFiles } from '../core/check.js';
+import { computeTypeCoverage } from '../core/type-coverage.js';
+import { FileContentCache } from '../io/file-content-cache.js';
 
 const TOP_N = 5;
 
@@ -28,7 +32,17 @@ export async function findCommand(query: string, projectRoot: string): Promise<n
   // abortOnUnexpectedError (the canonical command-contract path). loadGraphOrAbort
   // already exits cleanly on a missing graph; non-ENOENT loader failures rethrow.
   const graph = await loadGraphOrAbort(projectRoot);
-  const docs = await buildIndex(graph);
+  // Type-covered files (coverage.type_level) join the searchable index, keyed by
+  // their matched type's own description — omitted entirely at flag-off, so a
+  // flag-off caller pays no classification pass and gets byte-identical output.
+  let typeCoverage: TypeCoveredIndexEntry[] | undefined;
+  if (graph.config.coverage?.typeLevel) {
+    const files = await walkRepoFiles(projectRoot);
+    const uncovered = scanUncoveredFiles(graph, files);
+    const coverage = await computeTypeCoverage(graph, uncovered, new FileContentCache());
+    typeCoverage = [...coverage.covered.entries()].map(([file, typeId]) => ({ file, typeId }));
+  }
+  const docs = await buildIndex(graph, typeCoverage);
   if (docs.length === 0) {
     process.stdout.write('Empty graph, nothing to search.\n');
     return 0;
@@ -90,12 +104,16 @@ export async function findCommand(query: string, projectRoot: string): Promise<n
 
   // Terminal Next: derived from the TOP result's Kind. A node result is an
   // entry-point — point the agent at its full context. An aspect result is a
-  // rule, not a node — tell the agent to read it and NOT pass it to --node.
+  // rule, not a node — tell the agent to read it and NOT pass it to --node. A
+  // file result is type-covered — it has no yg-node.yaml at all, so it is
+  // addressed by --file, never --node.
   if (topDoc) {
     if (topDoc.kind === 'node') {
       // Strip the leading `model/` so the path is a valid --node argument.
       const nodeArg = toPosixPath(topDoc.path).replace(/^model\//, '');
       process.stdout.write(`Next: yg context --node ${nodeArg}\n`);
+    } else if (topDoc.kind === 'file') {
+      process.stdout.write(`Next: yg context --file ${toPosixPath(topDoc.path)}\n`);
     } else {
       process.stdout.write(
         `Next: read .yggdrasil/${toPosixPath(topDoc.path)} — this is a rule, not an entry-point node (do not pass it to --node).\n`,

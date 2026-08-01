@@ -17,6 +17,8 @@ import {
   computePortalLockHash,
   readGitCommitRef,
   PORTAL_SCHEMA_SUPPORTED,
+  isPortalFileExcludedByCoverage,
+  NO_COVERAGE_EXCLUDED,
   type CheckResult,
   type LockVerification,
   type PairComputation,
@@ -146,7 +148,17 @@ export async function extractPortalData(
   // CheckResult; they reuse the engine's own coverage scan and issue grouping.
   const hubs = buildHubs(nodes);
   const uncovered = scanPortalUncovered(graph, gitFiles);
-  const residue = buildResidue(nodes, uncovered);
+  // The residue's uncovered-files ledger must mean exactly what its own chip says:
+  // "nothing is checking this, and it wasn't skipped on purpose". A type-covered
+  // file has its own verdict (a real pair against its matched type); an
+  // excluded-root file was deliberately dropped from coverage. Neither belongs
+  // here — this is the SAME exclusion counts.uncoveredFiles applies, so the chip
+  // and this list's length can never disagree.
+  const typeCoveredFiles = new Set(typeCoverageResult?.covered.keys() ?? []);
+  const genuinelyUncovered = uncovered.filter(
+    (f) => !typeCoveredFiles.has(f) && !isPortalFileExcludedByCoverage(f, graph.config.coverage ?? NO_COVERAGE_EXCLUDED),
+  );
+  const residue = buildResidue(nodes, genuinelyUncovered);
   const worklist = buildWorklist(checkResult);
 
   // Residue-track count post-pass. These three counts are NOT part of the count-parity
@@ -331,9 +343,15 @@ export function buildCounts(
     draft: check.draftSkipped,
     notApplicable: 0,
     suppressed: 0,
-    uncoveredFiles: check.totalFiles - check.coveredFiles,
+    // A file satisfied by the type-level lattice has its own verdict — it must
+    // never ALSO inflate "uncovered". coveredFiles keeps its legacy conflated
+    // meaning (nodeOwnedFiles + excludedFiles, unchanged below); subtracting
+    // typeCoveredCount on top of it is the one corrected term.
+    uncoveredFiles: check.totalFiles - check.coveredFiles - (check.typeCoveredCount ?? 0),
     coveredFiles: check.coveredFiles,
     totalFiles: check.totalFiles,
+    typeCoveredCount: check.typeCoveredCount ?? 0,
+    excludedFiles: check.excludedFiles ?? 0,
     errors,
     warnings,
   };

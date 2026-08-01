@@ -14,7 +14,10 @@ relations:
     { target: cli/core/loader, type: uses },
     { target: cli/io/parsers/config, type: uses },
     { target: cli/io/stores, type: uses },
-    { target: cli/tests/support, type: uses }
+    { target: cli/tests/support, type: uses },
+    { target: cli/core/check, type: uses },
+    { target: cli/core/type-coverage, type: uses },
+    { target: cli/io/file-content-cache, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/io/advise-decisions-store.test.ts

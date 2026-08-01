@@ -27,6 +27,7 @@ const CLI_ROOT = path.join(__dirname, '../..');
 const BIN_PATH = path.join(CLI_ROOT, 'dist', 'bin.js');
 const FIXTURE = path.join(CLI_ROOT, 'tests', 'fixtures', 'type-coverage-basic');
 const PASS_FIXTURE = path.join(CLI_ROOT, 'tests', 'fixtures', 'type-coverage-basic-pass');
+const RELATION_GATE_FIXTURE = path.join(CLI_ROOT, 'tests', 'fixtures', 'type-relation-gate');
 const distExists = existsSync(BIN_PATH);
 
 function copyFixture(source: string = FIXTURE): string {
@@ -141,6 +142,64 @@ describe.skipIf(!distExists)('E2E: type-level classification lattice via the rea
       expect(context.out).toContain('src/svcnode/kept.ts');
       expect(context.out).not.toContain('vendor/a.ts');
       expect(context.out).not.toContain('vendor/b.ts');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe.skipIf(!distExists)('E2E: yg tree — the type-covered summary line', () => {
+  it('flag off: no summary line at all, byte-identical to the node listing alone', () => {
+    const onDir = copyFixture(RELATION_GATE_FIXTURE);
+    const offDir = copyFixture(RELATION_GATE_FIXTURE);
+    try {
+      const configPath = path.join(offDir, '.yggdrasil', 'yg-config.yaml');
+      writeFileSync(configPath, readFileSync(configPath, 'utf-8').replace('type_level: true', 'type_level: false'));
+
+      const flagOff = run(['tree'], offDir);
+      expect(flagOff.status).toBe(0);
+      expect(flagOff.out).toContain('owner [owner-type]');
+      expect(flagOff.out).not.toMatch(/satisfied by the type-level lattice/);
+
+      // Flipping the flag back on is the ONLY difference this pin permits —
+      // proving flag-off is not merely "the fixture has no type-covered files"
+      // but genuinely "the flag suppresses the line".
+      const flagOn = run(['tree'], onDir);
+      expect(flagOn.out).not.toBe(flagOff.out);
+      expect(flagOn.out.startsWith(flagOff.out)).toBe(true);
+    } finally {
+      rmSync(onDir, { recursive: true, force: true });
+      rmSync(offDir, { recursive: true, force: true });
+    }
+  });
+
+  it('flag on: a summary line follows the node listing, naming the type-covered file count', () => {
+    const dir = copyFixture(RELATION_GATE_FIXTURE);
+    try {
+      const { status, out } = run(['tree'], dir);
+      expect(status).toBe(0);
+      expect(out).toContain('owner [owner-type]');
+      // svc/handler.ts (type svc) and util/plain-util.ts (type util) are the
+      // fixture's two cleanly type-covered files; ambiguous.ts is excluded from
+      // the covered bucket by the lattice itself.
+      expect(out).toMatch(/2 files? .*satisfied by (the )?type-level/i);
+      // The tree's own node listing renders NODES only — no synthetic entry for
+      // a type-covered file appears in the flat list above the summary line.
+      expect(out).not.toContain('handler.ts');
+      expect(out).not.toContain('plain-util.ts');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('--root scopes the node listing but the lattice has no subtree of its own — the summary states it is repo-wide, never a fabricated scoped count', () => {
+    const dir = copyFixture(RELATION_GATE_FIXTURE);
+    try {
+      const { status, out } = run(['tree', '--root', 'owner'], dir);
+      expect(status).toBe(0);
+      expect(out).toContain('owner [owner-type]');
+      expect(out).toMatch(/2 files? .*satisfied by (the )?type-level/i);
+      expect(out).toMatch(/repo-wide/i);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

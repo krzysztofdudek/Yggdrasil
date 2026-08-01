@@ -50,6 +50,17 @@ description: >-
   text label; every interactive control is a keyboard-operable native element; the allowed-relations
   matrix keeps its DOM-list mirror; and `--no-write` view-only mode disables the write control.
 aspects: []
+max_direct_relations:
+  limit: 21
+  reason: >-
+    Reviewed architectural seam. This suite integration-tests the full portal
+    extraction pipeline against the real engine, so its relation count tracks
+    every engine entry point extractPortalData itself calls. The 21st relation
+    (cli/core/fill) is needed to run a REAL deterministic fill against the
+    tier-on fixture before extraction — the only way to get a genuine, live
+    refused verdict on a type-covered file rather than a fabricated one — so
+    the count is exactly the number of reviewed engine seams this suite
+    exercises, not padding.
 relations:
   - target: cli/portal/pipeline
     type: uses
@@ -90,6 +101,8 @@ relations:
   - target: cli/commands/structure
     type: uses
   - target: cli/rules-artifacts
+    type: uses
+  - target: cli/core/fill
     type: uses
 mapping:
   - source/cli/tests/integration/portal-extract.test.ts

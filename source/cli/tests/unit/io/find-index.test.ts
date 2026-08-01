@@ -1,10 +1,18 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { mkdtemp, mkdir, writeFile, rm, chmod } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import MiniSearch from 'minisearch';
 import { loadGraph } from '../../../src/core/graph-loader.js';
 import { buildIndex, createMiniSearch } from '../../../src/io/find-index.js';
+import { computeTypeCoverage } from '../../../src/core/type-coverage.js';
+import { scanUncoveredFiles } from '../../../src/core/check.js';
+import { walkRepoFiles } from '../../../src/io/repo-scanner.js';
+import { FileContentCache } from '../../../src/io/file-content-cache.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const TYPE_COVERAGE_FIXTURE = path.resolve(__dirname, '../../fixtures/type-coverage-basic');
 
 const dirs: string[] = [];
 afterEach(async () => {
@@ -167,5 +175,35 @@ describe('buildIndex', () => {
     } finally {
       await chmod(logPath, 0o644); // restore so afterEach's rm can clean up
     }
+  });
+
+  it("at flag-on, a type-covered file is indexed with the matched type's description as searchable text, and points at yg context --file, never a phantom node", async () => {
+    const graph = await loadGraph(TYPE_COVERAGE_FIXTURE);
+    const files = await walkRepoFiles(TYPE_COVERAGE_FIXTURE);
+    const uncovered = scanUncoveredFiles(graph, files);
+    const coverage = await computeTypeCoverage(graph, uncovered, new FileContentCache());
+    const flattened = [...coverage.covered.entries()].map(([file, typeId]) => ({ file, typeId }));
+    const docs = await buildIndex(graph, flattened);
+
+    const fileDoc = docs.find((d) => d.kind === 'file' && d.path === 'src/svc/handler.ts');
+    expect(fileDoc).toBeDefined();
+    expect(fileDoc!.type).toBe('svc');
+    expect(fileDoc!.description).toBe(graph.architecture.node_types['svc'].description);
+    expect(fileDoc!.id).toBe('file:src/svc/handler.ts');
+
+    // Never a phantom node — no 'node' document exists for a file no node maps.
+    expect(docs.find((d) => d.kind === 'node' && d.path.includes('handler.ts'))).toBeUndefined();
+  });
+
+  it('at flag-off (typeCoverage omitted), buildIndex output is byte-identical to today — no file documents at all', async () => {
+    const graph = await loadGraph(TYPE_COVERAGE_FIXTURE);
+    const docs = await buildIndex(graph);
+    expect(docs.every((d) => d.kind !== 'file')).toBe(true);
+  });
+
+  it('an empty typeCoverage array is the same as omitting it — no file documents', async () => {
+    const graph = await loadGraph(TYPE_COVERAGE_FIXTURE);
+    const docs = await buildIndex(graph, []);
+    expect(docs.every((d) => d.kind !== 'file')).toBe(true);
   });
 });

@@ -407,6 +407,13 @@ yg tree --root orders          # subtree from orders/
 yg tree --depth 2              # limit depth
 \`\`\`
 
+With \`coverage.type_level\` on, a summary line follows the node listing naming
+how many files the type-level lattice satisfies with no component of their
+own — never a synthetic tree entry (the listing above stays nodes only). The
+count is always repo-wide, even under \`--root\`: a type-covered file has no
+place in the graph hierarchy for that flag to narrow, so the line says
+"repo-wide" instead of fabricating a scoped count. Absent when the flag is off.
+
 ## yg structure
 
 Read-only structural dashboard over the graph. It reports the shape of your
@@ -431,6 +438,13 @@ to run when there is no graph to load.
 \`\`\`bash
 yg structure
 \`\`\`
+
+With \`coverage.type_level\` on, the universe widens: every statically-resolved
+import touching a type-covered file joins it too (named by the file's own
+path — it has no component id), and the change-reach line says "component or
+type-covered file" instead of "component" so a file is never misnamed. A
+malformed architecture degrades this widening to empty rather than crashing —
+flag off (or zero type-covered files) renders exactly today's output.
 
 ## yg aspects
 
@@ -514,6 +528,13 @@ gap from #1 to #2 (e.g. \`1.00\` then \`0.40\`) signals a confident winner;
 closely-clustered scores (\`1.00\`, \`0.95\`, \`0.90\`) mean the query is
 ambiguous — verify the top few with \`yg context\`. \`yg find\` indexes nodes
 and aspects only — not flows.
+
+With \`coverage.type_level\` on, a file satisfied by the type-level lattice (no
+node of its own) is searchable too — its result prints \`Kind: file\`, a
+\`Type:\` line naming the matched classifying type, and a \`Description\` taken
+from that type's own description. Its \`Next\` line always reads
+\`yg context --file <path>\`, never \`--node\` — a type-covered file has no
+\`yg-node.yaml\` to look up.
 
 ## yg log
 

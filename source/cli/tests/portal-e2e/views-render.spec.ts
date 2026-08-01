@@ -89,6 +89,33 @@ test.describe('§3a views V1–V9 — render real data + honest palette', () => 
     await expectHonestPalette(page);
   });
 
+  test('V1/V2 on the tier-on fixture: a type-covered file with a real refusal is never called unmapped', async ({ page, typeCoveragePage }) => {
+    // portal-type-coverage: coverage.type_level ON, one node-owned file, one
+    // type-covered file carrying a REAL refused verdict (a live deterministic
+    // check, no committed lock), one excluded-root file. The one committed
+    // portal fixture with the tier enabled — without it this whole spec suite
+    // is structurally incapable of observing this class of bug.
+    await page.goto(typeCoveragePage);
+    // Overview: the type-covered file is accounted for on its OWN chip, distinct
+    // from the "unmapped (unguarded)" chip, which must NOT count it.
+    await expect(page.locator('.ov-residue')).toContainText('matched type');
+    const unmappedChip = page.locator('.ov-residue .reslink', { hasText: 'unmapped (unguarded)' });
+    await expect(unmappedChip).toContainText('0'); // the excluded + type-covered file both left this chip
+    const typeCoveredChip = page.locator('.ov-residue .reslink', { hasText: 'matched type' });
+    await expect(typeCoveredChip).toContainText('1');
+
+    // Coverage & Audit: the SAME file's refusal renders in the verdict bar (it IS
+    // being checked)...
+    await navTo(page, 'Coverage & audit');
+    await expect(page.locator('.cov-bar .cov-seg-r')).toHaveCount(1);
+    // ...and the type-covered count renders on its own line, never inside "not in
+    // coverage fraction" (its pairs ARE counted in the bar above).
+    await expect(page.locator('.cov-ledger')).toContainText('type-covered');
+    const nonpairText = (await page.locator('.cov-nonpair').first().textContent()) ?? '';
+    expect(nonpairText).not.toContain('type-covered');
+    await expectHonestPalette(page);
+  });
+
   test('V3 Structure renders the real node hierarchy', async ({ page, basicPage }) => {
     await page.goto(basicPage);
     await navTo(page, 'Structure');

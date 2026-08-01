@@ -16,7 +16,7 @@
  * fabricated. COVERS adds no new manifest surface (it re-asserts coverage/overview honesty).
  */
 import { test, expect } from './support/fixtures';
-import { runCheck, staticPage, freshFixtureCopy, servedPortal } from './support/harness';
+import { runCheck, staticPage, freshFixtureCopy, servedPortal, readInlinedData, approveDeterministic } from './support/harness';
 
 export const COVERS: string[] = [];
 
@@ -24,6 +24,18 @@ export const COVERS: string[] = [];
 function parseCheckErrors(out: string): number {
   const m = out.match(/Errors\s*\((\d+)\)/);
   return m ? parseInt(m[1], 10) : 0;
+}
+
+/**
+ * Parse the flag-on header's three honest terms: `N/M files (A node-owned, B
+ * type-covered, C excluded)`. The one ground-truth source for what those three
+ * words mean — `renderHeader` — is exercised here through the real CLI process,
+ * never re-derived.
+ */
+function parseCheckTypeSplit(out: string): { nodeOwned: number; typeCovered: number; excluded: number; total: number } {
+  const m = out.match(/(\d+)\/(\d+) files \((\d+) node-owned, (\d+) type-covered, (\d+) excluded\)/);
+  if (!m) throw new Error(`could not find the type-level header split in:\n${out}`);
+  return { nodeOwned: parseInt(m[3], 10), typeCovered: parseInt(m[4], 10), excluded: parseInt(m[5], 10), total: parseInt(m[2], 10) };
 }
 
 function parseCheckWarnings(out: string): number {
@@ -123,6 +135,41 @@ test.describe('the page counts EQUAL `yg check` on the same fixture', () => {
     expect(parseInt(fracM[2], 10)).toBe(2); // total
     const liveErrText = (await page.locator('.cov-livewrap .cov-live', { hasText: 'blocking errors' }).textContent()) ?? '';
     expect(parseInt((liveErrText.match(/(\d+)/) as RegExpMatchArray)[1], 10)).toBe(0);
+  });
+
+  test('portal-type-coverage: counts.typeCoveredCount / excludedFiles / uncoveredFiles reconcile with yg check\'s three honest terms — a type-covered file with a real refusal is never called unmapped', async ({ page, t }) => {
+    // A fresh copy, deterministically filled BEFORE either side reads it, so the CLI header
+    // and the portal extraction see the identical committed state — including the type-covered
+    // file's REAL refused verdict (a live deterministic check, not a fabricated one).
+    const project = freshFixtureCopy(t, 'portal-type-coverage');
+    approveDeterministic(project);
+
+    const check = runCheck(project);
+    const split = parseCheckTypeSplit(check.out);
+    // Sanity-pin the fixture's own shape so a future edit to it cannot silently
+    // invalidate what this test is actually proving.
+    expect(split).toEqual({ nodeOwned: 1, typeCovered: 1, excluded: 1, total: 3 });
+
+    const url = staticPage(t, { cwd: project });
+    // Field-level parity against the exact contract the page emits.
+    const portal = readInlinedData(url) as {
+      meta: { counts: { typeCoveredCount: number; excludedFiles: number; coveredFiles: number; uncoveredFiles: number; totalFiles: number; refused: number } };
+    };
+    expect(portal.meta.counts.typeCoveredCount).toBe(split.typeCovered);
+    expect(portal.meta.counts.excludedFiles).toBe(split.excluded);
+    // coveredFiles is NOT redefined — it stays nodeOwned + excluded, exactly as
+    // CheckResult.coveredFiles already is.
+    expect(portal.meta.counts.coveredFiles).toBe(split.nodeOwned + split.excluded);
+    // Every file is spoken for: node-owned, type-covered, or excluded — nothing left uncovered.
+    expect(portal.meta.counts.uncoveredFiles).toBe(0);
+    expect(portal.meta.counts.totalFiles).toBe(split.total);
+    // The heart of it: the type-covered file's refusal IS in this same payload.
+    expect(portal.meta.counts.refused).toBe(1);
+
+    // The same number RENDERS in real Chromium, on the Overview residue chip.
+    await page.goto(url);
+    await expect(page.locator('.ov-residue')).toContainText('1'); // the count the chip carries
+    await expect(page.locator('.ov-residue')).toContainText('matched type');
   });
 
   test('repo: rendered blocking-errors + warnings == yg check on this repo', async ({ page, repoPage }) => {

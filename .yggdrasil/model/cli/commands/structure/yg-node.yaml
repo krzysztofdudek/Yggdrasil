@@ -7,8 +7,13 @@ description: >-
   the relations layer directly), unions them with the declared structural
   relations, and renders three sections computed by the pure metrics core
   (core/graph-metrics): dependency tunnels, per-depth module groups, and change
-  reach. Never reads or writes the lock and never calls a reviewer — it exits 0
-  whenever the graph loads, so it never gates.
+  reach. At coverage.type_level on, the universe additionally widens with every
+  type-covered file (via the same facade's live type-relation gate edges,
+  translated into the node-id space) so a dependency reaching into or out of a
+  type-covered file is not invisible to the dashboard; a malformed architecture
+  degrades this widening to empty rather than crashing the command. Never reads
+  or writes the lock and never calls a reviewer — it exits 0 whenever the graph
+  loads, so it never gates.
 aspects: []
 relations:
   - target: cli/preamble
@@ -23,5 +28,11 @@ relations:
     type: calls
   - target: cli/tests/unit/cli
     type: uses
+  - target: cli/core/type-coverage
+    type: calls
+  - target: cli/core/check
+    type: calls
+  - target: cli/io/file-content-cache
+    type: calls
 mapping:
   - source/cli/src/cli/structure.ts

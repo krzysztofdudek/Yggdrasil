@@ -109,6 +109,14 @@
 .reslink-arrow {
   color: var(--accent-text);
 }
+/* The type-covered accounting chip's glyph: neutral, not borrowed from any
+   pass/fail state — a type-covered file's own verdict may be verified,
+   refused, or unverified, so this mark never claims one of those for it. */
+.reslink-neutral {
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+}
 .ov-precise {
   width: 100%;
   justify-content: flex-start;

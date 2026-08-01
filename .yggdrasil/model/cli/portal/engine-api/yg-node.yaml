@@ -12,7 +12,13 @@ description: >-
   imports only this facade and the data contract. Read-only by construction: no lock
   writer is imported and the graph is loaded committed-only. The boundary join changes no
   engine logic; it reuses an additive read-only detected-edge accessor on the relation
-  pass.
+  pass. api/boundary.ts also exposes computeTypedEdges — the same relation-pass call
+  seeded with the caller's type-coverage classification, translated to plain StructEdge
+  data so `yg structure` can widen its universe without touching RelationPassDeps
+  itself. isPortalFileExcludedByCoverage (imported straight from utils/coverage-exclusion,
+  not core/check-coverage-tiers, so it adds no new relation beyond the already-declared
+  cli/utils) lets the residue derivation exclude a deliberately-excluded file the same
+  way it excludes a type-covered one.
 aspects:
   - runcheck-injected-input-parity
 max_direct_relations:

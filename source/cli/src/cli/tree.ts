@@ -1,10 +1,15 @@
+import path from 'node:path';
 import { Command, InvalidArgumentError } from 'commander';
 import chalk from 'chalk';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { initDebugLog } from '../utils/debug-log.js';
 import { appendToDebugLog } from '../io/debug-log-writer.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
-import type { GraphNode } from '../model/graph.js';
+import type { GraphNode, Graph } from '../model/graph.js';
+import { walkRepoFiles } from '../io/repo-scanner.js';
+import { scanUncoveredFiles } from '../core/check.js';
+import { computeTypeCoverage } from '../core/type-coverage.js';
+import { FileContentCache } from '../io/file-content-cache.js';
 
 export function registerTreeCommand(program: Command): void {
   program
@@ -24,16 +29,17 @@ export function registerTreeCommand(program: Command): void {
         initDebugLog(graph.rootPath, graph.config.debug ?? false, appendToDebugLog);
 
         let roots: GraphNode[];
+        const scopedToRoot = Boolean(options.root?.trim());
 
-        if (options.root?.trim()) {
-          const path = options.root.trim().replace(/\/$/, '');
-          const node = graph.nodes.get(path);
+        if (scopedToRoot) {
+          const rootPath = (options.root as string).trim().replace(/\/$/, '');
+          const node = graph.nodes.get(rootPath);
           if (!node) {
-            process.stderr.write(chalk.red(buildIssueMessage({
-              what: `Node '${path}' not found.`,
+            process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
+              what: `Node '${rootPath}' not found.`,
               why: `The --root path must be a valid node path in the graph.`,
               next: `Run yg tree (no --root) to list all nodes, then pick a valid path.`,
-            }) + '\n'));
+            })}\n`));
             process.exit(1);
           }
           roots = [node];
@@ -51,10 +57,39 @@ export function registerTreeCommand(program: Command): void {
         for (const line of lines) {
           process.stdout.write(line + '\n');
         }
+
+        const summary = await typeCoveredSummaryLine(graph, scopedToRoot);
+        if (summary) process.stdout.write(summary + '\n');
       } catch (error) {
         abortOnUnexpectedError(error, 'building the tree');
       }
     });
+}
+
+/**
+ * The optional type-covered summary line, printed AFTER the node listing.
+ * `undefined` when the flag is off — byte-identical to today in that case.
+ * The tree's node listing renders NODES only (no synthetic entry for a
+ * type-covered file); this is the one place their count is surfaced.
+ *
+ * A type-covered file has no place in the graph hierarchy `--root` scopes —
+ * unlike a node, it carries no parent/child structure to narrow. Rather than
+ * fabricate a scoped count from a heuristic that could silently be wrong for
+ * a real project's source layout, the count is always repo-wide, and an
+ * explicit "repo-wide" qualifier is added whenever `--root` narrowed the node
+ * listing above it — so the line can never be misread as "these files are
+ * under the subtree you asked for".
+ */
+async function typeCoveredSummaryLine(graph: Graph, scopedToRoot: boolean): Promise<string | undefined> {
+  if (!graph.config.coverage?.typeLevel) return undefined;
+  const projectRoot = path.dirname(graph.rootPath);
+  const files = await walkRepoFiles(projectRoot);
+  const uncovered = scanUncoveredFiles(graph, files);
+  const coverage = await computeTypeCoverage(graph, uncovered, new FileContentCache());
+  const count = coverage.covered.size;
+  const noun = count === 1 ? 'file is' : 'files are';
+  const scopeNote = scopedToRoot ? ' (repo-wide — the type-level lattice has no subtree of its own to scope this to)' : '';
+  return `\n${count} ${noun} satisfied by the type-level lattice, no component of their own${scopeNote}.`;
 }
 
 function collectNodes(

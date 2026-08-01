@@ -55,7 +55,10 @@ A row of views down the side, each answering a different question:
 
 - **Overview** — where the repo stands, in one sentence, plus the residue worth a
   look: components with no rule yet, source files not mapped to anything, and any
-  active waivers.
+  active waivers. With `coverage.type_level` on, a file satisfied by the
+  type-level lattice is never counted in "not mapped to anything" — it has its
+  own real verdict, shown on its own line instead, so a checked file is never
+  called unguarded.
 - **Coverage & audit** — the full ledger. Every expected check, every verdict,
   with a single honest bar: the only green is a check a reviewer actually ran and
   approved against the current code. Free local checks and reviewer-judged checks

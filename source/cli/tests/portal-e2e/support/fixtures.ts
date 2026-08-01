@@ -16,7 +16,7 @@
  */
 import { test as base, expect } from '@playwright/test';
 import path from 'node:path';
-import { newTeardown, teardown, staticPage, CLI_ROOT, type Teardown } from './harness';
+import { newTeardown, teardown, staticPage, freshFixtureCopy, approveDeterministic, CLI_ROOT, type Teardown } from './harness';
 
 // All three fixtures are WORKER-scoped (the second generic arg of extend) so a server spawned in
 // one test is still reachable for cleanup and the static pages are generated once per worker.
@@ -25,7 +25,7 @@ import { newTeardown, teardown, staticPage, CLI_ROOT, type Teardown } from './ha
 // Playwright's own inference (the canonical worker-fixture form).
 export const test = base.extend<
   Record<never, never>,
-  { t: Teardown; basicPage: string; repoPage: string }
+  { t: Teardown; basicPage: string; repoPage: string; typeCoveragePage: string }
 >({
   t: [
     async ({}, use) => {
@@ -46,6 +46,18 @@ export const test = base.extend<
       // staticPage runs the CLI in CLI_ROOT/../.. (the repo root) so it reads THIS repo's graph.
       const repoRoot = path.join(CLI_ROOT, '..', '..');
       await use(staticPage(t, { cwd: repoRoot }));
+    },
+    { scope: 'worker' },
+  ],
+  // The one portal page with coverage.type_level ON: a fresh copy of portal-type-coverage,
+  // deterministically filled BEFORE the static emit so the type-covered file carries a real
+  // refused verdict, not merely an unverified one — the exact shape the portal must never
+  // call "unguarded" in the same payload that reports the refusal.
+  typeCoveragePage: [
+    async ({ t }, use) => {
+      const project = freshFixtureCopy(t, 'portal-type-coverage');
+      approveDeterministic(project);
+      await use(staticPage(t, { cwd: project }));
     },
     { scope: 'worker' },
   ],

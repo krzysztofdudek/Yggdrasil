@@ -17,5 +17,11 @@ relations:
     type: calls
   - target: cli/utils
     type: calls
+  - target: cli/core/type-coverage
+    type: calls
+  - target: cli/core/check
+    type: calls
+  - target: cli/io/file-content-cache
+    type: calls
 mapping:
   - source/cli/src/cli/tree.ts

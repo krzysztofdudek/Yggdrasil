@@ -3,6 +3,8 @@ import { runRelationPass } from '../../relations/pass.js';
 import { extractorForLanguage } from '../../relations/extractors/registry.js';
 import { astCacheDir } from '../../relations/facts-cache.js';
 import { guardedResolve } from '../../relations/resolve-path.js';
+import { buildOwnerIndex } from '../../relations/owner-index.js';
+import type { StructEdge } from '../../core/graph-metrics.js';
 import type { BoundaryInput } from '../contract.js';
 
 /**
@@ -169,5 +171,55 @@ export async function computeDetectedEdges(
     return pass.detectedEdgesByNode;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Additive, READ-ONLY accessor over the relation pass: run it ONCE, seeded with
+ * the caller's own type-coverage classification, and return the live
+ * type-relation gate's edges (`TypedEdgeIndex`) — every statically-resolved
+ * import edge with at LEAST ONE type-covered endpoint — already translated into
+ * the same plain `StructEdge` shape `edgeUniverse` produces, so a caller (`yg
+ * structure`) can merge them into its existing universe without a second,
+ * drifting implementation of "what is this edge's component id".
+ *
+ * The translation: a node-owned endpoint is named by its owning node's id (the
+ * SAME id space `edgeUniverse`'s node-to-node edges already use); a
+ * type-covered endpoint is named by its own file path (it has no node id to
+ * borrow — this mirrors how the type-relation gate itself names it). By
+ * `TypedEdgeIndex`'s own contract every edge here has at least one type-covered
+ * endpoint, so the two translated ids are never BOTH real node ids — this can
+ * never collide with or duplicate a node-to-node edge `computeDetectedEdges`
+ * already reports.
+ *
+ * Fails open to an empty array on any relation-pass failure — matching
+ * `computeDetectedEdges`'s own fail-open contract — so a malformed
+ * architecture or a parse throw degrades `yg structure` to its
+ * node-only view rather than crashing a read-only, never-gating command.
+ */
+export async function computeTypedEdges(
+  graph: Graph,
+  projectRoot: string,
+  typeCoveredFiles: Map<string, string>,
+): Promise<StructEdge[]> {
+  try {
+    const pass = await runRelationPass(graph, projectRoot, {
+      extractorFor: extractorForLanguage,
+      resolvePathToFile: await guardedResolve(projectRoot, graph),
+      symbolIndexDir: astCacheDir(graph.rootPath),
+      typeCoveredFiles,
+    });
+    const ownerIndex = buildOwnerIndex(graph.nodes);
+    const edges: StructEdge[] = [];
+    for (const fromFile of pass.fileOwnerType.keys()) {
+      const fromId = ownerIndex.ownerOf(fromFile) ?? fromFile;
+      for (const edge of pass.typedEdges.edgesFrom(fromFile)) {
+        const toId = edge.toOwner.kind === 'node' ? edge.toOwner.path : edge.toFile;
+        edges.push({ from: fromId, to: toId, viaContract: false, origin: 'detected' });
+      }
+    }
+    return edges;
+  } catch {
+    return [];
   }
 }

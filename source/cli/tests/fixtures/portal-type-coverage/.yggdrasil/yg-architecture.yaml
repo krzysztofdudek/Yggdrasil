@@ -1,0 +1,21 @@
+# yg-architecture.yaml — the portal's one tier-on fixture. Two types:
+#   gateway — the fixture's single explicit node's own type, scoped to its own
+#             directory so it never competes as a classifying type for
+#             anything else.
+#   svc     — a classifying type with no node of its own. Its one default
+#             aspect (no-todo-comments) is deterministic and REAL: the fixture's
+#             one type-covered file ships a marker that fails it, so this
+#             fixture carries a genuine refused verdict on a file no node maps
+#             — the exact shape the portal must never call "unguarded".
+node_types:
+  gateway:
+    description: "Entry-point source with an explicit owning node."
+    when:
+      path: "src/gateway/**"
+
+  svc:
+    description: "Service-layer source classified by type alone — satisfied without a node of its own, and still checked: it carries a real deterministic aspect."
+    when:
+      path: "src/svc/**"
+    aspects:
+      - no-todo-comments

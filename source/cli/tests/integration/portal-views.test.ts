@@ -224,6 +224,35 @@ describe('portal Phase-4 view modules (real source, real fixture data)', () => {
     expect(textOf(stage)).toMatch(/Absence of red is not a pass/i);
   });
 
+  it('Overview never renders the type-covered accounting chip when the count is zero (portal-basic has no type tier)', async () => {
+    const Yg = await loadYg();
+    const stage = makeNode('div');
+    Yg.views.overview(stage, { view: 'overview' }, data, { navigate: () => undefined });
+    expect(textOf(stage)).not.toMatch(/matched type/);
+  });
+
+  it('a nonzero typeCoveredCount gets its own accounting chip — never folded into the no-rule/unmapped chip', async () => {
+    const Yg = await loadYg();
+    const stage = makeNode('div');
+    const withTypeCovered: PortalData = {
+      ...data,
+      meta: { ...data.meta, counts: { ...data.meta.counts, typeCoveredCount: 3, uncoveredFiles: 1 } },
+    };
+    const routes: Array<Record<string, string>> = [];
+    Yg.views.overview(stage, { view: 'overview' }, withTypeCovered, { navigate: (r: Record<string, string>) => routes.push(r) });
+
+    expect(textOf(stage)).toMatch(/3.*matched type/);
+    // The unmapped/unguarded chip still reports its OWN (smaller, already-corrected) count —
+    // the two never collapse into one number.
+    expect(textOf(stage)).toMatch(/1.*unmapped \(unguarded\)/);
+    // The chip must not borrow the "no rule" badge — that would repeat the exact
+    // miscount this chip exists to correct (a type-covered file has its own real
+    // verdict, which may or may not be a pass).
+    expect(classesIn(stage).has('reslink-neutral')).toBe(true);
+    expect(clickFirst(stage, (n) => textOf(n).includes('matched type'))).toBe(true);
+    expect(routes.some((r) => r.view === 'coverage')).toBe(true);
+  });
+
   it('Coverage renders the live counts (== pipeline == yg check) and never collapses the non-pair track', async () => {
     const Yg = await loadYg();
     const stage = makeNode('div');
@@ -256,6 +285,28 @@ describe('portal Phase-4 view modules (real source, real fixture data)', () => {
     expect(textOf(boundaryChip as FakeNode)).toContain(String(realBoundary));
     expect(clickFirst(boundaryChip as FakeNode, () => true)).toBe(true);
     expect(routes.some((r) => r.view === 'relations')).toBe(true);
+  });
+
+  it('Coverage never renders a type-covered line when the count is zero (flag-off stays unchanged)', async () => {
+    const Yg = await loadYg();
+    const stage = makeNode('div');
+    Yg.views.coverage(stage, { view: 'coverage' }, data, { navigate: () => undefined });
+    expect(textOf(stage)).not.toContain('type-covered');
+  });
+
+  it('Coverage shows a nonzero type-covered count on its OWN line — never inside "not in coverage fraction" (its pairs ARE counted in the bar)', async () => {
+    const Yg = await loadYg();
+    const stage = makeNode('div');
+    const withTypeCovered: PortalData = { ...data, meta: { ...data.meta, counts: { ...data.meta.counts, typeCoveredCount: 4 } } };
+    Yg.views.coverage(stage, { view: 'coverage' }, withTypeCovered, { navigate: () => undefined });
+    expect(textOf(stage)).toMatch(/4.*type-covered/);
+    // The chip is neutral — not one of the nine honest-state badges (it is not itself a
+    // pair verdict; the file's real verdict is already counted in the bar above).
+    expect(classesIn(stage).has('reslink-neutral')).toBe(true);
+    // Never folded into the "not in coverage fraction" tag — its pairs count in the fraction.
+    const nonpairNodes = walk(stage).filter((n) => n.classList && n.classList.contains('cov-nonpair'));
+    const typeCoveredNonpair = nonpairNodes.find((n) => textOf(n).includes('type-covered'));
+    expect(typeCoveredNonpair && textOf(typeCoveredNonpair)).not.toMatch(/not in coverage fraction/);
   });
 
   it('Coverage surfaces the boundary counter as UNKNOWN (not a fabricated zero) when the parse could not run', async () => {

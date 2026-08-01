@@ -1,11 +1,15 @@
 import { readFileSync, existsSync, statSync } from 'node:fs';
 import path from 'node:path';
-import type { Graph, GraphNode, AspectStatus } from '../model/graph.js';
+import type { Graph, GraphNode, AspectStatus, CoverageConfig } from '../model/graph.js';
 import type { LockFile } from '../model/lock.js';
 import { loadGraphOrAbort } from '../cli/preamble.js';
 import { readRulesArtifacts } from '../cli/rules-artifacts.js';
 import { walkRepoFiles, listGitTrackedFiles, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
 import { runCheck, scanUncoveredFiles, type CheckResult, type CheckIssue } from '../core/check.js';
+// From utils/ (not core/check-coverage-tiers.ts, which only re-exports it) — this
+// facade already declares its cli/utils relation, so importing the defining module
+// directly adds no new coupling beyond what is already reviewed and visible.
+import { isExcludedByCoverage } from '../utils/coverage-exclusion.js';
 import { readLock, committedLockContentHash } from '../io/lock-store.js';
 import { verifyLock, type LockVerification, type VerifiedPair, type PairState } from '../core/verify-lock.js';
 import { computeExpectedPairs, type PairComputation, type TypeCoverageInput } from '../core/pairs.js';
@@ -94,6 +98,7 @@ export async function walkPortalFiles(projectRoot: string): Promise<string[]> {
 }
 
 export { resetNestedProjectRootsCache } from '../io/repo-scanner.js'; // re-exported, not imported directly by the pipeline (single-seam)
+export { NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js'; // re-exported so the residue derivation's exclusion filter needs no engine import of its own
 // ── Engine read-only entry points (severities, coverage, pairs, lock) ─────────
 
 /**
@@ -160,6 +165,15 @@ export async function computePortalPairs(graph: Graph, typeCoverage?: TypeCovera
 /** Reuse the engine's coverage scan: repo files mapped to no node. */
 export function scanPortalUncovered(graph: Graph, gitFiles: string[]): string[] {
   return scanUncoveredFiles(graph, gitFiles);
+}
+
+/**
+ * True iff `file` matches a `coverage.excluded` root. Reused by the residue
+ * derivation so a deliberately-excluded file is never listed alongside a
+ * genuinely-unmapped one — it was skipped on purpose, not silently missed.
+ */
+export function isPortalFileExcludedByCoverage(file: string, coverage: CoverageConfig): boolean {
+  return isExcludedByCoverage(file, coverage);
 }
 
 /** Read one node's raw log.md text (read-only; '' when absent). */

@@ -377,6 +377,14 @@ yg tree [--root <path>] [--depth <n>]
 - `--root <path>` — Show only subtree rooted at this path
 - `--depth <n>` — Maximum depth
 
+With `coverage.type_level` on, a summary line follows the node listing naming
+how many files are satisfied by the type-level lattice with no component of
+their own (never a synthetic tree entry — the listing above still renders
+nodes only). The count is always repo-wide: a type-covered file has no place
+in the graph hierarchy for `--root` to scope it to, so narrowing `--root` adds
+an explicit "repo-wide" note to the line rather than fabricating a scoped
+count. Absent entirely when the flag is off.
+
 ### `yg structure`
 
 A read-only structural dashboard over the graph. It reports the shape of your
@@ -402,6 +410,14 @@ instrument, not a gate: it never reads or writes the lock, never calls a
 reviewer, and always exits `0` as long as the graph loads — even when `yg check`
 is red. It fails only when there is no graph to load.
 
+With `coverage.type_level` on, the universe widens: every statically-resolved
+import edge touching a type-covered file joins it too (named by the file's own
+path, since it has no node id), and the change-reach caption says "component or
+type-covered file" instead of "component" so the wording never misnames a file.
+A malformed architecture degrades this widening to empty rather than crashing
+the command — flag off (or zero type-covered files) is byte-identical to
+today's node-only view.
+
 ### `yg find`
 
 Natural-language search across nodes and aspects (flows are not indexed). Returns results
@@ -422,6 +438,13 @@ gap: a large drop from `1.00` to the next result signals a confident winner;
 closely-clustered scores mean the query is ambiguous, so confirm the top
 candidate with `yg context` before relying on it. Flows are not in the index — to
 find a flow, use `yg flows`.
+
+With `coverage.type_level` on, a file satisfied by the type-level lattice (no
+node of its own) is also searchable — its `Kind` prints `file`, its `Type:`
+line names the matched classifying type, and its `Description` is that type's
+own description (types carry required descriptions). A file result's `Next`
+line points at `yg context --file <path>`, never `yg context --node` — a
+type-covered file has no `yg-node.yaml` to look up.
 
 ### `yg aspects`
 

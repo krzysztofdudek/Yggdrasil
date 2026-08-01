@@ -78,6 +78,10 @@ export interface PortalCounts {
   uncoveredFiles: number;
   coveredFiles: number;
   totalFiles: number;
+  /** Files satisfying coverage via a matched classifying type, no node. 0 when typeLevel is off. Named for symmetry with CheckResult.typeCoveredCount. */
+  typeCoveredCount: number;
+  /** Files under a coverage.excluded root — mirrors CheckResult.excludedFiles exactly. Already folded into the legacy coveredFiles total; exposed here as its own term so a consumer can subtract it out honestly instead of guessing. */
+  excludedFiles: number;
   // Severities — equal to what `yg check` reports.
   errors: number;
   warnings: number;
@@ -361,8 +365,13 @@ export interface WorklistGroup {
 
 /**
  * The honest "what is NOT being verified" ledger: nodes that own source but carry
- * no non-draft effective aspect, plus repo files mapped to no node at all. Surfaced
- * so the absence of red can never read as full coverage.
+ * no non-draft effective aspect, plus repo files mapped to no node AND not
+ * otherwise spoken for. `uncoveredFiles` excludes a file satisfied by the type-level
+ * lattice (it has its own verdict — listing it here too would call a checked file
+ * unguarded) and a file under a `coverage.excluded` root (it is deliberately
+ * skipped, not silently missed) — mirroring `PortalCounts.uncoveredFiles` exactly,
+ * so the chip's number and this list's length can never disagree. Surfaced so the
+ * absence of red can never read as full coverage.
  */
 export interface PortalResidue {
   noRuleNodes: string[];

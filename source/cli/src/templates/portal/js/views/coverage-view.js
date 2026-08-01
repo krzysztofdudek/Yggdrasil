@@ -40,6 +40,24 @@
   }
 
   /**
+   * A count key in the SAME shape as `key`, for a count that is not one of the
+   * nine honest states — a type-covered file has its own real verdict (verified,
+   * refused, or unverified, tallied in the bar above), so this key must never
+   * borrow a state's badge or label for it. Plain neutral glyph + a literal label.
+   */
+  function neutralKey(count, label, suffix) {
+    var k = dom.el('span', 'cov-key');
+    var mark = dom.el('span', 'state-glyph reslink-neutral', '•');
+    mark.setAttribute('role', 'img');
+    mark.setAttribute('aria-label', 'satisfied by a matched type');
+    k.appendChild(mark);
+    k.appendChild(dom.el('b', null, String(count)));
+    k.appendChild(dom.el('span', 'cov-key-lbl', label));
+    if (suffix) k.appendChild(dom.el('span', 'cov-key-sub', suffix));
+    return k;
+  }
+
+  /**
    * A LIVE-badged counter. `value` is a number read from the live data, or the string 'UNKNOWN'
    * when the underlying check could not run — never a fabricated zero. An explicit number is
    * always rendered (no hidden row); an optional `onClick` routes the chip.
@@ -118,6 +136,20 @@
     nonpair.appendChild(key('draft', c.draft));
     nonpair.appendChild(key('not-applicable', c.notApplicable));
     ledger.appendChild(nonpair);
+
+    // A type-covered file is the OPPOSITE of the non-pair track above: its own
+    // pairs against its matched type's aspects ARE counted in the bar's fraction
+    // — it just has no component of its own to attach to. Shown as its own line,
+    // never inside "not in coverage fraction", so it is never read as excluded
+    // from the ratio it actually contributes to. Omitted when zero (typeLevel
+    // off, or no file satisfied this way) — flag-off output stays unchanged.
+    if (c.typeCoveredCount > 0) {
+      ledger.appendChild(dom.el('div', 'cov-hair'));
+      var typeCovered = dom.el('div', 'cov-nonpair');
+      typeCovered.appendChild(dom.el('span', 'cov-nptag', 'counted above, no component of their own:'));
+      typeCovered.appendChild(neutralKey(c.typeCoveredCount, 'type-covered', 'satisfied by a matched type'));
+      ledger.appendChild(typeCovered);
+    }
 
     // LIVE counters — read from the live data, never a fabricated zero. The boundary count is
     // the real undeclared + forbidden-type violation total (declared-only is legitimate, never
