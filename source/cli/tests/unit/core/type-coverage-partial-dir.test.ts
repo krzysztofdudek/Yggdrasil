@@ -61,7 +61,11 @@ describe('yg context --file on the type-covered sibling of a directory with an e
     // this same directory already has an explicit node" — pinning the real,
     // current absence rather than assuming a cross-file note that does not
     // exist. A later addition of that note should update this assertion
-    // deliberately, not leave it silently green.
-    expect(r.stdout).not.toMatch(/handler\.ts|already has an explicit node|other file.*node/i);
+    // deliberately, not leave it silently green. Read BOTH streams: the
+    // command's typed body writes to stdout today, but nothing about a future
+    // divergence note guarantees it lands there rather than on stderr, and a
+    // pin that only reads one stream cannot see the other half of what its
+    // subject prints.
+    expect(r.stdout + r.stderr).not.toMatch(/handler\.ts|already has an explicit node|other file.*node/i);
   });
 });

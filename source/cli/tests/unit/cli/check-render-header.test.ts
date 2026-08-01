@@ -251,12 +251,13 @@ describe('check render — header type-covered split (coverage.type_level)', () 
   // renderHeader computes the verdict prefix and the files-metric split from
   // the SAME result object in one pass, an interaction bug (e.g. the
   // type-level split accidentally suppressing the FAIL colour) is exactly
-  // the kind of thing neither existing block can catch alone. (The FAIL +
-  // autoFilled interaction is a separate, already-covered claim — the
-  // verdict prefix never reads typeLevel, so the pre-existing 'FAIL result
-  // with autoFilled=true does NOT say (auto-filled)' test above already pins
-  // it regardless of which files-metric arm renders underneath.)
-  it('flag ON + FAIL (errors present): verdict reads FAIL and the three-term split still renders in full', () => {
+  // the kind of thing neither existing block can catch alone. This case also
+  // passes autoFilled=true (not just typeLevel: true) — the pre-existing FAIL
+  // + autoFilled test above never sets typeLevel, so it cannot see a
+  // regression where the marker's guard reads BOTH flags together instead of
+  // the error count alone; this is the only test in the suite exercising
+  // that exact combination.
+  it('flag ON + FAIL (errors present) + autoFilled=true: verdict reads plain FAIL — never "(auto-filled)" — and the three-term split still renders in full', () => {
     const errorIssue: CheckIssue = {
       severity: 'error', code: 'ambiguous-node-type', rule: 'ambiguous-node-type',
       messageData: { what: 'x', why: 'y', next: 'z' },
@@ -266,8 +267,9 @@ describe('check render — header type-covered split (coverage.type_level)', () 
       coveredFiles: 1, totalFiles: 5, typeLevel: true,
       typeCoveredCount: 1, classifyingTypeCount: 1, nodeOwnedFiles: 0, excludedFiles: 1,
     };
-    const out = stripAnsi(formatOutput(result, { kind: 'full' }));
+    const out = stripAnsi(formatOutput(result, { kind: 'full' }, /* autoFilled */ true));
     expect(out).toContain('yg check: FAIL');
+    expect(out).not.toContain('auto-filled');
     expect(out).toContain('2/5 files (0 node-owned, 1 type-covered, 1 excluded)');
   });
 
