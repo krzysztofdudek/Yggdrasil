@@ -1,0 +1,5 @@
+name: ModFileAbs
+description: The module file lib/mod.py — the module-as-file candidate for AppAbs's absolute import.
+type: service
+mapping:
+  - lib/mod.py

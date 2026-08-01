@@ -1,0 +1,5 @@
+name: ModFileRel
+description: The module file app/mod.py — the module-as-file candidate for AppRel's relative import.
+type: service
+mapping:
+  - app/mod.py

@@ -1,0 +1,9 @@
+name: AppRel
+description: >-
+  Imports the sibling module mod by a relative import (`from .mod import X`).
+  Its own directory holds both a module file (mod.py) and a same-named package
+  (mod/__init__.py), the identical module/package shadow AppAbs faces, through
+  the relative resolver instead of the absolute one.
+type: service
+mapping:
+  - app/main_rel.py

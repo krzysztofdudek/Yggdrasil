@@ -2,11 +2,24 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import path from 'node:path';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { fileURLToPath } from 'node:url';
 
 import { loadGraph } from '../../src/core/graph-loader.js';
 import { runRelationPass } from '../../src/relations/pass.js';
 import { extractorForLanguage } from '../../src/relations/extractors/registry.js';
 import { guardedResolve } from '../../src/relations/resolve-path.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// Committed, permanent fixtures (never a scratch copy) — the ancestor-root/same-root
+// shadow shapes below need real on-disk source trees, and the ONLY thing that varies
+// between a test's "control" and "excluded" runs is coverage.excluded, which is set
+// in memory on the loaded graph before resolving, rather than by writing a second
+// on-disk config. Each fixture's own AST-fact cache directory
+// (.yggdrasil/.ast-cache/, gitignored the same way a real project's is) is reused
+// freely across every test below — the cache is content-addressed, so re-running
+// with a different coverage.excluded value never stales it.
+const JAVA_SHADOW_FIXTURE = path.resolve(__dirname, '../fixtures/java-ancestor-root-shadow');
+const PYTHON_SHADOW_FIXTURE = path.resolve(__dirname, '../fixtures/python-modpkg-shadow');
 
 function writeNode(root: string, nodeRel: string, name: string, mapping: string): void {
   const dir = path.join(root, '.yggdrasil', 'model', nodeRel);
@@ -200,5 +213,203 @@ describe('runRelationPass — excluding one of two PSR-4 root copies of a PHP cl
     expect(app!.verdict).toBe('refused');
     expect(app!.violations.some((v) => v.ownerNode === 's1')).toBe(true);
     expect(app!.violations.some((v) => v.ownerNode === 's2')).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Java's ancestor-source-root search is nearest-first-wins, never "collect a
+// candidate set and decide" — unlike Python's and PHP's resolvers above. The
+// importer at src/main/java/com/app/ climbs its own ancestor chain looking
+// for com/a/Zzz.java; a half-migrated or flat layout can leave the SAME FQN's
+// file sitting under two different ancestor roots (one nested under
+// src/main/java, one directly under src), and the nearer one always won —
+// unconditionally, with no exclusion awareness at all — so excluding it could
+// only silence the import, never fall through to the farther, still-live copy.
+// The fixture (tests/fixtures/java-ancestor-root-shadow) is a permanent, real
+// on-disk project; only coverage.excluded varies between the cases below, set
+// in memory on the loaded graph before resolving.
+// ---------------------------------------------------------------------------
+describe('runRelationPass — excluding the nearer of two ancestor-root copies of a Java type lets a precise import fall through to the farther, still-live copy', () => {
+  const symbolIndexDir = path.join(JAVA_SHADOW_FIXTURE, '.yggdrasil', '.ast-cache');
+
+  it('control: with no exclusion, the nearer ancestor root wins', async () => {
+    const graph = await loadGraph(JAVA_SHADOW_FIXTURE);
+    const result = await runRelationPass(graph, JAVA_SHADOW_FIXTURE, {
+      extractorFor: extractorForLanguage,
+      resolvePathToFile: await guardedResolve(JAVA_SHADOW_FIXTURE, graph),
+      symbolIndexDir,
+    });
+    const app = result.violationsByNode.get('app-precise');
+    expect(app).toBeDefined();
+    expect(app!.verdict).toBe('refused');
+    expect(app!.violations.some((v) => v.ownerNode === 'near')).toBe(true);
+    expect(app!.violations.some((v) => v.ownerNode === 'far')).toBe(false);
+  });
+
+  it("excluding the nearer copy ('src/main/java/com/a/Zzz.java') attributes the import to the farther, still-live copy", async () => {
+    const graph = await loadGraph(JAVA_SHADOW_FIXTURE);
+    graph.config.coverage = { required: [], excluded: ['src/main/java/com/a/Zzz.java'], typeLevel: false };
+    const result = await runRelationPass(graph, JAVA_SHADOW_FIXTURE, {
+      extractorFor: extractorForLanguage,
+      resolvePathToFile: await guardedResolve(JAVA_SHADOW_FIXTURE, graph),
+      symbolIndexDir,
+    });
+    const app = result.violationsByNode.get('app-precise');
+    expect(app).toBeDefined();
+    expect(app!.verdict).toBe('refused');
+    expect(app!.violations.some((v) => v.ownerNode === 'far')).toBe(true);
+    expect(app!.violations.some((v) => v.ownerNode === 'near')).toBe(false);
+  });
+
+  it("excluding the farther copy ('src/com/a/Zzz.java') leaves the nearer resolution unaffected", async () => {
+    const graph = await loadGraph(JAVA_SHADOW_FIXTURE);
+    graph.config.coverage = { required: [], excluded: ['src/com/a/Zzz.java'], typeLevel: false };
+    const result = await runRelationPass(graph, JAVA_SHADOW_FIXTURE, {
+      extractorFor: extractorForLanguage,
+      resolvePathToFile: await guardedResolve(JAVA_SHADOW_FIXTURE, graph),
+      symbolIndexDir,
+    });
+    const app = result.violationsByNode.get('app-precise');
+    expect(app).toBeDefined();
+    expect(app!.verdict).toBe('refused');
+    expect(app!.violations.some((v) => v.ownerNode === 'near')).toBe(true);
+    expect(app!.violations.some((v) => v.ownerNode === 'far')).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The same ancestor-root shape, through a WILDCARD import: the package resolver
+// commits to the first ancestor directory that holds any .java file at all,
+// which used to mean an excluded-only directory still ended the search — the
+// caller's later exclusion filter had nothing left to fall back on. Same
+// fixture, same near/far source roots — only the importer file and node differ.
+// ---------------------------------------------------------------------------
+describe('runRelationPass — excluding the nearer of two ancestor-root package directories lets a wildcard import fall through to the farther, still-live directory', () => {
+  const symbolIndexDir = path.join(JAVA_SHADOW_FIXTURE, '.yggdrasil', '.ast-cache');
+
+  it('control: with no exclusion, the nearer ancestor root directory wins', async () => {
+    const graph = await loadGraph(JAVA_SHADOW_FIXTURE);
+    const result = await runRelationPass(graph, JAVA_SHADOW_FIXTURE, {
+      extractorFor: extractorForLanguage,
+      resolvePathToFile: await guardedResolve(JAVA_SHADOW_FIXTURE, graph),
+      symbolIndexDir,
+    });
+    const app = result.violationsByNode.get('app-wildcard');
+    expect(app).toBeDefined();
+    expect(app!.verdict).toBe('refused');
+    expect(app!.violations.some((v) => v.ownerNode === 'near')).toBe(true);
+    expect(app!.violations.some((v) => v.ownerNode === 'far')).toBe(false);
+  });
+
+  it("excluding the nearer directory's only file attributes the import to the farther, still-live directory", async () => {
+    const graph = await loadGraph(JAVA_SHADOW_FIXTURE);
+    graph.config.coverage = { required: [], excluded: ['src/main/java/com/a/Zzz.java'], typeLevel: false };
+    const result = await runRelationPass(graph, JAVA_SHADOW_FIXTURE, {
+      extractorFor: extractorForLanguage,
+      resolvePathToFile: await guardedResolve(JAVA_SHADOW_FIXTURE, graph),
+      symbolIndexDir,
+    });
+    const app = result.violationsByNode.get('app-wildcard');
+    expect(app).toBeDefined();
+    expect(app!.verdict).toBe('refused');
+    expect(app!.violations.some((v) => v.ownerNode === 'far')).toBe(true);
+    expect(app!.violations.some((v) => v.ownerNode === 'near')).toBe(false);
+  });
+
+  it("excluding the farther directory's only file leaves the nearer resolution unaffected", async () => {
+    const graph = await loadGraph(JAVA_SHADOW_FIXTURE);
+    graph.config.coverage = { required: [], excluded: ['src/com/a/Zzz.java'], typeLevel: false };
+    const result = await runRelationPass(graph, JAVA_SHADOW_FIXTURE, {
+      extractorFor: extractorForLanguage,
+      resolvePathToFile: await guardedResolve(JAVA_SHADOW_FIXTURE, graph),
+      symbolIndexDir,
+    });
+    const app = result.violationsByNode.get('app-wildcard');
+    expect(app).toBeDefined();
+    expect(app!.verdict).toBe('refused');
+    expect(app!.violations.some((v) => v.ownerNode === 'near')).toBe(true);
+    expect(app!.violations.some((v) => v.ownerNode === 'far')).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Python's per-root candidate search tries a module-as-file before a same-named
+// package at every ancestor root, but previously stopped at the first EXISTING
+// candidate regardless of exclusion — so at a single root holding both `mod.py`
+// and `mod/__init__.py` (a package outranks a same-named module at runtime, per
+// CPython's own import semantics), excluding the module could not fall through
+// to the live package sitting right next to it. The fixture
+// (tests/fixtures/python-modpkg-shadow) is a permanent, real on-disk project.
+// ---------------------------------------------------------------------------
+describe('runRelationPass — excluding a module file that shadows a same-root package attributes an absolute import to the live package', () => {
+  const symbolIndexDir = path.join(PYTHON_SHADOW_FIXTURE, '.yggdrasil', '.ast-cache');
+
+  it('control: with no exclusion, the module file wins over the same-root package', async () => {
+    const graph = await loadGraph(PYTHON_SHADOW_FIXTURE);
+    const result = await runRelationPass(graph, PYTHON_SHADOW_FIXTURE, {
+      extractorFor: extractorForLanguage,
+      resolvePathToFile: await guardedResolve(PYTHON_SHADOW_FIXTURE, graph),
+      symbolIndexDir,
+    });
+    const app = result.violationsByNode.get('app-abs');
+    expect(app).toBeDefined();
+    expect(app!.verdict).toBe('refused');
+    expect(app!.violations.some((v) => v.ownerNode === 'modfile-abs')).toBe(true);
+    expect(app!.violations.some((v) => v.ownerNode === 'modpkg-abs')).toBe(false);
+  });
+
+  it("excluding the module file ('lib/mod.py') attributes the import to the live package", async () => {
+    const graph = await loadGraph(PYTHON_SHADOW_FIXTURE);
+    graph.config.coverage = { required: [], excluded: ['lib/mod.py'], typeLevel: false };
+    const result = await runRelationPass(graph, PYTHON_SHADOW_FIXTURE, {
+      extractorFor: extractorForLanguage,
+      resolvePathToFile: await guardedResolve(PYTHON_SHADOW_FIXTURE, graph),
+      symbolIndexDir,
+    });
+    const app = result.violationsByNode.get('app-abs');
+    expect(app).toBeDefined();
+    expect(app!.verdict).toBe('refused');
+    expect(app!.violations.some((v) => v.ownerNode === 'modpkg-abs')).toBe(true);
+    expect(app!.violations.some((v) => v.ownerNode === 'modfile-abs')).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The same module/package shadow, through a RELATIVE import (`from .mod import
+// X`) — the relative resolver received no isExcluded parameter at all, so
+// excluding the module file had no effect on it whatsoever. Same fixture as
+// above; the relative shape uses its own sibling module/package pair so the
+// two shapes never interact on disk.
+// ---------------------------------------------------------------------------
+describe('runRelationPass — excluding a module file that shadows a same-root package attributes a relative import to the live package', () => {
+  const symbolIndexDir = path.join(PYTHON_SHADOW_FIXTURE, '.yggdrasil', '.ast-cache');
+
+  it('control: with no exclusion, the module file wins over the same-root package', async () => {
+    const graph = await loadGraph(PYTHON_SHADOW_FIXTURE);
+    const result = await runRelationPass(graph, PYTHON_SHADOW_FIXTURE, {
+      extractorFor: extractorForLanguage,
+      resolvePathToFile: await guardedResolve(PYTHON_SHADOW_FIXTURE, graph),
+      symbolIndexDir,
+    });
+    const app = result.violationsByNode.get('app-rel');
+    expect(app).toBeDefined();
+    expect(app!.verdict).toBe('refused');
+    expect(app!.violations.some((v) => v.ownerNode === 'modfile-rel')).toBe(true);
+    expect(app!.violations.some((v) => v.ownerNode === 'modpkg-rel')).toBe(false);
+  });
+
+  it("excluding the module file ('app/mod.py') attributes the import to the live package", async () => {
+    const graph = await loadGraph(PYTHON_SHADOW_FIXTURE);
+    graph.config.coverage = { required: [], excluded: ['app/mod.py'], typeLevel: false };
+    const result = await runRelationPass(graph, PYTHON_SHADOW_FIXTURE, {
+      extractorFor: extractorForLanguage,
+      resolvePathToFile: await guardedResolve(PYTHON_SHADOW_FIXTURE, graph),
+      symbolIndexDir,
+    });
+    const app = result.violationsByNode.get('app-rel');
+    expect(app).toBeDefined();
+    expect(app!.verdict).toBe('refused');
+    expect(app!.violations.some((v) => v.ownerNode === 'modpkg-rel')).toBe(true);
+    expect(app!.violations.some((v) => v.ownerNode === 'modfile-rel')).toBe(false);
   });
 });

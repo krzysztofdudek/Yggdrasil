@@ -25,15 +25,21 @@ import type { Graph } from '../model/graph.js';
  *  for one prefix) face the same shape of ambiguity without an owner-set to collapse: their
  *  resolvers use `isExcluded` to drop an excluded match from the candidate SET before
  *  deciding whether resolution is ambiguous, so an excluded duplicate can no longer keep a
- *  real, surviving candidate silenced. Either way this is what keeps an exclusion honest
- *  about every OTHER file: excluding one file can only remove that file's own contribution
- *  to the decision — it can never fabricate an owner or a target a surviving file never had,
- *  and it can never bury a real dependency reached through a file that is still there. A
- *  caller resolving a specifier fresh from source — the specifier can name any file on disk,
- *  excluded or not — must build this through {@link guardedResolve} instead of calling this
- *  directly with `ownerOf` and no `isExcluded`: without `isExcluded`, an excluded file still
- *  counts toward the ambiguity decision, which can silence a real cross-node dependency
- *  reached through the surviving, non-excluded, fully enforced candidate. */
+ *  real, surviving candidate silenced. Java's own ancestor-source-root search (both a precise
+ *  type import and a wildcard package import) is nearest-first-wins rather than
+ *  collect-then-decide, so it applies `isExcluded` differently: an excluded hit is treated as
+ *  though it does not exist, so the walk keeps climbing to the next candidate — same root,
+ *  then further-out roots — instead of letting an excluded nearer copy end the search before
+ *  the farther, still-live copy is ever tried (see java-resolve.ts's own doc comment). Either
+ *  way this is what keeps an exclusion honest about every OTHER file: excluding one file can
+ *  only remove that file's own contribution to the decision — it can never fabricate an owner
+ *  or a target a surviving file never had, and it can never bury a real dependency reached
+ *  through a file that is still there. A caller resolving a specifier fresh from source — the
+ *  specifier can name any file on disk, excluded or not — must build this through
+ *  {@link guardedResolve} instead of calling this directly with `ownerOf` and no `isExcluded`:
+ *  without `isExcluded`, an excluded file still counts toward the ambiguity decision (or, for
+ *  Java, still wins the walk), which can silence a real cross-node dependency reached through
+ *  the surviving, non-excluded, fully enforced candidate. */
 export function makeResolvePathToFile(
   projectRoot: string,
   ownerOf?: (repoRelPosix: string) => string | undefined,
@@ -41,7 +47,7 @@ export function makeResolvePathToFile(
 ): (specifier: string, fromFile: string, language: string, isPackage?: boolean) => string | undefined {
   const exists = (repoRelPosix: string): boolean => existsSync(path.resolve(projectRoot, repoRelPosix));
   const goDeps = makeGoResolveDeps(projectRoot, ownerOf, isExcluded);
-  const javaDeps = makeJavaResolveDeps(projectRoot, exists);
+  const javaDeps = makeJavaResolveDeps(projectRoot, exists, isExcluded);
   const phpDeps = makePhpResolveDeps(projectRoot, exists, isExcluded);
   const rustDeps = makeRustResolveDeps(projectRoot);
   return (specifier, fromFile, language, isPackage = false) => {
@@ -56,41 +62,36 @@ export function makeResolvePathToFile(
     }
     if (language === 'java') {
       if (isPackage) {
-        // Wildcard package import: drop any excluded file from the resolved
-        // package dir's file list FIRST, then decide ownership from what
-        // remains — the same drop-then-decide rule go-resolve.ts's own
-        // owner-set guard applies (see makeGoResolveDeps's isExcluded doc
-        // comment for the full reasoning). Exactly one distinct owner among
-        // what remains → attribute one of its (non-excluded, by construction)
-        // files; 2+ distinct owners among what remains → still split →
-        // silence.
+        // Wildcard package import: `resolveJavaPackageFiles` already committed to the
+        // first ANCESTOR ROOT with at least one LIVE (non-excluded) file — an
+        // excluded-only root is skipped exactly like an empty one (see
+        // java-resolve.ts's own doc comment) — so `files` here is already the live set
+        // to decide ownership over. Exactly one distinct owner among them → attribute
+        // one of its files; 2+ distinct owners → still split → silence.
         //
-        // No `sole` owner found covers TWO different situations: nothing
-        // remains (every file excluded — `remaining[0]` is naturally
-        // `undefined`, the same silence a wholly-unmapped package gets), or
-        // `remaining` is non-empty but no node owns any of it (a package that
-        // is type-covered only, under `coverage.type_level`, has no node
-        // owner for ANY file — the ordinary case, not the exception). The
-        // fallback picks `remaining[0]` either way rather than returning
-        // `undefined` outright: a caller that is not the node owner index
-        // (the type-coverage lookup) still needs a live, non-excluded file to
-        // find the package's matched type — silencing unconditionally here
-        // made every wildcard import into a nodeless package invisible to
-        // that lookup, exclusion or not.
+        // No `sole` owner found covers TWO different situations: `files` is empty (the
+        // package was found nowhere live — `files[0]` is naturally `undefined`, the
+        // same silence a wholly-unmapped package gets), or `files` is non-empty but no
+        // node owns any of it (a package that is type-covered only, under
+        // `coverage.type_level`, has no node owner for ANY file — the ordinary case,
+        // not the exception). The fallback picks `files[0]` either way rather than
+        // returning `undefined` outright: a caller that is not the node owner index
+        // (the type-coverage lookup) still needs a live, non-excluded file to find the
+        // package's matched type — silencing unconditionally here made every wildcard
+        // import into a nodeless package invisible to that lookup, exclusion or not.
         const files = resolveJavaPackageFiles(specifier, fromFile, javaDeps);
-        const remaining = files.filter((f) => !(isExcluded?.(f) ?? false));
         let sole: string | undefined;
-        for (const f of remaining) {
+        for (const f of files) {
           const owner = ownerOf?.(f);
           if (owner === undefined) continue; // unmapped file is not part of the owner set
           if (sole === undefined) {
             sole = owner;
           } else if (owner !== sole) {
-            return undefined; // 2+ distinct owners among what remains → split package → silence
+            return undefined; // 2+ distinct owners among the live set → split package → silence
           }
         }
-        if (sole === undefined) return remaining[0];
-        const soleOwned = remaining.filter((f) => ownerOf?.(f) === sole);
+        if (sole === undefined) return files[0];
+        const soleOwned = files.filter((f) => ownerOf?.(f) === sole);
         return soleOwned[0];
       }
       return resolveJavaFqn(specifier, fromFile, javaDeps);
@@ -103,7 +104,10 @@ export function makeResolvePathToFile(
     }
     if (language === 'c' || language === 'cpp') {
       // C and C++ share ONE include resolver: a quoted `#include "header"` resolves
-      // relative to the including file, then against common include roots. The header's
+      // ONLY relative to the including file's own directory — deliberately no probe of
+      // ancestor dirs or common include roots (see include-resolve.ts's own doc comment
+      // for why: such a probe can only match a same-basename decoy the real compiler,
+      // driven by -I flags this resolver cannot see, would never pick). The header's
       // owning node is the dependency target (header/impl share a node).
       return resolveIncludePath(specifier, fromFile, exists);
     }
@@ -320,7 +324,10 @@ function makeGoResolveDeps(
  * Build the disk-backed Java resolution capabilities for a project root. Java
  * resolution is pure file/directory existence (the package = directory convention),
  * so `exists` is shared with the other resolvers; the only extra capability is
- * listing a package directory's `.java` files for a wildcard import.
+ * listing a package directory's `.java` files for a wildcard import. `isExcluded`
+ * flows straight through to `JavaResolveDeps` so both `resolveType` and
+ * `resolveJavaPackageFiles` can skip an excluded hit and keep walking the
+ * ancestor-source-root chain — see java-resolve.ts's own doc comment.
  *
  * NOTE: makeResolvePathToFile's deps are pure filesystem access;
  * readdirSync is fine there — it lists files, it does not parse.
@@ -328,6 +335,7 @@ function makeGoResolveDeps(
 function makeJavaResolveDeps(
   projectRoot: string,
   exists: (repoRelPosix: string) => boolean,
+  isExcluded?: (repoRelPosix: string) => boolean,
 ): JavaResolveDeps {
   function javaFilesIn(repoRelDir: string): string[] {
     const abs = path.resolve(projectRoot, repoRelDir);
@@ -345,7 +353,7 @@ function makeJavaResolveDeps(
     }
     return out;
   }
-  return { exists, javaFilesIn };
+  return { exists, javaFilesIn, isExcluded };
 }
 
 /**

@@ -1,0 +1,8 @@
+name: AppWildcard
+description: >-
+  Imports the package com.a by a wildcard import. Sits in the same directory
+  as AppPrecise's own importer, so its ancestor-root search faces the identical
+  near/far shadow between the two com.a source roots.
+type: service
+mapping:
+  - src/main/java/com/app/MainWildcard.java

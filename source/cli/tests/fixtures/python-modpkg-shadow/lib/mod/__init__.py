@@ -1,0 +1,2 @@
+class ModPkgAbs:
+    pass

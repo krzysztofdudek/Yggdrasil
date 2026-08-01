@@ -109,3 +109,71 @@ describe('resolveJavaFqn — single-type import does NOT fall through to a packa
     );
   });
 });
+
+// Two ancestor source roots both hold the same FQN's file — a half-migrated or flat
+// layout, not a normal multi-module Maven tree. Unlike Python's/PHP's multi-root
+// search, Java's ancestor walk is nearest-first-wins, never "collect and decide
+// ambiguous": the importer at src/main/java/com/app/Main.java climbs its own
+// ancestor chain, so 'src/main/java/com/a/Zzz.java' (found at the 'src/main/java'
+// ancestor) is NEARER than 'src/com/a/Zzz.java' (found only at the 'src' ancestor,
+// one hop further up) and wins whenever both exist.
+describe('resolveJavaFqn / resolveJavaPackageFiles — exclusion-aware ancestor-root walk', () => {
+  const nearFile = 'src/main/java/com/a/Zzz.java';
+  const farFile = 'src/com/a/Zzz.java';
+  const shadowFiles = new Set([nearFile, farFile]);
+  function shadowDeps(isExcluded?: (p: string) => boolean): JavaResolveDeps {
+    return {
+      exists: (p) => shadowFiles.has(p),
+      javaFilesIn: (dir) => {
+        const prefix = dir === '' ? '' : dir + '/';
+        return [...shadowFiles].filter(
+          (f) => f.startsWith(prefix) && !f.slice(prefix.length).includes('/'),
+        );
+      },
+      isExcluded,
+    };
+  }
+
+  it('control: with nothing excluded, the nearer ancestor root wins a precise type import', () => {
+    expect(resolveJavaFqn('com.a.Zzz', FROM, shadowDeps())).toBe(nearFile);
+  });
+
+  it('excluding the nearer root file lets a precise type import fall through to the farther, still-live root', () => {
+    const isExcluded = (p: string) => p === nearFile;
+    expect(resolveJavaFqn('com.a.Zzz', FROM, shadowDeps(isExcluded))).toBe(farFile);
+  });
+
+  it('excluding the farther root file leaves the nearer precise-import resolution unaffected', () => {
+    const isExcluded = (p: string) => p === farFile;
+    expect(resolveJavaFqn('com.a.Zzz', FROM, shadowDeps(isExcluded))).toBe(nearFile);
+  });
+
+  it('excluding both root files leaves a precise type import unresolved', () => {
+    const isExcluded = (): boolean => true;
+    expect(resolveJavaFqn('com.a.Zzz', FROM, shadowDeps(isExcluded))).toBeUndefined();
+  });
+
+  it('control: with nothing excluded, a wildcard import commits to the nearer root directory', () => {
+    expect(resolveJavaPackageFiles('com.a', FROM, shadowDeps())).toEqual([nearFile]);
+  });
+
+  it('excluding the nearer root\'s only file lets a wildcard import walk up to the farther root', () => {
+    const isExcluded = (p: string) => p === nearFile;
+    expect(resolveJavaPackageFiles('com.a', FROM, shadowDeps(isExcluded))).toEqual([farFile]);
+  });
+
+  it('excluding one of several files in the nearer root\'s directory returns the survivors, without walking up', () => {
+    const twoFiles = new Set([nearFile, 'src/main/java/com/a/Yyy.java', farFile]);
+    const deps2: JavaResolveDeps = {
+      exists: (p) => twoFiles.has(p),
+      javaFilesIn: (dir) => {
+        const prefix = dir === '' ? '' : dir + '/';
+        return [...twoFiles].filter(
+          (f) => f.startsWith(prefix) && !f.slice(prefix.length).includes('/'),
+        );
+      },
+      isExcluded: (p) => p === nearFile,
+    };
+    expect(resolveJavaPackageFiles('com.a', FROM, deps2)).toEqual(['src/main/java/com/a/Yyy.java']);
+  });
+});

@@ -26,6 +26,7 @@ import type { LockFile } from '../../src/model/lock.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BASIC_FIXTURE = path.resolve(__dirname, '../fixtures/portal-basic');
+const RUNCHECK_PARITY_FIXTURE = path.resolve(__dirname, '../fixtures/runcheck-parity');
 
 const tmpDirs: string[] = [];
 afterAll(() => {
@@ -246,6 +247,20 @@ describe('computePortalSourceFileCounts — the panel\'s real per-node file coun
       const marker = counts.find((c) => c.nodePath === nodePath)!;
       expect(marker.sourceFileCount).toBe(files.length);
     }
+  });
+
+  it('reports the real expanded file count, not the raw mapping-entry count, for a directory mapping', async () => {
+    // BASIC_FIXTURE's own nodes each map exactly one file, so mapping.length already
+    // equals the real file count for every node there — a facade that quietly
+    // returned mapping.length instead of the real expansion would pass the two tests
+    // above unnoticed. The committed `runcheck-parity` fixture's `cli/callers` node has
+    // ONE mapping entry (a directory, `src/callers/`) that expands to SEVEN files on
+    // disk, so the two numbers can only agree here if the facade is actually doing the
+    // real expansion.
+    const graph = await loadGraph(RUNCHECK_PARITY_FIXTURE);
+    const counts = await computePortalSourceFileCounts(graph);
+    const callers = counts.find((c) => c.nodePath === 'cli/callers')!;
+    expect(callers.sourceFileCount).toBe(7); // real expansion, not the single mapping entry
   });
 });
 
