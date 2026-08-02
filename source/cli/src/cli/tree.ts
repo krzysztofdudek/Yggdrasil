@@ -8,7 +8,7 @@ import { buildIssueMessage } from '../formatters/message-builder.js';
 import type { GraphNode, Graph } from '../model/graph.js';
 import { walkRepoFiles } from '../io/repo-scanner.js';
 import { scanUncoveredFiles } from '../core/check.js';
-import { computeTypeCoverage } from '../core/type-coverage.js';
+import { computeTypeCoverageCached } from '../core/type-coverage.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import { computeExpectedPairs, type TypeCoverageInput } from '../core/pairs.js';
 
@@ -96,7 +96,7 @@ async function typeCoveredSummaryLine(graph: Graph, scopedToRoot: boolean): Prom
   const projectRoot = path.dirname(graph.rootPath);
   const files = await walkRepoFiles(projectRoot);
   const uncovered = scanUncoveredFiles(graph, files);
-  const coverage = await computeTypeCoverage(graph, uncovered, new FileContentCache());
+  const coverage = await computeTypeCoverageCached(graph, uncovered, new FileContentCache());
   const count = coverage.covered.size;
   const noun = count === 1 ? 'file is' : 'files are';
   const scopeNote = scopedToRoot ? ' (repo-wide — the type-level lattice has no subtree of its own to scope this to)' : '';

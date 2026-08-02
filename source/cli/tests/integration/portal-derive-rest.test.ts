@@ -29,18 +29,20 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     data = await extractPortalData(REPO_ROOT, { writeEnabled: false });
   }, 180_000);
 
-  it('cli/core/check is the sole top fan-out hub at 25 declared relations, ahead of a cli/core/fill / cli/portal/engine-api tie at 24', () => {
-    // cli/core/check gained one real relation (a call to the new
-    // content-hash classification cache node it now constructs and injects
-    // into the type-level coverage pass), moving it from a three-way tie at
-    // 24 to the sole leader at 25 — the max_direct_relations ceiling on that
-    // node, so this is also the last relation it can gain without either an
-    // extraction or a raised ceiling. cli/core/fill and cli/portal/engine-api
-    // stay behind it, still tied with each other at 24. Tied counts break
-    // alphabetically (rankHubs: count desc, then path asc).
+  it('cli/core/check, cli/core/fill, and cli/portal/engine-api are a three-way top fan-out tie at 24', () => {
+    // cli/core/check no longer constructs the type-classification cache itself
+    // (core/type-coverage.ts's own computeTypeCoverageCached/
+    // classifySingleFileCached wrappers do, so every caller gets the cache
+    // without hand-threading it) — that relation moved to cli/core/type-coverage
+    // instead, which had 8 spare relations under the global default ceiling
+    // where cli/core/check had none left under ITS OWN reviewed ceiling of 25.
+    // cli/core/check is back at the same 24 the other two seams hold, a
+    // three-way tie exactly like before the type-classification cache existed.
+    // Tied counts break alphabetically (rankHubs: count desc, then path asc):
+    // 'cli/core/check' < 'cli/core/fill' < 'cli/portal/engine-api'.
     expect(data.hubs.fanOut.length).toBeGreaterThan(0);
     expect(data.hubs.fanOut[0].path).toBe('cli/core/check');
-    expect(data.hubs.fanOut[0].count).toBe(25);
+    expect(data.hubs.fanOut[0].count).toBe(24);
     expect(data.hubs.fanOut[1].path).toBe('cli/core/fill');
     expect(data.hubs.fanOut[1].count).toBe(24);
     expect(data.hubs.fanOut[2].path).toBe('cli/portal/engine-api');

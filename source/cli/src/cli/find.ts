@@ -8,7 +8,7 @@ import { buildIssueMessage } from '../formatters/message-builder.js';
 import { toPosixPath } from '../utils/posix.js';
 import { walkRepoFiles } from '../io/repo-scanner.js';
 import { scanUncoveredFiles } from '../core/check.js';
-import { computeTypeCoverage } from '../core/type-coverage.js';
+import { computeTypeCoverageCached } from '../core/type-coverage.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 
 const TOP_N = 5;
@@ -39,7 +39,7 @@ export async function findCommand(query: string, projectRoot: string): Promise<n
   if (graph.config.coverage?.typeLevel) {
     const files = await walkRepoFiles(projectRoot);
     const uncovered = scanUncoveredFiles(graph, files);
-    const coverage = await computeTypeCoverage(graph, uncovered, new FileContentCache());
+    const coverage = await computeTypeCoverageCached(graph, uncovered, new FileContentCache());
     typeCoverage = [...coverage.covered.entries()].map(([file, typeId]) => ({ file, typeId }));
   }
   const docs = await buildIndex(graph, typeCoverage);

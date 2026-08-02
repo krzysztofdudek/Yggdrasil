@@ -13,7 +13,7 @@
 // success — what that type's `relations:` let it legally reach.
 import type { Graph } from '../model/graph.js';
 import type { TypeCoverageInput } from './pairs.js';
-import { classifySingleFile, computeTypeCoverage } from './type-coverage.js';
+import { classifySingleFile, classifySingleFileCached, computeTypeCoverageCached } from './type-coverage.js';
 import { walkRepoFiles, resolveGraphExclusionSet, isExcludedFromGraph, isCoverageExcludedPath, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import { scanUncoveredFiles } from './check.js';
@@ -38,7 +38,7 @@ export async function computeTypeCoverageForAspectTest(
   if (!graph.config.coverage?.typeLevel) return undefined;
   const gitFiles = await walkRepoFiles(projectRoot);
   const uncovered = scanUncoveredFiles(graph, gitFiles);
-  const result = await computeTypeCoverage(graph, uncovered, new FileContentCache());
+  const result = await computeTypeCoverageCached(graph, uncovered, new FileContentCache());
   return { covered: result.covered, ambiguousPaths: result.ambiguous.map((a) => a.file) };
 }
 
@@ -151,7 +151,7 @@ export async function classifyAspectTestFileTarget(
   }
 
   const cache = new FileContentCache();
-  const single = await classifySingleFile(graph, repoRelative, cache);
+  const single = await classifySingleFileCached(graph, repoRelative, cache);
   if (single.bucket !== 'covered') {
     const { what, next } = describeFileTargetClassificationProblem(repoRelative, single);
     return {

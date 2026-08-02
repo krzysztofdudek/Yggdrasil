@@ -64,3 +64,7 @@ Thumbs.db
 .yggdrasil/.ast-cache/
 # …including under example/fixture graphs that run the real binary in tests
 **/.yggdrasil/.ast-cache/
+# Yggdrasil type-classification cache (speed-only; rebuildable, never committed)
+.yggdrasil/.type-class-cache/
+# …including under example/fixture graphs that run the real binary in tests
+**/.yggdrasil/.type-class-cache/

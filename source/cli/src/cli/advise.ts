@@ -23,7 +23,7 @@ import { groupUnitsByAspect } from '../core/aspect-health-signals.js';
 import { computeExpectedPairs } from '../core/pairs.js';
 import type { TypeCoverageInput } from '../core/pairs.js';
 import { scanUncoveredFiles } from '../core/check.js';
-import { computeTypeCoverage } from '../core/type-coverage.js';
+import { computeTypeCoverageCached } from '../core/type-coverage.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import { appendDecision, readDecisions, type AdviseDecision } from '../io/advise-decisions-store.js';
 import { readDrillResults } from '../io/drill-results-reader.js';
@@ -270,7 +270,7 @@ async function computeTypeCoverageForAdvise(graph: Graph, projectRoot: string): 
   if (!graph.config.coverage?.typeLevel) return undefined;
   const gitFiles = await walkRepoFiles(projectRoot);
   const uncovered = scanUncoveredFiles(graph, gitFiles);
-  const result = await computeTypeCoverage(graph, uncovered, new FileContentCache());
+  const result = await computeTypeCoverageCached(graph, uncovered, new FileContentCache());
   return { covered: result.covered, ambiguousPaths: result.ambiguous.map((a) => a.file) };
 }
 

@@ -24,17 +24,17 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // eslint-disable-next-line no-var
-var typeCoverageRealFn: (typeof import('../../../src/core/type-coverage.js'))['computeTypeCoverage'] | undefined;
+var typeCoverageRealFn: (typeof import('../../../src/core/type-coverage.js'))['computeTypeCoverageCached'] | undefined;
 vi.mock('../../../src/core/type-coverage.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../src/core/type-coverage.js')>();
-  typeCoverageRealFn = actual.computeTypeCoverage;
+  typeCoverageRealFn = actual.computeTypeCoverageCached;
   return {
     ...actual,
-    computeTypeCoverage: vi.fn(actual.computeTypeCoverage),
+    computeTypeCoverageCached: vi.fn(actual.computeTypeCoverageCached),
   };
 });
-import { computeTypeCoverage } from '../../../src/core/type-coverage.js';
-const mockComputeTypeCoverage = vi.mocked(computeTypeCoverage);
+import { computeTypeCoverageCached } from '../../../src/core/type-coverage.js';
+const mockComputeTypeCoverage = vi.mocked(computeTypeCoverageCached);
 
 import { loadGraph } from '../../../src/core/graph-loader.js';
 import { runFill } from '../../../src/core/fill.js';

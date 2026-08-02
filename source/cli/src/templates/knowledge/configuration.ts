@@ -310,7 +310,7 @@ to the \`.yggdrasil/\` directory):
 yg-secrets.yaml               # provider API keys
 .symbols-cache/               # the relation pass's legacy per-language symbol-index cache
 .ast-cache/                   # the relation pass's content-addressed per-file AST fact cache
-.type-class-cache/            # the type-level classification lattice's content-hash-keyed per-file cache
+.type-class-cache/            # the type-level classification lattice's path-and-content-keyed cache
 .debug.log                    # the opt-in command debug log
 .yg-lock.deterministic.json   # the free deterministic-verdict cache (rebuilt keyless)
 .yg-events.jsonl              # the local verdict-events telemetry sidecar

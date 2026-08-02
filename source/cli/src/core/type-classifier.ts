@@ -3,7 +3,7 @@ import type { Graph } from '../model/graph.js';
 import type { PredicateTrace } from '../model/file-when.js';
 import { evaluateFileWhen, type EvalContext } from './file-when-evaluator.js';
 import type { FileContentCache } from '../io/file-content-cache.js';
-import { hashFile } from '../io/hash.js';
+import { hashFileRaw } from '../io/hash.js';
 import type { TypeClassCache } from '../io/type-class-cache.js';
 
 export type TypeMatch = {
@@ -45,18 +45,23 @@ export type ClassificationResult = {
  * Types without `when` (organizational) are skipped.
  * Files under `.yggdrasil/` are auto-exempt (evaluator returns vacuously true).
  *
- * `classCache`, when supplied, is consulted first: the file's content hash
- * (io/hash.ts's `hashFile` — full bytes, independent of FileContentCache's own
- * probe/size-limited read) keyed against `classCache`'s own once-per-instance
- * architecture-predicate hash forms the cache key. A hit skips the whole
- * `evaluateFileWhen` loop below; a miss runs it as today and, on success,
- * best-effort writes the result back. Omitting `classCache` runs exactly as
- * before — the parameter changes nothing for a caller that does not pass one.
- * A failure hashing the file (vanished mid-run, permission denied, …) is
- * treated as an unconditional cache miss rather than thrown: the ordinary
- * loop below already has its own robust unreadable-file handling via
- * FileContentCache, and a caching failure must never be the reason a file's
- * classification blows up.
+ * `classCache`, when supplied, is consulted first: the file's own
+ * repo-relative path, together with its RAW content hash (io/hash.ts's
+ * `hashFileRaw` — full bytes, no line-ending normalization, independent of
+ * FileContentCache's own probe/size-limited read) keyed against `classCache`'s
+ * own once-per-instance architecture-predicate hash, forms the cache key. The
+ * raw (un-normalized) hash is deliberate: `hashFile`'s usual normalization
+ * would let a CRLF file and its line-ending-normalized LF twin collide on the
+ * same key even though FileContentCache — the actual predicate-evaluation
+ * input below — reads raw, un-normalized bytes and can disagree between them.
+ * A hit skips the whole `evaluateFileWhen` loop below; a miss runs it as today
+ * and, on success, best-effort writes the result back. Omitting `classCache`
+ * runs exactly as before — the parameter changes nothing for a caller that
+ * does not pass one. A failure hashing the file (vanished mid-run, permission
+ * denied, …) is treated as an unconditional cache miss rather than thrown:
+ * the ordinary loop below already has its own robust unreadable-file handling
+ * via FileContentCache, and a caching failure must never be the reason a
+ * file's classification blows up.
  */
 export async function classifyFile(
   absPath: string,
@@ -68,12 +73,12 @@ export async function classifyFile(
   let contentHash: string | undefined;
   if (classCache) {
     try {
-      contentHash = await hashFile(absPath);
+      contentHash = await hashFileRaw(absPath);
     } catch {
       contentHash = undefined;
     }
     if (contentHash !== undefined) {
-      const cached = classCache.get(contentHash);
+      const cached = classCache.get(contentHash, repoRelPath);
       if (cached) {
         return { matches: cached.matches, closest: cached.closest, unreadable: cached.unreadable };
       }
@@ -115,7 +120,7 @@ export async function classifyFile(
 
   const result: ClassificationResult = { matches, closest, unreadable };
   if (classCache && contentHash !== undefined) {
-    await classCache.set(contentHash, result);
+    await classCache.set(contentHash, repoRelPath, result);
   }
   return result;
 }

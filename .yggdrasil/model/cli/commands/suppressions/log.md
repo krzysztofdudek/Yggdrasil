@@ -26,3 +26,5 @@ The suppression inventory command now derives the set of rules labeled as only e
 The inventory now classifies the architecture type-level coverage lattice and treats any file it covers as a live waiver site, exempt from the noise filter the same way a mapped node source already is. Previously a marker on a file enforced only by its architecture type, including a documentation file the noise filter would otherwise drop by extension, could silently waive an enforced rule while this command reported no active markers at all.
 ## [2026-07-31T12:04:34.229Z]
 Threads the adopter's coverage.excluded config into the audit-universe scan alongside the existing nested-project boundary, so the inventory this command prints agrees with the same exclusion authority enforcement now honors.
+## [2026-08-02T12:05:04.781Z]
+Now calls computeTypeCoverageCached instead of computeTypeCoverage, so yg suppressions benefits from the persistent on-disk type-classification cache instead of paying full classification cost every invocation.

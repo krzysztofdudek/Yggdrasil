@@ -50,3 +50,5 @@ The health table's files column now renders an em-dash when coverage.type_level 
 The suppress scan behind the health view now also treats a file covered by the architecture type-level lattice as a live waiver site, exempt from the noise filter the same way a mapped node source already is, reusing the type-coverage classification the health view already computes for lock verification rather than reclassifying a second time.
 ## [2026-07-31T12:04:33.144Z]
 Same threading as the other suppression-scan callers: the health-check summary's suppression count must agree with the same exclusion authority the enforcement surface now honors, so an excluded file's waiver is never counted here either.
+## [2026-08-02T12:05:03.752Z]
+Now calls computeTypeCoverageCached instead of computeTypeCoverage, so yg aspects benefits from the persistent on-disk type-classification cache instead of paying full classification cost every invocation.

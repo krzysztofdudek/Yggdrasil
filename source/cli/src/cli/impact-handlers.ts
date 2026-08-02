@@ -16,7 +16,7 @@ import { evaluateFileWhen } from '../core/file-when-evaluator.js';
 import { computeExpectedPairs } from '../core/pairs.js';
 import type { ExpectedPair, TypeCoverageInput } from '../core/pairs.js';
 import { scanUncoveredFiles } from '../core/check.js';
-import { computeTypeCoverage } from '../core/type-coverage.js';
+import { computeTypeCoverageCached } from '../core/type-coverage.js';
 import { resolveCompanionsForPair } from '../core/companion-resolve.js';
 import { selectTierForAspect } from '../core/tier-selection.js';
 import type { Graph } from '../model/graph.js';
@@ -33,7 +33,7 @@ async function computeTypeCoverageForImpact(graph: Graph, projectRoot: string): 
   if (!graph.config.coverage?.typeLevel) return undefined;
   const gitFiles = await walkRepoFiles(projectRoot);
   const uncovered = scanUncoveredFiles(graph, gitFiles);
-  const result = await computeTypeCoverage(graph, uncovered, new FileContentCache());
+  const result = await computeTypeCoverageCached(graph, uncovered, new FileContentCache());
   return { covered: result.covered, ambiguousPaths: result.ambiguous.map((a) => a.file) };
 }
 

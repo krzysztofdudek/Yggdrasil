@@ -1,0 +1,7 @@
+name: E2E Tests — Type-Classification Cache Identity
+type: test-suite
+description: "Subprocess E2E proving the type-classification cache (.yggdrasil/.type-class-cache/) never serves one file's verdict to another, through the real built binary on from-scratch projects and a copy of tests/fixtures/type-coverage-basic/: two byte-identical files under different path predicates classify independently in both directions (a falsely-covered file, and a falsely-unmapped one); a CRLF file and its LF twin never collide, at different paths or re-saved at a fixed one across two process runs; and `yg check --approve --only-deterministic` now reads and writes the cache instead of bypassing it. Guards the exact CLI-level regression this cache once had."
+aspects: []
+relations: []
+mapping:
+  - source/cli/tests/e2e/cli-type-coverage-cache-identity.test.ts

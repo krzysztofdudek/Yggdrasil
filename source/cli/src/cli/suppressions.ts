@@ -7,7 +7,7 @@ import { appendToDebugLog } from '../io/debug-log-writer.js';
 import { runSuppressionsScan, formatSuppressionsOutput } from '../portal/api/suppress-scan.js';
 import { collectMappingEntries, collectTypeCoveredFiles } from '../portal/api/suppress-eligibility.js';
 import { scanUncoveredFiles } from '../core/check.js';
-import { computeTypeCoverage } from '../core/type-coverage.js';
+import { computeTypeCoverageCached } from '../core/type-coverage.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import type { Graph } from '../model/graph.js';
 
@@ -22,7 +22,7 @@ import type { Graph } from '../model/graph.js';
 async function computeTypeCoveredFilesForSuppressions(graph: Graph, gitFiles: string[]): Promise<Set<string>> {
   if (!graph.config.coverage?.typeLevel) return new Set();
   const uncovered = scanUncoveredFiles(graph, gitFiles);
-  const result = await computeTypeCoverage(graph, uncovered, new FileContentCache());
+  const result = await computeTypeCoverageCached(graph, uncovered, new FileContentCache());
   return collectTypeCoveredFiles(result.covered);
 }
 

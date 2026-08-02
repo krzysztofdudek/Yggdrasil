@@ -7,7 +7,7 @@ import type { Graph } from '../model/graph.js';
 import { computeDetectedEdges, computeTypedEdges } from '../portal/api/boundary.js';
 import { walkRepoFiles } from '../io/repo-scanner.js';
 import { scanUncoveredFiles } from '../core/check.js';
-import { computeTypeCoverage } from '../core/type-coverage.js';
+import { computeTypeCoverageCached } from '../core/type-coverage.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import {
   edgeUniverse,
@@ -256,7 +256,7 @@ async function computeTypeWidening(graph: Graph, projectRoot: string): Promise<S
   try {
     const files = await walkRepoFiles(projectRoot);
     const uncovered = scanUncoveredFiles(graph, files);
-    const coverage = await computeTypeCoverage(graph, uncovered, new FileContentCache());
+    const coverage = await computeTypeCoverageCached(graph, uncovered, new FileContentCache());
     if (coverage.covered.size === 0) return NO_WIDENING;
     const typedEdges = await computeTypedEdges(graph, projectRoot, coverage.covered);
     return { edges: typedEdges, nodeIds: [...coverage.covered.keys()], hasTypeCovered: true };

@@ -30,3 +30,5 @@ The search command ended with a ranked list but no next action, leaving the agen
 A file satisfied by the type-level coverage lattice, with no owning component, was invisible to yg find — an agent could search for its purpose by name and never land on it, even though it carries a real matched type and real rules. yg find now indexes such a file too, searchable by its matched type's own description, and always points its next step at yg context --file rather than a --node argument that would fail.
 ## [2026-08-01T20:12:47.355Z]
 The command's --help description said it locates entry points among nodes and aspects only, but a type-covered file has been searchable through this command for a while now (coverage.type_level classifies it and points the result at yg context --file) — the description text just never caught up. Updated the description to name all three kinds so --help matches what the index actually contains.
+## [2026-08-02T12:05:04.124Z]
+Now calls computeTypeCoverageCached instead of computeTypeCoverage, so yg find benefits from the persistent on-disk type-classification cache instead of paying full classification cost every invocation.

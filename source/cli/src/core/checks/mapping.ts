@@ -213,6 +213,13 @@ export async function checkStrictBackwardCoverage(
       // file should actually become. classifyFile is re-run for this one file
       // only (matchingTypes already proves no other STRICT type matches, or
       // this file would have hit the overlap-conflict branch above instead).
+      // Deliberately NOT given a TypeClassCache: this only fires per
+      // type-strict-orphan file (an unresolved-architecture-error state, not
+      // the steady-state path every run pays), and the classification it
+      // produces feeds a message annotation ("Also matches: ..."), never a
+      // coverage verdict — there is no per-run cost here worth caching
+      // against, unlike the whole-uncovered-file-tree scans computeTypeCoverage
+      // wires by default.
       let what = `File '${relPath}' satisfies when of type '${typeId}' (enforce: strict):\n${trace}\nBut file is not in any node's mapping.`;
       if (graph.config.coverage?.typeLevel) {
         const classification = await classifyFile(absPath, relPath, graph, cache);

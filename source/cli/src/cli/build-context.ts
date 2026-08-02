@@ -22,7 +22,7 @@ import { buildIssueMessage } from '../formatters/message-builder.js';
 import { computeExpectedPairs, computeSourceFingerprint, FileUnreadableError } from '../core/pairs.js';
 import type { TypeCoverageInput } from '../core/pairs.js';
 import { scanUncoveredFiles } from '../core/check.js';
-import { computeTypeCoverage, classifySingleFile } from '../core/type-coverage.js';
+import { computeTypeCoverageCached, classifySingleFileCached } from '../core/type-coverage.js';
 import { computeTypeAspectCascade, describeCascadeCycle } from '../core/type-effective.js';
 import { buildTypeVisibility, describeTypeVisibilityReason, describeChainTermination, toAppliedPairs } from '../core/type-visibility.js';
 import { FileContentCache } from '../io/file-content-cache.js';
@@ -99,7 +99,7 @@ async function computeTypeCoverageForContext(graph: Graph): Promise<TypeCoverage
   const projectRoot = projectRootFromGraph(graph.rootPath);
   const gitFiles = await walkRepoFiles(projectRoot);
   const uncovered = scanUncoveredFiles(graph, gitFiles);
-  const result = await computeTypeCoverage(graph, uncovered, new FileContentCache());
+  const result = await computeTypeCoverageCached(graph, uncovered, new FileContentCache());
   return { covered: result.covered, ambiguousPaths: result.ambiguous.map((a) => a.file) };
 }
 
@@ -354,7 +354,7 @@ export function registerBuildCommand(program: Command): void {
             // not-covered error with the matched type, its chain, and both
             // halves of what the type attaches.
             if (graph.config.coverage?.typeLevel) {
-              const typeMatch = await classifySingleFile(graph, result.file, new FileContentCache());
+              const typeMatch = await classifySingleFileCached(graph, result.file, new FileContentCache());
               if (typeMatch.bucket === 'covered') {
                 // An aspect `implies` cycle reachable from this type stops the
                 // cascade before it can decide what applies — computeTypeAspectCascade

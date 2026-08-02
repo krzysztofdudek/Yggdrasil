@@ -1,6 +1,6 @@
 import type { Graph } from '../../model/graph.js';
 import { scanUncoveredFiles } from '../../core/check.js';
-import { computeTypeCoverage, type TypeCoverageResult } from '../../core/type-coverage.js';
+import { computeTypeCoverageCached, type TypeCoverageResult } from '../../core/type-coverage.js';
 import { FileContentCache } from '../../io/file-content-cache.js';
 import type { TypeCoverageInput } from '../../core/pairs.js';
 
@@ -16,7 +16,7 @@ import type { TypeCoverageInput } from '../../core/pairs.js';
 export async function computePortalTypeCoverage(graph: Graph, gitFiles: string[]): Promise<TypeCoverageResult | undefined> {
   if (!graph.config.coverage?.typeLevel) return undefined;
   const uncovered = scanUncoveredFiles(graph, gitFiles);
-  return computeTypeCoverage(graph, uncovered, new FileContentCache());
+  return computeTypeCoverageCached(graph, uncovered, new FileContentCache());
 }
 
 /** Reduce a full classification to the denominator / lock-verification shape. */

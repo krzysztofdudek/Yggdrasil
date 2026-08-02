@@ -1,7 +1,7 @@
 import path from 'node:path';
 import type { Graph } from '../model/graph.js';
 import type { FileContentCache } from '../io/file-content-cache.js';
-import type { TypeClassCache } from '../io/type-class-cache.js';
+import { TypeClassCache } from '../io/type-class-cache.js';
 import { classifyFile } from './type-classifier.js';
 import { isExcludedByCoverage } from './check-coverage-tiers.js';
 
@@ -50,6 +50,20 @@ export type SingleFileClassification =
  * Does not consult `coverage.excluded` — that is a whole-repo-scan concern;
  * a caller answering about one path (already resolved against a real file)
  * applies its own exclusion guard first.
+ *
+ * `classCache`, when supplied, is reused as-is (the shape `computeTypeCoverage`'s
+ * own loop below relies on, passing the SAME instance to every file so the
+ * architecture-predicate hash is computed once for the whole run). Omitted ⇒
+ * a live, uncached classification — no disk read or write beyond the ordinary
+ * `evaluateFileWhen`/`FileContentCache` content reads — exactly as if the
+ * type-classification cache did not exist. This function stays pure by
+ * default deliberately: it is also called against a fixture project's graph
+ * in place by parts of this codebase's own test suite for a live, read-only
+ * answer, and a cache silently constructed as a side effect of an omitted
+ * argument would write a `.type-class-cache/` directory into that fixture on
+ * disk. A REAL caller that wants the persistent on-disk cache calls
+ * `classifySingleFileCached` instead — same signature, minus `classCache`,
+ * opted in by name rather than by an argument's absence.
  */
 export async function classifySingleFile(
   graph: Graph,
@@ -86,10 +100,16 @@ export async function classifySingleFile(
 /**
  * Compute the type-level classification lattice over a list of already-
  * uncovered files (files no node mapping owns). The only I/O is file content
- * reads performed through classifyFile/FileContentCache, plus — when
- * `classCache` is supplied — a content hash per file and a best-effort
- * cache read/write through classifyFile/TypeClassCache; no other filesystem
- * or network access.
+ * reads performed through classifyFile/FileContentCache, plus a content hash
+ * per file and a best-effort cache read/write through classifyFile/
+ * TypeClassCache; no other filesystem or network access.
+ *
+ * `classCache`, when supplied, is used as-is and reused for every file in
+ * `uncoveredFiles` (the architecture-predicate hash it folds in its
+ * constructor is computed ONCE, not once per file). Omitted ⇒ a live,
+ * uncached classification of every file — see `classifySingleFile`'s own doc
+ * for why this stays the pure default rather than silently constructing a
+ * cache. `computeTypeCoverageCached` is the opt-in wrapper real callers use.
  *
  * For each file, in order:
  *   1. Under a coverage.excluded root -> skipped ENTIRELY. Not classified at
@@ -155,4 +175,45 @@ export async function computeTypeCoverage(
   }
 
   return result;
+}
+
+/**
+ * Constructs a persistent `TypeClassCache` for this graph (its only two
+ * inputs, root path and architecture, are already both right here on
+ * `graph`) and delegates to `classifySingleFile` with it — the one-file
+ * counterpart to `computeTypeCoverageCached` below. This is the call a REAL
+ * single-file command (`yg owner --file`, `yg context --file`,
+ * `yg aspect-test --file`) makes; `classifySingleFile` itself stays
+ * cache-free by default (see its own doc).
+ */
+export async function classifySingleFileCached(
+  graph: Graph,
+  file: string,
+  cache: FileContentCache,
+): Promise<SingleFileClassification> {
+  const classCache = new TypeClassCache(path.dirname(graph.rootPath), graph.architecture);
+  return classifySingleFile(graph, file, cache, classCache);
+}
+
+/**
+ * Constructs a persistent `TypeClassCache` for this graph and delegates to
+ * `computeTypeCoverage` with it, ONE instance reused for the whole scan (not
+ * once per file). This is the call every REAL whole-repo classification site
+ * makes — `yg check`, `yg check --approve`, `yg context`, `yg advise`,
+ * `yg aspects`, `yg impact`, `yg structure`, `yg tree`, `yg find`,
+ * `yg suppressions`, `yg aspect-test`, and the portal — so every one of them
+ * gets the persistent on-disk cache without hand-constructing a
+ * `TypeClassCache` at each call site. `computeTypeCoverage` itself stays
+ * cache-free by default (see its own doc): a caller that wants a live,
+ * uncached answer — chiefly this codebase's own test suite, classifying a
+ * fixture project's graph in place — calls that instead, and never triggers
+ * a disk write it did not ask for.
+ */
+export async function computeTypeCoverageCached(
+  graph: Graph,
+  uncoveredFiles: string[],
+  cache: FileContentCache,
+): Promise<TypeCoverageResult> {
+  const classCache = new TypeClassCache(path.dirname(graph.rootPath), graph.architecture);
+  return computeTypeCoverage(graph, uncoveredFiles, cache, classCache);
 }

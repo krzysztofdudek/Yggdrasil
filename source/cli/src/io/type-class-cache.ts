@@ -9,8 +9,15 @@ import type { ClassificationResult } from '../core/type-classifier.js'; // type-
  * Cache schema version. Bump whenever the on-disk shard format changes —
  * orphans older-version shards under `.type-class-cache/` (a one-time cold
  * re-classify of a gitignored, rebuildable cache — benign).
+ *
+ * v2: the key now folds in the file's own repo-relative path (see `classKey`).
+ * A v1 shard was addressed by `(contentHash, archHash)` ALONE, so two
+ * byte-identical files at different paths shared one shard and the second
+ * silently inherited the first's classification — a same-run aliasing bug,
+ * not a staleness one (it fired on a cold cache). Bumping orphans every v1
+ * shard rather than risk one being misread under the new key scheme.
  */
-export const TYPE_CLASS_CACHE_SCHEMA_VERSION = 1;
+export const TYPE_CLASS_CACHE_SCHEMA_VERSION = 2;
 
 /** Returns the root of the classification cache directory tree for a given graph root. */
 export function typeClassCacheDir(graphRoot: string): string {
@@ -74,15 +81,28 @@ function architecturePredicateHash(architecture: Graph['architecture']): string 
 }
 
 /**
- * Shard filename stem (the cache key) for a given content hash under a given
- * architecture-predicate hash. Different `(contentHash, architecturePredicateHash)`
- * pairs always produce different keys. Width mirrors facts-cache.ts's factsKey:
- * 32 hex chars = 128 bits of the SHA-256 digest, making a birthday collision
- * (which would serve one file's shard for another, only caught afterward by the
- * `key !== requestedKey` identity assertion) infeasible.
+ * Shard filename stem (the cache key) for a given content hash, repo-relative
+ * path, and architecture-predicate hash. Different `(contentHash, repoRelPath,
+ * architecturePredicateHash)` triples always produce different keys.
+ *
+ * `repoRelPath` is folded in deliberately: it is exactly what every `path:`
+ * predicate is evaluated against (core/file-when-evaluator.ts's
+ * `globMatch(ctx.repoRelPath, predicate.path)`), so two files with identical
+ * bytes at different paths can classify completely differently — omitting the
+ * path from the key was the bug (two such files shared one shard; whichever
+ * was classified first in the scan decided the other's verdict too, with no
+ * error or warning). Folding it back in also restores the invariant `set()`'s
+ * create-only write depends on: a shard is now genuinely identical to any
+ * prior write under the same key, because the key can no longer be shared by
+ * two different files.
+ *
+ * Width mirrors facts-cache.ts's factsKey: 32 hex chars = 128 bits of the
+ * SHA-256 digest, making a birthday collision (which would serve one file's
+ * shard for another, only caught afterward by the `key !== requestedKey`
+ * identity assertion) infeasible.
  */
-function classKey(contentHash: string, archHash: string): string {
-  const payload = `${contentHash}\0${archHash}`;
+function classKey(contentHash: string, repoRelPath: string, archHash: string): string {
+  const payload = `${contentHash}\0${repoRelPath}\0${archHash}`;
   return createHash('sha256').update(payload).digest('hex').slice(0, 32);
 }
 
@@ -91,7 +111,7 @@ function shardPath(dir: string, key: string): string {
 }
 
 /**
- * Content-hash-keyed classification cache, constructed once per
+ * Path-and-content-keyed classification cache, constructed once per
  * computeTypeCoverage run and injected into every classifyFile call —
  * exactly the FileContentCache injection shape. The architecture-predicate
  * hash is computed ONCE in the constructor (folds every classifying type's
@@ -101,6 +121,11 @@ function shardPath(dir: string, key: string): string {
  * could now match a file that previously matched nothing, and an
  * enforce-only flip changes which BUCKET a match lands in even when the
  * underlying boolean result is unchanged.
+ *
+ * Every `get`/`set` also takes the file's own repo-relative path, folded into
+ * the key alongside its content hash (see `classKey`) — two files can never
+ * share an entry, no matter how their bytes compare, because `path:`
+ * predicates are evaluated against exactly that path.
  *
  * Modeled directly on relations/facts-cache.ts's shard contract (schema
  * version validated first, then required-field shape, then an inner
@@ -127,8 +152,8 @@ export class TypeClassCache {
    * around a read, per read-or-default-via-helper — mirrors facts-cache.ts's
    * own existsSync-then-readFileSync order).
    */
-  get(contentHash: string): CachedClassification | null {
-    const key = classKey(contentHash, this.archHash);
+  get(contentHash: string, repoRelPath: string): CachedClassification | null {
+    const key = classKey(contentHash, repoRelPath, this.archHash);
     const p = shardPath(this.dir, key);
     if (!existsSync(p)) return null;
 
@@ -164,13 +189,14 @@ export class TypeClassCache {
    * Best-effort — a write failure never fails classification (mirrors the
    * AST cache and FileContentCache's own read-failure handling). Create-only,
    * mirroring facts-cache.ts's writeFacts: a content-addressed shard is by
-   * construction identical to any prior write under the same key, so
-   * re-writing is wasted IO, and skipping it also means a fresh write can
-   * never race a concurrent reader into observing a torn file (atomicWriteFile
-   * already guarantees that too, via temp + rename).
+   * construction identical to any prior write under the same key (the key now
+   * folds in the writing file's own path, so no two different files can ever
+   * share one), so re-writing is wasted IO, and skipping it also means a
+   * fresh write can never race a concurrent reader into observing a torn file
+   * (atomicWriteFile already guarantees that too, via temp + rename).
    */
-  async set(contentHash: string, result: ClassificationResult): Promise<void> {
-    const key = classKey(contentHash, this.archHash);
+  async set(contentHash: string, repoRelPath: string, result: ClassificationResult): Promise<void> {
+    const key = classKey(contentHash, repoRelPath, this.archHash);
     const p = shardPath(this.dir, key);
     if (existsSync(p)) return;
 

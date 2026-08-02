@@ -18,7 +18,7 @@ import {
   describeExclusionCause,
   NO_COVERAGE_EXCLUDED,
 } from '../io/repo-scanner.js';
-import { classifySingleFile } from '../core/type-coverage.js';
+import { classifySingleFileCached } from '../core/type-coverage.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import { computeExpectedPairs } from '../core/pairs.js';
 import { computeTypeAspectCascade, describeCascadeCycle } from '../core/type-effective.js';
@@ -123,7 +123,7 @@ export function registerOwnerCommand(program: Command): void {
           const exclusionSet = await resolveGraphExclusionSet(repoRoot, coverage ?? NO_COVERAGE_EXCLUDED);
           const typeMatch = exists && coverage?.typeLevel
               && !isCoverageExcludedPath(result.file) && !isExcludedFromGraph(result.file, exclusionSet)
-            ? await classifySingleFile(graph, result.file, new FileContentCache())
+            ? await classifySingleFileCached(graph, result.file, new FileContentCache())
             : undefined;
           if (isCoverageExcludedPath(result.file)) {
             // Same fact `yg context --file` already reports for the identical

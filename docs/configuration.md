@@ -352,7 +352,7 @@ separately.
 | `yg-secrets.yaml` | Your local overlay — provider keys and machine-specific tier overrides. |
 | `.symbols-cache/` | A retired predecessor of the cache below. Nothing writes it any more; the entry stays so leftovers in an older checkout keep being ignored. |
 | `.ast-cache/` | The relation pass's content-addressed per-file parse cache — the live one. |
-| `.type-class-cache/` | The type-level classification lattice's content-hash-keyed per-file cache — skips re-evaluating a file's classifying-type predicates when neither its content nor the architecture's classifying types have changed. |
+| `.type-class-cache/` | The type-level classification lattice's per-file cache, keyed by a file's own path together with its raw byte content and the architecture's classifying types — skips re-evaluating a file's classifying-type predicates when none of its path, its content, or the architecture's classifying types have changed. |
 | `.debug.log` | The opt-in command log written when `debug: true`. |
 | `.yg-lock.deterministic.json` | The script-rule verdict cache — rebuilt free and keyless by `yg check --approve --only-deterministic`. |
 | `.yg-events.jsonl` | The verdict-events telemetry sidecar (see [Verdict-events sidecar](/reviewers#verdict-events-sidecar)). |

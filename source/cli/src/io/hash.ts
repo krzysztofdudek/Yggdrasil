@@ -57,6 +57,25 @@ export async function hashFile(filePath: string): Promise<string> {
   return hashBytes(content);
 }
 
+/**
+ * sha256 hex of a file's RAW bytes — no line-ending normalization, unlike
+ * {@link hashFile}. Used wherever the hash must track byte-for-byte identity
+ * because a downstream consumer reads the file's raw, un-normalized bytes:
+ * the type-classification cache key (io/type-class-cache.ts), whose
+ * `content:` predicates are evaluated by io/file-content-cache.ts's
+ * `buf.toString('utf8')` — a raw read that never collapses CRLF/CR to LF.
+ * Keying on the normalized hash there would let a CRLF file and its LF twin
+ * (different bytes, different predicate results) share one cache entry.
+ * `hashFile`'s own normalization stays correct and unchanged for its actual
+ * callers (verdict/fingerprint hashing in core/pairs.ts, mapping hashing),
+ * where "the same source, checked out with different line endings" SHOULD
+ * hash identically — that is a different identity question than this one.
+ */
+export async function hashFileRaw(filePath: string): Promise<string> {
+  const content = await readFile(filePath);
+  return createHash('sha256').update(content).digest('hex');
+}
+
 export async function hashPath(targetPath: string, options: HashPathOptions = {}): Promise<string> {
   const projectRoot = options.projectRoot ? path.resolve(options.projectRoot) : undefined;
   const gitignoreStack = await loadRootGitignoreStack(projectRoot);

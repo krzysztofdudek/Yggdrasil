@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { classifyFile } from '../core/type-classifier.js';
 import { FileContentCache } from '../io/file-content-cache.js';
+import { TypeClassCache } from '../io/type-class-cache.js';
 import { renderTrace } from '../formatters/predicate-trace.js';
 import {
   loadRootGitignoreStack,
@@ -28,6 +29,13 @@ export async function typeSuggestCommand(file: string, projectRoot: string): Pro
   const repoRelPath = toPosixPath(resolveFileArg(repoRoot, file.trim()));
   const absPath = resolve(repoRoot, repoRelPath);
   const cache = new FileContentCache();
+  // A single-file, one-off diagnostic command: the persistent on-disk cache still
+  // pays off across REPEATED invocations against the same file (e.g. an agent
+  // probing a path, editing it, and re-running), so it is wired the same way
+  // `yg owner --file` / `yg context --file` are — see core/type-coverage.ts's
+  // classifySingleFile, which this command bypasses (it needs the path-only
+  // pre-existence-check branch below, which classifySingleFile does not offer).
+  const classCache = new TypeClassCache(repoRoot, graph.architecture);
 
   if (repoRelPath.startsWith('.yggdrasil/')) {
     process.stdout.write(
@@ -79,7 +87,7 @@ export async function typeSuggestCommand(file: string, projectRoot: string): Pro
 
   if (!existsSync(absPath)) {
     process.stdout.write(`\n(File does not exist — evaluating path predicates only)\n\n`);
-    const result = await classifyFile(absPath, repoRelPath, graph, cache);
+    const result = await classifyFile(absPath, repoRelPath, graph, cache, classCache);
     if (result.matches.length > 0) {
       process.stdout.write(`Matching types (path-only check):\n`);
       for (const m of result.matches) {
@@ -96,7 +104,7 @@ export async function typeSuggestCommand(file: string, projectRoot: string): Pro
     return;
   }
 
-  const result = await classifyFile(absPath, repoRelPath, graph, cache);
+  const result = await classifyFile(absPath, repoRelPath, graph, cache, classCache);
 
   if (result.matches.length === 0) {
     process.stdout.write(`\nNo type's \`when\` matches this file.\n\n`);

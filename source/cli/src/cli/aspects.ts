@@ -8,7 +8,7 @@ import { computeEffectiveAspects, inferAspectDisplayKind } from '../core/graph/a
 import { computeTypeAspectCascade, isReachableForTypeCoveredFile } from '../core/type-effective.js';
 import type { TypeCoverageInput } from '../core/pairs.js';
 import { scanUncoveredFiles } from '../core/check.js';
-import { computeTypeCoverage } from '../core/type-coverage.js';
+import { computeTypeCoverageCached } from '../core/type-coverage.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import type { Graph, AspectStatus, AspectDef } from '../model/graph.js';
 import { readLock } from '../io/lock-store.js';
@@ -828,7 +828,7 @@ async function computeTypeCoverageForAspects(graph: Graph, projectRoot: string):
   if (!graph.config.coverage?.typeLevel) return undefined;
   const gitFiles = await walkRepoFiles(projectRoot);
   const uncovered = scanUncoveredFiles(graph, gitFiles);
-  const result = await computeTypeCoverage(graph, uncovered, new FileContentCache());
+  const result = await computeTypeCoverageCached(graph, uncovered, new FileContentCache());
   return { covered: result.covered, ambiguousPaths: result.ambiguous.map((a) => a.file) };
 }
 

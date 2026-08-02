@@ -54,7 +54,7 @@ import { runCheck, scanUncoveredFiles } from './check.js';
 import { readLock, writeLock, readDetLockAspectIds } from '../io/lock-store.js';
 import type { ExpectedPair, TypeCoverageInput } from './pairs.js';
 import { verifyLock } from './verify-lock.js';
-import { computeTypeCoverage } from './type-coverage.js';
+import { computeTypeCoverageCached } from './type-coverage.js';
 import type { TypeCoverageResult } from './type-coverage.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import { DEFAULT_COVERAGE } from '../io/config-parser.js';
@@ -394,12 +394,16 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   // time from scratch, reading every uncovered file's bytes twice). Undefined
   // at flag-off or when no file walk ran this call (opts.coverageVisibleFiles
   // === null) — every consumer already treats that as "nothing to do."
+  // computeTypeCoverageCached constructs its own persistent
+  // .yggdrasil/.type-class-cache/ instance, so `yg check --approve` reads and
+  // writes it exactly like a plain `yg check` does, instead of the
+  // classification-cache bypass that shipped before.
   const coverage = graph.config.coverage ?? DEFAULT_COVERAGE;
   let typeCoverageInput: TypeCoverageInput | undefined;
   let typeCoverageResult: TypeCoverageResult | undefined;
   if (opts.coverageVisibleFiles !== null && coverage.typeLevel) {
     const uncoveredForGate = scanUncoveredFiles(graph, opts.coverageVisibleFiles);
-    typeCoverageResult = await computeTypeCoverage(graph, uncoveredForGate, new FileContentCache());
+    typeCoverageResult = await computeTypeCoverageCached(graph, uncoveredForGate, new FileContentCache());
     typeCoverageInput = {
       covered: typeCoverageResult.covered,
       ambiguousPaths: typeCoverageResult.ambiguous.map((a) => a.file),
