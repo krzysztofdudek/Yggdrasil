@@ -192,3 +192,5 @@ Passes the lock verification's uncomputableTypeCoverage list into the type-visib
 The live relation pass's path resolver is now built from an owner index already guarded against this graph's exclusion set, rather than a raw one — a Go or Java package import's representative-file lookup could otherwise land on the one excluded file inside an otherwise ordinary package and silently drop a cross-node dependency that is legitimately reachable through the package's other, non-excluded files.
 ## [2026-07-31T19:30:10.499Z]
 The hidden attention-dump calibration view now builds its import resolver through the same exclusion-guarded constructor every other live-relation-pass caller uses, closing the one remaining direct caller of the unguarded constructor.
+## [2026-08-02T06:21:53.463Z]
+the silent structural-attention index widens its file-grouping step so a file the architecture classifies only by type, with no owning component, can be admitted to its own comparison group instead of being silently excluded from every structural-deviation comparison.

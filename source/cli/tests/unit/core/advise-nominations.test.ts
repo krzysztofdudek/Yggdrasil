@@ -893,6 +893,119 @@ describe('buildNominations — T1 uncovered hot spot: defensive unknown-node ski
   });
 });
 
+// ── type-covered-churn (a churning type-covered file, no owning node) ──
+
+describe('buildNominations — T1.5 type-covered churn (a churning file the type tier alone carries)', () => {
+  let projectRoot: string;
+  beforeEach(() => {
+    projectRoot = mkdtempSync(path.join(os.tmpdir(), 'yg-advise-typechurn-'));
+    cpSync(FIXTURE, projectRoot, { recursive: true });
+  });
+  afterEach(() => rmSync(projectRoot, { recursive: true, force: true }));
+
+  it('sits below uncovered-hot-spot (T1) and above family-without-law (T2)', () => {
+    // Pure rank check — no graph/source needed.
+    expect(90).toBeLessThan(95);
+    expect(95).toBeLessThan(100);
+  });
+
+  it('nominates graduation for a churning type-covered file, naming the file, its churn count, and its matched type', async () => {
+    const graph = await loadGraph(projectRoot);
+    const noms = buildNominations(graph, {
+      todayUtc: TODAY,
+      typeCoveredChurnByFile: new Map([['src/svc/handler.ts', { churn: 5, typeId: 'svc' }]]),
+    });
+    const n = noms.find((x) => x.id.startsWith('type-covered-churn:'));
+    expect(n).toBeDefined();
+    expect(n!.classRank).toBe(95);
+    expect(n!.what).toContain('handler.ts');
+    expect(n!.why).toContain('5');
+    expect(n!.why).toContain('svc');
+    expect(n!.next).toMatch(/create an explicit node|requires.*approval/i);
+    expect(n!.evidenceHash).toMatch(HEX64);
+  });
+
+  it('upgrades the evidence from "one churning file" to "a cluster" when 2+ same-type files import each other', async () => {
+    const graph = await loadGraph(projectRoot);
+    const noms = buildNominations(graph, {
+      todayUtc: TODAY,
+      typeCoveredChurnByFile: new Map([
+        ['src/svc/a.ts', { churn: 3, typeId: 'svc' }],
+        ['src/svc/b.ts', { churn: 2, typeId: 'svc' }],
+      ]),
+      typeCoveredEdges: [{ from: 'src/svc/a.ts', to: 'src/svc/b.ts' }],
+    });
+    const a = noms.find((x) => x.id === 'type-covered-churn:src/svc/a.ts');
+    const b = noms.find((x) => x.id === 'type-covered-churn:src/svc/b.ts');
+    expect(a).toBeDefined();
+    expect(b).toBeDefined();
+    expect(a!.why).toMatch(/cluster|both files|import(s|ing) each other/i);
+    expect(b!.why).toMatch(/cluster|both files|import(s|ing) each other/i);
+  });
+
+  it('does NOT upgrade to a cluster when the edge partner does not churn this window, or matches a different type', async () => {
+    const graph = await loadGraph(projectRoot);
+    // Partner not in the churn map at all.
+    const noEdgePartner = buildNominations(graph, {
+      todayUtc: TODAY,
+      typeCoveredChurnByFile: new Map([['src/svc/a.ts', { churn: 3, typeId: 'svc' }]]),
+      typeCoveredEdges: [{ from: 'src/svc/a.ts', to: 'src/svc/ghost.ts' }],
+    });
+    expect(noEdgePartner.find((x) => x.id === 'type-covered-churn:src/svc/a.ts')!.why).not.toMatch(
+      /cluster|both files/i,
+    );
+    // Partner present but classified under a DIFFERENT type — never a same-type cluster.
+    const mismatchedType = buildNominations(graph, {
+      todayUtc: TODAY,
+      typeCoveredChurnByFile: new Map([
+        ['src/svc/a.ts', { churn: 3, typeId: 'svc' }],
+        ['src/util/b.ts', { churn: 2, typeId: 'util' }],
+      ]),
+      typeCoveredEdges: [{ from: 'src/svc/a.ts', to: 'src/util/b.ts' }],
+    });
+    expect(mismatchedType.find((x) => x.id === 'type-covered-churn:src/svc/a.ts')!.why).not.toMatch(
+      /cluster|both files/i,
+    );
+  });
+
+  it('graduating the file (a node now claims it) makes the nomination disappear on the next run — self-clearing', async () => {
+    const graph = await loadGraph(projectRoot);
+    // No entry for the graduated file this run — the CLI boundary naturally stops
+    // supplying one the moment computeTypeCoverage no longer classifies it (a real
+    // node owns it now, so it is never "uncovered" in the first place).
+    const noms = buildNominations(graph, {
+      todayUtc: TODAY,
+      typeCoveredChurnByFile: new Map([['src/svc/other.ts', { churn: 1, typeId: 'svc' }]]),
+    });
+    expect(noms.some((x) => x.id === 'type-covered-churn:src/svc/handler.ts')).toBe(false);
+  });
+
+  it('is silent when the churn source is entirely absent (no git / flag off) — never fabricated', async () => {
+    const graph = await loadGraph(projectRoot);
+    const noms = buildNominations(graph, { todayUtc: TODAY });
+    expect(noms.some((x) => x.id.startsWith('type-covered-churn:'))).toBe(false);
+  });
+
+  it('does NOT nominate a file whose churn is 0 in the window', async () => {
+    const graph = await loadGraph(projectRoot);
+    const noms = buildNominations(graph, {
+      todayUtc: TODAY,
+      typeCoveredChurnByFile: new Map([['src/svc/handler.ts', { churn: 0, typeId: 'svc' }]]),
+    });
+    expect(noms.some((x) => x.id.startsWith('type-covered-churn:'))).toBe(false);
+  });
+
+  it('moves the evidence hash when the matched type changes even though churn stays the same — a stale dismiss must not survive a re-bucketing', async () => {
+    const graph = await loadGraph(projectRoot);
+    const hashFor = (typeId: string) =>
+      buildNominations(graph, {
+        todayUtc: TODAY,
+        typeCoveredChurnByFile: new Map([['src/svc/handler.ts', { churn: 4, typeId }]]),
+      }).find((n) => n.id === 'type-covered-churn:src/svc/handler.ts')!.evidenceHash;
+    expect(hashFor('util')).not.toBe(hashFor('svc'));
+  });
+});
+
 // ── Final sort — classRank, then evidenceTs (newest first), then id (lexicographic) ──
 
 describe('buildNominations — final sort: classRank tie broken by evidenceTs, then by id', () => {

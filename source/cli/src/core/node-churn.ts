@@ -103,3 +103,62 @@ export function countChurnByNode(
   }
   return out;
 }
+
+/**
+ * Per-type-covered-file churn: window commits touching that ONE file. `files` is
+ * always exactly `[thisFile]` — kept as an array only for rendering symmetry with
+ * {@link NodeChurn} (a single-file record has nothing to sample beyond itself).
+ */
+export interface TypeCoveredFileChurn {
+  /** Number of window commits that touched this file. */
+  churn: number;
+  /** Always `[thisFile]`. */
+  files: string[];
+}
+
+/**
+ * Count, per FILE, how many of the given commits touched it — the sibling of
+ * {@link countChurnByNode} for files a node does not own.
+ *
+ * {@link countChurnByNode} attributes churn via `ownerOf(file)` and SILENTLY DROPS
+ * every file whose owner is `undefined` (line above: `if (node === undefined)
+ * continue;`) — correct for its own purpose (a node's churn), but a trap for a
+ * type-covered file: EVERY type-covered file has no owning node by definition, so
+ * reusing `countChurnByNode` over them always returns an empty map. That reads as
+ * "no churn" when the real answer is "wrong function" — this sibling keys by the
+ * file path directly (`typeCoveredFiles.has(file)`) instead of node ownership, so a
+ * type-covered file's churn is counted at all.
+ *
+ * `typeCoveredFiles` is the CURRENT run's `computeTypeCoverage(...).covered` key
+ * set — already filtered by the caller against `coverage.excluded`, nested-project
+ * boundaries, and node ownership, so a file this function counts is, by
+ * construction, one the graph currently classifies as type-covered and nothing
+ * else. PURE: no git, no filesystem, no clock — deterministic given its inputs,
+ * mirroring `countChurnByNode`'s own contract.
+ */
+export function countChurnByTypeCoveredFile(
+  touchesByCommit: readonly (readonly string[])[],
+  typeCoveredFiles: ReadonlySet<string>,
+): Map<string, TypeCoveredFileChurn> {
+  const churn = new Map<string, number>();
+
+  for (const touches of touchesByCommit) {
+    const filesThisCommit = new Set<string>();
+    for (const file of touches) {
+      if (!typeCoveredFiles.has(file)) continue;
+      filesThisCommit.add(file);
+    }
+    // One increment per file per commit, mirroring countChurnByNode's per-node dedup
+    // (defensive here too, though `git log --name-only` never repeats a path within
+    // one commit's file list).
+    for (const file of filesThisCommit) {
+      churn.set(file, (churn.get(file) ?? 0) + 1);
+    }
+  }
+
+  const out = new Map<string, TypeCoveredFileChurn>();
+  for (const [file, count] of churn) {
+    out.set(file, { churn: count, files: [file] });
+  }
+  return out;
+}

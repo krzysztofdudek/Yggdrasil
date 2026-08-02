@@ -40,3 +40,5 @@ Documented, in the regression-nomination engine, that it now receives only actio
 The nomination that flags a rule as effective nowhere accepted an optional enforcement classification, but the command driving it never supplied one, so a rule reachable only through an architecture type could be nominated as dead even while the structural check already treated it as live. It now receives the same classification the command computes for a related signal, so the two can never disagree.
 ## [2026-07-31T18:00:25.443Z]
 The owner resolver churn attribution shares with the relation-conformance pass and coverage now excludes a file this graph excludes from coverage, the same way every other ownership answer in this graph already does — resolving the exclusion set requires a real filesystem read, so the resolver is now async.
+## [2026-08-02T06:21:52.370Z]
+advise's nomination engine gains a class that flags a churning file the architecture type tier classifies but no component owns, backed by a new churn counter keyed by file path so a file with no owning component is no longer silently dropped from the churn signal the way the existing per-component counter drops it.

@@ -19,6 +19,7 @@ import {
   Z_ADMIT,
   MIN_N,
 } from '../../../src/core/feature-index-write.js';
+import type { FamilyOwner } from '../../../src/core/feature-field-schema.js';
 import type { FeatureVector } from '../../../src/relations/feature-vector.js';
 import type { FileFacts } from '../../../src/relations/pass.js';
 
@@ -62,7 +63,8 @@ function tsFamily(branchCounts: number[], node = 'svc') {
     factsByPath.set(p, facts(fv({ categories: { 'branch-like': b } })));
     hashByPath.set(p, `hash-${node}-${i}`);
   });
-  const ownerOf = (p: string): string | undefined => (p.startsWith(`src/${node}/`) ? node : undefined);
+  const ownerOf = (p: string): FamilyOwner | undefined =>
+    p.startsWith(`src/${node}/`) ? { kind: 'node', id: node } : undefined;
   return { factsByPath, hashByPath, ownerOf };
 }
 
@@ -104,7 +106,7 @@ describe('computeFamilyDeviations', () => {
     // Sparse: exactly the one outlier file appears.
     expect([...result.keys()]).toEqual(['src/svc/file5.ts']);
     const entry = result.get('src/svc/file5.ts')!;
-    expect(entry.family).toBe(familyKey('svc', 'typescript'));
+    expect(entry.family).toBe(familyKey({ kind: 'node', id: 'svc' }, 'typescript'));
     expect(entry.contentHash).toBe('hash-svc-5'); // threaded from hashByPath
     // Exactly one deviation, on branch-like, with a large positive robust score.
     expect(entry.deviations).toHaveLength(1);
@@ -133,7 +135,8 @@ describe('computeFamilyDeviations', () => {
       factsByPath.set(p, facts(fv({ categories: { 'branch-like': b } })));
       hashByPath.set(p, `h${i}`);
     });
-    const ownerOf = (p: string): string | undefined => (p.startsWith('src/svc/') ? 'svc' : undefined);
+    const ownerOf = (p: string): FamilyOwner | undefined =>
+      p.startsWith('src/svc/') ? { kind: 'node', id: 'svc' } : undefined;
 
     const result = computeFamilyDeviations(factsByPath, ownerOf, hashByPath, new Set(factsByPath.keys()));
     expect([...result.keys()]).toEqual(['src/svc/file4.ts']);
@@ -174,11 +177,47 @@ describe('computeFamilyDeviations', () => {
     factsByPath.set('vendor/x.ts', facts(fv({ categories: { 'branch-like': 9999 } })));
     hashByPath.set('vendor/x.ts', 'vend');
 
-    const ownerOf = (p: string): string | undefined => (p.startsWith('src/a/') ? 'a' : undefined);
+    const ownerOf = (p: string): FamilyOwner | undefined =>
+      p.startsWith('src/a/') ? { kind: 'node', id: 'a' } : undefined;
     const result = computeFamilyDeviations(factsByPath, ownerOf, hashByPath, new Set(factsByPath.keys()));
 
     expect([...result.keys()]).toEqual(['src/a/f4.ts']);
-    expect(result.get('src/a/f4.ts')!.family).toBe(familyKey('a', 'typescript'));
+    expect(result.get('src/a/f4.ts')!.family).toBe(familyKey({ kind: 'node', id: 'a' }, 'typescript'));
     expect(result.has('vendor/x.ts')).toBe(false);
+  });
+
+  // ── Task 12 / K17: a type-covered file (no owning node) forms its own family ──
+
+  it('a family resolved via a TYPE owner (no node) is admitted — a type-covered file is not silently dropped', () => {
+    // 5 TS files whose resolver names a matched TYPE, never a node — exactly the
+    // shape a type-covered file (computeTypeCoverage's `covered` map) resolves to.
+    // Before the widened resolver, ownerOf could only ever return a node id or
+    // undefined, so a file like this was always skipped (see the "no owner" case
+    // above) — never grouped into a family, never compared, never flagged.
+    const factsByPath = new Map<string, FileFacts>();
+    const hashByPath = new Map<string, string>();
+    [3, 4, 5, 4, 50].forEach((b, i) => {
+      const p = `src/svc/f${i}.ts`;
+      factsByPath.set(p, facts(fv({ categories: { 'branch-like': b } })));
+      hashByPath.set(p, `svc${i}`);
+    });
+    const typeOwnerOf = (p: string): FamilyOwner | undefined =>
+      p.startsWith('src/svc/') ? { kind: 'type', id: 'svc' } : undefined;
+
+    const result = computeFamilyDeviations(factsByPath, typeOwnerOf, hashByPath, new Set(factsByPath.keys()));
+
+    expect([...result.keys()]).toEqual(['src/svc/f4.ts']);
+    expect(result.get('src/svc/f4.ts')!.family).toBe(familyKey({ kind: 'type', id: 'svc' }, 'typescript'));
+  });
+
+  it("a type-keyed family never collides with a node-keyed family carrying the SAME id string", () => {
+    // A node 'svc' and a type 'svc' are two entirely different comparison cohorts
+    // (a node's own mapped files vs. every file the architecture classifies under
+    // the type 'svc') — the family key must distinguish them even though the raw
+    // id string is identical, so a node-owned outlier can never be compared
+    // against (or silently merged with) a type-covered one under the same key.
+    expect(familyKey({ kind: 'node', id: 'svc' }, 'typescript')).not.toBe(
+      familyKey({ kind: 'type', id: 'svc' }, 'typescript'),
+    );
   });
 });

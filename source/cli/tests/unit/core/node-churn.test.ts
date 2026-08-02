@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import path from 'node:path';
 import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { countChurnByNode, ownerOfForGraph } from '../../../src/core/node-churn.js';
+import { countChurnByNode, countChurnByTypeCoveredFile, ownerOfForGraph } from '../../../src/core/node-churn.js';
 import type { Graph, GraphNode } from '../../../src/model/graph.js';
 
 // Pure churn counting over SYNTHETIC per-commit touch sets — no git, no fixture.
@@ -86,6 +86,46 @@ describe('countChurnByNode — per-node commit churn over parsed touch sets', ()
       churn: 3,
       files: ['src/a/x.ts'],
     });
+  });
+});
+
+// The trap: countChurnByNode attributes churn via ownerOf(file), so a file with no
+// owning node is silently dropped — which is EVERY type-covered file, by
+// definition. That reads as "no churn" when the real problem is "wrong function".
+describe('the churn-counting trap: countChurnByNode cannot see type-covered files', () => {
+  it('countChurnByNode returns an EMPTY map over commits that only touch owner-less files — looks like "no churn", is really "wrong function"', () => {
+    const commits = [['src/svc/handler.ts'], ['src/svc/handler.ts', 'src/svc/other.ts']];
+    const noOwnerEver = (): string | undefined => undefined; // every type-covered file has no node
+    expect(countChurnByNode(commits, noOwnerEver).size).toBe(0);
+  });
+});
+
+describe('countChurnByTypeCoveredFile — per-FILE commit churn over parsed touch sets (the fix for the trap above)', () => {
+  it('counts the SAME commits by file path directly, not by node ownership', () => {
+    const commits = [['src/svc/handler.ts'], ['src/svc/handler.ts', 'src/svc/other.ts']];
+    const typeCovered = new Set(['src/svc/handler.ts', 'src/svc/other.ts']);
+    const churn = countChurnByTypeCoveredFile(commits, typeCovered);
+    expect(churn.get('src/svc/handler.ts')).toEqual({ churn: 2, files: ['src/svc/handler.ts'] });
+    expect(churn.get('src/svc/other.ts')).toEqual({ churn: 1, files: ['src/svc/other.ts'] });
+  });
+
+  it('ignores a file NOT in the type-covered set — it contributes no churn even if touched', () => {
+    const commits = [['src/svc/handler.ts', 'README.md']];
+    const typeCovered = new Set(['src/svc/handler.ts']);
+    const churn = countChurnByTypeCoveredFile(commits, typeCovered);
+    expect(churn.size).toBe(1);
+    expect(churn.get('src/svc/handler.ts')).toEqual({ churn: 1, files: ['src/svc/handler.ts'] });
+  });
+
+  it('omits a file with zero churn entirely (no 0-churn entries in the map)', () => {
+    expect(countChurnByTypeCoveredFile([], new Set(['src/svc/handler.ts'])).size).toBe(0);
+    expect(countChurnByTypeCoveredFile([['other.ts']], new Set(['src/svc/handler.ts'])).size).toBe(0);
+  });
+
+  it('counts a commit touching the same file only once (defensive dedup, mirrors countChurnByNode)', () => {
+    const commits = [['src/svc/handler.ts', 'src/svc/handler.ts']];
+    const churn = countChurnByTypeCoveredFile(commits, new Set(['src/svc/handler.ts']));
+    expect(churn.get('src/svc/handler.ts')).toEqual({ churn: 1, files: ['src/svc/handler.ts'] });
   });
 });
 

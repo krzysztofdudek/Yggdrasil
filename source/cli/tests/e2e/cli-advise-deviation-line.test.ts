@@ -82,9 +82,13 @@ function gitInit(dir: string): void {
 const INDEX_REL = path.join('.yggdrasil', '.feature-field.json');
 const DEV = [{ dim: 'branch-like', z: 25.6 }];
 
-/** Write the local deviation index verbatim at .yggdrasil/.feature-field.json. */
+/** Write the local deviation index verbatim at .yggdrasil/.feature-field.json.
+ *  `v: 2` is the current on-disk schema version (feature-field-schema.ts's
+ *  FEATURE_FIELD_VERSION) — hand-typed like every other field this hand-crafted
+ *  index literal carries below, so this E2E suite never gains a code dependency
+ *  on the production module just to read one constant. */
 function writeIndex(dir: string, files: Record<string, unknown>): void {
-  w(dir, INDEX_REL, JSON.stringify({ v: 1, generatedAt: '2026-01-01T00:00:00.000Z', files }));
+  w(dir, INDEX_REL, JSON.stringify({ v: 2, generatedAt: '2026-01-01T00:00:00.000Z', files }));
 }
 
 /**

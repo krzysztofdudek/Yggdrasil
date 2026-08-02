@@ -1003,28 +1003,36 @@ describe.skipIf(!distExists)('yg advise — T2 shares the JOINT cap with T1 (non
   });
 });
 
-describe('gatherChurnByNode — owner resolution is isolated from the git try/catch', () => {
-  it("resolves the owner index BEFORE the git subprocess try block, so a filesystem-walk failure is never misattributed to \"no readable git history\"", () => {
-    // ownerOfForGraph does a real filesystem walk (resolveGraphExclusionSet), unrelated
-    // to git; if it were awaited INSIDE the git try block, a failure there would be
-    // caught by the git-specific catch and debug-logged with the wrong cause. This is
-    // a source-position pin, not a behavioral one, because ownerOfForGraph's only
-    // fallible step — resolveGraphExclusionSet's findNestedProjectRoots walk
-    // (io/repo-scanner.ts's walkForNestedProjectRoots) — catches every readdir fault
-    // itself and never rethrows (confirmed by reading it, and by a real chmod-000
-    // subdirectory under a project root, which the walk silently skipped rather than
-    // propagating). There is no real filesystem condition under which
-    // gatherChurnByNode's own try/catch split could be told apart by observing which
-    // debug line fires, so the ordering itself is the only thing left to check.
+describe('gatherChurnByNode — git history is an EXTERNAL input now, never fetched inside this function', () => {
+  it('gatherChurnByNode contains NO git subprocess call at all — the misattribution risk a prior split guarded against by ORDERING is now eliminated STRUCTURALLY, by removing the git try/catch from this function entirely (Task 12: the git fetch is shared with the type-covered-churn counter, so it moved to its own gatherChurnHistory)', () => {
+    // Before Task 12, this function ran its own git subprocess AFTER resolving the
+    // owner index, so a filesystem-walk fault could never be misattributed to "no
+    // readable git history" only because of THAT ordering. Task 12 needed the SAME
+    // git history shared with a second counter (countChurnByTypeCoveredFile), so the
+    // fetch moved out into gatherChurnHistory — this function now takes
+    // touchesByCommit as a plain parameter and contains no git call whatsoever, which
+    // removes the misattribution risk outright rather than merely ordering around it.
     const src = readFileSync(path.join(CLI_ROOT, 'src', 'cli', 'advise.ts'), 'utf-8');
     const fnSrc = src.slice(
       src.indexOf('async function gatherChurnByNode'),
       src.indexOf('\n}\n', src.indexOf('async function gatherChurnByNode')),
     );
-    const ownerCallIndex = fnSrc.indexOf('ownerOfForGraph(graph)');
-    const gitTryIndex = fnSrc.indexOf("execFileSync('git'");
-    expect(ownerCallIndex).toBeGreaterThan(-1);
-    expect(gitTryIndex).toBeGreaterThan(-1);
-    expect(ownerCallIndex).toBeLessThan(gitTryIndex);
+    expect(fnSrc).toContain('ownerOfForGraph(graph)');
+    expect(fnSrc).not.toContain('execFileSync');
+  });
+
+  it('the git history fetch (shallow probe + git log) lives in exactly ONE function, called once per yg advise run and threaded to both churn counters — never doubled for the type-covered-churn source', () => {
+    const src = readFileSync(path.join(CLI_ROOT, 'src', 'cli', 'advise.ts'), 'utf-8');
+    // Exactly two execFileSync('git', ...) call sites in the whole module: the
+    // shallow-repository probe and the `git log` call, both inside the ONE shared
+    // gatherChurnHistory. A caller (gatherChurnByNode, gatherTypeCoveredChurn) that
+    // wanted its own history would add a third or fourth call site here.
+    const gitCallSites = [...src.matchAll(/execFileSync\('git'/g)].length;
+    expect(gitCallSites).toBe(2);
+    const fetchFnSrc = src.slice(
+      src.indexOf('function gatherChurnHistory'),
+      src.indexOf('\n}\n', src.indexOf('function gatherChurnHistory')),
+    );
+    expect((fetchFnSrc.match(/execFileSync\('git'/g) ?? []).length).toBe(2);
   });
 });

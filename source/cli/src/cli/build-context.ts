@@ -268,12 +268,23 @@ async function maybeAppendAttentionLine(graph: Graph, repoRelPosixPath: string):
     const content = await readTextFile(path.join(projectRoot, repoRelPosixPath));
     const entry = readFeatureFieldEntry(graph.rootPath, repoRelPosixPath, hashString(content));
     if (entry === null) return; // no live outlier record for these exact bytes → say nothing
-    // family = `${ownerNodeId}\x00${language}`; take the language half and humanize it.
-    const sepAt = entry.family.indexOf(FAMILY_SEP);
-    const language = sepAt >= 0 ? entry.family.slice(sepAt + 1) : entry.family;
+    // family = `${owner.kind}\x00${owner.id}\x00${language}` (see
+    // core/feature-field-schema.ts's FamilyOwner) — the KIND is always the FIRST
+    // segment and the language always the LAST, regardless of how many owner
+    // segments sit between them (there is currently exactly one, `owner.id`, but
+    // taking first/last rather than a fixed split count keeps this stable if that
+    // ever changes). A plain single `indexOf` split would hand back the owner id
+    // as if it were the language.
+    const kindSepAt = entry.family.indexOf(FAMILY_SEP);
+    const kind = kindSepAt >= 0 ? entry.family.slice(0, kindSepAt) : entry.family;
+    const langSepAt = entry.family.lastIndexOf(FAMILY_SEP);
+    const language = langSepAt >= 0 ? entry.family.slice(langSepAt + 1) : entry.family;
     const lang = getLanguageDisplayName(language);
+    // A type-covered file (no owning node) is compared against its matched TYPE's
+    // other files, never a node's — the cohort noun must say which.
+    const cohort = kind === 'type' ? "this file's matched type" : 'this node';
     process.stdout.write(
-      `\nThis file is structurally unusual among this node's other ${lang} files — worth a closer read; no action required.\n`,
+      `\nThis file is structurally unusual among ${cohort}'s other ${lang} files — worth a closer read; no action required.\n`,
     );
   } catch (err) {
     debugWrite(`[build-context] attention note skipped (best-effort): ${err instanceof Error ? err.message : String(err)}`);

@@ -17,7 +17,7 @@ import {
   type ArchitectureCutCycle,
   type FamilyCandidatesData,
 } from '../core/advise-nominations.js';
-import { countChurnByNode, ownerOfForGraph, type OwnerOf } from '../core/node-churn.js';
+import { countChurnByNode, countChurnByTypeCoveredFile, ownerOfForGraph, type OwnerOf } from '../core/node-churn.js';
 import { applyDecisions, type VisibleNomination } from '../core/advise-feed.js';
 import { groupUnitsByAspect } from '../core/aspect-health-signals.js';
 import { computeExpectedPairs } from '../core/pairs.js';
@@ -34,7 +34,7 @@ import { countIncidents } from '../io/incidents-store.js';
 import { walkRepoFiles, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
 import { runSuppressionsScan, scanPortalSuppressions } from '../portal/api/suppress-scan.js';
 import { collectMappingEntries, collectTypeCoveredFiles } from '../portal/api/suppress-eligibility.js';
-import { computeDetectedEdges } from '../portal/api/boundary.js';
+import { computeDetectedEdges, computeTypedEdges } from '../portal/api/boundary.js';
 import {
   edgeUniverse,
   tunnelSpans,
@@ -353,45 +353,26 @@ function parseNameOnlyLog(output: string): string[][] {
 }
 
 /**
- * Assemble the per-node churn signal for the uncovered-hot-spot nomination: run a
- * READ-ONLY `git log` over the recent window, parse it to per-commit touch sets, and
- * count per node via the SAME owner index the checker uses. This is the only impure
- * step in the churn path (the counting core is pure). HONESTY LAW ([RZ-21]): churn is
- * used ONLY when git is present AND the repo has its FULL history; otherwise this
- * returns undefined so the caller OMITS the churn source entirely and the hot-spot
- * class stays SILENT rather than fabricating a signal over history it could not read.
- * Three silence gates:
- *   - owner resolution failed — `ownerOfForGraph` resolves the graph's exclusion set
- *     via a filesystem walk (`resolveGraphExclusionSet`), unrelated to git; resolved
- *     and awaited BEFORE the git try/catch below so a failure here is never
- *     misattributed to "no readable git history" (`findNestedProjectRoots` swallows
- *     its own read errors, so this is a defensive gate, not one an ordinary
- *     repository hits).
+ * Fetch and parse the READ-ONLY window of git history BOTH churn sources need —
+ * the uncovered-hot-spot class (per-node) and the type-covered-churn class
+ * (per-file, for a file no node owns). ONE subprocess pair (a shallow probe + one
+ * `git log`) serves both counting functions from the SAME `touchesByCommit`
+ * array, so turning on the type-level tier never doubles the git cost of `yg
+ * advise`. HONESTY LAW ([RZ-21]): churn is used ONLY when git is present AND the
+ * repo has its FULL history; otherwise this returns undefined so BOTH sources
+ * degrade together (never one silent while the other counts a different history
+ * snapshot). Two silence gates:
  *   - shallow clone — `git log -n 200` on a shallow repo exits 0 and returns a
  *     TRUNCATED window, which would undercount churn while the "last 200 commits"
  *     provenance overstates it; `--is-shallow-repository` catches that before any
  *     count is trusted.
- *   - no readable history — git missing, not a repo, or the subprocess fails for any
- *     reason (the shallow probe throwing counts here too: an unconfirmed history is
- *     honest silence).
- * An empty map (git present, full history, but no window commit touched any node) is
- * a DIFFERENT, honest outcome: the class runs and simply produces nothing.
+ *   - no readable history — git missing, not a repo, or the subprocess fails for
+ *     any reason (the shallow probe throwing counts here too: an unconfirmed
+ *     history is honest silence).
+ * An empty array (git present, full history, but zero commits in range) is a
+ * DIFFERENT, honest outcome: both counters run and simply produce nothing.
  */
-async function gatherChurnByNode(
-  graph: Graph,
-  projectRoot: string,
-): Promise<Map<string, { churn: number; files: string[] }> | undefined> {
-  // Resolved BEFORE the git try/catch below: a failure here is a filesystem-walk
-  // fault, not a git fault, and must be named honestly rather than folded into the
-  // git-specific "no readable git history" debug line.
-  let resolveOwner: OwnerOf;
-  try {
-    resolveOwner = await ownerOfForGraph(graph);
-  } catch (error) {
-    debugWrite(`[advise] churn signal silent (owner resolution failed): ${(error as Error).message}`);
-    return undefined;
-  }
-
+function gatherChurnHistory(projectRoot: string): string[][] | undefined {
   const gitOpts = {
     cwd: projectRoot,
     encoding: 'utf-8' as const,
@@ -412,10 +393,99 @@ async function gatherChurnByNode(
       ...gitOpts,
       maxBuffer: 64 * 1024 * 1024,
     });
-    return countChurnByNode(parseNameOnlyLog(out), resolveOwner);
+    return parseNameOnlyLog(out);
   } catch (error) {
     debugWrite(`[advise] churn signal silent (no readable git history): ${(error as Error).message}`);
     return undefined;
+  }
+}
+
+/**
+ * The per-node half of the churn signal, for the uncovered-hot-spot nomination:
+ * count `touchesByCommit` (already fetched once by `gatherChurnHistory` and
+ * shared with the type-covered-churn source below) via the SAME owner index the
+ * checker uses. `touchesByCommit` undefined ⇒ history unknown ⇒ silent
+ * (mirroring `gatherChurnHistory`'s own contract). A failure resolving the owner
+ * index (a filesystem-walk fault, unrelated to git) also degrades to silence,
+ * named honestly in its own debug line rather than folded into a git-specific one.
+ */
+async function gatherChurnByNode(
+  graph: Graph,
+  touchesByCommit: string[][] | undefined,
+): Promise<Map<string, { churn: number; files: string[] }> | undefined> {
+  if (touchesByCommit === undefined) return undefined;
+  let resolveOwner: OwnerOf;
+  try {
+    resolveOwner = await ownerOfForGraph(graph);
+  } catch (error) {
+    debugWrite(`[advise] churn signal silent (owner resolution failed): ${(error as Error).message}`);
+    return undefined;
+  }
+  return countChurnByNode(touchesByCommit, resolveOwner);
+}
+
+/**
+ * The per-FILE half of the churn signal, for the type-covered-churn nomination: a
+ * type-covered file has no owning node, so `gatherChurnByNode`'s owner-keyed
+ * counter always drops it (see `countChurnByTypeCoveredFile`'s own doc for the
+ * trap this avoids) — this counts `touchesByCommit` directly against the CURRENT
+ * run's `typeCoverage.covered` key set instead. Silent (undefined) whenever
+ * EITHER input is unknown: no readable git history (mirrors `gatherChurnByNode`),
+ * or the type-level tier is off / classification failed (`typeCoverage`
+ * undefined) — never fabricated from a partial view of either. Present (even an
+ * empty map, when git and classification are both known but nothing churned or
+ * classified) ⇒ the class runs.
+ */
+function gatherTypeCoveredChurn(
+  touchesByCommit: string[][] | undefined,
+  typeCoverage: TypeCoverageInput | undefined,
+): Map<string, { churn: number; typeId: string }> | undefined {
+  if (touchesByCommit === undefined || typeCoverage === undefined) return undefined;
+  const typeCoveredFiles = new Set(typeCoverage.covered.keys());
+  const churn = countChurnByTypeCoveredFile(touchesByCommit, typeCoveredFiles);
+  const out = new Map<string, { churn: number; typeId: string }>();
+  for (const [file, { churn: count }] of churn) {
+    const typeId = typeCoverage.covered.get(file);
+    if (typeId !== undefined) out.set(file, { churn: count, typeId });
+  }
+  return out;
+}
+
+/**
+ * Same-type import edges among type-covered files (the type-covered-churn
+ * class's cluster-evidence upgrade), via `computeTypedEdges` — the SAME
+ * read-only, fail-open relation-pass accessor `yg structure` uses to widen its
+ * own edge universe. Restricted here to pairs where BOTH endpoints are
+ * type-covered AND share the SAME matched type (a node-owned endpoint is named
+ * by its node id in `computeTypedEdges`'s translated `StructEdge`s, which can
+ * never collide with a repo-relative file path, so `covered.has(...)` alone
+ * correctly excludes every node-to-node or mixed edge without needing the
+ * pass's own richer `TypedEdgeIndex` shape). Silent (undefined) when there is no
+ * type-covered file to begin with — nothing to widen a pass for. Never throws:
+ * `computeTypedEdges` itself fails open to `[]` on any relation-pass failure,
+ * matching `yg advise`'s own read-only, never-gating contract.
+ */
+async function gatherTypeCoveredEdges(
+  graph: Graph,
+  projectRoot: string,
+  typeCoverage: TypeCoverageInput | undefined,
+): Promise<Array<{ from: string; to: string }> | undefined> {
+  if (typeCoverage === undefined || typeCoverage.covered.size === 0) return undefined;
+  try {
+    const structEdges = await computeTypedEdges(graph, projectRoot, typeCoverage.covered);
+    const covered = typeCoverage.covered;
+    const out: Array<{ from: string; to: string }> = [];
+    for (const { from, to } of structEdges) {
+      const fromType = covered.get(from);
+      const toType = covered.get(to);
+      if (fromType !== undefined && toType !== undefined && fromType === toType) {
+        out.push({ from, to });
+      }
+    }
+    return out;
+  } catch (error) {
+    debugWrite(`[advise] type-covered edges degraded to empty: ${(error as Error).message}`);
+    return [];
   }
 }
 
@@ -462,7 +532,12 @@ async function gatherNominationSources(graph: Graph, todayUtc: Date): Promise<No
   const drillResults = await gatherInCorpusDrillResults(graph, projectRoot);
   const verdictEvents = readVerdictEvents(graph.rootPath).events;
   const currentUnitsByAspect = await gatherCurrentUnits(graph, typeCoverage);
-  const churnByNode = await gatherChurnByNode(graph, projectRoot);
+  // ONE git-history fetch, shared by both churn counters below (per-node and
+  // per-type-covered-file) — see gatherChurnHistory's own doc.
+  const touchesByCommit = gatherChurnHistory(projectRoot);
+  const churnByNode = await gatherChurnByNode(graph, touchesByCommit);
+  const typeCoveredChurnByFile = gatherTypeCoveredChurn(touchesByCommit, typeCoverage);
+  const typeCoveredEdges = await gatherTypeCoveredEdges(graph, projectRoot, typeCoverage);
   const familyCandidates = readFamilyCandidatesSource(graph);
   const architectureCutCycles = computeArchitectureCutCycles(graph);
 
@@ -486,6 +561,17 @@ async function gatherNominationSources(graph: Graph, todayUtc: Date): Promise<No
   if (churnByNode !== undefined) {
     sources.churnByNode = churnByNode;
     sources.churnWindow = CHURN_WINDOW;
+  }
+  // The type-covered-churn source needs the churn-by-file map; supply it only
+  // when KNOWN (git history readable AND the type-level tier classified this
+  // run), so no-git / flag-off leaves the class silent instead of fabricating a
+  // signal. The window is the SAME CHURN_WINDOW both churn sources share.
+  if (typeCoveredChurnByFile !== undefined) {
+    sources.typeCoveredChurnByFile = typeCoveredChurnByFile;
+    sources.churnWindow = CHURN_WINDOW;
+  }
+  if (typeCoveredEdges !== undefined) {
+    sources.typeCoveredEdges = typeCoveredEdges;
   }
   // T2 class A: a FRESH family-candidates payload (present-or-omit + freshness
   // gate) enables the family-without-law class; absent/stale ⇒ left unset ⇒ omitted.

@@ -14,7 +14,13 @@ description: "Subprocess E2E over the public CLI: yg check maintains the local,
   nomination: a zero-aspect node that churns across recent commits is nominated with
   its churn count, capped file evidence, and provenance (a node covered by an
   enforced rule is never nominated), while a repo with no commits and a non-git
-  directory alike leave the class silent — churn is never fabricated. Spawns the
+  directory alike leave the class silent — churn is never fabricated. Also covers
+  the yg advise type-covered-churn nomination: a file with a matched architecture
+  type but no component of its own is nominated when it churns, naming the file,
+  its churn count, and its matched type; two such same-type files importing each
+  other upgrade the evidence to a cluster; a file under a coverage.excluded root is
+  never attributed churn or nominated; and with the type tier off, output is
+  byte-identical whether or not a matching type is even declared. Spawns the
   built bin.js; no source imports."
 aspects: []
 relations: []
@@ -23,3 +29,4 @@ mapping:
   - source/cli/tests/e2e/cli-context-attention-line.test.ts
   - source/cli/tests/e2e/cli-advise-deviation-line.test.ts
   - source/cli/tests/e2e/cli-advise-hot-spot.test.ts
+  - source/cli/tests/e2e/cli-advise-type-covered-churn.test.ts

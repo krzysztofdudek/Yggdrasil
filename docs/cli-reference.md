@@ -538,7 +538,7 @@ own words, a case name, a file and line, shown in quotes with their source, neve
 instruction) — and the exact next step, which always ends by noting it needs your approval.
 
 The nomination classes, highest priority first. The first five rest on the graph as it stands;
-the next four are read from local history and carry an honesty label while the evidence is thin;
+the next five are read from local history and carry an honesty label while the evidence is thin;
 the last two are whole-codebase observations:
 
 1. **A regression case a rule no longer catches** — a `violates-*` drill case the rule now lets through.
@@ -550,8 +550,9 @@ the last two are whole-codebase observations:
 7. **Sharpen an inconsistently-judged rule** — the reviewer disagrees with itself on it.
 8. **A rule that has never once caught a violation** — reported as *possibly deterring* what it would catch, never assumed useless.
 9. **An uncovered hot spot** — a component whose files change often yet carry no enforced rule: the code most in motion with the least protection.
-10. **A candidate rule family** — see below.
-11. **An architecture cut** — see below.
+10. **A churning file the type tier alone carries** — with `coverage.type_level` on, a file with a matched architecture type but no component of its own has no node-level rule that can ever attach to it; when such a file changes often, this proposes giving it a component. Two or more such files of the same type that import each other, both changing, upgrade the evidence from one busy file to a cluster.
+11. **A candidate rule family** — see below.
+12. **An architecture cut** — see below.
 
 The lowest-priority suggestions include two whole-codebase observations: a **candidate rule
 family** — a tight group of near-identical files sharing no rule of their own, offered with a

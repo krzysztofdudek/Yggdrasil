@@ -50,8 +50,10 @@ import {
   writeFeatureIndex,
   computeFamilyDeviations,
   groupByFamily,
+  nodeOnlyFamilyOwner,
   median,
   DIMS,
+  DIM_LABEL,
   MIN_N,
   Z_ADMIT,
 } from './feature-index-write.js';
@@ -1038,6 +1040,7 @@ export async function runCheck(
     );
     await writeFeatureIndex(graph, featureFactsByPath, featureHashByPath, includedPaths, {
       now: options.now ?? (() => new Date()),
+      covered: earlyTypeCoverage?.covered,
     });
   }
 
@@ -1066,21 +1069,6 @@ export async function runCheck(
 
 // ── Calibration instrument: `--attention-dump` (writes nothing, exits 0) ──────
 
-/** Plain-language dimension labels for the calibration dump — deliberately NO statistics
- *  jargon (no "z-score" / "MAD" / "percentile" in any user-facing string). */
-const DIM_LABEL: Record<string, string> = {
-  nodeCount: 'size',
-  depthQ25: 'nesting (shallow)',
-  depthQ50: 'nesting (middle)',
-  depthQ75: 'nesting (deep)',
-  'function-like': 'functions',
-  'class-like': 'classes',
-  'import-like': 'imports',
-  'branch-like': 'branches',
-  'call-like': 'calls',
-  'literal-like': 'literals',
-};
-
 /**
  * The calibration instrument behind the hidden `--attention-dump` flag. Runs the
  * relation pass over WARM shards (no new parse — an AST fact cache HIT), computes
@@ -1097,7 +1085,7 @@ const DIM_LABEL: Record<string, string> = {
  */
 export async function runAttentionDump(graph: Graph, coverageVisibleFiles: string[]): Promise<string> {
   const projectRoot = path.dirname(graph.rootPath);
-  const ownerOf = buildOwnerIndex(graph.nodes).ownerOf;
+  const ownerOf = nodeOnlyFamilyOwner(buildOwnerIndex(graph.nodes).ownerOf);
   const relResult = await runRelationPass(graph, projectRoot, {
     extractorFor: extractorForLanguage,
     resolvePathToFile: await guardedResolve(projectRoot, graph),
@@ -1133,7 +1121,7 @@ export async function runAttentionDump(graph: Graph, coverageVisibleFiles: strin
 
   for (const key of [...families.keys()].sort((a, b) => a.localeCompare(b, 'en'))) {
     const members = families.get(key)!;
-    const [owner, language] = key.split('\x00');
+    const [, owner, language] = key.split('\x00'); // keys are node\x00<nodeId>\x00<language> here
     const tooFew = members.length < MIN_N;
     const note = tooFew ? ' — too few files to compare; nothing flagged here' : '';
     out.push(`${owner} · ${language}  (${members.length} file${members.length === 1 ? '' : 's'}${note})`);

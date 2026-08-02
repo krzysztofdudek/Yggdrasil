@@ -12,7 +12,7 @@
  *   - the write is best-effort (a write failure is swallowed, never throws, no partial file).
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, cpSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -27,11 +27,13 @@ import { runRelationPass } from '../../src/relations/pass.js';
 import { extractorForLanguage } from '../../src/relations/extractors/registry.js';
 import { makeResolvePathToFile } from '../../src/relations/resolve-path.js';
 import { astCacheDir } from '../../src/relations/facts-cache.js';
+import { walkRepoFiles } from '../../src/io/repo-scanner.js';
 import { hashString } from '../../src/io/hash.js';
 import {
   writeFeatureIndex,
   familyKey,
   FEATURE_FIELD_FILENAME,
+  FEATURE_FIELD_VERSION,
   type FeatureFieldIndex,
 } from '../../src/core/feature-index-write.js';
 import type { Graph } from '../../src/model/graph.js';
@@ -106,7 +108,7 @@ describe('feature-field index — real pass, byproduct-free elsewhere, best-effo
 
     expect(existsSync(indexAbs())).toBe(true);
     const index = readIndex();
-    expect(index.v).toBe(1);
+    expect(index.v).toBe(FEATURE_FIELD_VERSION);
     expect(index.generatedAt).toBe('2026-07-05T09:00:00.000Z'); // injected clock
 
     // Sparse: ONLY the outlier file is flagged (the five near-uniform files are not).
@@ -114,7 +116,7 @@ describe('feature-field index — real pass, byproduct-free elsewhere, best-effo
     const entry = index.files[OUTLIER_PATH];
 
     // Family = owner node × extractor language.
-    expect(entry.family).toBe(familyKey('svc', 'typescript'));
+    expect(entry.family).toBe(familyKey({ kind: 'node', id: 'svc' }, 'typescript'));
     // At least the branch-like dimension is flagged.
     expect(entry.deviations.map((d) => d.dim)).toContain('branch-like');
     expect(entry.deviations.length).toBeGreaterThan(0);
@@ -320,5 +322,90 @@ describe('runAttentionDump — in-process calibration view (writes nothing)', ()
     expect(attnDumpSrc).not.toMatch(/resolvePathToFile:\s*makeResolvePathToFile\(/);
     expect(attnDumpSrc).toMatch(/resolvePathToFile:\s*await guardedResolve\(/);
     expect(attnDumpSrc).not.toContain('violationsByNode');
+  });
+});
+
+// ── A type-covered file (no owning node) forms its own family in the index ──
+
+describe('feature-field index — a type-covered file (no owning node) is admitted under its own family', () => {
+  const FIXTURE = path.join(__dirname, '..', 'fixtures', 'type-coverage-basic');
+
+  it('an outlier among 5 svc-type-covered files is flagged, keyed by a type family — not silently dropped for lack of an owning node', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'feat-field-type-covered-'));
+    try {
+      cpSync(FIXTURE, dir, { recursive: true });
+      // The fixture's own src/svc/handler.ts already matches ONLY the svc type (no
+      // node owns it, no other type overlaps it — see the fixture's architecture
+      // comment) and has 0 branches. Add 4 more pure-svc files (never touching
+      // src/svc/overlap.ts, which deliberately also matches `util` and stays
+      // ambiguous) so the svc family reaches MIN_N (5): branch counts [0 (handler),
+      // 1, 2, 3, 40] give the family real spread (a MAD of 0 — e.g. four files
+      // sharing handler's 0 — would silently zero out the dimension, per
+      // computeFamilyDeviations' own zero-spread guard) with file `extra3` (40
+      // branches) the clear outlier.
+      [1, 2, 3, 40].forEach((n, i) => w(dir, `src/svc/extra${i}.ts`, tsFileWithIfs(n)));
+
+      const graph = await loadGraph(dir);
+      const trackedFiles = await walkRepoFiles(dir);
+      const result = await runCheck(graph, trackedFiles, {
+        writeFeatureIndex: true,
+        now: () => new Date('2026-07-28T00:00:00.000Z'),
+      });
+      // The lattice classified all 5 as type-covered svc — confirms the family
+      // this test drives really does reach MIN_N via classification, not luck.
+      expect(result.typeCoveredCount).toBe(5);
+
+      const indexPath = path.join(dir, '.yggdrasil', FEATURE_FIELD_FILENAME);
+      expect(existsSync(indexPath)).toBe(true);
+      const index = JSON.parse(readFileSync(indexPath, 'utf-8')) as FeatureFieldIndex;
+
+      // The outlier (40 branches against 4 near-zero siblings) is admitted.
+      const entry = index.files['src/svc/extra3.ts'];
+      expect(entry).toBeDefined();
+      expect(entry.deviations.map((d) => d.dim)).toContain('branch-like');
+      // Keyed by the file's matched TYPE, not a node id it does not have — a
+      // node-owned family under the SAME raw id 'svc' (there is none in this
+      // fixture, but the contract must hold in general) could never collide with
+      // this key, because familyKey folds the owner KIND in too.
+      expect(entry.family).toBe(familyKey({ kind: 'type', id: 'svc' }, 'typescript'));
+      expect(entry.family).not.toBe(familyKey({ kind: 'node', id: 'svc' }, 'typescript'));
+
+      // The ambiguous file (matches svc AND util) never joins the svc family —
+      // computeTypeCoverage's `covered` map never resolves it in the first place.
+      expect(index.files['src/svc/overlap.ts']).toBeUndefined();
+      // vendor/tool.ts sits under this fixture's own coverage.excluded root
+      // ('vendor/') — an excluded file is never classified, so it can never be
+      // admitted to any family, type-keyed or otherwise.
+      expect(index.files['vendor/tool.ts']).toBeUndefined();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('flag off (coverage.type_level: false): the same 5-file svc family is NEVER admitted — byte-identical to a caller that never classifies at all', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'feat-field-type-covered-off-'));
+    try {
+      cpSync(FIXTURE, dir, { recursive: true });
+      [0, 0, 0, 40].forEach((n, i) => w(dir, `src/svc/extra${i}.ts`, tsFileWithIfs(n)));
+
+      const graphOn = await loadGraph(dir);
+      const graphOff: Graph = {
+        ...graphOn,
+        config: { ...graphOn.config, coverage: { ...graphOn.config.coverage!, typeLevel: false } },
+      };
+      const trackedFiles = await walkRepoFiles(dir);
+      await runCheck(graphOff, trackedFiles, {
+        writeFeatureIndex: true,
+        now: () => new Date('2026-07-28T00:00:00.000Z'),
+      });
+
+      const indexPath = path.join(dir, '.yggdrasil', FEATURE_FIELD_FILENAME);
+      const index = JSON.parse(readFileSync(indexPath, 'utf-8')) as FeatureFieldIndex;
+      // No node owns ANY file in this fixture and the tier is off, so NOTHING is
+      // classified at all — the index is written (best-effort) but stays empty.
+      expect(index.files).toEqual({});
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
