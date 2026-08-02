@@ -31,20 +31,62 @@ export type ClassificationResult = {
 };
 
 /**
- * `matches`' SET is order-independent by construction
+ * `classifyFile`'s three returned arrays — `matches`, `closest`, `unreadable`
+ * — are each SETS/SELECTIONS that are order-independent by construction
  * (io/type-class-cache.ts's `architecturePredicateHash` sorts by id before
- * hashing), but the ARRAY itself, wherever it comes from, still reflects
- * whatever order it was built in — `Object.entries(graph.architecture.node_types)`'s
- * declaration order on a fresh evaluation, or a shard's on-disk write order on
- * a cache hit — and several callers (the ambiguous-node-type message, the
- * strict-match pick) render it verbatim. Returning a NEW array sorted by
- * `typeId` here, applied on every path out of `classifyFile` below, means a
- * pure type reorder in yg-architecture.yaml can never change rendered text
- * between a warm (cached) and a cold (freshly evaluated) run: both converge on
- * the same canonical order regardless of which path produced the array.
+ * hashing, so a pure reorder of whole type blocks in yg-architecture.yaml
+ * never changes which shard a file's classification is stored under). But
+ * each ARRAY, wherever it comes from, still reflects whatever order it was
+ * built in — `Object.entries(graph.architecture.node_types)`'s declaration
+ * order on a fresh evaluation, or a shard's on-disk write order on a cache
+ * hit — and several callers (the ambiguous-node-type message, the
+ * strict-match pick, `yg type-suggest --file`'s closest-types list, `yg
+ * check`'s file-unreadable error) render one of these arrays verbatim.
+ * `sortedByTypeId` and `sortedByScoreThenTypeId` below are applied to ALL
+ * THREE arrays, on every path out of `classifyFile`, so a pure type reorder
+ * can never change what a warm (cached) run renders versus what a cold
+ * (freshly evaluated) run computes:
+ *
+ *   - `matches`/`unreadable` are untruncated — every element that belongs in
+ *     the array is already present regardless of build order, so sorting by
+ *     `typeId` alone canonicalizes them completely, even re-applied to an
+ *     older shard whose on-disk order predates this sort.
+ *   - `closest` is truncated to the top 3, so declaration order could
+ *     otherwise decide MEMBERSHIP, not just sequence: sorting by
+ *     (score, typeId) must run before the `.slice(0, 3)` that builds a fresh
+ *     result, or the selection itself stays order-dependent. Once every
+ *     `.slice(0, 3)` sees a canonically pre-sorted array, the 3 chosen never
+ *     depend on where in the file their type happens to be declared.
+ *
+ * This closes the class completely: `io/type-class-cache.ts`'s
+ * `CachedClassification` has exactly five fields — `v` and `key` (cache
+ * bookkeeping, never rendered) plus these three arrays — so once all three
+ * are canonical, nothing else stored under a cache hit can still vary. A
+ * `trace` riding inside `matches`/`closest` is derived from its OWN type's
+ * `when` alone, unaffected by any other type's position in the file; the
+ * only edit besides a pure whole-block reorder — adding, removing, renaming,
+ * or re-`enforce`-ing a type, or changing any type's `when` (including the
+ * order of an `any_of`/`all_of` list, which the underlying predicate hash
+ * does NOT canonicalize) — changes `architecturePredicateHash` and
+ * invalidates every shard, so a warm run and a cold run are never comparing
+ * a stale shard against a fresh evaluation of a genuinely different rule
+ * set; they are always the identical rule set, one read from disk and one
+ * just computed.
  */
-function sortedByTypeId(matches: TypeMatch[]): TypeMatch[] {
-  return [...matches].sort((a, b) => (a.typeId < b.typeId ? -1 : a.typeId > b.typeId ? 1 : 0));
+function sortedByTypeId<T extends { typeId: string }>(items: T[]): T[] {
+  return [...items].sort((a, b) => (a.typeId < b.typeId ? -1 : a.typeId > b.typeId ? 1 : 0));
+}
+
+/**
+ * Sort `closest` candidates by score descending, ties broken by typeId
+ * ascending — the same canonicalization `sortedByTypeId` gives `matches`/
+ * `unreadable`, composed with the score ordering `closest` also carries.
+ * `Array.prototype.sort` is stable (guaranteed since ES2019), so sorting by
+ * typeId first and by score second preserves the typeId tie-break among
+ * equal scores instead of losing it to whatever order the ties arrived in.
+ */
+function sortedByScoreThenTypeId(items: ClosestType[]): ClosestType[] {
+  return sortedByTypeId(items).sort((a, b) => b.score - a.score);
 }
 
 /**
@@ -97,7 +139,11 @@ export async function classifyFile(
     if (contentHash !== undefined) {
       const cached = classCache.get(contentHash, repoRelPath);
       if (cached) {
-        return { matches: sortedByTypeId(cached.matches), closest: cached.closest, unreadable: cached.unreadable };
+        return {
+          matches: sortedByTypeId(cached.matches),
+          closest: sortedByScoreThenTypeId(cached.closest),
+          unreadable: sortedByTypeId(cached.unreadable),
+        };
       }
     }
   }
@@ -132,10 +178,13 @@ export async function classifyFile(
     }
   }
 
-  partialScores.sort((a, b) => b.score - a.score);
-  const closest = partialScores.slice(0, 3);
+  const closest = sortedByScoreThenTypeId(partialScores).slice(0, 3);
 
-  const result: ClassificationResult = { matches: sortedByTypeId(matches), closest, unreadable };
+  const result: ClassificationResult = {
+    matches: sortedByTypeId(matches),
+    closest,
+    unreadable: sortedByTypeId(unreadable),
+  };
   if (classCache && contentHash !== undefined) {
     await classCache.set(contentHash, repoRelPath, result);
   }

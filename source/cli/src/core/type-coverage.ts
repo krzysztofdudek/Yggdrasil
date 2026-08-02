@@ -68,6 +68,21 @@ export type SingleFileClassification =
  * that wants the persistent on-disk cache calls `classifySingleFileCached`
  * instead — same signature, minus `classCache`, opted in by name rather than
  * by an argument's absence.
+ *
+ * This boundary is a naming convention, not a type-level guarantee: nothing
+ * stops a future call site from typing the shorter, more discoverable bare
+ * name here (or on `computeTypeCoverage` below) and silently losing the
+ * cache. Rather than widen this function's own signature to make the cache
+ * a required parameter — which would force every existing caller, including
+ * this file's own two Cached wrappers, to thread a cache instance it may not
+ * have handy — the boundary is enforced by enumeration instead: a unit test
+ * (`tests/unit/core/type-coverage.test.ts`, "the cache boundary is enforced
+ * by enumeration, not just by convention") scans every production source
+ * file for a direct call to either bare function and fails if one exists
+ * outside this file, where the two Cached wrappers below do the wiring. A
+ * new direct call anywhere else fails that test on sight, before it can ship
+ * as a silent perf regression — a cheaper guarantee than a required
+ * parameter, at the cost of only firing when that test is run.
  */
 export async function classifySingleFile(
   graph: Graph,
@@ -208,10 +223,14 @@ export async function classifySingleFileCached(
  * `yg suppressions`, `yg aspect-test`, and the portal — so every one of them
  * gets the persistent on-disk cache without hand-constructing a
  * `TypeClassCache` at each call site. `computeTypeCoverage` itself stays
- * cache-free by default (see its own doc): a caller that wants a live,
- * uncached answer — chiefly this codebase's own test suite, classifying a
- * fixture project's graph in place — calls that instead, and never triggers
- * a disk write it did not ask for.
+ * cache-free by default (see its own doc, and `classifySingleFile`'s fuller
+ * one, for why: a `TypeClassCache` write is a durable side effect on the
+ * real filesystem, unlike the `FileContentCache` these functions already
+ * take unconditionally, so whether a call can ever touch disk must be
+ * readable off the function's own name rather than discovered by tracing
+ * which optional argument happened to be passed) — a caller that wants a
+ * live, uncached answer calls that instead, and never triggers a disk write
+ * it did not ask for.
  */
 export async function computeTypeCoverageCached(
   graph: Graph,

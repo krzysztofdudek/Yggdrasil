@@ -16,7 +16,7 @@
  * one committed fixture, not a second fixture directory.
  */
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { mkdtempSync, cpSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, cpSync, rmSync, writeFileSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -667,5 +667,74 @@ describe('runCheck — shares one FileContentCache between validate() and comput
     const specialTsLoads = loadSpy.mock.calls.filter(([p]) => String(p).includes('special.ts'));
     expect(specialTsLoads.length).toBeLessThanOrEqual(1);
     loadSpy.mockRestore();
+  });
+});
+
+describe('classifySingleFile / computeTypeCoverage — the cache boundary is enforced by enumeration, not just by convention', () => {
+  // Both functions stay pure (no persistent TypeClassCache) unless a caller
+  // hands one in explicitly — real callers are supposed to go through
+  // classifySingleFileCached / computeTypeCoverageCached instead, which
+  // construct and inject the cache under a longer, explicitly-opted-in name.
+  // Nothing in the type system stops a FUTURE call site from typing the
+  // shorter, more discoverable bare name and silently losing the cache — so
+  // this test enumerates every production call site instead of trusting that
+  // convention holds. A new direct call to the bare function anywhere outside
+  // core/type-coverage.ts itself (where the Cached wrappers do the wiring)
+  // fails this test, on purpose, before it can ship as a silent perf
+  // regression.
+  const SRC_ROOT = path.join(fileURLToPath(new URL('.', import.meta.url)), '../../../src');
+  const OWNER_FILE = path.join(SRC_ROOT, 'core', 'type-coverage.ts');
+
+  function walkTsFiles(dir: string): string[] {
+    const out: string[] = [];
+    for (const entry of readdirSync(dir)) {
+      const p = path.join(dir, entry);
+      const st = statSync(p);
+      if (st.isDirectory()) out.push(...walkTsFiles(p));
+      else if (entry.endsWith('.ts')) out.push(p);
+    }
+    return out;
+  }
+
+  /**
+   * Drop block comments outright, then drop any line whose trimmed text is a
+   * line comment or a jsdoc continuation — both function names appear
+   * legitimately in prose (doc comments describing what the cached wrapper
+   * delegates to), and only a REAL call site, in actual code, is this test's
+   * concern.
+   */
+  function stripComments(text: string): string {
+    return text
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .split('\n')
+      .filter((line) => {
+        const t = line.trim();
+        return !(t.startsWith('//') || t.startsWith('*'));
+      })
+      .join('\n');
+  }
+
+  it('classifySingleFile( is never called outside core/type-coverage.ts (the Cached wrapper is the one real entry point)', () => {
+    const offenders: string[] = [];
+    for (const file of walkTsFiles(SRC_ROOT)) {
+      if (file === OWNER_FILE) continue; // the wrapper's own internal call is expected
+      const text = stripComments(readFileSync(file, 'utf-8'));
+      // Immediately-followed-by-'(' excludes classifySingleFileCached( (an
+      // unrelated identifier sits between the name and the paren) and a
+      // bare type-only reference like `typeof classifySingleFile` (no paren
+      // follows there at all).
+      if (/\bclassifySingleFile\(/.test(text)) offenders.push(path.relative(SRC_ROOT, file));
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it('computeTypeCoverage( is never called outside core/type-coverage.ts (the Cached wrapper is the one real entry point)', () => {
+    const offenders: string[] = [];
+    for (const file of walkTsFiles(SRC_ROOT)) {
+      if (file === OWNER_FILE) continue; // computeTypeCoverageCached's own internal call is expected
+      const text = stripComments(readFileSync(file, 'utf-8'));
+      if (/\bcomputeTypeCoverage\(/.test(text)) offenders.push(path.relative(SRC_ROOT, file));
+    }
+    expect(offenders).toEqual([]);
   });
 });

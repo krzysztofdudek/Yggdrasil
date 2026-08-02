@@ -163,6 +163,45 @@ describe('classifyFile', () => {
     expect(result.matches).toHaveLength(0);
   });
 
+  it('closest picks the top 3 by (score, typeId) — declaration order alone must never decide WHICH 3 make the cut', async () => {
+    writeFileSync(join(tmpDir, 'cmd.ts'), '');
+    // Four equally-scoring (0.00) path-only types: a stable sort on score
+    // alone leaves ties in whatever order Object.entries(node_types) walks
+    // them in, so .slice(0, 3) would pick membership by declaration order,
+    // not by anything about the types themselves. Declared here in REVERSE
+    // alphabetical insertion order (delta, charlie, bravo, alpha) so a
+    // declaration-order-driven selection would pick delta/charlie/bravo —
+    // the canonical (typeId-ascending) selection is alpha/bravo/charlie.
+    const graph = makeGraph(
+      {
+        delta: { when: { path: '*.py' } },
+        charlie: { when: { path: '*.py' } },
+        bravo: { when: { path: '*.py' } },
+        alpha: { when: { path: '*.py' } },
+      },
+      join(tmpDir, '.yggdrasil'),
+    );
+    const result = await classifyFile(join(tmpDir, 'cmd.ts'), 'cmd.ts', graph, cache);
+    expect(result.matches).toHaveLength(0);
+    expect(result.closest.map((c) => c.typeId)).toEqual(['alpha', 'bravo', 'charlie']);
+
+    // The SAME file classified against the types declared in their canonical
+    // (alphabetical) order must select the identical set — proving the
+    // selection is a function of (score, typeId) alone, never of
+    // Object.entries' iteration order.
+    const canonicalGraph = makeGraph(
+      {
+        alpha: { when: { path: '*.py' } },
+        bravo: { when: { path: '*.py' } },
+        charlie: { when: { path: '*.py' } },
+        delta: { when: { path: '*.py' } },
+      },
+      join(tmpDir, '.yggdrasil'),
+    );
+    const canonicalResult = await classifyFile(join(tmpDir, 'cmd.ts'), 'cmd.ts', canonicalGraph, cache);
+    expect(canonicalResult.closest.map((c) => c.typeId)).toEqual(result.closest.map((c) => c.typeId));
+  });
+
   it('exempt: file under .yggdrasil/ auto-matches any type with when', async () => {
     const graph = makeGraph(
       { typeA: { when: { path: '*.py' } } },
@@ -270,5 +309,23 @@ describe('classifyFile', () => {
     expect(result.matches.map(m => m.typeId)).toContain('path-typed');
     expect(result.unreadable.map(u => u.typeId)).toContain('content-typed');
     expect(result.unreadable.map(u => u.typeId)).not.toContain('path-typed');
+  });
+
+  it('unreadable is sorted by typeId — declaration order alone must never decide the rendered order of a blocking file-unreadable list', async () => {
+    const bigPath = join(tmpDir, 'huge.ts');
+    writeFileSync(bigPath, Buffer.alloc(5 * 1024 * 1024 + 1, 0x61));
+    // Three content-only types, all unreadable against the oversized file,
+    // declared in reverse alphabetical order — a plain accumulation loop over
+    // Object.entries(node_types) would report them charlie, bravo, alpha.
+    const graph = makeGraph(
+      {
+        charlie: { when: { content: 'a' } },
+        bravo: { when: { content: 'a' } },
+        alpha: { when: { content: 'a' } },
+      },
+      join(tmpDir, '.yggdrasil'),
+    );
+    const result = await classifyFile(bigPath, 'huge.ts', graph, cache);
+    expect(result.unreadable.map((u) => u.typeId)).toEqual(['alpha', 'bravo', 'charlie']);
   });
 });

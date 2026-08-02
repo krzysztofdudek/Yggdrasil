@@ -195,6 +195,82 @@ describe.skipIf(!distExists)('E2E: type-level classification lattice via the rea
       if (parked) rmSync(parked, { recursive: true, force: true });
     }
   });
+
+  it('a warm run and a cold run render byte-identical text for the same file-unreadable error, whatever order yg-architecture.yaml happens to declare the classifying types in', () => {
+    // A from-scratch project: three content-only types (none of the committed
+    // fixture's types share a file — `big` is the only content-only one there)
+    // all unreadable against the same oversized file, so the blocking error's
+    // type LIST is the one thing this test can move purely by reordering the
+    // architecture file.
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-unreadable-order-e2e-'));
+    let parked: string | undefined;
+    try {
+      mkdirSync(path.join(dir, '.yggdrasil', 'model'), { recursive: true });
+      writeFileSync(
+        path.join(dir, '.yggdrasil', 'yg-config.yaml'),
+        'version: "5.2.0"\ncoverage: { required: [src/], excluded: [], type_level: true }\n',
+      );
+      const archPath = path.join(dir, '.yggdrasil', 'yg-architecture.yaml');
+      writeFileSync(
+        archPath,
+        'node_types:\n' +
+          '  alpha:\n' +
+          '    description: "Alpha content-only marker type."\n' +
+          '    when: { content: "MARKER" }\n' +
+          '  bravo:\n' +
+          '    description: "Bravo content-only marker type."\n' +
+          '    when: { content: "MARKER" }\n' +
+          '  charlie:\n' +
+          '    description: "Charlie content-only marker type."\n' +
+          '    when: { content: "MARKER" }\n',
+      );
+      mkdirSync(path.join(dir, 'src', 'misc'), { recursive: true });
+      writeFileSync(path.join(dir, 'src', 'misc', 'huge.ts'), Buffer.alloc(5 * 1024 * 1024 + 1, 0x61));
+
+      // Warm the cache with this declaration order (alpha, bravo, charlie).
+      const warm = run(['check', '--details'], dir);
+      expect(warm.status).toBe(1);
+      expect(warm.out).toContain('file-unreadable');
+      expect(warm.out).toContain('against 3 classifying types (alpha, bravo, charlie)');
+
+      // A PURE reorder — reverse the three type blocks verbatim, no content
+      // change. architecturePredicateHash sorts by id before hashing, so this
+      // must never invalidate the cache just written above.
+      const original = readFileSync(archPath, 'utf-8');
+      const reordered =
+        'node_types:\n' +
+        '  charlie:\n' +
+        '    description: "Charlie content-only marker type."\n' +
+        '    when: { content: "MARKER" }\n' +
+        '  bravo:\n' +
+        '    description: "Bravo content-only marker type."\n' +
+        '    when: { content: "MARKER" }\n' +
+        '  alpha:\n' +
+        '    description: "Alpha content-only marker type."\n' +
+        '    when: { content: "MARKER" }\n';
+      expect(reordered).not.toBe(original);
+      writeFileSync(archPath, reordered);
+
+      const warmReordered = run(['check', '--details'], dir);
+      expect(warmReordered.out).toBe(warm.out); // still warm — same shard, same text
+
+      // Move (never delete) the on-disk cache aside so the next run is
+      // genuinely cold.
+      parked = mkdtempSync(path.join(tmpdir(), 'yg-cache-parked-'));
+      renameSync(path.join(dir, '.yggdrasil', '.type-class-cache'), path.join(parked, 'parked'));
+
+      const cold = run(['check', '--details'], dir);
+
+      // Same verdict, same exit code, same rendered TEXT — the blocking error
+      // an adopter's CI prints must read identically to the same error
+      // reproduced on a developer's already-warm laptop.
+      expect(cold.status).toBe(warm.status);
+      expect(cold.out).toBe(warm.out);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+      if (parked) rmSync(parked, { recursive: true, force: true });
+    }
+  });
 });
 
 describe.skipIf(!distExists)('E2E: yg tree — the type-covered summary line', () => {
