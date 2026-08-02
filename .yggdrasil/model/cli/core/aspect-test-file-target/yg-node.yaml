@@ -29,8 +29,6 @@ relations:
     type: calls
   - target: cli/relations/core
     type: calls
-  - target: cli/core/check-coverage-tiers
-    type: calls
   - target: cli/core/pairs
     type: calls
   - target: cli/model/graph

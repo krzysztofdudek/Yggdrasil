@@ -9,7 +9,5 @@ relations:
     type: calls
   - target: cli/core/type-effective
     type: calls
-  - target: cli/core/graph
-    type: calls
 mapping:
   - source/cli/src/core/type-visibility.ts
