@@ -1,8 +1,8 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, beforeAll, afterAll } from 'vitest';
 import { Command } from 'commander';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
-import { mkdtemp, mkdir, rm, access } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, access, writeFile } from 'node:fs/promises';
 
 // Mock the graph preamble so the command never touches the real filesystem for
 // graph loading. loadGraphOrAbort returns whatever graph we stage per-test.
@@ -169,6 +169,29 @@ describe('aspect-test command behavior (mocked runners)', () => {
   let stdoutSpy: ReturnType<typeof vi.spyOn>;
   let stderrSpy: ReturnType<typeof vi.spyOn>;
 
+  // A real backing project for the --files (deterministic, ad-hoc) tests
+  // below: --files resolves against process.cwd() (never graph.rootPath —
+  // that is --file singular's own resolution, via projectRootFromGraph) and
+  // now probes each path's existence on disk before ever reaching the
+  // (mocked) runner, so 'src/a.ts' must actually be there. Every other test
+  // in this describe block runs through an earlier guard (--node, an LLM
+  // aspect, a combined-flags error) that never reaches that probe and so
+  // never needs process.cwd() to be anything real.
+  let filesTestRoot: string;
+  let cwdSpy: ReturnType<typeof vi.spyOn> | undefined;
+  beforeAll(async () => {
+    filesTestRoot = await mkdtemp(path.join(tmpdir(), 'yg-aspect-test-files-'));
+    await mkdir(path.join(filesTestRoot, 'src'), { recursive: true });
+    await writeFile(path.join(filesTestRoot, 'src', 'a.ts'), 'export const a = 1;\n', 'utf-8');
+  });
+  afterAll(async () => {
+    await rm(filesTestRoot, { recursive: true, force: true });
+  });
+  /** Point process.cwd() at the real backing project for one test's duration — see the note above. */
+  function useFilesTestCwd(): void {
+    cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue(filesTestRoot);
+  }
+
   class ExitSignal extends Error {
     constructor(public readonly code: number) {
       super(`exit:${code}`);
@@ -219,6 +242,8 @@ describe('aspect-test command behavior (mocked runners)', () => {
     stdoutSpy.mockRestore();
     stderrSpy.mockRestore();
     exitSpy.mockRestore();
+    cwdSpy?.mockRestore();
+    cwdSpy = undefined;
   });
 
   // ── Error: aspect not found ──────────────────────────────────────────────────
@@ -248,6 +273,7 @@ describe('aspect-test command behavior (mocked runners)', () => {
 
   // ── Deterministic: --files routes to AST runner ──────────────────────────────
   it('det --files happy path: routes runAstAspect; clean prints footer', async () => {
+    useFilesTestCwd();
     mockLoadGraph.mockResolvedValue(
       makeGraph({ aspects: [{ id: 'a', reviewer: { type: 'deterministic' } }] }) as never,
     );
@@ -406,6 +432,7 @@ describe('aspect-test command behavior (mocked runners)', () => {
 
   // ── LLM: footer present on every output path (det, LLM, dry-run) ────────────
   it('footer is present after every successful det --files run', async () => {
+    useFilesTestCwd();
     mockLoadGraph.mockResolvedValue(
       makeGraph({ aspects: [{ id: 'a', reviewer: { type: 'deterministic' } }] }) as never,
     );
@@ -582,6 +609,7 @@ describe('aspect-test command behavior (mocked runners)', () => {
   });
 
   it('det --files refusal: leading stamp pluralizes (2 violations), exit 1', async () => {
+    useFilesTestCwd();
     mockLoadGraph.mockResolvedValue(
       makeGraph({ aspects: [{ id: 'a', reviewer: { type: 'deterministic' } }] }) as never,
     );

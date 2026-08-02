@@ -386,6 +386,23 @@ export function registerAspectTestCommand(program: Command): void {
         // --files: ad-hoc mode has no node and thus no approve equivalent; it
         // stays on the AST runner (a fileless structure path is out of scope).
         const filePaths = opts.files as string[];
+        // Existence check BEFORE running: --file already probes for this
+        // (resolveAspectTestFileTarget above) and answers cleanly; --files
+        // did not, so a typo reached the runner as a raw ENOENT and fell into
+        // the generic unclassified-error funnel ("This is a bug — please file
+        // an issue"), misreporting an ordinary mistake as an internal defect.
+        const missingFiles = filePaths.filter((f) => !existsSync(path.resolve(projectRoot, f)));
+        if (missingFiles.length > 0) {
+          process.stderr.write(`Error: ${buildIssueMessage({
+            what: missingFiles.length === 1
+              ? `'${missingFiles[0]}' does not exist.`
+              : `${missingFiles.length} of the given paths do not exist: ${missingFiles.map((f) => `'${f}'`).join(', ')}.`,
+            why: `--files addresses real, on-disk files — there is nothing to read or check for a path that is not there.`,
+            next: `Check the path${missingFiles.length === 1 ? '' : 's'} for typos, or pass only existing files.`,
+          })}\n`);
+          process.exit(1);
+          return;
+        }
         // Return type is inferred from the runner; do not re-annotate it.
         const runOnce = () =>
           runAstAspect({

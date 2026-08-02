@@ -283,6 +283,28 @@ describe.skipIf(!distExists)('CLI E2E — yg aspect-test --file', () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  // A typo in a --files path is a plain, common mistake — the SAME fact
+  // --file already answers cleanly ("'x' does not exist."). Before this fix,
+  // --files let the raw ENOENT reach the CLI's generic unclassified-error
+  // funnel, which tells the user "This is a bug — please file an issue,"
+  // inviting a spurious report for what is just a typo.
+  it('--files with a path that does not exist reports it plainly, not as an internal bug', () => {
+    const dir = copyMergedFixture();
+    try {
+      const { status, stdout, stderr } = run(
+        ['aspect-test', '--aspect', 'own-file-rule', '--files', 'src/leaf/does-not-exist.ts'],
+        dir,
+      );
+      expect(status).toBe(1);
+      const out = stdout + stderr;
+      expect(out).toContain("'src/leaf/does-not-exist.ts' does not exist.");
+      expect(out).not.toContain('This is a bug');
+      expect(out).not.toContain('does not classify');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
 
 // =============================================================================
