@@ -521,6 +521,20 @@ node_types:
     relations:
       default: deny
 
+  rule-script:
+    description: "This repository's own deterministic rule implementations (check.mjs) under .yggdrasil/aspects/*/check.mjs — the graph's own enforcement code, held to the graph's own rules like any other first-party source. A curated subset of the general source-hygiene/safety baseline plus the checks that protect the two properties a rule script must have above all: it runs the SAME way every time (source-hygiene's self-contained-references, plus determinism), and it never reads outside what the sandboxed ctx it receives already grants (no-direct-fs). Excludes every CLI-product-surface aspect (command contracts, engine layering, provider/parser conventions, portal rules) — check.mjs is not CLI source, cannot import any of the internal modules those rules police, and is tested through its own drills/ convention rather than a sibling *.test.ts file."
+    when:
+      path: ".yggdrasil/aspects/*/check.mjs"
+    aspects:
+      - source-hygiene
+      - source-no-raw-control-chars
+      - deterministic
+      - no-direct-fs
+      - no-side-effects-on-import
+    parents: [module]
+    relations:
+      default: deny
+
   reference-catalogue:
     description: "Catalogue of structured reference docs under reference/<kind>/. Each kind declares its structure in reference/<kind>/_reference-schema.yaml; the generic deterministic aspects reference/doc-shape + reference/layout + reference/section-body enforce it. First kind: the relations name-resolution case catalogue (one .md per identification case, 1:1 with a runCase test)."
     enforce: strict

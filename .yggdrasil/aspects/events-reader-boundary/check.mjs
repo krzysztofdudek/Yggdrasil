@@ -28,10 +28,9 @@ import { walk, report } from '@chrisdudek/yg/ast';
  *   src/cli/drill.ts        (source: 'drill' — yg drill LLM case runs)
  *   src/cli/aspect-test.ts  (source: 'diag'  — yg aspect-test --repeat / --tier)
  * Any other file under source/cli/src that imports (or re-exports)
- * `appendVerdictEvent` is a violation. An allowlisted file that does not yet exist
- * (e.g. cli/drill.ts, added by a later task) is fine — the guard fires on UNEXPECTED
- * importers, never on ABSENT allowed ones; the appender clause is binding-specific,
- * so importing the
+ * `appendVerdictEvent` is a violation. An allowlisted path that has no importer at
+ * all is fine — the guard fires on UNEXPECTED importers, never on the absence of
+ * an allowed one; the appender clause is binding-specific, so importing the
  * `EVENTS_FILENAME` constant or the `VerdictEvent` type from events-store — as the
  * reader and the presentation commands legitimately do — is never a hit.
  */
@@ -50,8 +49,8 @@ const CORE_PREFIX = 'source/cli/src/core/';
  * Files permitted to import the write-only appender FUNCTION (`appendVerdictEvent`).
  * `src/core/fill*.ts` is a glob (matched below): fill.ts and every fill-*.ts helper
  * directly in core/, all sanctioned emitters of source:'fill'. The two CLI commands
- * are exact paths — cli/drill.ts (source:'drill') does not exist until a later task,
- * which is fine (see header).
+ * are exact paths — cli/drill.ts (source:'drill') and cli/aspect-test.ts
+ * (source:'diag').
  */
 const ALLOWED_APPENDER_IMPORTERS_EXACT = new Set([
   'source/cli/src/cli/drill.ts',

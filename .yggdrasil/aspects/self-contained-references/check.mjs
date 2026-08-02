@@ -17,13 +17,17 @@ import { walk, report, findComments } from '@chrisdudek/yg/ast';
 // collided with either in practice: a trailing-letter code, and a
 // capital-"S" "Step" number, both inside a TEST NAME).
 //
-// PART A — vague, un-anchored phrases (comments AND test names). A phrase
-// like "this task" or "the brief" names no number, no title, nothing a reader
-// could even search for — it is categorically less resolvable than this
-// repo's own "(G4)"-style codes, which always sit beside a named, described
-// concept. Comments are joined across adjacent `//` lines before matching,
-// because a phrase split by line-wrap is exactly what defeated a line-based
-// grep before.
+// PART A — vague, un-anchored phrases (comments AND test names), matched
+// against the fixed list below (VAGUE_PHRASES is the one place that list is
+// spelled out — restating it here in prose would make this very comment a
+// second copy for the two entries that read as ordinary English words, and
+// this check has no way to tell its own illustrative example apart from a
+// real violation). Every phrase on that list names no number, no title,
+// nothing a reader could even search for — categorically less resolvable
+// than this repo's own "(G4)"-style codes, which always sit beside a named,
+// described concept. Comments are joined across adjacent `//` lines before
+// matching, because a phrase split by line-wrap is exactly what defeated a
+// line-based grep before.
 //
 // PART B — a bare parenthetical reference code shaped like a private review
 // report's finding id (a letter, 1-3 digits, a trailing lowercase letter —
