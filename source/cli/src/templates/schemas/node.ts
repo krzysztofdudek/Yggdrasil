@@ -56,9 +56,11 @@ mapping:                      # optional — source files and directories owned 
   - src/db/*Repository.cs     # glob — minimatch: * matches within one path segment,
   - src/**/*.ts               #        ** matches across segments (recursive)
                               # paths are relative to repository root
-                              # each source file must have exactly one owner node — except that a
-                              # child node claiming a specific file inside a directory its parent
-                              # globs owns that file (child precedence), with no overlap error
+                              # each source file mapped by some node must have exactly one owner
+                              # node — except that a child node claiming a specific file inside a
+                              # directory its parent globs owns that file (child precedence), with
+                              # no overlap error. A file no node maps at all is not covered by this
+                              # rule; it may still be enforced with no owner via coverage.type_level.
 
 max_direct_relations:         # optional — reviewed-seam override of the built-in
                               # high-fan-out warning FOR THIS NODE ONLY. It SETS this

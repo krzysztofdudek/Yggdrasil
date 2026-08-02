@@ -75,7 +75,7 @@ $ yg check --approve
 
 Filling 1 unverified pairs across 1 nodes — 0 deterministic (no cost), 1 reviewer calls (consensus included).
 
-yg check: FAIL  1 nodes · 1/1 files · 1 aspects · 0 flows
+yg check: FAIL  1 nodes · 1/1 files (1 node-owned, 0 type-covered, 0 excluded) · 1 aspects · 0 flows
 
 Errors (1):
 

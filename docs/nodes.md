@@ -57,7 +57,7 @@ mapping:
 
 `src/db/*Repository.ts` matches `OrderRepository.ts` but not `Helper.ts` and not anything in a subdirectory. `src/**/*.ts` matches every `.ts` file anywhere under `src/`.
 
-Each source file has exactly one owner node. That rule keeps verification unambiguous — there is always one component, and one set of rules, responsible for any given file. When a parent maps a directory and a child node maps a specific file inside it, the child wins: that file is carved out of the parent's set, so the two never conflict. Two nodes mapping the same file any *other* way is an `overlapping-mapping` error.
+Each source file has exactly one owner node, or none at all — a file no node maps can still be enforced automatically by matching exactly one classifying type (see [Coverage and minimal nodes](#coverage-and-minimal-nodes) below). Either way verification stays unambiguous — there is always at most one component and one set of rules responsible for any given file, never two disagreeing about it. When a parent maps a directory and a child node maps a specific file inside it, the child wins: that file is carved out of the parent's set, so the two never conflict. Two nodes mapping the same file any *other* way is an `overlapping-mapping` error.
 
 ::: warning A file that is both tracked and gitignored is invisible everywhere, so it's flagged
 A directory or glob mapping entry expands over a plain directory walk that skips anything `.gitignore` excludes — it never consults git's index. So a file that is *both* tracked by git (for example force-added with `git add -f`) and matched by a `.gitignore` pattern is invisible to coverage and to mapping alike, no matter what directory or glob mapping it falls under: it ships in your repository, yet nothing that governs coverage or enforcement ever sees it. `yg check` catches this as `tracked-file-gitignored`, mirroring your coverage tiers exactly: an error under a `coverage.required` root, a warning elsewhere, and no issue at all under a `coverage.excluded` root — the same exclusion authority the coverage scan itself honors, so an excluded area stays silent here too.
@@ -86,6 +86,12 @@ mapping:
 A node with no aspects produces no rule verdicts and records nothing in the lock. It satisfies the coverage requirement for free. (One built-in check still runs on any node that maps code: if its files import another node's code, that dependency has to be declared as a relation — see [Relations, flows, ports](/relations-flows-ports).) The point is to get all your code mapped cheaply, then add rules where they matter, one component at a time. When you are ready to enforce something here, add an aspect to the node.
 
 The node's type still has to be one that classifies files — a type with a `when` predicate. A purely organizational type (no `when`) cannot map files at all; `yg check` rejects a mapping on such a type.
+
+### An alternative for files that do not need a node yet
+
+A minimal node still costs something: a YAML file per component, upkeep whenever a file moves, and silence about a *new* file until someone writes it a mapping. If [`coverage.type_level`](/configuration#coverage-config) is on, a file matched by exactly one classifying type's `when` is enforced by that type's per-file rules automatically — no YAML at all, and a brand-new file is covered the moment it matches, not whenever a node catches up with it.
+
+The trade runs the other way too, so this is not a strict upgrade over a minimal node: a type-covered file has no component to attach a `per: node` rule to (only `scope: { per: file }` rules can ever reach it), no log, no flows, and no place to hang a curated relation or a note about *why* the code looks the way it does. A minimal node stays the right call once a file earns any of those — cross-file review, business intent worth logging, participation in a flow. Reach for type-level coverage first for the code that is genuinely uniform and growing (another handler, another repository); reach for a node, minimal or not, the moment one file needs something the type alone cannot say.
 
 Coverage — which files must be mapped, and how strictly — is configured separately. See [Configuration](/configuration).
 

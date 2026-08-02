@@ -1,0 +1,5 @@
+name: OrderRepository
+type: repository
+description: "Order data access — repository is enforce: strict, so this file needs an explicit component even though its rule would otherwise apply automatically"
+mapping:
+  - src/repositories/orderRepository.ts

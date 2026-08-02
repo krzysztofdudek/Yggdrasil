@@ -1,0 +1,4 @@
+name: Validates Input
+description: "Every handler must validate its request body before acting on it"
+scope:
+  per: file

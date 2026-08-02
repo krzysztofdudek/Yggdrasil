@@ -24,7 +24,7 @@ Before writing a single YAML file, we spent the equivalent of several days restr
 
 **Earn-rate: high.** This is the foundation. Without `path:` predicates you have no automatic classification, no strict coverage, and no type-default aspects.
 
-**Recommendation:** Start here. Every project needs at least five type definitions with `path:` predicates before `enforce: strict` becomes useful.
+**Recommendation:** Start here. `path:` predicates are what [type-level coverage](/configuration#coverage-config) matches files against too, so they start paying off the moment the first one exists — but a taxonomy that thin has little to say yet. Every project needs at least five type definitions with `path:` predicates before either `enforce: strict` or type-level coverage becomes genuinely useful, rather than a lattice with one or two buckets.
 
 ---
 
@@ -54,7 +54,7 @@ Before writing a single YAML file, we spent the equivalent of several days restr
 
 **Earn-rate: high.** Caught 18 violations when we flipped the flag: fixture TypeScript files leaking into the `test-suite` type, GitHub Actions workflows and linting configs not in dedicated ci-config nodes. Each was a real gap, not a false positive.
 
-**Recommendation:** Do not enable `enforce: strict` until coverage is 100% and your type `when` predicates are correct. Run `yg impact --type <id>` for each type first to preview orphans and misplaced files. Fix the gaps, then flip the flag.
+**Recommendation:** Treat `enforce: strict` as a per-type graduation dial, not a repo-wide milestone you flip once at 100% coverage — it is scoped to one type at a time, and flipping it on `service` says nothing about `library` or `module`. Reach for it on the types where missing the type means missing a rule that matters (this repo: almost every type, because the whole codebase is mapped to explicit nodes with no type-level coverage — see below). On a project that instead leans on [type-level coverage](/configuration#coverage-config) for its ordinary code, save `enforce: strict` for the few types serious enough to demand an explicit, reviewable component every time — everything else stays automatically enforced with no node and no flag. Either way, run `yg impact --type <id>` first to preview orphans and misplaced files before flipping the dial on a given type, and fix what it finds before you rely on the flag.
 
 ---
 

@@ -199,7 +199,8 @@ A brand-new aspect on an existing codebase often surfaces violations across many
 of any size is **green from the first check**, with every unmapped file shown as
 a non-blocking warning. You tighten coverage as you go: add a path prefix to
 `coverage.required` in `yg-config.yaml` (e.g. `- src/payments/`) and files under
-it become blocking errors until they belong to a node; files outside required
+it become blocking errors until they belong to a node, or — with `coverage.type_level`
+on — until they match exactly one classifying type; files outside required
 (and not excluded) stay non-blocking warnings; files under `coverage.excluded`
 are silent. Subtrees with their own nested `.yggdrasil/` are auto-skipped. See
 [Configuration](/configuration) for details.

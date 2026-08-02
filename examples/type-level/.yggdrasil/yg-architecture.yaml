@@ -1,0 +1,24 @@
+node_types:
+  handler:
+    description: "A checkout-step request handler — validates its own input before acting on it"
+    aspects: [validates-input]
+    when:
+      path: "src/handlers/**/*.ts"
+
+  admin-handler:
+    description: "An admin-only checkout handler — validates input like every handler, plus checks the caller's role before acting"
+    aspects: [validates-input, elevated-audit]
+    when:
+      path: "src/handlers/admin/**/*.ts"
+
+  repository:
+    description: "Data-access code — every query must be parameterized, never string-built. Missing this type on a query file means missing that guarantee, so it is enforced in both directions."
+    aspects: [parameterized-queries]
+    enforce: strict
+    when:
+      path: "src/repositories/**/*.ts"
+
+  library:
+    description: "Shared utility code with no domain knowledge (validation, auth, database helpers) — mapped for coverage, no rules of its own yet"
+    when:
+      path: "src/lib/**/*.ts"

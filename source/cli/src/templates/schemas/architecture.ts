@@ -39,7 +39,12 @@ node_types:
                                              # emits type-strict-orphan; one owned by a node of a
                                              # different type emits type-strict-misplaced.
                                              # Use only for types where missing the type means missing
-                                             # a critical aspect (security, audit, regulatory).
+                                             # a critical aspect (security, audit, regulatory) — a
+                                             # per-type graduation dial, not a repo-wide milestone.
+                                             # The backward scan accepts only an explicit node's
+                                             # mapping as proof, never coverage.type_level's lattice,
+                                             # so a strict type's files never coast on automatic
+                                             # type coverage the way a non-strict type's files can.
 
     log_required: <boolean>                  # optional — default false. Enable (true) on types whose
                                              # changes carry business intent worth capturing — domain

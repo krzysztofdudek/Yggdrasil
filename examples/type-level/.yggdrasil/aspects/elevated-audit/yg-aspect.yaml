@@ -1,0 +1,4 @@
+name: Elevated Audit
+description: "Every admin-only handler must check the caller's role before performing the admin action"
+scope:
+  per: file

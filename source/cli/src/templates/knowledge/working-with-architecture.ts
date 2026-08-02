@@ -72,6 +72,14 @@ of this type must satisfy \`when\` — and strict backward — every file in the
 repo matching \`when\` must be in a mapping of this type (and of the right
 type). Closes the type-shopping evasion entirely for the type.
 
+Treat it as a per-type graduation dial, not a repo-wide milestone: flip it
+on the one or two types where an explicit, reviewable node has to exist
+every time, and leave the rest alone. This holds even when
+\`coverage.type_level\` is on for the rest of the architecture — the backward
+scan only ever accepts an explicit node's mapping as proof of coverage,
+never the type-level lattice, so a strict type never lets a matching file
+coast on automatic type coverage the way a non-strict type's files do.
+
 The backward check honors \`coverage.excluded\` like every other coverage
 question: a file under an excluded root is never a \`type-strict-orphan\` or
 \`type-strict-misplaced\` candidate, even when it matches \`when\`. An excluded
