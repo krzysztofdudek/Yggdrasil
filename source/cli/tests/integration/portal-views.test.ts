@@ -459,6 +459,14 @@ describe('portal Phase-4 view modules (real source, real fixture data)', () => {
     expect(classesIn(uncomputableChip as FakeNode).has(Yg.states.cssClass('no-rule'))).toBe(false);
     expect((mark as FakeNode).textContent).toBe('?');
     expect((mark as FakeNode).getAttribute('aria-label')).toBe('rules could not be worked out');
+    // The badge above is honest even if the WORDS beside it are quietly swapped for the
+    // no-rule wording — the glyph, class and aria-label are all built from a fixed literal
+    // inside unknownLink, untouched by the chip's own sentence. Pin the category the sentence
+    // actually names, not just its decoration: the parenthetical must read "unknown", never
+    // the "no rule" text that sentence exists to rule out.
+    const category = textOf(uncomputableChip as FakeNode).match(/\(([^,]+),/);
+    expect(category, 'no "(<category>, ...)" parenthetical in the chip text').toBeTruthy();
+    expect((category as RegExpMatchArray)[1]).toBe('unknown');
   });
 
   it('the Coverage & Audit uncomputable ledger row carries its OWN glyph and aria-label — never the no-rule badge the "checked by nothing" row above it uses', async () => {
@@ -487,6 +495,14 @@ describe('portal Phase-4 view modules (real source, real fixture data)', () => {
     expect(classesIn(uncomputableRow as FakeNode).has(Yg.states.cssClass('no-rule'))).toBe(false);
     expect((mark as FakeNode).textContent).toBe('?');
     expect((mark as FakeNode).getAttribute('aria-label')).toBe('rules could not be worked out');
+    // The badge above stays honest even if only the row's WORD LABEL is quietly swapped to the
+    // "no rule" wording (the glyph/class/aria-label all come from a fixed literal inside
+    // unknownKey, untouched by its own `label` argument) — that swap renders the exact sentence
+    // this row exists to rule out while every assertion above still passes. Pin the label text
+    // itself, not just its decoration.
+    const lbl = walk(uncomputableRow as FakeNode).find((n) => n.classList && n.classList.contains('cov-key-lbl'));
+    expect(lbl, 'no .cov-key-lbl on the uncomputable ledger row').toBeTruthy();
+    expect((lbl as FakeNode).textContent).toBe('unknown');
   });
 
   it('Coverage surfaces the boundary counter as UNKNOWN (not a fabricated zero) when the parse could not run', async () => {

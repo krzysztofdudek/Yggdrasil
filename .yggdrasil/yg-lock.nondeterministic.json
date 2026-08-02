@@ -556,7 +556,7 @@
       "file:source/cli/tests/integration/portal-static-emit.test.ts": {"hash":"7a5180c986bc249980520c658b01d239d1cb4d8a954f6189c788655770f90312","verdict":"approved"},
       "file:source/cli/tests/integration/portal-structure.test.ts": {"hash":"67f8a5d9329aa53456087645c044963205cf48f8539c1dabbb37860e0cfe5e2b","verdict":"approved"},
       "file:source/cli/tests/integration/portal-views-rulebook.test.ts": {"hash":"c20f0f4b4129c70e019af29f5c0024c9498dea9c48d76f2a542d9cb783f42327","verdict":"approved"},
-      "file:source/cli/tests/integration/portal-views.test.ts": {"hash":"c385011c13b65193728f2b16f9eb88b591b3a97bdc973d87680ea0f6ba4b6321","verdict":"approved"},
+      "file:source/cli/tests/integration/portal-views.test.ts": {"hash":"5a682a388d3c5cbc8317599dcab9566d1fb5edd5838434691a5fb3f2bdc38926","verdict":"approved"},
       "file:source/cli/tests/integration/relation-c-cpp-antifp.test.ts": {"hash":"33a1dfcc9a86d04fb273cf29e6a1bd871008d57528735020bb6a1df8666e3151","verdict":"approved"},
       "file:source/cli/tests/integration/relation-check.test.ts": {"hash":"24530142db06c3a79f0942b5edc5c7fd3591cc85334aa83e5de095f52b24eed3","verdict":"approved"},
       "file:source/cli/tests/integration/relation-fill.test.ts": {"hash":"06af8114e0845e347d056cf953168afed11cf9a20eca2239d01e4459f880257e","verdict":"approved"},
