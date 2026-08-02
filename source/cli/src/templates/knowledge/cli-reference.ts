@@ -632,8 +632,25 @@ yg advise --ids      # print each item's stable id (for dismiss / defer)
   short sample of the changed files, and the commit window as its evidence, and clears
   itself the moment a rule or coverage lands there or the churn ages out of the
   window; the churn is read from git history, so a shallow or non-git checkout simply
-  omits the class rather than guessing. Below even those sit two further suggestion
-  classes:
+  omits the class rather than guessing.
+
+  Once a project turns on type-level coverage — treating an otherwise uncovered file
+  as covered by matching an architecture type directly, no component required — the
+  same churn signal also flags a **churning file the type tier alone carries**: such a
+  file has no component of its own, so no node-level rule can ever attach to it —
+  whatever enforcement it gets comes from its matched type alone. It fires once a file
+  clears TWO conditions together: it appears in at least two of the last 200 commits —
+  the identical window and git read the hot spot above already uses, so the same
+  shallow-or-non-git silence applies here too, a busy file going as quiet as an
+  untouched one — and its matched type genuinely enforces something on it; a file
+  whose matched type enforces nothing is simply uncovered, not carried by anything, so
+  it never appears here. Items rank by how much they have churned, busiest first. Two
+  or more such files of the same type that import each other, each clearing both
+  conditions on its own, upgrade the evidence from one busy file to a cluster naming
+  every file in it — a partner that fails either condition is never named as carrying
+  weight.
+
+  Below even those sit two further suggestion classes:
   - **a candidate rule family** — a tight group of near-identical files that share no
     rule of their own, discovered by the offline structural-clustering pass and read
     from its local suggestions file. The item names the member files, the fitted scope
