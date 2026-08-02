@@ -6,9 +6,10 @@ import type { Graph } from '../model/graph.js';
 import type { ClassificationResult } from '../core/type-classifier.js'; // type-only — no relation implication, mirrors the FileContentCache precedent's own type-only cross-reference
 
 /**
- * Cache schema version. Bump whenever the on-disk shard format changes —
- * orphans older-version shards under `.type-class-cache/` (a one-time cold
- * re-classify of a gitignored, rebuildable cache — benign).
+ * Cache schema version. Bump whenever the on-disk shard format OR the stored
+ * MEANING of an existing field changes — orphans older-version shards under
+ * `.type-class-cache/` (a one-time cold re-classify of a gitignored,
+ * rebuildable cache — benign).
  *
  * v2: the key now folds in the file's own repo-relative path (see `classKey`).
  * A v1 shard was addressed by `(contentHash, archHash)` ALONE, so two
@@ -16,8 +17,19 @@ import type { ClassificationResult } from '../core/type-classifier.js'; // type-
  * silently inherited the first's classification — a same-run aliasing bug,
  * not a staleness one (it fired on a cold cache). Bumping orphans every v1
  * shard rather than risk one being misread under the new key scheme.
+ *
+ * v3: `closest`'s stored MEANING changed from a declaration-order top-3 to a
+ * canonical (score descending, typeId ascending) top-3 — the shard's shape
+ * (still a 3-element array of {typeId, trace, score}) did not change, only
+ * WHICH 3 elements a truncating write can select, and `matches`/`unreadable`
+ * gained the same typeId-ascending sort. A v2 shard's `get()`-side re-sort
+ * cosmetically reorders whatever 3 elements it already holds but cannot
+ * repair a WRONG 3 a pre-fix write already selected and truncated the rest
+ * of — only a fresh write under the new code produces a genuinely canonical
+ * selection. Bumping orphans every v2 shard rather than risk one being read
+ * as though its `closest` were canonical when it might not be.
  */
-export const TYPE_CLASS_CACHE_SCHEMA_VERSION = 2;
+export const TYPE_CLASS_CACHE_SCHEMA_VERSION = 3;
 
 /** Returns the root of the classification cache directory tree for a given graph root. */
 export function typeClassCacheDir(graphRoot: string): string {

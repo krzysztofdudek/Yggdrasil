@@ -177,6 +177,32 @@ describe('TypeClassCache — cache-hit contract (not "zero fs reads": bytes are 
     expect(calls).toBeGreaterThan(0);
   });
 
+  it('a real v2 shard — this schema\'s own PRE-BUMP version, not arbitrary corruption — is orphaned by the v2 -> v3 bump, never silently trusted', async () => {
+    const d = copyFixture();
+    const graph = await loadGraph(d);
+    const absPath = path.join(d, 'src/svc/handler.ts');
+    const classCache = new TypeClassCache(d, graph.architecture);
+    await classifyFile(absPath, 'src/svc/handler.ts', graph, new FileContentCache(), classCache);
+
+    const shards = findShardFiles(typeClassCacheDir(d));
+    expect(shards.length).toBe(1);
+    const body = JSON.parse(readFileSync(shards[0], 'utf-8'));
+    expect(body.v).toBe(TYPE_CLASS_CACHE_SCHEMA_VERSION); // sanity: this build really does write the current version
+
+    // 2, not an arbitrary corrupt value: the version stamped on every shard
+    // written by the two builds before the `closest` field's meaning changed
+    // from a declaration-order top-3 to a canonical (score, typeId) top-3 —
+    // a shard shaped exactly like a real one those builds would have left on
+    // disk, valid under the OLD version, wrong under the new field meaning.
+    body.v = 2;
+    writeFileSync(shards[0], JSON.stringify(body));
+
+    const calls = await countEvalCalls(() =>
+      classifyFile(absPath, 'src/svc/handler.ts', graph, new FileContentCache(), new TypeClassCache(d, graph.architecture)),
+    );
+    expect(calls).toBeGreaterThan(0); // orphaned, not read — a fresh, canonical reclassification runs instead
+  });
+
   it('a cache entry whose stored key does not match the key it was looked up under is treated as a miss, never trusted (defensive identity assertion, mirroring facts-cache.ts\'s own key check)', async () => {
     const d = copyFixture();
     const graph = await loadGraph(d);

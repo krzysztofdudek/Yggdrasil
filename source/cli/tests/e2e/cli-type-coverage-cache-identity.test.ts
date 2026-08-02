@@ -239,3 +239,76 @@ describe.skipIf(!distExists)('E2E: the type-classification cache never serves on
     }
   });
 });
+
+/**
+ * `coverage.type_level` off means every command that can classify a file
+ * still answers (a path predicate is pure and needs no cache), but none of
+ * them may touch `.yggdrasil/.type-class-cache/` — not create the directory,
+ * not read a shard, not write one. Every command that reaches classification
+ * gates on the flag before ever constructing a `TypeClassCache` instance;
+ * this suite drives each of them, across two ways a project can be flag-off
+ * (no `coverage:` block at all, and an explicit `type_level: false`), and
+ * asserts the directory never comes into existence at all — not merely that
+ * it holds zero shards, which `findShardFiles` above would also report for a
+ * directory that exists but is empty.
+ */
+function buildFlagOffProject(coverageBlock: string): string {
+  const dir = mkdtempSync(path.join(tmpdir(), 'yg-cache-identity-e2e-'));
+  mkdirSync(path.join(dir, '.yggdrasil', 'model'), { recursive: true });
+  writeFileSync(path.join(dir, '.yggdrasil', 'yg-config.yaml'), `version: "5.2.0"\n${coverageBlock}`);
+  writeFileSync(
+    path.join(dir, '.yggdrasil', 'yg-architecture.yaml'),
+    'node_types:\n' +
+      '  alpha:\n' +
+      '    description: "Alpha-layer source under src/alpha/."\n' +
+      '    when: { path: "src/alpha/**" }\n',
+  );
+  mkdirSync(path.join(dir, 'src', 'alpha'), { recursive: true });
+  mkdirSync(path.join(dir, 'src', 'beta'), { recursive: true });
+  writeFileSync(path.join(dir, 'src', 'alpha', 'a.ts'), 'export const a = 1;\n');
+  writeFileSync(path.join(dir, 'src', 'beta', 'b.ts'), 'export const b = 2;\n'); // matches no type — the shape yg type-suggest --file needs to reach classification
+  return dir;
+}
+
+const FLAG_OFF_PROJECT_SHAPES: Array<[string, string]> = [
+  ["no coverage: block at all — this repository's own shape", ''],
+  ['coverage: present with type_level explicitly false', 'coverage: { required: [src/], excluded: [], type_level: false }\n'],
+];
+
+describe.skipIf(!distExists)('E2E: coverage.type_level off — the classification cache directory never comes into existence, on ANY command', () => {
+  for (const [label, coverageBlock] of FLAG_OFF_PROJECT_SHAPES) {
+    it(`${label}: check / check --approve / context / advise / aspects / structure / tree / find / suppressions / owner --file / impact --file / type-suggest --file all leave .type-class-cache/ absent`, () => {
+      const dir = buildFlagOffProject(coverageBlock);
+      const cacheDir = path.join(dir, '.yggdrasil', '.type-class-cache');
+      try {
+        expect(existsSync(cacheDir)).toBe(false);
+
+        const commands: string[][] = [
+          ['check'],
+          ['check', '--details'],
+          ['check', '--approve', '--only-deterministic'],
+          ['context', '--file', 'src/beta/b.ts'],
+          ['advise'],
+          ['aspects'],
+          ['structure'],
+          ['tree'],
+          ['find', 'alpha'],
+          ['suppressions'],
+          ['owner', '--file', 'src/beta/b.ts'],
+          ['impact', '--file', 'src/beta/b.ts'],
+          // The one call site that constructed its own TypeClassCache without
+          // checking coverage.typeLevel first — everything above this line
+          // already went through a gated wrapper and was never the risk;
+          // this line is the actual regression this suite exists to pin.
+          ['type-suggest', '--file', 'src/beta/b.ts'],
+        ];
+        for (const args of commands) {
+          run(args, dir);
+          expect(existsSync(cacheDir)).toBe(false);
+        }
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+  }
+});

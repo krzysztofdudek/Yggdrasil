@@ -202,6 +202,36 @@ describe('classifyFile', () => {
     expect(canonicalResult.closest.map((c) => c.typeId)).toEqual(result.closest.map((c) => c.typeId));
   });
 
+  it('closest ranks by score FIRST, typeId only as a tiebreak — a higher-scoring type must never lose its place to an alphabetically-earlier, lower-scoring one', async () => {
+    writeFileSync(join(tmpDir, 'cmd.ts'), 'hello');
+    // zeta scores 0.5 (path matches, content does not — same all_of shape as
+    // the score-computation test above); alpha/bravo/charlie each score 0.0
+    // (path-only, non-matching). Declared and named so that typeId-ascending
+    // order (alpha, bravo, charlie, zeta) is the EXACT OPPOSITE of score-
+    // descending order (zeta, alpha, bravo, charlie) — the two other closest-
+    // ranking tests in this file both happen to name their higher scorer
+    // alphabetically first, so neither can tell a genuine score sort apart
+    // from an accidental typeId sort. This one can.
+    const graph = makeGraph(
+      {
+        alpha: { when: { path: '*.py' } },
+        bravo: { when: { path: '*.py' } },
+        charlie: { when: { path: '*.py' } },
+        zeta: { when: { all_of: [{ path: '*.ts' }, { content: 'missing' }] } },
+      },
+      join(tmpDir, '.yggdrasil'),
+    );
+    const result = await classifyFile(join(tmpDir, 'cmd.ts'), 'cmd.ts', graph, cache);
+    expect(result.matches).toHaveLength(0);
+    // The one 0.5-scoring type must be first, and must still be IN the top 3
+    // at all — a selection that sorted by typeId instead of score would drop
+    // it (4th alphabetically) in favor of charlie.
+    expect(result.closest.map((c) => c.typeId)).toEqual(['zeta', 'alpha', 'bravo']);
+    expect(result.closest[0].score).toBeCloseTo(0.5);
+    expect(result.closest[1].score).toBeCloseTo(0.0);
+    expect(result.closest[2].score).toBeCloseTo(0.0);
+  });
+
   it('exempt: file under .yggdrasil/ auto-matches any type with when', async () => {
     const graph = makeGraph(
       { typeA: { when: { path: '*.py' } } },

@@ -35,7 +35,14 @@ export async function typeSuggestCommand(file: string, projectRoot: string): Pro
   // `yg owner --file` / `yg context --file` are — see core/type-coverage.ts's
   // classifySingleFile, which this command bypasses (it needs the path-only
   // pre-existence-check branch below, which classifySingleFile does not offer).
-  const classCache = new TypeClassCache(repoRoot, graph.architecture);
+  // Gated on graph.config.coverage?.typeLevel, the same check every other
+  // TypeClassCache-touching call site makes before constructing one — with the
+  // tier off, `classifyFile` below still runs (path/content predicates are
+  // pure and need no cache to evaluate), it just does so without ever
+  // touching `.yggdrasil/.type-class-cache/`: no directory, no read, no write.
+  const classCache = graph.config.coverage?.typeLevel
+    ? new TypeClassCache(repoRoot, graph.architecture)
+    : undefined;
 
   if (repoRelPath.startsWith('.yggdrasil/')) {
     process.stdout.write(

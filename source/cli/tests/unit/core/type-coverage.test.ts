@@ -714,27 +714,119 @@ describe('classifySingleFile / computeTypeCoverage — the cache boundary is enf
       .join('\n');
   }
 
-  it('classifySingleFile( is never called outside core/type-coverage.ts (the Cached wrapper is the one real entry point)', () => {
+  /**
+   * Scan every `.ts` file under `rootDir` (skipping `ownerFile`) for a
+   * literal, bare call to `fnName(` — comments stripped first, ANY amount of
+   * whitespace (including a line break) allowed between the name and its
+   * opening paren, so `fnName (` and a name/paren split across two lines are
+   * caught exactly like the tight `fnName(` spelling. `\b` before `fnName`
+   * excludes the *Cached( wrapper (an unrelated identifier sits between the
+   * name and the paren there) and a bare type-only reference like `typeof
+   * fnName` (no paren follows at all); `\b` also matches immediately after a
+   * `.`, so `m.fnName(` — a call reached through a dotted dynamic import —
+   * is caught too. This is the ONE matching contract both production guard
+   * tests below enforce against the real `src/` tree, extracted so the
+   * boundary tests further down can drive the SAME logic against a
+   * synthetic, disposable directory instead of ever writing a forbidden
+   * spelling into this repository's own committed source.
+   */
+  function findBareCallOffenders(rootDir: string, ownerFile: string, fnName: string): string[] {
     const offenders: string[] = [];
-    for (const file of walkTsFiles(SRC_ROOT)) {
-      if (file === OWNER_FILE) continue; // the wrapper's own internal call is expected
+    const pattern = new RegExp(`\\b${fnName}\\s*\\(`);
+    for (const file of walkTsFiles(rootDir)) {
+      if (file === ownerFile) continue;
       const text = stripComments(readFileSync(file, 'utf-8'));
-      // Immediately-followed-by-'(' excludes classifySingleFileCached( (an
-      // unrelated identifier sits between the name and the paren) and a
-      // bare type-only reference like `typeof classifySingleFile` (no paren
-      // follows there at all).
-      if (/\bclassifySingleFile\(/.test(text)) offenders.push(path.relative(SRC_ROOT, file));
+      if (pattern.test(text)) offenders.push(path.relative(rootDir, file));
     }
-    expect(offenders).toEqual([]);
+    return offenders;
+  }
+
+  it('classifySingleFile( is never called outside core/type-coverage.ts (the Cached wrapper is the one real entry point)', () => {
+    expect(findBareCallOffenders(SRC_ROOT, OWNER_FILE, 'classifySingleFile')).toEqual([]);
   });
 
   it('computeTypeCoverage( is never called outside core/type-coverage.ts (the Cached wrapper is the one real entry point)', () => {
-    const offenders: string[] = [];
-    for (const file of walkTsFiles(SRC_ROOT)) {
-      if (file === OWNER_FILE) continue; // computeTypeCoverageCached's own internal call is expected
-      const text = stripComments(readFileSync(file, 'utf-8'));
-      if (/\bcomputeTypeCoverage\(/.test(text)) offenders.push(path.relative(SRC_ROOT, file));
+    expect(findBareCallOffenders(SRC_ROOT, OWNER_FILE, 'computeTypeCoverage')).toEqual([]);
+  });
+
+  describe('the scan above is source text, not semantic analysis — its exact reach, driven against synthetic files rather than by inspection', () => {
+    /** An empty stand-in for OWNER_FILE, so `findBareCallOffenders` has something to exclude — never the real core/type-coverage.ts, and never written into this repository's own tree. */
+    function makeProbeDir(): { dir: string; ownerFile: string } {
+      const dir = mkdtempSync(path.join(tmpdir(), 'yg-bare-call-guard-'));
+      const ownerFile = path.join(dir, 'owner.ts');
+      writeFileSync(ownerFile, '// stands in for core/type-coverage.ts, excluded from the scan\n');
+      return { dir, ownerFile };
     }
-    expect(offenders).toEqual([]);
+
+    it('catches the plain call, one space before the paren, a name/paren split across a line break, and a call reached through a dotted dynamic import', () => {
+      const { dir, ownerFile } = makeProbeDir();
+      try {
+        writeFileSync(path.join(dir, 'plain.ts'), 'export function f(g: unknown, fl: string, c: unknown) { return classifySingleFile(g, fl, c); }\n');
+        writeFileSync(path.join(dir, 'spaced.ts'), 'export function f(g: unknown, fl: string, c: unknown) { return classifySingleFile (g, fl, c); }\n');
+        writeFileSync(
+          path.join(dir, 'newline.ts'),
+          'export function f(g: unknown, fl: string, c: unknown) {\n  return classifySingleFile\n    (g, fl, c);\n}\n',
+        );
+        writeFileSync(
+          path.join(dir, 'dynamic-import.ts'),
+          "export async function f(g: unknown, fl: string, c: unknown) {\n  const m = await import('../../core/type-coverage.js');\n  return m.classifySingleFile(g, fl, c);\n}\n",
+        );
+        expect(findBareCallOffenders(dir, ownerFile, 'classifySingleFile').sort()).toEqual(
+          ['dynamic-import.ts', 'newline.ts', 'plain.ts', 'spaced.ts'],
+        );
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('misses a call reached through an aliased import or an intermediate variable — a source-text scan cannot tell a deliberate respelling from an unrelated identifier, which is the boundary of this technique, not a bug in it', () => {
+      const { dir, ownerFile } = makeProbeDir();
+      try {
+        writeFileSync(
+          path.join(dir, 'aliased.ts'),
+          "import { classifySingleFile as classifyOne } from '../../core/type-coverage.js';\nexport function f(g: unknown, fl: string, c: unknown) { return classifyOne(g, fl, c); }\n",
+        );
+        writeFileSync(
+          path.join(dir, 'indirect.ts'),
+          'export function f(g: unknown, fl: string, c: unknown) { const fn = classifySingleFile; return fn(g, fl, c); }\n',
+        );
+        // Neither file's text contains "classifySingleFile" immediately
+        // followed by whitespace-then-"(" — `aliased.ts` calls `classifyOne(`,
+        // `indirect.ts` calls `fn(`, and `classifySingleFile` itself appears
+        // with no paren following it at all in either file. An author who
+        // writes either form has already read the name and chosen to route
+        // around it; that is a different failure mode from the one this
+        // guard actually defends against (typing the shorter, more
+        // discoverable name by habit or autocomplete), and no name-based
+        // text scan — nor a lint rule keyed on the same identifier — can
+        // close it. Recorded here so a future reader trusts this guard for
+        // exactly what it covers, not for semantic call-graph analysis it
+        // was never built to do.
+        expect(findBareCallOffenders(dir, ownerFile, 'classifySingleFile')).toEqual([]);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('false-positives on the name appearing inside a trailing same-line comment — noisy, never silent, which is the safe direction for a guard whose only job is to never let a real call through unnoticed', () => {
+      const { dir, ownerFile } = makeProbeDir();
+      try {
+        writeFileSync(
+          path.join(dir, 'trailing-comment.ts'),
+          'export function f(): void { doSomethingElse(); } // never call classifySingleFile(g, f, c) here\n',
+        );
+        // stripComments only drops a block comment or a line whose TRIMMED
+        // text starts with `//` or `*` — a trailing comment sharing a line
+        // with real code survives untouched, so its prose is scanned exactly
+        // like code and this file is (wrongly) flagged. This is the scan's
+        // one over-approximation, and it fails CLOSED — a clean file gets a
+        // spurious failure, never a real call passing silently — which is
+        // the direction to err in for a guard whose only job is catching
+        // forgetfulness before it ships.
+        expect(findBareCallOffenders(dir, ownerFile, 'classifySingleFile')).toEqual(['trailing-comment.ts']);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
   });
 });

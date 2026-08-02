@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, renameSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, renameSync, appendFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -927,6 +927,11 @@ describe.skipIf(!distExists)('CLI E2E — architecture type classification', () 
     const dir = archGraph('ts-closest-order', architecture, ({ projectRoot }) => {
       writeSource(projectRoot, 'src/misc/plain.ts', 'export const p = 1;\n'); // matches none of the four
     });
+    // archGraph's own config carries no coverage: block, i.e. type_level
+    // defaults off — but this test drives type-suggest --file specifically to
+    // exercise the classification CACHE's warm/cold behavior, and the cache is
+    // never constructed with the tier off. Turn it on for this one test.
+    appendFileSync(path.join(dir, '.yggdrasil', 'yg-config.yaml'), 'coverage:\n  type_level: true\n');
     let parked: string | undefined;
     try {
       // Warm the cache with this declaration order (alpha, bravo, charlie, delta).
