@@ -1,0 +1,9 @@
+name: Type Class Cache
+type: persistence-adapter
+description: "Content-hash-keyed local cache for the type-level classification lattice's per-file, per-architecture-predicate-set classification result. Mirrors the AST fact cache's identity-checked, fail-closed shard contract, injected into classifyFile the same way FileContentCache is."
+relations:
+  - target: cli/io/atomic-write
+    type: calls
+    consumes: [write-atomic]
+mapping:
+  - source/cli/src/io/type-class-cache.ts

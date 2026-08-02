@@ -10,3 +10,5 @@ Deleted the dead alsoMatches field from TypeCoverageResult.strictClaimed — not
 Adds a single-file classification entry point so a command answering about one file, not the whole repository, can classify it against the architecture without paying for a full-repo classification pass.
 ## [2026-07-30T21:02:06.660Z]
 Reworded a comment describing the single-file classification helper so it explains, in its own words, that it is the per-file body of the whole-repo classifier, instead of leaning on a short internal code with no meaning to a reader of this repository.
+## [2026-08-02T10:20:07.240Z]
+computeTypeCoverage and classifySingleFile now accept an optional classification cache and thread it through to classifyFile, so a caller that supplies one benefits from the persistent per-file classification cache without changing behavior for callers that omit it.

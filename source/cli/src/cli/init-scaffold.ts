@@ -77,6 +77,7 @@ export async function ensureGitattributes(repoRoot: string): Promise<void> {
  *    - `yg-secrets.yaml`  — provider API keys
  *    - `.symbols-cache/`  — the relation pass's legacy per-language symbol-index cache
  *    - `.ast-cache/`      — the relation pass's content-addressed per-file AST fact cache
+ *    - `.type-class-cache/` — the type-level classification lattice's content-hash-keyed per-file cache
  *    - `.debug.log`       — the opt-in command debug log
  *    - `.yg-events.jsonl` — the fill stage's append-only verdict-events telemetry sidecar
  *    - `.yg-fill-divergence.log` — the fill stage's convergence-sentinel evidence dump
@@ -90,6 +91,9 @@ const YGGDRASIL_GITIGNORE_LINES = [
   // Content-addressed per-file AST fact cache: a local speed cache the relation pass rebuilds
   // free on the next run; never committed.
   '.ast-cache/',
+  // Content-hash-keyed per-file classification cache for the type-level lattice: a local
+  // speed cache the coverage pass rebuilds free on the next run; never committed.
+  '.type-class-cache/',
   '.debug.log',
   // Deterministic-verdict lock: a local cache rebuilt for free by
   // `yg check --approve --only-deterministic`; never committed.

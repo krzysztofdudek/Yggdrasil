@@ -29,35 +29,28 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     data = await extractPortalData(REPO_ROOT, { writeEnabled: false });
   }, 180_000);
 
-  it('the top fan-out hub is a three-way tie at 24 declared relations: cli/core/check, cli/core/fill, cli/portal/engine-api', () => {
-    // cli/commands/aspect-test briefly gained three real dependencies for its
-    // --file addressing mode (cli/relations/core, cli/commands/owner,
-    // cli/core/check-coverage-tiers), raising it 21 -> 24 and tying it with
-    // the leaders here — but that raise was undone by extraction, not kept:
-    // --file's target-classification logic moved out into its own node
-    // (cli/core/aspect-test-file-target), landing aspect-test at 20 real
-    // relations (the two checks that stay — existence, ownership — needed
-    // only cli/commands/owner back, not the other two). So the tie reverts
-    // to the same three that were tied at 24 all along beneath it:
-    // cli/core/check and cli/core/fill (named in the ORIGINAL version of this
-    // pin) plus cli/portal/engine-api, which was already at 24 too but never
-    // asserted here because the old 3-entry check never looked past index 2.
-    // Tied counts break alphabetically (rankHubs: count desc, then path asc).
+  it('cli/core/check is the sole top fan-out hub at 25 declared relations, ahead of a cli/core/fill / cli/portal/engine-api tie at 24', () => {
+    // cli/core/check gained one real relation (a call to the new
+    // content-hash classification cache node it now constructs and injects
+    // into the type-level coverage pass), moving it from a three-way tie at
+    // 24 to the sole leader at 25 — the max_direct_relations ceiling on that
+    // node, so this is also the last relation it can gain without either an
+    // extraction or a raised ceiling. cli/core/fill and cli/portal/engine-api
+    // stay behind it, still tied with each other at 24. Tied counts break
+    // alphabetically (rankHubs: count desc, then path asc).
     expect(data.hubs.fanOut.length).toBeGreaterThan(0);
     expect(data.hubs.fanOut[0].path).toBe('cli/core/check');
-    expect(data.hubs.fanOut[0].count).toBe(24);
+    expect(data.hubs.fanOut[0].count).toBe(25);
     expect(data.hubs.fanOut[1].path).toBe('cli/core/fill');
     expect(data.hubs.fanOut[1].count).toBe(24);
     expect(data.hubs.fanOut[2].path).toBe('cli/portal/engine-api');
     expect(data.hubs.fanOut[2].count).toBe(24);
-    // Stronger than the pin this replaces: also pins that aspect-test's
-    // extraction actually landed it BELOW the leaders (never re-joining the
-    // tie by accident) — the one fact the relation-ceiling restoration above
-    // is supposed to make true. Found by path, not by a fixed index — the
-    // nodes between the top tie and aspect-test in the ranking are unrelated
-    // to this change and no more pinned here than they were before, avoiding
-    // exactly the brittle-anchor failure mode the 2026-07-26 dogfood entry
-    // recorded for this same test file.
+    // Also pins that aspect-test's own extraction (a prior architectural
+    // change) still landed it BELOW the leaders, never re-joining the tie by
+    // accident. Found by path, not by a fixed index — the nodes between the
+    // top and aspect-test in the ranking are unrelated to this change and no
+    // more pinned here than they were before, avoiding the brittle-anchor
+    // failure mode a past dogfood entry recorded for this same test file.
     const aspectTest = data.hubs.fanOut.find((h) => h.path === 'cli/commands/aspect-test');
     expect(aspectTest).toBeDefined();
     expect(aspectTest!.count).toBe(20);

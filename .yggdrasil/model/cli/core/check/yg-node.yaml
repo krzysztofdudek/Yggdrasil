@@ -79,6 +79,8 @@ relations:
     type: calls
   - target: cli/io/file-content-cache
     type: calls
+  - target: cli/io/type-class-cache
+    type: calls
   - target: cli/core/type-coverage
     type: calls
   - target: cli/core/type-visibility

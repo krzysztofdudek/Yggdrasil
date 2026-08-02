@@ -1,6 +1,7 @@
 import path from 'node:path';
 import type { Graph } from '../model/graph.js';
 import type { FileContentCache } from '../io/file-content-cache.js';
+import type { TypeClassCache } from '../io/type-class-cache.js';
 import { classifyFile } from './type-classifier.js';
 import { isExcludedByCoverage } from './check-coverage-tiers.js';
 
@@ -54,10 +55,11 @@ export async function classifySingleFile(
   graph: Graph,
   file: string,
   cache: FileContentCache,
+  classCache?: TypeClassCache,
 ): Promise<SingleFileClassification> {
   const projectRoot = path.dirname(graph.rootPath);
   const absPath = path.join(projectRoot, file);
-  const classification = await classifyFile(absPath, file, graph, cache);
+  const classification = await classifyFile(absPath, file, graph, cache, classCache);
 
   if (classification.unreadable.length > 0) {
     const [first] = classification.unreadable;
@@ -83,9 +85,11 @@ export async function classifySingleFile(
 
 /**
  * Compute the type-level classification lattice over a list of already-
- * uncovered files (files no node mapping owns). Pure: the only I/O is file
- * content reads performed through classifyFile/FileContentCache — no other
- * filesystem or network access, and no writes.
+ * uncovered files (files no node mapping owns). The only I/O is file content
+ * reads performed through classifyFile/FileContentCache, plus — when
+ * `classCache` is supplied — a content hash per file and a best-effort
+ * cache read/write through classifyFile/TypeClassCache; no other filesystem
+ * or network access.
  *
  * For each file, in order:
  *   1. Under a coverage.excluded root -> skipped ENTIRELY. Not classified at
@@ -115,6 +119,7 @@ export async function computeTypeCoverage(
   graph: Graph,
   uncoveredFiles: string[],
   cache: FileContentCache,
+  classCache?: TypeClassCache,
 ): Promise<TypeCoverageResult> {
   const result: TypeCoverageResult = {
     covered: new Map(),
@@ -129,7 +134,7 @@ export async function computeTypeCoverage(
   for (const file of uncoveredFiles) {
     if (isExcludedByCoverage(file, coverage)) continue;
 
-    const c = await classifySingleFile(graph, file, cache);
+    const c = await classifySingleFile(graph, file, cache, classCache);
     switch (c.bucket) {
       case 'unreadable':
         result.unreadable.push({ file, typeIds: c.typeIds, reason: c.reason, kind: c.readKind });

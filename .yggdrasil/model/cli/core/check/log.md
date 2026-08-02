@@ -196,3 +196,5 @@ The hidden attention-dump calibration view now builds its import resolver throug
 the silent structural-attention index widens its file-grouping step so a file the architecture classifies only by type, with no owning component, can be admitted to its own comparison group instead of being silently excluded from every structural-deviation comparison.
 ## [2026-08-02T07:57:11.441Z]
 The same widening also bumped the on-disk schema version of the local structural-attention index, since a reader built for the old two-segment family key would otherwise silently misread the new three-segment one. This costs an adopter nothing beyond one extra rebuild of that local, gitignored index on their next run — nothing durable changes.
+## [2026-08-02T10:20:10.846Z]
+The check gate now constructs the type-level classification cache once per run and passes it into the coverage computation, so an unchanged file's classification is skipped on the next invocation instead of re-evaluated from scratch.

@@ -3,6 +3,8 @@ import type { Graph } from '../model/graph.js';
 import type { PredicateTrace } from '../model/file-when.js';
 import { evaluateFileWhen, type EvalContext } from './file-when-evaluator.js';
 import type { FileContentCache } from '../io/file-content-cache.js';
+import { hashFile } from '../io/hash.js';
+import type { TypeClassCache } from '../io/type-class-cache.js';
 
 export type TypeMatch = {
   typeId: string;
@@ -42,13 +44,42 @@ export type ClassificationResult = {
  *
  * Types without `when` (organizational) are skipped.
  * Files under `.yggdrasil/` are auto-exempt (evaluator returns vacuously true).
+ *
+ * `classCache`, when supplied, is consulted first: the file's content hash
+ * (io/hash.ts's `hashFile` — full bytes, independent of FileContentCache's own
+ * probe/size-limited read) keyed against `classCache`'s own once-per-instance
+ * architecture-predicate hash forms the cache key. A hit skips the whole
+ * `evaluateFileWhen` loop below; a miss runs it as today and, on success,
+ * best-effort writes the result back. Omitting `classCache` runs exactly as
+ * before — the parameter changes nothing for a caller that does not pass one.
+ * A failure hashing the file (vanished mid-run, permission denied, …) is
+ * treated as an unconditional cache miss rather than thrown: the ordinary
+ * loop below already has its own robust unreadable-file handling via
+ * FileContentCache, and a caching failure must never be the reason a file's
+ * classification blows up.
  */
 export async function classifyFile(
   absPath: string,
   repoRelPath: string,
   graph: Graph,
   cache: FileContentCache,
+  classCache?: TypeClassCache,
 ): Promise<ClassificationResult> {
+  let contentHash: string | undefined;
+  if (classCache) {
+    try {
+      contentHash = await hashFile(absPath);
+    } catch {
+      contentHash = undefined;
+    }
+    if (contentHash !== undefined) {
+      const cached = classCache.get(contentHash);
+      if (cached) {
+        return { matches: cached.matches, closest: cached.closest, unreadable: cached.unreadable };
+      }
+    }
+  }
+
   const matches: TypeMatch[] = [];
   const partialScores: ClosestType[] = [];
   const unreadable: UnreadableType[] = [];
@@ -82,7 +113,11 @@ export async function classifyFile(
   partialScores.sort((a, b) => b.score - a.score);
   const closest = partialScores.slice(0, 3);
 
-  return { matches, closest, unreadable };
+  const result: ClassificationResult = { matches, closest, unreadable };
+  if (classCache && contentHash !== undefined) {
+    await classCache.set(contentHash, result);
+  }
+  return result;
 }
 
 /**

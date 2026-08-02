@@ -3,6 +3,7 @@ import type { ValidationIssue } from '../model/validation.js';
 import { DEFAULT_COVERAGE } from '../io/config-parser.js';
 import { normalizeMappingPaths } from '../io/paths.js';
 import { FileContentCache } from '../io/file-content-cache.js';
+import { TypeClassCache } from '../io/type-class-cache.js';
 import { computeTypeCoverage } from './type-coverage.js';
 import type { TypeCoverageResult } from './type-coverage.js';
 import type { TypeCoverageInput } from './pairs.js';
@@ -675,7 +676,9 @@ export async function runCheck(
   let earlyTypeCoverage: TypeCoverageResult | undefined = options?.precomputedTypeCoverage;
   if (earlyTypeCoverage === undefined && coverageVisibleFiles !== null && coverage.typeLevel) {
     const uncoveredForGate = scanUncoveredFiles(graph, coverageVisibleFiles);
-    earlyTypeCoverage = await computeTypeCoverage(graph, uncoveredForGate, sharedContentCache);
+    // Persistent content-hash cache under .yggdrasil/.type-class-cache/ — see io/type-class-cache.ts.
+    const classCache = new TypeClassCache(projectRoot, graph.architecture);
+    earlyTypeCoverage = await computeTypeCoverage(graph, uncoveredForGate, sharedContentCache, classCache);
   }
   const typeCoverageInput: TypeCoverageInput | undefined = earlyTypeCoverage
     ? { covered: earlyTypeCoverage.covered, ambiguousPaths: earlyTypeCoverage.ambiguous.map((a) => a.file) }

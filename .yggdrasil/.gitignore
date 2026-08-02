@@ -8,3 +8,4 @@ yg-secrets.yaml
 .feature-field.json
 .family-candidates.json
 .yg-fill-divergence.log*
+.type-class-cache/
