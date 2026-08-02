@@ -1005,6 +1005,52 @@ describe('buildNominations — T1.5 type-covered churn (a churning file the type
     );
   });
 
+  it('does NOT name a same-type import partner whose own churn sits at the floor — a churn-1 partner never carried weight of its own', async () => {
+    const graph = await loadGraph(projectRoot);
+    const noms = buildNominations(graph, {
+      todayUtc: TODAY,
+      typeCoveredChurnByFile: new Map([
+        ['src/svc/busy.ts', { churn: 5, typeId: 'svc' }],
+        // Churn 1: never touched beyond the commit that created it — the exact
+        // shape MIN_TYPE_COVERED_CHURN refuses to nominate on its own.
+        ['src/svc/untouched.ts', { churn: 1, typeId: 'svc' }],
+      ]),
+      typeCoveredEdges: [{ from: 'src/svc/busy.ts', to: 'src/svc/untouched.ts' }],
+      typeEnforcedFiles: new Set(['src/svc/busy.ts', 'src/svc/untouched.ts']),
+    });
+    const busy = noms.find((n) => n.id === 'type-covered-churn:src/svc/busy.ts');
+    expect(busy).toBeDefined();
+    // The nominee still fires on its own evidence...
+    expect(busy!.why).toContain("touched 'src/svc/busy.ts'");
+    // ...but a partner that would never qualify as a nominee in its own right is
+    // never cited as evidence for one either.
+    expect(busy!.why).not.toContain('untouched.ts');
+    expect(busy!.why).not.toMatch(/cluster|both files/i);
+    // And, as already pinned above, the sub-floor file is never nominated on its own.
+    expect(noms.some((n) => n.id === 'type-covered-churn:src/svc/untouched.ts')).toBe(false);
+  });
+
+  it('does NOT name a same-type import partner whose matched type enforces nothing on it', async () => {
+    const graph = await loadGraph(projectRoot);
+    const noms = buildNominations(graph, {
+      todayUtc: TODAY,
+      typeCoveredChurnByFile: new Map([
+        ['src/svc/busy.ts', { churn: 5, typeId: 'svc' }],
+        // Plenty of churn, but its matched type carries no enforcement on it —
+        // the exact fact yg owner --file would report as "nothing from it
+        // enforces on this file".
+        ['src/svc/unenforced.ts', { churn: 5, typeId: 'svc' }],
+      ]),
+      typeCoveredEdges: [{ from: 'src/svc/busy.ts', to: 'src/svc/unenforced.ts' }],
+      typeEnforcedFiles: new Set(['src/svc/busy.ts']),
+    });
+    const busy = noms.find((n) => n.id === 'type-covered-churn:src/svc/busy.ts');
+    expect(busy).toBeDefined();
+    expect(busy!.why).not.toContain('unenforced.ts');
+    expect(busy!.why).not.toMatch(/cluster|both files/i);
+    expect(noms.some((n) => n.id === 'type-covered-churn:src/svc/unenforced.ts')).toBe(false);
+  });
+
   it('graduating the file (a node now claims it) makes the nomination disappear on the next run — self-clearing', async () => {
     const graph = await loadGraph(projectRoot);
     // No entry for the graduated file this run — the CLI boundary naturally stops

@@ -742,30 +742,54 @@ function hotSpotNominations(
 // ---------------------------------------------------------------------------
 
 /**
- * The minimum churn a type-covered file needs before it is nominated. A file's
- * FIRST appearance in git history is itself a commit that "touches" it, so a
- * file with churn exactly 1 may never have been edited since the commit that
- * created it — that is not churn, it is merely existing. Requiring MORE than
- * that one creating commit (churn >= 2) is the minimal, principled floor: it
- * guarantees at least one real edit happened after the file was created, for
- * every repository regardless of commit cadence. It is deliberately not tuned
- * higher to fit any one fixture's shape — a higher floor would need its own
- * justification this constant does not have.
+ * The minimum churn a type-covered file needs before it is nominated, counted
+ * over the window `NominationSources.typeCoveredChurnByFile` reads. A file's
+ * FIRST appearance in that window already counts as a touch, so churn exactly
+ * 1 may be nothing but the creating commit — not churn, merely existing.
+ * Requiring more than that one touch (churn >= 2) is the minimal floor for
+ * THAT shape; a higher floor would need its own justification this constant
+ * does not have.
+ *
+ * NOT the converse: below this floor is not proof of no edits, only no proof
+ * of one inside the window. A creating commit scrolled out of the window, a
+ * rename (git's name-only log lists only the destination path on the rename
+ * commit), or a merge that introduced the file with no listed files of its
+ * own (`parseNameOnlyLog`'s doc, in `cli/advise.ts`) can each hide real edits
+ * behind a churn of 1 or 0 — why docs/cli-reference.md and CHANGELOG.md state
+ * this as "at least two of the last N commits," never "has ever been edited."
  */
 const MIN_TYPE_COVERED_CHURN = 2;
 
 /**
- * For every same-type edge between two CHURNING type-covered files, record each
- * endpoint as the other's "cluster partner" (symmetric — an import in either
- * direction is evidence the two files carry real, shared weight together, not
- * evidence of which one is "the cluster"). An edge whose target does not appear
- * in `churnByFile` this window, or whose two endpoints match DIFFERENT types
- * (defensive — the CLI boundary already restricts `typeCoveredEdges` to
- * same-type pairs, but this engine never trusts an injected invariant it can
- * cheaply re-check itself), contributes no partnership.
+ * True iff `file` clears BOTH gates a nominee needs: edited beyond its
+ * creating commit (`churn >= MIN_TYPE_COVERED_CHURN`) AND its matched type
+ * genuinely enforces something on it (`typeEnforcedFiles` — the same fact
+ * `yg owner --file` answers). Shared by the main loop and `clusterPartnersOf`,
+ * so a cluster PARTNER is held to the same bar as a nominee — a file that
+ * would not qualify on its own can never be cited as evidence for one that
+ * does.
+ */
+function qualifiesForTypeCoveredChurn(
+  entry: { churn: number; typeId: string } | undefined,
+  file: string,
+  typeEnforcedFiles: ReadonlySet<string>,
+): entry is { churn: number; typeId: string } {
+  return entry !== undefined && entry.churn >= MIN_TYPE_COVERED_CHURN && typeEnforcedFiles.has(file);
+}
+
+/**
+ * For every same-type edge between two QUALIFYING type-covered files (each
+ * clearing `qualifiesForTypeCoveredChurn`), record each endpoint as the
+ * other's "cluster partner" (symmetric — an import in either direction is
+ * evidence the two files carry real, shared weight, not evidence of which
+ * one is "the cluster"). An edge whose target does not qualify, or whose two
+ * endpoints match DIFFERENT types (defensive — the CLI boundary already
+ * restricts `typeCoveredEdges` to same-type pairs, but this engine re-checks
+ * any injected invariant it can cheaply verify), contributes no partnership.
  */
 function clusterPartnersOf(
   churnByFile: Map<string, { churn: number; typeId: string }>,
+  typeEnforcedFiles: ReadonlySet<string>,
   edges: Array<{ from: string; to: string }>,
 ): Map<string, Set<string>> {
   const partners = new Map<string, Set<string>>();
@@ -780,7 +804,8 @@ function clusterPartnersOf(
   for (const { from, to } of edges) {
     const fromEntry = churnByFile.get(from);
     const toEntry = churnByFile.get(to);
-    if (fromEntry === undefined || toEntry === undefined) continue; // partner not churning this window
+    if (!qualifiesForTypeCoveredChurn(fromEntry, from, typeEnforcedFiles)) continue;
+    if (!qualifiesForTypeCoveredChurn(toEntry, to, typeEnforcedFiles)) continue;
     if (fromEntry.typeId !== toEntry.typeId) continue; // defensive: never a cross-type cluster
     link(from, to);
     link(to, from);
@@ -819,12 +844,13 @@ function typeCoveredChurnNominations(
   window: number | undefined,
   todayIso: string,
 ): Nomination[] {
-  const partnersOf = clusterPartnersOf(churnByFile, edges);
+  const partnersOf = clusterPartnersOf(churnByFile, typeEnforcedFiles, edges);
   const out: Nomination[] = [];
 
-  for (const [file, { churn, typeId }] of churnByFile) {
-    if (churn < MIN_TYPE_COVERED_CHURN) continue; // churn 1 is only the creating commit — not churn
-    if (!typeEnforcedFiles.has(file)) continue; // the type carries nothing here — not this class's story
+  for (const [file, entry] of churnByFile) {
+    // Same gate a cluster partner must clear — see qualifiesForTypeCoveredChurn.
+    if (!qualifiesForTypeCoveredChurn(entry, file, typeEnforcedFiles)) continue;
+    const { churn, typeId } = entry;
 
     const fileQ = quoteData(file);
     const typeQ = quoteData(typeId);

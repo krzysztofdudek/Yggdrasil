@@ -24,6 +24,13 @@
 //   5. a churning file whose matched type carries NO effective aspect is never
 //      nominated — the class only speaks where the type tier truly enforces
 //      something, matching what `yg owner --file` already says about it
+//   6. a same-type import partner whose OWN churn sits at the floor (never
+//      edited beyond the commit that created it) is never named as carrying
+//      weight in the busy file's cluster sentence, even though the busy file
+//      still nominates on its own evidence
+//   7. a same-type import partner whose matched type enforces NOTHING on it
+//      specifically is never named as carrying weight either, even though it
+//      churns plenty — matching what `yg owner --file` already says about it
 // =============================================================================
 
 import { describe, it, expect } from 'vitest';
@@ -270,6 +277,88 @@ describe.skipIf(!distExists)('CLI E2E — yg advise type-covered-churn graduatio
     } finally {
       rmSync(withType, { recursive: true, force: true });
       rmSync(withoutType, { recursive: true, force: true });
+    }
+  });
+
+  it('6. a same-type import partner whose own churn sits at the floor is never named as carrying weight, even though the busy file still nominates', () => {
+    const dir = makeFixture('partner-floor', { typeLevel: true });
+    try {
+      gitInit(dir);
+      w(dir, 'src/svc/busy.ts', "import { p } from './partner.js';\nexport const v = 1 + p;\n");
+      w(dir, 'src/svc/partner.ts', 'export const p = 1;\n');
+      commitAll(dir, 'init'); // partner.ts's only touch — churn 1 for the rest of its life
+      w(dir, 'src/svc/busy.ts', "import { p } from './partner.js';\nexport const v = 2 + p;\n");
+      commitAll(dir, 'touch busy');
+      w(dir, 'src/svc/busy.ts', "import { p } from './partner.js';\nexport const v = 3 + p;\n");
+      commitAll(dir, 'touch busy again');
+
+      const { status, stdout } = run(['advise'], dir);
+      expect(status).toBe(0);
+
+      expect(stdout).toContain(GRAD_WHAT('src/svc/busy.ts', 'svc'));
+      // partner.ts imports busy.ts and shares its type, but has never been
+      // edited beyond the commit that created it — it must never be cited as a
+      // file "carrying real weight" alongside busy.ts.
+      expect(stdout).not.toContain('partner.ts');
+      expect(stdout).not.toMatch(/cluster|both files/i);
+      expect(stdout).not.toContain(GRAD_WHAT('src/svc/partner.ts', 'svc'));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('7. a same-type import partner whose matched type enforces NOTHING on it specifically is never named as carrying weight, even though it churns plenty', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-advise-typechurn-partner-unenforced-'));
+    try {
+      mkdirSync(path.join(dir, '.yggdrasil', 'model'), { recursive: true });
+      w(
+        dir,
+        '.yggdrasil/yg-architecture.yaml',
+        `node_types:\n` +
+          `  svc:\n    description: 'a non-strict classifying type'\n    log_required: false\n    aspects:\n      - covered-rule\n    when:\n      path: "src/svc/**"\n`,
+      );
+      w(
+        dir,
+        '.yggdrasil/yg-config.yaml',
+        `reviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\ncoverage:\n  type_level: true\n`,
+      );
+      // The rule is narrowed to busy.ts only via scope.files — partner.ts still
+      // matches the type (so it satisfies coverage), but this rule's own scope
+      // excludes it, so the type enforces NOTHING on partner.ts specifically —
+      // the same shape `yg owner --file` reports as "nothing from it enforces
+      // on this file".
+      w(
+        dir,
+        '.yggdrasil/aspects/covered-rule/yg-aspect.yaml',
+        `name: Covered Rule\ndescription: a rule\nreviewer:\n  type: llm\nscope:\n  per: file\n  files:\n    path: "src/svc/busy.ts"\n`,
+      );
+      w(dir, '.yggdrasil/aspects/covered-rule/content.md', `# Covered Rule\n\nThe file must be covered.\n`);
+
+      gitInit(dir);
+      w(dir, 'src/svc/busy.ts', "import { p } from './partner.js';\nexport const v = 1 + p;\n");
+      w(dir, 'src/svc/partner.ts', 'export const p = 1;\n');
+      commitAll(dir, 'init');
+      w(dir, 'src/svc/busy.ts', "import { p } from './partner.js';\nexport const v = 2 + p;\n");
+      commitAll(dir, 'touch busy');
+      w(dir, 'src/svc/partner.ts', 'export const p = 2;\n');
+      commitAll(dir, 'touch partner');
+      w(dir, 'src/svc/partner.ts', 'export const p = 3;\n');
+      commitAll(dir, 'touch partner again');
+
+      // Confirm the premise independently: yg owner --file says the type
+      // enforces nothing on partner.ts specifically, despite its real churn.
+      const owner = run(['owner', '--file', 'src/svc/partner.ts'], dir);
+      expect(owner.status).toBe(0);
+      expect(owner.stdout).toContain('nothing from it enforces on this file');
+
+      const { status, stdout } = run(['advise'], dir);
+      expect(status).toBe(0);
+
+      expect(stdout).toContain(GRAD_WHAT('src/svc/busy.ts', 'svc'));
+      expect(stdout).not.toContain('partner.ts');
+      expect(stdout).not.toMatch(/cluster|both files/i);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
     }
   });
 });
