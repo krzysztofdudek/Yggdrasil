@@ -9,7 +9,7 @@
     "cli/check-render-groups": {"log":{"last_entry_datetime":"2026-07-28T13:55:58.941Z","prefix_hash":"3f56feaa4908eba6a4d53f3012d76829056983b922c392d7b4c1cc00430b9ac4"}},
     "cli/check-render-header": {"log":{"last_entry_datetime":"2026-07-28T13:55:58.602Z","prefix_hash":"4a5a547104cbcfba4c3219e267acb13f1e6c2423fb0be845ec8aa035c083ae58"}},
     "cli/check-render-views": {"log":{"last_entry_datetime":"2026-07-28T13:55:59.258Z","prefix_hash":"bcd492b3836a3f66152bad325fcf5dc5b15d912c18b3442f020ddae8429929bd"}},
-    "cli/commands/advise": {"log":{"last_entry_datetime":"2026-08-02T12:05:03.428Z","prefix_hash":"a039f58f0fa055b68b0cef4da26863db09dcd2cbfe4dff378f4d726c06ee5159"},"source":"6c7f34635191d58079b2a7e5e474a638fb6dafea15ac853c8daf7d80db186783"},
+    "cli/commands/advise": {"log":{"last_entry_datetime":"2026-08-02T21:08:13.798Z","prefix_hash":"7a570a2dfc77f6c8296abbdc407c7b7b870b3b85d58b1040d0dee41314e42688"},"source":"41c81001ed586917b374a2ecd8c9c7f25d32515fbdb947c571cd5dda38ffc2e4"},
     "cli/commands/aspect-test": {"log":{"last_entry_datetime":"2026-07-31T14:13:49.824Z","prefix_hash":"cf400e51ffde9d61867c2f4e6128b7ff21a00215e1ad93c2bb7d68d3d2dde19f"},"source":"b9b202a7af37756ed3fbd1f24271f01ad04300278026c3b161daf860e5d169bc"},
     "cli/commands/aspects": {"log":{"last_entry_datetime":"2026-08-02T12:05:03.752Z","prefix_hash":"a8842a4b5c9144c0bb48199390c92ebc8c1be94a08942e6c8a98191704eed9ba"},"source":"c4a44b32dc4b70106323acaca2293672d83fb1b9a59a3650351d2cc6b14759d4"},
     "cli/commands/build-context": {"log":{"last_entry_datetime":"2026-08-02T07:56:55.531Z","prefix_hash":"824be1b5bf6294debeec97626d605e5fa3ba8966e4ffce017426b93995ef353a"},"source":"0cb95fbdf3461d653689361d03c7ccd1fcca4662dd5dd6265faa732640b09c44"},

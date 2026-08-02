@@ -255,18 +255,25 @@ function glossLabel(label: string): string {
  */
 function renderRepoLevelGroup(group: IssueGroup, lines: string[]): void {
   lines.push(`  ${glossLabel(group.label)}`);
+  // Per-member why/fix fires ONLY for `perMemberReason` codes (FULL_WHAT_CODES:
+  // today, only `type-relation-forbidden` ever reaches this repo-level branch —
+  // it names no node, one instance per (fromType, toType) pair, guaranteed to
+  // exist only when `coverage.type_level` is on). Every OTHER code that can be
+  // repo-level and divergent (`type-strict-orphan` mixing two `enforce: strict`
+  // types, say) predates this release and is unaffected by the flag — printing
+  // per-member detail for it changed flag-OFF output on real repos wholesale: a
+  // single boilerplate sentence with no per-member content beyond a file name
+  // repeated once per orphaned file, hundreds of times over on a large tree.
+  // Falling through to "no shared line either" (the two guards immediately
+  // below, unchanged) reproduces exactly what the pre-existing divergent case
+  // already rendered: the per-file `what` lines, nothing else. That gap is not
+  // new here and not this release's to close.
   for (const m of group.members) {
     for (const l of m.messageData.what.split('\n')) lines.push(`${BLOCK_INDENT}${l.replace(/\s+$/, '')}`);
-    // Divergent per-member why/fix — mirrors renderGroup's own per-member fallback
-    // (emitDivergentDetail). A repo-level group has no node bullet to hang the fix
-    // under, but suppressing it outright (the shared-line branches below only fire
-    // when NOT divergent) would leave the reader with NO fix at all once 2+ members
-    // carry genuinely different guidance — e.g. two distinct forbidden (fromType,
-    // toType) pairs, each naming its own allow-list edit.
-    if (group.divergentWhy && m.messageData.why) {
+    if (group.perMemberReason && group.divergentWhy && m.messageData.why) {
       lines.push(`${BLOCK_INDENT}Why: ${m.messageData.why.split('\n')[0]}`);
     }
-    if (group.divergentNext && m.messageData.next) {
+    if (group.perMemberReason && group.divergentNext && m.messageData.next) {
       const nextLines = m.messageData.next.split('\n');
       lines.push(`${BLOCK_INDENT}Fix: ${nextLines[0]}`);
       for (const extra of nextLines.slice(1)) lines.push(`${BLOCK_INDENT}${extra}`);

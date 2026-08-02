@@ -678,13 +678,8 @@ function renderNomination(nom: VisibleNomination, showIds: boolean): string[] {
 
 /**
  * Render the Nominations section: `visible` capped at 10 (unless `all`), each as
- * a WHAT / WHY / NEXT block; a footer counts what the cap hid and says plainly
- * that the hidden items rank below what is shown — true because `visible`
- * arrives already sorted by `buildNominations` (classRank, then each class's
- * own finer ordering — e.g. type-covered-churn by churn descending — then
- * evidenceTs, then id), so the cap always keeps the strongest signals and
- * drops the weaker ones, never the reverse; `--all` also lists the
- * currently-suppressed (dismissed / deferred) items.
+ * a WHAT / WHY / NEXT block; a footer counts what the cap hid; `--all` also lists
+ * the currently-suppressed (dismissed / deferred) items.
  */
 function renderNominations(
   visible: VisibleNomination[],
@@ -710,7 +705,7 @@ function renderNominations(
       parts.push('');
       parts.push(
         chalk.dim(
-          `  … and ${hiddenByCap} more nomination${hiddenByCap === 1 ? '' : 's'} not shown, ranked below what is shown — run yg advise --all to see ${hiddenByCap === 1 ? 'it' : 'them all'}.`,
+          `  … and ${hiddenByCap} more nomination${hiddenByCap === 1 ? '' : 's'} not shown — run yg advise --all to see ${hiddenByCap === 1 ? 'it' : 'them all'}.`,
         ),
       );
     }

@@ -242,17 +242,18 @@ describe.skipIf(!distExists)('yg advise — Step 2: cap, --all, --ids (spawned)'
   });
   afterEach(() => rmSync(projectRoot, { recursive: true, force: true }));
 
-  it('bare feed caps at 10 and reports how many the cap hid, and that they rank below what is shown', () => {
+  it('bare feed caps at 10 and reports how many the cap hid', () => {
     const { status, stdout } = run(['advise'], projectRoot);
     expect(status).toBe(0);
     const shown = (stdout.match(/is risky \(wildcard\)/g) ?? []).length;
     expect(shown).toBe(10);
     expect(stdout).toMatch(/and \d+ more nomination/);
     expect(stdout).toContain(`${MARKERS - 10} more`);
-    // The cap footer says plainly that what it hides ranks below what is shown —
-    // honest now that the visible ten are genuinely the top ten, not an
-    // artifact of whichever id happened to sort first alphabetically.
-    expect(stdout).toContain('not shown, ranked below what is shown');
+    // Pinned to the exact pre-existing footer wording: `yg advise` output is
+    // unconditional (not gated by `coverage.type_level`), so it is held to the
+    // same flag-off byte-identity contract as every other command — this exact
+    // string must never drift without a matching entry in CHANGELOG.md.
+    expect(stdout).toContain('more nominations not shown — run yg advise --all to see them all.');
   });
 
   it('--all removes the cap and shows every nomination', () => {

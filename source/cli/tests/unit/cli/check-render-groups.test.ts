@@ -395,6 +395,56 @@ describe('check render — Fix 4: divergent per-node fix surfaces EACH node\'s c
     const fixLines = out.split('\n').filter((l) => /^ {12}Fix: /.test(l));
     expect(fixLines).toHaveLength(2);
   });
+
+  // type-strict-orphan (core/checks/mapping.ts) carries neither nodePath nor
+  // unitKey, so many unrelated files satisfying the SAME strict type land in
+  // ONE repo-level group. Mix in a second, genuinely different strict type and
+  // the group scores divergentWhy/divergentNext true across ALL its members —
+  // exactly the shape a real repository hits with two `enforce: strict` types
+  // both missing mappings. No `type_level` config is involved anywhere in this
+  // fixture: `type-strict-orphan` predates the type-tier feature and fires
+  // with the tier off. Before this fix, the per-member fallback added for the
+  // (tier-only) type-relation-forbidden gate fired for this code too, printing
+  // an identical boilerplate Why/Fix pair after every single orphaned file —
+  // a 200-file strict type produced 200 near-duplicate sentences. The fix
+  // scopes the per-member fallback to `perMemberReason` codes (today, only the
+  // type gate), so a non-gate divergent group renders exactly what it always
+  // did: each member's own `what`, and nothing else — the flag-off byte stays
+  // untouched by this release for every code that predates it.
+  it('a divergent repo-level group OUTSIDE the type gate renders no per-member Why/Fix at all', () => {
+    const orphan = (relPath: string, typeId: string): CheckIssue => ({
+      severity: 'error', code: 'type-strict-orphan', rule: 'type-strict-orphan',
+      messageData: {
+        what: `File '${relPath}' satisfies when of type '${typeId}' (enforce: strict):\nBut file is not in any node's mapping.`,
+        why: `Type '${typeId}' has enforce: strict — every file satisfying its when must belong to a mapping of a node of type '${typeId}'. Otherwise the file looks like a ${typeId} but bypasses ${typeId}-level enforcement.`,
+        next: `Create yg-node.yaml with type: ${typeId} and add '${relPath}' to its mapping.`,
+      },
+    } as CheckIssue);
+    const issues: CheckIssue[] = [
+      ...Array.from({ length: 5 }, (_, i) => orphan(`src/suite/case-${i}.test.ts`, 'test-suite')),
+      orphan('src/other/thing.ts', 'other-type'),
+    ];
+    const [g] = groupIssues(issues);
+    expect(g.nodeCount).toBe(0);
+    expect(g.fileCount).toBe(0); // repo-level: no nodePath, no `file:`-prefixed unitKey
+    expect(g.divergentWhy).toBe(true); // 'test-suite' text != 'other-type' text
+    expect(g.divergentNext).toBe(true);
+    expect(g.perMemberReason).toBe(false); // type-strict-orphan is not a FULL_WHAT_CODES code
+    const lines: string[] = [];
+    renderGroup(g, lines, { isTTY: false });
+    const out = stripAnsi(lines.join('\n'));
+    // No Why:/Fix: line anywhere — matches the pre-existing (pre-release)
+    // rendering for this divergent case exactly; only the shared-block guards
+    // below the loop could still fire, and they are gated on `!divergentWhy`.
+    expect(out).not.toMatch(/^ {12}Why: /m);
+    expect(out).not.toMatch(/^ {12}Fix: /m);
+    // Every member's own `what` (the specific file) still renders — that part
+    // of the grouping was never in question.
+    for (let i = 0; i < 5; i++) {
+      expect(out).toContain(`src/suite/case-${i}.test.ts`);
+    }
+    expect(out).toContain('src/other/thing.ts');
+  });
 });
 
 describe('check render — grouped full view (task 1.3)', () => {
