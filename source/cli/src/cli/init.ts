@@ -1,4 +1,5 @@
 import { Command } from 'commander';
+import { lt, valid } from 'semver';
 import chalk from 'chalk';
 import { writeFile, stat } from 'node:fs/promises';
 import path from 'node:path';
@@ -301,6 +302,12 @@ export interface VersionUpgradeResult {
    * it is theirs.
    */
   coverageBlocked: string[];
+  /**
+   * Set only on the one run that crosses graph schema 5.2.0 with at least one
+   * `coverage.excluded` entry configured — see renderExclusionBoundaryNotice.
+   * Null otherwise: nothing new for this run to say about exclusion.
+   */
+  exclusionNotice: string | null;
 }
 
 /**
@@ -348,10 +355,64 @@ function renderCoverageBlockedWarning(paths: string[]): string {
   });
 }
 
+/**
+ * A project crossing into graph schema 5.2.0 is the one moment coverage
+ * exclusion becomes ABSOLUTE for it: a `coverage.excluded` root now silences a
+ * file outright, even one a more specific `coverage.required` root or a
+ * node's own mapping used to protect. No migration writes anything for this —
+ * it is a content-free version bump — so a project this affects went from a
+ * passing `yg check` to a failing one with nothing at the upgrade itself
+ * explaining why. Surfaced only when the project actually crosses the
+ * boundary this run (a project already at or past 5.2.0 gets nothing new to
+ * say) and only when it has at least one `coverage.excluded` entry for the
+ * change to affect (an empty list changes nothing). Deliberately does not
+ * predict WHICH file breaks — that is exactly what the next command it names
+ * answers, against the real graph, not a guess made here.
+ */
+function renderExclusionBoundaryNotice(excludedCount: number): string {
+  const plural = excludedCount === 1 ? 'root' : 'roots';
+  return buildIssueMessage({
+    what: `This upgrade makes coverage.excluded absolute: the ${excludedCount} excluded ${plural} in this project's config now silence a file outright, even one a more specific coverage.required root or a node's own mapping used to protect.`,
+    why: 'A file that used to be mapped or required inside an excluded root could go from passing to a blocking file-mapping-excluded, mapping-path-missing, or coverage-required-shadowed error on the very next check — this command only refreshes rules and the config version, it never runs coverage checks itself.',
+    next: 'Run yg check now to see whether this project is affected.',
+  });
+}
+
+/**
+ * Whether THIS upgrade run is the one that exposes the project to the
+ * absolute-exclusion change above: a valid pre-5.2.0 starting version, with
+ * at least one `coverage.excluded` entry already configured. A project with
+ * no excluded roots has nothing the change touches; a project already at or
+ * past 5.2.0 crossed the boundary on an earlier run, which already said this.
+ */
+function crossedExclusionBoundary(fromVersion: string | null, excludedCount: number): boolean {
+  return excludedCount > 0 && fromVersion !== null && valid(fromVersion) !== null && lt(fromVersion, '5.2.0');
+}
+
+/**
+ * Best-effort read of the project's (post-migration) `coverage.excluded`
+ * count, for the exclusion-boundary notice above. Mirrors
+ * predictCoverageBlockers's own contract exactly: a graph that cannot be
+ * loaded yields no prediction rather than an error — the upgrade itself
+ * already succeeded, and a failure to predict must never turn that into one.
+ */
+async function currentExcludedCount(projectRoot: string): Promise<number> {
+  try {
+    const graph = await loadGraph(projectRoot);
+    return (graph.config.coverage ?? DEFAULT_COVERAGE).excluded.length;
+  } catch (e: unknown) {
+    debugWrite(`[init] exclusion-boundary prediction skipped: ${e instanceof Error ? e.message : String(e)}`);
+    return 0;
+  }
+}
+
 export async function runVersionUpgrade(
   projectRoot: string,
   yggRoot: string,
 ): Promise<VersionUpgradeResult> {
+  // Captured BEFORE the migration runs — the exclusion-boundary check needs
+  // the version this project started this run at, not the one it lands on.
+  const fromVersion = await detectVersion(yggRoot);
   const { migrationActions, migrationWarnings, withheld } = await coreRunVersionUpgrade({
     yggRoot, migrations: MIGRATIONS, targetVersion: CLI_SUPPORTED_SCHEMA,
   });
@@ -375,6 +436,8 @@ export async function runVersionUpgrade(
   // debug log) so existing adopters pick up the complete set. Idempotent.
   await ensureYggdrasilGitignore(yggRoot);
 
+  const excludedCount = await currentExcludedCount(projectRoot);
+
   return {
     rulesPaths: report.written,
     rulesRemoved: report.removed,
@@ -382,6 +445,9 @@ export async function runVersionUpgrade(
     migrationWarnings,
     withheld,
     coverageBlocked: await predictCoverageBlockers(projectRoot, managedRootFiles(report)),
+    exclusionNotice: crossedExclusionBoundary(fromVersion, excludedCount)
+      ? renderExclusionBoundaryNotice(excludedCount)
+      : null,
   };
 }
 
@@ -455,6 +521,9 @@ async function existingInit(projectRoot: string): Promise<void> {
     if (result.coverageBlocked.length > 0) {
       p.log.warning(renderCoverageBlockedWarning(result.coverageBlocked));
     }
+    if (result.exclusionNotice) {
+      p.log.warning(result.exclusionNotice);
+    }
 
     const landedVersion = (await detectVersion(yggRoot)) ?? currentVersion;
     p.log.step('Next steps:');
@@ -483,6 +552,9 @@ async function existingInit(projectRoot: string): Promise<void> {
       const result = await runVersionUpgrade(projectRoot, yggRoot);
       if (result.coverageBlocked.length > 0) {
         p.log.warning(renderCoverageBlockedWarning(result.coverageBlocked));
+      }
+      if (result.exclusionNotice) {
+        p.log.warning(result.exclusionNotice);
       }
       p.outro(chalk.green(renderArtifactSummary({ written: result.rulesPaths, removed: result.rulesRemoved })));
       break;
@@ -616,6 +688,9 @@ export function registerInitCommand(program: Command): void {
           // the files were just written, and name the stanza that settles it.
           if (result.coverageBlocked.length > 0) {
             process.stdout.write(chalk.yellow(`${renderCoverageBlockedWarning(result.coverageBlocked)}\n`));
+          }
+          if (result.exclusionNotice) {
+            process.stdout.write(chalk.yellow(`${result.exclusionNotice}\n`));
           }
           return;
         }

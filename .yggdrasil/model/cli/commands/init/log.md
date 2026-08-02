@@ -92,3 +92,5 @@ Refreshing the agent rules on an existing project also now predicts whether that
 A fresh bootstrap now turns type-level coverage on by default, but the starting architecture has no type able to satisfy it yet. The closing summary now says so explicitly, mirroring the same standing notice the check command prints for that state, so a new project never reads a default setting as already doing something it cannot do yet.
 ## [2026-07-28T13:55:59.923Z]
 Its dependency on the check engine was only ever the shared zero-classifying-types notice constant, which moved to check-codes — the relation now names that constant's real home.
+## [2026-08-02T21:31:32.280Z]
+An upgrade that crosses into schema 5.2.0 with coverage.excluded already configured now says so: it names the new absolute-exclusion behavior and the codes a follow-up check might raise, instead of reporting a plain artifact summary while the project's very next check goes red for a reason the upgrade command itself never mentioned.

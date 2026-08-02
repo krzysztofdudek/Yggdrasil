@@ -86,6 +86,30 @@ describe('registerInitCommand action — non-interactive dispatch', () => {
     expect(agentsMd).toContain('<!-- yggdrasil:start -->');
   });
 
+  // The review's own repro: a project with a populated coverage.excluded,
+  // upgraded non-interactively (the path an agent or CI actually runs). The
+  // upgrade must say something about the exclusion change AT THIS MOMENT —
+  // this is the one point a human or agent is guaranteed to be looking,
+  // before the next `yg check` turns red with no context connecting it back
+  // to this command.
+  it('--upgrade on a project with coverage.excluded names the exclusion change, not just "nothing changed"', async () => {
+    const projectRoot = await mkdtemp(path.join(tmpdir(), 'yg-init-cli-upgrade-exclusion-'));
+    dirsToCleanup.push(projectRoot);
+    const yggRoot = path.join(projectRoot, '.yggdrasil');
+    await mkdir(path.join(yggRoot, 'model'), { recursive: true });
+    await writeFile(
+      path.join(yggRoot, 'yg-config.yaml'),
+      'version: "5.1.0"\n\ncoverage:\n  required: []\n  excluded:\n    - src/generated\n',
+      'utf-8',
+    );
+
+    const { stdout, exitCode } = await runInitCommand(projectRoot, ['--upgrade']);
+
+    expect(exitCode).toBeUndefined();
+    expect(stdout).toContain('coverage.excluded');
+    expect(stdout.toLowerCase()).toContain('absolute');
+  });
+
   it('--upgrade --platform codex prints the deprecation notice and still succeeds', async () => {
     const projectRoot = await mkdtemp(path.join(tmpdir(), 'yg-init-cli-upgrade-platform-'));
     dirsToCleanup.push(projectRoot);
@@ -246,6 +270,64 @@ describe('runVersionUpgrade', () => {
       before.replace(/^version:.*$/m, 'version: PLACEHOLDER'),
     );
     expect(result.migrationActions.some((a) => a.includes('version updated to 5.2.0'))).toBe(true);
+  });
+
+  // Absolute coverage exclusion (a coverage.excluded root now silences a file
+  // outright, even one a more specific coverage.required root or a node's own
+  // mapping used to protect) took effect on the SAME 5.1.0 -> 5.2.0 lift the
+  // test above covers — but that migration writes nothing beyond the version
+  // line, so a project this actually affects went from a passing `yg check`
+  // to a failing one with the upgrade command itself saying nothing about
+  // why. This project has one excluded root, so it crosses straight into the
+  // affected shape.
+  it('crossing into 5.2.0 with a populated coverage.excluded names the exclusion change', async () => {
+    const projectRoot = await mkdtemp(path.join(tmpdir(), 'yg-init-upgrade-exclusion-'));
+    dirsToCleanup.push(projectRoot);
+    const yggRoot = path.join(projectRoot, '.yggdrasil');
+    await mkdir(path.join(yggRoot, 'model'), { recursive: true });
+    await writeFile(
+      path.join(yggRoot, 'yg-config.yaml'),
+      'version: "5.1.0"\n\ncoverage:\n  required: []\n  excluded:\n    - src/generated\n',
+      'utf-8',
+    );
+
+    const result = await runVersionUpgrade(projectRoot, yggRoot);
+
+    expect(result.exclusionNotice).not.toBeNull();
+    expect(result.exclusionNotice).toContain('coverage.excluded');
+    expect(result.exclusionNotice).toContain('yg check');
+  });
+
+  it('crossing into 5.2.0 with an EMPTY coverage.excluded names nothing — there is nothing for the change to affect', async () => {
+    const projectRoot = await mkdtemp(path.join(tmpdir(), 'yg-init-upgrade-exclusion-empty-'));
+    dirsToCleanup.push(projectRoot);
+    const yggRoot = path.join(projectRoot, '.yggdrasil');
+    await mkdir(path.join(yggRoot, 'model'), { recursive: true });
+    await writeFile(
+      path.join(yggRoot, 'yg-config.yaml'),
+      'version: "5.1.0"\n\ncoverage:\n  required: []\n  excluded: []\n',
+      'utf-8',
+    );
+
+    const result = await runVersionUpgrade(projectRoot, yggRoot);
+
+    expect(result.exclusionNotice).toBeNull();
+  });
+
+  it('a project already at 5.2.0 gets no exclusion notice on a no-op re-run, even with excluded roots configured', async () => {
+    const projectRoot = await mkdtemp(path.join(tmpdir(), 'yg-init-upgrade-exclusion-noop-'));
+    dirsToCleanup.push(projectRoot);
+    const yggRoot = path.join(projectRoot, '.yggdrasil');
+    await mkdir(path.join(yggRoot, 'model'), { recursive: true });
+    await writeFile(
+      path.join(yggRoot, 'yg-config.yaml'),
+      'version: "5.2.0"\n\ncoverage:\n  required: []\n  excluded:\n    - src/generated\n',
+      'utf-8',
+    );
+
+    const result = await runVersionUpgrade(projectRoot, yggRoot);
+
+    expect(result.exclusionNotice).toBeNull();
   });
 
   it('is idempotent: re-running after the artifacts already exist reports nothing written', async () => {
