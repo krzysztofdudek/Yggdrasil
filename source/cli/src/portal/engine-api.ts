@@ -93,7 +93,7 @@ export async function loadPortalGraph(projectRoot: string): Promise<Graph> {
   });
 }
 
-/** Walk every git-tracked repo file (read-only). */
+/** Walk every repo file on disk (read-only), respecting .gitignore — never the git index, so a tracked-but-gitignored file is invisible here (see tracked-file-gitignored, the check that exists precisely because this walk cannot see one). */
 export async function walkPortalFiles(projectRoot: string): Promise<string[]> {
   return walkRepoFiles(projectRoot);
 }
