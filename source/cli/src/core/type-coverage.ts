@@ -57,13 +57,17 @@ export type SingleFileClassification =
  * a live, uncached classification — no disk read or write beyond the ordinary
  * `evaluateFileWhen`/`FileContentCache` content reads — exactly as if the
  * type-classification cache did not exist. This function stays pure by
- * default deliberately: it is also called against a fixture project's graph
- * in place by parts of this codebase's own test suite for a live, read-only
- * answer, and a cache silently constructed as a side effect of an omitted
- * argument would write a `.type-class-cache/` directory into that fixture on
- * disk. A REAL caller that wants the persistent on-disk cache calls
- * `classifySingleFileCached` instead — same signature, minus `classCache`,
- * opted in by name rather than by an argument's absence.
+ * default deliberately: a TypeClassCache is not like the FileContentCache
+ * parameter above (an in-memory read cache that never writes anything) — using
+ * one genuinely writes a JSON shard to disk on every cache miss, a durable
+ * side effect outside this process. Whether a given call can ever touch disk
+ * beyond the ordinary file reads every classification already does must be
+ * readable off the function's own name, not discovered by tracing whether
+ * every optional argument happened to be passed — so a cache is never
+ * silently constructed just because a caller left one out. A REAL caller
+ * that wants the persistent on-disk cache calls `classifySingleFileCached`
+ * instead — same signature, minus `classCache`, opted in by name rather than
+ * by an argument's absence.
  */
 export async function classifySingleFile(
   graph: Graph,

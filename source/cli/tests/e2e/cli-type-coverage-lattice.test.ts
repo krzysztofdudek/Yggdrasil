@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, cpSync, rmSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, cpSync, rmSync, mkdirSync, writeFileSync, readFileSync, renameSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -145,6 +145,54 @@ describe.skipIf(!distExists)('E2E: type-level classification lattice via the rea
       expect(context.out).not.toContain('vendor/b.ts');
     } finally {
       rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('a warm run and a cold run render byte-identical text for the same ambiguous-node-type failure, whatever order yg-architecture.yaml happens to declare the two overlapping types in', () => {
+    const dir = copyFixture();
+    let parked: string | undefined;
+    try {
+      // Warm the cache with the fixture's own declaration order (svc before util).
+      run(['check', '--details'], dir);
+
+      // A PURE reorder — swap the svc: and util: blocks verbatim, no content
+      // change. architecturePredicateHash sorts by id before hashing, so this
+      // must never invalidate the cache just written above.
+      const archPath = path.join(dir, '.yggdrasil', 'yg-architecture.yaml');
+      const original = readFileSync(archPath, 'utf-8');
+      const svcBlock =
+        '  svc:\n    description: "Service-layer source under src/svc/. One of two non-strict classifying types in this fixture; deliberately overlaps with util on src/svc/overlap.ts to exercise the ambiguous-node-type lattice row."\n    when:\n      path: "src/svc/**"\n\n';
+      const utilBlock =
+        '  util:\n    description: "Shared utility source under src/util/. Its when also matches src/svc/overlap.ts (the deliberate svc/util overlap) and vendor/tool.ts (the excluded-coverage-root match), via explicit any_of clauses beyond its own src/util/** directory."\n    when:\n      any_of:\n        - path: "src/util/**"\n        - path: "src/svc/overlap.ts"\n        - path: "vendor/tool.ts"\n\n';
+      expect(original).toContain(svcBlock);
+      expect(original).toContain(utilBlock);
+      const reordered = original.replace(svcBlock + utilBlock, utilBlock + svcBlock);
+      expect(reordered).not.toBe(original);
+      writeFileSync(archPath, reordered);
+
+      const warm = run(['check', '--details'], dir);
+
+      // Move (never delete) the on-disk cache aside so the next run is
+      // genuinely cold — a rename, not a removal, mirroring this suite's own
+      // mkdtemp-copy discipline.
+      parked = mkdtempSync(path.join(tmpdir(), 'yg-cache-parked-'));
+      renameSync(path.join(dir, '.yggdrasil', '.type-class-cache'), path.join(parked, 'parked'));
+
+      const cold = run(['check', '--details'], dir);
+
+      // Same verdict, same exit code, same rendered TEXT — a gitignored,
+      // rebuildable local directory must never change what an adopter reads
+      // for the identical failure. The type order in the message is decided
+      // by the type ids alone (alphabetical), never by which order the
+      // architecture file happens to declare them in, and never by whether
+      // the answer came from a fresh evaluation or a stored cache entry.
+      expect(cold.status).toBe(warm.status);
+      expect(cold.out).toBe(warm.out);
+      expect(warm.out).toContain("matches 2 classifying types: svc, util.");
+      expect(warm.out).toContain('type: <one of: svc | util>');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+      if (parked) rmSync(parked, { recursive: true, force: true });
     }
   });
 });

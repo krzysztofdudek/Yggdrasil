@@ -210,4 +210,32 @@ describe.skipIf(!distExists)('E2E: the type-classification cache never serves on
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it('`yg owner --file` on an unmapped file now reads and writes the classification cache too, via classifySingleFileCached', () => {
+    const dir = buildMinimalProject();
+    try {
+      writeFileSync(
+        path.join(dir, '.yggdrasil', 'yg-architecture.yaml'),
+        'node_types:\n' +
+          '  alpha:\n' +
+          '    description: "Alpha-layer source under src/alpha/."\n' +
+          '    when: { path: "src/alpha/**" }\n',
+      );
+      mkdirSync(path.join(dir, 'src', 'beta'), { recursive: true });
+      writeFileSync(path.join(dir, 'src', 'beta', 'b.ts'), 'export const b = 2;\n'); // no node owns it, matches no type
+
+      const cacheDir = path.join(dir, '.yggdrasil', '.type-class-cache');
+      expect(findShardFiles(cacheDir).length).toBe(0);
+
+      const { out } = run(['owner', '--file', 'src/beta/b.ts'], dir);
+      expect(out).toContain('no graph coverage');
+
+      // classifySingleFileCached, not the bare (uncached) classifySingleFile,
+      // is what `yg owner --file` calls for an unmapped file — this is the
+      // one shard-count proof that call site still writes through.
+      expect(findShardFiles(cacheDir).length).toBe(1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });

@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadGraph } from '../../../src/core/graph-loader.js';
 import { classifyFile } from '../../../src/core/type-classifier.js';
-import { TypeClassCache, typeClassCacheDir } from '../../../src/io/type-class-cache.js';
+import { TypeClassCache, typeClassCacheDir, TYPE_CLASS_CACHE_SCHEMA_VERSION } from '../../../src/io/type-class-cache.js';
 import { FileContentCache } from '../../../src/io/file-content-cache.js';
 import * as fileWhenEvaluator from '../../../src/core/file-when-evaluator.js';
 
@@ -175,6 +175,72 @@ describe('TypeClassCache — cache-hit contract (not "zero fs reads": bytes are 
       classifyFile(absPath, 'src/svc/handler.ts', graph, new FileContentCache(), new TypeClassCache(d, graph.architecture)),
     );
     expect(calls).toBeGreaterThan(0);
+  });
+
+  it('a cache entry whose stored key does not match the key it was looked up under is treated as a miss, never trusted (defensive identity assertion, mirroring facts-cache.ts\'s own key check)', async () => {
+    const d = copyFixture();
+    const graph = await loadGraph(d);
+    const absPath = path.join(d, 'src/svc/handler.ts');
+    const classCache = new TypeClassCache(d, graph.architecture);
+    await classifyFile(absPath, 'src/svc/handler.ts', graph, new FileContentCache(), classCache);
+
+    // Corrupt the on-disk shard's OWN key field, in place — the file still
+    // lives at the path its correct key maps to (get() derives the lookup
+    // path from the key it computes itself, never from the shard's `key`
+    // field), so only the identity assertion inside get() can catch this.
+    const shards = findShardFiles(typeClassCacheDir(d));
+    expect(shards.length).toBe(1);
+    const body = JSON.parse(readFileSync(shards[0], 'utf-8'));
+    expect(typeof body.key).toBe('string');
+    body.key = 'f'.repeat(32); // well-formed shape, but not the key this shard is stored under
+    writeFileSync(shards[0], JSON.stringify(body));
+
+    const calls = await countEvalCalls(() =>
+      classifyFile(absPath, 'src/svc/handler.ts', graph, new FileContentCache(), new TypeClassCache(d, graph.architecture)),
+    );
+    expect(calls).toBeGreaterThan(0);
+  });
+
+  it('a cache entry whose matches field is not an array is treated as a miss, never trusted verbatim (required-field shape validation)', async () => {
+    const d = copyFixture();
+    const graph = await loadGraph(d);
+    const absPath = path.join(d, 'src/svc/handler.ts');
+    const classCache = new TypeClassCache(d, graph.architecture);
+    await classifyFile(absPath, 'src/svc/handler.ts', graph, new FileContentCache(), classCache);
+
+    // Corrupt the on-disk shard's `matches` shape directly — version and key
+    // both stay valid, so only the required-field shape checks can catch this.
+    const shards = findShardFiles(typeClassCacheDir(d));
+    expect(shards.length).toBe(1);
+    const body = JSON.parse(readFileSync(shards[0], 'utf-8'));
+    expect(Array.isArray(body.matches)).toBe(true);
+    body.matches = 'not-an-array';
+    writeFileSync(shards[0], JSON.stringify(body));
+
+    const calls = await countEvalCalls(() =>
+      classifyFile(absPath, 'src/svc/handler.ts', graph, new FileContentCache(), new TypeClassCache(d, graph.architecture)),
+    );
+    expect(calls).toBeGreaterThan(0);
+  });
+
+  it('shards live under a schema-version-numbered subdirectory of the cache root, not directly inside it', async () => {
+    const d = copyFixture();
+    const graph = await loadGraph(d);
+    const absPath = path.join(d, 'src/svc/handler.ts');
+    const classCache = new TypeClassCache(d, graph.architecture);
+    await classifyFile(absPath, 'src/svc/handler.ts', graph, new FileContentCache(), classCache);
+
+    const shards = findShardFiles(typeClassCacheDir(d));
+    expect(shards.length).toBe(1);
+    // The immediate parent directory of the shard file must be the
+    // schema-version segment (v${TYPE_CLASS_CACHE_SCHEMA_VERSION}), not the
+    // cache root itself — this is what lets an older-schema shard sit
+    // alongside a current one without either being misread as the other (see
+    // TYPE_CLASS_CACHE_SCHEMA_VERSION's own jsdoc on the v1 -> v2 key-scheme
+    // change this was introduced to guard).
+    const parentDirName = path.basename(path.dirname(shards[0]));
+    expect(parentDirName).toBe(`v${TYPE_CLASS_CACHE_SCHEMA_VERSION}`);
+    expect(path.dirname(path.dirname(shards[0]))).toBe(typeClassCacheDir(d));
   });
 });
 
