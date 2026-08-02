@@ -194,3 +194,5 @@ The live relation pass's path resolver is now built from an owner index already 
 The hidden attention-dump calibration view now builds its import resolver through the same exclusion-guarded constructor every other live-relation-pass caller uses, closing the one remaining direct caller of the unguarded constructor.
 ## [2026-08-02T06:21:53.463Z]
 the silent structural-attention index widens its file-grouping step so a file the architecture classifies only by type, with no owning component, can be admitted to its own comparison group instead of being silently excluded from every structural-deviation comparison.
+## [2026-08-02T07:57:11.441Z]
+The same widening also bumped the on-disk schema version of the local structural-attention index, since a reader built for the old two-segment family key would otherwise silently misread the new three-segment one. This costs an adopter nothing beyond one extra rebuild of that local, gitignored index on their next run — nothing durable changes.

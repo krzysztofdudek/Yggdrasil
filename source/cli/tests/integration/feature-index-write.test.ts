@@ -127,6 +127,19 @@ describe('feature-field index — real pass, byproduct-free elsewhere, best-effo
     expect(entry.contentHash).toBe(bytesHash);
   });
 
+  it('writes the on-disk schema version as the LITERAL number 2, not merely whatever the constant currently holds', async () => {
+    // Every other assertion in this file compares against the FEATURE_FIELD_VERSION
+    // symbol, so a regression that mutates the constant back to 1 (the pre-widening
+    // shape, before the family key gained its kind segment) would leave every one of
+    // them passing. This test pins the real on-disk contract at the literal value —
+    // a stale two-segment key must be rejected by a reader expecting a v2 index, and
+    // that only holds if the writer really emits 2.
+    const graph = await loadGraph(root);
+    await runCheck(graph, SVC_TRACKED, { writeFeatureIndex: true, now: () => new Date('2026-07-05T09:00:00.000Z') });
+    const index = readIndex();
+    expect(index.v).toBe(2);
+  });
+
   it('self-ensures the .feature-field.json gitignore line on write', async () => {
     const graph = await loadGraph(root);
     // No .yggdrasil/.gitignore exists in this hand-built fixture yet.

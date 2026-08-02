@@ -242,13 +242,17 @@ describe.skipIf(!distExists)('yg advise — Step 2: cap, --all, --ids (spawned)'
   });
   afterEach(() => rmSync(projectRoot, { recursive: true, force: true }));
 
-  it('bare feed caps at 10 and reports how many the cap hid', () => {
+  it('bare feed caps at 10 and reports how many the cap hid, and that they rank below what is shown', () => {
     const { status, stdout } = run(['advise'], projectRoot);
     expect(status).toBe(0);
     const shown = (stdout.match(/is risky \(wildcard\)/g) ?? []).length;
     expect(shown).toBe(10);
     expect(stdout).toMatch(/and \d+ more nomination/);
     expect(stdout).toContain(`${MARKERS - 10} more`);
+    // The cap footer says plainly that what it hides ranks below what is shown —
+    // honest now that the visible ten are genuinely the top ten, not an
+    // artifact of whichever id happened to sort first alphabetically.
+    expect(stdout).toContain('not shown, ranked below what is shown');
   });
 
   it('--all removes the cap and shows every nomination', () => {

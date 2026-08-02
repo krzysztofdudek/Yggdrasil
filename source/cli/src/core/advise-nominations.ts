@@ -36,9 +36,12 @@
  *     corroborating signals agree it may be safe to demote — under the anti-Goodhart
  *     covenant), uncovered-hot-spot (a node whose mapped source churns yet has no
  *     enforced rule covering it — churn signal from git history, injected), and
- *     type-covered-churn (a type-covered file — no owning node — that churns; since
- *     it has no node, no node-level rule can ever attach to it, so the type tier
- *     alone carries its enforcement. Ranked just below uncovered-hot-spot). Every T1
+ *     type-covered-churn (a type-covered file — no owning node — that has been
+ *     EDITED since the commit that created it, and whose matched type genuinely
+ *     enforces something on it; since it has no node, no node-level rule can
+ *     ever attach to it, so the type tier alone carries its enforcement. Ranked
+ *     just below uncovered-hot-spot; within the class, ranked by churn
+ *     descending — the busiest file first, never id-alphabetical). Every T1
  *     class ranks BELOW every T0 class.
  *   T2 (below all of T0/T1, sharing T1's decision stream and the joint cap):
  *     family-without-law (a tight cluster of files sharing no narrow rule, read
@@ -78,6 +81,16 @@ export interface Nomination {
   evidenceHash: string;
   /** Recency key for tie-break (ISO). NOT part of the evidence hash. */
   evidenceTs: string;
+  /**
+   * Optional finer-than-evidenceTs ordering WITHIN one classRank tier — lower
+   * value sorts first, mirroring classRank's own ascending convention. Absent
+   * (every class except type-covered-churn) leaves buildNominations' sort to
+   * fall through to evidenceTs then id exactly as it did before this field
+   * existed. type-covered-churn sets it to the negative of the file's churn
+   * count, so the busiest file sorts first instead of the id-alphabetical order
+   * every other class shares by default — see typeCoveredChurnNominations.
+   */
+  rankWithinClass?: number;
 }
 
 /**
@@ -232,6 +245,19 @@ export interface NominationSources {
    * upgrade to its `why`.
    */
   typeCoveredEdges?: Array<{ from: string; to: string }>;
+  /**
+   * The subset of `typeCoveredChurnByFile`'s files whose matched type genuinely
+   * enforces something on THEM — at least one non-draft rule that is attached,
+   * whose `when` is satisfied, and that actually applies at file granularity
+   * (the SAME fact `yg owner --file` answers with "Enforced by its architecture
+   * type" versus "nothing from it enforces on this file"). A file absent from
+   * this set matches a type that carries no enforcement for it, so nominating a
+   * component there would claim the type tier is carrying something it is not.
+   * Required (alongside `typeCoveredChurnByFile`) for the class to run at all —
+   * absent (classification failed) ⇒ SILENT, never fabricated as enforced or
+   * unenforced for a file this run could not verify.
+   */
+  typeEnforcedFiles?: Set<string>;
 }
 
 /**
@@ -716,6 +742,19 @@ function hotSpotNominations(
 // ---------------------------------------------------------------------------
 
 /**
+ * The minimum churn a type-covered file needs before it is nominated. A file's
+ * FIRST appearance in git history is itself a commit that "touches" it, so a
+ * file with churn exactly 1 may never have been edited since the commit that
+ * created it — that is not churn, it is merely existing. Requiring MORE than
+ * that one creating commit (churn >= 2) is the minimal, principled floor: it
+ * guarantees at least one real edit happened after the file was created, for
+ * every repository regardless of commit cadence. It is deliberately not tuned
+ * higher to fit any one fixture's shape — a higher floor would need its own
+ * justification this constant does not have.
+ */
+const MIN_TYPE_COVERED_CHURN = 2;
+
+/**
  * For every same-type edge between two CHURNING type-covered files, record each
  * endpoint as the other's "cluster partner" (symmetric — an import in either
  * direction is evidence the two files carry real, shared weight together, not
@@ -750,23 +789,32 @@ function clusterPartnersOf(
 }
 
 /**
- * Nominate graduating a type-covered file to its own node when it churns in the
- * window — a type-covered file has NO owning node by construction, so no
- * node-level rule can ever attach to it; the type tier alone carries whatever
- * enforcement it gets. Self-clearing exactly like `hotSpotNominations`: the
- * moment a real node claims the file, `computeTypeCoverage` no longer classifies
- * it as type-covered at all, so the CLI boundary naturally stops supplying an
- * entry for it and the item disappears — no explicit "still exists" check is
- * needed here (unlike hot-spot's defensive `graph.nodes.get` skip, there is no
- * node id to look up in the first place). When a same-type import edge connects
- * two churning type-covered files, the evidence upgrades from "one busy file" to
- * "a cluster" — two files carrying real weight together. The evidence hash binds
- * the matched type too: if the architecture re-buckets the file to a different
- * type between runs, the "create a node of type X" advice is now about a
- * different X, so a stale dismiss must not survive the re-bucketing.
+ * Nominate graduating a type-covered file to its own node when it has been
+ * EDITED beyond its own creating commit (churn >= MIN_TYPE_COVERED_CHURN) AND
+ * its matched type genuinely enforces something on it — a type-covered file
+ * has NO owning node by construction, so no node-level rule can ever attach to
+ * it; the type tier alone carries whatever enforcement it gets, and this class
+ * exists to say so only where that enforcement is real (see
+ * `typeEnforcedFiles`'s own doc — the same fact `yg owner --file` answers).
+ * Self-clearing exactly like `hotSpotNominations`: the moment a real node
+ * claims the file, `computeTypeCoverage` no longer classifies it as
+ * type-covered at all, so the CLI boundary naturally stops supplying an entry
+ * for it and the item disappears — no explicit "still exists" check is needed
+ * here (unlike hot-spot's defensive `graph.nodes.get` skip, there is no node id
+ * to look up in the first place). When a same-type import edge connects two
+ * churning type-covered files, the evidence upgrades from "one busy file" to
+ * "a cluster" — every file in it carrying real weight together, worded to match
+ * however many files that actually is (never a hardcoded "both"). The evidence
+ * hash binds the matched type too: if the architecture re-buckets the file to a
+ * different type between runs, the "create a node of type X" advice is now
+ * about a different X, so a stale dismiss must not survive the re-bucketing.
+ * Ranked, within the class, by churn descending (`rankWithinClass`) — the
+ * busiest file first, so a display cap shows the strongest signals rather than
+ * whichever file happens to sort first alphabetically.
  */
 function typeCoveredChurnNominations(
   churnByFile: Map<string, { churn: number; typeId: string }>,
+  typeEnforcedFiles: ReadonlySet<string>,
   edges: Array<{ from: string; to: string }>,
   window: number | undefined,
   todayIso: string,
@@ -775,7 +823,8 @@ function typeCoveredChurnNominations(
   const out: Nomination[] = [];
 
   for (const [file, { churn, typeId }] of churnByFile) {
-    if (churn <= 0) continue;
+    if (churn < MIN_TYPE_COVERED_CHURN) continue; // churn 1 is only the creating commit — not churn
+    if (!typeEnforcedFiles.has(file)) continue; // the type carries nothing here — not this class's story
 
     const fileQ = quoteData(file);
     const typeQ = quoteData(typeId);
@@ -787,12 +836,15 @@ function typeCoveredChurnNominations(
       window !== undefined
         ? `${churn} of the last ${window} commits`
         : `${churn} commit${churn === 1 ? '' : 's'}`;
+    // Total files the cluster sentence names: this file plus every partner —
+    // "both" is only true at exactly 2; three or more must say how many.
+    const clusterSizePhrase = partners.length === 1 ? 'both files' : `all ${partners.length + 1} files`;
 
     const why =
       partners.length > 0
         ? `${commitsPhrase} touched '${fileQ}', which matches only type '${typeQ}' and has no owning node — ` +
           `it also imports (or is imported by) ${partners.map((p) => `'${p}'`).join(', ')}: a same-type cluster, ` +
-          `both files carrying real weight the type tier alone cannot enforce narrowly.`
+          `${clusterSizePhrase} carrying real weight the type tier alone cannot enforce narrowly.`
         : `${commitsPhrase} touched '${fileQ}', which matches only type '${typeQ}' and has no owning ` +
           `node — with nothing narrower to attach a node-level rule to, the type tier alone carries whatever ` +
           `enforcement this file gets.`;
@@ -800,6 +852,9 @@ function typeCoveredChurnNominations(
     out.push({
       id: `type-covered-churn:${file}`,
       classRank: CLASS_RANK.typeCoveredChurnCluster,
+      // Negative churn: ascending sort (lower value first) puts the highest
+      // churn first, matching classRank's own "lower sorts first" convention.
+      rankWithinClass: -churn,
       what: `File '${fileQ}' (matched type '${typeQ}') is changing but has no node of its own.`,
       why,
       next:
@@ -1023,9 +1078,10 @@ function architectureCutNominations(cycles: ArchitectureCutCycle[]): Nomination[
 /**
  * Build the live nominations from the current graph plus the injected telemetry.
  * Pure and deterministic given `graph` and `sources` (the only clock is the
- * injected `sources.todayUtc`). Ordered by `classRank`, then `evidenceTs`
- * (newest first), then `id` (lexicographic) so callers get a stable ordering
- * without re-sorting.
+ * injected `sources.todayUtc`). Ordered by `classRank`, then `rankWithinClass`
+ * (ascending, only set by classes that need finer-than-evidenceTs ordering —
+ * see its own doc), then `evidenceTs` (newest first), then `id` (lexicographic)
+ * so callers get a stable ordering without re-sorting.
  */
 export function buildNominations(graph: Graph, sources: NominationSources): Nomination[] {
   const nominations: Nomination[] = [];
@@ -1148,12 +1204,15 @@ export function buildNominations(graph: Graph, sources: NominationSources): Nomi
   }
 
   // --- T1.5: type-covered churn (below uncovered-hot-spot, above T2) — runs only
-  //     when the CLI supplied a churn-by-file map; no git / flag off ⇒ omitted ⇒
-  //     SILENT (never fabricated as zero-and-fired) ---
-  if (sources.typeCoveredChurnByFile !== undefined) {
+  //     when the CLI supplied BOTH a churn-by-file map AND which of those files
+  //     their matched type actually enforces; no git / flag off / unresolved
+  //     enforcement classification ⇒ omitted ⇒ SILENT (never fabricated as
+  //     zero-and-fired, and never claiming enforcement this run could not verify) ---
+  if (sources.typeCoveredChurnByFile !== undefined && sources.typeEnforcedFiles !== undefined) {
     nominations.push(
       ...typeCoveredChurnNominations(
         sources.typeCoveredChurnByFile,
+        sources.typeEnforcedFiles,
         sources.typeCoveredEdges ?? [],
         sources.churnWindow,
         todayIso,
@@ -1171,19 +1230,16 @@ export function buildNominations(graph: Graph, sources: NominationSources): Nomi
   //     cycle (declared-only, reproducible); absent / acyclic ⇒ nothing ---
   nominations.push(...architectureCutNominations(sources.architectureCutCycles ?? []));
 
-  nominations.sort((a, b) =>
-    a.classRank !== b.classRank
-      ? a.classRank - b.classRank
-      : a.evidenceTs < b.evidenceTs
-        ? 1
-        : a.evidenceTs > b.evidenceTs
-          ? -1
-          : a.id < b.id
-            ? -1
-            : a.id > b.id
-              ? 1
-              : 0,
-  );
+  nominations.sort((a, b) => {
+    if (a.classRank !== b.classRank) return a.classRank - b.classRank;
+    const ar = a.rankWithinClass ?? 0;
+    const br = b.rankWithinClass ?? 0;
+    if (ar !== br) return ar - br;
+    if (a.evidenceTs !== b.evidenceTs) return a.evidenceTs < b.evidenceTs ? 1 : -1;
+    if (a.id < b.id) return -1;
+    if (a.id > b.id) return 1;
+    return 0;
+  });
 
   return nominations;
 }

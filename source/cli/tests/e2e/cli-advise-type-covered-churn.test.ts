@@ -21,6 +21,9 @@
 //      the architecture even declares a type that would have classified these
 //      files — proving the tier being off leaves this surface completely
 //      untouched, not merely quiet about the new class
+//   5. a churning file whose matched type carries NO effective aspect is never
+//      nominated — the class only speaks where the type tier truly enforces
+//      something, matching what `yg owner --file` already says about it
 // =============================================================================
 
 import { describe, it, expect } from 'vitest';
@@ -51,13 +54,22 @@ function w(root: string, rel: string, content: string): void {
 }
 
 /**
- * A loadable graph with ONE non-strict classifying type `svc` matching
- * `src/svc/**` and NO node at all — every file under `src/svc/` is, by
- * construction, uncovered-by-node and (when the tier is on) type-covered. The
- * type declaration itself is unconditional (architecture facts do not depend on
- * the tier flag); only `includeCoverageBlock` controls whether `coverage:` (and
- * therefore `type_level`) appears in config at all — the flag-off/no-flag
- * comparison in scenario 4 needs a fixture where the block is entirely absent.
+ * A loadable graph with TWO non-strict classifying types and NO node at all —
+ * every file under either type's `path` glob is, by construction,
+ * uncovered-by-node and (when the tier is on) type-covered:
+ *
+ *   - `svc` (matches `src/svc/**`) carries `covered-rule`, a `per: file` LLM
+ *     aspect — `yg advise` never runs a reviewer, so its content is immaterial;
+ *     it only needs to be effective and non-draft so `svc` genuinely enforces
+ *     something on the files it classifies.
+ *   - `unenforced` (matches `src/unenforced/**`) carries NO aspect at all —
+ *     scenario 5's fixture for "the type carries nothing here".
+ *
+ * The type declarations themselves are unconditional (architecture facts do
+ * not depend on the tier flag); only `includeCoverageBlock` controls whether
+ * `coverage:` (and therefore `type_level`) appears in config at all — the
+ * flag-off/no-flag comparison in scenario 4 needs a fixture where the block is
+ * entirely absent.
  */
 function makeFixture(label: string, opts: { typeLevel: boolean; excluded?: string[] }): string {
   const dir = mkdtempSync(path.join(tmpdir(), `yg-advise-typechurn-${label}-`));
@@ -67,7 +79,9 @@ function makeFixture(label: string, opts: { typeLevel: boolean; excluded?: strin
   w(
     dir,
     '.yggdrasil/yg-architecture.yaml',
-    `node_types:\n  svc:\n    description: 'a non-strict classifying type for uncovered service files'\n    log_required: false\n    when:\n      path: "src/svc/**"\n`,
+    `node_types:\n` +
+      `  svc:\n    description: 'a non-strict classifying type for uncovered service files'\n    log_required: false\n    aspects:\n      - covered-rule\n    when:\n      path: "src/svc/**"\n` +
+      `  unenforced:\n    description: 'a non-strict classifying type with no rule at all'\n    log_required: false\n    when:\n      path: "src/unenforced/**"\n`,
   );
   const excludedBlock =
     opts.excluded && opts.excluded.length > 0
@@ -81,6 +95,11 @@ function makeFixture(label: string, opts: { typeLevel: boolean; excluded?: strin
     '.yggdrasil/yg-config.yaml',
     `reviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n${coverageBlock}`,
   );
+  // `yg advise` never runs a reviewer, so content is immaterial — it only needs
+  // to be effective, non-draft, and file-scoped so a type-covered file (no
+  // owning component) can actually carry it.
+  w(dir, '.yggdrasil/aspects/covered-rule/yg-aspect.yaml', `name: Covered Rule\ndescription: a rule\nreviewer:\n  type: llm\nscope:\n  per: file\n`);
+  w(dir, '.yggdrasil/aspects/covered-rule/content.md', `# Covered Rule\n\nThe file must be covered.\n`);
   return dir;
 }
 
@@ -152,10 +171,13 @@ describe.skipIf(!distExists)('CLI E2E — yg advise type-covered-churn graduatio
     try {
       gitInit(dir);
       // Commit A: the real (non-excluded) file plus an excluded generated file
-      // under the SAME type-classified directory. The real file's churn is 1.
+      // under the SAME type-classified directory.
       w(dir, 'src/svc/kept.ts', 'export const kept = 1;\n');
       w(dir, 'src/svc/vendor/generated.ts', 'export const g = 1;\n');
       commitAll(dir, 'init');
+      // A second edit to the real file — churn 2, beyond its creating commit.
+      w(dir, 'src/svc/kept.ts', 'export const kept = 2;\n');
+      commitAll(dir, 'kept edit');
       // Six more commits touching ONLY the excluded generated file.
       for (let i = 2; i <= 7; i++) {
         w(dir, 'src/svc/vendor/generated.ts', `export const g = ${i};\n`);
@@ -165,8 +187,9 @@ describe.skipIf(!distExists)('CLI E2E — yg advise type-covered-churn graduatio
       const { status, stdout } = run(['advise'], dir);
       expect(status).toBe(0);
 
-      // The real file nominates with churn 1 — the six excluded-only commits never count.
+      // The real file nominates with churn 2 — the six excluded-only commits never count.
       expect(stdout).toContain(GRAD_WHAT('src/svc/kept.ts', 'svc'));
+      expect(stdout).toContain('2 of the last 200 commits');
       expect(stdout).not.toContain('7 commit');
       expect(stdout).not.toContain('vendor/generated.ts');
       // No nomination at all for the excluded file itself.
@@ -176,6 +199,32 @@ describe.skipIf(!distExists)('CLI E2E — yg advise type-covered-churn graduatio
       const owner = run(['owner', '--file', 'src/svc/vendor/generated.ts'], dir);
       expect(owner.status).toBe(0);
       expect(owner.stdout).toContain('excluded from graph coverage by design');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('5. a churning file whose matched type carries NO effective aspect is never nominated (exit 0)', () => {
+    const dir = makeFixture('unenforced', { typeLevel: true });
+    try {
+      gitInit(dir);
+      w(dir, 'src/unenforced/plain.ts', 'export const v = 1;\n');
+      commitAll(dir, 'init');
+      w(dir, 'src/unenforced/plain.ts', 'export const v = 2;\n');
+      commitAll(dir, 'b');
+      w(dir, 'src/unenforced/plain.ts', 'export const v = 3;\n');
+      commitAll(dir, 'c');
+
+      const { status, stdout } = run(['advise'], dir);
+      expect(status).toBe(0); // never gates (G4)
+
+      // Matches what yg owner --file already says about the same file: the type
+      // covers it, but nothing from it enforces on it.
+      const owner = run(['owner', '--file', 'src/unenforced/plain.ts'], dir);
+      expect(owner.status).toBe(0);
+      expect(owner.stdout).toContain('nothing from it enforces on this file');
+      expect(stdout).not.toContain(GRAD_WHAT('src/unenforced/plain.ts', 'unenforced'));
+      expect(stdout).not.toContain('has no node of its own');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

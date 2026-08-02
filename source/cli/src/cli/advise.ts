@@ -34,7 +34,7 @@ import { countIncidents } from '../io/incidents-store.js';
 import { walkRepoFiles, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
 import { runSuppressionsScan, scanPortalSuppressions } from '../portal/api/suppress-scan.js';
 import { collectMappingEntries, collectTypeCoveredFiles } from '../portal/api/suppress-eligibility.js';
-import { computeDetectedEdges, computeTypedEdges } from '../portal/api/boundary.js';
+import { computePortalBoundary } from '../portal/api/boundary.js';
 import {
   edgeUniverse,
   tunnelSpans,
@@ -107,29 +107,9 @@ function collectDeclaredRelations(graph: Graph): DeclaredRelation[] {
   return out;
 }
 
-/**
- * The C7 tunnel count for the Attention line. `yg structure` ranks the structural
- * edge universe (declared structural relations ∪ statically detected dependencies;
- * event relations excluded) by span and DISPLAYS only the widest TOP_TUNNELS of
- * them. The attention line points the reader straight at that view — "run yg
- * structure to see them" — so it must report exactly what structure lists, not the
- * full edge universe: the count is min(TOP_TUNNELS, number of tunnels), using the
- * SAME shared constant structure slices by, so the two can never drift. Any
- * failure degrades to 0 (the line is simply omitted) so the attention computation
- * can never break the exit-0 invariant (G4).
- */
-async function computeTunnelCount(graph: Graph): Promise<number> {
-  try {
-    const projectRoot = path.dirname(graph.rootPath);
-    const detected = (await computeDetectedEdges(graph, projectRoot)) ?? new Map();
-    const edges = edgeUniverse(collectDeclaredRelations(graph), detected);
-    const tunnels = tunnelSpans(edges, depthOfPath, lcaDepthOfPaths).length;
-    return Math.min(TOP_TUNNELS, tunnels);
-  } catch (error) {
-    debugWrite(`[advise] tunnel-count degraded to 0: ${(error as Error).message}`);
-    return 0;
-  }
-}
+// computeTunnelCount was folded into gatherRelationBoundary (below) so the C7
+// tunnel count and the type-covered-churn cluster edges share ONE relation
+// pass instead of two — see gatherRelationBoundary's own doc.
 
 /**
  * The family-without-law candidates (T2 class A) at the CLI boundary: read the
@@ -309,17 +289,42 @@ async function gatherTypeCoverageForAdvise(graph: Graph, projectRoot: string): P
   }
 }
 
+/** `gatherCurrentUnits`'s result: the decorative-rule attach sets, plus which
+ *  type-covered files their matched type genuinely enforces something on. */
+interface CurrentUnitsResult {
+  /** aspectId → unit keys — the decorative-rule shrinking-attach-set signal's input. */
+  currentUnitsByAspect: Map<string, Set<string>>;
+  /**
+   * Every type-covered file with at least one pair whose `nodePath` is absent —
+   * under a `typeCoverage`-scoped `computeExpectedPairs` call, a pair with no
+   * `nodePath` can only come from the nodeless (type-covered) enumeration, and
+   * only when a real, non-draft, applicable rule survived it. This is the SAME
+   * fact `yg owner --file` computes to say "Enforced by its architecture type"
+   * versus "nothing from it enforces on this file" — see pairs.ts's own
+   * `nodePath` doc. Feeds the type-covered-churn nomination's enforcement gate.
+   */
+  typeEnforcedFiles: Set<string>;
+}
+
 /**
  * The current expected units per aspect (aspectId → unit keys) — the decorative-rule
  * shrinking-attach-set signal compares this against the units the fill telemetry
- * recorded. Fail-safe: any failure degrades to undefined so no demotion is nominated.
+ * recorded — AND, from the SAME `computeExpectedPairs` call, which type-covered
+ * files their matched type actually enforces (see `CurrentUnitsResult`'s own
+ * doc). One call serves both signals; no second classification pass. Fail-safe:
+ * any failure degrades to undefined so no demotion is nominated and no file is
+ * ever claimed enforced or unenforced on evidence this run could not verify.
  * `typeCoverage` is the SAME classification the caller already gathered
  * (`gatherTypeCoverageForAdvise`) — never reclassified here.
  */
-async function gatherCurrentUnits(graph: Graph, typeCoverage: TypeCoverageInput | undefined): Promise<Map<string, Set<string>> | undefined> {
+async function gatherCurrentUnits(graph: Graph, typeCoverage: TypeCoverageInput | undefined): Promise<CurrentUnitsResult | undefined> {
   try {
     const { pairs } = await computeExpectedPairs(graph, { typeCoverage });
-    return groupUnitsByAspect(pairs);
+    const typeEnforcedFiles = new Set<string>();
+    for (const p of pairs) {
+      if (p.nodePath === undefined) typeEnforcedFiles.add(p.unitKey.slice('file:'.length));
+    }
+    return { currentUnitsByAspect: groupUnitsByAspect(pairs), typeEnforcedFiles };
   } catch (error) {
     debugWrite(`[advise] expected-pairs degraded to empty: ${(error as Error).message}`);
     return undefined;
@@ -451,42 +456,82 @@ function gatherTypeCoveredChurn(
   return out;
 }
 
+/** `gatherRelationBoundary`'s result — see its own doc. */
+interface RelationBoundaryResult {
+  /** The C7 tunnel count for the Attention line. */
+  tunnelCount: number;
+  /** Same-type import edges among type-covered files, or undefined — see gatherRelationBoundary's own doc. */
+  typeCoveredEdges: Array<{ from: string; to: string }> | undefined;
+}
+
 /**
- * Same-type import edges among type-covered files (the type-covered-churn
- * class's cluster-evidence upgrade), via `computeTypedEdges` — the SAME
- * read-only, fail-open relation-pass accessor `yg structure` uses to widen its
- * own edge universe. Restricted here to pairs where BOTH endpoints are
- * type-covered AND share the SAME matched type (a node-owned endpoint is named
- * by its node id in `computeTypedEdges`'s translated `StructEdge`s, which can
- * never collide with a repo-relative file path, so `covered.has(...)` alone
- * correctly excludes every node-to-node or mixed edge without needing the
- * pass's own richer `TypedEdgeIndex` shape). Silent (undefined) when there is no
- * type-covered file to begin with — nothing to widen a pass for. Never throws:
- * `computeTypedEdges` itself fails open to `[]` on any relation-pass failure,
- * matching `yg advise`'s own read-only, never-gating contract.
+ * The C7 tunnel count AND the type-covered-churn cluster's same-type edges,
+ * from ONE shared relation pass — `computePortalBoundary` already exists to
+ * fold the live type-relation gate's edge translation into the SAME pass a
+ * plain detected-edge read runs (see its own doc: "keeps the ≤2-relation-pass
+ * invariant intact even when the type-level tier is on"). Before this, `yg
+ * advise` ran its OWN two separate passes whenever the tier classified at
+ * least one file: one unseeded (for the tunnel count, via the since-removed
+ * `computeDetectedEdges`) and one seeded with `typeCoverage.covered` (for the
+ * cluster edges, via the since-removed `computeTypedEdges`) — duplicating the
+ * parse + resolve work `computePortalBoundary` already does once. Seeding
+ * costs nothing when `typeCoverage` is undefined or empty: `typedEdges` comes
+ * back `[]`, byte-identical to a caller that never asked for the widening
+ * (`computePortalBoundary`'s own contract) — so this is a strict consolidation,
+ * not a new cost paid when the tier is off.
+ *
+ * `typeCoveredEdges` mirrors the former `gatherTypeCoveredEdges` contract
+ * exactly: undefined when there is no type-covered file to begin with
+ * (nothing to widen a pass for); otherwise the pass's `typedEdges` restricted
+ * to pairs where BOTH endpoints are type-covered AND share the SAME matched
+ * type (a node-owned endpoint is named by its node id, which can never
+ * collide with a repo-relative file path, so `covered.has(...)` alone
+ * correctly excludes every node-to-node or mixed edge). The tunnel count
+ * degrades to 0 on its own failure (mirroring the former `computeTunnelCount`
+ * exactly); the whole boundary degrades to "pass failed" only when the
+ * relation parse itself throws, in which case `computePortalBoundary` returns
+ * `null` rather than throwing, and both halves degrade together. Never
+ * throws: this is `yg advise`'s own read-only, never-gating contract (G4).
  */
-async function gatherTypeCoveredEdges(
+async function gatherRelationBoundary(
   graph: Graph,
   projectRoot: string,
   typeCoverage: TypeCoverageInput | undefined,
-): Promise<Array<{ from: string; to: string }> | undefined> {
-  if (typeCoverage === undefined || typeCoverage.covered.size === 0) return undefined;
+): Promise<RelationBoundaryResult> {
+  const wantsTypedEdges = typeCoverage !== undefined && typeCoverage.covered.size > 0;
+  let boundary: Awaited<ReturnType<typeof computePortalBoundary>>;
   try {
-    const structEdges = await computeTypedEdges(graph, projectRoot, typeCoverage.covered);
-    const covered = typeCoverage.covered;
-    const out: Array<{ from: string; to: string }> = [];
-    for (const { from, to } of structEdges) {
+    boundary = await computePortalBoundary(graph, projectRoot, typeCoverage?.covered);
+  } catch (error) {
+    debugWrite(`[advise] relation boundary degraded (pass threw): ${(error as Error).message}`);
+    boundary = null;
+  }
+  if (boundary === null) {
+    return { tunnelCount: 0, typeCoveredEdges: wantsTypedEdges ? [] : undefined };
+  }
+
+  let tunnelCount = 0;
+  try {
+    const detected = new Map((boundary.detectedEdgesByNode ?? []).map((d) => [d.from, new Set(d.targets)] as const));
+    const edges = edgeUniverse(collectDeclaredRelations(graph), detected);
+    tunnelCount = Math.min(TOP_TUNNELS, tunnelSpans(edges, depthOfPath, lcaDepthOfPaths).length);
+  } catch (error) {
+    debugWrite(`[advise] tunnel-count degraded to 0: ${(error as Error).message}`);
+  }
+
+  let typeCoveredEdges: Array<{ from: string; to: string }> | undefined;
+  if (wantsTypedEdges) {
+    const covered = typeCoverage!.covered;
+    typeCoveredEdges = [];
+    for (const { from, to } of boundary.typedEdges ?? []) {
       const fromType = covered.get(from);
       const toType = covered.get(to);
       if (fromType !== undefined && toType !== undefined && fromType === toType) {
-        out.push({ from, to });
+        typeCoveredEdges.push({ from, to });
       }
     }
-    return out;
-  } catch (error) {
-    debugWrite(`[advise] type-covered edges degraded to empty: ${(error as Error).message}`);
-    return [];
   }
+  return { tunnelCount, typeCoveredEdges };
 }
 
 /**
@@ -514,13 +559,23 @@ async function gatherInCorpusDrillResults(
   }
 }
 
+/** `gatherNominationSources`'s result: the nomination sources, plus the C7
+ *  tunnel count `gatherRelationBoundary` derives from the SAME relation pass
+ *  (only the bare `yg advise` action renders it; dismiss/defer ignore it). */
+interface NominationSourcesResult {
+  sources: NominationSources;
+  tunnelCount: number;
+}
+
 /**
  * Gather every non-graph input `buildNominations` needs, at the CLI boundary:
  * risky suppress markers (live scan), drill-result telemetry, verdict-event
- * telemetry, and per-node churn (git history). The core engine imports NONE of
- * these readers — telemetry and history cross the boundary as plain data only.
+ * telemetry, per-node churn (git history), and the relation-pass boundary (the
+ * C7 tunnel count + type-covered-churn's cluster edges, from ONE shared pass —
+ * see `gatherRelationBoundary`). The core engine imports NONE of these readers
+ * — telemetry and history cross the boundary as plain data only.
  */
-async function gatherNominationSources(graph: Graph, todayUtc: Date): Promise<NominationSources> {
+async function gatherNominationSources(graph: Graph, todayUtc: Date): Promise<NominationSourcesResult> {
   const projectRoot = path.dirname(graph.rootPath);
   // Classified once here, then shared by every source below that needs it —
   // no downstream helper repeats the classification pass. In particular, the
@@ -531,13 +586,15 @@ async function gatherNominationSources(graph: Graph, todayUtc: Date): Promise<No
   const suppressData = await gatherSuppressData(graph, projectRoot, typeCoverage);
   const drillResults = await gatherInCorpusDrillResults(graph, projectRoot);
   const verdictEvents = readVerdictEvents(graph.rootPath).events;
-  const currentUnitsByAspect = await gatherCurrentUnits(graph, typeCoverage);
+  const currentUnits = await gatherCurrentUnits(graph, typeCoverage);
   // ONE git-history fetch, shared by both churn counters below (per-node and
   // per-type-covered-file) — see gatherChurnHistory's own doc.
   const touchesByCommit = gatherChurnHistory(projectRoot);
   const churnByNode = await gatherChurnByNode(graph, touchesByCommit);
   const typeCoveredChurnByFile = gatherTypeCoveredChurn(touchesByCommit, typeCoverage);
-  const typeCoveredEdges = await gatherTypeCoveredEdges(graph, projectRoot, typeCoverage);
+  // ONE relation pass serves BOTH the C7 tunnel count and the type-covered-churn
+  // cluster edges — see gatherRelationBoundary's own doc.
+  const { tunnelCount, typeCoveredEdges } = await gatherRelationBoundary(graph, projectRoot, typeCoverage);
   const familyCandidates = readFamilyCandidatesSource(graph);
   const architectureCutCycles = computeArchitectureCutCycles(graph);
 
@@ -551,9 +608,16 @@ async function gatherNominationSources(graph: Graph, todayUtc: Date): Promise<No
   // The decorative-rule source needs BOTH the current attach sets and the suppress
   // counts; supply them only when both resolved, so an unknown suppress state or an
   // unreadable graph can never let a demotion be nominated on incomplete evidence.
-  if (currentUnitsByAspect !== undefined && suppressData !== undefined) {
-    sources.currentUnitsByAspect = currentUnitsByAspect;
+  if (currentUnits !== undefined && suppressData !== undefined) {
+    sources.currentUnitsByAspect = currentUnits.currentUnitsByAspect;
     sources.suppressCountsByAspect = suppressData.counts;
+  }
+  // The type-covered-churn class's enforcement gate needs to know which files
+  // are genuinely enforced; supply it only when resolved, so a failed
+  // classification pass leaves the class silent rather than claiming
+  // enforcement (or its absence) on evidence this run could not verify.
+  if (currentUnits !== undefined) {
+    sources.typeEnforcedFiles = currentUnits.typeEnforcedFiles;
   }
   // The uncovered-hot-spot source needs both the churn map and the window it was
   // measured over; supply them only when churn is KNOWN (git history readable), so a
@@ -582,7 +646,7 @@ async function gatherNominationSources(graph: Graph, todayUtc: Date): Promise<No
   if (architectureCutCycles.length > 0) {
     sources.architectureCutCycles = architectureCutCycles;
   }
-  return sources;
+  return { sources, tunnelCount };
 }
 
 // ---------------------------------------------------------------------------
@@ -614,8 +678,13 @@ function renderNomination(nom: VisibleNomination, showIds: boolean): string[] {
 
 /**
  * Render the Nominations section: `visible` capped at 10 (unless `all`), each as
- * a WHAT / WHY / NEXT block; a footer counts what the cap hid; `--all` also lists
- * the currently-suppressed (dismissed / deferred) items.
+ * a WHAT / WHY / NEXT block; a footer counts what the cap hid and says plainly
+ * that the hidden items rank below what is shown — true because `visible`
+ * arrives already sorted by `buildNominations` (classRank, then each class's
+ * own finer ordering — e.g. type-covered-churn by churn descending — then
+ * evidenceTs, then id), so the cap always keeps the strongest signals and
+ * drops the weaker ones, never the reverse; `--all` also lists the
+ * currently-suppressed (dismissed / deferred) items.
  */
 function renderNominations(
   visible: VisibleNomination[],
@@ -641,7 +710,7 @@ function renderNominations(
       parts.push('');
       parts.push(
         chalk.dim(
-          `  … and ${hiddenByCap} more nomination${hiddenByCap === 1 ? '' : 's'} not shown — run yg advise --all to see ${hiddenByCap === 1 ? 'it' : 'them all'}.`,
+          `  … and ${hiddenByCap} more nomination${hiddenByCap === 1 ? '' : 's'} not shown, ranked below what is shown — run yg advise --all to see ${hiddenByCap === 1 ? 'it' : 'them all'}.`,
         ),
       );
     }
@@ -726,11 +795,10 @@ export function registerAdviseCommand(program: Command): void {
         // Injected UTC clock at the boundary (Task 1 pattern) — the engine keeps
         // no Date.now of its own.
         const now = new Date();
-        const sources = await gatherNominationSources(graph, now);
+        const { sources, tunnelCount } = await gatherNominationSources(graph, now);
         const noms = buildNominations(graph, sources);
         const { visible, hidden } = applyDecisions(noms, readDecisions(graph.rootPath).decisions, now);
 
-        const tunnelCount = await computeTunnelCount(graph);
         // The C8 structural-deviation line points the reader at `yg context --file`,
         // the exact surface that `signals.attention: false` silences (absent `signals`
         // ⇒ ON, mirroring cli/build-context.ts). Honor the SAME off-switch here: when
@@ -776,7 +844,8 @@ export function registerAdviseCommand(program: Command): void {
         const graph = await loadGraphOrAbort(process.cwd(), { tolerateInvalidConfig: true });
         requireNonEmptyReason(opts.reason, 'dismiss');
         const now = new Date();
-        const noms = buildNominations(graph, await gatherNominationSources(graph, now));
+        const { sources } = await gatherNominationSources(graph, now);
+        const noms = buildNominations(graph, sources);
         const nomination = resolveNominationOrFail(noms, id);
         const decision: AdviseDecision = {
           v: 1,
@@ -814,7 +883,8 @@ export function registerAdviseCommand(program: Command): void {
           });
         }
         const now = new Date();
-        const noms = buildNominations(graph, await gatherNominationSources(graph, now));
+        const { sources } = await gatherNominationSources(graph, now);
+        const noms = buildNominations(graph, sources);
         const nomination = resolveNominationOrFail(noms, id);
         const decision: AdviseDecision = {
           v: 1,
