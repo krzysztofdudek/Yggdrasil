@@ -172,6 +172,33 @@ describe.skipIf(!distExists)('yg context --file — typed view for a type-covere
     }
   });
 
+  // A path excluded by an adopter's own coverage.excluded root — as opposed
+  // to the structurally-exempt case above (git internals / the graph's own
+  // directory) — must name that ONE real cause, the same way `yg owner
+  // --file` already does for the identical path via describeExclusionSource.
+  // Before this fix, context --file instead guessed at three possible causes
+  // ("is never scanned for coverage ... , sits inside a separate project's
+  // own boundary, or matches a coverage.excluded root"), leaving the reader
+  // to check both their config and their filesystem to learn something the
+  // CLI already knew for certain.
+  it('a coverage.excluded root names that exact cause, not a three-way guess', () => {
+    const dir = copyFixture();
+    try {
+      const configPath = path.join(dir, '.yggdrasil', 'yg-config.yaml');
+      const config = readFileSync(configPath, 'utf-8').replace('excluded: []', 'excluded:\n    - src/leaf/');
+      writeFileSync(configPath, config, 'utf-8');
+      const { stdout, status } = run(['context', '--file', 'src/leaf/a.ts'], dir);
+      expect(status).toBe(0);
+      expect(stdout).toContain('src/leaf/a.ts is excluded from graph coverage by design.');
+      expect(stdout).toContain('it matches a coverage.excluded root in yg-config.yaml');
+      expect(stdout).not.toContain("separate project's own boundary");
+      expect(stdout).not.toContain('git internals / the graph directory itself');
+      expect(stdout).not.toContain('Matched type:');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   // A type-covered file whose matched type's rules hit an implies cycle
   // (cyclic-a <-> cyclic-b, variants/cyclic-type) must never be told "No
   // rules from this type apply to this file — it satisfies coverage with no

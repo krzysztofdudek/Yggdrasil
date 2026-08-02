@@ -17,7 +17,7 @@ import { readTextFile } from '../io/graph-fs.js';
 import { readFeatureFieldEntry } from '../core/feature-index-read.js';
 import { FAMILY_SEP } from '../core/feature-field-schema.js';
 import { getLanguageDisplayName } from '../utils/language-registry.js';
-import { walkRepoFiles, resolveGraphExclusionSet, isExcludedFromGraph, isCoverageExcludedPath, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
+import { walkRepoFiles, resolveGraphExclusionSet, isExcludedFromGraph, isCoverageExcludedPath, NO_COVERAGE_EXCLUDED, describeExclusionSource, describeExclusionCause } from '../io/repo-scanner.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
 import { computeExpectedPairs, computeSourceFingerprint, FileUnreadableError } from '../core/pairs.js';
 import type { TypeCoverageInput } from '../core/pairs.js';
@@ -339,10 +339,32 @@ export function registerBuildCommand(program: Command): void {
             // either way: this is not a coverage gap, so there is genuinely
             // nothing to fix.
             const exclusionSet = await resolveGraphExclusionSet(repoRoot, graph.config.coverage ?? NO_COVERAGE_EXCLUDED);
-            if (isCoverageExcludedPath(result.file) || isExcludedFromGraph(result.file, exclusionSet)) {
+            if (isCoverageExcludedPath(result.file)) {
+              // Structurally exempt (git internals, or the graph's own
+              // directory) — unconditional, nothing to do with an adopter's
+              // config, so it is named on its own rather than folded into the
+              // config-driven disjunction below. Same wording `yg owner --file`
+              // already uses for the identical path.
               const excludedMsg = buildIssueMessage({
                 what: `${displayFile} is excluded from graph coverage by design.`,
-                why: 'This path is never scanned for coverage (git internals / the graph directory itself), sits inside a separate project\'s own boundary, or matches a coverage.excluded root, so it cannot and need not be mapped to a node here.',
+                why: `This path is never scanned for coverage because it sits inside git internals or the graph's own .yggdrasil/ directory, so it cannot and need not be mapped to a node here.`,
+                next: 'No action needed.',
+              });
+              process.stdout.write(`${excludedMsg}\n`);
+              process.exit(0);
+            }
+            if (isExcludedFromGraph(result.file, exclusionSet)) {
+              // Names WHICH of the two independent config/filesystem-derived
+              // sources caused this — the same distinction `yg owner --file`
+              // and `yg type-suggest --file` already draw — instead of asking
+              // the reader to check both their own config and their own
+              // filesystem. describeExclusionSource cannot return null here:
+              // isExcludedFromGraph just confirmed this path is excluded by
+              // one of exactly the two sources it covers.
+              const cause = describeExclusionCause(describeExclusionSource(result.file, exclusionSet)!);
+              const excludedMsg = buildIssueMessage({
+                what: `${displayFile} is excluded from graph coverage by design.`,
+                why: `This path is never scanned for coverage because ${cause}, so it cannot and need not be mapped to a node here.`,
                 next: 'No action needed.',
               });
               process.stdout.write(`${excludedMsg}\n`);

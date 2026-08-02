@@ -68,3 +68,5 @@ yg context --file's "excluded from graph coverage by design" answer only ever re
 the structural-attention note's family-string parsing now takes the language from the last separator instead of the first, so the note keeps naming the right language now that the attention index's family key carries an extra segment.
 ## [2026-08-02T07:56:55.531Z]
 The same attention note also changed which comparison-cohort noun it names: a file with no owning component but a matched architecture type now reads as belonging to that type's own comparison group, worded plainly as such, instead of being described the same way as a file that does have a component. This corrects the cohort noun; the family-string parsing fix recorded above corrects a separate, mechanical bug in reading that same widened key.
+## [2026-08-02T22:31:42.354Z]
+yg context --file on an excluded path routes through the same exclusion-source lookup yg owner --file already uses, naming the one real cause instead of the three-way guess it used to print — the two commands now agree on how much they know about the same path.
