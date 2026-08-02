@@ -483,8 +483,8 @@ description is set — there is no separate `name` field), followed by a `Review
 (architecture/direct/implied/flow)` — or `Used by: 0 nodes — orphaned` when nothing references
 it — and an `Implies:` line when the aspect implies others. Under `coverage.type_level`, a rule
 reaching files only through an architecture type (no owning component) is never called orphaned:
-the line instead reads `Used by: 0 nodes, N type-covered file(s)`, or names the type-covered
-count alongside the node count when both apply.
+the line instead reads `Used by: 0 nodes, N type-covered file(s)` (for example, `Used by: 0 nodes,
+3 type-covered files`), or names the type-covered count alongside the node count when both apply.
 
 `--health` switches to a per-aspect health table: one row per aspect showing its kind
 (`llm` / `deterministic` / `aggregate`), status, review surface (`nodes` and `pairs`),

@@ -109,7 +109,7 @@
       "file:source/cli/src/core/type-classifier.ts": {"hash":"5fa3bad9208cabf09579b670794c66ccd88186d697321564215183c1c71f14ce","verdict":"approved"},
       "file:source/cli/src/core/type-coverage.ts": {"hash":"212b3effe01369ea1eda2f3eff22cb0702d2bff6feb35d42f3cf165093c0e2b8","verdict":"approved"},
       "file:source/cli/src/core/type-effective.ts": {"hash":"45abee06b183e575076bb5863174d6035b8585709e0980a34fd57b59b81ee40c","verdict":"approved"},
-      "file:source/cli/src/core/type-visibility.ts": {"hash":"5bdb36178bd889f8503cdbf5112e3e7e6e2416ad0d7c20f14c893cd08d3b9b4d","verdict":"approved"},
+      "file:source/cli/src/core/type-visibility.ts": {"hash":"43aca418be8fc32943afac08c49cb1c53406c67d6fb1d0549849310369eea8e5","verdict":"approved"},
       "file:source/cli/src/core/validator.ts": {"hash":"9b976f559a0de68a1b098405756ef3ff4d67bb82ec1adf5c8eb3650916c09ded","verdict":"approved"},
       "file:source/cli/src/core/verify-lock.ts": {"hash":"995b3fa1b212bc20810426a82180272bb7d16afc139cc6b95aa927078d9a4f63","verdict":"approved"},
       "file:source/cli/src/core/when-evaluator.ts": {"hash":"aa63c2ced8394ee5de031f107c39fc2958460b0053a3aa2350426f335f975695","verdict":"approved"},

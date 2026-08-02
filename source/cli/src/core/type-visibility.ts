@@ -108,6 +108,18 @@ export function describeChainTermination(t: ChainTermination): string {
  * wording ready), but do not expect to see them in rendered `yg check` or `yg
  * context --file` output — that would require wiring a same-process
  * fill→check handoff, which is a distinct, larger change.
+ *
+ * The other two are no more reachable in practice today, despite having a
+ * mapped code: `classifyRunnerDisposition` below is the only thing that can
+ * turn a `StructureRunnerError` into 'read-beyond-architecture' or
+ * 'node-context-required', and nothing outside its own unit tests calls it.
+ * A fill that actually hits `STRUCTURE_UNDECLARED_FS_READ` or
+ * `STRUCTURE_NODE_CONTEXT_UNAVAILABLE` is caught in `fill-det.ts`, which
+ * renders the `StructureRunnerError`'s own `messageData` directly and never
+ * routes through this translator — so a reader who sees such a fill failure
+ * sees that message, never the words "read-beyond-architecture" or
+ * "node-context-required" this artifact would use. Wiring a real caller is
+ * the same same-process fill→check handoff named above, still undone.
  */
 export type TypeVisibilityReason =
   | TypeAspectDropReason         // 'when-not-satisfied' | 'draft'

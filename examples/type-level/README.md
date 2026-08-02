@@ -63,7 +63,13 @@ free by `yg check --approve --only-deterministic`.
 
 ## Reproduce GREEN from a clean clone
 
-Run everything with this example directory as the working directory:
+Run everything with this example directory as the working directory. `yg` is
+the built CLI at `../../source/cli/dist/bin.js` — build it first if this is a
+fresh clone (`source/cli/dist/` is gitignored, so it never ships):
+
+```bash
+cd source/cli && npm install && npm run build && cd ../..
+```
 
 ```bash
 cd examples/type-level
@@ -84,7 +90,7 @@ siblings), proving the architecture does not pre-satisfy itself. Step 2
 fills all six for free; step 3 reproduces:
 
 ```
-yg check: PASS  2 nodes · 12/12 files (2 node-owned, 6 type-covered, 4 excluded) · 3 aspects · 0 flows · 6 verified (6 deterministic, 0 LLM)
+yg check: PASS  2 nodes · 13/13 files (2 node-owned, 6 type-covered, 5 excluded) · 3 aspects · 0 flows · 6 verified (6 deterministic, 0 LLM)
 
 Type coverage:
   'handler' — 3 files covered: src/handlers/capturePayment.ts, src/handlers/reviewCart.ts, src/handlers/scheduleFulfillment.ts
@@ -99,6 +105,13 @@ Type coverage:
   - src/lib/db.ts
   - src/lib/validate.ts
 ```
+
+This file you are reading is one of those 13: `coverage.excluded` in
+`.yggdrasil/yg-config.yaml` already lists `README.md` alongside `AGENTS.md`,
+`CLAUDE.md`, `.clinerules/`, and `.gitattributes`, so every one of them is
+counted in the total but none is ever required to be mapped or type-covered.
+Editing this file's prose can never move the counts above — only adding or
+removing a file changes them.
 
 `yg tree` shows the same shape from the graph side — two named components,
 plus everything else folded into the type-level lattice:
@@ -168,9 +181,15 @@ this file has an explicit node (`refund-handler`) declaring `type:
 admin-handler`. Move that node's file out of the way and check again:
 
 ```bash
-mv .yggdrasil/model/refund-handler/yg-node.yaml /tmp/refund-handler.yaml
+git mv .yggdrasil/model/refund-handler/yg-node.yaml .yggdrasil/model/refund-handler.yg-node.yaml.aside
 node ../../source/cli/dist/bin.js check
 ```
+
+Shown in full below, including a `Warnings` block the error text alone does
+not explain: with `refund-handler` gone, `elevated-audit` — the admin-only
+rule that node used to be the sole carrier of — no longer attaches to
+anything at all, admin or otherwise, so the machine also reports that a rule
+which still ships real code is now enforcing nowhere.
 
 ```
 Errors (1):
@@ -181,12 +200,25 @@ Errors (1):
             Fix: Two exits:
               1. Create an explicit node declaring the intended type (yg-node.yaml with type: <one of: admin-handler | handler>) — its pairs re-key under the owner.
               2. Narrow one of the overlapping when: predicates in yg-architecture.yaml so exactly one matches — existing verdicts revalidate free.
+            Either exit may surface new type-relation-forbidden findings for this file's own imports, now that they join the live gate.
+
+Warnings (1):
+
+  aspect-effective-nowhere  1 pairs  1 nodes
+            Its attach sites plus 'when' predicates match nothing, so the rule is never verified anywhere — dead law that looks enforced.
+            Fix: Check the attach sites and 'when' predicate (yg impact --aspect elevated-audit). While authoring graph-before-code this is expected: create the node/type it targets, or set status: draft until the code lands.
+            - aspects/elevated-audit  Aspect 'elevated-audit' has a rule source but is effective on zero nodes.
+
+Next: Two exits:
+  1. Create an explicit node declaring the intended type (yg-node.yaml with type: <one of: admin-handler | handler>) — its pairs re-key under the owner.
+  2. Narrow one of the overlapping when: predicates in yg-architecture.yaml so exactly one matches — existing verdicts revalidate free.
+Either exit may surface new type-relation-forbidden findings for this file's own imports, now that they join the live gate.
 ```
 
 Restore the node and check again to confirm green:
 
 ```bash
-mv /tmp/refund-handler.yaml .yggdrasil/model/refund-handler/yg-node.yaml
+git mv .yggdrasil/model/refund-handler.yg-node.yaml.aside .yggdrasil/model/refund-handler/yg-node.yaml
 node ../../source/cli/dist/bin.js check
 ```
 
@@ -198,9 +230,14 @@ matching file coast on automatic type coverage the way a handler does.
 Move `order-repository`'s node out of the way the same way and check:
 
 ```bash
-mv .yggdrasil/model/order-repository/yg-node.yaml /tmp/order-repository.yaml
+git mv .yggdrasil/model/order-repository/yg-node.yaml .yggdrasil/model/order-repository.yg-node.yaml.aside
 node ../../source/cli/dist/bin.js check
 ```
+
+Shown in full again: with `order-repository` gone, `parameterized-queries` —
+the rule that node used to be the sole carrier of — drops to enforcing
+nowhere too, the same `Warnings` block the ambiguous-file demo above prints,
+this time naming a different aspect.
 
 ```
 Errors (1):
@@ -211,9 +248,23 @@ Errors (1):
             But file is not in any node's mapping.
             Why: Type 'repository' has enforce: strict — every file satisfying its when must belong to a mapping of a node of type 'repository'. Otherwise the file looks like a repository but bypasses repository-level enforcement.
             Fix: Create yg-node.yaml with type: repository and add 'src/repositories/orderRepository.ts' to its mapping.
+
+Warnings (1):
+
+  aspect-effective-nowhere  1 pairs  1 nodes
+            Its attach sites plus 'when' predicates match nothing, so the rule is never verified anywhere — dead law that looks enforced.
+            Fix: Check the attach sites and 'when' predicate (yg impact --aspect parameterized-queries). While authoring graph-before-code this is expected: create the node/type it targets, or set status: draft until the code lands.
+            - aspects/parameterized-queries  Aspect 'parameterized-queries' has a rule source but is effective on zero nodes.
+
+Next: Create yg-node.yaml with type: repository and add 'src/repositories/orderRepository.ts' to its mapping.
 ```
 
-Restore it the same way and re-run `check` to confirm green.
+Restore it the same way and re-run `check` to confirm green:
+
+```bash
+git mv .yggdrasil/model/order-repository.yg-node.yaml.aside .yggdrasil/model/order-repository/yg-node.yaml
+node ../../source/cli/dist/bin.js check
+```
 
 ## Re-approve after any source edit
 
