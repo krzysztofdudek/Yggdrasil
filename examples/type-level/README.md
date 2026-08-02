@@ -132,7 +132,7 @@ rule in force and where to read it:
 $ node ../../source/cli/dist/bin.js context --file src/handlers/reviewCart.ts
 
 src/handlers/reviewCart.ts
-  Owner: unmapped
+  Owner: type:handler
 
   Matched type: handler
   inherited rules stop at 'handler' — it has no parent type to inherit from

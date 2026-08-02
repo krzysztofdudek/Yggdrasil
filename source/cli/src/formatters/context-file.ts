@@ -63,39 +63,44 @@ export function formatFileContext(data: FileContextData): string {
   lines.push(posixPath(data.filePath));
   if (data.ownerPath) {
     lines.push(`  Owner: ${posixPath(data.ownerPath)} (${data.ownerType ?? 'unknown'})`);
+  } else if (data.typeCoverage) {
+    // "unmapped" is the product's own word for genuinely NOT covered — false
+    // here, and self-contradicted two lines later by "Matched type:" on the
+    // same file. Lead with the same ownership vocabulary `yg owner --file`
+    // already uses for the identical file ("-> type:X").
+    const tc = data.typeCoverage;
+    lines.push(`  Owner: type:${tc.typeId}`);
+    lines.push('');
+    lines.push(`  Matched type: ${tc.typeId}`);
+    lines.push(`  ${tc.chainTerminationText}`);
+    lines.push('');
+    if (tc.applied.length > 0) {
+      lines.push('  Must satisfy:');
+      lines.push('');
+      for (const aspect of tc.applied) {
+        lines.push(`    ${aspect.aspectId} [${aspect.status ?? 'enforced'}] — ${aspect.aspectDescription}`);
+        lines.push(`      read: ${posixPath(aspect.verifiedAgainst)}`);
+      }
+      lines.push('');
+    } else {
+      lines.push('  No rules from this type apply to this file — it satisfies coverage with no enforcement.');
+      lines.push('');
+    }
+    if (tc.dropped.length > 0) {
+      lines.push('  Attached to this type but not enforced here:');
+      for (const d of tc.dropped) {
+        lines.push(`    ${d.aspectId} — ${d.reasonText}`);
+      }
+      lines.push('');
+    }
+    lines.push(`  ${DERIVED_RELATIONS_NOTE}`);
+    lines.push('');
+    lines.push(`  ${GRADUATION_NEXT}`);
+    lines.push('');
+    return lines.join('\n');
   } else {
     lines.push('  Owner: unmapped');
     lines.push('');
-    if (data.typeCoverage) {
-      const tc = data.typeCoverage;
-      lines.push(`  Matched type: ${tc.typeId}`);
-      lines.push(`  ${tc.chainTerminationText}`);
-      lines.push('');
-      if (tc.applied.length > 0) {
-        lines.push('  Must satisfy:');
-        lines.push('');
-        for (const aspect of tc.applied) {
-          lines.push(`    ${aspect.aspectId} [${aspect.status ?? 'enforced'}] — ${aspect.aspectDescription}`);
-          lines.push(`      read: ${posixPath(aspect.verifiedAgainst)}`);
-        }
-        lines.push('');
-      } else {
-        lines.push('  No rules from this type apply to this file — it satisfies coverage with no enforcement.');
-        lines.push('');
-      }
-      if (tc.dropped.length > 0) {
-        lines.push('  Attached to this type but not enforced here:');
-        for (const d of tc.dropped) {
-          lines.push(`    ${d.aspectId} — ${d.reasonText}`);
-        }
-        lines.push('');
-      }
-      lines.push(`  ${DERIVED_RELATIONS_NOTE}`);
-      lines.push('');
-      lines.push(`  ${GRADUATION_NEXT}`);
-      lines.push('');
-      return lines.join('\n');
-    }
     if (data.candidates && data.candidates.length > 0) {
       lines.push('  This file is not covered by any node.');
       lines.push('  Candidate nodes (by directory):');
