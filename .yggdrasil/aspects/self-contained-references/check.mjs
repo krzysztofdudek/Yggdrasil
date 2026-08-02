@@ -36,15 +36,20 @@ import { walk, report, findComments } from '@chrisdudek/yg/ast';
 // followed by a colon introducing its own explanation in the same
 // parenthetical (e.g. "(I1b: binary wins over the size guard)").
 //
-// PART C — a bare parenthetical numbered-step citation ("(Step N)",
-// "(Step 4a)") in a test's own `it`/`describe`/`test` name, under the exact
-// same colon exemption as Part B. Deliberately capital-"S" "Step" only, and
-// test names only: this repository has its own, unrelated, already-
-// self-contained lowercase "step" convention (e.g. allowed-reads.test.ts's
-// own file-header legend numbering "step 1".."step 4", and fill.ts's/
-// pairs.ts's in-file "// Step N: ..." section markers) — neither shape is
-// this check's target, and scoping to the capital-"S" parenthetical form
-// inside a test name is what tells them apart without flagging either.
+// PART C — a bare parenthetical numbered citation under one of three
+// keywords ("(Step N)", "(Task N)", "(Phase N)", each optionally with a
+// trailing letter like "4a") in a test's own `it`/`describe`/`test` name,
+// under the exact same colon exemption as Part B. Deliberately
+// capitalized-keyword only, and test names only: this repository has its
+// own, unrelated, already-self-contained lowercase "step" convention (e.g.
+// allowed-reads.test.ts's own file-header legend numbering "step 1".."step
+// 4", and fill.ts's/pairs.ts's in-file "// Step N: ..." section markers) —
+// neither shape is this check's target, and scoping to the capitalized
+// parenthetical form inside a test name is what tells them apart without
+// flagging either. "Task" and "Phase" collide with no established
+// lowercase convention of their own the way "step" does — every bare
+// capitalized citation under either is exactly as unresolvable as "Step"
+// and needs no carve-out.
 
 const VAGUE_PHRASES = [
   { re: /\bthis task\b/i, label: '"this task"' },
@@ -76,18 +81,21 @@ function bareCodeMatch(text) {
   return null;
 }
 
-// Literal "Step" (capital S only — see PART C above for why) + 1-3 digits +
-// 0-3 trailing lowercase letters, e.g. "Step 2", "Step 4a".
-const STEP_IN_PARENS = /\(Step (\d{1,3}[a-z]{0,3})\b([^()]*)\)/g;
+// Literal "Step"/"Task"/"Phase" (capitalized only — see PART C above for why)
+// + 1-3 digits + 0-3 trailing lowercase letters, e.g. "Step 2", "Task 4a",
+// "Phase 1". "Task" and "Phase" collide with no established lowercase
+// convention the way "step" does (PART C above), so they need no carve-out —
+// bare-capitalized is refused, same as "Step".
+const STEP_IN_PARENS = /\((Step|Task|Phase) (\d{1,3}[a-z]{0,3})\b([^()]*)\)/g;
 
-/** First bare (no colon in its own parenthetical) "(Step N)"/"(Step Na)" citation in
- *  `text`, or null. */
+/** First bare (no colon in its own parenthetical) "(Step N)"/"(Task N)"/"(Phase N)"
+ *  citation in `text`, or null — paired with which keyword matched. */
 function bareStepMatch(text) {
   STEP_IN_PARENS.lastIndex = 0;
   let m;
   while ((m = STEP_IN_PARENS.exec(text))) {
-    const [, step, rest] = m;
-    if (!rest.includes(':')) return step;
+    const [, keyword, number, rest] = m;
+    if (!rest.includes(':')) return { keyword, number };
   }
   return null;
 }
@@ -228,14 +236,16 @@ export function check(ctx) {
       }
       const step = bareStepMatch(text);
       if (step) {
+        const { keyword, number } = step;
         violations.push(
           report(
             file,
             anchor,
-            `Test name cites a bare step reference '(Step ${step})' with no explanation a ` +
-              `reader can resolve from this repository (nothing here numbers "Step ${step}"). ` +
-              `Either drop it (the name already stands on its own without it) or give it its ` +
-              `own inline colon-based explanation right there, e.g. '(Step ${step}: what it means)'.`,
+            `Test name cites a bare ${keyword.toLowerCase()} reference '(${keyword} ${number})' with no ` +
+              `explanation a reader can resolve from this repository (nothing here numbers ` +
+              `"${keyword} ${number}"). Either drop it (the name already stands on its own without it) ` +
+              `or give it its own inline colon-based explanation right there, e.g. ` +
+              `'(${keyword} ${number}: what it means)'.`,
           ),
         );
       }

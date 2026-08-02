@@ -6,15 +6,15 @@ describe('extractor registry', () => {
     expect(extractorForLanguage('json')).toBeUndefined();
     expect(extractorForLanguage('yaml')).toBeUndefined();
   });
-  it('resolves the TypeScript extractor for ts/tsx/js (Phase 1)', () => {
+  it('resolves the TypeScript extractor for ts/tsx/js', () => {
     expect(extractorForLanguage('typescript')).toBeDefined();
     expect(extractorForLanguage('tsx')).toBeDefined();
     expect(extractorForLanguage('javascript')).toBeDefined();
   });
-  it('resolves the Kotlin extractor (Phase 6, symbol-table resolved)', () => {
+  it('resolves the Kotlin extractor (symbol-table resolved)', () => {
     expect(extractorForLanguage('kotlin')).toBeDefined();
   });
-  it('resolves the Rust extractor (Phase 7, crate module-tree resolved)', () => {
+  it('resolves the Rust extractor (crate module-tree resolved)', () => {
     expect(extractorForLanguage('rust')).toBeDefined();
   });
   it('resolves the C extractor for c, and C++ for cpp (quoted #include resolved)', () => {

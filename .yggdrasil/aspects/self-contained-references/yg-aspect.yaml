@@ -12,11 +12,13 @@ description: >-
   grep before; (2) a bare parenthetical reference code shaped like a private
   review report's finding id (a letter, 1-3 digits, and a trailing lowercase
   letter — e.g. "(I1a)") with no colon-based explanation, in a test's own
-  `it`/`describe`/`test` name; (3) a bare parenthetical numbered-step
-  citation ("(Step N)", "(Step 4a)") in a test's own `it`/`describe`/`test`
-  name, under the same colon exemption as (2) — the shape a whole later
-  branch used to cite a planning brief's own numbered steps, none of them
-  committed to this repository. It deliberately does NOT flag a plain
+  `it`/`describe`/`test` name; (3) a bare parenthetical numbered citation
+  under one of three keywords ("(Step N)", "(Task N)", "(Phase N)", each
+  optionally with a trailing letter like "4a") in a test's own
+  `it`/`describe`/`test` name, under the same colon exemption as (2) — the
+  shape a whole later branch used to cite a planning brief's own numbered
+  steps, tasks, or phases, none of them committed to this repository. It
+  deliberately does NOT flag a plain
   letter+digit code with no trailing letter (e.g. "(G4)", "(D7)", "(R5)")
   even when unexplained at that exact spot, and does not scan general
   comments for that shape at all: this repository has an extensive,
@@ -31,12 +33,15 @@ description: >-
   explained once, then referenced bare within the same file — e.g. a test
   file's own numbered branch-coverage cases, or a long function's own
   "// Step N: ..." section markers), which never collides with the
-  capital-"S" parenthetical shape (3) targets. Narrowing to the
-  trailing-letter code shape and the capital-"S" step shape, both inside a
-  test name only, is what keeps this check free of false positives against
-  those established conventions while still catching the actual recurring
-  failure. Exempt whenever the code or step number is followed by a colon
-  introducing its own explanation in the same parenthetical or comment.
+  capitalized parenthetical shape (3) targets. "Task" and "Phase" collide
+  with no established lowercase convention of their own the way "step"
+  does, so both are refused bare with no carve-out. Narrowing to the
+  trailing-letter code shape and the capitalized step/task/phase shape, both
+  inside a test name only, is what keeps this check free of false positives
+  against those established conventions while still catching the actual
+  recurring failure. Exempt whenever the code or step/task/phase number is
+  followed by a colon introducing its own explanation in the same
+  parenthetical or comment.
 reviewer:
   type: deterministic
 scope:

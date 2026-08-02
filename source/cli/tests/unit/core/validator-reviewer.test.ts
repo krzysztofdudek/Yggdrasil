@@ -46,7 +46,7 @@ function createGraph(overrides: Partial<Graph> = {}): Graph {
   };
 }
 
-describe('aspect parse errors (Task 36)', () => {
+describe('aspect parse errors', () => {
   it('emits aspectParseErrors as structured validator codes', async () => {
     const graph = createGraph({
       aspectParseErrors: [
@@ -89,7 +89,7 @@ describe('aspect parse errors (Task 36)', () => {
   });
 });
 
-describe('config-reviewer-missing (Task 36b)', () => {
+describe('config-reviewer-missing', () => {
   it('does not emit config-reviewer-missing when config has no reviewer section but no LLM pair is effective', async () => {
     // Empty nodes/aspects → computeExpectedPairs yields no LLM pair, so a
     // script-only / empty graph is a legal keyless state.
@@ -197,7 +197,7 @@ describe('config-reviewer-missing (Task 36b)', () => {
   });
 });
 
-describe('aspect-tier-unknown (Task 37)', () => {
+describe('aspect-tier-unknown', () => {
   it('emits aspect-tier-unknown when aspect tier does not exist in config', async () => {
     const aspect = createAspect('my-aspect', { type: 'llm', tier: 'nonexistent-tier' } as any);
     const graph = createGraph({

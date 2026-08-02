@@ -455,7 +455,7 @@ describe('collectDependencyAncestors', () => {
   });
 });
 
-describe('verifiedAgainst path (Task 31)', () => {
+describe('verifiedAgainst path', () => {
   const llmAspect: AspectDef = {
     name: 'LLM Aspect',
     id: 'llm-aspect',
@@ -558,7 +558,7 @@ describe('verifiedAgainst path (Task 31)', () => {
   });
 });
 
-describe('companionReadPath (Task 7)', () => {
+describe('companionReadPath', () => {
   const llmAspectWithCompanion: AspectDef = {
     name: 'LLM With Companion',
     id: 'llm-companion-aspect',
