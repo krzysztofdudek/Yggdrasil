@@ -332,7 +332,11 @@ describe.skipIf(!distExists)('yg advise agrees with yg check on a rule enforced 
     // has no real component node anywhere — src/forked/f.ts is enforced by its
     // architecture type alone — yet forked-own-rule is live there.
     const checked = run(['check'], projectRoot);
-    expect(checked.stdout).toMatch(/'forked'[\s\S]*?Enforced: forked-own-rule \(1\)/);
+    // The (optional) trailing ", N unverified" is this fixture's own honest
+    // reporting of a pair that has not been approved here — irrelevant to
+    // what this test actually pins, which is that the rule is listed as
+    // effective (Enforced) on this nodeless type at all.
+    expect(checked.stdout).toMatch(/'forked'[\s\S]*?Enforced: forked-own-rule \(1(?:, \d+ unverified)?\)/);
 
     // yg advise classifies the SAME graph for its own dead-attach nomination. It
     // must reach the same verdict yg check just did, not report the identical

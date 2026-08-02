@@ -90,10 +90,19 @@ describe.skipIf(!distExists)("CLI E2E — a type-covered file's read allowance m
       // Never re-fills: a plain check with a stored hash that no longer
       // matches what verify recomputes would report this pair unverified —
       // forever, since neither side of that mismatch ever changes again.
-      const unverifiedForThisPair = verified.stdout
-        .split('\n')
-        .filter((l) => l.includes('unverified') || l.includes("aspect 'reach-parent-file-rule'"));
-      expect(unverifiedForThisPair.join('\n')).not.toContain('reach-parent-file-rule');
+      // reach-parent-file-rule shares its type's "Enforced:" summary line
+      // with reach-child-file-rule (which DOES stay permanently unverified —
+      // its own read is structurally forbidden, see the fill assertions
+      // above), so a plain substring check for "unverified" on that shared
+      // line would false-positive on reach-parent-file-rule's neighbor. Assert
+      // on reach-parent-file-rule's OWN count qualifier and its own Errors
+      // bullet specifically, not on the line as a whole.
+      expect(verified.stdout).not.toMatch(/reach-parent-file-rule \(\d+, \d+ unverified\)/);
+      expect(verified.stdout).not.toMatch(/aspect 'reach-parent-file-rule'/);
+      // reach-child-file-rule's own pair, by contrast, never became verified —
+      // this is the fixture actually earning that guarantee, not an assertion
+      // that stopped testing anything once the shared line's text changed.
+      expect(verified.stdout).toMatch(/reach-child-file-rule \(\d+, \d+ unverified\)/);
 
       const after = readLock(path.join(dir, '.yggdrasil'));
       const afterEntry = after.verdicts['reach-parent-file-rule']?.['file:src/reach/leaf/a.ts'];

@@ -498,8 +498,20 @@ describe('check render — emoji decoration', () => {
 // triage views, singular grammar — constructed CheckResult, no fixture, so
 // every scenario is exact and controllable. ─────────────────────
 
-function typeVisibilityResult(report: TypeVisibilityReport): CheckResult {
-  return { ...baseResult([]), typeLevel: true, typeVisibility: report };
+function typeVisibilityResult(report: TypeVisibilityReport, issues: CheckIssue[] = []): CheckResult {
+  return { ...baseResult(issues), typeLevel: true, typeVisibility: report };
+}
+
+/** A plain `unverified` CheckIssue for a nodeless (type-covered) pair, matching what core/check.ts's emitPairIssue actually produces for one. */
+function unverifiedFileIssue(file: string, aspectId: string): CheckIssue {
+  return {
+    severity: 'error',
+    code: 'unverified',
+    rule: 'unverified',
+    aspectId,
+    unitKey: `file:${file}`,
+    messageData: { what: `No valid verdict for aspect '${aspectId}' on file:${file}.`, why: 'w', next: 'yg check --approve' },
+  };
 }
 
 function block(overrides: Partial<TypeVisibilityReport['byType'][number]> = {}): TypeVisibilityReport['byType'][number] {
@@ -763,5 +775,107 @@ describe('type-visibility block — an uncomputable file is never folded into th
     const out = renderTypeVisibilityBlock(typeVisibilityResult(report), { countsOnly: true });
     expect(out).toContain('2 files could not have their rules worked out (aspect implies cycle)');
     expect(out).not.toMatch(/\d+ rules? unresolved/);
+  });
+});
+
+// ── The Enforced count never stands unqualified when it has no confirmed
+// verdict behind it (an aspect can be effective-status 'enforced' — the
+// architecture says it should block — without a single pair having ever
+// produced a real verdict; that is exactly the shape a rule that structurally
+// cannot run on a type-covered file takes: every fill infra-errors, so the
+// pair sits unverified forever, yet the type-coverage block named it
+// "enforced" with no caveat). This cross-references the SAME `unverified`
+// issues plain `yg check` already lists in its Errors section — no new
+// computation, no re-running check.mjs — so the count can never itself drift
+// from what the rest of the same report says. ─────────────────────
+
+describe('type-visibility block — an "enforced" count with no confirmed verdict says so', () => {
+  it('every file behind an enforced aspect is still unverified: the count names it plainly', () => {
+    const report: TypeVisibilityReport = {
+      byType: [block({
+        typeId: 'handler',
+        files: ['a.ts', 'b.ts', 'c.ts'],
+        enforced: ['validates-input'],
+        enforcedCounts: [{ aspectId: 'validates-input', count: 3 }],
+      })],
+      zeroEnforcement: { count: 0, samples: [] },
+      uncomputable: NO_UNCOMPUTABLE,
+      rows: [],
+    };
+    const issues = ['a.ts', 'b.ts', 'c.ts'].map((f) => unverifiedFileIssue(f, 'validates-input'));
+    const out = renderTypeVisibilityBlock(typeVisibilityResult(report, issues));
+    expect(out).toMatch(/Enforced: validates-input \(3, 3 unverified\)/);
+  });
+
+  it('only SOME files behind an enforced aspect are unverified: the count is the unverified subset, not the total', () => {
+    const report: TypeVisibilityReport = {
+      byType: [block({
+        typeId: 'handler',
+        files: ['a.ts', 'b.ts', 'c.ts'],
+        enforced: ['validates-input'],
+        enforcedCounts: [{ aspectId: 'validates-input', count: 3 }],
+      })],
+      zeroEnforcement: { count: 0, samples: [] },
+      uncomputable: NO_UNCOMPUTABLE,
+      rows: [],
+    };
+    // Only a.ts and b.ts are unverified — c.ts has a confirmed verdict (no
+    // matching issue for it), so it must NOT count toward the caveat.
+    const issues = [unverifiedFileIssue('a.ts', 'validates-input'), unverifiedFileIssue('b.ts', 'validates-input')];
+    const out = renderTypeVisibilityBlock(typeVisibilityResult(report, issues));
+    expect(out).toMatch(/Enforced: validates-input \(3, 2 unverified\)/);
+  });
+
+  it('every file behind an enforced aspect has a confirmed verdict: the plain count renders exactly as before, no caveat', () => {
+    const report: TypeVisibilityReport = {
+      byType: [block({
+        typeId: 'handler',
+        files: ['a.ts'],
+        enforced: ['validates-input'],
+        enforcedCounts: [{ aspectId: 'validates-input', count: 1 }],
+      })],
+      zeroEnforcement: { count: 0, samples: [] },
+      uncomputable: NO_UNCOMPUTABLE,
+      rows: [],
+    };
+    const out = renderTypeVisibilityBlock(typeVisibilityResult(report, []));
+    expect(out).toContain('Enforced: validates-input (1)');
+    expect(out).not.toContain('unverified');
+  });
+
+  it('an unverified issue for a DIFFERENT aspect on the same file never bleeds into this one\'s count', () => {
+    const report: TypeVisibilityReport = {
+      byType: [block({
+        typeId: 'handler',
+        files: ['a.ts'],
+        enforced: ['validates-input', 'other-rule'],
+        enforcedCounts: [{ aspectId: 'validates-input', count: 1 }, { aspectId: 'other-rule', count: 1 }],
+      })],
+      zeroEnforcement: { count: 0, samples: [] },
+      uncomputable: NO_UNCOMPUTABLE,
+      rows: [],
+    };
+    const issues = [unverifiedFileIssue('a.ts', 'other-rule')];
+    const out = renderTypeVisibilityBlock(typeVisibilityResult(report, issues));
+    expect(out).toContain('validates-input (1)');
+    expect(out).not.toMatch(/validates-input \(1, \d+ unverified\)/);
+    expect(out).toMatch(/other-rule \(1, 1 unverified\)/);
+  });
+
+  it('advisory counts get the same honest caveat as enforced ones', () => {
+    const report: TypeVisibilityReport = {
+      byType: [block({
+        typeId: 'handler',
+        files: ['a.ts'],
+        advisory: ['warn-only'],
+        advisoryCounts: [{ aspectId: 'warn-only', count: 1 }],
+      })],
+      zeroEnforcement: { count: 0, samples: [] },
+      uncomputable: NO_UNCOMPUTABLE,
+      rows: [],
+    };
+    const issues = [unverifiedFileIssue('a.ts', 'warn-only')];
+    const out = renderTypeVisibilityBlock(typeVisibilityResult(report, issues));
+    expect(out).toMatch(/Advisory.*warn-only \(1, 1 unverified\)/);
   });
 });

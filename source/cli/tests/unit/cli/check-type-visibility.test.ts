@@ -95,7 +95,11 @@ describe('yg check — type-visibility block', () => {
     const dir = copyFixture();
     const out = await renderCheck(dir);
     expect(out).not.toMatch(/Enforced:.*implied-file-rule/);
-    expect(out).toMatch(/Advisory[^\n]*implied-file-rule \(1\)/);
+    // This fixture is never approved, so the pair is genuinely unverified —
+    // the count says so (see the "enforced/advisory count names an unconfirmed
+    // pair honestly" block below), which is the correct, honest reading, not
+    // a regression: `(1)` alone would now be the wrong claim for this fixture.
+    expect(out).toMatch(/Advisory[^\n]*implied-file-rule \(1, 1 unverified\)/);
     rmSync(dir, { recursive: true, force: true });
   });
 });

@@ -142,6 +142,49 @@ function zeroEnforcementGrammar(count: number): { has: string; it: string; subje
 }
 
 /**
+ * How many of an (aspectId, file-count) pair's own files have NO confirmed
+ * verdict — a real `ok`/`refused` outcome ever recorded — versus still
+ * sitting `unverified`. `enforced/enforcedCounts` name effective STATUS (the
+ * architecture says this aspect blocks on these files); a file can carry that
+ * status while its pair has never once produced a real verdict, which is
+ * exactly the shape a rule that structurally cannot run on a type-covered
+ * file takes (it infra-errors on every fill, forever, and just sits
+ * unverified). Cross-referencing `result.issues`' OWN `unverified` entries —
+ * the same ones plain `yg check`'s Errors section already lists — costs
+ * nothing new to compute and can never itself drift from what the rest of
+ * this same report already says.
+ */
+function unverifiedFileCount(result: CheckResult, aspectId: string, files: string[]): number {
+  const unverifiedKeys = new Set(
+    result.issues
+      .filter((i) => i.code === 'unverified' && i.aspectId === aspectId && i.unitKey?.startsWith('file:'))
+      .map((i) => i.unitKey!.slice('file:'.length)),
+  );
+  return files.filter((f) => unverifiedKeys.has(f)).length;
+}
+
+/**
+ * `(aspectId, count)` list → the rendered `aspectId (count)` segments this
+ * block always showed, now with `, K unverified` appended whenever K > 0 of
+ * that aspect's own files (from `block.files`) have no confirmed verdict —
+ * see `unverifiedFileCount`. K === 0 (every file behind this aspect has a
+ * real recorded outcome) renders byte-identical to the pre-caveat text.
+ */
+function renderCountList(
+  result: CheckResult,
+  entries: Array<{ aspectId: string; count: number }>,
+  files: string[],
+): string {
+  return entries
+    .map((e) => {
+      const unverified = unverifiedFileCount(result, e.aspectId, files);
+      const caveat = unverified > 0 ? `, ${unverified} unverified` : '';
+      return `${e.aspectId} (${e.count}${caveat})`;
+    })
+    .join(', ');
+}
+
+/**
  * `countsOnly`: the counts-only triage views (--summary, --top) print this
  * block ahead of their own narrowed body (same posture as the zero-
  * classifying-types notice), so it must stay to COUNTS there — never the
@@ -180,10 +223,10 @@ export function renderTypeVisibilityBlock(result: CheckResult, opts?: { countsOn
       lines.push('    Rules could not be worked out:');
       for (const line of renderUncomputableGroups(block.uncomputable)) lines.push(`      ${line}`);
     }
-    const enforcedList = block.enforcedCounts.map((e) => `${e.aspectId} (${e.count})`).join(', ');
+    const enforcedList = renderCountList(result, block.enforcedCounts, block.files);
     lines.push(`    Enforced: ${enforcedList.length > 0 ? enforcedList : '(none)'}`);
     if (block.advisoryCounts.length > 0) {
-      const advisoryList = block.advisoryCounts.map((e) => `${e.aspectId} (${e.count})`).join(', ');
+      const advisoryList = renderCountList(result, block.advisoryCounts, block.files);
       lines.push(`    Advisory (runs, never blocks): ${advisoryList}`);
     }
     if (block.dropped.length > 0) {
