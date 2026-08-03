@@ -185,6 +185,13 @@ run_step "Rules: digest freshness (root + examples)" "$REPO_ROOT" "
   done
   exit \$fail
 "
+# Standing measurement, never a gate on its own: reports the largest LLM reviewer
+# prompt this repo's own graph currently assembles and its margin under the
+# configured tier ceiling, so a shrinking margin is visible on every run instead of
+# discovered only once an edit finally breaches it (the "Graph: check" step right
+# below this one is what actually fails on a genuine breach). Restores its own
+# temporary, gitignored reviewer-config override before it exits either way.
+run_step "Graph: reviewer prompt-size headroom (measurement)" "$REPO_ROOT" "node scripts/prompt-headroom.mjs"
 run_step "Graph: check" "$REPO_ROOT" "node source/cli/dist/bin.js check --approve --only-deterministic"
 
 if [ ${#FAILED[@]} -gt 0 ]; then

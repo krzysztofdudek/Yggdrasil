@@ -60,14 +60,14 @@ This applies to CLI output only. Rules.ts (system prompt) provides the map — w
 
 **ALWAYS run `scripts/repo-check.sh` from repo root before ANY commit and ensure it passes cleanly.** Do not commit with failing checks. This is non-negotiable — every commit must leave the repo in a green state. Do not run these individually before committing — `repo-check.sh` covers everything. The pre-commit hook also runs `repo-check.sh`, so there is no need to run it manually before committing either.
 
-The gate is 16 fail-fast steps, in order: CLI typecheck; portal-e2e typecheck; lint; build; a built-binary guard (so the E2E suites cannot silently skip); a pack smoke; the deterministic cache as a test prerequisite; tests with coverage; a coverage >= 90% threshold; the AST-cache false-green audit; a Chromium-present guard; the portal E2E driving real Chromium through Playwright; docs build; markdown lint; digest freshness; and finally the graph check, which runs `yg check --approve --only-deterministic` (free and keyless — it rebuilds the cache and reports in one step).
+The gate is 17 fail-fast steps, in order: CLI typecheck; portal-e2e typecheck; lint; build; a built-binary guard (so the E2E suites cannot silently skip); a pack smoke; the deterministic cache as a test prerequisite; tests with coverage; a coverage >= 90% threshold; the AST-cache false-green audit; a Chromium-present guard; the portal E2E driving real Chromium through Playwright; docs build; markdown lint; digest freshness; a reviewer prompt-size headroom measurement (reports the largest assembled LLM prompt and its margin under the configured tier ceiling — never fails the gate on its own); and finally the graph check, which runs `yg check --approve --only-deterministic` (free and keyless — it rebuilds the cache and reports in one step).
 
 Two of those bite in ways the category list would not warn you about:
 
 - **The portal E2E needs Chromium installed for Playwright.** Without it the guard fails the gate by design rather than letting the suite skip. Install it once: `(cd source/cli && npx playwright install --with-deps chromium)`.
 - **The digest gate is not repo-root-only.** It checks both installed artifacts — `AGENTS.md` and `.clinerules/yggdrasil.md` — at the repo root *and* in every `examples/*/` directory that carries its own `.yggdrasil/`. So after editing `templates/digest.ts`, one `init --upgrade` at the root is not enough: each such example needs its own, run from that directory against this repo's built binary. A newly added example with a graph but no agent-rules install fails this step too.
 
-Only seven of the sixteen steps are themselves protected against being quietly dropped, by the advisory `repo-check-gate-steps` rule (typecheck, lint, build, test/coverage, docs build, markdownlint, graph check). The other nine rest on this list alone — if you add or remove a step, update it here.
+Only seven of the seventeen steps are themselves protected against being quietly dropped, by the advisory `repo-check-gate-steps` rule (typecheck, lint, build, test/coverage, docs build, markdownlint, graph check). The other ten rest on this list alone — if you add or remove a step, update it here.
 
 ## Dogfood Issue Tracking
 
