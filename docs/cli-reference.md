@@ -407,12 +407,13 @@ rule, how many matched a type with nothing that applies, and — only when it
 occurs — how many hit an aspect `implies` cycle that stopped their type's
 rules from ever being resolved, so a bare "N files satisfied" can never be
 misread as "N files enforced." The "checked by at least one rule" count
-further names, in parentheses, how many of those files have no recorded lock
-entry for at least one of their rules — a cheap presence check (the lock
-holds no entry at all), never a full re-verification, so it can miss a rule
-whose recorded verdict has gone stale since a source edit the way `yg owner
---file` and `yg context --file` do not (see those commands below). Absent
-entirely when the flag is off.
+further names, in parentheses, how many of those files have no CURRENT valid
+lock entry for at least one of their rules — a real re-verification (the same
+per-pair check `yg check` itself runs, scoped to just this listing's own
+nodeless pairs rather than a second whole-project pass), so it catches a rule
+whose recorded verdict has gone stale since a source edit exactly the way `yg
+owner --file` and `yg context --file` do (see those commands below), not only
+one the lock has never recorded at all. Absent entirely when the flag is off.
 
 ```text
 $ yg tree
