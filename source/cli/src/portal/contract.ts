@@ -414,6 +414,16 @@ export interface PortalTypeCoveredFile {
   path: string;
   type: string;
   enforced: boolean;
+  /**
+   * `enforced` names architecture-level status, never a recorded verdict —
+   * true when the lock holds NO entry for at least one of this file's
+   * nodeless pairs (`model/lock.ts#pairsMissingFromLock`). Always false when
+   * `enforced` is false: a file with no real pair has nothing to have a
+   * verdict for in the first place. Same lock-derived fact `yg check`'s
+   * qualified "N unverified" wording, `yg owner --file`, and `yg context
+   * --file` already carry for the identical pair (F2).
+   */
+  unverified: boolean;
 }
 
 /**

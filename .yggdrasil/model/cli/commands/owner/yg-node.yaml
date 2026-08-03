@@ -12,7 +12,12 @@ description: "Resolves a file path to its owning graph node via yg owner. For
   With no cycle, it decides whether the matched type actually enforces
   anything here from the real computed pairs, saying so only when at least
   one real pair exists; with zero it says that plainly instead, never
-  claiming enforcement that is not there."
+  claiming enforcement that is not there. When it does say a rule is
+  enforced, it also checks the lock directly (a cheap presence check, never
+  a full re-verification) and names how many of those rules have no
+  recorded verdict at all — the same lock-derived fact plain yg check's
+  qualified 'unverified' wording already carries for the identical pair, so
+  'enforced by architecture' is never read as 'already verified'."
 aspects:
   - posix-paths-output
 relations:
@@ -41,6 +46,10 @@ relations:
   - target: cli/core/pairs
     type: calls
   - target: cli/core/type-effective
+    type: calls
+  - target: cli/core/type-visibility
+    type: calls
+  - target: cli/io/lock-store
     type: calls
 mapping:
   - source/cli/src/cli/owner.ts

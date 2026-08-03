@@ -138,6 +138,14 @@ export function registerCheckCommand(program: Command): void {
           await exitAfterFlush(1);
           return;
         }
+        // This refusal is also why the type-coverage block's counts-only line
+        // (--top / --summary) can never name a "cannot run" pair's SPECIFIC
+        // reason: that fact only ever exists inside a --approve run's own
+        // in-process fill→check handoff (core/fill.ts), so a view that can
+        // never combine with --approve can never carry it either — see
+        // check-render-header.ts's unverifiedInstanceTotal, which still shows
+        // the plain "no confirmed verdict" COUNT here (that fact costs
+        // nothing extra: result.issues already has it regardless of view).
         if ((wantsTop || opts.summary) && opts.approve) {
           process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
             what: `${wantsTop ? '--top' : '--summary'} cannot be combined with --approve.`,

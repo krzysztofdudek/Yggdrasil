@@ -299,10 +299,10 @@ describe('portal Phase-4 view modules (real source, real fixture data)', () => {
     const Yg = await loadYg();
     const stage = makeNode('div');
     const typeCovered = [
-      { path: 'src/a.ts', type: 'svc', enforced: true },
-      { path: 'src/b.ts', type: 'svc', enforced: true },
-      { path: 'src/c.ts', type: 'svc', enforced: true },
-      { path: 'src/d.ts', type: 'svc', enforced: true },
+      { path: 'src/a.ts', type: 'svc', enforced: true, unverified: false },
+      { path: 'src/b.ts', type: 'svc', enforced: true, unverified: false },
+      { path: 'src/c.ts', type: 'svc', enforced: true, unverified: false },
+      { path: 'src/d.ts', type: 'svc', enforced: true, unverified: false },
     ];
     const withTypeCovered: PortalData = {
       ...data,
@@ -325,11 +325,37 @@ describe('portal Phase-4 view modules (real source, real fixture data)', () => {
     expect(textOf(stage)).not.toMatch(/checked by nothing/);
   });
 
+  // F2: `enforced` names architecture-level status, never a recorded verdict —
+  // the portal used to print a flat "type-covered" chip and per-file row for
+  // an enforced file with zero regard for whether the lock actually holds a
+  // verdict, weaker than plain `yg check`'s qualified "N unverified" wording
+  // for the identical pair.
+  it('an enforced-but-unverified type-covered file is named in both the chip suffix and its own row, never a bare "satisfied" claim', async () => {
+    const Yg = await loadYg();
+    const stage = makeNode('div');
+    const typeCovered = [
+      { path: 'src/crashy/a.ts', type: 'crashy', enforced: true, unverified: true },
+      { path: 'src/leaf/a.ts', type: 'leaf', enforced: true, unverified: false },
+    ];
+    const withUnverified: PortalData = {
+      ...data,
+      meta: { ...data.meta, counts: { ...data.meta.counts, typeCoveredCount: 2, typeCoveredUnenforced: 0 } },
+      residue: { ...data.residue, typeCovered },
+    };
+    Yg.views.coverage(stage, { view: 'coverage' }, withUnverified, { navigate: () => undefined });
+    // The chip names how many of the enforced files have no recorded verdict.
+    expect(textOf(stage)).toMatch(/2.*type-covered.*1 with no recorded verdict/);
+    // Its own row is tagged individually — the OTHER enforced file's row is not.
+    expect(textOf(stage)).toContain('src/crashy/a.ts — type-covered as crashy — unverified');
+    expect(textOf(stage)).toContain('src/leaf/a.ts — type-covered as leaf');
+    expect(textOf(stage)).not.toContain('src/leaf/a.ts — type-covered as leaf — unverified');
+  });
+
   it('a type-covered file with NO applicable rule renders as unenforced — named by file and type, never folded into "satisfied by a matched type", on both Overview and Coverage', async () => {
     const Yg = await loadYg();
     const typeCovered = [
-      { path: 'src/checked.ts', type: 'svc', enforced: true },
-      { path: 'src/unchecked.ts', type: 'svc', enforced: false },
+      { path: 'src/checked.ts', type: 'svc', enforced: true, unverified: false },
+      { path: 'src/unchecked.ts', type: 'svc', enforced: false, unverified: false },
     ];
     const withUnenforced: PortalData = {
       ...data,
@@ -371,9 +397,9 @@ describe('portal Phase-4 view modules (real source, real fixture data)', () => {
 
   it('the per-file type-covered listing is capped at 12 rows with "... and N more" — never one row per file on a large project', async () => {
     const Yg = await loadYg();
-    const typeCovered: Array<{ path: string; type: string; enforced: boolean }> = [];
+    const typeCovered: Array<{ path: string; type: string; enforced: boolean; unverified: boolean }> = [];
     for (let i = 0; i < 20; i += 1) {
-      typeCovered.push({ path: 'src/file' + String(i).padStart(2, '0') + '.ts', type: 'svc', enforced: false });
+      typeCovered.push({ path: 'src/file' + String(i).padStart(2, '0') + '.ts', type: 'svc', enforced: false, unverified: false });
     }
     const withMany: PortalData = {
       ...data,
@@ -404,8 +430,8 @@ describe('portal Phase-4 view modules (real source, real fixture data)', () => {
       residue: {
         ...data.residue,
         typeCovered: [
-          { path: 'src/checked.ts', type: 'svc', enforced: true },
-          { path: 'src/unchecked.ts', type: 'svc', enforced: false },
+          { path: 'src/checked.ts', type: 'svc', enforced: true, unverified: false },
+          { path: 'src/unchecked.ts', type: 'svc', enforced: false, unverified: false },
         ],
         typeCoveredUncomputable: [
           { path: 'src/cyclic.ts', type: 'cyc', why: "The aspect graph has an implies cycle at 'cyc-a' — the cascade cannot tell which of the type's rules apply until that cycle is broken." },

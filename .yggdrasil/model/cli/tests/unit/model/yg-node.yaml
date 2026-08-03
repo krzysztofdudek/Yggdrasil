@@ -8,3 +8,4 @@ mapping:
   - source/cli/tests/unit/model/when.test.ts
   - source/cli/tests/unit/model/file-when.test.ts
   - source/cli/tests/unit/model/lock-relation.test.ts
+  - source/cli/tests/unit/model/lock-pairs-missing.test.ts

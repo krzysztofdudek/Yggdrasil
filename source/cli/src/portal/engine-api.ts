@@ -158,6 +158,15 @@ export function readAndVerifyLock(graph: Graph, typeCoverage?: TypeCoverageInput
   return { lock, verification: verifyLock(graph, lock, typeCoverage) };
 }
 
+/**
+ * F2: the cheap "the lock holds no entry for this pair at all" check
+ * (`model/lock.ts`'s own doc explains why this is deliberately NOT a full
+ * re-verification) — reused by the portal to mark a type-covered file's
+ * `unverified` field, the same lock-derived fact plain `yg check`'s
+ * qualified "N unverified" wording already carries for the identical pair.
+ */
+export { pairsMissingFromLock } from '../model/lock.js';
+
 /** Reuse the engine: the expected-pair denominator + the LLM/deterministic split. `typeCoverage` is computePortalTypeCoverage's own output, reduced — keeps this in the same universe `yg check` counts. */
 export async function computePortalPairs(graph: Graph, typeCoverage?: TypeCoverageInput): Promise<PairComputation> {
   return computeExpectedPairs(graph, { typeCoverage });

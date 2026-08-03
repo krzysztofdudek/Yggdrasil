@@ -18,6 +18,7 @@ const FIXTURE = path.join(CLI_ROOT, 'tests', 'fixtures', 'type-level-engine');
 const FIXTURE_BINARY_SUBJECT = path.join(FIXTURE, 'variants', 'binary-subject');
 const FIXTURE_ZERO_ENFORCEMENT = path.join(FIXTURE, 'variants', 'zero-enforcement');
 const FIXTURE_CYCLIC_TYPE = path.join(FIXTURE, 'variants', 'cyclic-type');
+const FIXTURE_NEEDS_NODE_CONTEXT = path.join(FIXTURE, 'variants', 'needs-node-context');
 const distExists = existsSync(BIN_PATH);
 
 function copyFixture(...overlays: string[]): string {
@@ -92,7 +93,10 @@ describe.skipIf(!distExists)('yg context --file — typed view for a type-covere
       const { stdout, status } = run(['context', '--file', 'src/pics/readme.md'], dir);
       expect(status).toBe(0);
       expect(stdout).toContain('Must satisfy:');
-      expect(stdout).toMatch(/prose-rule \[enforced\]/);
+      // A cold, never-filled project also carries the F2 "unverified" caveat
+      // here — orthogonal to what this test pins (real status, not binary
+      // exemption), so the match tolerates it rather than asserting on it.
+      expect(stdout).toMatch(/prose-rule \[enforced(?:, unverified)?\]/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -107,8 +111,38 @@ describe.skipIf(!distExists)('yg context --file — typed view for a type-covere
     try {
       const { stdout, status } = run(['context', '--file', 'src/leaf/a.ts'], dir);
       expect(status).toBe(0);
-      expect(stdout).toMatch(/implied-file-rule \[advisory\]/);
-      expect(stdout).not.toMatch(/implied-file-rule \[enforced\]/);
+      // A cold, never-filled project also carries the F2 "unverified" caveat
+      // here — orthogonal to what this test pins (real status, never a
+      // hardcoded one), so the match tolerates it rather than asserting on it.
+      expect(stdout).toMatch(/implied-file-rule \[advisory(?:, unverified)?\]/);
+      expect(stdout).not.toMatch(/implied-file-rule \[enforced/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // F2: `[enforced]` names architecture-level status, never a recorded
+  // verdict — a cold, never-filled project must say so, the same qualified
+  // caveat plain `yg check` already carries for the identical pair, and the
+  // caveat must disappear once the pair genuinely has one.
+  it('names a rule with no recorded lock entry as [enforced, unverified], and drops the caveat once the lock actually holds one', () => {
+    const dir = copyFixture(FIXTURE_NEEDS_NODE_CONTEXT);
+    try {
+      const before = run(['context', '--file', 'src/crashy/a.ts'], dir);
+      expect(before.status).toBe(0);
+      expect(before.stdout).toMatch(/needs-node-context \[enforced, unverified\] —/);
+
+      // A DIFFERENT, well-behaved pair on the same project (src/leaf/a.ts,
+      // own-file-rule) starts with the identical caveat before any fill —
+      run(['check', '--approve', '--only-deterministic'], dir);
+      // — and loses it entirely once its own fill genuinely wrote a verdict,
+      // while src/crashy/a.ts's own pair (fails closed every attempt — see
+      // F1's own fixture) keeps the caveat, since no verdict was ever written.
+      const after = run(['context', '--file', 'src/crashy/a.ts'], dir);
+      expect(after.stdout).toMatch(/needs-node-context \[enforced, unverified\] —/);
+      const leafAfter = run(['context', '--file', 'src/leaf/a.ts'], dir);
+      expect(leafAfter.stdout).toMatch(/own-file-rule \[enforced\] —/);
+      expect(leafAfter.stdout).not.toContain('unverified');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

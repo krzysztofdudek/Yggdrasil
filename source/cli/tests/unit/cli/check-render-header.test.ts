@@ -660,6 +660,44 @@ describe('type-visibility block — counts-only under the triage views', () => {
     expect(out).not.toContain('z.ts');
   });
 
+  // F2/F9: the counts-only line is a presentation choice (keep the wall
+  // short), never a computational one — `result.issues` already carries the
+  // FULL lock-verification result regardless of which view rendered it, so
+  // the plain "no confirmed verdict" count costs nothing extra to show here.
+  // Only the fill-only SPECIFIC reason (`cannot run — …`) is genuinely
+  // unavailable in this view, because --approve can never combine with it.
+  it('also names how many enforced/advisory instances have no confirmed verdict — the same lock-derived fact the full view already shows, just not its fill-only reason', () => {
+    const report: TypeVisibilityReport = {
+      byType: [block({
+        typeId: 'handler',
+        files: ['a.ts', 'b.ts', 'c.ts'],
+        enforced: ['validates-input'],
+        enforcedCounts: [{ aspectId: 'validates-input', count: 3 }],
+        advisory: ['warn-only'],
+        advisoryCounts: [{ aspectId: 'warn-only', count: 3 }],
+      })],
+      zeroEnforcement: { count: 0, samples: [] },
+      uncomputable: NO_UNCOMPUTABLE,
+      rows: [],
+    };
+    const issues = [
+      unverifiedFileIssue('a.ts', 'validates-input'),
+      unverifiedFileIssue('b.ts', 'validates-input'),
+      unverifiedFileIssue('c.ts', 'warn-only'),
+    ];
+    const out = renderTypeVisibilityBlock(typeVisibilityResult(report, issues), { countsOnly: true });
+    expect(out).toMatch(/1 rule enforced \(2 unverified\)/);
+    expect(out).toMatch(/1 advisory \(1 unverified\)/);
+    // Still never the deep fill-only reason or any other full-view-only detail.
+    expect(out).not.toContain('cannot run');
+  });
+
+  it('every enforced/advisory instance has a confirmed verdict: the counts-only line renders exactly as before, no caveat', () => {
+    const out = renderTypeVisibilityBlock(typeVisibilityResult(reportWithDetail(), []), { countsOnly: true });
+    expect(out).toContain('1 rule enforced,');
+    expect(out).not.toContain('unverified');
+  });
+
   it('formatOutput wires countsOnly for --summary and --top, but not for --details / full', () => {
     const report = reportWithDetail();
     const summaryOut = formatOutput(typeVisibilityResult(report), { kind: 'summary' });

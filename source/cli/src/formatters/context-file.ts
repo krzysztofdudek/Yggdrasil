@@ -46,6 +46,17 @@ export interface FileContextAspect {
   status?: import('../model/graph.js').AspectStatus;
   /** Present only for LLM aspects that ship companion.mjs (per-unit resolver). */
   companionReadPath?: string;
+  /**
+   * True when the lock holds NO entry for this (aspectId, file) pair —
+   * `[enforced]` names architecture-level status, never a recorded verdict;
+   * this is the same lock-derived fact plain `yg check`'s qualified "N
+   * unverified" wording already carries for the identical pair (F2).
+   * Type-covered-file view only (`build-context.ts`'s
+   * `buildTypeCoveredFileContextData`, via `unrecordedVerdictCaveat` —
+   * `core/type-visibility.ts`); a node-owned file's own aspect list never
+   * sets this field.
+   */
+  unverified?: boolean;
 }
 
 export interface FileContextDep {
@@ -78,7 +89,8 @@ export function formatFileContext(data: FileContextData): string {
       lines.push('  Must satisfy:');
       lines.push('');
       for (const aspect of tc.applied) {
-        lines.push(`    ${aspect.aspectId} [${aspect.status ?? 'enforced'}] — ${aspect.aspectDescription}`);
+        const caveat = aspect.unverified ? ', unverified' : '';
+        lines.push(`    ${aspect.aspectId} [${aspect.status ?? 'enforced'}${caveat}] — ${aspect.aspectDescription}`);
         lines.push(`      read: ${posixPath(aspect.verifiedAgainst)}`);
       }
       lines.push('');

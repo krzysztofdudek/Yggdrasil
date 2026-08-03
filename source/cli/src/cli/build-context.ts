@@ -27,6 +27,7 @@ import { computeTypeAspectCascade, describeCascadeCycle } from '../core/type-eff
 import { buildTypeVisibility, describeTypeVisibilityReason, describeChainTermination, toAppliedPairs } from '../core/type-visibility.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import { readLock } from '../io/lock-store.js';
+import { fileUnit, pairsMissingFromLock } from '../model/lock.js';
 import { readLogContent, hasFreshLogEntry } from '../core/log/log-gate.js';
 import type { NodeContextData, NodeAspectSubjects, NodeLogState } from '../formatters/context-node.js';
 import type { Graph } from '../model/graph.js';
@@ -154,6 +155,22 @@ async function buildTypeCoveredFileContextData(graph: Graph, file: string, typeI
     ...block.enforced.map((id) => toFileAspect(id, 'enforced')),
     ...block.advisory.map((id) => toFileAspect(id, 'advisory')),
   ].sort((a, b) => (a.aspectId < b.aspectId ? -1 : a.aspectId > b.aspectId ? 1 : 0));
+
+  // F2: [enforced]/[advisory] names architecture-level status, never a
+  // recorded verdict — mark which of `applied`'s pairs the lock holds no
+  // entry for at all, the same lock-derived fact plain `yg check` already
+  // carries for the identical pair. A garbled lock is `yg check`'s own error
+  // to report; this view still renders without the caveat rather than
+  // failing an unrelated file-context lookup.
+  try {
+    const unitKey = fileUnit(file);
+    const missing = new Set(
+      pairsMissingFromLock(readLock(graph.rootPath), applied.map((a) => ({ aspectId: a.aspectId, unitKey }))).map((p) => p.aspectId),
+    );
+    for (const a of applied) a.unverified = missing.has(a.aspectId);
+  } catch (e: unknown) {
+    debugWrite(`[context] lock read failed while building the unverified caveat: ${e instanceof Error ? e.message : String(e)}`);
+  }
 
   return {
     filePath: toPosixPath(file),
@@ -401,7 +418,7 @@ export function registerBuildCommand(program: Command): void {
                   process.stderr.write(chalk.red(`Error: ${cycleMsg}\n`));
                   process.exit(1);
                 }
-                const data = await buildTypeCoveredFileContextData(graph, result.file, typeMatch.typeId);
+                const data = await buildTypeCoveredFileContextData(graph, displayFile, typeMatch.typeId);
                 process.stdout.write(formatFileContext(data));
                 if (graph.config.signals?.attention !== false) {
                   await maybeAppendAttentionLine(graph, displayFile);

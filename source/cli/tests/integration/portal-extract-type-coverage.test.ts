@@ -21,6 +21,7 @@ import { mkdtempSync, cpSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
 
 import { extractPortalData } from '../../src/portal/extract.js';
 import { loadGraph } from '../../src/core/graph-loader.js';
@@ -34,11 +35,19 @@ import { FIXTURE_TWO_COVERED_FILES } from '../fixtures/type-level-engine/variant
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../..');
 const BASE_FIXTURE = path.join(CLI_ROOT, 'tests', 'fixtures', 'type-level-engine');
+const NEEDS_NODE_CONTEXT = path.join(BASE_FIXTURE, 'variants', 'needs-node-context');
 
 function mergedFixtureCopy(): string {
   const dir = mkdtempSync(path.join(tmpdir(), 'yg-portal-typecov-'));
   cpSync(BASE_FIXTURE, dir, { recursive: true });
   cpSync(FIXTURE_TWO_COVERED_FILES, dir, { recursive: true });
+  return dir;
+}
+
+function needsNodeContextCopy(): string {
+  const dir = mkdtempSync(path.join(tmpdir(), 'yg-portal-typecov-unverified-'));
+  cpSync(BASE_FIXTURE, dir, { recursive: true });
+  cpSync(NEEDS_NODE_CONTEXT, dir, { recursive: true });
   return dir;
 }
 
@@ -74,6 +83,50 @@ describe('portal extraction — type-level coverage threading', () => {
           data.meta.counts.unverified +
           data.meta.counts.advisoryRefused,
       ).toBe(fullUniverse.pairs.length);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // F2: `residue.typeCovered[].enforced` names architecture-level status,
+  // never a recorded verdict — the portal's own residue ledger must carry
+  // the same lock-derived "no recorded verdict" fact `yg check`, `yg owner
+  // --file`, and `yg context --file` already carry for the identical pair.
+  it('residue.typeCovered marks a nodeless pair with no recorded lock entry as unverified, on a cold, never-filled project', async () => {
+    const dir = needsNodeContextCopy();
+    try {
+      const data = await extractPortalData(dir, { writeEnabled: false });
+      const crashy = data.residue.typeCovered.find((f) => f.path === 'src/crashy/a.ts');
+      expect(crashy).toBeDefined();
+      expect(crashy!.enforced).toBe(true);
+      expect(crashy!.unverified).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('the unverified caveat disappears once a real fill writes a verdict, but stays for a pair that fails closed on every attempt', async () => {
+    const dir = needsNodeContextCopy();
+    try {
+      const before = await extractPortalData(dir, { writeEnabled: false });
+      const leafBefore = before.residue.typeCovered.find((f) => f.path === 'src/leaf/a.ts');
+      expect(leafBefore).toBeDefined();
+      expect(leafBefore!.enforced).toBe(true);
+      expect(leafBefore!.unverified).toBe(true);
+
+      const binPath = path.join(CLI_ROOT, 'dist', 'bin.js');
+      spawnSync('node', [binPath, 'check', '--approve', '--only-deterministic'], { cwd: dir, encoding: 'utf-8' });
+
+      const after = await extractPortalData(dir, { writeEnabled: false });
+      // src/crashy/a.ts fails closed every attempt (needs-node-context's own
+      // check.mjs reads ctx.node unconditionally) — no verdict is EVER
+      // written for it, so it stays unverified after a real fill attempt.
+      const crashyAfter = after.residue.typeCovered.find((f) => f.path === 'src/crashy/a.ts');
+      expect(crashyAfter!.unverified).toBe(true);
+      // src/leaf/a.ts's own-file-rule genuinely fills — the caveat disappears
+      // once the lock actually holds a recorded verdict for it.
+      const leafAfter = after.residue.typeCovered.find((f) => f.path === 'src/leaf/a.ts');
+      expect(leafAfter!.unverified).toBe(false);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

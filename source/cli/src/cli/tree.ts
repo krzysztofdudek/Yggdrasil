@@ -2,7 +2,7 @@ import path from 'node:path';
 import { Command, InvalidArgumentError } from 'commander';
 import chalk from 'chalk';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
-import { initDebugLog } from '../utils/debug-log.js';
+import { initDebugLog, debugWrite } from '../utils/debug-log.js';
 import { appendToDebugLog } from '../io/debug-log-writer.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
 import type { GraphNode, Graph } from '../model/graph.js';
@@ -11,6 +11,8 @@ import { scanUncoveredFiles } from '../core/check.js';
 import { computeTypeCoverageCached } from '../core/type-coverage.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import { computeExpectedPairs, type TypeCoverageInput } from '../core/pairs.js';
+import { readLock } from '../io/lock-store.js';
+import { pairsMissingFromLock } from '../model/lock.js';
 
 export function registerTreeCommand(program: Command): void {
   program
@@ -124,7 +126,28 @@ async function typeCoveredSummaryLine(graph: Graph, scopedToRoot: boolean): Prom
     else if (enforcedFiles.has(file)) enforced += 1;
     else unenforced += 1;
   }
-  const parts = [`${enforced} checked by at least one rule`, `${unenforced} with nothing that applies`];
+  // F2: "checked by at least one rule" names architecture-level status, never
+  // a recorded verdict — name how many of those files have at least one
+  // nodeless pair the lock holds no entry for at all, the same lock-derived
+  // fact plain `yg check` already carries for the identical pair. A garbled
+  // lock is `yg check`'s own error to report; the tree still renders without
+  // this qualifier rather than failing an unrelated listing.
+  let unverifiedEnforcedFiles = 0;
+  try {
+    const lock = readLock(graph.rootPath);
+    const nodelessPairs = expected.pairs.filter((p) => p.nodePath === undefined);
+    const missingFiles = new Set<string>();
+    for (const p of pairsMissingFromLock(lock, nodelessPairs)) {
+      for (const f of p.subjectFiles) missingFiles.add(f);
+    }
+    for (const f of missingFiles) if (enforcedFiles.has(f)) unverifiedEnforcedFiles += 1;
+  } catch (e: unknown) {
+    // Garbled lock: yg check reports it separately; this line just skips the
+    // qualifier rather than failing an unrelated listing.
+    debugWrite(`[tree] lock read failed while building the unverified qualifier: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  const enforcedNote = unverifiedEnforcedFiles > 0 ? ` (${unverifiedEnforcedFiles} with no recorded verdict for at least one)` : '';
+  const parts = [`${enforced} checked by at least one rule${enforcedNote}`, `${unenforced} with nothing that applies`];
   if (uncomputable > 0) {
     parts.push(`${uncomputable} whose rules could not be worked out (aspect implies cycle)`);
   }

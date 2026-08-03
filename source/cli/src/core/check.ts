@@ -43,7 +43,7 @@ import { getLanguageDisplayName } from '../utils/language-registry.js';
 import { guardedResolve } from '../relations/resolve-path.js';
 import { buildOwnerIndex } from '../relations/owner-index.js';
 import { computeTypeGateFindings } from '../relations/type-gate.js';
-import { buildTypeVisibility, toAppliedPairs, toRuntimeVisibilityRows, type TypeVisibilityReport } from './type-visibility.js';
+import { buildTypeVisibility, toAppliedPairs, toRuntimeVisibilityRows, unverifiedIssueMessage, type TypeVisibilityReport } from './type-visibility.js';
 // ── Silent feature-field deviation index (L3 attention) — the writer lives HERE ONLY,
 //    behind the runCheck fence (G2). cli/check.ts calls runAttentionDump, never the writer. ──
 import {
@@ -160,7 +160,7 @@ const NO_REASON_FALLBACK = 'no violation details recorded';
  *
  * Severity follows the pair's EFFECTIVE status, recomputed live in pair.status.
  */
-function emitPairIssue(vp: VerifiedPair): CheckIssue[] {
+function emitPairIssue(vp: VerifiedPair, rtRows: TypeVisibilityReport['rows']): CheckIssue[] {
   const { pair, state } = vp;
   const issues: CheckIssue[] = [];
   const enforced = pair.status === 'enforced';
@@ -191,7 +191,7 @@ function emitPairIssue(vp: VerifiedPair): CheckIssue[] {
         severity: enforced ? 'error' : 'warning',
         code: 'unverified',
         rule: 'unverified',
-        messageData: unverifiedMessage({ aspectId: pair.aspectId, unitKey: pair.unitKey }),
+        messageData: unverifiedIssueMessage(rtRows, pair, unverifiedMessage),
         nodePath: pair.nodePath,
         aspectId: pair.aspectId,
         pairKind: pair.kind,
@@ -753,7 +753,7 @@ export async function runCheck(
     // `emitPairIssue` emits nothing for a verified pair, so this is the only place
     // the verified/deterministic-vs-LLM split can be tallied.
     for (const vp of verification.pairs) {
-      lockIssues.push(...emitPairIssue(vp));
+      lockIssues.push(...emitPairIssue(vp, runtimeRows));
       if (vp.state.kind === 'verified') {
         if (vp.pair.kind === 'llm') verifiedLlm++;
         else verifiedDet++;
@@ -1234,8 +1234,8 @@ export function computeSuggestedNext(issues: CheckIssue[]): string | null {
   const logEntryMissing = errors.find(i => i.code === 'log-entry-missing');
   if (logEntryMissing) return logEntryMissing.messageData.next;
 
-  // 2. unverified (enforced) — fill the lock.
-  const unverified = errors.find(i => i.code === 'unverified');
+  // 2. unverified (enforced) — prefer a fillable pair.
+  const unverified = errors.find(i => i.code === 'unverified' && i.messageData.next === 'yg check --approve') ?? errors.find(i => i.code === 'unverified');
   if (unverified) return unverified.messageData.next;
 
   // 3. enforced refusal (LLM three-exit OR deterministic fix-violations — the

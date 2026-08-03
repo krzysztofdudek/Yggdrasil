@@ -371,6 +371,43 @@ describe('check render — Next: residual annotation (task 1.4)', () => {
   });
 });
 
+// F1: a pair this SAME run's fill already proved cannot run at all (its
+// `messageData.next` names the real remedy, never 'yg check --approve' — see
+// core/type-visibility.ts's cannotRunUnverifiedMessage) must never be counted
+// as something --approve will "fill", and its group Fix line must never
+// repeat the command that just failed on it. Before this fix, both the
+// residual annotation and the group's shared Fix line treated every
+// `unverified` issue as equally fillable, so a run reporting "1 cannot run"
+// in its type-coverage block would, two sections later, still say
+// "Fix: yg check --approve" for that exact pair and promise re-running it
+// would "fill" it.
+describe('check render — Next: residual annotation excludes a pair this run proved cannot run (F1)', () => {
+  const cannotRunNext =
+    'Give the file a component of its own (a yg-node.yaml mapping it), or fix what the reason above names in check.mjs / yg-architecture.yaml — not another --approve.';
+
+  it('does not count a "cannot run" unverified pair toward the fillable N — it folds into K (needs a code/graph fix) instead', () => {
+    const issues: CheckIssue[] = [
+      {severity:'error',code:'unverified',rule:'unverified',aspectId:'fillable-x',pairKind:'deterministic',nodePath:'a',messageData:unverifiedMessage({aspectId:'fillable-x',unitKey:'a'})} as CheckIssue,
+      {severity:'error',code:'unverified',rule:'unverified',aspectId:'needs-node-context',pairKind:'deterministic',nodePath:undefined,unitKey:'file:src/crashy/a.ts',messageData:{what:'w',why:'y',next:cannotRunNext}} as CheckIssue,
+    ];
+    const out = stripAnsi(formatOutput(baseResult(issues)));
+    expect(out).toMatch(/Next: yg check --approve {2}\(fills 1 unverified; 1 error remain — need code\/graph fixes\)/);
+  });
+
+  it('the group Fix line names the real remedy for a cannot-run member instead of repeating the shared --approve line', () => {
+    const issues: CheckIssue[] = [
+      {severity:'error',code:'unverified',rule:'unverified',aspectId:'fillable-x',pairKind:'deterministic',nodePath:'a',messageData:unverifiedMessage({aspectId:'fillable-x',unitKey:'a'})} as CheckIssue,
+      {severity:'error',code:'unverified',rule:'unverified',aspectId:'needs-node-context',pairKind:'deterministic',nodePath:undefined,unitKey:'file:src/crashy/a.ts',messageData:{what:'w',why:'y',next:cannotRunNext}} as CheckIssue,
+    ];
+    const out = stripAnsi(formatOutput(baseResult(issues)));
+    // The generic Fix line appears exactly once — for the fillable member.
+    expect((out.match(/Fix: yg check --approve/g) ?? []).length).toBe(1);
+    // The cannot-run member gets its own remedy instead, not a second copy
+    // of the command this run already proved does nothing for it.
+    expect(out).toContain('Fix: Give the file a component of its own');
+  });
+});
+
 describe('resolveTopValue', () => {
   const cases: Array<[boolean | string | undefined, number | null]> = [
     [undefined, 0],

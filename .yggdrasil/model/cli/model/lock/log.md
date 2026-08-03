@@ -1,2 +1,4 @@
 ## [2026-06-12T11:33:00.973Z]
 Introduces the LockFile, VerdictEntry, and LockNodeEntry types for the content-addressed verdict store. The redesign replaces per-node .drift-state/ JSON baselines with a single committed yg-lock.json file where each (aspect, unit) pair maps to a verdict entry containing the input hash, verdict token, and optional reason or observation metadata. These types are the shared contract consumed by the store, the fill stage, and the check pipeline. Written additively — the old drift-state engine remains active; these types are not yet wired into anything.
+## [2026-08-03T08:01:17.289Z]
+Added pairsMissingFromLock: a cheap presence-only check (does the lock hold any entry for this pair, never a re-hash of current inputs) that a single-file lookup command can afford, unlike the full graph-wide re-verification the check engine itself performs.

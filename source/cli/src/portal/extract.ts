@@ -20,6 +20,7 @@ import {
   PORTAL_SCHEMA_SUPPORTED,
   isPortalFileExcludedByCoverage,
   NO_COVERAGE_EXCLUDED,
+  pairsMissingFromLock,
   type LockVerification,
 } from './engine-api.js';
 import type {
@@ -193,6 +194,16 @@ export async function extractPortalData(
     if (p.nodePath !== undefined) continue;
     for (const f of p.subjectFiles) enforcedTypeCoveredFiles.add(f);
   }
+  // F2: `enforced` names architecture-level status, never a recorded verdict
+  // — `lock` (already read above for the pair-verification seam, no extra
+  // I/O here) tells which of the nodeless pairs it holds no entry for at
+  // all, the same lock-derived fact plain `yg check` already carries for the
+  // identical pair.
+  const unverifiedTypeCoveredFiles = new Set<string>();
+  const nodelessExpectedPairs = expected.pairs.filter((p) => p.nodePath === undefined);
+  for (const p of pairsMissingFromLock(lock, nodelessExpectedPairs)) {
+    for (const f of p.subjectFiles) unverifiedTypeCoveredFiles.add(f);
+  }
   const uncomputableByFile = new Map<string, string>(); // file -> why (describeCascadeCycle's sentence)
   for (const u of expected.uncomputableTypeCoverage) {
     uncomputableByFile.set(u.file, describeCascadeCycle(u.cycle));
@@ -204,7 +215,7 @@ export async function extractPortalData(
     if (why !== undefined) {
       typeCoveredUncomputableEntries.push({ path, type, why });
     } else {
-      typeCoveredEntries.push({ path, type, enforced: enforcedTypeCoveredFiles.has(path) });
+      typeCoveredEntries.push({ path, type, enforced: enforcedTypeCoveredFiles.has(path), unverified: unverifiedTypeCoveredFiles.has(path) });
     }
   }
 

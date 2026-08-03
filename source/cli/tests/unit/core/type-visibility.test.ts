@@ -15,6 +15,10 @@ import {
   buildTypeVisibility,
   classifyRunnerDisposition,
   describeTypeVisibilityReason,
+  cannotRunReasonFor,
+  cannotRunUnverifiedMessage,
+  unrecordedVerdictCaveat,
+  toRuntimeVisibilityRows,
 } from '../../../src/core/type-visibility.js';
 import type { TypeVisibilityRow, TypeVisibilityAppliedPair } from '../../../src/core/type-visibility.js';
 import { computeExpectedPairs } from '../../../src/core/pairs.js';
@@ -26,6 +30,7 @@ import { buildTestGraphForStructure } from '../helpers/build-test-graph-structur
 import { cleanupTestGraphs } from '../helpers/build-test-graph.js';
 import { FIXTURE_NODELESS_RUNNER, FIXTURE_CYCLIC_TYPE } from '../../fixtures/type-level-engine/variants/index.js';
 import type { Graph, GraphNode, AspectDef, ScopeDef, WhenPredicate } from '../../../src/model/graph.js';
+import { LOCK_FORMAT_VERSION, type LockFile } from '../../../src/model/lock.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../../..');
@@ -612,5 +617,121 @@ describe('buildTypeVisibility — report shape (real type-level-engine fixture)'
 
   it('classifyRunnerDisposition returns undefined for a code this artifact does not represent', () => {
     expect(classifyRunnerDisposition('STRUCTURE_CHECK_THROWN')).toBeUndefined();
+  });
+});
+
+// toRuntimeVisibilityRows's own doc states the guarantee: "A code this module
+// does not represent yields no row … never a guess." fill.ts forwards ANY
+// StructureRunnerError.code for a nodeless pair, including one this artifact
+// cannot classify (e.g. STRUCTURE_CHECK_THROWN — a genuine check.mjs bug, not
+// an attached-but-not-enforced disposition) — these tests pin that such a
+// code is silently dropped, never rendered as an invented reason.
+describe('toRuntimeVisibilityRows — never invents a reason for a code it does not represent', () => {
+  it('a recognized code produces exactly the row classifyRunnerDisposition maps it to', () => {
+    const rows = toRuntimeVisibilityRows([{ file: 'src/a.ts', aspectId: 'x', code: 'STRUCTURE_NODE_CONTEXT_UNAVAILABLE' }]);
+    expect(rows).toEqual([{ file: 'src/a.ts', aspectId: 'x', reason: 'node-context-required' }]);
+  });
+
+  it('an UNRECOGNIZED code produces NO row at all — not a row with a fallback or guessed reason', () => {
+    const rows = toRuntimeVisibilityRows([{ file: 'src/a.ts', aspectId: 'x', code: 'STRUCTURE_CHECK_THROWN' }]);
+    expect(rows).toEqual([]);
+  });
+
+  it('a mixed batch keeps only the recognized dispositions, in order, dropping the unrecognized one silently', () => {
+    const rows = toRuntimeVisibilityRows([
+      { file: 'src/a.ts', aspectId: 'x', code: 'STRUCTURE_CHECK_THROWN' },
+      { file: 'src/b.ts', aspectId: 'y', code: 'STRUCTURE_UNDECLARED_FS_READ' },
+      { file: 'src/c.ts', aspectId: 'z', code: 'SOME_FUTURE_CODE_THIS_MODULE_HAS_NEVER_HEARD_OF' },
+    ]);
+    expect(rows).toEqual([{ file: 'src/b.ts', aspectId: 'y', reason: 'read-beyond-architecture' }]);
+  });
+
+  it('an empty dispositions array (a plain, never-filled run) produces an empty rows array', () => {
+    expect(toRuntimeVisibilityRows([])).toEqual([]);
+  });
+});
+
+// A pair the SAME run's fill already watched fail structurally must never be
+// told to re-run the command that just failed on it — core/check.ts's
+// emitPairIssue swaps the plain "unverified" message for the one below
+// whenever cannotRunReasonFor finds a match in that run's own runtimeRows.
+describe('cannotRunReasonFor / cannotRunUnverifiedMessage — the pair-fillable next stops being offered once this run proved it cannot fill', () => {
+  const runtimeRows: TypeVisibilityRow[] = [
+    { file: 'src/crashy/a.ts', aspectId: 'needs-node-context', reason: 'node-context-required' },
+  ];
+
+  it('finds the reason for a matching nodeless (aspectId, file:-prefixed unitKey) pair', () => {
+    expect(cannotRunReasonFor(runtimeRows, 'needs-node-context', 'file:src/crashy/a.ts')).toBe('node-context-required');
+  });
+
+  it('returns undefined for a different aspect on the same file', () => {
+    expect(cannotRunReasonFor(runtimeRows, 'other-aspect', 'file:src/crashy/a.ts')).toBeUndefined();
+  });
+
+  it('returns undefined for a different file under the same aspect', () => {
+    expect(cannotRunReasonFor(runtimeRows, 'needs-node-context', 'file:src/crashy/b.ts')).toBeUndefined();
+  });
+
+  it('returns undefined for a componented pair (unitKey has no file: prefix), regardless of runtimeRows content', () => {
+    expect(cannotRunReasonFor(runtimeRows, 'needs-node-context', 'node:src/crashy')).toBeUndefined();
+  });
+
+  it('returns undefined when this run recorded no dispositions at all (a plain, never-filled check)', () => {
+    expect(cannotRunReasonFor([], 'needs-node-context', 'file:src/crashy/a.ts')).toBeUndefined();
+  });
+
+  it('cannotRunUnverifiedMessage never suggests yg check --approve — that is exactly the advice this run already proved will not change anything', () => {
+    const msg = cannotRunUnverifiedMessage({ aspectId: 'needs-node-context', unitKey: 'file:src/crashy/a.ts', reason: 'node-context-required' });
+    expect(msg.next).not.toContain('yg check --approve');
+    expect(msg.next).toMatch(/component of its own/);
+    expect(msg.why).toContain(describeTypeVisibilityReason('node-context-required'));
+  });
+
+  it('names the same reason phrase describeTypeVisibilityReason gives the inline "cannot run" clause, for every runtime-only reason — one vocabulary, not two', () => {
+    for (const reason of ['read-beyond-architecture', 'node-context-required'] as const) {
+      const msg = cannotRunUnverifiedMessage({ aspectId: 'x', unitKey: 'file:y.ts', reason });
+      expect(msg.why).toContain(describeTypeVisibilityReason(reason));
+    }
+  });
+});
+
+// F2: yg owner --file / yg context --file / yg tree / the portal used to
+// print a flat "enforced" for a type-covered file's rules with zero regard
+// for whether the lock actually holds a verdict — weaker than plain `yg
+// check`, which at least says "(1, 1 unverified)" for the identical pair.
+describe('unrecordedVerdictCaveat — the per-file surfaces\' honesty caveat', () => {
+  const emptyLock: LockFile = { version: LOCK_FORMAT_VERSION, verdicts: {}, nodes: {} };
+
+  it('a fresh lock (nothing ever filled): every pair is named in the caveat', () => {
+    const pairs = [{ aspectId: 'needs-node-context', unitKey: 'file:src/crashy/a.ts' }];
+    expect(unrecordedVerdictCaveat(emptyLock, pairs)).toBe(
+      ' (1 of 1 rule unverified — the lock holds no entry for it yet)',
+    );
+  });
+
+  it('every pair already has a recorded verdict entry: renders empty — never a bare, unfounded claim of verification', () => {
+    const lock: LockFile = {
+      version: LOCK_FORMAT_VERSION,
+      verdicts: { 'own-file-rule': { 'file:a.ts': { verdict: 'approved', hash: 'h' } } },
+      nodes: {},
+    };
+    const pairs = [{ aspectId: 'own-file-rule', unitKey: 'file:a.ts' }];
+    expect(unrecordedVerdictCaveat(lock, pairs)).toBe('');
+  });
+
+  it('a mix of recorded and missing pairs: names the subset, not the total, with correct singular/plural grammar', () => {
+    const lock: LockFile = {
+      version: LOCK_FORMAT_VERSION,
+      verdicts: { 'r': { 'file:a.ts': { verdict: 'approved', hash: 'h' } } },
+      nodes: {},
+    };
+    const pairs = [
+      { aspectId: 'r', unitKey: 'file:a.ts' },
+      { aspectId: 'r', unitKey: 'file:b.ts' },
+      { aspectId: 'r', unitKey: 'file:c.ts' },
+    ];
+    expect(unrecordedVerdictCaveat(lock, pairs)).toBe(
+      ' (2 of 3 rules unverified — the lock holds no entry for them yet)',
+    );
   });
 });

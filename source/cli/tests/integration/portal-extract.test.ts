@@ -551,8 +551,13 @@ describe('extractPortalData over a real tier-on fixture — a checked file is ne
     const { data, dir } = await extractWithRealRefusal();
     try {
       expect(data.residue.typeCovered).toEqual([
-        { path: 'src/lib/util.ts', type: 'lib', enforced: false },
-        { path: 'src/svc/handler.ts', type: 'svc', enforced: true },
+        { path: 'src/lib/util.ts', type: 'lib', enforced: false, unverified: false },
+        // The fill above genuinely wrote its refused verdict to the lock
+        // (`write` there only stubs the printed progress lines, not
+        // persistence) — the lock holds a real entry for this pair, so
+        // `unverified` is false even though the verdict itself is `refused`:
+        // this field names lock PRESENCE, never the verdict outcome.
+        { path: 'src/svc/handler.ts', type: 'svc', enforced: true, unverified: false },
       ]);
       // The post-pass count is derived from this SAME list, so the two can never disagree.
       expect(data.meta.counts.typeCoveredUnenforced).toBe(
@@ -619,7 +624,7 @@ describe('extractPortalData over a fixture with a real aspect implies cycle — 
       expect(data.residue.typeCovered.map((f) => f.path)).not.toContain('src/cyclic/z.ts');
       expect(data.residue.typeCovered).toHaveLength(6);
       const unenforced = data.residue.typeCovered.filter((f) => !f.enforced);
-      expect(unenforced).toEqual([{ path: 'src/ep/e.ts', type: 'emptyparents', enforced: false }]);
+      expect(unenforced).toEqual([{ path: 'src/ep/e.ts', type: 'emptyparents', enforced: false, unverified: false }]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

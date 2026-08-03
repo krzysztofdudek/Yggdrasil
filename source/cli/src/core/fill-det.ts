@@ -210,15 +210,7 @@ export async function fillDetPair(
 
   const violations = run.result.violations;
   const verdict: Verdict = violations.length > 0 ? 'refused' : 'approved';
-  // POSIX-normalize each key's path suffix — entry.touched below is graph
-  // output (verdict-lock storage) and a public return value, the same two
-  // reasons entry.reason's violation paths are normalized a few lines down.
-  // The runner's own recorder already builds these keys from POSIX-relative
-  // paths, so this guarantees the invariant rather than changing behavior.
-  const observations: Array<[string, string]> = run.result.observations.map(([key, value]) => {
-    const sep = key.indexOf(':');
-    return sep < 0 ? [key, value] : [`${key.slice(0, sep)}:${toPosixPath(key.slice(sep + 1))}`, value];
-  });
+  const observations = run.result.observations;
 
   // Subject file hashes from current disk (sorted by path) — mirrors verifyDetPair.
   const files: Array<[string, string]> = [];

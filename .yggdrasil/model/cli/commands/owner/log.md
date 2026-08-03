@@ -56,3 +56,5 @@ Owner lookup for an excluded file fell through to the same generic "no graph cov
 The excluded-path message printed a three-way disjunction of possible causes even when the actual cause was already known. It now separates the structural, config-independent case (git internals or the graph own directory) from the two config/filesystem-derived sources, naming exactly one the same way yg type-suggest --file already does for the identical path.
 ## [2026-08-02T12:05:04.455Z]
 Now calls classifySingleFileCached instead of classifySingleFile, so yg owner --file benefits from the persistent on-disk type-classification cache across repeated invocations against the same file.
+## [2026-08-03T07:59:20.929Z]
+When this command says a type-covered file's rule is enforced, it now also checks the lock directly -- a cheap presence check, not a full re-verification -- and names how many of those rules have no recorded verdict at all. Architecture-level enforcement and a recorded verdict are different facts; this command used to only ever report the first, leaving a reader unable to tell a genuinely-checked file from one whose rule has simply never run.

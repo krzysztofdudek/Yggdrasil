@@ -72,3 +72,5 @@ The same attention note also changed which comparison-cohort noun it names: a fi
 yg context --file on an excluded path routes through the same exclusion-source lookup yg owner --file already uses, naming the one real cause instead of the three-way guess it used to print — the two commands now agree on how much they know about the same path.
 ## [2026-08-03T00:22:37.393Z]
 Renamed the local variable holding this command's own type-coverage classification walk from gitFiles to repoFiles -- the walk is a gitignore-aware disk scan, never a git-tracked-file list, and the old name asserted otherwise.
+## [2026-08-03T07:59:21.326Z]
+The typed view for a component-free file now marks a rule ', unverified' next to its status tag whenever the lock holds no recorded entry for it -- the same cheap presence check yg owner --file now performs, reusing that command's established distinction between architecture-level enforcement and a recorded verdict.

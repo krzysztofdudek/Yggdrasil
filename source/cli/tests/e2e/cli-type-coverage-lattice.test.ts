@@ -350,6 +350,26 @@ describe.skipIf(!distExists)('E2E: yg tree — the type-covered summary line', (
     }
   });
 
+  // F2: "checked by at least one rule" names architecture-level status, never
+  // a recorded verdict — a cold, never-filled project must qualify that
+  // bucket the same way plain `yg check` already does for the identical
+  // pair, and the qualifier must disappear once the fill genuinely wrote one.
+  it('the "checked by at least one rule" bucket names how many have no recorded lock entry, and loses that qualifier once the fill writes one', () => {
+    const dir = copyFixture(PORTAL_TYPE_COVERAGE_FIXTURE);
+    try {
+      const before = run(['tree'], dir);
+      expect(before.status).toBe(0);
+      expect(before.out).toMatch(/1 checked by at least one rule \(1 with no recorded verdict for at least one\)/);
+
+      run(['check', '--approve', '--only-deterministic'], dir);
+      const after = run(['tree'], dir);
+      expect(after.out).toMatch(/1 checked by at least one rule, /);
+      expect(after.out).not.toContain('no recorded verdict');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('--root naming an unknown node prints the "Error: " prefixed not-found message, in BOTH flag states', () => {
     // The type-covered summary line never has a chance to run here — the --root lookup
     // fails before the node listing (and the line after it) is ever built — so this error

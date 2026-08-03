@@ -14,8 +14,19 @@ description: "Renders the yg check verdict/metrics header line — PASS/FAIL, no
   identical report of the same fact; kept out of the zero-applicable-rules
   line, since that line means resolution ran and found nothing, not that it
   never ran), a half-expanded bundle, where the inherited chain stops, and the
-  repo-wide zero-applicable-rules honesty line (grammatically singular/plural,
-  and reduced to counts only under the --summary/--top triage views)."
+  repo-wide zero-applicable-rules honesty line (grammatically singular/plural).
+  An 'Enforced'/'Advisory' entry whose files have no confirmed lock verdict
+  says so inline, appended to the aspectId(count) segment: the qualified
+  'K unverified' caveat for a plain not-yet-approved pair, or — when that
+  SAME run's own fill just watched a component-free pair's check.mjs fail
+  structurally — the specific reason in the exact words describeTypeVisibilityReason
+  already uses for a static drop, via the RUNTIME_ONLY_REASONS set that
+  keeps a runtime-only reason out of the separate 'Attached but not enforced'
+  list (that heading would otherwise claim the opposite of 'Enforced' for the
+  same file). Reduced to counts only under the --summary/--top triage views,
+  where the same 'no confirmed verdict' fact still appends as a bare count
+  (never the fill-only specific reason, which only a --approve run — and never
+  a counts-only view, which cannot combine with --approve — can ever discover)."
 mapping:
   - source/cli/src/cli/check-render-header.ts
 relations:

@@ -219,6 +219,22 @@ function unverifiedCaveat(result: CheckResult, aspectId: string, files: string[]
 }
 
 /**
+ * Total unverified instances across an `enforcedCounts`/`advisoryCounts`
+ * list — the counts-only render's caveat (F9). Costs nothing extra to
+ * compute: `result.issues` already carries the FULL lock-verification result
+ * regardless of which view is rendering it, so this is the same lock-derived
+ * "no confirmed verdict" fact the full view's `unverifiedCaveat` shows, at
+ * aggregate granularity. What stays genuinely unavailable here is the
+ * fill-only SPECIFIC reason (`cannot run — …`): that fact only ever exists on
+ * a `yg check --approve` run, and `--summary`/`--top` refuse to combine with
+ * `--approve` (source/cli/src/cli/check.ts's own guided error) — so a
+ * counts-only render can never name it, by construction, not by omission here.
+ */
+function unverifiedInstanceTotal(result: CheckResult, entries: Array<{ aspectId: string; count: number }>, files: string[]): number {
+  return entries.reduce((n, e) => n + unverifiedFiles(result, e.aspectId, files).length, 0);
+}
+
+/**
  * `(aspectId, count)` list → the rendered `aspectId (count)` segments this
  * block always showed, now with `unverifiedCaveat`'s clause appended whenever
  * that aspect has unverified files among `block.files`. No caveat (an aspect
@@ -265,10 +281,12 @@ export function renderTypeVisibilityBlock(result: CheckResult, opts?: { countsOn
       const uncomputableSuffix = uncomputableTotal > 0
         ? `, ${uncomputableTotal} file${uncomputableTotal === 1 ? '' : 's'} could not have ${uncomputableTotal === 1 ? 'its' : 'their'} rules worked out (aspect implies cycle)`
         : '';
+      const enforcedUnverified = unverifiedInstanceTotal(result, block.enforcedCounts, block.files);
+      const advisoryUnverified = unverifiedInstanceTotal(result, block.advisoryCounts, block.files);
       lines.push(
         `  '${block.typeId}' — ${block.files.length} file${block.files.length === 1 ? '' : 's'} covered — ` +
-        `${block.enforcedCounts.length} rule${block.enforcedCounts.length === 1 ? '' : 's'} enforced, ` +
-        `${block.advisoryCounts.length} advisory, ${droppedTotal} attached-but-not-enforced instance${droppedTotal === 1 ? '' : 's'}${uncomputableSuffix}`,
+        `${block.enforcedCounts.length} rule${block.enforcedCounts.length === 1 ? '' : 's'} enforced${enforcedUnverified > 0 ? ` (${enforcedUnverified} unverified)` : ''}, ` +
+        `${block.advisoryCounts.length} advisory${advisoryUnverified > 0 ? ` (${advisoryUnverified} unverified)` : ''}, ${droppedTotal} attached-but-not-enforced instance${droppedTotal === 1 ? '' : 's'}${uncomputableSuffix}`,
       );
       continue;
     }

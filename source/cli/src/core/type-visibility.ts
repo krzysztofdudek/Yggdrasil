@@ -57,6 +57,9 @@
  */
 import type { Graph } from '../model/graph.js';
 import type { AspectStatus } from '../model/graph.js';
+import type { IssueMessage } from '../model/validation.js';
+import type { LockFile } from '../model/lock.js';
+import { pairsMissingFromLock } from '../model/lock.js';
 import type { PairDrop, ExpectedPair, UncomputableTypeCoverage } from './pairs.js';
 import type { TypeAspectDropReason } from './type-effective.js';
 import { walkTypeParentChain } from './type-effective.js';
@@ -110,7 +113,7 @@ export function describeChainTermination(t: ChainTermination): string {
  * they never fill, so they have nothing to hand off; a file whose disposition
  * `yg check --approve` named in a prior run reads there exactly as it would
  * with no disposition known at all (the qualified "unverified" fallback,
- * never persisted — see `docs/cli-reference.md`'s note on this surface).
+ * never persisted — see `docs/configuration.md`'s `type_level` paragraph).
  * `check.ts`'s OWN classification (the plain, non-`--approve` read) is
  * likewise always `[]`; only the SAME run's `core/fill.ts`, having just
  * watched a component-free det pair's check.mjs fail with a
@@ -260,6 +263,74 @@ export function toRuntimeVisibilityRows(dispositions: Array<{ file: string; aspe
     if (reason) rows.push({ file: d.file, aspectId: d.aspectId, reason });
   }
   return rows;
+}
+
+/**
+ * The reason THIS run's `runtimeRows` already recorded for (aspectId,
+ * unitKey), or undefined when none applies — a componented pair (`unitKey`
+ * has no `file:` prefix), a plain not-yet-approved run (`runtimeRows` is
+ * always `[]` there), or a nodeless pair whose check never threw. Used by
+ * `unverifiedIssueMessage` below.
+ */
+export function cannotRunReasonFor(runtimeRows: TypeVisibilityRow[], aspectId: string, unitKey: string): TypeVisibilityReason | undefined {
+  if (!unitKey.startsWith('file:')) return undefined;
+  const file = unitKey.slice('file:'.length);
+  return runtimeRows.find((r) => r.aspectId === aspectId && r.file === file)?.reason;
+}
+
+/**
+ * The `unverified` message for a nodeless pair `cannotRunReasonFor` already
+ * traced to a runtime-only reason THIS run watched happen — unlike
+ * `unverifiedMessage` (formatters/lock-issue-messages.ts), `next` never points
+ * back at `yg check --approve`: re-attempting it reproduces the identical
+ * result, since the disposition is structural, not a stale or missing
+ * verdict. Names the same fix `describeTypeVisibilityReason` already states
+ * the reason for, so the two never disagree.
+ */
+export function cannotRunUnverifiedMessage(params: { aspectId: string; unitKey: string; reason: TypeVisibilityReason }): IssueMessage {
+  return {
+    what: `Aspect '${params.aspectId}' cannot run on ${params.unitKey} — re-running yg check --approve reproduces this identical result.`,
+    why: `${describeTypeVisibilityReason(params.reason)}; only running the check discovers that, so no lock refresh changes it.`,
+    next: `Give the file a component of its own (a yg-node.yaml mapping it), or fix what the reason above names in check.mjs / yg-architecture.yaml — not another --approve.`,
+  };
+}
+
+/**
+ * `core/check.ts`'s `emitPairIssue`, composed: the ordinary `unverifiedMessage`
+ * (its `plain` argument — `formatters/lock-issue-messages.ts`, kept as a
+ * parameter rather than an import here so this module keeps its existing
+ * dependency footprint) UNLESS `cannotRunReasonFor` finds this pair among
+ * THIS run's own `runtimeRows`, in which case `cannotRunUnverifiedMessage`
+ * takes over — the fix (F1) for the run that used to tell an agent to
+ * re-run `yg check --approve` for a pair it, in the SAME breath, just said
+ * cannot run at all. Keeping the branch here (not in check.ts) is what lets
+ * `emitPairIssue` stay a one-line swap — see its own call site.
+ */
+export function unverifiedIssueMessage(
+  runtimeRows: TypeVisibilityRow[],
+  pair: { aspectId: string; unitKey: string },
+  plain: (p: { aspectId: string; unitKey: string }) => IssueMessage,
+): IssueMessage {
+  const reason = cannotRunReasonFor(runtimeRows, pair.aspectId, pair.unitKey);
+  return reason ? cannotRunUnverifiedMessage({ aspectId: pair.aspectId, unitKey: pair.unitKey, reason }) : plain(pair);
+}
+
+/**
+ * The qualified caveat clause for a set of nodeless pairs a per-file surface
+ * (`yg owner --file`, `yg context --file`, `yg tree`, the portal) is about to
+ * report as "enforced by architecture alone" — never the deep, fill-only
+ * "cannot run" reason above (none of those surfaces ever fill), just the
+ * same cheap "the lock holds no entry for this pair" fact plain `yg check`'s
+ * qualified "N unverified" wording already carries for the identical pair.
+ * Built on `pairsMissingFromLock` (`model/lock.ts`) — see its own doc for why
+ * this is deliberately NOT a full `core/verify-lock.ts` re-verification.
+ * `''` when every pair already has a recorded entry: never claims a
+ * verification this function did not itself perform.
+ */
+export function unrecordedVerdictCaveat(lock: LockFile, pairs: Array<{ aspectId: string; unitKey: string }>): string {
+  const missing = pairsMissingFromLock(lock, pairs);
+  if (missing.length === 0) return '';
+  return ` (${missing.length} of ${pairs.length} rule${pairs.length === 1 ? '' : 's'} unverified — the lock holds no entry for ${missing.length === 1 ? 'it' : 'them'} yet)`;
 }
 
 /**

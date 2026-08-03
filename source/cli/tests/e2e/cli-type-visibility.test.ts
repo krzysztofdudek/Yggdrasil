@@ -143,6 +143,82 @@ describe.skipIf(!distExists)('yg check / yg context --file — type-visibility (
     }
   });
 
+  // The type-coverage block's "1 cannot run" clause and the Errors section's
+  // `unverified` group used to disagree about the SAME pair in the SAME
+  // stdout: the block said the rule can never run, while the group's Fix
+  // line and the footer's Next: line both still said "yg check --approve" —
+  // an instruction an agent could follow forever without the count ever
+  // moving. This pins that the run now agrees with itself: nowhere does it
+  // point back at the command it just proved does nothing for this pair.
+  it('the run that says a pair cannot run never also tells the reader to re-run --approve for that same pair', () => {
+    const dir = copyFixture(NEEDS_NODE_CONTEXT);
+    try {
+      const first = run(['check', '--approve', '--only-deterministic'], dir);
+      expect(first.status).toBe(1);
+      expect(first.stdout).toMatch(/Enforced: needs-node-context \(1, 1 cannot run/);
+
+      // Nowhere in this run's stdout does a Fix:/Next: line send the reader
+      // back to the exact command this same run just proved reproduces the
+      // identical result for src/crashy/a.ts.
+      expect(first.stdout).not.toContain('Fix: yg check --approve');
+      expect(first.stdout).not.toMatch(/Next: yg check --approve\b/);
+      // The real remedy — the one and only unverified pair left after this
+      // fill, so it also becomes the run's own top-level Next: line.
+      expect(first.stdout).toMatch(/Next: Give the file a component of its own/);
+
+      // Never persisted, never stale: re-running is byte-identical — the
+      // same honest, self-consistent report every time, not a promise that
+      // quietly stops being true on a second attempt.
+      const second = run(['check', '--approve', '--only-deterministic'], dir);
+      expect(second.stdout).toBe(first.stdout);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // F2: `yg owner --file` used to print a flat "Enforced by its architecture
+  // type, not by a component." with zero regard for whether the lock holds
+  // any verdict at all — weaker than plain `yg check`, which at least says
+  // "(1, 1 unverified)" for the identical pair. This pins that a cold,
+  // never-filled project (no .yg-lock.deterministic.json on disk at all)
+  // gets the same qualified caveat here.
+  it('yg owner --file names a type-covered pair with no recorded lock entry, the same way plain yg check already does', () => {
+    const dir = copyFixture(NEEDS_NODE_CONTEXT);
+    try {
+      const { stdout, status } = run(['owner', '--file', 'src/crashy/a.ts'], dir);
+      expect(status).toBe(0);
+      expect(stdout).toContain('src/crashy/a.ts -> type:crashy');
+      expect(stdout).toMatch(
+        /Enforced by its architecture type, not by a component \(1 of 1 rule unverified — the lock holds no entry for it yet\)\./,
+      );
+
+      // A DIFFERENT file whose rules will fill successfully (src/leaf/a.ts,
+      // unrelated to this fixture's own crashy pair) carries the identical
+      // caveat before any fill has ever run.
+      const leafBefore = run(['owner', '--file', 'src/leaf/a.ts'], dir);
+      expect(leafBefore.stdout).toMatch(/\(\d+ of \d+ rules? unverified — the lock holds no entry for (?:it|them) yet\)/);
+
+      const approve = run(['check', '--approve', '--only-deterministic'], dir);
+      expect(approve.status).toBe(1); // still red overall (unrelated fixture issues) — not the concern here
+
+      // src/crashy/a.ts's own pair fails closed every attempt (F1's own
+      // fixture) — fail-closed means no verdict is EVER written for it, so
+      // the caveat still names it after a real --approve attempt.
+      const crashyAfter = run(['owner', '--file', 'src/crashy/a.ts'], dir);
+      expect(crashyAfter.stdout).toContain('1 of 1 rule unverified — the lock holds no entry for it yet');
+
+      // src/leaf/a.ts's rules DID fill successfully — the caveat disappears
+      // entirely once every one of them has a recorded verdict, never a
+      // stale claim after the lock genuinely catches up, and byte-identical
+      // to the pre-caveat wording once it does.
+      const leafAfter = run(['owner', '--file', 'src/leaf/a.ts'], dir);
+      expect(leafAfter.stdout).toContain('Enforced by its architecture type, not by a component.\n');
+      expect(leafAfter.stdout).not.toContain('unverified');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('yg context --file on a type-covered file shows the typed view, replacing "not covered"', () => {
     const dir = copyFixture();
     try {

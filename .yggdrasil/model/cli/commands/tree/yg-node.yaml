@@ -6,10 +6,13 @@ description: >-
   (never a synthetic tree entry — the listing above stays nodes-only), always
   repo-wide even under --root since a type-covered file has no place in the
   hierarchy for that flag to scope it to. It splits the type-level lattice's
-  total into how many files are checked by at least one applicable rule, how
-  many matched a type with nothing that applies, and — only when it occurs —
-  how many had their matched type's rules blocked from ever being worked out
-  by an aspect implies cycle.
+  total into how many files are checked by at least one applicable rule (with
+  a further count, when any exist, of how many of those have no recorded
+  lock verdict for at least one of their rules — the same lock-derived fact
+  plain `yg check` already carries for the identical pair), how many matched
+  a type with nothing that applies, and — only when it occurs — how many had
+  their matched type's rules blocked from ever being worked out by an aspect
+  implies cycle.
 aspects: []
 relations:
   - target: cli/core/loader
@@ -34,5 +37,9 @@ relations:
     type: calls
   - target: cli/core/pairs
     type: calls
+  - target: cli/io/lock-store
+    type: calls
+  - target: cli/model/lock
+    type: uses
 mapping:
   - source/cli/src/cli/tree.ts

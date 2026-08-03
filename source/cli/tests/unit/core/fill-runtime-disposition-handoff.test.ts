@@ -143,4 +143,58 @@ describe('the fill→check handoff for a disposition this run just watched happe
       { file: 'src/leafy/a.ts', aspectId: 'touches-ctx-node', reason: 'node-context-required' },
     ]);
   });
+
+  // The OTHER live runtime-only reason (read-beyond-architecture,
+  // STRUCTURE_UNDECLARED_FS_READ) — pinned above only at the translator level
+  // (type-visibility.test.ts's code→reason mapping) and, in the componented
+  // guard test above, on a pair whose row the guard deliberately discards.
+  // Neither drives it through the real fill→check handoff on a NODELESS pair
+  // and checks the rendered sentence — this does, the same way the
+  // node-context-required case above does for its own reason.
+  it('a nodeless pair that reads outside its architecture allowance names read-beyond-architecture, rendered sentence and all', async () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'yg-handoff-read-beyond-'));
+    dirs.push(root);
+    const yggRoot = path.join(root, '.yggdrasil');
+    mkdirSync(path.join(yggRoot, 'aspects', 'reads-undeclared'), { recursive: true });
+    mkdirSync(path.join(yggRoot, 'model'), { recursive: true });
+    mkdirSync(path.join(root, 'src', 'readsy'), { recursive: true });
+    writeFileSync(
+      path.join(yggRoot, 'yg-config.yaml'),
+      `${V5_REVIEWER_CONFIG}\ncoverage:\n  required:\n    - src/\n  excluded: []\n  type_level: true\n`,
+    );
+    writeFileSync(
+      path.join(yggRoot, 'yg-architecture.yaml'),
+      'node_types:\n  readsy:\n    description: x\n    when:\n      path: "src/readsy/**"\n    aspects:\n      - reads-undeclared\n',
+    );
+    writeFileSync(
+      path.join(yggRoot, 'aspects', 'reads-undeclared', 'yg-aspect.yaml'),
+      'name: reads-undeclared\ndescription: reads a path outside its allowance\nreviewer:\n  type: deterministic\nscope:\n  per: file\n',
+    );
+    writeFileSync(
+      path.join(yggRoot, 'aspects', 'reads-undeclared', 'check.mjs'),
+      'export function check(ctx) { ctx.fs.read("src/nowhere.ts"); return []; }\n',
+    );
+    writeFileSync(path.join(root, 'src', 'readsy', 'a.ts'), 'export const a = 1;\n');
+
+    const graph = await loadGraph(root);
+    const fill = await runFill(graph, { coverageVisibleFiles: ['src/readsy/a.ts'], write: () => {} });
+
+    expect(fill.checkResult.typeVisibility?.rows).toContainEqual({
+      file: 'src/readsy/a.ts',
+      aspectId: 'reads-undeclared',
+      reason: 'read-beyond-architecture',
+    });
+
+    const rendered = renderTypeVisibilityBlock(fill.checkResult);
+    expect(rendered).toMatch(/Enforced: reads-undeclared \(1, 1 cannot run — it tried to read a file outside what the architecture allows this file's type to depend on\)/);
+    expect(rendered).not.toContain('1 unverified');
+
+    // The pair's own next also names the read-beyond-architecture reason
+    // inline, in the same words — never a repeated "yg check --approve" for
+    // a pair this run already proved cannot run (the F1 fix).
+    const issue = fill.checkResult.issues.find((i) => i.code === 'unverified' && i.aspectId === 'reads-undeclared');
+    expect(issue).toBeDefined();
+    expect(issue!.messageData.why).toContain("it tried to read a file outside what the architecture allows this file's type to depend on");
+    expect(issue!.messageData.next).not.toBe('yg check --approve');
+  });
 });

@@ -73,14 +73,19 @@ function nextPointer(next: string): string {
  * least one error whose code is NOT `unverified` (i.e. refused/relation/
  * structural/etc.), returns a parenthetical annotating partial coverage:
  *   (fills <N> unverified; <K> errors remain — need code/graph fixes)
- * where N = count of error issues with code `unverified`, K = count of error
- * issues with code !== `unverified`. Otherwise returns ''.
+ * where N = count of error issues with code `unverified` AND the fillable
+ * `next` ('yg check --approve' — that pair can still change), K = every
+ * other error, INCLUDING an `unverified` one whose `next` already names its
+ * own real remedy (`cannotRunUnverifiedMessage` — `core/type-visibility.ts`):
+ * re-running `--approve` reproduces that pair's identical result, so it
+ * belongs in "errors remain — need code/graph fixes", never in the count
+ * this line promises `--approve` will fill. Otherwise returns ''.
  */
 function residualAfterNext(result: CheckResult): string {
   if (!result.suggestedNext?.startsWith('yg check --approve')) return '';
   const errors = result.issues.filter(i => i.severity === 'error');
-  const N = errors.filter(i => i.code === 'unverified').length;
-  const K = errors.filter(i => i.code !== 'unverified').length;
+  const N = errors.filter(i => i.code === 'unverified' && i.messageData.next === 'yg check --approve').length;
+  const K = errors.length - N;
   if (K === 0) return '';
   return `  (fills ${N} unverified; ${K} error${K === 1 ? '' : 's'} remain — need code/graph fixes)`;
 }

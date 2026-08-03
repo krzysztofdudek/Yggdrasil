@@ -300,3 +300,36 @@ describe('computeSuggestedNext — nodeless structural fallback', () => {
     expect(next).toContain('Fix config-invalid in .yggdrasil');
   });
 });
+
+// A pair this run's fill already proved cannot run (see
+// core/type-visibility.ts's cannotRunUnverifiedMessage) carries its own real
+// remedy as `next`, never the generic 'yg check --approve'. computeSuggestedNext
+// must not let that pair's `next` win the overall `Next:` slot while a pair
+// --approve genuinely CAN still change is sitting right next to it — the run
+// would tell the reader to re-run the one command it just proved is useless
+// for one member, while staying silent about the pair it would actually help.
+describe('computeSuggestedNext — a pair this run proved cannot run never displaces a pair --approve can still fill', () => {
+  const cannotRunNext =
+    'Give the file a component of its own (a yg-node.yaml mapping it), or fix what the reason above names in check.mjs / yg-architecture.yaml — not another --approve.';
+
+  it('picks the fillable pair\'s generic command when a fillable AND a cannot-run unverified pair both exist', () => {
+    const errors: CheckIssue[] = [
+      iss({
+        aspectId: 'needs-node-context', nodePath: undefined, unitKey: 'file:src/crashy/a.ts',
+        messageData: { what: 'w', why: 'y', next: cannotRunNext },
+      }),
+      iss({ aspectId: 'fillable-y', nodePath: 'a' }), // default messageData.next: 'yg check --approve'
+    ];
+    expect(computeSuggestedNext(errors)).toBe('yg check --approve');
+  });
+
+  it('falls back to the cannot-run pair\'s own remedy only once EVERY unverified pair is unfillable', () => {
+    const errors: CheckIssue[] = [
+      iss({
+        aspectId: 'needs-node-context', nodePath: undefined, unitKey: 'file:src/crashy/a.ts',
+        messageData: { what: 'w', why: 'y', next: cannotRunNext },
+      }),
+    ];
+    expect(computeSuggestedNext(errors)).toBe(cannotRunNext);
+  });
+});

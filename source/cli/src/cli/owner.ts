@@ -22,6 +22,8 @@ import { classifySingleFileCached } from '../core/type-coverage.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import { computeExpectedPairs } from '../core/pairs.js';
 import { computeTypeAspectCascade, describeCascadeCycle } from '../core/type-effective.js';
+import { unrecordedVerdictCaveat } from '../core/type-visibility.js';
+import { readLock } from '../io/lock-store.js';
 
 function normalizeForMatch(inputPath: string): string {
   return toPosixPath(inputPath.trim());
@@ -189,14 +191,30 @@ export function registerOwnerCommand(program: Command): void {
             const { pairs } = await computeExpectedPairs(graph, {
               typeCoverage: { covered: new Map([[result.file, typeMatch.typeId]]), ambiguousPaths: [] },
             });
-            const hasEnforcement = pairs.some((p) => p.nodePath === undefined);
+            const nodelessPairs = pairs.filter((p) => p.nodePath === undefined);
+            const hasEnforcement = nodelessPairs.length > 0;
+            // F2: name the same cheap "no recorded verdict" fact plain `yg
+            // check` already carries for this pair — architecture-level
+            // "enforced" is not "verified"; see unrecordedVerdictCaveat's own
+            // doc for why this is a lock-presence check, not a full re-verify.
+            // A garbled lock is `yg check`'s own error to report — this
+            // command still answers the ownership question, just without the
+            // caveat, rather than failing an unrelated query.
+            let caveat = '';
+            if (hasEnforcement) {
+              try {
+                caveat = unrecordedVerdictCaveat(readLock(graph.rootPath), nodelessPairs);
+              } catch (e: unknown) {
+                debugWrite(`[owner] lock read failed while building the unverified caveat: ${e instanceof Error ? e.message : String(e)}`);
+              }
+            }
             process.stdout.write(`${result.file} -> type:${typeMatch.typeId}\n`);
             process.stdout.write(
               '  ' +
                 buildIssueMessage(
                   hasEnforcement
                     ? {
-                        what: 'Enforced by its architecture type, not by a component.',
+                        what: `Enforced by its architecture type, not by a component${caveat}.`,
                         why: 'No node maps this file; every rule its matched type attaches still applies, or is honestly reported as attached but not enforced.',
                         next: `yg context --file ${result.file}`,
                       }

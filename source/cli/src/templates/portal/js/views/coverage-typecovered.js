@@ -123,6 +123,12 @@
     var typeCoveredEnforced = typeCoveredEntries.filter(function (f) { return f.enforced; });
     var typeCoveredUnenforced = typeCoveredEntries.filter(function (f) { return !f.enforced; });
 
+    // `enforced` names architecture-level status, never a recorded verdict (F2) — how many
+    // of the enforced files have no recorded lock entry for at least one of their rules, the
+    // same lock-derived fact plain `yg check`'s qualified "N unverified" wording, `yg owner
+    // --file`, and `yg context --file` already carry for the identical pair.
+    var typeCoveredUnverified = typeCoveredEnforced.filter(function (f) { return f.unverified; }).length;
+
     // Shown as its own line, never inside "not in coverage fraction", so it is never read
     // as excluded from the ratio it actually contributes to. Omitted when zero (typeLevel
     // off, or no enforced file) — flag-off output stays unchanged.
@@ -130,9 +136,13 @@
       ledger.appendChild(dom.el('div', 'cov-hair'));
       var typeCovered = dom.el('div', 'cov-nonpair');
       typeCovered.appendChild(dom.el('span', 'cov-nptag', 'counted above, no component of their own:'));
-      typeCovered.appendChild(neutralKey(typeCoveredEnforced.length, 'type-covered', 'satisfied by a matched type'));
+      var enforcedSuffix = 'satisfied by a matched type' +
+        (typeCoveredUnverified > 0 ? '; ' + typeCoveredUnverified + ' with no recorded verdict' : '');
+      typeCovered.appendChild(neutralKey(typeCoveredEnforced.length, 'type-covered', enforcedSuffix));
       ledger.appendChild(typeCovered);
-      ledger.appendChild(typeCoveredList('cov-typelist-ok', typeCoveredEnforced));
+      ledger.appendChild(typeCoveredList('cov-typelist-ok', typeCoveredEnforced, function (e) {
+        return e.path + ' — type-covered as ' + e.type + (e.unverified ? ' — unverified' : '');
+      }));
     }
 
     // A file matched by a type whose cascade produced NO applicable rule at all: no pair,
