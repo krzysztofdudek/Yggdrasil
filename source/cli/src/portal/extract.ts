@@ -20,7 +20,6 @@ import {
   PORTAL_SCHEMA_SUPPORTED,
   isPortalFileExcludedByCoverage,
   NO_COVERAGE_EXCLUDED,
-  pairsMissingFromLock,
   type LockVerification,
 } from './engine-api.js';
 import type {
@@ -195,18 +194,22 @@ export async function extractPortalData(
     for (const f of p.subjectFiles) enforcedTypeCoveredFiles.add(f);
   }
   // `enforced` names architecture-level status, never a recorded verdict —
-  // `lock` (already read above for the pair-verification seam, no extra I/O
-  // here) tells which of the nodeless pairs it holds no entry for AT ALL.
-  // Cheaper than a full re-verification of every nodeless pair in the whole
-  // project (the right cost for `yg check` itself, too much for one
-  // extraction): catches a pair the lock has never recorded at all, never
-  // one whose recorded verdict has gone stale since a source edit — unlike
-  // `yg owner --file` / `yg context --file`, scoped to one file each, which
-  // catch both.
+  // `verification.pairs` (already computed above, at line 100/130/150's own
+  // cost, for the counts/node/aspect derivations) already carries a REAL
+  // per-pair re-verification for every nodeless pair too, because `typeCoverage`
+  // was threaded into `readAndVerifyLock` at the top of this function. Reading
+  // that result again here costs nothing further: no second pass, no extra I/O.
+  // A pair's state is `'verified'` or `'refused'` exactly when the lock holds a
+  // CURRENT valid entry for it (the input hash still matches); anything else —
+  // missing entirely, or present but stale since a source edit — is the same
+  // "no valid verdict on record" fact `yg check`, `yg owner --file`, and `yg
+  // context --file` already name for the identical pair, so the portal cannot
+  // answer more weakly than the verification it is already holding.
   const unverifiedTypeCoveredFiles = new Set<string>();
-  const nodelessExpectedPairs = expected.pairs.filter((p) => p.nodePath === undefined);
-  for (const p of pairsMissingFromLock(lock, nodelessExpectedPairs)) {
-    for (const f of p.subjectFiles) unverifiedTypeCoveredFiles.add(f);
+  for (const vp of verification.pairs) {
+    if (vp.pair.nodePath !== undefined) continue;
+    if (vp.state.kind === 'verified' || vp.state.kind === 'refused') continue;
+    for (const f of vp.pair.subjectFiles) unverifiedTypeCoveredFiles.add(f);
   }
   const uncomputableByFile = new Map<string, string>(); // file -> why (describeCascadeCycle's sentence)
   for (const u of expected.uncomputableTypeCoverage) {

@@ -78,3 +78,5 @@ Four exported functions on engine-api.ts (runPortalCheck, computePortalTypeCover
 Re-exports pairsMissingFromLock (model/lock.ts) as the facade's one sanctioned path for the pipeline to reach the same cheap lock-presence check the per-file CLI surfaces already use, keeping the portal's single-seam guarantee intact rather than letting extract.ts reach the model file directly.
 ## [2026-08-03T10:08:37.812Z]
 Corrected the doc comment on the re-exported pairsMissingFromLock: it claimed to carry the same lock-derived fact yg check's qualified count already carries for the identical pair, which is no longer accurate now that yg owner --file and yg context --file re-verify each pair's current input hash directly (catching a stale entry, not only a missing one) instead of using this presence-only check. No behavior changed.
+## [2026-08-03T12:48:11.702Z]
+Dropped the pairsMissingFromLock re-export: extractPortalData no longer needs a presence-only check now that its unverified flag for a type-covered file is read straight off the full lock verification the pipeline already computes. No behavior change to any function this facade still exposes.

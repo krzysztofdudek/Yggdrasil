@@ -3,10 +3,13 @@ import { LOCK_FORMAT_VERSION, pairsMissingFromLock, type LockFile } from '../../
 
 /**
  * Unit tests for `pairsMissingFromLock` — the cheap, O(1)-per-pair "this pair
- * has no entry in the lock at all" check the per-file surfaces (`yg owner
- * --file`, `yg context --file`, `yg tree`, the portal) use instead of a full
- * `core/verify-lock.ts` re-verification, which would re-hash every pair in
- * the whole graph just to answer one file's question.
+ * has no entry in the lock at all" check, distinct from a full `core/verify-
+ * lock.ts` re-verification (which also catches a STALE entry, not only a
+ * missing one). No CLI surface calls this today: `yg check`, `yg owner
+ * --file`, `yg context --file`, `yg tree`, and the portal all now perform the
+ * real re-verification instead, so none of them is left answering from
+ * presence alone — this function is kept as a correct, independently tested
+ * primitive for a future caller that genuinely cannot afford that cost.
  */
 describe('pairsMissingFromLock', () => {
   const emptyLock: LockFile = { version: LOCK_FORMAT_VERSION, verdicts: {}, nodes: {} };

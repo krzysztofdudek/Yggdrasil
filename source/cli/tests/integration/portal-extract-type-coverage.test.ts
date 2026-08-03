@@ -17,7 +17,7 @@
  * below calls the SAME engine functions extractPortalData reuses, directly.
  */
 import { describe, it, expect } from 'vitest';
-import { mkdtempSync, cpSync, rmSync } from 'node:fs';
+import { mkdtempSync, cpSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -127,6 +127,34 @@ describe('portal extraction — type-level coverage threading', () => {
       // once the lock actually holds a recorded verdict for it.
       const leafAfter = after.residue.typeCovered.find((f) => f.path === 'src/leaf/a.ts');
       expect(leafAfter!.unverified).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // The ledger must call a STALE recorded verdict unverified too, not only a
+  // missing one: a source edit after the fill above invalidates the stored
+  // hash without touching the lock. `yg check` re-verifies the current file
+  // against the stored hash and would call this pair unverified again on the
+  // identical edit; the portal's ledger — which already runs that same full
+  // verification for every other count it reports — must agree, not keep
+  // reporting the pre-edit "verdict on record" state from presence alone.
+  it('the unverified flag reappears after a real source edit invalidates an already-recorded verdict', async () => {
+    const dir = needsNodeContextCopy();
+    try {
+      const binPath = path.join(CLI_ROOT, 'dist', 'bin.js');
+      spawnSync('node', [binPath, 'check', '--approve', '--only-deterministic'], { cwd: dir, encoding: 'utf-8' });
+
+      const filled = await extractPortalData(dir, { writeEnabled: false });
+      const leafFilled = filled.residue.typeCovered.find((f) => f.path === 'src/leaf/a.ts');
+      expect(leafFilled!.unverified).toBe(false);
+
+      const leafPath = path.join(dir, 'src', 'leaf', 'a.ts');
+      writeFileSync(leafPath, readFileSync(leafPath, 'utf-8') + '\n// a later, unapproved edit\n');
+
+      const stale = await extractPortalData(dir, { writeEnabled: false });
+      const leafStale = stale.residue.typeCovered.find((f) => f.path === 'src/leaf/a.ts');
+      expect(leafStale!.unverified).toBe(true);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

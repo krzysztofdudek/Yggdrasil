@@ -370,6 +370,29 @@ describe.skipIf(!distExists)('E2E: yg tree — the type-covered summary line', (
     }
   });
 
+  // The qualifier names a STALE recorded verdict too, not only a missing one:
+  // a source edit after the fill above invalidates the stored hash without
+  // touching the lock, so the file's own verdict no longer matches what is on
+  // disk. `yg check` would call this pair unverified again on the identical
+  // edit; the tree's qualifier must reappear, not stay silent because an
+  // entry merely exists.
+  it('the "checked by at least one rule" bucket names a STALE recorded verdict too, not only a missing one', () => {
+    const dir = copyFixture(PORTAL_TYPE_COVERAGE_FIXTURE);
+    try {
+      run(['check', '--approve', '--only-deterministic'], dir);
+      const filled = run(['tree'], dir);
+      expect(filled.out).not.toContain('no recorded verdict');
+
+      const handlerPath = path.join(dir, 'src', 'svc', 'handler.ts');
+      writeFileSync(handlerPath, readFileSync(handlerPath, 'utf-8') + '\n// a later, unapproved edit\n');
+
+      const stale = run(['tree'], dir);
+      expect(stale.out).toMatch(/1 checked by at least one rule \(1 with no recorded verdict for at least one of its rules\)/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('--root naming an unknown node prints the "Error: " prefixed not-found message, in BOTH flag states', () => {
     // The type-covered summary line never has a chance to run here — the --root lookup
     // fails before the node listing (and the line after it) is ever built — so this error

@@ -12,7 +12,7 @@ import { computeTypeCoverageCached } from '../core/type-coverage.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import { computeExpectedPairs, type TypeCoverageInput } from '../core/pairs.js';
 import { readLock } from '../io/lock-store.js';
-import { pairsMissingFromLock } from '../model/lock.js';
+import { verifyPairs } from '../core/verify-lock.js';
 
 export function registerTreeCommand(program: Command): void {
   program
@@ -128,27 +128,30 @@ async function typeCoveredSummaryLine(graph: Graph, scopedToRoot: boolean): Prom
   }
   // "checked by at least one rule" names architecture-level status, never a
   // recorded verdict — name how many of those files have at least one
-  // nodeless pair the lock holds no entry for AT ALL. Deliberately cheaper
-  // than `yg check`'s own re-verification (and cheaper than `yg owner
-  // --file` / `yg context --file`, which each re-verify only the ONE file
-  // they were asked about): re-hashing every nodeless pair in the WHOLE
-  // project on every `yg tree` call would add a second whole-project pass to
-  // a repo-wide listing. So this catches a pair the lock has never recorded
-  // at all, but — unlike those three surfaces — NOT one whose recorded
-  // verdict has gone stale since a source edit; the count can therefore stay
-  // at 0 for a file whose rule the lock will refuse the moment `yg check`
-  // actually re-verifies it. A garbled lock is `yg check`'s own error to
-  // report; the tree still renders without this qualifier rather than
-  // failing an unrelated listing.
+  // nodeless pair the lock holds no CURRENT valid entry for. This re-verifies
+  // (core/verify-lock.ts#verifyPairs, the same engine `yg check` itself runs)
+  // scoped to just the nodeless pairs already enumerated above, rather than a
+  // second whole-project `computeExpectedPairs` walk on top of the one that
+  // built `expected` — measured upper bound on a 37-aspect fixture is a few
+  // tens of milliseconds, well under `yg check`'s own full-project pass. This
+  // catches a pair the lock has never recorded at all AND one whose recorded
+  // verdict has gone stale since a source edit — the same "no valid verdict
+  // on record" fact `yg check`, `yg owner --file`, and `yg context --file`
+  // already name for the identical pair, so the tree's qualifier can never
+  // read clean on a pair those surfaces would call unverified. A garbled lock
+  // is `yg check`'s own error to report; the tree still renders without this
+  // qualifier rather than failing an unrelated listing.
   let unverifiedEnforcedFiles = 0;
   try {
     const lock = readLock(graph.rootPath);
     const nodelessPairs = expected.pairs.filter((p) => p.nodePath === undefined);
-    const missingFiles = new Set<string>();
-    for (const p of pairsMissingFromLock(lock, nodelessPairs)) {
-      for (const f of p.subjectFiles) missingFiles.add(f);
+    const verified = await verifyPairs(graph, lock, nodelessPairs, typeCoverageInput);
+    const unverifiedFiles = new Set<string>();
+    for (const vp of verified) {
+      if (vp.state.kind === 'verified' || vp.state.kind === 'refused') continue;
+      for (const f of vp.pair.subjectFiles) unverifiedFiles.add(f);
     }
-    for (const f of missingFiles) if (enforcedFiles.has(f)) unverifiedEnforcedFiles += 1;
+    for (const f of unverifiedFiles) if (enforcedFiles.has(f)) unverifiedEnforcedFiles += 1;
   } catch (e: unknown) {
     // Garbled lock: yg check reports it separately; this line just skips the
     // qualifier rather than failing an unrelated listing.

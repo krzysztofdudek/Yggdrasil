@@ -5,13 +5,16 @@ description: >-
   unit-key helpers for the single committed verdict store that replaces per-node
   drift-state baselines. Also pairsMissingFromLock, a cheap O(1)-per-pair presence
   check (has an entry at all — never a full re-verification of its hash, so it
-  never catches a present-but-stale entry) that a repo-wide listing (yg tree, the
-  portal) can afford to pay for an honesty caveat without the cost of
-  re-verifying the whole graph. yg owner --file and yg context --file no longer
-  use pairsMissingFromLock — each already re-verifies the whole project's
+  never catches a present-but-stale entry). No CLI surface calls it today: yg
+  owner --file and yg context --file each already re-verify the whole project's
   real-node pairs just to classify its one requested file, so re-verifying that
   file's own handful of nodeless pairs too (core/verify-lock.ts's verifyPairs,
-  which also catches a stale entry) is marginal on top.
+  which also catches a stale entry) is marginal on top; yg tree and the portal —
+  once thought too costly to do the same for a repo-wide listing — were measured
+  and now pay the real re-verification too (bounded, well under yg check's own
+  full-project pass for yg tree; already-held for the portal, which runs that
+  verification anyway for its other counts). Kept as a correct, independently
+  tested primitive for a future caller that genuinely cannot afford that cost.
 aspects: []
 relations: []
 mapping:

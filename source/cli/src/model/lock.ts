@@ -61,20 +61,16 @@ export const fileUnit = (repoRelPosix: string): UnitKey => `file:${repoRelPosix}
  * `core/verify-lock.ts`'s full re-verification: that recomputes every
  * pair's input hash (re-reading files, re-observing `read:`/`list:`/
  * `graph:` targets, and for an LLM pair, resolving its companion for the
- * §4 size gate) across the WHOLE graph, which is the right cost for `yg
- * check` itself but far too much for a repo-wide listing (`yg tree`, the
- * portal) to pay just to add one honesty caveat. Missing-from-lock is the
- * one fact those two surfaces can afford: a fresh clone, or any pair `yg
- * check --approve` has simply never reached yet, has NO entry — the exact
- * "cold start" state `yg check`'s own qualified "N unverified" wording
- * already names for the identical pair, just detected here at a fraction of
- * the cost, and never claiming to also catch staleness the way `yg check`
- * does. `yg owner --file` and `yg context --file` do NOT use this function:
- * each already re-verifies the whole project's REAL-node pairs just to
- * classify its one requested file, so re-verifying that file's own handful
- * of nodeless pairs too (`core/verify-lock.ts#verifyPairs`, catching a
- * stale entry as well as a missing one) is marginal on top — see that
- * function's own doc.
+ * §4 size gate) across the WHOLE graph — the right cost for `yg check`
+ * itself, and, since the "pay the tens-of-milliseconds nodeless
+ * reverification everywhere" call, also the cost `yg tree` and the portal
+ * now pay directly (`core/verify-lock.ts#verifyPairs`), rather than reaching
+ * for this cheaper approximation. No CLI surface calls this function today —
+ * every one of them (`yg check`, `yg owner --file`, `yg context --file`, `yg
+ * tree`, the portal) now performs a genuine re-verification of every pair it
+ * reports on, so none is left answering from presence alone. Kept as a
+ * still-correct, independently tested primitive for a future caller that
+ * genuinely cannot afford the real re-verification's cost.
  */
 export function pairsMissingFromLock<T extends { aspectId: string; unitKey: UnitKey }>(
   lock: LockFile,
