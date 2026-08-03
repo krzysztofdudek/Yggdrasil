@@ -38,11 +38,28 @@ yg context --file <file-path>
   file with no owning component but a matched architecture type gets a typed view instead
   of the not-covered error (exit 0): the matched type, where its inherited chain stops and
   why, the rules that apply (each tagged with its real status — `[enforced]` or
-  `[advisory]`, never a blanket `[enforced]` for a rule that only warns), the rules attached
-  to the type that do not (each with its reason), a note that dependency conditions come
-  from imports (never events, listens, or ports), and how to give the file a component of
-  its own. When literally nothing applies, it says so plainly instead of silently omitting
-  the "Must satisfy" section.
+  `[advisory]`, never a blanket `[enforced]` for a rule that only warns, plus `, unverified`
+  appended to either tag whenever the lock does not currently hold a valid verdict for that
+  rule — the same fact plain `yg check`'s own qualified "unverified" count carries for the
+  identical pair, so `[enforced]` alone is never read as "already verified"), the rules
+  attached to the type that do not (each with its reason), a note that dependency conditions
+  come from imports (never events, listens, or ports), and how to give the file a component
+  of its own. When literally nothing applies, it says so plainly instead of silently
+  omitting the "Must satisfy" section.
+
+  ```text
+  $ yg context --file src/handlers/capturePayment.ts
+  src/handlers/capturePayment.ts
+    Owner: type:handler
+
+    Matched type: handler
+    inherited rules stop at 'handler' — it has no parent type to inherit from
+
+    Must satisfy:
+
+      validates-input [enforced, unverified] — Every handler must validate its request body before acting on it
+        read: .yggdrasil/aspects/validates-input/check.mjs
+  ```
 
 The node view also reports, per effective aspect, how many files form its subject
 set (including `0 files — vacuous` when a `scope.files` filter excludes everything),
@@ -389,7 +406,19 @@ count. The total splits into how many are actually checked by at least one
 rule, how many matched a type with nothing that applies, and — only when it
 occurs — how many hit an aspect `implies` cycle that stopped their type's
 rules from ever being resolved, so a bare "N files satisfied" can never be
-misread as "N files enforced." Absent entirely when the flag is off.
+misread as "N files enforced." The "checked by at least one rule" count
+further names, in parentheses, how many of those files have no recorded lock
+entry for at least one of their rules — a cheap presence check (the lock
+holds no entry at all), never a full re-verification, so it can miss a rule
+whose recorded verdict has gone stale since a source edit the way `yg owner
+--file` and `yg context --file` do not (see those commands below). Absent
+entirely when the flag is off.
+
+```text
+$ yg tree
+...
+6 files are satisfied by the type-level lattice, no component of their own: 3 checked by at least one rule (3 with no recorded verdict for at least one of its rules), 3 with nothing that applies.
+```
 
 ### `yg structure`
 
@@ -648,10 +677,24 @@ Under `coverage.type_level`, an unmapped file with a matched architecture type a
 with the type instead of reporting no graph coverage — and, when that type attaches at
 least one rule that actually runs on this file, says it is enforced by the type rather than
 a component. When the matched type has nothing that can run at file granularity, it says
-that plainly instead — never the enforcement claim.
+that plainly instead — never the enforcement claim. When it does say a rule is enforced,
+it re-verifies each of that file's own rules against the lock the same way `yg check`
+verifies every pair (never a second whole-project pass — this command already walks the
+whole project once to classify the file), and names how many currently have no valid
+recorded verdict — a rule the lock has never seen at all, or one whose recorded verdict
+has gone stale since a source edit, either way: "enforced by architecture" is never read
+as "already verified."
 
 ```bash
 yg owner --file <path>
+```
+
+```text
+$ yg owner --file src/handlers/capturePayment.ts
+src/handlers/capturePayment.ts -> type:handler
+  Enforced by its architecture type, not by a component (1 of 1 rule unverified — no valid verdict is currently on record for it).
+No node maps this file; every rule its matched type attaches still applies, or is honestly reported as attached but not enforced.
+yg context --file src/handlers/capturePayment.ts
 ```
 
 ### `yg suppressions`
