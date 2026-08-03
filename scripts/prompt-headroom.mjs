@@ -30,6 +30,25 @@
 // next edit has, regardless of which aspect's prompt happens to be nearest the ceiling
 // today.
 //
+// INTERRUPTION SAFETY: `process.on('exit', restore)` alone is not enough — Node does
+// not run 'exit' handlers on SIGINT/SIGTERM, so a Ctrl-C (or a CI job kill) partway
+// through this step used to leave the 1-char override in place permanently, with no
+// trace in `git status` (the file is gitignored) until the next `yg check` mysteriously
+// refuses every LLM pair as prompt-too-large. `installInterruptRestore` registers real
+// SIGINT/SIGTERM handlers that call the same `restore()` and then exit with the
+// conventional 128+signal code, so both the normal path and an interrupted one restore
+// the maintainer's exact original bytes. The one interruption no handler in any process
+// can ever catch is SIGKILL (a `kill -9` cannot be intercepted by any userspace program,
+// in any language) — as a second, independent line of defense against exactly that
+// unrecoverable case, the override this script writes is never a bare template that
+// replaces the file wholesale: `buildOverrideSecretsText` deep-merges the 1-char ceiling
+// INTO whatever the maintainer's overlay already held (their provider, endpoint, model,
+// api_key, everything untouched), the same way config-parser.ts's own deep-merge treats
+// yg-secrets.yaml as an overlay everywhere else. So even in the one scenario nothing in
+// this process can prevent, what a `kill -9` would leave behind is the maintainer's own
+// settings with a temporarily-tightened ceiling, never an amputated file with their
+// reviewer config gone.
+//
 // CONFIG READING: the real, committed ceiling(s) are parsed with the SAME `yaml`
 // package the CLI itself depends on (resolved via createRequire against
 // source/cli/package.json, since this script lives outside that package) — never a
@@ -41,7 +60,7 @@
 // every declared tier or throws — this script never prints a margin against a ceiling
 // it could not establish.
 
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -106,6 +125,62 @@ export function resolveTierLimits(configText, configPath) {
   return tierLimits;
 }
 
+function isPlainObject(v) {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+/**
+ * Deep-merge plain objects: `overlay` wins. Nested mappings recurse; scalars,
+ * arrays, and mismatched types are replaced wholesale by the overlay value.
+ * Pure — mirrors source/cli/src/io/secrets-parser.ts's own `deepMerge` (not
+ * imported directly: that module is internal to the CLI's bundle, not a
+ * published library entry point this script outside the package can reach).
+ */
+function deepMerge(base, overlay) {
+  const out = { ...base };
+  for (const [key, ov] of Object.entries(overlay)) {
+    const bv = out[key];
+    out[key] = isPlainObject(bv) && isPlainObject(ov) ? deepMerge(bv, ov) : ov;
+  }
+  return out;
+}
+
+/**
+ * Build the TEMPORARY override text this script writes to yg-secrets.yaml —
+ * the maintainer's own overlay (parsed, if one existed), deep-merged with a
+ * 1-char max_prompt_chars for every tier this run needs to measure. Never a
+ * bare template that replaces the file wholesale: a maintainer's real local
+ * overlay (their reviewer provider, endpoint, model, api_key) survives
+ * untouched alongside the temporary ceiling, so even a SIGKILL — the one
+ * interruption `installInterruptRestore` below cannot catch — leaves behind
+ * their own settings with a tightened ceiling, never an amputated file.
+ * `originalSecretsText` is `null` when no overlay existed yet.
+ */
+export function buildOverrideSecretsText(originalSecretsText, tierNames) {
+  const base = originalSecretsText ? YAML.parse(originalSecretsText) ?? {} : {};
+  const tiersOverride = {};
+  for (const name of tierNames) tiersOverride[name] = { max_prompt_chars: 1 };
+  const merged = deepMerge(isPlainObject(base) ? base : {}, { reviewer: { tiers: tiersOverride } });
+  return YAML.stringify(merged);
+}
+
+/**
+ * Register SIGINT/SIGTERM handlers that call `restore` and then exit with the
+ * conventional 128+signal code. `process.on('exit', restore)` alone never
+ * fires for either signal — Node's default disposition for both is immediate
+ * termination unless a handler is registered, so without this an ordinary
+ * Ctrl-C (or a CI job's kill) during this step skips the restore entirely,
+ * leaving the 1-char override as the maintainer's new "permanent" config.
+ */
+export function installInterruptRestore(restore) {
+  const onSignal = (signal) => {
+    restore();
+    process.exit(signal === 'SIGINT' ? 130 : 143);
+  };
+  process.on('SIGINT', () => onSignal('SIGINT'));
+  process.on('SIGTERM', () => onSignal('SIGTERM'));
+}
+
 function log(m) { process.stdout.write(`[prompt-headroom] ${m}\n`); }
 function fail(m) { process.stderr.write(`[prompt-headroom] FAIL: ${m}\n`); process.exit(1); }
 
@@ -131,35 +206,57 @@ async function main() {
     if (hadSecrets) writeFileSync(SECRETS_PATH, originalSecrets);
     else if (existsSync(SECRETS_PATH)) rmSync(SECRETS_PATH);
   }
-  // Last-resort net: restore on process exit even if something below throws or calls
-  // process.exit() directly, so a crash never leaves the real reviewer config altered.
+  // Last-resort net: restore on a NORMAL exit even if something below throws or calls
+  // process.exit() directly. Node does not run 'exit' handlers on SIGINT/SIGTERM, so
+  // this alone is not sufficient — installInterruptRestore below covers those two.
+  //
+  // Both handlers ONLY have a chance to run promptly if the wait for the child `yg
+  // check` process does not block the JS event loop: execFileSync's synchronous wait
+  // starves the loop entirely, so a SIGINT delivered to just this parent process (the
+  // shape a `kill`/CI job-cancel takes; a real terminal Ctrl-C also reaches the child
+  // directly, independently) would sit unhandled until the child finishes on its own —
+  // silently defeating the whole point of these handlers on a multi-second run. Using
+  // the async `execFile` instead keeps the event loop pumping, so a signal's handler
+  // fires immediately, mid-wait, not only once the child happens to finish.
   process.on('exit', restore);
+
+  let currentChild;
+  // Belt-and-suspenders: if a signal arrives, also terminate the still-running child
+  // rather than leave it as an orphaned `yg check` process after this script exits.
+  // Registered BEFORE installInterruptRestore: Node calls same-event listeners in
+  // registration order, and installInterruptRestore's own listener calls
+  // process.exit() — once that runs, a listener registered AFTER it never gets a turn.
+  process.on('SIGINT', () => currentChild?.kill('SIGINT'));
+  process.on('SIGTERM', () => currentChild?.kill('SIGTERM'));
+  installInterruptRestore(restore);
 
   let stdout = '';
   try {
-    const overlayTiers = [...tierLimits.keys()]
-      .map((name) => `    ${name}:\n      max_prompt_chars: 1\n`)
-      .join('');
-    writeFileSync(SECRETS_PATH, `reviewer:\n  tiers:\n${overlayTiers}`);
+    // Deep-merged into whatever the maintainer's own overlay already held (see the
+    // INTERRUPTION SAFETY note at the top of this file) — never a bare template that
+    // would replace their real settings wholesale.
+    writeFileSync(SECRETS_PATH, buildOverrideSecretsText(originalSecrets, [...tierLimits.keys()]));
 
-    try {
-      // --details: the ungrouped, one-block-per-issue view. Plain `yg check`'s default
-      // grouped view caps how many distinct groups it prints (falling back to "run
-      // --top <n> or --aspect <id>" beyond that) — with every LLM pair now tripping the
-      // gate, the pair count alone spans far more groups than that cap allows, and a
-      // capped view would silently under-report exactly the tail this script exists to
-      // find. --details has no such cap: every pair renders its own block.
-      stdout = execFileSync('node', [BIN_PATH, 'check', '--details'], {
-        cwd: REPO_ROOT,
-        encoding: 'utf-8',
-        maxBuffer: 64 * 1024 * 1024,
-      });
-    } catch (e) {
-      // `yg check` exits 1 whenever anything is unverified/oversized — expected here
-      // (every LLM pair now trips the 1-char ceiling). Its stdout is still the report.
-      stdout = e.stdout ?? '';
-      if (!stdout) fail(`yg check produced no output (${e.message}). Restoring config and stopping.`);
-    }
+    // --details: the ungrouped, one-block-per-issue view. Plain `yg check`'s default
+    // grouped view caps how many distinct groups it prints (falling back to "run
+    // --top <n> or --aspect <id>" beyond that) — with every LLM pair now tripping the
+    // gate, the pair count alone spans far more groups than that cap allows, and a
+    // capped view would silently under-report exactly the tail this script exists to
+    // find. --details has no such cap: every pair renders its own block.
+    const { error, out } = await new Promise((resolve) => {
+      const child = execFile(
+        'node',
+        [BIN_PATH, 'check', '--details'],
+        { cwd: REPO_ROOT, encoding: 'utf-8', maxBuffer: 64 * 1024 * 1024 },
+        (err, childStdout) => resolve({ error: err, out: childStdout ?? '' }),
+      );
+      currentChild = child;
+    });
+    // `yg check` exits 1 whenever anything is unverified/oversized — expected here
+    // (every LLM pair now trips the 1-char ceiling). Its stdout is still the report,
+    // captured above regardless of exit code.
+    stdout = out;
+    if (error && !stdout) fail(`yg check produced no output (${error.message}). Restoring config and stopping.`);
   } finally {
     restore();
   }

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 // resolveTierLimits is the pure config-reading half of the prompt-headroom
 // measurement script: given the RAW TEXT of a committed yg-config.yaml, it
 // returns the real max_prompt_chars ceiling for every declared reviewer tier,
@@ -6,7 +6,7 @@ import { describe, it, expect } from 'vitest';
 // exercised directly, mirroring this suite's own spectral-headroom.test.ts
 // precedent for a plain-ESM script at the repo root.
 // @ts-expect-error — plain ESM script at the repo root, no type declarations.
-import { resolveTierLimits, ENGINE_DEFAULT_MAX_PROMPT_CHARS } from '../../../../scripts/prompt-headroom.mjs';
+import { resolveTierLimits, ENGINE_DEFAULT_MAX_PROMPT_CHARS, buildOverrideSecretsText, installInterruptRestore } from '../../../../scripts/prompt-headroom.mjs';
 
 describe('prompt-headroom — resolveTierLimits reads the real committed ceiling', () => {
   it('is not fooled by a larger number sitting in a comment above the live value', () => {
@@ -89,5 +89,69 @@ describe('prompt-headroom — resolveTierLimits reads the real committed ceiling
   it('throws on a non-positive-integer max_prompt_chars rather than reporting a bogus ceiling', () => {
     const configText = 'reviewer:\n  tiers:\n    standard:\n      max_prompt_chars: -5\n';
     expect(() => resolveTierLimits(configText, 'yg-config.yaml')).toThrow(/not a positive integer/);
+  });
+});
+
+describe('prompt-headroom — buildOverrideSecretsText never wipes the maintainer\'s own overlay', () => {
+  it('with no existing overlay, writes only the measurement override', () => {
+    const text = buildOverrideSecretsText(null, ['standard']);
+    expect(text).toContain('max_prompt_chars: 1');
+    expect(text).toMatch(/standard/);
+  });
+
+  it("merges the override INTO a real maintainer overlay instead of replacing it — the provider, endpoint, and model all survive", () => {
+    // The exact shape a maintainer's local reviewer override takes (a real
+    // provider pointed at a local model) — this is what a wholesale
+    // `writeFileSync(SECRETS_PATH, template)` used to throw away entirely.
+    const maintainerOverlay = [
+      '# MY REAL LOCAL OVERLAY',
+      'parallel: 1',
+      'reviewer:',
+      '  tiers:',
+      '    standard:',
+      '      provider: ollama',
+      '      config:',
+      '        model: a-local-model',
+      '        endpoint: http://localhost:11434',
+      '',
+    ].join('\n');
+    const merged = buildOverrideSecretsText(maintainerOverlay, ['standard']);
+    expect(merged).toContain('ollama');
+    expect(merged).toContain('a-local-model');
+    expect(merged).toContain('http://localhost:11434');
+    expect(merged).toMatch(/parallel:\s*1/);
+    expect(merged).toMatch(/max_prompt_chars:\s*1\b/);
+  });
+
+  it('overrides every declared tier, not only the first', () => {
+    const merged = buildOverrideSecretsText(null, ['standard', 'big']);
+    expect(merged).toMatch(/standard:[\s\S]*max_prompt_chars: 1/);
+    expect(merged).toMatch(/big:[\s\S]*max_prompt_chars: 1/);
+  });
+});
+
+describe('prompt-headroom — installInterruptRestore restores on SIGINT/SIGTERM, not only on a normal exit', () => {
+  afterEach(() => {
+    process.removeAllListeners('SIGINT');
+    process.removeAllListeners('SIGTERM');
+    vi.restoreAllMocks();
+  });
+
+  it('SIGINT calls restore() and exits 130 — Ctrl-C mid-run must not skip the restore', () => {
+    const restore = vi.fn();
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never);
+    installInterruptRestore(restore);
+    process.emit('SIGINT');
+    expect(restore).toHaveBeenCalledTimes(1);
+    expect(exitSpy).toHaveBeenCalledWith(130);
+  });
+
+  it('SIGTERM calls restore() and exits 143 — a CI job kill mid-run must not skip the restore', () => {
+    const restore = vi.fn();
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never);
+    installInterruptRestore(restore);
+    process.emit('SIGTERM');
+    expect(restore).toHaveBeenCalledTimes(1);
+    expect(exitSpy).toHaveBeenCalledWith(143);
   });
 });

@@ -1,15 +1,29 @@
 name: Prompt Headroom Unit Tests
 type: test-suite
 description: >-
-  Unit tests for resolveTierLimits, the pure config-reading half of the
-  prompt-headroom measurement script (scripts/prompt-headroom.mjs): given the
-  raw text of a committed yg-config.yaml, it resolves every declared reviewer
-  tier's real max_prompt_chars ceiling using the CLI's own YAML parser — never
-  fooled by a larger number sitting in a comment, indifferent to which sibling
-  key precedes `tiers:` — or throws when it cannot establish one (unparseable
+  Unit tests for three pure/testable pieces of the prompt-headroom measurement
+  script (scripts/prompt-headroom.mjs). resolveTierLimits: given the raw text
+  of a committed yg-config.yaml, resolves every declared reviewer tier's real
+  max_prompt_chars ceiling using the CLI's own YAML parser — never fooled by a
+  larger number sitting in a comment, indifferent to which sibling key
+  precedes `tiers:` — or throws when it cannot establish one (unparseable
   YAML, a missing or empty reviewer.tiers, a non-positive-integer ceiling),
   rather than let a caller print a margin against a ceiling it never actually
-  established. Fully offline — no subprocess, no built dist.
+  established. buildOverrideSecretsText: deep-merges the script's temporary
+  1-char measurement ceiling INTO whatever the maintainer's own gitignored
+  yg-secrets.yaml overlay already held, rather than replace the file wholesale
+  — so their provider/endpoint/model survive alongside the override.
+  installInterruptRestore: registers the SIGINT/SIGTERM handlers that call the
+  script's restore function and exit with the conventional 128+signal code —
+  `process.on('exit', ...)` alone never fires for either signal. All three
+  exercised directly and offline (no subprocess, no built dist); the fourth
+  necessary half of this fix — that the restore handlers actually get a
+  chance to run DURING a multi-second child `yg check` wait, which requires
+  the async `execFile` this script now uses instead of a blocking
+  `execFileSync` — was verified by manually sending a real SIGINT to a running
+  instance against a scratch copy, not by an automated test (a real,
+  timing-dependent OS signal delivered mid-wait is not a reliable thing to
+  assert on in CI).
 aspects: []
 relations:
   - target: scripts
