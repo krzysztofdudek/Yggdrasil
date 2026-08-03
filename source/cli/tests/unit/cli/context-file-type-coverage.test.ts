@@ -93,7 +93,7 @@ describe.skipIf(!distExists)('yg context --file — typed view for a type-covere
       const { stdout, status } = run(['context', '--file', 'src/pics/readme.md'], dir);
       expect(status).toBe(0);
       expect(stdout).toContain('Must satisfy:');
-      // A cold, never-filled project also carries the F2 "unverified" caveat
+      // A cold, never-filled project also carries the "unverified" caveat
       // here — orthogonal to what this test pins (real status, not binary
       // exemption), so the match tolerates it rather than asserting on it.
       expect(stdout).toMatch(/prose-rule \[enforced(?:, unverified)?\]/);
@@ -111,7 +111,7 @@ describe.skipIf(!distExists)('yg context --file — typed view for a type-covere
     try {
       const { stdout, status } = run(['context', '--file', 'src/leaf/a.ts'], dir);
       expect(status).toBe(0);
-      // A cold, never-filled project also carries the F2 "unverified" caveat
+      // A cold, never-filled project also carries the "unverified" caveat
       // here — orthogonal to what this test pins (real status, never a
       // hardcoded one), so the match tolerates it rather than asserting on it.
       expect(stdout).toMatch(/implied-file-rule \[advisory(?:, unverified)?\]/);
@@ -121,11 +121,13 @@ describe.skipIf(!distExists)('yg context --file — typed view for a type-covere
     }
   });
 
-  // F2: `[enforced]` names architecture-level status, never a recorded
-  // verdict — a cold, never-filled project must say so, the same qualified
-  // caveat plain `yg check` already carries for the identical pair, and the
-  // caveat must disappear once the pair genuinely has one.
-  it('names a rule with no recorded lock entry as [enforced, unverified], and drops the caveat once the lock actually holds one', () => {
+  // `[enforced]` names architecture-level status, never a recorded verdict —
+  // a cold, never-filled project must say so, the same qualified caveat
+  // plain `yg check` already carries for the identical pair, and the caveat
+  // must disappear once the pair genuinely has one — then reappear if the
+  // file changes again with no re-approve, since a present-but-stale entry
+  // is just as much a gap as a missing one.
+  it('names a rule with no recorded lock entry as [enforced, unverified], drops the caveat once the lock actually holds a valid one, and puts it back once that entry goes stale', () => {
     const dir = copyFixture(FIXTURE_NEEDS_NODE_CONTEXT);
     try {
       const before = run(['context', '--file', 'src/crashy/a.ts'], dir);
@@ -136,13 +138,24 @@ describe.skipIf(!distExists)('yg context --file — typed view for a type-covere
       // own-file-rule) starts with the identical caveat before any fill —
       run(['check', '--approve', '--only-deterministic'], dir);
       // — and loses it entirely once its own fill genuinely wrote a verdict,
-      // while src/crashy/a.ts's own pair (fails closed every attempt — see
-      // F1's own fixture) keeps the caveat, since no verdict was ever written.
+      // while src/crashy/a.ts's own pair (fails closed every attempt — its
+      // check.mjs reads ctx.node unconditionally, a structurally impossible
+      // ask for a component-free file) keeps the caveat, since no verdict
+      // was ever written for it.
       const after = run(['context', '--file', 'src/crashy/a.ts'], dir);
       expect(after.stdout).toMatch(/needs-node-context \[enforced, unverified\] —/);
       const leafAfter = run(['context', '--file', 'src/leaf/a.ts'], dir);
       expect(leafAfter.stdout).toMatch(/own-file-rule \[enforced\] —/);
       expect(leafAfter.stdout).not.toContain('unverified');
+
+      // A plain source edit, no re-approve: the lock still holds an entry
+      // for every one of src/leaf/a.ts's own rules, but none of them match
+      // its current bytes any more. The tag must come back — a PRESENT
+      // entry that no longer matches current input is exactly as much a gap
+      // as no entry at all, and reading only presence would silently miss it.
+      writeFileSync(path.join(dir, 'src', 'leaf', 'a.ts'), 'export const a = 2;\n');
+      const leafStale = run(['context', '--file', 'src/leaf/a.ts'], dir);
+      expect(leafStale.stdout).toMatch(/own-file-rule \[enforced, unverified\] —/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

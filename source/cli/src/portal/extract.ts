@@ -194,11 +194,15 @@ export async function extractPortalData(
     if (p.nodePath !== undefined) continue;
     for (const f of p.subjectFiles) enforcedTypeCoveredFiles.add(f);
   }
-  // F2: `enforced` names architecture-level status, never a recorded verdict
-  // — `lock` (already read above for the pair-verification seam, no extra
-  // I/O here) tells which of the nodeless pairs it holds no entry for at
-  // all, the same lock-derived fact plain `yg check` already carries for the
-  // identical pair.
+  // `enforced` names architecture-level status, never a recorded verdict —
+  // `lock` (already read above for the pair-verification seam, no extra I/O
+  // here) tells which of the nodeless pairs it holds no entry for AT ALL.
+  // Cheaper than a full re-verification of every nodeless pair in the whole
+  // project (the right cost for `yg check` itself, too much for one
+  // extraction): catches a pair the lock has never recorded at all, never
+  // one whose recorded verdict has gone stale since a source edit — unlike
+  // `yg owner --file` / `yg context --file`, scoped to one file each, which
+  // catch both.
   const unverifiedTypeCoveredFiles = new Set<string>();
   const nodelessExpectedPairs = expected.pairs.filter((p) => p.nodePath === undefined);
   for (const p of pairsMissingFromLock(lock, nodelessExpectedPairs)) {

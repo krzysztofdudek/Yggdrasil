@@ -62,14 +62,19 @@ export const fileUnit = (repoRelPosix: string): UnitKey => `file:${repoRelPosix}
  * pair's input hash (re-reading files, re-observing `read:`/`list:`/
  * `graph:` targets, and for an LLM pair, resolving its companion for the
  * §4 size gate) across the WHOLE graph, which is the right cost for `yg
- * check` itself but far too much for a single-file lookup command (`yg
- * owner --file`, `yg context --file`, `yg tree`, the portal) to pay just to
- * add one honesty caveat. Missing-from-lock is the one fact those surfaces
- * can afford: a fresh clone, or any pair `yg check --approve` has simply
- * never reached yet, has NO entry — the exact "cold start" state `yg
- * check`'s own qualified "N unverified" wording already names for the
- * identical pair, just detected here at a fraction of the cost, and never
- * claiming to also catch staleness the way `yg check` does.
+ * check` itself but far too much for a repo-wide listing (`yg tree`, the
+ * portal) to pay just to add one honesty caveat. Missing-from-lock is the
+ * one fact those two surfaces can afford: a fresh clone, or any pair `yg
+ * check --approve` has simply never reached yet, has NO entry — the exact
+ * "cold start" state `yg check`'s own qualified "N unverified" wording
+ * already names for the identical pair, just detected here at a fraction of
+ * the cost, and never claiming to also catch staleness the way `yg check`
+ * does. `yg owner --file` and `yg context --file` do NOT use this function:
+ * each already re-verifies the whole project's REAL-node pairs just to
+ * classify its one requested file, so re-verifying that file's own handful
+ * of nodeless pairs too (`core/verify-lock.ts#verifyPairs`, catching a
+ * stale entry as well as a missing one) is marginal on top — see that
+ * function's own doc.
  */
 export function pairsMissingFromLock<T extends { aspectId: string; unitKey: UnitKey }>(
   lock: LockFile,

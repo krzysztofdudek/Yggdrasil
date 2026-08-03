@@ -1,6 +1,17 @@
 name: LockTypes
 type: types
-description: Content-addressed lock file types — LockFile, VerdictEntry, LockNodeEntry, and unit-key helpers for the single committed verdict store that replaces per-node drift-state baselines. Also pairsMissingFromLock, a cheap O(1)-per-pair presence check (has an entry at all — never a full re-verification of its hash) that a single-file lookup command can afford to pay for an honesty caveat without the cost of re-verifying the whole graph.
+description: >-
+  Content-addressed lock file types — LockFile, VerdictEntry, LockNodeEntry, and
+  unit-key helpers for the single committed verdict store that replaces per-node
+  drift-state baselines. Also pairsMissingFromLock, a cheap O(1)-per-pair presence
+  check (has an entry at all — never a full re-verification of its hash, so it
+  never catches a present-but-stale entry) that a repo-wide listing (yg tree, the
+  portal) can afford to pay for an honesty caveat without the cost of
+  re-verifying the whole graph. yg owner --file and yg context --file no longer
+  use pairsMissingFromLock — each already re-verifies the whole project's
+  real-node pairs just to classify its one requested file, so re-verifying that
+  file's own handful of nodeless pairs too (core/verify-lock.ts's verifyPairs,
+  which also catches a stale entry) is marginal on top.
 aspects: []
 relations: []
 mapping:

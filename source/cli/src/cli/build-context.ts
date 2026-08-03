@@ -27,7 +27,7 @@ import { computeTypeAspectCascade, describeCascadeCycle } from '../core/type-eff
 import { buildTypeVisibility, describeTypeVisibilityReason, describeChainTermination, toAppliedPairs } from '../core/type-visibility.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import { readLock } from '../io/lock-store.js';
-import { fileUnit, pairsMissingFromLock } from '../model/lock.js';
+import { verifyPairs } from '../core/verify-lock.js';
 import { readLogContent, hasFreshLogEntry } from '../core/log/log-gate.js';
 import type { NodeContextData, NodeAspectSubjects, NodeLogState } from '../formatters/context-node.js';
 import type { Graph } from '../model/graph.js';
@@ -129,7 +129,8 @@ function ruleSourcePathFor(aspectId: string, reviewerType: 'llm' | 'deterministi
  */
 async function buildTypeCoveredFileContextData(graph: Graph, file: string, typeId: string): Promise<FileContextData> {
   const covered = new Map([[file, typeId]]);
-  const { drops, pairs } = await computeExpectedPairs(graph, { typeCoverage: { covered, ambiguousPaths: [] } });
+  const typeCoverageInput = { covered, ambiguousPaths: [] };
+  const { drops, pairs } = await computeExpectedPairs(graph, { typeCoverage: typeCoverageInput });
   // toAppliedPairs narrows to nodeless pairs — `pairs` also carries every REAL
   // node's own pairs (the ordinary per-node loop still runs over the whole
   // project), which must never leak into this one file's applied-rules list.
@@ -156,18 +157,24 @@ async function buildTypeCoveredFileContextData(graph: Graph, file: string, typeI
     ...block.advisory.map((id) => toFileAspect(id, 'advisory')),
   ].sort((a, b) => (a.aspectId < b.aspectId ? -1 : a.aspectId > b.aspectId ? 1 : 0));
 
-  // F2: [enforced]/[advisory] names architecture-level status, never a
-  // recorded verdict — mark which of `applied`'s pairs the lock holds no
-  // entry for at all, the same lock-derived fact plain `yg check` already
-  // carries for the identical pair. A garbled lock is `yg check`'s own error
-  // to report; this view still renders without the caveat rather than
-  // failing an unrelated file-context lookup.
+  // [enforced]/[advisory] names architecture-level status, never a recorded
+  // verdict — mark which of `applied`'s pairs the lock does NOT currently
+  // hold a valid verdict for. Runs the exact same per-pair verification `yg
+  // check` performs (core/verify-lock.ts#verifyPairs, scoped to this file's
+  // own nodeless pairs — already computed above as `pairs`, never a second
+  // whole-project pass), so a stale entry (this file edited since the
+  // verdict was recorded) is marked unverified here exactly as it would be
+  // in `yg check`'s own qualified count, not only a pair the lock has never
+  // seen at all. A garbled lock is `yg check`'s own error to report; this
+  // view still renders without the caveat rather than failing an unrelated
+  // file-context lookup.
   try {
-    const unitKey = fileUnit(file);
-    const missing = new Set(
-      pairsMissingFromLock(readLock(graph.rootPath), applied.map((a) => ({ aspectId: a.aspectId, unitKey }))).map((p) => p.aspectId),
+    const nodelessPairs = pairs.filter((p) => p.nodePath === undefined);
+    const verified = await verifyPairs(graph, readLock(graph.rootPath), nodelessPairs, typeCoverageInput);
+    const unverifiedByAspect = new Map(
+      verified.map((vp) => [vp.pair.aspectId, vp.state.kind !== 'verified' && vp.state.kind !== 'refused']),
     );
-    for (const a of applied) a.unverified = missing.has(a.aspectId);
+    for (const a of applied) a.unverified = unverifiedByAspect.get(a.aspectId) ?? true;
   } catch (e: unknown) {
     debugWrite(`[context] lock read failed while building the unverified caveat: ${e instanceof Error ? e.message : String(e)}`);
   }

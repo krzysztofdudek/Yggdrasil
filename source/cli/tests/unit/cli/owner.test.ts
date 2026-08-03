@@ -461,7 +461,7 @@ describe('owner — a typed answer for a type-covered file', () => {
         { cwd, encoding: 'utf-8' },
       );
       expect(result.status).toBe(0);
-      // A cold, never-filled fixture also carries the F2 "unverified" caveat
+      // A cold, never-filled fixture also carries the "unverified" caveat
       // here — orthogonal to what this test pins (the phrase itself keeps
       // saying "Enforced by its architecture type"), so the match tolerates
       // it rather than asserting on it.

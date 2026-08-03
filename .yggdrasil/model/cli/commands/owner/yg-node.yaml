@@ -13,11 +13,15 @@ description: "Resolves a file path to its owning graph node via yg owner. For
   anything here from the real computed pairs, saying so only when at least
   one real pair exists; with zero it says that plainly instead, never
   claiming enforcement that is not there. When it does say a rule is
-  enforced, it also checks the lock directly (a cheap presence check, never
-  a full re-verification) and names how many of those rules have no
-  recorded verdict at all — the same lock-derived fact plain yg check's
-  qualified 'unverified' wording already carries for the identical pair, so
-  'enforced by architecture' is never read as 'already verified'."
+  enforced, it also re-verifies each of those rules against the lock with
+  the SAME per-pair check yg check itself performs (verify-lock.ts's
+  verifyPairs, scoped to just this file's own handful of pairs — cheap on
+  top of the whole-project pair walk above, never a second one) and names
+  how many currently have no valid recorded verdict — a pair the lock has
+  never seen at all, or one whose recorded verdict has gone stale since a
+  source edit, both counted the same way yg check's qualified 'unverified'
+  wording already counts them for the identical pair, so 'enforced by
+  architecture' is never read as 'already verified'."
 aspects:
   - posix-paths-output
 relations:
@@ -48,6 +52,8 @@ relations:
   - target: cli/core/type-effective
     type: calls
   - target: cli/core/type-visibility
+    type: calls
+  - target: cli/core/verify-lock
     type: calls
   - target: cli/io/lock-store
     type: calls

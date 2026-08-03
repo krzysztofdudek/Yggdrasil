@@ -7,7 +7,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, cpSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, cpSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -176,7 +176,7 @@ describe.skipIf(!distExists)('yg check / yg context --file — type-visibility (
     }
   });
 
-  // F2: `yg owner --file` used to print a flat "Enforced by its architecture
+  // `yg owner --file` used to print a flat "Enforced by its architecture
   // type, not by a component." with zero regard for whether the lock holds
   // any verdict at all — weaker than plain `yg check`, which at least says
   // "(1, 1 unverified)" for the identical pair. This pins that a cold,
@@ -189,23 +189,24 @@ describe.skipIf(!distExists)('yg check / yg context --file — type-visibility (
       expect(status).toBe(0);
       expect(stdout).toContain('src/crashy/a.ts -> type:crashy');
       expect(stdout).toMatch(
-        /Enforced by its architecture type, not by a component \(1 of 1 rule unverified — the lock holds no entry for it yet\)\./,
+        /Enforced by its architecture type, not by a component \(1 of 1 rule unverified — no valid verdict is currently on record for it\)\./,
       );
 
       // A DIFFERENT file whose rules will fill successfully (src/leaf/a.ts,
       // unrelated to this fixture's own crashy pair) carries the identical
       // caveat before any fill has ever run.
       const leafBefore = run(['owner', '--file', 'src/leaf/a.ts'], dir);
-      expect(leafBefore.stdout).toMatch(/\(\d+ of \d+ rules? unverified — the lock holds no entry for (?:it|them) yet\)/);
+      expect(leafBefore.stdout).toMatch(/\(\d+ of \d+ rules? unverified — no valid verdict is currently on record for (?:it|them)\)/);
 
       const approve = run(['check', '--approve', '--only-deterministic'], dir);
       expect(approve.status).toBe(1); // still red overall (unrelated fixture issues) — not the concern here
 
-      // src/crashy/a.ts's own pair fails closed every attempt (F1's own
-      // fixture) — fail-closed means no verdict is EVER written for it, so
-      // the caveat still names it after a real --approve attempt.
+      // src/crashy/a.ts's own pair fails closed every attempt — its check.mjs
+      // reads ctx.node unconditionally, a structurally impossible ask for a
+      // component-free file — fail-closed means no verdict is EVER written
+      // for it, so the caveat still names it after a real --approve attempt.
       const crashyAfter = run(['owner', '--file', 'src/crashy/a.ts'], dir);
-      expect(crashyAfter.stdout).toContain('1 of 1 rule unverified — the lock holds no entry for it yet');
+      expect(crashyAfter.stdout).toContain('1 of 1 rule unverified — no valid verdict is currently on record for it');
 
       // src/leaf/a.ts's rules DID fill successfully — the caveat disappears
       // entirely once every one of them has a recorded verdict, never a
@@ -229,6 +230,58 @@ describe.skipIf(!distExists)('yg check / yg context --file — type-visibility (
       expect(stdout).toContain('own-file-rule');
       expect(stdout).toMatch(/worked out from this file's own imports/);
       expect(stdout).toMatch(/give this file a component of its own/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // The caveat above only ever checked whether the lock held AN entry at
+  // all — a present entry whose recorded verdict no longer matches the
+  // file's current bytes read as clean, the exact silent staleness a
+  // per-file honesty caveat exists to catch. This drives one pair from
+  // missing, through a real fill that records a valid verdict, to STALE
+  // again after a plain source edit with no re-approve — and checks that
+  // `yg owner --file` and `yg context --file` both name it unverified at
+  // every one of those three moments, the same way plain `yg check` does,
+  // not only at the first.
+  it('yg owner --file and yg context --file also name a STALE lock entry, not only a missing one', () => {
+    const dir = copyFixture(NEEDS_NODE_CONTEXT);
+    try {
+      // Before any fill: no entry at all.
+      const ownerCold = run(['owner', '--file', 'src/leaf/a.ts'], dir);
+      expect(ownerCold.stdout).toMatch(/\(\d+ of \d+ rules? unverified — no valid verdict is currently on record for (?:it|them)\)/);
+      const contextCold = run(['context', '--file', 'src/leaf/a.ts'], dir);
+      expect(contextCold.stdout).toMatch(/own-file-rule \[enforced, unverified\] —/);
+
+      // A real fill genuinely writes a valid verdict for every one of
+      // src/leaf/a.ts's own rules (all deterministic — --only-deterministic
+      // fills every one of them; unrelated to src/crashy/a.ts's own
+      // permanent failure, which keeps the overall run red).
+      const approve = run(['check', '--approve', '--only-deterministic'], dir);
+      expect(approve.status).toBe(1);
+      const ownerFilled = run(['owner', '--file', 'src/leaf/a.ts'], dir);
+      expect(ownerFilled.stdout).toContain('Enforced by its architecture type, not by a component.\n');
+      const contextFilled = run(['context', '--file', 'src/leaf/a.ts'], dir);
+      expect(contextFilled.stdout).toMatch(/own-file-rule \[enforced\] —/);
+      expect(contextFilled.stdout).not.toContain('unverified');
+
+      // A plain source edit, no re-approve: the lock still holds an entry
+      // for every one of this file's rules, but none of them match the
+      // file's current bytes any more — STALE, not missing. Plain `yg
+      // check` already calls this "unverified" for the identical pair; the
+      // per-file surfaces must agree, not read the mere presence of an
+      // entry as proof it is still current.
+      writeFileSync(path.join(dir, 'src', 'leaf', 'a.ts'), 'export const a = 2; // edited after approve\n');
+      const plainAfterEdit = run(['check'], dir);
+      const leafIdx = plainAfterEdit.stdout.indexOf("'leaf'");
+      const nextBlockIdx = plainAfterEdit.stdout.indexOf("\n  '", leafIdx + 1);
+      const leafBlock = plainAfterEdit.stdout.slice(leafIdx, nextBlockIdx === -1 ? undefined : nextBlockIdx);
+      expect(leafBlock).toContain('unverified');
+
+      const ownerStale = run(['owner', '--file', 'src/leaf/a.ts'], dir);
+      expect(ownerStale.stdout).toMatch(/\(\d+ of \d+ rules? unverified — no valid verdict is currently on record for (?:it|them)\)/);
+      const contextStale = run(['context', '--file', 'src/leaf/a.ts'], dir);
+      expect(contextStale.stdout).toMatch(/own-file-rule \[enforced, unverified\] —/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

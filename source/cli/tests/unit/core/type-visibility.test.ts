@@ -17,7 +17,7 @@ import {
   describeTypeVisibilityReason,
   cannotRunReasonFor,
   cannotRunUnverifiedMessage,
-  unrecordedVerdictCaveat,
+  unverifiedVerdictCaveat,
   toRuntimeVisibilityRows,
 } from '../../../src/core/type-visibility.js';
 import type { TypeVisibilityRow, TypeVisibilityAppliedPair } from '../../../src/core/type-visibility.js';
@@ -30,7 +30,6 @@ import { buildTestGraphForStructure } from '../helpers/build-test-graph-structur
 import { cleanupTestGraphs } from '../helpers/build-test-graph.js';
 import { FIXTURE_NODELESS_RUNNER, FIXTURE_CYCLIC_TYPE } from '../../fixtures/type-level-engine/variants/index.js';
 import type { Graph, GraphNode, AspectDef, ScopeDef, WhenPredicate } from '../../../src/model/graph.js';
-import { LOCK_FORMAT_VERSION, type LockFile } from '../../../src/model/lock.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../../..');
@@ -695,43 +694,32 @@ describe('cannotRunReasonFor / cannotRunUnverifiedMessage — the pair-fillable 
   });
 });
 
-// F2: yg owner --file / yg context --file / yg tree / the portal used to
-// print a flat "enforced" for a type-covered file's rules with zero regard
-// for whether the lock actually holds a verdict — weaker than plain `yg
-// check`, which at least says "(1, 1 unverified)" for the identical pair.
-describe('unrecordedVerdictCaveat — the per-file surfaces\' honesty caveat', () => {
-  const emptyLock: LockFile = { version: LOCK_FORMAT_VERSION, verdicts: {}, nodes: {} };
-
-  it('a fresh lock (nothing ever filled): every pair is named in the caveat', () => {
-    const pairs = [{ aspectId: 'needs-node-context', unitKey: 'file:src/crashy/a.ts' }];
-    expect(unrecordedVerdictCaveat(emptyLock, pairs)).toBe(
-      ' (1 of 1 rule unverified — the lock holds no entry for it yet)',
+// yg owner --file / yg context --file used to print a flat "enforced" for a
+// type-covered file's rules with zero regard for whether the lock actually
+// holds a CURRENTLY VALID verdict — weaker than plain `yg check`, which at
+// least says "(1, 1 unverified)" for the identical pair. Both commands now
+// run the real per-pair verification (core/verify-lock.ts#verifyPairs) and
+// pass its outcome here; this only tests the caveat text itself, which
+// deliberately does not care WHY a pair reads unverified — missing entry and
+// stale entry render identically, matching plain `yg check`'s own count.
+describe('unverifiedVerdictCaveat — the per-file surfaces\' honesty caveat', () => {
+  it('every pair unverified (a fresh lock, or every entry gone stale): all named', () => {
+    expect(unverifiedVerdictCaveat([{ aspectId: 'needs-node-context', verified: false }])).toBe(
+      ' (1 of 1 rule unverified — no valid verdict is currently on record for it)',
     );
   });
 
-  it('every pair already has a recorded verdict entry: renders empty — never a bare, unfounded claim of verification', () => {
-    const lock: LockFile = {
-      version: LOCK_FORMAT_VERSION,
-      verdicts: { 'own-file-rule': { 'file:a.ts': { verdict: 'approved', hash: 'h' } } },
-      nodes: {},
-    };
-    const pairs = [{ aspectId: 'own-file-rule', unitKey: 'file:a.ts' }];
-    expect(unrecordedVerdictCaveat(lock, pairs)).toBe('');
+  it('every pair currently verified: renders empty — never a bare, unfounded claim of a gap', () => {
+    expect(unverifiedVerdictCaveat([{ aspectId: 'own-file-rule', verified: true }])).toBe('');
   });
 
-  it('a mix of recorded and missing pairs: names the subset, not the total, with correct singular/plural grammar', () => {
-    const lock: LockFile = {
-      version: LOCK_FORMAT_VERSION,
-      verdicts: { 'r': { 'file:a.ts': { verdict: 'approved', hash: 'h' } } },
-      nodes: {},
-    };
-    const pairs = [
-      { aspectId: 'r', unitKey: 'file:a.ts' },
-      { aspectId: 'r', unitKey: 'file:b.ts' },
-      { aspectId: 'r', unitKey: 'file:c.ts' },
-    ];
-    expect(unrecordedVerdictCaveat(lock, pairs)).toBe(
-      ' (2 of 3 rules unverified — the lock holds no entry for them yet)',
-    );
+  it('a mix of verified and unverified pairs: names the subset, not the total, with correct singular/plural grammar', () => {
+    expect(
+      unverifiedVerdictCaveat([
+        { aspectId: 'r', verified: true },
+        { aspectId: 'r', verified: false },
+        { aspectId: 'r', verified: false },
+      ]),
+    ).toBe(' (2 of 3 rules unverified — no valid verdict is currently on record for them)');
   });
 });

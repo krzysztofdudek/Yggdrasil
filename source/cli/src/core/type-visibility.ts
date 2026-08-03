@@ -58,8 +58,6 @@
 import type { Graph } from '../model/graph.js';
 import type { AspectStatus } from '../model/graph.js';
 import type { IssueMessage } from '../model/validation.js';
-import type { LockFile } from '../model/lock.js';
-import { pairsMissingFromLock } from '../model/lock.js';
 import type { PairDrop, ExpectedPair, UncomputableTypeCoverage } from './pairs.js';
 import type { TypeAspectDropReason } from './type-effective.js';
 import { walkTypeParentChain } from './type-effective.js';
@@ -301,9 +299,9 @@ export function cannotRunUnverifiedMessage(params: { aspectId: string; unitKey: 
  * parameter rather than an import here so this module keeps its existing
  * dependency footprint) UNLESS `cannotRunReasonFor` finds this pair among
  * THIS run's own `runtimeRows`, in which case `cannotRunUnverifiedMessage`
- * takes over — the fix (F1) for the run that used to tell an agent to
- * re-run `yg check --approve` for a pair it, in the SAME breath, just said
- * cannot run at all. Keeping the branch here (not in check.ts) is what lets
+ * takes over — fixing the run that used to tell an agent to re-run `yg
+ * check --approve` for a pair it, in the SAME breath, just said cannot run
+ * at all. Keeping the branch here (not in check.ts) is what lets
  * `emitPairIssue` stay a one-line swap — see its own call site.
  */
 export function unverifiedIssueMessage(
@@ -316,21 +314,40 @@ export function unverifiedIssueMessage(
 }
 
 /**
- * The qualified caveat clause for a set of nodeless pairs a per-file surface
- * (`yg owner --file`, `yg context --file`, `yg tree`, the portal) is about to
- * report as "enforced by architecture alone" — never the deep, fill-only
- * "cannot run" reason above (none of those surfaces ever fill), just the
- * same cheap "the lock holds no entry for this pair" fact plain `yg check`'s
- * qualified "N unverified" wording already carries for the identical pair.
- * Built on `pairsMissingFromLock` (`model/lock.ts`) — see its own doc for why
- * this is deliberately NOT a full `core/verify-lock.ts` re-verification.
- * `''` when every pair already has a recorded entry: never claims a
- * verification this function did not itself perform.
+ * One rule's real lock-verification outcome for a single (file, aspectId)
+ * pair — narrowed from `core/verify-lock.ts#VerifiedPair` to the one fact
+ * `unverifiedVerdictCaveat` below needs, so this module does not import
+ * verify-lock's own pair/gate types just to read a discriminant.
  */
-export function unrecordedVerdictCaveat(lock: LockFile, pairs: Array<{ aspectId: string; unitKey: string }>): string {
-  const missing = pairsMissingFromLock(lock, pairs);
-  if (missing.length === 0) return '';
-  return ` (${missing.length} of ${pairs.length} rule${pairs.length === 1 ? '' : 's'} unverified — the lock holds no entry for ${missing.length === 1 ? 'it' : 'them'} yet)`;
+export interface RuleVerificationOutcome {
+  aspectId: string;
+  /**
+   * true: the lock holds a CURRENTLY VALID entry for this pair (approved or
+   * refused — its recorded input hash still matches). false: no entry at
+   * all, OR a stale one whose inputs changed since it was recorded — `yg
+   * check`'s own `unverified`, either way.
+   */
+  verified: boolean;
+}
+
+/**
+ * The qualified caveat clause for a set of rule-verification outcomes a
+ * per-file surface (`yg owner --file`, `yg context --file`) is about to
+ * report as "enforced by architecture alone" — never the deep, fill-only
+ * "cannot run" reason above (neither surface ever fills). Callers pass the
+ * SAME classification `yg check` itself computes for the identical pairs
+ * (`core/verify-lock.ts#verifyPairs`, scoped to just this one file's own
+ * nodeless pairs — cheap on top of the whole-project pair walk both commands
+ * already run, never a second one): a stored entry that no longer matches
+ * its current input hash counts here exactly as it would in `yg check`'s own
+ * qualified "N unverified" wording, not only a pair with no entry at all.
+ * `''` when every pair's stored verdict is currently valid: never claims a
+ * gap that does not exist.
+ */
+export function unverifiedVerdictCaveat(outcomes: RuleVerificationOutcome[]): string {
+  const unverified = outcomes.filter((o) => !o.verified);
+  if (unverified.length === 0) return '';
+  return ` (${unverified.length} of ${outcomes.length} rule${outcomes.length === 1 ? '' : 's'} unverified — no valid verdict is currently on record for ${unverified.length === 1 ? 'it' : 'them'})`;
 }
 
 /**

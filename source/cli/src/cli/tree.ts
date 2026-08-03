@@ -126,12 +126,20 @@ async function typeCoveredSummaryLine(graph: Graph, scopedToRoot: boolean): Prom
     else if (enforcedFiles.has(file)) enforced += 1;
     else unenforced += 1;
   }
-  // F2: "checked by at least one rule" names architecture-level status, never
-  // a recorded verdict — name how many of those files have at least one
-  // nodeless pair the lock holds no entry for at all, the same lock-derived
-  // fact plain `yg check` already carries for the identical pair. A garbled
-  // lock is `yg check`'s own error to report; the tree still renders without
-  // this qualifier rather than failing an unrelated listing.
+  // "checked by at least one rule" names architecture-level status, never a
+  // recorded verdict — name how many of those files have at least one
+  // nodeless pair the lock holds no entry for AT ALL. Deliberately cheaper
+  // than `yg check`'s own re-verification (and cheaper than `yg owner
+  // --file` / `yg context --file`, which each re-verify only the ONE file
+  // they were asked about): re-hashing every nodeless pair in the WHOLE
+  // project on every `yg tree` call would add a second whole-project pass to
+  // a repo-wide listing. So this catches a pair the lock has never recorded
+  // at all, but — unlike those three surfaces — NOT one whose recorded
+  // verdict has gone stale since a source edit; the count can therefore stay
+  // at 0 for a file whose rule the lock will refuse the moment `yg check`
+  // actually re-verifies it. A garbled lock is `yg check`'s own error to
+  // report; the tree still renders without this qualifier rather than
+  // failing an unrelated listing.
   let unverifiedEnforcedFiles = 0;
   try {
     const lock = readLock(graph.rootPath);

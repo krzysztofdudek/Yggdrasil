@@ -47,14 +47,17 @@ export interface FileContextAspect {
   /** Present only for LLM aspects that ship companion.mjs (per-unit resolver). */
   companionReadPath?: string;
   /**
-   * True when the lock holds NO entry for this (aspectId, file) pair —
-   * `[enforced]` names architecture-level status, never a recorded verdict;
-   * this is the same lock-derived fact plain `yg check`'s qualified "N
-   * unverified" wording already carries for the identical pair (F2).
-   * Type-covered-file view only (`build-context.ts`'s
-   * `buildTypeCoveredFileContextData`, via `unrecordedVerdictCaveat` —
-   * `core/type-visibility.ts`); a node-owned file's own aspect list never
-   * sets this field.
+   * True when the lock does NOT currently hold a valid verdict for this
+   * (aspectId, file) pair — `[enforced]` names architecture-level status,
+   * never a recorded verdict. Set from the SAME per-pair re-verification
+   * plain `yg check` performs for the identical pair
+   * (`core/verify-lock.ts#verifyPairs`, scoped to just this file's own
+   * nodeless pairs), so a stale entry (this file edited since the verdict
+   * was recorded) sets this exactly as `yg check`'s own qualified "N
+   * unverified" wording would count it, not only a pair the lock has never
+   * seen at all. Type-covered-file view only (`build-context.ts`'s
+   * `buildTypeCoveredFileContextData`); a node-owned file's own aspect list
+   * never sets this field.
    */
   unverified?: boolean;
 }

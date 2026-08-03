@@ -416,12 +416,19 @@ export interface PortalTypeCoveredFile {
   enforced: boolean;
   /**
    * `enforced` names architecture-level status, never a recorded verdict —
-   * true when the lock holds NO entry for at least one of this file's
-   * nodeless pairs (`model/lock.ts#pairsMissingFromLock`). Always false when
-   * `enforced` is false: a file with no real pair has nothing to have a
-   * verdict for in the first place. Same lock-derived fact `yg check`'s
-   * qualified "N unverified" wording, `yg owner --file`, and `yg context
-   * --file` already carry for the identical pair (F2).
+   * true when the lock holds NO entry at all for at least one of this
+   * file's nodeless pairs (`model/lock.ts#pairsMissingFromLock`). Always
+   * false when `enforced` is false: a file with no real pair has nothing to
+   * have a verdict for in the first place. Deliberately cheaper than `yg
+   * check`'s own re-verification — re-hashing every nodeless pair in the
+   * WHOLE project on every extraction would add a second whole-project pass
+   * to a page render. So this catches a pair the lock has never recorded at
+   * all, but NOT one whose recorded verdict has gone stale since a source
+   * edit: it can read false for a file whose rule the lock will refuse the
+   * moment `yg check` actually re-verifies it. `yg owner --file` and `yg
+   * context --file` do not share this limit — each re-verifies only the ONE
+   * file it was asked about, cheap enough to catch a stale entry too, not
+   * only a missing one.
    */
   unverified: boolean;
 }

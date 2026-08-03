@@ -159,11 +159,13 @@ export function readAndVerifyLock(graph: Graph, typeCoverage?: TypeCoverageInput
 }
 
 /**
- * F2: the cheap "the lock holds no entry for this pair at all" check
+ * The cheap "the lock holds no entry for this pair at all" check
  * (`model/lock.ts`'s own doc explains why this is deliberately NOT a full
  * re-verification) — reused by the portal to mark a type-covered file's
- * `unverified` field, the same lock-derived fact plain `yg check`'s
- * qualified "N unverified" wording already carries for the identical pair.
+ * `unverified` field. Catches a pair the lock has never recorded at all,
+ * never one whose recorded verdict has gone stale since a source edit —
+ * unlike `yg owner --file` / `yg context --file`, which each re-verify only
+ * the ONE file they were asked about and so catch both.
  */
 export { pairsMissingFromLock } from '../model/lock.js';
 

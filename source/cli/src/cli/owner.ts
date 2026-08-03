@@ -22,7 +22,8 @@ import { classifySingleFileCached } from '../core/type-coverage.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import { computeExpectedPairs } from '../core/pairs.js';
 import { computeTypeAspectCascade, describeCascadeCycle } from '../core/type-effective.js';
-import { unrecordedVerdictCaveat } from '../core/type-visibility.js';
+import { unverifiedVerdictCaveat } from '../core/type-visibility.js';
+import { verifyPairs } from '../core/verify-lock.js';
 import { readLock } from '../io/lock-store.js';
 
 function normalizeForMatch(inputPath: string): string {
@@ -188,22 +189,29 @@ export function registerOwnerCommand(program: Command): void {
             // Classifies and enumerates pairs scoped to THIS ONE FILE (a
             // single-entry covered map), never the whole-repo classification
             // map — mirrors build-context.ts's own typed-file path.
-            const { pairs } = await computeExpectedPairs(graph, {
-              typeCoverage: { covered: new Map([[result.file, typeMatch.typeId]]), ambiguousPaths: [] },
-            });
+            const typeCoverageInput = { covered: new Map([[result.file, typeMatch.typeId]]), ambiguousPaths: [] };
+            const { pairs } = await computeExpectedPairs(graph, { typeCoverage: typeCoverageInput });
             const nodelessPairs = pairs.filter((p) => p.nodePath === undefined);
             const hasEnforcement = nodelessPairs.length > 0;
-            // F2: name the same cheap "no recorded verdict" fact plain `yg
-            // check` already carries for this pair — architecture-level
-            // "enforced" is not "verified"; see unrecordedVerdictCaveat's own
-            // doc for why this is a lock-presence check, not a full re-verify.
-            // A garbled lock is `yg check`'s own error to report — this
-            // command still answers the ownership question, just without the
-            // caveat, rather than failing an unrelated query.
+            // Architecture-level "enforced" is not "verified" — name how many
+            // of this file's own rules the lock does NOT currently hold a
+            // valid verdict for. Runs the exact same per-pair verification
+            // `yg check` performs (core/verify-lock.ts#verifyPairs, scoped to
+            // just these few pairs — cheap on top of the whole-project pair
+            // walk above, never a second one), so a stale entry (this file
+            // edited since the verdict was recorded) counts here exactly as
+            // it would in `yg check`'s own qualified "N unverified" wording,
+            // not only a pair the lock has never seen at all. A garbled lock
+            // is `yg check`'s own error to report — this command still
+            // answers the ownership question, just without the caveat,
+            // rather than failing an unrelated query.
             let caveat = '';
             if (hasEnforcement) {
               try {
-                caveat = unrecordedVerdictCaveat(readLock(graph.rootPath), nodelessPairs);
+                const verified = await verifyPairs(graph, readLock(graph.rootPath), nodelessPairs, typeCoverageInput);
+                caveat = unverifiedVerdictCaveat(
+                  verified.map((vp) => ({ aspectId: vp.pair.aspectId, verified: vp.state.kind === 'verified' || vp.state.kind === 'refused' })),
+                );
               } catch (e: unknown) {
                 debugWrite(`[owner] lock read failed while building the unverified caveat: ${e instanceof Error ? e.message : String(e)}`);
               }

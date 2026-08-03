@@ -120,6 +120,29 @@ export async function verifyLock(
   typeCoverage?: TypeCoverageInput,
 ): Promise<LockVerification> {
   const { pairs, unreadable, drops, uncomputableTypeCoverage } = await computeExpectedPairs(graph, { typeCoverage });
+  const verified = await verifyPairs(graph, lock, pairs, typeCoverage);
+  return { pairs: verified, unreadable, drops, uncomputableTypeCoverage };
+}
+
+/**
+ * The per-pair re-verification loop `verifyLock` runs over EVERY expected
+ * pair in the graph, factored out so a caller that already holds a SMALL,
+ * pre-filtered slice of `ExpectedPair[]` (a single file's own nodeless pairs
+ * — `yg owner --file`, `yg context --file`) can pay for exactly that slice's
+ * re-hash instead of a second whole-project `computeExpectedPairs` walk on
+ * top of the one it (or its caller) already ran to get `pairs` in the first
+ * place. Same classification `verifyLock` produces for the identical pair —
+ * this IS the engine `yg check` itself runs, not a cheaper approximation of
+ * it: a stored entry that no longer matches its current input hash comes
+ * back `{ kind: 'unverified' }` here exactly as it would from a full
+ * `verifyLock` call, never only a missing-entry check.
+ */
+export async function verifyPairs(
+  graph: Graph,
+  lock: LockFile,
+  pairs: ExpectedPair[],
+  typeCoverage?: TypeCoverageInput,
+): Promise<VerifiedPair[]> {
   const projectRoot = path.dirname(graph.rootPath);
 
   // Index aspect defs by id for O(1) lookup.
@@ -148,8 +171,8 @@ export async function verifyLock(
   const verified: VerifiedPair[] = [];
 
   // The architecture-reach cache for a nodeless (component-free) LLM pair's
-  // companion resolution — shared across every pair THIS verifyLock call
-  // reviews, computed once per matched type rather than once per pair. Mirrors
+  // companion resolution — shared across every pair THIS call reviews,
+  // computed once per matched type rather than once per pair. Mirrors
   // core/fill.ts's own per-run cache (same contract: fromType -> Set<string>).
   const reachCache = new Map<string, Set<string>>();
 
@@ -172,7 +195,7 @@ export async function verifyLock(
     }
   }
 
-  return { pairs: verified, unreadable, drops, uncomputableTypeCoverage };
+  return verified;
 }
 
 // ============================================================
