@@ -1,4 +1,9 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import { spawn } from 'node:child_process';
+import { existsSync, mkdtempSync, rmSync, cpSync, readFileSync, writeFileSync, mkdirSync, symlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 // The engine's own default prompt-size ceiling — the ground truth
 // ENGINE_DEFAULT_MAX_PROMPT_CHARS below claims to mirror.
 import { DEFAULT_MAX_PROMPT_CHARS } from '../../src/llm/prompt.js';
@@ -10,6 +15,9 @@ import { DEFAULT_MAX_PROMPT_CHARS } from '../../src/llm/prompt.js';
 // precedent for a plain-ESM script at the repo root.
 // @ts-expect-error — plain ESM script at the repo root, no type declarations.
 import { resolveTierLimits, ENGINE_DEFAULT_MAX_PROMPT_CHARS, buildOverrideSecretsText, installInterruptRestore, parsePromptTooLargeEntries, countDeclaredLlmAspects, classifyZeroMeasurement } from '../../../../scripts/prompt-headroom.mjs';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const CLI_ROOT = path.join(__dirname, '../..');
 
 describe('prompt-headroom — resolveTierLimits reads the real committed ceiling', () => {
   it('is not fooled by a larger number sitting in a comment above the live value', () => {
@@ -290,4 +298,152 @@ describe('prompt-headroom — classifyZeroMeasurement tells a genuinely LLM-free
     expect(result.message).toMatch(/11 LLM aspect/);
     expect(result.message).toMatch(/measured zero/);
   });
+});
+
+// ── The real script, spawned for real, against a scratch project ──────────
+//
+// Everything above exercises this script's pure pieces directly. What none of
+// it touches is whether the SIGINT/SIGTERM/SIGHUP/SIGQUIT handlers actually
+// get a turn to run WHILE a multi-second child `yg check` is still alive, or
+// only once that child happens to finish on its own — the difference between
+// the async `execFile` this script uses and a blocking `execFileSync` that
+// would starve the event loop for the child's entire runtime. That property
+// is only real across a genuine process boundary with a genuine OS signal, so
+// it is pinned here by spawning the actual, unmodified `scripts/prompt-
+// headroom.mjs` against a real scratch project on disk.
+//
+// The scratch project's own `source/cli/dist/bin.js` is a small real Node
+// program that stands in for a slow, multi-second `yg check --details`: it
+// sleeps before exiting. The property under test belongs entirely to this
+// script's own signal-handling wrapper around WHATEVER child it spawns — it
+// is indifferent to what that child computes — and a stand-in with a fixed,
+// generous sleep gives a reliable, machine-speed-independent gap between "the
+// handler fired promptly" and "the wait blocked for the child's full
+// duration," which no real fixture project is big enough to guarantee without
+// making this test's own runtime hostage to whichever machine runs it.
+
+const REPO_ROOT_FOR_TEST = path.join(CLI_ROOT, '..', '..');
+const REAL_PROMPT_HEADROOM_SCRIPT = path.join(REPO_ROOT_FOR_TEST, 'scripts', 'prompt-headroom.mjs');
+const REAL_CLI_NODE_MODULES = path.join(CLI_ROOT, 'node_modules');
+
+/** How long the scratch project's stand-in "slow check" sleeps before it would exit on
+ *  its own — long enough that this process (a `spawn`, one event-loop turn away from
+ *  a real terminal Ctrl-C) has ample time to deliver SIGINT well before that sleep
+ *  would otherwise elapse. The test's own pass/fail criterion never reads a clock —
+ *  see the marker-file check below — so this value only needs to be "comfortably
+ *  longer than signal delivery + a poll interval," not tuned against a duration
+ *  the test then measures itself against. */
+const STAND_IN_CHECK_SLEEP_MS = 2000;
+
+/**
+ * A scratch project shaped exactly the way `scripts/prompt-headroom.mjs` needs one:
+ * its own copy of the real, unmodified script, a `source/cli/package.json` +
+ * `node_modules` symlink so `require('yaml')` resolves, a stand-in `dist/bin.js`
+ * that sleeps before exiting, and a committed `yg-config.yaml` declaring one tier.
+ * `maintainerOverlayText`, when given, is written as the project's own pre-existing
+ * `yg-secrets.yaml` — the maintainer's own local overlay the run must restore.
+ *
+ * The stand-in writes a completion marker — at a fixed path INSIDE the scratch
+ * project itself, `dir`'s own `mkdtempSync` uniqueness is all the uniqueness this
+ * needs — ONLY from inside its own sleep callback, reachable only if the sleep is
+ * allowed to elapse in full, uninterrupted. Whether that marker exists afterward is
+ * the test's real, non-timing pass/fail signal (see the test below): a correct
+ * implementation's signal handler fires while the sleep is still pending and kills
+ * this child directly, so the callback — and the marker — never happens; a blocking
+ * wait would instead let the sleep run to completion first, writing the marker,
+ * before the parent's own handler ever gets a turn.
+ */
+function buildSlowHeadroomScratchProject(label: string, maintainerOverlayText: string | null): { dir: string; markerPath: string } {
+  const dir = mkdtempSync(path.join(tmpdir(), `yg-headroom-signal-${label}-`));
+  const markerPath = path.join(dir, 'stand-in-completed.marker');
+
+  mkdirSync(path.join(dir, 'scripts'), { recursive: true });
+  cpSync(REAL_PROMPT_HEADROOM_SCRIPT, path.join(dir, 'scripts', 'prompt-headroom.mjs'));
+
+  mkdirSync(path.join(dir, 'source', 'cli', 'dist'), { recursive: true });
+  // "type": "module" mirrors the real source/cli/package.json — without it, Node would
+  // parse the ESM stand-in dist/bin.js below (and the real one) as CommonJS and reject
+  // its `import` statement; createRequire's own CJS-style require call is unaffected.
+  writeFileSync(path.join(dir, 'source', 'cli', 'package.json'), '{"name":"scratch-headroom-project","version":"0.0.0","type":"module"}\n');
+  symlinkSync(REAL_CLI_NODE_MODULES, path.join(dir, 'source', 'cli', 'node_modules'));
+  writeFileSync(
+    path.join(dir, 'source', 'cli', 'dist', 'bin.js'),
+    [
+      '#!/usr/bin/env node',
+      "import { writeFileSync } from 'node:fs';",
+      'setTimeout(() => {',
+      `  writeFileSync(${JSON.stringify(markerPath)}, 'completed naturally, uninterrupted\\n');`,
+      "  process.stdout.write('ok\\n');",
+      '  process.exit(0);',
+      `}, ${STAND_IN_CHECK_SLEEP_MS});`,
+      '',
+    ].join('\n'),
+  );
+
+  mkdirSync(path.join(dir, '.yggdrasil'), { recursive: true });
+  writeFileSync(
+    path.join(dir, '.yggdrasil', 'yg-config.yaml'),
+    'reviewer:\n  tiers:\n    standard:\n      max_prompt_chars: 5000\n',
+  );
+  if (maintainerOverlayText !== null) {
+    writeFileSync(path.join(dir, '.yggdrasil', 'yg-secrets.yaml'), maintainerOverlayText);
+  }
+  return { dir, markerPath };
+}
+
+describe('prompt-headroom — the real script, spawned for real, survives a signal mid-run', () => {
+  it('SIGINT sent while the stand-in child is still sleeping restores the maintainer overlay byte-identically and kills the child before its sleep ever completes', async () => {
+    const maintainerOverlay = [
+      "# a maintainer's own local reviewer override",
+      'reviewer:',
+      '  tiers:',
+      '    standard:',
+      '      provider: ollama',
+      '      config:',
+      '        model: a-local-model',
+      '        endpoint: http://localhost:11434',
+      '',
+    ].join('\n');
+    const { dir, markerPath } = buildSlowHeadroomScratchProject('sigint', maintainerOverlay);
+    const secretsPath = path.join(dir, '.yggdrasil', 'yg-secrets.yaml');
+    try {
+      const proc = spawn('node', [path.join(dir, 'scripts', 'prompt-headroom.mjs')], { cwd: dir });
+
+      // Wait for the script's own temporary 1-char override to land on disk — the
+      // moment it has started (or is about to start) its wait on the stand-in child.
+      // A bounded poll for a condition, never an assertion on how long that took.
+      const overrideDeadline = Date.now() + 3000;
+      while (Date.now() < overrideDeadline) {
+        if (existsSync(secretsPath) && readFileSync(secretsPath, 'utf-8').includes('max_prompt_chars: 1')) break;
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      expect(readFileSync(secretsPath, 'utf-8')).toContain('max_prompt_chars: 1');
+      // The stand-in child has not reached its own sleep callback yet — establishes
+      // that what follows is a genuine interruption, not a race already decided.
+      expect(existsSync(markerPath)).toBe(false);
+
+      const exitPromise = new Promise<number | null>((resolve) => {
+        proc.on('exit', (code) => resolve(code));
+      });
+      proc.kill('SIGINT');
+      const code = await exitPromise;
+
+      expect(code).toBe(130);
+      // The real, non-timing pass/fail signal: the marker is written only from inside
+      // the stand-in's sleep callback, which a correct (async-waiting) implementation
+      // never lets run at all, because its own SIGINT handler fires first and kills
+      // this child directly. A blocking wait (execFileSync) cannot process the signal
+      // until the child exits on its own, so the sleep would run to completion and
+      // write the marker before the parent's handler ever got a turn — this assertion
+      // is what a reverted-to-execFileSync mutation fails, deterministically, on any
+      // machine, not by a race against a clock.
+      expect(existsSync(markerPath)).toBe(false);
+      // Byte-identical: the restore writes back the ORIGINAL captured bytes, never a
+      // re-serialized approximation, so this holds regardless of comments/formatting.
+      expect(readFileSync(secretsPath, 'utf-8')).toBe(maintainerOverlay);
+    } finally {
+      // The marker, when present, lives inside `dir` — one recursive removal covers both.
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 10000);
 });

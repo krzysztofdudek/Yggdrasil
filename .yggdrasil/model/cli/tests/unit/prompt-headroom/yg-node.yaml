@@ -1,9 +1,10 @@
 name: Prompt Headroom Unit Tests
 type: test-suite
 description: >-
-  Unit tests for pure/testable pieces of the prompt-headroom measurement
-  script (scripts/prompt-headroom.mjs). resolveTierLimits: given the raw text
-  of a committed yg-config.yaml, resolves every declared reviewer tier's real
+  Unit and integration tests for the prompt-headroom measurement script
+  (scripts/prompt-headroom.mjs). Pure pieces exercised directly and offline (no
+  subprocess, no built dist): resolveTierLimits, given the raw text of a
+  committed yg-config.yaml, resolves every declared reviewer tier's real
   max_prompt_chars ceiling using the CLI's own YAML parser — never fooled by a
   larger number sitting in a comment, indifferent to which sibling key
   precedes `tiers:` — or throws when it cannot establish one (unparseable
@@ -11,28 +12,37 @@ description: >-
   rather than let a caller print a margin against a ceiling it never actually
   established; its own copy of the engine's default ceiling is asserted
   against the real `DEFAULT_MAX_PROMPT_CHARS` import from llm/prompt.ts, not
-  against itself. buildOverrideSecretsText: deep-merges the script's temporary
+  against itself. buildOverrideSecretsText deep-merges the script's temporary
   1-char measurement ceiling INTO whatever the maintainer's own gitignored
   yg-secrets.yaml overlay already held, rather than replace the file wholesale
   — so their provider/endpoint/model survive alongside the override.
-  installInterruptRestore: registers a handler for every one of SIGINT,
+  installInterruptRestore registers a handler for every one of SIGINT,
   SIGTERM, SIGHUP, and SIGQUIT that calls the script's restore function and
   exits with the conventional 128+signal code — `process.on('exit', ...)`
-  alone never fires for any of them. parsePromptTooLargeEntries: parses the
+  alone never fires for any of them. parsePromptTooLargeEntries parses the
   engine's "assembled prompt" sentence AND cross-checks the result against a
   second, wording-independent count of the same fact (how many issues in the
   same output carry the stable `prompt-too-large` code), throwing on
   disagreement rather than silently under-reporting when that sentence's
   wording changes. countDeclaredLlmAspects and classifyZeroMeasurement
   together decide whether a zero-pairs-measured result is a genuinely
-  LLM-aspect-free graph or a broken measurement. All exercised directly and
-  offline (no subprocess, no built dist); the remaining necessary half of the
-  interruption fix — that the restore handlers actually get a chance to run
-  DURING a multi-second child `yg check` wait, which requires the async
-  `execFile` this script now uses instead of a blocking `execFileSync` — was
-  verified by manually sending a real SIGINT to a running instance against a
-  scratch copy, not by an automated test (a real, timing-dependent OS signal
-  delivered mid-wait is not a reliable thing to assert on in CI).
+  LLM-aspect-free graph or a broken measurement.
+  A separate integration test spawns the real, unmodified script against a
+  scratch project whose `dist/bin.js` is a stand-in for a slow, multi-second
+  `yg check --details`: it sleeps before writing a completion marker and
+  exiting, so the marker exists afterward only if that sleep was ever allowed
+  to finish uninterrupted. The test sends a real SIGINT once the script's own
+  temporary override has landed on disk, then asserts — deterministically,
+  never against a clock — that the marker was never written and the
+  maintainer's pre-existing overlay is restored byte-identically: a correct,
+  async-waiting implementation kills the stand-in directly the moment its
+  signal handler runs, before that sleep ever elapses, while a blocking wait
+  cannot process the signal until the child exits on its own, letting the
+  sleep complete and the marker land first. This is the fourth necessary half
+  of the interruption fix — that the restore handlers actually get a chance
+  to run DURING a multi-second child wait, which requires the async
+  `execFile` this script uses instead of a blocking `execFileSync` — pinned
+  directly rather than resting on manual verification alone.
 aspects: []
 relations:
   - target: scripts
