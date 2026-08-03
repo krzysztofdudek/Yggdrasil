@@ -931,7 +931,9 @@ describe('aspect-test command behavior (mocked runners)', () => {
     ]).provider);
     await runCommand(['--aspect', 'llm-a', '--node', 'N', '--repeat', '3']);
     const clean = stripAnsi(stdout);
-    expect(clean).toContain('node:N run 2/3: provider-error — HTTP 500');
+    // The per-run provider-error line is infrastructure, not a result — it goes
+    // to stderr, matching every other provider-error report in this command.
+    expect(stripAnsi(stderr)).toContain('node:N run 2/3: provider-error — HTTP 500');
     expect(clean).toContain('stability: 2/2 satisfied (1 provider-error run excluded)');
     expect(clean).toContain('yg aspect-test: satisfied — 1 unit satisfied');
     expect(exitCode).toBeUndefined();

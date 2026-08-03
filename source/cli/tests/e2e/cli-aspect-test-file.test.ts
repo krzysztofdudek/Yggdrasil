@@ -12,7 +12,7 @@
 // =============================================================================
 
 import { describe, it, expect } from 'vitest';
-import { existsSync, mkdtempSync, rmSync, cpSync, mkdirSync, writeFileSync, readFileSync, appendFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, cpSync, mkdirSync, writeFileSync, readFileSync, appendFileSync, chmodSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -190,6 +190,63 @@ describe.skipIf(!distExists)('CLI E2E — yg aspect-test --file', () => {
     }
   });
 
+  // A directory exists (a bare existsSync probe says so) but has no single
+  // file's content of its own. Before hardening this probe, a directory
+  // passed classification (it never reads content) and reached the
+  // deterministic/LLM machinery further down, which is where a mismatch
+  // like this belongs to a plain what/why/next answer, not a guess.
+  it('refuses --file on a directory, naming it plainly rather than guessing at classification', () => {
+    const dir = copyMergedFixture();
+    try {
+      const { status, stderr } = run(['aspect-test', '--aspect', 'own-file-rule', '--file', 'src/leaf'], dir);
+      expect(status).toBe(1);
+      expect(stderr).toContain("'src/leaf' is a directory, not a file.");
+      expect(stderr).not.toContain('matches no architecture type');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // A file this process cannot open (permission denied) used to pass the old
+  // existsSync-only probe, classify successfully by path alone (classification
+  // never needed to read content here), and then have its unreadable content
+  // silently treated as empty by the runner — a FALSE 'satisfied' verdict for
+  // a file nobody actually checked, worse than an error. The hardened probe
+  // catches this before classification, the same way it catches a directory.
+  it('refuses --file on an unreadable file instead of silently reporting it satisfied', () => {
+    const dir = copyMergedFixture();
+    const secretPath = path.join(dir, 'src', 'leaf', 'secret.ts');
+    writeFileSync(secretPath, 'export const secret = 1;\n');
+    chmodSync(secretPath, 0o000);
+    try {
+      const { status, stdout, stderr } = run(['aspect-test', '--aspect', 'own-file-rule', '--file', 'src/leaf/secret.ts'], dir);
+      expect(status).toBe(1);
+      expect(stderr).toContain("'src/leaf/secret.ts' exists but cannot be read (permission denied).");
+      expect(stdout).not.toContain('satisfied');
+    } finally {
+      chmodSync(secretPath, 0o644);
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // A symlink whose target is gone is already indistinguishable from a plain
+  // typo to existsSync (it follows the link, finds nothing there, and
+  // reports false) — pinning that this bad-input shape lands in the SAME
+  // "does not exist" answer as a typo'd path, with no separate handling
+  // required.
+  it('refuses --file on a broken symlink the same way as a path that never existed', () => {
+    const dir = copyMergedFixture();
+    const linkPath = path.join(dir, 'src', 'leaf', 'broken-link.ts');
+    symlinkSync('does-not-exist-target.ts', linkPath);
+    try {
+      const { status, stderr } = run(['aspect-test', '--aspect', 'own-file-rule', '--file', 'src/leaf/broken-link.ts'], dir);
+      expect(status).toBe(1);
+      expect(stderr).toContain("'src/leaf/broken-link.ts' does not exist.");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('--file with a deterministic aspect runs the check with the architecture reach, over the real file content', () => {
     const dir = copyMergedFixture();
     try {
@@ -301,6 +358,77 @@ describe.skipIf(!distExists)('CLI E2E — yg aspect-test --file', () => {
       expect(out).toContain("'src/leaf/does-not-exist.ts' does not exist.");
       expect(out).not.toContain('This is a bug');
       expect(out).not.toContain('does not classify');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // A directory exists (existsSync alone cannot tell it apart from a real
+  // file), so the old probe let it through and the AST runner failed deep
+  // inside with a raw EISDIR, landing in the CLI's generic unclassified-error
+  // funnel ("This is a bug — please file an issue") for what is just a
+  // directory passed where a file was expected — the same class of mistake
+  // as the typo above, and it deserves the same plain answer.
+  it('--files with a directory reports it plainly, not as an internal bug', () => {
+    const dir = copyMergedFixture();
+    try {
+      const { status, stdout, stderr } = run(
+        ['aspect-test', '--aspect', 'own-file-rule', '--files', 'src/leaf'],
+        dir,
+      );
+      expect(status).toBe(1);
+      const out = stdout + stderr;
+      expect(out).toContain("'src/leaf' is a directory, not a file.");
+      expect(out).not.toContain('This is a bug');
+      expect(out).not.toContain('EISDIR');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // A file that exists and is a regular file, but this process cannot open
+  // (permission denied), passed the same old probe and then failed deep
+  // inside the runner with a raw EACCES — same unclassified-bug funnel,
+  // different errno.
+  it('--files with an unreadable file reports it plainly, not as an internal bug', () => {
+    const dir = copyMergedFixture();
+    const secretPath = path.join(dir, 'src', 'leaf', 'secret.ts');
+    writeFileSync(secretPath, 'export const secret = 1;\n');
+    chmodSync(secretPath, 0o000);
+    try {
+      const { status, stdout, stderr } = run(
+        ['aspect-test', '--aspect', 'own-file-rule', '--files', 'src/leaf/secret.ts'],
+        dir,
+      );
+      expect(status).toBe(1);
+      const out = stdout + stderr;
+      expect(out).toContain("'src/leaf/secret.ts' exists but cannot be read (permission denied).");
+      expect(out).not.toContain('This is a bug');
+      expect(out).not.toContain('EACCES');
+    } finally {
+      chmodSync(secretPath, 0o644);
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // A symlink whose target is gone is already indistinguishable from a plain
+  // typo to existsSync (it follows the link, finds nothing there, and
+  // reports false) — pinning that this bad-input shape lands in the SAME
+  // "does not exist" answer as the typo above, with no separate handling
+  // required.
+  it('--files with a broken symlink reports it as missing, not as an internal bug', () => {
+    const dir = copyMergedFixture();
+    const linkPath = path.join(dir, 'src', 'leaf', 'broken-link.ts');
+    symlinkSync('does-not-exist-target.ts', linkPath);
+    try {
+      const { status, stdout, stderr } = run(
+        ['aspect-test', '--aspect', 'own-file-rule', '--files', 'src/leaf/broken-link.ts'],
+        dir,
+      );
+      expect(status).toBe(1);
+      const out = stdout + stderr;
+      expect(out).toContain("'src/leaf/broken-link.ts' does not exist.");
+      expect(out).not.toContain('This is a bug');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

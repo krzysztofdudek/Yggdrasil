@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import path from 'node:path';
-import { existsSync } from 'node:fs';
+import { statSync, accessSync, constants as fsConstants } from 'node:fs';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { exitAfterFlush } from './exit-after-flush.js';
 import { debugWrite } from '../utils/debug-log.js';
@@ -40,6 +40,56 @@ import type { AspectDef, LlmConfig } from '../model/graph.js';
 /** Footer printed after every run (det, LLM, and --dry-run). */
 const DIAGNOSTIC_FOOTER =
   'diagnostic only — lock unchanged; yg check judges the lock against your files, not this run\n';
+
+/**
+ * What is wrong with a path --file / --files were asked to read as a plain
+ * on-disk file, BEFORE classification or the runner ever sees it — the class
+ * of mistake a bare `existsSync` cannot fully tell apart from a good path:
+ *
+ *  - 'missing'    — nothing is there. Covers a plain typo (ENOENT) AND a
+ *                    broken symlink (stat follows the link, finds no target,
+ *                    fails ENOENT the same way) AND any other stat failure
+ *                    (e.g. a symlink loop) — every one of these means "there
+ *                    is nothing to read here," the same fact a typo produces.
+ *  - 'not-a-file' — something is there, but it is a directory (or another
+ *                    non-regular entry: a socket, FIFO, or device node) —
+ *                    passes existsSync and then fails deep inside the runner
+ *                    with a raw EISDIR (or worse), landing in the CLI's
+ *                    generic unclassified-error funnel.
+ *  - 'unreadable' — a regular file this process cannot open (permission
+ *                    denied). Left unchecked, --file's classification step
+ *                    matches purely on path and never notices, so the file
+ *                    reads as empty deeper in and the run reports a FALSE
+ *                    'satisfied' for a file nobody actually checked — worse
+ *                    than an error. --files hits the same raw EACCES the
+ *                    directory case hits.
+ *
+ * Returns undefined for an ordinary, readable file — nothing wrong.
+ */
+type UnusablePathReason =
+  | { kind: 'missing' }
+  | { kind: 'not-a-file'; noun: string }
+  | { kind: 'unreadable' };
+
+function probeUnusablePath(absPath: string): UnusablePathReason | undefined {
+  let stat: ReturnType<typeof statSync>;
+  try {
+    stat = statSync(absPath);
+  } catch (e) {
+    debugWrite(`[aspect-test] probeUnusablePath: stat failed for ${absPath}: ${e instanceof Error ? e.message : String(e)}`);
+    return { kind: 'missing' };
+  }
+  if (!stat.isFile()) {
+    return { kind: 'not-a-file', noun: stat.isDirectory() ? 'a directory, not a file' : 'not a regular file' };
+  }
+  try {
+    accessSync(absPath, fsConstants.R_OK);
+  } catch (e) {
+    debugWrite(`[aspect-test] probeUnusablePath: read access denied for ${absPath}: ${e instanceof Error ? e.message : String(e)}`);
+    return { kind: 'unreadable' };
+  }
+  return undefined;
+}
 
 /**
  * One-line verdict stamps ('yg aspect-test: <verdict>'). satisfied/refused is
@@ -386,12 +436,17 @@ export function registerAspectTestCommand(program: Command): void {
         // --files: ad-hoc mode has no node and thus no approve equivalent; it
         // stays on the AST runner (a fileless structure path is out of scope).
         const filePaths = opts.files as string[];
-        // Existence check BEFORE running: --file already probes for this
-        // (resolveAspectTestFileTarget above) and answers cleanly; --files
-        // did not, so a typo reached the runner as a raw ENOENT and fell into
-        // the generic unclassified-error funnel ("This is a bug — please file
-        // an issue"), misreporting an ordinary mistake as an internal defect.
-        const missingFiles = filePaths.filter((f) => !existsSync(path.resolve(projectRoot, f)));
+        // Usability probe BEFORE running: --file already probes for this
+        // (resolveAspectTestFileTarget above, via the SAME probeUnusablePath)
+        // and answers cleanly; --files did not, so any of a typo, a
+        // directory, or an unreadable file reached the runner as a raw
+        // ENOENT/EISDIR/EACCES and fell into the generic unclassified-error
+        // funnel ("This is a bug — please file an issue"), misreporting an
+        // ordinary mistake as an internal defect. Checked in this order —
+        // missing, then not-a-file, then unreadable — so a run with more than
+        // one kind of bad path leads with the most fundamental problem first.
+        const probed = filePaths.map((f) => ({ f, reason: probeUnusablePath(path.resolve(projectRoot, f)) }));
+        const missingFiles = probed.filter((p) => p.reason?.kind === 'missing').map((p) => p.f);
         if (missingFiles.length > 0) {
           process.stderr.write(`Error: ${buildIssueMessage({
             what: missingFiles.length === 1
@@ -399,6 +454,31 @@ export function registerAspectTestCommand(program: Command): void {
               : `${missingFiles.length} of the given paths do not exist: ${missingFiles.map((f) => `'${f}'`).join(', ')}.`,
             why: `--files addresses real, on-disk files — there is nothing to read or check for a path that is not there.`,
             next: `Check the path${missingFiles.length === 1 ? '' : 's'} for typos, or pass only existing files.`,
+          })}\n`);
+          process.exit(1);
+          return;
+        }
+        const notFiles = probed.filter((p) => p.reason?.kind === 'not-a-file');
+        if (notFiles.length > 0) {
+          const [first] = notFiles;
+          process.stderr.write(`Error: ${buildIssueMessage({
+            what: notFiles.length === 1
+              ? `'${first.f}' is ${(first.reason as { kind: 'not-a-file'; noun: string }).noun}.`
+              : `${notFiles.length} of the given paths are not files: ${notFiles.map((p) => `'${p.f}'`).join(', ')}.`,
+            why: `--files reads each path's own content to check it — a directory (or any other non-regular path) has no single file's content of its own.`,
+            next: `Pass the individual file path${notFiles.length === 1 ? '' : 's'} instead, or expand a directory with a shell glob.`,
+          })}\n`);
+          process.exit(1);
+          return;
+        }
+        const unreadableFiles = probed.filter((p) => p.reason?.kind === 'unreadable').map((p) => p.f);
+        if (unreadableFiles.length > 0) {
+          process.stderr.write(`Error: ${buildIssueMessage({
+            what: unreadableFiles.length === 1
+              ? `'${unreadableFiles[0]}' exists but cannot be read (permission denied).`
+              : `${unreadableFiles.length} of the given paths exist but cannot be read (permission denied): ${unreadableFiles.map((f) => `'${f}'`).join(', ')}.`,
+            why: `--files reads each file's content to check it — a file this process cannot open has nothing to read.`,
+            next: `Fix the read permission${unreadableFiles.length === 1 ? '' : 's'}, or pass only readable files.`,
           })}\n`);
           process.exit(1);
           return;
@@ -573,11 +653,13 @@ async function resolveSuppressedRangesForTest(
 
 /**
  * Resolve `--file <path>` against the graph: refuse a path that already has a
- * component (pointing at --node) or does not exist on disk, then delegate the
- * rest — flag-off, coverage-excluded, single-type classification, and the
- * architecture-permitted read allowance — to core/aspect-test-file-target.ts.
+ * component (pointing at --node), does not exist on disk, is not a plain
+ * readable file (a directory, or one this process cannot open), then
+ * delegate the rest — flag-off, coverage-excluded, single-type
+ * classification, and the architecture-permitted read allowance — to
+ * core/aspect-test-file-target.ts.
  *
- * The two checks kept here (existence, ownership) are the ones the extracted
+ * The checks kept here (usability, ownership) are the ones the extracted
  * module cannot legally make itself: it is `engine`-typed (so it may call
  * structure-adapter/relations-adapter for the reach computation) but the
  * architecture forbids an `engine` file from calling a `command`-typed one,
@@ -589,10 +671,10 @@ async function resolveSuppressedRangesForTest(
  * here too, and falls through to `classifyAspectTestFileTarget` below —
  * matching what `yg owner --file` / `yg context --file` already say about the
  * same path, instead of naming a component whose rules never run against it.
- * Order matters and is preserved exactly: existence is checked BEFORE
- * ownership, so a nonexistent path whose pattern happens to match an owning
- * node's mapping still reports "does not exist," never "has a component of
- * its own."
+ * Order matters and is preserved exactly: usability is checked BEFORE
+ * ownership, so a nonexistent (or unreadable, or directory) path whose
+ * pattern happens to match an owning node's mapping still reports the
+ * physical problem, never "has a component of its own."
  */
 async function resolveAspectTestFileTarget(
   graph: import('../model/graph.js').Graph,
@@ -605,20 +687,45 @@ async function resolveAspectTestFileTarget(
   const projectRoot = projectRootFromGraph(graph.rootPath);
   const repoRelative = resolveFileArg(projectRoot, rawPath);
 
-  // Existence check BEFORE classification: a pure path: predicate can classify
-  // a path that does not exist on disk (it never reads content), which would
-  // otherwise let a nonexistent file silently reach the runner as an EMPTY
-  // subject (buildNodelessUnitCtx skips an unreadable file rather than
-  // throwing) instead of a clear refusal. Mirrors owner.ts's own existence
-  // probe for the same reason: "not covered" and "does not exist" are
-  // different facts and must not be conflated.
-  if (!existsSync(path.resolve(projectRoot, repoRelative))) {
+  // Usability probe BEFORE classification: a pure path: predicate can
+  // classify a path that does not exist on disk, is a directory, or is
+  // unreadable (it never needs to read content to match a glob), which would
+  // otherwise let one of those through as an EMPTY subject deeper in
+  // (buildNodelessUnitCtx skips an unreadable file rather than throwing,
+  // which read as a FALSE 'satisfied' verdict for content nobody actually
+  // checked) instead of a clear refusal, or hand a directory straight to the
+  // runner as a raw EISDIR. Mirrors owner.ts's own existence probe for the
+  // same reason: "not covered" and "does not exist" are different facts and
+  // must not be conflated — and now, neither is "does not exist" and "is not
+  // a readable file."
+  const unusable = probeUnusablePath(path.resolve(projectRoot, repoRelative));
+  if (unusable?.kind === 'missing') {
     return {
       kind: 'refused',
       messageData: {
         what: `'${repoRelative}' does not exist.`,
         why: `--file addresses a real, on-disk file — there is nothing to read or classify for a path that is not there.`,
         next: `Check the path for typos, or pass an existing file.`,
+      },
+    };
+  }
+  if (unusable?.kind === 'not-a-file') {
+    return {
+      kind: 'refused',
+      messageData: {
+        what: `'${repoRelative}' is ${unusable.noun}.`,
+        why: `--file reads one path's own content to classify and check it — a directory (or any other non-regular path) has no single file's content of its own.`,
+        next: `Pass the path to an individual file instead.`,
+      },
+    };
+  }
+  if (unusable?.kind === 'unreadable') {
+    return {
+      kind: 'refused',
+      messageData: {
+        what: `'${repoRelative}' exists but cannot be read (permission denied).`,
+        why: `--file reads the file's content to classify and check it — a file this process cannot open has nothing to read.`,
+        next: `Fix the file's read permission, then retry.`,
       },
     };
   }
@@ -895,14 +1002,16 @@ async function runLlmAspectTest(
             debugWrite(`[aspect-test] reviewer threw for ${aspect.id} on ${pair.unitKey} run ${i}/${repeat}: ${e instanceof Error ? e.message : String(e)}`);
             providerErrorRuns++;
             emitDiag(pair.unitKey, 'infra');
-            process.stdout.write(`${pair.unitKey} run ${i}/${repeat}: provider-error — reviewer threw: ${e instanceof Error ? e.message : String(e)}\n`);
+            // Infrastructure, not a code violation — same routing as every other
+            // provider-error report in this file (stderr, never stdout).
+            process.stderr.write(`${pair.unitKey} run ${i}/${repeat}: provider-error — reviewer threw: ${e instanceof Error ? e.message : String(e)}\n`);
             continue;
           }
           if (!response.satisfied && response.errorSource === 'provider') {
             debugWrite(`[aspect-test] provider error for ${aspect.id} on ${pair.unitKey} run ${i}/${repeat}: ${response.reason}`);
             providerErrorRuns++;
             emitDiag(pair.unitKey, 'infra');
-            process.stdout.write(`${pair.unitKey} run ${i}/${repeat}: provider-error — ${response.reason}\n`);
+            process.stderr.write(`${pair.unitKey} run ${i}/${repeat}: provider-error — ${response.reason}\n`);
             continue;
           }
           if (response.satisfied) satisfiedRuns++;
